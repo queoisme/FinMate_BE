@@ -21,31 +21,32 @@
 
 ### Infrastructure
 
-- [ ] Tạo `docker-compose.yml` với đủ services (backend, ai-service, postgres-main, postgres-ai, redis)
-- [ ] Tạo `.env.example` cho backend và ai-service
-- [ ] Cấu hình Serilog structured JSON logging cho backend
-- [ ] Cấu hình structlog cho ai-service
-- [ ] Setup `EditorConfig` và `.gitignore`
+- [x] Tạo `docker-compose.yml` với đủ services (backend, ai-service, postgres-main, postgres-ai, redis) — *Hangfire dashboard phục vụ qua path `/hangfire` trên chính service backend, không phải container riêng (xem note trong docker-compose.yml). Đã verify `docker compose up` full stack, cả 5 container healthy/running.*
+- [x] Tạo `.env.example` cho backend và ai-service
+- [x] Cấu hình Serilog structured JSON logging cho backend
+- [x] Cấu hình structlog cho ai-service
+- [x] Setup `EditorConfig` và `.gitignore`
 
 ### Backend Project Init
 
-- [ ] Tạo solution `FinMate.sln` với 4 projects (API, Application, Domain, Infrastructure, Tests)
-- [ ] Cấu hình `nullable enable`, `implicit usings` toàn solution
-- [ ] Cấu hình Npgsql với `UseSnakeCaseNamingConvention()`
-- [ ] Cấu hình `ExceptionHandlingMiddleware`
-- [ ] Cấu hình FluentValidation auto-registration
-- [ ] Cấu hình AutoMapper profile scan
-- [ ] Cấu hình Hangfire với PostgreSQL storage
-- [ ] Cấu hình Swagger/OpenAPI với JWT auth support
-- [ ] Cấu hình Rate Limiting (ASP.NET Core built-in)
+- [x] Tạo solution `FinMate.sln` với 4 projects (API, Application, Domain, Infrastructure, Tests) — *Dựng đủ 5 project theo ARCHITECTURE.md §2.1 (typo trong task gốc: liệt kê 5 tên nhưng ghi "4 projects").*
+- [x] Cấu hình `nullable enable`, `implicit usings` toàn solution — *qua `Directory.Build.props`, kèm `TreatWarningsAsErrors=true`.*
+- [x] Cấu hình Npgsql với `UseSnakeCaseNamingConvention()` — *Dùng `HasColumnName()` tường minh từng property thay vì thêm package `EFCore.NamingConventions` (không có trong TECH_STACK.md, tránh thêm dependency chưa duyệt).*
+- [x] Cấu hình `ExceptionHandlingMiddleware`
+- [x] Cấu hình FluentValidation auto-registration
+- [x] Cấu hình AutoMapper profile scan
+- [x] Cấu hình Hangfire với PostgreSQL storage
+- [x] Cấu hình Swagger/OpenAPI với JWT auth support
+- [x] Cấu hình Rate Limiting (ASP.NET Core built-in)
 
 ### AI Service Project Init
 
-- [ ] Tạo FastAPI project structure theo `ARCHITECTURE.md`
-- [ ] Setup Alembic cho AI DB migrations
-- [ ] Cấu hình structlog
-- [ ] Cấu hình internal API key authentication middleware
-- [ ] Setup `pytest` với `pytest-asyncio`
+- [x] Tạo FastAPI project structure theo `ARCHITECTURE.md`
+- [x] Setup Alembic cho AI DB migrations — *env.py dùng async engine, trỏ `finmate_ai`.*
+- [x] Cấu hình structlog
+- [x] Cấu hình internal API key authentication middleware
+- [x] Setup `pytest` với `pytest-asyncio` — *cấu hình trong `pyproject.toml`; chưa có test case thật (pipeline logic thuộc Phase 9).*
+- [!] Chạy `pytest`/`black`/`ruff` trực tiếp trên host qua pyenv Python 3.11 — *Blocked: máy thiếu `libffi-devel`/`readline-devel`/`sqlite-devel`/`xz-devel`, cần `sudo` (không có trong session) để cài. Không chặn Docker — `ai-service` build/chạy bình thường qua `python:3.11-slim` trong container, đã verify health endpoint 200.*
 
 ---
 
@@ -53,42 +54,44 @@
 
 ### Database
 
-- [ ] Migration: tạo bảng `users`
-- [ ] Migration: tạo bảng `refresh_tokens`
-- [ ] Migration: tạo bảng `audit_logs`
-- [ ] Migration: tạo bảng `data_deletion_requests`
-- [ ] Seed: tạo admin user mặc định
+- [x] Migration: tạo bảng `users`
+- [x] Migration: tạo bảng `refresh_tokens`
+- [x] Migration: tạo bảng `audit_logs`
+- [x] Migration: tạo bảng `data_deletion_requests` — *Cả 4 bảng gộp trong 1 migration `CreateAuthTables` (EF snapshot-diff không tách được thành 4 migration riêng có ý nghĩa do tạo cùng lúc — tách sẽ ra 3 migration rỗng).*
+- [x] Seed: tạo admin user mặc định — *`AdminUserSeeder`, đọc `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` từ env, idempotent, chạy sau `Database.Migrate()`. Verified: login thành công qua API.*
 
 ### Backend — Auth Module
 
-- [ ] Entity: `User`, `RefreshToken`, `AuditLog`
-- [ ] Repository: `IUserRepository`, `IRefreshTokenRepository`
-- [ ] Command: `RegisterCommand` + Handler + Validator
-- [ ] Command: `LoginCommand` + Handler + Validator
-- [ ] Command: `RefreshTokenCommand` + Handler
-- [ ] Command: `LogoutCommand` + Handler
-- [ ] Command: `LogoutAllDevicesCommand` + Handler
-- [ ] Command: `ChangePasswordCommand` + Handler + Validator
-- [ ] Command: `DeleteAccountCommand` + Handler
-- [ ] Controller: `AuthController` với tất cả endpoints
-- [ ] Middleware: JWT authentication cấu hình
-- [ ] Service: `TokenService` (generate, validate, hash JWT/refresh token)
-- [ ] Service: `AuditLogService` (ghi audit events)
-- [ ] Job: `DataDeletionJob` (hard delete sau 30 ngày)
+- [x] Entity: `User`, `RefreshToken`, `AuditLog` — *+ `DataDeletionRequest` (cần cho DeleteAccount/DataDeletionJob).*
+- [x] Repository: `IUserRepository`, `IRefreshTokenRepository` — *+ `IDataDeletionRequestRepository`, `IUserHardDeleter`.*
+- [x] Command: `RegisterCommand` + Handler + Validator
+- [x] Command: `LoginCommand` + Handler + Validator
+- [x] Command: `RefreshTokenCommand` + Handler — *Rotation + reuse-detection (revoke-all khi phát hiện token cũ bị dùng lại), atomic qua `RotateAsync` (1 DB transaction).*
+- [x] Command: `LogoutCommand` + Handler
+- [x] Command: `LogoutAllDevicesCommand` + Handler
+- [x] Command: `ChangePasswordCommand` + Handler + Validator — *Revoke toàn bộ refresh token hiện có sau khi đổi mật khẩu.*
+- [x] Command: `DeleteAccountCommand` + Handler — *Yêu cầu xác nhận password; soft-delete User + tạo `DataDeletionRequest` (+30 ngày).*
+- [x] Controller: `AuthController` với tất cả endpoints
+- [x] Middleware: JWT authentication cấu hình — *Global `[Authorize]` fallback policy, `[AllowAnonymous]` cho register/login/refresh; lưu ý fallback policy cũng áp dụng cho route không khớp endpoint nào — `/health` cần `.AllowAnonymous()` tường minh.*
+- [x] Service: `TokenService` (generate, validate, hash JWT/refresh token)
+- [x] Service: `AuditLogService` (ghi audit events)
+- [x] Job: `DataDeletionJob` (hard delete sau 30 ngày) — *Hangfire recurring, daily 03:00 (không có trong bảng job ARCHITECTURE.md §5, chọn cùng slot ý nghĩa với DataCleanupJob).*
 
 ### Backend — User Profile Module
 
-- [ ] Query: `GetUserProfileQuery` + Handler
-- [ ] Command: `UpdateUserProfileCommand` + Handler + Validator
-- [ ] Command: `UpdateNotificationPrefsCommand` + Handler
-- [ ] Controller: `UsersController`
+- [x] Query: `GetUserProfileQuery` + Handler — *Cache-aside Redis `user:{id}:profile`, TTL 15 phút.*
+- [x] Command: `UpdateUserProfileCommand` + Handler + Validator
+- [x] Command: `UpdateNotificationPrefsCommand` + Handler — *3 boolean: pushEnabled, budgetAlertsEnabled, missionRemindersEnabled.*
+- [x] Controller: `UsersController`
 
 ### Tests
 
-- [ ] Unit: `RegisterCommandHandler` tests (email duplicate, password validation)
-- [ ] Unit: `LoginCommandHandler` tests (wrong password, locked account)
-- [ ] Unit: `RefreshTokenCommandHandler` tests (rotation, reuse detection)
-- [ ] Integration: `AuthController` endpoints
+- [x] Unit: `RegisterCommandHandler` tests (email duplicate, password validation)
+- [x] Unit: `LoginCommandHandler` tests (wrong password, locked account)
+- [x] Unit: `RefreshTokenCommandHandler` tests (rotation, reuse detection)
+- [x] Integration: `AuthController` endpoints — *WebApplicationFactory + Testcontainers.PostgreSql, full round-trip register→login→refresh→reuse-detection. Redis thay bằng MemoryDistributedCache trong test (không có Redis thật trong môi trường test).*
+
+**Verify Phase 0+1 (2026-09-09):** `dotnet build` sạch 0 warning; `dotnet test` xanh 10/10 (chạy qua container SDK 9.0 vì host chỉ có .NET 10 runtime, không có sudo để cài .NET 9 runtime hệ thống); `docker compose up` — 5 container healthy/running; smoke test curl end-to-end (register/login/refresh-rotation/reuse-detection/admin-seed-login) đều đúng như thiết kế. Một bug thật được tìm thấy và sửa qua smoke test: enum `HasConversion<string>()` ghi PascalCase trong khi check constraint DB kỳ vọng lowercase.
 
 ---
 
@@ -400,8 +403,8 @@
 
 | Phase | Status | Tasks Done / Total |
 |---|---|---|
-| Phase 0 — Setup | `[ ]` | 0 / 15 |
-| Phase 1 — Auth & Profile | `[ ]` | 0 / 24 |
+| Phase 0 — Setup | `[x]` | 15 / 15 *(+1 sub-task blocked: pyenv/pytest trên host, không chặn Docker)* |
+| Phase 1 — Auth & Profile | `[x]` | 24 / 24 |
 | Phase 2 — Financial Accounts | `[ ]` | 0 / 11 |
 | Phase 3 — Categories | `[ ]` | 0 / 8 |
 | Phase 4 — Notifications & Transactions | `[ ]` | 0 / 28 |
@@ -410,9 +413,9 @@
 | Phase 7 — Gamification | `[ ]` | 0 / 20 |
 | Phase 8 — Admin | `[ ]` | 0 / 12 |
 | Phase 9 — AI Service | `[ ]` | 0 / 24 |
-| **Total** | | **0 / 176** |
+| **Total** | | **39 / 176** |
 
 ---
 
 *Last updated: 2026-09-09*
-*Next priority: Phase 0 — Project Setup*
+*Next priority: Phase 2 — Domain 3: Financial Accounts*
