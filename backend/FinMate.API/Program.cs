@@ -29,7 +29,12 @@ public class Program
             ?? throw new InvalidOperationException("DATABASE_URL is not configured.");
         var redisUrl = builder.Configuration["REDIS_URL"]
             ?? throw new InvalidOperationException("REDIS_URL is not configured.");
-        var jwtSecret = builder.Configuration["JWT_SECRET"];
+        var jwtSecret = builder.Configuration["JWT_SECRET"]
+            ?? throw new InvalidOperationException("JWT_SECRET is not configured.");
+        if (jwtSecret.Length < 64)
+        {
+            throw new InvalidOperationException("JWT_SECRET must be at least 64 characters long.");
+        }
 
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
@@ -78,36 +83,46 @@ public class Program
             .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(databaseUrl)));
         builder.Services.AddHangfireServer();
 
-        if (!string.IsNullOrWhiteSpace(jwtSecret))
-        {
-            if (jwtSecret.Length < 64)
+        builder.Services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
             {
-                throw new InvalidOperationException("JWT_SECRET must be at least 64 characters long.");
-            }
-
-            builder.Services
-                .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-                        ValidateIssuer = false,
-                        ValidateAudience = false,
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.Zero,
-                    };
-                });
-            builder.Services.AddAuthorization(options =>
-            {
-                options.FallbackPolicy = options.DefaultPolicy;
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero,
+                };
             });
-        }
+
+        // Every controller requires auth by default (AGENTS.md §3.2) — Auth's public
+        // endpoints opt out individually with [AllowAnonymous].
+        builder.Services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = options.DefaultPolicy;
+        });
+
+        builder.Services.AddScoped<Application.Common.Interfaces.IPasswordHasher, Infrastructure.ExternalServices.BCryptPasswordHasher>();
+        builder.Services.AddScoped<Application.Common.Interfaces.ITokenService, Infrastructure.ExternalServices.TokenService>();
+        builder.Services.AddScoped<Application.Common.Interfaces.IUserRepository, Infrastructure.Persistence.Repositories.UserRepository>();
+        builder.Services.AddScoped<Application.Common.Interfaces.IRefreshTokenRepository, Infrastructure.Persistence.Repositories.RefreshTokenRepository>();
+        builder.Services.AddScoped<Application.Common.Interfaces.IAuditLogService, Infrastructure.ExternalServices.AuditLogService>();
 
         builder.Services.AddFinMateRateLimiting();
 
         var app = builder.Build();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+            db.Database.Migrate();
+
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<Application.Common.Interfaces.IPasswordHasher>();
+            Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+        }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
@@ -121,11 +136,8 @@ public class Program
         app.UseHttpsRedirection();
         app.UseRateLimiter();
 
-        if (!string.IsNullOrWhiteSpace(jwtSecret))
-        {
-            app.UseAuthentication();
-            app.UseAuthorization();
-        }
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         var hangfireUser = builder.Configuration["HANGFIRE_DASHBOARD_USER"];
         var hangfirePass = builder.Configuration["HANGFIRE_DASHBOARD_PASS"];
