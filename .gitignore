@@ -1,0 +1,25 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+
+# Python
+ai-service/**/__pycache__/
+ai-service/**/*.pyc
+ai-service/.venv/
+ai-service/venv/
+ai-service/**/.pytest_cache/
+ai-service/models/*
+!ai-service/models/README.md
+
+# Env
+.env
+*.env.local
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
