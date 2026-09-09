@@ -9,6 +9,9 @@ ai-service/**/*.pyc
 ai-service/.venv/
 ai-service/venv/
 ai-service/**/.pytest_cache/
+ai-service/**/.ruff_cache/
+ai-service/**/htmlcov/
+ai-service/**/.coverage
 ai-service/models/*
 !ai-service/models/README.md
 
