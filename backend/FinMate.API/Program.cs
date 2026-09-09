@@ -1,7 +1,9 @@
 using FinMate.API.Middleware;
 using FinMate.Application.Auth.Commands;
+using FinMate.Application.Auth.Queries;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Infrastructure.BackgroundJobs;
+using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
@@ -117,6 +119,7 @@ public class Program
         builder.Services.AddScoped<IAuditLogService, AuditLogService>();
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
+        builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
         builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
@@ -125,6 +128,9 @@ public class Program
         builder.Services.AddScoped<ILogoutAllDevicesCommandHandler, LogoutAllDevicesCommandHandler>();
         builder.Services.AddScoped<IChangePasswordCommandHandler, ChangePasswordCommandHandler>();
         builder.Services.AddScoped<IDeleteAccountCommandHandler, DeleteAccountCommandHandler>();
+        builder.Services.AddScoped<IGetUserProfileQueryHandler, GetUserProfileQueryHandler>();
+        builder.Services.AddScoped<IUpdateUserProfileCommandHandler, UpdateUserProfileCommandHandler>();
+        builder.Services.AddScoped<IUpdateNotificationPrefsCommandHandler, UpdateNotificationPrefsCommandHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
 
