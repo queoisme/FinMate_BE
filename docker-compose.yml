@@ -51,6 +51,7 @@ services:
       # host-based `dotnet run`, not for service-to-service DNS inside compose.
       DATABASE_URL: "Host=postgres-main;Port=5432;Database=finmate_main;Username=finmate;Password=finmate"
       REDIS_URL: "redis:6379"
+      ASPNETCORE_ENVIRONMENT: "Development"
     ports:
       - "8080:8080"
       # /hangfire dashboard is served by this same process, no separate container

@@ -178,7 +178,7 @@ public class Program
             "0 3 * * *");
 
         app.MapControllers();
-        app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+        app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 
         app.Run();
     }
