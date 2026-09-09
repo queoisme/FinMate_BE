@@ -38,4 +38,23 @@ public class RefreshTokenRepository : IRefreshTokenRepository
     }
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
+
+    public async Task RotateAsync(RefreshToken oldToken, RefreshToken newToken, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        try
+        {
+            oldToken.RevokedAt = DateTimeOffset.UtcNow;
+            oldToken.ReplacedByTokenHash = newToken.TokenHash;
+            _context.RefreshTokens.Add(newToken);
+
+            await _context.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
+    }
 }

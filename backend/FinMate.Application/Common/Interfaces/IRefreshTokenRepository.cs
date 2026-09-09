@@ -9,4 +9,7 @@ public interface IRefreshTokenRepository
     Task RevokeAsync(RefreshToken token, string? replacedByTokenHash = null, CancellationToken ct = default);
     Task RevokeAllForUserAsync(Guid userId, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
+
+    /// <summary>Revokes <paramref name="oldToken"/> and inserts <paramref name="newToken"/> atomically.</summary>
+    Task RotateAsync(RefreshToken oldToken, RefreshToken newToken, CancellationToken ct = default);
 }

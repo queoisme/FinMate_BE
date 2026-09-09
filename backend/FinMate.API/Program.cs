@@ -1,5 +1,10 @@
 using FinMate.API.Middleware;
+using FinMate.Application.Auth.Commands;
+using FinMate.Application.Common.Interfaces;
+using FinMate.Infrastructure.BackgroundJobs;
+using FinMate.Infrastructure.ExternalServices;
 using FinMate.Infrastructure.Persistence;
+using FinMate.Infrastructure.Persistence.Repositories;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
@@ -105,11 +110,23 @@ public class Program
             options.FallbackPolicy = options.DefaultPolicy;
         });
 
-        builder.Services.AddScoped<Application.Common.Interfaces.IPasswordHasher, Infrastructure.ExternalServices.BCryptPasswordHasher>();
-        builder.Services.AddScoped<Application.Common.Interfaces.ITokenService, Infrastructure.ExternalServices.TokenService>();
-        builder.Services.AddScoped<Application.Common.Interfaces.IUserRepository, Infrastructure.Persistence.Repositories.UserRepository>();
-        builder.Services.AddScoped<Application.Common.Interfaces.IRefreshTokenRepository, Infrastructure.Persistence.Repositories.RefreshTokenRepository>();
-        builder.Services.AddScoped<Application.Common.Interfaces.IAuditLogService, Infrastructure.ExternalServices.AuditLogService>();
+        builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
+        builder.Services.AddScoped<ITokenService, TokenService>();
+        builder.Services.AddScoped<IUserRepository, UserRepository>();
+        builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+        builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
+        builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
+
+        builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
+        builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
+        builder.Services.AddScoped<IRefreshTokenCommandHandler, RefreshTokenCommandHandler>();
+        builder.Services.AddScoped<ILogoutCommandHandler, LogoutCommandHandler>();
+        builder.Services.AddScoped<ILogoutAllDevicesCommandHandler, LogoutAllDevicesCommandHandler>();
+        builder.Services.AddScoped<IChangePasswordCommandHandler, ChangePasswordCommandHandler>();
+        builder.Services.AddScoped<IDeleteAccountCommandHandler, DeleteAccountCommandHandler>();
+
+        builder.Services.AddScoped<DataDeletionJob>();
 
         builder.Services.AddFinMateRateLimiting();
 
@@ -120,8 +137,8 @@ public class Program
             var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
             db.Database.Migrate();
 
-            var passwordHasher = scope.ServiceProvider.GetRequiredService<Application.Common.Interfaces.IPasswordHasher>();
-            Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -148,6 +165,11 @@ public class Program
                 new HangfireBasicAuthFilter(hangfireUser, hangfirePass),
             },
         });
+
+        RecurringJob.AddOrUpdate<DataDeletionJob>(
+            "data-deletion",
+            job => job.RunAsync(CancellationToken.None),
+            "0 3 * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
