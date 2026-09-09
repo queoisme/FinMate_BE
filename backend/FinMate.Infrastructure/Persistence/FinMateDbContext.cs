@@ -1,3 +1,4 @@
+using FinMate.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence;
@@ -8,6 +9,11 @@ public class FinMateDbContext : DbContext
         : base(options)
     {
     }
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<DataDeletionRequest> DataDeletionRequests => Set<DataDeletionRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
