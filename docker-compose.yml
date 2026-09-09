@@ -1,0 +1,81 @@
+services:
+  postgres-main:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: finmate_main
+      POSTGRES_USER: finmate
+      POSTGRES_PASSWORD: finmate
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-main-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finmate -d finmate_main"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-ai:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: finmate_ai
+      POSTGRES_USER: finmate
+      POSTGRES_PASSWORD: finmate
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-ai-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finmate -d finmate_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Container-network overrides — .env's localhost:5433/6379 values are for
+      # host-based `dotnet run`, not for service-to-service DNS inside compose.
+      DATABASE_URL: "Host=postgres-main;Port=5432;Database=finmate_main;Username=finmate;Password=finmate"
+      REDIS_URL: "redis:6379"
+    ports:
+      - "8080:8080"
+      # /hangfire dashboard is served by this same process, no separate container
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: ./ai-service
+    env_file:
+      - ./ai-service/.env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://finmate:finmate@postgres-ai:5432/finmate_ai"
+      REDIS_URL: "redis://redis:6379"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres-ai:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-main-data:
+  postgres-ai-data:
