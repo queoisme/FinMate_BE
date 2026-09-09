@@ -33,7 +33,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(u => u.Role)
             .HasColumnName("role")
-            .HasConversion<string>()
+            .HasConversion(
+                v => v.ToString().ToLowerInvariant(),
+                v => Enum.Parse<UserRole>(v, true))
             .HasMaxLength(20)
             .IsRequired();
 

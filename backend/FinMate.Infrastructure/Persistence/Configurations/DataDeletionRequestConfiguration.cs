@@ -1,4 +1,5 @@
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -23,7 +24,9 @@ public class DataDeletionRequestConfiguration : IEntityTypeConfiguration<DataDel
 
         builder.Property(d => d.Status)
             .HasColumnName("status")
-            .HasConversion<string>()
+            .HasConversion(
+                v => v.ToString().ToLowerInvariant(),
+                v => Enum.Parse<DataDeletionStatus>(v, true))
             .HasMaxLength(20)
             .IsRequired();
 
