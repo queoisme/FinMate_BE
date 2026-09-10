@@ -12,11 +12,12 @@ namespace FinMate.Tests.Unit.Application.FinancialAccounts;
 public class DeleteFinancialAccountCommandHandlerTests
 {
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
+    private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly DeleteFinancialAccountCommandHandler _handler;
 
     public DeleteFinancialAccountCommandHandlerTests()
     {
-        _handler = new DeleteFinancialAccountCommandHandler(_financialAccountRepository.Object);
+        _handler = new DeleteFinancialAccountCommandHandler(_financialAccountRepository.Object, _transactionRepository.Object);
     }
 
     [Fact]
@@ -34,7 +35,25 @@ public class DeleteFinancialAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_ExistingAccount_SetsDeletedAt()
+    public async Task HandleAsync_AccountHasTransactions_ThrowsConflictExceptionAndDoesNotDelete()
+    {
+        var userId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, AccountType = AccountType.Cash, AccountName = "Ví" };
+
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+        _transactionRepository.Setup(r => r.HasAnyForAccountAsync(account.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var act = () => _handler.HandleAsync(new DeleteFinancialAccountCommand(userId, account.Id));
+
+        await act.Should().ThrowAsync<ConflictException>()
+            .Where(e => e.ErrorCode == FinancialAccountErrorCodes.HasTransactions);
+        _financialAccountRepository.Verify(r => r.UpdateAsync(It.IsAny<FinancialAccount>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ExistingAccountWithoutTransactions_SetsDeletedAt()
     {
         var userId = Guid.NewGuid();
         var account = new FinancialAccount
@@ -50,6 +69,8 @@ public class DeleteFinancialAccountCommandHandlerTests
 
         _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account);
+        _transactionRepository.Setup(r => r.HasAnyForAccountAsync(account.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
         FinancialAccount? updated = null;
         _financialAccountRepository
