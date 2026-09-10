@@ -21,7 +21,10 @@ public class GetBudgetSummaryQueryHandler : IGetBudgetSummaryQueryHandler
             ? BudgetCalendar.MonthlyPeriod(query.Year.Value, query.Month.Value)
             : BudgetCalendar.MonthlyPeriod(DateTimeOffset.UtcNow);
 
-        var cacheKey = CacheKeys.BudgetSummary(query.UserId, periodStart.Year, periodStart.Month);
+        // Lấy năm/tháng theo giờ VN, không lấy từ biểu diễn UTC của periodStart: mốc đầu
+        // tháng 10 giờ VN nằm ở 30/09 theo UTC, dùng thẳng sẽ ra key của tháng trước.
+        var (year, month) = BudgetCalendar.VietnamYearMonth(periodStart);
+        var cacheKey = CacheKeys.BudgetSummary(query.UserId, year, month);
         var cached = await _cache.GetAsync<BudgetSummaryDto>(cacheKey, ct);
         if (cached is not null)
         {

@@ -86,8 +86,8 @@ public class CreateBudgetCommandHandler : ICreateBudgetCommandHandler
         await _budgetRepository.AddAsync(budget, ct);
         budget.Category = category;
 
-        await _cache.RemoveAsync(
-            CacheKeys.BudgetSummary(command.UserId, periodStart.Year, periodStart.Month), ct);
+        var (year, month) = BudgetCalendar.VietnamYearMonth(now);
+        await _cache.RemoveAsync(CacheKeys.BudgetSummary(command.UserId, year, month), ct);
 
         return BudgetMapper.ToDto(budget);
     }

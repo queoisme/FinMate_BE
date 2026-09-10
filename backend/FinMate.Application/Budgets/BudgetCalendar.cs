@@ -14,16 +14,26 @@ public static class BudgetCalendar
     public static (DateTimeOffset Start, DateTimeOffset End) MonthlyPeriod(DateTimeOffset instant)
     {
         var local = instant.ToOffset(VietnamOffset);
-        var start = new DateTimeOffset(local.Year, local.Month, 1, 0, 0, 0, VietnamOffset);
-        return (start, start.AddMonths(1));
+        return MonthlyPeriod(local.Year, local.Month);
     }
 
     /// <summary>Nửa mở [start, end) của tháng <paramref name="year"/>/<paramref name="month"/> theo giờ VN.</summary>
     public static (DateTimeOffset Start, DateTimeOffset End) MonthlyPeriod(int year, int month)
     {
         var start = new DateTimeOffset(year, month, 1, 0, 0, 0, VietnamOffset);
-        return (start, start.AddMonths(1));
+
+        // Trả về ở UTC (cùng mốc thời gian, offset 0): Npgsql chỉ ghi được DateTimeOffset có
+        // offset 0 vào cột `timestamp with time zone`, kể cả khi dùng làm tham số truy vấn.
+        // Ranh giới tháng vẫn là ranh giới theo giờ VN — chỉ cách biểu diễn đổi.
+        return (start.ToUniversalTime(), start.AddMonths(1).ToUniversalTime());
     }
 
     public static DateTimeOffset CurrentMonthStart() => MonthlyPeriod(DateTimeOffset.UtcNow).Start;
+
+    /// <summary>Năm/tháng theo giờ VN của một mốc chu kỳ — dùng để dựng cache key.</summary>
+    public static (int Year, int Month) VietnamYearMonth(DateTimeOffset instant)
+    {
+        var local = instant.ToOffset(VietnamOffset);
+        return (local.Year, local.Month);
+    }
 }

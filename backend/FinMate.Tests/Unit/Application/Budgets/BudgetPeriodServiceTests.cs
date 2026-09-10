@@ -151,10 +151,25 @@ public class BudgetPeriodServiceTests
     {
         var (start, end) = BudgetCalendar.MonthlyPeriod(DateTimeOffset.Parse(instant));
 
-        start.Year.Should().Be(expectedYear);
-        start.Month.Should().Be(expectedMonth);
-        start.Day.Should().Be(1);
-        start.Offset.Should().Be(TimeSpan.FromHours(7));
-        end.Should().Be(start.AddMonths(1));
+        // Mốc trả về là 00:00 ngày 1 giờ VN, biểu diễn ở UTC (17:00 ngày cuối tháng trước).
+        var vnStart = new DateTimeOffset(expectedYear, expectedMonth, 1, 0, 0, 0, TimeSpan.FromHours(7));
+        start.Should().Be(vnStart);
+
+        // So với mốc đầu tháng KẾ TIẾP theo giờ VN, không phải start.AddMonths(1): start giờ
+        // là biểu diễn UTC nên cộng 1 tháng lên nó lệch khi 2 tháng khác số ngày.
+        end.Should().Be(vnStart.AddMonths(1));
+
+        BudgetCalendar.VietnamYearMonth(start).Should().Be((expectedYear, expectedMonth));
+    }
+
+    [Fact]
+    public void MonthlyPeriod_ReturnsUtcOffset_BecauseNpgsqlRejectsNonZeroOffsets()
+    {
+        // Npgsql chỉ ghi được DateTimeOffset offset 0 vào cột `timestamp with time zone` —
+        // kể cả khi giá trị chỉ dùng làm tham số truy vấn.
+        var (start, end) = BudgetCalendar.MonthlyPeriod(DateTimeOffset.UtcNow);
+
+        start.Offset.Should().Be(TimeSpan.Zero);
+        end.Offset.Should().Be(TimeSpan.Zero);
     }
 }

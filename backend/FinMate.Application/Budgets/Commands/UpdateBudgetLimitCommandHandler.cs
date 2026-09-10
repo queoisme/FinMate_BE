@@ -57,8 +57,8 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
 
         await _budgetRepository.UpdateAsync(budget, ct);
 
-        await _cache.RemoveAsync(
-            CacheKeys.BudgetSummary(command.UserId, periodStart.Year, periodStart.Month), ct);
+        var (year, month) = BudgetCalendar.VietnamYearMonth(now);
+        await _cache.RemoveAsync(CacheKeys.BudgetSummary(command.UserId, year, month), ct);
 
         return BudgetMapper.ToDto(budget);
     }
