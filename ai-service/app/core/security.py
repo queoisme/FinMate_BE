@@ -5,7 +5,9 @@ from fastapi import Header, HTTPException, status
 from app.core.config import settings
 
 
-async def verify_internal_api_key(authorization: str | None = Header(default=None)) -> None:
+async def verify_internal_api_key(
+    authorization: str | None = Header(default=None),
+) -> None:
     """Verify the ``Authorization: Bearer {key}`` header against INTERNAL_API_KEY."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
