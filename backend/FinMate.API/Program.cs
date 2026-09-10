@@ -45,6 +45,8 @@ public class Program
         {
             throw new InvalidOperationException("JWT_SECRET must be at least 64 characters long.");
         }
+        _ = builder.Configuration["GOOGLE_CLIENT_ID"]
+            ?? throw new InvalidOperationException("GOOGLE_CLIENT_ID is not configured.");
 
         builder.Services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -126,9 +128,11 @@ public class Program
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
+        builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
         builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
+        builder.Services.AddScoped<IGoogleLoginCommandHandler, GoogleLoginCommandHandler>();
         builder.Services.AddScoped<IRefreshTokenCommandHandler, RefreshTokenCommandHandler>();
         builder.Services.AddScoped<ILogoutCommandHandler, LogoutCommandHandler>();
         builder.Services.AddScoped<ILogoutAllDevicesCommandHandler, LogoutAllDevicesCommandHandler>();

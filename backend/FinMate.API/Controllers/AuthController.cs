@@ -12,6 +12,7 @@ public class AuthController : ControllerBase
 {
     private readonly IRegisterCommandHandler _registerHandler;
     private readonly ILoginCommandHandler _loginHandler;
+    private readonly IGoogleLoginCommandHandler _googleLoginHandler;
     private readonly IRefreshTokenCommandHandler _refreshHandler;
     private readonly ILogoutCommandHandler _logoutHandler;
     private readonly ILogoutAllDevicesCommandHandler _logoutAllHandler;
@@ -21,6 +22,7 @@ public class AuthController : ControllerBase
     public AuthController(
         IRegisterCommandHandler registerHandler,
         ILoginCommandHandler loginHandler,
+        IGoogleLoginCommandHandler googleLoginHandler,
         IRefreshTokenCommandHandler refreshHandler,
         ILogoutCommandHandler logoutHandler,
         ILogoutAllDevicesCommandHandler logoutAllHandler,
@@ -29,6 +31,7 @@ public class AuthController : ControllerBase
     {
         _registerHandler = registerHandler;
         _loginHandler = loginHandler;
+        _googleLoginHandler = googleLoginHandler;
         _refreshHandler = refreshHandler;
         _logoutHandler = logoutHandler;
         _logoutAllHandler = logoutAllHandler;
@@ -55,6 +58,15 @@ public class AuthController : ControllerBase
     {
         var result = await _loginHandler.HandleAsync(
             new LoginCommand(request.Email, request.Password, RemoteIp), ct);
+        return Ok(ApiResponse<AuthResultDto>.Ok(result));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("google")]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken ct)
+    {
+        var result = await _googleLoginHandler.HandleAsync(
+            new GoogleLoginCommand(request.IdToken, RemoteIp), ct);
         return Ok(ApiResponse<AuthResultDto>.Ok(result));
     }
 
@@ -99,6 +111,7 @@ public class AuthController : ControllerBase
 
 public record RegisterRequest(string Email, string Password, string DisplayName);
 public record LoginRequest(string Email, string Password);
+public record GoogleLoginRequest(string IdToken);
 public record RefreshRequest(string RefreshToken);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record DeleteAccountRequest(string Password);
