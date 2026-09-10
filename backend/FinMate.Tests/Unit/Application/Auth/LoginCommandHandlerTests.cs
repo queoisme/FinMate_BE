@@ -42,7 +42,7 @@ public class LoginCommandHandlerTests
     {
         var user = MakeUser();
         _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
-        _passwordHasher.Setup(h => h.Verify("wrong", user.PasswordHash)).Returns(false);
+        _passwordHasher.Setup(h => h.Verify("wrong", user.PasswordHash!)).Returns(false);
 
         var act = () => _handler.HandleAsync(new LoginCommand(user.Email, "wrong"));
 
@@ -56,7 +56,7 @@ public class LoginCommandHandlerTests
     {
         var user = MakeUser(isLocked: true);
         _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
-        _passwordHasher.Setup(h => h.Verify("correct", user.PasswordHash)).Returns(true);
+        _passwordHasher.Setup(h => h.Verify("correct", user.PasswordHash!)).Returns(true);
 
         var act = () => _handler.HandleAsync(new LoginCommand(user.Email, "correct"));
 
@@ -69,7 +69,7 @@ public class LoginCommandHandlerTests
     {
         var user = MakeUser();
         _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
-        _passwordHasher.Setup(h => h.Verify("correct", user.PasswordHash)).Returns(true);
+        _passwordHasher.Setup(h => h.Verify("correct", user.PasswordHash!)).Returns(true);
         _tokenService.Setup(t => t.GenerateAccessToken(user)).Returns("access-token");
         var expiresAt = DateTimeOffset.UtcNow.AddDays(30);
         _tokenService.Setup(t => t.GenerateRefreshToken())
@@ -83,5 +83,20 @@ public class LoginCommandHandlerTests
         _refreshTokenRepository.Verify(r => r.AddAsync(
             It.Is<RefreshToken>(rt => rt.UserId == user.Id && rt.TokenHash == "hashed-refresh-token"),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GoogleOnlyAccountHasNoPasswordHash_ThrowsInvalidCredentialsNotCrash()
+    {
+        var user = MakeUser();
+        user.PasswordHash = null;
+        user.GoogleId = "google-sub-123";
+        _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+
+        var act = () => _handler.HandleAsync(new LoginCommand(user.Email, "anything"));
+
+        await act.Should().ThrowAsync<AuthenticationException>()
+            .Where(e => e.ErrorCode == AuthErrorCodes.InvalidCredentials);
+        _passwordHasher.Verify(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 }

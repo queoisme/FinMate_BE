@@ -1,3 +1,4 @@
+using FinMate.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Caching.Distributed;
@@ -26,6 +27,7 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         Environment.SetEnvironmentVariable("JWT_SECRET", new string('x', 64));
         Environment.SetEnvironmentVariable("JWT_ACCESS_TTL_MINUTES", "15");
         Environment.SetEnvironmentVariable("JWT_REFRESH_TTL_DAYS", "30");
+        Environment.SetEnvironmentVariable("GOOGLE_CLIENT_ID", "dummy-client-id.apps.googleusercontent.com");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_USER", "admin");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_PASS", "admin");
         Environment.SetEnvironmentVariable("ADMIN_SEED_EMAIL", "");
@@ -46,6 +48,10 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
             services.RemoveAll<IDistributedCache>();
             services.AddSingleton<IDistributedCache, MemoryDistributedCache>();
             services.AddMemoryCache();
+
+            // Real GoogleTokenVerifier calls Google's servers — swap in a deterministic fake.
+            services.RemoveAll<IGoogleTokenVerifier>();
+            services.AddScoped<IGoogleTokenVerifier, FakeGoogleTokenVerifier>();
         });
     }
 }
