@@ -7,6 +7,7 @@ using Xunit;
 
 namespace FinMate.Tests.Integration.Controllers;
 
+[Collection("Integration")]
 public class AuthControllerTests : IClassFixture<AuthApiFactory>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
