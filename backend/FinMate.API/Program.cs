@@ -2,6 +2,8 @@ using FinMate.API.Middleware;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.Queries;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.FinancialAccounts.Commands;
+using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
@@ -16,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace FinMate.API;
 
@@ -43,7 +46,8 @@ public class Program
             throw new InvalidOperationException("JWT_SECRET must be at least 64 characters long.");
         }
 
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+            .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddEndpointsApiExplorer();
 
         builder.Services.AddSwaggerGen(options =>
@@ -120,6 +124,8 @@ public class Program
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
+        builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
+        builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
         builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
@@ -131,6 +137,13 @@ public class Program
         builder.Services.AddScoped<IGetUserProfileQueryHandler, GetUserProfileQueryHandler>();
         builder.Services.AddScoped<IUpdateUserProfileCommandHandler, UpdateUserProfileCommandHandler>();
         builder.Services.AddScoped<IUpdateNotificationPrefsCommandHandler, UpdateNotificationPrefsCommandHandler>();
+
+        builder.Services.AddScoped<ICreateFinancialAccountCommandHandler, CreateFinancialAccountCommandHandler>();
+        builder.Services.AddScoped<IUpdateFinancialAccountCommandHandler, UpdateFinancialAccountCommandHandler>();
+        builder.Services.AddScoped<IToggleAccountMonitoringCommandHandler, ToggleAccountMonitoringCommandHandler>();
+        builder.Services.AddScoped<IDeleteFinancialAccountCommandHandler, DeleteFinancialAccountCommandHandler>();
+        builder.Services.AddScoped<IGetAccountListQueryHandler, GetAccountListQueryHandler>();
+        builder.Services.AddScoped<IGetAccountBalanceQueryHandler, GetAccountBalanceQueryHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
 
@@ -145,6 +158,7 @@ public class Program
 
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
