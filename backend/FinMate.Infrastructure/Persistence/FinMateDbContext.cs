@@ -14,6 +14,8 @@ public class FinMateDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<DataDeletionRequest> DataDeletionRequests => Set<DataDeletionRequest>();
+    public DbSet<ProviderConfig> ProviderConfigs => Set<ProviderConfig>();
+    public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

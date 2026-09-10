@@ -17,4 +17,5 @@ public class User
     public DateTimeOffset? DeletedAt { get; set; }
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<FinancialAccount> FinancialAccounts { get; set; } = new List<FinancialAccount>();
 }
