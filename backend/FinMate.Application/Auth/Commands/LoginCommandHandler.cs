@@ -37,7 +37,7 @@ public class LoginCommandHandler : ILoginCommandHandler
 
         var user = await _userRepository.GetByEmailAsync(command.Email, ct);
 
-        if (user is null || !_passwordHasher.Verify(command.Password, user.PasswordHash))
+        if (user is null || user.PasswordHash is null || !_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
             await _auditLogService.LogAsync(
                 "Auth.Login.Failed", user?.Id, command.IpAddress, new { command.Email }, ct);

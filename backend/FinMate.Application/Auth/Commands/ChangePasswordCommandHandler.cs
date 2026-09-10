@@ -33,6 +33,12 @@ public class ChangePasswordCommandHandler : IChangePasswordCommandHandler
         var user = await _userRepository.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("User", command.UserId);
 
+        if (user.PasswordHash is null)
+        {
+            throw new AuthenticationException(
+                AuthErrorCodes.InvalidCredentials, "Tài khoản này chưa có mật khẩu (đăng nhập qua Google).");
+        }
+
         if (!_passwordHasher.Verify(command.CurrentPassword, user.PasswordHash))
         {
             throw new AuthenticationException(AuthErrorCodes.InvalidCredentials, "Mật khẩu hiện tại không đúng.");
