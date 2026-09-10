@@ -1,6 +1,8 @@
 using FinMate.API.Middleware;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.Queries;
+using FinMate.Application.Categories.Commands;
+using FinMate.Application.Categories.Queries;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
@@ -128,6 +130,7 @@ public class Program
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
+        builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
@@ -149,6 +152,11 @@ public class Program
         builder.Services.AddScoped<IGetAccountListQueryHandler, GetAccountListQueryHandler>();
         builder.Services.AddScoped<IGetAccountBalanceQueryHandler, GetAccountBalanceQueryHandler>();
 
+        builder.Services.AddScoped<ICreateCategoryCommandHandler, CreateCategoryCommandHandler>();
+        builder.Services.AddScoped<IUpdateCategoryCommandHandler, UpdateCategoryCommandHandler>();
+        builder.Services.AddScoped<IDeleteCategoryCommandHandler, DeleteCategoryCommandHandler>();
+        builder.Services.AddScoped<IGetCategoryListQueryHandler, GetCategoryListQueryHandler>();
+
         builder.Services.AddScoped<DataDeletionJob>();
 
         builder.Services.AddFinMateRateLimiting();
@@ -163,6 +171,7 @@ public class Program
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
