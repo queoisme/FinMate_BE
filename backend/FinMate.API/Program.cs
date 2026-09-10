@@ -1,6 +1,9 @@
 using FinMate.API.Middleware;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.Queries;
+using FinMate.Application.Budgets;
+using FinMate.Application.Budgets.Commands;
+using FinMate.Application.Budgets.Queries;
 using FinMate.Application.Categories.Commands;
 using FinMate.Application.Categories.Queries;
 using FinMate.Application.Common.Interfaces;
@@ -149,6 +152,8 @@ public class Program
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
         builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+        builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
+        builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
         builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
@@ -186,6 +191,11 @@ public class Program
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
         builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
+
+        builder.Services.AddScoped<ICreateBudgetCommandHandler, CreateBudgetCommandHandler>();
+        builder.Services.AddScoped<IUpdateBudgetLimitCommandHandler, UpdateBudgetLimitCommandHandler>();
+        builder.Services.AddScoped<IDeleteBudgetCommandHandler, DeleteBudgetCommandHandler>();
+        builder.Services.AddScoped<IGetBudgetSummaryQueryHandler, GetBudgetSummaryQueryHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();

@@ -1,6 +1,7 @@
 using System.Text;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -91,6 +92,28 @@ public class TransactionRepository : ITransactionRepository
 
     public Task<bool> HasAnyForCategoryAsync(Guid categoryId, CancellationToken ct = default)
         => _context.Transactions.AnyAsync(t => t.CategoryId == categoryId, ct);
+
+    public async Task<long> SumConfirmedSpendAsync(
+        Guid userId,
+        Guid? categoryId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken ct = default)
+    {
+        var query = _context.Transactions.Where(t =>
+            t.UserId == userId
+            && t.Status == TransactionStatus.Confirmed
+            && t.TransactionType == TransactionType.Debit
+            && t.TransactedAt >= from
+            && t.TransactedAt < to);
+
+        if (categoryId is not null)
+        {
+            query = query.Where(t => t.CategoryId == categoryId);
+        }
+
+        return await query.SumAsync(t => (long?)t.AmountCents, ct) ?? 0;
+    }
 
     private static string EncodeCursor(DateTimeOffset transactedAt, DateTimeOffset createdAt)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes($"{transactedAt:O}|{createdAt:O}"));
