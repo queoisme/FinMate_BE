@@ -6,6 +6,7 @@ using FinMate.Application.Categories.Queries;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
+using FinMate.Application.Notifications.Commands;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
@@ -18,7 +19,9 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Refit;
 using Serilog;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -49,6 +52,10 @@ public class Program
         }
         _ = builder.Configuration["GOOGLE_CLIENT_ID"]
             ?? throw new InvalidOperationException("GOOGLE_CLIENT_ID is not configured.");
+        var aiServiceUrl = builder.Configuration["AI_SERVICE_URL"]
+            ?? throw new InvalidOperationException("AI_SERVICE_URL is not configured.");
+        var aiServiceApiKey = builder.Configuration["AI_SERVICE_API_KEY"]
+            ?? throw new InvalidOperationException("AI_SERVICE_API_KEY is not configured.");
 
         builder.Services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -98,6 +105,13 @@ public class Program
             .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(databaseUrl)));
         builder.Services.AddHangfireServer();
 
+        builder.Services.AddRefitClient<IAIServiceApi>()
+            .ConfigureHttpClient(client =>
+            {
+                client.BaseAddress = new Uri(aiServiceUrl);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            });
+
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -131,6 +145,10 @@ public class Program
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+        builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
+        builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+        builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
+        builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
@@ -157,7 +175,10 @@ public class Program
         builder.Services.AddScoped<IDeleteCategoryCommandHandler, DeleteCategoryCommandHandler>();
         builder.Services.AddScoped<IGetCategoryListQueryHandler, GetCategoryListQueryHandler>();
 
+        builder.Services.AddScoped<IAnalyzeNotificationCommandHandler, AnalyzeNotificationCommandHandler>();
+
         builder.Services.AddScoped<DataDeletionJob>();
+        builder.Services.AddScoped<RetryFailedNotificationJob>();
 
         builder.Services.AddFinMateRateLimiting();
 
@@ -203,6 +224,11 @@ public class Program
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
             "0 3 * * *");
+
+        RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
+            "retry-failed-notifications",
+            job => job.RunAsync(CancellationToken.None),
+            "*/15 * * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();

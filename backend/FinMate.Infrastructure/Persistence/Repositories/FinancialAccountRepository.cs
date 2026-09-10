@@ -29,6 +29,10 @@ public class FinancialAccountRepository : IFinancialAccountRepository
         => _context.FinancialAccounts
             .AnyAsync(a => a.UserId == userId && a.PackageName == packageName, ct);
 
+    public Task<FinancialAccount?> GetByUserAndMonitoredPackageAsync(Guid userId, string packageName, CancellationToken ct = default)
+        => _context.FinancialAccounts
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.PackageName == packageName && a.IsMonitored, ct);
+
     public async Task AddAsync(FinancialAccount account, CancellationToken ct = default)
     {
         _context.FinancialAccounts.Add(account);

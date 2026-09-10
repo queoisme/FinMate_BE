@@ -28,6 +28,8 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         Environment.SetEnvironmentVariable("JWT_ACCESS_TTL_MINUTES", "15");
         Environment.SetEnvironmentVariable("JWT_REFRESH_TTL_DAYS", "30");
         Environment.SetEnvironmentVariable("GOOGLE_CLIENT_ID", "dummy-client-id.apps.googleusercontent.com");
+        Environment.SetEnvironmentVariable("AI_SERVICE_URL", "http://localhost:1");
+        Environment.SetEnvironmentVariable("AI_SERVICE_API_KEY", "dummy-ai-service-key-for-tests-min-32-chars");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_USER", "admin");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_PASS", "admin");
         Environment.SetEnvironmentVariable("ADMIN_SEED_EMAIL", "");
@@ -52,6 +54,11 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
             // Real GoogleTokenVerifier calls Google's servers — swap in a deterministic fake.
             services.RemoveAll<IGoogleTokenVerifier>();
             services.AddScoped<IGoogleTokenVerifier, FakeGoogleTokenVerifier>();
+
+            // AI Service pipeline (Phase 9) doesn't exist yet — swap in a deterministic fake
+            // instead of the real Refit client.
+            services.RemoveAll<IAIServiceClient>();
+            services.AddScoped<IAIServiceClient, FakeAIServiceClient>();
         });
     }
 }
