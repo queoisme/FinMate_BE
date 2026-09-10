@@ -46,7 +46,7 @@
 - [x] Cấu hình structlog
 - [x] Cấu hình internal API key authentication middleware
 - [x] Setup `pytest` với `pytest-asyncio` — *cấu hình trong `pyproject.toml`; chưa có test case thật (pipeline logic thuộc Phase 9).*
-- [!] Chạy `pytest`/`black`/`ruff` trực tiếp trên host qua pyenv Python 3.11 — *Blocked: máy thiếu `libffi-devel`/`readline-devel`/`sqlite-devel`/`xz-devel`, cần `sudo` (không có trong session) để cài. Không chặn Docker — `ai-service` build/chạy bình thường qua `python:3.11-slim` trong container, đã verify health endpoint 200.*
+- [x] Chạy `pytest`/`black`/`ruff`/`isort` trực tiếp trên host qua pyenv Python 3.11.16 — *Đã cài đủ lib hệ thống (`libffi-devel`/`readline-devel`/`sqlite-devel`/`xz-devel`/`tk-devel`/`bzip2-devel`; `zlib-devel` không còn tồn tại trên Fedora 44, thay bằng `zlib-ng-compat-devel` đã có sẵn), rebuild Python 3.11.16, tạo `.venv`, cài `requirements.txt` + `black`/`ruff`/`isort`. Verified: `pytest` chạy được (0 test), `black --check`/`ruff check`/`isort --check-only` đều pass.*
 
 ---
 
@@ -403,7 +403,7 @@
 
 | Phase | Status | Tasks Done / Total |
 |---|---|---|
-| Phase 0 — Setup | `[x]` | 15 / 15 *(+1 sub-task blocked: pyenv/pytest trên host, không chặn Docker)* |
+| Phase 0 — Setup | `[x]` | 15 / 15 |
 | Phase 1 — Auth & Profile | `[x]` | 24 / 24 |
 | Phase 2 — Financial Accounts | `[ ]` | 0 / 11 |
 | Phase 3 — Categories | `[ ]` | 0 / 8 |
