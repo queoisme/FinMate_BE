@@ -38,8 +38,10 @@ public record AnalyzeResponse(
     ModelVersions? ModelVersions,
     int? ProcessingMs);
 
+// TransactionId/UserId ở đây là Guid thật — băm SHA-256 trước khi gửi qua HTTP cũng là
+// trách nhiệm của Infrastructure, giống AnalyzeRequest.UserId ở trên.
 public record FeedbackRequest(
-    string BackendTransactionIdHash,
+    Guid TransactionId,
     Guid UserId,
     Guid? PipelineRequestId,
     string PackageName,

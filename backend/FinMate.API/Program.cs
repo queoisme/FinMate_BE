@@ -7,6 +7,8 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
+using FinMate.Application.Transactions.Commands;
+using FinMate.Application.Transactions.Queries;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
@@ -176,6 +178,14 @@ public class Program
         builder.Services.AddScoped<IGetCategoryListQueryHandler, GetCategoryListQueryHandler>();
 
         builder.Services.AddScoped<IAnalyzeNotificationCommandHandler, AnalyzeNotificationCommandHandler>();
+
+        builder.Services.AddScoped<IConfirmTransactionCommandHandler, ConfirmTransactionCommandHandler>();
+        builder.Services.AddScoped<ICreateManualTransactionCommandHandler, CreateManualTransactionCommandHandler>();
+        builder.Services.AddScoped<IUpdateTransactionCommandHandler, UpdateTransactionCommandHandler>();
+        builder.Services.AddScoped<IDeleteTransactionCommandHandler, DeleteTransactionCommandHandler>();
+        builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
+        builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
+        builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();

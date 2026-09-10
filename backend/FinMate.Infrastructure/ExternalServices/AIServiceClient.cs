@@ -19,7 +19,7 @@ public class AIServiceClient : IAIServiceClient
     {
         var apiRequest = new AnalyzeApiRequest(
             request.BackendRequestId,
-            HashUserId(request.UserId),
+            HashGuid(request.UserId),
             request.PackageName,
             request.NotificationTitle,
             request.NotificationBody,
@@ -63,8 +63,8 @@ public class AIServiceClient : IAIServiceClient
     public async Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default)
     {
         var apiRequest = new FeedbackApiRequest(
-            request.BackendTransactionIdHash,
-            HashUserId(request.UserId),
+            HashGuid(request.TransactionId),
+            HashGuid(request.UserId),
             request.PipelineRequestId,
             request.PackageName,
             request.PredictedCategory,
@@ -81,10 +81,10 @@ public class AIServiceClient : IAIServiceClient
         }
     }
 
-    // AGENTS.md §3.1: AI DB không lưu user_id thực — luôn gửi SHA-256(user_id) qua HTTP.
-    private static string HashUserId(Guid userId)
+    // AGENTS.md §3.1: AI DB không lưu user_id/transaction_id thực — luôn gửi SHA-256 qua HTTP.
+    private static string HashGuid(Guid value)
     {
-        var bytes = Encoding.UTF8.GetBytes(userId.ToString());
+        var bytes = Encoding.UTF8.GetBytes(value.ToString());
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexStringLower(hash);
     }
