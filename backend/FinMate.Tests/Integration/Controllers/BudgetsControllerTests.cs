@@ -33,7 +33,7 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
         long LimitCents, long SpentCents, long RemainingCents, int PercentUsed, bool IsOverLimit);
     private record SummaryData(
         DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd,
-        long TotalLimitCents, long TotalSpentCents, List<SummaryItem> Items);
+        SummaryItem? TotalBudget, List<SummaryItem> CategoryBudgets);
     private record SummaryBody(bool Success, SummaryData Data);
     private record TransactionData(Guid Id);
     private record TransactionBody(bool Success, TransactionData Data);
@@ -123,20 +123,24 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
 
         // Một lần chi tiêu phải tiêu hạn mức của cả budget category lẫn budget tổng.
         var afterSpend = await GetSummaryAsync(accessToken);
-        afterSpend.Items.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(250_000);
-        afterSpend.Items.Single(i => i.CategoryId is null).SpentCents.Should().Be(250_000);
-        afterSpend.Items.Single(i => i.CategorySlug == "food").PercentUsed.Should().Be(25);
-        // Total chỉ tổng hợp budget theo category — cộng cả budget tổng sẽ tính trùng.
-        afterSpend.TotalLimitCents.Should().Be(1_000_000);
-        afterSpend.TotalSpentCents.Should().Be(250_000);
+        afterSpend.CategoryBudgets.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(250_000);
+        afterSpend.TotalBudget!.SpentCents.Should().Be(250_000);
+        afterSpend.CategoryBudgets.Single(i => i.CategorySlug == "food").PercentUsed.Should().Be(25);
+        // Budget tổng đứng riêng, không nằm lẫn trong danh sách budget theo category.
+        afterSpend.CategoryBudgets.Should().OnlyContain(i => i.CategoryId != null);
+        afterSpend.TotalBudget!.PercentUsed.Should().Be(5);
+
+        // Mốc chu kỳ trả về theo giờ VN: ngày 1 của tháng, không phải 17:00 ngày cuối tháng trước.
+        afterSpend.PeriodStart.Offset.Should().Be(TimeSpan.FromHours(7));
+        afterSpend.PeriodStart.Day.Should().Be(1);
 
         var deleteResponse = await _client.SendAsync(
             AuthedRequest(HttpMethod.Delete, $"/api/v1/transactions/{transactionId}", accessToken));
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var afterDelete = await GetSummaryAsync(accessToken);
-        afterDelete.Items.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(0);
-        afterDelete.Items.Single(i => i.CategoryId is null).SpentCents.Should().Be(0);
+        afterDelete.CategoryBudgets.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(0);
+        afterDelete.TotalBudget!.SpentCents.Should().Be(0);
     }
 
     [Fact]
@@ -174,8 +178,8 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
         patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var summary = await GetSummaryAsync(accessToken);
-        summary.Items.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(0);
-        summary.Items.Single(i => i.CategorySlug == "transport").SpentCents.Should().Be(300_000);
+        summary.CategoryBudgets.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(0);
+        summary.CategoryBudgets.Single(i => i.CategorySlug == "transport").SpentCents.Should().Be(300_000);
     }
 
     [Fact]
@@ -198,7 +202,7 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
         await PostAsync("/api/v1/budgets", accessToken, new { categoryId = foodId, limitCents = 1_000_000L });
 
         var summary = await GetSummaryAsync(accessToken);
-        summary.Items.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(420_000);
+        summary.CategoryBudgets.Single(i => i.CategorySlug == "food").SpentCents.Should().Be(420_000);
     }
 
     [Fact]
@@ -220,7 +224,7 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
         });
 
         var summary = await GetSummaryAsync(accessToken);
-        summary.Items.Single(i => i.CategorySlug == "income").SpentCents.Should().Be(0);
+        summary.CategoryBudgets.Single(i => i.CategorySlug == "income").SpentCents.Should().Be(0);
     }
 
     [Fact]
@@ -272,7 +276,7 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
         (await _client.SendAsync(patchRequest)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var summary = await GetSummaryAsync(accessToken);
-        var item = summary.Items.Single(i => i.CategorySlug == "food");
+        var item = summary.CategoryBudgets.Single(i => i.CategorySlug == "food");
         item.LimitCents.Should().Be(2_000_000);
         item.PercentUsed.Should().Be(25);
         item.IsOverLimit.Should().BeFalse();
@@ -291,7 +295,7 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
             AuthedRequest(HttpMethod.Delete, $"/api/v1/budgets/{budgetId}", accessToken));
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        (await GetSummaryAsync(accessToken)).Items.Should().BeEmpty();
+        (await GetSummaryAsync(accessToken)).CategoryBudgets.Should().BeEmpty();
     }
 
     [Fact]

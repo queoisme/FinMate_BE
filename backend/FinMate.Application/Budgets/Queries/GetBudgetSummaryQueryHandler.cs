@@ -55,16 +55,13 @@ public class GetBudgetSummaryQueryHandler : IGetBudgetSummaryQueryHandler
                 spent > limit));
         }
 
-        // Budget tổng (CategoryId null) bao trùm mọi category nên cộng nó vào Total sẽ tính
-        // trùng — Total chỉ tổng hợp các budget theo category.
-        var categoryItems = items.Where(i => i.CategoryId is not null).ToList();
-
         var summary = new BudgetSummaryDto(
-            periodStart,
-            periodEnd,
-            categoryItems.Sum(i => i.LimitCents),
-            categoryItems.Sum(i => i.SpentCents),
-            items);
+            // Trả mốc chu kỳ theo giờ VN: cùng mốc thời gian, nhưng client đọc "01/09" thay vì
+            // "31/08 17:00Z" — biểu diễn UTC chỉ cần cho tầng lưu trữ (xem BudgetCalendar).
+            periodStart.ToOffset(BudgetCalendar.VietnamOffset),
+            periodEnd.ToOffset(BudgetCalendar.VietnamOffset),
+            items.SingleOrDefault(i => i.CategoryId is null),
+            items.Where(i => i.CategoryId is not null).ToList());
 
         await _cache.SetAsync(cacheKey, summary, CacheKeys.BudgetSummaryTtl, ct);
 
