@@ -19,6 +19,9 @@ public class UserRepository : IUserRepository
     public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default)
         => _context.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
 
+    public Task<User?> GetByGoogleIdAsync(string googleId, CancellationToken ct = default)
+        => _context.Users.FirstOrDefaultAsync(u => u.GoogleId == googleId, ct);
+
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default)
         => _context.Users.AnyAsync(u => u.Email == email, ct);
 

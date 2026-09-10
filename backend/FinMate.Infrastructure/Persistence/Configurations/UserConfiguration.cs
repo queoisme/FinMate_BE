@@ -23,8 +23,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.PasswordHash)
-            .HasColumnName("password_hash")
-            .IsRequired();
+            .HasColumnName("password_hash");
+
+        builder.Property(u => u.GoogleId)
+            .HasColumnName("google_id")
+            .HasMaxLength(255);
 
         builder.Property(u => u.DisplayName)
             .HasColumnName("display_name")
@@ -58,6 +61,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Email)
             .IsUnique()
             .HasDatabaseName("uq_users_email");
+
+        builder.HasIndex(u => u.GoogleId)
+            .IsUnique()
+            .HasDatabaseName("uq_users_google_id")
+            .HasFilter("google_id IS NOT NULL");
 
         builder.HasQueryFilter(u => u.DeletedAt == null);
 
