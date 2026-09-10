@@ -1,4 +1,5 @@
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -8,7 +9,11 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
 {
     public void Configure(EntityTypeBuilder<SavingGoal> builder)
     {
-        builder.ToTable("saving_goals");
+        builder.ToTable("saving_goals", t =>
+        {
+            t.HasCheckConstraint("chk_saving_goals_status", "status IN ('active','completed','cancelled')");
+            t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
+        });
 
         builder.HasKey(g => g.Id);
         builder.Property(g => g.Id)
@@ -27,11 +32,14 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
 
         builder.Property(g => g.Status)
             .HasColumnName("status")
+            .HasConversion(v => v.ToString().ToLowerInvariant(), v => Enum.Parse<SavingGoalStatus>(v, true))
             .HasMaxLength(20)
-            .HasDefaultValue("active")
+            .HasDefaultValue(SavingGoalStatus.Active)
             .IsRequired();
 
         builder.Property(g => g.Deadline).HasColumnName("deadline");
+        builder.Property(g => g.CompletedAt).HasColumnName("completed_at");
+        builder.Property(g => g.DeadlineNotifiedAt).HasColumnName("deadline_notified_at");
 
         builder.Property(g => g.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(g => g.UpdatedAt).HasColumnName("updated_at").IsRequired();
