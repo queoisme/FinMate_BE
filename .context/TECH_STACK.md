@@ -28,6 +28,8 @@
 ```xml
 <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.*" />
 <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
+<PackageReference Include="Google.Apis.Auth" Version="1.*" />
+<!-- Verify Google ID token (mobile Sign-In flow) cho POST /api/v1/auth/google -->
 ```
 
 **ORM & Database:**
