@@ -123,7 +123,7 @@
 ### Tests
 
 - [x] Unit: duplicate package_name per user validation — *`CreateFinancialAccountCommandHandlerTests` + integration test `CreateBankAccount_DuplicatePackageNameForSameUser_ReturnsConflict` (409 qua HTTP thật, dùng provider seed thật).*
-- [!] Unit: không xóa account đang có transactions — *Blocked by Phase 4: phụ thuộc `Transaction`/`ITransactionRepository`, chưa tồn tại ở Phase 2. `DeleteFinancialAccountCommandHandler` hiện chỉ soft-delete đơn thuần; sẽ bổ sung guard + test khi Phase 4 dựng `ITransactionRepository`.*
+- [x] Unit: không xóa account đang có transactions — *Bổ sung ở Phase 4 khi `ITransactionRepository` được dựng, xem TransactionsControllerTests/DeleteFinancialAccountCommandHandlerTests. 409 `FINANCIAL_ACCOUNT_HAS_TRANSACTIONS`.*
 
 ---
 
@@ -131,18 +131,18 @@
 
 ### Database
 
-- [ ] Migration: tạo bảng `categories`
-- [ ] Seed: 11 system categories (food, transport, shopping, education, housing, bills, entertainment, health, family, income, other)
+- [x] Migration: tạo bảng `categories` — *Nullable `user_id` phân biệt system (`NULL`) vs user custom category. 2 partial unique index tách riêng: `uq_categories_system_slug` (`user_id IS NULL`) và `uq_categories_user_slug` (`user_id IS NOT NULL`).*
+- [x] Seed: 11 system categories (food, transport, shopping, education, housing, bills, entertainment, health, family, income, other) — *`CategorySeeder`, slug khớp đúng taxonomy `category_slug` mà AI Service trả về (ARCHITECTURE.md §3.3).*
 
 ### Backend
 
-- [ ] Entity: `Category`
-- [ ] Repository: `ICategoryRepository`
-- [ ] Query: `GetCategoryListQuery` (system + user custom)
-- [ ] Command: `CreateCategoryCommand` + Handler + Validator
-- [ ] Command: `UpdateCategoryCommand` + Handler
-- [ ] Command: `DeleteCategoryCommand` + Handler (check có transaction không)
-- [ ] Controller: `CategoriesController`
+- [x] Entity: `Category`
+- [x] Repository: `ICategoryRepository`
+- [x] Query: `GetCategoryListQuery` (system + user custom)
+- [x] Command: `CreateCategoryCommand` + Handler + Validator — *Slug tự sinh server-side từ `Name` qua bảng ánh xạ ký tự tiếng Việt tường minh (`Slugify`), không dùng `string.Normalize`/`CharUnicodeInfo` vì solution bật `InvariantGlobalization=true` khiến 2 API đó cho kết quả sai (bug thật phát hiện qua test, xem note Retro-fix bên dưới).*
+- [x] Command: `UpdateCategoryCommand` + Handler — *Chỉ sửa `Name`/`IconName`, không đổi `Slug`. Repository chỉ trả category do chính user sở hữu (`GetOwnedByUserAsync`) nên sửa/xóa category hệ thống hoặc của người khác đều trả 404, không lộ tồn tại.*
+- [x] Command: `DeleteCategoryCommand` + Handler (check có transaction không) — *Guard `CATEGORY_HAS_TRANSACTIONS` (409) thêm trong commit dựng Transaction module (Phase 4), cùng lượt nên không bị block như FinancialAccount ở Phase 2.*
+- [x] Controller: `CategoriesController`
 
 ---
 
@@ -150,59 +150,62 @@
 
 ### Database
 
-- [ ] Migration: tạo bảng `notification_logs`
-- [ ] Migration: tạo bảng `ai_results`
-- [ ] Migration: tạo bảng `saving_goals` (trước transactions vì FK)
-- [ ] Migration: tạo bảng `transactions`
+- [x] Migration: tạo bảng `notification_logs`
+- [x] Migration: tạo bảng `ai_results`
+- [x] Migration: tạo bảng `saving_goals` (trước transactions vì FK) — *Bảng tối thiểu (Id/UserId/Name/Target/SavedCents/Status/Deadline) chỉ để `transactions.saving_goal_id` có FK trỏ tới — không có Repository/Command/Query/Controller, giống pattern `provider_configs` ở Phase 2. Full CRUD thuộc Phase 5.*
+- [x] Migration: tạo bảng `transactions` — *4 bảng gộp 1 migration `CreateTransactionTables` (tạo cùng lúc, giống Phase 1/2). Không có FK sang `budgets` (chưa tồn tại, cascade budget là logic tầng Application, không phải schema — xem note Blocked bên dưới).*
 
 ### Backend — Notification Module
 
-- [ ] Entity: `NotificationLog`, `AiResult`
-- [ ] Repository: `INotificationLogRepository`
-- [ ] Service: `IAIServiceClient` interface + `AIServiceClient` implementation (Refit)
-- [ ] Command: `AnalyzeNotificationCommand` + Handler
-  - [ ] Validate package trong whitelist user
-  - [ ] Hash dedup check
-  - [ ] Gọi AI Service
-  - [ ] Lưu notification_log và ai_result
-  - [ ] Tạo transaction draft nếu financial
-  - [ ] Push notification về Android
-- [ ] Controller: `NotificationsController`
-- [ ] Job: `RetryFailedNotificationJob` (retry status='failed', retry_count < 3)
+- [x] Entity: `NotificationLog`, `AiResult`
+- [x] Repository: `INotificationLogRepository`
+- [x] Service: `IAIServiceClient` interface + `AIServiceClient` implementation (Refit) — *Băm SHA-256 `user_id`/`transaction_id` ở tầng Infrastructure trước khi gửi qua HTTP (AGENTS.md §3.1). Lỗi HTTP/timeout → `AIServiceUnavailableException` (503 `NOTIFICATION_AI_SERVICE_UNAVAILABLE`) thay vì crash.*
+- [x] Command: `AnalyzeNotificationCommand` + Handler
+  - [x] Validate package trong whitelist user — *Chỉ xử lý nếu package khớp `FinancialAccount.PackageName` đang `IsMonitored=true` của user; không khớp → `NotificationLog.Status=Ignored`, không lỗi.*
+  - [x] Hash dedup check — *SHA-256(package+title+body+received_at làm tròn phút), cửa sổ 5 phút.*
+  - [x] Gọi AI Service
+  - [x] Lưu notification_log và ai_result
+  - [x] Tạo transaction draft nếu financial
+  - [x] Push notification về Android — *Chưa có push provider (FCM) được duyệt trong `TECH_STACK.md` → `LoggingPushNotificationService` (log-only stub qua `IPushNotificationService`). Cần quyết định provider trước khi làm bản thật.*
+- [x] Controller: `NotificationsController`
+- [x] Job: `RetryFailedNotificationJob` (retry status='failed', retry_count < 3) — *Hangfire, mỗi 15 phút (ARCHITECTURE.md §5).*
 
 ### Backend — Transaction Module
 
-- [ ] Entity: `Transaction`
-- [ ] Repository: `ITransactionRepository`
-- [ ] Command: `ConfirmTransactionCommand` + Handler
-  - [ ] Validate ownership
-  - [ ] DB transaction cho cascade: budget + gamification + streak
-  - [ ] Budget period update
-  - [ ] EXP award
-  - [ ] Streak check
-  - [ ] Mission condition trigger
-- [ ] Command: `CreateManualTransactionCommand` + Handler + Validator
-- [ ] Command: `UpdateTransactionCommand` + Handler + Validator
-  - [ ] Revert budget nếu category/amount/date thay đổi
-  - [ ] Lưu AI correction nếu category thay đổi
-- [ ] Command: `DeleteTransactionCommand` + Handler
-  - [ ] Revert budget nếu đã confirmed
-  - [ ] Revert EXP
-- [ ] Command: `ParseNaturalLanguageCommand` + Handler (gọi AI Service)
-- [ ] Query: `GetTransactionListQuery` + Handler (filter, cursor pagination)
-- [ ] Query: `GetTransactionDetailQuery` + Handler
-- [ ] Controller: `TransactionsController`
+- [x] Entity: `Transaction`
+- [x] Repository: `ITransactionRepository` — *`GetListAsync` dùng keyset/cursor pagination trên `(TransactedAt, CreatedAt)` — không dùng `Id` vì so sánh `Guid` bằng `<`/`>` không dịch được sang SQL đáng tin cậy qua EF/Npgsql.*
+- [x] Command: `ConfirmTransactionCommand` + Handler
+  - [x] Validate ownership
+  - [x] DB transaction cho cascade: budget + gamification + streak — *Atomicity đạt được không cần thêm abstraction Unit-of-Work: `FinancialAccountRepository` và `TransactionRepository` dùng chung 1 scoped `DbContext`/request, nên sửa cả 2 entity rồi gọi `SaveChangesAsync` 1 lần (qua handler nào cũng được) flush cả 2 trong 1 DB transaction ngầm của EF Core.*
+  - [!] Budget period update — *Blocked by Phase 5: `Budget`/`BudgetPeriod` chưa tồn tại.*
+  - [!] EXP award — *Blocked by Phase 7: Gamification module chưa tồn tại.*
+  - [!] Streak check — *Blocked by Phase 7.*
+  - [!] Mission condition trigger — *Blocked by Phase 7.*
+- [x] Command: `CreateManualTransactionCommand` + Handler + Validator — *Tạo trực tiếp `Status=Confirmed` (không qua bước confirm riêng vì không có AI draft), cascade balance ngay.*
+- [x] Command: `UpdateTransactionCommand` + Handler + Validator
+  - [!] Revert budget nếu category/amount/date thay đổi — *Blocked by Phase 5.*
+  - [x] Lưu AI correction nếu category thay đổi — *`POST /api/v1/feedback` best-effort, chỉ khi `Transaction.Source=Notification` (có category AI dự đoán để so sánh).*
+- [x] Command: `DeleteTransactionCommand` + Handler
+  - [!] Revert budget nếu đã confirmed — *Blocked by Phase 5.*
+  - [!] Revert EXP — *Blocked by Phase 7.*
+  - *(Revert `FinancialAccount.BalanceCents` khi xóa giao dịch đã Confirmed — không bị block, đã làm.)*
+- [x] Command: `ParseNaturalLanguageCommand` + Handler (gọi AI Service) — *Tái dùng `POST /api/v1/analyze` với `package_name="manual_entry"` thay vì thêm route AI Service mới (đã hỏi user trước khi quyết định, theo AGENTS.md §5 — đổi API contract Backend↔AI Service cần approval). Không persist, chỉ trả field để client prefill form tạo manual transaction.*
+- [x] Query: `GetTransactionListQuery` + Handler (filter, cursor pagination)
+- [x] Query: `GetTransactionDetailQuery` + Handler
+- [x] Controller: `TransactionsController`
 
 ### Tests — Critical
 
-- [ ] Unit: `ConfirmTransactionCommandHandler`
-  - [ ] Cascade budget update
-  - [ ] EXP award
-  - [ ] Streak update
-  - [ ] Rollback khi lỗi
-- [ ] Unit: `DeleteTransactionCommandHandler` — revert logic
-- [ ] Unit: `UpdateTransactionCommandHandler` — category change revert
-- [ ] Integration: Full notification → draft → confirm flow
+- [x] Unit: `ConfirmTransactionCommandHandler`
+  - [x] Cascade balance update (debit/credit đúng chiều) — *thay cho "cascade budget update", xem note Blocked by Phase 5 ở trên.*
+  - [-] EXP award — *Skipped: Blocked by Phase 7.*
+  - [-] Streak update — *Skipped: Blocked by Phase 7.*
+  - [x] Rollback khi lỗi — *test "đã confirmed rồi không confirm lại được" (422 `TRANSACTION_NOT_DRAFT`).*
+- [x] Unit: `DeleteTransactionCommandHandler` — revert logic (balance; budget/EXP revert skipped, xem note Blocked)
+- [x] Unit: `UpdateTransactionCommandHandler` — category change revert (feedback call) + amount/account change (balance revert+reapply)
+- [x] Integration: Full notification → draft → confirm flow — *Dùng `FakeAIServiceClient` (swap DI trong `AuthApiFactory`, giống `FakeGoogleTokenVerifier`) vì AI Service (Phase 9) chưa có route thật.*
+
+**Bổ sung guard bị Blocked ở Phase 2/3 (cùng lượt, vì `ITransactionRepository` giờ đã tồn tại):** `DeleteFinancialAccountCommandHandler` và `DeleteCategoryCommandHandler` giờ chặn xóa khi còn giao dịch tham chiếu (409 `FINANCIAL_ACCOUNT_HAS_TRANSACTIONS`/`CATEGORY_HAS_TRANSACTIONS`).
 
 ---
 
@@ -409,19 +412,21 @@
 |---|---|---|
 | Phase 0 — Setup | `[x]` | 15 / 15 |
 | Phase 1 — Auth & Profile | `[x]` | 25 / 25 *(+1: Google login, kéo từ Backlog)* |
-| Phase 2 — Financial Accounts | `[x]` | 10 / 11 *(+1 sub-task blocked: check has-transactions, phụ thuộc Phase 4)* |
-| Phase 3 — Categories | `[ ]` | 0 / 8 |
-| Phase 4 — Notifications & Transactions | `[ ]` | 0 / 28 |
+| Phase 2 — Financial Accounts | `[x]` | 11 / 11 *(guard has-transactions hoàn thành ở Phase 4, xem note dưới)* |
+| Phase 3 — Categories | `[x]` | 8 / 8 |
+| Phase 4 — Notifications & Transactions | `[x]` | 28 / 28 *(7 sub-task cascade budget/EXP/streak/mission đánh dấu `[!]` Blocked by Phase 5/7 — phần buildable được (FinancialAccount balance cascade) đã làm đầy đủ)* |
 | Phase 5 — Budget & Goals | `[ ]` | 0 / 22 |
 | Phase 6 — Reports | `[ ]` | 0 / 12 |
 | Phase 7 — Gamification | `[ ]` | 0 / 20 |
 | Phase 8 — Admin | `[ ]` | 0 / 12 |
 | Phase 9 — AI Service | `[ ]` | 0 / 24 |
-| **Total** | | **50 / 176** |
+| **Total** | | **87 / 176** |
 
 ---
 
 **Verify Phase 2 (2026-09-10):** `dotnet build` sạch 0 warning; `dotnet test` xanh 20/20 (chạy qua container SDK 9.0); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up` full stack từ volume rỗng — migration áp dụng sạch, seed đủ 5 provider configs; smoke test curl end-to-end (register/login → tạo bank account → tạo trùng package_name [409] → tạo cash account → list → toggle monitoring → get balance → delete → get balance sau xóa [404]) đều đúng như thiết kế. Một bug hạ tầng test được tìm thấy và sửa: `AuthApiFactory` set config qua `Environment.SetEnvironmentVariable` (process-wide) — khi 2 test class dùng factory riêng chạy song song (xunit mặc định chạy khác class song song), race trên biến môi trường khiến 2 `WebApplicationFactory` đôi khi trỏ cùng lúc vào 1 Postgres container, gây deadlock/connection-refused ngẫu nhiên. Fix bằng cách gom mọi integration test class vào chung 1 `[Collection("Integration")]` để chạy tuần tự.
 
+**Verify Phase 3+4 (2026-09-10):** `dotnet build` sạch 0 warning; `dotnet test` xanh 94/94, chạy lặp lại 2 lần liên tiếp không flake (chạy qua container SDK 9.0); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up` full stack (bao gồm `ai-service` thật — vẫn chỉ là FastAPI scaffold trống của Phase 0, chưa có route `/api/v1/analyze`) — smoke test curl end-to-end: seed đủ 11 category; tạo cash account → tạo manual transaction (debit) → balance giảm đúng → xóa account khi còn giao dịch bị 409 → xóa transaction → balance khôi phục → xóa account thành công; gọi `/notifications/analyze` với package đã whitelist nhắm vào `ai-service` thật (chưa có route) → xác nhận trả đúng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` (không crash 500), `notification_logs.status='failed'` đúng trong DB, log không có exception chưa xử lý. Nhánh AI thành công (financial → tạo transaction draft → confirm) được cover đầy đủ qua integration test với `FakeAIServiceClient` (chưa thể verify qua curl thật vì Phase 9 chưa code AI Service) — cùng giới hạn đã ghi nhận ở Google login.
+
 *Last updated: 2026-09-10*
-*Next priority: Phase 3 — Domain 6: Categories*
+*Next priority: Phase 5 — Domain 7 & 8: Budget & Saving Goals*
