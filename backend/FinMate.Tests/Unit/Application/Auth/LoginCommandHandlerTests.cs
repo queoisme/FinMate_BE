@@ -24,7 +24,8 @@ public class LoginCommandHandlerTests
             _refreshTokenRepository.Object,
             _passwordHasher.Object,
             _tokenService.Object,
-            _auditLogService.Object);
+            _auditLogService.Object,
+            new LoginCommandValidator());
     }
 
     private static User MakeUser(bool isLocked = false) => new()

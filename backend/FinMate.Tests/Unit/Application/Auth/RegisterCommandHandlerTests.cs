@@ -3,6 +3,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FluentAssertions;
+using FluentValidation;
 using Moq;
 using Xunit;
 
@@ -17,7 +18,8 @@ public class RegisterCommandHandlerTests
 
     public RegisterCommandHandlerTests()
     {
-        _handler = new RegisterCommandHandler(_userRepository.Object, _passwordHasher.Object, _auditLogService.Object);
+        _handler = new RegisterCommandHandler(
+            _userRepository.Object, _passwordHasher.Object, _auditLogService.Object, new RegisterCommandValidator());
     }
 
     [Fact]
@@ -61,5 +63,20 @@ public class RegisterCommandHandlerTests
 
         _auditLogService.Verify(a => a.LogAsync(
             "Auth.User.Registered", savedUser.Id, null, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("not-an-email", "Password123!", "Test User")]
+    [InlineData("valid@finmate.local", "short1", "Test User")]
+    [InlineData("valid@finmate.local", "Password123!", "")]
+    public async Task HandleAsync_InvalidFormat_ThrowsValidationExceptionAndDoesNotPersist(
+        string email, string password, string displayName)
+    {
+        var command = new RegisterCommand(email, password, displayName);
+
+        var act = () => _handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        _userRepository.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

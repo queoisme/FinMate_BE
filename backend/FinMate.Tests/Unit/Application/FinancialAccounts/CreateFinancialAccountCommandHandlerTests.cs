@@ -4,6 +4,7 @@ using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentAssertions;
+using FluentValidation;
 using Moq;
 using Xunit;
 
@@ -19,7 +20,8 @@ public class CreateFinancialAccountCommandHandlerTests
     {
         _handler = new CreateFinancialAccountCommandHandler(
             _financialAccountRepository.Object,
-            _providerConfigRepository.Object);
+            _providerConfigRepository.Object,
+            new CreateFinancialAccountCommandValidator());
     }
 
     private static ProviderConfig ActiveProvider(Guid id) => new()
@@ -138,5 +140,49 @@ public class CreateFinancialAccountCommandHandlerTests
         saved.Should().NotBeNull();
         saved!.PackageName.Should().Be(provider.PackageName);
         dto.ProviderDisplayName.Should().Be(provider.DisplayName);
+    }
+
+    [Fact]
+    public async Task HandleAsync_EmptyAccountName_ThrowsValidationExceptionAndDoesNotPersist()
+    {
+        var command = new CreateFinancialAccountCommand(Guid.NewGuid(), "", AccountType.Cash, null, 0);
+
+        var act = () => _handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        _financialAccountRepository.Verify(
+            r => r.AddAsync(It.IsAny<FinancialAccount>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NegativeInitialBalance_ThrowsValidationExceptionAndDoesNotPersist()
+    {
+        var command = new CreateFinancialAccountCommand(Guid.NewGuid(), "Ví âm", AccountType.Cash, null, -1);
+
+        var act = () => _handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        _financialAccountRepository.Verify(
+            r => r.AddAsync(It.IsAny<FinancialAccount>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CashAccountWithProviderConfigId_ThrowsValidationException()
+    {
+        var command = new CreateFinancialAccountCommand(Guid.NewGuid(), "Cash lỗi", AccountType.Cash, Guid.NewGuid(), 0);
+
+        var act = () => _handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task HandleAsync_BankAccountWithoutProviderConfigId_ThrowsValidationException()
+    {
+        var command = new CreateFinancialAccountCommand(Guid.NewGuid(), "Thiếu provider", AccountType.Bank, null, 0);
+
+        var act = () => _handler.HandleAsync(command);
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 }
