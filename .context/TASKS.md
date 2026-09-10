@@ -99,26 +99,26 @@
 
 ### Database
 
-- [ ] Migration: tạo bảng `provider_configs`
-- [ ] Migration: tạo bảng `financial_accounts`
-- [ ] Seed: system provider configs (MB Bank, Vietcombank, MoMo, ZaloPay, VNPay)
+- [x] Migration: tạo bảng `provider_configs`
+- [x] Migration: tạo bảng `financial_accounts` — *Cả 2 bảng gộp trong 1 migration `CreateFinancialAccountTables` (tạo cùng lúc, giống quyết định ở Phase 1). Unique partial index `uq_financial_accounts_user_package` trên `(user_id, package_name) WHERE package_name IS NOT NULL AND deleted_at IS NULL` enforce "duplicate package_name per user" ở tầng DB.*
+- [x] Seed: system provider configs (MB Bank, Vietcombank, MoMo, ZaloPay, VNPay) — *`ProviderConfigSeeder`, idempotent (upsert theo `provider_key`), chạy sau `AdminUserSeeder` trong `Program.cs`. Verified qua `psql`: đủ 5 dòng, đúng package_name.*
 
 ### Backend
 
-- [ ] Entity: `FinancialAccount`, `ProviderConfig`
-- [ ] Repository: `IFinancialAccountRepository`
-- [ ] Command: `CreateFinancialAccountCommand` + Handler + Validator
-- [ ] Command: `UpdateFinancialAccountCommand` + Handler
-- [ ] Command: `ToggleAccountMonitoringCommand` + Handler
-- [ ] Command: `DeleteFinancialAccountCommand` + Handler (soft)
-- [ ] Query: `GetAccountListQuery` + Handler
-- [ ] Query: `GetAccountBalanceQuery` + Handler (tính từ transactions)
-- [ ] Controller: `FinancialAccountsController`
+- [x] Entity: `FinancialAccount`, `ProviderConfig`
+- [x] Repository: `IFinancialAccountRepository` — *+ `IProviderConfigRepository` (đọc tối thiểu, dùng để validate provider khi tạo account; CRUD đầy đủ thuộc Phase 8 `AdminProviderConfigsController`).*
+- [x] Command: `CreateFinancialAccountCommand` + Handler + Validator
+- [x] Command: `UpdateFinancialAccountCommand` + Handler
+- [x] Command: `ToggleAccountMonitoringCommand` + Handler
+- [x] Command: `DeleteFinancialAccountCommand` + Handler (soft)
+- [x] Query: `GetAccountListQuery` + Handler
+- [x] Query: `GetAccountBalanceQuery` + Handler (tính từ transactions) — *`Transaction` entity chưa tồn tại (Phase 4) nên trả về `balance_cents` — pre-computed aggregate lưu sẵn trên `financial_accounts` (đúng AGENTS.md §3.3, cấm tính real-time từ transactions). Phase 4 sẽ cộng/trừ giá trị này trong `ConfirmTransactionCommand`/`DeleteTransactionCommand`.*
+- [x] Controller: `FinancialAccountsController`
 
 ### Tests
 
-- [ ] Unit: duplicate package_name per user validation
-- [ ] Unit: không xóa account đang có transactions
+- [x] Unit: duplicate package_name per user validation — *`CreateFinancialAccountCommandHandlerTests` + integration test `CreateBankAccount_DuplicatePackageNameForSameUser_ReturnsConflict` (409 qua HTTP thật, dùng provider seed thật).*
+- [!] Unit: không xóa account đang có transactions — *Blocked by Phase 4: phụ thuộc `Transaction`/`ITransactionRepository`, chưa tồn tại ở Phase 2. `DeleteFinancialAccountCommandHandler` hiện chỉ soft-delete đơn thuần; sẽ bổ sung guard + test khi Phase 4 dựng `ITransactionRepository`.*
 
 ---
 
@@ -405,7 +405,7 @@
 |---|---|---|
 | Phase 0 — Setup | `[x]` | 15 / 15 |
 | Phase 1 — Auth & Profile | `[x]` | 24 / 24 |
-| Phase 2 — Financial Accounts | `[ ]` | 0 / 11 |
+| Phase 2 — Financial Accounts | `[x]` | 10 / 11 *(+1 sub-task blocked: check has-transactions, phụ thuộc Phase 4)* |
 | Phase 3 — Categories | `[ ]` | 0 / 8 |
 | Phase 4 — Notifications & Transactions | `[ ]` | 0 / 28 |
 | Phase 5 — Budget & Goals | `[ ]` | 0 / 22 |
@@ -413,9 +413,11 @@
 | Phase 7 — Gamification | `[ ]` | 0 / 20 |
 | Phase 8 — Admin | `[ ]` | 0 / 12 |
 | Phase 9 — AI Service | `[ ]` | 0 / 24 |
-| **Total** | | **39 / 176** |
+| **Total** | | **49 / 176** |
 
 ---
 
-*Last updated: 2026-09-09*
-*Next priority: Phase 2 — Domain 3: Financial Accounts*
+**Verify Phase 2 (2026-09-10):** `dotnet build` sạch 0 warning; `dotnet test` xanh 20/20 (chạy qua container SDK 9.0); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up` full stack từ volume rỗng — migration áp dụng sạch, seed đủ 5 provider configs; smoke test curl end-to-end (register/login → tạo bank account → tạo trùng package_name [409] → tạo cash account → list → toggle monitoring → get balance → delete → get balance sau xóa [404]) đều đúng như thiết kế. Một bug hạ tầng test được tìm thấy và sửa: `AuthApiFactory` set config qua `Environment.SetEnvironmentVariable` (process-wide) — khi 2 test class dùng factory riêng chạy song song (xunit mặc định chạy khác class song song), race trên biến môi trường khiến 2 `WebApplicationFactory` đôi khi trỏ cùng lúc vào 1 Postgres container, gây deadlock/connection-refused ngẫu nhiên. Fix bằng cách gom mọi integration test class vào chung 1 `[Collection("Integration")]` để chạy tuần tự.
+
+*Last updated: 2026-09-10*
+*Next priority: Phase 3 — Domain 6: Categories*
