@@ -10,6 +10,8 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
+using FinMate.Application.SavingGoals.Commands;
+using FinMate.Application.SavingGoals.Queries;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
 using FinMate.Infrastructure.BackgroundJobs;
@@ -154,6 +156,7 @@ public class Program
         builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
+        builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
         builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
@@ -197,9 +200,17 @@ public class Program
         builder.Services.AddScoped<IDeleteBudgetCommandHandler, DeleteBudgetCommandHandler>();
         builder.Services.AddScoped<IGetBudgetSummaryQueryHandler, GetBudgetSummaryQueryHandler>();
 
+        builder.Services.AddScoped<ICreateSavingGoalCommandHandler, CreateSavingGoalCommandHandler>();
+        builder.Services.AddScoped<IUpdateSavingGoalCommandHandler, UpdateSavingGoalCommandHandler>();
+        builder.Services.AddScoped<IContributeToGoalCommandHandler, ContributeToGoalCommandHandler>();
+        builder.Services.AddScoped<ICancelSavingGoalCommandHandler, CancelSavingGoalCommandHandler>();
+        builder.Services.AddScoped<IGetSavingGoalListQueryHandler, GetSavingGoalListQueryHandler>();
+        builder.Services.AddScoped<IGetGoalProgressQueryHandler, GetGoalProgressQueryHandler>();
+
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
+        builder.Services.AddScoped<GoalDeadlineCheckJob>();
 
         builder.Services.AddFinMateRateLimiting();
 
@@ -255,6 +266,13 @@ public class Program
             "budget-alerts",
             job => job.RunAsync(CancellationToken.None),
             "0 * * * *");
+
+        // ARCHITECTURE.md §5 không quy định giờ cho job này — 08:00 là khung giờ hợp lý để
+        // gửi nhắc nhở, không trùng với các job nặng chạy đêm.
+        RecurringJob.AddOrUpdate<GoalDeadlineCheckJob>(
+            "goal-deadline-check",
+            job => job.RunAsync(CancellationToken.None),
+            "0 8 * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();

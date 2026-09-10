@@ -15,6 +15,8 @@ public class UpdateTransactionCommandHandlerTests
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
     private readonly Mock<IAIServiceClient> _aiServiceClient = new();
+    private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly UpdateTransactionCommandHandler _handler;
 
     public UpdateTransactionCommandHandlerTests()
@@ -24,6 +26,8 @@ public class UpdateTransactionCommandHandlerTests
             _financialAccountRepository.Object,
             _categoryRepository.Object,
             _aiServiceClient.Object,
+            _budgetPeriodService.Object,
+            _cache.Object,
             new UpdateTransactionCommandValidator());
     }
 
@@ -40,6 +44,7 @@ public class UpdateTransactionCommandHandlerTests
             AmountCents = 50_000,
             TransactionType = TransactionType.Debit,
             Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
             Source = TransactionSource.Manual,
         };
 
@@ -73,6 +78,7 @@ public class UpdateTransactionCommandHandlerTests
             AmountCents = 20_000,
             TransactionType = TransactionType.Debit,
             Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
             Source = TransactionSource.Manual,
         };
 
@@ -155,5 +161,73 @@ public class UpdateTransactionCommandHandlerTests
         _aiServiceClient.Verify(c => c.SendFeedbackAsync(
             It.Is<FeedbackRequest>(f => f.PredictedCategory == "food" && f.CorrectedCategory == "transport"),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ConfirmedTransaction_CategoryChanged_MovesSpendBetweenBudgets()
+    {
+        var userId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 500_000 };
+        var oldCategory = new Category { Id = Guid.NewGuid(), Slug = "food", Name = "Ăn uống" };
+        var newCategory = new Category { Id = Guid.NewGuid(), Slug = "transport", Name = "Di chuyển" };
+        var oldTransactedAt = DateTimeOffset.UtcNow.AddDays(-40);
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = account.Id,
+            CategoryId = oldCategory.Id,
+            Category = oldCategory,
+            AmountCents = 60_000,
+            TransactionType = TransactionType.Debit,
+            Status = TransactionStatus.Confirmed,
+            Source = TransactionSource.Manual,
+            TransactedAt = oldTransactedAt,
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+        _categoryRepository.Setup(r => r.GetByIdAsync(newCategory.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(newCategory);
+
+        var newTransactedAt = DateTimeOffset.UtcNow;
+        await _handler.HandleAsync(new UpdateTransactionCommand(
+            userId, transaction.Id, account.Id, newCategory.Id, 90_000, TransactionType.Debit, newTransactedAt, null, null));
+
+        // Hoàn lại theo category/số tiền/ngày CŨ...
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, oldCategory.Id, -60_000, oldTransactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
+        // ...rồi tính vào category/số tiền/ngày MỚI.
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, newCategory.Id, 90_000, newTransactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DraftTransaction_DoesNotTouchBudget()
+    {
+        var userId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 500_000 };
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = account.Id,
+            AmountCents = 50_000,
+            TransactionType = TransactionType.Debit,
+            Status = TransactionStatus.Draft,
+            Source = TransactionSource.Notification,
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+
+        await _handler.HandleAsync(new UpdateTransactionCommand(
+            userId, transaction.Id, account.Id, null, 999_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null));
+
+        _budgetPeriodService.VerifyNoOtherCalls();
     }
 }

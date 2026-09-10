@@ -12,17 +12,23 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly ICategoryRepository _categoryRepository;
+    private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly ICacheService _cache;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
 
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         ICategoryRepository categoryRepository,
+        IBudgetPeriodService budgetPeriodService,
+        ICacheService cache,
         IValidator<CreateManualTransactionCommand> validator)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
+        _budgetPeriodService = budgetPeriodService;
+        _cache = cache;
         _validator = validator;
     }
 
@@ -66,10 +72,21 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             UpdatedAt = now,
         };
 
-        // account đã tracked (cùng DbContext) — AddAsync flush cả 2 thay đổi atomically,
-        // xem ghi chú trong ConfirmTransactionCommandHandler.
+        // Giao dịch thủ công vào thẳng Status=Confirmed (không qua bước confirm riêng) nên
+        // phải tiêu hạn mức ngay tại đây, không phải ở ConfirmTransactionCommandHandler.
+        await _budgetPeriodService.ApplyDeltaAsync(
+            command.UserId,
+            category?.Id,
+            TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents),
+            command.TransactedAt,
+            ct);
+
+        // account và budget period đã tracked (cùng DbContext) — AddAsync flush mọi thay đổi
+        // atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
         await _transactionRepository.AddAsync(transaction, ct);
         transaction.Category = category;
+
+        await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
 
         return TransactionMapper.ToDto(transaction);
     }

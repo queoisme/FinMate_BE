@@ -13,11 +13,17 @@ public class DeleteTransactionCommandHandlerTests
 {
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
+    private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly DeleteTransactionCommandHandler _handler;
 
     public DeleteTransactionCommandHandlerTests()
     {
-        _handler = new DeleteTransactionCommandHandler(_transactionRepository.Object, _financialAccountRepository.Object);
+        _handler = new DeleteTransactionCommandHandler(
+            _transactionRepository.Object,
+            _financialAccountRepository.Object,
+            _budgetPeriodService.Object,
+            _cache.Object);
     }
 
     [Fact]
@@ -46,6 +52,7 @@ public class DeleteTransactionCommandHandlerTests
             AmountCents = 100_000,
             TransactionType = TransactionType.Credit,
             Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
         };
 
         _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
@@ -81,5 +88,36 @@ public class DeleteTransactionCommandHandlerTests
 
         transaction.DeletedAt.Should().NotBeNull();
         _financialAccountRepository.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _budgetPeriodService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task HandleAsync_ConfirmedDebit_RevertsBudgetSpendWithNegativeDelta()
+    {
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 500_000 };
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = account.Id,
+            CategoryId = categoryId,
+            AmountCents = 120_000,
+            TransactionType = TransactionType.Debit,
+            Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow.AddDays(-2),
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+
+        await _handler.HandleAsync(new DeleteTransactionCommand(userId, transaction.Id));
+
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, categoryId, -120_000, transaction.TransactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

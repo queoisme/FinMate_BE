@@ -13,6 +13,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAIServiceClient _aiServiceClient;
+    private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly ICacheService _cache;
     private readonly IValidator<UpdateTransactionCommand> _validator;
 
     public UpdateTransactionCommandHandler(
@@ -20,12 +22,16 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IFinancialAccountRepository financialAccountRepository,
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
+        IBudgetPeriodService budgetPeriodService,
+        ICacheService cache,
         IValidator<UpdateTransactionCommand> validator)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
         _aiServiceClient = aiServiceClient;
+        _budgetPeriodService = budgetPeriodService;
+        _cache = cache;
         _validator = validator;
     }
 
@@ -47,12 +53,29 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         }
 
         var now = DateTimeOffset.UtcNow;
+        var wasConfirmed = transaction.Status == TransactionStatus.Confirmed;
+        var oldTransactedAt = transaction.TransactedAt;
 
-        // Chỉ giao dịch đã Confirmed mới ảnh hưởng balance_cents — Draft chưa từng cộng/trừ
-        // gì nên đổi amount/account ở trạng thái Draft không cần revert.
-        // TODO [!] Blocked by Phase 5: revert/áp dụng lại budget_periods theo amount/category mới.
+        // Chỉ giao dịch đã Confirmed mới ảnh hưởng balance_cents và budget_periods — Draft
+        // chưa từng cộng/trừ gì nên đổi amount/account/category ở Draft không cần revert.
         if (transaction.Status == TransactionStatus.Confirmed)
         {
+            // Revert theo giá trị CŨ trước khi ghi đè entity: category, số tiền và ngày giao
+            // dịch cũ có thể trỏ vào một budget khác và một chu kỳ khác với giá trị mới.
+            await _budgetPeriodService.ApplyDeltaAsync(
+                command.UserId,
+                transaction.CategoryId,
+                -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
+                transaction.TransactedAt,
+                ct);
+
+            await _budgetPeriodService.ApplyDeltaAsync(
+                command.UserId,
+                newCategory?.Id,
+                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents),
+                command.TransactedAt,
+                ct);
+
             var oldAccount = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
                 ?? throw new NotFoundException("FinancialAccount", transaction.FinancialAccountId);
             var oldDelta = transaction.TransactionType == TransactionType.Credit ? transaction.AmountCents : -transaction.AmountCents;
@@ -82,10 +105,17 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         transaction.Description = command.Description;
         transaction.UpdatedAt = now;
 
-        // account(s) ở trên (nếu có) đã tracked cùng DbContext — UpdateAsync flush atomically,
-        // xem ghi chú trong ConfirmTransactionCommandHandler.
+        // account(s) và budget period(s) ở trên (nếu có) đã tracked cùng DbContext —
+        // UpdateAsync flush atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
         await _transactionRepository.UpdateAsync(transaction, ct);
         transaction.Category = newCategory;
+
+        if (wasConfirmed)
+        {
+            // Đổi ngày giao dịch có thể kéo chi tiêu sang chu kỳ khác — xóa cache cả 2 tháng.
+            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, oldTransactedAt, ct);
+            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
+        }
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
         {

@@ -15,6 +15,8 @@ public class CreateManualTransactionCommandHandlerTests
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
+    private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly CreateManualTransactionCommandHandler _handler;
 
     public CreateManualTransactionCommandHandlerTests()
@@ -23,7 +25,32 @@ public class CreateManualTransactionCommandHandlerTests
             _transactionRepository.Object,
             _financialAccountRepository.Object,
             _categoryRepository.Object,
+            _budgetPeriodService.Object,
+            _cache.Object,
             new CreateManualTransactionCommandValidator());
+    }
+
+    [Fact]
+    public async Task HandleAsync_DebitTransaction_ConsumesBudgetImmediately()
+    {
+        var userId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
+        var category = new Category { Id = Guid.NewGuid(), Slug = "food", Name = "Ăn uống" };
+        var transactedAt = DateTimeOffset.UtcNow;
+
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+        _categoryRepository.Setup(r => r.GetByIdAsync(category.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(category);
+
+        await _handler.HandleAsync(new CreateManualTransactionCommand(
+            userId, account.Id, category.Id, 45_000, TransactionType.Debit, transactedAt, null, null));
+
+        // Giao dịch thủ công tạo thẳng ở Confirmed nên không đi qua ConfirmTransactionCommand —
+        // hạn mức phải bị tiêu ngay tại đây.
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, category.Id, 45_000, transactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

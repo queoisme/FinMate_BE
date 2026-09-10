@@ -9,13 +9,19 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
 {
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
+    private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly ICacheService _cache;
 
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
-        IFinancialAccountRepository financialAccountRepository)
+        IFinancialAccountRepository financialAccountRepository,
+        IBudgetPeriodService budgetPeriodService,
+        ICacheService cache)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
+        _budgetPeriodService = budgetPeriodService;
+        _cache = cache;
     }
 
     public async Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
@@ -42,14 +48,23 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         transaction.Status = TransactionStatus.Confirmed;
         transaction.UpdatedAt = now;
 
-        // account đã được EF Core track từ GetByIdAsync (cùng DbContext scoped với
+        await _budgetPeriodService.ApplyDeltaAsync(
+            command.UserId,
+            transaction.CategoryId,
+            TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
+            transaction.TransactedAt,
+            ct);
+
+        // account và budget period đều đã được EF Core track (cùng DbContext scoped với
         // ITransactionRepository) — UpdateAsync bên dưới gọi SaveChangesAsync 1 lần duy nhất,
-        // flush cả transaction lẫn account trong cùng 1 DB transaction ngầm định của EF Core.
-        // Đây là cách đạt atomicity mà không cần thêm abstraction Unit-of-Work mới.
+        // flush cả ba trong cùng 1 DB transaction ngầm định của EF Core. Đây là cách đạt
+        // atomicity mà không cần thêm abstraction Unit-of-Work mới.
         //
-        // TODO [!] Blocked by Phase 5/7: cascade cập nhật budget_periods, cộng EXP, check
-        // streak, trigger mission condition — chưa có Budget/Gamification module.
+        // TODO [!] Blocked by Phase 7: cộng EXP, check streak, trigger mission condition —
+        // chưa có Gamification module.
         await _transactionRepository.UpdateAsync(transaction, ct);
+
+        await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
 
         return TransactionMapper.ToDto(transaction);
     }

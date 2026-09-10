@@ -13,11 +13,17 @@ public class ConfirmTransactionCommandHandlerTests
 {
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
+    private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly ConfirmTransactionCommandHandler _handler;
 
     public ConfirmTransactionCommandHandlerTests()
     {
-        _handler = new ConfirmTransactionCommandHandler(_transactionRepository.Object, _financialAccountRepository.Object);
+        _handler = new ConfirmTransactionCommandHandler(
+            _transactionRepository.Object,
+            _financialAccountRepository.Object,
+            _budgetPeriodService.Object,
+            _cache.Object);
     }
 
     private static (FinMate.Domain.Entities.Transaction Transaction, FinancialAccount Account) DraftDebit(Guid userId, long amount = 50_000)
@@ -31,6 +37,7 @@ public class ConfirmTransactionCommandHandlerTests
             AmountCents = amount,
             TransactionType = TransactionType.Debit,
             Status = TransactionStatus.Draft,
+            TransactedAt = DateTimeOffset.UtcNow,
         };
         return (transaction, account);
     }
@@ -94,5 +101,44 @@ public class ConfirmTransactionCommandHandlerTests
         await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
 
         account.BalanceCents.Should().Be(1_050_000);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DebitDraft_AddsSpendToBudgetPeriod()
+    {
+        var userId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var (transaction, account) = DraftDebit(userId, 50_000);
+        transaction.CategoryId = categoryId;
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, categoryId, 50_000, transaction.TransactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CreditDraft_DoesNotConsumeBudget()
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, account) = DraftDebit(userId, 50_000);
+        transaction.TransactionType = TransactionType.Credit;
+        transaction.CategoryId = Guid.NewGuid();
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+
+        // Tiền vào không tiêu hạn mức chi tiêu — delta phải là 0.
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, It.IsAny<Guid?>(), 0, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }
