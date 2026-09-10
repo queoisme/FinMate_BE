@@ -1,6 +1,6 @@
 # FinMate Backend — ASP.NET Core 9
 
-Layered architecture (API → Application → Domain → Infrastructure).
+Layered architecture (API → Application → Domain → Infrastructure), CQRS thủ công (không dùng MediatR).
 Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TECH_STACK.md` §1, `../.context/CONVENTIONS.md`.
 
 ## Projects
@@ -15,4 +15,71 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 
 ## Trạng thái
 
-Chưa scaffold code — xem `../.context/TASKS.md` Phase 0 để bắt đầu (tạo `FinMate.sln`, cấu hình Npgsql, Serilog, Hangfire, Swagger, Rate Limiting).
+Đã hoàn thành **Phase 0–2** (50/176 task, xem `../.context/TASKS.md`):
+
+- **Phase 0** — scaffold solution, Serilog, Hangfire, Swagger, Rate Limiting, EF Core + PostgreSQL.
+- **Phase 1** — Auth & User Profile: register/login/refresh-rotation/logout/change-password/delete-account, **Google Sign-In login** (`POST /auth/google`, auto-link tài khoản trùng email), profile + notification preferences.
+- **Phase 2** — Financial Accounts: CRUD tài khoản ngân hàng/ví điện tử/tiền mặt, seed 5 provider (MB Bank, Vietcombank, MoMo, ZaloPay, VNPay).
+
+Phase 3 trở đi (Categories, Transactions, Budget, Reports, Gamification, Admin) chưa bắt đầu.
+
+## API endpoints hiện có
+
+```
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+POST   /api/v1/auth/google              # Google Sign-In (Android ID token)
+POST   /api/v1/auth/refresh
+POST   /api/v1/auth/logout
+POST   /api/v1/auth/logout-all
+POST   /api/v1/auth/change-password
+DELETE /api/v1/auth/account
+
+GET    /api/v1/users/me
+PATCH  /api/v1/users/me
+PATCH  /api/v1/users/me/notification-prefs
+
+GET    /api/v1/financial-accounts
+POST   /api/v1/financial-accounts
+PATCH  /api/v1/financial-accounts/{id}
+PATCH  /api/v1/financial-accounts/{id}/monitoring
+GET    /api/v1/financial-accounts/{id}/balance
+DELETE /api/v1/financial-accounts/{id}
+
+GET    /health                          # AllowAnonymous, dùng cho healthcheck
+GET    /hangfire                        # Dashboard, basic auth (HANGFIRE_DASHBOARD_USER/PASS)
+```
+
+## Setup local
+
+```bash
+cp .env.example .env
+```
+
+Sửa `.env`:
+- `JWT_SECRET` — chuỗi ngẫu nhiên ≥ 64 ký tự (bắt buộc, app từ chối khởi động nếu ngắn hơn).
+- `GOOGLE_CLIENT_ID` — **Web OAuth Client ID** (không phải Android Client ID, không phải API Key) tạo trên Google Cloud Console → APIs & Services → Credentials. Bắt buộc để app khởi động (dù chưa dùng tính năng Google login).
+- `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` — tài khoản admin mặc định, seed tự động khi migrate.
+
+Chạy toàn bộ hạ tầng (từ thư mục gốc repo):
+
+```bash
+docker compose up -d postgres-main postgres-ai redis
+docker compose up -d backend
+curl http://localhost:8080/health
+```
+
+Backend tự chạy `Database.Migrate()` + seed admin user + seed provider configs khi khởi động — không cần chạy migration thủ công cho local dev.
+
+## Commands
+
+```bash
+dotnet build
+dotnet test
+dotnet test --filter FullyQualifiedName~ClassName.MethodName   # 1 test cụ thể
+dotnet ef migrations add <PascalCaseDescriptiveName> --project FinMate.Infrastructure --startup-project FinMate.API
+```
+
+**Lưu ý môi trường dev hiện tại:** host chỉ có .NET 10 runtime, không cài được .NET 9 runtime hệ thống (không có sudo) — mọi lệnh `dotnet build/test/ef` phải chạy qua container `mcr.microsoft.com/dotnet/sdk:9.0` (mount `backend/` + Docker socket cho Testcontainers). Xem lịch sử commit để biết câu lệnh `docker run` cụ thể.
+
+`dotnet test` cần Docker chạy được (Testcontainers.PostgreSql dựng DB thật cho integration test). Tests Google login dùng `FakeGoogleTokenVerifier` (swap qua DI trong `AuthApiFactory`) thay vì gọi Google thật.
