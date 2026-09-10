@@ -199,6 +199,7 @@ public class Program
 
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
+        builder.Services.AddScoped<BudgetAlertJob>();
 
         builder.Services.AddFinMateRateLimiting();
 
@@ -249,6 +250,11 @@ public class Program
             "retry-failed-notifications",
             job => job.RunAsync(CancellationToken.None),
             "*/15 * * * *");
+
+        RecurringJob.AddOrUpdate<BudgetAlertJob>(
+            "budget-alerts",
+            job => job.RunAsync(CancellationToken.None),
+            "0 * * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
