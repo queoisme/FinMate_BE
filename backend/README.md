@@ -15,15 +15,20 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 
 ## Trạng thái
 
-Đã hoàn thành **Phase 0–4** (87/176 task, xem `../.context/TASKS.md`):
+Đã hoàn thành **Phase 0–5** (109/176 task, xem `../.context/TASKS.md`):
 
 - **Phase 0** — scaffold solution, Serilog, Hangfire, Swagger, Rate Limiting, EF Core + PostgreSQL.
 - **Phase 1** — Auth & User Profile: register/login/refresh-rotation/logout/change-password/delete-account, **Google Sign-In login** (`POST /auth/google`, auto-link tài khoản trùng email), profile + notification preferences.
 - **Phase 2** — Financial Accounts: CRUD tài khoản ngân hàng/ví điện tử/tiền mặt, seed 5 provider (MB Bank, Vietcombank, MoMo, ZaloPay, VNPay).
 - **Phase 3** — Categories: system categories (seed 11, slug khớp AI Service taxonomy) + custom category của user.
-- **Phase 4** — Notifications & Transactions: `POST /notifications/analyze` (gọi AI Service qua `IAIServiceClient`/Refit, dedup theo hash, tạo transaction draft), transaction CRUD + confirm + cursor pagination. Cascade balance tài khoản đã làm đầy đủ; cascade budget/EXP/streak/mission đánh dấu `[!] Blocked by Phase 5/7` (2 module đó chưa tồn tại).
+- **Phase 4** — Notifications & Transactions: `POST /notifications/analyze` (gọi AI Service qua `IAIServiceClient`/Refit, dedup theo hash, tạo transaction draft), transaction CRUD + confirm + cursor pagination. Cascade balance tài khoản đã làm đầy đủ; cascade EXP/streak/mission vẫn đánh dấu `[!] Blocked by Phase 7`.
+- **Phase 5** — Budget & Saving Goals: hạn mức chi tiêu theo category **và** hạn mức tổng (`category_id` NULL), cộng dồn/hoàn lại `budget_periods.spent_cents` tự động khi giao dịch được tạo/confirm/sửa/xóa, cảnh báo 80%/100% (`BudgetAlertJob`, mỗi giờ); mục tiêu tiết kiệm + đóng góp + tiến độ on-track + nhắc quá hạn (`GoalDeadlineCheckJob`, 08:00 hàng ngày). Cascade budget đã gỡ toàn bộ TODO `[!] Blocked by Phase 5` của Phase 4.
 
-Phase 5 trở đi (Budget, Saving Goals, Reports, Gamification, Admin, AI Service) chưa bắt đầu. AI Service (`ai-service/`) vẫn chỉ là FastAPI scaffold trống — `/api/v1/analyze` thật chưa tồn tại, backend xử lý việc đó bằng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` thay vì crash.
+Phase 6 trở đi (Reports, Gamification, Admin, AI Service) chưa bắt đầu. AI Service (`ai-service/`) vẫn chỉ là FastAPI scaffold trống — `/api/v1/analyze` thật chưa tồn tại, backend xử lý việc đó bằng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` thay vì crash.
+
+**Hai điểm cần biết khi làm tiếp:**
+- Chu kỳ budget tính theo **giờ VN (UTC+7) cố định** (`BudgetCalendar`), không dùng `TimeZoneInfo.FindSystemTimeZoneById` vì `InvariantGlobalization=true` bật solution-wide. Mốc chu kỳ luôn trả về ở **offset 0** — Npgsql từ chối ghi `DateTimeOffset` có offset khác 0 vào cột `timestamptz`, kể cả khi chỉ dùng làm tham số truy vấn. Cần năm/tháng để dựng cache key thì dùng `BudgetCalendar.VietnamYearMonth`, đừng đọc `.Year`/`.Month` của giá trị UTC.
+- Push notification (budget alert, hoàn thành mục tiêu, nhắc quá hạn) vẫn đi qua `LoggingPushNotificationService` — chỉ ghi log. Chưa có push provider (FCM) được duyệt trong `TECH_STACK.md`; phần chọn-ai-để-gửi (tôn trọng `NotificationPreferences`) đã xong, chỉ thiếu kênh gửi thật.
 
 ## API endpoints hiện có
 
@@ -62,6 +67,18 @@ PATCH  /api/v1/transactions/{id}
 DELETE /api/v1/transactions/{id}
 POST   /api/v1/transactions/{id}/confirm  # Xác nhận transaction draft (từ notification)
 POST   /api/v1/transactions/parse       # Parse câu tiếng Việt tự nhiên qua AI Service, không persist
+
+GET    /api/v1/budgets                  # Tổng quan hạn mức tháng hiện tại (?year=&month= để xem tháng khác)
+POST   /api/v1/budgets                  # categoryId=null → hạn mức tổng cho toàn bộ chi tiêu
+PATCH  /api/v1/budgets/{id}             # Chỉ đổi limitCents
+DELETE /api/v1/budgets/{id}
+
+GET    /api/v1/saving-goals             # ?status=Active|Completed|Cancelled
+POST   /api/v1/saving-goals
+PATCH  /api/v1/saving-goals/{id}
+GET    /api/v1/saving-goals/{id}/progress    # % hoàn thành, on-track, lịch sử đóng góp gần đây
+POST   /api/v1/saving-goals/{id}/contribute  # Bookkeeping thuần — không trừ số dư tài khoản
+POST   /api/v1/saving-goals/{id}/cancel
 
 GET    /health                          # AllowAnonymous, dùng cho healthcheck
 GET    /hangfire                        # Dashboard, basic auth (HANGFIRE_DASHBOARD_USER/PASS)
