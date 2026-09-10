@@ -17,6 +17,10 @@ public class FinMateDbContext : DbContext
     public DbSet<ProviderConfig> ProviderConfigs => Set<ProviderConfig>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<AiResult> AiResults => Set<AiResult>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
