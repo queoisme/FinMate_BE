@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FluentValidation;
 
 namespace FinMate.Application.Auth.Commands;
 
@@ -9,21 +10,26 @@ public class ChangePasswordCommandHandler : IChangePasswordCommandHandler
     private readonly IPasswordHasher _passwordHasher;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IAuditLogService _auditLogService;
+    private readonly IValidator<ChangePasswordCommand> _validator;
 
     public ChangePasswordCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         IRefreshTokenRepository refreshTokenRepository,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IValidator<ChangePasswordCommand> validator)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _refreshTokenRepository = refreshTokenRepository;
         _auditLogService = auditLogService;
+        _validator = validator;
     }
 
     public async Task HandleAsync(ChangePasswordCommand command, CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(command, ct);
+
         var user = await _userRepository.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("User", command.UserId);
 

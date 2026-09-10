@@ -3,6 +3,7 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
+using FluentValidation;
 
 namespace FinMate.Application.FinancialAccounts.Commands;
 
@@ -10,17 +11,22 @@ public class CreateFinancialAccountCommandHandler : ICreateFinancialAccountComma
 {
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IProviderConfigRepository _providerConfigRepository;
+    private readonly IValidator<CreateFinancialAccountCommand> _validator;
 
     public CreateFinancialAccountCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
-        IProviderConfigRepository providerConfigRepository)
+        IProviderConfigRepository providerConfigRepository,
+        IValidator<CreateFinancialAccountCommand> validator)
     {
         _financialAccountRepository = financialAccountRepository;
         _providerConfigRepository = providerConfigRepository;
+        _validator = validator;
     }
 
     public async Task<FinancialAccountDto> HandleAsync(CreateFinancialAccountCommand command, CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(command, ct);
+
         string? packageName = null;
         string? providerDisplayName = null;
 

@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
+using FluentValidation;
 
 namespace FinMate.Application.Auth.Commands;
 
@@ -12,23 +13,28 @@ public class LoginCommandHandler : ILoginCommandHandler
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IValidator<LoginCommand> _validator;
 
     public LoginCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IValidator<LoginCommand> validator)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _auditLogService = auditLogService;
+        _validator = validator;
     }
 
     public async Task<AuthResultDto> HandleAsync(LoginCommand command, CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(command, ct);
+
         var user = await _userRepository.GetByEmailAsync(command.Email, ct);
 
         if (user is null || !_passwordHasher.Verify(command.Password, user.PasswordHash))

@@ -2,6 +2,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FluentValidation;
 
 namespace FinMate.Application.Auth.Commands;
 
@@ -9,15 +10,22 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
 {
     private readonly IUserRepository _userRepository;
     private readonly ICacheService _cacheService;
+    private readonly IValidator<UpdateUserProfileCommand> _validator;
 
-    public UpdateUserProfileCommandHandler(IUserRepository userRepository, ICacheService cacheService)
+    public UpdateUserProfileCommandHandler(
+        IUserRepository userRepository,
+        ICacheService cacheService,
+        IValidator<UpdateUserProfileCommand> validator)
     {
         _userRepository = userRepository;
         _cacheService = cacheService;
+        _validator = validator;
     }
 
     public async Task<UserProfileDto> HandleAsync(UpdateUserProfileCommand command, CancellationToken ct = default)
     {
+        await _validator.ValidateAndThrowAsync(command, ct);
+
         var user = await _userRepository.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("User", command.UserId);
 
