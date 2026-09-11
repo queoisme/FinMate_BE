@@ -1,4 +1,5 @@
 using FinMate.Domain.Entities;
+using FinMate.Domain.Entities.Gamification;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence;
@@ -26,6 +27,11 @@ public class FinMateDbContext : DbContext
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<AiResult> AiResults => Set<AiResult>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<UserGamification> UserGamifications => Set<UserGamification>();
+    public DbSet<Mission> Missions => Set<Mission>();
+    public DbSet<UserMission> UserMissions => Set<UserMission>();
+    public DbSet<MascotItem> MascotItems => Set<MascotItem>();
+    public DbSet<UserMascotItem> UserMascotItems => Set<UserMascotItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
