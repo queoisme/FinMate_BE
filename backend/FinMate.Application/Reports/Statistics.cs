@@ -6,9 +6,9 @@ namespace FinMate.Application.Reports;
 /// lệch trung bình và đồng thời thổi phồng độ lệch chuẩn, nên nó vừa làm dự báo sai vừa tự
 /// che giấu chính mình khỏi bị phát hiện là outlier.
 /// </summary>
-internal static class Statistics
+public static class Statistics
 {
-    internal static double Median(IReadOnlyList<double> values)
+    public static double Median(IReadOnlyList<double> values)
     {
         if (values.Count == 0)
         {
@@ -24,7 +24,7 @@ internal static class Statistics
     }
 
     /// <summary>Median absolute deviation — độ phân tán quanh trung vị.</summary>
-    internal static double MedianAbsoluteDeviation(IReadOnlyList<double> values)
+    public static double MedianAbsoluteDeviation(IReadOnlyList<double> values)
     {
         if (values.Count == 0)
         {
@@ -40,7 +40,7 @@ internal static class Statistics
     /// Khi MAD = 0 (mọi giá trị giống nhau) thì lùi về bội số của trung vị, nếu không mọi
     /// giá trị nhỉnh hơn trung vị một đồng cũng thành outlier.
     /// </summary>
-    internal static double UpperOutlierBound(IReadOnlyList<double> values, double thresholdInMads = 3.0)
+    public static double UpperOutlierBound(IReadOnlyList<double> values, double thresholdInMads = 3.0)
     {
         var median = Median(values);
         var mad = MedianAbsoluteDeviation(values);
@@ -51,7 +51,7 @@ internal static class Statistics
     }
 
     /// <summary>Bỏ các giá trị vượt ngưỡng outlier; luôn giữ lại ít nhất 1 giá trị.</summary>
-    internal static IReadOnlyList<double> TrimUpperOutliers(IReadOnlyList<double> values, double thresholdInMads = 3.0)
+    public static IReadOnlyList<double> TrimUpperOutliers(IReadOnlyList<double> values, double thresholdInMads = 3.0)
     {
         if (values.Count < 3)
         {

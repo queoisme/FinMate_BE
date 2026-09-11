@@ -222,6 +222,8 @@ public class Program
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
+        builder.Services.AddScoped<DailySummaryJob>();
+        builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
 
         builder.Services.AddFinMateRateLimiting();
@@ -285,6 +287,18 @@ public class Program
             "goal-deadline-check",
             job => job.RunAsync(CancellationToken.None),
             "0 8 * * *");
+
+        // Hangfire đọc cron theo UTC. ARCHITECTURE.md §5 ghi giờ theo ý định vận hành (giờ VN)
+        // nên hai job dưới phải trừ 7 tiếng: 17:05 UTC = 00:05 VN, 19:00 UTC = 02:00 VN.
+        RecurringJob.AddOrUpdate<DailySummaryJob>(
+            "daily-summary",
+            job => job.RunAsync(CancellationToken.None),
+            "5 17 * * *");
+
+        RecurringJob.AddOrUpdate<InsightGeneratorJob>(
+            "insight-generator",
+            job => job.RunAsync(CancellationToken.None),
+            "0 19 * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
