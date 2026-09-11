@@ -15,7 +15,7 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 
 ## Trạng thái
 
-Đã hoàn thành **Phase 0–5** (109/176 task, xem `../.context/TASKS.md`):
+Đã hoàn thành **Phase 0–7** (141/176 task, xem `../.context/TASKS.md`):
 
 - **Phase 0** — scaffold solution, Serilog, Hangfire, Swagger, Rate Limiting, EF Core + PostgreSQL.
 - **Phase 1** — Auth & User Profile: register/login/refresh-rotation/logout/change-password/delete-account, **Google Sign-In login** (`POST /auth/google`, auto-link tài khoản trùng email), profile + notification preferences.
@@ -24,11 +24,16 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 - **Phase 4** — Notifications & Transactions: `POST /notifications/analyze` (gọi AI Service qua `IAIServiceClient`/Refit, dedup theo hash, tạo transaction draft), transaction CRUD + confirm + cursor pagination. Cascade balance tài khoản đã làm đầy đủ; cascade EXP/streak/mission vẫn đánh dấu `[!] Blocked by Phase 7`.
 - **Phase 5** — Budget & Saving Goals: hạn mức chi tiêu theo category **và** hạn mức tổng (`category_id` NULL), cộng dồn/hoàn lại `budget_periods.spent_cents` tự động khi giao dịch được tạo/confirm/sửa/xóa, cảnh báo 80%/100% (`BudgetAlertJob`, mỗi giờ); mục tiêu tiết kiệm + đóng góp + tiến độ on-track + nhắc quá hạn (`GoalDeadlineCheckJob`, 08:00 hàng ngày). Cascade budget đã gỡ toàn bộ TODO `[!] Blocked by Phase 5` của Phase 4.
 
-Phase 6 trở đi (Reports, Gamification, Admin, AI Service) chưa bắt đầu. AI Service (`ai-service/`) vẫn chỉ là FastAPI scaffold trống — `/api/v1/analyze` thật chưa tồn tại, backend xử lý việc đó bằng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` thay vì crash.
+- **Phase 6** — Reports & Analytics: tổng quan tháng, phân tích theo danh mục, timeline gom theo ngày, dự báo chi tiêu (tính bằng thống kê trong backend, **không** gọi AI Service), spending insight sinh tự động mỗi đêm.
+- **Phase 7** — Gamification: EXP/level, chuỗi ngày, mission (daily/weekly/one_time), mascot item mở khóa theo level và mission. Gỡ nốt 4 TODO `[!] Blocked by Phase 7` — **backend không còn TODO nào bị block bởi phase khác**.
 
-**Hai điểm cần biết khi làm tiếp:**
+Phase 8 (Admin) và Phase 9 (AI Service) chưa bắt đầu. AI Service (`ai-service/`) vẫn chỉ là FastAPI scaffold trống — `/api/v1/analyze` thật chưa tồn tại, backend xử lý việc đó bằng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` thay vì crash.
+
+**Bốn điểm cần biết khi làm tiếp:**
 - Chu kỳ budget tính theo **giờ VN (UTC+7) cố định** (`BudgetCalendar`), không dùng `TimeZoneInfo.FindSystemTimeZoneById` vì `InvariantGlobalization=true` bật solution-wide. Mốc chu kỳ luôn trả về ở **offset 0** — Npgsql từ chối ghi `DateTimeOffset` có offset khác 0 vào cột `timestamptz`, kể cả khi chỉ dùng làm tham số truy vấn. Cần năm/tháng để dựng cache key thì dùng `BudgetCalendar.VietnamYearMonth`, đừng đọc `.Year`/`.Month` của giá trị UTC.
 - Push notification (budget alert, hoàn thành mục tiêu, nhắc quá hạn) vẫn đi qua `LoggingPushNotificationService` — chỉ ghi log. Chưa có push provider (FCM) được duyệt trong `TECH_STACK.md`; phần chọn-ai-để-gửi (tôn trọng `NotificationPreferences`) đã xong, chỉ thiếu kênh gửi thật.
+- **Hangfire đọc cron theo UTC**, còn `ARCHITECTURE.md` §5 ghi giờ vận hành theo giờ VN — 4 job của Phase 6/7 phải quy đổi tường minh: `daily-summary` `5 17 * * *` (00:05 VN), `insight-generator` `0 19 * * *` (02:00 VN), `streak-check` `55 16 * * *` (23:55 VN), `mission-reset` `1 17 * * *` (00:01 VN).
+- **Dự báo chi tiêu tính trong backend** (`StatisticalSpendingForecaster`), không gọi AI Service — `ISpendingForecaster` là chỗ Phase 9 cắm model AI vào mà không phải đổi controller hay DTO.
 
 ## API endpoints hiện có
 
@@ -79,6 +84,19 @@ PATCH  /api/v1/saving-goals/{id}
 GET    /api/v1/saving-goals/{id}/progress    # % hoàn thành, on-track, lịch sử đóng góp gần đây
 POST   /api/v1/saving-goals/{id}/contribute  # Bookkeeping thuần — không trừ số dư tài khoản
 POST   /api/v1/saving-goals/{id}/cancel
+
+GET    /api/v1/reports/monthly-summary  # ?year=&month= — mặc định tháng hiện tại (giờ VN)
+GET    /api/v1/reports/category-breakdown
+GET    /api/v1/reports/timeline         # Gom giao dịch theo ngày, cursor pagination
+GET    /api/v1/reports/forecast         # Dự báo chi tiêu tháng + mức độ tin cậy
+GET    /api/v1/reports/insights         # ?unreadOnly=
+PATCH  /api/v1/reports/insights/{id}/read
+
+GET    /api/v1/gamification/profile     # Level, EXP, chuỗi ngày
+GET    /api/v1/gamification/missions
+GET    /api/v1/gamification/missions/history
+GET    /api/v1/gamification/mascot      # Item đã sở hữu + chưa mở kèm điều kiện
+PUT    /api/v1/gamification/mascot/outfit
 
 GET    /health                          # AllowAnonymous, dùng cho healthcheck
 GET    /hangfire                        # Dashboard, basic auth (HANGFIRE_DASHBOARD_USER/PASS)

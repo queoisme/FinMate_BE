@@ -272,68 +272,82 @@
 
 ## Phase 6 — Domain 9: Reports & Analytics
 
+**Quyết định đã hỏi user (AGENTS.md §5):** `GetSpendingForecastQuery` **tính bằng thống kê ngay trong backend**, KHÔNG thêm route `/forecast` vào contract Backend↔AI Service (khác chữ "gọi AI Service" trong task gốc). Lý do: ngoại suy run-rate vốn là phép thống kê, đẩy qua HTTP sang AI Service không làm nó chính xác hơn mà lại làm tính năng báo cáo chết cho tới khi Phase 9 xong. `ISpendingForecaster` là chỗ Phase 9 cắm model AI vào mà không phải đổi controller hay DTO.
+
 ### Database
 
-- [ ] Migration: tạo bảng `daily_summaries`
-- [ ] Migration: tạa bảng `spending_insights`
+- [x] Migration: tạo bảng `daily_summaries` — *`summary_date` dùng `DateOnly` map sang `date`, tránh hẳn bẫy offset của `timestamptz`. Unique `(user_id, summary_date)` để job chạy lại cùng ngày thì upsert.*
+- [x] Migration: tạo bảng `spending_insights` — *Chống sinh trùng bằng **2 partial unique index**: `vs_last_month` không có category, mà Postgres coi mỗi NULL là distinct nên 1 index gộp sẽ để job đẻ insight trùng mỗi đêm — đúng cái bẫy budget tổng đã dính ở Phase 5. Gộp 1 migration `CreateReportTables`.*
 
 ### Backend
 
-- [ ] Query: `GetMonthlySummaryQuery` + Handler
-- [ ] Query: `GetCategoryBreakdownQuery` + Handler
-- [ ] Query: `GetTransactionTimelineQuery` + Handler (cursor pagination)
-- [ ] Query: `GetSpendingForecastQuery` + Handler (gọi AI Service)
-- [ ] Query: `GetSpendingInsightsQuery` + Handler
-- [ ] Controller: `ReportsController`
-- [ ] Job: `DailySummaryJob`
-- [ ] Job: `InsightGeneratorJob`
-  - [ ] vs_last_month insight
-  - [ ] recurring_detected insight
-  - [ ] unusual_spending insight
+- [x] Query: `GetMonthlySummaryQuery` + Handler — *Đọc `daily_summaries` cho ngày đã chốt và **lấp mọi ngày chúng chưa phủ bằng dữ liệu live**. Không suy "thiếu dòng summary" thành "ngày đó không tiêu gì" được: nó cũng đúng khi `DailySummaryJob` chưa chạy — smoke test thật đã bắt lỗi này (tổng tháng ra 300k trong khi breakdown/timeline ra 900k). Xem note Verify bên dưới.*
+- [x] Query: `GetCategoryBreakdownQuery` + Handler — *Tính live vì `daily_summaries` chỉ giữ top category. Phần trăm làm tròn xuống rồi dồn phần thiếu cho mục lớn nhất để tổng luôn đúng 100.*
+- [x] Query: `GetTransactionTimelineQuery` + Handler (cursor pagination) — ***Tái dùng `ITransactionRepository.GetListAsync`*** đã có cursor pagination từ Phase 4, handler chỉ gom kết quả theo ngày giờ VN. Không viết pagination lần hai.*
+- [x] Query: `GetSpendingForecastQuery` + Handler — *`StatisticalSpendingForecaster`: giữ nguyên phần đã tiêu thật, chỉ ngoại suy số ngày còn lại bằng trung vị + loại outlier theo MAD. Ngày không có giao dịch tính là 0 chứ không bỏ qua, nếu không run-rate thành "chi tiêu mỗi ngày CÓ tiêu". Trả kèm `Confidence` low/medium/high để client không trình bày con số dựng từ vài ngày như thể chắc chắn. Nhận đồng hồ qua constructor để test không phụ thuộc ngày trong tháng.*
+- [x] Query: `GetSpendingInsightsQuery` + Handler
+- [x] Controller: `ReportsController` — *thêm `PATCH /insights/{id}/read`.*
+- [x] Job: `DailySummaryJob` — *`5 17 * * *` UTC = **00:05 giờ VN**. Hangfire đọc cron theo UTC còn ARCHITECTURE.md §5 ghi giờ vận hành (giờ VN) nên phải quy đổi tường minh. Chi tiêu chưa phân loại không bao giờ được chọn làm top category.*
+- [x] Job: `InsightGeneratorJob` — *`0 19 * * *` UTC = **02:00 giờ VN**. Mọi insight kiểm tra tồn tại trước khi ghi nên chạy mỗi đêm không tích lũy bản trùng.*
+  - [x] vs_last_month insight — *So **cùng kỳ** (cùng số ngày đã trôi), không so cả tháng trước với nửa tháng này — làm thế thì lúc nào cũng ra "bạn tiêu ít hơn". Ngưỡng ≥15%; tháng trước không tiêu gì thì im lặng chứ không báo tăng vô hạn.*
+  - [x] recurring_detected insight — *Cần đủ cả 3: ≥3 lần, số tiền lệch ≤10%, khoảng cách 25–35 ngày. Thiếu một điều kiện thì quán quen giá thay đổi sẽ bị gắn nhãn thuê bao.*
+  - [x] unusual_spending insight — *So với chính category đó bằng median + 3·MAD, cần ≥5 mẫu để không gọi giao dịch thứ hai trong một danh mục là bất thường.*
 
 ### Tests
 
-- [ ] Unit: Forecast outlier detection
-- [ ] Unit: Monthly summary calculation
-- [ ] Unit: Category breakdown percentage
+- [x] Unit: Forecast outlier detection — *`StatisticsTests` (median/MAD/trim, thuần hàm) + `SpendingForecasterTests` với đồng hồ cố định.*
+- [x] Unit: Monthly summary calculation — *gồm cả trường hợp job chưa chạy và tháng chốt dở dang không được cộng trùng.*
+- [x] Unit: Category breakdown percentage — *tổng luôn 100 kể cả khi chia lẻ; nhóm chưa phân loại tách riêng.*
+- [x] Unit: `DailySummaryJobTests`, `InsightGeneratorJobTests`, `VietnamTimeTests`
+- [x] Integration: `ReportsControllerTests`
 
 ---
 
 ## Phase 7 — Domain 10: Gamification
 
+**Hai quyết định đã hỏi user (AGENTS.md §5):**
+1. **EXP bậc 2, chậm dần**: tổng EXP để đạt level N = `50·N·(N-1)` (lvl2=100, lvl3=300, lvl4=600, lvl5=1000). Nguồn EXP: xác nhận giao dịch +10, giao dịch thủ công +5, đóng góp mục tiêu +20, hoàn thành mission = `exp_reward` của mission.
+2. **Mascot mở khóa theo level + mission**, không có tiền tệ ảo. Cột `is_premium` để dành chỗ cho tier trả phí sau, Phase 7 chưa seed item nào dùng tới.
+
 ### Database
 
-- [ ] Migration: tạo bảng `user_gamification`
-- [ ] Migration: tạo bảng `mascot_items`
-- [ ] Migration: tạo bảng `user_mascot_items`
-- [ ] Migration: tạo bảng `missions`
-- [ ] Migration: tạo bảng `user_missions`
-- [ ] Seed: default missions (daily/weekly/one_time)
-- [ ] Seed: default mascot items (free tier)
+- [x] Migration: tạo bảng `user_gamification` — *Tạo lazily lần đầu user phát sinh hoạt động, không backfill user cũ. Query đọc hồ sơ KHÔNG ghi dòng mới — mở màn hình không được tạo dữ liệu.*
+- [x] Migration: tạo bảng `mascot_items` — *`unlock_level` và `unlock_mission_code` là 2 cột riêng thay vì một `unlock_value` đa nghĩa; CHECK constraint buộc mỗi `unlock_type` phải đi kèm đúng dữ liệu của nó, nếu không item có thể nằm ở trạng thái vĩnh viễn không mở được mà không ai nhận ra.*
+- [x] Migration: tạo bảng `user_mascot_items` — *`item_type` nhân bản từ catalog để ràng buộc "mỗi loại chỉ mặc 1 món" là partial unique index thật; partial index của Postgres không tham chiếu được bảng join.*
+- [x] Migration: tạo bảng `missions` — *`condition_type` là enum có tên + `condition_target` thay vì DSL JSON: tập điều kiện hữu hạn và biết trước nên kiểu có tên vừa dịch được sang SQL, vừa được compiler kiểm tra, vừa test vét cạn được.*
+- [x] Migration: tạo bảng `user_missions` — *Dòng chu kỳ hiện tại sinh **lazily** khi user hoạt động hoặc mở màn hình mission (cùng pattern `budget_periods` ở Phase 5). Mission `one_time` dùng `period_start` quy ước cố định để unique index cho mỗi user đúng 1 dòng trọn đời. 5 bảng gộp 1 migration `CreateGamificationTables`.*
+- [x] Seed: default missions (daily/weekly/one_time) — *7 mission; idempotent theo `code`, không ghi đè mission đã có vì Phase 8 sẽ cho admin sửa nội dung.*
+- [x] Seed: default mascot items (free tier) — *8 item, tất cả `is_premium=false`.*
 
 ### Backend
 
-- [ ] Entity: `UserGamification`, `Mission`, `UserMission`, `MascotItem`, `UserMascotItem`
-- [ ] Repository: `IGamificationRepository`, `IMissionRepository`
-- [ ] Service: `IGamificationService`
-  - [ ] `AwardExpAsync()` — cộng EXP, check level up
-  - [ ] `UpdateStreakAsync()` — cập nhật streak
-  - [ ] `CheckMissionConditionsAsync()` — evaluate missions
-  - [ ] `UnlockMascotItemAsync()` — unlock item khi đủ điều kiện
-- [ ] Query: `GetGamificationProfileQuery`
-- [ ] Query: `GetActiveMissionsQuery`
-- [ ] Query: `GetMissionHistoryQuery`
-- [ ] Query: `GetMascotInventoryQuery`
-- [ ] Command: `UpdateMascotOutfitCommand`
-- [ ] Controller: `GamificationController`
-- [ ] Job: `StreakCheckJob`
-- [ ] Job: `MissionResetJob`
+- [x] Entity: `UserGamification`, `Mission`, `UserMission`, `MascotItem`, `UserMascotItem`
+- [x] Repository: `IGamificationRepository`, `IMissionRepository`
+- [x] Service: `IGamificationService` — *`RecordActivityAsync` là cửa vào duy nhất cho 4 handler, gộp cả 4 bước để không handler nào gọi thiếu. Giống `IBudgetPeriodService`: chỉ track, KHÔNG `SaveChangesAsync`, nên gamification nằm cùng 1 DB transaction ngầm với transaction/balance/budget.*
+  - [x] `AwardExpAsync()` — cộng EXP, check level up — *EXP thưởng mission cộng trước khi tính lại level nên một hoạt động hoàn thành mission có thể nhảy nhiều bậc một lúc. `LevelForExp` dùng vòng lặp chứ không giải phương trình bậc 2 bằng `Math.Sqrt` — sai số dấu phẩy động có thể rơi ngay dưới mốc, mà mốc là đúng chỗ user để ý nhất.*
+  - [x] `UpdateStreakAsync()` — *Theo lịch VN qua `VietnamTime.DateOf`. Cùng ngày không cộng dồn; đứt quãng về 1; `longest_streak_days` giữ nguyên vì đó là kỷ lục, không phải trạng thái.*
+  - [x] `CheckMissionConditionsAsync()` — *Mission `LoginStreak` lấy thẳng giá trị streak chứ không tăng dần, vì streak là trạng thái chứ không phải số lần ghi nhận.*
+  - [x] `UnlockMascotItemAsync()` — *Item mở theo mission phải xét cả mission vừa hoàn thành **trong chính lượt này**: nó mới được track chứ chưa lưu nên truy vấn DB không thấy, không xử lý riêng thì phần thưởng chỉ xuất hiện ở lần hoạt động kế tiếp.*
+- [x] Query: `GetGamificationProfileQuery` — *cache `user:{id}:gamification` 10 phút (ARCHITECTURE.md §6).*
+- [x] Query: `GetActiveMissionsQuery` — *cache `user:{id}:active_missions` 30 phút. Mission chưa được chạm tới vẫn hiện với tiến độ 0 dù chưa có dòng DB — user không thể làm nhiệm vụ mình không nhìn thấy.*
+- [x] Query: `GetMissionHistoryQuery`
+- [x] Query: `GetMascotInventoryQuery` — *trả cả item chưa sở hữu kèm điều kiện mở khóa.*
+- [x] Command: `UpdateMascotOutfitCommand` — *validate quyền sở hữu (không sở hữu và không tồn tại đều 404) + mỗi loại tối đa 1 món (422 `GAMIFICATION_DUPLICATE_MASCOT_SLOT`).*
+- [x] Controller: `GamificationController`
+- [x] Job: `StreakCheckJob` — *`55 16 * * *` UTC = **23:55 giờ VN**. Chạy cuối ngày chứ không đầu ngày hôm sau để user mở app lúc 23:58 vẫn kịp giữ chuỗi.*
+- [x] Job: `MissionResetJob` — *`1 17 * * *` UTC = **00:01 giờ VN**. **Không** tạo sẵn dòng cho chu kỳ mới — tạo sẵn mọi user × mọi mission mỗi ngày sẽ đẻ hàng loạt dòng tiến độ 0 của người không dùng app.*
 
 ### Tests
 
-- [ ] Unit: EXP level-up threshold
-- [ ] Unit: Streak reset logic (timezone-aware)
-- [ ] Unit: Mission condition evaluators
+- [x] Unit: EXP level-up threshold — *`LevelCurveTests`: biên 99/100/101, nhảy nhiều bậc, chặn trên chống lặp vô hạn.*
+- [x] Unit: Streak reset logic (timezone-aware) — *cùng ngày / liền ngày / đứt quãng, và mốc chuyển ngày 17:00 UTC theo giờ VN.*
+- [x] Unit: Mission condition evaluators — *tiến độ, hoàn thành, không trả thưởng hai lần, điều kiện streak, `MissionCalendarTests` (Chủ nhật thuộc tuần bắt đầu từ thứ Hai).*
+- [x] Unit: `GamificationServiceTests` (mascot unlock theo level/mission, revert EXP), `StreakCheckJobTests`, `MissionResetJobTests`
+- [x] Integration: `GamificationControllerTests`
+
+**Gỡ 4 TODO `[!] Blocked by Phase 7` của Phase 4/5:** `ConfirmTransactionCommandHandler` (+10), `CreateManualTransactionCommandHandler` (+5), `ContributeToGoalCommandHandler` (+20, kèm mascot celebration trả trong response để client diễn hoạt ngay), `DeleteTransactionCommandHandler` (revert EXP). **Backend hiện không còn TODO nào bị block bởi phase khác.**
+
+**Lưu ý về revert EXP:** xóa giao dịch đã confirmed trừ lại đúng số EXP đã cộng, nên **có thể làm tụt level**. Đây là đánh đổi có chủ ý — không hoàn EXP thì user farm được bằng cách thêm rồi xóa giao dịch liên tục. Tiến độ mission KHÔNG hoàn lại (mission đã hoàn thành là việc đã xảy ra trong chu kỳ đó). Nếu sau này thấy trải nghiệm tụt level tệ hơn nguy cơ farm thì chỉ cần bỏ lời gọi `RevertExpAsync` trong `DeleteTransactionCommandHandler`.
 
 ---
 
@@ -429,11 +443,11 @@
 | Phase 3 — Categories | `[x]` | 8 / 8 |
 | Phase 4 — Notifications & Transactions | `[x]` | 28 / 28 *(3 sub-task cascade budget đã gỡ block ở Phase 5; còn 4 sub-task EXP/streak/mission `[!]` Blocked by Phase 7)* |
 | Phase 5 — Budget & Goals | `[x]` | 22 / 22 *(1 sub-task "gửi push notification" của `BudgetAlertJob` và 1 sub-task "Mascot celebration" đánh dấu `[!]` — xem note; toàn bộ phần buildable đã xong và đã gỡ hết TODO Blocked by Phase 5 của Phase 4)* |
-| Phase 6 — Reports | `[ ]` | 0 / 12 |
-| Phase 7 — Gamification | `[ ]` | 0 / 20 |
+| Phase 6 — Reports | `[x]` | 12 / 12 |
+| Phase 7 — Gamification | `[x]` | 20 / 20 |
 | Phase 8 — Admin | `[ ]` | 0 / 12 |
 | Phase 9 — AI Service | `[ ]` | 0 / 24 |
-| **Total** | | **109 / 176** |
+| **Total** | | **141 / 176** |
 
 ---
 
@@ -445,5 +459,11 @@
 
 Hai lỗi tìm được khi chạy thật (không lộ ra ở unit test) và đã sửa: (1) Npgsql từ chối `DateTimeOffset` offset +07:00 cho cột `timestamptz` khiến mọi endpoint budget trả 500 — mốc chu kỳ giờ trả về ở UTC, xem note `BudgetCalendar` ở trên; (2) response summary có field `totalSpentCents` = 0 nằm ngay trên dòng budget tổng đang hiện 250k (vì nó chỉ cộng budget theo category) — đã tách hẳn `TotalBudget` khỏi `CategoryBudgets` để không còn con số nào đọc nhầm được.
 
+**Verify Phase 6+7 (2026-09-11):** `dotnet build` sạch 0 warning; `dotnet test` xanh 281/281 (chạy qua container SDK 9.0); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up --build` full stack từ volume rỗng — migration sạch, seed đủ 7 mission + 8 mascot item, **8 recurring job** đăng ký đủ (`daily-summary`, `insight-generator`, `streak-check`, `mission-reset` + 4 job cũ), log không có exception chưa xử lý (ngoài 1 lỗi `__EFMigrationsHistory` lúc khởi động DB rỗng, EF tự xử lý, đã có từ các phase trước).
+
+Smoke test curl end-to-end: tạo giao dịch trải nhiều ngày → `monthly-summary` khớp `category-breakdown` và `timeline` (900k / 5 giao dịch, phần trăm tổng đúng 100) → `forecast` giữ nguyên phần đã tiêu và báo `confidence: low` khi dữ liệu mỏng → profile khởi tạo lazily, giao dịch thủ công cộng EXP và hoàn thành `daily_manual_1` → đóng góp mục tiêu nhảy 2 bậc lên level 3 và mở khóa 3 mascot item (kèm `celebration` trong response) → mặc mũ OK (200), mặc 2 mũ cùng loại bị chặn (422) → xóa giao dịch trừ lại đúng 10 EXP.
+
+**Một lỗi tìm được khi chạy thật (không lộ ra ở unit test) và đã sửa:** `GetMonthlySummaryQuery` chỉ cộng `daily_summaries` cho các ngày trước hôm nay, nên trên môi trường vừa dựng (và bất kỳ ngày nào `DailySummaryJob` lỗi) báo cáo **âm thầm thiếu dữ liệu** — smoke test cho tổng tháng 300k trong khi breakdown và timeline cùng ra 900k. Không thể suy "thiếu dòng summary" thành "ngày đó không tiêu gì". Đã sửa: đọc summary có sẵn rồi lấp mọi ngày chúng chưa phủ bằng dữ liệu live, khớp theo ngày nên ngày đã chốt không bị cộng hai lần; đổi lại là một truy vấn có giới hạn (tối đa 31 ngày của 1 user, đi qua index `(user_id, transacted_at, id)`).
+
 *Last updated: 2026-09-11*
-*Next priority: Phase 6 — Domain 9: Reports & Analytics (hoặc Phase 7 — Gamification nếu muốn gỡ nốt TODO `[!] Blocked by Phase 7` còn lại trong Transaction handlers và Saving Goals)*
+*Next priority: Phase 8 — Domain 11: Admin (12 task), hoặc Phase 9 — AI Service (24 task, Python/FastAPI) nếu muốn luồng auto-detect giao dịch từ notification chạy thật thay vì trả 503*
