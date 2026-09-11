@@ -2,6 +2,33 @@
 
 ---
 
+## 0. Quyết định đối chiếu với `FinMate_Core_User_Flows.docx` (2026-09-11)
+
+Bản đặc tả `FinMate_Core_User_Flows.docx` (4 Core User Flows) trước đây chưa từng được đối chiếu
+với `.context/`. Sau khi rà soát, 4 điểm lệch đã được user chốt như sau — **file này là nguồn sự
+thật cho code; docx là nguồn cho yêu cầu nghiệp vụ.** Chỗ nào 2 bên còn lệch mà chưa ghi ở đây
+thì hỏi user, đừng tự chọn.
+
+| # | Điểm lệch | Quyết định | Ảnh hưởng |
+|---|---|---|---|
+| 1 | Docx Flow 2(c) có **Internal Transfer** (rút ATM, nạp ví), `.context/` không có | **Làm** | `TransactionType` thêm `Transfer`; `transactions` thêm `counter_account_id`; mọi phép tính chi tiêu/ngân sách/báo cáo phải loại `transfer` ra |
+| 2 | Docx cảnh báo ngân sách **70/90/100%**, §5 file này ghi 80/100% | **Đổi theo docx: 70/90/100** | `budget_periods`: 3 cột cờ `alert_70/90/100_sent_at`; `BudgetAlertJob` 3 mốc |
+| 3 | Docx bước 1.1 yêu cầu đăng ký bằng **SĐT + OTP** | **Chưa làm trong MVP** | Giữ Email/Password + Google login. Docx coi như overspec ở điểm này |
+| 4 | Docx Flow 2 có **Voice input** và **Receipt OCR**; `TASKS.md` để ở Backlog | **Kéo lên MVP** | Voice: STT ở client → tái dùng `POST /transactions/parse`, không cần route AI mới. OCR: **cần thêm route mới vào contract §3.3** |
+
+**Nguyên tắc Internal Transfer (quyết định #1) — dễ sai nhất, đọc kỹ:**
+
+- Transfer chuyển tiền giữa **2 tài khoản của cùng 1 user**: `financial_account_id` là ví nguồn
+  (trừ tiền), `counter_account_id` là ví đích (cộng tiền). Cả 2 phải thuộc về user gọi API.
+- Transfer **KHÔNG** tiêu hạn mức ngân sách, **KHÔNG** tính vào chi tiêu tháng, **KHÔNG** tính
+  vào thu nhập, **KHÔNG** vào forecast/insight/daily summary. Đây là lý do tồn tại của nó: rút
+  tiền ATM mà tính thành `debit` sẽ thổi phồng chi tiêu và trừ oan ngân sách của user.
+- Transfer **không có category** — `category_id` phải NULL.
+- Mọi truy vấn cộng dồn chi tiêu đều phải lọc `transaction_type <> 'transfer'`. Thêm truy vấn
+  tổng hợp mới ở bất kỳ đâu thì kiểm tra lại điều này trước.
+
+---
+
 ## 1. Tổng quan hệ thống
 
 ```
@@ -386,6 +413,7 @@ A/B Testing:    ab_experiments, ab_assignments, ab_metrics
 - Soft delete → `deleted_at TIMESTAMPTZ NULL` (NULL = chưa xóa)
 - Enum → **TEXT + CHECK constraint**, không dùng PostgreSQL ENUM type
 - AI DB → **KHÔNG FK** sang Backend DB, dùng `_hash` fields để reference
+- `transaction_type='transfer'` → **luôn loại khỏi mọi phép cộng dồn chi tiêu/thu nhập** (budget, report, forecast, daily summary). Xem §0 quyết định #1
 
 ---
 
@@ -393,7 +421,7 @@ A/B Testing:    ab_experiments, ab_assignments, ab_metrics
 
 | Job | Schedule | Mô tả |
 |---|---|---|
-| `BudgetAlertJob` | Mỗi giờ | Kiểm tra budget threshold 80%/100%, gửi alert |
+| `BudgetAlertJob` | Mỗi giờ | Kiểm tra budget threshold 70%/90%/100%, gửi alert (xem §0 quyết định #2) |
 | `StreakCheckJob` | 23:55 mỗi ngày | Reset streak nếu user không có transaction hôm nay |
 | `ForecastJob` | 06:00 mỗi ngày | Gọi AI Service tính spending forecast tháng |
 | `InsightGeneratorJob` | 02:00 mỗi ngày | Generate spending insights từ transaction data |
