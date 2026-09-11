@@ -13,8 +13,34 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 import uuid
+
+
+def _load_env_defaults() -> None:
+    """Lấy giá trị còn thiếu từ ``.env.example``.
+
+    ``app.core.config`` dựng ``Settings()`` ngay khi import, và nó có những trường bắt buộc
+    không mặc định (đúng như vậy — một INTERNAL_API_KEY có giá trị mặc định là một khoá
+    mặc định sẽ được deploy). Hệ quả là trên một bản clone sạch hoặc trên CI, pytest hỏng
+    ngay ở bước thu thập test chứ không phải ở bước chạy. Bộ test đơn vị không có lý do gì
+    phải phụ thuộc vào file .env trên máy của một lập trình viên cụ thể.
+
+    Chỉ điền những biến CHƯA được set, nên môi trường thật luôn thắng.
+    """
+    example = pathlib.Path(__file__).resolve().parents[1] / ".env.example"
+    if not example.exists():
+        return
+    for line in example.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_env_defaults()
 from collections.abc import AsyncGenerator
 from datetime import datetime
 
