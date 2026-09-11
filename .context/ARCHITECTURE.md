@@ -394,7 +394,7 @@ Gamification:
   mascot_items, user_mascot_items
 ```
 
-### 4.2 AI DB — 14 bảng, 6 domain groups
+### 4.2 AI DB — 12 bảng đã tạo, 3 bảng hoãn
 
 ```
 Dataset:        raw_samples, labeled_samples, sample_splits, provider_patterns
@@ -402,8 +402,26 @@ Model:          model_versions, training_jobs
 Evaluation:     evaluation_runs, evaluation_category_metrics, evaluation_predictions
 Production:     pipeline_requests
 Feedback:       user_feedback, feedback_batch_jobs
-A/B Testing:    ab_experiments, ab_assignments, ab_metrics
+A/B Testing:    ab_experiments, ab_assignments, ab_metrics   ← HOÃN, chưa tạo
 ```
+
+**Cập nhật 2026-09-11 (Phase 9).** Mục này trước ghi "14 bảng" nhưng danh sách bên dưới
+liệt kê 15 tên — con số cũ đếm sai, không phải danh sách thiếu.
+
+Đã tạo **12 bảng** qua 4 migration alembic (`0001_dataset`, `0002_model_registry`,
+`0003_evaluation`, `0004_production_feedback`). Ba bảng `ab_*` **chưa tạo**: A/B testing
+nằm ở mục Backlog "ngoài MVP scope" của `TASKS.md`, và bảng rỗng vĩnh viễn không phải cách
+production làm — migration là thứ rẻ, tạo khi tính năng ship. Quyết định này đã chốt với
+user trước khi làm Phase 9.
+
+Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
+
+- `pipeline_requests` **lưu** `amount_cents`. Bắt buộc: Duplicate Detector (§3.2 bước 4)
+  truy vấn chính cột đó. `AGENTS.md` §3.2 cấm **log** số tiền, không cấm lưu.
+- `raw_samples` giữ nội dung thông báo. Đó là tập dữ liệu huấn luyện, và nội dung đã qua
+  `anonymizer` (che số tài khoản/thẻ/SĐT/email, giữ nguyên số tiền vì số tiền là nhãn của
+  chính bài toán). Bản gốc chưa che chỉ tồn tại ở `notification_logs` phía backend và bị
+  `DataCleanupJob` xoá sau 90 ngày theo §7.3.
 
 ### 4.3 Quy tắc database quan trọng
 

@@ -374,47 +374,60 @@
 
 ## Phase 9 — AI Service
 
+> **Quyết định đã chốt với user trước khi làm (2026-09-11):**
+> 1. **Rule bóc số tiền, ML phân loại.** Thông báo ngân hàng là template cố định nên Extractor
+>    dùng regex — số tiền/ngày/số dư không bao giờ do model đoán, và khi sai thì
+>    `matched_pattern_name` chỉ thẳng vào dòng cần sửa. ML chỉ đứng ở hai chỗ đầu vào mở:
+>    Classifier và Categorizer (scikit-learn TF-IDF + LogisticRegression, nạp qua
+>    `model_registry` theo version nên thay bằng PhoBERT sau này không phải sửa pipeline).
+> 2. **Corpus:** user sẽ gửi mẫu thật từ 5 provider. Phase 9 dựng đường ống trước với corpus
+>    bootstrap tổng hợp; cắm mẫu thật vào sau không cần sửa code.
+> 3. **`requirements-training.txt` tách khỏi `requirements.txt`** — torch/transformers/
+>    underthesea không vào image phục vụ. Không gỡ package nào khỏi `TECH_STACK.md` §2.2,
+>    chỉ chia chỗ cài; image ~3GB → ~500MB.
+> 4. **Hoãn 3 bảng `ab_*`** — A/B testing nằm ở Backlog "ngoài MVP scope", tạo bảng rỗng
+>    vĩnh viễn không phải production.
+
 ### Database (AI DB)
 
-- [ ] Alembic migration: `raw_samples`
-- [ ] Alembic migration: `labeled_samples`
-- [ ] Alembic migration: `sample_splits`
-- [ ] Alembic migration: `provider_patterns`
-- [ ] Alembic migration: `model_versions`
-- [ ] Alembic migration: `training_jobs`
-- [ ] Alembic migration: `evaluation_runs` + `evaluation_category_metrics` + `evaluation_predictions`
-- [ ] Alembic migration: `pipeline_requests`
-- [ ] Alembic migration: `user_feedback` + `feedback_batch_jobs`
-- [ ] Alembic migration: `ab_experiments` + `ab_assignments` + `ab_metrics`
-- [ ] Seed: provider_patterns cho MB Bank, Vietcombank, MoMo, ZaloPay
+- [x] Alembic migration: `raw_samples`
+- [x] Alembic migration: `labeled_samples`
+- [x] Alembic migration: `sample_splits`
+- [x] Alembic migration: `provider_patterns` — *4 bảng trên gộp trong migration `0001_dataset` (ra đời cùng lúc và ràng buộc FK lẫn nhau — cùng lý do đã ghi ở Phase 1/2, tách ra sẽ thành migration rỗng). Tổng cộng 4 migration theo nhóm domain: `0001_dataset`, `0002_model_registry`, `0003_evaluation`, `0004_production_feedback`.*
+- [x] Alembic migration: `model_versions`
+- [x] Alembic migration: `training_jobs` — *gộp trong `0002_model_registry`. Điểm cốt lõi là partial unique index `uq_model_versions_active` trên `(stage) WHERE status='active'`: DB bảo đảm mỗi stage có ĐÚNG một model đang phục vụ — cơ chế promote nằm ở tầng lưu trữ chứ không phải quy ước trong code.*
+- [x] Alembic migration: `evaluation_runs` + `evaluation_category_metrics` + `evaluation_predictions` — *`0003_evaluation`. Giữ từng dự đoán chứ không chỉ điểm tổng: accuracy 94% không cho biết nó hỏng ở danh mục nào, mà đó mới là thứ quyết định có promote hay không.*
+- [x] Alembic migration: `pipeline_requests` — *`0004_production_feedback`. Bảng này **lưu** `amount_cents` — bắt buộc, vì Duplicate Detector (ARCHITECTURE.md §3.2) truy vấn chính cột đó; AGENTS.md §3.2 cấm **log** số tiền, không cấm lưu. Thêm `raw_sample_id` để phản hồi của người dùng lần ngược được về câu gốc, thiếu nó thì feedback không bao giờ thành nhãn huấn luyện được.*
+- [x] Alembic migration: `user_feedback` + `feedback_batch_jobs` — *cùng `0004`.*
+- [-] Alembic migration: `ab_experiments` + `ab_assignments` + `ab_metrics` — *Skipped: quyết định #4. A/B testing nằm ở Backlog, production tạo bảng khi tính năng ship.*
+- [x] Seed: provider_patterns cho MB Bank, Vietcombank, MoMo, ZaloPay — *+ VNPay, 8 pattern trong `app/data/provider_patterns.json`, seed idempotent lúc khởi động (giống `ProviderConfigSeeder`), chỉ THÊM chứ không ghi đè — pattern đã sửa tay trong DB không bị một lần restart cuốn trôi.*
 
 ### AI Pipeline
 
-- [ ] `orchestrator.py` — điều phối stages
-- [ ] `stages/classifier.py` — Financial/Non-financial classifier
-- [ ] `stages/extractor.py` — Amount, merchant, date extraction
-  - [ ] Rule-based extraction fallback per provider
-  - [ ] VND amount parser ("75k", "1.5tr", "75,000")
-- [ ] `stages/categorizer.py` — Category + confidence
-- [ ] `stages/duplicate_detector.py` — Dedup trong 5 phút
-- [ ] `api/v1/pipeline.py` — POST /api/v1/analyze endpoint
-- [ ] `api/v1/feedback.py` — POST /api/v1/feedback endpoint
-- [ ] `utils/anonymizer.py` — SHA-256 hash, body anonymization
+- [x] `orchestrator.py` — điều phối stages — *Dựng response TỪ dòng `pipeline_requests` vừa ghi chứ không từ biến trong bộ nhớ, nên thứ backend nhận và thứ nằm trong AI DB không thể lệch nhau. Retry cùng `backend_request_id` trả lại kết quả cũ (`RetryFailedNotificationJob` gửi lại đúng request cũ — chạy lại pipeline sẽ tự dò trùng với chính dòng của mình).*
+- [x] `stages/classifier.py` — Financial/Non-financial classifier — *Model nếu đã promote, không thì rơi về luật (từ khoá âm: OTP/khuyến mãi/bảo trì; dương: "GD:", "số dư", "thanh toán"…). `package_name='manual_entry'` BỎ QUA cổng phân loại — người dùng chủ động gõ câu chi tiêu thì ý định đã rõ, áp cổng vào đây chỉ chặn nhầm chính họ.*
+- [x] `stages/extractor.py` — Amount, merchant, date extraction
+  - [x] Rule-based extraction fallback per provider — *Mỗi pattern là MỘT regex phủ cả template với named group (`amount`/`sign`/`merchant`/`balance`/`occurred_at`), không phải một regex mỗi trường: tách rời thì hai template của cùng ngân hàng khớp chéo group của nhau và ghép ra giao dịch chưa từng tồn tại. Nhánh generic cho ngân hàng lạ tách số tiền khỏi SỐ DƯ (số dư gần như luôn lớn hơn, nên chọn theo giá trị lớn nhất là chọn đúng con số sai).*
+  - [x] VND amount parser ("75k", "1.5tr", "75,000") — *+ "2tr5", "75k5", "1.234,56", "75,000.00". Phân biệt dấu ngăn nghìn với dấu thập phân theo ĐỘ DÀI nhóm cuối chứ không theo ký tự — tiếng Việt dùng `.` ngăn nghìn còn en-US dùng `,`, mà app ngân hàng viết cả hai kiểu; đọc nhầm "75.000" thành 75 sai 1000 lần mà vẫn là số hợp lệ.*
+- [x] `stages/categorizer.py` — Category + confidence — *Model nếu đã promote, không thì từ điển 198 từ khoá → 11 slug hệ thống. Chỉ được trả slug trong 11 slug `CategorySeeder` đã seed: slug lạ làm `GetSystemBySlugAsync` trả NULL và giao dịch mất danh mục im lặng. `Credit` luôn là `income` theo luật — taxonomy không có danh mục thu nào khác nên hỏi model chỉ tạo cơ hội sai.*
+- [x] `stages/duplicate_detector.py` — Dedup trong 5 phút — *Khớp theo `(user_id_hash, amount_cents, transacted_at ±5 phút)`, **KHÔNG lọc theo `package_name`**: ca trùng kinh điển là một lần quẹt thẻ sinh hai thông báo, một từ app ngân hàng một từ ví liên kết (docx Flow 1 bước 4.3) — lọc theo package sẽ bỏ sót đúng ca cần bắt. Chỉ so với dòng chưa bị đánh dấu trùng nên ba thông báo cùng một giao dịch đều trỏ về một bản gốc.*
+- [x] `api/v1/pipeline.py` — POST /api/v1/analyze endpoint — *Lỗi không lường trước CỐ Ý thoát ra thành HTTP 500 để backend đánh dấu `failed` và `RetryFailedNotificationJob` thử lại; nuốt lỗi rồi trả 200 kèm `pipeline_result="error"` sẽ làm thông báo mất vĩnh viễn vì một sự cố DB vài giây.*
+- [x] `api/v1/feedback.py` — POST /api/v1/feedback endpoint — *Danh mục TỰ TẠO của người dùng có slug tuỳ ý, ghi thẳng vào DB sẽ vi phạm CHECK constraint và làm request 500 — mà backend gọi feedback kiểu best-effort nên sẽ nuốt lỗi và không ai biết dữ liệu đang mất. Nay quy về NULL, giữ lại vế `predicted`.*
+- [x] `utils/anonymizer.py` — SHA-256 hash, body anonymization — *Nằm ở `app/core/anonymizer.py` (đúng cây thư mục ARCHITECTURE.md §3.1, không phải `utils/`). Che số tài khoản/thẻ/SĐT/email nhưng GIỮ NGUYÊN số tiền — số tiền là nhãn của chính bài toán, che nhầm là xoá mất dữ liệu huấn luyện; đã loại trừ trường hợp số tiền viết liền không dấu ("2500000VND").*
 
 ### AI Training & Evaluation
 
-- [ ] `scripts/train.py` — training script
-- [ ] `scripts/evaluate.py` — evaluation script
-- [ ] `scripts/feedback_batch.py` — convert feedback → labeled_samples
+- [x] `scripts/train.py` — training script — *TF-IDF trên n-gram KÝ TỰ (`char_wb` 2–5) chứ không phải từ: tiếng Việt trong thông báo xuất hiện cả có dấu lẫn không dấu, viết hoa toàn phần, dính ký hiệu — n-gram ký tự bắt được họ hàng giữa các biến thể mà không cần tách từ, nên đường phục vụ không cần `underthesea`. Model sinh ra ở trạng thái `candidate`, chưa phục vụ request nào.*
+- [x] `scripts/evaluate.py` — evaluation script — *Chấm trên split `test`, ghi `evaluation_runs` + metrics theo từng nhãn + từng dự đoán.*
+- [x] `scripts/feedback_batch.py` — convert feedback → labeled_samples — *Chỉ lấy lần sửa CUỐI của mỗi giao dịch: người dùng sửa đi sửa lại sẽ nhồi hai nhãn mâu thuẫn cho cùng một câu vào tập train.*
+- *(Thêm ngoài danh sách gốc)* `scripts/seed_dataset.py`, `scripts/promote.py`, `scripts/generate_bootstrap_corpus.py`, `scripts/purge_raw_samples.py` — *`promote.py` là mắt xích còn thiếu giữa train và phục vụ: nó TỪ CHỐI promote model chưa được chấm trên split `test` hoặc có accuracy dưới 0.70. Không có cổng đó thì "train xong là dùng" và không ai biết model mới tốt hơn hay tệ hơn model cũ.*
 
 ### Tests
 
-- [ ] Unit test classifier với fixture notifications từ 5 providers
-- [ ] Unit test extractor: VND parser, date parser
-- [ ] Unit test categorizer
-- [ ] Integration test full pipeline flow
-
----
+- [x] Unit test classifier với fixture notifications từ 5 providers
+- [x] Unit test extractor: VND parser, date parser
+- [x] Unit test categorizer
+- [x] Integration test full pipeline flow — *`pytest` 104 test. Test tích hợp tự tạo một database riêng trên chính server Postgres của `docker compose` rồi xoá đi — không thêm dependency (`testcontainers` Python không có trong `TECH_STACK.md`); không có Postgres thì chúng SKIP kèm lý do, test đơn vị vẫn chạy. Có test hồi quy "mọi pattern `is_active` còn khớp `sample_text` của chính nó" — sửa regex làm hỏng template cũ sẽ đỏ ở CI thay vì lộ ra khi người dùng mất giao dịch.*
 
 ## Phase 10 — Đối chiếu Core User Flows (docx)
 
@@ -490,12 +503,12 @@
 | Phase 6 — Reports | `[x]` | 18 / 18 |
 | Phase 7 — Gamification | `[x]` | 27 / 27 |
 | Phase 8 — Admin | `[ ]` | 0 / 14 |
-| Phase 9 — AI Service | `[ ]` | 0 / 28 |
+| Phase 9 — AI Service | `[x]` | 27 / 28 *(1 task `[-]` Skipped: 3 bảng `ab_*`, A/B testing ngoài MVP scope)* |
 | Phase 10 — Đối chiếu Core User Flows | `[~]` | 16 / 22 *(#1 và #2 xong; #4 Voice/OCR chờ Phase 9; 1 task `[-]` Skipped: OTP)* |
-| **Total** | | **212 / 261** |
+| **Total** | | **239 / 261** |
 
-**Còn lại:** 47 task chưa làm (Phase 8: 14, Phase 9: 28, Phase 10: 5) + 1 task `[!]` chờ duyệt
-dependency FCM + 1 task `[-]` bỏ có chủ ý (OTP).
+**Còn lại:** 19 task chưa làm (Phase 8 Admin: 14, Phase 10 quyết định #4 Voice+OCR: 5)
++ 1 task `[!]` chờ duyệt dependency FCM + 2 task `[-]` bỏ có chủ ý (OTP, bảng `ab_*`).
 
 ---
 
@@ -514,10 +527,22 @@ Smoke test curl end-to-end: tạo giao dịch trải nhiều ngày → `monthly-
 **Một lỗi tìm được khi chạy thật (không lộ ra ở unit test) và đã sửa:** `GetMonthlySummaryQuery` chỉ cộng `daily_summaries` cho các ngày trước hôm nay, nên trên môi trường vừa dựng (và bất kỳ ngày nào `DailySummaryJob` lỗi) báo cáo **âm thầm thiếu dữ liệu** — smoke test cho tổng tháng 300k trong khi breakdown và timeline cùng ra 900k. Không thể suy "thiếu dòng summary" thành "ngày đó không tiêu gì". Đã sửa: đọc summary có sẵn rồi lấp mọi ngày chúng chưa phủ bằng dữ liệu live, khớp theo ngày nên ngày đã chốt không bị cộng hai lần; đổi lại là một truy vấn có giới hạn (tối đa 31 ngày của 1 user, đi qua index `(user_id, transacted_at, id)`).
 
 *Last updated: 2026-09-11*
-*Next priority: Phase 8 — Domain 11: Admin (12 task), hoặc Phase 9 — AI Service (24 task, Python/FastAPI) nếu muốn luồng auto-detect giao dịch từ notification chạy thật thay vì trả 503*
+*Next priority: Phase 10 quyết định #4 (Voice + Receipt OCR, 5 task — Voice gỡ block sau Phase 9; OCR cần user duyệt route mới trong contract Backend↔AI Service theo AGENTS.md §5), rồi Phase 8 — Admin (14 task).*
 
 **Verify Phase 10 #1+#2 (2026-09-11):** `dotnet build` sạch 0 warning; `dotnet test` xanh **302/302** (281 → 302, thêm 21 test; chạy qua container SDK 9.0 + Docker socket cho Testcontainers); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up --build` từ volume rỗng — 2 migration mới áp sạch, `\d transactions` xác nhận đủ `counter_account_id` + FK Restrict + `chk_transactions_transfer_shape`, `\d budget_periods` đủ 3 cột `alert_70/90/100_sent_at`, 8 recurring job đăng ký đủ, log không có exception chưa xử lý (ngoài lỗi `__EFMigrationsHistory` lúc khởi động DB rỗng đã có từ các phase trước).
 
 Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổng 3tr → rút ATM 2tr qua `POST /transactions/transfer` → **số dư 3tr / 2tr, tổng tài sản vẫn 5tr** → `budgets` báo `spentCents = 0`, `monthly-summary` báo `totalSpent = 0` và `totalIncome = 0`, `forecast` báo `spentSoFar = 0` (đúng mục tiêu của quyết định #1: rút tiền không phải tiêu tiền) → chuyển vào chính ví đó nhận 422 `TRANSACTION_TRANSFER_SAME_ACCOUNT` → tạo transfer qua `POST /transactions` thường nhận 400 kèm thông điệp chỉ sang đúng endpoint → xóa ví đang là ĐÍCH của transfer nhận 409 → sửa transfer 2tr thành 3.5tr thì số dư thành 1.5tr / 3.5tr (tổng vẫn 5tr) → đổi sang `Debit` nhận 422 `TRANSACTION_TYPE_CHANGE_NOT_ALLOWED` → xóa transfer thì 2 ví về đúng nguyên trạng 5tr / 0.
 
 **Một bug có sẵn được tìm thấy và sửa:** `DeleteTransactionCommandHandler` hoàn `TransactionExpRewards.ConfirmTransaction` (10 EXP) cho MỌI giao dịch, trong khi giao dịch tự nhập chỉ được cộng 5 lúc tạo — xóa một giao dịch thủ công ăn mất 5 EXP user chưa từng có. Nay tra theo `Transaction.Source`. Integration test `DeletingAConfirmedTransaction_TakesBackTheExpItGave` đã khoá cứng đúng con bug này (assert `-10` trên một giao dịch thủ công) nên vẫn xanh suốt — tên test lại mô tả đúng hành vi đáng lẽ phải có. Đã sửa assertion về `-5` kèm ghi chú.
+
+**Verify Phase 9 (2026-09-11):** `pytest` xanh **104/104** (81 unit + 23 integration; test tích hợp tạo database riêng trên chính server Postgres của compose rồi xoá đi); `black --check`/`isort --check-only`/`ruff check` sạch; `alembic upgrade head` → `downgrade base` → `upgrade head` round-trip sạch, `alembic check` không thấy drift. Phía backend: `dotnet build` sạch 0 warning, `dotnet test` xanh **302/302**, `dotnet ef migrations has-pending-model-changes` sạch.
+
+`docker compose up --build` từ volume rỗng — 12 bảng AI DB lên sạch, 8 pattern seed đủ, 8 recurring job đăng ký đủ, **log AI Service không có `notification_body`/`amount_cents`/số tài khoản nào lọt ra** (grep 0 kết quả), không exception chưa xử lý ở cả hai service.
+
+**Smoke test curl qua BACKEND (không gọi thẳng AI Service):** thông báo MB Bank thật → `POST /notifications/analyze` trả **200 kèm `draftTransactionId`** (trước Phase 9 luôn là `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE`) → giao dịch nháp đúng 75.000đ / `Debit` / merchant `HIGHLANDS COFFEE` / `categoryId` trỏ đúng category hệ thống `food` → thông báo OTP trả `Processed` nhưng **không** tạo nháp → gửi lại đúng thông báo cũ trong 5 phút thì backend dedup theo `content_hash`, không tạo nháp thứ hai → `POST /transactions/parse` với câu "trưa nay ăn phở 45k ở Phở Thìn" trả đủ field prefill (45.000đ, `food`, merchant "Phở Thìn") → confirm rồi `PATCH` đổi danh mục sang `entertainment` thì `user_feedback` có dòng mới **đã liên kết được về `pipeline_requests`** → `scripts/feedback_batch.py` biến nó thành `labeled_samples(category_slug='entertainment', labeled_by='user_feedback', is_gold=true)`. Vòng phản hồi khép kín, verify bằng dữ liệu thật trong `finmate_ai` chứ không bằng suy luận.
+
+**Vòng đời model chạy thật trong container:** `seed_dataset.py` (236 mẫu → 168/38/30) → `train.py --stage classifier` → `evaluate.py` (accuracy 1.000 trên split test) → `promote.py` → AI Service **tự nạp model trong 60 giây không cần restart**, `pipeline_requests.classifier_version` chuyển từ NULL sang `1.0.0` và confidence đổi từ hằng số của luật (0.92) sang xác suất thật của model (0.840/0.821). Categorizer train xong đạt accuracy 0.684 trên split test nên **`promote.py` từ chối** (ngưỡng 0.70) — nhánh từ điển tiếp tục phục vụ. Đây là cổng chặn hoạt động đúng như thiết kế, không phải lỗi: model 111 mẫu / 10 lớp đang tệ hơn baseline từ điển.
+
+> **Cảnh báo về con số:** corpus hiện tại là dữ liệu **tổng hợp** (`scripts/generate_bootstrap_corpus.py`), sinh ra từ chính những template mà Extractor và từ điển đã biết. Accuracy 1.000 của classifier và 99.4% của từ điển **không phải độ chính xác ngoài đời** — chúng chỉ chứng minh đường ống chạy đúng. Con số thật chỉ có sau khi thay bằng mẫu thông báo thật từ 5 provider (user sẽ gửi).
+
+**Một bug thật của backend được tìm thấy qua smoke test và đã sửa:** Npgsql **từ chối** ghi `DateTimeOffset` có offset khác 0 vào cột `timestamptz` — nó ném `ArgumentException` chứ không tự quy đổi. Client Android chạy ở Việt Nam gửi mốc thời gian kèm `+07:00`, nên **mọi** endpoint nhận `DateTimeOffset` từ client (`/notifications/analyze`, `POST|PATCH /transactions`, `/transactions/transfer`, deadline saving goal…) đều trả 500. Lỗi không lộ ra ở test nào vì `WebApplicationFactory` và mọi smoke test trước đều gửi mốc UTC (`Z`). Sửa bằng `UtcDateTimeOffsetConverter` áp ở `FinMateDbContext.ConfigureConventions` cho toàn bộ `DateTimeOffset`/`DateTimeOffset?` — chuẩn hoá ở tầng lưu trữ thay vì rải trong từng handler, vì đây là ràng buộc của tầng lưu trữ và bỏ sót một handler mới sẽ tái hiện đúng lỗi này. Không đổi schema (`has-pending-model-changes` sạch), `dotnet test` vẫn 302/302. Cùng gốc với quyết định "mốc chu kỳ luôn trả về ở offset 0" đã ghi ở Phase 5 — lần này ở đầu bên kia của contract.

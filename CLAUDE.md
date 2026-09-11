@@ -10,11 +10,11 @@ Then read, in order: `.context/ARCHITECTURE.md`, `.context/TECH_STACK.md`, `.con
 
 ## Current state
 
-**Backend: Phase 0–7 done (196/239 tasks in `.context/TASKS.md`).** Full ASP.NET Core 9 solution with unit + integration tests (Testcontainers), 8 Hangfire recurring jobs, 10 controllers under `/api/v1`. Auth, Users, FinancialAccounts, Categories, Notifications, Transactions, Budgets, SavingGoals, Reports and Gamification are all implemented and verified end-to-end via `docker compose up` + curl (see the Verify notes at the bottom of `TASKS.md`).
+**Backend: Phase 0–7 + Phase 9 done (239/261 tasks in `.context/TASKS.md`).** Full ASP.NET Core 9 solution with unit + integration tests (Testcontainers), 8 Hangfire recurring jobs, 10 controllers under `/api/v1`. Auth, Users, FinancialAccounts, Categories, Notifications, Transactions, Budgets, SavingGoals, Reports and Gamification are all implemented and verified end-to-end via `docker compose up` + curl (see the Verify notes at the bottom of `TASKS.md`).
 
-**AI Service: still a Phase 0 scaffold.** `ai-service/app/pipeline/**` and `api/v1/pipeline.py`/`feedback.py` are one-line docstring placeholders — only `/api/v1/health` is live. So `POST /notifications/analyze` and `POST /transactions/parse` return 503 against a real AI Service; both are covered in tests via `FakeAIServiceClient`. Building them out is Phase 9 (28 tasks) — follow `TECH_STACK.md` and `ARCHITECTURE.md` §3 for the Backend↔AI-Service contract, don't improvise it.
+**AI Service: implemented and serving (Phase 9).** `POST /api/v1/analyze` and `POST /api/v1/feedback` are live; `POST /notifications/analyze` on the backend now returns a real draft transaction instead of 503. Pipeline is **rule-based extraction + ML classification**: the Extractor uses per-provider regex stored in the `provider_patterns` table (bank notifications are fixed templates — regex is both more accurate and traceable, and money must never be a model's guess), while Classifier and Categorizer load versioned scikit-learn models through `model_registry` and fall back to rules when nothing is promoted. `scripts/` holds the full lifecycle: `seed_dataset` → `train` → `evaluate` → `promote` (which refuses a model with no test-split evaluation or accuracy below 0.70) → `feedback_batch`. 12 AI DB tables via 4 alembic migrations; the 3 `ab_*` tables are deliberately deferred.
 
-**Remaining:** Phase 8 Admin (14 tasks), Phase 9 AI Service (28 tasks), plus one `[!]` task blocked on an unapproved FCM dependency (`IPushNotificationService` is still `LoggingPushNotificationService`, log-only).
+**Remaining:** Phase 8 Admin (14 tasks), Phase 10 decision #4 Voice + Receipt OCR (5 tasks — OCR needs user approval for a new route in the Backend↔AI-Service contract, per `AGENTS.md` §5), plus one `[!]` task blocked on an unapproved FCM dependency (`IPushNotificationService` is still `LoggingPushNotificationService`, log-only).
 
 Out of scope entirely: `android/` (separate mobile team, not present in this checkout).
 
@@ -37,12 +37,19 @@ dotnet ef migrations add <PascalCaseDescriptiveName> --project FinMate.Infrastru
 
 **AI Service** (from `ai-service/`):
 ```
-pytest
+pytest                                            # integration tests need Postgres, else skipped
 pytest tests/unit/test_classifier.py::test_name   # single test
 alembic upgrade head
 alembic revision -m "description"
 black . && ruff check . && isort .
+
+python scripts/train.py --stage classifier        # → candidate
+python scripts/evaluate.py --stage classifier --version 1.0.0
+python scripts/promote.py --stage classifier --version 1.0.0   # → active, hot-reloaded in 60s
 ```
+
+Two requirements files: `requirements.txt` is what the serving image installs;
+`requirements-training.txt` adds torch/transformers/underthesea for offline training only.
 
 ## Non-obvious cross-cutting rules
 
