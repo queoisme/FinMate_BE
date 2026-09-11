@@ -177,16 +177,16 @@
 - [x] Command: `ConfirmTransactionCommand` + Handler
   - [x] Validate ownership
   - [x] DB transaction cho cascade: budget + gamification + streak — *Atomicity đạt được không cần thêm abstraction Unit-of-Work: `FinancialAccountRepository` và `TransactionRepository` dùng chung 1 scoped `DbContext`/request, nên sửa cả 2 entity rồi gọi `SaveChangesAsync` 1 lần (qua handler nào cũng được) flush cả 2 trong 1 DB transaction ngầm của EF Core.*
-  - [!] Budget period update — *Blocked by Phase 5: `Budget`/`BudgetPeriod` chưa tồn tại.*
+  - [x] Budget period update — *Hoàn thành ở Phase 5 (2026-09-11): gọi `IBudgetPeriodService.ApplyDeltaAsync`.*
   - [!] EXP award — *Blocked by Phase 7: Gamification module chưa tồn tại.*
   - [!] Streak check — *Blocked by Phase 7.*
   - [!] Mission condition trigger — *Blocked by Phase 7.*
 - [x] Command: `CreateManualTransactionCommand` + Handler + Validator — *Tạo trực tiếp `Status=Confirmed` (không qua bước confirm riêng vì không có AI draft), cascade balance ngay.*
 - [x] Command: `UpdateTransactionCommand` + Handler + Validator
-  - [!] Revert budget nếu category/amount/date thay đổi — *Blocked by Phase 5.*
+  - [x] Revert budget nếu category/amount/date thay đổi — *Hoàn thành ở Phase 5 (2026-09-11): revert theo category/số tiền/ngày CŨ trước khi ghi đè entity, rồi áp giá trị MỚI — cả ba đều có thể trỏ sang budget khác và chu kỳ khác.*
   - [x] Lưu AI correction nếu category thay đổi — *`POST /api/v1/feedback` best-effort, chỉ khi `Transaction.Source=Notification` (có category AI dự đoán để so sánh).*
 - [x] Command: `DeleteTransactionCommand` + Handler
-  - [!] Revert budget nếu đã confirmed — *Blocked by Phase 5.*
+  - [x] Revert budget nếu đã confirmed — *Hoàn thành ở Phase 5 (2026-09-11).*
   - [!] Revert EXP — *Blocked by Phase 7.*
   - *(Revert `FinancialAccount.BalanceCents` khi xóa giao dịch đã Confirmed — không bị block, đã làm.)*
 - [x] Command: `ParseNaturalLanguageCommand` + Handler (gọi AI Service) — *Tái dùng `POST /api/v1/analyze` với `package_name="manual_entry"` thay vì thêm route AI Service mới (đã hỏi user trước khi quyết định, theo AGENTS.md §5 — đổi API contract Backend↔AI Service cần approval). Không persist, chỉ trả field để client prefill form tạo manual transaction.*
@@ -427,7 +427,7 @@
 | Phase 1 — Auth & Profile | `[x]` | 25 / 25 *(+1: Google login, kéo từ Backlog)* |
 | Phase 2 — Financial Accounts | `[x]` | 11 / 11 *(guard has-transactions hoàn thành ở Phase 4, xem note dưới)* |
 | Phase 3 — Categories | `[x]` | 8 / 8 |
-| Phase 4 — Notifications & Transactions | `[x]` | 28 / 28 *(7 sub-task cascade budget/EXP/streak/mission đánh dấu `[!]` Blocked by Phase 5/7 — phần buildable được (FinancialAccount balance cascade) đã làm đầy đủ)* |
+| Phase 4 — Notifications & Transactions | `[x]` | 28 / 28 *(3 sub-task cascade budget đã gỡ block ở Phase 5; còn 4 sub-task EXP/streak/mission `[!]` Blocked by Phase 7)* |
 | Phase 5 — Budget & Goals | `[x]` | 22 / 22 *(1 sub-task "gửi push notification" của `BudgetAlertJob` và 1 sub-task "Mascot celebration" đánh dấu `[!]` — xem note; toàn bộ phần buildable đã xong và đã gỡ hết TODO Blocked by Phase 5 của Phase 4)* |
 | Phase 6 — Reports | `[ ]` | 0 / 12 |
 | Phase 7 — Gamification | `[ ]` | 0 / 20 |
