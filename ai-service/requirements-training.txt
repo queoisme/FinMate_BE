@@ -1,0 +1,13 @@
+# Chỉ dành cho scripts/train.py và các thí nghiệm offline — KHÔNG cài vào image serving.
+#   pip install -r requirements.txt -r requirements-training.txt
+#
+# Ba gói dưới đây vẫn nằm trong danh sách đã duyệt ở TECH_STACK.md §2.2; tách ra đây là
+# tách chỗ cài, không phải gỡ dependency. Chúng là đường nâng cấp Classifier/Categorizer
+# từ TF-IDF sang PhoBERT mà không phải đổi pipeline (xem app/pipeline/models/base_model.py).
+
+-r requirements.txt
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.*
+transformers==4.47.*
+underthesea==6.*

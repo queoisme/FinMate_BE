@@ -1,3 +1,8 @@
+# Runtime — chỉ những gì tiến trình phục vụ cần. Dockerfile chỉ cài file này.
+# Thư viện training (torch/transformers/underthesea) nằm ở requirements-training.txt:
+# máy phục vụ không cần chúng, và cài vào làm image phồng thêm ~2.5GB.
+# Cả hai file cộng lại vẫn đúng bằng danh sách đã duyệt ở TECH_STACK.md §2.2.
+
 # Web framework
 fastapi==0.115.*
 uvicorn[standard]==0.32.*
@@ -11,12 +16,8 @@ alembic==1.14.*
 pydantic==2.10.*
 pydantic-settings==2.*
 
-# ML / NLP
+# ML — inference. scikit-learn kéo theo numpy/scipy/joblib.
 scikit-learn==1.6.*
-transformers==4.47.*
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.5.*
-underthesea==6.*
 regex==2024.*
 
 # HTTP client
