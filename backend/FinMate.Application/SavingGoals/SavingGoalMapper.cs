@@ -5,7 +5,7 @@ namespace FinMate.Application.SavingGoals;
 
 internal static class SavingGoalMapper
 {
-    internal static SavingGoalDto ToDto(SavingGoal goal) => new(
+    internal static SavingGoalDto ToDto(SavingGoal goal, GoalCelebrationDto? celebration = null) => new(
         goal.Id,
         goal.Name,
         goal.TargetCents,
@@ -14,7 +14,8 @@ internal static class SavingGoalMapper
         PercentComplete(goal),
         goal.Status.ToString().ToLowerInvariant(),
         goal.Deadline,
-        goal.CompletedAt);
+        goal.CompletedAt,
+        celebration);
 
     internal static GoalContributionDto ToDto(GoalContribution contribution) => new(
         contribution.Id,

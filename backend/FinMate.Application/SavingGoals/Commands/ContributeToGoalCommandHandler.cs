@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
+using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 using FluentValidation;
 
@@ -11,15 +12,21 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
 {
     private readonly ISavingGoalRepository _savingGoalRepository;
     private readonly IPushNotificationService _pushNotificationService;
+    private readonly IGamificationService _gamificationService;
+    private readonly ICacheService _cache;
     private readonly IValidator<ContributeToGoalCommand> _validator;
 
     public ContributeToGoalCommandHandler(
         ISavingGoalRepository savingGoalRepository,
         IPushNotificationService pushNotificationService,
+        IGamificationService gamificationService,
+        ICacheService cache,
         IValidator<ContributeToGoalCommand> validator)
     {
         _savingGoalRepository = savingGoalRepository;
         _pushNotificationService = pushNotificationService;
+        _gamificationService = gamificationService;
+        _cache = cache;
         _validator = validator;
     }
 
@@ -63,9 +70,19 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
             goal.CompletedAt = now;
         }
 
-        // goal đã được EF track từ GetByIdAsync (cùng scoped DbContext) — AddContributionAsync
-        // gọi SaveChangesAsync 1 lần, flush cả contribution lẫn goal atomically.
+        var outcome = await _gamificationService.RecordActivityAsync(
+            new GamificationActivity(
+                command.UserId,
+                MissionConditionType.ContributeToGoal,
+                GoalExpRewards.Contribute,
+                now),
+            ct);
+
+        // goal và gamification đã được EF track (cùng scoped DbContext) — AddContributionAsync
+        // gọi SaveChangesAsync 1 lần, flush tất cả atomically.
         await _savingGoalRepository.AddContributionAsync(contribution, ct);
+
+        await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
         if (justCompleted)
         {
@@ -74,10 +91,13 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
                 "Hoàn thành mục tiêu tiết kiệm",
                 $"Chúc mừng! Bạn đã hoàn thành mục tiêu \"{goal.Name}\".",
                 ct);
-
-            // TODO [!] Blocked by Phase 7: trigger Mascot celebration — Gamification module chưa tồn tại.
         }
 
-        return SavingGoalMapper.ToDto(goal);
+        // Mascot ăn mừng: item vừa mở khóa và việc lên level đi kèm trong response để client
+        // diễn hoạt ngay, thay vì phải gọi thêm một vòng /gamification/mascot mới biết.
+        return SavingGoalMapper.ToDto(goal, new GoalCelebrationDto(
+            outcome.LeveledUp,
+            outcome.Level,
+            outcome.UnlockedItems.Select(i => i.Name).ToList()));
     }
 }

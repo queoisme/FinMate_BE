@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -9,21 +10,23 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly IGamificationService _gamificationService;
     private readonly ICacheService _cache;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
+        IGamificationService gamificationService,
         ICacheService cache)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
+        _gamificationService = gamificationService;
         _cache = cache;
     }
 
-    // TODO [!] Blocked by Phase 7: revert EXP khi xóa giao dịch đã confirmed.
     public async Task HandleAsync(DeleteTransactionCommand command, CancellationToken ct = default)
     {
         var transaction = await _transactionRepository.GetByIdAsync(command.TransactionId, command.UserId, ct)
@@ -47,6 +50,13 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
                 transaction.TransactedAt,
                 ct);
+
+            // Trừ lại đúng số EXP đã cộng lúc confirm. Việc này CÓ THỂ làm tụt level, và đó
+            // là đánh đổi có chủ ý: không hoàn EXP thì user farm được bằng cách thêm rồi xóa
+            // giao dịch liên tục. Tiến độ mission không hoàn lại — mission đã hoàn thành là
+            // việc đã xảy ra trong chu kỳ đó.
+            await _gamificationService.RevertExpAsync(
+                command.UserId, TransactionExpRewards.ConfirmTransaction, ct);
         }
 
         transaction.DeletedAt = now;
@@ -59,6 +69,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         if (wasConfirmed)
         {
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
+            await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
         }
     }
 }

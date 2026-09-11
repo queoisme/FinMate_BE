@@ -17,6 +17,6 @@ public class GetSavingGoalListQueryHandler : IGetSavingGoalListQueryHandler
         CancellationToken ct = default)
     {
         var goals = await _savingGoalRepository.GetListForUserAsync(query.UserId, query.Status, ct);
-        return goals.Select(SavingGoalMapper.ToDto).ToList();
+        return goals.Select(g => SavingGoalMapper.ToDto(g)).ToList();
     }
 }

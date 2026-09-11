@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.SavingGoals.Commands;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Entities.Gamification;
 using FinMate.Domain.Enums;
 using FluentAssertions;
 using Moq;
@@ -13,12 +14,22 @@ public class ContributeToGoalCommandHandlerTests
 {
     private readonly Mock<ISavingGoalRepository> _savingGoalRepository = new();
     private readonly Mock<IPushNotificationService> _push = new();
+    private readonly Mock<IGamificationService> _gamificationService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly ContributeToGoalCommandHandler _handler;
 
     public ContributeToGoalCommandHandlerTests()
     {
         _handler = new ContributeToGoalCommandHandler(
-            _savingGoalRepository.Object, _push.Object, new ContributeToGoalCommandValidator());
+            _savingGoalRepository.Object,
+            _push.Object,
+            _gamificationService.Object,
+            _cache.Object,
+            new ContributeToGoalCommandValidator());
+
+        _gamificationService.Setup(g => g.RecordActivityAsync(
+                It.IsAny<GamificationActivity>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GamificationOutcome(1, false, 0, 1, Array.Empty<MascotItem>()));
     }
 
     private SavingGoal Arrange(Guid userId, long targetCents, long savedCents, SavingGoalStatus status = SavingGoalStatus.Active)

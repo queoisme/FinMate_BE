@@ -14,6 +14,7 @@ public class ConfirmTransactionCommandHandlerTests
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<IGamificationService> _gamificationService = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly ConfirmTransactionCommandHandler _handler;
 
@@ -23,6 +24,7 @@ public class ConfirmTransactionCommandHandlerTests
             _transactionRepository.Object,
             _financialAccountRepository.Object,
             _budgetPeriodService.Object,
+            _gamificationService.Object,
             _cache.Object);
     }
 
@@ -140,5 +142,41 @@ public class ConfirmTransactionCommandHandlerTests
         _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
             userId, It.IsAny<Guid?>(), 0, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_Confirming_AwardsExpAndAdvancesConfirmMissions()
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, account) = DraftDebit(userId, 50_000);
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+
+        _gamificationService.Verify(s => s.RecordActivityAsync(
+            It.Is<GamificationActivity>(a =>
+                a.UserId == userId
+                && a.ConditionType == MissionConditionType.ConfirmTransaction
+                && a.ExpReward == 10),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AlreadyConfirmed_AwardsNothing()
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, _) = DraftDebit(userId, 50_000);
+        transaction.Status = TransactionStatus.Confirmed;
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+
+        var act = () => _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+        _gamificationService.VerifyNoOtherCalls();
     }
 }

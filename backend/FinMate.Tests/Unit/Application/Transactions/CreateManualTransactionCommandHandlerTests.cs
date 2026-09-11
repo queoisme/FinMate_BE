@@ -16,6 +16,7 @@ public class CreateManualTransactionCommandHandlerTests
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<IGamificationService> _gamificationService = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly CreateManualTransactionCommandHandler _handler;
 
@@ -26,6 +27,7 @@ public class CreateManualTransactionCommandHandlerTests
             _financialAccountRepository.Object,
             _categoryRepository.Object,
             _budgetPeriodService.Object,
+            _gamificationService.Object,
             _cache.Object,
             new CreateManualTransactionCommandValidator());
     }
