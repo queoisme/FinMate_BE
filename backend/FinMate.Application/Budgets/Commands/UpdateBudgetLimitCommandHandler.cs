@@ -43,10 +43,16 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
             currentPeriod.UpdatedAt = now;
 
             // Nâng hạn mức đủ để không còn vượt ngưỡng → cho phép alert bắn lại nếu sau đó
-            // user tiêu chạm ngưỡng lần nữa trong cùng chu kỳ.
-            if (currentPeriod.SpentCents * 100 < command.LimitCents * 80)
+            // user tiêu chạm ngưỡng lần nữa trong cùng chu kỳ. Xét độc lập từng mốc: nâng
+            // hạn mức có thể đưa user xuống dưới 90% mà vẫn còn trên 70%.
+            if (currentPeriod.SpentCents * 100 < command.LimitCents * 70)
             {
-                currentPeriod.Alert80SentAt = null;
+                currentPeriod.Alert70SentAt = null;
+            }
+
+            if (currentPeriod.SpentCents * 100 < command.LimitCents * 90)
+            {
+                currentPeriod.Alert90SentAt = null;
             }
 
             if (currentPeriod.SpentCents < command.LimitCents)

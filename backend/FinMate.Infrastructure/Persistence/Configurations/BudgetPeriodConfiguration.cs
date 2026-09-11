@@ -20,7 +20,8 @@ public class BudgetPeriodConfiguration : IEntityTypeConfiguration<BudgetPeriod>
         builder.Property(p => p.PeriodEnd).HasColumnName("period_end").IsRequired();
         builder.Property(p => p.LimitCents).HasColumnName("limit_cents").IsRequired();
         builder.Property(p => p.SpentCents).HasColumnName("spent_cents").HasDefaultValue(0L);
-        builder.Property(p => p.Alert80SentAt).HasColumnName("alert_80_sent_at");
+        builder.Property(p => p.Alert70SentAt).HasColumnName("alert_70_sent_at");
+        builder.Property(p => p.Alert90SentAt).HasColumnName("alert_90_sent_at");
         builder.Property(p => p.Alert100SentAt).HasColumnName("alert_100_sent_at");
         builder.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(p => p.UpdatedAt).HasColumnName("updated_at").IsRequired();

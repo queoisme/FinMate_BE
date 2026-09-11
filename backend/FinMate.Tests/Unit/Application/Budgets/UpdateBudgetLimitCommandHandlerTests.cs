@@ -37,7 +37,8 @@ public class UpdateBudgetLimitCommandHandlerTests
             BudgetId = budget.Id,
             LimitCents = limitCents,
             SpentCents = spentCents,
-            Alert80SentAt = DateTimeOffset.UtcNow,
+            Alert70SentAt = DateTimeOffset.UtcNow,
+            Alert90SentAt = DateTimeOffset.UtcNow,
             Alert100SentAt = DateTimeOffset.UtcNow,
         };
 
@@ -50,17 +51,18 @@ public class UpdateBudgetLimitCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_RaisesLimitAboveSpending_ResetsBothAlertFlags()
+    public async Task HandleAsync_RaisesLimitAboveSpending_ResetsAllThreeAlertFlags()
     {
         var userId = Guid.NewGuid();
         var (budget, period) = Setup(userId, limitCents: 1_000_000, spentCents: 900_000);
 
-        // Nâng lên 10 triệu: 900k chỉ còn 9% → cả 2 ngưỡng đều chưa chạm lại.
+        // Nâng lên 10 triệu: 900k chỉ còn 9% → cả 3 ngưỡng đều chưa chạm lại.
         await _handler.HandleAsync(new UpdateBudgetLimitCommand(userId, budget.Id, 10_000_000));
 
         budget.LimitCents.Should().Be(10_000_000);
         period.LimitCents.Should().Be(10_000_000);
-        period.Alert80SentAt.Should().BeNull();
+        period.Alert70SentAt.Should().BeNull();
+        period.Alert90SentAt.Should().BeNull();
         period.Alert100SentAt.Should().BeNull();
     }
 
@@ -72,20 +74,23 @@ public class UpdateBudgetLimitCommandHandlerTests
 
         await _handler.HandleAsync(new UpdateBudgetLimitCommand(userId, budget.Id, 1_200_000));
 
-        period.Alert80SentAt.Should().NotBeNull();
+        period.Alert70SentAt.Should().NotBeNull();
+        period.Alert90SentAt.Should().NotBeNull();
         period.Alert100SentAt.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task HandleAsync_RaisesLimitPastOverspendButStillAbove80Percent_ResetsOnly100Flag()
+    public async Task HandleAsync_RaisesLimitPastOverspendButStillAbove70Percent_ResetsOnlyTheClearedFlags()
     {
         var userId = Guid.NewGuid();
         var (budget, period) = Setup(userId, limitCents: 1_000_000, spentCents: 900_000);
 
-        // 900k / 1tr trước là 90% → 900k / 1.05tr là ~85%: vẫn qua 80% nhưng không còn vượt limit.
+        // 900k / 1tr trước là 90% → 900k / 1.05tr là ~85.7%: vẫn trên 70% nhưng đã tụt xuống
+        // dưới 90% và không còn vượt limit. Mỗi mốc xét độc lập nên chỉ 90 và 100 được mở lại.
         await _handler.HandleAsync(new UpdateBudgetLimitCommand(userId, budget.Id, 1_050_000));
 
-        period.Alert80SentAt.Should().NotBeNull();
+        period.Alert70SentAt.Should().NotBeNull();
+        period.Alert90SentAt.Should().BeNull();
         period.Alert100SentAt.Should().BeNull();
     }
 }

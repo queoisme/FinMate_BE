@@ -13,7 +13,10 @@ public class BudgetPeriod
 
     public long SpentCents { get; set; }
 
-    public DateTimeOffset? Alert80SentAt { get; set; }
+    // 3 mốc cảnh báo theo Core Flow 3 (ARCHITECTURE.md §0 quyết định #2). Mỗi mốc là một dấu
+    // vết riêng vì mỗi mốc chỉ được bắn đúng 1 lần trong 1 chu kỳ.
+    public DateTimeOffset? Alert70SentAt { get; set; }
+    public DateTimeOffset? Alert90SentAt { get; set; }
     public DateTimeOffset? Alert100SentAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

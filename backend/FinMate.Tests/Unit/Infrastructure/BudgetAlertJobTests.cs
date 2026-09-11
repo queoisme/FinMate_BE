@@ -50,22 +50,55 @@ public class BudgetAlertJobTests
     }
 
     [Fact]
-    public async Task RunAsync_At80Percent_SendsWarningOnceAndStampsOnly80Flag()
+    public async Task RunAsync_Under70Percent_SendsNothing()
     {
-        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 850_000);
+        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 650_000);
+
+        await _job.RunAsync();
+
+        _push.VerifyNoOtherCalls();
+        period.Alert70SentAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_At70Percent_SendsOnlyTheLowestWarningOnce()
+    {
+        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 750_000);
 
         await _job.RunAsync();
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp chạm hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        period.Alert80SentAt.Should().NotBeNull();
+        period.Alert70SentAt.Should().NotBeNull();
+        period.Alert90SentAt.Should().BeNull();
         period.Alert100SentAt.Should().BeNull();
     }
 
     [Fact]
-    public async Task RunAsync_AtOrOverLimit_SendsOverLimitOnceAndClosesBothThresholds()
+    public async Task RunAsync_At90Percent_SendsThe90AlertAndClosesThe70()
+    {
+        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 920_000);
+
+        await _job.RunAsync();
+        await _job.RunAsync();
+
+        _push.Verify(p => p.NotifyAsync(
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        // Đã ở 92% thì cảnh báo "quá 70%" là thông điệp sai — không được bắn, kể cả ở lần chạy sau.
+        _push.Verify(p => p.NotifyAsync(
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        period.Alert70SentAt.Should().NotBeNull();
+        period.Alert90SentAt.Should().NotBeNull();
+        period.Alert100SentAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_AtOrOverLimit_SendsOverLimitOnceAndClosesAllThreeThresholds()
     {
         var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 1_200_000);
 
@@ -76,25 +109,34 @@ public class BudgetAlertJobTests
             It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
-        // Nhảy thẳng qua 100% không được kéo theo cảnh báo 80% ở lần chạy sau.
+        // Nhảy thẳng qua cả 3 mốc chỉ được gửi đúng 1 thông báo — mốc cao nhất.
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp chạm hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        period.Alert80SentAt.Should().NotBeNull();
+        _push.Verify(p => p.NotifyAsync(
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        period.Alert70SentAt.Should().NotBeNull();
+        period.Alert90SentAt.Should().NotBeNull();
         period.Alert100SentAt.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task RunAsync_CrossesFrom80To100_SendsBothAlertsInOrder()
+    public async Task RunAsync_ClimbsThroughAllThreeThresholds_SendsEachExactlyOnce()
     {
-        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 850_000);
+        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 750_000);
 
+        await _job.RunAsync();
+        period.SpentCents = 950_000;
         await _job.RunAsync();
         period.SpentCents = 1_050_000;
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp chạm hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _push.Verify(p => p.NotifyAsync(
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _push.Verify(p => p.NotifyAsync(
             It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),

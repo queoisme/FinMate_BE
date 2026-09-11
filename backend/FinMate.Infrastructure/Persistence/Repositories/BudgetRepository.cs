@@ -70,8 +70,8 @@ public class BudgetRepository : IBudgetRepository
                   join b in _context.Budgets.Include(b => b.Category) on p.BudgetId equals b.Id
                   where p.PeriodStart <= now
                       && p.PeriodEnd > now
-                      && p.SpentCents * 100 >= p.LimitCents * 80
-                      && (p.Alert80SentAt == null || p.Alert100SentAt == null)
+                      && p.SpentCents * 100 >= p.LimitCents * 70
+                      && (p.Alert70SentAt == null || p.Alert90SentAt == null || p.Alert100SentAt == null)
                   select new BudgetAlertCandidate(p, b))
             .ToListAsync(ct);
 
