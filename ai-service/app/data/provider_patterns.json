@@ -1,0 +1,82 @@
+[
+  {
+    "provider_key": "mb_bank",
+    "package_name": "com.mbmobile",
+    "pattern_name": "mb_qr_v1",
+    "transaction_type": null,
+    "priority": 10,
+    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*\\|\\s*ND:\\s*(?:TT|THANH TOAN)\\s+QR\\s+(?P<merchant>.+?)\\s*$",
+    "sample_text": "TK 0123456789|GD: -75,000VND 09/09/2026 10:28|SD: 2,500,000VND|ND: TT QR HIGHLANDS COFFEE",
+    "notes": "Template quét QR — có tên đơn vị bán, ưu tiên trước template tổng quát."
+  },
+  {
+    "provider_key": "mb_bank",
+    "package_name": "com.mbmobile",
+    "pattern_name": "mb_generic_v1",
+    "transaction_type": null,
+    "priority": 20,
+    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*\\|\\s*ND:\\s*(?P<description>.+?)\\s*$",
+    "sample_text": "TK 0123456789|GD: +15,000,000VND 05/09/2026 08:00|SD: 17,500,000VND|ND: CONG TY ABC TRA LUONG THANG 8",
+    "notes": "Template chung cho chuyển khoản / nhận lương — ND là văn bản tự do."
+  },
+  {
+    "provider_key": "vietcombank",
+    "package_name": "com.VCB",
+    "pattern_name": "vcb_v1",
+    "transaction_type": null,
+    "priority": 10,
+    "regex": "So du TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*luc\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*So du\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*(?:Ref\\s*\\S+\\.?)?\\s*(?:ND\\s*(?P<description>.+?))?\\s*$",
+    "sample_text": "So du TK VCB 0011001234567 -250,000 VND luc 09-09-2026 19:05:00. So du 1,750,000 VND. Ref MBVCB.987654321. ND THANH TOAN GRAB",
+    "notes": "VCB tách Ref và ND thành hai cụm; cả hai đều có thể vắng."
+  },
+  {
+    "provider_key": "momo",
+    "package_name": "com.mservice.momotransfer",
+    "pattern_name": "momo_payment_v1",
+    "transaction_type": "debit",
+    "priority": 10,
+    "regex": "(?:Bạn đã |Ban da )?(?:thanh toán|thanh toan|chi)\\s*(?P<amount>[\\d.,]+)\\s*(?:đ|d|VND)\\s*(?:cho|tại|tai)\\s*(?P<merchant>.+?)(?:\\.\\s*(?:Số dư|So du)[^\\d]*(?P<balance>[\\d.,]+)\\s*(?:đ|d|VND))?\\s*\\.?$",
+    "sample_text": "Bạn đã thanh toán 75.000đ cho Highlands Coffee. Số dư: 2.500.000đ",
+    "notes": "MoMo dùng dấu chấm ngăn nghìn và hậu tố đ."
+  },
+  {
+    "provider_key": "momo",
+    "package_name": "com.mservice.momotransfer",
+    "pattern_name": "momo_receive_v1",
+    "transaction_type": "credit",
+    "priority": 10,
+    "regex": "(?:Bạn đã |Ban da )?(?:nhận|nhan)\\s*(?P<amount>[\\d.,]+)\\s*(?:đ|d|VND)\\s*(?:từ|tu)\\s*(?P<merchant>.+?)(?:\\.\\s*(?:Số dư|So du)[^\\d]*(?P<balance>[\\d.,]+)\\s*(?:đ|d|VND))?\\s*\\.?$",
+    "sample_text": "Bạn đã nhận 500.000đ từ NGUYEN VAN A. Số dư: 3.000.000đ",
+    "notes": "Tiền vào ví — chốt cứng credit, không cần group sign."
+  },
+  {
+    "provider_key": "zalopay",
+    "package_name": "vn.com.vng.zalopay",
+    "pattern_name": "zalopay_payment_v1",
+    "transaction_type": "debit",
+    "priority": 10,
+    "regex": "(?:Thanh toán|Thanh toan)\\s*(?:thành công|thanh cong)\\s*(?P<amount>[\\d.,]+)\\s*(?:đ|d|VND)\\s*(?:tại|tai|cho)\\s*(?P<merchant>.+?)(?:\\.\\s*(?:Số dư ví|So du vi)[^\\d]*(?P<balance>[\\d.,]+)\\s*(?:đ|d|VND))?\\s*\\.?$",
+    "sample_text": "Thanh toán thành công 45.000đ tại VinMart+ Nguyen Trai. Số dư ví: 820.000đ",
+    "notes": null
+  },
+  {
+    "provider_key": "zalopay",
+    "package_name": "vn.com.vng.zalopay",
+    "pattern_name": "zalopay_topup_v1",
+    "transaction_type": "credit",
+    "priority": 10,
+    "regex": "(?:Nạp tiền|Nap tien)\\s*(?:thành công|thanh cong)\\s*(?P<amount>[\\d.,]+)\\s*(?:đ|d|VND)(?:\\s*(?:từ|tu)\\s*(?P<merchant>.+?))?(?:\\.\\s*(?:Số dư ví|So du vi)[^\\d]*(?P<balance>[\\d.,]+)\\s*(?:đ|d|VND))?\\s*\\.?$",
+    "sample_text": "Nạp tiền thành công 1.000.000đ từ Vietcombank. Số dư ví: 1.820.000đ",
+    "notes": null
+  },
+  {
+    "provider_key": "vnpay",
+    "package_name": "vn.vnpay.vnpayewallet",
+    "pattern_name": "vnpay_v1",
+    "transaction_type": "debit",
+    "priority": 10,
+    "regex": "(?:Giao dich|Giao dịch)\\s*(?:thanh cong|thành công)\\.?\\s*(?:So tien|Số tiền)[:\\s]*(?P<amount>[\\d.,]+)\\s*(?:VND|đ)\\.?\\s*(?:Noi dung|Nội dung)[:\\s]*(?P<description>.+?)\\.?\\s*(?:So du|Số dư)[:\\s]*(?P<balance>[\\d.,]+)\\s*(?:VND|đ)\\.?\\s*$",
+    "sample_text": "Giao dich thanh cong. So tien: 120,000 VND. Noi dung: Thanh toan hoa don dien EVN. So du: 680,000 VND",
+    "notes": "VNPay không tách tên đơn vị — merchant suy từ description ở Extractor."
+  }
+]

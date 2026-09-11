@@ -13,9 +13,11 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Real ORM models (raw_samples, labeled_samples, ...) land in Phase 9 —
-# target_metadata stays None until app/db/models/* defines a shared Base.
-target_metadata = None
+# all_models gom mọi ORM model về một chỗ — dự án không dùng __init__.py nên nếu
+# import lẻ từng module, bảng nào quên import sẽ bị autogenerate coi là "đã bị xoá".
+from app.db.models.all_models import Base
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
