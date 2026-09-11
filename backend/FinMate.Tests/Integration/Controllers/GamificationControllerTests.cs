@@ -282,7 +282,11 @@ public class GamificationControllerTests : IClassFixture<AuthApiFactory>
         await _client.SendAsync(Authed(HttpMethod.Delete, $"/api/v1/transactions/{transactionId}", token));
 
         var after = await ProfileAsync(token);
-        after.ExpPoints.Should().Be(before.ExpPoints - 10);
+
+        // SpendAsync tạo giao dịch THỦ CÔNG nên lúc tạo chỉ được +5. Trước đây chỗ này assert
+        // -10 (mức của giao dịch xác nhận từ thông báo) và vẫn xanh, vì handler cũng trừ nhầm
+        // 10 cho mọi nguồn — test khoá cứng đúng con bug mà tên của nó phủ nhận.
+        after.ExpPoints.Should().Be(before.ExpPoints - 5);
     }
 
     [Fact]

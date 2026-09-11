@@ -8,6 +8,7 @@ internal static class TransactionMapper
     public static TransactionDto ToDto(Transaction transaction) => new(
         transaction.Id,
         transaction.FinancialAccountId,
+        transaction.CounterAccountId,
         transaction.CategoryId,
         transaction.Category?.Name,
         transaction.AmountCents,

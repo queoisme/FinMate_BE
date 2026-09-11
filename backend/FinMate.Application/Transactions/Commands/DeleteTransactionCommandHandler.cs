@@ -44,6 +44,15 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 : -transaction.AmountCents;
             account.UpdatedAt = now;
 
+            // Transfer đã cộng tiền vào ví đích lúc tạo — không trả lại thì tiền tự sinh ra.
+            if (transaction.CounterAccountId is not null)
+            {
+                var counter = await _financialAccountRepository.GetByIdAsync(transaction.CounterAccountId.Value, command.UserId, ct)
+                    ?? throw new NotFoundException("FinancialAccount", transaction.CounterAccountId.Value);
+                counter.BalanceCents -= transaction.AmountCents;
+                counter.UpdatedAt = now;
+            }
+
             await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 transaction.CategoryId,
@@ -51,12 +60,15 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 transaction.TransactedAt,
                 ct);
 
-            // Trừ lại đúng số EXP đã cộng lúc confirm. Việc này CÓ THỂ làm tụt level, và đó
-            // là đánh đổi có chủ ý: không hoàn EXP thì user farm được bằng cách thêm rồi xóa
-            // giao dịch liên tục. Tiến độ mission không hoàn lại — mission đã hoàn thành là
-            // việc đã xảy ra trong chu kỳ đó.
+            // Trừ lại đúng số EXP đã cộng. Việc này CÓ THỂ làm tụt level, và đó là đánh đổi
+            // có chủ ý: không hoàn EXP thì user farm được bằng cách thêm rồi xóa giao dịch
+            // liên tục. Tiến độ mission không hoàn lại — mission đã hoàn thành là việc đã
+            // xảy ra trong chu kỳ đó.
+            //
+            // Số hoàn phải tra theo Source vì 2 đường tạo thưởng 2 mức khác nhau: giao dịch
+            // từ thông báo được +10 lúc confirm, giao dịch tự nhập (kể cả transfer) chỉ +5.
             await _gamificationService.RevertExpAsync(
-                command.UserId, TransactionExpRewards.ConfirmTransaction, ct);
+                command.UserId, ExpAwardedFor(transaction.Source), ct);
         }
 
         transaction.DeletedAt = now;
@@ -72,4 +84,10 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
         }
     }
+
+    private static int ExpAwardedFor(TransactionSource source) => source switch
+    {
+        TransactionSource.Notification => TransactionExpRewards.ConfirmTransaction,
+        _ => TransactionExpRewards.CreateManualTransaction,
+    };
 }

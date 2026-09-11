@@ -3,6 +3,7 @@ namespace FinMate.Application.Common.Models;
 public record TransactionDto(
     Guid Id,
     Guid FinancialAccountId,
+    Guid? CounterAccountId,
     Guid? CategoryId,
     string? CategoryName,
     long AmountCents,

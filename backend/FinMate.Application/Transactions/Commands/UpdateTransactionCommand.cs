@@ -6,6 +6,7 @@ public record UpdateTransactionCommand(
     Guid UserId,
     Guid TransactionId,
     Guid FinancialAccountId,
+    Guid? CounterAccountId,
     Guid? CategoryId,
     long AmountCents,
     TransactionType TransactionType,

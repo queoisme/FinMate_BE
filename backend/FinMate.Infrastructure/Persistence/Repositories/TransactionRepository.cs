@@ -87,8 +87,12 @@ public class TransactionRepository : ITransactionRepository
         await _context.SaveChangesAsync(ct);
     }
 
+    // Phải xét cả counter_account_id: ví chỉ từng đứng ở vế ĐÍCH của một transfer vẫn là ví
+    // đang có giao dịch. Bỏ sót vế này thì guard xóa ví lọt, và FK Restrict sẽ ném lỗi DB thô.
     public Task<bool> HasAnyForAccountAsync(Guid financialAccountId, CancellationToken ct = default)
-        => _context.Transactions.AnyAsync(t => t.FinancialAccountId == financialAccountId, ct);
+        => _context.Transactions.AnyAsync(
+            t => t.FinancialAccountId == financialAccountId || t.CounterAccountId == financialAccountId,
+            ct);
 
     public Task<bool> HasAnyForCategoryAsync(Guid categoryId, CancellationToken ct = default)
         => _context.Transactions.AnyAsync(t => t.CategoryId == categoryId, ct);

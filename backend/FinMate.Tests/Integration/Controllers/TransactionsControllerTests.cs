@@ -31,7 +31,7 @@ public class TransactionsControllerTests : IClassFixture<AuthApiFactory>
     private record FinancialAccountBody(bool Success, FinancialAccountData Data);
     private record FinancialAccountData(Guid Id, long BalanceCents);
     private record TransactionBody(bool Success, TransactionData Data);
-    private record TransactionData(Guid Id, long AmountCents, string Status, string TransactionType);
+    private record TransactionData(Guid Id, long AmountCents, string Status, string TransactionType, Guid? CounterAccountId);
     private record AnalysisBody(bool Success, AnalysisData Data);
     private record AnalysisData(Guid NotificationLogId, string Status, Guid? DraftTransactionId);
     private record TransactionListBody(bool Success, List<TransactionData> Data, ApiMetaBody? Meta);
@@ -298,5 +298,157 @@ public class TransactionsControllerTests : IClassFixture<AuthApiFactory>
         var body = await response.Content.ReadFromJsonAsync<ParsedBody>(JsonOptions);
         body!.Data.AmountCents.Should().Be(50_000);
         body.Data.CategorySlug.Should().Be("food");
+    }
+
+    private async Task<long> BalanceOfAsync(string accessToken, Guid accountId)
+    {
+        var response = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Get, $"/api/v1/financial-accounts/{accountId}/balance", accessToken));
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("data").GetProperty("balanceCents").GetInt64();
+    }
+
+    [Fact]
+    public async Task Transfer_MovesMoneyBetweenWalletsWithoutSpendingTheBudget()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var (bank, _) = await CreateCashAccountAsync(accessToken, 5_000_000);
+        var (cash, _) = await CreateCashAccountAsync(accessToken, 0);
+
+        // Đặt hạn mức tổng rồi rút tiền: rút ATM không phải tiêu tiền, hạn mức phải đứng yên.
+        var budgetRequest = AuthedRequest(HttpMethod.Post, "/api/v1/budgets", accessToken);
+        budgetRequest.Content = JsonContent.Create(new
+        {
+            categoryId = (Guid?)null,
+            limitCents = 3_000_000,
+            periodType = "Monthly",
+        });
+        (await _client.SendAsync(budgetRequest)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var transferRequest = AuthedRequest(HttpMethod.Post, "/api/v1/transactions/transfer", accessToken);
+        transferRequest.Content = JsonContent.Create(new
+        {
+            fromAccountId = bank,
+            toAccountId = cash,
+            amountCents = 2_000_000,
+            transactedAt = DateTimeOffset.UtcNow,
+            description = "Rút ATM",
+        });
+        var transferResponse = await _client.SendAsync(transferRequest);
+        transferResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var created = await transferResponse.Content.ReadFromJsonAsync<TransactionBody>(JsonOptions);
+        created!.Data.TransactionType.Should().Be("Transfer");
+        created.Data.CounterAccountId.Should().Be(cash);
+
+        (await BalanceOfAsync(accessToken, bank)).Should().Be(3_000_000);
+        (await BalanceOfAsync(accessToken, cash)).Should().Be(2_000_000);
+
+        var summaryResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Get, "/api/v1/budgets", accessToken));
+        using var summary = JsonDocument.Parse(await summaryResponse.Content.ReadAsStringAsync());
+        summary.RootElement.GetProperty("data").GetProperty("totalBudget")
+            .GetProperty("spentCents").GetInt64().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Transfer_IsExcludedFromTheMonthlySpendReport()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var (bank, _) = await CreateCashAccountAsync(accessToken, 5_000_000);
+        var (cash, _) = await CreateCashAccountAsync(accessToken, 0);
+
+        var transferRequest = AuthedRequest(HttpMethod.Post, "/api/v1/transactions/transfer", accessToken);
+        transferRequest.Content = JsonContent.Create(new
+        {
+            fromAccountId = bank,
+            toAccountId = cash,
+            amountCents = 1_500_000,
+            transactedAt = DateTimeOffset.UtcNow,
+            description = (string?)null,
+        });
+        (await _client.SendAsync(transferRequest)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var reportResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Get, "/api/v1/reports/monthly-summary", accessToken));
+        using var report = JsonDocument.Parse(await reportResponse.Content.ReadAsStringAsync());
+        var data = report.RootElement.GetProperty("data");
+
+        // Rút 1.5tr không phải chi 1.5tr, cũng không phải thu 1.5tr.
+        data.GetProperty("totalSpentCents").GetInt64().Should().Be(0);
+        data.GetProperty("totalIncomeCents").GetInt64().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Transfer_ToTheSameWallet_IsRejected()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var (bank, _) = await CreateCashAccountAsync(accessToken, 1_000_000);
+
+        var request = AuthedRequest(HttpMethod.Post, "/api/v1/transactions/transfer", accessToken);
+        request.Content = JsonContent.Create(new
+        {
+            fromAccountId = bank,
+            toAccountId = bank,
+            amountCents = 100_000,
+            transactedAt = DateTimeOffset.UtcNow,
+            description = (string?)null,
+        });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await BalanceOfAsync(accessToken, bank)).Should().Be(1_000_000);
+    }
+
+    [Fact]
+    public async Task Transfer_ToAnotherUsersWallet_IsNotFound()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var (mine, _) = await CreateCashAccountAsync(accessToken, 1_000_000);
+
+        var otherToken = await RegisterAndLoginAsync();
+        var (theirs, _) = await CreateCashAccountAsync(otherToken, 1_000_000);
+
+        var request = AuthedRequest(HttpMethod.Post, "/api/v1/transactions/transfer", accessToken);
+        request.Content = JsonContent.Create(new
+        {
+            fromAccountId = mine,
+            toAccountId = theirs,
+            amountCents = 100_000,
+            transactedAt = DateTimeOffset.UtcNow,
+            description = (string?)null,
+        });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await BalanceOfAsync(accessToken, mine)).Should().Be(1_000_000);
+        (await BalanceOfAsync(otherToken, theirs)).Should().Be(1_000_000);
+    }
+
+    [Fact]
+    public async Task DeletingAWalletThatIsOnlyTheDestinationOfATransfer_IsBlocked()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var (bank, _) = await CreateCashAccountAsync(accessToken, 2_000_000);
+        var (cash, _) = await CreateCashAccountAsync(accessToken, 0);
+
+        var transferRequest = AuthedRequest(HttpMethod.Post, "/api/v1/transactions/transfer", accessToken);
+        transferRequest.Content = JsonContent.Create(new
+        {
+            fromAccountId = bank,
+            toAccountId = cash,
+            amountCents = 500_000,
+            transactedAt = DateTimeOffset.UtcNow,
+            description = (string?)null,
+        });
+        (await _client.SendAsync(transferRequest)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Ví `cash` chưa từng đứng ở cột financial_account_id — chỉ ở counter_account_id.
+        var deleteResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Delete, $"/api/v1/financial-accounts/{cash}", accessToken));
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 }

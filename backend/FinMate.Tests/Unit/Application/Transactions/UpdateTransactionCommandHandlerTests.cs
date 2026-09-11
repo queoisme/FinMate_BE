@@ -56,7 +56,7 @@ public class UpdateTransactionCommandHandlerTests
         // 500_000 (balance after original -50_000 debit was already applied) -> revert (+50_000) = 550_000
         // -> apply new -80_000 debit = 470_000
         var command = new UpdateTransactionCommand(
-            userId, transaction.Id, account.Id, null, 80_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
+            userId, transaction.Id, account.Id, null, null, 80_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
 
         await _handler.HandleAsync(command);
 
@@ -90,7 +90,7 @@ public class UpdateTransactionCommandHandlerTests
             .ReturnsAsync(newAccount);
 
         var command = new UpdateTransactionCommand(
-            userId, transaction.Id, newAccount.Id, null, 20_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
+            userId, transaction.Id, newAccount.Id, null, null, 20_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
 
         await _handler.HandleAsync(command);
 
@@ -119,7 +119,7 @@ public class UpdateTransactionCommandHandlerTests
             .ReturnsAsync(transaction);
 
         var command = new UpdateTransactionCommand(
-            userId, transaction.Id, account.Id, null, 999_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
+            userId, transaction.Id, account.Id, null, null, 999_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
 
         await _handler.HandleAsync(command);
 
@@ -154,7 +154,7 @@ public class UpdateTransactionCommandHandlerTests
             .ReturnsAsync(newCategory);
 
         var command = new UpdateTransactionCommand(
-            userId, transaction.Id, account.Id, newCategory.Id, 10_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
+            userId, transaction.Id, account.Id, null, newCategory.Id, 10_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null);
 
         await _handler.HandleAsync(command);
 
@@ -194,7 +194,7 @@ public class UpdateTransactionCommandHandlerTests
 
         var newTransactedAt = DateTimeOffset.UtcNow;
         await _handler.HandleAsync(new UpdateTransactionCommand(
-            userId, transaction.Id, account.Id, newCategory.Id, 90_000, TransactionType.Debit, newTransactedAt, null, null));
+            userId, transaction.Id, account.Id, null, newCategory.Id, 90_000, TransactionType.Debit, newTransactedAt, null, null));
 
         // Hoàn lại theo category/số tiền/ngày CŨ...
         _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
@@ -226,8 +226,115 @@ public class UpdateTransactionCommandHandlerTests
             .ReturnsAsync(transaction);
 
         await _handler.HandleAsync(new UpdateTransactionCommand(
-            userId, transaction.Id, account.Id, null, 999_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null));
+            userId, transaction.Id, account.Id, null, null, 999_000, TransactionType.Debit, DateTimeOffset.UtcNow, null, null));
 
         _budgetPeriodService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task HandleAsync_UpdatingTransferAmount_RebalancesBothAccounts()
+    {
+        var userId = Guid.NewGuid();
+        var from = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 4_000_000 };
+        var to = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = from.Id,
+            CounterAccountId = to.Id,
+            AmountCents = 1_000_000,
+            TransactionType = TransactionType.Transfer,
+            Source = TransactionSource.Manual,
+            Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(from.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(from);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(to.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(to);
+
+        // Ghi nhầm 1tr, thực tế rút 1.5tr.
+        await _handler.HandleAsync(new UpdateTransactionCommand(
+            userId, transaction.Id, from.Id, to.Id, null, 1_500_000,
+            TransactionType.Transfer, DateTimeOffset.UtcNow, null, null));
+
+        from.BalanceCents.Should().Be(3_500_000);
+        to.BalanceCents.Should().Be(1_500_000);
+        (from.BalanceCents + to.BalanceCents).Should().Be(5_000_000);
+    }
+
+    [Fact]
+    public async Task HandleAsync_TurningTransferIntoExpense_IsRejected()
+    {
+        var userId = Guid.NewGuid();
+        var from = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
+        var to = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = from.Id,
+            CounterAccountId = to.Id,
+            AmountCents = 500_000,
+            TransactionType = TransactionType.Transfer,
+            Source = TransactionSource.Manual,
+            Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+
+        var act = () => _handler.HandleAsync(new UpdateTransactionCommand(
+            userId, transaction.Id, from.Id, null, null, 500_000,
+            TransactionType.Debit, DateTimeOffset.UtcNow, null, null));
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.ErrorCode.Should().Be(TransactionErrorCodes.TypeChangeNotAllowed);
+
+        // Quan trọng: từ chối phải xảy ra TRƯỚC khi chạm số dư, không để lại nửa vời.
+        from.BalanceCents.Should().Be(1_000_000);
+        to.BalanceCents.Should().Be(1_000_000);
+    }
+
+    [Fact]
+    public async Task HandleAsync_UpdatingTransfer_NeverConsumesBudget()
+    {
+        var userId = Guid.NewGuid();
+        var from = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 4_000_000 };
+        var to = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 0 };
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            FinancialAccountId = from.Id,
+            CounterAccountId = to.Id,
+            AmountCents = 1_000_000,
+            TransactionType = TransactionType.Transfer,
+            Source = TransactionSource.Manual,
+            Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
+        };
+
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(from.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(from);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(to.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(to);
+
+        await _handler.HandleAsync(new UpdateTransactionCommand(
+            userId, transaction.Id, from.Id, to.Id, null, 2_000_000,
+            TransactionType.Transfer, DateTimeOffset.UtcNow, null, null));
+
+        // Cả revert lẫn apply đều phải là 0 đồng — transfer không tiêu hạn mức ở bất kỳ chiều nào.
+        _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
+            userId, It.IsAny<Guid?>(), It.Is<long>(d => d != 0),
+            It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

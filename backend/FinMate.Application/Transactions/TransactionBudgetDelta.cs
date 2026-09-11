@@ -12,7 +12,9 @@ namespace FinMate.Application.Transactions;
 internal static class TransactionBudgetDelta
 {
     /// <summary>
-    /// Chỉ Debit tiêu hạn mức; Credit là tiền vào nên không ăn vào budget chi tiêu.
+    /// Chỉ Debit tiêu hạn mức. Credit là tiền vào nên không ăn vào budget chi tiêu; Transfer là
+    /// dịch chuyển giữa 2 ví của chính user nên cũng không (ARCHITECTURE.md §0 quyết định #1) —
+    /// cả hai đều rơi vào nhánh 0 ở đây, đây là chốt chặn duy nhất cho toàn bộ 4 handler.
     /// Trả về số dương — caller đảo dấu khi cần revert.
     /// </summary>
     internal static long Spend(TransactionType type, long amountCents)

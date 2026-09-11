@@ -15,6 +15,7 @@ public class TransactionsController : ControllerBase
 {
     private readonly IConfirmTransactionCommandHandler _confirmHandler;
     private readonly ICreateManualTransactionCommandHandler _createHandler;
+    private readonly ICreateTransferCommandHandler _transferHandler;
     private readonly IUpdateTransactionCommandHandler _updateHandler;
     private readonly IDeleteTransactionCommandHandler _deleteHandler;
     private readonly IParseNaturalLanguageCommandHandler _parseHandler;
@@ -24,6 +25,7 @@ public class TransactionsController : ControllerBase
     public TransactionsController(
         IConfirmTransactionCommandHandler confirmHandler,
         ICreateManualTransactionCommandHandler createHandler,
+        ICreateTransferCommandHandler transferHandler,
         IUpdateTransactionCommandHandler updateHandler,
         IDeleteTransactionCommandHandler deleteHandler,
         IParseNaturalLanguageCommandHandler parseHandler,
@@ -32,6 +34,7 @@ public class TransactionsController : ControllerBase
     {
         _confirmHandler = confirmHandler;
         _createHandler = createHandler;
+        _transferHandler = transferHandler;
         _updateHandler = updateHandler;
         _deleteHandler = deleteHandler;
         _parseHandler = parseHandler;
@@ -81,6 +84,25 @@ public class TransactionsController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ApiResponse<TransactionDto>.Ok(transaction));
     }
 
+    /// <summary>
+    /// Chuyển tiền giữa 2 ví của chính user (rút ATM, nạp ví điện tử). Tách khỏi POST /transactions
+    /// vì nó chạm 2 số dư và KHÔNG tiêu ngân sách — xem ARCHITECTURE.md §0 quyết định #1.
+    /// </summary>
+    [HttpPost("transfer")]
+    public async Task<IActionResult> Transfer([FromBody] CreateTransferRequest request, CancellationToken ct)
+    {
+        var transaction = await _transferHandler.HandleAsync(
+            new CreateTransferCommand(
+                CurrentUserId,
+                request.FromAccountId,
+                request.ToAccountId,
+                request.AmountCents,
+                request.TransactedAt,
+                request.Description),
+            ct);
+        return StatusCode(StatusCodes.Status201Created, ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTransactionRequest request, CancellationToken ct)
     {
@@ -89,6 +111,7 @@ public class TransactionsController : ControllerBase
                 CurrentUserId,
                 id,
                 request.FinancialAccountId,
+                request.CounterAccountId,
                 request.CategoryId,
                 request.AmountCents,
                 request.TransactionType,
@@ -130,8 +153,16 @@ public record CreateManualTransactionRequest(
     string? MerchantName,
     string? Description);
 
+public record CreateTransferRequest(
+    Guid FromAccountId,
+    Guid ToAccountId,
+    long AmountCents,
+    DateTimeOffset TransactedAt,
+    string? Description);
+
 public record UpdateTransactionRequest(
     Guid FinancialAccountId,
+    Guid? CounterAccountId,
     Guid? CategoryId,
     long AmountCents,
     TransactionType TransactionType,
