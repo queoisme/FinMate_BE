@@ -1,0 +1,3 @@
+
+# Artifact model — sản phẩm build, sinh lại bằng scripts/train.py
+models/**/*.joblib
