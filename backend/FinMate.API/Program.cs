@@ -236,6 +236,8 @@ public class Program
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
         builder.Services.AddScoped<InsightGeneratorJob>();
+        builder.Services.AddScoped<StreakCheckJob>();
+        builder.Services.AddScoped<MissionResetJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
 
         builder.Services.AddFinMateRateLimiting();
@@ -313,6 +315,17 @@ public class Program
             "insight-generator",
             job => job.RunAsync(CancellationToken.None),
             "0 19 * * *");
+
+        // 16:55 UTC = 23:55 VN, 17:01 UTC = 00:01 VN — xem ghi chú quy đổi ở trên.
+        RecurringJob.AddOrUpdate<StreakCheckJob>(
+            "streak-check",
+            job => job.RunAsync(CancellationToken.None),
+            "55 16 * * *");
+
+        RecurringJob.AddOrUpdate<MissionResetJob>(
+            "mission-reset",
+            job => job.RunAsync(CancellationToken.None),
+            "1 17 * * *");
 
         app.MapControllers();
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();

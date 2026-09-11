@@ -32,6 +32,9 @@ public interface IMissionRepository
     /// <summary>Đã hoàn thành mission <paramref name="code"/> ở bất kỳ chu kỳ nào chưa.</summary>
     Task<bool> HasEverCompletedAsync(Guid userId, string code, CancellationToken ct = default);
 
+    /// <summary>Dòng của chu kỳ đã kết thúc và chưa hoàn thành — MissionResetJob đóng sổ.</summary>
+    Task<List<UserMission>> GetExpiredUserMissionsAsync(DateOnly today, CancellationToken ct = default);
+
     void AddUserMission(UserMission userMission);
     Task SaveChangesAsync(CancellationToken ct = default);
 }

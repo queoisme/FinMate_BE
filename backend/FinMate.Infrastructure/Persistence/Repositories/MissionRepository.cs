@@ -47,6 +47,11 @@ public class MissionRepository : IMissionRepository
         => _context.UserMissions
             .AnyAsync(m => m.UserId == userId && m.IsCompleted && m.Mission!.Code == code, ct);
 
+    public Task<List<UserMission>> GetExpiredUserMissionsAsync(DateOnly today, CancellationToken ct = default)
+        => _context.UserMissions
+            .Where(m => !m.IsCompleted && m.PeriodEnd < today)
+            .ToListAsync(ct);
+
     public void AddUserMission(UserMission userMission)
         => _context.UserMissions.Add(userMission);
 
