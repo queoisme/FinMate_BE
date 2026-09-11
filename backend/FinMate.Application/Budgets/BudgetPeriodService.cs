@@ -1,3 +1,4 @@
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 
@@ -30,7 +31,7 @@ public class BudgetPeriodService : IBudgetPeriodService
             return;
         }
 
-        var (periodStart, periodEnd) = BudgetCalendar.MonthlyPeriod(transactedAt);
+        var (periodStart, periodEnd) = VietnamTime.MonthRange(transactedAt);
         var now = DateTimeOffset.UtcNow;
 
         foreach (var budget in budgets)

@@ -30,7 +30,7 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
             ?? throw new NotFoundException("Budget", command.BudgetId);
 
         var now = DateTimeOffset.UtcNow;
-        var (periodStart, _) = BudgetCalendar.MonthlyPeriod(now);
+        var (periodStart, _) = VietnamTime.MonthRange(now);
 
         budget.LimitCents = command.LimitCents;
         budget.UpdatedAt = now;
@@ -57,7 +57,7 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
 
         await _budgetRepository.UpdateAsync(budget, ct);
 
-        var (year, month) = BudgetCalendar.VietnamYearMonth(now);
+        var (year, month) = VietnamTime.YearMonthOf(now);
         await _cache.RemoveAsync(CacheKeys.BudgetSummary(command.UserId, year, month), ct);
 
         return BudgetMapper.ToDto(budget);

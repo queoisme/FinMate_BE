@@ -28,7 +28,7 @@ public class DeleteBudgetCommandHandler : IDeleteBudgetCommandHandler
         // GetBudgetSummary chỉ đọc qua budget chưa xóa.
         await _budgetRepository.UpdateAsync(budget, ct);
 
-        var (year, month) = BudgetCalendar.VietnamYearMonth(now);
+        var (year, month) = VietnamTime.YearMonthOf(now);
         await _cache.RemoveAsync(CacheKeys.BudgetSummary(command.UserId, year, month), ct);
     }
 }

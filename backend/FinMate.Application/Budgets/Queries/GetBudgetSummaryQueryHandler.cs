@@ -18,12 +18,12 @@ public class GetBudgetSummaryQueryHandler : IGetBudgetSummaryQueryHandler
     public async Task<BudgetSummaryDto> HandleAsync(GetBudgetSummaryQuery query, CancellationToken ct = default)
     {
         var (periodStart, periodEnd) = query.Year is not null && query.Month is not null
-            ? BudgetCalendar.MonthlyPeriod(query.Year.Value, query.Month.Value)
-            : BudgetCalendar.MonthlyPeriod(DateTimeOffset.UtcNow);
+            ? VietnamTime.MonthRange(query.Year.Value, query.Month.Value)
+            : VietnamTime.MonthRange(DateTimeOffset.UtcNow);
 
         // Lấy năm/tháng theo giờ VN, không lấy từ biểu diễn UTC của periodStart: mốc đầu
         // tháng 10 giờ VN nằm ở 30/09 theo UTC, dùng thẳng sẽ ra key của tháng trước.
-        var (year, month) = BudgetCalendar.VietnamYearMonth(periodStart);
+        var (year, month) = VietnamTime.YearMonthOf(periodStart);
         var cacheKey = CacheKeys.BudgetSummary(query.UserId, year, month);
         var cached = await _cache.GetAsync<BudgetSummaryDto>(cacheKey, ct);
         if (cached is not null)
@@ -57,9 +57,9 @@ public class GetBudgetSummaryQueryHandler : IGetBudgetSummaryQueryHandler
 
         var summary = new BudgetSummaryDto(
             // Trả mốc chu kỳ theo giờ VN: cùng mốc thời gian, nhưng client đọc "01/09" thay vì
-            // "31/08 17:00Z" — biểu diễn UTC chỉ cần cho tầng lưu trữ (xem BudgetCalendar).
-            periodStart.ToOffset(BudgetCalendar.VietnamOffset),
-            periodEnd.ToOffset(BudgetCalendar.VietnamOffset),
+            // "31/08 17:00Z" — biểu diễn UTC chỉ cần cho tầng lưu trữ (xem VietnamTime).
+            periodStart.ToOffset(VietnamTime.Offset),
+            periodEnd.ToOffset(VietnamTime.Offset),
             items.SingleOrDefault(i => i.CategoryId is null),
             items.Where(i => i.CategoryId is not null).ToList());
 

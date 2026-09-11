@@ -1,4 +1,5 @@
 using FinMate.Application.Budgets;
+using FinMate.Application.Common;
 using FinMate.Application.Budgets.Commands;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
@@ -42,7 +43,7 @@ public class UpdateBudgetLimitCommandHandlerTests
 
         _budgetRepository.Setup(r => r.GetByIdAsync(budget.Id, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(budget);
-        _budgetRepository.Setup(r => r.GetPeriodAsync(budget.Id, BudgetCalendar.CurrentMonthStart(), It.IsAny<CancellationToken>()))
+        _budgetRepository.Setup(r => r.GetPeriodAsync(budget.Id, VietnamTime.CurrentMonthStart(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(period);
 
         return (budget, period);

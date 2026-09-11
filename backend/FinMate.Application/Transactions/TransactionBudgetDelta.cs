@@ -24,7 +24,7 @@ internal static class TransactionBudgetDelta
         DateTimeOffset transactedAt,
         CancellationToken ct)
     {
-        var (year, month) = BudgetCalendar.VietnamYearMonth(transactedAt);
+        var (year, month) = VietnamTime.YearMonthOf(transactedAt);
         return cache.RemoveAsync(CacheKeys.BudgetSummary(userId, year, month), ct);
     }
 }

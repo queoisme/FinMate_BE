@@ -54,7 +54,7 @@ public class CreateBudgetCommandHandler : ICreateBudgetCommandHandler
         }
 
         var now = DateTimeOffset.UtcNow;
-        var (periodStart, periodEnd) = BudgetCalendar.MonthlyPeriod(now);
+        var (periodStart, periodEnd) = VietnamTime.MonthRange(now);
 
         var budget = new Budget
         {
@@ -86,7 +86,7 @@ public class CreateBudgetCommandHandler : ICreateBudgetCommandHandler
         await _budgetRepository.AddAsync(budget, ct);
         budget.Category = category;
 
-        var (year, month) = BudgetCalendar.VietnamYearMonth(now);
+        var (year, month) = VietnamTime.YearMonthOf(now);
         await _cache.RemoveAsync(CacheKeys.BudgetSummary(command.UserId, year, month), ct);
 
         return BudgetMapper.ToDto(budget);

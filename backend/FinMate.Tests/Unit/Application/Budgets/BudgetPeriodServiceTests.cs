@@ -1,4 +1,5 @@
 using FinMate.Application.Budgets;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -147,9 +148,9 @@ public class BudgetPeriodServiceTests
     [InlineData("2026-10-01T16:00:00+00:00", 2026, 10)]
     // 2026-09-30T16:59Z là 2026-09-30T23:59+07 — vẫn là tháng 9.
     [InlineData("2026-09-30T16:59:00+00:00", 2026, 9)]
-    public void MonthlyPeriod_UsesVietnamOffsetForMonthBoundary(string instant, int expectedYear, int expectedMonth)
+    public void MonthRange_UsesVietnamOffsetForMonthBoundary(string instant, int expectedYear, int expectedMonth)
     {
-        var (start, end) = BudgetCalendar.MonthlyPeriod(DateTimeOffset.Parse(instant));
+        var (start, end) = VietnamTime.MonthRange(DateTimeOffset.Parse(instant));
 
         // Mốc trả về là 00:00 ngày 1 giờ VN, biểu diễn ở UTC (17:00 ngày cuối tháng trước).
         var vnStart = new DateTimeOffset(expectedYear, expectedMonth, 1, 0, 0, 0, TimeSpan.FromHours(7));
@@ -159,15 +160,15 @@ public class BudgetPeriodServiceTests
         // là biểu diễn UTC nên cộng 1 tháng lên nó lệch khi 2 tháng khác số ngày.
         end.Should().Be(vnStart.AddMonths(1));
 
-        BudgetCalendar.VietnamYearMonth(start).Should().Be((expectedYear, expectedMonth));
+        VietnamTime.YearMonthOf(start).Should().Be((expectedYear, expectedMonth));
     }
 
     [Fact]
-    public void MonthlyPeriod_ReturnsUtcOffset_BecauseNpgsqlRejectsNonZeroOffsets()
+    public void MonthRange_ReturnsUtcOffset_BecauseNpgsqlRejectsNonZeroOffsets()
     {
         // Npgsql chỉ ghi được DateTimeOffset offset 0 vào cột `timestamp with time zone` —
         // kể cả khi giá trị chỉ dùng làm tham số truy vấn.
-        var (start, end) = BudgetCalendar.MonthlyPeriod(DateTimeOffset.UtcNow);
+        var (start, end) = VietnamTime.MonthRange(DateTimeOffset.UtcNow);
 
         start.Offset.Should().Be(TimeSpan.Zero);
         end.Offset.Should().Be(TimeSpan.Zero);
