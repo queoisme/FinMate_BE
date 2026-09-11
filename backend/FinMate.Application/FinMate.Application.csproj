@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Test dựng StatisticalSpendingForecaster với đồng hồ cố định; dự báo phụ thuộc ngày
+         trong tháng nên không cố định được thì test chỉ đúng vào vài ngày nhất định. -->
+    <InternalsVisibleTo Include="FinMate.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.*" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.*" />
   </ItemGroup>

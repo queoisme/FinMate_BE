@@ -10,6 +10,9 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
+using FinMate.Application.Reports;
+using FinMate.Application.Reports.Commands;
+using FinMate.Application.Reports.Queries;
 using FinMate.Application.SavingGoals.Commands;
 using FinMate.Application.SavingGoals.Queries;
 using FinMate.Application.Transactions.Commands;
@@ -157,6 +160,8 @@ public class Program
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
+        builder.Services.AddScoped<IReportRepository, ReportRepository>();
+        builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
         builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
@@ -206,6 +211,13 @@ public class Program
         builder.Services.AddScoped<ICancelSavingGoalCommandHandler, CancelSavingGoalCommandHandler>();
         builder.Services.AddScoped<IGetSavingGoalListQueryHandler, GetSavingGoalListQueryHandler>();
         builder.Services.AddScoped<IGetGoalProgressQueryHandler, GetGoalProgressQueryHandler>();
+
+        builder.Services.AddScoped<IGetMonthlySummaryQueryHandler, GetMonthlySummaryQueryHandler>();
+        builder.Services.AddScoped<IGetCategoryBreakdownQueryHandler, GetCategoryBreakdownQueryHandler>();
+        builder.Services.AddScoped<IGetTransactionTimelineQueryHandler, GetTransactionTimelineQueryHandler>();
+        builder.Services.AddScoped<IGetSpendingForecastQueryHandler, GetSpendingForecastQueryHandler>();
+        builder.Services.AddScoped<IGetSpendingInsightsQueryHandler, GetSpendingInsightsQueryHandler>();
+        builder.Services.AddScoped<IMarkInsightReadCommandHandler, MarkInsightReadCommandHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
