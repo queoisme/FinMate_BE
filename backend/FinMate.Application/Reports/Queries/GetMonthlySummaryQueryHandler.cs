@@ -46,34 +46,35 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
     }
 
     /// <summary>
-    /// Đọc từ daily_summaries (aggregate dựng sẵn) cho các ngày đã chốt, cộng thêm phần tính
-    /// live cho hôm nay trở đi. DailySummaryJob chỉ chạy tới hết hôm qua, không cộng phần
-    /// live thì user xem "tháng này" sẽ luôn thiếu đúng ngày hôm nay.
+    /// Ưu tiên <c>daily_summaries</c> cho ngày nào đã được chốt, và lấy số liệu live cho mọi
+    /// ngày còn lại.
+    ///
+    /// Không thể suy "không có dòng summary" thành "ngày đó không tiêu gì": nó cũng đúng khi
+    /// <c>DailySummaryJob</c> chưa từng chạy cho ngày đó — đúng trạng thái của một môi trường
+    /// vừa dựng, hoặc bất kỳ ngày nào job lỗi. Bản đầu chỉ cộng summary nên báo cáo âm thầm
+    /// thiếu dữ liệu, và smoke test đã bắt được: tổng tháng ra 300k trong khi breakdown và
+    /// timeline cùng ra 900k.
+    ///
+    /// Cái giá là một truy vấn live có giới hạn (tối đa 31 ngày của MỘT user, đi qua index
+    /// <c>(user_id, transacted_at, id)</c>) — rẻ hơn nhiều so với một con số sai.
     /// </summary>
     private async Task<(long Spent, long Income, int Count)> ReadRangeAsync(
         Guid userId, DateOnly from, DateOnly to, CancellationToken ct)
     {
-        var today = VietnamTime.Today();
-        var summarisedTo = to < today ? to : today.AddDays(-1);
+        var summaries = await _reportRepository.GetDailySummariesAsync(userId, from, to, ct);
+        var summarisedDates = summaries.Select(s => s.SummaryDate).ToHashSet();
 
-        long spent = 0, income = 0;
-        var count = 0;
+        var live = await _reportRepository.GetDailySpendAsync(userId, from, to, ct);
 
-        if (summarisedTo >= from)
+        var spent = summaries.Sum(s => s.TotalSpentCents);
+        var income = summaries.Sum(s => s.TotalIncomeCents);
+        var count = summaries.Sum(s => s.TransactionCount);
+
+        foreach (var point in live.Where(p => !summarisedDates.Contains(p.Date)))
         {
-            var summaries = await _reportRepository.GetDailySummariesAsync(userId, from, summarisedTo, ct);
-            spent += summaries.Sum(s => s.TotalSpentCents);
-            income += summaries.Sum(s => s.TotalIncomeCents);
-            count += summaries.Sum(s => s.TransactionCount);
-        }
-
-        var liveFrom = summarisedTo >= from ? summarisedTo.AddDays(1) : from;
-        if (liveFrom <= to)
-        {
-            var live = await _reportRepository.GetDailySpendAsync(userId, liveFrom, to, ct);
-            spent += live.Sum(p => p.SpentCents);
-            income += live.Sum(p => p.IncomeCents);
-            count += live.Sum(p => p.TransactionCount);
+            spent += point.SpentCents;
+            income += point.IncomeCents;
+            count += point.TransactionCount;
         }
 
         return (spent, income, count);
