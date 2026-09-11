@@ -10,7 +10,11 @@ Then read, in order: `.context/ARCHITECTURE.md`, `.context/TECH_STACK.md`, `.con
 
 ## Current state
 
-The repo is skeleton-only (Phase 0, 0/176 tasks in `.context/TASKS.md`) — directories exist with placeholder `README.md` files but no actual source code, solution/project files, or `requirements.txt` yet. There is no build, lint, or test tooling to run until Phase 0 scaffolding tasks are done. When starting Phase 0 work, follow `TECH_STACK.md` and `ARCHITECTURE.md` exactly for project/package layout — don't improvise structure.
+**Backend: Phase 0–7 done (196/239 tasks in `.context/TASKS.md`).** Full ASP.NET Core 9 solution with unit + integration tests (Testcontainers), 8 Hangfire recurring jobs, 10 controllers under `/api/v1`. Auth, Users, FinancialAccounts, Categories, Notifications, Transactions, Budgets, SavingGoals, Reports and Gamification are all implemented and verified end-to-end via `docker compose up` + curl (see the Verify notes at the bottom of `TASKS.md`).
+
+**AI Service: still a Phase 0 scaffold.** `ai-service/app/pipeline/**` and `api/v1/pipeline.py`/`feedback.py` are one-line docstring placeholders — only `/api/v1/health` is live. So `POST /notifications/analyze` and `POST /transactions/parse` return 503 against a real AI Service; both are covered in tests via `FakeAIServiceClient`. Building them out is Phase 9 (28 tasks) — follow `TECH_STACK.md` and `ARCHITECTURE.md` §3 for the Backend↔AI-Service contract, don't improvise it.
+
+**Remaining:** Phase 8 Admin (14 tasks), Phase 9 AI Service (28 tasks), plus one `[!]` task blocked on an unapproved FCM dependency (`IPushNotificationService` is still `LoggingPushNotificationService`, log-only).
 
 Out of scope entirely: `android/` (separate mobile team, not present in this checkout).
 
@@ -21,7 +25,7 @@ Out of scope entirely: `android/` (separate mobile team, not present in this che
 
 Full directory trees and the Backend↔AI-Service API contract are in `.context/ARCHITECTURE.md` §2–3; don't re-derive them, they're already there.
 
-## Commands (once scaffolded — not yet runnable)
+## Commands
 
 **Backend** (from `backend/`):
 ```

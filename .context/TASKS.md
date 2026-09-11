@@ -178,16 +178,16 @@
   - [x] Validate ownership
   - [x] DB transaction cho cascade: budget + gamification + streak — *Atomicity đạt được không cần thêm abstraction Unit-of-Work: `FinancialAccountRepository` và `TransactionRepository` dùng chung 1 scoped `DbContext`/request, nên sửa cả 2 entity rồi gọi `SaveChangesAsync` 1 lần (qua handler nào cũng được) flush cả 2 trong 1 DB transaction ngầm của EF Core.*
   - [x] Budget period update — *Hoàn thành ở Phase 5 (2026-09-11): gọi `IBudgetPeriodService.ApplyDeltaAsync`.*
-  - [!] EXP award — *Blocked by Phase 7: Gamification module chưa tồn tại.*
-  - [!] Streak check — *Blocked by Phase 7.*
-  - [!] Mission condition trigger — *Blocked by Phase 7.*
+  - [x] EXP award — *Hoàn thành ở Phase 7 (2026-09-11): `+10` (`TransactionExpRewards.ConfirmTransaction`).*
+  - [x] Streak check — *Hoàn thành ở Phase 7 (2026-09-11): qua `GamificationService.RecordActivityAsync`, tính theo lịch VN.*
+  - [x] Mission condition trigger — *Hoàn thành ở Phase 7 (2026-09-11): `MissionConditionType.ConfirmTransaction`.*
 - [x] Command: `CreateManualTransactionCommand` + Handler + Validator — *Tạo trực tiếp `Status=Confirmed` (không qua bước confirm riêng vì không có AI draft), cascade balance ngay.*
 - [x] Command: `UpdateTransactionCommand` + Handler + Validator
   - [x] Revert budget nếu category/amount/date thay đổi — *Hoàn thành ở Phase 5 (2026-09-11): revert theo category/số tiền/ngày CŨ trước khi ghi đè entity, rồi áp giá trị MỚI — cả ba đều có thể trỏ sang budget khác và chu kỳ khác.*
   - [x] Lưu AI correction nếu category thay đổi — *`POST /api/v1/feedback` best-effort, chỉ khi `Transaction.Source=Notification` (có category AI dự đoán để so sánh).*
 - [x] Command: `DeleteTransactionCommand` + Handler
   - [x] Revert budget nếu đã confirmed — *Hoàn thành ở Phase 5 (2026-09-11).*
-  - [!] Revert EXP — *Blocked by Phase 7.*
+  - [x] Revert EXP — *Hoàn thành ở Phase 7 (2026-09-11): `RevertExpAsync` trừ lại đúng `+10` đã cộng lúc confirm. Có thể làm tụt level — đánh đổi có chủ ý để không farm được bằng cách thêm rồi xóa.*
   - *(Revert `FinancialAccount.BalanceCents` khi xóa giao dịch đã Confirmed — không bị block, đã làm.)*
 - [x] Command: `ParseNaturalLanguageCommand` + Handler (gọi AI Service) — *Tái dùng `POST /api/v1/analyze` với `package_name="manual_entry"` thay vì thêm route AI Service mới (đã hỏi user trước khi quyết định, theo AGENTS.md §5 — đổi API contract Backend↔AI Service cần approval). Không persist, chỉ trả field để client prefill form tạo manual transaction.*
 - [x] Query: `GetTransactionListQuery` + Handler (filter, cursor pagination)
@@ -197,11 +197,11 @@
 ### Tests — Critical
 
 - [x] Unit: `ConfirmTransactionCommandHandler`
-  - [x] Cascade balance update (debit/credit đúng chiều) — *thay cho "cascade budget update", xem note Blocked by Phase 5 ở trên.*
-  - [-] EXP award — *Skipped: Blocked by Phase 7.*
-  - [-] Streak update — *Skipped: Blocked by Phase 7.*
+  - [x] Cascade balance update (debit/credit đúng chiều) — *viết ở Phase 4 thay cho "cascade budget update" vì lúc đó Budget module chưa có; phần budget được bổ sung ở Phase 5, xem note gỡ block cuối Phase 5.*
+  - [x] EXP award — *Hoàn thành ở Phase 7 (2026-09-11): `HandleAsync_Confirming_AwardsExpAndAdvancesConfirmMissions` + `HandleAsync_AlreadyConfirmed_AwardsNothing`.*
+  - [x] Streak update — *Hoàn thành ở Phase 7 (2026-09-11): phủ trong `GamificationServiceTests` (ngày liên tiếp, cùng ngày không đếm 2 lần, đứt chuỗi, lịch VN) thay vì lặp lại ở test của handler.*
   - [x] Rollback khi lỗi — *test "đã confirmed rồi không confirm lại được" (422 `TRANSACTION_NOT_DRAFT`).*
-- [x] Unit: `DeleteTransactionCommandHandler` — revert logic (balance; budget/EXP revert skipped, xem note Blocked)
+- [x] Unit: `DeleteTransactionCommandHandler` — revert logic (balance + budget + EXP; phần EXP hoàn thành ở Phase 7)
 - [x] Unit: `UpdateTransactionCommandHandler` — category change revert (feedback call) + amount/account change (balance revert+reapply)
 - [x] Integration: Full notification → draft → confirm flow — *Dùng `FakeAIServiceClient` (swap DI trong `AuthApiFactory`, giống `FakeGoogleTokenVerifier`) vì AI Service (Phase 9) chưa có route thật.*
 
@@ -249,7 +249,7 @@
 - [x] Command: `ContributeToGoalCommand` + Handler
   - [x] Cộng vào saved_cents
   - [x] Auto-complete nếu đạt target
-  - [!] Trigger Mascot celebration — *Blocked by Phase 7: Gamification module chưa tồn tại. Push "chúc mừng hoàn thành" đã gửi (qua stub log-only như trên), chỉ thiếu phần mascot.*
+  - [x] Trigger Mascot celebration — *Hoàn thành ở Phase 7 (2026-09-11): `ContributeToGoalCommandHandler` trả `celebration` trong response để client diễn hoạt ngay; đã verify curl (mở khóa 3 mascot item khi hoàn thành mục tiêu). Push "chúc mừng hoàn thành" vẫn đi qua stub log-only — xem gap FCM ở dòng `BudgetAlertJob`.*
 - [x] Command: `CancelSavingGoalCommand` + Handler — *Giữ nguyên `saved_cents` và lịch sử đóng góp; hủy không phải xóa.*
 - [x] Query: `GetSavingGoalListQuery`
 - [x] Query: `GetGoalProgressQuery` (on-track calculation) — *So tiến độ thực tế với tiến độ tuyến tính kỳ vọng từ `created_at` tới `deadline`. Không có deadline → luôn on-track (không có nhịp bắt buộc để lệch). Mốc kỳ vọng trôi liên tục theo thời gian nên so bằng "≥" đúng nghĩa đen sẽ lật trạng thái vì vài mili-giây (user góp đúng 50% ở đúng nửa chặng vẫn bị coi là trễ) → cho biên 1% mục tiêu.*
@@ -416,10 +416,50 @@
 
 ---
 
+## Phase 10 — Đối chiếu Core User Flows (docx)
+
+> Nguồn: `FinMate_Core_User_Flows.docx` đối chiếu với `.context/` ngày 2026-09-11.
+> 4 quyết định đã chốt với user — xem bảng đầy đủ ở `ARCHITECTURE.md` §0.
+
+### Quyết định #1 — Internal Transfer (Flow 2c)
+
+- [x] Enum: `TransactionType` thêm `Transfer`
+- [x] Entity: `Transaction.CounterAccountId` (ví đích; NULL với debit/credit)
+- [x] Migration: `AddInternalTransfer` — cột `counter_account_id` + FK Restrict + index, mở rộng `chk_transactions_transaction_type`, thêm `chk_transactions_transfer_shape` buộc `transfer` ⇔ có `counter_account_id` khác `financial_account_id` và `category_id IS NULL` — *ràng ở DB chứ không chỉ validator: transfer thiếu ví đích sẽ trừ tiền ví nguồn mà không cộng vào đâu cả, tức mất tiền im lặng*
+- [x] Command: `CreateTransferCommand` + Handler + Validator — *cả 2 ví đều đọc qua `userId`, ví của user khác trả 404*
+- [x] Cascade balance 2 chiều: ví nguồn trừ, ví đích cộng
+- [x] Loại `transfer` khỏi budget cascade — *`TransactionBudgetDelta.Spend` vốn chỉ trả > 0 cho `Debit`, nên `Transfer` rơi vào nhánh 0 sẵn; đã ghi chú tại chỗ để không ai "sửa" thành switch liệt kê thiếu*
+- [x] Loại `transfer` khỏi mọi report query — *đã rà cả 6 điểm cộng dồn (`ReportRepository` ×4, `GetTransactionTimelineQueryHandler`, `TransactionRepository.SumConfirmedSpendAsync`); tất cả đã ở dạng `== Debit ? x : 0` hoặc filter `== Debit` nên loại `Transfer` tự động, verify bằng curl thật chứ không chỉ suy luận*
+- [x] Update/Delete transfer: revert đúng cả 2 ví — *`UpdateTransactionCommandHandler` gom việc chạm số dư vào `ApplyBalanceAsync` có nhớ ví đã nạp, vì 1 lượt update có thể chạm cùng 1 ví nhiều lần*
+- [x] Chặn đổi qua lại giữa `transfer` và `debit`/`credit` khi sửa (422 `TRANSACTION_TYPE_CHANGE_NOT_ALLOWED`) — *không có nhu cầu thật, mà mở ra thì phải revert theo một hình dạng rồi áp theo hình dạng khác*
+- [x] Guard xóa `FinancialAccount`: `HasAnyForAccountAsync` xét cả `counter_account_id` — *ví chỉ từng đứng ở vế đích vẫn là ví đang có giao dịch*
+- [x] Endpoint `POST /api/v1/transactions/transfer`
+- [x] Tests: 5 unit (create) + 3 unit (update) + 2 unit (delete) + 5 integration
+
+### Quyết định #2 — Ngưỡng cảnh báo ngân sách 70/90/100%
+
+- [x] Migration: `AddBudgetAlert70And90` — `alert_80_sent_at` → `alert_70_sent_at`, thêm `alert_90_sent_at` — *EF tự đoán rename 80 → 90, ĐÃ SỬA TAY thành 80 → 70: dữ liệu cũ mang nghĩa "đã cảnh báo ở mốc thấp nhất", map sang 90 sẽ vừa nuốt mất cảnh báo 90% thật vừa bắn lại cảnh báo 70% cho chu kỳ đang ở 85%*
+- [x] `BudgetAlertJob`: 3 mốc, chỉ gửi mốc CAO NHẤT đã chạm, đóng luôn các mốc thấp hơn — *nhảy vọt qua nhiều mốc giữa 2 lần chạy chỉ được 1 thông báo, không phải 3*
+- [x] `UpdateBudgetLimitCommandHandler`: nâng hạn mức mở lại từng mốc độc lập
+- [x] Cập nhật `BudgetAlertJobTests` cho 3 mốc (5 test) + `UpdateBudgetLimitCommandHandlerTests`
+
+### Quyết định #3 — OTP
+
+- [-] Đăng ký bằng SĐT + OTP — *Skipped: user chốt chưa cần trong MVP (2026-09-11). Giữ Email/Password + Google login. Docx bước 1.1 coi như overspec ở điểm này.*
+
+### Quyết định #4 — Voice input + Receipt OCR (kéo từ Backlog lên MVP)
+
+- [ ] `TransactionSource` thêm `Voice` và `Receipt` — *phân biệt kênh nhập để phân tích sau*
+- [ ] Voice: STT chạy ở client (Android), text đẩy vào `POST /transactions/parse` sẵn có — *không cần route AI Service mới*
+- [ ] OCR: thêm route `POST /api/v1/ocr` vào contract Backend↔AI Service (`ARCHITECTURE.md` §3.3) — *[!] đổi contract cần user duyệt trước, AGENTS.md §5*
+- [ ] OCR: endpoint backend nhận ảnh hóa đơn → trả field trích xuất để client prefill
+- [ ] Tests cho cả 2 kênh
+
+---
+
 ## Backlog (Future — Không trong MVP scope)
 
-- [ ] Receipt OCR (chụp hóa đơn)
-- [ ] Voice input
+- *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
 - [ ] iOS support
 - [ ] Recurring transaction detection
 - [ ] Subscription tracking
@@ -435,19 +475,27 @@
 
 ## Progress Summary
 
+> **Quy tắc đếm:** đếm **mọi** checkbox trong phase, kể cả sub-task lồng — không chỉ task cấp 1.
+> Backlog không tính vào tổng (ngoài MVP scope). Đếm lại bằng:
+> `grep -cE '^\s*- \[x\]' .context/TASKS.md`
+
 | Phase | Status | Tasks Done / Total |
 |---|---|---|
-| Phase 0 — Setup | `[x]` | 15 / 15 |
-| Phase 1 — Auth & Profile | `[x]` | 25 / 25 *(+1: Google login, kéo từ Backlog)* |
-| Phase 2 — Financial Accounts | `[x]` | 11 / 11 *(guard has-transactions hoàn thành ở Phase 4, xem note dưới)* |
-| Phase 3 — Categories | `[x]` | 8 / 8 |
-| Phase 4 — Notifications & Transactions | `[x]` | 28 / 28 *(3 sub-task cascade budget đã gỡ block ở Phase 5; còn 4 sub-task EXP/streak/mission `[!]` Blocked by Phase 7)* |
-| Phase 5 — Budget & Goals | `[x]` | 22 / 22 *(1 sub-task "gửi push notification" của `BudgetAlertJob` và 1 sub-task "Mascot celebration" đánh dấu `[!]` — xem note; toàn bộ phần buildable đã xong và đã gỡ hết TODO Blocked by Phase 5 của Phase 4)* |
-| Phase 6 — Reports | `[x]` | 12 / 12 |
-| Phase 7 — Gamification | `[x]` | 20 / 20 |
-| Phase 8 — Admin | `[ ]` | 0 / 12 |
-| Phase 9 — AI Service | `[ ]` | 0 / 24 |
-| **Total** | | **141 / 176** |
+| Phase 0 — Setup | `[x]` | 20 / 20 |
+| Phase 1 — Auth & Profile | `[x]` | 28 / 28 *(+1: Google login, kéo từ Backlog)* |
+| Phase 2 — Financial Accounts | `[x]` | 14 / 14 *(guard has-transactions hoàn thành ở Phase 4, xem note dưới)* |
+| Phase 3 — Categories | `[x]` | 9 / 9 |
+| Phase 4 — Notifications & Transactions | `[x]` | 44 / 44 *(3 sub-task cascade budget gỡ block ở Phase 5; 4 sub-task EXP/streak/mission + 2 test gỡ block ở Phase 7)* |
+| Phase 5 — Budget & Goals | `[x]` | 36 / 37 *(còn 1 sub-task "gửi push notification" của `BudgetAlertJob` `[!]` — chưa có FCM trong TECH_STACK.md, xem note)* |
+| Phase 6 — Reports | `[x]` | 18 / 18 |
+| Phase 7 — Gamification | `[x]` | 27 / 27 |
+| Phase 8 — Admin | `[ ]` | 0 / 14 |
+| Phase 9 — AI Service | `[ ]` | 0 / 28 |
+| Phase 10 — Đối chiếu Core User Flows | `[~]` | 16 / 22 *(#1 và #2 xong; #4 Voice/OCR chờ Phase 9; 1 task `[-]` Skipped: OTP)* |
+| **Total** | | **212 / 261** |
+
+**Còn lại:** 47 task chưa làm (Phase 8: 14, Phase 9: 28, Phase 10: 5) + 1 task `[!]` chờ duyệt
+dependency FCM + 1 task `[-]` bỏ có chủ ý (OTP).
 
 ---
 
@@ -467,3 +515,9 @@ Smoke test curl end-to-end: tạo giao dịch trải nhiều ngày → `monthly-
 
 *Last updated: 2026-09-11*
 *Next priority: Phase 8 — Domain 11: Admin (12 task), hoặc Phase 9 — AI Service (24 task, Python/FastAPI) nếu muốn luồng auto-detect giao dịch từ notification chạy thật thay vì trả 503*
+
+**Verify Phase 10 #1+#2 (2026-09-11):** `dotnet build` sạch 0 warning; `dotnet test` xanh **302/302** (281 → 302, thêm 21 test; chạy qua container SDK 9.0 + Docker socket cho Testcontainers); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up --build` từ volume rỗng — 2 migration mới áp sạch, `\d transactions` xác nhận đủ `counter_account_id` + FK Restrict + `chk_transactions_transfer_shape`, `\d budget_periods` đủ 3 cột `alert_70/90/100_sent_at`, 8 recurring job đăng ký đủ, log không có exception chưa xử lý (ngoài lỗi `__EFMigrationsHistory` lúc khởi động DB rỗng đã có từ các phase trước).
+
+Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổng 3tr → rút ATM 2tr qua `POST /transactions/transfer` → **số dư 3tr / 2tr, tổng tài sản vẫn 5tr** → `budgets` báo `spentCents = 0`, `monthly-summary` báo `totalSpent = 0` và `totalIncome = 0`, `forecast` báo `spentSoFar = 0` (đúng mục tiêu của quyết định #1: rút tiền không phải tiêu tiền) → chuyển vào chính ví đó nhận 422 `TRANSACTION_TRANSFER_SAME_ACCOUNT` → tạo transfer qua `POST /transactions` thường nhận 400 kèm thông điệp chỉ sang đúng endpoint → xóa ví đang là ĐÍCH của transfer nhận 409 → sửa transfer 2tr thành 3.5tr thì số dư thành 1.5tr / 3.5tr (tổng vẫn 5tr) → đổi sang `Debit` nhận 422 `TRANSACTION_TYPE_CHANGE_NOT_ALLOWED` → xóa transfer thì 2 ví về đúng nguyên trạng 5tr / 0.
+
+**Một bug có sẵn được tìm thấy và sửa:** `DeleteTransactionCommandHandler` hoàn `TransactionExpRewards.ConfirmTransaction` (10 EXP) cho MỌI giao dịch, trong khi giao dịch tự nhập chỉ được cộng 5 lúc tạo — xóa một giao dịch thủ công ăn mất 5 EXP user chưa từng có. Nay tra theo `Transaction.Source`. Integration test `DeletingAConfirmedTransaction_TakesBackTheExpItGave` đã khoá cứng đúng con bug này (assert `-10` trên một giao dịch thủ công) nên vẫn xanh suốt — tên test lại mô tả đúng hành vi đáng lẽ phải có. Đã sửa assertion về `-5` kèm ghi chú.
