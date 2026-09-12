@@ -24,6 +24,13 @@ public interface IMissionRepository
     Task<List<Mission>> GetActiveMissionsAsync(CancellationToken ct = default);
     Task<List<Mission>> GetActiveMissionsByConditionAsync(MissionConditionType conditionType, CancellationToken ct = default);
     Task<Mission?> GetByCodeAsync(string code, CancellationToken ct = default);
+    Task<Mission?> GetMissionByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Toàn bộ mission cho màn hình quản trị, kể cả mission đã tắt.</summary>
+    Task<List<Mission>> GetAllMissionsAsync(bool includeInactive, CancellationToken ct = default);
+
+    Task AddMissionAsync(Mission mission, CancellationToken ct = default);
+    Task UpdateMissionAsync(Mission mission, CancellationToken ct = default);
 
     Task<List<UserMission>> GetUserMissionsAsync(Guid userId, IReadOnlyCollection<Guid> missionIds, DateOnly periodStart, CancellationToken ct = default);
     Task<List<UserMission>> GetActiveUserMissionsAsync(Guid userId, DateOnly today, CancellationToken ct = default);

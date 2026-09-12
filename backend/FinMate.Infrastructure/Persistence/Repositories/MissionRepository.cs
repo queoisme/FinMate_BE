@@ -23,6 +23,28 @@ public class MissionRepository : IMissionRepository
     public Task<Mission?> GetByCodeAsync(string code, CancellationToken ct = default)
         => _context.Missions.FirstOrDefaultAsync(m => m.Code == code, ct);
 
+    public Task<Mission?> GetMissionByIdAsync(Guid id, CancellationToken ct = default)
+        => _context.Missions.FirstOrDefaultAsync(m => m.Id == id, ct);
+
+    public Task<List<Mission>> GetAllMissionsAsync(bool includeInactive, CancellationToken ct = default)
+        => _context.Missions
+            .Where(m => includeInactive || m.IsActive)
+            .OrderBy(m => m.PeriodType)
+            .ThenBy(m => m.Code)
+            .ToListAsync(ct);
+
+    public async Task AddMissionAsync(Mission mission, CancellationToken ct = default)
+    {
+        _context.Missions.Add(mission);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateMissionAsync(Mission mission, CancellationToken ct = default)
+    {
+        _context.Missions.Update(mission);
+        await _context.SaveChangesAsync(ct);
+    }
+
     public Task<List<UserMission>> GetUserMissionsAsync(
         Guid userId, IReadOnlyCollection<Guid> missionIds, DateOnly periodStart, CancellationToken ct = default)
         => _context.UserMissions
