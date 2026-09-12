@@ -353,24 +353,38 @@
 
 ## Phase 8 — Domain 11: Admin
 
+> **Ba quyết định đã chốt với user trước khi làm (2026-09-12):**
+> 1. **AI stats lấy từ CẢ HAI nguồn.** Backend tự tổng hợp "AI chạy tốt đến đâu trong sản xuất"
+>    từ `ai_results` × `transactions` — trong đó **tỉ lệ người dùng sửa lại danh mục AI đoán**
+>    là thước đo thật nhất và chỉ tồn tại ở backend DB (AI DB thấy dự đoán của chính nó nhưng
+>    không bao giờ thấy người dùng làm gì với nó). Thêm `GET /api/v1/stats` vào contract cho
+>    phần "model và dataset đang ở đâu" — **đổi contract, user đã duyệt.**
+> 2. **Chỉ tắt, không xoá.** Giao dịch cũ trỏ tới category, ví người dùng trỏ tới provider
+>    config, `user_missions` trỏ tới mission — xoá thật làm hỏng lịch sử của người khác.
+> 3. **Thêm cột `categories.is_active`** (migration `AddIsActiveToCategories`). `provider_configs`
+>    và `missions` đã có sẵn cờ này, riêng `categories` thì không; dùng `deleted_at` thay thế sẽ
+>    hỏng ngầm vì `Category` có global query filter `deleted_at IS NULL` mà
+>    `ReportRepository.GetCategorySpendAsync` đi qua navigation `Transaction.Category` — tắt một
+>    danh mục là chi tiêu cũ của nó rơi khỏi category-breakdown mà không báo gì.
+
 ### Backend
 
-- [ ] Middleware/Policy: `AdminOnly` authorization policy
-- [ ] Controller: `AdminUsersController`
-  - [ ] List users (no financial data)
-  - [ ] Lock/unlock user
-- [ ] Controller: `AdminProviderConfigsController`
-  - [ ] CRUD provider configs
-- [ ] Controller: `AdminCategoriesController`
-  - [ ] Manage system categories
-- [ ] Controller: `AdminMissionsController`
-  - [ ] CRUD missions, toggle active
-- [ ] Controller: `AdminAIStatsController`
-  - [ ] Aggregate AI metrics (gọi AI Service)
-- [ ] Controller: `AdminAuditLogsController`
-  - [ ] Filter và view audit logs
-
----
+- [x] Middleware/Policy: `AdminOnly` authorization policy — *`RequireRole(nameof(UserRole.Admin))`, khớp `ClaimTypes.Role` mà `TokenService` gắn lúc đăng nhập. Gom vào `AdminControllerBase` để attribute được KẾ THỪA chứ không phải gõ lại: quên một lần là endpoint rơi về `FallbackPolicy`, tức bất kỳ ai đã đăng nhập cũng gọi được, mà response vẫn 200 nên không có gì báo. **Vai trò nằm TRONG access token, không tra lại DB mỗi request** — khoá hay hạ quyền một admin không đuổi được phiên đang chạy, họ còn vào được tối đa 15 phút (`JWT_ACCESS_TTL_MINUTES`); đó là biên trên đã biết của thiết kế JWT hiện tại.*
+- [x] Controller: `AdminUsersController`
+  - [x] List users (no financial data) — *`AdminUserDto` đơn giản là KHÔNG có chỗ để đặt số dư hay số tiền (ARCHITECTURE.md §7.3); ánh xạ tường minh trong `AdminMapper` chứ không qua AutoMapper để entity mọc thêm cột không lặng lẽ lọt ra. Phân trang keyset trên `(created_at, id)`, tái dùng đúng kiểu con trỏ + `ApiMeta(Cursor)` đã có. Có test đọc THÔ response và assert không chứa `amountCents`/`balanceCents`/`passwordHash`.*
+  - [x] Lock/unlock user — *`PATCH /{id}/lock` nhận TRẠNG THÁI mong muốn (đúng ví dụ CONVENTIONS.md §1.1), idempotent, gọi lại không ghi thêm dòng audit. Khoá thì **thu hồi toàn bộ refresh token** — thiếu bước này thì "khoá" chỉ có tác dụng ở lần đăng nhập sau, tức là không bao giờ. Admin không tự khoá được mình (422 `ADMIN_CANNOT_LOCK_SELF`) nhưng **tự mở khoá được** — chặn cả chiều mở là chặn nhầm lối thoát.*
+- [x] Controller: `AdminProviderConfigsController`
+  - [x] CRUD provider configs — *Không có DELETE. `provider_key` **bất biến** sau khi tạo (422 `ADMIN_IMMUTABLE_FIELD`): `ProviderConfigSeeder` upsert theo nó và AI Service seed `provider_patterns` theo nó. Gửi lại đúng giá trị cũ thì chấp nhận — client PATCH thường gửi nguyên đối tượng vừa đọc về. `package_name` sửa được (ngân hàng có đổi package thật) nhưng có guard trùng và ghi chú tại chỗ về ràng buộc chéo sang AI DB.*
+- [x] Controller: `AdminCategoriesController`
+  - [x] Manage system categories — *Slug **bất biến**: đó là giá trị AI Service trả về trong `category_slug`, đổi đi là mọi giao dịch mới mất danh mục qua `GetSystemBySlugAsync` — im lặng. Slug nhận tường minh từ admin chứ không tự sinh từ tên như category người dùng: taxonomy phải khớp phía AI, không phải là hệ quả của cách gõ tiếng Việt. Category của một người dùng cụ thể trả **404** chứ không 403 để không tiết lộ nó tồn tại. `GetSystemBySlugAsync` nay lọc `is_active` — admin đã tắt một danh mục thì giao dịch MỚI không rơi vào đó nữa, draft không có danh mục và người dùng tự chọn.*
+- [x] Controller: `AdminMissionsController`
+  - [x] CRUD missions, toggle active — *`code`, `period_type` và `condition_type` **bất biến**; chỉ `title`/`description`/`condition_target`/`exp_reward` sửa được. Lý do: `user_missions` của chu kỳ ĐANG CHẠY đã tích tiến độ theo điều kiện cũ — đổi giữa chừng thì hoặc người dùng mất công đã bỏ ra, hoặc họ hoàn thành ngay mà chưa làm gì. Đổi target/thưởng có hiệu lực từ lần `MissionResetJob` kế tiếp. **Cache `user:{id}:active_missions` không invalidate hàng loạt được** (key theo từng user, không liệt kê ra được) nên nhiệm vụ vừa tắt còn hiện ở client tới hết TTL 30 phút — TTL chính là biên trên.*
+- [x] Controller: `AdminAIStatsController`
+  - [x] Aggregate AI metrics (gọi AI Service) — *Gộp hai nguồn theo quyết định #1. AI Service chết thì **vẫn trả 200** với `aiService: null` kèm lý do — một dashboard không được sập vì AI Service đang restart, nhất là khi nửa quan trọng hơn nằm ngay trong backend DB. Tỉ lệ trả về `null` khi mẫu số bằng 0 chứ không phải 0: "chưa có dữ liệu" khác hẳn "AI đoán đúng 100%", ép về 0 làm một hệ thống trống rỗng trông như một hệ thống hoàn hảo.*
+- [x] Controller: `AdminAuditLogsController`
+  - [x] Filter và view audit logs — *Chỉ ĐỌC, không có endpoint sửa/xoá — nhật ký kiểm toán mà admin sửa được thì không còn là nhật ký kiểm toán. Lọc theo `userId`/`eventType`/khoảng thời gian, phân trang keyset trên `(created_at, id)`. `metadata` trả nguyên chuỗi JSON, không parse: mỗi loại sự kiện một hình dạng, ép một schema vào sẽ làm hỏng đúng những dòng bất thường mà người xem đang đi tìm.*
+- *(Thêm ngoài danh sách gốc)* `AuditEvents` — *8 chuỗi `"Auth.Login.Failed"`… rải rác từ Phase 1 chuyển thành hằng. Cần thiết vì `/admin/audit-logs` cho lọc theo chính giá trị đó: chuỗi rời thì không ai biết bộ giá trị hợp lệ gồm những gì, và một lỗi chính tả tạo ra loại sự kiện mới mà không ai nhận ra (AGENTS.md §3.4). **Giá trị chuỗi giữ nguyên** để dữ liệu lịch sử không mồ côi — kể cả `"Auth.TokenReuse.Detected"` vốn không theo đúng quy ước đặt tên.*
+- *(Thêm ngoài danh sách gốc)* Mọi thao tác GHI của admin đều ghi một dòng `audit_logs` với `user_id` = ADMIN thực hiện, đối tượng bị tác động nằm trong `metadata`. Thao tác đọc thì không — nhật ký đầy dòng "admin đã mở trang danh sách" thì mất tác dụng của chính nó.
 
 ## Phase 9 — AI Service
 
@@ -502,12 +516,12 @@
 | Phase 5 — Budget & Goals | `[x]` | 36 / 37 *(còn 1 sub-task "gửi push notification" của `BudgetAlertJob` `[!]` — chưa có FCM trong TECH_STACK.md, xem note)* |
 | Phase 6 — Reports | `[x]` | 18 / 18 |
 | Phase 7 — Gamification | `[x]` | 27 / 27 |
-| Phase 8 — Admin | `[ ]` | 0 / 14 |
+| Phase 8 — Admin | `[x]` | 14 / 14 |
 | Phase 9 — AI Service | `[x]` | 27 / 28 *(1 task `[-]` Skipped: 3 bảng `ab_*`, A/B testing ngoài MVP scope)* |
 | Phase 10 — Đối chiếu Core User Flows | `[~]` | 16 / 22 *(#1 và #2 xong; #4 Voice/OCR chờ Phase 9; 1 task `[-]` Skipped: OTP)* |
-| **Total** | | **239 / 261** |
+| **Total** | | **253 / 261** |
 
-**Còn lại:** 19 task chưa làm (Phase 8 Admin: 14, Phase 10 quyết định #4 Voice+OCR: 5)
+**Còn lại:** 5 task chưa làm (Phase 10 quyết định #4 — Voice + Receipt OCR)
 + 1 task `[!]` chờ duyệt dependency FCM + 2 task `[-]` bỏ có chủ ý (OTP, bảng `ab_*`).
 
 ---
@@ -527,7 +541,7 @@ Smoke test curl end-to-end: tạo giao dịch trải nhiều ngày → `monthly-
 **Một lỗi tìm được khi chạy thật (không lộ ra ở unit test) và đã sửa:** `GetMonthlySummaryQuery` chỉ cộng `daily_summaries` cho các ngày trước hôm nay, nên trên môi trường vừa dựng (và bất kỳ ngày nào `DailySummaryJob` lỗi) báo cáo **âm thầm thiếu dữ liệu** — smoke test cho tổng tháng 300k trong khi breakdown và timeline cùng ra 900k. Không thể suy "thiếu dòng summary" thành "ngày đó không tiêu gì". Đã sửa: đọc summary có sẵn rồi lấp mọi ngày chúng chưa phủ bằng dữ liệu live, khớp theo ngày nên ngày đã chốt không bị cộng hai lần; đổi lại là một truy vấn có giới hạn (tối đa 31 ngày của 1 user, đi qua index `(user_id, transacted_at, id)`).
 
 *Last updated: 2026-09-11*
-*Next priority: Phase 10 quyết định #4 (Voice + Receipt OCR, 5 task — Voice gỡ block sau Phase 9; OCR cần user duyệt route mới trong contract Backend↔AI Service theo AGENTS.md §5), rồi Phase 8 — Admin (14 task).*
+*Next priority: Phase 10 quyết định #4 (Voice + Receipt OCR, 5 task) — Voice đã hết bị chặn sau Phase 9; OCR cần user duyệt route mới trong contract Backend↔AI Service theo AGENTS.md §5.*
 
 **Verify Phase 10 #1+#2 (2026-09-11):** `dotnet build` sạch 0 warning; `dotnet test` xanh **302/302** (281 → 302, thêm 21 test; chạy qua container SDK 9.0 + Docker socket cho Testcontainers); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up --build` từ volume rỗng — 2 migration mới áp sạch, `\d transactions` xác nhận đủ `counter_account_id` + FK Restrict + `chk_transactions_transfer_shape`, `\d budget_periods` đủ 3 cột `alert_70/90/100_sent_at`, 8 recurring job đăng ký đủ, log không có exception chưa xử lý (ngoài lỗi `__EFMigrationsHistory` lúc khởi động DB rỗng đã có từ các phase trước).
 
@@ -546,3 +560,20 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 > **Cảnh báo về con số:** corpus hiện tại là dữ liệu **tổng hợp** (`scripts/generate_bootstrap_corpus.py`), sinh ra từ chính những template mà Extractor và từ điển đã biết. Accuracy 1.000 của classifier và 99.4% của từ điển **không phải độ chính xác ngoài đời** — chúng chỉ chứng minh đường ống chạy đúng. Con số thật chỉ có sau khi thay bằng mẫu thông báo thật từ 5 provider (user sẽ gửi).
 
 **Một bug thật của backend được tìm thấy qua smoke test và đã sửa:** Npgsql **từ chối** ghi `DateTimeOffset` có offset khác 0 vào cột `timestamptz` — nó ném `ArgumentException` chứ không tự quy đổi. Client Android chạy ở Việt Nam gửi mốc thời gian kèm `+07:00`, nên **mọi** endpoint nhận `DateTimeOffset` từ client (`/notifications/analyze`, `POST|PATCH /transactions`, `/transactions/transfer`, deadline saving goal…) đều trả 500. Lỗi không lộ ra ở test nào vì `WebApplicationFactory` và mọi smoke test trước đều gửi mốc UTC (`Z`). Sửa bằng `UtcDateTimeOffsetConverter` áp ở `FinMateDbContext.ConfigureConventions` cho toàn bộ `DateTimeOffset`/`DateTimeOffset?` — chuẩn hoá ở tầng lưu trữ thay vì rải trong từng handler, vì đây là ràng buộc của tầng lưu trữ và bỏ sót một handler mới sẽ tái hiện đúng lỗi này. Không đổi schema (`has-pending-model-changes` sạch), `dotnet test` vẫn 302/302. Cùng gốc với quyết định "mốc chu kỳ luôn trả về ở offset 0" đã ghi ở Phase 5 — lần này ở đầu bên kia của contract.
+
+**Verify Phase 8 (2026-09-12):** `dotnet build` sạch 0 warning; `dotnet test` xanh **345/345** (306 → 345, thêm 39 test); `dotnet ef migrations has-pending-model-changes` sạch. Phía AI Service: `pytest` 104/104, `black --check`/`isort --check-only`/`ruff check` sạch.
+
+**Smoke test curl end-to-end** trên `docker compose` (admin từ `ADMIN_SEED_EMAIL` + một user thường):
+
+1. **Sáu nhóm endpoint admin đều trả 403 cho user thường và 401 cho ẩn danh** — đây là bài test quan trọng nhất của phase: quên `[Authorize(Policy = AdminOnly)]` một lần thì endpoint rơi về `FallbackPolicy`, bất kỳ ai đã đăng nhập cũng gọi được, mà response vẫn 200 nên không có gì báo.
+2. Provider config: tạo → trùng `provider_key` **409** → sửa `display_name` **200** → sửa `provider_key` **422** → tắt **200** → biến khỏi danh sách mặc định, còn nguyên với `?includeInactive=true`.
+3. Category hệ thống: tạo → user tạo giao dịch 250k gắn danh mục đó → **tắt** → user không còn thấy danh mục khi tạo giao dịch mới, nhưng **`category-breakdown` vẫn báo đủ 250.000đ kèm đúng tên danh mục, và chi tiết giao dịch vẫn hiện `categoryName`**. Đây chính là điều cột `is_active` sinh ra để bảo vệ; dùng `deleted_at` thì con số đó sẽ biến mất không báo. Sửa slug **422**, tạo trùng slug `food` **409**.
+4. Mission: tạo → sửa `condition_target`/`exp_reward` **200** → đổi `condition_type` **422** → đổi `period_type` **422** → tắt **200**.
+5. Users: response **không chứa** `amountCents`/`balanceCents`/`passwordHash`/`refreshToken` (grep trên chuỗi thô); khoá user → **refresh token của họ trả 401**; admin tự khoá mình **422** nhưng tự mở khoá **200**.
+6. `audit-logs`: đủ vết của cả 4 bước trên (`Admin.ProviderConfig.*`, `Admin.Category.*`, `Admin.Mission.*`, `Admin.User.Locked`) bên cạnh các sự kiện `Auth.*` cũ; lọc theo `eventType` trả đúng, `metadata` mang đủ id và slug.
+7. `ai-stats` khi AI Service **đang chạy**: trả cả hai nửa — phía backend `categoryCorrectionRate = 0.111` (1/9 giao dịch bị người dùng đổi danh mục, số liệu thật còn lại từ smoke test Phase 9), phía AI Service `classifier 1.0.0 accuracy 1.0`, `categorizer version: null` (chưa promote, đang chạy bằng luật), 239 raw / 237 labeled / 2 chưa gán nhãn. Khi **`docker compose stop ai-service`**: vẫn **200**, `aiService: null` kèm lý do — dashboard không sập theo AI Service.
+
+**Hai lỗi có sẵn được tìm thấy và sửa trong phase này:**
+
+1. **`tests/conftest.py` của AI Service (Phase 9) bắt MỌI test phụ thuộc Postgres.** Fixture dọn bảng để `autouse=True` ở conftest gốc, nên trên máy không có Postgres thì cả 104 test bị SKIP chứ không chỉ phần tích hợp — trái đúng điều `README.md` và ghi chú Verify Phase 9 đã khẳng định. Lần kiểm tra bản clone sạch ở Phase 9 lọt lưới vì lúc đó `postgres-ai` đang chạy. Đã tách toàn bộ fixture chạm DB sang `tests/integration/conftest.py`; nay không có Postgres thì 81 test đơn vị vẫn chạy, chỉ 23 test tích hợp SKIP.
+2. **`audit_logs.metadata` serialize PascalCase** trong khi mọi JSON khác của API là camelCase (`CONVENTIONS.md` §1.3). Không lộ ra trước đây vì chưa handler nào truyền `metadata`, và cũng chưa có đường đọc audit log ra. Đã đổi `AuditLogService` sang `JsonSerializerDefaults.Web`.

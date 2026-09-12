@@ -353,6 +353,36 @@ Authorization: Bearer {INTERNAL_API_KEY}
 }
 ```
 
+**Stats (Backend → AI Service) — thêm ở Phase 8:**
+```json
+GET /api/v1/stats
+Authorization: Bearer {INTERNAL_API_KEY}
+
+{
+  "models": [
+    {"stage": "classifier", "version": "1.0.0", "trained_at": "...",
+     "accuracy": 1.0, "macro_f1": 1.0, "evaluated_on_split": "test"},
+    {"stage": "categorizer", "version": null}
+  ],
+  "raw_sample_count": 236,
+  "labeled_sample_count": 236,
+  "unlabeled_sample_count": 0,
+  "split_counts": {"train": 168, "val": 38, "test": 30},
+  "last_training_job": {"stage": "categorizer", "status": "succeeded", "sample_count": 111,
+                        "started_at": "...", "finished_at": "...", "error_message": null},
+  "pending_feedback_count": 4
+}
+```
+
+Phục vụ `GET /api/v1/admin/ai-stats`. Chỉ số đếm ở mức hệ thống, không có gì gắn với một
+người dùng cụ thể. `version: null` nghĩa là stage đó chưa promote model nào và đang chạy bằng
+luật — trạng thái hợp lệ, không phải lỗi.
+
+Route này **không** trả được "AI đoán đúng bao nhiêu phần trăm ngoài đời": AI DB thấy dự đoán
+của chính nó nhưng không bao giờ thấy người dùng đã xác nhận hay sửa gì. Tỉ lệ người dùng sửa
+lại danh mục do backend tự tính từ `ai_results` × `transactions`, và màn hình quản trị gộp hai
+nửa lại. AI Service chết thì backend vẫn trả 200 với nửa của mình.
+
 **Feedback (Backend → AI Service):**
 ```json
 POST /api/v1/feedback
