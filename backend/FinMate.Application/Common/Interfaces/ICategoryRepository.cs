@@ -8,6 +8,10 @@ public interface ICategoryRepository
     Task<Category?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<Category?> GetSystemBySlugAsync(string slug, CancellationToken ct = default);
     Task<List<Category>> GetListForUserAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Danh mục hệ thống cho màn hình quản trị. <paramref name="includeInactive"/>
+    /// false = chỉ danh mục còn cho chọn.</summary>
+    Task<List<Category>> GetSystemListAsync(bool includeInactive, CancellationToken ct = default);
     Task<bool> ExistsBySlugAsync(Guid? userId, string slug, CancellationToken ct = default);
     Task AddAsync(Category category, CancellationToken ct = default);
     Task UpdateAsync(Category category, CancellationToken ct = default);

@@ -43,6 +43,7 @@ public static class CategorySeeder
                 Slug = category.Slug,
                 IconName = category.IconName,
                 IsSystem = true,
+                IsActive = true,
                 CreatedAt = now,
                 UpdatedAt = now,
             });

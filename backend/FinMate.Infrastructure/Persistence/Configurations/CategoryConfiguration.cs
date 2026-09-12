@@ -35,6 +35,10 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
             .HasColumnName("is_system")
             .HasDefaultValue(false);
 
+        builder.Property(c => c.IsActive)
+            .HasColumnName("is_active")
+            .HasDefaultValue(true);
+
         builder.Property(c => c.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(c => c.DeletedAt).HasColumnName("deleted_at");
