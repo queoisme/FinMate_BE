@@ -55,3 +55,28 @@ public record FeedbackApiRequest(
     [property: JsonPropertyName("predicted_category")] string? PredictedCategory,
     [property: JsonPropertyName("corrected_category")] string? CorrectedCategory,
     [property: JsonPropertyName("feedback_type")] string FeedbackType);
+
+public record ModelStatusApiResult(
+    [property: JsonPropertyName("stage")] string Stage,
+    [property: JsonPropertyName("version")] string? Version,
+    [property: JsonPropertyName("trained_at")] DateTimeOffset? TrainedAt,
+    [property: JsonPropertyName("accuracy")] double? Accuracy,
+    [property: JsonPropertyName("macro_f1")] double? MacroF1,
+    [property: JsonPropertyName("evaluated_on_split")] string? EvaluatedOnSplit);
+
+public record TrainingJobApiResult(
+    [property: JsonPropertyName("stage")] string Stage,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("sample_count")] int? SampleCount,
+    [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt,
+    [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt,
+    [property: JsonPropertyName("error_message")] string? ErrorMessage);
+
+public record StatsApiResponse(
+    [property: JsonPropertyName("models")] IReadOnlyList<ModelStatusApiResult> Models,
+    [property: JsonPropertyName("raw_sample_count")] int RawSampleCount,
+    [property: JsonPropertyName("labeled_sample_count")] int LabeledSampleCount,
+    [property: JsonPropertyName("unlabeled_sample_count")] int UnlabeledSampleCount,
+    [property: JsonPropertyName("split_counts")] IReadOnlyDictionary<string, int> SplitCounts,
+    [property: JsonPropertyName("last_training_job")] TrainingJobApiResult? LastTrainingJob,
+    [property: JsonPropertyName("pending_feedback_count")] int PendingFeedbackCount);

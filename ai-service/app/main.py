@@ -5,8 +5,10 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
-from app.api.v1 import feedback, health
-from app.api.v1 import pipeline as pipeline_routes
+from app.api.v1.feedback import router as feedback_router
+from app.api.v1.health import router as health_router
+from app.api.v1.pipeline import router as pipeline_router
+from app.api.v1.stats import router as stats_router
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.seed_patterns import seed
@@ -37,6 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FinMate AI Service", lifespan=lifespan)
 
-app.include_router(health.router, prefix="/api/v1", tags=["health"])
-app.include_router(pipeline_routes.router, prefix="/api/v1", tags=["pipeline"])
-app.include_router(feedback.router, prefix="/api/v1", tags=["feedback"])
+app.include_router(health_router, prefix="/api/v1", tags=["health"])
+app.include_router(pipeline_router, prefix="/api/v1", tags=["pipeline"])
+app.include_router(feedback_router, prefix="/api/v1", tags=["feedback"])
+app.include_router(stats_router, prefix="/api/v1", tags=["stats"])

@@ -34,4 +34,12 @@ public class FakeAIServiceClient : IAIServiceClient
     }
 
     public Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>
+    /// Mô phỏng AI Service ĐANG CHẾT: màn hình quản trị phải vẫn trả 200 với phần số liệu của
+    /// backend. Đây là hành vi đáng test hơn là nhánh thành công — nhánh hỏng mới là nhánh
+    /// người ta quên xử lý.
+    /// </summary>
+    public Task<AiServiceStats> GetStatsAsync(CancellationToken ct = default)
+        => throw new AIServiceUnavailableException("Fake AI Service — luôn không sẵn sàng.");
 }

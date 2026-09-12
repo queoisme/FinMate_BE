@@ -9,4 +9,7 @@ public interface IAIServiceApi
 
     [Post("/api/v1/feedback")]
     Task FeedbackAsync([Body] FeedbackApiRequest request, CancellationToken ct = default);
+
+    [Get("/api/v1/stats")]
+    Task<StatsApiResponse> StatsAsync(CancellationToken ct = default);
 }

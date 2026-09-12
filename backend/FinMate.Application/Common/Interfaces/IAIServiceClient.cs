@@ -49,10 +49,44 @@ public record FeedbackRequest(
     string? CorrectedCategory,
     string FeedbackType);
 
+// GET /api/v1/stats — route thứ ba của contract, thêm ở Phase 8 cho màn hình quản trị.
+// Toàn bộ là số đếm ở mức hệ thống; không có gì gắn với một người dùng cụ thể.
+public record AiModelStatus(
+    string Stage,
+    string? Version,
+    DateTimeOffset? TrainedAt,
+    double? Accuracy,
+    double? MacroF1,
+    string? EvaluatedOnSplit);
+
+public record AiTrainingJobStatus(
+    string Stage,
+    string Status,
+    int? SampleCount,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    string? ErrorMessage);
+
+public record AiServiceStats(
+    IReadOnlyList<AiModelStatus> Models,
+    int RawSampleCount,
+    int LabeledSampleCount,
+    int UnlabeledSampleCount,
+    IReadOnlyDictionary<string, int> SplitCounts,
+    AiTrainingJobStatus? LastTrainingJob,
+    int PendingFeedbackCount);
+
 public interface IAIServiceClient
 {
     Task<AnalyzeResponse> AnalyzeAsync(AnalyzeRequest request, CancellationToken ct = default);
 
     // Best-effort — lỗi không được chặn luồng chính (UpdateTransactionCommand).
     Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản
+    /// hồi. Caller (màn hình quản trị) bắt lấy và vẫn hiển thị phần số liệu của backend —
+    /// một dashboard không được sập chỉ vì AI Service đang restart.
+    /// </summary>
+    Task<AiServiceStats> GetStatsAsync(CancellationToken ct = default);
 }

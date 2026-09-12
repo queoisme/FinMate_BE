@@ -81,6 +81,39 @@ public class AIServiceClient : IAIServiceClient
         }
     }
 
+    public async Task<AiServiceStats> GetStatsAsync(CancellationToken ct = default)
+    {
+        StatsApiResponse response;
+        try
+        {
+            response = await _api.StatsAsync(ct);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
+        }
+
+        return new AiServiceStats(
+            response.Models
+                .Select(m => new AiModelStatus(
+                    m.Stage, m.Version, m.TrainedAt, m.Accuracy, m.MacroF1, m.EvaluatedOnSplit))
+                .ToList(),
+            response.RawSampleCount,
+            response.LabeledSampleCount,
+            response.UnlabeledSampleCount,
+            response.SplitCounts,
+            response.LastTrainingJob is null
+                ? null
+                : new AiTrainingJobStatus(
+                    response.LastTrainingJob.Stage,
+                    response.LastTrainingJob.Status,
+                    response.LastTrainingJob.SampleCount,
+                    response.LastTrainingJob.StartedAt,
+                    response.LastTrainingJob.FinishedAt,
+                    response.LastTrainingJob.ErrorMessage),
+            response.PendingFeedbackCount);
+    }
+
     // AGENTS.md §3.1: AI DB không lưu user_id/transaction_id thực — luôn gửi SHA-256 qua HTTP.
     private static string HashGuid(Guid value)
     {

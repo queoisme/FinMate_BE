@@ -59,3 +59,34 @@ class AnalyzeResponse(BaseModel):
 class FeedbackResponse(BaseModel):
     accepted: bool = True
     feedback_id: uuid.UUID
+
+
+class ModelStatusResult(BaseModel):
+    stage: str
+    version: str | None = None
+    trained_at: datetime | None = None
+    accuracy: float | None = None
+    macro_f1: float | None = None
+    evaluated_on_split: str | None = None
+
+
+class TrainingJobResult(BaseModel):
+    stage: str
+    status: str
+    sample_count: int | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error_message: str | None = None
+
+
+class StatsResponse(BaseModel):
+    """Trả về cho ``GET /api/v1/stats``. Chỉ số đếm ở mức hệ thống — không có gì gắn với
+    một người dùng cụ thể."""
+
+    models: list[ModelStatusResult]
+    raw_sample_count: int
+    labeled_sample_count: int
+    unlabeled_sample_count: int
+    split_counts: dict[str, int]
+    last_training_job: TrainingJobResult | None = None
+    pending_feedback_count: int
