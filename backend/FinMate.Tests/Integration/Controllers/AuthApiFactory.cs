@@ -12,6 +12,9 @@ namespace FinMate.Tests.Integration.Controllers;
 
 public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsyncLifetime
 {
+    public const string AdminEmail = "admin@finmate.local";
+    public const string AdminPassword = "AdminPassword123!";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithDatabase("finmate_main")
         .WithUsername("finmate")
@@ -32,8 +35,10 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         Environment.SetEnvironmentVariable("AI_SERVICE_API_KEY", "dummy-ai-service-key-for-tests-min-32-chars");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_USER", "admin");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_PASS", "admin");
-        Environment.SetEnvironmentVariable("ADMIN_SEED_EMAIL", "");
-        Environment.SetEnvironmentVariable("ADMIN_SEED_PASSWORD", "");
+        // Phase 8 cần một tài khoản Admin thật để test policy AdminOnly. AdminUserSeeder là
+        // idempotent và chỉ thêm đúng một dòng, nên bật nó không ảnh hưởng các test khác.
+        Environment.SetEnvironmentVariable("ADMIN_SEED_EMAIL", AdminEmail);
+        Environment.SetEnvironmentVariable("ADMIN_SEED_PASSWORD", AdminPassword);
     }
 
     public new async Task DisposeAsync()
