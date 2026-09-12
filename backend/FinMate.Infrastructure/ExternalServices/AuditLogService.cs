@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Infrastructure.Persistence;
@@ -7,11 +8,14 @@ namespace FinMate.Infrastructure.ExternalServices;
 
 public class AuditLogService : IAuditLogService
 {
-    // camelCase để metadata khớp với mọi JSON khác của API (CONVENTIONS.md §1.3) — nó được
-    // trả nguyên văn qua GET /api/v1/admin/audit-logs nên hai kiểu đặt tên trong cùng một
-    // response là thứ người đọc log phải tự nhớ mà không có lý do gì.
-    private static readonly JsonSerializerOptions MetadataOptions =
-        new(JsonSerializerDefaults.Web);
+    // Khớp đúng cấu hình JSON của API (Program.cs: camelCase + enum dạng chuỗi), vì metadata
+    // được trả NGUYÊN VĂN qua GET /api/v1/admin/audit-logs. Thiếu JsonStringEnumConverter thì
+    // nhật ký ghi "periodType": 0 — vẫn là JSON hợp lệ, nhưng người đọc log sáu tháng sau phải
+    // tra ngược thứ tự khai báo enum để biết 0 là gì, và thứ tự đó có thể đã đổi.
+    private static readonly JsonSerializerOptions MetadataOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     private readonly FinMateDbContext _context;
 
