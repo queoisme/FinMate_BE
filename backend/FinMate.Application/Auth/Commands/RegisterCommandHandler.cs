@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
@@ -47,7 +48,7 @@ public class RegisterCommandHandler : IRegisterCommandHandler
         };
 
         await _userRepository.AddAsync(user, ct);
-        await _auditLogService.LogAsync("Auth.User.Registered", user.Id, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.UserRegistered, user.Id, ct: ct);
 
         return new UserProfileDto(
             user.Id,

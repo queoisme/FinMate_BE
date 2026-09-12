@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FluentValidation;
 
@@ -51,6 +52,6 @@ public class ChangePasswordCommandHandler : IChangePasswordCommandHandler
         // Revoke every existing session — a password change must not leave old sessions valid.
         await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
 
-        await _auditLogService.LogAsync("Auth.PasswordChanged", user.Id, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.PasswordChanged, user.Id, ct: ct);
     }
 }

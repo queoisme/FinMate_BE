@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
@@ -46,7 +47,7 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
 
         if (user.IsLocked)
         {
-            await _auditLogService.LogAsync("Auth.Login.Failed", user.Id, command.IpAddress, ct: ct);
+            await _auditLogService.LogAsync(AuditEvents.LoginFailed, user.Id, command.IpAddress, ct: ct);
             throw new AuthenticationException(AuthErrorCodes.AccountLocked, "Tài khoản đã bị khóa.");
         }
 
@@ -61,7 +62,7 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
             CreatedAt = DateTimeOffset.UtcNow,
         }, ct);
 
-        await _auditLogService.LogAsync("Auth.Google.Login.Success", user.Id, command.IpAddress, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.GoogleLoginSuccess, user.Id, command.IpAddress, ct: ct);
 
         return new AuthResultDto(accessToken, refresh.RawToken, refresh.ExpiresAt);
     }
@@ -82,7 +83,7 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
             byEmail.GoogleId = googleUser.Sub;
             byEmail.UpdatedAt = DateTimeOffset.UtcNow;
             await _userRepository.UpdateAsync(byEmail, ct);
-            await _auditLogService.LogAsync("Auth.Google.Linked", byEmail.Id, ct: ct);
+            await _auditLogService.LogAsync(AuditEvents.GoogleLinked, byEmail.Id, ct: ct);
             return byEmail;
         }
 
@@ -99,7 +100,7 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
         };
 
         await _userRepository.AddAsync(newUser, ct);
-        await _auditLogService.LogAsync("Auth.Google.Registered", newUser.Id, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.GoogleRegistered, newUser.Id, ct: ct);
         return newUser;
     }
 }

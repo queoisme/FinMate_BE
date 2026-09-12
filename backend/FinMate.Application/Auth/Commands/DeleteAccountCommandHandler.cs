@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 
@@ -59,6 +60,6 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
 
         await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
 
-        await _auditLogService.LogAsync("Auth.AccountDeletionRequested", user.Id, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.AccountDeletionRequested, user.Id, ct: ct);
     }
 }

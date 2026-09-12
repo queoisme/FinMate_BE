@@ -1,3 +1,4 @@
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 
 namespace FinMate.Application.Auth.Commands;
@@ -18,6 +19,6 @@ public class LogoutAllDevicesCommandHandler : ILogoutAllDevicesCommandHandler
     public async Task HandleAsync(LogoutAllDevicesCommand command, CancellationToken ct = default)
     {
         await _refreshTokenRepository.RevokeAllForUserAsync(command.UserId, ct);
-        await _auditLogService.LogAsync("Auth.LogoutAllDevices", command.UserId, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.LogoutAllDevices, command.UserId, ct: ct);
     }
 }

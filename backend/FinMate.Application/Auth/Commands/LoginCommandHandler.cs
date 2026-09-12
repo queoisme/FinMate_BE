@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
@@ -40,13 +41,13 @@ public class LoginCommandHandler : ILoginCommandHandler
         if (user is null || user.PasswordHash is null || !_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
             await _auditLogService.LogAsync(
-                "Auth.Login.Failed", user?.Id, command.IpAddress, new { command.Email }, ct);
+                AuditEvents.LoginFailed, user?.Id, command.IpAddress, new { command.Email }, ct);
             throw new AuthenticationException(AuthErrorCodes.InvalidCredentials, "Email hoặc mật khẩu không đúng.");
         }
 
         if (user.IsLocked)
         {
-            await _auditLogService.LogAsync("Auth.Login.Failed", user.Id, command.IpAddress, ct: ct);
+            await _auditLogService.LogAsync(AuditEvents.LoginFailed, user.Id, command.IpAddress, ct: ct);
             throw new AuthenticationException(AuthErrorCodes.AccountLocked, "Tài khoản đã bị khóa.");
         }
 
@@ -61,7 +62,7 @@ public class LoginCommandHandler : ILoginCommandHandler
             CreatedAt = DateTimeOffset.UtcNow,
         }, ct);
 
-        await _auditLogService.LogAsync("Auth.Login.Success", user.Id, command.IpAddress, ct: ct);
+        await _auditLogService.LogAsync(AuditEvents.LoginSuccess, user.Id, command.IpAddress, ct: ct);
 
         return new AuthResultDto(accessToken, refresh.RawToken, refresh.ExpiresAt);
     }

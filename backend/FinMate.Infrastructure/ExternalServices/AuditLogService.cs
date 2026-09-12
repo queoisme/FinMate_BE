@@ -7,6 +7,12 @@ namespace FinMate.Infrastructure.ExternalServices;
 
 public class AuditLogService : IAuditLogService
 {
+    // camelCase để metadata khớp với mọi JSON khác của API (CONVENTIONS.md §1.3) — nó được
+    // trả nguyên văn qua GET /api/v1/admin/audit-logs nên hai kiểu đặt tên trong cùng một
+    // response là thứ người đọc log phải tự nhớ mà không có lý do gì.
+    private static readonly JsonSerializerOptions MetadataOptions =
+        new(JsonSerializerDefaults.Web);
+
     private readonly FinMateDbContext _context;
 
     public AuditLogService(FinMateDbContext context)
@@ -26,7 +32,7 @@ public class AuditLogService : IAuditLogService
             EventType = eventType,
             UserId = userId,
             IpAddress = ipAddress,
-            Metadata = metadata is null ? null : JsonSerializer.Serialize(metadata),
+            Metadata = metadata is null ? null : JsonSerializer.Serialize(metadata, MetadataOptions),
             CreatedAt = DateTimeOffset.UtcNow,
         });
 

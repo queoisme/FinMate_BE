@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
@@ -39,7 +40,7 @@ public class RefreshTokenCommandHandler : IRefreshTokenCommandHandler
             // Token already rotated once before — this is a reuse, treat as a security breach.
             await _refreshTokenRepository.RevokeAllForUserAsync(existing.UserId, ct);
             await _auditLogService.LogAsync(
-                "Auth.TokenReuse.Detected", existing.UserId, command.IpAddress, ct: ct);
+                AuditEvents.TokenReuseDetected, existing.UserId, command.IpAddress, ct: ct);
             throw new AuthenticationException(AuthErrorCodes.TokenReuseDetected, "Refresh token đã bị sử dụng lại.");
         }
 
