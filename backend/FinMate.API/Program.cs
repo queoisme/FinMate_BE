@@ -1,4 +1,7 @@
+using FinMate.API.Authorization;
 using FinMate.API.Middleware;
+using FinMate.Application.Admin.Commands;
+using FinMate.Application.Admin.Queries;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.Queries;
 using FinMate.Application.Budgets;
@@ -20,6 +23,7 @@ using FinMate.Application.SavingGoals.Commands;
 using FinMate.Application.SavingGoals.Queries;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
+using FinMate.Domain.Enums;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
@@ -145,6 +149,12 @@ public class Program
         builder.Services.AddAuthorization(options =>
         {
             options.FallbackPolicy = options.DefaultPolicy;
+
+            // Vai trò được đọc từ claim trong access token, không tra lại DB mỗi request —
+            // xem ghi chú về cửa sổ 15 phút ở AuthorizationPolicies.
+            options.AddPolicy(
+                AuthorizationPolicies.AdminOnly,
+                policy => policy.RequireRole(nameof(UserRole.Admin)));
         });
 
         builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -152,6 +162,8 @@ public class Program
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+        builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        builder.Services.AddScoped<IAiStatsRepository, AiStatsRepository>();
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -171,6 +183,25 @@ public class Program
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
         builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
+
+        // Admin (Phase 8) — mọi controller ở đây nằm sau policy AdminOnly.
+        builder.Services.AddScoped<IGetAuditLogListQueryHandler, GetAuditLogListQueryHandler>();
+        builder.Services.AddScoped<IGetAdminUserListQueryHandler, GetAdminUserListQueryHandler>();
+        builder.Services.AddScoped<IGetAdminUserDetailQueryHandler, GetAdminUserDetailQueryHandler>();
+        builder.Services.AddScoped<ISetUserLockCommandHandler, SetUserLockCommandHandler>();
+        builder.Services.AddScoped<IGetProviderConfigListQueryHandler, GetProviderConfigListQueryHandler>();
+        builder.Services.AddScoped<ICreateProviderConfigCommandHandler, CreateProviderConfigCommandHandler>();
+        builder.Services.AddScoped<IUpdateProviderConfigCommandHandler, UpdateProviderConfigCommandHandler>();
+        builder.Services.AddScoped<ISetProviderConfigActivationCommandHandler, SetProviderConfigActivationCommandHandler>();
+        builder.Services.AddScoped<IGetSystemCategoryListQueryHandler, GetSystemCategoryListQueryHandler>();
+        builder.Services.AddScoped<ICreateSystemCategoryCommandHandler, CreateSystemCategoryCommandHandler>();
+        builder.Services.AddScoped<IUpdateSystemCategoryCommandHandler, UpdateSystemCategoryCommandHandler>();
+        builder.Services.AddScoped<ISetSystemCategoryActivationCommandHandler, SetSystemCategoryActivationCommandHandler>();
+        builder.Services.AddScoped<IGetMissionListQueryHandler, GetMissionListQueryHandler>();
+        builder.Services.AddScoped<ICreateMissionCommandHandler, CreateMissionCommandHandler>();
+        builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
+        builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
+        builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
         builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
