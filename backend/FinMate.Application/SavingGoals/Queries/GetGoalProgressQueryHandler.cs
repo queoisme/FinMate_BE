@@ -11,10 +11,17 @@ public class GetGoalProgressQueryHandler : IGetGoalProgressQueryHandler
     private const int RecentContributionsLimit = 10;
 
     private readonly ISavingGoalRepository _savingGoalRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IBudgetRepository _budgetRepository;
 
-    public GetGoalProgressQueryHandler(ISavingGoalRepository savingGoalRepository)
+    public GetGoalProgressQueryHandler(
+        ISavingGoalRepository savingGoalRepository,
+        IUserRepository userRepository,
+        IBudgetRepository budgetRepository)
     {
         _savingGoalRepository = savingGoalRepository;
+        _userRepository = userRepository;
+        _budgetRepository = budgetRepository;
     }
 
     public async Task<GoalProgressDto> HandleAsync(GetGoalProgressQuery query, CancellationToken ct = default)
@@ -54,7 +61,59 @@ public class GetGoalProgressQueryHandler : IGetGoalProgressQueryHandler
             daysRemaining,
             requiredPerDay,
             IsOnTrack(goal, now),
-            contributions.Select(SavingGoalMapper.ToDto).ToList());
+            contributions.Select(SavingGoalMapper.ToDto).ToList(),
+            await BuildFeasibilityAsync(goal, remaining, now, query.UserId, ct));
+    }
+
+    /// <summary>
+    /// Docx Flow 3 bước 2.2: chia đều phần còn thiếu theo tháng rồi đối chiếu với phần thu
+    /// nhập còn dư sau khi trừ tổng hạn mức ngân sách.
+    ///
+    /// Khác <see cref="IsOnTrack"/>: cái kia hỏi "đang đi đúng nhịp chưa" dựa trên tiến độ đã
+    /// có, cái này hỏi "nhịp đó có nằm trong khả năng tài chính không" — một mục tiêu mới tinh
+    /// luôn đúng nhịp nhưng vẫn có thể bất khả thi ngay từ đầu.
+    /// </summary>
+    private async Task<GoalFeasibilityDto?> BuildFeasibilityAsync(
+        SavingGoal goal, long remaining, DateTimeOffset now, Guid userId, CancellationToken ct)
+    {
+        if (goal.Deadline is null || remaining <= 0 || goal.Status != SavingGoalStatus.Active)
+        {
+            return null;
+        }
+
+        // Làm tròn LÊN: còn 45 ngày là còn 2 tháng để góp, không phải 1,5 tháng.
+        var monthsRemaining = Math.Max(1, (int)Math.Ceiling((goal.Deadline.Value - now).TotalDays / 30.0));
+        var requiredPerMonth = (long)Math.Ceiling(remaining / (double)monthsRemaining);
+
+        var user = await _userRepository.GetByIdAsync(userId, ct);
+        if (user?.MonthlyIncomeCents is not { } income || income <= 0)
+        {
+            // Chưa khai thu nhập: vẫn trả về "mỗi tháng cần bao nhiêu" vì đó là con số hữu ích
+            // tự thân, nhưng không kết luận khả thi hay không.
+            return new GoalFeasibilityDto(requiredPerMonth, null, null, null, null);
+        }
+
+        var budgets = await _budgetRepository.GetListForUserAsync(userId, ct);
+        var available = income - budgets.Sum(b => b.LimitCents);
+
+        if (requiredPerMonth <= available)
+        {
+            return new GoalFeasibilityDto(requiredPerMonth, available, true, null, null);
+        }
+
+        // Hai hướng điều chỉnh docx nêu. Chỉ gợi ý kéo dài hạn khi còn dư ra được đồng nào —
+        // thu nhập đã hết sạch vào ngân sách thì kéo dài bao lâu cũng không góp nổi.
+        DateTimeOffset? suggestedDeadline = null;
+        long? suggestedTarget = null;
+
+        if (available > 0)
+        {
+            var monthsNeeded = (int)Math.Ceiling(remaining / (double)available);
+            suggestedDeadline = now.AddMonths(monthsNeeded);
+            suggestedTarget = goal.SavedCents + available * monthsRemaining;
+        }
+
+        return new GoalFeasibilityDto(requiredPerMonth, available, false, suggestedDeadline, suggestedTarget);
     }
 
     /// <summary>

@@ -11,11 +11,32 @@ namespace FinMate.Tests.Unit.Application.SavingGoals;
 public class GetGoalProgressQueryHandlerTests
 {
     private readonly Mock<ISavingGoalRepository> _savingGoalRepository = new();
+    private readonly Mock<IUserRepository> _userRepository = new();
+    private readonly Mock<IBudgetRepository> _budgetRepository = new();
     private readonly GetGoalProgressQueryHandler _handler;
 
     public GetGoalProgressQueryHandlerTests()
     {
-        _handler = new GetGoalProgressQueryHandler(_savingGoalRepository.Object);
+        _handler = new GetGoalProgressQueryHandler(
+            _savingGoalRepository.Object, _userRepository.Object, _budgetRepository.Object);
+
+        // Mặc định: chưa khai thu nhập. Các test tiến độ sẵn có không quan tâm tới tính khả
+        // thi, và để mặc định ở "chưa đủ dữ liệu" thì chúng không phải biết tới nó.
+        _budgetRepository
+            .Setup(r => r.GetListForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+    }
+
+    /// <summary>Khai thu nhập và tổng hạn mức ngân sách cho các test về tính khả thi.</summary>
+    private void GiveUserFinances(Guid userId, long monthlyIncomeCents, long totalBudgetCents)
+    {
+        _userRepository
+            .Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = userId, MonthlyIncomeCents = monthlyIncomeCents });
+
+        _budgetRepository
+            .Setup(r => r.GetListForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new Budget { Id = Guid.NewGuid(), UserId = userId, LimitCents = totalBudgetCents }]);
     }
 
     private SavingGoal Arrange(
@@ -116,5 +137,74 @@ public class GetGoalProgressQueryHandlerTests
         result.IsOnTrack.Should().BeTrue();
         result.Status.Should().Be("completed");
         result.RequiredPerDayCents.Should().BeNull();
+    }
+
+    // ------------------------------------------------ tính khả thi (docx Flow 3 bước 2.2)
+
+    [Fact]
+    public async Task AnAmbitiousGoalIsFlaggedButNotRefused()
+    {
+        // Mục tiêu 20 triệu trong 6 tháng cần ~3,3 triệu/tháng, nhưng thu nhập 9 triệu trừ
+        // ngân sách 7 triệu chỉ còn dư 2 triệu. Docx yêu cầu GỢI Ý điều chỉnh, không chặn.
+        var userId = Guid.NewGuid();
+        GiveUserFinances(userId, monthlyIncomeCents: 9_000_000, totalBudgetCents: 7_000_000);
+        var now = DateTimeOffset.UtcNow;
+        var goal = Arrange(userId, targetCents: 20_000_000, savedCents: 0,
+            createdAt: now, deadline: now.AddDays(180));
+
+        var progress = await _handler.HandleAsync(new GetGoalProgressQuery(userId, goal.Id));
+
+        progress.Feasibility.Should().NotBeNull();
+        progress.Feasibility!.IsFeasible.Should().BeFalse();
+        progress.Feasibility.AvailablePerMonthCents.Should().Be(2_000_000);
+        progress.Feasibility.RequiredPerMonthCents.Should().BeGreaterThan(2_000_000);
+        progress.Feasibility.SuggestedDeadline.Should().NotBeNull();
+        progress.Feasibility.SuggestedTargetCents.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AGoalWithinReachIsFeasibleAndNeedsNoSuggestions()
+    {
+        var userId = Guid.NewGuid();
+        GiveUserFinances(userId, monthlyIncomeCents: 9_000_000, totalBudgetCents: 4_000_000);
+        var now = DateTimeOffset.UtcNow;
+        var goal = Arrange(userId, targetCents: 20_000_000, savedCents: 0,
+            createdAt: now, deadline: now.AddDays(180));
+
+        var feasibility = (await _handler.HandleAsync(new GetGoalProgressQuery(userId, goal.Id))).Feasibility;
+
+        feasibility!.IsFeasible.Should().BeTrue();
+        feasibility.SuggestedDeadline.Should().BeNull();
+        feasibility.SuggestedTargetCents.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WithoutADeclaredIncomeTheMonthlyRequirementIsStillUseful()
+    {
+        // Không kết luận khả thi hay không, nhưng "mỗi tháng cần bao nhiêu" tự nó đã có ích.
+        var userId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var goal = Arrange(userId, targetCents: 20_000_000, savedCents: 0,
+            createdAt: now, deadline: now.AddDays(180));
+
+        var feasibility = (await _handler.HandleAsync(new GetGoalProgressQuery(userId, goal.Id))).Feasibility;
+
+        feasibility.Should().NotBeNull();
+        feasibility!.RequiredPerMonthCents.Should().BeGreaterThan(0);
+        feasibility.IsFeasible.Should().BeNull();
+        feasibility.AvailablePerMonthCents.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AGoalWithoutADeadlineHasNoFeasibilityToAssess()
+    {
+        var userId = Guid.NewGuid();
+        GiveUserFinances(userId, monthlyIncomeCents: 9_000_000, totalBudgetCents: 1_000_000);
+        var goal = Arrange(userId, targetCents: 20_000_000, savedCents: 0,
+            createdAt: DateTimeOffset.UtcNow, deadline: null);
+
+        var progress = await _handler.HandleAsync(new GetGoalProgressQuery(userId, goal.Id));
+
+        progress.Feasibility.Should().BeNull("không có mốc thời gian thì không có nhịp bắt buộc nào");
     }
 }
