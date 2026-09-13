@@ -10,6 +10,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from app.utils.number_words import find_number_words
+
 # App chỉ phục vụ Việt Nam nên dùng UTC+7 cố định, giống hệt lý do phía backend viết
 # Common/VietnamTime thay vì TimeZoneInfo (xem note biên chu kỳ ở TASKS.md Phase 5).
 VIETNAM_TZ = timezone(timedelta(hours=7))
@@ -125,12 +127,21 @@ class AmountCandidate:
     # Có hậu tố đơn vị hoặc ký hiệu tiền tệ đi kèm. Ứng viên "có dấu" đáng tin hơn hẳn:
     # trong "nhận lương tháng 9 15tr" thì "9" là số thứ tự tháng, "15tr" mới là tiền.
     has_marker: bool
+    # Có dấu ngăn nhóm ("110.000"). Người Việt viết tiền là luôn có dấu ngăn, nên một dãy số
+    # trần dài — mã số thuế, số hóa đơn, số điện thoại — phân biệt được với tiền nhờ điều này.
+    has_grouping: bool
     start: int
     end: int
 
 
 def find_amount_candidates(text: str) -> list[AmountCandidate]:
-    """Mọi cụm có thể là số tiền trong câu, theo thứ tự xuất hiện."""
+    """Mọi cụm có thể là số tiền trong câu, theo thứ tự xuất hiện.
+
+    Gồm cả số viết bằng CHỮ ("bốn mươi lăm ngàn"), vì Speech-to-Text của luồng Voice trả về
+    đúng những gì người dùng nói. Gộp hai nguồn ở đây chứ không ở Extractor để mọi tầng phía
+    sau — tách số dư, lấy merchant sau giới từ, chọn ứng viên đáng tin nhất — dùng chung một
+    đường mà không phải biết con số đến từ chữ số hay từ chữ.
+    """
     candidates: list[AmountCandidate] = []
     for match in _AMOUNT_CANDIDATE.finditer(text):
         raw = match.group(0).strip()
@@ -138,9 +149,33 @@ def find_amount_candidates(text: str) -> list[AmountCandidate]:
         if value is None or value <= 0:
             continue
         has_marker = bool(match.group("unit") or match.group("currency"))
+        has_grouping = any(ch in match.group("number") for ch in ".,")
         candidates.append(
-            AmountCandidate(value, has_marker, match.start(), match.end())
+            AmountCandidate(value, has_marker, has_grouping, match.start(), match.end())
         )
+
+    digit_spans = [(c.start, c.end) for c in candidates]
+    for word_match in find_number_words(text):
+        # Bỏ qua cụm chữ nằm chồng lên một cụm chữ số đã bắt được — "45 nghìn" khớp cả hai
+        # đường, và đếm hai lần sẽ làm cùng một số tiền cạnh tranh với chính nó.
+        if any(
+            word_match.start < end and start < word_match.end
+            for start, end in digit_spans
+        ):
+            continue
+        candidates.append(
+            AmountCandidate(
+                value=word_match.value,
+                # Đơn vị (nghìn/triệu/tỷ) đóng vai trò y hệt hậu tố "k"/"tr" ở chữ số.
+                has_marker=word_match.has_scale,
+                # Số đọc bằng chữ không có dấu ngăn nhóm, mà cũng không thể là mã số thuế.
+                has_grouping=False,
+                start=word_match.start,
+                end=word_match.end,
+            )
+        )
+
+    candidates.sort(key=lambda c: c.start)
     return candidates
 
 
