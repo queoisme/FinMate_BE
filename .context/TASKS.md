@@ -493,6 +493,21 @@
 - [x] OCR: endpoint backend nhận ảnh hóa đơn → trả field trích xuất để client prefill — *`POST /api/v1/transactions/scan-receipt`. Không tạo giao dịch: docx yêu cầu rà soát trước khi lưu, nên giao dịch chỉ ra đời khi người dùng bấm Lưu qua `POST /transactions` với `source=Receipt`. Chốt chặn kích thước ở cả hai đầu và `[RequestSizeLimit]` ở tầng ASP.NET Core. Bóc tổng tiền theo **nhãn** ("Tổng cộng", "Tổng thanh toán"…) và loại trừ nhãn phản chỉ định ("Tiền khách đưa", "Tiền thối lại") — chọn con số lớn nhất trên hóa đơn siêu thị sẽ lấy nhầm tiền khách đưa, và sai luôn theo hướng lớn hơn thực tế. Nhãn đứng SAU thắng, vì hóa đơn liệt kê từ trên xuống. Categorizer chỉ nhận TÊN CỬA HÀNG, không nhận toàn văn: hóa đơn WinMart có dòng "Banh mi" phải là `shopping` chứ không phải `food`. `confidence` luôn < 0,85 — luồng này theo docx luôn có bước người xem lại nên không được rơi vào vùng xác nhận một chạm.*
 - [x] Tests cho cả 2 kênh — *AI Service +48 test (104 → **152**): 25 test số đọc bằng chữ (gồm các bẫy chỉ xuất hiện khi bỏ dấu), 12 test bóc trường hóa đơn, 11 test HTTP `POST /ocr`. Backend +25 test (345 → **370**): guard kích thước/định dạng/kênh nhập và vòng đời quét hóa đơn. Engine OCR bị thay bằng fake trong test — nó là biên I/O phụ thuộc binary hệ điều hành, còn giá trị thật nằm ở phần đọc text; engine thật verify riêng bằng smoke test trên `docker compose`.*
 
+## Phase 11 — Đối chiếu lại Core Flow 1 & 2 với docx
+
+> Đọc lại TRỌN VẸN Flow 1 và Flow 2 (lần trước chỉ grep quanh vài từ khoá) lộ ra năm chỗ code
+> chưa làm đúng đặc tả. `TASKS.md` báo đủ 258/261 vì nó đối chiếu với chính nó, không phải với
+> docx — đó là loại sai lệch mà một bảng checkbox không bao giờ tự phát hiện được.
+
+- [x] **Bước 1.2 — Endpoint danh sách app theo dõi** — *`GET /api/v1/financial-accounts/providers`. Trước đó KHÔNG có đường nào cho người dùng thường xem provider: client buộc phải gửi `providerConfigId` khi tạo ví mà không có cách nào biết id, nên màn onboarding không dựng được. Trả kèm `packageName` vì client Android dựng bộ lọc Tầng 1 (`sbn.packageName`) từ chính giá trị đó. Chỉ trả provider đang BẬT.*
+- [x] **Bước 1.2 — Ba provider docx nêu mà hệ thống thiếu** — *Techcombank, VPBank, ShopeePay. Seed ở trạng thái **TẮT**: `package_name` của chúng chưa đối chiếu với thông báo thật, mà sai `package_name` là hỏng im lặng — provider hiện ra ở onboarding, người dùng chọn, rồi không thông báo nào khớp và không có gì báo lỗi. Admin bật lên qua `PATCH /admin/provider-configs/{id}/activation` sau khi kiểm chứng, đúng cơ chế dựng ở Phase 8. VNPay giữ nguyên dù docx không nêu — nó đang chạy và có pattern thật.*
+- [x] **Bước 1.3 — Thu nhập hằng tháng** — *Migration `AddMonthlyIncomeToUsers`, `users.monthly_income_cents BIGINT NULL` (user chốt: một cột, không bảng lịch sử). Khác hẳn `TotalIncomeCents` trong báo cáo — cái đó là tổng giao dịch `Credit` THỰC TẾ và bằng 0 ở tháng đầu dùng app, đúng lúc người dùng cần cảnh báo bội chi nhất. NULL = chưa khai; gửi 0 qua `PATCH /users/me` để xoá.*
+- [x] **Flow 3 mục 4 — Hành động đề xuất cho dự báo** — *`SpendingForecastDto.Advice`: thu nhập, số dư dự báo (âm = bội chi), và **số tiền nên cắt mỗi ngày**. Kịch bản nguyên văn docx có test: dự báo 10,2tr / thu nhập 9tr / còn 10 ngày → cắt 120.000đ/ngày. `null` khi chưa khai thu nhập — "chưa biết" khác "không bội chi". Tính ở `GetSpendingForecastQueryHandler` chứ không nhét vào `ISpendingForecaster`, để forecaster thuần thống kê và giữ nguyên chỗ cắm model AI.*
+- [x] **Flow 3 bước 2.2 — Kiểm tra tính khả thi mục tiêu** — *`GoalProgressDto.Feasibility`: cần bao nhiêu/tháng, dư ra bao nhiêu (thu nhập − tổng hạn mức ngân sách), khả thi hay không, và hai hướng điều chỉnh docx nêu (kéo dài hạn / giảm mục tiêu). Là **cảnh báo kèm gợi ý, không từ chối**. Khác `IsOnTrack` sẵn có: cái kia hỏi "đang đi đúng nhịp chưa", cái này hỏi "nhịp đó có nằm trong khả năng tài chính không" — một mục tiêu mới tinh luôn đúng nhịp nhưng vẫn có thể bất khả thi ngay từ đầu.*
+- [x] **Bước 5.4 — Tab "Chờ duyệt"** — *`GET /api/v1/transactions?status=Draft`. `GetTransactionListQuery` lọc được theo ví/danh mục/loại/khoảng ngày nhưng không có `Status`, nên client không tách được giao dịch nháp ra khỏi lịch sử.*
+- [x] **Flow 2 mục 2a — Cảnh báo ngân sách TỨC THÌ** — *Chỗ lệch nặng nhất. Docx: "Mỗi khi có giao dịch phát sinh từ Flow 1 hoặc Flow 2, hệ thống tự động tính toán tỷ lệ phần trăm và phản ứng qua Mascot". Thực tế `BudgetAlertJob` chạy `0 * * * *` và **không ai đọc cờ `Alert*SentAt` ngoài job đó** — người dùng vượt 90% hạn mức chờ tới 59 phút. Tách logic mốc thành `BudgetAlertEvaluator` dùng chung; `BudgetPeriodService.ApplyDeltaAsync` nay TRẢ VỀ danh sách cảnh báo và 3 handler gửi chúng **SAU** `SaveChangesAsync` — gửi trong `ApplyDeltaAsync` là báo về một giao dịch có thể bị rollback, vì hàm đó cố ý không save. Job giữ nguyên làm lưới vét cho hai ca không có giao dịch: hạ hạn mức, và backfill lúc tạo budget. Tuỳ chọn thông báo được hỏi **trước** khi đóng cờ `Alert*SentAt`: đóng cờ cho người đã tắt cảnh báo là ăn mất mốc đó vĩnh viễn — họ bật lại hôm sau thì cờ đã nói "đã gửi" và không ai gửi lại.*
+- *(Sửa kèm)* `GetMatchingBudgetsAsync` thiếu `Include(Category)` — cảnh báo tức thì lấy tên danh mục qua đó, thiếu thì MỌI cảnh báo đều ghi "toàn bộ chi tiêu" kể cả budget Ăn uống. Không lỗi, chỉ là thông điệp sai.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -528,11 +543,18 @@
 | Phase 8 — Admin | `[x]` | 14 / 14 |
 | Phase 9 — AI Service | `[x]` | 27 / 28 *(1 task `[-]` Skipped: 3 bảng `ab_*`, A/B testing ngoài MVP scope)* |
 | Phase 10 — Đối chiếu Core User Flows | `[x]` | 21 / 22 *(#1, #2, #4 xong; 1 task `[-]` Skipped: OTP)* |
-| **Total** | | **258 / 261** |
+| Phase 11 — Đối chiếu lại Flow 1 & 2 | `[x]` | 7 / 7 |
+| **Total** | | **265 / 268** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope. Còn 1 task `[!]` chờ duyệt dependency FCM
 (`IPushNotificationService` vẫn là `LoggingPushNotificationService`, chỉ ghi log) + 2 task
 `[-]` bỏ có chủ ý (OTP, 3 bảng `ab_*`).
+
+**Vẫn lệch docx, đã biết, chưa làm:** nhánh confidence 85% (Flow 1 bước 5.2/5.3 — AI đã trả
+confidence đầy đủ nhưng backend chưa dùng nó để chọn giữa push một chạm và hộp thoại chọn
+danh mục; phụ thuộc payload push nên chờ chốt FCM); `ForecastJob` (ARCHITECTURE.md §5 ghi
+06:00, docx Flow 3 mục 4 ghi 22:00, hiện **không có job nào** — forecast chỉ tính khi client
+gọi); trạng thái cảm xúc Mascot xanh/vàng/đỏ (Flow 3 mục 1, chưa có contract).
 
 ---
 
@@ -605,3 +627,15 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 2. **Mã số thuế đọc thành số tiền.** Hệ quả của lỗi 1: không nhãn nào khớp nên rơi vào nhánh đoán "lấy con số lớn nhất", và `MST: 0312345678` thành một giao dịch **312.345.678đ**. Nhánh đoán nay chỉ xét con số TRÔNG GIỐNG TIỀN — có dấu ngăn nhóm hoặc có đơn vị. Người Việt viết tiền là luôn có dấu ngăn, nên dãy số trần dài (mã số thuế, số hóa đơn, số điện thoại) phân biệt được. Đã thêm 3 test hồi quy.
 
 **Giới hạn đã biết, không che giấu:** trên ảnh thử nghiệm, tesseract đọc `WINMART+` thành `WTNMART+` (nhầm I thành T). Tên cửa hàng sai một ký tự là trượt từ điển merchant, nên danh mục rơi về `other` với confidence 0,35 — tức là người dùng phải tự chọn. Đây là suy giảm ĐÚNG hướng (không đoán bừa một danh mục sai), nhưng nó cho thấy độ chính xác thật của OCR tiếng Việt phụ thuộc nhiều vào chất lượng ảnh. Con số thật chỉ có sau khi chụp hóa đơn thật bằng điện thoại thật.
+
+**Verify Phase 11 (2026-09-13):** `dotnet build` sạch 0 warning; `dotnet test` xanh **396/396** (chạy qua container SDK 9.0); `dotnet ef migrations has-pending-model-changes` sạch sau migration `AddMonthlyIncomeToUsers`. Smoke test curl end-to-end trên `docker compose` thật, cả bảy bước:
+
+1. **Cảnh báo tức thì.** Budget Ăn uống 1tr → chi 750k / +200k / +100k: đúng ba thông báo 70% → 90% → 100%, tất cả phát ra **trong chính request `POST /api/v1/transactions`** (log ghi `ActionName: TransactionsController.Create`), không phải chờ đầu giờ. Chi thêm 500k → im lặng.
+2. **Nhảy vọt một phát.** Budget Mua sắm 1tr → một giao dịch 1,2tr → đúng **một** thông báo (mốc 100), không phải ba.
+3. **Lưới vét vẫn cần thật.** Budget Hóa đơn 2tr, đã chi 750k (37,5% — không cảnh báo), hạ hạn mức xuống 800k qua `PATCH /budgets/{id}` → **không** cảnh báo ngay, đúng như thiết kế (không có giao dịch nào). Chờ đến lượt cron `0 * * * *` lúc 14:00:00 UTC → job bắt được và gửi mốc 90%, log ghi ngoài mọi `ActionName`. Đây là bằng chứng chạy thật cho lý do giữ job lại.
+4. **Tab Chờ duyệt.** `?status=Draft` rỗng → `/notifications/analyze` tạo nháp → trả đúng 1 dòng `Draft` → confirm → rỗng trở lại. `?status=Confirmed` trả 6 dòng, toàn bộ đúng trạng thái.
+5. **Lời khuyên dự báo.** Chưa khai thu nhập → `advice: null` nhưng `projectedSpendCents` vẫn có. Khai 3.000.000 với dự báo chi 3.585.000, còn 17 ngày → `projectedBalanceCents: -585000`, `suggestedDailyCutCents: 34412` (đúng `ceil(585000/17)`). Gửi `0` → cột về `NULL` và `advice` về `null`. Gửi số âm → 400.
+6. **Tính khả thi mục tiêu.** Thu nhập 3tr, tổng hạn mức ngân sách 2,8tr → dư 200k/tháng. Mục tiêu 20tr hạn 6 tháng → HTTP **200** kèm `isFeasible: false`, `requiredPerMonthCents: 3333334`, gợi ý kéo dài hạn tới 2035 hoặc hạ mục tiêu xuống 1,2tr — cảnh báo kèm lối ra, không phải lỗi. Mục tiêu 1tr cùng hạn → `isFeasible: true`.
+7. **Provider tắt đúng nghĩa là ẩn.** `GET /financial-accounts/providers` trả 5 provider đang bật; Techcombank/VPBank/ShopeePay nằm trong DB với `is_active = f` và không lọt vào danh sách người dùng thấy.
+
+**Một chỗ lệch tìm thấy khi verify, KHÔNG thuộc phạm vi lượt này:** pattern MB Bank bóc `merchantName` thành `"HIGHLANDS COFFEE. So du 4,915,000 VND"` — regex ăn cả phần số dư đuôi thay vì dừng ở dấu chấm. Không sai số tiền (85.000đ đúng), chỉ bẩn tên cửa hàng, và nó làm hỏng việc khớp từ điển merchant nên đẩy danh mục về `other`. Thuộc `provider_patterns` của AI service, sửa được bằng dữ liệu chứ không cần đụng code.

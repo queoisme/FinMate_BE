@@ -508,7 +508,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 
 | Job | Schedule | Mô tả |
 |---|---|---|
-| `BudgetAlertJob` | Mỗi giờ | Kiểm tra budget threshold 70%/90%/100%, gửi alert (xem §0 quyết định #2) |
+| `BudgetAlertJob` | Mỗi giờ | **Lưới vét** cho threshold 70%/90%/100%. Đường chính là TỨC THÌ sau mỗi giao dịch (`BudgetPeriodService.ApplyDeltaAsync`, docx Flow 2 mục 2a). Job vẫn cần vì hạ hạn mức và backfill lúc tạo budget đều làm vượt ngưỡng mà không có giao dịch nào |
 | `StreakCheckJob` | 23:55 mỗi ngày | Reset streak nếu user không có transaction hôm nay |
 | `ForecastJob` | 06:00 mỗi ngày | Gọi AI Service tính spending forecast tháng |
 | `InsightGeneratorJob` | 02:00 mỗi ngày | Generate spending insights từ transaction data |
