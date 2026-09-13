@@ -39,7 +39,8 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequest request, CancellationToken ct)
     {
         var profile = await _updateProfileHandler.HandleAsync(
-            new UpdateUserProfileCommand(CurrentUserId, request.DisplayName), ct);
+            new UpdateUserProfileCommand(CurrentUserId, request.DisplayName, request.MonthlyIncomeCents),
+            ct);
         return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 
@@ -58,5 +59,8 @@ public class UsersController : ControllerBase
     }
 }
 
-public record UpdateProfileRequest(string DisplayName);
+/// <param name="MonthlyIncomeCents">
+/// Thu nhập hằng tháng dự kiến (docx Bước 1.3). Bỏ trống = giữ nguyên; gửi 0 để xoá.
+/// </param>
+public record UpdateProfileRequest(string DisplayName, long? MonthlyIncomeCents = null);
 public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled, bool MissionRemindersEnabled);

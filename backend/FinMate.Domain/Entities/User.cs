@@ -11,6 +11,16 @@ public class User
     public string? GoogleId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.User;
+    /// <summary>
+    /// Thu nhập hằng tháng DỰ KIẾN, do người dùng khai ở onboarding (docx Bước 1.3).
+    ///
+    /// Khác hẳn tổng giao dịch <c>Credit</c> thực tế trong báo cáo: tháng đầu dùng app thì
+    /// tổng đó bằng 0, đúng lúc người dùng cần cảnh báo bội chi nhất. NULL = chưa khai, và
+    /// mọi nơi dùng nó phải BỎ QUA phép so sánh thay vì thay bằng 0 — "chưa biết" không phải
+    /// là "không có thu nhập".
+    /// </summary>
+    public long? MonthlyIncomeCents { get; set; }
+
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

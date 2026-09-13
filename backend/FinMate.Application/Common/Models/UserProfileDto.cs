@@ -5,6 +5,7 @@ public record UserProfileDto(
     string Email,
     string DisplayName,
     string Role,
+    long? MonthlyIncomeCents,
     bool PushEnabled,
     bool BudgetAlertsEnabled,
     bool MissionRemindersEnabled);

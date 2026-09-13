@@ -42,6 +42,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+
         builder.OwnsOne(u => u.NotificationPrefs, prefs =>
         {
             prefs.Property(p => p.PushEnabled).HasColumnName("push_enabled");

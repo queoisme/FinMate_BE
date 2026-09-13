@@ -55,6 +55,7 @@ public class RegisterCommandHandler : IRegisterCommandHandler
             user.Email,
             user.DisplayName,
             user.Role.ToString(),
+            user.MonthlyIncomeCents,
             user.NotificationPrefs.PushEnabled,
             user.NotificationPrefs.BudgetAlertsEnabled,
             user.NotificationPrefs.MissionRemindersEnabled);
