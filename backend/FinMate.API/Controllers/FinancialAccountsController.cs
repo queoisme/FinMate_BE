@@ -19,6 +19,7 @@ public class FinancialAccountsController : ControllerBase
     private readonly IDeleteFinancialAccountCommandHandler _deleteHandler;
     private readonly IGetAccountListQueryHandler _listHandler;
     private readonly IGetAccountBalanceQueryHandler _balanceHandler;
+    private readonly IGetProviderListQueryHandler _providerListHandler;
 
     public FinancialAccountsController(
         ICreateFinancialAccountCommandHandler createHandler,
@@ -26,7 +27,8 @@ public class FinancialAccountsController : ControllerBase
         IToggleAccountMonitoringCommandHandler toggleMonitoringHandler,
         IDeleteFinancialAccountCommandHandler deleteHandler,
         IGetAccountListQueryHandler listHandler,
-        IGetAccountBalanceQueryHandler balanceHandler)
+        IGetAccountBalanceQueryHandler balanceHandler,
+        IGetProviderListQueryHandler providerListHandler)
     {
         _createHandler = createHandler;
         _updateHandler = updateHandler;
@@ -34,9 +36,22 @@ public class FinancialAccountsController : ControllerBase
         _deleteHandler = deleteHandler;
         _listHandler = listHandler;
         _balanceHandler = balanceHandler;
+        _providerListHandler = providerListHandler;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    /// <summary>
+    /// Danh sách app tài chính để người dùng tick chọn ở onboarding (docx Bước 1.2).
+    ///
+    /// Đặt TRƯỚC <c>GET ""</c> và dùng đường dẫn hằng nên không đụng route <c>{id:guid}</c>.
+    /// </summary>
+    [HttpGet("providers")]
+    public async Task<IActionResult> GetProviders(CancellationToken ct)
+    {
+        var providers = await _providerListHandler.HandleAsync(new GetProviderListQuery(), ct);
+        return Ok(ApiResponse<IReadOnlyList<ProviderOptionDto>>.Ok(providers));
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetList(CancellationToken ct)

@@ -222,6 +222,7 @@ public class Program
         builder.Services.AddScoped<IDeleteFinancialAccountCommandHandler, DeleteFinancialAccountCommandHandler>();
         builder.Services.AddScoped<IGetAccountListQueryHandler, GetAccountListQueryHandler>();
         builder.Services.AddScoped<IGetAccountBalanceQueryHandler, GetAccountBalanceQueryHandler>();
+        builder.Services.AddScoped<IGetProviderListQueryHandler, GetProviderListQueryHandler>();
 
         builder.Services.AddScoped<ICreateCategoryCommandHandler, CreateCategoryCommandHandler>();
         builder.Services.AddScoped<IUpdateCategoryCommandHandler, UpdateCategoryCommandHandler>();
