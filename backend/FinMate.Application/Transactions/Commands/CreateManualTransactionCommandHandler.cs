@@ -66,7 +66,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             CategoryId = category?.Id,
             AmountCents = command.AmountCents,
             TransactionType = command.TransactionType,
-            Source = TransactionSource.Manual,
+            Source = command.Source,
             Status = TransactionStatus.Confirmed,
             MerchantName = command.MerchantName,
             Description = command.Description,

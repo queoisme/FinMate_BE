@@ -22,7 +22,9 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
                 "(transaction_type = 'transfer' AND counter_account_id IS NOT NULL "
                 + "AND counter_account_id <> financial_account_id AND category_id IS NULL) "
                 + "OR (transaction_type <> 'transfer' AND counter_account_id IS NULL)");
-            t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual')");
+            t.HasCheckConstraint(
+                "chk_transactions_source",
+                "source IN ('notification','manual','voice','receipt')");
             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
         });
 
