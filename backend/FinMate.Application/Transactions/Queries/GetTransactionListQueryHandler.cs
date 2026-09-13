@@ -25,6 +25,7 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
             query.FinancialAccountId,
             query.CategoryId,
             query.TransactionType,
+            query.Status,
             query.FromDate,
             query.ToDate,
             query.Cursor,

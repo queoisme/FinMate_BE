@@ -8,6 +8,7 @@ public record TransactionListFilter(
     Guid? FinancialAccountId,
     Guid? CategoryId,
     TransactionType? TransactionType,
+    TransactionStatus? Status,
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,

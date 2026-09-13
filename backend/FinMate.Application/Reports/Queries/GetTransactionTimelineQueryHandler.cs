@@ -25,6 +25,7 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
                 FinancialAccountId: null,
                 CategoryId: null,
                 TransactionType: null,
+                Status: null,
                 query.FromDate,
                 query.ToDate,
                 query.Cursor,

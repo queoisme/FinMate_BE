@@ -53,6 +53,7 @@ public class TransactionsController : ControllerBase
         [FromQuery] Guid? accountId,
         [FromQuery] Guid? categoryId,
         [FromQuery] TransactionType? type,
+        [FromQuery] TransactionStatus? status,
         [FromQuery] DateTimeOffset? fromDate,
         [FromQuery] DateTimeOffset? toDate,
         [FromQuery] string? cursor,
@@ -60,7 +61,9 @@ public class TransactionsController : ControllerBase
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
-            new GetTransactionListQuery(CurrentUserId, accountId, categoryId, type, fromDate, toDate, cursor, limit), ct);
+            new GetTransactionListQuery(
+                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit),
+            ct);
         return Ok(ApiResponse<IReadOnlyList<TransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
 

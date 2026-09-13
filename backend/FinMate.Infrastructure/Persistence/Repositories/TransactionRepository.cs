@@ -42,6 +42,11 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.TransactionType == filter.TransactionType);
         }
 
+        if (filter.Status is not null)
+        {
+            query = query.Where(t => t.Status == filter.Status);
+        }
+
         if (filter.FromDate is not null)
         {
             query = query.Where(t => t.TransactedAt >= filter.FromDate);
