@@ -76,6 +76,21 @@ public record AiServiceStats(
     AiTrainingJobStatus? LastTrainingJob,
     int PendingFeedbackCount);
 
+// POST /api/v1/ocr — route thứ tư của contract, thêm ở Phase 10 (docx phương thức 3).
+// Ảnh chỉ đi qua, không được lưu ở đâu trong hệ thống.
+public record ScanReceiptRequest(
+    Guid UserId,
+    byte[] Image,
+    string FileName,
+    string ContentType);
+
+/// <param name="OcrResult">"success" | "no_amount" | "unreadable".</param>
+public record ScanReceiptResponse(
+    string OcrResult,
+    ExtractionResult? Extraction,
+    CategorizationResult? Categorization,
+    int? ProcessingMs);
+
 public interface IAIServiceClient
 {
     Task<AnalyzeResponse> AnalyzeAsync(AnalyzeRequest request, CancellationToken ct = default);
@@ -89,4 +104,12 @@ public interface IAIServiceClient
     /// một dashboard không được sập chỉ vì AI Service đang restart.
     /// </summary>
     Task<AiServiceStats> GetStatsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản
+    /// hồi — khác hẳn với "ảnh không đọc được", cái sau trả về bình thường kèm
+    /// <c>OcrResult = "unreadable"</c>. Người dùng cần phân biệt "chụp lại đi" với "thử lại sau".
+    /// </summary>
+    Task<ScanReceiptResponse> ScanReceiptAsync(
+        ScanReceiptRequest request, CancellationToken ct = default);
 }

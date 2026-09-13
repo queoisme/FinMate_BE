@@ -42,4 +42,18 @@ public class FakeAIServiceClient : IAIServiceClient
     /// </summary>
     public Task<AiServiceStats> GetStatsAsync(CancellationToken ct = default)
         => throw new AIServiceUnavailableException("Fake AI Service — luôn không sẵn sàng.");
+
+    /// <summary>
+    /// Hóa đơn siêu thị 110.000đ, cố định. Đủ để test tầng HTTP của backend (multipart,
+    /// kích thước, quyền) mà không cần binary tesseract trong môi trường test.
+    /// </summary>
+    public Task<ScanReceiptResponse> ScanReceiptAsync(
+        ScanReceiptRequest request, CancellationToken ct = default)
+        => Task.FromResult(new ScanReceiptResponse(
+            "success",
+            new ExtractionResult(
+                110_000, "debit", "WINMART+ NGUYEN TRAI", "WINMART+ NGUYEN TRAI",
+                new DateTimeOffset(2026, 9, 12, 12, 45, 0, TimeSpan.Zero), null, 0.8),
+            new CategorizationResult("shopping", 0.8),
+            42));
 }

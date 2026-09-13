@@ -235,6 +235,7 @@ public class Program
         builder.Services.AddScoped<IUpdateTransactionCommandHandler, UpdateTransactionCommandHandler>();
         builder.Services.AddScoped<IDeleteTransactionCommandHandler, DeleteTransactionCommandHandler>();
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
+        builder.Services.AddScoped<IScanReceiptCommandHandler, ScanReceiptCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
         builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
 

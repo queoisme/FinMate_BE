@@ -114,6 +114,44 @@ public class AIServiceClient : IAIServiceClient
             response.PendingFeedbackCount);
     }
 
+    public async Task<ScanReceiptResponse> ScanReceiptAsync(
+        ScanReceiptRequest request, CancellationToken ct = default)
+    {
+        OcrApiResponse response;
+        // MemoryStream phải sống tới khi Refit ghi xong multipart body, nên using bao trọn
+        // lời gọi chứ không chỉ chỗ dựng StreamPart.
+        using (var content = new MemoryStream(request.Image))
+        {
+            var part = new StreamPart(content, request.FileName, request.ContentType);
+            try
+            {
+                response = await _api.OcrAsync(part, HashGuid(request.UserId), ct);
+            }
+            catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+            {
+                throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
+            }
+        }
+
+        return new ScanReceiptResponse(
+            response.OcrResult,
+            response.Extraction is null
+                ? null
+                : new ExtractionResult(
+                    response.Extraction.AmountCents,
+                    response.Extraction.TransactionType,
+                    response.Extraction.MerchantName,
+                    response.Extraction.Description,
+                    response.Extraction.TransactedAt,
+                    response.Extraction.BalanceAfterCents,
+                    response.Extraction.Confidence),
+            response.Categorization is null
+                ? null
+                : new CategorizationResult(
+                    response.Categorization.CategorySlug, response.Categorization.Confidence),
+            response.ProcessingMs);
+    }
+
     // AGENTS.md §3.1: AI DB không lưu user_id/transaction_id thực — luôn gửi SHA-256 qua HTTP.
     private static string HashGuid(Guid value)
     {

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
@@ -19,6 +20,7 @@ public class TransactionsController : ControllerBase
     private readonly IUpdateTransactionCommandHandler _updateHandler;
     private readonly IDeleteTransactionCommandHandler _deleteHandler;
     private readonly IParseNaturalLanguageCommandHandler _parseHandler;
+    private readonly IScanReceiptCommandHandler _scanReceiptHandler;
     private readonly IGetTransactionListQueryHandler _listHandler;
     private readonly IGetTransactionDetailQueryHandler _detailHandler;
 
@@ -29,6 +31,7 @@ public class TransactionsController : ControllerBase
         IUpdateTransactionCommandHandler updateHandler,
         IDeleteTransactionCommandHandler deleteHandler,
         IParseNaturalLanguageCommandHandler parseHandler,
+        IScanReceiptCommandHandler scanReceiptHandler,
         IGetTransactionListQueryHandler listHandler,
         IGetTransactionDetailQueryHandler detailHandler)
     {
@@ -38,6 +41,7 @@ public class TransactionsController : ControllerBase
         _updateHandler = updateHandler;
         _deleteHandler = deleteHandler;
         _parseHandler = parseHandler;
+        _scanReceiptHandler = scanReceiptHandler;
         _listHandler = listHandler;
         _detailHandler = detailHandler;
     }
@@ -79,7 +83,8 @@ public class TransactionsController : ControllerBase
                 request.TransactionType,
                 request.TransactedAt,
                 request.MerchantName,
-                request.Description),
+                request.Description,
+                request.Source ?? TransactionSource.Manual),
             ct);
         return StatusCode(StatusCodes.Status201Created, ApiResponse<TransactionDto>.Ok(transaction));
     }
@@ -136,6 +141,37 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
+    /// <summary>
+    /// Ảnh hóa đơn → các trường để client điền sẵn form (docx phương thức 3).
+    ///
+    /// Không tạo giao dịch: docx yêu cầu người dùng rà soát trước khi lưu. Client bấm Lưu thì
+    /// đi qua <c>POST /transactions</c> với <c>source = Receipt</c> như bình thường.
+    /// Ảnh không được lưu ở đâu trong hệ thống.
+    /// </summary>
+    [HttpPost("scan-receipt")]
+    [RequestSizeLimit(ScanReceiptCommandHandler.MaxImageBytes + 4096)]
+    public async Task<IActionResult> ScanReceipt(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            throw new BusinessRuleException(
+                TransactionErrorCodes.ReceiptImageInvalid, "Vui lòng chọn ảnh hóa đơn.");
+        }
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+
+        var scanned = await _scanReceiptHandler.HandleAsync(
+            new ScanReceiptCommand(
+                CurrentUserId,
+                buffer.ToArray(),
+                file.FileName,
+                file.ContentType ?? string.Empty),
+            ct);
+
+        return Ok(ApiResponse<ScannedReceiptDto>.Ok(scanned));
+    }
+
     [HttpPost("parse")]
     public async Task<IActionResult> Parse([FromBody] ParseNaturalLanguageRequest request, CancellationToken ct)
     {
@@ -144,6 +180,11 @@ public class TransactionsController : ControllerBase
     }
 }
 
+/// <param name="Source">
+/// Kênh nhập: bỏ trống = <c>Manual</c>. Client gửi <c>Voice</c> khi người dùng đọc bằng giọng
+/// nói và <c>Receipt</c> khi điền từ ảnh hóa đơn, để về sau còn đo được kênh nào hay dùng và
+/// kênh nào hay bị sửa lại. <c>Notification</c> bị từ chối — xem validator.
+/// </param>
 public record CreateManualTransactionRequest(
     Guid FinancialAccountId,
     Guid? CategoryId,
@@ -151,7 +192,8 @@ public record CreateManualTransactionRequest(
     TransactionType TransactionType,
     DateTimeOffset TransactedAt,
     string? MerchantName,
-    string? Description);
+    string? Description,
+    TransactionSource? Source = null);
 
 public record CreateTransferRequest(
     Guid FromAccountId,

@@ -80,3 +80,9 @@ public record StatsApiResponse(
     [property: JsonPropertyName("split_counts")] IReadOnlyDictionary<string, int> SplitCounts,
     [property: JsonPropertyName("last_training_job")] TrainingJobApiResult? LastTrainingJob,
     [property: JsonPropertyName("pending_feedback_count")] int PendingFeedbackCount);
+
+public record OcrApiResponse(
+    [property: JsonPropertyName("ocr_result")] string OcrResult,
+    [property: JsonPropertyName("extraction")] ExtractionApiResult? Extraction,
+    [property: JsonPropertyName("categorization")] CategorizationApiResult? Categorization,
+    [property: JsonPropertyName("processing_ms")] int? ProcessingMs);
