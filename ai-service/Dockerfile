@@ -2,6 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /src
 
+# Tesseract + dữ liệu tiếng Việt. Thiếu gói `-vie` thì OCR vẫn chạy nhưng đọc hóa đơn
+# tiếng Việt ra ký tự rác, và không có lỗi nào báo — chỉ là text vô nghĩa.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-vie \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

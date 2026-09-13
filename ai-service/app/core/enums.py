@@ -53,6 +53,7 @@ class ExtractionMethod(StrEnum):
 class SampleSource(StrEnum):
     NOTIFICATION = "notification"
     MANUAL_ENTRY = "manual_entry"
+    RECEIPT = "receipt"
     SEED = "seed"
 
 

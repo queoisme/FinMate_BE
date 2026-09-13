@@ -90,3 +90,19 @@ class StatsResponse(BaseModel):
     split_counts: dict[str, int]
     last_training_job: TrainingJobResult | None = None
     pending_feedback_count: int
+
+
+class OcrResponse(BaseModel):
+    """Trả về cho ``POST /api/v1/ocr``.
+
+    KHÔNG trả lại text OCR thô. Docx phương thức 3 yêu cầu hiển thị *ảnh* kèm các thông số
+    trích xuất để người dùng rà soát, mà ảnh thì client đang cầm sẵn — đẩy thêm toàn văn nội
+    dung hóa đơn qua hai hệ thống chỉ để hiển thị là chuyển một mớ dữ liệu nhạy cảm đi xa
+    hơn mức cần thiết.
+    """
+
+    # "success" | "no_amount" | "unreadable"
+    ocr_result: str
+    extraction: ExtractionResult | None = None
+    categorization: CategorizationResult | None = None
+    processing_ms: int | None = None

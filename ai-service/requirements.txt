@@ -20,6 +20,13 @@ pydantic-settings==2.*
 scikit-learn==1.6.*
 regex==2024.*
 
+# OCR hóa đơn (Phase 10). pytesseract chỉ là lớp bọc mỏng gọi binary `tesseract` —
+# binary và gói ngôn ngữ tiếng Việt cài ở tầng hệ điều hành trong Dockerfile.
+# Chọn Tesseract thay vì EasyOCR/PaddleOCR vì hai thứ đó kéo `torch` ngược vào image
+# PHỤC VỤ (~2.5GB), xoá đúng cái việc tách requirements-training.txt đã làm ở Phase 9.
+pytesseract==0.3.*
+Pillow==11.*
+
 # HTTP client
 httpx==0.28.*
 
