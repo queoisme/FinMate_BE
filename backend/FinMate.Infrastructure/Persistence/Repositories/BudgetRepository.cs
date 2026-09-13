@@ -27,8 +27,12 @@ public class BudgetRepository : IBudgetRepository
             .ThenBy(b => b.CreatedAt)
             .ToListAsync(ct);
 
+    // Include(Category) vì BudgetPeriodService dùng tên danh mục làm "scope" trong nội dung
+    // cảnh báo tức thì. Thiếu nó thì Category là null và MỌI cảnh báo đều ghi "toàn bộ chi
+    // tiêu" — kể cả cảnh báo của budget Ăn uống. Không lỗi, chỉ là thông điệp sai.
     public Task<List<Budget>> GetMatchingBudgetsAsync(Guid userId, Guid? categoryId, CancellationToken ct = default)
         => _context.Budgets
+            .Include(b => b.Category)
             .Where(b => b.UserId == userId
                 && (b.CategoryId == null || (categoryId != null && b.CategoryId == categoryId)))
             .ToListAsync(ct);

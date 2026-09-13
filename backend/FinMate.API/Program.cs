@@ -174,6 +174,7 @@ public class Program
         builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
+        builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();

@@ -14,6 +14,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly IGamificationService _gamificationService;
     private readonly ICacheService _cache;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
@@ -23,6 +24,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IFinancialAccountRepository financialAccountRepository,
         ICategoryRepository categoryRepository,
         IBudgetPeriodService budgetPeriodService,
+        IBudgetAlertNotifier budgetAlertNotifier,
         IGamificationService gamificationService,
         ICacheService cache,
         IValidator<CreateManualTransactionCommand> validator)
@@ -31,6 +33,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
         _budgetPeriodService = budgetPeriodService;
+        _budgetAlertNotifier = budgetAlertNotifier;
         _gamificationService = gamificationService;
         _cache = cache;
         _validator = validator;
@@ -78,7 +81,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // Giao dịch thủ công vào thẳng Status=Confirmed (không qua bước confirm riêng) nên
         // phải tiêu hạn mức ngay tại đây, không phải ở ConfirmTransactionCommandHandler.
-        await _budgetPeriodService.ApplyDeltaAsync(
+        var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
             command.UserId,
             category?.Id,
             TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents),
@@ -100,6 +103,9 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
         await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
+
+        // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
+        await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
 
         return TransactionMapper.ToDto(transaction);
     }

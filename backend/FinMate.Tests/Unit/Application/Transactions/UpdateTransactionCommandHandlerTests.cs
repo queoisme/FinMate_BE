@@ -16,6 +16,7 @@ public class UpdateTransactionCommandHandlerTests
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
     private readonly Mock<IAIServiceClient> _aiServiceClient = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<IBudgetAlertNotifier> _budgetAlertNotifier = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly UpdateTransactionCommandHandler _handler;
 
@@ -27,6 +28,7 @@ public class UpdateTransactionCommandHandlerTests
             _categoryRepository.Object,
             _aiServiceClient.Object,
             _budgetPeriodService.Object,
+            _budgetAlertNotifier.Object,
             _cache.Object,
             new UpdateTransactionCommandValidator());
     }

@@ -11,6 +11,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly IGamificationService _gamificationService;
     private readonly ICacheService _cache;
 
@@ -18,12 +19,14 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
+        IBudgetAlertNotifier budgetAlertNotifier,
         IGamificationService gamificationService,
         ICacheService cache)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
+        _budgetAlertNotifier = budgetAlertNotifier;
         _gamificationService = gamificationService;
         _cache = cache;
     }
@@ -52,7 +55,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         transaction.Status = TransactionStatus.Confirmed;
         transaction.UpdatedAt = now;
 
-        await _budgetPeriodService.ApplyDeltaAsync(
+        var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
             command.UserId,
             transaction.CategoryId,
             TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
@@ -75,6 +78,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
+
+        // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
+        // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
+        await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
 
         return TransactionMapper.ToDto(transaction);
     }

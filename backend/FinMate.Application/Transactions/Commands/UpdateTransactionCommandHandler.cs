@@ -1,3 +1,4 @@
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
@@ -14,6 +15,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly ICacheService _cache;
     private readonly IValidator<UpdateTransactionCommand> _validator;
 
@@ -23,6 +25,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
         IBudgetPeriodService budgetPeriodService,
+        IBudgetAlertNotifier budgetAlertNotifier,
         ICacheService cache,
         IValidator<UpdateTransactionCommand> validator)
     {
@@ -31,6 +34,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _categoryRepository = categoryRepository;
         _aiServiceClient = aiServiceClient;
         _budgetPeriodService = budgetPeriodService;
+        _budgetAlertNotifier = budgetAlertNotifier;
         _cache = cache;
         _validator = validator;
     }
@@ -79,6 +83,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         // Chỉ giao dịch đã Confirmed mới ảnh hưởng balance_cents và budget_periods — Draft
         // chưa từng cộng/trừ gì nên đổi amount/account/category ở Draft không cần revert.
+        IReadOnlyList<BudgetAlert> budgetAlerts = [];
         if (transaction.Status == TransactionStatus.Confirmed)
         {
             // Revert theo giá trị CŨ trước khi ghi đè entity: category, số tiền và ngày giao
@@ -90,7 +95,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
                 transaction.TransactedAt,
                 ct);
 
-            await _budgetPeriodService.ApplyDeltaAsync(
+            budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 newCategory?.Id,
                 TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents),
@@ -144,6 +149,10 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             // Đổi ngày giao dịch có thể kéo chi tiêu sang chu kỳ khác — xóa cache cả 2 tháng.
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, oldTransactedAt, ct);
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
+
+            // SAU khi UpdateAsync đã lưu. Sửa giao dịch cũng có thể đẩy một danh mục qua
+            // ngưỡng — đổi 50k thành 500k thì cảnh báo phải bắn ngay như lúc tạo.
+            await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
         }
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)

@@ -12,11 +12,15 @@ namespace FinMate.Tests.Unit.Application.Budgets;
 public class BudgetPeriodServiceTests
 {
     private readonly Mock<IBudgetRepository> _budgetRepository = new();
+    private readonly Mock<IBudgetAlertNotifier> _alertNotifier = new();
     private readonly BudgetPeriodService _service;
 
     public BudgetPeriodServiceTests()
     {
-        _service = new BudgetPeriodService(_budgetRepository.Object);
+        _alertNotifier
+            .Setup(n => n.IsEnabledAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _service = new BudgetPeriodService(_budgetRepository.Object, _alertNotifier.Object);
     }
 
     private static Budget MakeBudget(Guid userId, Guid? categoryId, long limitCents = 1_000_000) => new()

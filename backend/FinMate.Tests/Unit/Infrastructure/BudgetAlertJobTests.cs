@@ -2,6 +2,7 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.ValueObjects;
 using FinMate.Infrastructure.BackgroundJobs;
+using FinMate.Infrastructure.ExternalServices;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -17,7 +18,11 @@ public class BudgetAlertJobTests
 
     public BudgetAlertJobTests()
     {
-        _job = new BudgetAlertJob(_budgetRepository.Object, _userRepository.Object, _push.Object);
+        // Dùng BudgetAlertNotifier THẬT chứ không mock: các test dưới đây kiểm chính hành vi
+        // của nó (tôn trọng PushEnabled/BudgetAlertsEnabled), mock đi là mất luôn phần đó.
+        _job = new BudgetAlertJob(
+            _budgetRepository.Object,
+            new BudgetAlertNotifier(_userRepository.Object, _push.Object));
     }
 
     private (Budget Budget, BudgetPeriod Period) Arrange(

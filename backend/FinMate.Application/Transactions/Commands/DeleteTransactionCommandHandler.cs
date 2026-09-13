@@ -53,6 +53,8 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 counter.UpdatedAt = now;
             }
 
+            // Xoá chỉ sinh delta ÂM nên không bao giờ chạm ngưỡng cảnh báo — bỏ qua giá trị
+            // trả về là có chủ ý, không phải quên.
             await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 transaction.CategoryId,

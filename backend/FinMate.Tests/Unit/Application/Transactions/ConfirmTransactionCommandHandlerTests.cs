@@ -14,6 +14,7 @@ public class ConfirmTransactionCommandHandlerTests
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<IBudgetAlertNotifier> _budgetAlertNotifier = new();
     private readonly Mock<IGamificationService> _gamificationService = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly ConfirmTransactionCommandHandler _handler;
@@ -24,6 +25,7 @@ public class ConfirmTransactionCommandHandlerTests
             _transactionRepository.Object,
             _financialAccountRepository.Object,
             _budgetPeriodService.Object,
+            _budgetAlertNotifier.Object,
             _gamificationService.Object,
             _cache.Object);
     }
