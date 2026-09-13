@@ -35,6 +35,11 @@ public record TimelineDto(IReadOnlyList<TimelineDayDto> Days, string? NextCursor
 /// <paramref name="Confidence"/> low/medium/high theo số ngày có dữ liệu — để client không
 /// trình bày một con số dựng từ vài ngày như thể nó chắc chắn.
 /// </summary>
+/// <param name="Advice">
+/// Phần "Hành động Đề xuất" của docx Flow 3 mục 4. <c>null</c> khi người dùng chưa khai thu
+/// nhập hằng tháng — không có mẫu số thì chỉ nói được "tháng này bạn sẽ tiêu 10,2 triệu",
+/// không nói được là âm hay dương, và bịa ra một mức thu nhập để so là tệ hơn im lặng.
+/// </param>
 public record SpendingForecastDto(
     DateTimeOffset PeriodStart,
     DateTimeOffset PeriodEnd,
@@ -43,7 +48,17 @@ public record SpendingForecastDto(
     int DaysElapsed,
     int DaysInMonth,
     int BasedOnDays,
-    string Confidence);
+    string Confidence,
+    ForecastAdviceDto? Advice = null);
+
+/// <param name="ProjectedBalanceCents">Thu nhập trừ dự báo chi. ÂM nghĩa là bội chi.</param>
+/// <param name="SuggestedDailyCutCents">
+/// Số tiền cần cắt mỗi ngày cho hết tháng để về hoà. <c>null</c> khi không bội chi.
+/// </param>
+public record ForecastAdviceDto(
+    long MonthlyIncomeCents,
+    long ProjectedBalanceCents,
+    long? SuggestedDailyCutCents);
 
 public record SpendingInsightDto(
     Guid Id,
