@@ -10,13 +10,15 @@ Then read, in order: `.context/ARCHITECTURE.md`, `.context/TECH_STACK.md`, `.con
 
 ## Current state
 
-**Backend: Phase 0–9 done (253/261 tasks in `.context/TASKS.md`).** Full ASP.NET Core 9 solution with unit + integration tests (Testcontainers), 8 Hangfire recurring jobs, 10 public controllers plus 6 admin controllers under `/api/v1`. Auth, Users, FinancialAccounts, Categories, Notifications, Transactions, Budgets, SavingGoals, Reports and Gamification are all implemented and verified end-to-end via `docker compose up` + curl (see the Verify notes at the bottom of `TASKS.md`).
+**Backend: every MVP phase done (258/261 tasks in `.context/TASKS.md`).** Full ASP.NET Core 9 solution with unit + integration tests (Testcontainers), 8 Hangfire recurring jobs, 10 public controllers plus 6 admin controllers under `/api/v1`. Auth, Users, FinancialAccounts, Categories, Notifications, Transactions, Budgets, SavingGoals, Reports and Gamification are all implemented and verified end-to-end via `docker compose up` + curl (see the Verify notes at the bottom of `TASKS.md`).
 
 **Admin (Phase 8).** Six controllers under `/api/v1/admin/*`, all behind the `AdminOnly` policy inherited from `AdminControllerBase` — never repeat the attribute per controller, a missed one falls back to "any logged-in user" and still answers 200. Nothing is hard-deleted: provider configs, system categories and missions are switched off with `is_active`. Three identifiers are immutable after creation (`provider_key`, a system category's `slug`, a mission's `code`) because other systems join on them; changing one breaks the link silently rather than loudly. Every admin write lands in `audit_logs` via the `AuditEvents` constants; `/admin/audit-logs` is read-only.
 
-**AI Service: implemented and serving (Phase 9).** `POST /api/v1/analyze`, `POST /api/v1/feedback` and `GET /api/v1/stats` are live; `POST /notifications/analyze` on the backend now returns a real draft transaction instead of 503. Pipeline is **rule-based extraction + ML classification**: the Extractor uses per-provider regex stored in the `provider_patterns` table (bank notifications are fixed templates — regex is both more accurate and traceable, and money must never be a model's guess), while Classifier and Categorizer load versioned scikit-learn models through `model_registry` and fall back to rules when nothing is promoted. `scripts/` holds the full lifecycle: `seed_dataset` → `train` → `evaluate` → `promote` (which refuses a model with no test-split evaluation or accuracy below 0.70) → `feedback_batch`. 12 AI DB tables via 4 alembic migrations; the 3 `ab_*` tables are deliberately deferred.
+**AI Service: implemented and serving (Phase 9).** `POST /api/v1/analyze`, `POST /api/v1/feedback`, `GET /api/v1/stats` and `POST /api/v1/ocr` are live; `POST /notifications/analyze` on the backend now returns a real draft transaction instead of 503. Pipeline is **rule-based extraction + ML classification**: the Extractor uses per-provider regex stored in the `provider_patterns` table (bank notifications are fixed templates — regex is both more accurate and traceable, and money must never be a model's guess), while Classifier and Categorizer load versioned scikit-learn models through `model_registry` and fall back to rules when nothing is promoted. `scripts/` holds the full lifecycle: `seed_dataset` → `train` → `evaluate` → `promote` (which refuses a model with no test-split evaluation or accuracy below 0.70) → `feedback_batch`. 12 AI DB tables via 4 alembic migrations; the 3 `ab_*` tables are deliberately deferred.
 
-**Remaining:** Phase 10 decision #4 — Voice + Receipt OCR (5 tasks; OCR needs user approval for a new route in the Backend↔AI-Service contract, per `AGENTS.md` §5), plus one `[!]` task blocked on an unapproved FCM dependency (`IPushNotificationService` is still `LoggingPushNotificationService`, log-only).
+**Four input channels (Phase 10).** Bank notification (Flow 1), plus the three of Flow 2 that reach the server: typed natural language, voice, and receipt photo. Voice needs no new AI route — the client does speech-to-text and posts the text to `/transactions/parse` — but it does need `app/utils/number_words.py`, because speech-to-text returns what people say ("bốn mươi lăm ngàn"), not digits. That parser matches on **accented** text: stripping Vietnamese accents merges mười(10) with mươi(×10), từ with tư(4), and "công ty" with tỷ. Receipt photos go to `POST /api/v1/ocr` (Tesseract, `--psm 6`, in-memory only — images are never stored anywhere). `transactions.source` records which channel was used, and a client may not claim `Notification`; that value gates the AI quality metric on `/admin/ai-stats`.
+
+**Remaining:** one `[!]` task blocked on an unapproved FCM dependency (`IPushNotificationService` is still `LoggingPushNotificationService`, log-only). Two tasks are deliberately skipped (OTP registration, the three `ab_*` tables).
 
 Out of scope entirely: `android/` (separate mobile team, not present in this checkout).
 
@@ -52,6 +54,8 @@ python scripts/promote.py --stage classifier --version 1.0.0   # → active, hot
 
 Two requirements files: `requirements.txt` is what the serving image installs;
 `requirements-training.txt` adds torch/transformers/underthesea for offline training only.
+OCR needs the `tesseract-ocr` and `tesseract-ocr-vie` OS packages — the Dockerfile installs
+them, so OCR only works inside the container, and tests fake the engine.
 
 ## Non-obvious cross-cutting rules
 

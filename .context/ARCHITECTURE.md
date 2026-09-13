@@ -353,6 +353,45 @@ Authorization: Bearer {INTERNAL_API_KEY}
 }
 ```
 
+**OCR hóa đơn (Backend → AI Service) — thêm ở Phase 10:**
+```
+POST /api/v1/ocr
+Authorization: Bearer {INTERNAL_API_KEY}
+Content-Type: multipart/form-data
+
+  file           (binary)  ảnh hóa đơn, tối đa 5MB, chỉ JPEG/PNG/WebP/HEIC
+  user_id_hash   (text)    SHA-256 của user_id
+```
+```json
+{
+  "ocr_result": "success",
+  "extraction": {
+    "amount_cents": 110000,
+    "transaction_type": "debit",
+    "merchant_name": "WINMART+ NGUYEN TRAI",
+    "description": "WINMART+ NGUYEN TRAI",
+    "transacted_at": "2026-09-12T12:45:00Z",
+    "balance_after_cents": null,
+    "confidence": 0.8
+  },
+  "categorization": { "category_slug": "shopping", "confidence": 0.8 }
+}
+```
+
+`ocr_result` có ba giá trị: `success`, `no_amount` (đọc được chữ nhưng không thấy tổng tiền),
+`unreadable` (ảnh không ra chữ nào). Ba trạng thái dẫn tới ba lời nhắc khác hẳn nhau cho người
+dùng — gộp thành một cờ thành/bại thì client chỉ còn cách nói "thử lại" cho cả ba. AI Service
+không phản hồi là chuyện thứ tư nữa, và nó đi ra dưới dạng lỗi HTTP.
+
+**Ảnh không được lưu ở đâu** — không đĩa, không blob store, không AI DB. Chỉ TEXT đọc được
+mới vào `raw_samples` (source `receipt`) và đã qua `anonymizer`. Ảnh hóa đơn là một loại dữ
+liệu cá nhân mới; dựng chỗ chứa nó phải là một quyết định riêng, không phải hệ quả phụ của
+việc làm OCR.
+
+`confidence` của luồng này **luôn dưới 0,85**. Docx phương thức 3 yêu cầu người dùng rà soát
+trước khi lưu, mà 0,85 lại là mốc xác nhận một chạm của Flow 1 — trả về một con số nằm trong
+vùng đó sẽ mâu thuẫn với chính yêu cầu kia.
+
 **Stats (Backend → AI Service) — thêm ở Phase 8:**
 ```json
 GET /api/v1/stats

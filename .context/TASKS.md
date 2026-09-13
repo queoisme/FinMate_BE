@@ -476,13 +476,22 @@
 
 ### Quyết định #4 — Voice input + Receipt OCR (kéo từ Backlog lên MVP)
 
-- [ ] `TransactionSource` thêm `Voice` và `Receipt` — *phân biệt kênh nhập để phân tích sau*
-- [ ] Voice: STT chạy ở client (Android), text đẩy vào `POST /transactions/parse` sẵn có — *không cần route AI Service mới*
-- [ ] OCR: thêm route `POST /api/v1/ocr` vào contract Backend↔AI Service (`ARCHITECTURE.md` §3.3) — *[!] đổi contract cần user duyệt trước, AGENTS.md §5*
-- [ ] OCR: endpoint backend nhận ảnh hóa đơn → trả field trích xuất để client prefill
-- [ ] Tests cho cả 2 kênh
+> **Ba điểm treo, tự chốt ngày 2026-09-13 sau khi user bảo tiếp tục:**
+> 1. **OCR bằng Tesseract tự host** (`pytesseract` + `Pillow` + gói hệ điều hành
+>    `tesseract-ocr-vie`). EasyOCR/PaddleOCR kéo `torch` ngược vào image PHỤC VỤ (~2.5GB),
+>    xoá đúng việc tách requirements ở Phase 9; OCR đám mây thì đẩy ảnh hóa đơn của người
+>    dùng ra bên thứ ba. Đã bổ sung vào `TECH_STACK.md` §2.2 kèm lý do.
+> 2. **Không lưu ảnh** — xử lý trong bộ nhớ rồi bỏ. Docx chỉ yêu cầu hiển thị ảnh kèm thông
+>    số để rà soát, mà client đang cầm sẵn tấm ảnh vừa chụp.
+> 3. **Viết parser số đọc bằng chữ.** Docx phương thức 2 lấy ví dụ *"Cà phê Highland bốn
+>    mươi lăm ngàn"* — số bằng CHỮ. Không có parser này thì chính câu mẫu của tài liệu ra
+>    `uncertain`.
 
----
+- [x] `TransactionSource` thêm `Voice` và `Receipt` — *migration `AddVoiceAndReceiptTransactionSources` nới `chk_transactions_source`. `CreateManualTransactionCommand` nhận thêm `Source` (mặc định `Manual` nên client cũ không hỏng), nhưng validator **TỪ CHỐI `Notification`**: đó là điều kiện lọc của tỉ lệ "người dùng sửa lại danh mục AI đoán" ở `/admin/ai-stats`, client khai bừa được thì thước đo chất lượng AI bị bóp méo bởi dữ liệu tự nhập mà không ai nhìn ra.*
+- [x] Voice: STT chạy ở client (Android), text đẩy vào `POST /transactions/parse` sẵn có — *Đúng là không cần route AI Service mới, NHƯNG cần `app/utils/number_words.py`: STT trả về đúng những gì người dùng nói. Parser khớp trên chữ **CÓ DẤU**, không bỏ dấu — bỏ dấu làm **mười**(10) lẫn **mươi**(×10), **từ** lẫn **tư**(4), "công **ty**" lẫn **tỷ**, **làm** lẫn **lăm**(5); lỗi này bắt được khi "tháng chín mười lăm triệu" ra 95,4 triệu thay vì 15 triệu. Xử được "hai mươi mốt/tư/lăm", "rưỡi" (nửa của hàng vừa dùng), "một triệu hai" (chữ số lẻ sau đơn vị là phần mười). **Không tự nhân 1000** cho cụm không đơn vị: "hai trăm rưỡi" ra 250 chứ không phải 250.000 — đoán thêm một dấu nhân là đúng loại lỗi tệ nhất ở đây.*
+- [x] OCR: thêm route `POST /api/v1/ocr` vào contract Backend↔AI Service (`ARCHITECTURE.md` §3.3) — *multipart, ảnh tối đa 5MB, chỉ JPEG/PNG/WebP/HEIC. `ocr_result` có ba giá trị `success`/`no_amount`/`unreadable` chứ không phải một cờ thành/bại: ba trạng thái dẫn tới ba lời nhắc khác hẳn nhau, gộp lại thì client chỉ còn cách nói "thử lại" cho cả ba. Response **không** trả text OCR thô.*
+- [x] OCR: endpoint backend nhận ảnh hóa đơn → trả field trích xuất để client prefill — *`POST /api/v1/transactions/scan-receipt`. Không tạo giao dịch: docx yêu cầu rà soát trước khi lưu, nên giao dịch chỉ ra đời khi người dùng bấm Lưu qua `POST /transactions` với `source=Receipt`. Chốt chặn kích thước ở cả hai đầu và `[RequestSizeLimit]` ở tầng ASP.NET Core. Bóc tổng tiền theo **nhãn** ("Tổng cộng", "Tổng thanh toán"…) và loại trừ nhãn phản chỉ định ("Tiền khách đưa", "Tiền thối lại") — chọn con số lớn nhất trên hóa đơn siêu thị sẽ lấy nhầm tiền khách đưa, và sai luôn theo hướng lớn hơn thực tế. Nhãn đứng SAU thắng, vì hóa đơn liệt kê từ trên xuống. Categorizer chỉ nhận TÊN CỬA HÀNG, không nhận toàn văn: hóa đơn WinMart có dòng "Banh mi" phải là `shopping` chứ không phải `food`. `confidence` luôn < 0,85 — luồng này theo docx luôn có bước người xem lại nên không được rơi vào vùng xác nhận một chạm.*
+- [x] Tests cho cả 2 kênh — *AI Service +48 test (104 → **152**): 25 test số đọc bằng chữ (gồm các bẫy chỉ xuất hiện khi bỏ dấu), 12 test bóc trường hóa đơn, 11 test HTTP `POST /ocr`. Backend +25 test (345 → **370**): guard kích thước/định dạng/kênh nhập và vòng đời quét hóa đơn. Engine OCR bị thay bằng fake trong test — nó là biên I/O phụ thuộc binary hệ điều hành, còn giá trị thật nằm ở phần đọc text; engine thật verify riêng bằng smoke test trên `docker compose`.*
 
 ## Backlog (Future — Không trong MVP scope)
 
@@ -518,11 +527,12 @@
 | Phase 7 — Gamification | `[x]` | 27 / 27 |
 | Phase 8 — Admin | `[x]` | 14 / 14 |
 | Phase 9 — AI Service | `[x]` | 27 / 28 *(1 task `[-]` Skipped: 3 bảng `ab_*`, A/B testing ngoài MVP scope)* |
-| Phase 10 — Đối chiếu Core User Flows | `[~]` | 16 / 22 *(#1 và #2 xong; #4 Voice/OCR chờ Phase 9; 1 task `[-]` Skipped: OTP)* |
-| **Total** | | **253 / 261** |
+| Phase 10 — Đối chiếu Core User Flows | `[x]` | 21 / 22 *(#1, #2, #4 xong; 1 task `[-]` Skipped: OTP)* |
+| **Total** | | **258 / 261** |
 
-**Còn lại:** 5 task chưa làm (Phase 10 quyết định #4 — Voice + Receipt OCR)
-+ 1 task `[!]` chờ duyệt dependency FCM + 2 task `[-]` bỏ có chủ ý (OTP, bảng `ab_*`).
+**Còn lại:** 0 task chưa làm trong MVP scope. Còn 1 task `[!]` chờ duyệt dependency FCM
+(`IPushNotificationService` vẫn là `LoggingPushNotificationService`, chỉ ghi log) + 2 task
+`[-]` bỏ có chủ ý (OTP, 3 bảng `ab_*`).
 
 ---
 
@@ -541,7 +551,7 @@ Smoke test curl end-to-end: tạo giao dịch trải nhiều ngày → `monthly-
 **Một lỗi tìm được khi chạy thật (không lộ ra ở unit test) và đã sửa:** `GetMonthlySummaryQuery` chỉ cộng `daily_summaries` cho các ngày trước hôm nay, nên trên môi trường vừa dựng (và bất kỳ ngày nào `DailySummaryJob` lỗi) báo cáo **âm thầm thiếu dữ liệu** — smoke test cho tổng tháng 300k trong khi breakdown và timeline cùng ra 900k. Không thể suy "thiếu dòng summary" thành "ngày đó không tiêu gì". Đã sửa: đọc summary có sẵn rồi lấp mọi ngày chúng chưa phủ bằng dữ liệu live, khớp theo ngày nên ngày đã chốt không bị cộng hai lần; đổi lại là một truy vấn có giới hạn (tối đa 31 ngày của 1 user, đi qua index `(user_id, transacted_at, id)`).
 
 *Last updated: 2026-09-11*
-*Next priority: Phase 10 quyết định #4 (Voice + Receipt OCR, 5 task) — Voice đã hết bị chặn sau Phase 9; OCR cần user duyệt route mới trong contract Backend↔AI Service theo AGENTS.md §5.*
+*Next priority: chốt push provider (FCM) để gỡ task `[!]` cuối cùng, hoặc dùng ngưỡng confidence 85% của docx Flow 1 bước 5.2/5.3 — AI đã trả confidence đầy đủ nhưng backend chưa dùng nó để chọn giữa push xác nhận một chạm và hộp thoại chọn danh mục.*
 
 **Verify Phase 10 #1+#2 (2026-09-11):** `dotnet build` sạch 0 warning; `dotnet test` xanh **302/302** (281 → 302, thêm 21 test; chạy qua container SDK 9.0 + Docker socket cho Testcontainers); `dotnet ef migrations has-pending-model-changes` sạch; `docker compose up --build` từ volume rỗng — 2 migration mới áp sạch, `\d transactions` xác nhận đủ `counter_account_id` + FK Restrict + `chk_transactions_transfer_shape`, `\d budget_periods` đủ 3 cột `alert_70/90/100_sent_at`, 8 recurring job đăng ký đủ, log không có exception chưa xử lý (ngoài lỗi `__EFMigrationsHistory` lúc khởi động DB rỗng đã có từ các phase trước).
 
@@ -577,3 +587,21 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 
 1. **`tests/conftest.py` của AI Service (Phase 9) bắt MỌI test phụ thuộc Postgres.** Fixture dọn bảng để `autouse=True` ở conftest gốc, nên trên máy không có Postgres thì cả 104 test bị SKIP chứ không chỉ phần tích hợp — trái đúng điều `README.md` và ghi chú Verify Phase 9 đã khẳng định. Lần kiểm tra bản clone sạch ở Phase 9 lọt lưới vì lúc đó `postgres-ai` đang chạy. Đã tách toàn bộ fixture chạm DB sang `tests/integration/conftest.py`; nay không có Postgres thì 81 test đơn vị vẫn chạy, chỉ 23 test tích hợp SKIP.
 2. **`audit_logs.metadata` serialize khác cấu hình JSON của chính API.** PascalCase trong khi mọi response khác là camelCase (`CONVENTIONS.md` §1.3), và enum ghi thành SỐ (`"periodType": 0`) trong khi API trả chuỗi — vì `Program.cs` gắn `JsonStringEnumConverter` cho pipeline MVC nhưng `AuditLogService` tự `JsonSerializer.Serialize` với tuỳ chọn mặc định. `metadata` được trả nguyên văn qua `/admin/audit-logs`, nên `0` buộc người đọc log về sau phải tra ngược thứ tự khai báo enum — một thứ tự có thể đã đổi. Không lộ ra trước đây vì chưa handler nào truyền `metadata` và cũng chưa có đường đọc audit log. Đã cho `AuditLogService` dùng đúng cấu hình của API; verify bằng curl: `{"periodType": "Weekly", "conditionType": "ContributeToGoal"}`.
+
+**Verify Phase 10 #4 (2026-09-13):** `dotnet build` sạch 0 warning; `dotnet test` xanh **370/370** (345 → 370); `dotnet ef migrations has-pending-model-changes` sạch. AI Service `pytest` **155/155** (104 → 155); `black --check`/`isort --check-only`/`ruff check` sạch; `alembic check` sạch sau migration `0005_receipt_sample_source`.
+
+`docker compose up --build` — `tesseract --list-langs` trong container trả về `eng`, `osd`, **`vie`**.
+
+**Smoke test curl qua BACKEND:**
+
+- **Voice** — 5 câu có số đọc bằng CHỮ qua `POST /transactions/parse`: "Cà phê Highland bốn mươi lăm ngàn" → 45.000/food; "trưa nay ăn phở hai mươi lăm nghìn ở Phở Thìn" → 25.000/food/merchant "Phở Thìn"; "chuyển cho mẹ hai triệu rưỡi" → 2.500.000; "đổ xăng một trăm năm mươi ngàn ở Petrolimex" → 150.000/transport; "nhận lương tháng chín mười lăm triệu từ công ty ABC" → **15.000.000**/credit/income. Lưu với `source=Voice` → 201; khai `source=Notification` → **400**.
+- **OCR** — ảnh hóa đơn thật (siêu thị, 14 dòng, có cả dòng hàng lẫn "Tiền khách đưa") qua tesseract thật: `ocr_result=success`, **110.000đ** (đúng tổng cộng, không phải 200.000 tiền khách đưa), `matched_pattern_name="tong cong"`, ngày 12/09 đọc từ hóa đơn chứ không lấy lúc upload, confidence 0,80. Lưu với `source=Receipt` → 201. File không phải ảnh → 422; không đăng nhập → 401.
+- **AI DB** — `pipeline_requests` có dòng `package_name='receipt_ocr'` đủ trường; `raw_samples` source `receipt` với **mã số thuế đã che** (`MST: xxxxxx5678`) còn số tiền giữ nguyên.
+- **Log** — grep 0 kết quả cho merchant/số tiền/MST ở log AI Service; không lỗi chưa xử lý ở cả hai service.
+
+**Hai lỗi chỉ lộ ra khi chạy tesseract THẬT, bộ test đơn vị không bắt được:**
+
+1. **Tesseract mặc định (`--psm 3`) cắt hóa đơn thành cột.** Nhãn rời khỏi số của nó — `"Tong cong:"` một dòng, `"000"` một dòng khác — nên không nhãn nào khớp và cả cơ chế bóc tổng tiền theo nhãn trở thành vô dụng. Test đơn vị dùng text hóa đơn viết tay, vốn luôn đúng hàng đúng lối, nên chưa bao giờ chạm tới. Sửa bằng `--psm 6` (một khối văn bản đồng nhất); đã so 5 chế độ, chỉ `--psm 4` và `--psm 6` giữ được `"Tong cong: 110.000"` trên một dòng.
+2. **Mã số thuế đọc thành số tiền.** Hệ quả của lỗi 1: không nhãn nào khớp nên rơi vào nhánh đoán "lấy con số lớn nhất", và `MST: 0312345678` thành một giao dịch **312.345.678đ**. Nhánh đoán nay chỉ xét con số TRÔNG GIỐNG TIỀN — có dấu ngăn nhóm hoặc có đơn vị. Người Việt viết tiền là luôn có dấu ngăn, nên dãy số trần dài (mã số thuế, số hóa đơn, số điện thoại) phân biệt được. Đã thêm 3 test hồi quy.
+
+**Giới hạn đã biết, không che giấu:** trên ảnh thử nghiệm, tesseract đọc `WINMART+` thành `WTNMART+` (nhầm I thành T). Tên cửa hàng sai một ký tự là trượt từ điển merchant, nên danh mục rơi về `other` với confidence 0,35 — tức là người dùng phải tự chọn. Đây là suy giảm ĐÚNG hướng (không đoán bừa một danh mục sai), nhưng nó cho thấy độ chính xác thật của OCR tiếng Việt phụ thuộc nhiều vào chất lượng ảnh. Con số thật chỉ có sau khi chụp hóa đơn thật bằng điện thoại thật.

@@ -155,6 +155,29 @@ underthesea==6.*          # Vietnamese text processing
 regex==2024.*             # Advanced regex cho amount extraction
 ```
 
+> **Tách làm hai file từ Phase 9.** `requirements.txt` là thứ image PHỤC VỤ cài;
+> `requirements-training.txt` thêm `torch`/`transformers`/`underthesea` cho training offline.
+> Không gói nào bị gỡ khỏi danh sách đã duyệt — chỉ tách chỗ cài, vì máy phục vụ không cần
+> thư viện training và cài vào làm image phồng thêm ~2.5GB.
+
+**OCR — thêm ở Phase 10 (docx phương thức 3):**
+```
+pytesseract==0.3.*        # lớp bọc mỏng gọi binary `tesseract`
+Pillow==11.*              # mở ảnh + tiền xử lý (xám hoá, tăng tương phản, xoay theo EXIF)
+```
+Kèm hai gói hệ điều hành cài trong `ai-service/Dockerfile`: `tesseract-ocr` và
+`tesseract-ocr-vie`. Thiếu gói `-vie` thì OCR vẫn chạy nhưng đọc hóa đơn tiếng Việt ra ký tự
+rác mà không báo lỗi gì.
+
+**Vì sao Tesseract chứ không phải EasyOCR/PaddleOCR:** hai thư viện đó chính xác hơn trên ảnh
+chụp nghiêng/mờ, nhưng chúng kéo `torch` ngược vào image **phục vụ** (~2.5GB) — xoá đúng cái
+việc tách requirements vừa làm ở Phase 9. Tesseract thêm ~60MB và không cần GPU.
+
+**Vì sao không dùng OCR đám mây (Google Vision, Azure):** ảnh hóa đơn chứa tên cửa hàng, số
+tiền, đôi khi cả bốn số cuối thẻ. Gửi chúng ra dịch vụ bên thứ ba đi ngược toàn bộ nguyên tắc
+riêng tư đã dựng (AI DB không giữ `user_id` thật, không log `notification_body`, che số tài
+khoản trong `raw_samples`). Ảnh được xử lý trong bộ nhớ rồi bỏ, không lưu ở đâu cả.
+
 **HTTP client (gọi về backend nếu cần):**
 ```
 httpx==0.28.*             # async HTTP client
@@ -190,6 +213,8 @@ httpx==0.28.*             # test client cho FastAPI
 | `tensorflow` | Dùng PyTorch |
 | `pandas` (trong production pipeline) | Dùng numpy/stdlib — pandas quá nặng cho inference |
 | `requests` (sync) | Dùng `httpx` async thay thế |
+| `easyocr`, `paddleocr` | Kéo `torch` vào image phục vụ — xem mục OCR ở §2.2 |
+| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống |
 
 ---
 
