@@ -13,6 +13,7 @@ public class FinMateDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<DataDeletionRequest> DataDeletionRequests => Set<DataDeletionRequest>();
     public DbSet<ProviderConfig> ProviderConfigs => Set<ProviderConfig>();
