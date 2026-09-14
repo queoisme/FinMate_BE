@@ -91,11 +91,20 @@ class Categorizer:
         return categorize_by_rules(text)
 
 
+# Trúng từ điển là khớp CHÍNH XÁC một tên cửa hàng đã biết ("highlands" → Ăn uống), nên nó
+# đáng tin hơn hẳn một phỏng đoán. Con số này phải nằm TRÊN ngưỡng 85% của Flow 1 bước 5.2:
+# 0,80 đặt từ Phase 9 — trước khi tồn tại ngưỡng nào để đối chiếu — khiến mọi khoản CHI đều
+# rớt xuống nhánh hộp thoại, kể cả ca "Highlands Coffee" mà chính docx lấy làm ví dụ cho nhánh
+# một chạm. Đổi ở đây chứ không hạ ngưỡng: ngưỡng là quy định nghiệp vụ, còn đây là mức tin
+# cậy thật của một phép khớp chính xác.
+_LEXICON_HIT_CONFIDENCE = 0.90
+
+
 def categorize_by_rules(text: str) -> CategorizationOutcome:
     lowered = f" {text.lower()} "
     for keyword, slug in load_lexicon():
         if keyword in lowered:
-            return CategorizationOutcome(slug, 0.80, ExtractionMethod.RULE)
+            return CategorizationOutcome(slug, _LEXICON_HIT_CONFIDENCE, ExtractionMethod.RULE)
     # Không khớp từ khoá nào: vẫn trả "other" nhưng với độ tin cậy thấp, để ngưỡng 85%
     # của Flow 1 đẩy sang hộp thoại cho người dùng chọn.
     return CategorizationOutcome(FALLBACK_CATEGORY_SLUG, 0.35, ExtractionMethod.RULE)

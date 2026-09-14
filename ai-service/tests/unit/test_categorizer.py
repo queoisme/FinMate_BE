@@ -37,6 +37,15 @@ def test_unknown_merchant_falls_back_with_low_confidence():
     assert outcome.confidence < 0.85
 
 
+def test_lexicon_hit_clears_the_one_tap_threshold():
+    """Khớp chính xác tên cửa hàng phải đủ tin để Flow 1 bước 5.2 cho xác nhận một chạm.
+
+    Dưới 0,85 thì MỌI khoản chi đều rớt xuống nhánh hộp thoại — kể cả ca "Highlands Coffee"
+    mà chính docx lấy làm ví dụ cho nhánh một chạm, tức là tính năng không bao giờ chạy.
+    """
+    assert categorize_by_rules("HIGHLANDS COFFEE").confidence >= 0.85
+
+
 def test_every_lexicon_slug_is_a_system_category():
     """Slug ngoài 11 danh mục hệ thống làm GetSystemBySlugAsync phía backend trả NULL và
     giao dịch mất danh mục mà không báo lỗi ở đâu."""
