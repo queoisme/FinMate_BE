@@ -10,6 +10,7 @@ using FinMate.Application.Budgets.Queries;
 using FinMate.Application.Categories.Commands;
 using FinMate.Application.Categories.Queries;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Devices.Commands;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Gamification;
@@ -27,6 +28,8 @@ using FinMate.Domain.Enums;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
 using FluentValidation;
@@ -73,6 +76,31 @@ public class Program
             ?? throw new InvalidOperationException("AI_SERVICE_URL is not configured.");
         var aiServiceApiKey = builder.Configuration["AI_SERVICE_API_KEY"]
             ?? throw new InvalidOperationException("AI_SERVICE_API_KEY is not configured.");
+
+        // Push thật là TUỲ CHỌN, không bắt buộc như các biến ở trên: không có credentials thì
+        // chạy log-only. Bắt buộc ở đây sẽ chặn mọi máy dev và mọi integration test không có
+        // Firebase project, đổi lại không bảo vệ được gì — thiếu credentials trên production
+        // đã lộ ra ngay ở dòng log khởi động dưới đây.
+        //
+        // Hai đường nạp: PATH cho file mount vào container, JSON cho secret dán thẳng biến
+        // môi trường (Render, Fly, Cloud Run… đều đưa secret xuống theo kiểu này).
+        var fcmCredentialsPath = builder.Configuration["FCM_CREDENTIALS_PATH"];
+        var fcmCredentialsJson = builder.Configuration["FCM_CREDENTIALS_JSON"];
+        var fcmEnabled = !string.IsNullOrWhiteSpace(fcmCredentialsPath)
+            || !string.IsNullOrWhiteSpace(fcmCredentialsJson);
+
+        if (fcmEnabled && FirebaseApp.DefaultInstance is null)
+        {
+            // CredentialFactory chứ không phải GoogleCredential.FromFile/FromJson — hai hàm
+            // kia đã deprecated. Chỉ định thẳng ServiceAccountCredential: file credentials
+            // của Firebase luôn là service account, nên sai loại phải hỏng ngay lúc khởi
+            // động chứ không phải lúc gửi thông báo đầu tiên.
+            var serviceAccount = string.IsNullOrWhiteSpace(fcmCredentialsPath)
+                ? CredentialFactory.FromJson<ServiceAccountCredential>(fcmCredentialsJson)
+                : CredentialFactory.FromFile<ServiceAccountCredential>(fcmCredentialsPath);
+
+            FirebaseApp.Create(new AppOptions { Credential = serviceAccount.ToGoogleCredential() });
+        }
 
         builder.Services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -175,6 +203,7 @@ public class Program
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
+        builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
@@ -182,7 +211,15 @@ public class Program
         builder.Services.AddScoped<IMissionRepository, MissionRepository>();
         builder.Services.AddScoped<IGamificationService, GamificationService>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
-        builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
+        if (fcmEnabled)
+        {
+            builder.Services.AddSingleton<IFcmSender, FirebaseAdminFcmSender>();
+            builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
+        }
+        else
+        {
+            builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
+        }
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         // Admin (Phase 8) — mọi controller ở đây nằm sau policy AdminOnly.
@@ -215,6 +252,9 @@ public class Program
         builder.Services.AddScoped<IGetUserProfileQueryHandler, GetUserProfileQueryHandler>();
         builder.Services.AddScoped<IUpdateUserProfileCommandHandler, UpdateUserProfileCommandHandler>();
         builder.Services.AddScoped<IUpdateNotificationPrefsCommandHandler, UpdateNotificationPrefsCommandHandler>();
+
+        builder.Services.AddScoped<IRegisterDeviceTokenCommandHandler, RegisterDeviceTokenCommandHandler>();
+        builder.Services.AddScoped<IUnregisterDeviceTokenCommandHandler, UnregisterDeviceTokenCommandHandler>();
 
         builder.Services.AddScoped<ICreateFinancialAccountCommandHandler, CreateFinancialAccountCommandHandler>();
         builder.Services.AddScoped<IUpdateFinancialAccountCommandHandler, UpdateFinancialAccountCommandHandler>();
@@ -278,6 +318,13 @@ public class Program
         builder.Services.AddFinMateRateLimiting();
 
         var app = builder.Build();
+
+        // Nói thẳng ở dòng khởi động. Thiếu credentials trên production thì triệu chứng duy
+        // nhất là "không ai nhận được thông báo" — một hiện tượng im lặng, rất khó truy.
+        app.Logger.LogInformation(
+            fcmEnabled
+                ? "Push notifications: FCM enabled."
+                : "Push notifications: FCM credentials absent, running log-only.");
 
         using (var scope = app.Services.CreateScope())
         {

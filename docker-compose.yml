@@ -55,6 +55,11 @@ services:
     ports:
       - "8080:8080"
       # /hangfire dashboard is served by this same process, no separate container
+    # Push thật cần file service-account của Firebase. Bỏ comment hai dòng dưới và đặt
+    # FCM_CREDENTIALS_PATH=/run/secrets/fcm.json trong backend/.env; không có nó thì backend
+    # chạy log-only và mọi thứ khác vẫn hoạt động bình thường.
+    # volumes:
+    #   - ./backend/secrets/fcm-service-account.json:/run/secrets/fcm.json:ro
     depends_on:
       postgres-main:
         condition: service_healthy
