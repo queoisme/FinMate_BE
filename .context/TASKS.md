@@ -558,6 +558,22 @@
 - [x] **`refresh` cố ý KHÔNG vào nhóm hạn mức chặt** — *Refresh token là chuỗi ngẫu nhiên nên dò không có ý nghĩa, mà siết nó sẽ chặn nhầm nhiều người dùng chung một NAT.*
 - *(Không làm)* **Endpoint gửi theo lô.** Sau hai mục trên thì 50 request tuần tự đã ĐÚNG, chỉ chậm. Cái đáng làm là gộp lời gọi AI — mà đó là đổi contract Backend↔AI-Service, thuộc diện phải hỏi user theo `AGENTS.md` §5.
 
+## Phase 15 — Nhánh 85%: xác nhận một chạm và hộp thoại chọn danh mục
+
+> Phần CUỐI CÙNG còn thiếu của Core Flow 1. AI đã trả `confidence` từ Phase 9 và FCM gửi thật
+> từ Phase 12, nhưng backend chưa dùng con số đó — mọi nháp đều nhận cùng một dòng chữ cụt,
+> không kèm dữ liệu nào để client dựng nút xác nhận.
+
+- [x] **Chọn nhánh bằng `min(extraction, categorization)`** — *Một chạm chốt TOÀN BỘ bản ghi (số tiền, loại, danh mục) nên mắt xích yếu nhất phải quyết định: bóc số 0,70 kèm phân loại 0,95 mà cho một chạm là chốt nhanh một con số TIỀN có thể sai. Không tính điểm Classifier — nó trả lời "đây có phải giao dịch không", một cổng đã đi qua rồi mới có nháp. `null` ở một trong hai → nhánh hộp thoại; dữ liệu vắng mặt không bao giờ được quy ra "chắc chắn".*
+- [x] **Ngưỡng 85%, đặt ở một hằng số** — *Docx TỰ MÂU THUẪN: bước 5.2/5.3 ghi 85%, bảng tình huống biên ghi 80% cho đúng hành vi đó. User chốt 85% theo bản Step-by-Step.*
+- [x] **Nâng điểm trúng từ điển 0,80 → 0,90 ở `categorize_by_rules`** — *Điều kiện để tính năng chạy được. Đo thực tế: ở ngưỡng 85% với điểm 0,80, mọi khoản CHI đều rớt xuống nhánh hộp thoại và chỉ giao dịch THU (0,95) được một chạm — trong khi ví dụ của chính docx ở bước 5.2 là một khoản chi tại Highlands Coffee. 0,80 đặt từ Phase 9, trước khi tồn tại ngưỡng nào để đối chiếu; trúng từ điển là khớp CHÍNH XÁC tên cửa hàng nên 0,90 mới đúng mức tin cậy thật. Sửa ở đây chứ không hạ ngưỡng: ngưỡng là quy định nghiệp vụ.*
+- [x] **`data` payload trong push** — *`IPushNotificationService.NotifyAsync` thêm tham số `data` tuỳ chọn, xuyên xuống `MulticastMessage.Data`. Chỉ có chữ thì client biết CÓ giao dịch mới nhưng không biết xác nhận cái nào — nút một chạm không dựng được. Payload: `type`, `action`, `transactionId`, `amountCents`, `transactionType`, `merchantName`, `categorySlug`.*
+- [x] **`data` KHÔNG BAO GIỜ được ghi log** — *Nó mang số tiền dưới dạng bóc ra được bằng máy, cùng luật với `notification_body` ở CLAUDE.md. `FcmPushNotificationService` chỉ log số lượng và mã lỗi; bản log-only chỉ log KHOÁ của data để còn kiểm client nhận đủ trường.*
+- [x] **Hai câu khác nhau cho hai nhánh** — *Một chạm dùng đúng câu docx: `"Bạn vừa chi 75.000đ tại Highlands Coffee (Ăn uống)?"`. Nhánh kia KHÔNG nêu danh mục — đọc lên một danh mục như thể đã chốt sẽ khiến người dùng gật theo thay vì chọn lại, mà chọn lại mới đúng là việc cần. Phân biệt chi/nhận theo `TransactionType`.*
+- [x] **`POST /transactions/{id}/confirm` nhận `categoryId` tuỳ chọn** — *Để bước 5.3 thật sự là "1 chạm". Trước đó endpoint không nhận body nào nên đổi danh mục phải gọi `PUT` rồi mới `confirm` — hai lần gọi mạng cho một thao tác, và có khoảng giữa hai lần đó mà trạng thái lỡ dở. Gán danh mục TRƯỚC `ApplyDeltaAsync`: hạn mức phải trừ vào danh mục người dùng CHỌN, không phải danh mục AI đoán — đặt sau là tiền vào sai ngân sách mà không có gì báo.*
+- [x] **Đổi danh mục thì dạy lại AI** — *`SendFeedbackAsync(..., "category_correction")`. Bảng tình huống biên docx: "lưu lại lựa chọn của người dùng để cải thiện thuật toán sau này" — người dùng vừa sửa đúng cái AI đoán sai, tín hiệu quý nhất có được.*
+- *(Sửa kèm)* Số tiền trong push hiển thị `75,000đ` kiểu Mỹ thay vì `75.000đ` kiểu Việt — `:N0` trần lấy culture của tiến trình, mà container chạy `InvariantGlobalization`. Dựng `NumberFormatInfo` tay chứ không gọi `CultureInfo.GetCultureInfo("vi-VN")`: culture đó KHÔNG TỒN TẠI lúc chạy ở chế độ invariant và sẽ ném ngay khi khởi tạo lớp. Lỗi có sẵn từ dòng push cũ, test mới bắt được.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -597,7 +613,8 @@
 | Phase 12 — Push thật qua FCM | `[x]` | 9 / 9 |
 | Phase 13 — Quản trị người dùng | `[x]` | 9 / 9 |
 | Phase 14 — Đồng bộ offline & rate limit | `[x]` | 9 / 9 |
-| **Total** | | **293 / 295** |
+| Phase 15 — Nhánh 85% của Flow 1 | `[x]` | 8 / 8 |
+| **Total** | | **301 / 303** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -727,3 +744,14 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 - **Một lần báo động giả do kịch bản test của tôi sai, không phải do code.** Lần thử đầu tiên tôi tính lại `receivedAt = now − 6h` trong một shell mới nên nó lệch vài phút so với lần gửi trước → `contentHash` khác → dedup không khớp là ĐÚNG. Phải cố định chuỗi `receivedAt` mới là mô phỏng đúng thông báo nằm sẵn trong Room.
 
 **Vẫn chưa ai làm, nằm ngoài repo này:** phần Room Database trên máy. Backend giờ chịu được cú đồng bộ, nhưng việc dữ liệu có được giữ lại trên thiết bị khi mất mạng hay không thì phải đội Android xác nhận — `android/` không có trong checkout này.
+
+**Verify Phase 15 (2026-09-14):** `dotnet build` sạch 0 warning; `dotnet test` xanh **475/475**; `pytest` xanh **126/126** (unit). Không đổi schema nên không có migration. Smoke test curl trên `docker compose` đủ stack:
+
+1. **Chi, trúng từ điển** (`ND: TT QR HIGHLANDS COFFEE`) → `Xác nhận nhanh` | `"Bạn vừa chi 75.000đ tại HIGHLANDS COFFEE (Ăn uống)?"` — đúng câu của docx, và tiền đúng kiểu Việt. `action=confirm_one_tap`.
+2. **Chi, KHÔNG trúng từ điển** (`XYZQWE SHOP`, phân loại 0,35) → `Giao dịch mới cần phân loại` | `"Bạn vừa chi 320.000đ tại XYZQWE SHOP. Chọn danh mục giúp Mascot nhé."` — **không nêu danh mục**. `action=choose_category`.
+3. **Thu** (lương 15tr, phân loại 0,95) → một chạm, đọc là `"Bạn vừa nhận 15.000.000đ"`.
+4. **Bước 5.3 một lần gọi**: `POST /confirm` kèm `{"categoryId": <Mua sắm>}` → 200, giao dịch chuyển sang Mua sắm, và hạn mức **Mua sắm** tăng 320.000 (danh mục AI đoán là "Khác" **không** bị trừ).
+5. **Feedback tới AI**: bảng `user_feedback` của AI DB có dòng `category_correction | other → shopping`.
+6. **Nhánh một chạm không gãy**: `POST /confirm` **không body, không content-type** → 200; body `{}` → 200. Client cũ không vỡ.
+
+**Điều test bắt được mà mắt không thấy:** số tiền trong push ra `75,000đ` (dấu phẩy kiểu Mỹ) vì `:N0` lấy culture của tiến trình, mà container chạy `InvariantGlobalization`. Lần sửa đầu dùng `CultureInfo.GetCultureInfo("vi-VN")` thì **ném ngay khi khởi tạo lớp** — culture đó không tồn tại ở chế độ invariant. Phải dựng `NumberFormatInfo` tay. Lỗi này có sẵn từ dòng push cũ của Phase 4, không ai để ý vì chưa có test nào đọc nội dung push.
