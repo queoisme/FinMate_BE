@@ -1,0 +1,17 @@
+# Sản phẩm build sinh trên HOST. Không loại ra thì `COPY . .` kéo chúng vào build context:
+# chậm, mà tệ hơn là obj/ mang dấu vết đường dẫn và phiên bản SDK của máy host, đủ để làm
+# hỏng restore trong container theo cách rất khó truy.
+**/bin/
+**/obj/
+
+# Log sinh lúc chạy, không liên quan gì tới việc build.
+**/logs/
+
+# Bí mật. Không bao giờ được nằm trong image — image bị đẩy đi nơi khác là lộ theo.
+.env
+secrets/
+
+.vs/
+.vscode/
+.idea/
+*.user
