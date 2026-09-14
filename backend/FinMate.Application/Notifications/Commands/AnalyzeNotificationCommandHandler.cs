@@ -11,7 +11,11 @@ namespace FinMate.Application.Notifications.Commands;
 
 public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHandler
 {
-    private static readonly TimeSpan DedupWindow = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// Chỉ còn dùng cho log <c>Ignored</c> — xem ghi chú ở
+    /// <see cref="INotificationLogRepository.GetRecentIgnoredByContentHashAsync"/>.
+    /// </summary>
+    private static readonly TimeSpan IgnoredDedupWindow = TimeSpan.FromMinutes(5);
 
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly INotificationLogRepository _notificationLogRepository;
@@ -46,9 +50,29 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         var now = DateTimeOffset.UtcNow;
         var contentHash = ComputeContentHash(command);
 
+        // Kiểm tra trùng TRƯỚC khi tra ví, để cả nhánh Ignored cũng được bảo vệ.
+        //
+        // Đây là chốt chặn cho docx mục "Mạng Offline": app xếp thông báo vào Room rồi đồng bộ
+        // khi có mạng trở lại, và một hàng đợi như thế chắc chắn sẽ gửi lại — timeout giữa
+        // chừng, app bị kill, hoặc backoff. Không giới hạn thời gian ở đây: hash đã gói sẵn
+        // ReceivedAt làm tròn phút nên trùng hash là trùng đúng thông báo đó.
+        var processed = await _notificationLogRepository.GetProcessedByContentHashAsync(
+            command.UserId, contentHash, ct);
+        if (processed is not null)
+        {
+            return new NotificationAnalysisResultDto(processed.Id, processed.Status.ToString(), null);
+        }
+
         var account = await _financialAccountRepository.GetByUserAndMonitoredPackageAsync(command.UserId, command.PackageName, ct);
         if (account is null)
         {
+            var recentlyIgnored = await _notificationLogRepository.GetRecentIgnoredByContentHashAsync(
+                command.UserId, contentHash, now - IgnoredDedupWindow, ct);
+            if (recentlyIgnored is not null)
+            {
+                return new NotificationAnalysisResultDto(recentlyIgnored.Id, "Ignored", null);
+            }
+
             var ignoredLog = new NotificationLog
             {
                 UserId = command.UserId,
@@ -64,13 +88,6 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             };
             await _notificationLogRepository.AddAsync(ignoredLog, ct);
             return new NotificationAnalysisResultDto(ignoredLog.Id, "Ignored", null);
-        }
-
-        var existing = await _notificationLogRepository.GetRecentByContentHashAsync(
-            command.UserId, contentHash, now - DedupWindow, ct);
-        if (existing is not null)
-        {
-            return new NotificationAnalysisResultDto(existing.Id, existing.Status.ToString(), null);
         }
 
         var log = new NotificationLog

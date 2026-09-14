@@ -14,10 +14,22 @@ public class NotificationLogRepository : INotificationLogRepository
         _context = context;
     }
 
-    public Task<NotificationLog?> GetRecentByContentHashAsync(
+    public Task<NotificationLog?> GetProcessedByContentHashAsync(
+        Guid userId, string contentHash, CancellationToken ct = default)
+        => _context.NotificationLogs
+            .Where(n => n.UserId == userId
+                && n.ContentHash == contentHash
+                && n.Status != NotificationLogStatus.Ignored)
+            .OrderByDescending(n => n.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+    public Task<NotificationLog?> GetRecentIgnoredByContentHashAsync(
         Guid userId, string contentHash, DateTimeOffset since, CancellationToken ct = default)
         => _context.NotificationLogs
-            .Where(n => n.UserId == userId && n.ContentHash == contentHash && n.CreatedAt >= since)
+            .Where(n => n.UserId == userId
+                && n.ContentHash == contentHash
+                && n.Status == NotificationLogStatus.Ignored
+                && n.CreatedAt >= since)
             .OrderByDescending(n => n.CreatedAt)
             .FirstOrDefaultAsync(ct);
 

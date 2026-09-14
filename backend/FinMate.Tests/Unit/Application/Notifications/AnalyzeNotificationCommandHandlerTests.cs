@@ -60,7 +60,7 @@ public class AnalyzeNotificationCommandHandlerTests
 
         var existingLog = new NotificationLog { Id = Guid.NewGuid(), Status = NotificationLogStatus.Processed };
         _notificationLogRepository
-            .Setup(r => r.GetRecentByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingLog);
 
         var result = await _handler.HandleAsync(Command());
@@ -80,7 +80,7 @@ public class AnalyzeNotificationCommandHandlerTests
             .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(account);
         _notificationLogRepository
-            .Setup(r => r.GetRecentByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((NotificationLog?)null);
         _aiServiceClient
             .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
@@ -102,7 +102,7 @@ public class AnalyzeNotificationCommandHandlerTests
             .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(account);
         _notificationLogRepository
-            .Setup(r => r.GetRecentByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((NotificationLog?)null);
 
         var category = new Category { Id = Guid.NewGuid(), Slug = "food", Name = "Ăn uống" };
@@ -149,7 +149,7 @@ public class AnalyzeNotificationCommandHandlerTests
             .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(account);
         _notificationLogRepository
-            .Setup(r => r.GetRecentByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((NotificationLog?)null);
         _aiServiceClient
             .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
