@@ -85,6 +85,17 @@
 <!-- Microsoft.AspNetCore.RateLimiting — có sẵn trong ASP.NET Core 7+ -->
 ```
 
+**Push Notification:**
+```xml
+<PackageReference Include="FirebaseAdmin" Version="3.*" />
+<!-- Duyệt ngày 2026-09-14. Không có provider nào khác gửi được xuống Android khi app đã
+     đóng: Android chỉ giữ MỘT kết nối thường trực cho cả máy, và kết nối đó là của Google.
+     Kéo theo Google.Api.Gax.Rest + Google.Apis.Auth (đã duyệt sẵn cho Google login).
+     API lưu ý: MulticastMessage.Tokens đã deprecated ở 3.6 — dùng Fids (cùng giá trị, đổi
+     tên), và SendEachForMulticastAsync chứ không phải SendMulticastAsync để biết ĐÍCH DANH
+     token nào chết mà xoá. -->
+```
+
 **Security:**
 ```xml
 <PackageReference Include="BCrypt.Net-Next" Version="4.*" />
@@ -276,6 +287,10 @@ AI_SERVICE_URL=http://ai-service:8000
 AI_SERVICE_API_KEY=...      # internal key, min 32 chars
 HANGFIRE_DASHBOARD_USER=...
 HANGFIRE_DASHBOARD_PASS=...
+
+# Push notification — TUỲ CHỌN, chọn một trong hai. Trống cả hai thì chạy log-only.
+FCM_CREDENTIALS_PATH=/run/secrets/fcm.json   # file service-account mount vào container
+FCM_CREDENTIALS_JSON={"type":"service_account",...}   # hoặc dán thẳng nội dung file
 ```
 
 **AI Service (.env):**
