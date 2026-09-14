@@ -295,6 +295,13 @@ FCM_CREDENTIALS_JSON={"type":"service_account",...}   # hoặc dán thẳng nộ
 # Rate limiting — TUỲ CHỌN, trống thì dùng mặc định trong code.
 RATE_LIMIT_DEFAULT_PER_MINUTE=120   # mọi request; phân vùng theo user id, hoặc IP khi ẩn danh
 RATE_LIMIT_AUTH_PER_MINUTE=10       # login/register/google; phân vùng theo IP
+
+# Reverse proxy — TUỲ CHỌN. Trống = KHÔNG bật, X-Forwarded-For bị bỏ qua (mặc định an toàn).
+# Danh sách IP proxy khi chạy sau nginx/ALB; "*" để tin mọi forwarder (một số PaaS bắt buộc),
+# chỉ dùng khi nền tảng ĐÃ tự ghi đè header ở biên — nếu không, client tự đặt IP giả để thoát
+# rate limit. Bắt buộc phải đặt khi có proxy: thiếu nó thì rate limit đăng nhập đếm theo IP
+# của proxy, tức là cả hệ thống dùng chung một ngăn 10 lần/phút.
+TRUSTED_PROXIES=
 ```
 
 **AI Service (.env):**
