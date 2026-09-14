@@ -20,6 +20,10 @@ ai-service/models/*
 .env
 *.env.local
 
+# Khoá service-account của Firebase. Phải có TRƯỚC khi tải file về: file đó gửi được thông báo
+# cho TOÀN BỘ người dùng, và một lần commit nhầm là phải thu hồi khoá chứ không xoá lịch sử được.
+backend/secrets/
+
 # IDE
 .vs/
 .vscode/
