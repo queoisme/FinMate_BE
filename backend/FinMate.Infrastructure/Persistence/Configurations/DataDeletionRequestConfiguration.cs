@@ -10,7 +10,9 @@ public class DataDeletionRequestConfiguration : IEntityTypeConfiguration<DataDel
     public void Configure(EntityTypeBuilder<DataDeletionRequest> builder)
     {
         builder.ToTable("data_deletion_requests", t =>
-            t.HasCheckConstraint("chk_data_deletion_requests_status", "status IN ('pending','processed')"));
+            t.HasCheckConstraint(
+                "chk_data_deletion_requests_status",
+                "status IN ('pending','processed','cancelled')"));
 
         builder.HasKey(d => d.Id);
         builder.Property(d => d.Id)
@@ -32,5 +34,10 @@ public class DataDeletionRequestConfiguration : IEntityTypeConfiguration<DataDel
 
         builder.HasIndex(d => d.ScheduledHardDeleteAt)
             .HasDatabaseName("idx_data_deletion_requests_scheduled_hard_delete_at");
+
+        // Màn hình giám sát của admin sắp xếp theo lúc gửi yêu cầu, phân trang keyset trên
+        // (requested_at, id) — index này là thứ giữ nó không phải quét cả bảng.
+        builder.HasIndex(d => new { d.RequestedAt, d.Id })
+            .HasDatabaseName("idx_data_deletion_requests_requested_at_id");
     }
 }

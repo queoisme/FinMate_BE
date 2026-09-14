@@ -97,6 +97,7 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         { "GET", "/api/v1/admin/missions" },
         { "GET", "/api/v1/admin/ai-stats" },
         { "GET", "/api/v1/admin/audit-logs" },
+        { "GET", "/api/v1/admin/data-deletion-requests" },
     };
 
     [Theory]

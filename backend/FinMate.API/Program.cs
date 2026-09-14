@@ -228,6 +228,8 @@ public class Program
         builder.Services.AddScoped<IGetAdminUserDetailQueryHandler, GetAdminUserDetailQueryHandler>();
         builder.Services.AddScoped<ISetUserLockCommandHandler, SetUserLockCommandHandler>();
         builder.Services.AddScoped<ISetUserRoleCommandHandler, SetUserRoleCommandHandler>();
+        builder.Services.AddScoped<IGetDataDeletionRequestListQueryHandler, GetDataDeletionRequestListQueryHandler>();
+        builder.Services.AddScoped<ICancelDataDeletionRequestCommandHandler, CancelDataDeletionRequestCommandHandler>();
         builder.Services.AddScoped<IGetProviderConfigListQueryHandler, GetProviderConfigListQueryHandler>();
         builder.Services.AddScoped<ICreateProviderConfigCommandHandler, CreateProviderConfigCommandHandler>();
         builder.Services.AddScoped<IUpdateProviderConfigCommandHandler, UpdateProviderConfigCommandHandler>();

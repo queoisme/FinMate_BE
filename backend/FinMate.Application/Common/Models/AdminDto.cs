@@ -22,6 +22,23 @@ public record AdminUserDto(
 
 public record AdminUserListDto(IReadOnlyList<AdminUserDto> Items, string? NextCursor);
 
+/// <param name="ProcessedAt">
+/// Lúc yêu cầu thôi ở trạng thái chờ — <paramref name="Status"/> nói theo hướng nào.
+/// </param>
+public record DataDeletionRequestDto(
+    Guid Id,
+    Guid UserId,
+    string Email,
+    string DisplayName,
+    DataDeletionStatus Status,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset ScheduledHardDeleteAt,
+    DateTimeOffset? ProcessedAt,
+    int DaysUntilHardDelete);
+
+public record DataDeletionRequestListDto(
+    IReadOnlyList<DataDeletionRequestDto> Items, string? NextCursor);
+
 public record ProviderConfigDto(
     Guid Id,
     string ProviderKey,
