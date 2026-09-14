@@ -318,7 +318,7 @@ public class Program
         builder.Services.AddScoped<MissionResetJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
 
-        builder.Services.AddFinMateRateLimiting();
+        builder.Services.AddFinMateRateLimiting(builder.Configuration);
 
         var app = builder.Build();
 
@@ -352,10 +352,16 @@ public class Program
         }
 
         app.UseHttpsRedirection();
-        app.UseRateLimiter();
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // SAU UseAuthentication có chủ ý: rate limiter phân vùng theo user id khi đã đăng nhập
+        // (xem RateLimitingMiddleware), mà context.User chỉ được điền sau bước xác thực. Đánh
+        // đổi: một cú flood ẩn danh vẫn phải đi qua bước kiểm chữ ký JWT trước khi bị chặn —
+        // rẻ hơn nhiều so với chạm database, và các endpoint đăng nhập đều ẩn danh nên chúng
+        // vốn không được lợi gì từ việc chặn sớm hơn.
+        app.UseRateLimiter();
 
         var hangfireUser = builder.Configuration["HANGFIRE_DASHBOARD_USER"];
         var hangfirePass = builder.Configuration["HANGFIRE_DASHBOARD_PASS"];

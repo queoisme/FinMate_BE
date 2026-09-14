@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using FinMate.Application.Auth.Commands;
+using FinMate.API.Middleware;
 using FinMate.Application.Common.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FinMate.API.Controllers;
 
@@ -43,7 +45,15 @@ public class AuthController : ControllerBase
 
     private string? RemoteIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
+    /// <summary>
+    /// Hạn mức chặt hơn mặc định: đây là các endpoint đoán được mật khẩu. Phân vùng theo IP vì
+    /// chúng ẩn danh — chưa có user id để phân vùng theo.
+    ///
+    /// <c>refresh</c> cố ý KHÔNG nằm trong nhóm này: refresh token là chuỗi ngẫu nhiên nên dò
+    /// không có ý nghĩa, mà siết nó sẽ chặn nhầm nhiều người dùng chung một NAT.
+    /// </summary>
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken ct)
     {
@@ -53,6 +63,7 @@ public class AuthController : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
@@ -62,6 +73,7 @@ public class AuthController : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
     [HttpPost("google")]
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken ct)
     {

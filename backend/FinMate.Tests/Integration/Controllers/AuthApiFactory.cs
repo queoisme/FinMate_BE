@@ -39,6 +39,12 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         // idempotent và chỉ thêm đúng một dòng, nên bật nó không ảnh hưởng các test khác.
         Environment.SetEnvironmentVariable("ADMIN_SEED_EMAIL", AdminEmail);
         Environment.SetEnvironmentVariable("ADMIN_SEED_PASSWORD", AdminPassword);
+
+        // Bộ test dùng CHUNG một IP (TestServer không có RemoteIpAddress) nên mọi lần đăng
+        // nhập của 449 test rơi vào cùng một phân vùng — để nguyên 10/phút là các test tự
+        // chặn lẫn nhau. Hạn mức mặc định KHÔNG nới: nó phân vùng theo user id nên mỗi test
+        // có ngăn riêng, và RateLimitingControllerTests dựa vào đúng điều đó để kiểm 429 thật.
+        Environment.SetEnvironmentVariable("RATE_LIMIT_AUTH_PER_MINUTE", "100000");
     }
 
     public new async Task DisposeAsync()
