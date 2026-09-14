@@ -41,7 +41,13 @@ _CURRENCY_NOISE = re.compile(r"(?:vnđ|vnd|đ|d|₫)\.?$", re.IGNORECASE)
 # tiền tệ (850.000đ, 75,000 VND) nếu có. Bắt được hậu tố là điều kiện sống còn của nhánh
 # generic — "45k" mà chỉ đọc phần số sẽ ra 45 đồng.
 _AMOUNT_CANDIDATE = re.compile(
-    r"(?P<number>\d[\d.,]*)"
+    # Dấu cách được chấp nhận CHỈ khi nó nằm giữa dấu ngăn nhóm và đúng 3 chữ số:
+    # Tesseract thường đọc "100,000" trên hóa đơn thành "100, 000", và regex dừng ở dấu
+    # cách sẽ chỉ lấy được "100" — tức là 100 đồng thay vì 100.000 đồng. Đây là hỏng IM
+    # LẶNG: 100 vẫn là một con số hợp lệ nên không có gì báo động.
+    # Hẹp có chủ ý. Cho phép dấu cách ở mọi vị trí sẽ dính "Sua tuoi Vinamilk 2 58,000"
+    # thành 258.000, và "Ngay: 14, 09" thành một số tiền.
+    r"(?P<number>\d+(?:[.,](?:[ ]\d{3}|\d+))*)"
     r"(?:\s*(?P<unit>tỷ|ty|triệu|trieu|tr|nghìn|nghin|ngàn|ngan|k)(?P<tail>\d*))?"
     # "d" là cách gõ "đ" không dấu, rất phổ biến. \b là bắt buộc: thiếu nó thì "ngay 15
     # de tranh" biến "15" thành một số tiền có ký hiệu tiền tệ.

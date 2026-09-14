@@ -6,6 +6,7 @@ import pytest
 
 from app.utils.text_utils import (
     VIETNAM_TZ,
+    find_amount_candidates,
     normalize_for_model,
     parse_datetime,
     parse_vnd_amount,
@@ -129,3 +130,40 @@ def test_dash_separated_date_is_parsed():
     assert parse_datetime("09-09-2026 19:05:00", reference) == datetime(
         2026, 9, 9, 19, 5, tzinfo=VIETNAM_TZ
     )
+
+
+# --------------------------------------------------------------- OCR nhả dấu cách
+
+
+def _values(text: str) -> list[int]:
+    return [c.value for c in find_amount_candidates(text)]
+
+
+def test_space_after_thousand_separator_is_still_one_amount():
+    """Tesseract đọc "100,000" trên hóa đơn thành "100, 000".
+
+    Regex dừng ở dấu cách sẽ chỉ lấy "100" — tức là 100 đồng thay vì 100.000 đồng, sai
+    1000 lần mà vẫn trả về một con số hợp lệ nên không có gì báo động.
+    """
+    assert _values("TONG CONG: 100, 000") == [100_000]
+    assert _values("Tien mat: 200, 000") == [200_000]
+
+
+def test_a_quantity_before_a_price_does_not_merge_into_it():
+    """Hàng hóa đơn thường là "<tên> <số lượng> <đơn giá>".
+
+    Nới dấu cách quá tay sẽ biến "Vinamilk 2 58,000" thành 258.000 — vẫn là một con số
+    trông hợp lệ, và lần này sai theo chiều NGƯỢC lại.
+    """
+    assert _values("Sua tuoi Vinamilk 2 58,000") == [2, 58_000]
+
+
+def test_a_spaced_pair_that_is_not_a_thousand_group_stays_apart():
+    """Chỉ đúng 3 chữ số sau dấu ngăn mới là nhóm nghìn; "14, 09" là ngày, không phải tiền."""
+    assert _values("Ngay: 14, 09")[:2] == [14, 9]
+
+
+def test_grouping_flag_survives_the_space():
+    """Cờ has_grouping là thứ phân biệt tiền với mã số thuế — dấu cách không được làm mất nó."""
+    candidate = find_amount_candidates("TONG CONG: 100, 000")[0]
+    assert candidate.has_grouping is True
