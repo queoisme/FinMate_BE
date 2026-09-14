@@ -137,7 +137,7 @@ public class AnalyzeNotificationCommandHandlerTests
         savedTransaction.Source.Should().Be(TransactionSource.Notification);
         savedTransaction.CategoryId.Should().Be(category.Id);
         _pushNotificationService.Verify(
-            p => p.NotifyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            p => p.NotifyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -161,7 +161,7 @@ public class AnalyzeNotificationCommandHandlerTests
         result.DraftTransactionId.Should().BeNull();
         _transactionRepository.Verify(r => r.AddAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()), Times.Never);
         _pushNotificationService.Verify(
-            p => p.NotifyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            p => p.NotifyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }

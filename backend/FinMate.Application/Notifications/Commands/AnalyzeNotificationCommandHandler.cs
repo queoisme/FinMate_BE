@@ -3,6 +3,7 @@ using System.Text;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -178,12 +179,19 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             };
             await _transactionRepository.AddAsync(transaction, ct);
             draftTransactionId = transaction.Id;
+            transaction.Category = category;
+
+            // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách
+            // khác nhau tuỳ mức tin cậy. Trước Phase 15 mọi nháp đều nhận đúng một dòng chữ
+            // cụt, không kèm dữ liệu nào để client dựng nút xác nhận.
+            var review = TransactionReviewPushBuilder.Build(
+                transaction,
+                category?.Name,
+                TransactionReviewPushBuilder.ReviewConfidence(
+                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence));
 
             await _pushNotificationService.NotifyAsync(
-                command.UserId,
-                "Giao dịch mới cần xác nhận",
-                $"{transaction.MerchantName ?? "Giao dịch"}: {transaction.AmountCents:N0}đ",
-                ct);
+                command.UserId, review.Title, review.Body, review.Data, ct);
         }
 
         return new NotificationAnalysisResultDto(log.Id, log.Status.ToString(), draftTransactionId);
