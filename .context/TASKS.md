@@ -574,6 +574,20 @@
 - [x] **Đổi danh mục thì dạy lại AI** — *`SendFeedbackAsync(..., "category_correction")`. Bảng tình huống biên docx: "lưu lại lựa chọn của người dùng để cải thiện thuật toán sau này" — người dùng vừa sửa đúng cái AI đoán sai, tín hiệu quý nhất có được.*
 - *(Sửa kèm)* Số tiền trong push hiển thị `75,000đ` kiểu Mỹ thay vì `75.000đ` kiểu Việt — `:N0` trần lấy culture của tiến trình, mà container chạy `InvariantGlobalization`. Dựng `NumberFormatInfo` tay chứ không gọi `CultureInfo.GetCultureInfo("vi-VN")`: culture đó KHÔNG TỒN TẠI lúc chạy ở chế độ invariant và sẽ ném ngay khi khởi tạo lớp. Lỗi có sẵn từ dòng push cũ, test mới bắt được.
 
+## Phase 16 — Bốn thứ chặn cứng việc chạy production
+
+> Phần lõi đã vững, nhưng phần VẬN HÀNH vẫn là môi trường phát triển. Một trong bốn chỗ là lỗi
+> tự tôi đưa vào ở Phase 14.
+
+- [x] **Dockerfile multi-stage** — *Bản cũ `FROM sdk` + `dotnet run`: đóng gói cả SDK lẫn mã nguồn, **build lại mỗi lần container khởi động**, chạy Debug, chạy bằng **root**. Nay `publish -c Release` sang ảnh `aspnet`, `USER $APP_UID`. Đo được: **2,86GB → 359MB**, và `id` trong container trả `uid=1654(app)`.*
+- [x] **`Directory.Build.props` COPY trước `restore`** — *`TargetFramework` không nằm trong bất kỳ `.csproj` nào mà ở file props dùng chung; chỉ copy `.csproj` là restore hỏng theo kiểu rất khó truy. Restore đứng riêng một tầng để sửa code không làm mất cache.*
+- [x] **`backend/.dockerignore`** — *Trước đó KHÔNG có, nên `COPY . .` kéo cả `bin/`, `obj/`, `logs/`, và cả `.env` lẫn `secrets/` vào build context. `obj/` sinh trên host mang dấu vết đường dẫn và phiên bản SDK của máy host, đủ để làm hỏng build trong container.*
+- [x] **Serilog chỉ ghi file ở Development** — *Ghi log vào ổ đĩa trong container thì không ai đọc được và đầy dần; production thu log từ stdout. Thêm lý do cụ thể: image chạy non-root và `/app` không cho user đó ghi.*
+- [x] **Chốt chặn bí mật mẫu lúc khởi động** — *Ngoài Development, `JWT_SECRET`/`AI_SERVICE_API_KEY`/`ADMIN_SEED_PASSWORD`/`HANGFIRE_DASHBOARD_PASS` còn chứa `change-me` thì **từ chối khởi động**, nêu đủ tên các biến trong một lần. Giá trị đó nằm công khai trong `.env.example` ĐÃ COMMIT — một `JWT_SECRET` còn nguyên nghĩa là ai đọc repo cũng tự ký được token admin, mà mọi thứ vẫn chạy bình thường nên không có triệu chứng gì. Sinh secret một lần là chưa đủ: quên đổi ở lần triển khai sau là chuyện thường.*
+- [x] **`backend/secrets/` vào `.gitignore` + sinh `JWT_SECRET` ngẫu nhiên** — *`.gitignore` phải có TRƯỚC khi tải file Firebase về: file đó gửi được thông báo cho toàn bộ người dùng, và commit nhầm thì phải thu hồi khoá chứ không xoá lịch sử được.*
+- [x] **`UseForwardedHeaders` cấu hình qua `TRUSTED_PROXIES`** — *Sửa lỗi tôi đưa vào ở Phase 14. Sau reverse proxy thì `RemoteIpAddress` là IP của PROXY, mà rate limiter phân vùng đăng nhập theo IP — nghĩa là cả hệ thống dùng chung một ngăn 10 lần/phút. Mặc định TRỐNG = không bật, giữ nguyên hành vi cũ và an toàn: tin header khi chưa ai bảo tin là để client tự bịa IP thoát rate limit.*
+- [x] **`/health/live` tách khỏi `/health/ready`** — *`/health` cũ trả `healthy` kể cả khi Postgres và Redis đã chết → load balancer tiếp tục đẩy request vào instance hỏng. Hai `IHealthCheck` viết TAY, không thêm package: `AspNetCore.HealthChecks.NpgSql/.Redis` là dependency mới phải xin duyệt (AGENTS.md §5) trong khi thứ cần chỉ là một vòng gọi. Tách hai đường vì hành động khác nhau: liveness hỏng thì restart container, readiness hỏng thì ngừng đẩy traffic — gộp làm một là Postgres sập kéo cả đàn app restart vô ích, mà restart không cứu được Postgres.*
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -614,7 +628,8 @@
 | Phase 13 — Quản trị người dùng | `[x]` | 9 / 9 |
 | Phase 14 — Đồng bộ offline & rate limit | `[x]` | 9 / 9 |
 | Phase 15 — Nhánh 85% của Flow 1 | `[x]` | 8 / 8 |
-| **Total** | | **301 / 303** |
+| Phase 16 — Sẵn sàng production | `[x]` | 8 / 8 |
+| **Total** | | **309 / 311** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -755,3 +770,16 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 6. **Nhánh một chạm không gãy**: `POST /confirm` **không body, không content-type** → 200; body `{}` → 200. Client cũ không vỡ.
 
 **Điều test bắt được mà mắt không thấy:** số tiền trong push ra `75,000đ` (dấu phẩy kiểu Mỹ) vì `:N0` lấy culture của tiến trình, mà container chạy `InvariantGlobalization`. Lần sửa đầu dùng `CultureInfo.GetCultureInfo("vi-VN")` thì **ném ngay khi khởi tạo lớp** — culture đó không tồn tại ở chế độ invariant. Phải dựng `NumberFormatInfo` tay. Lỗi này có sẵn từ dòng push cũ của Phase 4, không ai để ý vì chưa có test nào đọc nội dung push.
+
+**Verify Phase 16 (2026-09-15):** `dotnet build` sạch 0 warning; `dotnet test` xanh **493/493**. Smoke test trên `docker compose` thật:
+
+1. **Image**: `2,86GB → 359MB`. `docker compose exec backend id` → `uid=1654(app)`, **không phải root**. Log khởi động không còn dòng biên dịch nào.
+2. **Health check thật**: bình thường `live=200 ready=200`; `docker compose stop postgres-main` → **`ready=503`** trong khi **`live` giữ 200**; bật lại → 200. Đúng ý đồ tách hai đường.
+3. **Forwarded headers, `TRUSTED_PROXIES=*`** với hạn mức auth 3/phút: `X-Forwarded-For: 203.0.113.1` → 401,401,401,**429,429**; rồi IP khác `203.0.113.99` → 401,401 — **có ngăn riêng**, đúng như mong đợi.
+4. **Mặc định an toàn, `TRUSTED_PROXIES` trống**: năm IP giả khác nhau vẫn → 401,401,401,**429,429** — header bị BỎ QUA, tất cả chung một ngăn. Đây là điều quan trọng nhất phải chứng minh: bật bừa còn nguy hơn không bật.
+5. **Chốt bí mật**: `ASPNETCORE_ENVIRONMENT=Production` + `JWT_SECRET=change-me...` → container **không khởi động**, log ghi `Refusing to start in Production: ... — JWT_SECRET, AI_SERVICE_API_KEY, HANGFIRE_DASHBOARD_PASS`.
+6. **Flow 1 + Flow 2 chạy lại trên image mới**: thông báo → nháp → push `"Bạn vừa chi 75.000đ tại HIGHLANDS COFFEE (Ăn uống)?"` → confirm 200 → số dư 4.925.000; văn bản 45.000/`food`, giọng nói 45.000/`food`, hoá đơn 100.000, form 201; ngân sách 875.000/1.000.000.
+
+**Điều thực nghiệm dạy được:** ngữ nghĩa "tin mọi proxy" của `ForwardedHeadersMiddleware` rất dễ hiểu NGƯỢC — để trống cả `KnownNetworks` lẫn `KnownProxies` KHÔNG phải "tin tất cả" mà là "không tin ai", và header bị bỏ qua trong im lặng. Phải thêm một dải phủ `0.0.0.0/0` và `::/0`. Chỉ đo bằng curl mới biết, đọc code không ra.
+
+**Cảnh báo lúc khởi động còn lại, đều CÓ SẴN từ trước và ngoài phạm vi lượt này:** 7 dòng EF global query filter (`RefreshToken` ↔ `User`); Data Protection key ring không được lưu ngoài container (không ảnh hưởng vì auth dùng JWT bearer, không dùng cookie); `Failed to determine the https port for redirect` từ `UseHttpsRedirection` — vô hại khi TLS do proxy đảm nhiệm.
