@@ -13,6 +13,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly IGamificationService _gamificationService;
+    private readonly ICategoryRepository _categoryRepository;
+    private readonly IAIServiceClient _aiServiceClient;
     private readonly ICacheService _cache;
 
     public ConfirmTransactionCommandHandler(
@@ -21,6 +23,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
         IGamificationService gamificationService,
+        ICategoryRepository categoryRepository,
+        IAIServiceClient aiServiceClient,
         ICacheService cache)
     {
         _transactionRepository = transactionRepository;
@@ -28,6 +32,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
         _gamificationService = gamificationService;
+        _categoryRepository = categoryRepository;
+        _aiServiceClient = aiServiceClient;
         _cache = cache;
     }
 
@@ -45,6 +51,25 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
 
         var account = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
             ?? throw new NotFoundException("FinancialAccount", transaction.FinancialAccountId);
+
+        // Đổi danh mục TRƯỚC ApplyDeltaAsync: hạn mức phải bị trừ vào danh mục người dùng
+        // CHỌN, không phải danh mục AI đoán. Đặt sau là tiền vào sai ngân sách mà không có gì
+        // báo — số vẫn cộng đủ, chỉ nằm nhầm chỗ.
+        var predictedSlug = transaction.Category?.Slug;
+        var categoryChanged = false;
+
+        if (command.CategoryId is { } chosenCategoryId && chosenCategoryId != transaction.CategoryId)
+        {
+            var category = await _categoryRepository.GetByIdAsync(chosenCategoryId, ct);
+            if (category is null || (category.UserId is not null && category.UserId != command.UserId))
+            {
+                throw new NotFoundException("Category", chosenCategoryId);
+            }
+
+            transaction.CategoryId = category.Id;
+            transaction.Category = category;
+            categoryChanged = true;
+        }
 
         var now = DateTimeOffset.UtcNow;
         account.BalanceCents += transaction.TransactionType == TransactionType.Credit
@@ -82,6 +107,23 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
         // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+
+        if (categoryChanged && transaction.Source == TransactionSource.Notification)
+        {
+            // Bảng tình huống biên của docx: "lưu lại lựa chọn của người dùng để cải thiện
+            // thuật toán sau này". Đây chính là tín hiệu quý nhất — người dùng vừa sửa đúng
+            // cái AI đoán sai. IAIServiceClient tự nuốt lỗi nên không cần try/catch.
+            await _aiServiceClient.SendFeedbackAsync(
+                new FeedbackRequest(
+                    transaction.Id,
+                    command.UserId,
+                    null,
+                    transaction.FinancialAccount?.PackageName ?? "unknown",
+                    predictedSlug,
+                    transaction.Category?.Slug,
+                    "category_correction"),
+                ct);
+        }
 
         return TransactionMapper.ToDto(transaction);
     }

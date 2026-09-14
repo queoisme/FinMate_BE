@@ -149,10 +149,16 @@ public class TransactionsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Chốt một giao dịch nháp. Body KHÔNG bắt buộc: nhánh một chạm của docx bước 5.2 gửi
+    /// rỗng, nhánh chọn danh mục ở bước 5.3 gửi kèm <c>categoryId</c> — vẫn đúng một lần gọi.
+    /// </summary>
     [HttpPost("{id:guid}/confirm")]
-    public async Task<IActionResult> Confirm(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Confirm(
+        Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
     {
-        var transaction = await _confirmHandler.HandleAsync(new ConfirmTransactionCommand(CurrentUserId, id), ct);
+        var transaction = await _confirmHandler.HandleAsync(
+            new ConfirmTransactionCommand(CurrentUserId, id, request?.CategoryId), ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
@@ -232,4 +238,5 @@ public record UpdateTransactionRequest(
     string? MerchantName,
     string? Description);
 
+public record ConfirmTransactionRequest(Guid? CategoryId);
 public record ParseNaturalLanguageRequest(string Text);
