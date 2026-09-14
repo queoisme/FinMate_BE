@@ -27,6 +27,8 @@ public static class AuditEvents
     // nếu không log sẽ đầy những dòng "admin đã mở trang danh sách".
     public const string AdminUserLocked = "Admin.User.Locked";
     public const string AdminUserUnlocked = "Admin.User.Unlocked";
+    public const string AdminUserRoleChanged = "Admin.User.RoleChanged";
+    public const string AdminDataDeletionCancelled = "Admin.DataDeletionRequest.Cancelled";
 
     public const string AdminProviderConfigCreated = "Admin.ProviderConfig.Created";
     public const string AdminProviderConfigUpdated = "Admin.ProviderConfig.Updated";

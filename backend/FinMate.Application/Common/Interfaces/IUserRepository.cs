@@ -20,6 +20,18 @@ public record UserListResult(IReadOnlyList<User> Items, string? NextCursor);
 public interface IUserRepository
 {
     Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Nạp cả tài khoản đã soft delete. <c>User</c> có global filter <c>deleted_at IS NULL</c>
+    /// nên <see cref="GetByIdAsync"/> giấu đúng dòng cần sửa khi huỷ một yêu cầu xoá.
+    /// </summary>
+    Task<User?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Số admin còn thực sự quản trị được. Admin bị khoá KHÔNG tính: họ không đăng nhập nổi
+    /// nên không phải đường cứu nếu admin cuối cùng bị hạ quyền.
+    /// </summary>
+    Task<int> CountActiveAdminsAsync(CancellationToken ct = default);
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
     Task<User?> GetByGoogleIdAsync(string googleId, CancellationToken ct = default);
     Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default);

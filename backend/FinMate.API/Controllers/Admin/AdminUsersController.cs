@@ -12,15 +12,18 @@ public class AdminUsersController : AdminControllerBase
     private readonly IGetAdminUserListQueryHandler _listHandler;
     private readonly IGetAdminUserDetailQueryHandler _detailHandler;
     private readonly ISetUserLockCommandHandler _lockHandler;
+    private readonly ISetUserRoleCommandHandler _roleHandler;
 
     public AdminUsersController(
         IGetAdminUserListQueryHandler listHandler,
         IGetAdminUserDetailQueryHandler detailHandler,
-        ISetUserLockCommandHandler lockHandler)
+        ISetUserLockCommandHandler lockHandler,
+        ISetUserRoleCommandHandler roleHandler)
     {
         _listHandler = listHandler;
         _detailHandler = detailHandler;
         _lockHandler = lockHandler;
+        _roleHandler = roleHandler;
     }
 
     [HttpGet]
@@ -60,6 +63,23 @@ public class AdminUsersController : AdminControllerBase
 
         return Ok(ApiResponse<AdminUserDto>.Ok(user));
     }
+
+    /// <summary>
+    /// Nhận VAI TRÒ mong muốn, không phải lệnh thăng/hạ — cùng hình dạng với <c>/lock</c>.
+    ///
+    /// Trước endpoint này, đường duy nhất tạo admin là biến môi trường <c>ADMIN_SEED_*</c> đọc
+    /// lúc khởi động, nên thêm một admin nghĩa là sửa env và khởi động lại cả service.
+    /// </summary>
+    [HttpPatch("{id:guid}/role")]
+    public async Task<IActionResult> SetRole(
+        Guid id, [FromBody] SetUserRoleRequest request, CancellationToken ct)
+    {
+        var user = await _roleHandler.HandleAsync(
+            new SetUserRoleCommand(CurrentAdminId, id, request.Role, request.Reason, CurrentIpAddress), ct);
+
+        return Ok(ApiResponse<AdminUserDto>.Ok(user));
+    }
 }
 
 public record SetUserLockRequest(bool IsLocked, string? Reason);
+public record SetUserRoleRequest(UserRole Role, string? Reason);

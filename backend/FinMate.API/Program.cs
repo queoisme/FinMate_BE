@@ -227,6 +227,7 @@ public class Program
         builder.Services.AddScoped<IGetAdminUserListQueryHandler, GetAdminUserListQueryHandler>();
         builder.Services.AddScoped<IGetAdminUserDetailQueryHandler, GetAdminUserDetailQueryHandler>();
         builder.Services.AddScoped<ISetUserLockCommandHandler, SetUserLockCommandHandler>();
+        builder.Services.AddScoped<ISetUserRoleCommandHandler, SetUserRoleCommandHandler>();
         builder.Services.AddScoped<IGetProviderConfigListQueryHandler, GetProviderConfigListQueryHandler>();
         builder.Services.AddScoped<ICreateProviderConfigCommandHandler, CreateProviderConfigCommandHandler>();
         builder.Services.AddScoped<IUpdateProviderConfigCommandHandler, UpdateProviderConfigCommandHandler>();

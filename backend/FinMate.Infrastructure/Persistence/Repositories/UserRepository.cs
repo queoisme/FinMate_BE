@@ -38,6 +38,14 @@ public class UserRepository : IUserRepository
         await _context.SaveChangesAsync(ct);
     }
 
+    public Task<User?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken ct = default)
+        => _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id, ct);
+
+    public Task<int> CountActiveAdminsAsync(CancellationToken ct = default)
+        => _context.Users.CountAsync(u => u.Role == UserRole.Admin && !u.IsLocked, ct);
+
     public async Task<UserListResult> GetPageAsync(
         UserListFilter filter, CancellationToken ct = default)
     {
