@@ -541,6 +541,23 @@
 - [x] **`AdminUserSeeder` sửa lại tài khoản seed, không chỉ tạo mới** — *Phát hiện khi verify thủ công, không test nào bắt được: seeder chỉ hỏi "email này có chưa", nên admin seed bị hạ quyền thì sửa env + khởi động lại cũng KHÔNG cứu được gì — đường cứu duy nhất chỉ tồn tại trên giấy. Nay mỗi lần khởi động bảo đảm nó thực sự dùng được (đúng vai trò, không bị khoá, không chờ xoá). Mật khẩu không đặt lại: đổi mật khẩu admin là chuyện bình thường, ghi đè mỗi lần khởi động sẽ âm thầm trả nó về giá trị trong env.*
 - *(Chốt với user)* **Không** làm nút xoá cứng ngay: giám sát nghĩa là nhìn thấy và ngăn được, còn một nút xoá tức thì là bấm nhầm một lần mất sạch dữ liệu. **Không** báo cho người dùng khi huỷ: họ đang soft delete nên không thiết bị nào còn token hoạt động, mà hệ thống chưa có kênh email.
 
+## Phase 14 — Chịu được đồng bộ offline, và bật lại rate limit
+
+> Docx có dòng **"Mạng Offline"**: *"Lưu thông báo tạm thời vào Room Database cục bộ; tự động
+> đồng bộ lên Cloud khi có mạng trở lại"* (Core Flow 1 & 2). Phần Room nằm ở `android/` — ngoài
+> phạm vi repo này. Phần server phải chịu được cú đồng bộ đó thì thuộc về đây, và nó chưa chịu được.
+
+- [x] **Chống trùng thông báo không còn giới hạn thời gian** — *`contentHash` đã gói sẵn `ReceivedAt` làm tròn phút nên hai dòng cùng hash là cùng một thông báo tại cùng một phút — cửa sổ thời gian vốn thừa. Tệ hơn, nó đo trên `CreatedAt` (lúc SERVER ghi), nên một thông báo xếp hàng offline gửi lại sau 5 phút sẽ lọt và tạo nháp trùng. Kiểm chứng: lùi `created_at` về 1 tiếng trước rồi gửi lại → vẫn cùng `logId`, 1 dòng log, 1 nháp.*
+- [x] **Nhánh `Ignored` GIỮ cửa sổ 5 phút** — *Cố ý khác nhánh trên. Thông báo bị bỏ qua vì ví chưa được theo dõi; người dùng thêm ví rồi app mới đồng bộ thì nó phải được xử lý LẠI chứ không bị nuốt vĩnh viễn. Cửa sổ ở đây chỉ để chặn một cú bắn dồn.*
+- [x] **Kiểm tra trùng chuyển lên TRƯỚC khi tra ví** — *Để cả nhánh `Ignored` cũng được bảo vệ; trước đó nó nằm sau nên thông báo của ví chưa theo dõi không có lớp chặn nào.*
+- [x] **`transactions.client_request_id` + unique một phần** — *Giao dịch nhập tay không có gì để băm: hai ly cà phê 45.000đ cùng quán trong cùng một phút là hai giao dịch THẬT, chỉ client mới biết đâu là gửi lại. Id do client sinh; `UNIQUE (user_id, client_request_id) WHERE client_request_id IS NOT NULL` — một phần vì nếu không thì mọi dòng NULL đụng nhau, và đây mới là thứ chặn được hai request gửi lại CÙNG LÚC (kiểm ở tầng ứng dụng vẫn có khe hở giữa đọc và ghi, mà hàng đợi offline thì bắn cả loạt).*
+- [x] **`POST /transactions` và `/transactions/transfer` trả 200 khi là gửi lại** — *201 cho một request không tạo ra gì là nói sai với client, và client nào đếm số giao dịch đã đồng bộ theo mã 201 sẽ đếm nhầm. `clientRequestId` TUỲ CHỌN — client cũ không gửi vẫn chạy bình thường.*
+- [x] **Gắn rate limit vào endpoint** — *Hai policy đã tồn tại từ Phase 0 nhưng **không gắn vào đâu cả**: không `[EnableRateLimiting]`, không `RequireRateLimiting`, không `GlobalLimiter`. `UseRateLimiter()` vẫn chạy nhưng không chặn gì, nên mức 10/phút cho đăng nhập hoàn toàn không có tác dụng chống dò mật khẩu.*
+- [x] **Hạn mức mặc định phân vùng theo user id, không phải IP** — *Theo IP là sai ở cả hai đầu: cả một trường học sau một NAT dùng chung hạn mức, còn một tài khoản đổi mạng liên tục thì thoát. Nó cũng đánh nhầm đúng thứ đang cần hỗ trợ — hàng đợi offline đồng bộ một loạt request của CÙNG một người. Đòi `UseRateLimiter()` phải chạy SAU `UseAuthentication()`, nếu không `context.User` còn rỗng.*
+- [x] **Mặc định đi qua `GlobalLimiter`, không qua `RequireRateLimiting`** — *Phát hiện khi verify: gắn policy mặc định lên `MapControllers()` ĐÈ MẤT `[EnableRateLimiting(AuthPolicy)]` trên endpoint đăng nhập — đo thực tế thấy `/auth/login` chạy ở mức 120 thay vì 10. `GlobalLimiter` thì cộng dồn, và một controller thêm sau này không thể lọt lưới.*
+- [x] **`refresh` cố ý KHÔNG vào nhóm hạn mức chặt** — *Refresh token là chuỗi ngẫu nhiên nên dò không có ý nghĩa, mà siết nó sẽ chặn nhầm nhiều người dùng chung một NAT.*
+- *(Không làm)* **Endpoint gửi theo lô.** Sau hai mục trên thì 50 request tuần tự đã ĐÚNG, chỉ chậm. Cái đáng làm là gộp lời gọi AI — mà đó là đổi contract Backend↔AI-Service, thuộc diện phải hỏi user theo `AGENTS.md` §5.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -579,7 +596,8 @@
 | Phase 11 — Đối chiếu lại Flow 1 & 2 | `[x]` | 7 / 7 |
 | Phase 12 — Push thật qua FCM | `[x]` | 9 / 9 |
 | Phase 13 — Quản trị người dùng | `[x]` | 9 / 9 |
-| **Total** | | **284 / 286** |
+| Phase 14 — Đồng bộ offline & rate limit | `[x]` | 9 / 9 |
+| **Total** | | **293 / 295** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -697,3 +715,15 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 6. **Audit + phân quyền.** `/admin/audit-logs` có `Admin.User.RoleChanged` (kèm `from`/`to`/`reason`) và `Admin.DataDeletionRequest.Cancelled`. Cả ba endpoint mới trả **403** với user thường.
 
 **Điều verify dạy được, đã sửa theo:** plan ghi đường cứu khi mất hết admin là "sửa env + khởi động lại" — **đường đó không có thật**. `AdminUserSeeder` chỉ hỏi "email này có chưa" rồi bỏ qua, nên admin seed bị hạ quyền thì restart bao nhiêu lần cũng vô ích. Đã sửa seeder thành bảo đảm tài khoản seed thực sự dùng được mỗi lần khởi động, và kiểm chứng bằng restart thật: `role=user` → restart → `role=admin`, đăng nhập 200. Bốn test tích hợp ghim lại (kể cả việc **không** đặt lại mật khẩu).
+
+**Verify Phase 14 (2026-09-14):** `dotnet build` sạch 0 warning; `dotnet test` xanh **457/457**; `has-pending-model-changes` sạch sau migration `AddClientRequestIdToTransactions`. Smoke test curl trên `docker compose` đủ stack (có cả `ai-service`):
+
+1. **Gửi lại giao dịch.** Cùng `clientRequestId`: lần 1 → **201**, lần 2 và 3 → **200**, đúng 1 giao dịch trong danh sách, số dư `49.955.000` (trừ đúng MỘT lần từ 50 triệu). Đây là chỗ đắt nhất nếu sai — trừ tiền hai lần thì số dư lệch mà không có gì báo.
+2. **Gửi lại thông báo sau khi cửa sổ cũ hết hiệu lực.** Gửi một thông báo MB Bank với `receivedAt` cố định → `Processed`, tạo 1 nháp. Lùi `created_at` của dòng log về **1 tiếng trước** rồi gửi lại y hệt → vẫn **cùng `logId`**, `draft: null`, 1 dòng `notification_logs`, 1 nháp. Logic cũ (`CreatedAt >= now − 5 phút`) sẽ tạo thêm cả log lẫn nháp.
+3. **Rate limit đăng nhập.** Sai mật khẩu liên tiếp: lần 1–10 → **401**, từ lần **11** → **429**.
+
+**Hai điều verify dạy được, đã sửa theo:**
+- **Rate limit gắn sai chỗ.** Bản đầu gắn policy mặc định bằng `MapControllers().RequireRateLimiting(...)`. Đo thực tế: đăng nhập sai 13 lần vẫn 401 hết, và 429 chỉ xuất hiện ở request thứ ~106 — tức là `/auth/login` đang chạy ở mức **120** chứ không phải 10, vì metadata do convention thêm vào đè mất `[EnableRateLimiting(AuthPolicy)]`. Chuyển sang `GlobalLimiter` thì hai hạn mức cộng dồn, và 429 rơi đúng lần 11.
+- **Một lần báo động giả do kịch bản test của tôi sai, không phải do code.** Lần thử đầu tiên tôi tính lại `receivedAt = now − 6h` trong một shell mới nên nó lệch vài phút so với lần gửi trước → `contentHash` khác → dedup không khớp là ĐÚNG. Phải cố định chuỗi `receivedAt` mới là mô phỏng đúng thông báo nằm sẵn trong Room.
+
+**Vẫn chưa ai làm, nằm ngoài repo này:** phần Room Database trên máy. Backend giờ chịu được cú đồng bộ, nhưng việc dữ liệu có được giữ lại trên thiết bị khi mất mạng hay không thì phải đội Android xác nhận — `android/` không có trong checkout này.

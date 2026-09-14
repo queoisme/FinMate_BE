@@ -291,6 +291,10 @@ HANGFIRE_DASHBOARD_PASS=...
 # Push notification — TUỲ CHỌN, chọn một trong hai. Trống cả hai thì chạy log-only.
 FCM_CREDENTIALS_PATH=/run/secrets/fcm.json   # file service-account mount vào container
 FCM_CREDENTIALS_JSON={"type":"service_account",...}   # hoặc dán thẳng nội dung file
+
+# Rate limiting — TUỲ CHỌN, trống thì dùng mặc định trong code.
+RATE_LIMIT_DEFAULT_PER_MINUTE=120   # mọi request; phân vùng theo user id, hoặc IP khi ẩn danh
+RATE_LIMIT_AUTH_PER_MINUTE=10       # login/register/google; phân vùng theo IP
 ```
 
 **AI Service (.env):**
