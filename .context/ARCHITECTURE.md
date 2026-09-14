@@ -86,6 +86,7 @@ backend/
 │   │   ├── NotificationsController.cs
 │   │   ├── ReportsController.cs
 │   │   ├── GamificationController.cs
+│   │   ├── DevicesController.cs      # đăng ký/gỡ thiết bị nhận push (FCM)
 │   │   └── Admin/
 │   │       ├── AdminUsersController.cs
 │   │       ├── AdminProviderConfigsController.cs
@@ -440,11 +441,11 @@ POST /api/v1/feedback
 
 ## 4. Database Architecture
 
-### 4.1 Backend DB — 19 bảng, 5 domain groups
+### 4.1 Backend DB — 20 bảng, 5 domain groups
 
 ```
 Auth & Identity:
-  users, refresh_tokens, audit_logs, data_deletion_requests
+  users, refresh_tokens, device_tokens, audit_logs, data_deletion_requests
 
 Financial Core:
   financial_accounts, provider_configs,

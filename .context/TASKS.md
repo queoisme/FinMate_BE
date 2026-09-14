@@ -236,7 +236,7 @@
 - [x] Job: `BudgetAlertJob`
   - [x] Query budget_periods gần limit — *Join tường minh sang `_context.Budgets` thay vì `Include`: join áp query filter soft-delete (budget đã xóa ngừng cảnh báo) và mang theo `UserId` mà `budget_periods` không lưu.*
   - [x] Check `alert_80_sent_at` và `alert_100_sent_at` — *Mỗi ngưỡng bắn đúng 1 lần/chu kỳ. Chi tiêu có thể nhảy thẳng từ dưới 80% lên quá 100% giữa 2 lần chạy, nên bắn cảnh báo 100% đóng luôn cờ 80% để lần sau không gửi ngược cảnh báo nhẹ hơn.*
-  - [!] Gửi push notification — *Vẫn dùng `LoggingPushNotificationService` (log-only). **Cùng gap đã ghi nhận ở Phase 4**: chưa có push provider (FCM) được duyệt trong `TECH_STACK.md`, không tự thêm dependency (AGENTS.md §5). Logic chọn-ai-để-gửi đã hoàn chỉnh (tôn trọng `NotificationPreferences.PushEnabled`/`BudgetAlertsEnabled`), chỉ thiếu kênh gửi thật.*
+  - [x] Gửi push notification — *Kênh thật qua FCM từ Phase 12 (user duyệt dependency ngày 2026-09-14). Không có credentials thì tự lùi về `LoggingPushNotificationService` — xem Phase 12.*
   - [x] Update sent timestamps
   - *(Lịch chạy `0 * * * *` — mỗi giờ, đúng `ARCHITECTURE.md` §5.)*
 
@@ -508,6 +508,23 @@
 - [x] **Flow 2 mục 2a — Cảnh báo ngân sách TỨC THÌ** — *Chỗ lệch nặng nhất. Docx: "Mỗi khi có giao dịch phát sinh từ Flow 1 hoặc Flow 2, hệ thống tự động tính toán tỷ lệ phần trăm và phản ứng qua Mascot". Thực tế `BudgetAlertJob` chạy `0 * * * *` và **không ai đọc cờ `Alert*SentAt` ngoài job đó** — người dùng vượt 90% hạn mức chờ tới 59 phút. Tách logic mốc thành `BudgetAlertEvaluator` dùng chung; `BudgetPeriodService.ApplyDeltaAsync` nay TRẢ VỀ danh sách cảnh báo và 3 handler gửi chúng **SAU** `SaveChangesAsync` — gửi trong `ApplyDeltaAsync` là báo về một giao dịch có thể bị rollback, vì hàm đó cố ý không save. Job giữ nguyên làm lưới vét cho hai ca không có giao dịch: hạ hạn mức, và backfill lúc tạo budget. Tuỳ chọn thông báo được hỏi **trước** khi đóng cờ `Alert*SentAt`: đóng cờ cho người đã tắt cảnh báo là ăn mất mốc đó vĩnh viễn — họ bật lại hôm sau thì cờ đã nói "đã gửi" và không ai gửi lại.*
 - *(Sửa kèm)* `GetMatchingBudgetsAsync` thiếu `Include(Category)` — cảnh báo tức thì lấy tên danh mục qua đó, thiếu thì MỌI cảnh báo đều ghi "toàn bộ chi tiêu" kể cả budget Ăn uống. Không lỗi, chỉ là thông điệp sai.
 
+## Phase 12 — Push thật qua FCM
+
+> `IPushNotificationService` đã hoàn chỉnh phần "gửi cho ai, khi nào, nội dung gì" từ Phase 4
+> nhưng chỉ ghi log — server không có đường nào chạm tới điện thoại. User duyệt dependency
+> ngày 2026-09-14.
+
+- [x] **Duyệt `FirebaseAdmin` vào `TECH_STACK.md`** — *Không provider nào khác gửi được xuống Android khi app đã đóng: Android chỉ giữ MỘT kết nối thường trực cho cả máy và kết nối đó là của Google. Kéo theo `Google.Api.Gax.Rest` + `Google.Apis.Auth` (đã duyệt sẵn cho Google login).*
+- [x] **Bảng `device_tokens`** — *Migration `AddDeviceTokens`. Một user nhiều máy; một token thuộc đúng MỘT user (`uq_device_tokens_token`). Đăng ký lại trên máy người khác thì **chuyển chủ**, không thêm dòng — để dòng cũ lại là thông báo tài chính của người mới vẫn đẩy xuống đúng máy đó cho người cũ đọc.*
+- [x] **`POST` / `DELETE /api/v1/devices`** — *Token đi trong BODY cả ở `DELETE`, dù DELETE-có-body là hơi lạ: token FCM là capability, mà URL thì nằm trong access log và lịch sử proxy. Gỡ một token không tồn tại vẫn trả 204 — đăng xuất phải luôn thành công, và phân biệt "đã gỡ" với "chưa từng có" chỉ tổ cho biết token nào đang tồn tại.*
+- [x] **`FcmPushNotificationService` + seam `IFcmSender`** — *`FirebaseMessaging` là API static không mock được, nên bọc một lớp mỏng chỉ dịch dữ liệu; toàn bộ phần đáng test nằm ở service. Dùng `SendEachForMulticastAsync` (không phải `SendMulticastAsync` đã deprecated) để biết ĐÍCH DANH token nào chết mà xoá.*
+- [x] **Chốt chặn `PushEnabled` đặt ở service** — *Hai trong bốn chỗ gọi push (`AnalyzeNotificationCommandHandler`, `ContributeToGoalCommandHandler`) **không** kiểm cờ này. Vô hại khi mọi thứ chỉ ghi log; bật kênh thật lên là người đã tắt thông báo bắt đầu nhận. Kiểm ở service thì không call site mới nào quên được.*
+- [x] **Chỉ xoá token FCM khẳng định đã chết** — *`Unregistered` và `SenderIdMismatch`. Mất mạng hay FCM quá tải là lỗi TẠM THỜI và thiết bị vẫn tốt — xoá token vì chúng là tự cắt đứt đường tới một máy còn sống, không gì khôi phục ngoài việc người dùng mở lại app.*
+- [x] **Không bao giờ ném lỗi lên caller** — *Mọi chỗ gọi push đều đứng sau một giao dịch đã lưu. Ném ở đây là để FCM sập kéo theo việc ghi nhận chi tiêu thất bại.*
+- [x] **Gửi không tới ai thì ghi `Warning` kèm mã lỗi** — *Ca thật khi sai credentials: FCM **không ném**, nó trả lỗi theo từng token; chỉ đếm "0 delivered" ở mức Information thì triệu chứng duy nhất là không ai nhận được gì. Mã lỗi lấy tên hằng + tên kiểu exception ở ĐẦU `Message` — không bao giờ lấy cả `Message`, vì khi lỗi thuộc về chính token thì FCM nhắc lại token trong đó.*
+- [x] **Tự lùi về log-only khi thiếu credentials** — *Bắt buộc `FCM_CREDENTIALS_*` sẽ chặn mọi máy dev và mọi integration test không có Firebase project mà không bảo vệ được gì. Dòng log lúc khởi động nói rõ đang ở chế độ nào.*
+- *(Sửa kèm)* `StatisticalSpendingForecaster` tính `basedOnDays` bằng số ngày đã qua trong tháng kể cả khi người dùng chưa nhập giao dịch nào — nên từ mùng 14 trở đi, một dự báo dựng trên hư không tự nhận "medium confidence", còn mùng 13 thì vẫn "low". Lộ ra vì test chạy sang ngày hôm sau. Độ tin cậy phải phản ánh lượng dữ liệu, không phải tờ lịch.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -544,17 +561,23 @@
 | Phase 9 — AI Service | `[x]` | 27 / 28 *(1 task `[-]` Skipped: 3 bảng `ab_*`, A/B testing ngoài MVP scope)* |
 | Phase 10 — Đối chiếu Core User Flows | `[x]` | 21 / 22 *(#1, #2, #4 xong; 1 task `[-]` Skipped: OTP)* |
 | Phase 11 — Đối chiếu lại Flow 1 & 2 | `[x]` | 7 / 7 |
-| **Total** | | **265 / 268** |
+| Phase 12 — Push thật qua FCM | `[x]` | 9 / 9 |
+| **Total** | | **275 / 277** |
 
-**Còn lại:** 0 task chưa làm trong MVP scope. Còn 1 task `[!]` chờ duyệt dependency FCM
-(`IPushNotificationService` vẫn là `LoggingPushNotificationService`, chỉ ghi log) + 2 task
-`[-]` bỏ có chủ ý (OTP, 3 bảng `ab_*`).
+**Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
+chủ ý (OTP, 3 bảng `ab_*`).
 
 **Vẫn lệch docx, đã biết, chưa làm:** nhánh confidence 85% (Flow 1 bước 5.2/5.3 — AI đã trả
 confidence đầy đủ nhưng backend chưa dùng nó để chọn giữa push một chạm và hộp thoại chọn
-danh mục; phụ thuộc payload push nên chờ chốt FCM); `ForecastJob` (ARCHITECTURE.md §5 ghi
+danh mục; **hết bị FCM chặn từ Phase 12**, giờ chỉ còn thiếu phần `data` payload và contract
+với client); `ForecastJob` (ARCHITECTURE.md §5 ghi
 06:00, docx Flow 3 mục 4 ghi 22:00, hiện **không có job nào** — forecast chỉ tính khi client
 gọi); trạng thái cảm xúc Mascot xanh/vàng/đỏ (Flow 3 mục 1, chưa có contract).
+
+**Chưa đối chiếu docx lần nào:** Core Flow 3 và Core Flow 4. Phase 11 chỉ đọc trọn vẹn Flow 1
+và Flow 2; ba điểm Flow 3 ghi ở trên là nhặt được TÌNH CỜ khi sửa Flow 1–2, không phải rà
+soát. Con số 275/277 không chứng minh được gì cho hai flow đó — đúng loại sai lệch mà Phase
+11 đã cho thấy một bảng checkbox không tự phát hiện nổi.
 
 ---
 
@@ -639,3 +662,10 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 7. **Provider tắt đúng nghĩa là ẩn.** `GET /financial-accounts/providers` trả 5 provider đang bật; Techcombank/VPBank/ShopeePay nằm trong DB với `is_active = f` và không lọt vào danh sách người dùng thấy.
 
 **Một chỗ lệch tìm thấy khi verify, KHÔNG thuộc phạm vi lượt này:** pattern MB Bank bóc `merchantName` thành `"HIGHLANDS COFFEE. So du 4,915,000 VND"` — regex ăn cả phần số dư đuôi thay vì dừng ở dấu chấm. Không sai số tiền (85.000đ đúng), chỉ bẩn tên cửa hàng, và nó làm hỏng việc khớp từ điển merchant nên đẩy danh mục về `other`. Thuộc `provider_patterns` của AI service, sửa được bằng dữ liệu chứ không cần đụng code.
+
+**Verify Phase 12 (2026-09-14):** `dotnet build` sạch 0 warning; `dotnet test` xanh **421/421**; `has-pending-model-changes` sạch sau migration `AddDeviceTokens`. Chạy thật trên `docker compose` ở CẢ HAI chế độ:
+
+- **Không credentials:** log khởi động `"Push notifications: FCM credentials absent, running log-only."`; `POST /devices` → 204, gọi lại y hệt → vẫn 204 và DB vẫn đúng 1 dòng với `last_seen_at` đã đổi; token rỗng → 400; không đăng nhập → 401; `DELETE /devices` → 204 và dòng biến mất.
+- **Có credentials** (service-account tự sinh bằng openssl, dùng xong xoá): log `"Push notifications: FCM enabled."` — chứng minh `CredentialFactory` parse được và DI đã đổi sang `FcmPushNotificationService`. Rồi cho một giao dịch chạm mốc 70% với project giả: **giao dịch vẫn 201 và vẫn được lưu**, log ra `Warning ... reached no device across 1 token(s); FCM said Unknown (Google.Apis.Auth.OAuth2.Responses.TokenResponseException)`, token **không** bị xoá (lỗi xác thực là tạm thời, không phải token chết), và grep toàn bộ log không thấy token xuất hiện lần nào.
+
+**Điều học được khi verify, đã đổi thiết kế theo:** FCM **không ném exception** khi sai credentials — nó trả `BatchResponse` với lỗi theo TỪNG token, `ErrorCode = Unknown`, `MessagingErrorCode = null`, `InnerException = null`, và nhét exception gốc vào phần đầu `Message`. Bản đầu chỉ ghi `Information: 0 delivered, 0 pruned` — đúng loại hỏng im lặng đắt nhất để truy. Bản sau nâng lên `Warning` và lấy tên kiểu ở đầu `Message`, có 4 test ghim lại việc **không bao giờ** lấy phần còn lại của `Message` (khi lỗi thuộc về chính token thì FCM nhắc lại token trong đó).
