@@ -5,6 +5,19 @@ namespace FinMate.Domain.Entities;
 public class Transaction
 {
     public Guid Id { get; set; }
+
+    /// <summary>
+    /// Id do CLIENT sinh cho mỗi lần tạo, để gửi lại không thành giao dịch trùng.
+    ///
+    /// Sinh ra cho docx mục "Mạng Offline": app xếp giao dịch vào Room khi mất mạng rồi đồng
+    /// bộ khi có mạng trở lại, và một hàng đợi như thế chắc chắn sẽ gửi lại — timeout giữa
+    /// chừng, app bị kill, hoặc backoff. Khác thông báo ngân hàng (đã có <c>content_hash</c>
+    /// dựng từ nội dung), giao dịch nhập tay không có gì để băm: hai ly cà phê 45.000đ cùng
+    /// quán trong cùng một phút là hai giao dịch THẬT, nên chỉ client mới biết đâu là gửi lại.
+    ///
+    /// NULL được: client cũ không gửi thì vẫn tạo bình thường, chỉ là không có bảo vệ.
+    /// </summary>
+    public Guid? ClientRequestId { get; set; }
     public Guid UserId { get; set; }
     public Guid FinancialAccountId { get; set; }
 

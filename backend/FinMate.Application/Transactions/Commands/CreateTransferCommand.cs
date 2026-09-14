@@ -10,4 +10,5 @@ public record CreateTransferCommand(
     Guid ToAccountId,
     long AmountCents,
     DateTimeOffset TransactedAt,
-    string? Description);
+    string? Description,
+    Guid? ClientRequestId = null);

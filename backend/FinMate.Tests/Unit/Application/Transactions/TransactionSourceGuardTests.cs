@@ -25,7 +25,7 @@ public class TransactionSourceGuardTests
             DateTimeOffset.UtcNow,
             "Highlands Coffee",
             null,
-            source);
+            Source: source);
 
     [Theory]
     [InlineData(TransactionSource.Manual)]

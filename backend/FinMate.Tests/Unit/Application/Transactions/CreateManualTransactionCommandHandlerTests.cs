@@ -117,12 +117,13 @@ public class CreateManualTransactionCommandHandlerTests
         var command = new CreateManualTransactionCommand(
             userId, account.Id, null, 30_000, TransactionType.Debit, DateTimeOffset.UtcNow, "Coffee", "Sáng");
 
-        var dto = await _handler.HandleAsync(command);
+        var result = await _handler.HandleAsync(command);
 
         account.BalanceCents.Should().Be(170_000);
         saved.Should().NotBeNull();
         saved!.Status.Should().Be(TransactionStatus.Confirmed);
         saved.Source.Should().Be(TransactionSource.Manual);
-        dto.Status.Should().Be("Confirmed");
+        result.Transaction.Status.Should().Be("Confirmed");
+        result.AlreadyExisted.Should().BeFalse();
     }
 }

@@ -36,9 +36,20 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
         _validator = validator;
     }
 
-    public async Task<TransactionDto> HandleAsync(CreateTransferCommand command, CancellationToken ct = default)
+    public async Task<TransactionCreationResult> HandleAsync(CreateTransferCommand command, CancellationToken ct = default)
     {
         await _validator.ValidateAndThrowAsync(command, ct);
+
+        // Gửi lại thì trả về chính giao dịch cũ — xem Transaction.ClientRequestId.
+        if (command.ClientRequestId is { } clientRequestId)
+        {
+            var existing = await _transactionRepository.GetByClientRequestIdAsync(
+                command.UserId, clientRequestId, ct);
+            if (existing is not null)
+            {
+                return new TransactionCreationResult(TransactionMapper.ToDto(existing), AlreadyExisted: true);
+            }
+        }
 
         if (command.FromAccountId == command.ToAccountId)
         {
@@ -64,6 +75,7 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
         var transaction = new Transaction
         {
             UserId = command.UserId,
+            ClientRequestId = command.ClientRequestId,
             FinancialAccountId = from.Id,
             CounterAccountId = to.Id,
             CategoryId = null,
@@ -95,6 +107,6 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
 
         await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
-        return TransactionMapper.ToDto(transaction);
+        return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }
 }

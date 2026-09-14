@@ -189,7 +189,7 @@ public class ReceiptAndVoiceControllerTests : IClassFixture<AuthApiFactory>
             Content = JsonContent.Create(
                 new CreateManualTransactionRequest(
                     accountId, null, 45_000, TransactionType.Debit,
-                    DateTimeOffset.UtcNow, "Highlands Coffee", null, source),
+                    DateTimeOffset.UtcNow, "Highlands Coffee", null, Source: source),
                 options: JsonOptions),
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -216,7 +216,7 @@ public class ReceiptAndVoiceControllerTests : IClassFixture<AuthApiFactory>
                 new CreateManualTransactionRequest(
                     accountId, null, 45_000, TransactionType.Debit,
                     DateTimeOffset.UtcNow, "Highlands Coffee", null,
-                    TransactionSource.Notification),
+                    Source: TransactionSource.Notification),
                 options: JsonOptions),
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

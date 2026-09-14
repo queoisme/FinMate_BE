@@ -77,7 +77,7 @@ public class TransactionsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateManualTransactionRequest request, CancellationToken ct)
     {
-        var transaction = await _createHandler.HandleAsync(
+        var result = await _createHandler.HandleAsync(
             new CreateManualTransactionCommand(
                 CurrentUserId,
                 request.FinancialAccountId,
@@ -87,10 +87,21 @@ public class TransactionsController : ControllerBase
                 request.TransactedAt,
                 request.MerchantName,
                 request.Description,
+                request.ClientRequestId,
                 request.Source ?? TransactionSource.Manual),
             ct);
-        return StatusCode(StatusCodes.Status201Created, ApiResponse<TransactionDto>.Ok(transaction));
+        return Created(result);
     }
+
+    /// <summary>
+    /// 201 khi thật sự tạo mới, 200 khi <c>clientRequestId</c> khớp một giao dịch đã có.
+    /// Trả 201 cho một request không tạo ra gì là nói sai với client — và client nào đếm số
+    /// giao dịch đã đồng bộ theo mã 201 sẽ đếm nhầm.
+    /// </summary>
+    private IActionResult Created(TransactionCreationResult result)
+        => StatusCode(
+            result.AlreadyExisted ? StatusCodes.Status200OK : StatusCodes.Status201Created,
+            ApiResponse<TransactionDto>.Ok(result.Transaction));
 
     /// <summary>
     /// Chuyển tiền giữa 2 ví của chính user (rút ATM, nạp ví điện tử). Tách khỏi POST /transactions
@@ -99,16 +110,17 @@ public class TransactionsController : ControllerBase
     [HttpPost("transfer")]
     public async Task<IActionResult> Transfer([FromBody] CreateTransferRequest request, CancellationToken ct)
     {
-        var transaction = await _transferHandler.HandleAsync(
+        var result = await _transferHandler.HandleAsync(
             new CreateTransferCommand(
                 CurrentUserId,
                 request.FromAccountId,
                 request.ToAccountId,
                 request.AmountCents,
                 request.TransactedAt,
-                request.Description),
+                request.Description,
+                request.ClientRequestId),
             ct);
-        return StatusCode(StatusCodes.Status201Created, ApiResponse<TransactionDto>.Ok(transaction));
+        return Created(result);
     }
 
     [HttpPatch("{id:guid}")]
@@ -196,14 +208,19 @@ public record CreateManualTransactionRequest(
     DateTimeOffset TransactedAt,
     string? MerchantName,
     string? Description,
+    Guid? ClientRequestId = null,
     TransactionSource? Source = null);
 
+/// <param name="ClientRequestId">
+/// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.
+/// </param>
 public record CreateTransferRequest(
     Guid FromAccountId,
     Guid ToAccountId,
     long AmountCents,
     DateTimeOffset TransactedAt,
-    string? Description);
+    string? Description,
+    Guid? ClientRequestId = null);
 
 public record UpdateTransactionRequest(
     Guid FinancialAccountId,

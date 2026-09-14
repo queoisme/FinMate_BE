@@ -67,6 +67,17 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
 
         builder.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+        builder.Property(t => t.ClientRequestId).HasColumnName("client_request_id");
+
+        // UNIQUE một phần: chỉ ràng buộc các dòng CÓ client_request_id, nếu không mọi giao
+        // dịch NULL sẽ đụng nhau. Đây mới là thứ chặn được hai request gửi lại CÙNG LÚC —
+        // kiểm tra ở tầng ứng dụng rồi mới ghi vẫn có khe hở giữa đọc và ghi, mà một hàng đợi
+        // offline thì bắn cả loạt song song.
+        builder.HasIndex(t => new { t.UserId, t.ClientRequestId })
+            .IsUnique()
+            .HasFilter("client_request_id IS NOT NULL")
+            .HasDatabaseName("uq_transactions_user_client_request_id");
         builder.Property(t => t.DeletedAt).HasColumnName("deleted_at");
 
         builder.HasQueryFilter(t => t.DeletedAt == null);

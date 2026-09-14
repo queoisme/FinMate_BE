@@ -20,6 +20,13 @@ public class TransactionRepository : ITransactionRepository
             .Include(t => t.Category)
             .Include(t => t.FinancialAccount)
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
+    public Task<Transaction?> GetByClientRequestIdAsync(
+        Guid userId, Guid clientRequestId, CancellationToken ct = default)
+        => _context.Transactions
+            .Include(t => t.Category)
+            .FirstOrDefaultAsync(
+                t => t.UserId == userId && t.ClientRequestId == clientRequestId, ct);
+
 
     public async Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default)
     {

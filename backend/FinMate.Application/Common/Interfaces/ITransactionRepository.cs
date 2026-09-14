@@ -19,6 +19,13 @@ public record TransactionListResult(IReadOnlyList<Transaction> Items, string? Ne
 public interface ITransactionRepository
 {
     Task<Transaction?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Giao dịch đã tạo từ chính lần gửi này, hoặc null. Lọc theo <paramref name="userId"/>
+    /// như mọi truy vấn khác — id do client sinh nên không thể tin nó là duy nhất toàn hệ thống.
+    /// </summary>
+    Task<Transaction?> GetByClientRequestIdAsync(
+        Guid userId, Guid clientRequestId, CancellationToken ct = default);
     Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default);
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);

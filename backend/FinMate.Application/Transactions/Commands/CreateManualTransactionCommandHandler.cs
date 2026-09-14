@@ -39,9 +39,21 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _validator = validator;
     }
 
-    public async Task<TransactionDto> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default)
+    public async Task<TransactionCreationResult> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default)
     {
         await _validator.ValidateAndThrowAsync(command, ct);
+
+        // Gửi lại thì trả về chính giao dịch cũ, không tạo thêm. Đây là chốt chặn cho hàng
+        // đợi offline ở docx mục "Mạng Offline" — xem Transaction.ClientRequestId.
+        if (command.ClientRequestId is { } clientRequestId)
+        {
+            var existing = await _transactionRepository.GetByClientRequestIdAsync(
+                command.UserId, clientRequestId, ct);
+            if (existing is not null)
+            {
+                return new TransactionCreationResult(TransactionMapper.ToDto(existing), AlreadyExisted: true);
+            }
+        }
 
         var account = await _financialAccountRepository.GetByIdAsync(command.FinancialAccountId, command.UserId, ct)
             ?? throw new NotFoundException("FinancialAccount", command.FinancialAccountId);
@@ -65,6 +77,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         var transaction = new Transaction
         {
             UserId = command.UserId,
+            ClientRequestId = command.ClientRequestId,
             FinancialAccountId = account.Id,
             CategoryId = category?.Id,
             AmountCents = command.AmountCents,
@@ -107,6 +120,6 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
 
-        return TransactionMapper.ToDto(transaction);
+        return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }
 }

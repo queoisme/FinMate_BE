@@ -4,5 +4,5 @@ namespace FinMate.Application.Transactions.Commands;
 
 public interface ICreateManualTransactionCommandHandler
 {
-    Task<TransactionDto> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default);
+    Task<TransactionCreationResult> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default);
 }
