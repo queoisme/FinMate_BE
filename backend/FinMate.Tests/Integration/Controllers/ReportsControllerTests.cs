@@ -236,6 +236,10 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
 
         data.SpentSoFarCents.Should().Be(0);
         data.ProjectedSpendCents.Should().Be(0);
+
+        // Đúng vào mọi ngày trong tháng, không chỉ trước mùng 14: xem ghi chú ở
+        // StatisticalSpendingForecaster về việc ngày trống không phải là bằng chứng.
+        data.BasedOnDays.Should().Be(0);
         data.Confidence.Should().Be("low");
     }
 

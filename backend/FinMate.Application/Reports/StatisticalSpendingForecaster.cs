@@ -61,7 +61,12 @@ public class StatisticalSpendingForecaster : ISpendingForecaster
             .Select(p => (double)p.SpentCents)
             .ToArray();
 
-        var basedOnDays = currentMonthSeries.Length + historySeries.Length;
+        // Ngày trống chỉ là bằng chứng khi người dùng THẬT SỰ có ghi chép. Với người chưa
+        // nhập giao dịch nào, chuỗi ngày-chi-0 ở trên dài đúng bằng số ngày đã qua trong
+        // tháng — nên tới ngày 14 hệ thống tự nhận "medium confidence" cho một dự báo dựng
+        // trên hư không, còn ngày 13 thì vẫn "low". Độ tin cậy phải phản ánh lượng dữ liệu,
+        // không phải tờ lịch.
+        var basedOnDays = points.Count == 0 ? 0 : currentMonthSeries.Length + historySeries.Length;
 
         double dailyRate;
         if (currentMonthSeries.Length >= MinDaysForCurrentMonthRunRate)

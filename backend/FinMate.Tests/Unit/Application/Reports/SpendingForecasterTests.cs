@@ -85,10 +85,11 @@ public class SpendingForecasterTests
     }
 
     [Theory]
-    [InlineData(0, "low")]      // chỉ 11 ngày của tháng hiện tại
-    [InlineData(9, "medium")]   // 11 + 9 = 20
-    [InlineData(49, "high")]    // 11 + 49 = 60
-    public async Task Forecast_ConfidenceTracksHowMuchDataItSaw(int historyDays, string expected)
+    [InlineData(0, 0, "low")]        // chưa ghi gì: 11 ngày trống KHÔNG phải 11 ngày bằng chứng
+    [InlineData(9, 20, "medium")]    // 11 ngày tháng này + 9 ngày lịch sử
+    [InlineData(49, 60, "high")]     // 11 + 49
+    public async Task Forecast_ConfidenceTracksHowMuchDataItSaw(
+        int historyDays, int expectedBasedOnDays, string expected)
     {
         SetupDays(Enumerable.Range(1, historyDays)
             .Select(i => Day(MonthFirst.AddDays(-i), 50_000))
@@ -96,7 +97,7 @@ public class SpendingForecasterTests
 
         var result = await _forecaster.ForecastCurrentMonthAsync(Guid.NewGuid());
 
-        result.BasedOnDays.Should().Be(DaysElapsed + historyDays);
+        result.BasedOnDays.Should().Be(expectedBasedOnDays);
         result.Confidence.Should().Be(expected);
     }
 
