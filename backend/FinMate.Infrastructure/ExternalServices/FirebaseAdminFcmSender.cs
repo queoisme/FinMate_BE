@@ -13,7 +13,11 @@ public partial class FirebaseAdminFcmSender : IFcmSender
     private const int BatchSize = 500;
 
     public async Task<IReadOnlyList<FcmSendOutcome>> SendAsync(
-        IReadOnlyList<string> tokens, string title, string body, CancellationToken ct = default)
+        IReadOnlyList<string> tokens,
+        string title,
+        string body,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken ct = default)
     {
         var outcomes = new List<FcmSendOutcome>(tokens.Count);
 
@@ -25,6 +29,7 @@ public partial class FirebaseAdminFcmSender : IFcmSender
                 // Tokens — SDK 3.6 đổi tên và đánh dấu Tokens là deprecated.
                 Fids = batch,
                 Notification = new Notification { Title = title, Body = body },
+                Data = data,
             };
 
             // SendEachForMulticast chứ không phải SendMulticast: bản "Each" gửi từng message

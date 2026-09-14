@@ -22,5 +22,9 @@ public record FcmSendOutcome(string Token, bool Delivered, bool TokenIsDead, str
 public interface IFcmSender
 {
     Task<IReadOnlyList<FcmSendOutcome>> SendAsync(
-        IReadOnlyList<string> tokens, string title, string body, CancellationToken ct = default);
+        IReadOnlyList<string> tokens,
+        string title,
+        string body,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken ct = default);
 }

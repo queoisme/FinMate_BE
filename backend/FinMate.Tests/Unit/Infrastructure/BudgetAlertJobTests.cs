@@ -74,7 +74,7 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         period.Alert70SentAt.Should().NotBeNull();
         period.Alert90SentAt.Should().BeNull();
@@ -90,12 +90,12 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         // Đã ở 92% thì cảnh báo "quá 70%" là thông điệp sai — không được bắn, kể cả ở lần chạy sau.
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         period.Alert70SentAt.Should().NotBeNull();
         period.Alert90SentAt.Should().NotBeNull();
@@ -111,15 +111,15 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         // Nhảy thẳng qua cả 3 mốc chỉ được gửi đúng 1 thông báo — mốc cao nhất.
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         period.Alert70SentAt.Should().NotBeNull();
         period.Alert90SentAt.Should().NotBeNull();
@@ -138,13 +138,13 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _push.Verify(p => p.NotifyAsync(
-            It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            It.IsAny<Guid>(), "Vượt hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -193,6 +193,7 @@ public class BudgetAlertJobTests
             userId,
             It.IsAny<string>(),
             It.Is<string>(body => body.Contains("toàn bộ chi tiêu")),
+            It.IsAny<IReadOnlyDictionary<string, string>?>(),
             It.IsAny<CancellationToken>()),
             Times.Once);
     }

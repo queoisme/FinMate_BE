@@ -42,7 +42,7 @@ public class FcmPushNotificationServiceTests
     private void SenderReturns(params FcmSendOutcome[] outcomes)
         => _sender
             .Setup(s => s.SendAsync(
-                It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(outcomes);
 
     private Task NotifyAsync() => _service.NotifyAsync(_userId, "Tiêu đề", "Nội dung", default);
@@ -61,7 +61,8 @@ public class FcmPushNotificationServiceTests
             It.Is<IReadOnlyList<string>>(t => t.Count == 2
                 && t.Contains("token-dien-thoai")
                 && t.Contains("token-may-tinh-bang")),
-            "Tiêu đề", "Nội dung", It.IsAny<CancellationToken>()), Times.Once);
+            "Tiêu đề", "Nội dung",
+            It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -158,7 +159,7 @@ public class FcmPushNotificationServiceTests
         Arrange(null, "con-song");
         _sender
             .Setup(s => s.SendAsync(
-                It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("FCM unreachable"));
 
         var act = NotifyAsync;

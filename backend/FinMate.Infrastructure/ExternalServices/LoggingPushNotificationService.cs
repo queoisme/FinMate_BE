@@ -15,9 +15,20 @@ public class LoggingPushNotificationService : IPushNotificationService
         _logger = logger;
     }
 
-    public Task NotifyAsync(Guid userId, string title, string body, CancellationToken ct = default)
+    public Task NotifyAsync(
+        Guid userId,
+        string title,
+        string body,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken ct = default)
     {
-        _logger.LogInformation("Would push notification to user {UserId}: {Title} — {Body}", userId, title, body);
+        // Ghi cả title/body ở đây là có chủ ý và CHỈ an toàn vì đây là bản log-only dành cho
+        // máy dev — xem FcmPushNotificationService để biết luật thật khi kênh gửi đã bật.
+        // Riêng `data` thì không: nó mang số tiền dưới dạng có thể bóc ra được bằng máy,
+        // và chỉ log KHOÁ để còn kiểm được client nhận đủ trường hay chưa.
+        _logger.LogInformation(
+            "Would push notification to user {UserId}: {Title} — {Body} [data: {DataKeys}]",
+            userId, title, body, data is null ? "none" : string.Join(",", data.Keys));
         return Task.CompletedTask;
     }
 }

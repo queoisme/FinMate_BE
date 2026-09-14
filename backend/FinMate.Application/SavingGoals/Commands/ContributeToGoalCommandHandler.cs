@@ -90,7 +90,7 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
                 command.UserId,
                 "Hoàn thành mục tiêu tiết kiệm",
                 $"Chúc mừng! Bạn đã hoàn thành mục tiêu \"{goal.Name}\".",
-                ct);
+                ct: ct);
         }
 
         // Mascot ăn mừng: item vừa mở khóa và việc lên level đi kèm trong response để client

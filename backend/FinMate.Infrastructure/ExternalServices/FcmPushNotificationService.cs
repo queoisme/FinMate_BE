@@ -31,7 +31,12 @@ public class FcmPushNotificationService : IPushNotificationService
         _logger = logger;
     }
 
-    public async Task NotifyAsync(Guid userId, string title, string body, CancellationToken ct = default)
+    public async Task NotifyAsync(
+        Guid userId,
+        string title,
+        string body,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken ct = default)
     {
         var user = await _userRepository.GetByIdAsync(userId, ct);
         if (user is null || !user.NotificationPrefs.PushEnabled)
@@ -50,7 +55,8 @@ public class FcmPushNotificationService : IPushNotificationService
         IReadOnlyList<FcmSendOutcome> outcomes;
         try
         {
-            outcomes = await _sender.SendAsync(tokens.Select(t => t.Token).ToList(), title, body, ct);
+            outcomes = await _sender.SendAsync(
+                tokens.Select(t => t.Token).ToList(), title, body, data, ct);
         }
         catch (Exception ex)
         {
@@ -69,8 +75,9 @@ public class FcmPushNotificationService : IPushNotificationService
         }
 
         // Chỉ ghi SỐ LƯỢNG và MÃ LỖI. Không token (là capability đẩy được thông báo xuống
-        // máy người khác) và không body (nhánh thông báo ngân hàng nhét số tiền vào đó —
-        // xem luật "không bao giờ log amount_cents" ở CLAUDE.md).
+        // máy người khác), không body và không data — cả hai đều mang số tiền (nhánh thông
+        // báo ngân hàng nhét nó vào body, nhánh xác nhận một chạm nhét vào data), xem luật
+        // "không bao giờ log amount_cents" ở CLAUDE.md.
         var delivered = outcomes.Count(o => o.Delivered);
         var reasons = outcomes
             .Where(o => !o.Delivered && o.FailureReason is not null)

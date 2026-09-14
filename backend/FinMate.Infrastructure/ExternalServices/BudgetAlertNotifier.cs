@@ -42,7 +42,7 @@ public class BudgetAlertNotifier : IBudgetAlertNotifier
             // (đã cache) và không endpoint nào mới thêm sau này có thể vô tình bỏ qua nó.
             if (await IsEnabledAsync(alert.UserId, ct))
             {
-                await _pushNotificationService.NotifyAsync(alert.UserId, alert.Title, alert.Body, ct);
+                await _pushNotificationService.NotifyAsync(alert.UserId, alert.Title, alert.Body, ct: ct);
             }
         }
     }

@@ -36,7 +36,7 @@ public class GoalDeadlineCheckJob
                     goal.UserId,
                     "Mục tiêu tiết kiệm quá hạn",
                     $"Mục tiêu \"{goal.Name}\" đã qua hạn hoàn thành. Bạn muốn gia hạn hay hủy?",
-                    ct);
+                    ct: ct);
             }
 
             // Đánh dấu kể cả khi user tắt push: đây là cờ chống nhắc lặp, không phải cờ đã gửi.
