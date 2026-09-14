@@ -1,4 +1,7 @@
 using FinMate.API.Authorization;
+using FinMate.API.Configuration;
+using FinMate.API.HealthChecks;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.Queries;
@@ -53,12 +56,27 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Host.UseSerilog((context, _, configuration) => configuration
-            .MinimumLevel.Is(context.HostingEnvironment.IsDevelopment() ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Information)
-            .Enrich.FromLogContext()
-            .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter())
-            .WriteTo.File(new Serilog.Formatting.Json.JsonFormatter(), "logs/finmate-api-.json",
-                rollingInterval: RollingInterval.Day));
+        builder.Host.UseSerilog((context, _, configuration) =>
+        {
+            configuration
+                .MinimumLevel.Is(context.HostingEnvironment.IsDevelopment()
+                    ? Serilog.Events.LogEventLevel.Debug
+                    : Serilog.Events.LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
+
+            // Sink file CHỈ ở Development. Trong container thì ghi log vào ổ đĩa riêng của nó
+            // là không ai đọc được và đầy dần cho tới khi hết chỗ; production thu log từ
+            // stdout. Còn một lý do cụ thể nữa: image chạy bằng user không đặc quyền và /app
+            // không cho user đó ghi.
+            if (context.HostingEnvironment.IsDevelopment())
+            {
+                configuration.WriteTo.File(
+                    new Serilog.Formatting.Json.JsonFormatter(),
+                    "logs/finmate-api-.json",
+                    rollingInterval: RollingInterval.Day);
+            }
+        });
 
         var databaseUrl = builder.Configuration["DATABASE_URL"]
             ?? throw new InvalidOperationException("DATABASE_URL is not configured.");
@@ -76,6 +94,16 @@ public class Program
             ?? throw new InvalidOperationException("AI_SERVICE_URL is not configured.");
         var aiServiceApiKey = builder.Configuration["AI_SERVICE_API_KEY"]
             ?? throw new InvalidOperationException("AI_SERVICE_API_KEY is not configured.");
+
+        // Ngoài Development, từ chối khởi động nếu còn bí mật mẫu — xem StartupSecretGuard.
+        if (!builder.Environment.IsDevelopment())
+        {
+            StartupSecretGuard.ThrowIfPlaceholdersRemain(
+                builder.Configuration, builder.Environment.EnvironmentName);
+        }
+
+        // Mặc định TRỐNG = không bật forwarded headers — xem TrustedProxies.
+        var trustedProxies = builder.Configuration["TRUSTED_PROXIES"];
 
         // Push thật là TUỲ CHỌN, không bắt buộc như các biến ở trên: không có credentials thì
         // chạy log-only. Bắt buộc ở đây sẽ chặn mọi máy dev và mọi integration test không có
@@ -320,6 +348,10 @@ public class Program
 
         builder.Services.AddFinMateRateLimiting(builder.Configuration);
 
+        builder.Services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("postgres")
+            .AddCheck<CacheHealthCheck>("redis");
+
         var app = builder.Build();
 
         // Nói thẳng ở dòng khởi động. Thiếu credentials trên production thì triệu chứng duy
@@ -340,6 +372,12 @@ public class Program
             FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MascotItemSeeder.SeedAsync(db).GetAwaiter().GetResult();
+        }
+
+        // TRƯỚC mọi middleware đọc IP hay scheme — nó viết lại chính hai thứ đó.
+        if (TrustedProxies.BuildOptions(trustedProxies) is { } forwardedHeaders)
+        {
+            app.UseForwardedHeaders(forwardedHeaders);
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -419,7 +457,16 @@ public class Program
             "1 17 * * *");
 
         app.MapControllers();
-        app.MapGet("/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
+        // Tách sống/sẵn-sàng vì hai bên hành động khác nhau: liveness hỏng thì khởi động lại
+        // container, readiness hỏng thì ngừng đẩy traffic vào. Gộp làm một là Postgres sập kéo
+        // theo cả đàn app restart vô ích, mà restart thì không cứu được Postgres.
+        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+            .AllowAnonymous();
+
+        app.MapHealthChecks("/health/ready").AllowAnonymous();
+
+        // Giữ /health cho thứ đang gọi nó; nay nó nói thật thay vì luôn trả "healthy".
+        app.MapHealthChecks("/health").AllowAnonymous();
 
         app.Run();
     }
