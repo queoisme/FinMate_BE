@@ -89,6 +89,7 @@ backend/
 │   │   ├── DevicesController.cs      # đăng ký/gỡ thiết bị nhận push (FCM)
 │   │   └── Admin/
 │   │       ├── AdminUsersController.cs
+│   │       ├── AdminDataDeletionController.cs   # giám sát hàng đợi xoá cứng
 │   │       ├── AdminProviderConfigsController.cs
 │   │       └── AdminMissionsController.cs
 │   ├── Middleware/

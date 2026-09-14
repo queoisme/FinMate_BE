@@ -525,6 +525,22 @@
 - [x] **Tự lùi về log-only khi thiếu credentials** — *Bắt buộc `FCM_CREDENTIALS_*` sẽ chặn mọi máy dev và mọi integration test không có Firebase project mà không bảo vệ được gì. Dòng log lúc khởi động nói rõ đang ở chế độ nào.*
 - *(Sửa kèm)* `StatisticalSpendingForecaster` tính `basedOnDays` bằng số ngày đã qua trong tháng kể cả khi người dùng chưa nhập giao dịch nào — nên từ mùng 14 trở đi, một dự báo dựng trên hư không tự nhận "medium confidence", còn mùng 13 thì vẫn "low". Lộ ra vì test chạy sang ngày hôm sau. Độ tin cậy phải phản ánh lượng dữ liệu, không phải tờ lịch.
 
+## Phase 13 — Đổi vai trò & giám sát yêu cầu xoá tài khoản
+
+> Hai lỗ hổng VẬN HÀNH của phần quản trị, không phải lệch docx — docx không có flow admin nào,
+> nên không có gì để đối chiếu và cũng không có gì báo là đang thiếu.
+
+- [x] **`PATCH /api/v1/admin/users/{id}/role`** — *Trước đó đường DUY NHẤT tạo admin là `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` đọc lúc khởi động; thêm admin thứ hai nghĩa là sửa env rồi khởi động lại cả service. Nhận VAI TRÒ mong muốn (không phải lệnh thăng/hạ) như `/lock`; gọi lại cùng giá trị thì không ghi audit.*
+- [x] **Chặn tự đổi vai trò của chính mình** — *Kể cả chiều THĂNG cũng chặn: một admin tự nâng quyền cho mình thì audit log mất hẳn ý nghĩa "ai trao quyền cho ai".*
+- [x] **Chặn hạ admin HOẠT ĐỘNG cuối cùng** — *Đếm `Role=Admin AND NOT IsLocked`; admin bị khoá không đăng nhập nổi nên không phải đường cứu. Verify cho thấy chốt này chỉ với tới được qua đúng một đường: admin vừa bị khoá nhưng access token còn hạn 15 phút — và đó chính là lúc nó cần nhất.*
+- [x] **Chặn thăng tài khoản đang chờ xoá** — *Trao quyền admin cho một tài khoản 30 ngày nữa bị xoá cứng là vô nghĩa.*
+- [x] **Hạ quyền thì thu hồi refresh token** — *Vai trò nằm TRONG access token và không tra lại DB mỗi request, nên hạ quyền không có hiệu lực ngay: token cũ vẫn ghi `Admin` tới hết TTL. Thu hồi refresh token kẹp cửa sổ leo thang đặc quyền ở đúng 15 phút. Thăng quyền KHÔNG thu hồi — `RefreshTokenCommandHandler` nạp lại user từ DB nên vai trò mới tự có ở lần refresh kế tiếp.*
+- [x] **`GET /api/v1/admin/data-deletion-requests`** — *Hàng đợi xoá cứng chạy 03:00 mỗi ngày bằng `ExecuteDeleteAsync` mà trước đó KHÔNG ai nhìn thấy. Trả kèm email/tên (join `IgnoreQueryFilters` vì họ đã soft delete) — không có email thì danh sách chỉ là một đống GUID. `daysUntilHardDelete` tính sẵn ở server: đó là con số quyết định có phải xử lý gấp không, để mỗi client tự trừ là mỗi nơi làm tròn một kiểu.*
+- [x] **`POST /api/v1/admin/data-deletion-requests/{id}/cancel`** — *Là đường cứu DUY NHẤT: `DeleteAccountCommandHandler` soft-delete người dùng ngay lúc họ gửi yêu cầu nên họ không đăng nhập lại được để tự huỷ. Huỷ phải đặt `user.DeletedAt = null` — thiếu bước đó thì yêu cầu biến khỏi hàng đợi nhưng người dùng vẫn không vào được, tức là huỷ mà không cứu được ai. Chặn huỷ khi đã `Processed`: dữ liệu không còn để khôi phục, nói thẳng thay vì giả vờ thành công.*
+- [x] **Migration `AllowCancellingDataDeletion`** — *CHECK constraint `status IN ('pending','processed')` phải mở cho `'cancelled'`. `ProcessedAt` đổi Ý NGHĨA chứ không thêm cột: "lúc yêu cầu thôi ở trạng thái chờ", `Status` nói theo hướng nào — hai cột thời gian cho hai kết cục loại trừ nhau chỉ tổ phải nhớ đọc cột nào.*
+- [x] **`AdminUserSeeder` sửa lại tài khoản seed, không chỉ tạo mới** — *Phát hiện khi verify thủ công, không test nào bắt được: seeder chỉ hỏi "email này có chưa", nên admin seed bị hạ quyền thì sửa env + khởi động lại cũng KHÔNG cứu được gì — đường cứu duy nhất chỉ tồn tại trên giấy. Nay mỗi lần khởi động bảo đảm nó thực sự dùng được (đúng vai trò, không bị khoá, không chờ xoá). Mật khẩu không đặt lại: đổi mật khẩu admin là chuyện bình thường, ghi đè mỗi lần khởi động sẽ âm thầm trả nó về giá trị trong env.*
+- *(Chốt với user)* **Không** làm nút xoá cứng ngay: giám sát nghĩa là nhìn thấy và ngăn được, còn một nút xoá tức thì là bấm nhầm một lần mất sạch dữ liệu. **Không** báo cho người dùng khi huỷ: họ đang soft delete nên không thiết bị nào còn token hoạt động, mà hệ thống chưa có kênh email.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -562,7 +578,8 @@
 | Phase 10 — Đối chiếu Core User Flows | `[x]` | 21 / 22 *(#1, #2, #4 xong; 1 task `[-]` Skipped: OTP)* |
 | Phase 11 — Đối chiếu lại Flow 1 & 2 | `[x]` | 7 / 7 |
 | Phase 12 — Push thật qua FCM | `[x]` | 9 / 9 |
-| **Total** | | **275 / 277** |
+| Phase 13 — Quản trị người dùng | `[x]` | 9 / 9 |
+| **Total** | | **284 / 286** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -669,3 +686,14 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 - **Có credentials** (service-account tự sinh bằng openssl, dùng xong xoá): log `"Push notifications: FCM enabled."` — chứng minh `CredentialFactory` parse được và DI đã đổi sang `FcmPushNotificationService`. Rồi cho một giao dịch chạm mốc 70% với project giả: **giao dịch vẫn 201 và vẫn được lưu**, log ra `Warning ... reached no device across 1 token(s); FCM said Unknown (Google.Apis.Auth.OAuth2.Responses.TokenResponseException)`, token **không** bị xoá (lỗi xác thực là tạm thời, không phải token chết), và grep toàn bộ log không thấy token xuất hiện lần nào.
 
 **Điều học được khi verify, đã đổi thiết kế theo:** FCM **không ném exception** khi sai credentials — nó trả `BatchResponse` với lỗi theo TỪNG token, `ErrorCode = Unknown`, `MessagingErrorCode = null`, `InnerException = null`, và nhét exception gốc vào phần đầu `Message`. Bản đầu chỉ ghi `Information: 0 delivered, 0 pruned` — đúng loại hỏng im lặng đắt nhất để truy. Bản sau nâng lên `Warning` và lấy tên kiểu ở đầu `Message`, có 4 test ghim lại việc **không bao giờ** lấy phần còn lại của `Message` (khi lỗi thuộc về chính token thì FCM nhắc lại token trong đó).
+
+**Verify Phase 13 (2026-09-14):** `dotnet build` sạch 0 warning; `dotnet test` xanh **449/449**; `has-pending-model-changes` sạch sau migration `AllowCancellingDataDeletion`. Smoke test curl trên `docker compose` thật:
+
+1. **Thăng quyền có hiệu lực.** User thường gọi `/admin/users` → 403; admin `PATCH .../role` thành `Admin`; user **đăng nhập lại** → 200. (Phải đăng nhập lại vì vai trò nằm trong access token.)
+2. **Tự đổi vai trò bị chặn** → `ADMIN_CANNOT_CHANGE_OWN_ROLE`. Gọi `PATCH /role` với đúng giá trị đang có → 200 và **không** thêm dòng audit nào.
+3. **Chốt "admin cuối cùng" chỉ với tới được qua đúng một đường**, và verify chứng minh nó cần thật: admin bị khoá vẫn cầm access token còn hạn 15 phút, dùng token đó hạ admin hoạt động cuối cùng → `ADMIN_CANNOT_DEMOTE_LAST_ADMIN`, vai trò giữ nguyên. Nếu không có chốt, đúng cửa sổ 15 phút đó là khoá được toàn bộ hệ thống ra ngoài.
+4. **Hàng đợi xoá.** User `DELETE /auth/account` → 204, đăng nhập lại **401** (không tự huỷ được — chính là lý do phải có admin). Admin thấy dòng đó với `email`, `status: Pending`, `daysUntilHardDelete: 30`.
+5. **Huỷ cứu được người dùng.** `POST .../cancel` → `Cancelled` kèm `processedAt`; user **đăng nhập lại 200**. Huỷ lần hai → 200, vẫn `Cancelled`, không audit thêm.
+6. **Audit + phân quyền.** `/admin/audit-logs` có `Admin.User.RoleChanged` (kèm `from`/`to`/`reason`) và `Admin.DataDeletionRequest.Cancelled`. Cả ba endpoint mới trả **403** với user thường.
+
+**Điều verify dạy được, đã sửa theo:** plan ghi đường cứu khi mất hết admin là "sửa env + khởi động lại" — **đường đó không có thật**. `AdminUserSeeder` chỉ hỏi "email này có chưa" rồi bỏ qua, nên admin seed bị hạ quyền thì restart bao nhiêu lần cũng vô ích. Đã sửa seeder thành bảo đảm tài khoản seed thực sự dùng được mỗi lần khởi động, và kiểm chứng bằng restart thật: `role=user` → restart → `role=admin`, đăng nhập 200. Bốn test tích hợp ghim lại (kể cả việc **không** đặt lại mật khẩu).
