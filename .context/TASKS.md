@@ -604,6 +604,23 @@
 - [x] **`REQUIRE_EMAIL_VERIFICATION` bật/tắt được** — *Mặc định BẬT. `AuthApiFactory` tắt vì **23 file test** gọi `auth/register` rồi đăng nhập ngay; bắt tất cả diễn lại màn OTP chỉ tạo nhiễu. `OtpAuthControllerTests` bật lại cờ trong phạm vi riêng bằng `WithWebHostBuilder` — không đụng biến môi trường dùng chung, vì cả bộ test tích hợp nằm chung một tiến trình.*
 - *(Kèm theo)* Google login đặt luôn `email_verified_at` ở cả hai nhánh (liên kết tài khoản sẵn có và tạo mới) — Google đã xác minh hộ rồi, bắt làm lại là bắt làm lại đúng việc vừa xong. `BREVO_API_KEY` thêm vào `StartupSecretGuard` của Phase 16.
 
+## Phase 18 — Google login qua trình duyệt nhúng (không cần SHA-1)
+
+> Google login **đang hỏng**: `GOOGLE_CLIENT_ID` còn là `change-me-...` nên mọi token thật đều
+> trượt kiểm `Audience`, mà 520 test không bắt được vì `AuthApiFactory` thay verifier bằng bản
+> giả. Đường native còn đòi app đăng ký package name + SHA-1 — chưa có dự án Flutter dựng xong
+> lẫn keystore từ đội mobile.
+
+- [x] **`GET /auth/google/start`** — *302 sang `accounts.google.com` kèm `state`. `prompt=select_account` để Google luôn hiện màn chọn tài khoản: trên máy dùng chung, im lặng đăng nhập lại người trước là một bất ngờ khó chịu.*
+- [x] **`state` chống giả mạo, dùng một lần** — *Thiếu nó thì kẻ tấn công dựng được callback bằng `code` của CHÚNG, khiến nạn nhân đăng nhập vào tài khoản Google của kẻ tấn công mà không biết. Lưu Redis, TTL 10 phút, huỷ ngay khi dùng.*
+- [x] **`GET /auth/google/callback`** — *Đổi code lấy `id_token` rồi **đưa thẳng vào `IGoogleLoginCommandHandler` đã có**. Toàn bộ phần tra/tạo người dùng và phát JWT không viết lại một dòng.*
+- [x] **Mã bàn giao thay vì token trong URL** — *Redirect chỉ mang một mã dùng một lần, TTL 2 phút. Nhét token thẳng vào deep link là để chúng rơi vào lịch sử trình duyệt, và trên Android **app khác đăng ký trùng scheme sẽ nhận được cùng đường link** — refresh token sống 30 ngày mà lọt kiểu đó là mất tài khoản. Có test ghim việc URL không bao giờ chứa `accessToken`/`refreshToken`/`eyJ`.*
+- [x] **`POST /auth/google/exchange`** — *App đổi mã lấy `AuthResultDto`, đúng khuôn `ApiResponse` như mọi API khác.*
+- [x] **Chế độ thử không cần app** — *`MOBILE_DEEP_LINK` trống → callback hiện mã ra một trang HTML tối giản. Đây là thứ khiến kiểm chứng được TOÀN BỘ luồng bằng trình duyệt máy tính, không cần Flutter, không cần SHA-1, không đợi đội mobile.*
+- [x] **Thiếu cấu hình thì tắt, không sập** — *Đo thật: `/start` trả **422** kèm `AUTH_GOOGLE_OAUTH_NOT_CONFIGURED`, không phải 500, và `POST /auth/google` (đường native) vẫn chạy. Cùng khuôn với FCM và Brevo.*
+- [x] **`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` vào `StartupSecretGuard`** — *Trước đó `GOOGLE_CLIENT_ID` **không** nằm trong danh sách, nên deploy với `change-me-...` thì app vẫn khởi động bình thường và Google login hỏng im lặng cho tới khi có người thật bấm nút — đúng loại hỏng mà chốt chặn đó sinh ra để chặn.*
+- *(Giữ nguyên)* `POST /auth/google` không bỏ. Nó không vướng gì, và khi đội Flutter muốn dùng đường native thì đã có sẵn.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -646,7 +663,8 @@
 | Phase 15 — Nhánh 85% của Flow 1 | `[x]` | 8 / 8 |
 | Phase 16 — Sẵn sàng production | `[x]` | 8 / 8 |
 | Phase 17 — OTP qua email | `[x]` | 9 / 9 |
-| **Total** | | **318 / 320** |
+| Phase 18 — Google login qua trình duyệt | `[x]` | 8 / 8 |
+| **Total** | | **326 / 328** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -814,3 +832,13 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 Lỗi này cũng lộ ra một chỗ log chưa đủ tốt: `BrevoEmailSender` chỉ ghi `HTTP 401` nên phải gọi tay sang Brevo mới biết lý do. Nguyên do là tôi cố ý không ghi body phản hồi — ở nhánh THÀNH CÔNG Brevo dội lại payload, mà payload là nội dung email nên chứa cả mã OTP. Nhưng phản hồi LỖI chỉ có `code` và `message`, nên nay bóc đúng hai trường đó theo TÊN, không ghi nguyên body: cách này vẫn an toàn kể cả nếu Brevo đổi và dội payload kèm trong phản hồi lỗi. Có 8 test ghim lại, trong đó một test đưa hẳn mã OTP giả vào body lỗi để chắc nó không lọt ra.
 
 **Chuyện xảy ra khi verify, đáng ghi lại:** giữa chừng mọi request trả **429**. Không phải lỗi — chính rate limit `auth` 10/phút của Phase 14 đang làm đúng việc, và tôi đã đốt hết hạn mức bằng các phép thử trước đó. Phải chờ cửa sổ trôi qua rồi chạy lại. Đây cũng là bằng chứng phụ rằng hai phase gắn đúng vào nhau.
+
+**Verify Phase 18 (2026-09-15):** `dotnet build` sạch 0 warning; `dotnet test` xanh **537/537**. Không đổi schema. Trên `docker compose` thật (chưa đặt `GOOGLE_CLIENT_SECRET`):
+
+1. Log khởi động: `"Google OAuth (browser flow): GOOGLE_CLIENT_SECRET/REDIRECT_URI absent, disabled."`
+2. `GET /auth/google/start` → **422** `AUTH_GOOGLE_OAUTH_NOT_CONFIGURED` — nói rõ, **không phải 500**.
+3. `POST /auth/google` (đường native) → 401 với token giả, tức là **vẫn sống**.
+
+Phần chạy với tài khoản Google thật cần user tạo client secret và khai Redirect URI; 10 test tích hợp đã phủ toàn bộ luồng bằng bộ đổi-code giả, gồm cả ca state giả mạo, state phát lại, huỷ ở màn Google, và mã bàn giao dùng lần hai.
+
+**Điều thực nghiệm dạy được:** ASP.NET chuẩn hoá URI redirect nên `finmate://auth?code=…` ra thành `finmate://auth/?code=…` (thêm một dấu gạch chéo). Vô hại với intent filter của Android vì nó khớp theo scheme + host, nhưng đã ghi vào test để phía Flutter không mất thời gian truy khi thấy đường link khác chuỗi cấu hình.

@@ -317,6 +317,12 @@ BREVO_SENDER_NAME=FinMate
 
 # Chặn đăng nhập khi email chưa xác minh. Mặc định BẬT; AuthApiFactory đặt false cho bộ test.
 REQUIRE_EMAIL_VERIFICATION=
+
+# Google OAuth qua trình duyệt nhúng — TUỲ CHỌN. Thiếu thì chỉ 3 endpoint /auth/google/* tắt,
+# POST /auth/google (đường native) vẫn chạy. GOOGLE_CLIENT_ID phải là client loại **Web**.
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
+MOBILE_DEEP_LINK=finmate://auth   # trống = callback hiện mã ra trang HTML để thử không cần app
 ```
 
 **AI Service (.env):**
