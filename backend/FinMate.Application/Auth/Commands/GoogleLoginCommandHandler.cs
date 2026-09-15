@@ -82,6 +82,10 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
             // email, so it's safe to auto-link rather than forcing a separate manual-link flow.
             byEmail.GoogleId = googleUser.Sub;
             byEmail.UpdatedAt = DateTimeOffset.UtcNow;
+
+            // Google đã xác minh quyền sở hữu email (kiểm ở đầu handler), nên bắt người dùng
+            // xác minh lại bằng OTP là bắt họ làm lại đúng việc vừa xong.
+            byEmail.EmailVerifiedAt ??= byEmail.UpdatedAt;
             await _userRepository.UpdateAsync(byEmail, ct);
             await _auditLogService.LogAsync(AuditEvents.GoogleLinked, byEmail.Id, ct: ct);
             return byEmail;
@@ -95,6 +99,9 @@ public class GoogleLoginCommandHandler : IGoogleLoginCommandHandler
             GoogleId = googleUser.Sub,
             DisplayName = string.IsNullOrWhiteSpace(googleUser.Name) ? googleUser.Email.Split('@')[0] : googleUser.Name,
             Role = UserRole.User,
+
+            // Tài khoản sinh ra từ Google thì email đã xác minh ngay từ đầu.
+            EmailVerifiedAt = now,
             CreatedAt = now,
             UpdatedAt = now,
         };

@@ -15,6 +15,7 @@ public class LoginCommandHandler : ILoginCommandHandler
     private readonly ITokenService _tokenService;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<LoginCommand> _validator;
+    private readonly bool _requireEmailVerification;
 
     public LoginCommandHandler(
         IUserRepository userRepository,
@@ -22,8 +23,10 @@ public class LoginCommandHandler : ILoginCommandHandler
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         IAuditLogService auditLogService,
+        AuthOptions authOptions,
         IValidator<LoginCommand> validator)
     {
+        _requireEmailVerification = authOptions.RequireEmailVerification;
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _passwordHasher = passwordHasher;
@@ -43,6 +46,15 @@ public class LoginCommandHandler : ILoginCommandHandler
             await _auditLogService.LogAsync(
                 AuditEvents.LoginFailed, user?.Id, command.IpAddress, new { command.Email }, ct);
             throw new AuthenticationException(AuthErrorCodes.InvalidCredentials, "Email hoặc mật khẩu không đúng.");
+        }
+
+        if (_requireEmailVerification && user.EmailVerifiedAt is null)
+        {
+            await _auditLogService.LogAsync(
+                AuditEvents.LoginFailed, user.Id, command.IpAddress, new { reason = "email_not_verified" }, ct);
+            throw new AuthenticationException(
+                AuthErrorCodes.EmailNotVerified,
+                "Email chưa được xác minh. Vui lòng kiểm tra hộp thư để lấy mã xác minh.");
         }
 
         if (user.IsLocked)

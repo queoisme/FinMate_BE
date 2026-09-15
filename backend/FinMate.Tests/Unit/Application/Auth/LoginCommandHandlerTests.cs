@@ -1,3 +1,4 @@
+using FinMate.Application.Auth;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -25,6 +26,9 @@ public class LoginCommandHandlerTests
             _passwordHasher.Object,
             _tokenService.Object,
             _auditLogService.Object,
+            // Các test ở đây kiểm mật khẩu và khoá tài khoản, không kiểm xác minh email —
+            // EmailVerificationGateTests mới là chỗ kiểm cổng đó.
+            new AuthOptions(RequireEmailVerification: false),
             new LoginCommandValidator());
     }
 
