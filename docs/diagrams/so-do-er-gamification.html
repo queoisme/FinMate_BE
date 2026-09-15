@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ đồ ER — gamification</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      line-height: 1.15;
+      margin-bottom: 0.5rem;
+    }
+    .sub {
+      font-size: 0.85rem;
+      color: var(--color-muted);
+      margin-bottom: 1.75rem;
+      max-width: 60ch;
+    }
+    svg { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">FinMate · Mô hình dữ liệu · 3/5</p>
+    <h1>Sơ đồ ER — gamification</h1>
+    <p class="sub">Cấp độ, điểm kinh nghiệm và chuỗi ngày của người dùng, cùng hai cặp bảng danh mục–tiến độ: nhiệm vụ và vật phẩm của Mascot.</p>
+
+    <svg viewBox="0 0 984 776" role="img" aria-labelledby="er-gm-title er-gm-desc" xmlns="http://www.w3.org/2000/svg">
+      <title id="er-gm-title">Sơ đồ ER nhóm gamification của FinMate</title>
+      <desc id="er-gm-desc">Mỗi người dùng có đúng một bản ghi gamification giữ cấp độ, điểm kinh nghiệm và chuỗi ngày hoạt động. Hai bảng danh mục dùng chung cho mọi người dùng là nhiệm vụ và vật phẩm Mascot; mỗi bảng có một bảng tiến độ riêng ghi lại người dùng nào đã hoàn thành hay mở khoá cái gì. Hai bảng tiến độ đó lưu mã người dùng nhưng không khai khoá ngoại tới bảng người dùng.</desc>
+
+      <defs>
+        <marker id="er-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ====================== QUAN HỆ ====================== -->
+
+      <!-- R1. users 1—1 user_gamification -->
+      <path d="M 248,324 H 304 Q 312,324 312,316 V 176 Q 312,168 320,168 H 344"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="258" y="317" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="320" y="162" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+
+      <!-- R2. users ⋯ user_missions (không có khoá ngoại) -->
+      <line x1="248" y1="364" x2="344" y2="364" stroke="#4f5d75" stroke-width="1.2"
+            stroke-dasharray="2,4" marker-end="url(#er-arrow)"/>
+      <text x="258" y="357" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="328" y="357" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R3. users ⋯ user_mascot_items (không có khoá ngoại) -->
+      <path d="M 144,414 V 568 Q 144,576 152,576 H 344"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="2,4" marker-end="url(#er-arrow)"/>
+      <text x="150" y="432" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="328" y="569" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R4. missions 1—N user_missions -->
+      <line x1="672" y1="400" x2="608" y2="400" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="662" y="393" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end">1</text>
+      <text x="618" y="393" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R5. mascot_items 1—N user_mascot_items -->
+      <line x1="672" y1="560" x2="608" y2="560" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="662" y="553" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end">1</text>
+      <text x="618" y="553" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- ====================== THỰC THỂ ====================== -->
+
+      <!-- users (đã vẽ ở sơ đồ lõi) -->
+      <rect x="48" y="300" width="200" height="114" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="300" width="200" height="114" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <line x1="48" y1="330" x2="248" y2="330" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="60" y="321" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">users</text>
+      <text x="60" y="348" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="60" y="366" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">email</text>
+      <text x="60" y="384" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">display_name</text>
+      <text x="60" y="402" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">created_at</text>
+
+      <!-- user_gamification — THỰC THỂ TRUNG TÂM -->
+      <rect x="344" y="88" width="264" height="150" rx="6" fill="#f5f5f5"/>
+      <rect x="344" y="88" width="264" height="150" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <line x1="344" y1="118" x2="608" y2="118" stroke="rgba(235,108,54,0.30)" stroke-width="0.8"/>
+      <text x="356" y="109" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">user_gamification</text>
+      <text x="356" y="136" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="356" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ user_id · UNIQUE</text>
+      <text x="356" y="172" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">level</text>
+      <text x="356" y="190" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">exp_points</text>
+      <text x="356" y="208" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">current_streak_days</text>
+      <text x="356" y="226" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">longest_streak_days</text>
+
+      <!-- user_missions -->
+      <rect x="344" y="300" width="264" height="150" rx="6" fill="#f5f5f5"/>
+      <rect x="344" y="300" width="264" height="150" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="344" y1="330" x2="608" y2="330" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="356" y="321" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">user_missions</text>
+      <text x="356" y="348" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="356" y="366" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">user_id</text>
+      <text x="356" y="384" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ mission_id</text>
+      <text x="356" y="402" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">period_start</text>
+      <text x="356" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">progress</text>
+      <text x="356" y="438" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">is_completed</text>
+
+      <!-- missions -->
+      <rect x="672" y="300" width="264" height="150" rx="6" fill="#f5f5f5"/>
+      <rect x="672" y="300" width="264" height="150" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="672" y1="330" x2="936" y2="330" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="684" y="321" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">missions</text>
+      <text x="684" y="348" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="684" y="366" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">code · UNIQUE</text>
+      <text x="684" y="384" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">period_type</text>
+      <text x="684" y="402" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">condition_type</text>
+      <text x="684" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">condition_target</text>
+      <text x="684" y="438" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">exp_reward</text>
+
+      <!-- user_mascot_items -->
+      <rect x="344" y="512" width="264" height="132" rx="6" fill="#f5f5f5"/>
+      <rect x="344" y="512" width="264" height="132" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="344" y1="542" x2="608" y2="542" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="356" y="533" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">user_mascot_items</text>
+      <text x="356" y="560" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="356" y="578" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">user_id</text>
+      <text x="356" y="596" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ mascot_item_id</text>
+      <text x="356" y="614" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">item_type</text>
+      <text x="356" y="632" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">is_equipped</text>
+
+      <!-- mascot_items -->
+      <rect x="672" y="512" width="264" height="132" rx="6" fill="#f5f5f5"/>
+      <rect x="672" y="512" width="264" height="132" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="672" y1="542" x2="936" y2="542" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="684" y="533" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">mascot_items</text>
+      <text x="684" y="560" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="684" y="578" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">code · UNIQUE</text>
+      <text x="684" y="596" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">item_type</text>
+      <text x="684" y="614" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">unlock_type</text>
+      <text x="684" y="632" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">unlock_level</text>
+
+      <!-- ====================== GHI CHÚ BIÊN TẬP ====================== -->
+      <line x1="48" y1="134" x2="48" y2="208" stroke="#eb6c36" stroke-width="1.5"/>
+      <text x="62" y="148" fill="#2d3142" font-size="13" font-style="italic" font-family="'Instrument Serif', serif">user_missions và user_mascot_items lưu</text>
+      <text x="62" y="166" fill="#2d3142" font-size="13" font-style="italic" font-family="'Instrument Serif', serif">user_id nhưng không khai khoá ngoại.</text>
+      <text x="62" y="184" fill="#2d3142" font-size="13" font-style="italic" font-family="'Instrument Serif', serif">Xoá vĩnh viễn một tài khoản để lại hai</text>
+      <text x="62" y="202" fill="#2d3142" font-size="13" font-style="italic" font-family="'Instrument Serif', serif">bảng này mồ côi trong cơ sở dữ liệu.</text>
+
+      <!-- ====================== CHÚ GIẢI ====================== -->
+      <line x1="40" y1="692" x2="944" y2="692" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="714" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.14em">CHÚ GIẢI</text>
+
+      <text x="152" y="714" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">#</text>
+      <text x="168" y="714" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá chính</text>
+
+      <text x="272" y="714" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→</text>
+      <text x="288" y="714" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá ngoại</text>
+
+      <text x="400" y="714" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace">1 · N</text>
+      <text x="444" y="714" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">bản số quan hệ</text>
+
+      <rect x="152" y="729" width="16" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="176" y="738" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">trọng tâm sơ đồ</text>
+
+      <rect x="304" y="729" width="16" height="10" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="328" y="738" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">bảng đã vẽ ở sơ đồ lõi</text>
+
+      <line x1="496" y1="734" x2="528" y2="734" stroke="#4f5d75" stroke-width="1.2"/>
+      <text x="536" y="738" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá ngoại thật</text>
+
+      <line x1="656" y1="734" x2="688" y2="734" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="2,4"/>
+      <text x="696" y="738" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">liên kết logic, không có khoá ngoại</text>
+    </svg>
+  </div>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiến trúc hệ thống FinMate</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      line-height: 1.15;
+      margin-bottom: 1.75rem;
+    }
+    svg { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">FinMate · Đồ án tốt nghiệp</p>
+    <h1>Kiến trúc hệ thống</h1>
+
+    <svg viewBox="0 0 1280 720" role="img" aria-labelledby="finmate-architecture-title finmate-architecture-desc" xmlns="http://www.w3.org/2000/svg">
+      <title id="finmate-architecture-title">Kiến trúc hệ thống FinMate</title>
+      <desc id="finmate-architecture-desc">Sơ đồ kiến trúc cho thấy ứng dụng Flutter gọi vào Backend API, Backend gọi AI Service để bóc tách giao dịch từ thông báo ngân hàng, mỗi dịch vụ dùng cơ sở dữ liệu PostgreSQL riêng, Redis phục vụ cache và mã OTP, và Backend gọi ba dịch vụ ngoài là Firebase Cloud Messaging, Brevo và Google OAuth; thông báo đẩy đi thẳng từ Firebase xuống điện thoại.</desc>
+
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+        </marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ============ ZONES (vẽ trước arrows và nodes) ============ -->
+      <rect x="440" y="80" width="624" height="112" rx="8"
+            fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="668" y="84" width="168" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="752" y="93" fill="rgba(45,49,66,0.40)" font-size="7"
+            font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">DỊCH VỤ NGOÀI</text>
+
+      <rect x="284" y="240" width="584" height="296" rx="8"
+            fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="484" y="244" width="184" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="576" y="253" fill="rgba(45,49,66,0.40)" font-size="7"
+            font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">MÁY CHỦ FINMATE</text>
+
+      <!-- ============ ARROWS (trước boxes để z-order đúng) ============ -->
+
+      <!-- 1. Flutter -> Backend -->
+      <line x1="224" y1="312" x2="316" y2="312" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <rect x="248" y="292" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="266" y="301" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">HTTPS</text>
+
+      <!-- 2. Backend -> AI Service -->
+      <line x1="516" y1="312" x2="620" y2="312" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <rect x="546" y="292" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="564" y="301" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">REST</text>
+
+      <!-- 3. Backend -> postgres-main -->
+      <line x1="384" y1="352" x2="384" y2="440" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="394" y="386" width="28" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="398" y="395" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.06em">SQL</text>
+
+      <!-- 4. Backend -> Redis -->
+      <path d="M 448,352 V 388 Q 448,396 456,396 H 572 Q 580,396 580,404 V 440"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="490" y="376" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="514" y="385" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">CACHE</text>
+
+      <!-- 5. AI Service -> postgres-ai -->
+      <line x1="764" y1="352" x2="764" y2="440" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="774" y="386" width="28" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="778" y="395" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.06em">SQL</text>
+
+      <!-- 6. Backend -> FCM -->
+      <path d="M 366,272 V 208 Q 366,200 374,200 H 536 Q 544,200 544,192 V 176"
+            fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <rect x="437" y="178" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="455" y="187" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">PUSH</text>
+
+      <!-- 7. Backend -> Brevo -->
+      <path d="M 416,272 V 220 Q 416,212 424,212 H 744 Q 752,212 752,204 V 176"
+            fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <rect x="562" y="190" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="584" y="199" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">EMAIL</text>
+
+      <!-- 8. Backend -> Google OAuth -->
+      <path d="M 466,272 V 232 Q 466,224 474,224 H 952 Q 960,224 960,216 V 176"
+            fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <rect x="691" y="202" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="713" y="211" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">OAUTH</text>
+
+      <!-- 9. FCM -> Flutter (đẩy thẳng xuống máy, không qua backend) -->
+      <path d="M 472,140 H 156 Q 148,140 148,148 V 272"
+            fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="276" y="118" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="310" y="127" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">THÔNG BÁO</text>
+
+      <!-- ============ NODES ============ -->
+
+      <!-- Flutter app -->
+      <rect x="72" y="272" width="152" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="72" y="272" width="152" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="80" y="278" width="34" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+      <text x="97" y="287" fill="rgba(122,131,153,0.85)" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">APP</text>
+      <text x="148" y="316" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Ứng dụng Flutter</text>
+      <text x="148" y="334" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">android</text>
+
+      <!-- Backend API — FOCAL -->
+      <rect x="316" y="272" width="200" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="316" y="272" width="200" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="324" y="278" width="30" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="339" y="287" fill="rgba(235,108,54,0.90)" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">API</text>
+      <text x="416" y="316" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Backend API</text>
+      <text x="416" y="334" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">asp.net 9 · hangfire×8</text>
+
+      <!-- AI Service — FOCAL -->
+      <rect x="620" y="272" width="180" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="620" y="272" width="180" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="628" y="278" width="26" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="641" y="287" fill="rgba(235,108,54,0.90)" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">AI</text>
+      <text x="710" y="316" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">AI Service</text>
+      <text x="710" y="334" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">fastapi · ocr · nlp</text>
+
+      <!-- postgres-main -->
+      <rect x="316" y="440" width="160" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="316" y="440" width="160" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="396" y="470" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">CSDL nghiệp vụ</text>
+      <text x="396" y="488" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">postgres · 20 bảng</text>
+
+      <!-- Redis -->
+      <rect x="512" y="440" width="136" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="512" y="440" width="136" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="580" y="470" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Redis</text>
+      <text x="580" y="488" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">cache · otp</text>
+
+      <!-- postgres-ai -->
+      <rect x="684" y="440" width="160" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="684" y="440" width="160" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="764" y="470" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">CSDL AI</text>
+      <text x="764" y="488" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">postgres · 12 bảng</text>
+
+      <!-- FCM -->
+      <rect x="472" y="112" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="472" y="112" width="144" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="544" y="142" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Firebase FCM</text>
+      <text x="544" y="160" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">thông báo đẩy</text>
+
+      <!-- Brevo -->
+      <rect x="680" y="112" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="680" y="112" width="144" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="752" y="142" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Brevo</text>
+      <text x="752" y="160" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">email otp</text>
+
+      <!-- Google OAuth -->
+      <rect x="888" y="112" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="888" y="112" width="144" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="960" y="142" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', sans-serif" text-anchor="middle">Google OAuth</text>
+      <text x="960" y="160" fill="#4f5d75" font-size="9"
+            font-family="'Geist Mono', monospace" text-anchor="middle">đăng nhập</text>
+
+      <!-- ============ LEGEND ============ -->
+      <line x1="40" y1="612" x2="1240" y2="612" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="632" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.14em">CHÚ GIẢI</text>
+
+      <rect x="152" y="623" width="16" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="176" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Tự phát triển</text>
+
+      <rect x="312" y="623" width="16" height="10" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="336" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Lưu trữ</text>
+
+      <rect x="448" y="623" width="16" height="10" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="472" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Dịch vụ bên thứ ba</text>
+
+      <line x1="624" y1="628" x2="656" y2="628" stroke="#2e5aa8" stroke-width="1.2"/>
+      <text x="664" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Gọi ra Internet</text>
+
+      <line x1="792" y1="628" x2="824" y2="628" stroke="#4f5d75" stroke-width="1.2"/>
+      <text x="832" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Nội bộ</text>
+
+      <line x1="928" y1="628" x2="960" y2="628" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="968" y="632" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Đẩy về thiết bị</text>
+    </svg>
+  </div>
+</body>
+</html>

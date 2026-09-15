@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ đồ ER — nhóm nghiệp vụ lõi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      line-height: 1.15;
+      margin-bottom: 0.5rem;
+    }
+    .sub {
+      font-size: 0.85rem;
+      color: var(--color-muted);
+      margin-bottom: 1.75rem;
+      max-width: 60ch;
+    }
+    svg { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">FinMate · Mô hình dữ liệu</p>
+    <h1>Sơ đồ ER — nhóm nghiệp vụ lõi</h1>
+    <p class="sub">Bảy thực thể trên đường đi của Core Flow 1 và Flow 2: từ cấu hình ứng dụng ngân hàng, qua thông báo thu được và kết quả AI bóc tách, tới giao dịch chính thức.</p>
+
+    <svg viewBox="0 0 1280 760" role="img" aria-labelledby="er-loi-title er-loi-desc" xmlns="http://www.w3.org/2000/svg">
+      <title id="er-loi-title">Sơ đồ ER nhóm nghiệp vụ lõi FinMate</title>
+      <desc id="er-loi-desc">Mô hình thực thể quan hệ gồm bảy bảng: người dùng sở hữu ví tiền, danh mục và giao dịch; mỗi ví gắn với một cấu hình nhà cung cấp và sinh ra các bản ghi thông báo ngân hàng; mỗi thông báo có đúng một kết quả phân tích của AI và có thể sinh ra một giao dịch nháp; giao dịch tham chiếu tới ví nguồn, ví đích khi chuyển khoản nội bộ, danh mục và thông báo gốc.</desc>
+
+      <defs>
+        <marker id="er-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ====================== QUAN HỆ (vẽ trước hộp) ====================== -->
+
+      <!-- R5. provider_configs 1—N financial_accounts -->
+      <line x1="264" y1="152" x2="368" y2="152" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="274" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="352" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R6. financial_accounts 1—N notification_logs -->
+      <line x1="600" y1="152" x2="704" y2="152" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="610" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="688" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R9. notification_logs 1—1 ai_results -->
+      <line x1="936" y1="152" x2="1008" y2="152" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="946" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="993" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+
+      <!-- R1. users 1—N financial_accounts -->
+      <path d="M 120,320 V 292 Q 120,284 128,284 H 412 Q 420,284 420,276 V 244"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="126" y="310" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="426" y="262" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R3. users 1—N notification_logs — ba cầu vượt qua R7, R8, R10 -->
+      <path d="M 200,320 V 308 Q 200,300 208,300 H 460 a 8,8 0 0,1 16,0 H 532 a 8,8 0 0,1 16,0 H 744 a 8,8 0 0,1 16,0 H 832 Q 840,300 840,292 V 228"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="206" y="310" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="846" y="248" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R2. users 1—N categories -->
+      <line x1="120" y1="432" x2="120" y2="544" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="128" y="450" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="128" y="534" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R4. users 1—N transactions -->
+      <path d="M 264,376 H 552 Q 560,376 560,384 V 424"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="274" y="369" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="566" y="416" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R7. financial_accounts 1—N transactions (ví nguồn) -->
+      <path d="M 468,244 V 340 Q 468,348 476,348 H 592 Q 600,348 600,356 V 424"
+            fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="474" y="262" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">1</text>
+      <text x="606" y="416" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+      <rect x="486" y="328" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="522" y="337" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">VÍ NGUỒN</text>
+
+      <!-- R8. financial_accounts 0..1—N transactions (ví đích, chuyển khoản nội bộ) -->
+      <path d="M 540,244 V 296 Q 540,304 548,304 H 672 Q 680,304 680,312 V 424"
+            fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#er-arrow)"/>
+      <text x="546" y="262" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">0..1</text>
+      <text x="686" y="416" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+      <rect x="576" y="284" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="608" y="293" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.06em">VÍ ĐÍCH</text>
+
+      <!-- R10. notification_logs 0..1—N transactions -->
+      <line x1="752" y1="228" x2="752" y2="424" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="758" y="246" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">0..1</text>
+      <text x="758" y="416" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- R11. categories 0..1—N transactions -->
+      <line x1="264" y1="600" x2="512" y2="600" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#er-arrow)"/>
+      <text x="274" y="593" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">0..1</text>
+      <text x="496" y="593" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace">N</text>
+
+      <!-- ====================== THỰC THỂ ====================== -->
+
+      <!-- provider_configs -->
+      <rect x="56" y="96" width="208" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="56" y="96" width="208" height="112" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <line x1="56" y1="126" x2="264" y2="126" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="68" y="117" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">provider_configs</text>
+      <text x="68" y="144" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="68" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">provider_key</text>
+      <text x="68" y="180" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">package_name</text>
+      <text x="68" y="198" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">is_active</text>
+
+      <!-- users -->
+      <rect x="56" y="320" width="208" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="56" y="320" width="208" height="112" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="56" y1="350" x2="264" y2="350" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="68" y="341" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">users</text>
+      <text x="68" y="368" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="68" y="386" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">email</text>
+      <text x="68" y="404" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">role</text>
+      <text x="68" y="422" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">email_verified_at</text>
+
+      <!-- categories -->
+      <rect x="56" y="544" width="208" height="112" rx="6" fill="#f5f5f5"/>
+      <rect x="56" y="544" width="208" height="112" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="56" y1="574" x2="264" y2="574" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="68" y="565" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">categories</text>
+      <text x="68" y="592" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="68" y="610" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ user_id</text>
+      <text x="68" y="628" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">slug</text>
+      <text x="68" y="646" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">is_system</text>
+
+      <!-- financial_accounts -->
+      <rect x="368" y="96" width="232" height="148" rx="6" fill="#f5f5f5"/>
+      <rect x="368" y="96" width="232" height="148" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="368" y1="126" x2="600" y2="126" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="380" y="117" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">financial_accounts</text>
+      <text x="380" y="144" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="380" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ user_id</text>
+      <text x="380" y="180" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ provider_config_id</text>
+      <text x="380" y="198" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">account_type</text>
+      <text x="380" y="216" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">balance_cents</text>
+      <text x="380" y="234" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">is_monitored</text>
+
+      <!-- notification_logs -->
+      <rect x="704" y="96" width="232" height="132" rx="6" fill="#f5f5f5"/>
+      <rect x="704" y="96" width="232" height="132" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="704" y1="126" x2="936" y2="126" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="716" y="117" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">notification_logs</text>
+      <text x="716" y="144" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="716" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ user_id</text>
+      <text x="716" y="180" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ financial_account_id</text>
+      <text x="716" y="198" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">content_hash</text>
+      <text x="716" y="216" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">status</text>
+
+      <!-- ai_results -->
+      <rect x="1008" y="96" width="224" height="132" rx="6" fill="#f5f5f5"/>
+      <rect x="1008" y="96" width="224" height="132" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="1008" y1="126" x2="1232" y2="126" stroke="rgba(45,49,66,0.20)" stroke-width="0.8"/>
+      <text x="1020" y="117" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">ai_results</text>
+      <text x="1020" y="144" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="1020" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ notification_log_id</text>
+      <text x="1020" y="180" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">amount_cents</text>
+      <text x="1020" y="198" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">category_slug</text>
+      <text x="1020" y="216" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">extraction_confidence</text>
+
+      <!-- transactions — THỰC THỂ TRUNG TÂM -->
+      <rect x="512" y="424" width="264" height="204" rx="6" fill="#f5f5f5"/>
+      <rect x="512" y="424" width="264" height="204" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <line x1="512" y1="454" x2="776" y2="454" stroke="rgba(235,108,54,0.30)" stroke-width="0.8"/>
+      <text x="524" y="445" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">transactions</text>
+      <text x="524" y="472" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"># id</text>
+      <text x="524" y="490" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ user_id</text>
+      <text x="524" y="508" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ financial_account_id</text>
+      <text x="524" y="526" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ counter_account_id</text>
+      <text x="524" y="544" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ category_id</text>
+      <text x="524" y="562" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→ notification_log_id</text>
+      <text x="524" y="580" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">amount_cents</text>
+      <text x="524" y="598" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">status</text>
+      <text x="524" y="616" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">source</text>
+
+      <!-- ====================== CHÚ GIẢI ====================== -->
+      <line x1="40" y1="686" x2="1240" y2="686" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="706" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.14em">CHÚ GIẢI</text>
+
+      <text x="152" y="706" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">#</text>
+      <text x="168" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá chính</text>
+
+      <text x="272" y="706" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">→</text>
+      <text x="288" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá ngoại</text>
+
+      <rect x="400" y="697" width="16" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="424" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">thực thể trung tâm</text>
+
+      <line x1="576" y1="702" x2="608" y2="702" stroke="#4f5d75" stroke-width="1.2"/>
+      <text x="616" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">khoá ngoại bắt buộc</text>
+
+      <line x1="784" y1="702" x2="816" y2="702" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="824" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">cho phép NULL</text>
+
+      <text x="960" y="706" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace">1 · N · 0..1</text>
+      <text x="1044" y="706" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">bản số quan hệ</text>
+    </svg>
+  </div>
+</body>
+</html>
