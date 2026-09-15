@@ -302,6 +302,16 @@ RATE_LIMIT_AUTH_PER_MINUTE=10       # login/register/google; phân vùng theo IP
 # rate limit. Bắt buộc phải đặt khi có proxy: thiếu nó thì rate limit đăng nhập đếm theo IP
 # của proxy, tức là cả hệ thống dùng chung một ngăn 10 lần/phút.
 TRUSTED_PROXIES=
+
+# Email qua Brevo — TUỲ CHỌN, gọi bằng HttpClient trần nên KHÔNG thêm package nào. Thiếu key
+# thì mã OTP in ra log thay vì gửi đi (máy dev, bộ test). Sender phải xác minh SPF/DKIM bên
+# Brevo, nếu không thư rơi vào Spam — mà OTP trong Spam thì coi như không gửi.
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME=FinMate
+
+# Chặn đăng nhập khi email chưa xác minh. Mặc định BẬT; AuthApiFactory đặt false cho bộ test.
+REQUIRE_EMAIL_VERIFICATION=
 ```
 
 **AI Service (.env):**

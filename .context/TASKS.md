@@ -472,7 +472,7 @@
 
 ### Quyết định #3 — OTP
 
-- [-] Đăng ký bằng SĐT + OTP — *Skipped: user chốt chưa cần trong MVP (2026-09-11). Giữ Email/Password + Google login. Docx bước 1.1 coi như overspec ở điểm này.*
+- [-] Đăng ký bằng SĐT + OTP — *Skipped: user chốt chưa cần trong MVP (2026-09-11). Giữ Email/Password + Google login. Docx bước 1.1 coi như overspec ở điểm này.* **ĐẢO MỘT PHẦN ở Phase 17 (2026-09-15):** user chốt làm OTP qua EMAIL. Phần SĐT/SMS vẫn bỏ — cần nhà mạng và tốn tiền thật.
 
 ### Quyết định #4 — Voice input + Receipt OCR (kéo từ Backlog lên MVP)
 
@@ -588,6 +588,22 @@
 - [x] **`UseForwardedHeaders` cấu hình qua `TRUSTED_PROXIES`** — *Sửa lỗi tôi đưa vào ở Phase 14. Sau reverse proxy thì `RemoteIpAddress` là IP của PROXY, mà rate limiter phân vùng đăng nhập theo IP — nghĩa là cả hệ thống dùng chung một ngăn 10 lần/phút. Mặc định TRỐNG = không bật, giữ nguyên hành vi cũ và an toàn: tin header khi chưa ai bảo tin là để client tự bịa IP thoát rate limit.*
 - [x] **`/health/live` tách khỏi `/health/ready`** — *`/health` cũ trả `healthy` kể cả khi Postgres và Redis đã chết → load balancer tiếp tục đẩy request vào instance hỏng. Hai `IHealthCheck` viết TAY, không thêm package: `AspNetCore.HealthChecks.NpgSql/.Redis` là dependency mới phải xin duyệt (AGENTS.md §5) trong khi thứ cần chỉ là một vòng gọi. Tách hai đường vì hành động khác nhau: liveness hỏng thì restart container, readiness hỏng thì ngừng đẩy traffic — gộp làm một là Postgres sập kéo cả đàn app restart vô ích, mà restart không cứu được Postgres.*
 
+## Phase 17 — OTP qua email: xác minh đăng ký và quên mật khẩu
+
+> Hai lỗ hổng thực dụng trong phần auth. Đây là **đảo một phần** quyết định #3 (bỏ OTP,
+> 2026-09-11) — lần đó là SĐT + SMS, lần này là email, rẻ hơn hẳn và không cần nhà mạng.
+
+- [x] **Quên mật khẩu** — *Trước đó CHỈ có `change-password` và nó đòi đang đăng nhập, nên quên mật khẩu là mất tài khoản vĩnh viễn. Nay `forgot-password` + `reset-password` qua mã OTP.*
+- [x] **Xác minh email lúc đăng ký** — *`users.email_verified_at`. Trước đó ai cũng đăng ký được bằng email của người khác. Migration **backfill mọi user đang có thành đã xác minh** — không backfill là khoá toàn bộ người dùng hiện tại ra ngoài, họ đăng ký từ trước khi tính năng tồn tại nên không có cách nào xác minh ngược.*
+- [x] **`forgot-password` không bao giờ lộ email có tồn tại** — *Trả cùng một phản hồi (204, body rỗng) cho email thật lẫn email bịa, và nuốt cả nhánh "đang trong thời gian chờ". Endpoint ẩn danh mà phân biệt được là dò được cả danh sách người dùng. Kiểm bằng curl: hai phản hồi giống nhau từng byte.*
+- [x] **Giới hạn gửi theo EMAIL, không chỉ theo IP** — *1 mã/60 giây cho mỗi cặp (email, mục đích). Hạn mức `auth` 10/phút theo IP không chặn được việc nhắm vào MỘT hộp thư cụ thể, mà mỗi lần gửi vừa tốn tiền vừa là rác trong hộp thư người khác.*
+- [x] **Mã dùng một lần, hết hạn 10 phút, tối đa 5 lần thử** — *Đây mới là thứ bảo vệ thật. Băm SHA-256 chỉ để mã không nằm nguyên dạng trong dump hay log: mã 6 chữ số chỉ có 10⁶ khả năng nên ai cầm được dump sẽ dò ngược trong vài giây dù băm bằng gì. Sai quá 5 lần thì mã thật cũng chết theo — nếu không, kẻ dò chỉ cần xin mã mới rồi dò tiếp trên mã cũ.*
+- [x] **Mã tách theo mục đích** — *Mã xác minh KHÔNG đặt lại được mật khẩu. Thiếu tách biệt thì ai chạm được vào hộp thư một lần là đổi được cả hai.*
+- [x] **Đặt lại mật khẩu thu hồi toàn bộ refresh token** — *Lý do người ta đặt lại mật khẩu thường là "tôi nghĩ có người vào được tài khoản"; để phiên cũ sống tiếp là không giải quyết đúng điều đó. Cùng luật mật khẩu với lúc đăng ký — nới lỏng ở đây là làm luật kia thành vô nghĩa vì ai cũng đi đường vòng.*
+- [x] **Brevo gọi bằng `HttpClient` trần, KHÔNG thêm package** — *API chỉ là một POST JSON kèm header `api-key`. Kéo cả SDK về cho đúng một lời gọi là thêm dependency phải duyệt (AGENTS.md §5) đổi lấy rất ít; đổi nhà cung cấp sau này chỉ là viết lại một lớp. Thiếu key thì tự lùi về bản in log, giống hệt FCM, nên máy dev và bộ test vẫn lấy được mã.*
+- [x] **`REQUIRE_EMAIL_VERIFICATION` bật/tắt được** — *Mặc định BẬT. `AuthApiFactory` tắt vì **23 file test** gọi `auth/register` rồi đăng nhập ngay; bắt tất cả diễn lại màn OTP chỉ tạo nhiễu. `OtpAuthControllerTests` bật lại cờ trong phạm vi riêng bằng `WithWebHostBuilder` — không đụng biến môi trường dùng chung, vì cả bộ test tích hợp nằm chung một tiến trình.*
+- *(Kèm theo)* Google login đặt luôn `email_verified_at` ở cả hai nhánh (liên kết tài khoản sẵn có và tạo mới) — Google đã xác minh hộ rồi, bắt làm lại là bắt làm lại đúng việc vừa xong. `BREVO_API_KEY` thêm vào `StartupSecretGuard` của Phase 16.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*
@@ -629,7 +645,8 @@
 | Phase 14 — Đồng bộ offline & rate limit | `[x]` | 9 / 9 |
 | Phase 15 — Nhánh 85% của Flow 1 | `[x]` | 8 / 8 |
 | Phase 16 — Sẵn sàng production | `[x]` | 8 / 8 |
-| **Total** | | **309 / 311** |
+| Phase 17 — OTP qua email | `[x]` | 9 / 9 |
+| **Total** | | **318 / 320** |
 
 **Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
 chủ ý (OTP, 3 bảng `ab_*`).
@@ -783,3 +800,13 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 **Điều thực nghiệm dạy được:** ngữ nghĩa "tin mọi proxy" của `ForwardedHeadersMiddleware` rất dễ hiểu NGƯỢC — để trống cả `KnownNetworks` lẫn `KnownProxies` KHÔNG phải "tin tất cả" mà là "không tin ai", và header bị bỏ qua trong im lặng. Phải thêm một dải phủ `0.0.0.0/0` và `::/0`. Chỉ đo bằng curl mới biết, đọc code không ra.
 
 **Cảnh báo lúc khởi động còn lại, đều CÓ SẴN từ trước và ngoài phạm vi lượt này:** 7 dòng EF global query filter (`RefreshToken` ↔ `User`); Data Protection key ring không được lưu ngoài container (không ảnh hưởng vì auth dùng JWT bearer, không dùng cookie); `Failed to determine the https port for redirect` từ `UseHttpsRedirection` — vô hại khi TLS do proxy đảm nhiệm.
+
+**Verify Phase 17 (2026-09-15):** `dotnet build` sạch 0 warning; `dotnet test` xanh **512/512**; `has-pending-model-changes` sạch sau migration `AddEmailVerifiedToUsers`. Smoke test curl trên `docker compose` thật (không có key Brevo nên mã đọc từ log — đúng chế độ đã thiết kế, log khởi động ghi `"Email: BREVO_API_KEY absent, OTP codes go to the log instead."`):
+
+1. **Quên mật khẩu**: đăng ký → `forgot-password` 204 → đọc mã `248597` từ log → `reset-password` 204 → đăng nhập bằng mật khẩu **MỚI** 200, mật khẩu **CŨ** 401.
+2. **Không lộ tài khoản**: `forgot-password` cho email có thật và email bịa → **cùng HTTP 204, cùng body rỗng 0 ký tự**. Và không có thư nào thật sự gửi tới địa chỉ bịa.
+3. **Giới hạn theo email**: gọi `forgot-password` hai lần liên tiếp cùng địa chỉ → cả hai đều 204 (không lộ gì), nhưng **chỉ 1 email thật sự được gửi**.
+4. **Cổng xác minh**: đăng ký → đăng nhập ngay → `AUTH_EMAIL_NOT_VERIFIED`. `resend-verification` 204 → đọc mã → `verify-email` 204 → đăng nhập 200.
+5. **Mã dùng một lần**: gửi lại chính mã vừa dùng → `AUTH_OTP_INVALID`.
+
+**Chuyện xảy ra khi verify, đáng ghi lại:** giữa chừng mọi request trả **429**. Không phải lỗi — chính rate limit `auth` 10/phút của Phase 14 đang làm đúng việc, và tôi đã đốt hết hạn mức bằng các phép thử trước đó. Phải chờ cửa sổ trôi qua rồi chạy lại. Đây cũng là bằng chứng phụ rằng hai phase gắn đúng vào nhau.
