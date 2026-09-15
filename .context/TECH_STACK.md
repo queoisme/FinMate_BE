@@ -306,6 +306,11 @@ TRUSTED_PROXIES=
 # Email qua Brevo — TUỲ CHỌN, gọi bằng HttpClient trần nên KHÔNG thêm package nào. Thiếu key
 # thì mã OTP in ra log thay vì gửi đi (máy dev, bộ test). Sender phải xác minh SPF/DKIM bên
 # Brevo, nếu không thư rơi vào Spam — mà OTP trong Spam thì coi như không gửi.
+#
+# BẪY, gặp thật ngày 2026-09-15: Brevo mặc định chặn API key theo IP ("Authorised IPs"). Key
+# đúng vẫn trả 401 kèm "unrecognised IP address" nếu IP gọi chưa được khai báo. Khi deploy lên
+# server, IP CỦA SERVER sẽ bị chặn y hệt. Sửa ở https://app.brevo.com/security/authorised_ips —
+# thêm IP, hoặc tắt hẳn ràng buộc nếu IP động.
 BREVO_API_KEY=
 BREVO_SENDER_EMAIL=
 BREVO_SENDER_NAME=FinMate

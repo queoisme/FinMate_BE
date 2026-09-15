@@ -809,4 +809,8 @@ Smoke test curl end-to-end luồng transfer: tạo 2 ví (5tr / 0) + budget tổ
 4. **Cổng xác minh**: đăng ký → đăng nhập ngay → `AUTH_EMAIL_NOT_VERIFIED`. `resend-verification` 204 → đọc mã → `verify-email` 204 → đăng nhập 200.
 5. **Mã dùng một lần**: gửi lại chính mã vừa dùng → `AUTH_OTP_INVALID`.
 
+**Cắm Brevo thật (2026-09-15).** Key hợp lệ vẫn trả **401**. Nguyên nhân KHÔNG phải key sai cũng không phải code sai: Brevo mặc định bật **Authorised IPs**, chặn mọi lời gọi từ IP chưa khai báo (`"unrecognised IP address 42.112.230.30"`). Tắt ràng buộc đó xong thì thư đi ngay — Brevo ghi nhận `2026-09-15T10:01:22 'FinMate — Mã đặt lại mật khẩu'`, và `/v3/smtp/emails` xác nhận. **Khi deploy lên server thật, IP của server sẽ bị chặn y hệt** — đây là loại lỗi rất dễ mất cả buổi để truy lại lần hai.
+
+Lỗi này cũng lộ ra một chỗ log chưa đủ tốt: `BrevoEmailSender` chỉ ghi `HTTP 401` nên phải gọi tay sang Brevo mới biết lý do. Nguyên do là tôi cố ý không ghi body phản hồi — ở nhánh THÀNH CÔNG Brevo dội lại payload, mà payload là nội dung email nên chứa cả mã OTP. Nhưng phản hồi LỖI chỉ có `code` và `message`, nên nay bóc đúng hai trường đó theo TÊN, không ghi nguyên body: cách này vẫn an toàn kể cả nếu Brevo đổi và dội payload kèm trong phản hồi lỗi. Có 8 test ghim lại, trong đó một test đưa hẳn mã OTP giả vào body lỗi để chắc nó không lọt ra.
+
 **Chuyện xảy ra khi verify, đáng ghi lại:** giữa chừng mọi request trả **429**. Không phải lỗi — chính rate limit `auth` 10/phút của Phase 14 đang làm đúng việc, và tôi đã đốt hết hạn mức bằng các phép thử trước đó. Phải chờ cửa sổ trôi qua rồi chạy lại. Đây cũng là bằng chứng phụ rằng hai phase gắn đúng vào nhau.
