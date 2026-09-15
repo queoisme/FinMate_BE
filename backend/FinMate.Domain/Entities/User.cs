@@ -21,6 +21,14 @@ public class User
     /// </summary>
     public long? MonthlyIncomeCents { get; set; }
 
+    /// <summary>
+    /// Lúc người dùng chứng minh họ thật sự sở hữu email này. NULL = chưa xác minh.
+    ///
+    /// Trước Phase 17 không có trường nào như vậy, nên ai cũng đăng ký được bằng email của
+    /// người khác. Google login đặt luôn giá trị này — Google đã xác minh hộ rồi.
+    /// </summary>
+    public DateTimeOffset? EmailVerifiedAt { get; set; }
+
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

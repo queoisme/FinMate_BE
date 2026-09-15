@@ -43,6 +43,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+        builder.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");
 
         builder.OwnsOne(u => u.NotificationPrefs, prefs =>
         {
