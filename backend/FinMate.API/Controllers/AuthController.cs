@@ -16,6 +16,10 @@ public class AuthController : ControllerBase
     private readonly ILoginCommandHandler _loginHandler;
     private readonly IGoogleLoginCommandHandler _googleLoginHandler;
     private readonly IRefreshTokenCommandHandler _refreshHandler;
+    private readonly ISendEmailVerificationCommandHandler _sendVerificationHandler;
+    private readonly IVerifyEmailCommandHandler _verifyEmailHandler;
+    private readonly IForgotPasswordCommandHandler _forgotPasswordHandler;
+    private readonly IResetPasswordCommandHandler _resetPasswordHandler;
     private readonly ILogoutCommandHandler _logoutHandler;
     private readonly ILogoutAllDevicesCommandHandler _logoutAllHandler;
     private readonly IChangePasswordCommandHandler _changePasswordHandler;
@@ -26,6 +30,10 @@ public class AuthController : ControllerBase
         ILoginCommandHandler loginHandler,
         IGoogleLoginCommandHandler googleLoginHandler,
         IRefreshTokenCommandHandler refreshHandler,
+        ISendEmailVerificationCommandHandler sendVerificationHandler,
+        IVerifyEmailCommandHandler verifyEmailHandler,
+        IForgotPasswordCommandHandler forgotPasswordHandler,
+        IResetPasswordCommandHandler resetPasswordHandler,
         ILogoutCommandHandler logoutHandler,
         ILogoutAllDevicesCommandHandler logoutAllHandler,
         IChangePasswordCommandHandler changePasswordHandler,
@@ -35,6 +43,10 @@ public class AuthController : ControllerBase
         _loginHandler = loginHandler;
         _googleLoginHandler = googleLoginHandler;
         _refreshHandler = refreshHandler;
+        _sendVerificationHandler = sendVerificationHandler;
+        _verifyEmailHandler = verifyEmailHandler;
+        _forgotPasswordHandler = forgotPasswordHandler;
+        _resetPasswordHandler = resetPasswordHandler;
         _logoutHandler = logoutHandler;
         _logoutAllHandler = logoutAllHandler;
         _changePasswordHandler = changePasswordHandler;
@@ -105,6 +117,54 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Gửi lại mã xác minh. Im lặng thành công khi email không tồn tại hoặc đã xác minh — nói
+    /// khác đi là biến endpoint ẩn danh này thành máy dò tài khoản.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification(
+        [FromBody] EmailOnlyRequest request, CancellationToken ct)
+    {
+        await _sendVerificationHandler.HandleAsync(new SendEmailVerificationCommand(request.Email), ct);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken ct)
+    {
+        await _verifyEmailHandler.HandleAsync(new VerifyEmailCommand(request.Email, request.Code), ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// LUÔN trả 204, kể cả khi email không tồn tại hoặc vừa xin mã cách đây vài giây. Khác đi
+    /// là để lộ tài khoản nào có thật.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] EmailOnlyRequest request, CancellationToken ct)
+    {
+        await _forgotPasswordHandler.HandleAsync(new ForgotPasswordCommand(request.Email), ct);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        await _resetPasswordHandler.HandleAsync(
+            new ResetPasswordCommand(request.Email, request.Code, request.NewPassword), ct);
+        return NoContent();
+    }
+
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
     {
@@ -125,5 +185,8 @@ public record RegisterRequest(string Email, string Password, string DisplayName)
 public record LoginRequest(string Email, string Password);
 public record GoogleLoginRequest(string IdToken);
 public record RefreshRequest(string RefreshToken);
+public record EmailOnlyRequest(string Email);
+public record VerifyEmailRequest(string Email, string Code);
+public record ResetPasswordRequest(string Email, string Code, string NewPassword);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record DeleteAccountRequest(string Password);

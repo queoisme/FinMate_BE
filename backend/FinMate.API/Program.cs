@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.Queries;
+using FinMate.Application.Auth;
 using FinMate.Application.Auth.Commands;
+using FinMate.Application.Auth.Otp;
 using FinMate.Application.Auth.Queries;
 using FinMate.Application.Budgets;
 using FinMate.Application.Budgets.Commands;
@@ -101,6 +103,18 @@ public class Program
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
         }
+
+        // Email là TUỲ CHỌN giống FCM: thiếu API key thì in mã ra log thay vì gửi đi, nên máy
+        // dev và bộ test vẫn lấy được mã để đi tiếp mà không cần tài khoản Brevo.
+        var brevoApiKey = builder.Configuration["BREVO_API_KEY"];
+        var brevoSenderEmail = builder.Configuration["BREVO_SENDER_EMAIL"];
+        var brevoSenderName = builder.Configuration["BREVO_SENDER_NAME"] ?? "FinMate";
+        var emailEnabled = !string.IsNullOrWhiteSpace(brevoApiKey)
+            && !string.IsNullOrWhiteSpace(brevoSenderEmail);
+
+        // Mặc định BẬT. AuthApiFactory tắt đi — xem AuthOptions.
+        var requireEmailVerification =
+            !bool.TryParse(builder.Configuration["REQUIRE_EMAIL_VERIFICATION"], out var parsed) || parsed;
 
         // Mặc định TRỐNG = không bật forwarded headers — xem TrustedProxies.
         var trustedProxies = builder.Configuration["TRUSTED_PROXIES"];
@@ -213,6 +227,25 @@ public class Program
                 policy => policy.RequireRole(nameof(UserRole.Admin)));
         });
 
+        builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
+        builder.Services.AddScoped<IOtpService, OtpService>();
+
+        if (emailEnabled)
+        {
+            builder.Services.AddHttpClient<IEmailSender, BrevoEmailSender>(client =>
+                {
+                    client.BaseAddress = new Uri("https://api.brevo.com/");
+                    client.DefaultRequestHeaders.Add("api-key", brevoApiKey);
+                })
+                .AddTypedClient<IEmailSender>((http, sp) => new BrevoEmailSender(
+                    http, brevoSenderEmail!, brevoSenderName,
+                    sp.GetRequiredService<ILogger<BrevoEmailSender>>()));
+        }
+        else
+        {
+            builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+        }
+
         builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -276,6 +309,10 @@ public class Program
         builder.Services.AddScoped<ILoginCommandHandler, LoginCommandHandler>();
         builder.Services.AddScoped<IGoogleLoginCommandHandler, GoogleLoginCommandHandler>();
         builder.Services.AddScoped<IRefreshTokenCommandHandler, RefreshTokenCommandHandler>();
+        builder.Services.AddScoped<ISendEmailVerificationCommandHandler, SendEmailVerificationCommandHandler>();
+        builder.Services.AddScoped<IVerifyEmailCommandHandler, VerifyEmailCommandHandler>();
+        builder.Services.AddScoped<IForgotPasswordCommandHandler, ForgotPasswordCommandHandler>();
+        builder.Services.AddScoped<IResetPasswordCommandHandler, ResetPasswordCommandHandler>();
         builder.Services.AddScoped<ILogoutCommandHandler, LogoutCommandHandler>();
         builder.Services.AddScoped<ILogoutAllDevicesCommandHandler, LogoutAllDevicesCommandHandler>();
         builder.Services.AddScoped<IChangePasswordCommandHandler, ChangePasswordCommandHandler>();
@@ -356,6 +393,11 @@ public class Program
 
         // Nói thẳng ở dòng khởi động. Thiếu credentials trên production thì triệu chứng duy
         // nhất là "không ai nhận được thông báo" — một hiện tượng im lặng, rất khó truy.
+        app.Logger.LogInformation(
+            emailEnabled
+                ? "Email: Brevo enabled."
+                : "Email: BREVO_API_KEY absent, OTP codes go to the log instead.");
+
         app.Logger.LogInformation(
             fcmEnabled
                 ? "Push notifications: FCM enabled."

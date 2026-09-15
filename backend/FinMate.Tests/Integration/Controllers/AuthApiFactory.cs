@@ -45,6 +45,11 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         // chặn lẫn nhau. Hạn mức mặc định KHÔNG nới: nó phân vùng theo user id nên mỗi test
         // có ngăn riêng, và RateLimitingControllerTests dựa vào đúng điều đó để kiểm 429 thật.
         Environment.SetEnvironmentVariable("RATE_LIMIT_AUTH_PER_MINUTE", "100000");
+
+        // 23 file test gọi auth/register rồi đăng nhập ngay; bắt tất cả diễn lại màn OTP chỉ
+        // tạo nhiễu trong khi chúng đang kiểm thứ khác. EmailVerificationGateTests bật lại cờ
+        // này ở phạm vi của riêng nó để phần chặn vẫn được kiểm thật.
+        Environment.SetEnvironmentVariable("REQUIRE_EMAIL_VERIFICATION", "false");
     }
 
     public new async Task DisposeAsync()
