@@ -16,7 +16,7 @@ public static class StartupSecretGuard
     /// <summary>Những biến mà giá trị mẫu là rủi ro bảo mật thật, không chỉ là cấu hình sai.</summary>
     public static readonly string[] GuardedKeys =
         ["JWT_SECRET", "AI_SERVICE_API_KEY", "ADMIN_SEED_PASSWORD", "HANGFIRE_DASHBOARD_PASS",
-         "BREVO_API_KEY"];
+         "BREVO_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
 
     /// <summary>Tên các biến còn giữ giá trị mẫu, theo đúng thứ tự khai báo.</summary>
     public static IReadOnlyList<string> FindUnchanged(IConfiguration configuration)

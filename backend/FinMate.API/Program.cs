@@ -7,6 +7,7 @@ using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Auth;
 using FinMate.Application.Auth.Commands;
+using FinMate.Application.Auth.GoogleOAuth;
 using FinMate.Application.Auth.Otp;
 using FinMate.Application.Auth.Queries;
 using FinMate.Application.Budgets;
@@ -103,6 +104,15 @@ public class Program
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
         }
+
+        // Luồng OAuth qua trình duyệt là TUỲ CHỌN và TÁCH RIÊNG khỏi POST /auth/google:
+        // đường native chỉ xác minh token có sẵn nên chỉ cần CLIENT_ID, còn đường này phải tự
+        // đổi code nên cần thêm secret. Thiếu secret thì chỉ ba endpoint mới tắt, đường cũ
+        // vẫn chạy bình thường.
+        var googleClientSecret = builder.Configuration["GOOGLE_CLIENT_SECRET"];
+        var googleRedirectUri = builder.Configuration["GOOGLE_REDIRECT_URI"];
+        var googleOAuthEnabled = !string.IsNullOrWhiteSpace(googleClientSecret)
+            && !string.IsNullOrWhiteSpace(googleRedirectUri);
 
         // Email là TUỲ CHỌN giống FCM: thiếu API key thì in mã ra log thay vì gửi đi, nên máy
         // dev và bộ test vẫn lấy được mã để đi tiếp mà không cần tài khoản Brevo.
@@ -228,6 +238,31 @@ public class Program
         });
 
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
+
+        builder.Services.AddSingleton(new GoogleOAuthOptions(
+            googleOAuthEnabled,
+            builder.Configuration["GOOGLE_CLIENT_ID"]!,
+            googleRedirectUri ?? "",
+            builder.Configuration["MOBILE_DEEP_LINK"]));
+
+        builder.Services.AddScoped<IGoogleOAuthStore, GoogleOAuthStore>();
+
+        if (googleOAuthEnabled)
+        {
+            builder.Services.AddHttpClient<IGoogleCodeExchanger, GoogleCodeExchanger>()
+                .AddTypedClient<IGoogleCodeExchanger>((http, sp) => new GoogleCodeExchanger(
+                    http,
+                    builder.Configuration["GOOGLE_CLIENT_ID"]!,
+                    googleClientSecret!,
+                    googleRedirectUri!,
+                    sp.GetRequiredService<ILogger<GoogleCodeExchanger>>()));
+        }
+        else
+        {
+            // Không đăng ký gì thì controller sẽ ném lỗi DI khó hiểu; đăng ký một bản luôn trả
+            // null để lỗi rơi đúng vào chỗ EnsureEnabled() nói rõ nguyên nhân.
+            builder.Services.AddSingleton<IGoogleCodeExchanger>(new DisabledGoogleCodeExchanger());
+        }
         builder.Services.AddScoped<IOtpService, OtpService>();
 
         if (emailEnabled)
@@ -393,6 +428,11 @@ public class Program
 
         // Nói thẳng ở dòng khởi động. Thiếu credentials trên production thì triệu chứng duy
         // nhất là "không ai nhận được thông báo" — một hiện tượng im lặng, rất khó truy.
+        app.Logger.LogInformation(
+            googleOAuthEnabled
+                ? "Google OAuth (browser flow): enabled."
+                : "Google OAuth (browser flow): GOOGLE_CLIENT_SECRET/REDIRECT_URI absent, disabled.");
+
         app.Logger.LogInformation(
             emailEnabled
                 ? "Email: Brevo enabled."
