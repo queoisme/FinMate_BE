@@ -841,4 +841,10 @@ Lỗi này cũng lộ ra một chỗ log chưa đủ tốt: `BrevoEmailSender` c
 
 Phần chạy với tài khoản Google thật cần user tạo client secret và khai Redirect URI; 10 test tích hợp đã phủ toàn bộ luồng bằng bộ đổi-code giả, gồm cả ca state giả mạo, state phát lại, huỷ ở màn Google, và mã bàn giao dùng lần hai.
 
+**Cắm Google thật (2026-09-15) — lỗi chỉ chạy thật mới lộ.** Lần đầu callback báo "Không xác thực được với Google", trong khi log ghi `HTTP 200 | Error: None | Description: None` — Google trả về hoàn toàn bình thường mà backend vẫn coi là thất bại. Nguyên nhân: Google gửi trường **`id_token`** (snake_case) còn record khai `IdToken`, mà bộ đọc JSON mặc định chỉ khớp camelCase — nên đọc ra null. Hỏng IM LẶNG đúng nghĩa: không có mã lỗi nào, không có exception nào. Sửa bằng `[JsonPropertyName]` tường minh.
+
+**Vì sao 537 test không bắt được:** test tích hợp thay nguyên `IGoogleCodeExchanger` bằng bản giả để khỏi gọi Google thật, nên tầng HTTP và JSON chưa bao giờ được chạy. Đã thêm 3 test cho riêng phần đọc JSON, trong đó một test khẳng định NGƯỢC LẠI (`idToken` camelCase **không** được đọc) để ai sửa ngược lại thì test đỏ chứ không xanh một cách sai lầm.
+
+**Chạy thật trọn vẹn sau khi sửa:** `/start` → đăng nhập Google thật → trang hiện mã bàn giao → `/exchange` trả JWT → `GET /users/me` trả đúng `thiennguyen.csnt@gmail.com`. DB xác nhận `google_id` đã gắn vào tài khoản email/mật khẩu sẵn có (auto-link) và `email_verified_at` được đặt tự động như Phase 17 thiết kế. Dùng lại mã bàn giao lần hai → `AUTH_TOKEN_INVALID`.
+
 **Điều thực nghiệm dạy được:** ASP.NET chuẩn hoá URI redirect nên `finmate://auth?code=…` ra thành `finmate://auth/?code=…` (thêm một dấu gạch chéo). Vô hại với intent filter của Android vì nó khớp theo scheme + host, nhưng đã ghi vào test để phía Flutter không mất thời gian truy khi thấy đường link khác chuỗi cấu hình.

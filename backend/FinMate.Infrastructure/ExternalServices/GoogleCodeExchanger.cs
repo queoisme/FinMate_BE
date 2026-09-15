@@ -1,4 +1,5 @@
-using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using FinMate.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -32,7 +33,20 @@ public class GoogleCodeExchanger : IGoogleCodeExchanger
         _logger = logger;
     }
 
-    private sealed record TokenResponse(string? IdToken, string? Error, string? ErrorDescription);
+    /// <summary>
+    /// Tên trường phải khai TƯỜNG MINH: Google trả snake_case (<c>id_token</c>), mà bộ đọc
+    /// JSON mặc định chỉ khớp được camelCase. Thiếu các attribute này thì phản hồi 200 hoàn
+    /// toàn bình thường vẫn cho ra <c>IdToken = null</c> — hỏng im lặng, và log chỉ ghi
+    /// "HTTP 200, không lỗi" nên nhìn vào không hiểu vì sao.
+    /// </summary>
+    internal sealed record TokenResponse(
+        [property: JsonPropertyName("id_token")] string? IdToken,
+        [property: JsonPropertyName("error")] string? Error,
+        [property: JsonPropertyName("error_description")] string? ErrorDescription);
+
+    /// <summary>Bóc <c>id_token</c> ra khỏi phản hồi của Google; null nếu không có.</summary>
+    internal static TokenResponse? ParseTokenResponse(string json)
+        => JsonSerializer.Deserialize<TokenResponse>(json);
 
     public async Task<string?> ExchangeForIdTokenAsync(string code, CancellationToken ct = default)
     {
@@ -53,7 +67,7 @@ public class GoogleCodeExchanger : IGoogleCodeExchanger
                 }),
                 ct);
 
-            var payload = await response.Content.ReadFromJsonAsync<TokenResponse>(ct);
+            var payload = ParseTokenResponse(await response.Content.ReadAsStringAsync(ct));
 
             if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(payload?.IdToken))
             {
