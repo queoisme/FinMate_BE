@@ -81,4 +81,39 @@ public class StartupSecretGuardTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*Staging*");
     }
+
+    [Theory]
+    [InlineData("change-me-to-a-random-64-char-minimum-secret")]
+    [InlineData("change-me-local-dev")]
+    [InlineData("ChangeMe123!")]
+    [InlineData("CHANGEME")]
+    [InlineData("change_me_please")]
+    public void EverySpellingOfThePlaceholderIsCaught(string value)
+    {
+        // `.env.example` dùng CẢ HAI kiểu: "change-me-local-dev" và "ChangeMe123!". Bản đầu
+        // chỉ tìm chuỗi "change-me" nên bỏ lọt mật khẩu admin — một tài khoản quản trị với
+        // mật khẩu nằm công khai trong repo mà vẫn khởi động được.
+        StartupSecretGuard.IsPlaceholder(value).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("GVn3k9x-real-random-secret")]
+    [InlineData("exchange-market-data")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void RealValuesArePassedThrough(string? value)
+    {
+        StartupSecretGuard.IsPlaceholder(value).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TheSeededAdminPasswordFromTheExampleFileIsRejected()
+    {
+        // Chính giá trị đang nằm trong backend/.env.example đã commit.
+        var configuration = Config(("ADMIN_SEED_PASSWORD", "ChangeMe123!"));
+
+        var act = () => StartupSecretGuard.ThrowIfPlaceholdersRemain(configuration, "Production");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*ADMIN_SEED_PASSWORD*");
+    }
 }

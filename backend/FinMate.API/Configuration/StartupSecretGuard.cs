@@ -11,7 +11,7 @@ namespace FinMate.API.Configuration;
 /// </summary>
 public static class StartupSecretGuard
 {
-    private const string Placeholder = "change-me";
+    private const string Placeholder = "changeme";
 
     /// <summary>Những biến mà giá trị mẫu là rủi ro bảo mật thật, không chỉ là cấu hình sai.</summary>
     public static readonly string[] GuardedKeys =
@@ -20,9 +20,26 @@ public static class StartupSecretGuard
 
     /// <summary>Tên các biến còn giữ giá trị mẫu, theo đúng thứ tự khai báo.</summary>
     public static IReadOnlyList<string> FindUnchanged(IConfiguration configuration)
-        => GuardedKeys
-            .Where(key => configuration[key]?.Contains(Placeholder, StringComparison.OrdinalIgnoreCase) == true)
-            .ToList();
+        => GuardedKeys.Where(key => IsPlaceholder(configuration[key])).ToList();
+
+    /// <summary>
+    /// So sau khi bỏ dấu nối và khoảng trắng.
+    ///
+    /// So chuỗi thô là chưa đủ: `.env.example` dùng CẢ HAI kiểu viết — `change-me-local-dev`
+    /// lẫn `ChangeMe123!` cho `ADMIN_SEED_PASSWORD`. Bản đầu chỉ tìm "change-me" nên bỏ lọt
+    /// đúng cái thứ hai, tức là deploy được lên production với một tài khoản admin có mật khẩu
+    /// nằm công khai trong repo, mà chốt chặn không nói gì.
+    /// </summary>
+    internal static bool IsPlaceholder(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        var normalized = new string(value.Where(char.IsLetterOrDigit).ToArray());
+        return normalized.Contains(Placeholder, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Ném nếu còn bí mật mẫu. Không gọi ở Development: máy dev dùng đúng những giá trị đó và

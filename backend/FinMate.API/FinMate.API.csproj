@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FinMate.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\FinMate.Application\FinMate.Application.csproj" />
     <ProjectReference Include="..\FinMate.Infrastructure\FinMate.Infrastructure.csproj" />
   </ItemGroup>
