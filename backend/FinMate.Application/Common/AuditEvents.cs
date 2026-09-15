@@ -16,6 +16,8 @@ public static class AuditEvents
     public const string LoginSuccess = "Auth.Login.Success";
     public const string LoginFailed = "Auth.Login.Failed";
     public const string PasswordChanged = "Auth.PasswordChanged";
+    public const string PasswordReset = "Auth.PasswordReset";
+    public const string EmailVerified = "Auth.EmailVerified";
     public const string LogoutAllDevices = "Auth.LogoutAllDevices";
     public const string AccountDeletionRequested = "Auth.AccountDeletionRequested";
     public const string TokenReuseDetected = "Auth.TokenReuse.Detected";
