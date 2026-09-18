@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinMate — Sơ đồ ER Toàn Bộ Hệ Thống (Unified System ERD)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f141c;
+      --card-bg: #18202c;
+      --card-header: #202b3b;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(255, 255, 255, 0.25);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #f97316;
+      --accent-glow: rgba(249, 115, 22, 0.2);
+      
+      --color-auth: #a855f7;
+      --color-account: #3b82f6;
+      --color-flow1: #06b6d4;
+      --color-trans: #f97316;
+      --color-budget: #10b981;
+      --color-savings: #eab308;
+      --color-game: #ec4899;
+      --color-config: #64748b;
+      
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --font-mono: 'Geist Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* TOP HEADER */
+    header {
+      background: rgba(15, 20, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 1.25rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .header-titles .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+    .header-titles h1 {
+      font-family: var(--font-serif);
+      font-size: 1.75rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .header-titles p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* CONTROLS */
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      position: relative;
+    }
+    .search-box input {
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.5rem 0.85rem 0.5rem 2rem;
+      color: #fff;
+      font-size: 0.85rem;
+      font-family: var(--font-sans);
+      outline: none;
+      width: 220px;
+      transition: all 0.2s;
+    }
+    .search-box input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+      width: 280px;
+    }
+    .search-box svg {
+      position: absolute;
+      left: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      fill: var(--text-muted);
+    }
+    .stats-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+    .stats-badge strong {
+      color: #fff;
+    }
+
+    /* FILTER BAR */
+    .filter-bar {
+      background: #131a24;
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.6rem 2rem;
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .filter-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.35rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+    .filter-btn.active {
+      background: #1e293b;
+      border-color: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-weight: 500;
+    }
+    .filter-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* MAIN CONTAINER */
+    main {
+      padding: 2rem;
+      flex: 1;
+      max-width: 1800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* MODULE SECTION */
+    .module-group {
+      margin-bottom: 3rem;
+    }
+    .module-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .module-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      color: #fff;
+    }
+    .module-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .module-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    /* GRID LAYOUT */
+    .table-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* ENTITY CARD */
+    .entity-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+    }
+    .entity-card:hover {
+      border-color: var(--card-border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .entity-card.core-anchor {
+      border: 1.5px solid var(--accent);
+      box-shadow: 0 0 15px -3px var(--accent-glow);
+    }
+    .entity-card.hidden {
+      display: none;
+    }
+
+    .card-head {
+      background: var(--card-header);
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .entity-name {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .entity-badge {
+      font-size: 0.62rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .card-body {
+      padding: 0.5rem 0;
+      flex: 1;
+    }
+    .column-list {
+      list-style: none;
+    }
+    .col-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.3rem 1rem;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      transition: background 0.1s;
+    }
+    .col-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .col-name {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text);
+    }
+    .key-icon {
+      font-size: 0.7rem;
+      font-weight: 700;
+      width: 14px;
+      text-align: center;
+      border-radius: 2px;
+      line-height: 1;
+    }
+    .key-pk { color: #f59e0b; font-weight: bold; }
+    .key-fk { color: #38bdf8; font-weight: bold; }
+    .key-norm { color: #475569; }
+
+    .col-type {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    /* CARD FOOTER (RELATIONSHIPS) */
+    .card-relations {
+      background: rgba(0, 0, 0, 0.2);
+      border-top: 1px solid var(--card-border);
+      padding: 0.6rem 1rem;
+      font-size: 0.72rem;
+    }
+    .relation-title {
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+    }
+    .rel-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      margin: 0.15rem 0.15rem 0.15rem 0;
+      font-family: var(--font-mono);
+      color: #cbd5e1;
+    }
+    .rel-arrow {
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    /* FOOTER */
+    footer {
+      background: #0b0f15;
+      border-top: 1px solid var(--card-border);
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-titles">
+      <div class="eyebrow">FinMate Architecture · Unified System ERD</div>
+      <h1>Toàn Bộ Cơ Sở Dữ Liệu Hệ Thống FinMate</h1>
+      <p>Tổng hợp đầy đủ 29 thực thể trên toàn hệ thống: Xác thực, Xử lý thông báo AI (Flow 1), Giao dịch (Flow 2), Ngân sách & Tiết kiệm (Flow 3), Gamification (Flow 4), và Tham số Quản trị.</p>
+    </div>
+    <div class="controls">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 015.3 14l5.4 5.3a1 1 0 01-1.4 1.4L14 17.3A8 8 0 1110 2zm0 2a6 6 0 100 12 6 6 0 000-12z"/></svg>
+        <input type="text" id="searchInput" placeholder="Tìm bảng hoặc cột..." oninput="filterTables()">
+      </div>
+      <div class="stats-badge">
+        Tổng cộng: <strong id="tableCount">29</strong> Bảng
+      </div>
+    </div>
+  </header>
+
+  <!-- FILTER TABS -->
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all', this)">
+      <span class="filter-dot" style="background:#fff"></span> Tất cả các phân hệ (29)
+    </button>
+    <button class="filter-btn" onclick="setFilter('auth', this)">
+      <span class="filter-dot" style="background:var(--color-auth)"></span> 1. Auth & Users (6)
+    </button>
+    <button class="filter-btn" onclick="setFilter('account', this)">
+      <span class="filter-dot" style="background:var(--color-account)"></span> 2. Tài khoản & Ví (3)
+    </button>
+    <button class="filter-btn" onclick="setFilter('flow1', this)">
+      <span class="filter-dot" style="background:var(--color-flow1)"></span> 3. Bóc tách AI & Quy tắc (4)
+    </button>
+    <button class="filter-btn" onclick="setFilter('trans', this)">
+      <span class="filter-dot" style="background:var(--color-trans)"></span> 4. Giao dịch trung tâm (1)
+    </button>
+    <button class="filter-btn" onclick="setFilter('budget', this)">
+      <span class="filter-dot" style="background:var(--color-budget)"></span> 5. Ngân sách & Dự báo (6)
+    </button>
+    <button class="filter-btn" onclick="setFilter('savings', this)">
+      <span class="filter-dot" style="background:var(--color-savings)"></span> 6. Tiết kiệm (2)
+    </button>
+    <button class="filter-btn" onclick="setFilter('game', this)">
+      <span class="filter-dot" style="background:var(--color-game)"></span> 7. Gamification & Mascot (7)
+    </button>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="mainGrid">
+
+    <!-- PHÂN HỆ 1: AUTH & USERS -->
+    <section class="module-group" data-module="auth">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-auth)">Phân hệ 1</span>
+        <h2 class="module-title">Xác thực, Người dùng & Bảo mật (Auth & Security)</h2>
+        <span class="module-desc">Quản lý định danh, phiên đăng nhập, điều khoản và lịch sử truy vết</span>
+      </div>
+      <div class="table-grid">
+        
+        <!-- users -->
+        <div class="entity-card core-anchor" data-name="users">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> users</span>
+            <span class="entity-badge" style="background:rgba(249,115,22,0.2);color:var(--accent)">ROOT ENTITY</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> email</span><span class="col-type">VARCHAR UK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> phone</span><span class="col-type">VARCHAR UK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> password_hash</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> full_name</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> role</span><span class="col-type">VARCHAR ('USER','ADMIN')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> privacy_policy_version</span><span class="col-type">VARCHAR FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> encrypted_dek_backup</span><span class="col-type">TEXT (E2EE)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> created_at / updated_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> tài khoản, giao dịch, ngân sách, gamification</span>
+          </div>
+        </div>
+
+        <!-- privacy_policy_versions -->
+        <div class="entity-card" data-name="privacy_policy_versions">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> privacy_policy_versions</span>
+            <span class="entity-badge" style="background:rgba(168,85,247,0.2);color:var(--color-auth)">POLICY</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> version</span><span class="col-type">VARCHAR PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> content_markdown</span><span class="col-type">TEXT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> effective_date</span><span class="col-type">TIMESTAMPTZ</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_mandatory_reaccept</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- refresh_tokens -->
+        <div class="entity-card" data-name="refresh_tokens">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> refresh_tokens</span>
+            <span class="entity-badge" style="background:rgba(168,85,247,0.2);color:var(--color-auth)">JWT AUTH</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> token_hash</span><span class="col-type">VARCHAR UK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> device_fingerprint</span><span class="col-type">TEXT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> expires_at / is_revoked</span><span class="col-type">TIMESTAMPTZ / BOOL</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- otp_verifications -->
+        <div class="entity-card" data-name="otp_verifications">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> otp_verifications</span>
+            <span class="entity-badge" style="background:rgba(168,85,247,0.2);color:var(--color-auth)">SECURITY</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> contact</span><span class="col-type">VARCHAR (Email/Phone)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> otp_hash</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> purpose</span><span class="col-type">VARCHAR ('REGISTER', 'RESET')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> attempt_count / is_used</span><span class="col-type">INT / BOOLEAN</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> expires_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Độc lập:</div>
+            <span class="rel-tag">Phục vụ xác thực tạm thời</span>
+          </div>
+        </div>
+
+        <!-- device_tokens -->
+        <div class="entity-card" data-name="device_tokens">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> device_tokens</span>
+            <span class="entity-badge" style="background:rgba(168,85,247,0.2);color:var(--color-auth)">PUSH NOTIF</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> fcm_token</span><span class="col-type">VARCHAR NOT NULL</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> device_type</span><span class="col-type">VARCHAR ('ANDROID', 'IOS')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active / last_seen_at</span><span class="col-type">BOOLEAN / TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- audit_logs -->
+        <div class="entity-card" data-name="audit_logs">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> audit_logs</span>
+            <span class="entity-badge" style="background:rgba(168,85,247,0.2);color:var(--color-auth)">AUDIT TRAIL</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK (Nullable)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> action</span><span class="col-type">VARCHAR ('CONFIRM', 'VOID'...)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> entity_name / entity_id</span><span class="col-type">VARCHAR / VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> old_values / new_values</span><span class="col-type">JSONB</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> created_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 2: TÀI KHOẢN & VÍ -->
+    <section class="module-group" data-module="account">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-account)">Phân hệ 2</span>
+        <h2 class="module-title">Tài khoản Tài chính & Cấu hình Ngân hàng (Financial Accounts)</h2>
+        <span class="module-desc">Ví tiền, tài khoản ngân hàng và liên kết theo dõi ứng dụng</span>
+      </div>
+      <div class="table-grid">
+
+        <!-- provider_configs -->
+        <div class="entity-card" data-name="provider_configs bank_packages_config">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> provider_configs</span>
+            <span class="entity-badge" style="background:rgba(59,130,246,0.2);color:var(--color-account)">APP CONFIG</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> provider_key / bank_code</span><span class="col-type">VARCHAR UK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> package_name</span><span class="col-type">VARCHAR UK (Android)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> regex_balance_pattern</span><span class="col-type">TEXT (Bóc số tiền)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> financial_accounts</span>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> user_monitored_packages</span>
+          </div>
+        </div>
+
+        <!-- user_monitored_packages -->
+        <div class="entity-card" data-name="user_monitored_packages">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> user_monitored_packages</span>
+            <span class="entity-badge" style="background:rgba(59,130,246,0.2);color:var(--color-account)">JUNCTION N-N</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> provider_config_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN DEFAULT TRUE</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> activated_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> provider_configs</span>
+          </div>
+        </div>
+
+        <!-- financial_accounts -->
+        <div class="entity-card" data-name="financial_accounts wallets">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> financial_accounts</span>
+            <span class="entity-badge" style="background:rgba(59,130,246,0.2);color:var(--color-account)">WALLETS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> provider_config_id</span><span class="col-type">UUID FK (Nullable)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> account_type</span><span class="col-type">VARCHAR ('CASH','BANK','EWALLET')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> account_number_last4</span><span class="col-type">VARCHAR(4)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> balance_cents</span><span class="col-type">BIGINT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_monitored / is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users, provider_configs</span>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> notification_logs, transactions</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 3: FLOW 1 & AI BÓC TÁCH -->
+    <section class="module-group" data-module="flow1">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-flow1)">Phân hệ 3</span>
+        <h2 class="module-title">Thu nhận Thông báo & AI Bóc tách (Flow 1 Ingestion)</h2>
+        <span class="module-desc">Lắng nghe biến động số dư, trích xuất thực thể AI và học quy tắc đối tác</span>
+      </div>
+      <div class="table-grid">
+
+        <!-- notification_logs -->
+        <div class="entity-card" data-name="notification_logs">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> notification_logs</span>
+            <span class="entity-badge" style="background:rgba(6,182,212,0.2);color:var(--color-flow1)">LOGS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> financial_account_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> content_hash</span><span class="col-type">VARCHAR(64) (Idempotency)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> raw_text / title</span><span class="col-type">TEXT (E2EE/Normalized)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> status</span><span class="col-type">VARCHAR ('PENDING','PROCESSED'...)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> received_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — 1 <span class="rel-arrow">→</span> ai_results</span>
+            <span class="rel-tag">0..1 — N <span class="rel-arrow">→</span> transactions</span>
+          </div>
+        </div>
+
+        <!-- ai_results -->
+        <div class="entity-card" data-name="ai_results">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> ai_results</span>
+            <span class="entity-badge" style="background:rgba(6,182,212,0.2);color:var(--color-flow1)">AI SERVICE</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> notification_log_id</span><span class="col-type">UUID FK (1-1)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> amount_cents</span><span class="col-type">BIGINT (Trích xuất)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> category_slug</span><span class="col-type">VARCHAR (Gợi ý)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> extraction_confidence</span><span class="col-type">REAL (&ge;0.85 Auto-commit)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> recipient_account_hash</span><span class="col-type">VARCHAR (HMAC PII)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> transaction_subtype</span><span class="col-type">VARCHAR ('purchase','transfer')</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — 1 <span class="rel-arrow">→</span> notification_logs</span>
+            <span class="rel-tag">Hash match <span class="rel-arrow">⤏</span> counterparty_category_rules</span>
+          </div>
+        </div>
+
+        <!-- categories -->
+        <div class="entity-card" data-name="categories">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> categories</span>
+            <span class="entity-badge" style="background:rgba(6,182,212,0.2);color:var(--color-flow1)">TAXONOMY</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK (NULL if System)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> parent_id</span><span class="col-type">UUID FK (Cây cha-con)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> name / slug</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> category_type</span><span class="col-type">VARCHAR ('INCOME','EXPENSE')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_system</span><span class="col-type">BOOLEAN (Không được xóa)</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> transactions, budgets, rules</span>
+          </div>
+        </div>
+
+        <!-- counterparty_category_rules -->
+        <div class="entity-card" data-name="counterparty_category_rules">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> counterparty_category_rules</span>
+            <span class="entity-badge" style="background:rgba(2,132,199,0.25);color:#38bdf8">FLOW 1 UPDATE</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> category_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> provider</span><span class="col-type">VARCHAR ('VCB', 'MB'...)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> counterparty_account_hash</span><span class="col-type">VARCHAR (HMAC-SHA256)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> counterparty_name</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users, categories</span>
+            <span class="rel-tag">Auto-assign <span class="rel-arrow">⤏</span> transactions</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 4: GIAO DỊCH TRUNG TÂM -->
+    <section class="module-group" data-module="trans">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-trans)">Phân hệ 4</span>
+        <h2 class="module-title">Sổ cái Giao dịch Trung tâm (Transactions Ledger)</h2>
+        <span class="module-desc">Thực thể trung tâm tiếp nhận từ mọi nguồn (Flow 1 Auto, Flow 2 Manual/OCR/Voice)</span>
+      </div>
+      <div class="table-grid" style="grid-template-columns: 1fr;">
+
+        <!-- transactions -->
+        <div class="entity-card core-anchor" data-name="transactions">
+          <div class="card-head">
+            <span class="entity-name" style="font-size:1.1rem"><span class="key-pk">#</span> transactions</span>
+            <span class="entity-badge" style="background:rgba(249,115,22,0.25);color:var(--accent);font-size:0.75rem">SYSTEM CORE LEDGER</span>
+          </div>
+          <div class="card-body">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap: 0.5rem 1rem; padding: 0.5rem 0.5rem;">
+              <ul class="column-list">
+                <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-fk">→</span> financial_account_id</span><span class="col-type">UUID FK (Ví nguồn)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-fk">→</span> counter_account_id</span><span class="col-type">UUID FK (Ví đích nội bộ, null)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-fk">→</span> category_id</span><span class="col-type">UUID FK (Nullable)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-fk">→</span> notification_log_id</span><span class="col-type">UUID FK (Nullable)</span></li>
+              </ul>
+              <ul class="column-list">
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> amount_cents</span><span class="col-type">BIGINT (Null nếu draft)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> transaction_type</span><span class="col-type">VARCHAR ('debit', 'credit')</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> transaction_subtype</span><span class="col-type">VARCHAR ('purchase', 'transfer'...)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> status</span><span class="col-type">VARCHAR ('draft', 'confirmed', 'voided')</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> confirmation_mode</span><span class="col-type">VARCHAR ('auto', 'manual')</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> source</span><span class="col-type">VARCHAR ('notification','manual','ocr','voice')</span></li>
+              </ul>
+              <ul class="column-list">
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> category_assignment_source</span><span class="col-type">VARCHAR ('rule','ai','user','default')</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> undo_expires_at</span><span class="col-type">TIMESTAMPTZ (5 phút cửa sổ)</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> voided_at / voided_reason</span><span class="col-type">TIMESTAMPTZ / TEXT</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> transacted_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+                <li class="col-item"><span class="col-name"><span class="key-norm">·</span> note_encrypted</span><span class="col-type">TEXT (E2EE)</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Mối quan hệ trung tâm:</div>
+            <span class="rel-tag">Nhận nguồn từ: users, financial_accounts, categories, notification_logs</span>
+            <span class="rel-tag">Cập nhật số dư sang: financial_accounts.balance_cents</span>
+            <span class="rel-tag">Cập nhật tiến độ: budgets, daily_summaries, savings_goals</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 5: NGÂN SÁCH & DỰ BÁO AI -->
+    <section class="module-group" data-module="budget">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-budget)">Phân hệ 5</span>
+        <h2 class="module-title">Thu nhập, Ngân sách & Dự báo AI (Flow 3 Planning)</h2>
+        <span class="module-desc">Kiểm soát bội chi, tính toán hạn mức, cảnh báo ngưỡng 70%/90% và dự báo cuối tháng</span>
+      </div>
+      <div class="table-grid">
+
+        <!-- monthly_income_settings -->
+        <div class="entity-card" data-name="monthly_income_settings">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> monthly_income_settings</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">INCOME</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> month_year</span><span class="col-type">VARCHAR(7) ('2026-09')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> expected_income</span><span class="col-type">BIGINT (Dự kiến)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> actual_income</span><span class="col-type">BIGINT (Thực tế)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> income_sources</span><span class="col-type">JSONB</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- budgets -->
+        <div class="entity-card" data-name="budgets">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> budgets</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">BUDGETS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> category_id</span><span class="col-type">UUID FK (Null nếu tổng)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> amount_limit</span><span class="col-type">BIGINT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> alert_threshold_1</span><span class="col-type">REAL (Mặc định 0.7)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> alert_threshold_2</span><span class="col-type">REAL (Mặc định 0.9)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> budget_periods, budget_alert_logs</span>
+          </div>
+        </div>
+
+        <!-- budget_periods -->
+        <div class="entity-card" data-name="budget_periods">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> budget_periods</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">PERIODS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> budget_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> month_year</span><span class="col-type">VARCHAR(7)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> actual_spent_cents</span><span class="col-type">BIGINT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> spent_percentage</span><span class="col-type">REAL</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> status</span><span class="col-type">VARCHAR ('NORMAL','WARN','EXCEEDED')</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> budgets</span>
+          </div>
+        </div>
+
+        <!-- budget_alert_logs -->
+        <div class="entity-card" data-name="budget_alert_logs">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> budget_alert_logs</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">ALERTS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> budget_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> alert_level</span><span class="col-type">INT (1: 70%, 2: 90%, 3: 100%)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> percentage_at_alert</span><span class="col-type">REAL</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> alerted_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> budgets, users</span>
+          </div>
+        </div>
+
+        <!-- daily_summaries -->
+        <div class="entity-card" data-name="daily_summaries">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> daily_summaries</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">DAILY METRICS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> summary_date</span><span class="col-type">DATE</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> total_spent_cents</span><span class="col-type">BIGINT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> total_income_cents</span><span class="col-type">BIGINT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> burn_rate_daily</span><span class="col-type">BIGINT (Tốc độ tiêu)</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- spending_insights -->
+        <div class="entity-card" data-name="spending_insights ai_spending_forecasts">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> spending_insights</span>
+            <span class="entity-badge" style="background:rgba(16,185,129,0.2);color:var(--color-budget)">AI FORECAST</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> forecast_date</span><span class="col-type">DATE</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> projected_month_end_cents</span><span class="col-type">BIGINT (Dự báo hết tháng)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> projected_deficit_cents</span><span class="col-type">BIGINT (Số tiền bội chi)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_safe_trajectory</span><span class="col-type">BOOLEAN (An toàn/Báo động)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> recommendation_text</span><span class="col-type">TEXT (Lời khuyên)</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 6: MỤC TIÊU TIẾT KIỆM -->
+    <section class="module-group" data-module="savings">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-savings)">Phân hệ 6</span>
+        <h2 class="module-title">Mục tiêu Tiết kiệm (Savings Goals)</h2>
+        <span class="module-desc">Thiết lập heo đất, kiểm tra tính khả thi và lịch sử tích lũy tiền</span>
+      </div>
+      <div class="table-grid">
+
+        <!-- savings_goals -->
+        <div class="entity-card" data-name="savings_goals saving_goals">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> savings_goals</span>
+            <span class="entity-badge" style="background:rgba(234,179,8,0.2);color:var(--color-savings)">GOALS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> name</span><span class="col-type">VARCHAR ("Mua xe", "Du lịch")</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> target_amount_cents</span><span class="col-type">BIGINT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> current_amount_cents</span><span class="col-type">BIGINT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> target_date</span><span class="col-type">DATE</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_feasible</span><span class="col-type">BOOLEAN (So sánh Quota/Thu nhập)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> status</span><span class="col-type">VARCHAR ('IN_PROGRESS','COMPLETED')</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> goal_contributions</span>
+          </div>
+        </div>
+
+        <!-- goal_contributions -->
+        <div class="entity-card" data-name="goal_contributions savings_goal_deposits">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> goal_contributions</span>
+            <span class="entity-badge" style="background:rgba(234,179,8,0.2);color:var(--color-savings)">DEPOSITS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> goal_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> transaction_id</span><span class="col-type">UUID FK (Nullable)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> amount_cents</span><span class="col-type">BIGINT NOT NULL</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> contributed_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> note</span><span class="col-type">TEXT</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> savings_goals, users</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- PHÂN HỆ 7: GAMIFICATION & MASCOT -->
+    <section class="module-group" data-module="game">
+      <div class="module-header">
+        <span class="module-tag" style="background:var(--color-game)">Phân hệ 7</span>
+        <h2 class="module-title">Gamification, Nhiệm vụ & Linh thú Mascot (Flow 4)</h2>
+        <span class="module-desc">Tạo động lực ghi chép, chuỗi ngày Streak, mở khóa skin trang phục và biểu cảm cảm xúc</span>
+      </div>
+      <div class="table-grid">
+
+        <!-- user_gamifications -->
+        <div class="entity-card core-anchor" data-name="user_gamifications">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> user_gamifications</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">MASCOT PROFILE</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK UK (1-1)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> current_level</span><span class="col-type">INT DEFAULT 1</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> total_exp</span><span class="col-type">INT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> current_streak_days</span><span class="col-type">INT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> longest_streak_days</span><span class="col-type">INT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> emotional_state</span><span class="col-type">VARCHAR ('GREEN','YELLOW','RED')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> equipped_skin_id</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> equipped_theme_id</span><span class="col-type">VARCHAR</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — 1 <span class="rel-arrow">→</span> users</span>
+          </div>
+        </div>
+
+        <!-- gamification_rules_config -->
+        <div class="entity-card" data-name="gamification_rules_config">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> gamification_rules_config</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">EXP RULES</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> rule_code</span><span class="col-type">VARCHAR PK ('TXN_CONFIRM'...)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> action_name</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> base_exp_reward</span><span class="col-type">INT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> daily_cap_count</span><span class="col-type">INT (Giới hạn cày điểm)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> missions</span>
+          </div>
+        </div>
+
+        <!-- level_progression_config -->
+        <div class="entity-card" data-name="level_progression_config">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> level_progression_config</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">LEVELS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> level</span><span class="col-type">INT PK (1, 2, 3...)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> exp_required</span><span class="col-type">INT (Ngưỡng đạt mốc)</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> reward_skin_id</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> title</span><span class="col-type">VARCHAR ("Bậc thầy tài chính")</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Ý nghĩa:</div>
+            <span class="rel-tag">Định nghĩa lộ trình thăng hạng</span>
+          </div>
+        </div>
+
+        <!-- mascot_items -->
+        <div class="entity-card" data-name="mascot_items mascot_items_catalog">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> mascot_items</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">CATALOG</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id / item_id</span><span class="col-type">UUID / VARCHAR PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> item_type</span><span class="col-type">VARCHAR ('SKIN','ACCESSORY')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> item_name</span><span class="col-type">VARCHAR</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> required_level</span><span class="col-type">INT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> asset_bundle_url</span><span class="col-type">VARCHAR</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> user_mascot_items</span>
+          </div>
+        </div>
+
+        <!-- user_mascot_items -->
+        <div class="entity-card" data-name="user_mascot_items user_unlocked_items">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> user_mascot_items</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">INVENTORY</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> mascot_item_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> unlocked_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> unlock_method</span><span class="col-type">VARCHAR ('LEVEL_UP','QUEST')</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users, mascot_items</span>
+          </div>
+        </div>
+
+        <!-- missions -->
+        <div class="entity-card" data-name="missions quest_templates">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> missions</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">QUEST TEMPLATES</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> mission_type</span><span class="col-type">VARCHAR ('DAILY','WEEKLY')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> title</span><span class="col-type">VARCHAR ("Ghi chép 3 ngày")</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> target_action_code</span><span class="col-type">VARCHAR FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> target_count / reward_exp</span><span class="col-type">INT / INT</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> is_active</span><span class="col-type">BOOLEAN</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">1 — N <span class="rel-arrow">→</span> user_missions</span>
+          </div>
+        </div>
+
+        <!-- user_missions -->
+        <div class="entity-card" data-name="user_missions user_quests">
+          <div class="card-head">
+            <span class="entity-name"><span class="key-pk">#</span> user_missions</span>
+            <span class="entity-badge" style="background:rgba(236,72,153,0.2);color:var(--color-game)">USER QUESTS</span>
+          </div>
+          <div class="card-body">
+            <ul class="column-list">
+              <li class="col-item"><span class="col-name"><span class="key-pk">#</span> id</span><span class="col-type">UUID PK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> user_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-fk">→</span> mission_id</span><span class="col-type">UUID FK</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> current_count</span><span class="col-type">INT DEFAULT 0</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> status</span><span class="col-type">VARCHAR ('IN_PROGRESS','CLAIMED')</span></li>
+              <li class="col-item"><span class="col-name"><span class="key-norm">·</span> expires_at</span><span class="col-type">TIMESTAMPTZ</span></li>
+            </ul>
+          </div>
+          <div class="card-relations">
+            <div class="relation-title">Liên kết:</div>
+            <span class="rel-tag">N — 1 <span class="rel-arrow">→</span> users, missions</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <p><strong>FinMate Unified Database System</strong> — Tích hợp PostgreSQL Production Server & SQLite Android Client</p>
+    <p style="margin-top:0.4rem;font-size:0.75rem;color:#64748b">Tuân thủ: E2EE, Offline-First, Accounting Reversal Pattern (Voided), Payee Machine Learning Rule & No-Code Admin Configurations.</p>
+  </footer>
+
+  <script>
+    function setFilter(moduleName, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const sections = document.querySelectorAll('.module-group');
+      let visibleCount = 0;
+
+      sections.forEach(sec => {
+        if (moduleName === 'all' || sec.getAttribute('data-module') === moduleName) {
+          sec.style.display = 'block';
+          visibleCount += sec.querySelectorAll('.entity-card').length;
+        } else {
+          sec.style.display = 'none';
+        }
+      });
+
+      document.getElementById('tableCount').innerText = visibleCount;
+    }
+
+    function filterTables() {
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.entity-card');
+      let matchCount = 0;
+
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        const dataName = card.getAttribute('data-name').toLowerCase();
+        if (text.includes(q) || dataName.includes(q)) {
+          card.classList.remove('hidden');
+          matchCount++;
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      // Show/hide parent sections if all cards inside are hidden
+      document.querySelectorAll('.module-group').forEach(sec => {
+        const visibleCards = sec.querySelectorAll('.entity-card:not(.hidden)');
+        sec.style.display = visibleCards.length > 0 ? 'block' : 'none';
+      });
+
+      document.getElementById('tableCount').innerText = matchCount;
+    }
+  </script>
+</body>
+</html>

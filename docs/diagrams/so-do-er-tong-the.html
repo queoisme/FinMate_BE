@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinMate — Sơ Đồ Quan Hệ Thực Thể (Unified System ERD)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #090d14;
+      --grid-line: rgba(255, 255, 255, 0.03);
+      --card-bg: #121824;
+      --card-header: #1a2232;
+      --card-border: #263347;
+      --text: #f1f5f9;
+      --text-muted: #8292a6;
+      --accent: #f97316;
+      --accent-glow: rgba(249, 115, 22, 0.35);
+      
+      --color-auth: #c084fc;
+      --color-account: #60a5fa;
+      --color-flow1: #22d3ee;
+      --color-trans: #fb923c;
+      --color-budget: #34d399;
+      --color-savings: #facc15;
+      --color-game: #f472b6;
+      
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-serif: 'Instrument Serif', serif;
+      --font-mono: 'Geist Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg);
+      color: var(--text);
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* TOP TOOLBAR */
+    .top-bar {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      right: 1rem;
+      z-index: 50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+    .brand-box {
+      background: rgba(18, 24, 36, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 0.75rem 1.25rem;
+      pointer-events: auto;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .brand-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      font-weight: 600;
+    }
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      color: #fff;
+      font-weight: 400;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .brand-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .tools-box {
+      display: flex;
+      gap: 0.5rem;
+      pointer-events: auto;
+    }
+    .btn {
+      background: rgba(18, 24, 36, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 0.5rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s;
+    }
+    .btn:hover {
+      background: #1e293b;
+      border-color: rgba(255,255,255,0.2);
+    }
+    .search-input {
+      background: rgba(18, 24, 36, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      padding: 0.5rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-family: var(--font-sans);
+      outline: none;
+      width: 180px;
+      transition: all 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+      width: 240px;
+    }
+
+    /* MODULE FILTER PILLS */
+    .filter-pills {
+      position: absolute;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex;
+      gap: 0.4rem;
+      background: rgba(18, 24, 36, 0.92);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      padding: 0.4rem;
+      border-radius: 999px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+      max-width: 95vw;
+      overflow-x: auto;
+    }
+    .pill {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .pill:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.05);
+    }
+    .pill.active {
+      background: #1e293b;
+      color: #fff;
+      font-weight: 500;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    /* CANVAS WRAPPER */
+    #viewport {
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+      position: relative;
+    }
+    #viewport.grabbing {
+      cursor: grabbing;
+    }
+    #svgCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: 
+        radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 0.25) 0%, transparent 80%),
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+      background-color: var(--bg);
+    }
+
+    /* SVG STYLING */
+    .entity-group {
+      cursor: move;
+    }
+    .entity-box {
+      fill: var(--card-bg);
+      stroke: var(--card-border);
+      stroke-width: 1.4px;
+      rx: 8px;
+      transition: stroke 0.2s, filter 0.2s;
+    }
+    .entity-group:hover .entity-box {
+      stroke: rgba(255, 255, 255, 0.4);
+      filter: drop-shadow(0 8px 20px rgba(0,0,0,0.6));
+    }
+    .entity-group.core-node .entity-box {
+      stroke: var(--accent);
+      stroke-width: 2px;
+      filter: drop-shadow(0 0 15px var(--accent-glow));
+    }
+    .entity-group.highlighted .entity-box {
+      stroke: #fff;
+      stroke-width: 2.2px;
+      filter: drop-shadow(0 0 20px rgba(255,255,255,0.4));
+    }
+    .entity-group.dimmed {
+      opacity: 0.18;
+    }
+
+    .entity-header-bg {
+      fill: var(--card-header);
+      rx: 8px 8px 0 0;
+    }
+    .entity-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      fill: #ffffff;
+    }
+    .entity-module-badge {
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .col-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      fill: #cbd5e1;
+    }
+    .col-pk {
+      fill: #fbbf24;
+      font-weight: 700;
+    }
+    .col-fk {
+      fill: #38bdf8;
+      font-weight: 700;
+    }
+    .col-type {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      fill: #64748b;
+      text-anchor: end;
+    }
+
+    /* CONNECTION LINES */
+    .relation-path {
+      fill: none;
+      stroke: #334155;
+      stroke-width: 1.5px;
+      transition: stroke 0.2s, stroke-width 0.2s, opacity 0.2s;
+    }
+    .relation-path.highlighted {
+      stroke: var(--accent);
+      stroke-width: 2.8px;
+      filter: drop-shadow(0 0 6px var(--accent-glow));
+    }
+    .relation-path.dimmed {
+      opacity: 0.08;
+    }
+    .cardinality-badge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      fill: #94a3b8;
+      font-weight: 600;
+    }
+
+    /* INSTRUCTIONS TOAST */
+    .toast-tip {
+      position: absolute;
+      top: 5rem;
+      right: 1.5rem;
+      z-index: 40;
+      background: rgba(18, 24, 36, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .toast-tip kbd {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="brand-box">
+      <div class="brand-eyebrow">FinMate Architecture · Unified System ERD</div>
+      <div class="brand-title">
+        Sơ Đồ Quan Hệ Thực Thể Toàn Hệ Thống
+        <span style="font-size:0.75rem;padding:2px 8px;border-radius:999px;background:rgba(249,115,22,0.2);color:var(--accent);font-family:var(--font-mono)">29 TABLES</span>
+      </div>
+      <div class="brand-desc">Tổng hợp PostgreSQL & Android SQLite: Xác thực, Ingestion AI, Giao dịch, Ngân sách, Tiết kiệm, Gamification</div>
+    </div>
+
+    <div class="tools-box">
+      <input type="text" class="search-input" id="searchTable" placeholder="Tìm bảng hoặc cột..." oninput="onSearch()">
+      <button class="btn" onclick="zoomIn()">🔍+ Phóng to</button>
+      <button class="btn" onclick="zoomOut()">🔍- Thu nhỏ</button>
+      <button class="btn" onclick="fitView()">🎯 Vừa màn hình</button>
+      <button class="btn" onclick="resetView()">🔄 Mặc định</button>
+    </div>
+  </div>
+
+  <!-- INSTRUCTION TIP -->
+  <div class="toast-tip">
+    💡 Kéo chuột để <strong>Pan</strong> · Cuộn chuột để <strong>Zoom</strong> · Click vào bảng để <strong>Xem liên kết</strong>
+  </div>
+
+  <!-- FILTER PILLS -->
+  <div class="filter-pills">
+    <button class="pill active" onclick="filterModule('all', this)"><span class="pill-dot" style="background:#fff"></span> Tất cả (29)</button>
+    <button class="pill" onclick="filterModule('auth', this)"><span class="pill-dot" style="background:var(--color-auth)"></span> 1. Auth & Users (6)</button>
+    <button class="pill" onclick="filterModule('account', this)"><span class="pill-dot" style="background:var(--color-account)"></span> 2. Tài khoản & Ví (3)</button>
+    <button class="pill" onclick="filterModule('flow1', this)"><span class="pill-dot" style="background:var(--color-flow1)"></span> 3. Bóc tách AI & Quy tắc (4)</button>
+    <button class="pill" onclick="filterModule('trans', this)"><span class="pill-dot" style="background:var(--color-trans)"></span> 4. Sổ cái Giao dịch (1)</button>
+    <button class="pill" onclick="filterModule('budget', this)"><span class="pill-dot" style="background:var(--color-budget)"></span> 5. Ngân sách & Thu nhập (6)</button>
+    <button class="pill" onclick="filterModule('savings', this)"><span class="pill-dot" style="background:var(--color-savings)"></span> 6. Tiết kiệm (2)</button>
+    <button class="pill" onclick="filterModule('game', this)"><span class="pill-dot" style="background:var(--color-game)"></span> 7. Gamification & Mascot (7)</button>
+  </div>
+
+  <!-- VIEWPORT & CANVAS -->
+  <div id="viewport">
+    <svg id="svgCanvas">
+      <defs>
+        <!-- Arrow marker -->
+        <marker id="marker-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+        </marker>
+        <marker id="marker-arrow-active" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#f97316"/>
+        </marker>
+        <marker id="marker-circle" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+          <circle cx="4" cy="4" r="2.5" fill="#64748b"/>
+        </marker>
+      </defs>
+
+      <!-- ROOT TRANSFORM GROUP -->
+      <g id="worldGroup">
+        <!-- ALL CONNECTION LINES -->
+        <g id="edgesLayer"></g>
+        <!-- ALL ENTITY TABLES -->
+        <g id="nodesLayer"></g>
+      </g>
+    </svg>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. DỮ LIỆU ĐẦY ĐỦ 29 BẢNG TOÀN HỆ THỐNG
+    // ==========================================
+    const ENTITIES = [
+      // --- MODULE 1: AUTH & USERS ---
+      {
+        id: "users",
+        name: "users",
+        module: "auth",
+        color: "var(--color-auth)",
+        isCore: true,
+        x: 750, y: 750, w: 290, h: 250,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "email", type: "VARCHAR UK", key: "norm" },
+          { name: "phone", type: "VARCHAR UK", key: "norm" },
+          { name: "password_hash", type: "VARCHAR", key: "norm" },
+          { name: "role", type: "VARCHAR", key: "norm" },
+          { name: "privacy_policy_version", type: "VARCHAR FK", key: "fk" },
+          { name: "encrypted_dek_backup", type: "TEXT (E2EE)", key: "norm" },
+          { name: "created_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "privacy_policy_versions",
+        name: "privacy_policy_versions",
+        module: "auth",
+        color: "var(--color-auth)",
+        x: 750, y: 520, w: 290, h: 140,
+        cols: [
+          { name: "version", type: "VARCHAR PK", key: "pk" },
+          { name: "content_markdown", type: "TEXT", key: "norm" },
+          { name: "effective_date", type: "TIMESTAMPTZ", key: "norm" },
+          { name: "is_mandatory_reaccept", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "refresh_tokens",
+        name: "refresh_tokens",
+        module: "auth",
+        color: "var(--color-auth)",
+        x: 350, y: 620, w: 260, h: 160,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "token_hash", type: "VARCHAR UK", key: "norm" },
+          { name: "device_fingerprint", type: "TEXT", key: "norm" },
+          { name: "expires_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "otp_verifications",
+        name: "otp_verifications",
+        module: "auth",
+        color: "var(--color-auth)",
+        x: 350, y: 830, w: 260, h: 160,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "contact", type: "VARCHAR", key: "norm" },
+          { name: "otp_hash", type: "VARCHAR", key: "norm" },
+          { name: "purpose", type: "VARCHAR", key: "norm" },
+          { name: "expires_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "device_tokens",
+        name: "device_tokens",
+        module: "auth",
+        color: "var(--color-auth)",
+        x: 350, y: 1040, w: 260, h: 160,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "fcm_token", type: "VARCHAR", key: "norm" },
+          { name: "device_type", type: "VARCHAR", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "audit_logs",
+        name: "audit_logs",
+        module: "auth",
+        color: "var(--color-auth)",
+        x: 750, y: 1080, w: 290, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK (Null)", key: "fk" },
+          { name: "action", type: "VARCHAR", key: "norm" },
+          { name: "entity_name", type: "VARCHAR", key: "norm" },
+          { name: "old_values / new_values", type: "JSONB", key: "norm" },
+          { name: "created_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 2: ACCOUNTS & BANK CONFIGS ---
+      {
+        id: "provider_configs",
+        name: "provider_configs",
+        module: "account",
+        color: "var(--color-account)",
+        x: 1200, y: 500, w: 290, h: 160,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "provider_key", type: "VARCHAR UK", key: "norm" },
+          { name: "package_name", type: "VARCHAR UK", key: "norm" },
+          { name: "regex_balance_pattern", type: "TEXT", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "user_monitored_packages",
+        name: "user_monitored_packages",
+        module: "account",
+        color: "var(--color-account)",
+        x: 1200, y: 280, w: 290, h: 160,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "provider_config_id", type: "UUID FK", key: "fk" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" },
+          { name: "activated_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "financial_accounts",
+        name: "financial_accounts",
+        module: "account",
+        color: "var(--color-account)",
+        x: 1200, y: 750, w: 290, h: 220,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "provider_config_id", type: "UUID FK (Null)", key: "fk" },
+          { name: "account_type", type: "VARCHAR ('CASH'..)", key: "norm" },
+          { name: "account_number_last4", type: "VARCHAR(4)", key: "norm" },
+          { name: "balance_cents", type: "BIGINT", key: "norm" },
+          { name: "is_monitored", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 3: FLOW 1 INGESTION & AI ---
+      {
+        id: "notification_logs",
+        name: "notification_logs",
+        module: "flow1",
+        color: "var(--color-flow1)",
+        x: 2120, y: 640, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "financial_account_id", type: "UUID FK", key: "fk" },
+          { name: "content_hash", type: "VARCHAR(64) UK", key: "norm" },
+          { name: "status", type: "VARCHAR", key: "norm" },
+          { name: "received_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "ai_results",
+        name: "ai_results",
+        module: "flow1",
+        color: "var(--color-flow1)",
+        x: 2540, y: 640, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "notification_log_id", type: "UUID FK (1-1)", key: "fk" },
+          { name: "amount_cents", type: "BIGINT", key: "norm" },
+          { name: "category_slug", type: "VARCHAR", key: "norm" },
+          { name: "extraction_confidence", type: "REAL", key: "norm" },
+          { name: "recipient_account_hash", type: "VARCHAR (HMAC)", key: "norm" }
+        ]
+      },
+      {
+        id: "categories",
+        name: "categories",
+        module: "flow1",
+        color: "var(--color-flow1)",
+        x: 1200, y: 1080, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK (Null)", key: "fk" },
+          { name: "parent_id", type: "UUID FK (Cây cha-con)", key: "fk" },
+          { name: "name / slug", type: "VARCHAR", key: "norm" },
+          { name: "category_type", type: "VARCHAR ('EXPENSE'..)", key: "norm" },
+          { name: "is_system", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "counterparty_category_rules",
+        name: "counterparty_category_rules",
+        module: "flow1",
+        color: "var(--color-flow1)",
+        x: 2120, y: 920, w: 300, h: 220,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "category_id", type: "UUID FK", key: "fk" },
+          { name: "provider", type: "VARCHAR", key: "norm" },
+          { name: "counterparty_account_hash", type: "VARCHAR UK", key: "norm" },
+          { name: "counterparty_name", type: "VARCHAR", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 4: CENTRAL TRANSACTIONS ---
+      {
+        id: "transactions",
+        name: "transactions",
+        module: "trans",
+        color: "var(--color-trans)",
+        isCore: true,
+        x: 1650, y: 800, w: 340, h: 360,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "financial_account_id", type: "UUID FK (Ví nguồn)", key: "fk" },
+          { name: "counter_account_id", type: "UUID FK (Ví đích, Null)", key: "fk" },
+          { name: "category_id", type: "UUID FK (Nullable)", key: "fk" },
+          { name: "notification_log_id", type: "UUID FK (Nullable)", key: "fk" },
+          { name: "amount_cents", type: "BIGINT (Null if draft)", key: "norm" },
+          { name: "transaction_type", type: "VARCHAR ('debit'/'credit')", key: "norm" },
+          { name: "transaction_subtype", type: "VARCHAR ('transfer'..)", key: "norm" },
+          { name: "status", type: "VARCHAR ('draft'/'confirmed'/'voided')", key: "norm" },
+          { name: "confirmation_mode", type: "VARCHAR ('auto'/'manual')", key: "norm" },
+          { name: "category_assignment_source", type: "VARCHAR ('rule'/'ai'..)", key: "norm" },
+          { name: "undo_expires_at", type: "TIMESTAMPTZ (5m window)", key: "norm" },
+          { name: "transacted_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 5: BUDGET & FORECAST ---
+      {
+        id: "monthly_income_settings",
+        name: "monthly_income_settings",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 1200, y: 1400, w: 290, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "month_year", type: "VARCHAR(7) UK", key: "norm" },
+          { name: "expected_income", type: "BIGINT", key: "norm" },
+          { name: "actual_income", type: "BIGINT", key: "norm" },
+          { name: "income_sources", type: "JSONB", key: "norm" }
+        ]
+      },
+      {
+        id: "budgets",
+        name: "budgets",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 1650, y: 1400, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "category_id", type: "UUID FK (Null if Total)", key: "fk" },
+          { name: "amount_limit", type: "BIGINT", key: "norm" },
+          { name: "alert_threshold_1", type: "REAL (0.7)", key: "norm" },
+          { name: "alert_threshold_2", type: "REAL (0.9)", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "budget_periods",
+        name: "budget_periods",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 2080, y: 1400, w: 270, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "budget_id", type: "UUID FK", key: "fk" },
+          { name: "month_year", type: "VARCHAR(7)", key: "norm" },
+          { name: "actual_spent_cents", type: "BIGINT", key: "norm" },
+          { name: "spent_percentage", type: "REAL", key: "norm" },
+          { name: "status", type: "VARCHAR", key: "norm" }
+        ]
+      },
+      {
+        id: "budget_alert_logs",
+        name: "budget_alert_logs",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 2080, y: 1650, w: 270, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "budget_id", type: "UUID FK", key: "fk" },
+          { name: "alert_level", type: "INT (1, 2, 3)", key: "norm" },
+          { name: "percentage_at_alert", type: "REAL", key: "norm" },
+          { name: "alerted_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+      {
+        id: "daily_summaries",
+        name: "daily_summaries",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 1650, y: 1700, w: 280, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "summary_date", type: "DATE UK", key: "norm" },
+          { name: "total_spent_cents", type: "BIGINT", key: "norm" },
+          { name: "total_income_cents", type: "BIGINT", key: "norm" },
+          { name: "burn_rate_daily", type: "BIGINT", key: "norm" }
+        ]
+      },
+      {
+        id: "spending_insights",
+        name: "spending_insights",
+        module: "budget",
+        color: "var(--color-budget)",
+        x: 1200, y: 1680, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "forecast_date", type: "DATE", key: "norm" },
+          { name: "projected_month_end_cents", type: "BIGINT", key: "norm" },
+          { name: "projected_deficit_cents", type: "BIGINT", key: "norm" },
+          { name: "is_safe_trajectory", type: "BOOLEAN", key: "norm" },
+          { name: "recommendation_text", type: "TEXT", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 6: SAVINGS GOALS ---
+      {
+        id: "savings_goals",
+        name: "savings_goals",
+        module: "savings",
+        color: "var(--color-savings)",
+        x: 680, y: 1400, w: 290, h: 200,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "name", type: "VARCHAR", key: "norm" },
+          { name: "target_amount_cents", type: "BIGINT", key: "norm" },
+          { name: "current_amount_cents", type: "BIGINT", key: "norm" },
+          { name: "target_date", type: "DATE", key: "norm" },
+          { name: "is_feasible", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "goal_contributions",
+        name: "goal_contributions",
+        module: "savings",
+        color: "var(--color-savings)",
+        x: 680, y: 1680, w: 290, h: 190,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "goal_id", type: "UUID FK", key: "fk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "transaction_id", type: "UUID FK (Null)", key: "fk" },
+          { name: "amount_cents", type: "BIGINT", key: "norm" },
+          { name: "contributed_at", type: "TIMESTAMPTZ", key: "norm" }
+        ]
+      },
+
+      // --- MODULE 7: GAMIFICATION & MASCOT ---
+      {
+        id: "user_gamifications",
+        name: "user_gamifications",
+        module: "game",
+        color: "var(--color-game)",
+        isCore: true,
+        x: 2540, y: 1000, w: 280, h: 220,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK UK (1-1)", key: "fk" },
+          { name: "current_level", type: "INT", key: "norm" },
+          { name: "total_exp", type: "INT", key: "norm" },
+          { name: "current_streak_days", type: "INT", key: "norm" },
+          { name: "emotional_state", type: "VARCHAR ('GREEN'..)", key: "norm" },
+          { name: "equipped_skin_id", type: "VARCHAR", key: "norm" }
+        ]
+      },
+      {
+        id: "gamification_rules_config",
+        name: "gamification_rules_config",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2980, y: 1000, w: 270, h: 170,
+        cols: [
+          { name: "rule_code", type: "VARCHAR PK", key: "pk" },
+          { name: "action_name", type: "VARCHAR", key: "norm" },
+          { name: "base_exp_reward", type: "INT", key: "norm" },
+          { name: "daily_cap_count", type: "INT", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "level_progression_config",
+        name: "level_progression_config",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2980, y: 760, w: 270, h: 160,
+        cols: [
+          { name: "level", type: "INT PK", key: "pk" },
+          { name: "exp_required", type: "INT", key: "norm" },
+          { name: "reward_skin_id", type: "VARCHAR", key: "norm" },
+          { name: "title", type: "VARCHAR", key: "norm" }
+        ]
+      },
+      {
+        id: "missions",
+        name: "missions",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2980, y: 1250, w: 270, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "mission_type", type: "VARCHAR", key: "norm" },
+          { name: "title", type: "VARCHAR", key: "norm" },
+          { name: "target_action_code", type: "VARCHAR FK", key: "fk" },
+          { name: "reward_exp", type: "INT", key: "norm" }
+        ]
+      },
+      {
+        id: "user_missions",
+        name: "user_missions",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2540, y: 1280, w: 280, h: 180,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "mission_id", type: "UUID FK", key: "fk" },
+          { name: "current_count", type: "INT", key: "norm" },
+          { name: "status", type: "VARCHAR ('IN_PROGRESS'..)", key: "norm" }
+        ]
+      },
+      {
+        id: "mascot_items",
+        name: "mascot_items",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2980, y: 1520, w: 270, h: 170,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "item_type", type: "VARCHAR", key: "norm" },
+          { name: "item_name", type: "VARCHAR", key: "norm" },
+          { name: "required_level", type: "INT", key: "norm" },
+          { name: "is_active", type: "BOOLEAN", key: "norm" }
+        ]
+      },
+      {
+        id: "user_mascot_items",
+        name: "user_mascot_items",
+        module: "game",
+        color: "var(--color-game)",
+        x: 2540, y: 1520, w: 280, h: 170,
+        cols: [
+          { name: "id", type: "UUID PK", key: "pk" },
+          { name: "user_id", type: "UUID FK", key: "fk" },
+          { name: "mascot_item_id", type: "UUID FK", key: "fk" },
+          { name: "unlocked_at", type: "TIMESTAMPTZ", key: "norm" },
+          { name: "unlock_method", type: "VARCHAR", key: "norm" }
+        ]
+      }
+    ];
+
+    // ==========================================
+    // 2. MỐI QUAN HỆ TOÀN BỘ HỆ THỐNG (EDGES)
+    // ==========================================
+    const RELATIONS = [
+      // Auth
+      { from: "privacy_policy_versions", to: "users", cardFrom: "1", cardTo: "N", label: "version" },
+      { from: "users", to: "refresh_tokens", cardFrom: "1", cardTo: "N", label: "tokens" },
+      { from: "users", to: "device_tokens", cardFrom: "1", cardTo: "N", label: "devices" },
+      { from: "users", to: "audit_logs", cardFrom: "1", cardTo: "N", label: "audits" },
+
+      // Accounts
+      { from: "users", to: "user_monitored_packages", cardFrom: "1", cardTo: "N", label: "monitors" },
+      { from: "provider_configs", to: "user_monitored_packages", cardFrom: "1", cardTo: "N", label: "package" },
+      { from: "users", to: "financial_accounts", cardFrom: "1", cardTo: "N", label: "wallets" },
+      { from: "provider_configs", to: "financial_accounts", cardFrom: "1", cardTo: "N", label: "provider" },
+
+      // Flow 1
+      { from: "users", to: "notification_logs", cardFrom: "1", cardTo: "N", label: "notifications" },
+      { from: "financial_accounts", to: "notification_logs", cardFrom: "1", cardTo: "N", label: "account" },
+      { from: "notification_logs", to: "ai_results", cardFrom: "1", cardTo: "1", label: "extracts" },
+      { from: "users", to: "categories", cardFrom: "1", cardTo: "N", label: "categories" },
+      { from: "categories", to: "categories", cardFrom: "1", cardTo: "N", label: "sub_category" },
+      { from: "users", to: "counterparty_category_rules", cardFrom: "1", cardTo: "N", label: "user_rules" },
+      { from: "categories", to: "counterparty_category_rules", cardFrom: "1", cardTo: "N", label: "rule_category" },
+
+      // Transactions
+      { from: "users", to: "transactions", cardFrom: "1", cardTo: "N", label: "transactions" },
+      { from: "financial_accounts", to: "transactions", cardFrom: "1", cardTo: "N", label: "source_wallet" },
+      { from: "financial_accounts", to: "transactions", cardFrom: "0..1", cardTo: "N", label: "dest_wallet" },
+      { from: "categories", to: "transactions", cardFrom: "0..1", cardTo: "N", label: "category" },
+      { from: "notification_logs", to: "transactions", cardFrom: "0..1", cardTo: "N", label: "source_notif" },
+      { from: "counterparty_category_rules", to: "transactions", cardFrom: "0..1", cardTo: "N", label: "rule_match", dashed: true },
+
+      // Budget & Forecast
+      { from: "users", to: "monthly_income_settings", cardFrom: "1", cardTo: "N", label: "income" },
+      { from: "users", to: "budgets", cardFrom: "1", cardTo: "N", label: "budgets" },
+      { from: "categories", to: "budgets", cardFrom: "0..1", cardTo: "N", label: "budget_cat" },
+      { from: "budgets", to: "budget_periods", cardFrom: "1", cardTo: "N", label: "periods" },
+      { from: "budgets", to: "budget_alert_logs", cardFrom: "1", cardTo: "N", label: "alerts" },
+      { from: "users", to: "budget_alert_logs", cardFrom: "1", cardTo: "N", label: "user_alerts" },
+      { from: "users", to: "daily_summaries", cardFrom: "1", cardTo: "N", label: "summaries" },
+      { from: "users", to: "spending_insights", cardFrom: "1", cardTo: "N", label: "forecast" },
+
+      // Savings
+      { from: "users", to: "savings_goals", cardFrom: "1", cardTo: "N", label: "goals" },
+      { from: "savings_goals", to: "goal_contributions", cardFrom: "1", cardTo: "N", label: "deposits" },
+      { from: "users", to: "goal_contributions", cardFrom: "1", cardTo: "N", label: "depositor" },
+      { from: "transactions", to: "goal_contributions", cardFrom: "0..1", cardTo: "N", label: "funded_by" },
+
+      // Gamification
+      { from: "users", to: "user_gamifications", cardFrom: "1", cardTo: "1", label: "mascot_profile" },
+      { from: "gamification_rules_config", to: "missions", cardFrom: "1", cardTo: "N", label: "action_rule" },
+      { from: "missions", to: "user_missions", cardFrom: "1", cardTo: "N", label: "assigned" },
+      { from: "users", to: "user_missions", cardFrom: "1", cardTo: "N", label: "quests" },
+      { from: "mascot_items", to: "user_mascot_items", cardFrom: "1", cardTo: "N", label: "inventory" },
+      { from: "users", to: "user_mascot_items", cardFrom: "1", cardTo: "N", label: "items" }
+    ];
+
+    // ==========================================
+    // 3. ENGINE VẼ SVG VÀ TƯƠNG TÁC PAN / ZOOM
+    // ==========================================
+    let state = {
+      scale: 0.55,
+      panX: -100,
+      panY: -50,
+      isPanning: false,
+      startX: 0,
+      startY: 0,
+      selectedNodeId: null,
+      activeModule: 'all',
+      dragNode: null,
+      dragOffset: { x: 0, y: 0 }
+    };
+
+    const viewport = document.getElementById('viewport');
+    const worldGroup = document.getElementById('worldGroup');
+    const nodesLayer = document.getElementById('nodesLayer');
+    const edgesLayer = document.getElementById('edgesLayer');
+
+    function applyTransform() {
+      worldGroup.setAttribute('transform', `translate(${state.panX}, ${state.panY}) scale(${state.scale})`);
+    }
+
+    function renderDiagram() {
+      // 1. Render Nodes
+      nodesLayer.innerHTML = '';
+      ENTITIES.forEach(e => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", `entity-group ${e.isCore ? 'core-node' : ''}`);
+        g.setAttribute("id", `node-${e.id}`);
+        g.setAttribute("transform", `translate(${e.x}, ${e.y})`);
+        g.setAttribute("data-id", e.id);
+        g.setAttribute("data-module", e.module);
+
+        // Card Box
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("width", e.w);
+        rect.setAttribute("height", e.h);
+        rect.setAttribute("class", "entity-box");
+        g.appendChild(rect);
+
+        // Header Background
+        const headBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        headBg.setAttribute("width", e.w);
+        headBg.setAttribute("height", "32");
+        headBg.setAttribute("class", "entity-header-bg");
+        g.appendChild(headBg);
+
+        // Header Accent Strip
+        const strip = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        strip.setAttribute("width", "4");
+        strip.setAttribute("height", "32");
+        strip.setAttribute("rx", "2");
+        strip.setAttribute("fill", e.color);
+        g.appendChild(strip);
+
+        // Title
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        title.setAttribute("x", "14");
+        title.setAttribute("y", "20");
+        title.setAttribute("class", "entity-title");
+        title.textContent = e.name;
+        g.appendChild(title);
+
+        // Module Badge
+        const badge = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        badge.setAttribute("x", e.w - 12);
+        badge.setAttribute("y", "20");
+        badge.setAttribute("text-anchor", "end");
+        badge.setAttribute("fill", e.color);
+        badge.setAttribute("class", "entity-module-badge");
+        badge.textContent = e.module.toUpperCase();
+        g.appendChild(badge);
+
+        // Divider
+        const divLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        divLine.setAttribute("x1", "0");
+        divLine.setAttribute("y1", "32");
+        divLine.setAttribute("x2", e.w);
+        divLine.setAttribute("y2", "32");
+        divLine.setAttribute("stroke", "var(--card-border)");
+        divLine.setAttribute("stroke-width", "1");
+        g.appendChild(divLine);
+
+        // Columns
+        let curY = 50;
+        e.cols.forEach(col => {
+          // Key Symbol
+          const keyTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          keyTxt.setAttribute("x", "12");
+          keyTxt.setAttribute("y", curY);
+          keyTxt.setAttribute("class", `col-text ${col.key === 'pk' ? 'col-pk' : (col.key === 'fk' ? 'col-fk' : '')}`);
+          keyTxt.textContent = col.key === 'pk' ? '#' : (col.key === 'fk' ? '→' : '·');
+          g.appendChild(keyTxt);
+
+          // Col Name
+          const nameTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          nameTxt.setAttribute("x", "26");
+          nameTxt.setAttribute("y", curY);
+          nameTxt.setAttribute("class", "col-text");
+          nameTxt.textContent = col.name;
+          g.appendChild(nameTxt);
+
+          // Col Type
+          const typeTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          typeTxt.setAttribute("x", e.w - 12);
+          typeTxt.setAttribute("y", curY);
+          typeTxt.setAttribute("class", "col-type");
+          typeTxt.textContent = col.type;
+          g.appendChild(typeTxt);
+
+          curY += 22;
+        });
+
+        // Event Listeners for dragging and selection
+        g.addEventListener('mousedown', (evt) => startDragNode(evt, e));
+        g.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          selectNode(e.id);
+        });
+
+        nodesLayer.appendChild(g);
+      });
+
+      // 2. Render Edges
+      renderEdges();
+      applyTransform();
+    }
+
+    function renderEdges() {
+      edgesLayer.innerHTML = '';
+      const entityMap = {};
+      ENTITIES.forEach(e => entityMap[e.id] = e);
+
+      RELATIONS.forEach((rel, idx) => {
+        const fromNode = entityMap[rel.from];
+        const toNode = entityMap[rel.to];
+        if (!fromNode || !toNode) return;
+
+        // Tự tham chiếu (categories -> categories)
+        if (fromNode === toNode) {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          const d = `M ${fromNode.x + fromNode.w} ${fromNode.y + 60} C ${fromNode.x + fromNode.w + 60} ${fromNode.y + 20}, ${fromNode.x + fromNode.w + 60} ${fromNode.y + 110}, ${fromNode.x + fromNode.w} ${fromNode.y + 90}`;
+          path.setAttribute("d", d);
+          path.setAttribute("class", "relation-path");
+          path.setAttribute("id", `rel-${idx}`);
+          path.setAttribute("marker-end", "url(#marker-arrow)");
+          edgesLayer.appendChild(path);
+          return;
+        }
+
+        // Điểm nối thông minh: tìm 2 cạnh gần nhất giữa 2 hộp
+        let x1, y1, x2, y2;
+        const fromCenterX = fromNode.x + fromNode.w / 2;
+        const fromCenterY = fromNode.y + fromNode.h / 2;
+        const toCenterX = toNode.x + toNode.w / 2;
+        const toCenterY = toNode.y + toNode.h / 2;
+
+        if (toCenterX > fromCenterX + fromNode.w / 2) {
+          // to nằm bên phải
+          x1 = fromNode.x + fromNode.w;
+          y1 = fromCenterY;
+          x2 = toNode.x;
+          y2 = toCenterY;
+        } else if (toCenterX < fromCenterX - fromNode.w / 2) {
+          // to nằm bên trái
+          x1 = fromNode.x;
+          y1 = fromCenterY;
+          x2 = toNode.x + toNode.w;
+          y2 = toCenterY;
+        } else if (toCenterY > fromCenterY) {
+          // to nằm bên dưới
+          x1 = fromCenterX;
+          y1 = fromNode.y + fromNode.h;
+          x2 = toCenterX;
+          y2 = toNode.y;
+        } else {
+          // to nằm bên trên
+          x1 = fromCenterX;
+          y1 = fromNode.y;
+          x2 = toCenterX;
+          y2 = toNode.y + toNode.h;
+        }
+
+        // Cubic Bezier curve mượt mà
+        const dx = Math.abs(x2 - x1) * 0.45;
+        const dy = Math.abs(y2 - y1) * 0.45;
+        let d;
+        if (Math.abs(x2 - x1) > Math.abs(y2 - y1)) {
+          const cx1 = x1 > x2 ? x1 - dx : x1 + dx;
+          const cx2 = x1 > x2 ? x2 + dx : x2 - dx;
+          d = `M ${x1} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${x2} ${y2}`;
+        } else {
+          const cy1 = y1 > y2 ? y1 - dy : y1 + dy;
+          const cy2 = y1 > y2 ? y2 + dy : y2 - dy;
+          d = `M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`;
+        }
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("class", "relation-path");
+        path.setAttribute("id", `rel-${idx}`);
+        path.setAttribute("data-from", rel.from);
+        path.setAttribute("data-to", rel.to);
+        if (rel.dashed) path.setAttribute("stroke-dasharray", "5,4");
+        path.setAttribute("marker-end", "url(#marker-arrow)");
+        edgesLayer.appendChild(path);
+
+        // Cardinality label
+        const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        txt.setAttribute("x", (x1 + x2) / 2);
+        txt.setAttribute("y", (y1 + y2) / 2 - 6);
+        txt.setAttribute("text-anchor", "middle");
+        txt.setAttribute("class", "cardinality-badge");
+        txt.textContent = `${rel.cardFrom} : ${rel.cardTo}`;
+        edgesLayer.appendChild(txt);
+      });
+    }
+
+    // ==========================================
+    // 4. PAN & ZOOM CONTROLS
+    // ==========================================
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.entity-group')) return;
+      state.isPanning = true;
+      state.startX = e.clientX - state.panX;
+      state.startY = e.clientY - state.panY;
+      viewport.classList.add('grabbing');
+      clearSelection();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (state.isPanning) {
+        state.panX = e.clientX - state.startX;
+        state.panY = e.clientY - state.startY;
+        applyTransform();
+      } else if (state.dragNode) {
+        const dx = (e.clientX - state.dragOffset.x) / state.scale;
+        const dy = (e.clientY - state.dragOffset.y) / state.scale;
+        state.dragNode.x += dx;
+        state.dragNode.y += dy;
+        state.dragOffset.x = e.clientX;
+        state.dragOffset.y = e.clientY;
+
+        const nodeElem = document.getElementById(`node-${state.dragNode.id}`);
+        if (nodeElem) {
+          nodeElem.setAttribute('transform', `translate(${state.dragNode.x}, ${state.dragNode.y})`);
+        }
+        renderEdges();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      state.isPanning = false;
+      state.dragNode = null;
+      viewport.classList.remove('grabbing');
+    });
+
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = 1.12;
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      let newScale = e.deltaY < 0 ? state.scale * zoomFactor : state.scale / zoomFactor;
+      newScale = Math.min(Math.max(0.15, newScale), 2.5);
+
+      state.panX = mouseX - (mouseX - state.panX) * (newScale / state.scale);
+      state.panY = mouseY - (mouseY - state.panY) * (newScale / state.scale);
+      state.scale = newScale;
+
+      applyTransform();
+    });
+
+    function zoomIn() {
+      state.scale = Math.min(2.5, state.scale * 1.25);
+      applyTransform();
+    }
+    function zoomOut() {
+      state.scale = Math.max(0.15, state.scale / 1.25);
+      applyTransform();
+    }
+    function resetView() {
+      state.scale = 0.55;
+      state.panX = -100;
+      state.panY = -50;
+      applyTransform();
+    }
+    function fitView() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      state.scale = Math.min(vw / 3500, vh / 2300) * 0.95;
+      state.panX = (vw - 3400 * state.scale) / 2;
+      state.panY = (vh - 2200 * state.scale) / 2;
+      applyTransform();
+    }
+
+    function startDragNode(evt, node) {
+      evt.stopPropagation();
+      state.dragNode = node;
+      state.dragOffset.x = evt.clientX;
+      state.dragOffset.y = evt.clientY;
+    }
+
+    // ==========================================
+    // 5. HIGHLIGHT & FILTER LOGIC
+    // ==========================================
+    function selectNode(id) {
+      state.selectedNodeId = id;
+      const connected = new Set([id]);
+
+      RELATIONS.forEach(r => {
+        if (r.from === id) connected.add(r.to);
+        if (r.to === id) connected.add(r.from);
+      });
+
+      document.querySelectorAll('.entity-group').forEach(el => {
+        const nId = el.getAttribute('data-id');
+        if (connected.has(nId)) {
+          el.classList.remove('dimmed');
+          if (nId === id) el.classList.add('highlighted');
+          else el.classList.remove('highlighted');
+        } else {
+          el.classList.add('dimmed');
+          el.classList.remove('highlighted');
+        }
+      });
+
+      document.querySelectorAll('.relation-path').forEach(p => {
+        const from = p.getAttribute('data-from');
+        const to = p.getAttribute('data-to');
+        if (from === id || to === id) {
+          p.classList.add('highlighted');
+          p.classList.remove('dimmed');
+          p.setAttribute('marker-end', 'url(#marker-arrow-active)');
+        } else {
+          p.classList.remove('highlighted');
+          p.classList.add('dimmed');
+          p.setAttribute('marker-end', 'url(#marker-arrow)');
+        }
+      });
+    }
+
+    function clearSelection() {
+      state.selectedNodeId = null;
+      document.querySelectorAll('.entity-group').forEach(el => {
+        el.classList.remove('dimmed', 'highlighted');
+      });
+      document.querySelectorAll('.relation-path').forEach(p => {
+        p.classList.remove('dimmed', 'highlighted');
+        p.setAttribute('marker-end', 'url(#marker-arrow)');
+      });
+    }
+
+    function filterModule(mod, btn) {
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      state.activeModule = mod;
+
+      document.querySelectorAll('.entity-group').forEach(el => {
+        const m = el.getAttribute('data-module');
+        if (mod === 'all' || m === mod) {
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+      clearSelection();
+    }
+
+    function onSearch() {
+      const q = document.getElementById('searchTable').value.toLowerCase().trim();
+      if (!q) {
+        clearSelection();
+        return;
+      }
+      let found = null;
+      document.querySelectorAll('.entity-group').forEach(el => {
+        const text = el.textContent.toLowerCase();
+        if (text.includes(q)) {
+          el.classList.remove('dimmed');
+          if (!found) found = el.getAttribute('data-id');
+        } else {
+          el.classList.add('dimmed');
+        }
+      });
+
+      if (found) {
+        const node = ENTITIES.find(e => e.id === found);
+        if (node) {
+          state.panX = window.innerWidth / 2 - (node.x + node.w / 2) * state.scale;
+          state.panY = window.innerHeight / 2 - (node.y + node.h / 2) * state.scale;
+          applyTransform();
+        }
+      }
+    }
+
+    // KHỞI ĐỘNG DIAGRAM
+    window.addEventListener('load', () => {
+      renderDiagram();
+      fitView();
+    });
+    window.addEventListener('resize', fitView);
+  </script>
+</body>
+</html>
