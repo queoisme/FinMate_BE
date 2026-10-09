@@ -34,7 +34,9 @@ public class ScanReceiptViaOcrServiceTests
                 _saved.Add(scan);
             })
             .Returns(Task.CompletedTask);
-        _handler = new ScanReceiptCommandHandler(_ai.Object, _ocr.Object, _scans.Object);
+        _handler = new ScanReceiptCommandHandler(
+            _ai.Object, _ocr.Object, _scans.Object, new ReceiptOptions(false), new Mock<IUserRepository>().Object,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance);
         OcrReturns(Highlands());
         AiClassifiesAs(new BillClassifyResponse("food", "dining", 0.8, "brand"));
     }

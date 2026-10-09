@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.Transactions.Commands;
 
@@ -37,15 +38,33 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private readonly IAIServiceClient _aiServiceClient;
     private const int MaxMerchantLength = 200;
 
+    private const int MaxItemNameLength = 120;
+    private const int MaxSourceLength = 16;
+    private const string ItemsCategorySource = "items";
+    private const string UnknownSource = "unknown";
+    private const string DiscountSource = "discount";
+    private const string SurchargeSource = "surcharge";
+
     private readonly IOcrServiceClient _ocrServiceClient;
     private readonly IReceiptScanRepository _receiptScanRepository;
+    private readonly ReceiptOptions _options;
+    private readonly IUserRepository _userRepository;
+    private readonly ILogger<ScanReceiptCommandHandler> _logger;
 
     public ScanReceiptCommandHandler(
-        IAIServiceClient aiServiceClient, IOcrServiceClient ocrServiceClient, IReceiptScanRepository receiptScanRepository)
+        IAIServiceClient aiServiceClient,
+        IOcrServiceClient ocrServiceClient,
+        IReceiptScanRepository receiptScanRepository,
+        ReceiptOptions options,
+        IUserRepository userRepository,
+        ILogger<ScanReceiptCommandHandler> logger)
     {
         _aiServiceClient = aiServiceClient;
         _ocrServiceClient = ocrServiceClient;
         _receiptScanRepository = receiptScanRepository;
+        _options = options;
+        _userRepository = userRepository;
+        _logger = logger;
     }
 
     public async Task<ScannedReceiptDto> HandleAsync(
@@ -107,7 +126,6 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         }
 
         var merchant = ocr.MerchantDisplay ?? ocr.MerchantName;
-        var category = await ClassifyAsync(command.UserId, ocr, ct);
         var confidence = ReceiptConfidence.Compute(
             hasAmount: true,
             amountFromLabel: ocr.TotalSource == LabelledTotalSource,
@@ -115,6 +133,12 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             hasDate: ocr.TransactedAt is not null,
             needsReview: ocr.NeedsReview);
 
+        if (await TrySplitAsync(command.UserId, ocr, merchant, confidence, ct) is { } split)
+        {
+            return split;
+        }
+
+        var category = await ClassifyAsync(command.UserId, ocr, ct);
         var dto = new ScannedReceiptDto(
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence);
         return await RecordAsync(command.UserId, dto, category?.Source, ocr.NeedsReview, ct);
@@ -125,6 +149,13 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     /// ngân sách hay gamification: lần quét chưa phải giao dịch, giao dịch chỉ ra đời khi người dùng bấm Lưu.
     /// </summary>
     private async Task<ScannedReceiptDto> RecordAsync(
+        Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)
+    {
+        var scan = await RecordScanAsync(userId, dto, categorySource, needsReview, ct);
+        return dto with { ScanId = scan.Id };
+    }
+
+    private async Task<ReceiptScan> RecordScanAsync(
         Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)
     {
         var scan = new ReceiptScan
@@ -141,7 +172,118 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             CreatedAt = DateTimeOffset.UtcNow,
         };
         await _receiptScanRepository.AddAsync(scan, ct);
+        return scan;
+    }
+
+    /// <summary>
+    /// Tách bill theo món. Trả null (bên gọi đi đường cũ một nhóm) khi cờ tắt, OCR không chắc các dòng, dưới 2 món thường,
+    /// ai-service lỗi hay trả sai, hoặc <see cref="ReceiptSplitter"/> không ra được các nhóm khớp tổng bill.
+    /// AI chỉ nhận TÊN món thường (không tiền, không giảm giá/phụ thu); log không bao giờ chứa tên hay tiền.
+    /// </summary>
+    private async Task<ScannedReceiptDto?> TrySplitAsync(
+        Guid userId, OcrServiceResponse ocr, string? merchant, double confidence, CancellationToken ct)
+    {
+        if (!_options.SplitByItemsEnabled || !ocr.ItemsOk || ocr.Items is not { } items)
+        {
+            return null;
+        }
+
+        // Chỉ số dòng gốc của các món thường; vị trí trong danh sách này là chỉ số gửi sang ai-service.
+        var regular = Enumerable.Range(0, items.Count)
+            .Where(i => !items[i].IsDiscount && !ReceiptSplitter.IsSurcharge(items[i]))
+            .ToList();
+        if (regular.Count < 2)
+        {
+            return null;
+        }
+
+        // Đọc thẳng từ DB mỗi lần quét: người dùng vừa tắt đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
+        var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.ShareReceiptItemsWithAi ?? false;
+
+        var regularIndexOf = regular.Select((original, k) => (original, k)).ToDictionary(p => p.original, p => p.k);
+        var request = new ClassifyItemsRequest(
+            userId,
+            merchant,
+            regular.Select(i => new ClassifyItemInput(
+                items[i].Name,
+                items[i].Parent is { } parent && regularIndexOf.TryGetValue(parent, out var k) ? k : null)).ToList(),
+            allowAi);
+
+        ClassifyItemsResponse? response;
+        try
+        {
+            response = await _aiServiceClient.ClassifyItemsAsync(request, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            // Client thật có thể ném cả NullReferenceException khi phản hồi lệch schema, không chỉ AIServiceUnavailableException.
+            _logger.LogWarning("Tách nhóm hóa đơn bỏ qua: classify-items lỗi {ExceptionType}", ex.GetType().Name);
+            return null;
+        }
+
+        if (response?.Items is not { } replies || replies.Count != regular.Count)
+        {
+            return null;
+        }
+
+        // Trải lại thành danh sách cùng độ dài, cùng thứ tự với ocr.Items; giảm giá/phụ thu giữ chỗ (Split bỏ qua các vị trí này).
+        var expanded = Enumerable.Range(0, items.Count).Select(i => new ClassifiedItem(i, null, UnknownSource)).ToArray();
+        var filled = new bool[regular.Count];
+        foreach (var reply in replies)
+        {
+            if (reply is null || reply.Index < 0 || reply.Index >= regular.Count || filled[reply.Index])
+            {
+                return null;
+            }
+
+            filled[reply.Index] = true;
+            var original = regular[reply.Index];
+            expanded[original] = new ClassifiedItem(original, reply.CategorySlug, reply.Source ?? UnknownSource);
+        }
+
+        var groups = ReceiptSplitter.Split(items, expanded, ocr.TotalAmount!.Value);
+        if (groups is null)
+        {
+            return null;
+        }
+
+        var dto = new ScannedReceiptDto(
+            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, groups[0].CategorySlug, confidence,
+            Groups: groups);
+        var needsReview = ocr.NeedsReview || groups.Any(g => g.CategorySlug is null);
+        var scan = await RecordScanAsync(userId, dto, ItemsCategorySource, needsReview, ct);
+
+        // scan vừa tạo trong chính request này, nên AddItemsAsync (không tự kiểm chủ sở hữu) an toàn.
+        try
+        {
+            await _receiptScanRepository.AddItemsAsync(
+                scan.Id, items.Select((item, i) => ToScanItem(item, i, expanded[i])).ToList(), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            // Lần quét đã ghi; mất các dòng món chỉ mất phần chi tiết, không đáng làm hỏng kết quả người dùng đang chờ.
+            _logger.LogWarning("Không lưu được các món của lần quét: {ExceptionType}", ex.GetType().Name);
+        }
+
         return dto with { ScanId = scan.Id };
+    }
+
+    private static ReceiptScanItem ToScanItem(OcrItem item, int position, ClassifiedItem classified)
+    {
+        // Cùng quy tắc với ReceiptSplitter: nguồn "unknown" nghĩa là chưa rõ nhóm dù AI có gửi slug.
+        var (slug, source) = item.IsDiscount ? (null, DiscountSource)
+            : ReceiptSplitter.IsSurcharge(item) ? (null, SurchargeSource)
+            : (classified.Source == UnknownSource ? null : classified.CategorySlug, classified.Source);
+
+        return new ReceiptScanItem
+        {
+            Position = position,
+            Name = item.Name.Length > MaxItemNameLength ? item.Name[..MaxItemNameLength] : item.Name,
+            AmountCents = item.Amount,
+            CategorySlug = slug,
+            CategorySource = source.Length > MaxSourceLength ? source[..MaxSourceLength] : source,
+            ParentPosition = item.Parent,
+        };
     }
 
     /// <summary>

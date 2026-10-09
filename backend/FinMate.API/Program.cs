@@ -400,6 +400,9 @@ public class Program
         builder.Services.AddScoped<IUpdateTransactionCommandHandler, UpdateTransactionCommandHandler>();
         builder.Services.AddScoped<IDeleteTransactionCommandHandler, DeleteTransactionCommandHandler>();
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
+        // Tách bill theo món: mặc định TẮT, giá trị sai cũng coi là tắt (Receipt__SplitByItemsEnabled khi đặt qua biến môi trường).
+        builder.Services.AddSingleton(new FinMate.Application.Transactions.ReceiptOptions(
+            bool.TryParse(builder.Configuration["Receipt:SplitByItemsEnabled"], out var splitByItems) && splitByItems));
         builder.Services.AddScoped<IScanReceiptCommandHandler, ScanReceiptCommandHandler>();
         builder.Services.AddScoped<IChatCommandHandler, ChatCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();

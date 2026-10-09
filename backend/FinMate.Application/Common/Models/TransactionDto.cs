@@ -1,3 +1,5 @@
+using FinMate.Application.Transactions;
+
 namespace FinMate.Application.Common.Models;
 
 public record TransactionDto(
@@ -40,6 +42,10 @@ public record ParsedTransactionDto(
 /// Mã bản ghi bóc tách của lần quét này (<c>receipt_scans</c>). Gửi lại thành <c>receiptScanId</c> khi lưu giao dịch (<c>POST /transactions</c>,
 /// <c>source = Receipt</c>) để nối lần quét với giao dịch. Thêm vào cuối nên client cũ vẫn đọc được; client chưa dùng thì bỏ qua.
 /// </param>
+/// <param name="Groups">
+/// Các nhóm khi bill được tách theo món (lớn nhất trước); null khi không tách. Có nhóm thì <c>AmountCents</c> vẫn là tổng bill
+/// và <c>CategorySlug</c> là nhóm lớn nhất (null nếu nhóm lớn nhất là nhóm chưa rõ), nên client cũ không vỡ.
+/// </param>
 public record ScannedReceiptDto(
     string OcrResult,
     long? AmountCents,
@@ -48,4 +54,5 @@ public record ScannedReceiptDto(
     DateTimeOffset? TransactedAt,
     string? CategorySlug,
     double? Confidence,
-    Guid? ScanId = null);
+    Guid? ScanId = null,
+    IReadOnlyList<ReceiptGroup>? Groups = null);
