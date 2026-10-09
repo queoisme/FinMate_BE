@@ -8,4 +8,5 @@ public record UserProfileDto(
     long? MonthlyIncomeCents,
     bool PushEnabled,
     bool BudgetAlertsEnabled,
-    bool MissionRemindersEnabled);
+    bool MissionRemindersEnabled,
+    bool ShareReceiptItemsWithAi);

@@ -58,6 +58,7 @@ public class RegisterCommandHandler : IRegisterCommandHandler
             user.MonthlyIncomeCents,
             user.NotificationPrefs.PushEnabled,
             user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled);
+            user.NotificationPrefs.MissionRemindersEnabled,
+            user.ShareReceiptItemsWithAi);
     }
 }

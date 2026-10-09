@@ -36,7 +36,8 @@ public class GetUserProfileQueryHandler : IGetUserProfileQueryHandler
             user.MonthlyIncomeCents,
             user.NotificationPrefs.PushEnabled,
             user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled);
+            user.NotificationPrefs.MissionRemindersEnabled,
+            user.ShareReceiptItemsWithAi);
 
         await _cacheService.SetAsync(cacheKey, profile, CacheKeys.UserProfileTtl, ct);
 

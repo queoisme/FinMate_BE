@@ -29,6 +29,12 @@ public class User
     /// </summary>
     public DateTimeOffset? EmailVerifiedAt { get; set; }
 
+    /// <summary>
+    /// Người dùng đồng ý gửi TÊN MÓN trên hoá đơn cho AI để phân loại. Mặc định false: không
+    /// có đồng ý rõ ràng thì không chia sẻ. Chỉ chính chủ đổi được, qua PATCH /users/me.
+    /// </summary>
+    public bool ShareReceiptItemsWithAi { get; set; }
+
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

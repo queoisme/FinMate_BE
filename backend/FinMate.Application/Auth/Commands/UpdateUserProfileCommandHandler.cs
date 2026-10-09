@@ -38,6 +38,11 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
             user.MonthlyIncomeCents = income > 0 ? income : null;
         }
 
+        if (command.ShareReceiptItemsWithAi is { } share)
+        {
+            user.ShareReceiptItemsWithAi = share;
+        }
+
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 
@@ -51,6 +56,7 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
             user.MonthlyIncomeCents,
             user.NotificationPrefs.PushEnabled,
             user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled);
+            user.NotificationPrefs.MissionRemindersEnabled,
+            user.ShareReceiptItemsWithAi);
     }
 }

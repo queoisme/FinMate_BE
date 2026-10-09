@@ -5,7 +5,11 @@ namespace FinMate.Application.Auth.Commands;
 /// gửi <c>0</c> để xoá. Phân biệt được hai ý đó vì "chưa khai" và "khai là 0" dẫn tới hai
 /// hành vi khác nhau ở cảnh báo bội chi.
 /// </param>
+/// <param name="ShareReceiptItemsWithAi">
+/// Đồng ý chia sẻ tên món hoá đơn với AI. <c>null</c> = giữ nguyên; true/false = đặt giá trị.
+/// </param>
 public record UpdateUserProfileCommand(
     Guid UserId,
     string DisplayName,
-    long? MonthlyIncomeCents = null);
+    long? MonthlyIncomeCents = null,
+    bool? ShareReceiptItemsWithAi = null);
