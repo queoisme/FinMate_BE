@@ -103,3 +103,25 @@ def test_rows_tolerate_slight_tilt():
     r = extract_items(boxes, 50000)
     assert [(i.name, i.amount) for i in r.items] == [("Bánh mì", 30000), ("Nước cam", 20000)]
     assert r.ok
+
+
+def test_unpriced_plus_modifier_does_not_turn_next_item_into_addon():
+    boxes = HEADER + row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) \
+        + row(240, ("+ Ít đá", 70, 250), ("0", 900, 920)) \
+        + row(280, ("Trà đào", 50, 250), ("20,000", 800, 950)) + FOOTER
+    r = extract_items(boxes, 50000)
+    assert [(i.name, i.amount, i.parent, i.is_discount) for i in r.items] == [
+        ("Trà sữa", 30000, None, False),
+        ("Trà đào", 20000, None, False),
+    ]
+    assert r.ok is True
+
+
+def test_no_header_before_first_price_sets_ok_false():
+    # "SL: 2" ở chân bill không được coi là tiêu đề cột
+    boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) \
+        + row(240, ("Trà đào", 50, 250), ("20,000", 800, 950)) \
+        + row(280, ("SL: 2", 50, 200)) \
+        + row(320, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(360, ("Chuyển khoản", 50, 300), ("20,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False

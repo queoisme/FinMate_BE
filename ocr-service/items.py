@@ -63,9 +63,13 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     price_x = right - PRICE_COLUMN * (right - left)
     rows = [(r, _price(r, price_x)) for r in _rows(boxes)]
 
-    # vùng lấy món: sau dòng tiêu đề cột (nếu có) tới dòng tổng đầu tiên
-    start = next((i + 1 for i, (r, p) in enumerate(rows)
-                  if p is None and _HEADER_RE.search(_norm(" ".join(b.text for b in r)))), 0)
+    # vùng lấy món: sau dòng tiêu đề cột tới dòng tổng đầu tiên. Tiêu đề phải đứng trước hàng có giá đầu tiên
+    # ("SL: 2" ở chân bill không phải tiêu đề). Giới hạn: bill không có tiêu đề cột thì không tách món, ok=False.
+    first_priced = next((i for i, (_, p) in enumerate(rows) if p is not None), len(rows))
+    start = next((i + 1 for i, (r, p) in enumerate(rows[:first_priced])
+                  if _HEADER_RE.search(_norm(" ".join(b.text for b in r)))), None)
+    if start is None:
+        return ItemsResult([], False)
 
     items: list[Item] = []
     main: int | None = None
@@ -75,15 +79,18 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
         if _END_RE.search(_norm(text).strip()):
             break
         words = [b.text for b in r if (p is None or b is not p[0]) and not _NUMERIC_RE.match(b.text)]
+        own = " ".join(words).strip()
+        addon = own.startswith("+")  # phụ kiện xét theo chữ của chính hàng có giá, không theo tên mang xuống
         if p is None:
-            pending += words  # hàng chỉ có số nhỏ (cột số lượng) không thêm gì
+            if not addon:  # "+ Ít đá" không giá là ghi chú tùy chọn: bỏ, không nối vào tên món sau
+                pending += words  # hàng chỉ có số nhỏ (cột số lượng) không thêm gì
             continue
-        name = " ".join(pending + words).strip()
+        name = " ".join(pending + [own.lstrip("+ ").strip() if addon else own]).strip()
         pending = []
         if _NEGATIVE_RE.search(p[0].text) or _DISCOUNT_RE.search(_norm(name)):
             items.append(Item(name, -p[1], None, True))
-        elif name.startswith("+"):
-            items.append(Item(name.lstrip("+ ").strip(), p[1], main, False))
+        elif addon:
+            items.append(Item(name, p[1], main, False))
         else:
             main = len(items)
             items.append(Item(name, p[1], None, False))
