@@ -5,7 +5,6 @@ Chỉ điều phối, không chạm DB: route nạp sẵn ``instruction``. Khôn
 """
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Sequence
 
 from app.bill.classifier import _category_from_products, classify_category_detailed
@@ -14,16 +13,16 @@ from app.bill.knowledge import BillKnowledge
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
 
-# Trần cứng cho cả lần gọi Gemini: timeout của httpx tính theo từng pha (kết nối, đọc...), không theo cả lần gọi.
-GEMINI_HARD_LIMIT_SECONDS = 8.0
-
-
 def _merchant_default(merchant: str | None) -> str | None:
-    """Nhóm mặc định của cửa hàng (bảng thương hiệu, từ khóa trong tên cửa hàng), đã đổi sang slug BE."""
+    """Nhóm mặc định của THƯƠNG HIỆU (bảng bill_brands), đã đổi sang slug BE.
+
+    Không dùng từ khóa chung trong tên cửa hàng ("mart", "nhà thuốc", "shop"): khớp nhầm ("Smartphone Center" → food) sẽ gắn nhóm
+    nguồn ``merchant`` cho mọi món lạ và chặn luôn Gemini. Với lines=[] nguồn "brand" chỉ có thể đến từ tên cửa hàng khớp bảng thương hiệu.
+    """
     if not merchant:
         return None
     category, source, _ = classify_category_detailed(merchant, [])
-    return SLUG_BY_LOCAL_CATEGORY.get(category) if source in ("brand", "keyword") else None
+    return SLUG_BY_LOCAL_CATEGORY.get(category) if source == "brand" else None
 
 
 async def classify_items(
@@ -56,10 +55,9 @@ async def classify_items(
     ai_used = False
     pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None][:MAX_NAMES]
     if pending and allow_ai and instruction.strip() and gemini.available:
-        try:
-            async with asyncio.timeout(GEMINI_HARD_LIMIT_SECONDS):
-                answers = await gemini.classify([items[i].name for i in pending], instruction)
-        except (GeminiFailed, TimeoutError):
+        try:  # GeminiClient tự giới hạn tổng thời gian (8 giây) và khóa mạch khi quá hạn
+            answers = await gemini.classify([items[i].name for i in pending], instruction)
+        except GeminiFailed:
             answers = None  # món lạ thành unknown; không bao giờ ném lỗi ra cho client
         if answers is not None:
             ai_used = True

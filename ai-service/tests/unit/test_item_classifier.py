@@ -2,8 +2,9 @@
 
 import asyncio
 
-from app.bill import item_classifier
-from app.bill.gemini import GeminiFailed
+import httpx
+
+from app.bill.gemini import GeminiClient, GeminiFailed
 from app.bill.item_classifier import classify_items
 from app.schemas.bill import ClassifyItemIn
 
@@ -17,16 +18,14 @@ class FakeKnowledge:
 
 
 class FakeGemini:
-    """``answer``: hàm tên -> nhóm; ``fail``: ném GeminiFailed; ``sleep``: treo quá hạn."""
+    """``answer``: hàm tên -> nhóm; ``fail``: ném GeminiFailed."""
 
-    def __init__(self, answer=lambda name: "unknown", available=True, fail=False, sleep=0.0):
-        self.answer, self.available, self.fail, self.sleep = answer, available, fail, sleep
+    def __init__(self, answer=lambda name: "unknown", available=True, fail=False):
+        self.answer, self.available, self.fail = answer, available, fail
         self.calls: list[list[str]] = []
 
     async def classify(self, names, instruction):
         self.calls.append(list(names))
-        if self.sleep:
-            await asyncio.sleep(self.sleep)
         if self.fail:
             raise GeminiFailed("boom")
         return [self.answer(n) for n in names]
@@ -112,10 +111,19 @@ async def test_gemini_failure_leaves_unmatched_as_unknown():
     assert out == [(0, "food", "rule"), (1, None, "unknown")] and used is False
 
 
-async def test_gemini_hanging_past_hard_limit_leaves_unknown(monkeypatch):
-    monkeypatch.setattr(item_classifier, "GEMINI_HARD_LIMIT_SECONDS", 0.05)
-    out, used = await run(items("Qwerty"), gemini=FakeGemini(lambda n: "food", sleep=5))
-    assert out == [(0, None, "unknown")] and used is False
+async def test_gemini_hanging_past_hard_limit_leaves_unknown():
+    async def hang(req):
+        await asyncio.Event().wait()
+
+    gemini = GeminiClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
+    out, used = await run(items("Qwerty"), gemini=gemini)
+    assert out == [(0, None, "unknown")] and used is False and not gemini.available
+
+
+async def test_merchant_name_keywords_are_not_a_default_only_brands_are():
+    for merchant in ("Nhà thuốc Minh Tâm", "Smartphone Center", "Tạp hóa Cô Ba"):
+        out, _ = await run(items("Qwerty"), merchant=merchant, allow_ai=False)
+        assert out == [(0, None, "unknown")], merchant
 
 
 async def test_no_gemini_call_when_everything_matched():

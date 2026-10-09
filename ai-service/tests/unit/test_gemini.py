@@ -192,3 +192,19 @@ async def test_logs_never_contain_names():
     assert logs
     dump = json.dumps(logs, default=str)
     assert secret not in dump and "INSTR-BIMAT" not in dump
+
+
+async def test_hang_past_overall_limit_raises_and_opens_circuit():
+    seen = []
+
+    async def hang(req):
+        seen.append(1)
+        await asyncio.Event().wait()  # không bao giờ trả lời (asyncio.sleep đã bị fixture thay)
+
+    c = GeminiClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
+    with pytest.raises(GeminiFailed):
+        await c.classify(["a"], "r")
+    assert not c.available
+    with pytest.raises(GeminiFailed):
+        await c.classify(["b"], "r")
+    assert seen == [1]  # lần sau bị khóa mạch, không gọi mạng

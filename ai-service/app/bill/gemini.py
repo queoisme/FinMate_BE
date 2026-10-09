@@ -23,6 +23,8 @@ CATEGORIES = [
 MAX_NAMES = 20
 MAX_NAME_LEN = 60
 CIRCUIT_SECONDS = 30.0
+# Trần cho cả lần gọi (gồm lần thử lại): timeout của httpx chỉ tính theo từng pha (kết nối, đọc...).
+OVERALL_TIMEOUT = 8.0
 RETRY_DELAY = 1.5
 CACHE_MAX = 2000
 CACHE_TTL = 24 * 3600
@@ -59,7 +61,9 @@ class GeminiClient:
         timeout: float,
         transport: httpx.AsyncBaseTransport | None = None,
         clock: Callable[[], float] = time.monotonic,
+        overall_timeout: float = OVERALL_TIMEOUT,
     ) -> None:
+        self._overall_timeout = overall_timeout
         self._key = api_key
         self._model = model
         self._timeout = timeout
@@ -109,7 +113,11 @@ class GeminiClient:
                 send_keys.append(key)
         if to_send:
             try:
-                result = await self._call(to_send, instruction)
+                try:
+                    async with asyncio.timeout(self._overall_timeout):
+                        result = await self._call(to_send, instruction)
+                except TimeoutError as error:  # quá trần cả lần gọi: như mọi lỗi khác, khóa mạch
+                    raise GeminiFailed("overall_timeout") from error
             except GeminiFailed as error:
                 self._open_until = self._clock() + CIRCUIT_SECONDS
                 logger.warning("gemini_failed", error=type(error).__name__, count=len(to_send))
