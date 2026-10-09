@@ -42,15 +42,25 @@ public class ReceiptScanLinkTests
         => new(_userId, _account.Id, _category.Id, 16_000, TransactionType.Debit, DateTimeOffset.UtcNow, "Highlands Coffee", null,
             clientRequestId, source, scanId);
 
-    private void LinkWasCalledWith(Guid transactionId, Times times) => _scans.Verify(
-        r => r.LinkToTransactionAsync(_scanId, _userId, transactionId, It.IsAny<CancellationToken>()), times);
+    private void LinkWasCalledWith(Guid transactionId, string group, Times times) => _scans.Verify(
+        r => r.LinkToTransactionAsync(_scanId, _userId, transactionId, group, It.IsAny<CancellationToken>()), times);
 
     [Fact]
     public async Task SavingFromAScanLinksTheScanToTheNewTransaction()
     {
         var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId));
 
-        LinkWasCalledWith(created.Transaction.Id, Times.Once());
+        LinkWasCalledWith(created.Transaction.Id, "food", Times.Once());  // nhóm tạm = slug danh mục đã lưu
+    }
+
+    [Fact]
+    public async Task ASaveWithoutCategoryLinksTheUnknownGroup()
+    {
+        var command = Command(TransactionSource.Receipt, _scanId) with { CategoryId = null };
+
+        var created = await _handler.HandleAsync(command);
+
+        LinkWasCalledWith(created.Transaction.Id, ReceiptScanLink.UnknownGroup, Times.Once());
     }
 
     [Theory]
@@ -60,7 +70,7 @@ public class ReceiptScanLinkTests
     {
         await _handler.HandleAsync(Command(source, _scanId));
 
-        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -68,14 +78,14 @@ public class ReceiptScanLinkTests
     {
         await _handler.HandleAsync(Command(TransactionSource.Receipt, null));
 
-        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task AScanTheRepositoryRefusesDoesNotBreakTheSave()
     {
         // Mã sai, của người khác hoặc đã được nối: repository trả false, giao dịch vẫn phải được lưu.
-        _scans.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _scans.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId));
@@ -99,6 +109,6 @@ public class ReceiptScanLinkTests
         var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, clientRequestId));
 
         created.AlreadyExisted.Should().BeTrue();
-        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

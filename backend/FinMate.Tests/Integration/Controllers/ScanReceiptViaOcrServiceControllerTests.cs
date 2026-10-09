@@ -187,7 +187,15 @@ public class ScanReceiptViaOcrServiceControllerTests : IClassFixture<AuthApiFact
 
         columns.Should().BeEquivalentTo(
             "id", "user_id", "ocr_result", "amount_cents", "merchant_name", "transacted_at", "category_slug", "category_source",
-            "confidence", "needs_review", "created_at", "transaction_id");
+            "confidence", "needs_review", "created_at");
+
+        // Bảng món cũng không có cột chữ OCR.
+        var itemColumns = await db.Database
+            .SqlQuery<string>($"SELECT column_name AS \"Value\" FROM information_schema.columns WHERE table_name = 'receipt_scan_items'")
+            .ToListAsync();
+
+        itemColumns.Should().BeEquivalentTo(
+            "id", "scan_id", "position", "name", "amount_cents", "category_slug", "category_source", "parent_position");
     }
 
     [Fact]

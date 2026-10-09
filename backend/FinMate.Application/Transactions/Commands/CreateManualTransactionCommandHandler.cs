@@ -129,7 +129,9 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
         if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
         {
-            await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, ct);
+            // Tạm lấy slug danh mục đã lưu làm nhóm (Task 14 thay bằng receiptGroup app gửi lên).
+            await _receiptScanRepository.LinkToTransactionAsync(
+                scanId, command.UserId, transaction.Id, category?.Slug ?? ReceiptScanLink.UnknownGroup, ct);
         }
 
         // Người dùng đã chọn danh mục cho cửa hàng trên một hóa đơn: nhờ AI Service nhớ cho lần quét sau (best-effort, sau khi đã lưu).

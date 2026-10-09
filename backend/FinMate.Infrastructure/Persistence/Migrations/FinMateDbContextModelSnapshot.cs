@@ -1158,20 +1158,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("transacted_at");
 
-                    b.Property<Guid?>("TransactionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("transaction_id");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TransactionId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_receipt_scans_transaction_id")
-                        .HasFilter("transaction_id IS NOT NULL");
 
                     b.HasIndex("UserId", "CreatedAt")
                         .IsDescending(false, true)
@@ -1183,6 +1174,80 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_receipt_scans_ocr_result", "ocr_result IN ('success','no_amount','unreadable')");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScanItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<string>("CategorySlug")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category_slug");
+
+                    b.Property<string>("CategorySource")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("category_source");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<int?>("ParentPosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("parent_position");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ScanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scan_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScanId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_receipt_scan_items_scan_position");
+
+                    b.ToTable("receipt_scan_items", (string)null);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScanLink", b =>
+                {
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<string>("GroupCategorySlug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("group_category_slug");
+
+                    b.Property<Guid>("ScanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scan_id");
+
+                    b.HasKey("TransactionId");
+
+                    b.HasIndex("ScanId", "GroupCategorySlug")
+                        .IsUnique()
+                        .HasDatabaseName("uq_receipt_scan_links_scan_group");
+
+                    b.ToTable("receipt_scan_links", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
@@ -1751,20 +1816,41 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScan", b =>
                 {
-                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
-                        .WithMany()
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Transaction");
-
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScanItem", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.ReceiptScan", null)
+                        .WithMany()
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScanLink", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.ReceiptScan", "Scan")
+                        .WithMany()
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scan");
+
+                    b.Navigation("Transaction");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>

@@ -48,13 +48,5 @@ public class ReceiptScan
 
     public DateTimeOffset CreatedAt { get; set; }
 
-    /// <summary>
-    /// Giao dịch người dùng đã lưu từ lần quét này (qua <c>POST /transactions</c> với <c>receiptScanId</c>); null khi chưa lưu, hoặc không bao giờ lưu.
-    /// Nối hai bên để so điều AI đoán với điều người dùng chốt (danh mục, số tiền, tên cửa hàng) mà không phải chép lại các trường đó.
-    /// Xóa mềm giao dịch (<c>DeletedAt</c>) thì vẫn nối: biết được người dùng lưu rồi xóa.
-    /// </summary>
-    public Guid? TransactionId { get; set; }
-
     public User? User { get; set; }
-    public Transaction? Transaction { get; set; }
 }

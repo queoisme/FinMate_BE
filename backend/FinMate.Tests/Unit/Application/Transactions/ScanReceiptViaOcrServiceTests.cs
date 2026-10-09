@@ -206,7 +206,13 @@ public class ScanReceiptViaOcrServiceTests
             nameof(ReceiptScan.Id), nameof(ReceiptScan.UserId), nameof(ReceiptScan.OcrResult), nameof(ReceiptScan.AmountCents),
             nameof(ReceiptScan.MerchantName), nameof(ReceiptScan.TransactedAt), nameof(ReceiptScan.CategorySlug),
             nameof(ReceiptScan.CategorySource), nameof(ReceiptScan.Confidence), nameof(ReceiptScan.NeedsReview),
-            nameof(ReceiptScan.CreatedAt), nameof(ReceiptScan.TransactionId), nameof(ReceiptScan.User), nameof(ReceiptScan.Transaction));
+            nameof(ReceiptScan.CreatedAt), nameof(ReceiptScan.User));
+
+        // Món cũng vậy: tên + tiền + nhóm, không có chữ OCR gốc của dòng.
+        typeof(ReceiptScanItem).GetProperties().Select(p => p.Name).Should().BeEquivalentTo(
+            nameof(ReceiptScanItem.Id), nameof(ReceiptScanItem.ScanId), nameof(ReceiptScanItem.Position), nameof(ReceiptScanItem.Name),
+            nameof(ReceiptScanItem.AmountCents), nameof(ReceiptScanItem.CategorySlug), nameof(ReceiptScanItem.CategorySource),
+            nameof(ReceiptScanItem.ParentPosition));
     }
 
     [Fact]

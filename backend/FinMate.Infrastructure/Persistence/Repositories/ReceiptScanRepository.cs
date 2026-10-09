@@ -19,12 +19,31 @@ public class ReceiptScanRepository : IReceiptScanRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task<bool> LinkToTransactionAsync(Guid scanId, Guid userId, Guid transactionId, CancellationToken ct = default)
+    public async Task AddItemsAsync(Guid scanId, IReadOnlyList<ReceiptScanItem> items, CancellationToken ct = default)
     {
-        var linked = await _context.ReceiptScans
-            .Where(s => s.Id == scanId && s.UserId == userId && s.TransactionId == null)
-            .ExecuteUpdateAsync(set => set.SetProperty(s => s.TransactionId, transactionId), ct);
-        return linked == 1;
+        foreach (var item in items)
+        {
+            item.ScanId = scanId;
+        }
+
+        _context.ReceiptScanItems.AddRange(items);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task<bool> LinkToTransactionAsync(
+        Guid scanId, Guid userId, Guid transactionId, string groupCategorySlug, CancellationToken ct = default)
+    {
+        // Một câu duy nhất: điều kiện chủ sở hữu (lần quét VÀ giao dịch cùng của userId) nằm trong SELECT, còn ON CONFLICT DO NOTHING
+        // nuốt cả vi phạm khóa chính (giao dịch đã nối) lẫn duy nhất (scan, nhóm) — kể cả khi hai request chạy song song.
+        var inserted = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO receipt_scan_links (transaction_id, scan_id, group_category_slug)
+            SELECT t.id, s.id, {groupCategorySlug}
+            FROM receipt_scans s
+            JOIN transactions t ON t.id = {transactionId} AND t.user_id = {userId}
+            WHERE s.id = {scanId} AND s.user_id = {userId}
+            ON CONFLICT DO NOTHING
+            """, ct);
+        return inserted == 1;
     }
 
     public Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default)

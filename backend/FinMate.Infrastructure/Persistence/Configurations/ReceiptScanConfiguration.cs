@@ -29,24 +29,10 @@ public class ReceiptScanConfiguration : IEntityTypeConfiguration<ReceiptScan>
         builder.Property(s => s.Confidence).HasColumnName("confidence");
         builder.Property(s => s.NeedsReview).HasColumnName("needs_review").HasDefaultValue(false).IsRequired();
         builder.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
-        builder.Property(s => s.TransactionId).HasColumnName("transaction_id");
 
         builder.HasIndex(s => new { s.UserId, s.CreatedAt })
             .IsDescending(false, true)
             .HasDatabaseName("idx_receipt_scans_user_created");
-
-        // Một lần quét thành tối đa một giao dịch, và một giao dịch đến từ tối đa một lần quét. Có ràng buộc ở DB chứ không chỉ ở code:
-        // nối hai lần cho cùng một giao dịch sẽ làm phép so "AI đoán đúng bao nhiêu" đếm trùng.
-        builder.HasIndex(s => s.TransactionId)
-            .IsUnique()
-            .HasFilter("transaction_id IS NOT NULL")
-            .HasDatabaseName("uq_receipt_scans_transaction_id");
-
-        // Giao dịch bị xóa hẳn (DataDeletionJob) thì chỉ gỡ liên kết, bản ghi bóc tách vẫn còn tới khi người dùng bị xóa.
-        builder.HasOne(s => s.Transaction)
-            .WithMany()
-            .HasForeignKey(s => s.TransactionId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         // Xóa tài khoản thì xóa luôn các lần quét: DataDeletionJob hard-delete user, không để dữ liệu mồ côi của người đã rời đi.
         builder.HasOne(s => s.User)

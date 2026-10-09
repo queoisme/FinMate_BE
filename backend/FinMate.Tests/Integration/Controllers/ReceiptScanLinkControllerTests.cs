@@ -105,6 +105,14 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         return await db.ReceiptScans.AsNoTracking().SingleAsync(s => s.Id == scanId);
     }
 
+    /// <summary>Các giao dịch đã nối với lần quét (bảng <c>receipt_scan_links</c>).</summary>
+    private async Task<List<Guid>> LinkedTransactionsAsync(Guid scanId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        return await db.ReceiptScanLinks.AsNoTracking().Where(l => l.ScanId == scanId).Select(l => l.TransactionId).ToListAsync();
+    }
+
     [Fact]
     public async Task SavingAScannedReceiptLinksTheScanToTheTransaction()
     {
@@ -117,7 +125,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         var transactionId = (await DataOf(response)).GetProperty("id").GetGuid();
-        (await ScanRowAsync(scanId)).TransactionId.Should().Be(transactionId);
+        (await LinkedTransactionsAsync(scanId)).Should().Equal(transactionId);
     }
 
     [Fact]
@@ -131,9 +139,10 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
-        var row = await db.ReceiptScans.AsNoTracking()
-            .Where(s => s.Id == scanId)
-            .Select(s => new { Guessed = s.CategorySlug, Chosen = s.Transaction!.Category!.Slug, s.AmountCents, Saved = s.Transaction!.AmountCents })
+        // scan -> links -> transactions -> category
+        var row = await db.ReceiptScanLinks.AsNoTracking()
+            .Where(l => l.ScanId == scanId)
+            .Select(l => new { Guessed = l.Scan!.CategorySlug, Chosen = l.Transaction!.Category!.Slug, l.Scan.AmountCents, Saved = l.Transaction!.AmountCents })
             .SingleAsync();
 
         row.Chosen.Should().Be("entertainment");
@@ -153,7 +162,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var response = await SaveAsync(thief, account, category, merchant, "Receipt", scanId);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        (await ScanRowAsync(scanId)).TransactionId.Should().BeNull();
+        (await LinkedTransactionsAsync(scanId)).Should().BeEmpty();
     }
 
     [Fact]
@@ -177,7 +186,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
 
         await SaveAsync(token, account, category, merchant, "Manual", scanId);
 
-        (await ScanRowAsync(scanId)).TransactionId.Should().BeNull();
+        (await LinkedTransactionsAsync(scanId)).Should().BeEmpty();
     }
 
     [Fact]
@@ -192,7 +201,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var second = await SaveAsync(token, account, category, merchant, "Receipt", scanId);  // hai lần Lưu cùng một lần quét
 
         second.StatusCode.Should().Be(HttpStatusCode.Created);  // vẫn lưu: đó là hai khoản chi thật
-        (await ScanRowAsync(scanId)).TransactionId.Should().Be(first.GetProperty("id").GetGuid());
+        (await LinkedTransactionsAsync(scanId)).Should().Equal(first.GetProperty("id").GetGuid());
     }
 
     [Fact]
@@ -208,7 +217,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var replay = await SaveAsync(token, account, category, merchant, "Receipt", scanId, clientRequestId);
 
         replay.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await ScanRowAsync(scanId)).TransactionId.Should().Be(first.GetProperty("id").GetGuid());
+        (await LinkedTransactionsAsync(scanId)).Should().Equal(first.GetProperty("id").GetGuid());
     }
 
     [Fact]
@@ -223,9 +232,10 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
-        var act = () => db.ReceiptScans.Where(s => s.Id == secondScan).ExecuteUpdateAsync(set => set.SetProperty(s => s.TransactionId, transactionId));
+        var act = () => db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO receipt_scan_links (transaction_id, scan_id, group_category_slug) VALUES ({transactionId}, {secondScan}, 'food')");
 
-        // ExecuteUpdate không đi qua change tracker nên lỗi ra thẳng dạng PostgresException; 23505 = vi phạm ràng buộc duy nhất.
+        // SQL thô không đi qua change tracker nên lỗi ra thẳng dạng PostgresException; 23505 = vi phạm khóa chính transaction_id.
         (await act.Should().ThrowAsync<Npgsql.PostgresException>()).Which.SqlState.Should().Be("23505");
     }
 
@@ -244,8 +254,8 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
             await db.Transactions.IgnoreQueryFilters().Where(t => t.Id == transactionId).ExecuteDeleteAsync();
         }
 
-        var row = await ScanRowAsync(scanId);  // bản ghi bóc tách vẫn còn, chỉ mất liên kết
-        row.TransactionId.Should().BeNull();
+        var row = await ScanRowAsync(scanId);  // bản ghi bóc tách vẫn còn, chỉ mất dòng nối
+        (await LinkedTransactionsAsync(scanId)).Should().BeEmpty();
         row.AmountCents.Should().Be(16_000);
     }
 }
