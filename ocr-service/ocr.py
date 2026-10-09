@@ -3,6 +3,7 @@ import io
 from difflib import SequenceMatcher
 import os
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 
 import cv2
@@ -26,6 +27,17 @@ def _engine():
     from paddleocr import PaddleOCR  # nạp lười: lần đầu tải model, các test không cần
 
     return PaddleOCR(use_angle_cls=True, lang="vi", show_log=False)
+
+
+@dataclass(frozen=True)
+class OcrBox:
+    """Một dòng chữ kèm hộp bao (tọa độ trên ảnh đã cắt/phóng to dùng để đọc)."""
+    text: str
+    conf: float
+    x0: float
+    y0: float
+    x1: float
+    y1: float
 
 
 def _cut_off(text: str) -> bool:
@@ -93,11 +105,15 @@ def _reread_with_vietocr(bgr, box, text: str) -> str:
     return _prefer(viet, text)
 
 
-def _run(bgr) -> list[tuple[str, float]]:
+def _run(bgr) -> list[OcrBox]:
     result = _engine().ocr(bgr, cls=True)
     reread = _use_vietocr()
-    return [(clean_ocr_text(_reread_with_vietocr(bgr, box, text) if reread and i < _VIET_HEAD_LINES else text), float(conf))
-            for i, (box, (text, conf)) in enumerate(result[0] or [])]
+    out = []
+    for i, (box, (text, conf)) in enumerate(result[0] or []):
+        text = clean_ocr_text(_reread_with_vietocr(bgr, box, text) if reread and i < _VIET_HEAD_LINES else text)
+        xs, ys = [p[0] for p in box], [p[1] for p in box]
+        out.append(OcrBox(text, float(conf), min(xs), min(ys), max(xs), max(ys)))
+    return out
 
 
 _MIN_OCR_WIDTH = 800   # tờ bill hẹp hơn mức này (ảnh chụp xa rồi cắt) thì chữ quá nhỏ để đọc đúng, phóng to trước
@@ -122,16 +138,24 @@ def upscale_small(bgr: np.ndarray, original_width: int | None = None) -> np.ndar
     return cv2.resize(bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
 
 
-def read_lines(image_bytes: bytes) -> list[tuple[str, float]]:
-    """Trả về [(dòng chữ, độ tin cậy)] theo thứ tự từ trên xuống."""
+def read_boxes(image_bytes: bytes) -> list[OcrBox]:
+    """Trả về các dòng chữ kèm hộp bao theo thứ tự từ trên xuống."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     bgr = crop_receipt(np.array(img)[:, :, ::-1])  # Paddle nhận BGR; bỏ nền trước khi đo sáng
     bgr = upscale_small(enhance(bgr, assess_quality(bgr)), img.width)
-    lines = _run(bgr)
-    if not lines:
+    boxes = _run(bgr)
+    if not boxes:
         raise NoTextError()
-    if any(_cut_off(t) for t, _ in lines[:15]):  # chỉ đọc lại khi đầu phiếu có dòng bị cụt, để không chậm ảnh thường
+    if any(_cut_off(b.text) for b in boxes[:15]):  # chỉ đọc lại khi đầu phiếu có dòng bị cụt, để không chậm ảnh thường
         h, w = bgr.shape[:2]
         for scale in (1.3, 0.6):
-            lines = repair_cut_off(lines, _run(cv2.resize(bgr, (int(w * scale), int(h * scale)))))
-    return lines
+            retry = [(b.text, b.conf) for b in _run(cv2.resize(bgr, (int(w * scale), int(h * scale))))]
+            fixed = repair_cut_off([(b.text, b.conf) for b in boxes], retry)
+            # chỉ chữ được thay; hộp giữ nguyên tọa độ ảnh đã cắt (hộp của lần đọc lại khác tỉ lệ bị bỏ)
+            boxes = [OcrBox(t, c, b.x0, b.y0, b.x1, b.y1) for (t, c), b in zip(fixed, boxes)]
+    return boxes
+
+
+def read_lines(image_bytes: bytes) -> list[tuple[str, float]]:
+    """Trả về [(dòng chữ, độ tin cậy)] theo thứ tự từ trên xuống."""
+    return [(b.text, b.conf) for b in read_boxes(image_bytes)]
