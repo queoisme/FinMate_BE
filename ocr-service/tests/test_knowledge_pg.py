@@ -14,6 +14,7 @@ import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from knowledge_pg import NoUnknownScans, UnknownScans  # noqa: E402
 from PIL import Image  # noqa: E402
+from tests.conftest import boxes_patch  # noqa: E402
 from tests.pg_fake import make_connect  # noqa: E402
 
 client = TestClient(main.app)
@@ -130,7 +131,7 @@ def _scan(share: bool):
 def test_unknown_bill_is_recorded_only_when_the_user_agreed_to_share(connect, monkeypatch):
     scans = UnknownScans(connect, "u1")
     monkeypatch.setattr(main, "unknown_scans", scans)
-    monkeypatch.setattr(main, "read_lines", _bill("TIEM LA HOAC 99"))
+    monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("TIEM LA HOAC 99")))
     assert _scan(share=False).status_code == 200
     assert scans.pending() == []  # không đồng ý thì không ghi gì
     assert _scan(share=True).status_code == 200
@@ -140,7 +141,7 @@ def test_unknown_bill_is_recorded_only_when_the_user_agreed_to_share(connect, mo
 def test_known_brand_is_not_recorded_as_unknown(connect, monkeypatch):
     scans = UnknownScans(connect, "u1")
     monkeypatch.setattr(main, "unknown_scans", scans)
-    monkeypatch.setattr(main, "read_lines", _bill("HIGHLANDS COFFEE"))
+    monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("HIGHLANDS COFFEE")))
     assert _scan(share=True).status_code == 200
     assert scans.pending() == []
 
@@ -148,7 +149,7 @@ def test_known_brand_is_not_recorded_as_unknown(connect, monkeypatch):
 def test_saving_a_label_closes_the_matching_unknown_scans(connect, monkeypatch):
     scans = UnknownScans(connect, "u1")
     monkeypatch.setattr(main, "unknown_scans", scans)
-    monkeypatch.setattr(main, "read_lines", _bill("TIEM LA HOAC 99"))
+    monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("TIEM LA HOAC 99")))
     _scan(share=True)
     assert len(scans.pending()) == 1
     r = client.post("/merchant-category", json={"merchant": "TIEM LA HOAC 99", "category": "shopping"})
@@ -165,7 +166,7 @@ def test_a_database_failure_does_not_break_the_scan(monkeypatch):
             pass
 
     monkeypatch.setattr(main, "unknown_scans", Broken())
-    monkeypatch.setattr(main, "read_lines", _bill("TIEM LA HOAC 99"))
+    monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("TIEM LA HOAC 99")))
     assert _scan(share=True).status_code == 200  # người dùng vẫn nhận kết quả quét
 
 

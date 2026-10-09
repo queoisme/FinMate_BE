@@ -25,7 +25,8 @@ from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, analyze, receipt
 from knowledge_pg import open_knowledge
 from merchant_name import format_merchant_name
 import ocr
-from ocr import NoTextError, read_lines
+from items import extract_items
+from ocr import NoTextError, read_boxes
 from quality import image_quality
 from storage_pg import current_user, open_stores
 
@@ -159,6 +160,23 @@ def reload_knowledge_endpoint(x_admin_token: str | None = Header(None)):
     return {"reloaded": reload_knowledge()}
 
 
+def _bill_items(boxes, total):
+    """Tách món từ hộp chữ; tên món qua sanitize_lines. Lỗi bất ngờ không được làm hỏng lần quét."""
+    try:
+        res = extract_items(boxes, total)
+        ok, out = res.ok, []
+        for it in res.items:
+            name = (sanitize_lines([it.name]) or [""])[0]
+            if not name:  # tên bị lọc hết: bỏ món và không còn tin danh sách cộng đủ tổng
+                ok = False
+                continue
+            out.append({"name": name, "amount": it.amount, "parent": it.parent, "is_discount": it.is_discount})
+        return out, ok
+    except Exception as e:  # noqa: BLE001 - chỉ log loại lỗi, không log tên/giá
+        logging.getLogger(__name__).warning("Không tách được món: %s", type(e).__name__)
+        return [], False
+
+
 @app.post("/analyze-bill", dependencies=[Depends(verify_internal_api_key), Depends(bind_user)])
 def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), share_data: bool = Form(False)):
     data = image.file.read(MAX_BYTES + 1)
@@ -170,7 +188,8 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
         return _error(400, "File tải lên không phải ảnh hợp lệ")
     try:
         quality = image_quality(data)
-        lines = read_lines(data)
+        boxes = read_boxes(data)  # đọc đúng một lần; lines suy từ hộp nên logic cũ giữ nguyên
+        lines = [(b.text, b.conf) for b in boxes]
         texts = [t for t, _ in lines]
         score = receipt_score(texts)
         screen = app_screens.parse(texts)  # ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn)
@@ -198,6 +217,7 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
             order["lines"] = sanitize_lines(order.get("lines", []))
         result["quality"] = quality
         result["receipt_score"] = score
+        result["items"], result["items_ok"] = ([], False) if screen else _bill_items(boxes, result["total_amount"])
         weak_image = quality != "ok" or (score < CONFIDENT_RECEIPT_SCORE and not screen)  # ảnh kém, hoặc chỉ "hơi giống" hóa đơn
         if use_ai:  # người dùng chủ động bật: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), không gửi ảnh
             ai_refine.apply_ai(result, clean_lines, display, force_review=weak_image)

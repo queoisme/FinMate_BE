@@ -22,3 +22,13 @@ def internal_key_ok():
     main.app.dependency_overrides[main.verify_internal_api_key] = lambda: None
     yield
     main.app.dependency_overrides.pop(main.verify_internal_api_key, None)
+
+
+def boxes_patch(read_lines_fn):
+    """Bọc hàm đọc chữ giả (trả [(text, conf)]) thành hàm thay cho main.read_boxes: xếp chồng các dòng thành hộp."""
+    from ocr import OcrBox
+
+    def fake(data):
+        return [OcrBox(t, c, 0.0, i * 20.0, 100.0, i * 20.0 + 18.0) for i, (t, c) in enumerate(read_lines_fn(data))]
+
+    return fake
