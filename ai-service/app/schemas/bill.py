@@ -6,7 +6,9 @@ Không nhận ảnh, không nhận chữ gốc, không lưu gì. Người gọi 
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.db.models.bill import BILL_CHOICE_SLUGS
 
@@ -47,3 +49,40 @@ class BillLearnRequest(BaseModel):
 class BillLearnResponse(BaseModel):
     # False khi tên cửa hàng không dùng được làm khóa (chỉ toàn khoảng trắng); không phải lỗi.
     learned: bool
+
+
+class ClassifyItemIn(BaseModel):
+    """Một món trên hóa đơn: chỉ tên (đã lọc) và món chính nó thuộc về (phụ kiện "+"). Không có số tiền."""
+
+    name: str = Field(max_length=200)
+    parent: int | None = None
+
+
+class BillClassifyItemsRequest(BaseModel):
+    """``POST /api/v1/bill/classify-items``: phân loại từng món; ``allow_ai`` là cờ đồng ý chia sẻ tên món với Gemini."""
+
+    items: list[ClassifyItemIn] = Field(min_length=1, max_length=60)
+    merchant_name: str | None = Field(default=None, max_length=200)
+    user_id_hash: str = Field(min_length=64, max_length=64)
+    allow_ai: bool = False
+
+    @model_validator(mode="after")
+    def _parent_points_back(self) -> "BillClassifyItemsRequest":
+        # parent phải là món đứng TRƯỚC: thừa kế đi một chiều, không có vòng
+        for index, item in enumerate(self.items):
+            if item.parent is not None and not 0 <= item.parent < index:
+                raise ValueError(f"items[{index}].parent phải trỏ tới một món đứng trước")
+        return self
+
+
+class ClassifyItemOut(BaseModel):
+    index: int
+    # Slug backend, hoặc None khi không nhận ra (backend gom vào nhóm cần xem lại).
+    category_slug: str | None = None
+    source: Literal["rule", "inherit", "merchant", "ai", "unknown"]
+
+
+class BillClassifyItemsResponse(BaseModel):
+    items: list[ClassifyItemOut]
+    # True khi đã gọi Gemini và nó trả lời được.
+    ai_used: bool

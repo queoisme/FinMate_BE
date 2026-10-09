@@ -12,13 +12,25 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
+from sqlalchemy import text
 
 from app.api.deps import verify_internal_api_key
 from app.bill.classifier import CATEGORIES, classify_category_detailed
+from app.bill.gemini import GeminiClient
+from app.bill.item_classifier import classify_items
 from app.bill.knowledge import BillKnowledge, DbBillKnowledge
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.core.config import settings
+from app.db.session import AsyncSessionLocal
 from app.core.enums import CATEGORY_SLUGS
-from app.schemas.bill import BillClassifyRequest, BillClassifyResponse, BillLearnRequest, BillLearnResponse
+from app.schemas.bill import (
+    BillClassifyItemsRequest,
+    BillClassifyItemsResponse,
+    BillClassifyRequest,
+    BillClassifyResponse,
+    BillLearnRequest,
+    BillLearnResponse,
+)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
@@ -29,6 +41,36 @@ _knowledge = DbBillKnowledge()
 def get_bill_knowledge() -> BillKnowledge:
     """Kiến thức từ DB (thương hiệu, từ khóa, cửa hàng người dùng đã chốt). Test thay bằng bản giả qua ``dependency_overrides``."""
     return _knowledge
+
+
+_gemini = GeminiClient(settings.gemini_api_key, settings.gemini_model, settings.gemini_timeout_seconds)
+
+
+def get_gemini_client() -> GeminiClient:
+    """Một client dùng chung (giữ cache và khóa mạch 30 giây). Test thay bằng bản giả qua ``dependency_overrides``."""
+    return _gemini
+
+
+_INSTRUCTION_SQL = text("SELECT instruction_text FROM bill_ai_instructions WHERE is_active LIMIT 1")
+_INSTRUCTION_TTL_SECONDS = 60.0  # cùng nhịp nạp lại với DbBillKnowledge
+_instruction: tuple[float, str] | None = None  # (lúc nạp, nội dung)
+
+
+async def get_ai_instruction() -> str:
+    """Phần chỉ dẫn Gemini sửa được trong DB (dòng đang dùng), có cache. Bảng thiếu/rỗng hoặc DB lỗi → "" (bỏ bước Gemini)."""
+    global _instruction
+    now = time.monotonic()
+    if _instruction is not None and now - _instruction[0] < _INSTRUCTION_TTL_SECONDS:
+        return _instruction[1]
+    _instruction = (now, _instruction[1] if _instruction else "")  # đặt trước khi nạp: DB hỏng không làm mọi request cùng thử lại
+    try:
+        async with AsyncSessionLocal() as session:
+            value = (await session.execute(_INSTRUCTION_SQL)).scalar_one_or_none()
+    except Exception as error:  # noqa: BLE001 - thiếu chỉ dẫn chỉ làm mất bước Gemini, không làm hỏng phân loại
+        logger.warning("bill_ai_instruction_load_failed", error=type(error).__name__)
+        return _instruction[1]
+    _instruction = (now, value or "")
+    return _instruction[1]
 
 
 _MAX_LINE_CHARS = 200
@@ -74,3 +116,24 @@ async def learn_bill_merchant(
     learned = await knowledge.learn(body.user_id_hash, body.merchant_name, body.category_slug)
     logger.info("bill_merchant_learned", learned=learned)  # không ghi tên cửa hàng hay danh mục
     return BillLearnResponse(learned=learned)
+
+
+@router.post("/bill/classify-items", response_model=BillClassifyItemsResponse)
+async def classify_bill_items(
+    body: BillClassifyItemsRequest,
+    knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
+    gemini: Annotated[GeminiClient, Depends(get_gemini_client)],
+    instruction: Annotated[str, Depends(get_ai_instruction)],
+) -> BillClassifyItemsResponse:
+    """Phân loại từng món (không có số tiền): thừa kế → luật → nhóm cửa hàng → Gemini (khi ``allow_ai``) → unknown."""
+    started = time.perf_counter()
+    merchant = body.merchant_name.strip() if body.merchant_name and body.merchant_name.strip() else None
+    items, ai_used = await classify_items(body.items, merchant, knowledge, gemini, instruction, body.allow_ai)
+    logger.info(  # chỉ đếm: không ghi tên món, cửa hàng, chỉ dẫn hay kết quả của mô hình
+        "bill_items_classified",
+        items=len(items),
+        unknown=sum(1 for i in items if i.source == "unknown"),
+        ai_used=ai_used,
+        processing_ms=int((time.perf_counter() - started) * 1000),
+    )
+    return BillClassifyItemsResponse(items=items, ai_used=ai_used)
