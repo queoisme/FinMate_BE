@@ -117,6 +117,112 @@ def test_unpriced_plus_modifier_does_not_turn_next_item_into_addon():
     assert r.ok is True
 
 
+TWO_ITEMS = row(200, ("Bánh mì", 50, 250), ("30,000", 800, 950)) + row(300, ("Nước cam", 50, 300), ("20,000", 800, 950))
+
+
+def test_codes_points_phone_above_header_are_not_prices():
+    # điểm tích lũy, mã Nợ/Có, số điện thoại ở mép phải phía trên tiêu đề không làm hỏng cả bill
+    top = row(10, ("KH: Khiet", 50, 300), ("2,770ĐIỂM", 800, 950)) + row(40, ("Nợ: 1311", 800, 950)) \
+        + row(70, ("Điện thoại: 0251.3831289", 600, 950))
+    r = extract_items(top + HEADER + TWO_ITEMS + FOOTER, 50000)
+    assert [(i.name, i.amount) for i in r.items] == [("Bánh mì", 30000), ("Nước cam", 20000)]
+    assert r.ok
+
+
+def test_total_line_above_header_is_not_first_item():
+    # "Tổng tiền các đơn 50,000" in ở phần đầu phiếu, trước bảng món
+    top = row(40, ("Ghi chú", 50, 200), ("Tổng tiền các đơn", 400, 700), ("50,000", 800, 950))
+    r = extract_items(top + HEADER + TWO_ITEMS + FOOTER, 50000)
+    assert [i.amount for i in r.items] == [30000, 20000] and r.ok
+
+
+def test_trailing_tax_rate_cell_is_skipped_for_price():
+    # cột thuế suất "8%" nằm ngoài cùng bên phải: giá là ô tiền gần nhất bên trái nó
+    phone = row(10, ("Điện thoại: 0251.3831289", 600, 990))  # số ở mép phải trên tiêu đề, giá món thì không ở mép
+    boxes = phone + HEADER + row(200, ("Bánh mì", 50, 250), ("30,000", 760, 900), ("8%", 940, 990)) \
+        + row(300, ("Nước cam", 50, 300), ("20,000", 760, 900), ("8%", 940, 990)) + FOOTER
+    r = extract_items(boxes, 50000)
+    assert [(i.name, i.amount) for i in r.items] == [("Bánh mì", 30000), ("Nước cam", 20000)]
+    assert r.ok
+
+
+def test_subtotal_line_is_not_an_item():
+    for label in ("Cộng tiền hàng", "C0ng tien hang", "Tạm tính", "Tiền hàng"):
+        boxes = HEADER + TWO_ITEMS + row(400, (label, 50, 300), ("50,000", 800, 950)) + FOOTER
+        r = extract_items(boxes, 50000)
+        assert [i.amount for i in r.items] == [30000, 20000], label
+        assert r.ok, label
+
+
+VAT_TAIL = row(400, ("Tiền hàng", 50, 300), ("50,000", 800, 950)) \
+    + row(440, ("Thuế GTGT (8%)", 50, 300), ("4,000", 800, 950)) \
+    + row(480, ("Tổng thanh toán", 50, 300), ("54,000", 800, 950)) \
+    + row(520, ("Còn phải thu", 50, 300), ("54,000", 800, 950))
+
+
+def test_vat_after_subtotal_is_a_surcharge_item():
+    r = extract_items(HEADER + TWO_ITEMS + VAT_TAIL, 54000)
+    assert [(i.name, i.amount, i.parent, i.is_discount) for i in r.items] == [
+        ("Bánh mì", 30000, None, False),
+        ("Nước cam", 20000, None, False),
+        ("Thuế GTGT (8%)", 4000, None, False),
+    ]
+    assert r.ok is True
+    assert extract_items(HEADER + TWO_ITEMS + VAT_TAIL, 54001).ok is False  # vẫn đòi khớp đúng từng đồng
+
+
+def test_service_fee_after_subtotal_is_a_surcharge_item():
+    tail = row(400, ("Tạm tính", 50, 300), ("50,000", 800, 950)) \
+        + row(440, ("Phí phục vụ 5%", 50, 300), ("2,500", 800, 950)) \
+        + row(480, ("Thanh toán", 50, 300), ("52,500", 800, 950))
+    r = extract_items(HEADER + TWO_ITEMS + tail, 52500)
+    assert [(i.name, i.amount) for i in r.items][-1] == ("Phí phục vụ 5%", 2500)
+    assert r.ok
+
+
+def test_bill_discount_after_subtotal_and_cash_lines_ignored():
+    tail = row(400, ("Tổng Tiền Hàng :", 50, 400), ("50,000 VND", 750, 950)) \
+        + row(440, ("Giảm giá (0.5%) :", 50, 400), ("5,000 VND", 750, 950)) \
+        + row(480, ("Tiền khách đưa :", 50, 400), ("45,000 VND", 750, 950)) \
+        + row(520, ("Tổng thanh toán :", 50, 400), ("45,000 VND", 750, 950))
+    r = extract_items(HEADER + TWO_ITEMS + tail, 45000)
+    assert [(i.name, i.amount, i.parent, i.is_discount) for i in r.items] == [
+        ("Bánh mì", 30000, None, False),
+        ("Nước cam", 20000, None, False),
+        ("Giảm giá (0.5%) :", -5000, None, True),
+    ]
+    assert r.ok is True
+
+
+def test_pre_tax_total_after_subtotal_is_not_a_surcharge():
+    tail = row(400, ("Tổng cộng", 50, 300), ("2", 900, 920)) \
+        + row(440, ("Tổng tiền chưa VAT:", 50, 400), ("50,000", 800, 950)) \
+        + row(480, ("Tiền VAT:", 50, 300)) \
+        + row(520, ("Tổng phải trả:", 50, 300), ("50,000", 800, 950))
+    r = extract_items(HEADER + TWO_ITEMS + tail, 50000)
+    assert [i.amount for i in r.items] == [30000, 20000] and r.ok
+
+
+def test_bare_number_equal_to_running_sum_is_subtotal():
+    # "353.364" in một mình ngay trên chữ "Cộng": không phải món
+    tail = row(400, ("50,000", 800, 950)) \
+        + row(440, ("Cộng tiền hàng", 400, 700), ("50,000", 800, 950)) \
+        + row(480, ("Tiền thuế GTGT:", 400, 700), ("4,000", 800, 950)) \
+        + row(520, ("Tổng tiền thanh toán", 400, 700), ("54,000", 800, 950))
+    r = extract_items(HEADER + TWO_ITEMS + tail, 54000)
+    assert [i.amount for i in r.items] == [30000, 20000, 4000] and r.ok
+    # số trần khác tổng đang cộng vẫn là món (giá in lệch hàng), không bị nuốt
+    odd = row(400, ("7,000", 800, 950)) + FOOTER
+    assert [i.amount for i in extract_items(HEADER + TWO_ITEMS + odd, 57000).items] == [30000, 20000, 7000]
+
+
+def test_surcharge_does_not_count_as_an_item():
+    one = row(200, ("Bánh mì", 50, 250), ("50,000", 800, 950))
+    r = extract_items(HEADER + one + VAT_TAIL, 54000)
+    assert [i.amount for i in r.items] == [50000, 4000]
+    assert r.ok is False
+
+
 def test_no_header_before_first_price_sets_ok_false():
     # "SL: 2" ở chân bill không được coi là tiêu đề cột
     boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) \

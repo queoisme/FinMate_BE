@@ -119,5 +119,45 @@
     {"name_contains": "st25 5kg", "amount": 711000},
     {"name_contains": "hck", "amount": 654000},
     {"name_contains": "st21", "amount": 645000}
+  ],
+  "_added_in_4b": {
+    "_note": "Nhãn tay thêm ở bước 4b (2026-10-09), đọc từ ảnh, cho 5 bill chỉ ra items_ok sau khi sửa heuristic, để (b) đo được cả các bill mới này. run_items in (b) cả trên bộ nhãn gốc lẫn bộ đầy đủ. d2b8: ba dòng 'BỘ SẢN PHẨM Bột ngọt AJI-NO-' trùng dòng đầu, nên lấy khúc phân biệt ở dòng hai (230g/100g/454g).",
+    "files": ["28b8b613-260e-49dd-b21d-fdae4b8357a0.jpg", "8904f881-081f-4742-bb1c-df50d1f86d12.jpg", "93092c83-bf02-4fab-b872-51a75733b3e6.jpg",
+              "9d288498-87b8-4942-8e58-8caa6368625d.jpg", "d2b8bddd-74d4-4b9d-a621-fe2b514ae547.jpg"]
+  },
+  "28b8b613-260e-49dd-b21d-fdae4b8357a0.jpg": [
+    {"name_contains": "tobrex", "amount": 48000},
+    {"name_contains": "natri clorid", "amount": 4000}
+  ],
+  "8904f881-081f-4742-bb1c-df50d1f86d12.jpg": [
+    {"name_contains": "creamer", "amount": 856332},
+    {"name_contains": "sttt co duong", "amount": 194994},
+    {"name_contains": "cao dam", "amount": 344736},
+    {"name_contains": "9 loai hat", "amount": 23220}
+  ],
+  "93092c83-bf02-4fab-b872-51a75733b3e6.jpg": [
+    {"name_contains": "sua tuoi thanh trung", "amount": 364924},
+    {"name_contains": "tu nhien", "amount": 168829},
+    {"name_contains": "sua chua uong", "amount": 60021},
+    {"name_contains": "dau tay", "amount": 120042},
+    {"name_contains": "sua chua uong", "amount": 124659},
+    {"name_contains": "bo lat", "amount": 150231}
+  ],
+  "9d288498-87b8-4942-8e58-8caa6368625d.jpg": [
+    {"name_contains": "bap hoa bo", "amount": 39048},
+    {"name_contains": "thit bo xao", "amount": 98096},
+    {"name_contains": "thit bo tai", "amount": 108572},
+    {"name_contains": "bo vien", "amount": 48148},
+    {"name_contains": "bap bo 200g", "amount": 59500}
+  ],
+  "d2b8bddd-74d4-4b9d-a621-fe2b514ae547.jpg": [
+    {"name_contains": "bot chien gion", "amount": 87960},
+    {"name_contains": "bot tam kho", "amount": 32410},
+    {"name_contains": "hat nem heo", "amount": 108776},
+    {"name_contains": "vi nguyen ban", "amount": 82224},
+    {"name_contains": "vi ngot diu", "amount": 82224},
+    {"name_contains": "230g", "amount": 164180},
+    {"name_contains": "100g", "amount": 90000},
+    {"name_contains": "454g", "amount": 334590}
   ]
 }

@@ -177,3 +177,38 @@ Chạy `ocr-service/benchmark/run_items.py` (đường đọc thật: `read_boxe
 - Tên xuống dòng: luật 3 nối hàng không giá vào món **bên dưới**, nhưng bill in bảng thường để giá ở dòng đầu và phần tên còn lại ở dòng dưới, nên đuôi tên dính vào món sau ("h&p 420g Banh Oreo", "Cut 480g... Banh Bao T.Heo2"). Giá vẫn đúng; chỉ tên bẩn.
 - `_END_RE` thiếu "cộng tiền hàng": ảnh 9603 (1 món) ra thêm món "Cong tien hang 125.000".
 - Số mã/điểm/điện thoại/ngày bị coi là giá (xem trên): đây là nhóm lỗi lớn nhất, nhiều khả năng sửa được bằng cách chỉ nhận tiền ở hàng **sau** tiêu đề thay vì đòi tiêu đề đứng trước mọi hàng có giá.
+
+#### Sau khi sửa heuristic (bước 4b, 2026-10-09)
+
+**Cảnh báo: số đo trong mẫu (in-sample).** Các luật được chỉnh khi nhìn chính 24 bill dùng để đo, nên con số dưới đây lạc quan hơn trên bill mới. Mỗi luật là luật chung, có test riêng bằng hộp tổng hợp, không có luật theo tên ảnh.
+
+Luật đã đổi trong `items.py`:
+- **Tiêu đề và hàng món đầu tiên:** "hàng món đầu tiên" chỉ tính ô tiền đúng dạng (có dấu nghìn: `66.000`, `1,920,500đ`) và hàng không chứa chữ "Tổng"/cộng/thanh toán; lấy dòng tiêu đề **gần nhất** phía trên nó. Điểm tích lũy, mã KH, Nợ/Có, điện thoại, "Tổng tiền các đơn" ở đầu phiếu không còn chặn mất bill. Không có ô tiền đúng dạng nào thì giữ luật cũ.
+- **Ô không phải tiền ở mép phải trong bảng món** (thuế suất "8%", "KKKNT", chữ viết tay ở cột ghi chú) bị bỏ qua, giá là ô tiền gần nhất bên trái còn trong cột giá. Chỉ áp trong bảng món, không áp ở vùng tổng.
+- **Dòng cộng tạm** (`Cộng tiền hàng`, `Tạm tính`, `Tiền hàng`, `Tổng...`, `Tổng cộng`, `Thành tiền`, chịu OCR đọc sai `C0ng`, `T6ng`, `T4m`) kết thúc danh sách món nhưng không kết thúc vùng bill. Một số in trần đúng bằng tổng các món đang cộng (nhãn rơi xuống hàng dưới) cũng là dòng cộng tạm.
+- **Sau dòng cộng tạm, tới dòng tổng cuối** (`thanh toán`, `phải trả`, `phải thu`, `total`, hoặc `Tổng cộng` đứng sau cộng tạm): hàng có nhãn thuế/VAT/phí phục vụ/phí dịch vụ (trừ "chưa thuế", "trước thuế") là một món phụ thu `parent=None, is_discount=False`, giữ nguyên nhãn; hàng số âm hoặc nhãn giảm/chiết khấu/voucher/khuyến mãi là giảm giá cả bill; các hàng khác (tiền khách đưa, tiền thừa, cộng lặp lại) bị bỏ. Phụ thu và giảm giá không tính vào "ít nhất 2 món". Kiểm tra vẫn **khớp đúng từng đồng**.
+
+Cách đo (b) đổi: giá phải đúng từng đồng, tên so **gần đúng** (`difflib.SequenceMatcher` ≥ 0,6 giữa đoạn nhãn đã bỏ dấu và một khúc cùng độ dài trong tên), vì OCR đọc sai chữ. In kèm cách đo chặt cũ và cách chỉ so tiền. Thêm nhãn tay (đọc từ ảnh) cho 5 bill mới ra `items_ok` (28b8, 8904, 9309, 9d28, d2b8) để (b) đo được cả chúng; tổng 17 bill có nhãn.
+
+| chỉ số | trước | sau | ngưỡng |
+|---|---|---|---|
+| (a) `items_ok` trên bill nhiều dòng | 6/24 (25%) | **12/24 (50%)** | ≥ 50%: đạt sát ngưỡng |
+| (b) món nhãn tay đúng, tên gần đúng, 17 bill có nhãn | 25/25 (100%) | **49/54 (91%)** | ≥ 90%: đạt sát ngưỡng |
+| (b) chỉ trên 12 bill gắn nhãn ở bước 4 | 25/25 | 33/34 (97%) | |
+| tên chứa nguyên đoạn nhãn (cách đo bước 4) | 16/25 (64%) | 33/54 (61%) | |
+| chỉ so số tiền | 25/25 | 54/54 (100%) | |
+
+Số "trước" của (b) với cách đo mới tính trên hộp OCR đã lưu bằng `items.py` cũ; số "sau" chạy thật bằng `run_items.py` (PaddleOCR), khớp với lần chạy trên hộp đã lưu.
+
+**Một bill `items_ok = True` mà ghép sai:** 8904 (phiếu Satra). Ảnh nghiêng làm giá lệch lên một hàng so với tên, tổng vẫn khớp nên 4 giá đúng nhưng 3/4 tên gắn sai món. (b) bắt được (1/4); "chỉ so số tiền" không bắt được. Bỏ 8904 thì (a) là 11/24 (46%), dưới ngưỡng. Đây đúng là rủi ro "tổng khớp che lỗi" ở mục 4; kiểm tra tổng không phát hiện được lỗi lệch tên.
+
+**Bill còn trượt (12/24) và lý do:**
+- Không có tiêu đề cột: Bắc Hiền b4ea, Coopmart 79d9.
+- Tiêu đề / chữ đọc hỏng hoặc ảnh mờ: Kisnac 21fd, b8c8, Minh Phát 9a6d.
+- Cột thành tiền nằm giữa bảng rộng, bên phải còn nhiều cột trống nên ngoài 35% bên phải: 33da.
+- Giá in thấp hơn tên / lệch hàng: WinMart 84e0, be5c (be5c còn cột KM âm), pizza c55e (giá ĐG và TT tách hai hàng nên món 2 bị đếm đôi; nhãn "Tiền hàng"/"Thuế" lệch một hàng so với số).
+- Tiêu đề dính món đầu do nghiêng, nhãn vùng tổng lệch một hàng: Chả cá f7f2.
+- AEON b25b: dòng tổng dính dòng "KHUYẾN MÃI@..." (tên bị `sanitize_lines` coi là email); ghi riêng, không sửa ở bước này.
+- 9d28: tách ra đúng 5 giá và VAT, nhưng tên lệch hàng và một tên bị `sanitize_lines` lọc hết, nên `items_ok = false` (đúng là không nên tin).
+
+Chưa sửa (ngoài phạm vi 4b): tên xuống dòng dính vào món sau (luật 3), lọc email ăn chữ "KHUYENMAI@".
