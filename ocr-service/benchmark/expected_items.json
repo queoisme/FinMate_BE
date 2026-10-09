@@ -1,0 +1,123 @@
+{
+  "_note": "Nhãn tay đọc trực tiếp từ ảnh (KHÔNG chép từ OCR), ngày 2026-10-09. Tên ảnh -> danh sách món {name_contains: đoạn tên đã bỏ dấu, chữ thường, lấy ở dòng đầu của tên; amount: đồng, âm là giảm giá}. Món đúng = có một món tách ra cùng số tiền và tên chứa đoạn này. Giá dòng đã trừ khuyến mãi in trên từng dòng (WinMart cột KM, AEON 'KHUYẾN MÃI') thì nhãn là giá sau khuyến mãi in ở cột thành tiền.",
+  "_item_lines": {
+    "_note": "Số dòng hàng có giá in trên giấy, đếm bằng mắt cho cả 30 ảnh. null = ảnh chụp màn hình app/tin nhắn (đặc tả mục 4: không đi đường tách món). Bill nhiều dòng = giá trị >= 2.",
+    "03d6a4d1-9062-4361-9ba6-2aa469f95762.jpg": 6,
+    "0582e609-eb2f-47e8-90b8-37240319affb.jpg": 1,
+    "065bcdd2-5fa8-4257-bf89-f25d46b871f4.jpg": 12,
+    "21fd4ff8-29df-4bb8-b8c6-4bba3d9a73ef.jpg": 7,
+    "28b8b613-260e-49dd-b21d-fdae4b8357a0.jpg": 2,
+    "33da5233-3000-4db4-9efe-14cf5647fb61.jpg": 2,
+    "44eb087b-4eaf-4f58-ae10-09512c35786f.jpg": 1,
+    "4869f82f-c7a8-4794-9640-2b1454d198cd.jpg": 3,
+    "55db97b7-91d1-4557-8354-664dfbb0d379.jpg": null,
+    "5dd0596b-3cdb-446d-a2c5-585b1766c9d4.jpg": 1,
+    "6634fb02-d647-4e23-ae5f-cdcb3511f505.jpg": 7,
+    "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": 6,
+    "79d96d96-2145-4a0b-9a91-fe133eacbdbc.jpg": 5,
+    "84e0f9bf-2f28-408a-bdc9-5c9514c23fc5.jpg": 3,
+    "8904f881-081f-4742-bb1c-df50d1f86d12.jpg": 4,
+    "93092c83-bf02-4fab-b872-51a75733b3e6.jpg": 6,
+    "960345d1-d58f-481c-9ff4-ca6cc792d881.jpg": 1,
+    "974a3614-2ee8-4a4e-b277-bbb1ca994dd9.jpg": 9,
+    "9a6d9f4c-0e98-45de-aa82-819c427f2a7f.jpg": 5,
+    "9d288498-87b8-4942-8e58-8caa6368625d.jpg": 5,
+    "b25b71ed-fff3-4113-9b0e-f9a9e3cbe9f9.jpg": 4,
+    "b4eadeb2-f17d-4ca4-b789-0dd21dd4e6f8.jpg": 6,
+    "b8c84a15-51d4-43d6-b4db-a215e0f74c79.jpg": 7,
+    "be5c14db-f8f8-474a-8563-3234be857d2d.jpg": 5,
+    "c55ef611-cfc3-4d0c-9eee-fd35df116e7c.jpg": 4,
+    "c6279e28-e7ab-4301-8984-8f41e140ab61.jpg": 4,
+    "d2b8bddd-74d4-4b9d-a621-fe2b514ae547.jpg": 8,
+    "f7f25d72-0c02-42c3-8652-e9353e1c5279.jpg": 4,
+    "vinarice-phieu-giao-hang.webp": 3,
+    "nha-tro-hoa-don-dich-vu.webp": null
+  },
+  "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": [
+    {"name_contains": "tayox", "amount": 140000},
+    {"name_contains": "zaizai", "amount": 270000},
+    {"name_contains": "oreo", "amount": 185600},
+    {"name_contains": "dau nho hero", "amount": 144000},
+    {"name_contains": "meiji", "amount": 132000},
+    {"name_contains": "keo deo", "amount": 160000}
+  ],
+  "f7f25d72-0c02-42c3-8652-e9353e1c5279.jpg": [
+    {"name_contains": "tra da", "amount": 25000},
+    {"name_contains": "cha ca", "amount": 810000},
+    {"name_contains": "long ca", "amount": 135000},
+    {"name_contains": "nem ca", "amount": 150000}
+  ],
+  "6634fb02-d647-4e23-ae5f-cdcb3511f505.jpg": [
+    {"name_contains": "binggrae", "amount": 30000},
+    {"name_contains": "binggrae", "amount": 30000},
+    {"name_contains": "celano", "amount": 21000},
+    {"name_contains": "cornetto", "amount": 24000},
+    {"name_contains": "kem que", "amount": 22000},
+    {"name_contains": "paddle", "amount": 8000},
+    {"name_contains": "kem xoai", "amount": 11000}
+  ],
+  "be5c14db-f8f8-474a-8563-3234be857d2d.jpg": [
+    {"name_contains": "ca tram", "amount": 107138},
+    {"name_contains": "cai thao", "amount": 16631},
+    {"name_contains": "nam kim cham", "amount": 29800},
+    {"name_contains": "ca chua", "amount": 12000},
+    {"name_contains": "dau thanh", "amount": 22200}
+  ],
+  "b25b71ed-fff3-4113-9b0e-f9a9e3cbe9f9.jpg": [
+    {"name_contains": "chao breakfast", "amount": 159000},
+    {"name_contains": "minice", "amount": 49000},
+    {"name_contains": "khay nhom", "amount": 40000},
+    {"name_contains": "giay nen", "amount": 59000}
+  ],
+  "974a3614-2ee8-4a4e-b277-bbb1ca994dd9.jpg": [
+    {"name_contains": "950ml", "amount": 364924},
+    {"name_contains": "sua chua uong", "amount": 249318},
+    {"name_contains": "sua chua uong", "amount": 120042},
+    {"name_contains": "dau tay", "amount": 60021},
+    {"name_contains": "tu nhien", "amount": 168829},
+    {"name_contains": "huong dau", "amount": 91209},
+    {"name_contains": "socola", "amount": 91209},
+    {"name_contains": "sua tuoi thanh trung", "amount": 91209},
+    {"name_contains": "it duong", "amount": 45604}
+  ],
+  "03d6a4d1-9062-4361-9ba6-2aa469f95762.jpg": [
+    {"name_contains": "tiet trung", "amount": 66000},
+    {"name_contains": "kim luon", "amount": 472500},
+    {"name_contains": "bao thach", "amount": 78000},
+    {"name_contains": "alpha choay", "amount": 330000},
+    {"name_contains": "augmentin", "amount": 574000},
+    {"name_contains": "voltaren", "amount": 400000}
+  ],
+  "4869f82f-c7a8-4794-9640-2b1454d198cd.jpg": [
+    {"name_contains": "banh bao", "amount": 192000},
+    {"name_contains": "banh bao", "amount": 256000},
+    {"name_contains": "banh bao", "amount": 234000}
+  ],
+  "c55ef611-cfc3-4d0c-9eee-fd35df116e7c.jpg": [
+    {"name_contains": "quattro", "amount": 120000},
+    {"name_contains": "sausage", "amount": 110000},
+    {"name_contains": "carbonara", "amount": 175000},
+    {"name_contains": "cocacola", "amount": 30000}
+  ],
+  "b4eadeb2-f17d-4ca4-b789-0dd21dd4e6f8.jpg": [
+    {"name_contains": "thuoc la", "amount": 513000},
+    {"name_contains": "thuoc la", "amount": 1029000},
+    {"name_contains": "mi gia", "amount": 227000},
+    {"name_contains": "marlboro", "amount": 714000},
+    {"name_contains": "men no", "amount": 25000},
+    {"name_contains": "sa xi", "amount": 160000},
+    {"name_contains": "giam gia", "amount": -13340}
+  ],
+  "79d96d96-2145-4a0b-9a91-fe133eacbdbc.jpg": [
+    {"name_contains": "vim", "amount": 39000},
+    {"name_contains": "sunlight", "amount": 74000},
+    {"name_contains": "mi", "amount": 7800},
+    {"name_contains": "mi", "amount": 12200},
+    {"name_contains": "lavender", "amount": 38200}
+  ],
+  "vinarice-phieu-giao-hang.webp": [
+    {"name_contains": "st25 5kg", "amount": 711000},
+    {"name_contains": "hck", "amount": 654000},
+    {"name_contains": "st21", "amount": 645000}
+  ]
+}

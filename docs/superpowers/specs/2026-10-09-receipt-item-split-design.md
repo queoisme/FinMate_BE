@@ -154,3 +154,26 @@ Theo quy ước dự án, các route (`/bill/classify-items`), bảng (`receipt_
 - Bản miễn phí của Gemini có thể dùng dữ liệu để cải thiện mô hình; cần xác nhận điều khoản trước khi bật thật.
 - Dữ liệu sức khỏe là nhóm nhạy cảm theo pháp luật Việt Nam; nên có người hiểu luật xác nhận cách xin đồng ý.
 - Hai giao dịch lưu không nguyên tử; người dùng có thể thấy bill lưu dở khi mất mạng giữa hai lần gọi (offline queue của app giảm rủi ro này).
+
+### Kết quả đo (2026-10-09)
+
+Chạy `ocr-service/benchmark/run_items.py` (đường đọc thật: `read_boxes` → `analyze` → `main._bill_items`, không dùng bộ nhớ cửa hàng) trên 30 ảnh chuẩn. Chạy hai lần, kết quả từng bill giống hệt.
+
+- **Bill nhiều dòng** = ảnh giấy có từ 2 dòng hàng có giá in trên giấy, **đếm bằng mắt** (`expected_items.json`, `_item_lines`); bỏ 2 ảnh chụp màn hình (mục 4: không đi đường này). Được 24/30 bill.
+- **(a) `items_ok` trên bill nhiều dòng: 6/24 (25%)**. Ngưỡng ≥ 50%: **KHÔNG ĐẠT**.
+- **(b) món nhãn tay đúng (tên chứa đoạn nhãn + đúng số tiền) trên bill có nhãn và `items_ok`: 16/25 (64%)**. Ngưỡng ≥ 90%: **KHÔNG ĐẠT**. Chỉ so số tiền: 25/25 (100%). Cả 9 món trượt đều đúng giá; trượt vì OCR đọc sai chữ trong tên ("Sira chua" thay "Sữa chua", "lanh Bao" thay "Bánh Bao", "Kemqie"). Mẫu nhỏ: chỉ 4 trong 12 bill gắn nhãn có `items_ok`.
+- Gắn nhãn tay 12 bill (có giảm giá: WinMart, AEON, Bắc Hiền; tên xuống dòng: Đức Thành, Dino, Bảo Nam, pizza, Long Châu). Bộ 30 ảnh không có bill nào có dòng phụ kiện "+" có giá riêng, nên trường hợp này chưa được đo.
+
+**Bill trượt (18/24) và lý do** (đọc từ các hàng OCR của từng ảnh):
+- **Số không phải tiền nằm ở cột giá trước dòng tiêu đề (8 bill)**: điểm tích lũy "2,770 ĐIỂM" (03d6, 28b8), số hóa đơn/phiếu/mã KH (8904, vinarice, 79d9), "Nợ: 1311 / Có: 5112" (9d28), số điện thoại (d2b8), ngày "19/09/2026" (33da). `_amounts` đọc chúng là tiền, nên "hàng có giá đầu tiên" đứng trước tiêu đề và cả bill bị bỏ (`start = None`).
+- **Không có hoặc không đọc được dòng tiêu đề (4 bill)**: Bắc Hiền b4ea không in tiêu đề cột; Kisnac 21fd ("So luting", "Thanh ten"), Kisnac tối b8c8, Minh Phát 9a6d (ảnh mờ, giá đọc thành "690.00").
+- **Giá in thấp hơn tên, rơi vào hàng của món sau (2 bill)**: WinMart 84e0, be5c (tên / đơn giá+SL / thành tiền trên ba dòng lệch nhau; be5c còn có cột KM âm nằm bên phải).
+- **Tiêu đề và món đầu dính một hàng do ảnh nghiêng (1 bill)**: Chả cá f7f2, hàng "Trà đá (ca) | SL | Thành tiền" khớp `_END_RE` ("thanh tien") nên dừng ngay; các tên còn lệch một hàng so với giá.
+- **Chữ viết tay ở cột ghi chú (1 bill)**: Dino 9309, "Bush" là hộp ngoài cùng bên phải nên món 1 mất giá.
+- **Dòng tổng cùng hàng với dòng khuyến mãi cuối (1 bill)**: AEON b25b, "KHUYẾN MÃI @67.700-8.700 | 307.000" thành một món 307.000 (tên bị `sanitize_lines` coi là email, lọc hết).
+- **Tổng bill khác tổng các món theo thiết kế (4 bill, không bao giờ `items_ok` với luật hiện tại)**: VAT cộng sau (pizza c55e, 9d28, d2b8), chiết khấu cả bill sau "Tổng tiền hàng" (b4ea). Trần thực tế của (a) là 20/24.
+
+**Lỗi thấy ở `items.py` (chưa sửa, theo yêu cầu bước đo):**
+- Tên xuống dòng: luật 3 nối hàng không giá vào món **bên dưới**, nhưng bill in bảng thường để giá ở dòng đầu và phần tên còn lại ở dòng dưới, nên đuôi tên dính vào món sau ("h&p 420g Banh Oreo", "Cut 480g... Banh Bao T.Heo2"). Giá vẫn đúng; chỉ tên bẩn.
+- `_END_RE` thiếu "cộng tiền hàng": ảnh 9603 (1 món) ra thêm món "Cong tien hang 125.000".
+- Số mã/điểm/điện thoại/ngày bị coi là giá (xem trên): đây là nhóm lỗi lớn nhất, nhiều khả năng sửa được bằng cách chỉ nhận tiền ở hàng **sau** tiêu đề thay vì đòi tiêu đề đứng trước mọi hàng có giá.
