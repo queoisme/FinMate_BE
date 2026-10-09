@@ -254,6 +254,24 @@ class BillKeyword(Base):
     )
 
 
+class BillAiInstruction(Base):
+    """Luật phân loại từng món cho Gemini (nhóm, luật chốt khi nhập nhằng, ví dụ). Sửa ở DB, không cần build lại.
+
+    Đúng MỘT dòng ``is_active`` (partial unique index); phần nhiệm vụ/an toàn và schema kết quả do code giữ, không nằm ở đây.
+    """
+
+    __tablename__ = "bill_ai_instructions"
+
+    id: Mapped[uuid_pk]
+    instruction_text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    updated_at: Mapped[timestamptz] = mapped_column(nullable=False, server_default=text("now()"))
+
+    __table_args__ = (
+        Index("uq_bill_ai_instructions_one_active", "is_active", unique=True, postgresql_where=text("is_active")),
+    )
+
+
 class BillUnknownScan(Base):
     """Bill lạ: chưa nhận ra cửa hàng. Chỉ ghi khi người dùng đồng ý chia sẻ; chữ đã lọc, không ảnh."""
 
