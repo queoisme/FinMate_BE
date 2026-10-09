@@ -223,6 +223,17 @@ def test_surcharge_does_not_count_as_an_item():
     assert r.ok is False
 
 
+def test_names_one_row_above_prices_still_balance_sum_check_cannot_catch_it():
+    # Ghi nhận giới hạn: giá lệch xuống một hàng so với tên (ảnh nghiêng) vẫn cộng đúng tổng, nên ok=True với tên sai.
+    # Kiểm tra tổng không bắt được lỗi này; chặn nó ở ocr._deskew (chỉnh nghiêng trước khi gom hàng).
+    boxes = HEADER + row(200, ("Creamer", 50, 300)) + row(240, ("Sữa hạt", 50, 300), ("30,000", 800, 950)) \
+        + row(280, ("Loc 4x", 50, 300), ("20,000", 800, 950)) + row(320, ("5,000", 800, 950)) \
+        + row(400, ("Tổng cộng", 50, 300), ("55,000", 800, 950))
+    r = extract_items(boxes, 55000)
+    assert r.ok is True
+    assert [(i.name, i.amount) for i in r.items] == [("Creamer Sữa hạt", 30000), ("Loc 4x", 20000), ("", 5000)]
+
+
 def test_no_header_before_first_price_sets_ok_false():
     # "SL: 2" ở chân bill không được coi là tiêu đề cột
     boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) \

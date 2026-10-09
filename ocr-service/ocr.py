@@ -5,6 +5,7 @@ import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from statistics import median
 
 import cv2
 import numpy as np
@@ -31,7 +32,8 @@ def _engine():
 
 @dataclass(frozen=True)
 class OcrBox:
-    """Một dòng chữ kèm hộp bao (tọa độ trên ảnh đã cắt/phóng to dùng để đọc)."""
+    """Một dòng chữ kèm hộp (tọa độ trên ảnh đã cắt/phóng to dùng để đọc, ĐÃ CHỈNH NGHIÊNG bởi _deskew:
+    x giữ nguyên, y là tọa độ sau khi xoay trang về ngang, nên hàng in thẳng có cùng y dù ảnh chụp lệch)."""
     text: str
     conf: float
     x0: float
@@ -105,14 +107,38 @@ def _reread_with_vietocr(bgr, box, text: str) -> str:
     return _prefer(viet, text)
 
 
+_SLOPE_MIN_WIDTH = 80  # quad hẹp hơn (số lượng, "8%") đo độ dốc không tin được
+
+
+def _deskew(quads) -> list[tuple[float, float, float, float]]:
+    """Chỉnh nghiêng tọa độ hộp: trang chụp lệch làm giá ở mép phải trôi sang hàng của món dưới.
+
+    Độ dốc trang s = trung vị độ dốc cạnh trên các quad rộng; mỗi hộp giữ x, tâm dọc thành cy - s*cx (xoay ngược
+    quanh trục x=0) và chiều cao lấy theo cạnh trái của quad, không theo hộp bao (hộp bao của chữ nghiêng cao quá).
+    Trang phẳng (s = 0) ra đúng hộp bao như cũ. ponytail: một độ dốc cho cả trang; giấy cong thì chưa xử lý."""
+    slopes = [(q[1][1] - q[0][1]) / (q[1][0] - q[0][0]) for q in quads if q[1][0] - q[0][0] > _SLOPE_MIN_WIDTH]
+    s = median(slopes) if slopes else 0.0
+    out = []
+    for q in quads:
+        xs, ys = [p[0] for p in q], [p[1] for p in q]
+        x0, x1 = min(xs), max(xs)
+        if s == 0:
+            out.append((x0, min(ys), x1, max(ys)))
+            continue
+        h = ((q[3][0] - q[0][0]) ** 2 + (q[3][1] - q[0][1]) ** 2) ** 0.5
+        cy = sum(ys) / 4 - s * (x0 + x1) / 2
+        out.append((x0, cy - h / 2, x1, cy + h / 2))
+    return out
+
+
 def _run(bgr) -> list[OcrBox]:
     result = _engine().ocr(bgr, cls=True)
     reread = _use_vietocr()
+    lines = result[0] or []
     out = []
-    for i, (box, (text, conf)) in enumerate(result[0] or []):
+    for i, ((box, (text, conf)), coords) in enumerate(zip(lines, _deskew([box for box, _ in lines]))):
         text = clean_ocr_text(_reread_with_vietocr(bgr, box, text) if reread and i < _VIET_HEAD_LINES else text)
-        xs, ys = [p[0] for p in box], [p[1] for p in box]
-        out.append(OcrBox(text, float(conf), min(xs), min(ys), max(xs), max(ys)))
+        out.append(OcrBox(text, float(conf), *coords))
     return out
 
 

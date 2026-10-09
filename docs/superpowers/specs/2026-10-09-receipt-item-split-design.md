@@ -55,13 +55,14 @@ Mọi bước lỗi đều **rơi về đường cũ** (một nhóm, đánh dấ
 
 **Module mới `items.py`:** `extract_items(boxes, total) → {items, items_ok}`.
 
-1. **Gom hàng ngang:** sắp hộp theo tâm dọc; hộp lệch dưới 0,6 lần chiều cao hộp trung vị so với hàng đang gom thì cùng hàng.
+0. **Chỉnh nghiêng (`ocr._deskew`):** đo độ dốc trang bằng trung vị độ dốc cạnh trên của các quad PaddleOCR rộng hơn 80px, rồi đưa mỗi hộp về trang ngang (giữ x, tâm dọc thành `cy - s·cx`, chiều cao lấy theo cạnh quad). Ảnh chụp lệch không còn làm giá ở mép phải trôi sang hàng của món dưới; kiểm tra tổng không bắt được lỗi đó vì giá vẫn cộng đủ. Trang phẳng giữ nguyên tọa độ.
+1. **Gom hàng ngang:** sắp hộp theo tâm dọc (đã chỉnh nghiêng); hộp lệch dưới 0,6 lần chiều cao hộp trung vị so với hàng đang gom thì cùng hàng.
 2. **Giá:** hộp ngoài cùng bên phải có dạng tiền (`19,000`, `22.000đ`, `-3,000đ`) và nằm ở 35% bên phải tờ giấy. Chữ còn lại bên trái ghép theo thứ tự trái sang phải là tên. Dùng lại `_amounts` của `extract.py` để hai nơi đọc tiền giống nhau.
 3. **Tên xuống dòng:** hàng không có giá nằm ngay trên hàng có giá thì nối vào tên. Hàng chỉ có số nhỏ (cột số lượng) bị bỏ.
 4. **Phụ kiện bắt đầu bằng `+`:** là một món có giá riêng; trường `parent` trỏ tới món chính ngay trên nó.
 5. **Giảm giá:** hàng có số âm hoặc nhãn giảm, chiết khấu, voucher, khuyến mãi. `is_discount = true`.
-6. **Vùng lấy món:** từ dòng tiêu đề cột (`SL`, `Tổng`, `Tên hàng`) tới dòng tổng đầu tiên. Các dòng `Tổng SL món`, `Thành tiền` (cộng chưa giảm), `Tổng thanh toán` nằm ngoài vùng.
-7. **Kiểm tra:** tổng các món cộng giảm giá phải bằng đúng tổng bill. Lệch, hoặc dưới 2 món, thì `items_ok = false`.
+6. **Vùng lấy món:** bắt đầu sau dòng tiêu đề cột (`SL`, `Tổng`, `Tên hàng`...) gần nhất phía trên hàng món đầu tiên (hàng có ô tiền đúng dạng có dấu nghìn và không phải dòng tổng; mã KH, điểm, điện thoại ở đầu phiếu không tính). Danh sách món kết thúc ở **dòng cộng tạm** (`Cộng tiền hàng`, `Tạm tính`, `Tiền hàng`, `Tổng...`, `Thành tiền`, hoặc một số in trần đúng bằng tổng các món đang cộng). Sau đó tới **dòng tổng cuối** (`thanh toán`, `phải trả`, `phải thu`, `total`, hoặc `Tổng cộng` sau cộng tạm) chỉ nhận: thuế/VAT/phí phục vụ/phí dịch vụ là **món phụ thu** (`parent = null`, `is_discount = false`, giữ nhãn; "chưa thuế" không tính), số âm hoặc nhãn giảm là **giảm giá cả bill**; các hàng khác (tiền khách đưa, tiền thừa) bỏ. Trong bảng món, ô không phải tiền ở mép phải ("8%", ghi chú tay) bị bỏ qua khi tìm giá.
+7. **Kiểm tra:** tổng các món + phụ thu - giảm giá phải bằng **đúng từng đồng** tổng bill. Lệch, hoặc dưới 2 món thật (không tính phụ thu và giảm giá), thì `items_ok = false`.
 
 Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên người, địa chỉ, số dài đã bị che).
 
@@ -180,7 +181,7 @@ Chạy `ocr-service/benchmark/run_items.py` (đường đọc thật: `read_boxe
 
 #### Sau khi sửa heuristic (bước 4b, 2026-10-09)
 
-**Cảnh báo: số đo trong mẫu (in-sample).** Các luật được chỉnh khi nhìn chính 24 bill dùng để đo, nên con số dưới đây lạc quan hơn trên bill mới. Mỗi luật là luật chung, có test riêng bằng hộp tổng hợp, không có luật theo tên ảnh.
+**Cảnh báo: mọi số đo dưới đây là trong mẫu (in-sample).** Các luật (và bước chỉnh nghiêng) được chỉnh khi nhìn chính 24 bill dùng để đo, nên con số lạc quan hơn trên bill mới. Mỗi luật là luật chung, có test riêng bằng hộp tổng hợp, không có luật theo tên ảnh. Cần một bộ bill để riêng (held-out) trước khi tin ngưỡng.
 
 Luật đã đổi trong `items.py`:
 - **Tiêu đề và hàng món đầu tiên:** "hàng món đầu tiên" chỉ tính ô tiền đúng dạng (có dấu nghìn: `66.000`, `1,920,500đ`) và hàng không chứa chữ "Tổng"/cộng/thanh toán; lấy dòng tiêu đề **gần nhất** phía trên nó. Điểm tích lũy, mã KH, Nợ/Có, điện thoại, "Tổng tiền các đơn" ở đầu phiếu không còn chặn mất bill. Không có ô tiền đúng dạng nào thì giữ luật cũ.
@@ -188,27 +189,33 @@ Luật đã đổi trong `items.py`:
 - **Dòng cộng tạm** (`Cộng tiền hàng`, `Tạm tính`, `Tiền hàng`, `Tổng...`, `Tổng cộng`, `Thành tiền`, chịu OCR đọc sai `C0ng`, `T6ng`, `T4m`) kết thúc danh sách món nhưng không kết thúc vùng bill. Một số in trần đúng bằng tổng các món đang cộng (nhãn rơi xuống hàng dưới) cũng là dòng cộng tạm.
 - **Sau dòng cộng tạm, tới dòng tổng cuối** (`thanh toán`, `phải trả`, `phải thu`, `total`, hoặc `Tổng cộng` đứng sau cộng tạm): hàng có nhãn thuế/VAT/phí phục vụ/phí dịch vụ (trừ "chưa thuế", "trước thuế") là một món phụ thu `parent=None, is_discount=False`, giữ nguyên nhãn; hàng số âm hoặc nhãn giảm/chiết khấu/voucher/khuyến mãi là giảm giá cả bill; các hàng khác (tiền khách đưa, tiền thừa, cộng lặp lại) bị bỏ. Phụ thu và giảm giá không tính vào "ít nhất 2 món". Kiểm tra vẫn **khớp đúng từng đồng**.
 
+Đổi trong `ocr.py` (vòng sửa 1 sau review): `_deskew` chỉnh nghiêng tọa độ hộp từ quad PaddleOCR trước khi gom hàng (mục 4 bước 0). `OcrBox` giờ mang tọa độ đã chỉnh nghiêng; chữ, thứ tự và độ tin cậy của `read_lines` không đổi.
+
 Cách đo (b) đổi: giá phải đúng từng đồng, tên so **gần đúng** (`difflib.SequenceMatcher` ≥ 0,6 giữa đoạn nhãn đã bỏ dấu và một khúc cùng độ dài trong tên), vì OCR đọc sai chữ. In kèm cách đo chặt cũ và cách chỉ so tiền. Thêm nhãn tay (đọc từ ảnh) cho 5 bill mới ra `items_ok` (28b8, 8904, 9309, 9d28, d2b8) để (b) đo được cả chúng; tổng 17 bill có nhãn.
 
-| chỉ số | trước | sau | ngưỡng |
-|---|---|---|---|
-| (a) `items_ok` trên bill nhiều dòng | 6/24 (25%) | **12/24 (50%)** | ≥ 50%: đạt sát ngưỡng |
-| (b) món nhãn tay đúng, tên gần đúng, 17 bill có nhãn | 25/25 (100%) | **49/54 (91%)** | ≥ 90%: đạt sát ngưỡng |
-| (b) chỉ trên 12 bill gắn nhãn ở bước 4 | 25/25 | 33/34 (97%) | |
-| tên chứa nguyên đoạn nhãn (cách đo bước 4) | 16/25 (64%) | 33/54 (61%) | |
-| chỉ so số tiền | 25/25 | 54/54 (100%) | |
+Ba lần đo, cùng 30 ảnh, cùng cách đo mới:
 
-Số "trước" của (b) với cách đo mới tính trên hộp OCR đã lưu bằng `items.py` cũ; số "sau" chạy thật bằng `run_items.py` (PaddleOCR), khớp với lần chạy trên hộp đã lưu.
+| chỉ số | trước 4b | sau luật heuristic, chưa chỉnh nghiêng | sau chỉnh nghiêng (`ocr._deskew`) | ngưỡng |
+|---|---|---|---|---|
+| (a) `items_ok` trên bill nhiều dòng | 6/24 (25%) | 12/24 (50%), **trung thực 11/24 (46%)** vì 8904 ghép sai | **14/24 (58%)** | ≥ 50% |
+| (b) món nhãn tay đúng, tên gần đúng, 17 bill có nhãn | 25/25 (100%) | 49/54 (91%) | **56/58 (97%)** | ≥ 90% |
+| (b) chỉ trên 12 bill gắn nhãn ở bước 4 | 25/25 | 33/34 (97%) | 37/38 (97%) | |
+| tên chứa nguyên đoạn nhãn (cách đo bước 4) | 16/25 (64%) | 33/54 (61%) | 38/58 (66%) | |
+| chỉ so số tiền | 25/25 | 54/54 (100%) | 58/58 (100%) | |
 
-**Một bill `items_ok = True` mà ghép sai:** 8904 (phiếu Satra). Ảnh nghiêng làm giá lệch lên một hàng so với tên, tổng vẫn khớp nên 4 giá đúng nhưng 3/4 tên gắn sai món. (b) bắt được (1/4); "chỉ so số tiền" không bắt được. Bỏ 8904 thì (a) là 11/24 (46%), dưới ngưỡng. Đây đúng là rủi ro "tổng khớp che lỗi" ở mục 4; kiểm tra tổng không phát hiện được lỗi lệch tên.
+Số "trước 4b" của (b) tính trên hộp OCR đã lưu bằng `items.py` cũ; hai cột sau chạy thật bằng `run_items.py` (PaddleOCR).
 
-**Bill còn trượt (12/24) và lý do:**
+**Kết luận ngưỡng chỉ áp cho lần đo sau chỉnh nghiêng:** (a) 14/24 và (b) 56/58 đạt ngưỡng, **trong mẫu**. Lần đo trước chỉnh nghiêng **không đạt**: 12/24 có tính 8904, một bill `items_ok = True` mà 3/4 tên gắn sai giá (ảnh nghiêng 1,56 hàng, giá trôi sang hàng món dưới, tổng vẫn khớp). Kiểm tra tổng không phát hiện được kiểu lỗi này (có test `test_names_one_row_above_prices_still_balance_sum_check_cannot_catch_it` ghi nhận), nên chặn ở bước đọc: `ocr._deskew` đưa hộp về trang ngang trước khi gom hàng. Sau chỉnh nghiêng 8904 ghép đúng 4/4; WinMart 84e0 (đã đối chiếu ảnh: 3/3 đúng) và Chả cá f7f2 (4/4) ra thêm `items_ok`; không bill nào đang đúng bị hỏng.
+
+Rủi ro còn lại: một độ dốc cho cả trang, giấy cong hoặc nhăn mạnh vẫn có thể lệch hàng mà tổng vẫn khớp. Chưa thêm chốt chặn "độ dốc các quad lệch nhau nhiều thì ok=false" (chưa đo).
+
+**Bill còn trượt (10/24) và lý do:**
 - Không có tiêu đề cột: Bắc Hiền b4ea, Coopmart 79d9.
 - Tiêu đề / chữ đọc hỏng hoặc ảnh mờ: Kisnac 21fd, b8c8, Minh Phát 9a6d.
 - Cột thành tiền nằm giữa bảng rộng, bên phải còn nhiều cột trống nên ngoài 35% bên phải: 33da.
-- Giá in thấp hơn tên / lệch hàng: WinMart 84e0, be5c (be5c còn cột KM âm), pizza c55e (giá ĐG và TT tách hai hàng nên món 2 bị đếm đôi; nhãn "Tiền hàng"/"Thuế" lệch một hàng so với số).
-- Tiêu đề dính món đầu do nghiêng, nhãn vùng tổng lệch một hàng: Chả cá f7f2.
-- AEON b25b: dòng tổng dính dòng "KHUYẾN MÃI@..." (tên bị `sanitize_lines` coi là email); ghi riêng, không sửa ở bước này.
-- 9d28: tách ra đúng 5 giá và VAT, nhưng tên lệch hàng và một tên bị `sanitize_lines` lọc hết, nên `items_ok = false` (đúng là không nên tin).
+- WinMart be5c: thiếu món "cà chua" 12.000 (giá lệch hàng / cột KM âm).
+- Pizza c55e: 4 món đúng, nhưng vùng tổng in số cao hơn nhãn của nó nên dòng "Thuế GTGT 34.800" không được nhận là phụ thu (bố cục, không phải nghiêng).
+- AEON b25b: dòng tổng dính dòng "KHUYẾN MÃI@..." thành một món 307.000 (tên bị `sanitize_lines` coi là email); ghi riêng, không sửa ở bước này.
+- 9d28: chữ "Cộng" đứng một mình (không phải "Cộng tiền hàng") nên 353.364 thành một món, và một tên bị `sanitize_lines` lọc hết; `items_ok = false`.
 
 Chưa sửa (ngoài phạm vi 4b): tên xuống dòng dính vào món sau (luật 3), lọc email ăn chữ "KHUYENMAI@".
