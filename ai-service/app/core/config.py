@@ -32,5 +32,10 @@ class Settings(BaseSettings):
     # Khoản chi chắc chắn dưới mức này (đồng) được đánh dấu auto_save_ok; 0 = không bao giờ.
     chat_auto_save_below: int = 2_000_000
 
+    # Gemini phân loại tên món hóa đơn khi luật/ML không chắc. Để trống khóa thì không gọi Gemini.
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_timeout_seconds: float = 5.0
+
 
 settings = Settings()
