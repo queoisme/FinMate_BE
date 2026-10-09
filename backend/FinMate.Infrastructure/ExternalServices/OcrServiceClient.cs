@@ -40,7 +40,15 @@ public class OcrServiceClient : IOcrServiceClient
         [property: JsonPropertyName("category_source")] string? CategorySource,
         [property: JsonPropertyName("needs_review")] bool NeedsReview,
         [property: JsonPropertyName("transacted_at")] DateTimeOffset? TransactedAt,
-        [property: JsonPropertyName("total_source")] string? TotalSource);
+        [property: JsonPropertyName("total_source")] string? TotalSource,
+        [property: JsonPropertyName("items")] List<ItemBody>? Items = null,
+        [property: JsonPropertyName("items_ok")] bool ItemsOk = false);
+
+    internal record ItemBody(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("amount")] long Amount,
+        [property: JsonPropertyName("parent")] int? Parent,
+        [property: JsonPropertyName("is_discount")] bool IsDiscount);
 
     private record ErrorBody([property: JsonPropertyName("code")] string? Code);
 
@@ -93,5 +101,7 @@ public class OcrServiceClient : IOcrServiceClient
             body.CategorySource,
             body.NeedsReview,
             body.TransactedAt,
-            body.TotalSource);
+            body.TotalSource,
+            body.Items?.Select(i => new OcrItem(i.Name, i.Amount, i.Parent, i.IsDiscount)).ToList(),
+            body.ItemsOk);
 }

@@ -145,6 +145,16 @@ public record BillClassifyResponse(string? CategorySlug, string? LocalCategory, 
 // lưu một khoản chi từ hóa đơn; lần quét sau AI Service gợi ý đúng danh mục đó cho người dùng đó. Chỉ tên cửa hàng và slug, không chữ OCR.
 public record LearnMerchantRequest(Guid UserId, string MerchantName, string CategorySlug);
 
+// POST /api/v1/bill/classify-items — phân loại từng món. KHÔNG bao giờ gửi số tiền, chỉ tên món và chỉ số dòng cha.
+public record ClassifyItemInput(string Name, int? Parent);
+
+public record ClassifyItemsRequest(Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi);
+
+/// <param name="Source">rule | inherit | merchant | ai | unknown.</param>
+public record ClassifiedItem(int Index, string? CategorySlug, string Source);
+
+public record ClassifyItemsResponse(IReadOnlyList<ClassifiedItem> Items, bool AiUsed);
+
 public interface IAIServiceClient
 {
     Task<AnalyzeResponse> AnalyzeAsync(AnalyzeRequest request, CancellationToken ct = default);
@@ -175,6 +185,9 @@ public interface IAIServiceClient
 
     /// <summary>Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.</summary>
     Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default);
+
+    /// <summary>Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.</summary>
+    Task<ClassifyItemsResponse> ClassifyItemsAsync(ClassifyItemsRequest request, CancellationToken ct = default);
 
     /// <summary>
     /// Best-effort, như <see cref="SendFeedbackAsync"/>: tự nuốt lỗi và giới hạn thời gian chờ, vì nó chạy ngay sau khi giao dịch đã lưu

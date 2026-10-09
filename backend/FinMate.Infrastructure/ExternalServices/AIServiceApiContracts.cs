@@ -131,3 +131,22 @@ public record BillLearnApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
     [property: JsonPropertyName("merchant_name")] string MerchantName,
     [property: JsonPropertyName("category_slug")] string CategorySlug);
+
+public record ClassifyItemApiInput(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("parent")] int? Parent);
+
+public record ClassifyItemsApiRequest(
+    [property: JsonPropertyName("items")] IReadOnlyList<ClassifyItemApiInput> Items,
+    [property: JsonPropertyName("merchant_name")] string? MerchantName,
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("allow_ai")] bool AllowAi);
+
+public record ClassifiedItemApiResult(
+    [property: JsonPropertyName("index")] int Index,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("source")] string Source);
+
+public record ClassifyItemsApiResponse(
+    [property: JsonPropertyName("items")] IReadOnlyList<ClassifiedItemApiResult> Items,
+    [property: JsonPropertyName("ai_used")] bool AiUsed);

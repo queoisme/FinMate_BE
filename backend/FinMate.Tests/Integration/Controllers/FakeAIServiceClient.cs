@@ -65,6 +65,26 @@ public class FakeAIServiceClient : IAIServiceClient
             ? response
             : new BillClassifyResponse(null, null, 0.0, "none"));
 
+    /// <summary>Kịch bản cho <c>/bill/classify-items</c>; mặc định trả rỗng, AiUsed=false.</summary>
+    public static Func<ClassifyItemsRequest, ClassifyItemsResponse>? ClassifyItemsHandler { get; set; }
+
+    private static readonly List<ClassifyItemsRequest> ClassifyItemsRequests = new();
+
+    /// <summary>Các request đã nhận, để test khẳng định backend gửi gì.</summary>
+    public static IReadOnlyList<ClassifyItemsRequest> ClassifyItemsSeen => ClassifyItemsRequests;
+
+    public static void ResetClassifyItems()
+    {
+        ClassifyItemsHandler = null;
+        ClassifyItemsRequests.Clear();
+    }
+
+    public Task<ClassifyItemsResponse> ClassifyItemsAsync(ClassifyItemsRequest request, CancellationToken ct = default)
+    {
+        ClassifyItemsRequests.Add(request);
+        return Task.FromResult(ClassifyItemsHandler?.Invoke(request) ?? new ClassifyItemsResponse([], false));
+    }
+
     public Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default) => Task.CompletedTask;
 
     /// <summary>

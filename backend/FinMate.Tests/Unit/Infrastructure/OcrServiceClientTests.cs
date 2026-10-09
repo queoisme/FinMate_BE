@@ -165,4 +165,27 @@ public class OcrServiceClientTests
         disabled.IsConfigured.Should().BeFalse();
         await ((Func<Task>)(() => disabled.AnalyzeAsync(Request()))).Should().ThrowAsync<InvalidOperationException>();
     }
+
+    [Fact]
+    public async Task OcrServiceClient_MapsItemsAndItemsOk()
+    {
+        const string json = """{"total_amount": 16000, "lines": [], "items": [{"name": "Phin Sua Da", "amount": 45000, "parent": null, "is_discount": false}, {"name": "Coupon giam", "amount": -29000, "parent": 0, "is_discount": true}], "items_ok": true}""";
+        var (client, _) = ClientReturning(_ => Task.FromResult(Json(HttpStatusCode.OK, json)));
+
+        var result = await client.AnalyzeAsync(Request());
+
+        result.ItemsOk.Should().BeTrue();
+        result.Items.Should().Equal(new OcrItem("Phin Sua Da", 45_000, null, false), new OcrItem("Coupon giam", -29_000, 0, true));
+    }
+
+    [Fact]
+    public async Task OcrServiceClient_OldResponseWithoutItems_YieldsNullItemsAndFalse()
+    {
+        var (client, _) = ClientReturning(_ => Task.FromResult(Json(HttpStatusCode.OK, RealOcrJson)));
+
+        var result = await client.AnalyzeAsync(Request());
+
+        result.Items.Should().BeNull();
+        result.ItemsOk.Should().BeFalse();
+    }
 }

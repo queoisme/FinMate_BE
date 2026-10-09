@@ -221,4 +221,26 @@ public class AIServiceClient : IAIServiceClient
 
         return new BillClassifyResponse(response.CategorySlug, response.LocalCategory, response.Confidence, response.Source);
     }
+
+    public async Task<ClassifyItemsResponse> ClassifyItemsAsync(ClassifyItemsRequest request, CancellationToken ct = default)
+    {
+        ClassifyItemsApiResponse response;
+        try
+        {
+            response = await _api.ClassifyItemsAsync(
+                new ClassifyItemsApiRequest(
+                    request.Items.Select(i => new ClassifyItemApiInput(i.Name, i.Parent)).ToList(),
+                    request.MerchantName,
+                    UserIdHasher.Hash(request.UserId),
+                    request.AllowAi),
+                ct);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
+        }
+
+        return new ClassifyItemsResponse(
+            response.Items.Select(i => new ClassifiedItem(i.Index, i.CategorySlug, i.Source)).ToList(), response.AiUsed);
+    }
 }

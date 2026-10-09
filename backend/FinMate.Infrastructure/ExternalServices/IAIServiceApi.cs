@@ -30,6 +30,9 @@ public interface IAIServiceApi
     [Post("/api/v1/bill/learn")]
     Task BillLearnAsync([Body] BillLearnApiRequest request, CancellationToken ct = default);
 
+    [Post("/api/v1/bill/classify-items")]
+    Task<ClassifyItemsApiResponse> ClassifyItemsAsync([Body] ClassifyItemsApiRequest request, CancellationToken ct = default);
+
     [Post("/api/v1/bill/classify")]
     Task<BillClassifyApiResponse> BillClassifyAsync([Body] BillClassifyApiRequest request, CancellationToken ct = default);
 }

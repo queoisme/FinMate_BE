@@ -11,6 +11,8 @@ public record OcrServiceRequest(Guid UserId, byte[] Image, string FileName, stri
 /// <param name="Category">Nhóm (9 nhóm của bộ luật bill) OCR service tự đoán. Chỉ để tham khảo: danh mục do AI Service quyết.</param>
 /// <param name="CategorySource">Nhận ra nhờ đâu (memory | brand | keyword | product | none).</param>
 /// <param name="NeedsReview">OCR service tự thấy chưa chắc (ảnh mờ, số không khớp nhau...).</param>
+/// <param name="Items">Từng dòng hàng OCR tách được; null khi OCR service bản cũ chưa trả trường này.</param>
+/// <param name="ItemsOk">OCR service tự thấy các dòng hàng khớp tổng tiền (false khi bản cũ).</param>
 /// <param name="TotalSource">"text" khi tổng tiền đọc được từ dòng có nhãn tổng; "items" khi chỉ cộng từ các dòng hàng.</param>
 public record OcrServiceResponse(
     bool Readable,
@@ -22,7 +24,13 @@ public record OcrServiceResponse(
     string? CategorySource,
     bool NeedsReview,
     DateTimeOffset? TransactedAt,
-    string? TotalSource);
+    string? TotalSource,
+    IReadOnlyList<OcrItem>? Items = null,
+    bool ItemsOk = false);
+
+/// <param name="Amount">Đồng VND, ÂM với dòng giảm giá. Phụ phí (VAT...) là dòng IsDiscount=false, Parent=null.</param>
+/// <param name="Parent">Chỉ số dòng cha (topping/giảm giá gắn vào món nào); null nếu là dòng độc lập.</param>
+public record OcrItem(string Name, long Amount, int? Parent, bool IsDiscount);
 
 public interface IOcrServiceClient
 {
