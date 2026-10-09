@@ -192,7 +192,12 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         var regular = Enumerable.Range(0, items.Count)
             .Where(i => !items[i].IsDiscount && !ReceiptSplitter.IsSurcharge(items[i]))
             .ToList();
-        if (regular.Count < 2)
+        var regularIndexOf = regular.Select((original, k) => (original, k)).ToDictionary(p => p.original, p => p.k);
+
+        // Topping theo món gốc nên cần ít nhất 2 món gốc mới có thể ra 2 nhóm; topping mồ côi (cha là giảm giá/phụ thu)
+        // thì Split chắc chắn trả null. Chặn trước khi đọc DB và gọi AI: không gửi tên món đi khi không thể tách.
+        var roots = regular.Count(i => items[i].Parent is null);
+        if (roots < 2 || regular.Any(i => items[i].Parent is { } p && !regularIndexOf.ContainsKey(p)))
         {
             return null;
         }
@@ -200,7 +205,6 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         // Đọc thẳng từ DB mỗi lần quét: người dùng vừa tắt đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
         var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.ShareReceiptItemsWithAi ?? false;
 
-        var regularIndexOf = regular.Select((original, k) => (original, k)).ToDictionary(p => p.original, p => p.k);
         var request = new ClassifyItemsRequest(
             userId,
             merchant,

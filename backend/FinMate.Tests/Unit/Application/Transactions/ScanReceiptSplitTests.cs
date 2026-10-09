@@ -352,22 +352,23 @@ public class ScanReceiptSplitTests
     [Fact]
     public async Task RequestToAiCarriesNamesOnly()
     {
-        // Topping trỏ món chính nằm SAU giảm giá: parent phải đánh lại theo chỉ số món thường.
+        // Giảm giá và phụ phí nằm giữa: topping "Kem" (cha ở dòng 4) phải đánh lại thành chỉ số món thường 2.
         OcrReturns(MixedBill() with
         {
             TotalAmount = 87_000,
             Items =
             [
+                new OcrItem("Trà sữa", 30_000, null, false),
                 new OcrItem("Giảm giá", -5_000, null, true),
                 new OcrItem("Phí phục vụ", 2_000, null, false),
-                new OcrItem("Trà sữa", 30_000, null, false),
-                new OcrItem("Thạch", 5_000, 2, false),
+                new OcrItem("Thạch", 5_000, 0, false),
                 new OcrItem("Dầu gội", 50_000, null, false),
-                new OcrItem("Kem", 5_000, 1, false),  // parent là phụ phí, không phải món thường -> null
+                new OcrItem("Kem", 5_000, 4, false),
             ],
         });
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "shopping", "shopping"));
 
-        await Handler().HandleAsync(Command());
+        var dto = await Handler().HandleAsync(Command());
 
         var request = _classifyRequests.Single();
         request.UserId.Should().Be(_userId);
@@ -376,7 +377,47 @@ public class ScanReceiptSplitTests
             new ClassifyItemInput("Trà sữa", null),
             new ClassifyItemInput("Thạch", 0),
             new ClassifyItemInput("Dầu gội", null),
-            new ClassifyItemInput("Kem", null));
+            new ClassifyItemInput("Kem", 2));
+        dto.Groups.Should().HaveCount(2, "fixture phải tách được, nếu không cổng chặn đã không gọi AI");
+        dto.Groups!.Sum(g => g.AmountCents).Should().Be(87_000);
+    }
+
+    [Fact]
+    public async Task OneMainItemPlusTopping_NeverCallsClassifyItemsNorReadsUser()
+    {
+        OcrReturns(MixedBill() with
+        {
+            TotalAmount = 35_000,
+            Items = [new OcrItem("Trà sữa", 30_000, null, false), new OcrItem("Trân châu", 5_000, 0, false)],
+        });
+
+        var dto = await Handler().HandleAsync(Command());
+
+        ShouldBeOldPath(dto, OldPathOfMixedBill with { AmountCents = 35_000 });
+        _ai.Verify(a => a.ClassifyItemsAsync(It.IsAny<ClassifyItemsRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _users.Verify(u => u.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task OrphanTopping_NeverCallsClassifyItems()
+    {
+        OcrReturns(MixedBill() with
+        {
+            TotalAmount = 87_000,
+            Items =
+            [
+                new OcrItem("Trà sữa", 30_000, null, false),
+                new OcrItem("Phí phục vụ", 2_000, null, false),
+                new OcrItem("Dầu gội", 50_000, null, false),
+                new OcrItem("Kem", 5_000, 1, false),  // cha là phụ phí: Split chắc chắn trả null
+            ],
+        });
+
+        var dto = await Handler().HandleAsync(Command());
+
+        ShouldBeOldPath(dto, OldPathOfMixedBill with { AmountCents = 87_000 });
+        _ai.Verify(a => a.ClassifyItemsAsync(It.IsAny<ClassifyItemsRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _users.Verify(u => u.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
