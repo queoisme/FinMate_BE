@@ -34,6 +34,7 @@ from app.pipeline.stages.receipt_ocr import (
     guess_transaction_type,
     read_receipt,
 )
+from app.pipeline.stages.remote_ocr import read_receipt_remote
 from app.schemas.response import CategorizationResult, ExtractionResult, OcrResponse
 
 logger = structlog.get_logger(__name__)
@@ -88,10 +89,19 @@ async def ocr(
     started = time.perf_counter()
     received_at = datetime.now(UTC)
 
+    remote_category: tuple[str, float] | None = None
     try:
-        reading = read_receipt(_engine, image, received_at)
+        if settings.ocr_service_url:
+            remote = await read_receipt_remote(
+                image, file.filename, file.content_type, user_id_hash, received_at
+            )
+            reading = remote.reading
+            if remote.category_slug:
+                remote_category = (remote.category_slug, remote.category_confidence)
+        else:
+            reading = read_receipt(_engine, image, received_at)
     except Exception as error:
-        # Ảnh hỏng, định dạng lạ, hay thiếu binary tesseract. 500 để backend còn biết đường
+        # Ảnh hỏng, định dạng lạ, thiếu binary tesseract, hoặc OCR service không trả lời. 500 để backend còn biết đường
         # phân biệt "hệ thống hỏng" với "ảnh không đọc được" (cái sau trả 200 + unreadable).
         logger.error("ocr_engine_failed", error=str(error))
         raise HTTPException(
@@ -117,11 +127,21 @@ async def ocr(
     # nhiễu và chúng át tên cửa hàng. Một hóa đơn WinMart có dòng "Banh mi sandwich" sẽ bị
     # xếp vào "food" thay vì "shopping" — mà danh mục của một lần đi siêu thị là do chỗ mua
     # quyết định, không phải do món đắt nhất trong giỏ.
-    categorization = Categorizer(registry).categorize(
-        reading.merchant_name,
-        None if reading.merchant_name else reading.text,
-        transaction_type,
-    )
+    if remote_category:
+        # OCR service đã phân loại (bộ nhớ cửa hàng, thương hiệu, từ khóa mặt hàng); chỉ rơi về Categorizer khi nó không biết.
+        category = CategorizationResult(
+            category_slug=remote_category[0], confidence=remote_category[1]
+        )
+    else:
+        categorization = Categorizer(registry).categorize(
+            reading.merchant_name,
+            None if reading.merchant_name else reading.text,
+            transaction_type,
+        )
+        category = CategorizationResult(
+            category_slug=categorization.category_slug,
+            confidence=categorization.confidence,
+        )
 
     extraction = ExtractionResult(
         amount_cents=reading.amount_cents,
@@ -133,10 +153,6 @@ async def ocr(
         ),
         balance_after_cents=None,
         confidence=reading.confidence,
-    )
-    category = CategorizationResult(
-        category_slug=categorization.category_slug,
-        confidence=categorization.confidence,
     )
 
     return await _persist(

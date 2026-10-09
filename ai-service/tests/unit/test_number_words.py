@@ -92,3 +92,22 @@ def test_no_silent_thousand_multiplier():
 @pytest.mark.parametrize("text", ["hôm nay trời đẹp", "", "abc xyz", "45k"])
 def test_returns_none_when_there_is_no_number_word(text):
     assert parse_number_words(text) is None
+
+
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        ("hai củ", 2_000_000),
+        ("một củ rưỡi", 1_500_000),
+        ("hai lít", 200_000),
+        ("hai lít rưỡi", 250_000),
+        ("một xị", 100_000),
+    ],
+)
+def test_slang_units_come_from_the_data_file(spoken, expected):
+    assert parse_number_words(spoken) == expected
+
+
+@pytest.mark.parametrize("spoken", ["mua hai củ cải", "đổ hai lít xăng", "hai xị rượu"])
+def test_slang_word_that_is_an_ordinary_word_is_not_money(spoken):
+    assert parse_number_words(spoken) is None

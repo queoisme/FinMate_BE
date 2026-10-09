@@ -23,4 +23,13 @@ public interface IAIServiceApi
         [AliasAs("file")] StreamPart file,
         [AliasAs("user_id_hash")] string userIdHash,
         CancellationToken ct = default);
+
+    [Post("/api/v1/chat/parse")]
+    Task<ChatParseApiResponse> ChatParseAsync([Body] ChatParseApiRequest request, CancellationToken ct = default);
+
+    [Post("/api/v1/bill/learn")]
+    Task BillLearnAsync([Body] BillLearnApiRequest request, CancellationToken ct = default);
+
+    [Post("/api/v1/bill/classify")]
+    Task<BillClassifyApiResponse> BillClassifyAsync([Body] BillClassifyApiRequest request, CancellationToken ct = default);
 }

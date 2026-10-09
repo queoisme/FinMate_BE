@@ -33,6 +33,38 @@ public class FakeAIServiceClient : IAIServiceClient
             null, null, null, null, 10));
     }
 
+    private static readonly Dictionary<string, ChatParseResponse> ChatScenarios = new();
+
+    /// <summary>Đặt sẵn câu trả lời của <c>/chat/parse</c> theo đúng câu chat gửi lên (mỗi test dùng một câu riêng).</summary>
+    public static void SetChat(string text, ChatParseResponse response) => ChatScenarios[text] = response;
+
+    public Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default)
+        => Task.FromResult(ChatScenarios.TryGetValue(request.Text, out var response)
+            ? response
+            : new ChatParseResponse("out_of_scope", "Mình chỉ giúp ghi chi tiêu.", null, null, 5));
+
+    private static readonly List<LearnMerchantRequest> LearnedChoices = new();
+
+    /// <summary>Những lần backend nhờ AI nhớ cửa hàng người dùng đã chốt (test lọc theo tên cửa hàng riêng của mình).</summary>
+    public static IReadOnlyList<LearnMerchantRequest> Learned(string merchantName)
+        => LearnedChoices.Where(l => l.MerchantName == merchantName).ToList();
+
+    public Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default)
+    {
+        LearnedChoices.Add(request);
+        return Task.CompletedTask;
+    }
+
+    private static readonly Dictionary<string, BillClassifyResponse> BillScenarios = new();
+
+    /// <summary>Đặt sẵn kết quả <c>/bill/classify</c> theo tên cửa hàng gửi lên; không có thì "không nhận ra".</summary>
+    public static void SetBill(string merchantName, BillClassifyResponse response) => BillScenarios[merchantName] = response;
+
+    public Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)
+        => Task.FromResult(request.MerchantName is not null && BillScenarios.TryGetValue(request.MerchantName, out var response)
+            ? response
+            : new BillClassifyResponse(null, null, 0.0, "none"));
+
     public Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default) => Task.CompletedTask;
 
     /// <summary>

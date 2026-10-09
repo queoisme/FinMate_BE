@@ -1,0 +1,119 @@
+version: "3.1"
+
+# Bộ thử riêng cho NLU (KHÔNG dùng để huấn luyện): cách diễn đạt khác bộ học để đo công bằng.
+nlu:
+- intent: add_expense
+  examples: |
+    - sáng nay uống cà phê hết [32k](amount)
+    - đổ bình xăng [70 cành](amount)
+    - chiều đi chợ mua rau [90k](amount)
+    - trưa ăn bún chả [55k](amount)
+    - đi ăn lẩu [450k](amount) với team
+    - mua cái áo [280k](amount)
+    - đóng tiền nhà [3 củ](amount)
+    - nay tiêu [120 nghìn](amount) ăn vặt
+    - mua sắm [2 triệu](amount) cuối tuần
+    - trả tiền wifi tháng này [210k](amount)
+    - đi taxi sân bay [180k](amount)
+    - mua thuốc ho [45k](amount)
+    - xem phim [95k](amount) tối qua
+    - tối nay nhậu [1 lít 5](amount)
+    - gửi xe máy [3k](amount)
+    - nạp game [200k](amount)
+    - đặt [Grab](merchant) đi làm [48k](amount)
+    - ăn sáng ở [Highlands](merchant) [60k](amount)
+    - đổ xăng ở [Petrolimex](merchant) [100k](amount)
+    - tiền điện [750 nghìn](amount)
+
+- intent: add_income
+  examples: |
+    - nhận lương [13 củ](amount)
+    - mẹ gửi cho [1 triệu](amount)
+    - bán xe cũ được [5 củ](amount)
+    - có thưởng tết [4 triệu](amount)
+
+- intent: transfer_money
+  examples: |
+    - chuyển [3 triệu](amount) sang tài khoản tiết kiệm
+    - rút [1 củ](amount) từ ví
+    - chuyển khoản trả nợ [2 triệu](amount)
+
+- intent: ask_spending
+  examples: |
+    - tháng này mình đã chi hết bao nhiêu
+    - hôm nay tiêu bao nhiêu rồi nhỉ
+    - tổng chi tuần này là bao nhiêu
+    - tháng trước tôi chi bao nhiêu cho ăn uống
+    - xem giúp mình chi tiêu hôm qua
+    - tháng này tiền xăng hết bao nhiêu
+    - cho mình biết tổng chi tiêu tháng 9
+    - tuần này mua sắm hết bao nhiêu vậy
+
+- intent: confirm
+  examples: |
+    - ừ đúng rồi đó
+    - ok lưu nhé
+    - chính xác luôn
+    - đúng vậy ghi giúp mình
+
+- intent: deny
+  examples: |
+    - không đúng rồi
+    - sai danh mục rồi
+    - không phải, tính vào ăn uống
+    - nhầm rồi, là di chuyển
+
+- intent: cancel
+  examples: |
+    - thôi hủy đi
+    - bỏ khoản này đi
+    - không ghi nữa nhé
+    - hủy giúp mình
+
+- intent: greet
+  examples: |
+    - chào bạn nhé
+    - alo Mầm ơi
+    - hello
+
+- intent: goodbye
+  examples: |
+    - tạm biệt nhé
+    - mình đi ngủ đây
+
+- intent: out_of_scope
+  examples: |
+    - iphone mới giá hơn 20 triệu có đáng mua không
+    - hôm nay trời mưa to quá
+    - bạn có người yêu chưa
+    - dạy mình làm bánh với
+    - tỷ giá đô la hôm nay là bao nhiêu
+    - kể cho mình nghe chuyện vui
+    - nên mua nhà hay thuê nhà
+    - lương 20 triệu có đủ sống không
+
+- intent: add_income
+  examples: |
+    - tháng này sếp thưởng [5 củ](amount)
+    - ba gửi cho [2 triệu](amount)
+    - bán laptop cũ được [8 triệu](amount)
+    - có tiền hoàn đơn hàng [70k](amount)
+
+- intent: transfer_money
+  examples: |
+    - nạp [400k](amount) vào ví
+    - chuyển [4 triệu](amount) vào tiết kiệm
+    - rút [2 triệu](amount) ở cây atm
+
+- intent: ask_spending
+  examples: |
+    - thu nhập tuần này là bao nhiêu
+    - tháng này mình dư bao nhiêu
+    - cho mình biết thu chi tháng này
+
+- intent: add_expense
+  examples: |
+    - cắt kính cận [1 triệu 1](amount)
+    - mua kính râm [500k](amount)
+    - thay mắt kính [700k](amount)
+    - làm gọng kính [250k](amount)

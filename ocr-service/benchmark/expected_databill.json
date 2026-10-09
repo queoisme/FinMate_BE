@@ -1,0 +1,189 @@
+{
+  "_note": "Đáp án đọc trực tiếp từ ảnh trong ai-service/data-bill. merchant = chuỗi (viết liền, bỏ dấu) phải có trong tên hiển thị; là mảng thì khớp một trong các chuỗi; null = không có tên đọc được trên giấy. total = số khách phải trả. category = danh mục hợp lý nhất (đây là phán đoán, có thể tranh luận với hàng bán sỉ).",
+  "03d6a4d1-9062-4361-9ba6-2aa469f95762.jpg": {
+    "merchant": "longchau",
+    "total": 1920500,
+    "category": "healthcare",
+    "kind": "bán lẻ, ảnh nghiêng, chữ viết tay đè lên logo"
+  },
+  "0582e609-eb2f-47e8-90b8-37240319affb.jpg": {
+    "merchant": "bachien",
+    "total": 1182060,
+    "category": "groceries",
+    "kind": "phiếu bán hàng sỉ, nền đá hoa"
+  },
+  "065bcdd2-5fa8-4257-bf89-f25d46b871f4.jpg": {
+    "merchant": "wamihs",
+    "total": 2523000,
+    "category": "groceries",
+    "kind": "bảng kê tay in, tên in lạ, ảnh dài có giấy khác phía trên"
+  },
+  "21fd4ff8-29df-4bb8-b8c6-4bba3d9a73ef.jpg": {
+    "merchant": "kisnac",
+    "total": 570500,
+    "category": "groceries",
+    "kind": "cửa hàng tiện lợi, có số viết tay gây nhiễu (530.100)"
+  },
+  "28b8b613-260e-49dd-b21d-fdae4b8357a0.jpg": {
+    "merchant": "longchau",
+    "total": 52000,
+    "category": "healthcare",
+    "kind": "phiếu thu nhà thuốc, ảnh sạch"
+  },
+  "33da5233-3000-4db4-9efe-14cf5647fb61.jpg": {
+    "merchant": "thangnguyen",
+    "total": 873000,
+    "category": "groceries",
+    "kind": "phiếu giao nhận giấy hồng, ảnh ngang, nền bàn phím"
+  },
+  "44eb087b-4eaf-4f58-ae10-09512c35786f.jpg": {
+    "merchant": "pizzahut",
+    "total": 500000,
+    "category": "dining",
+    "kind": "hóa đơn nước ngoài (Rp), chữ xanh, dấu đóng đè"
+  },
+  "4869f82f-c7a8-4794-9640-2b1454d198cd.jpg": {
+    "merchant": "baonam",
+    "total": 682000,
+    "category": "groceries",
+    "kind": "hóa đơn bán hàng, ảnh ngang nghiêng"
+  },
+  "55db97b7-91d1-4557-8354-664dfbb0d379.jpg": {
+    "merchant": "banhmi",
+    "total": 190000,
+    "category": "dining",
+    "kind": "ảnh chụp màn hình app phiếu nhập"
+  },
+  "5dd0596b-3cdb-446d-a2c5-585b1766c9d4.jpg": {
+    "merchant": "bachhoaxanh",
+    "total": 17447,
+    "category": "groceries",
+    "kind": "hóa đơn điện tử sạch"
+  },
+  "6634fb02-d647-4e23-ae5f-cdcb3511f505.jpg": {
+    "merchant": "familymart",
+    "total": 146000,
+    "category": "groceries",
+    "kind": "cửa hàng tiện lợi, giấy nhăn"
+  },
+  "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": {
+    "merchant": "ducthanh",
+    "total": 1031600,
+    "category": "groceries",
+    "kind": "siêu thị, bảng nhiều dòng, ảnh sạch"
+  },
+  "79d96d96-2145-4a0b-9a91-fe133eacbdbc.jpg": {
+    "merchant": "coopmart",
+    "total": 171200,
+    "category": "groceries",
+    "kind": "siêu thị, cầm tay, có vạch che đỏ"
+  },
+  "84e0f9bf-2f28-408a-bdc9-5c9514c23fc5.jpg": {
+    "merchant": "winmart",
+    "total": 210204,
+    "category": "groceries",
+    "kind": "siêu thị, cầm tay, nền bàn phím"
+  },
+  "8904f881-081f-4742-bb1c-df50d1f86d12.jpg": {
+    "merchant": [
+      "satra",
+      "saigon"
+    ],
+    "total": 1419282,
+    "category": "groceries",
+    "kind": "phiếu A4 nghiêng, tên công ty góc trên nhỏ"
+  },
+  "93092c83-bf02-4fab-b872-51a75733b3e6.jpg": {
+    "merchant": "dino",
+    "total": 988706,
+    "category": "groceries",
+    "kind": "phiếu giao hàng A4, cầm tay, nhăn"
+  },
+  "960345d1-d58f-481c-9ff4-ca6cc792d881.jpg": {
+    "merchant": "lamduong",
+    "total": 130000,
+    "category": "other",
+    "kind": "hóa đơn dịch vụ vệ sinh, có số tài khoản"
+  },
+  "974a3614-2ee8-4a4e-b277-bbb1ca994dd9.jpg": {
+    "merchant": "dino",
+    "total": 1282365,
+    "category": "groceries",
+    "kind": "phiếu giao hàng A4, 9 dòng hàng"
+  },
+  "9a6d9f4c-0e98-45de-aa82-819c427f2a7f.jpg": {
+    "merchant": "minh",
+    "total": 1712000,
+    "category": "groceries",
+    "kind": "phiếu giấy hồng mờ, ảnh trong thùng carton"
+  },
+  "9d288498-87b8-4942-8e58-8caa6368625d.jpg": {
+    "merchant": "thucpham",
+    "total": 372477,
+    "category": "groceries",
+    "kind": "phiếu xuất kho A4, con dấu đỏ, tên công ty chia nhiều dòng"
+  },
+  "b25b71ed-fff3-4113-9b0e-f9a9e3cbe9f9.jpg": {
+    "merchant": "aeon",
+    "total": 307000,
+    "category": "groceries",
+    "kind": "siêu thị AEON, ảnh cầm tay có bóng"
+  },
+  "b4eadeb2-f17d-4ca4-b789-0dd21dd4e6f8.jpg": {
+    "merchant": "bachien",
+    "total": 2654660,
+    "category": "groceries",
+    "kind": "phiếu bán hàng sỉ, nền đá hoa"
+  },
+  "b8c84a15-51d4-43d6-b4db-a215e0f74c79.jpg": {
+    "merchant": "kisnac",
+    "total": 570500,
+    "category": "groceries",
+    "kind": "ảnh rất tối"
+  },
+  "be5c14db-f8f8-474a-8563-3234be857d2d.jpg": {
+    "merchant": "winmart",
+    "total": 187769,
+    "category": "groceries",
+    "kind": "siêu thị, nền bàn phím"
+  },
+  "c55ef611-cfc3-4d0c-9eee-fd35df116e7c.jpg": {
+    "merchant": null,
+    "total": 469800,
+    "category": "dining",
+    "kind": "hóa đơn nhà hàng, đầu giấy bị che tay, không thấy tên quán"
+  },
+  "c6279e28-e7ab-4301-8984-8f41e140ab61.jpg": {
+    "merchant": "huynhgia",
+    "total": 2080000,
+    "category": "groceries",
+    "kind": "phiếu giao hàng giấy hồng ngang, qua lớp kính"
+  },
+  "d2b8bddd-74d4-4b9d-a621-fe2b514ae547.jpg": {
+    "merchant": "ajinomoto",
+    "total": 1060953,
+    "category": "groceries",
+    "kind": "hóa đơn A4 nhiều khối bảng, ảnh đổ bóng"
+  },
+  "f7f25d72-0c02-42c3-8652-e9353e1c5279.jpg": {
+    "merchant": "chacaphan",
+    "total": 1120000,
+    "category": "dining",
+    "kind": "quán ăn, ảnh cầm tay bị nền hoa lá"
+  },
+  "vinarice-phieu-giao-hang.webp": {
+    "merchant": [
+      "gaovietnam",
+      "vinarice"
+    ],
+    "total": 2010000,
+    "category": "groceries",
+    "kind": "phiếu giao hàng A4, số tài khoản ngân hàng nằm cạnh chữ 'thanh toán'"
+  },
+  "nha-tro-hoa-don-dich-vu.webp": {
+    "merchant": "nhatro",
+    "total": 3660000,
+    "category": "housing",
+    "kind": "ảnh chụp tin nhắn hóa đơn nhà trọ (tiền phòng + điện + nước + dịch vụ); ngày tháng 05/10/2026 và tổng bị tách dòng"
+  }
+}

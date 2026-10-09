@@ -1107,6 +1107,84 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long?>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<string>("CategorySlug")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category_slug");
+
+                    b.Property<string>("CategorySource")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("category_source");
+
+                    b.Property<double?>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("MerchantName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("merchant_name");
+
+                    b.Property<bool>("NeedsReview")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("needs_review");
+
+                    b.Property<string>("OcrResult")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("ocr_result");
+
+                    b.Property<DateTimeOffset?>("TransactedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("transacted_at");
+
+                    b.Property<Guid?>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_receipt_scans_transaction_id")
+                        .HasFilter("transaction_id IS NOT NULL");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("idx_receipt_scans_user_created");
+
+                    b.ToTable("receipt_scans", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_receipt_scans_amount_positive", "amount_cents IS NULL OR amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_receipt_scans_ocr_result", "ocr_result IN ('success','no_amount','unreadable')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1667,6 +1745,24 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("FinancialAccount");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScan", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Transaction");
 
                     b.Navigation("User");
                 });

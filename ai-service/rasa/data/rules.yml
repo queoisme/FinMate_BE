@@ -1,0 +1,22 @@
+version: "3.1"
+
+rules:
+- rule: Chào hỏi
+  steps:
+  - intent: greet
+  - action: utter_greet
+
+- rule: Tạm biệt
+  steps:
+  - intent: goodbye
+  - action: utter_goodbye
+
+- rule: Không hiểu
+  steps:
+  - intent: nlu_fallback
+  - action: utter_default
+
+- rule: Ngoài phạm vi
+  steps:
+  - intent: out_of_scope
+  - action: utter_out_of_scope

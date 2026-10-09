@@ -170,6 +170,13 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
                 ct);
         }
 
+        // Sửa danh mục của một khoản chi từ hóa đơn: lựa chọn mới của người dùng thắng gợi ý cũ của AI, và lần quét sau cùng cửa hàng ra đúng nó.
+        if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName))
+        {
+            await _aiServiceClient.LearnMerchantAsync(
+                new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
+        }
+
         return TransactionMapper.ToDto(transaction);
     }
 

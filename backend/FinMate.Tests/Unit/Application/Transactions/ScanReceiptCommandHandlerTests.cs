@@ -16,7 +16,9 @@ public class ScanReceiptCommandHandlerTests
 
     public ScanReceiptCommandHandlerTests()
     {
-        _handler = new ScanReceiptCommandHandler(_aiServiceClient.Object);
+        var ocrService = new Mock<IOcrServiceClient>();  // chưa cấu hình: quét qua POST /api/v1/ocr của AI Service như trước
+        ocrService.Setup(c => c.IsConfigured).Returns(false);
+        _handler = new ScanReceiptCommandHandler(_aiServiceClient.Object, ocrService.Object, new Mock<IReceiptScanRepository>().Object);
 
         _aiServiceClient
             .Setup(c => c.ScanReceiptAsync(It.IsAny<ScanReceiptRequest>(), It.IsAny<CancellationToken>()))

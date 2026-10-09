@@ -1,0 +1,20 @@
+# Dữ liệu cá nhân và dữ liệu đã học KHÔNG nằm trong image: nhập vào PostgreSQL bằng db_setup.py (xem ai-service/docker-compose.yml)
+dataset*.jsonl
+merchant_memory.json
+category_model.joblib
+category_models/
+*.bak*
+*.log
+
+# môi trường và rác
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# không cần khi chạy
+tests/
+benchmark/
+.env
+.env.*
+!.env.example

@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from app.api.v1.bill import router as bill_router
+from app.api.v1.chat import router as chat_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ocr import router as ocr_router
@@ -45,3 +47,5 @@ app.include_router(pipeline_router, prefix="/api/v1", tags=["pipeline"])
 app.include_router(feedback_router, prefix="/api/v1", tags=["feedback"])
 app.include_router(stats_router, prefix="/api/v1", tags=["stats"])
 app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
+app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
+app.include_router(bill_router, prefix="/api/v1", tags=["bill"])

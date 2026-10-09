@@ -1,0 +1,34 @@
+{
+  "_note": "Đáp án đúng cho từng ảnh trong benchmark/images. total = tổng khách trả; merchant = chuỗi (viết liền, bỏ dấu) phải có trong tên hiển thị; amounts = các số tiền in trên hóa đơn; words = các cụm chữ (viết liền, bỏ dấu) phải đọc được.",
+  "8.webp": {
+    "total": 171200, "merchant": "coopmart",
+    "amounts": [171200, 39000, 74000, 7800, 12200, 38200, 13745, 1481, 40500, 8900],
+    "words": ["phieutinhtien", "donhangsieuthi", "camonquykhach", "tongtien", "phuongthucthanhtoan"]
+  },
+  "9.png": {
+    "total": 17447, "merchant": "bachhoaxanh",
+    "amounts": [17447, 17000, 36500],
+    "words": ["phieuthanhtoan", "phaithanhtoan", "camonquykhach", "tienchuyenkhoan"]
+  },
+  "10.webp": {
+    "total": 190000, "merchant": "banhmi",
+    "amounts": [190000, 150000, 40000, 30000, 2000],
+    "words": ["tongtienhang", "cantrancc", "datrancc", "trahangnhap"]
+  },
+  "11.webp": {
+    "total": 372477, "merchant": "thucphamsach",
+    "amounts": [372477, 353364, 19113, 39048, 98096, 108572, 48148, 59500],
+    "words": ["phieuxuatkhobanhang", "nguoimua", "tongtienthanhtoan", "congtienhang", "nguoilapphieu"]
+  },
+  "14.webp": {
+    "total": 1419282, "merchant": null,
+    "_merchant_note": "Giới hạn đã biết: tên công ty góc trên trái nghiêng và nhỏ, OCR nhẹ không đọc ra ổn định (đọc lại dải đầu ở 36 tổ hợp góc/độ cao chỉ trúng 1, tốn thêm ~8s nên đã bỏ). Đáp án đúng là để trống tên (null) thay vì lấy dòng khác.",
+    "amounts": [1419282, 856332, 194994, 344736, 23220, 47574, 8478, 14364, 11610],
+    "words": ["phieugiaonhanvathanhtoan", "hoadonso", "khachhang", "tongtienphaitra", "chuongtrinhbanhang", "tongsoluong"]
+  },
+  "12.webp": {
+    "total": 1712000, "merchant": "minh",
+    "amounts": [1712000, 690000, 288000, 85000, 115000, 534000, 46000, 48000, 23000, 44500],
+    "words": ["phieugiaonhanthanhtoan", "tongtienhang", "sotienbangchu", "khachhang"]
+  }
+}

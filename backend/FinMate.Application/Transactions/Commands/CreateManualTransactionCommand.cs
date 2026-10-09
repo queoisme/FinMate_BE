@@ -6,6 +6,11 @@ namespace FinMate.Application.Transactions.Commands;
 /// Id do client sinh để chống tạo trùng khi gửi lại — xem <c>Transaction.ClientRequestId</c>.
 /// Bỏ trống vẫn tạo bình thường, chỉ là không có bảo vệ.
 /// </param>
+/// <param name="ReceiptScanId">
+/// Mã bản ghi quét (<c>scanId</c> mà <c>POST /transactions/scan-receipt</c> trả về) khi giao dịch được điền từ ảnh hóa đơn. Chỉ có tác dụng với
+/// <c>Source = Receipt</c>. Mã sai, của người khác hoặc đã được nối thì bị BỎ QUA chứ không làm hỏng việc lưu: đây là siêu dữ liệu, còn
+/// giao dịch là tiền của người dùng.
+/// </param>
 /// <param name="Source">
 /// Kênh người dùng dùng để nhập: <c>Manual</c> (form/NLP), <c>Voice</c>, hay <c>Receipt</c>.
 /// <c>Notification</c> bị TỪ CHỐI ở validator — xem lý do ở đó.
@@ -20,4 +25,5 @@ public record CreateManualTransactionCommand(
     string? MerchantName,
     string? Description,
     Guid? ClientRequestId = null,
-    TransactionSource Source = TransactionSource.Manual);
+    TransactionSource Source = TransactionSource.Manual,
+    Guid? ReceiptScanId = null);

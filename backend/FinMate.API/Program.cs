@@ -202,6 +202,25 @@ public class Program
             .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(databaseUrl)));
         builder.Services.AddHangfireServer();
 
+        // OCR service riêng (PaddleOCR + VietOCR): có URL thì backend gọi nó rồi mới gọi AI Service phân loại; không có thì quét qua
+        // POST /api/v1/ocr của AI Service như trước. Khóa nội bộ bắt buộc đi kèm URL.
+        var ocrServiceUrl = builder.Configuration["OCR_SERVICE_URL"];
+        if (string.IsNullOrWhiteSpace(ocrServiceUrl))
+        {
+            builder.Services.AddSingleton<IOcrServiceClient, DisabledOcrServiceClient>();
+        }
+        else
+        {
+            var ocrServiceApiKey = builder.Configuration["OCR_SERVICE_API_KEY"]
+                ?? throw new InvalidOperationException("OCR_SERVICE_API_KEY is not configured.");
+            builder.Services.AddHttpClient<IOcrServiceClient, OcrServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(ocrServiceUrl.TrimEnd('/') + "/");
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ocrServiceApiKey);
+                client.Timeout = TimeSpan.FromSeconds(60);
+            });
+        }
+
         builder.Services.AddRefitClient<IAIServiceApi>()
             .ConfigureHttpClient(client =>
             {
@@ -300,6 +319,7 @@ public class Program
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
@@ -381,6 +401,7 @@ public class Program
         builder.Services.AddScoped<IDeleteTransactionCommandHandler, DeleteTransactionCommandHandler>();
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
         builder.Services.AddScoped<IScanReceiptCommandHandler, ScanReceiptCommandHandler>();
+        builder.Services.AddScoped<IChatCommandHandler, ChatCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
         builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
 

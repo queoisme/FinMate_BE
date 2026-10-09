@@ -16,6 +16,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly IGamificationService _gamificationService;
+    private readonly IAIServiceClient _aiServiceClient;
+    private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ICacheService _cache;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
 
@@ -26,6 +28,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
         IGamificationService gamificationService,
+        IAIServiceClient aiServiceClient,
+        IReceiptScanRepository receiptScanRepository,
         ICacheService cache,
         IValidator<CreateManualTransactionCommand> validator)
     {
@@ -35,6 +39,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
         _gamificationService = gamificationService;
+        _aiServiceClient = aiServiceClient;
+        _receiptScanRepository = receiptScanRepository;
         _cache = cache;
         _validator = validator;
     }
@@ -119,6 +125,19 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+
+        // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
+        if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
+        {
+            await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, ct);
+        }
+
+        // Người dùng đã chọn danh mục cho cửa hàng trên một hóa đơn: nhờ AI Service nhớ cho lần quét sau (best-effort, sau khi đã lưu).
+        if (ReceiptMemory.ShouldLearn(command.Source, category, command.MerchantName))
+        {
+            await _aiServiceClient.LearnMerchantAsync(
+                new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug), ct);
+        }
 
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }

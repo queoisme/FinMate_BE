@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
+from difflib import SequenceMatcher
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -83,6 +85,71 @@ _MAX_MERCHANT_LENGTH = 120
 # tesseract THẬT; text hóa đơn viết tay trong test đơn vị luôn đã đúng hàng đúng lối.
 _TESSERACT_CONFIG = "--psm 6"
 
+_TARGET_WIDTH = 1600
+
+
+# Tesseract đọc chữ tiếng Việt có dấu chồng rất hay sai ("Tổng thanh toán" → "Tôäg thanh toán",
+# "Tiền khách đưa" → "Tiéh khách đưa"), nên so khớp nhãn bằng chuỗi con chính xác làm mất cả
+# nhãn TỔNG TIỀN lẫn nhãn TIỀN KHÁCH ĐƯA — và khi đó chỉ còn cách đoán "số lớn nhất", thứ hay
+# chọn nhầm tiền khách đưa. So khớp mờ trên bản đã bỏ dấu sửa đúng chỗ này.
+_FUZZY_THRESHOLD = 0.84
+
+# Trần hợp lý cho một hóa đơn. Dãy số bị đọc thành tiền (mã số thuế, điện thoại) thường ra
+# hàng chục tỷ; không ai quét hóa đơn giấy trên 500 triệu đồng.
+_MAX_RECEIPT_VND = 500_000_000
+
+# Dòng chứa định danh chứ không chứa tiền: số ở đây không bao giờ là tổng hóa đơn.
+_IDENTIFIER_LINE = re.compile(
+    r"(mst|ma so thue|dt|sdt|tel|hotline|fax|so hd|dia chi|dc|website|www|http)"
+)
+
+
+def _fold(text: str) -> str:
+    """Chữ thường, bỏ dấu. "đ" không tách được bằng NFD nên đổi tay."""
+    decomposed = unicodedata.normalize("NFD", text.lower().replace("đ", "d"))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _tokens(line: str) -> list[str]:
+    # Tách cả ở dấu hai chấm: OCR hay dính "cộng:38.500" thành một token.
+    return [t for t in re.split(r"[\s:]+", line) if t]
+
+
+def _match_marker(
+    tokens: list[str], markers: tuple[str, ...]
+) -> tuple[str, int] | None:
+    """Nhãn khớp nhất trong dòng (có dung sai OCR) và vị trí token ngay sau nhãn."""
+    folded = [re.sub(r"[^\w.]", "", _fold(t)) for t in tokens]
+    best: tuple[float, int, str, int] | None = None
+    for marker in markers:
+        width = len(marker.split())
+        for start in range(len(folded) - width + 1):
+            window = " ".join(folded[start : start + width])
+            # Nhãn ngắn (total, cash) quá dễ khớp nhầm khi cho sai số — chỉ khớp đúng.
+            ratio = 1.0 if window == marker else (
+                SequenceMatcher(None, window, marker).ratio() if len(marker) > 5 else 0.0
+            )
+            if ratio < _FUZZY_THRESHOLD:
+                continue
+            candidate = (ratio, len(marker), marker, start + width)
+            if best is None or candidate[:2] > best[:2]:
+                best = candidate
+    return (best[2], best[3]) if best else None
+
+
+def _fold_markers(markers: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(_fold(m) for m in markers))
+
+
+_TOTAL_FOLDED = _fold_markers(_TOTAL_MARKERS)
+
+# "Thành tiền" là nhãn của TỪNG DÒNG hàng trên phần lớn hóa đơn, chỉ đôi khi là tổng. Nó
+# không được thắng một nhãn tổng thật, và khi nó là nhãn duy nhất đọc được thì phải xét thêm
+# các số khác trên tờ giấy — tổng không bao giờ nhỏ hơn một dòng hàng.
+_WEAK_TOTAL_FOLDED = ("thanh tien",)
+_STRONG_TOTAL_FOLDED = tuple(m for m in _TOTAL_FOLDED if m not in _WEAK_TOTAL_FOLDED)
+_NOT_TOTAL_FOLDED = _fold_markers(_NOT_TOTAL_MARKERS)
+
 
 class OcrEngine(Protocol):
     """Ảnh (bytes) → text. Một phương thức, vì đó đúng là tất cả những gì stage này cần."""
@@ -93,9 +160,13 @@ class OcrEngine(Protocol):
 class TesseractOcrEngine:
     """Bọc binary ``tesseract`` qua pytesseract.
 
-    Tiền xử lý tối thiểu — xám hoá và tăng tương phản. Ảnh chụp hóa đơn nhiệt bằng điện
-    thoại thường nhạt và ám vàng; bỏ qua bước này thì tesseract trả về ký tự rác mà vẫn
-    không báo lỗi gì.
+    Tiền xử lý: xám hoá, tăng tương phản, PHÓNG TO rồi làm nét. Ảnh chụp hóa đơn nhiệt bằng
+    điện thoại thường nhạt, ám vàng và chữ nhỏ; Tesseract đọc tốt nhất khi chiều cao chữ cỡ
+    30px, nên ảnh hẹp được kéo lên bề ngang 1600px. Đo trên hóa đơn tổng hợp: riêng bước này
+    đưa ảnh nhạt từ 56% lên 100% số tiền đúng.
+
+    KHÔNG nhị phân hoá: Otsu toàn cục cho điểm cao hơn một chút trên ảnh tổng hợp nhưng ảnh
+    chụp thật có bóng đổ, và một ngưỡng duy nhất biến nửa tờ giấy thành màu đen.
     """
 
     def __init__(self, language: str = "vie+eng") -> None:
@@ -103,13 +174,21 @@ class TesseractOcrEngine:
 
     def read_text(self, image: bytes) -> str:
         import pytesseract
-        from PIL import Image, ImageOps
+        from PIL import Image, ImageFilter, ImageOps
 
         with Image.open(io.BytesIO(image)) as opened:
             # EXIF orientation: ảnh chụp dọc bằng điện thoại thường nằm ngang trong file.
             prepared = ImageOps.exif_transpose(opened)
             prepared = ImageOps.grayscale(prepared)
             prepared = ImageOps.autocontrast(prepared)
+            if prepared.width < _TARGET_WIDTH:
+                scale = _TARGET_WIDTH / prepared.width
+                prepared = prepared.resize(
+                    (_TARGET_WIDTH, round(prepared.height * scale)), Image.LANCZOS
+                )
+            prepared = prepared.filter(
+                ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
+            )
             return pytesseract.image_to_string(
                 prepared, lang=self._language, config=_TESSERACT_CONFIG
             )
@@ -154,34 +233,51 @@ def _find_total(lines: list[str]) -> tuple[int | None, str | None]:
     Hóa đơn liệt kê từ trên xuống và tổng cộng nằm ở cuối, nên khi có nhiều dòng cùng mang
     nhãn ("thành tiền" từng dòng rồi "tổng cộng" ở cuối) thì dòng cuối mới là con số cần.
     """
-    for line in reversed(lines):
-        lowered = line.lower()
-        if any(marker in lowered for marker in _NOT_TOTAL_MARKERS):
-            continue
+    parsed = [(line, _tokens(line)) for line in lines]
 
-        marker = next((m for m in _TOTAL_MARKERS if m in lowered), None)
-        if marker is None:
-            continue
+    def labelled(markers: tuple[str, ...]) -> tuple[int, str] | None:
+        for line, tokens in reversed(parsed):
+            if _match_marker(tokens, _NOT_TOTAL_FOLDED):
+                continue
+            hit = _match_marker(tokens, markers)
+            if hit is None:
+                continue
+            marker, after = hit
+            # Chỉ xét phần SAU nhãn: "Tổng cộng 3 món 250.000" không được lấy số 3.
+            candidates = [
+                c
+                for c in find_amount_candidates(" ".join(tokens[after:]))
+                if 0 < c.value <= _MAX_RECEIPT_VND
+            ]
+            if candidates:
+                return max(candidates, key=lambda c: c.value).value, marker
+        return None
 
-        # Chỉ xét phần SAU nhãn: "Tổng cộng 3 món 250.000" không được lấy số 3.
-        tail = lowered.split(marker, 1)[1]
-        offset = len(line) - len(tail)
-        candidates = [c for c in find_amount_candidates(line[offset:]) if c.value > 0]
-        if candidates:
-            return max(candidates, key=lambda c: c.value).value, marker
+    strong = labelled(_STRONG_TOTAL_FOLDED)
+    if strong:
+        return strong
+    weak = labelled(_WEAK_TOTAL_FOLDED)
 
     # Không nhãn nào đọc được — trên hóa đơn, tổng tiền gần như luôn là con số lớn nhất.
     # Suy đoán này đúng phần lớn nhưng không phải luôn đúng, nên nó hạ hẳn confidence
     # xuống dưới ngưỡng xác nhận một chạm, xem _confidence.
     #
-    # Chỉ xét con số TRÔNG GIỐNG TIỀN: có dấu ngăn nhóm hoặc có đơn vị. Hóa đơn đầy dãy số
-    # trần — mã số thuế, số hóa đơn, số điện thoại — và chúng thường lớn hơn tổng tiền.
-    # Thiếu bộ lọc này, "MST: 0312345678" biến thành một giao dịch 312 triệu đồng.
-    everything = [
-        c
-        for c in find_amount_candidates(" ".join(lines))
-        if c.value > 0 and (c.has_grouping or c.has_marker)
-    ]
+    # Xét TỪNG DÒNG, bỏ dòng định danh (MST, điện thoại, địa chỉ) và dòng tiền khách đưa/tiền
+    # thối, và chỉ lấy con số TRÔNG GIỐNG TIỀN: có dấu ngăn nhóm hoặc có đơn vị. Nối cả tờ
+    # thành một chuỗi rồi quét sẽ dính số của dòng này sang dòng khác — đã từng ra giao dịch
+    # hàng chục tỷ đồng từ "MST: 0312345678 ĐT: 028...".
+    everything = []
+    for line, tokens in parsed:
+        if _IDENTIFIER_LINE.search(_fold(line)) or _match_marker(tokens, _NOT_TOTAL_FOLDED):
+            continue
+        everything.extend(
+            c
+            for c in find_amount_candidates(line)
+            if 0 < c.value <= _MAX_RECEIPT_VND and (c.has_grouping or c.has_marker)
+        )
+    if weak:
+        value, marker = weak
+        return max([value, *(c.value for c in everything)]), marker
     if everything:
         return max(everything, key=lambda c: c.value).value, None
     return None, None

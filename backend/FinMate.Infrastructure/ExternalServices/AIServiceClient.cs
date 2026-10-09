@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using Refit;
@@ -19,7 +17,7 @@ public class AIServiceClient : IAIServiceClient
     {
         var apiRequest = new AnalyzeApiRequest(
             request.BackendRequestId,
-            HashGuid(request.UserId),
+            UserIdHasher.Hash(request.UserId),
             request.PackageName,
             request.NotificationTitle,
             request.NotificationBody,
@@ -60,11 +58,29 @@ public class AIServiceClient : IAIServiceClient
             response.ProcessingMs);
     }
 
+    // Ghi nhớ chỉ là phần thêm sau khi giao dịch đã lưu: chờ quá vài giây là bỏ, không để AI Service treo kéo theo việc lưu.
+    private static readonly TimeSpan LearnTimeout = TimeSpan.FromSeconds(3);
+
+    public async Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(LearnTimeout);
+        try
+        {
+            await _api.BillLearnAsync(
+                new BillLearnApiRequest(UserIdHasher.Hash(request.UserId), request.MerchantName, request.CategorySlug), timeout.Token);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            // Best-effort theo thiết kế (xem IAIServiceClient) — không chặn luồng chính.
+        }
+    }
+
     public async Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default)
     {
         var apiRequest = new FeedbackApiRequest(
-            HashGuid(request.TransactionId),
-            HashGuid(request.UserId),
+            UserIdHasher.Hash(request.TransactionId),
+            UserIdHasher.Hash(request.UserId),
             request.PipelineRequestId,
             request.PackageName,
             request.PredictedCategory,
@@ -125,7 +141,7 @@ public class AIServiceClient : IAIServiceClient
             var part = new StreamPart(content, request.FileName, request.ContentType);
             try
             {
-                response = await _api.OcrAsync(part, HashGuid(request.UserId), ct);
+                response = await _api.OcrAsync(part, UserIdHasher.Hash(request.UserId), ct);
             }
             catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
             {
@@ -152,11 +168,57 @@ public class AIServiceClient : IAIServiceClient
             response.ProcessingMs);
     }
 
-    // AGENTS.md §3.1: AI DB không lưu user_id/transaction_id thực — luôn gửi SHA-256 qua HTTP.
-    private static string HashGuid(Guid value)
+    public async Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default)
     {
-        var bytes = Encoding.UTF8.GetBytes(value.ToString());
-        var hash = SHA256.HashData(bytes);
-        return Convert.ToHexStringLower(hash);
+        ChatParseApiResponse response;
+        try
+        {
+            response = await _api.ChatParseAsync(new ChatParseApiRequest(request.Text, UserIdHasher.Hash(request.UserId)), ct);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
+        }
+
+        return new ChatParseResponse(
+            response.Intent,
+            response.ReplyText,
+            response.Entry is null
+                ? null
+                : new ChatParseEntry(
+                    response.Entry.Kind,
+                    response.Entry.AmountCents,
+                    response.Entry.Description,
+                    response.Entry.Merchant,
+                    response.Entry.CategorySlug,
+                    response.Entry.IncomeType,
+                    response.Entry.AutoSaveOk,
+                    response.Entry.ToOthers),
+            response.Query is null
+                ? null
+                : new ChatParseQuery(
+                    response.Query.Metric,
+                    response.Query.PeriodLabel,
+                    response.Query.Start,
+                    response.Query.End,
+                    response.Query.CategorySlug,
+                    response.Query.IncomeType),
+            response.ProcessingMs);
+    }
+
+    public async Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)
+    {
+        BillClassifyApiResponse response;
+        try
+        {
+            response = await _api.BillClassifyAsync(
+                new BillClassifyApiRequest(UserIdHasher.Hash(request.UserId), request.MerchantName, request.Lines), ct);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
+        }
+
+        return new BillClassifyResponse(response.CategorySlug, response.LocalCategory, response.Confidence, response.Source);
     }
 }

@@ -119,7 +119,9 @@ async def clean_tables(engine):
                 "TRUNCATE user_feedback, feedback_batch_jobs, evaluation_predictions,"
                 " evaluation_category_metrics, evaluation_runs, model_versions,"
                 " training_jobs, sample_splits, labeled_samples, pipeline_requests,"
-                " raw_samples, provider_patterns RESTART IDENTITY CASCADE"
+                " raw_samples, provider_patterns, bill_evaluation_category_metrics, bill_evaluation_runs,"
+                " bill_model_versions, bill_training_jobs, bill_labeled_samples, bill_raw_samples, bill_unknown_scans,"
+                " bill_user_merchant_category, bill_user_merchant_choice, bill_keywords, bill_brands RESTART IDENTITY CASCADE"
             )
         )
     yield

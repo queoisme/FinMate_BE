@@ -52,6 +52,9 @@ services:
       DATABASE_URL: "Host=postgres-main;Port=5432;Database=finmate_main;Username=finmate;Password=finmate"
       REDIS_URL: "redis:6379"
       ASPNETCORE_ENVIRONMENT: "Development"
+      # Có URL (và OCR_SERVICE_API_KEY trong backend/.env) thì backend điều phối quét hóa đơn: ocr-service đọc và lọc,
+      # ai-service phân loại. Bỏ dòng này thì quét qua POST /api/v1/ocr của ai-service như trước.
+      OCR_SERVICE_URL: "http://ocr-service:8000"
     ports:
       - "8080:8080"
       # /hangfire dashboard is served by this same process, no separate container
@@ -65,6 +68,38 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ocr-service:
+        condition: service_started
+
+  # OCR hóa đơn (PaddleOCR + VietOCR). KHÔNG mở cổng ra máy chủ: chỉ backend và ai-service gọi được, qua mạng
+  # nội bộ và khóa OCR_SERVICE_API_KEY. Ảnh chỉ đi qua bộ nhớ, không lưu ở đâu. Khóa nằm trong
+  # ocr-service/.env, ai-service/.env và backend/.env (ba giá trị phải giống nhau), xem file .env.example của từng nơi.
+  ocr-service:
+    build:
+      context: ./ocr-service
+    env_file:
+      - ./ocr-service/.env
+    environment:
+      # Dùng chung finmate_ai với ai-service (các bảng bill_*, do alembic 0006 của ai-service tạo). Không có DB riêng.
+      FINMATE_DATABASE_URL: "postgresql://finmate:finmate@postgres-ai:5432/finmate_ai"
+    depends_on:
+      # Chờ ai-service healthy: nó chạy alembic lúc khởi động, nên các bảng bill_* có sẵn khi ocr-service nạp kiến thức.
+      ai-service:
+        condition: service_healthy
+
+  # Rasa NLU: hiểu ý định + cắt số tiền của câu chat, cho POST /api/v1/chat/parse. Không mở cổng ra máy chủ:
+  # chỉ ai-service gọi (RASA_URL). Rasa tắt thì ai-service vẫn trả lời bằng luật. Model đặt ở ai-service/rasa/models/.
+  # Huấn luyện lại:  docker compose run --rm rasa train nlu --nlu data --config config.yml --domain domain.yml --out models --fixed-model-name finmate-nlu-v3
+  rasa:
+    image: rasa/rasa:3.6.21
+    command: ["run", "--enable-api", "-m", "models/finmate-nlu-v3.tar.gz", "--port", "5005"]
+    restart: unless-stopped
+    volumes:
+      - ./ai-service/rasa/models:/app/models
+      - ./ai-service/rasa/config.yml:/app/config.yml:ro
+      - ./ai-service/rasa/domain.yml:/app/domain.yml:ro
+      - ./ai-service/rasa/data:/app/data:ro
+      - ./ai-service/rasa/tests:/app/tests:ro
 
   ai-service:
     build:
@@ -75,6 +110,11 @@ services:
       DATABASE_URL: "postgresql+asyncpg://finmate:finmate@postgres-ai:5432/finmate_ai"
       REDIS_URL: "redis://redis:6379"
       MODEL_REGISTRY_PATH: "/models"
+      # Có URL (và OCR_SERVICE_API_KEY trong ai-service/.env) thì /api/v1/ocr đọc hóa đơn qua ocr-service;
+      # bỏ dòng này thì quay về Tesseract trong tiến trình ai-service.
+      OCR_SERVICE_URL: "http://ocr-service:8000"
+      # Rasa hiểu ý định câu chat; bỏ dòng này thì /api/v1/chat/parse chỉ dùng luật.
+      RASA_URL: "http://rasa:5005"
     volumes:
       # Artifact model do scripts/train.py sinh ra. Mount thay vì COPY vào image: model
       # được promote mà không phải build lại, và model đã train không mất khi rebuild.

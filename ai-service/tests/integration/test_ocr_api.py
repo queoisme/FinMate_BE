@@ -199,3 +199,85 @@ async def test_two_users_do_not_share_a_sample_row(client, auth_headers, session
 
     samples = (await session.execute(select(RawSample))).scalars().all()
     assert len(samples) == 1
+
+
+# ---- OCR service riêng (PaddleOCR + VietOCR) đứng sau cùng một route ----
+
+
+@pytest.fixture
+def remote(monkeypatch):
+    """Bật chế độ OCR service và thay lời gọi mạng bằng hàm giả, trả về dict để từng test đổi kết quả."""
+    from datetime import UTC, datetime
+
+    from app.core.config import settings
+    from app.pipeline.stages.receipt_ocr import ReceiptReading
+    from app.pipeline.stages.remote_ocr import RemoteReceipt
+
+    state = {
+        "result": RemoteReceipt(
+            ReceiptReading(
+                text="HIGHLANDS COFFEE\nTong tien: 16.000",
+                amount_cents=16_000,
+                merchant_name="Highlands Coffee",
+                transacted_at=datetime(2026, 4, 11, 6, 16, tzinfo=UTC),
+                total_marker="ocr_service",
+                confidence=0.8,
+            ),
+            "food",
+            0.8,
+        ),
+        "error": None,
+    }
+
+    async def fake_read(*_args, **_kwargs):
+        if state["error"]:
+            raise state["error"]
+        return state["result"]
+
+    monkeypatch.setattr(settings, "ocr_service_url", "http://ocr-service:8000")
+    monkeypatch.setattr(ocr_route, "read_receipt_remote", fake_read)
+    # Tesseract không được đụng tới khi đã bật OCR service.
+    monkeypatch.setattr(ocr_route, "_engine", FakeEngine("PHAI KHONG DUOC DUNG\nTong cong: 999.000"))
+    return state
+
+
+async def _post_ocr(client, auth_headers, user_hash):
+    return await client.post(
+        "/api/v1/ocr", files=image_file(), data={"user_id_hash": user_hash}, headers=auth_headers
+    )
+
+
+async def test_remote_reading_uses_the_ocr_services_fields(client, auth_headers, user_hash, remote):
+    response = await _post_ocr(client, auth_headers, user_hash)
+    body = response.json()
+    assert response.status_code == 200 and body["ocr_result"] == "success"
+    assert body["extraction"]["amount_cents"] == 16_000
+    assert body["extraction"]["merchant_name"] == "Highlands Coffee"
+    assert body["categorization"] == {"category_slug": "food", "confidence": 0.8}
+
+
+async def test_remote_without_a_category_falls_back_to_the_categorizer(client, auth_headers, user_hash, remote):
+    from dataclasses import replace
+
+    remote["result"] = replace(remote["result"], category_slug=None, category_confidence=0.0)
+    body = (await _post_ocr(client, auth_headers, user_hash)).json()
+    assert body["ocr_result"] == "success"
+    assert body["categorization"]["category_slug"]  # luôn có một slug hợp lệ (tối thiểu "other")
+
+
+async def test_remote_service_down_is_a_503_not_a_wrong_answer(client, auth_headers, user_hash, remote):
+    from app.pipeline.stages.remote_ocr import OcrServiceError
+
+    remote["error"] = OcrServiceError("down")
+    assert (await _post_ocr(client, auth_headers, user_hash)).status_code == 503
+
+
+async def test_remote_empty_reading_is_unreadable(client, auth_headers, user_hash, remote):
+    from app.pipeline.stages.receipt_ocr import ReceiptReading
+    from app.pipeline.stages.remote_ocr import RemoteReceipt
+
+    remote["result"] = RemoteReceipt(
+        ReceiptReading("", None, None, None, None, 0.0), None, 0.0
+    )
+    body = (await _post_ocr(client, auth_headers, user_hash)).json()
+    assert body["ocr_result"] == "unreadable" and body["extraction"] is None

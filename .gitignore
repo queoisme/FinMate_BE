@@ -16,6 +16,24 @@ ai-service/**/.coverage
 ai-service/models/*
 !ai-service/models/README.md
 
+# ocr-service: bản sao môi trường, cache, model ONNX (nặng ~86MB, đặt tay vào models/vietocr/ — xem ocr-service/README.md),
+# dữ liệu cá nhân và ảnh bill thật của benchmark
+ocr-service/**/__pycache__/
+ocr-service/**/*.pyc
+ocr-service/.venv/
+ocr-service/**/.pytest_cache/
+ocr-service/models/vietocr/*.onnx
+ocr-service/dataset*.jsonl
+ocr-service/merchant_memory.json
+ocr-service/category_model.joblib
+ocr-service/category_models/
+ocr-service/benchmark/images/
+
+# Rasa (chat): model đã huấn luyện (~26MB) đặt ở ai-service/rasa/models/, xem ai-service/rasa/README.md
+ai-service/rasa/models/*
+!ai-service/rasa/models/README.md
+ai-service/rasa/.rasa/
+
 # Env
 .env
 *.env.local

@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from app.utils.amount_slang import SLANG, is_money
 from app.utils.number_words import find_number_words
 
 # App chỉ phục vụ Việt Nam nên dùng UTC+7 cố định, giống hệt lý do phía backend viết
@@ -27,11 +28,16 @@ _MAGNITUDES: tuple[tuple[str, int], ...] = (
     ("ngàn", 1_000),
     ("ngan", 1_000),
     ("k", 1_000),
+) + tuple((word, unit.vnd) for word, unit in SLANG.items())
+
+# Dài trước ngắn để "tr" không nuốt "triệu"; từ lóng (củ, lít...) nằm trong cùng danh sách.
+_UNIT_ALTERNATION = "|".join(
+    re.escape(name) for name in sorted((n for n, _ in _MAGNITUDES), key=len, reverse=True)
 )
 
 # "2tr5" = 2.500.000, "75k5" = 75.500 — chữ số sau đơn vị là phần thập phân của đơn vị đó.
 _SHORTHAND = re.compile(
-    r"^(?P<head>\d+)\s*(?P<unit>tỷ|ty|triệu|trieu|tr|nghìn|nghin|ngàn|ngan|k)\s*(?P<tail>\d*)$",
+    rf"^(?P<head>\d+)\s*(?P<unit>{_UNIT_ALTERNATION})\s*(?P<tail>\d*)$",
     re.IGNORECASE,
 )
 
@@ -48,7 +54,8 @@ _AMOUNT_CANDIDATE = re.compile(
     # Hẹp có chủ ý. Cho phép dấu cách ở mọi vị trí sẽ dính "Sua tuoi Vinamilk 2 58,000"
     # thành 258.000, và "Ngay: 14, 09" thành một số tiền.
     r"(?P<number>\d+(?:[.,](?:[ ]\d{3}|\d+))*)"
-    r"(?:\s*(?P<unit>tỷ|ty|triệu|trieu|tr|nghìn|nghin|ngàn|ngan|k)(?P<tail>\d*))?"
+    # "rưỡi" chỉ đi sau đơn vị và không kèm chữ số lẻ: "2 triệu rưỡi", "1 củ rưỡi".
+    rf"(?:\s*(?P<unit>{_UNIT_ALTERNATION})(?P<tail>\d*)(?P<half>\s+rưỡi(?!\w))?)?"
     # "d" là cách gõ "đ" không dấu, rất phổ biến. \b là bắt buộc: thiếu nó thì "ngay 15
     # de tranh" biến "15" thành một số tiền có ký hiệu tiền tệ.
     r"(?:\s*(?P<currency>vnđ|vnd|₫|đ|d)\b)?",
@@ -150,10 +157,18 @@ def find_amount_candidates(text: str) -> list[AmountCandidate]:
     """
     candidates: list[AmountCandidate] = []
     for match in _AMOUNT_CANDIDATE.finditer(text):
-        raw = match.group(0).strip()
+        unit = (match.group("unit") or "").lower()
+        if unit in SLANG and not is_money(unit, text, match.end()):
+            continue
+        # Dựng lại chuỗi không có "rưỡi": parse_vnd_amount không đọc được nó.
+        raw = "".join(
+            match.group(g) or "" for g in ("number", "unit", "tail", "currency")
+        )
         value = parse_vnd_amount(raw)
         if value is None or value <= 0:
             continue
+        if match.group("half"):
+            value += next(m for s, m in _MAGNITUDES if s == unit) // 2
         has_marker = bool(match.group("unit") or match.group("currency"))
         has_grouping = any(ch in match.group("number") for ch in ".,")
         candidates.append(

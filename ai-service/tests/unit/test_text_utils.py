@@ -167,3 +167,28 @@ def test_grouping_flag_survives_the_space():
     """Cờ has_grouping là thứ phân biệt tiền với mã số thuế — dấu cách không được làm mất nó."""
     candidate = find_amount_candidates("TONG CONG: 100, 000")[0]
     assert candidate.has_grouping is True
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("đi chợ 1 củ", 1_000_000),
+        ("cho mượn 2 lít", 200_000),
+        ("tiền nhà 2 củ rưỡi", 2_500_000),
+        ("quần áo 2 triệu rưỡi", 2_500_000),
+        ("mua quần áo 2tr", 2_000_000),
+        ("cà phê 2k", 2_000),
+        ("mua quần 200k", 200_000),
+    ],
+)
+def test_slang_and_half_units_in_digits(text, expected):
+    from app.utils.text_utils import find_amount_candidates
+
+    assert max(c.value for c in find_amount_candidates(text)) == expected
+
+
+def test_ordinary_word_after_a_number_is_not_money():
+    from app.utils.text_utils import find_amount_candidates
+
+    assert find_amount_candidates("mua 2 củ cải") == []
+    assert find_amount_candidates("đổ 2 lít xăng") == []

@@ -150,3 +150,35 @@ def test_a_receipt_with_only_bare_digit_runs_yields_no_amount():
     """Thà không có số tiền còn hơn có một số tiền bịa ra từ số điện thoại."""
     reading = read("CUA HANG ABC\nMST: 0312345678\nHotline: 19001234")
     assert reading.amount_cents is None
+
+
+# Văn bản dưới đây là đầu ra THẬT của Tesseract trên ảnh hóa đơn: dấu chồng bị đọc sai.
+def test_a_total_label_garbled_by_ocr_is_still_recognised():
+    reading = read(
+        "Bach Hoa Xanh\nThành tiêà 32.000\nTôäg thanh toán: 38.500\n"
+        "Tiéh khách đưa: 50.000\nTiêh thoi lai: 11.500"
+    )
+    assert reading.amount_cents == 38_500
+    assert reading.total_marker == "tong thanh toan"
+
+
+def test_a_garbled_cash_label_is_not_taken_as_the_total():
+    """Không đọc được nhãn tổng: vẫn không được chọn nhầm dòng tiền khách đưa."""
+    reading = read("Bach Hoa Xanh\nMì gói 6.500\nSữa 32.000\nT0ng: 38.500\nTiéh khách đưa: 50.000")
+    assert reading.amount_cents == 38_500
+
+
+def test_per_item_line_totals_do_not_beat_the_real_total():
+    reading = read("Quan A\nThành tiền 6.500\nThành tiền 32.000\nTổng cộng 38.500")
+    assert reading.amount_cents == 38_500
+
+
+def test_when_only_the_weak_label_is_readable_the_total_is_not_below_any_line():
+    reading = read("Quan A\nThành tiền 6.500\nThành tiền 32.000\nXXXX 38.500")
+    assert reading.amount_cents == 38_500
+
+
+def test_an_absurd_amount_is_dropped():
+    """Số điện thoại/MST bị đọc thành tiền không được thành giao dịch hàng tỷ."""
+    reading = read("CUA HANG\nTong cong 96.000.000.000")
+    assert reading.amount_cents is None

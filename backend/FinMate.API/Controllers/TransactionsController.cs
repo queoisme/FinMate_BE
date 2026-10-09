@@ -21,6 +21,7 @@ public class TransactionsController : ControllerBase
     private readonly IDeleteTransactionCommandHandler _deleteHandler;
     private readonly IParseNaturalLanguageCommandHandler _parseHandler;
     private readonly IScanReceiptCommandHandler _scanReceiptHandler;
+    private readonly IChatCommandHandler _chatHandler;
     private readonly IGetTransactionListQueryHandler _listHandler;
     private readonly IGetTransactionDetailQueryHandler _detailHandler;
 
@@ -32,6 +33,7 @@ public class TransactionsController : ControllerBase
         IDeleteTransactionCommandHandler deleteHandler,
         IParseNaturalLanguageCommandHandler parseHandler,
         IScanReceiptCommandHandler scanReceiptHandler,
+        IChatCommandHandler chatHandler,
         IGetTransactionListQueryHandler listHandler,
         IGetTransactionDetailQueryHandler detailHandler)
     {
@@ -42,6 +44,7 @@ public class TransactionsController : ControllerBase
         _deleteHandler = deleteHandler;
         _parseHandler = parseHandler;
         _scanReceiptHandler = scanReceiptHandler;
+        _chatHandler = chatHandler;
         _listHandler = listHandler;
         _detailHandler = detailHandler;
     }
@@ -88,7 +91,8 @@ public class TransactionsController : ControllerBase
                 request.MerchantName,
                 request.Description,
                 request.ClientRequestId,
-                request.Source ?? TransactionSource.Manual),
+                request.Source ?? TransactionSource.Manual,
+                request.ReceiptScanId),
             ct);
         return Created(result);
     }
@@ -193,6 +197,19 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<ScannedReceiptDto>.Ok(scanned));
     }
 
+    /// <summary>
+    /// Một câu chat → ghi giao dịch, bản nháp để xác nhận, hoặc số liệu tổng hợp (xem <c>ChatActions</c>).
+    /// Ghi thẳng chỉ khi AI Service đủ chắc và tự chọn được ví và danh mục; hoàn tác và sửa danh mục dùng
+    /// <c>DELETE</c> và <c>PATCH /transactions/{id}</c>.
+    /// </summary>
+    [HttpPost("chat")]
+    public async Task<IActionResult> Chat([FromBody] ChatRequest request, CancellationToken ct)
+    {
+        var result = await _chatHandler.HandleAsync(
+            new ChatCommand(CurrentUserId, request.Text, request.FinancialAccountId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<ChatResultDto>.Ok(result));
+    }
+
     [HttpPost("parse")]
     public async Task<IActionResult> Parse([FromBody] ParseNaturalLanguageRequest request, CancellationToken ct)
     {
@@ -215,7 +232,8 @@ public record CreateManualTransactionRequest(
     string? MerchantName,
     string? Description,
     Guid? ClientRequestId = null,
-    TransactionSource? Source = null);
+    TransactionSource? Source = null,
+    Guid? ReceiptScanId = null);
 
 /// <param name="ClientRequestId">
 /// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.
@@ -240,3 +258,5 @@ public record UpdateTransactionRequest(
 
 public record ConfirmTransactionRequest(Guid? CategoryId);
 public record ParseNaturalLanguageRequest(string Text);
+
+public record ChatRequest(string Text, Guid? FinancialAccountId = null, Guid? ClientRequestId = null);

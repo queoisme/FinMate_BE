@@ -36,6 +36,10 @@ public record ParsedTransactionDto(
 /// Luôn dưới 0,85. Docx phương thức 3 yêu cầu người dùng rà soát trước khi lưu, nên không
 /// có ca nào của luồng này được rơi vào vùng tự động xác nhận một chạm.
 /// </param>
+/// <param name="ScanId">
+/// Mã bản ghi bóc tách của lần quét này (<c>receipt_scans</c>). Gửi lại thành <c>receiptScanId</c> khi lưu giao dịch (<c>POST /transactions</c>,
+/// <c>source = Receipt</c>) để nối lần quét với giao dịch. Thêm vào cuối nên client cũ vẫn đọc được; client chưa dùng thì bỏ qua.
+/// </param>
 public record ScannedReceiptDto(
     string OcrResult,
     long? AmountCents,
@@ -43,4 +47,5 @@ public record ScannedReceiptDto(
     string? MerchantName,
     DateTimeOffset? TransactedAt,
     string? CategorySlug,
-    double? Confidence);
+    double? Confidence,
+    Guid? ScanId = null);

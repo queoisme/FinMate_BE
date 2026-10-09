@@ -34,6 +34,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.utils.amount_slang import SLANG, is_money
+
 # Chữ số. "mốt"/"lăm"/"nhăm"/"tư" là biến thể của 1/5/4 khi đứng sau hàng chục —
 # "hai mươi mốt" = 21, "hai mươi lăm" = 25, "hai mươi tư" = 24.
 _DIGITS: dict[str, int] = {
@@ -73,6 +75,9 @@ _SCALES: dict[str, int] = {
     "tỷ": 1_000_000_000,
     "tỉ": 1_000_000_000,
 }
+
+# Từ lóng (củ, lít, xị...) là đơn vị giống nghìn/triệu; giá trị lấy từ amount_slang.json.
+_SCALES.update({word: unit.vnd for word, unit in SLANG.items()})
 
 _HALF = "rưỡi"
 
@@ -212,6 +217,11 @@ def find_number_words(text: str) -> list[NumberWordMatch]:
             continue
 
         value, has_scale, end_index = best
+        slang_used = [t[2] for t in spans[index:end_index] if t[2] in SLANG]
+        if any(not is_money(word, text, spans[end_index - 1][1]) for word in slang_used):
+            # "hai lít xăng" / "hai củ cải": từ lóng ở đây là từ thường.
+            index = end_index
+            continue
         matches.append(
             NumberWordMatch(
                 value=value,

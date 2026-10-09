@@ -91,6 +91,60 @@ public record ScanReceiptResponse(
     CategorizationResult? Categorization,
     int? ProcessingMs);
 
+// POST /api/v1/chat/parse — route thứ năm của contract, thêm ở Phase 20. AI Service chỉ HIỂU câu chat và
+// trả quyết định; backend lưu giao dịch và tự tính tổng. AmountCents là đồng VND như mọi nơi khác.
+public record ChatParseRequest(Guid UserId, string Text);
+
+/// <param name="Kind">"expense" | "income" | "transfer".</param>
+/// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
+/// <param name="IncomeType">salary | bonus | gift | side_income | refund | other_income, khi đoán được.</param>
+/// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, Rasa (nếu có) chắc.</param>
+/// <param name="ToOthers">"Chuyển cho người khác / trả nợ" đã được AI tính là chi tiêu.</param>
+public record ChatParseEntry(
+    string Kind,
+    long AmountCents,
+    string? Description,
+    string? MerchantName,
+    string? CategorySlug,
+    string? IncomeType,
+    bool AutoSaveOk,
+    bool ToOthers);
+
+/// <param name="Metric">"expense" | "income" | "balance".</param>
+/// <param name="From">Đầu kỳ (giờ VN).</param>
+/// <param name="To">Cuối kỳ, nửa mở: [From, To).</param>
+public record ChatParseQuery(
+    string Metric,
+    string PeriodLabel,
+    DateTimeOffset From,
+    DateTimeOffset To,
+    string? CategorySlug,
+    string? IncomeType);
+
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
+public record ChatParseResponse(
+    string Intent,
+    string? ReplyText,
+    ChatParseEntry? Entry,
+    ChatParseQuery? Query,
+    int? ProcessingMs);
+
+// POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
+// Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.
+/// <param name="MerchantName">Tên cửa hàng OCR đọc ra, có thể null.</param>
+/// <param name="Lines">Chữ đã lọc dữ liệu cá nhân.</param>
+/// AI Service tự tra cửa hàng người dùng đã chốt (theo hash của <c>UserId</c>) nên backend không phải gửi gợi ý.
+public record BillClassifyRequest(Guid UserId, string? MerchantName, IReadOnlyList<string> Lines);
+
+/// <param name="CategorySlug">Slug hệ thống, hoặc null khi AI không nhận ra (không ghi "other" cho có).</param>
+/// <param name="LocalCategory">9 nhóm của bộ luật bill (giữ phân biệt Ăn uống / Siêu thị).</param>
+/// <param name="Source">memory (người dùng đã chốt cho cửa hàng này) | brand | keyword | product | model | none.</param>
+public record BillClassifyResponse(string? CategorySlug, string? LocalCategory, double Confidence, string Source);
+
+// POST /api/v1/bill/learn — route thứ bảy của contract, thêm ở Phase 21. Người dùng đã chọn <c>CategorySlug</c> (slug hệ thống) cho cửa hàng này khi
+// lưu một khoản chi từ hóa đơn; lần quét sau AI Service gợi ý đúng danh mục đó cho người dùng đó. Chỉ tên cửa hàng và slug, không chữ OCR.
+public record LearnMerchantRequest(Guid UserId, string MerchantName, string CategorySlug);
+
 public interface IAIServiceClient
 {
     Task<AnalyzeResponse> AnalyzeAsync(AnalyzeRequest request, CancellationToken ct = default);
@@ -112,4 +166,19 @@ public interface IAIServiceClient
     /// </summary>
     Task<ScanReceiptResponse> ScanReceiptAsync(
         ScanReceiptRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.
+    /// Rasa tắt thì AI Service vẫn trả lời (bằng luật), nên lỗi ở đây là lỗi của chính AI Service.
+    /// </summary>
+    Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default);
+
+    /// <summary>Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.</summary>
+    Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Best-effort, như <see cref="SendFeedbackAsync"/>: tự nuốt lỗi và giới hạn thời gian chờ, vì nó chạy ngay sau khi giao dịch đã lưu
+    /// và không được làm chậm hay làm hỏng việc lưu.
+    /// </summary>
+    Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default);
 }

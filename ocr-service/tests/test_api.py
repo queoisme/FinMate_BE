@@ -1,0 +1,418 @@
+﻿import io
+import sys
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from fastapi.testclient import TestClient
+from PIL import Image
+
+import main
+from ocr import NoTextError
+
+client = TestClient(main.app)
+
+
+def _png_bytes(dark: bool = False) -> bytes:
+    # nền trắng có vài nét đen như hóa đơn thật (ảnh trắng tinh bị coi là quá sáng)
+    img = Image.new("RGB", (60, 60), (20, 20, 20) if dark else "white")
+    if not dark:
+        img.paste((0, 0, 0), (5, 5, 55, 9))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _bill(header: str, total: str, conf: float = 0.95):
+    """Chữ OCR giả của một hóa đơn đầy đủ (đủ để được chấm là hóa đơn)."""
+    rows = [header, "HOA DON BAN LE", f"Mon A 1 {total} {total}",  # dòng hàng khớp với tổng (đối chiếu tổng với các dòng hàng)
+            "Cam on quy khach", f"TONG CONG {total}", f"Tien khach tra {total}"]
+    return lambda _: [(t, conf) for t in rows]
+
+
+def _post(content: bytes, name="bill.png", ctype="image/png"):
+    return client.post("/analyze-bill", files={"image": (name, content, ctype)})
+
+
+def test_health():
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
+
+
+def test_rejects_non_image_with_400():
+    r = _post(b"abc", "note.txt", "text/plain")
+    assert r.status_code == 400
+    assert "error" in r.json()
+
+
+def test_rejects_oversize_with_400(monkeypatch):
+    monkeypatch.setattr(main, "MAX_BYTES", 100)
+    r = _post(_png_bytes())
+    assert r.status_code == 400
+    assert "error" in r.json()
+
+
+def test_blank_image_returns_422(monkeypatch):
+    def no_text(_):
+        raise NoTextError()
+
+    monkeypatch.setattr(main, "read_lines", no_text)
+    r = _post(_png_bytes())
+    assert r.status_code == 422
+    assert "error" in r.json()
+
+
+def test_success_returns_analysis(monkeypatch):
+    monkeypatch.setattr(main, "read_lines", _bill("HIGHLANDS COFFEE", "125.000", 0.9))
+    r = _post(_png_bytes())
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total_amount"] == 125000
+    assert body["category"] == "dining"
+    assert body["quality"] == "ok"
+    assert body["needs_review"] is False
+
+
+def test_dark_image_reports_quality_and_forces_review(monkeypatch):
+    monkeypatch.setattr(main, "read_lines", _bill("HIGHLANDS COFFEE", "125.000"))
+    body = _post(_png_bytes(dark=True)).json()
+    assert body["quality"] == "too_dark"
+    assert body["needs_review"] is True
+
+
+def test_saved_merchant_category_is_used_by_next_analysis(monkeypatch, tmp_path):
+    from memory import MerchantMemory
+
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "read_lines", _bill("QWERTY", "125.000"))
+
+    first = _post(_png_bytes()).json()
+    assert (first["category"], first["category_source"]) == ("other", "none")
+    assert first["needs_review"] is True
+
+    saved = client.post("/merchant-category", json={"merchant": "QWERTY", "category": "dining"})
+    assert saved.status_code == 200
+    assert saved.json() == {"merchant": "Qwerty", "category": "dining"}   # tên IN HOA được viết đẹp lại
+
+    second = _post(_png_bytes()).json()
+    assert (second["category"], second["category_source"]) == ("dining", "memory")
+    assert second["needs_review"] is False
+
+
+def test_model_suggestion_is_used_for_unknown_merchant_but_still_flagged(monkeypatch):
+    class FakeModel:
+        def predict(self, merchant, lines):
+            return "healthcare", 0.88
+
+    monkeypatch.setattr(main, "category_model", FakeModel())
+    monkeypatch.setattr(main, "read_lines", _bill("QWERTY", "52.000"))
+    body = _post(_png_bytes()).json()
+    assert (body["category"], body["category_source"]) == ("healthcare", "model")
+    assert body["category_confidence"] == 0.69
+    assert body["needs_review"] is True      # gợi ý của mô hình luôn cần người xác nhận
+
+
+def test_saving_category_appends_redacted_labeled_record(monkeypatch, tmp_path):
+    from dataset import Dataset
+    from memory import MerchantMemory
+
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
+    r = client.post("/merchant-category", json={
+        "merchant": "Kisnac", "category": "groceries",
+        "raw_lines": ["Kisnac", "SDT 0947210344", "TONG 570,500"],
+        "total_amount": 570500, "predicted_category": "other", "predicted_source": "none",
+    })
+    assert r.status_code == 200
+    rows = main.dataset.read_all()
+    assert len(rows) == 1
+    row = rows[0]
+    assert (row["merchant"], row["category"], row["label_source"]) == ("Kisnac", "groceries", "user")
+    assert (row["predicted_category"], row["total_amount"]) == ("other", 570500)
+    assert row["lines"] == ["Kisnac", "TONG 570,500"]  # dòng SDT bị bỏ hẳn (dữ liệu cá nhân), không chỉ che số
+
+
+def test_saving_stores_a_nicely_formatted_name_but_keeps_the_raw_ocr_name():
+    r = client.post("/merchant-category", json={
+        "merchant": "PHIEU THANH TOAN BACHHóA XANH", "ocr_merchant": "PHIEU THANH TOAN BACHHóA XANH",
+        "category": "groceries",
+    })
+    assert r.status_code == 200 and r.json()["merchant"] == "Bách Hóa Xanh"
+    row = main.dataset.read_all()[0]
+    assert row["merchant"] == "Bách Hóa Xanh"
+    assert row["ocr_merchant"] == "PHIEU THANH TOAN BACHHóA XANH"      # tên OCR gốc giữ nguyên để dò lỗi
+    assert main.memory.get("PHIEU THANH TOAN BACHHóA XANH") == "groceries"  # lần sau OCR đọc tên cũ vẫn nhận ra
+
+
+def test_analysis_returns_a_formatted_display_name(monkeypatch):
+    monkeypatch.setattr(main, "read_lines", _bill("BACHHóA XANH", "17.447", 0.9))
+    body = _post(_png_bytes()).json()
+    assert body["merchant"] == "BACHHóA XANH"            # tên OCR gốc không đổi
+    assert body["merchant_display"] == "Bách Hóa Xanh"
+
+
+def test_saved_pretty_name_is_shown_next_time_even_when_ocr_loses_accents(monkeypatch):
+    monkeypatch.setattr(main, "read_lines", _bill("THUC.PHAMSACH", "52.000", 0.9))
+    first = _post(_png_bytes()).json()
+    assert first["merchant"] == "THUC.PHAMSACH" and first["merchant_display"] == "Thuc Phamsach"   # chữ dính: chưa tách được
+
+    saved = client.post("/merchant-category", json={
+        "merchant": "Thực Phẩm Sạch", "ocr_merchant": "THUC.PHAMSACH", "category": "groceries"})
+    assert saved.status_code == 200 and saved.json()["merchant"] == "Thực Phẩm Sạch"
+
+    again = _post(_png_bytes()).json()
+    assert again["merchant_display"] == "Thực Phẩm Sạch"                       # tên đẹp bạn đã chốt
+    assert (again["category"], again["category_source"]) == ("groceries", "memory")
+
+
+def test_known_name_is_found_even_when_it_is_not_in_the_header(monkeypatch):
+    client.post("/merchant-category", json={"merchant": "Thực Phẩm Sạch", "category": "groceries"})
+    rows = ["PHIEU GIAO NHAN VA THANH TOAN", "Hoa don so IN042620", "Cam on quy khach", "Mon A 1 20.000 20.000",
+            "Mon B 2 15.000 30.000", "THUC.PHAMSACH", "TONG CONG 50.000", "Tien khach tra 50.000"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in rows])
+    body = _post(_png_bytes()).json()
+    assert body["merchant"] == "THUC.PHAMSACH"
+    assert body["merchant_display"] == "Thực Phẩm Sạch"
+
+
+def test_user_corrected_name_also_remembers_the_ocr_garbled_name(monkeypatch):
+    monkeypatch.setattr(main, "read_lines", _bill("FPTRvtail", "52.000", 0.9))
+    assert _post(_png_bytes()).json()["category"] == "other"
+    r = client.post("/merchant-category", json={
+        "merchant": "Nhà thuốc Long Châu", "ocr_merchant": "FPTRvtail", "category": "healthcare",
+    })
+    assert r.status_code == 200
+    again = _post(_png_bytes()).json()
+    assert (again["category"], again["category_source"]) == ("healthcare", "memory")
+    row = main.dataset.read_all()[0]
+    assert (row["merchant"], row["ocr_merchant"]) == ("Nhà thuốc Long Châu", "FPTRvtail")
+
+
+def test_saving_without_bill_details_still_works_and_invalid_label_not_logged(monkeypatch, tmp_path):
+    from dataset import Dataset
+    from memory import MerchantMemory
+
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
+    assert client.post("/merchant-category", json={"merchant": "A", "category": "dining"}).status_code == 200
+    assert client.post("/merchant-category", json={"merchant": "A", "category": "nope"}).status_code == 400
+    rows = main.dataset.read_all()
+    assert len(rows) == 1 and rows[0]["lines"] == []
+
+
+def test_dataset_is_not_exposed_over_http():
+    assert client.get("/dataset").status_code == 404
+
+
+def test_merchant_category_rejects_bad_input(monkeypatch, tmp_path):
+    from memory import MerchantMemory
+
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    bad_category = client.post("/merchant-category", json={"merchant": "X", "category": "nope"})
+    assert bad_category.status_code == 400 and "error" in bad_category.json()
+    blank = client.post("/merchant-category", json={"merchant": "  ", "category": "dining"})
+    assert blank.status_code == 400 and "error" in blank.json()
+
+
+def test_image_with_text_but_not_a_receipt_is_rejected_with_a_clear_code(monkeypatch):
+    poster = ["SALE 50% OFF", "MUA 1 TANG 1", "Chi tu 199.000d", "Con 99.000d", "Hotline 1900 5555", "www.shop.vn"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in poster])
+    r = _post(_png_bytes())
+    assert r.status_code == 422
+    body = r.json()
+    assert body["code"] == "not_a_receipt" and "không giống hóa đơn" in body["error"]
+
+
+def test_image_without_any_text_says_it_is_not_a_receipt(monkeypatch):
+    def no_text(_):
+        raise NoTextError()
+
+    monkeypatch.setattr(main, "read_lines", no_text)
+    body = _post(_png_bytes()).json()
+    assert body["code"] == "not_a_receipt" and "hóa đơn" in body["error"]
+
+
+def test_borderline_receipt_is_accepted_but_flagged_for_review(monkeypatch):
+    # thực đơn dài có giá lặp nhưng không có nhãn Tổng: điểm đúng ngưỡng 5 => nhận nhưng nhắc kiểm tra
+    menu = ["QUAN A", "Mon 1 35.000", "Mon 2 35.000", "Mon 3 30.000", "Mon 4 45.000", "Mon 5 25.000",
+            "Mon 6 40.000", "Mon 7 20.000", "Mon 8 50.000"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in menu])
+    r = _post(_png_bytes())
+    assert r.status_code == 200
+    assert r.json()["needs_review"] is True and r.json()["receipt_score"] == 5
+
+
+def test_unexpected_error_returns_500(monkeypatch):
+    def boom(_):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(main, "read_lines", boom)
+    r = _post(_png_bytes())
+    assert r.status_code == 500
+    assert "error" in r.json()
+
+
+def test_app_screen_ride_and_order_list_are_read_by_their_templates(monkeypatch):
+    from memory import MerchantMemory
+    from test_app_screens import RIDE, SHOPEE
+    monkeypatch.setattr(main, "memory", MerchantMemory(pathlib.Path(__import__("tempfile").mkdtemp()) / "m.json"))
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in RIDE])
+    ride = _post(_png_bytes()).json()
+    assert ride["screen_type"] == "ride" and ride["total_amount"] == 32000 and ride["category"] == "transport"
+    assert not ride["needs_review"]  # có đủ tên chung và tổng
+
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in SHOPEE])
+    shop = _post(_png_bytes()).json()
+    assert shop["screen_type"] == "order_list" and shop["needs_review"]
+    assert [(o["merchant_display"], o["total_amount"], o["category"]) for o in shop["orders"]] == [
+        ("Furycube Local", 466650, "shopping"), ("Vualotchuot", 90200, "shopping"), ("Buni Furniture Toan Quoc", 1073748, "shopping")]
+    assert shop["incomplete_orders"] == 1
+
+
+def test_saved_shop_category_wins_over_the_shopping_default(monkeypatch, tmp_path):
+    from memory import MerchantMemory
+    from test_app_screens import SHOPEE
+    mem = MerchantMemory(tmp_path / "m.json")
+    mem.set("VUALOTCHUOT", "entertainment", name="VuaLotChuot")
+    monkeypatch.setattr(main, "memory", mem)
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in SHOPEE])
+    orders = _post(_png_bytes()).json()["orders"]
+    assert orders[1]["category"] == "entertainment" and orders[1]["category_source"] == "memory"
+    assert orders[1]["merchant_display"] == "VuaLotChuot"
+
+
+def test_scan_returns_no_ocr_text_and_saves_the_server_side_filtered_lines(monkeypatch, tmp_path):
+    from dataset import Dataset
+    from memory import MerchantMemory
+    rows = ["HIGHLANDS COFFEE", "HOA DON BAN LE", "Khach hang: Nguyen Van A", "DT093.636.6628", "Mon A 1 20.000 20.000", "Mon B 2 15.000 30.000",
+            "STK 1903.4567.8901.23 Techcombank", "Cam on quy khach", "TONG CONG 50.000", "Tien khach tra 50.000"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in rows])
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
+    result = _post(_png_bytes()).json()
+    assert "raw_lines" not in result and result["scan_id"]  # app không nhận chữ OCR, chỉ nhận mã lượt quét
+    assert result["merchant_display"] and result["total_amount"] == 50000
+    # lưu bằng scan_id: server tự lấy lại phần chữ đã lọc, app không phải gửi lại chữ nào
+    client.post("/merchant-category", json={"merchant": "Highlands", "category": "dining", "scan_id": result["scan_id"], "total_amount": 50000})
+    saved = " | ".join(main.dataset.read_all()[0]["lines"])
+    assert "Mon A 1 20.000" in saved and "TONG CONG 50.000" in saved
+    for secret in ("093.636.6628", "Nguyen Van A", "1903.4567"):
+        assert secret not in saved
+
+
+def test_saving_with_an_unknown_scan_id_still_sanitizes_the_lines_sent_instead(monkeypatch, tmp_path):
+    from dataset import Dataset
+    from memory import MerchantMemory
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
+    client.post("/merchant-category", json={"merchant": "Kisnac", "category": "groceries", "scan_id": "khong-co",
+                                            "raw_lines": ["Kisnac", "DT093.636.6628", "TONG 1.000"]})
+    assert main.dataset.read_all()[0]["lines"] == ["Kisnac", "TONG 1.000"]
+
+
+def _ai_bill(monkeypatch, tmp_path, rows):
+    from dataset import Dataset
+    from memory import MerchantMemory
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in rows])
+    monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
+    monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
+
+
+_UNKNOWN_SHOP = ["QUAN LAO WANG", "HOA DON BAN LE", "Mon A 1 20.000 20.000", "Mon B 2 15.000 30.000", "Cam on quy khach", "TONG CONG 50.000", "Tien khach tra 50.000"]
+
+
+def test_ai_is_off_by_default_and_never_called(monkeypatch, tmp_path):
+    import ai_refine
+    _ai_bill(monkeypatch, tmp_path, _UNKNOWN_SHOP)
+    monkeypatch.setattr(ai_refine, "refine", lambda *a, **k: (_ for _ in ()).throw(AssertionError("không được gọi AI")))
+    r = _post(_png_bytes()).json()
+    assert r["category_source"] != "ai" and "ai_status" not in r
+
+
+def test_ai_fixes_category_and_names_when_enabled_and_uncertain(monkeypatch, tmp_path):
+    import ai_refine
+    _ai_bill(monkeypatch, tmp_path, _UNKNOWN_SHOP)
+    sent = {}
+
+    def fake(merchant, items, total):
+        sent.update(merchant=merchant, items=items, total=total)
+        return {"category": "dining", "merchant": "Quán Lão Vương", "items": ["Món A", "Món B"]}
+
+    monkeypatch.setattr(ai_refine, "refine", fake)
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["category"] == "dining" and r["category_source"] == "ai" and r["ai_status"] == "ok"
+    assert r["merchant_display"] == "Quán Lão Vương" and r["items"] == ["Món A", "Món B"]
+    assert r["needs_review"]  # gợi ý của AI vẫn do người dùng xác nhận
+    assert sent["total"] == 50000 and "20.000" in " ".join(sent["items"])  # chỉ gửi chữ: tên, mặt hàng, tổng
+    assert "093" not in str(sent)
+
+
+def test_ai_failure_or_missing_key_keeps_the_local_result(monkeypatch, tmp_path):
+    import ai_refine
+    _ai_bill(monkeypatch, tmp_path, _UNKNOWN_SHOP)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["ai_status"] == "not_configured" and r["category_source"] != "ai" and r["total_amount"] == 50000
+
+    def boom(*a, **k):
+        raise ai_refine.AiFailed("hỏng")
+
+    monkeypatch.setattr(ai_refine, "refine", boom)
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["ai_status"] == "error" and r["total_amount"] == 50000
+
+
+def test_saved_category_is_never_overridden_by_ai(monkeypatch, tmp_path):
+    import ai_refine
+    _ai_bill(monkeypatch, tmp_path, _UNKNOWN_SHOP)
+    main.memory.set("QUAN LAO WANG", "shopping", name="Quán Lão Wang")
+    monkeypatch.setattr(ai_refine, "refine", lambda *a, **k: (_ for _ in ()).throw(AssertionError("bộ nhớ phải thắng")))
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["category"] == "shopping" and r["category_source"] == "memory" and r["merchant_display"] == "Quán Lão Wang"
+
+
+def test_ai_never_invents_a_name_when_none_was_read_and_skips_confident_categories(monkeypatch, tmp_path):
+    import ai_refine
+    rows_no_name = ["HOA DON BAN LE", "Mon A 1 20.000 20.000", "Mon B 2 15.000 30.000", "Cam on quy khach", "TONG CONG 50.000", "Tien khach tra 50.000"]
+    _ai_bill(monkeypatch, tmp_path, rows_no_name)
+    monkeypatch.setattr(ai_refine, "refine", lambda *a, **k: {"category": "dining", "merchant": "KFC", "items": ["Món A"]})
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["category"] == "dining" and "KFC" not in str(r["merchant_display"])  # có thể gợi ý danh mục nhưng không được tự đặt tên
+
+    _ai_bill(monkeypatch, tmp_path, ["KISNAC", *rows_no_name[1:]])  # Kisnac có trong bảng thương hiệu: danh mục đã chắc
+    monkeypatch.setattr(ai_refine, "refine", lambda *a, **k: (_ for _ in ()).throw(AssertionError("không được gọi AI")))
+    r = client.post("/analyze-bill", files={"image": ("a.png", _png_bytes(), "image/png")}, data={"use_ai": "true"}).json()
+    assert r["category"] == "groceries" and r["ai_status"] == "skipped"
+
+
+def test_response_carries_only_filtered_lines_for_the_ai_service(monkeypatch):
+    rows = ["HIGHLANDS COFFEE", "HOA DON BAN LE", "SDT: 0901234567", "Khach hang: Nguyen Van A", "Mon A 1 125.000 125.000",
+            "Cam on quy khach", "TONG CONG 125.000", "Tien khach tra 125.000"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in rows])
+    lines = _post(_png_bytes()).json()["lines"]
+    assert "HIGHLANDS COFFEE" in lines and "TONG CONG 125.000" in lines
+    assert not any("0901234567" in l or "Nguyen Van A" in l for l in lines)  # điện thoại và tên khách không rời OCR service
+
+
+def test_warm_up_loads_the_engines_and_never_raises(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main.ocr, "_engine", lambda: calls.append("paddle"))
+    monkeypatch.setattr(main.ocr, "_use_vietocr", lambda: True)
+    monkeypatch.setattr(main.vietocr_onnx, "_sessions", lambda: calls.append("vietocr"))
+    main.warm_up()
+    assert calls == ["paddle", "vietocr"]
+
+    def boom():
+        raise RuntimeError("không có model")
+
+    monkeypatch.setattr(main.ocr, "_engine", boom)
+    main.warm_up()  # lỗi nạp trước không được làm sập dịch vụ
+
+
+def test_response_carries_the_transaction_date_in_vietnam_time(monkeypatch):
+    rows = ["HIGHLANDS COFFEE", "HOA DON BAN LE", "Ngay11-04-202613:16", "Mon A 1 125.000 125.000", "TONG CONG 125.000", "Tien khach tra 125.000"]
+    monkeypatch.setattr(main, "read_lines", lambda _: [(t, 0.95) for t in rows])
+    assert _post(_png_bytes()).json()["transacted_at"] == "2026-04-11T13:16:00+07:00"
+    monkeypatch.setattr(main, "read_lines", _bill("HIGHLANDS COFFEE", "125.000"))
+    assert _post(_png_bytes()).json()["transacted_at"] is None

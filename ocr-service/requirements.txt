@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+pillow
+numpy
+paddleocr==2.7.3
+paddlepaddle==2.6.2
+onnxruntime
+scikit-learn
+psycopg[binary]
+pytest
+httpx
+

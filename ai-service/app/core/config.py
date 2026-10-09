@@ -21,5 +21,16 @@ class Settings(BaseSettings):
     # pattern đã có. Cùng cách backend chạy ProviderConfigSeeder sau Database.Migrate().
     seed_provider_patterns: bool = True
 
+    # OCR service riêng (PaddleOCR + VietOCR). Đặt cả URL lẫn khóa thì /ocr dùng nó; để trống thì /ocr vẫn dùng
+    # Tesseract trong tiến trình này.
+    ocr_service_url: str | None = None
+    ocr_service_api_key: str | None = None
+    ocr_service_timeout_seconds: float = 30.0
+
+    # Rasa (hiểu ý định câu chat). Để trống thì /chat/parse chỉ dùng luật.
+    rasa_url: str | None = None
+    # Khoản chi chắc chắn dưới mức này (đồng) được đánh dấu auto_save_ok; 0 = không bao giờ.
+    chat_auto_save_below: int = 2_000_000
+
 
 settings = Settings()

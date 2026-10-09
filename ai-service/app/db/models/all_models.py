@@ -1,10 +1,23 @@
 """Import gom mọi ORM model.
 
 Dự án không dùng ``__init__.py`` (namespace package) nên alembic và các script cần một
-điểm import duy nhất để ``Base.metadata`` biết đủ 11 bảng. Thêm model mới thì thêm vào đây.
+điểm import duy nhất để ``Base.metadata`` biết đủ 22 bảng (11 của thông báo ngân hàng + 11 bảng ``bill_*``). Thêm model mới thì thêm vào đây.
 """
 
 from app.db.base import Base
+from app.db.models.bill import (
+    BillBrand,
+    BillEvaluationCategoryMetric,
+    BillEvaluationRun,
+    BillKeyword,
+    BillLabeledSample,
+    BillModelVersion,
+    BillRawSample,
+    BillTrainingJob,
+    BillUnknownScan,
+    BillUserMerchantCategory,
+    BillUserMerchantChoice,
+)
 from app.db.models.evaluation import (
     EvaluationCategoryMetric,
     EvaluationPrediction,
@@ -19,6 +32,17 @@ from app.db.models.user_feedback import FeedbackBatchJob, UserFeedback
 
 __all__ = [
     "Base",
+    "BillBrand",
+    "BillEvaluationCategoryMetric",
+    "BillEvaluationRun",
+    "BillKeyword",
+    "BillLabeledSample",
+    "BillModelVersion",
+    "BillRawSample",
+    "BillTrainingJob",
+    "BillUnknownScan",
+    "BillUserMerchantCategory",
+    "BillUserMerchantChoice",
     "EvaluationCategoryMetric",
     "EvaluationPrediction",
     "EvaluationRun",

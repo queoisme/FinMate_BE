@@ -86,3 +86,48 @@ public record OcrApiResponse(
     [property: JsonPropertyName("extraction")] ExtractionApiResult? Extraction,
     [property: JsonPropertyName("categorization")] CategorizationApiResult? Categorization,
     [property: JsonPropertyName("processing_ms")] int? ProcessingMs);
+
+public record ChatParseApiRequest(
+    [property: JsonPropertyName("text")] string Text,
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash);
+
+public record ChatEntryApiResult(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("merchant")] string? Merchant,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("income_type")] string? IncomeType,
+    [property: JsonPropertyName("auto_save_ok")] bool AutoSaveOk,
+    [property: JsonPropertyName("to_others")] bool ToOthers);
+
+public record ChatQueryApiResult(
+    [property: JsonPropertyName("metric")] string Metric,
+    [property: JsonPropertyName("period_label")] string PeriodLabel,
+    [property: JsonPropertyName("start")] DateTimeOffset Start,
+    [property: JsonPropertyName("end")] DateTimeOffset End,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("income_type")] string? IncomeType);
+
+public record ChatParseApiResponse(
+    [property: JsonPropertyName("intent")] string Intent,
+    [property: JsonPropertyName("reply_text")] string? ReplyText,
+    [property: JsonPropertyName("entry")] ChatEntryApiResult? Entry,
+    [property: JsonPropertyName("query")] ChatQueryApiResult? Query,
+    [property: JsonPropertyName("processing_ms")] int? ProcessingMs);
+
+public record BillClassifyApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("merchant_name")] string? MerchantName,
+    [property: JsonPropertyName("lines")] IReadOnlyList<string> Lines);
+
+public record BillClassifyApiResponse(
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("local_category")] string? LocalCategory,
+    [property: JsonPropertyName("confidence")] double Confidence,
+    [property: JsonPropertyName("source")] string Source);
+
+public record BillLearnApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("merchant_name")] string MerchantName,
+    [property: JsonPropertyName("category_slug")] string CategorySlug);
