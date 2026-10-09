@@ -468,7 +468,7 @@ _PRODUCT_KEYWORDS = {
                   "nuoc ngot", "bia", "xuong ga", "sua bot", "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi",
                   "bot ngot", "bot canh", "bot chien", "mayonnaise", "nuoc cham",
                   # hàng tiêu dùng, thực phẩm tươi/đóng gói thường gặp ở tạp hóa, đại lý
-                  "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai", "nuoc suoi", "ca chua", "xuc xich", "ca basa",
+                  "nuoc suoi", "ca chua", "xuc xich", "ca basa",
                   "banh mi sandwich", "banh mi gon"),
     "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
                    "natri clorid", "thuoc", "amoxicillin", "oresol",
@@ -483,6 +483,7 @@ _PRODUCT_KEYWORDS = {
     # phiếu mua/bán vàng bạc thường không có logo: nhận qua tên hàng
     "shopping": ("vang 9999", "vang 999", "vang 24k", "vang 18k", "nhan tron", "nhan cuoi", "nhan vang", "kim cuong", "vang mieng",
                  # hóa đơn mỹ phẩm không logo (siêu thị/nhà thuốc nhiều dòng khác nên danh mục của họ vẫn thắng)
+                 "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai",  # đồ dùng gia đình tiêu hao là shopping, không phải thực phẩm
                  "sua rua mat", "tay trang", "kem chong nang", "son moi", "mat na", "nuoc hoa",
                  # quần áo, giày dép, túi xách, đồ điện tử nhỏ
                  "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",

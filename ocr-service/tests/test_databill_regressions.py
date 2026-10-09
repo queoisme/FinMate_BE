@@ -386,7 +386,7 @@ def test_transport_places_and_services_are_recognised():
 def test_grocery_shop_names_and_household_goods_are_recognised():
     for name in ("Tạp hóa Bà Tư", "Tiệm tạp hóa Cô Lan", "Cửa hàng thực phẩm sạch", "Chợ đầu mối Bình Điền"):
         assert classify_category_detailed(name, [])[:2] == ("groceries", "keyword"), name
-    assert classify_category_detailed("Cong ty ABC", ["Bột giặt túi 3kg", "307.500", "Bánh mì sandwich", "21.500"])[0] == "groceries"  # "bánh mì sandwich" là bánh đóng gói, không phải quán ăn
+    assert classify_category_detailed("Cong ty ABC", ["Sữa tươi 1L", "307.500", "Bánh mì sandwich", "21.500"])[0] == "groceries"  # "bánh mì sandwich" là bánh đóng gói, không phải quán ăn
     assert classify_category_detailed("Quan an Ba Hai", ["Banh mi thit nguoi", "Ca phe sua da"])[0] == "dining"
 
 

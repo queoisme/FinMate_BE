@@ -120,3 +120,14 @@ def test_greeting_after_the_name_is_not_part_of_the_merchant():
     assert extract_merchant(["NGÔ GIA XIN CHÀO", "Phiếu thanh toán", "22,000đ"]) == "NGÔ GIA"
     assert extract_merchant(["XIN CHÀO QUÝ KHÁCH", "Hóa đơn", "22,000đ"]) is None  # chỉ có lời chào thì để app hỏi
     assert format_merchant_name("NGOGIA") == "Hồng Trà Ngô Gia"
+
+
+def test_household_consumables_are_shopping():
+    # đồ dùng tiêu hao là shopping (quy tắc cũ xếp vào groceries), đi qua đường từ khóa sản phẩm
+    for item in ("Bot giat Omo 3kg", "Nuoc rua chen Sunlight", "Giay ve sinh Pulppy", "Nuoc xa vai Comfort"):
+        assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("shopping", "product"), item
+
+
+def test_food_staples_stay_groceries():
+    for item in ("Gao ST25 5kg", "Sua tuoi Vinamilk 1L"):
+        assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("groceries", "product"), item

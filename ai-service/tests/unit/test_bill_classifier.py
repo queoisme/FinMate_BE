@@ -226,3 +226,14 @@ async def test_learn_needs_a_name_that_makes_a_key(knowledge):
 
 async def test_learn_requires_the_internal_key():
     assert (await learn({"merchant_name": "Highlands Coffee", "category_slug": "food"}, headers=False)).status_code == 401
+
+
+def test_household_consumables_are_shopping():
+    # đồ dùng tiêu hao là shopping (quy tắc cũ xếp vào groceries), đi qua đường từ khóa sản phẩm
+    for item in ("Bot giat Omo 3kg", "Nuoc rua chen Sunlight", "Giay ve sinh Pulppy", "Nuoc xa vai Comfort"):
+        assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("shopping", "product"), item
+
+
+def test_food_staples_stay_groceries():
+    for item in ("Gao ST25 5kg", "Sua tuoi Vinamilk 1L"):
+        assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("groceries", "product"), item
