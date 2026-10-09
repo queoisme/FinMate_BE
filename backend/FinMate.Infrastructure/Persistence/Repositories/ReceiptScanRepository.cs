@@ -46,6 +46,19 @@ public class ReceiptScanRepository : IReceiptScanRepository
         return inserted == 1;
     }
 
+    public async Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)
+    {
+        var groups = await _context.ReceiptScanItems.AsNoTracking()
+            .Where(i => i.ScanId == scanId
+                && _context.ReceiptScans.Any(s => s.Id == scanId && s.UserId == userId)  // lọc theo chủ sở hữu: không đọc món của người khác
+                && i.CategorySource != "discount" && i.CategorySource != "surcharge")
+            .Select(i => i.CategorySlug ?? ReceiptScanLink.UnknownGroup)
+            .Distinct()
+            .Take(2)
+            .CountAsync(ct);
+        return groups >= 2;
+    }
+
     public Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.ReceiptScans.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId, ct);
 }

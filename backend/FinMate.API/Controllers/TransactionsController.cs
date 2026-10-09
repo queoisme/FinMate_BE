@@ -92,7 +92,8 @@ public class TransactionsController : ControllerBase
                 request.Description,
                 request.ClientRequestId,
                 request.Source ?? TransactionSource.Manual,
-                request.ReceiptScanId),
+                request.ReceiptScanId,
+                request.ReceiptGroup),
             ct);
         return Created(result);
     }
@@ -233,7 +234,8 @@ public record CreateManualTransactionRequest(
     string? Description,
     Guid? ClientRequestId = null,
     TransactionSource? Source = null,
-    Guid? ReceiptScanId = null);
+    Guid? ReceiptScanId = null,
+    string? ReceiptGroup = null);
 
 /// <param name="ClientRequestId">
 /// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.

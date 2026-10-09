@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FinMate.API.Controllers;
+using FinMate.Domain.Entities;
+using FinMate.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
 using Xunit;
 
@@ -15,10 +18,12 @@ namespace FinMate.Tests.Integration.Controllers;
 [Collection("Integration")]
 public class ReceiptLearningControllerTests : IClassFixture<AuthApiFactory>
 {
+    private readonly AuthApiFactory _factory;
     private readonly HttpClient _client;
 
     public ReceiptLearningControllerTests(AuthApiFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
@@ -141,5 +146,59 @@ public class ReceiptLearningControllerTests : IClassFixture<AuthApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         FakeAIServiceClient.Learned(merchant).Select(l => l.CategorySlug).Should().Equal("food", "health");
+    }
+
+    /// <summary>Gieo thẳng một lần quét của user (kèm các món) vào DB, trả scanId.</summary>
+    private async Task<Guid> SeedScanAsync(string token, params (string? Slug, string? Source)[] items)
+    {
+        var me = await DataOf(await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/users/me", token)));
+        var userId = me.GetProperty("id").GetGuid();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var scan = new ReceiptScan { Id = Guid.NewGuid(), UserId = userId, OcrResult = "success", AmountCents = 16_000, CreatedAt = DateTimeOffset.UtcNow };
+        db.ReceiptScans.Add(scan);
+        var position = 0;
+        db.ReceiptScanItems.AddRange(items.Select(i => new ReceiptScanItem
+        {
+            ScanId = scan.Id, Position = position++, Name = "Món", AmountCents = i.Source is "discount" ? -1_000 : 5_000, CategorySlug = i.Slug, CategorySource = i.Source,
+        }));
+        await db.SaveChangesAsync();
+        return scan.Id;
+    }
+
+    private async Task<HttpResponseMessage> CreateFromScanAsync(string token, Guid account, Guid category, string merchant, Guid scanId)
+        => await _client.SendAsync(Authed(HttpMethod.Post, "/api/v1/transactions", token, new
+        {
+            financialAccountId = account, categoryId = category, amountCents = 16_000, transactionType = "Debit",
+            transactedAt = DateTimeOffset.UtcNow, merchantName = merchant, description = (string?)null, source = "Receipt", receiptScanId = scanId,
+        }));
+
+    [Fact]
+    public async Task SplitScan_DoesNotTeachMerchantMemory()
+    {
+        const string merchant = "Learn Cafe Split Test";
+        var token = await RegisterAndLoginAsync();
+        var account = await CashAccountAsync(token);
+        var food = await SystemCategoryAsync(token, "food");
+        var scanId = await SeedScanAsync(token, ("food", "model"), ("household", "model"));
+
+        var response = await CreateFromScanAsync(token, account, food, merchant, scanId);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        FakeAIServiceClient.Learned(merchant).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task UnsplitScan_StillTeachesMerchantMemory()
+    {
+        const string merchant = "Learn Cafe Unsplit Test";
+        var token = await RegisterAndLoginAsync();
+        var account = await CashAccountAsync(token);
+        var food = await SystemCategoryAsync(token, "food");
+        var scanId = await SeedScanAsync(token, ("food", "model"), ("food", "model"), (null, "discount"));
+
+        await CreateFromScanAsync(token, account, food, merchant, scanId);
+
+        FakeAIServiceClient.Learned(merchant).Should().ContainSingle();
     }
 }

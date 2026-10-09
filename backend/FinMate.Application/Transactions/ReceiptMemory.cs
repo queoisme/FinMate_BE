@@ -13,8 +13,9 @@ public static class ReceiptMemory
 {
     private const string IncomeSlug = "income";
 
-    public static bool ShouldLearn(TransactionSource source, Category? category, string? merchantName)
-        => source == TransactionSource.Receipt
+    public static bool ShouldLearn(TransactionSource source, Category? category, string? merchantName, bool scanWasSplit)
+        => !scanWasSplit  // cửa hàng bán hai nhóm hàng không thuộc về một danh mục: học sẽ làm hỏng bộ nhớ cửa hàng của người dùng
+           && source == TransactionSource.Receipt
            && !string.IsNullOrWhiteSpace(merchantName)
            && category is { UserId: null } system
            && system.Slug != IncomeSlug;

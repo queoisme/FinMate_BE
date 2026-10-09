@@ -38,9 +38,9 @@ public class ReceiptScanLinkTests
             new CreateManualTransactionCommandValidator());
     }
 
-    private CreateManualTransactionCommand Command(TransactionSource source, Guid? scanId, Guid? clientRequestId = null)
+    private CreateManualTransactionCommand Command(TransactionSource source, Guid? scanId, Guid? clientRequestId = null, string? group = null)
         => new(_userId, _account.Id, _category.Id, 16_000, TransactionType.Debit, DateTimeOffset.UtcNow, "Highlands Coffee", null,
-            clientRequestId, source, scanId);
+            clientRequestId, source, scanId, group);
 
     private void LinkWasCalledWith(Guid transactionId, string group, Times times) => _scans.Verify(
         r => r.LinkToTransactionAsync(_scanId, _userId, transactionId, group, It.IsAny<CancellationToken>()), times);
@@ -109,6 +109,48 @@ public class ReceiptScanLinkTests
         var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, clientRequestId));
 
         created.AlreadyExisted.Should().BeTrue();
+        _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReceiptGroup_IsTrimmedAndUsedAsTheLinkGroup()
+    {
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: "  household "));
+
+        LinkWasCalledWith(created.Transaction.Id, "household", Times.Once());
+    }
+
+    [Fact]
+    public async Task MissingReceiptGroup_FallsBackToTransactionCategory()
+    {
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: null));
+
+        LinkWasCalledWith(created.Transaction.Id, "food", Times.Once());
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("")]
+    public async Task BlankReceiptGroup_FallsBack(string group)
+    {
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: group));
+
+        LinkWasCalledWith(created.Transaction.Id, "food", Times.Once());
+    }
+
+    [Fact]
+    public async Task OversizedReceiptGroup_FallsBackAndNeverThrows()
+    {
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: new string('x', 300)));
+
+        LinkWasCalledWith(created.Transaction.Id, "food", Times.Once());
+    }
+
+    [Fact]
+    public async Task ReceiptGroup_IgnoredWhenSourceIsNotReceipt()
+    {
+        await _handler.HandleAsync(Command(TransactionSource.Manual, _scanId, group: "household"));
+
         _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -25,27 +25,28 @@ public class ReceiptLearningTests
     [InlineData(TransactionSource.Receipt, null, false)]
     [InlineData(TransactionSource.Receipt, "   ", false)]
     public void OnlyReceiptsWithAShopNameAreLearned(TransactionSource source, string? merchant, bool expected)
-        => ReceiptMemory.ShouldLearn(source, System("food"), merchant).Should().Be(expected);
+        => ReceiptMemory.ShouldLearn(source, System("food"), merchant, false).Should().Be(expected);
 
     [Fact]
     public void ACategoryTheUserMadeThemselvesIsNeverSentBecauseTheAiDoesNotKnowItsSlug()
     {
         var mine = new Category { Id = Guid.NewGuid(), Slug = "cafe-cua-toi", Name = "Cà phê của tôi", UserId = Guid.NewGuid() };
 
-        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, mine, "Highlands Coffee").Should().BeFalse();
+        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, mine, "Highlands Coffee", false).Should().BeFalse();
     }
 
     [Fact]
     public void NoCategoryAndIncomeAreNeverLearned()
     {
-        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, null, "Highlands Coffee").Should().BeFalse();
-        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, System("income"), "Highlands Coffee").Should().BeFalse();
+        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, null, "Highlands Coffee", false).Should().BeFalse();
+        ReceiptMemory.ShouldLearn(TransactionSource.Receipt, System("income"), "Highlands Coffee", false).Should().BeFalse();
     }
 
     // ------------------------------------------------------------ lúc lưu
 
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Mock<IAIServiceClient> _ai = new();
+    private readonly Mock<IReceiptScanRepository> _scans = new();
 
     private CreateManualTransactionCommandHandler CreateHandler(Category category, FinancialAccount account)
     {
@@ -59,11 +60,43 @@ public class ReceiptLearningTests
         return new CreateManualTransactionCommandHandler(
             new Mock<ITransactionRepository>().Object, accounts.Object, categories.Object, budget.Object,
             new Mock<IBudgetAlertNotifier>().Object, new Mock<IGamificationService>().Object, _ai.Object,
-            new Mock<IReceiptScanRepository>().Object, new Mock<ICacheService>().Object, new CreateManualTransactionCommandValidator());
+            _scans.Object, new Mock<ICacheService>().Object, new CreateManualTransactionCommandValidator());
     }
 
-    private CreateManualTransactionCommand Create(FinancialAccount account, Category category, TransactionSource source, string? merchant)
-        => new(_userId, account.Id, category.Id, 16_000, TransactionType.Debit, DateTimeOffset.UtcNow, merchant, null, null, source);
+    private CreateManualTransactionCommand Create(
+        FinancialAccount account, Category category, TransactionSource source, string? merchant, Guid? scanId = null)
+        => new(_userId, account.Id, category.Id, 16_000, TransactionType.Debit, DateTimeOffset.UtcNow, merchant, null, null, source, scanId);
+
+    [Fact]
+    public void ASplitScanIsNeverLearned()
+        => ReceiptMemory.ShouldLearn(TransactionSource.Receipt, System("food"), "Co.opmart", scanWasSplit: true).Should().BeFalse();
+
+    [Fact]
+    public async Task SplitScan_DoesNotTeachMerchantMemory()
+    {
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = _userId, BalanceCents = 100_000 };
+        var category = System("food");
+        var scanId = Guid.NewGuid();
+        _scans.Setup(r => r.IsSplitAsync(scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        await CreateHandler(category, account).HandleAsync(Create(account, category, TransactionSource.Receipt, "Co.opmart", scanId));
+
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UnsplitScan_StillTeachesMerchantMemory()
+    {
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = _userId, BalanceCents = 100_000 };
+        var category = System("food");
+        var scanId = Guid.NewGuid();
+        _scans.Setup(r => r.IsSplitAsync(scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        await CreateHandler(category, account).HandleAsync(Create(account, category, TransactionSource.Receipt, "Co.opmart", scanId));
+
+        _ai.Verify(a => a.LearnMerchantAsync(
+            It.Is<LearnMerchantRequest>(r => r.MerchantName == "Co.opmart" && r.CategorySlug == "food"), It.IsAny<CancellationToken>()), Times.Once);
+    }
 
     [Fact]
     public async Task SavingAReceiptExpenseTeachesTheAiTheCategoryTheUserChose()

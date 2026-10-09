@@ -261,6 +261,60 @@ public class ReceiptScanLinkRepositoryTests : IClassFixture<ReceiptScanDbFixture
         items[1].CategorySlug.Should().BeNull();
     }
 
+    // ---- IsSplit ----
+
+    private static ReceiptScanItem Item(int pos, string? slug, string? source = "model")
+        => new() { Position = pos, Name = "Món", AmountCents = source == "discount" ? -1_000 : 5_000, CategorySlug = slug, CategorySource = source };
+
+    [Fact]
+    public async Task IsSplit_TrueForTwoGroupsFalseForOne()
+    {
+        await using var db = _fixture.NewContext();
+        var (user, _) = await SeedUserAsync(db);
+        var repo = new ReceiptScanRepository(db);
+        var two = await SeedScanAsync(db, user);
+        var one = await SeedScanAsync(db, user);
+        var none = await SeedScanAsync(db, user);
+        await repo.AddItemsAsync(two, [Item(0, "food"), Item(1, "household")]);
+        await repo.AddItemsAsync(one, [Item(0, "food"), Item(1, "food")]);
+
+        (await repo.IsSplitAsync(two, user)).Should().BeTrue();
+        (await repo.IsSplitAsync(one, user)).Should().BeFalse();
+        (await repo.IsSplitAsync(none, user)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task IsSplit_FalseForOtherUsersScan()
+    {
+        await using var db = _fixture.NewContext();
+        var (owner, _) = await SeedUserAsync(db);
+        var (other, _) = await SeedUserAsync(db);
+        var repo = new ReceiptScanRepository(db);
+        var scan = await SeedScanAsync(db, owner);
+        await repo.AddItemsAsync(scan, [Item(0, "food"), Item(1, "household")]);
+
+        (await repo.IsSplitAsync(scan, owner)).Should().BeTrue();
+        (await repo.IsSplitAsync(scan, other)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task IsSplit_CountsNullSlugAsUnknownGroupAndIgnoresDiscountRows()
+    {
+        await using var db = _fixture.NewContext();
+        var (user, _) = await SeedUserAsync(db);
+        var repo = new ReceiptScanRepository(db);
+        var foodAndUnknown = await SeedScanAsync(db, user);
+        var foodAndDiscount = await SeedScanAsync(db, user);
+        var foodAndSurcharge = await SeedScanAsync(db, user);
+        await repo.AddItemsAsync(foodAndUnknown, [Item(0, "food"), Item(1, null)]);
+        await repo.AddItemsAsync(foodAndDiscount, [Item(0, "food"), Item(1, null, "discount")]);
+        await repo.AddItemsAsync(foodAndSurcharge, [Item(0, "food"), Item(1, null, "surcharge")]);
+
+        (await repo.IsSplitAsync(foodAndUnknown, user)).Should().BeTrue();
+        (await repo.IsSplitAsync(foodAndDiscount, user)).Should().BeFalse();
+        (await repo.IsSplitAsync(foodAndSurcharge, user)).Should().BeFalse();
+    }
+
     // ---- migration ----
 
     [Fact]

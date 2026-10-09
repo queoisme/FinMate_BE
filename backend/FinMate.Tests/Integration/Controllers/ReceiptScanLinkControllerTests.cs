@@ -90,12 +90,12 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
     }
 
     private async Task<HttpResponseMessage> SaveAsync(
-        string token, Guid account, Guid category, string merchant, string source, Guid? scanId, Guid? clientRequestId = null)
+        string token, Guid account, Guid category, string merchant, string source, Guid? scanId, Guid? clientRequestId = null, string? group = null)
         => await _client.SendAsync(Authed(HttpMethod.Post, "/api/v1/transactions", token, JsonContent.Create(new
         {
             financialAccountId = account, categoryId = category, amountCents = 16_000, transactionType = "Debit",
             transactedAt = DateTimeOffset.UtcNow, merchantName = merchant, description = (string?)null, source,
-            receiptScanId = scanId, clientRequestId,
+            receiptScanId = scanId, clientRequestId, receiptGroup = group,
         })));
 
     private async Task<ReceiptScan> ScanRowAsync(Guid scanId)
@@ -190,7 +190,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task AScanLinksToTheFirstTransactionOnly()
+    public async Task SameGroupSavedTwiceLinksTheFirstTransactionOnly()
     {
         const string merchant = "Link Cafe Twice Test";
         var token = await RegisterAndLoginAsync();
@@ -202,6 +202,128 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
 
         second.StatusCode.Should().Be(HttpStatusCode.Created);  // vẫn lưu: đó là hai khoản chi thật
         (await LinkedTransactionsAsync(scanId)).Should().Equal(first.GetProperty("id").GetGuid());
+    }
+
+    private async Task<List<(Guid Tx, string Group)>> LinkRowsAsync(Guid scanId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var rows = await db.ReceiptScanLinks.AsNoTracking().Where(l => l.ScanId == scanId).ToListAsync();
+        return rows.Select(l => (l.TransactionId, l.GroupCategorySlug)).ToList();
+    }
+
+    [Fact]
+    public async Task SavingTwoGroupsOfOneScan_LinksBothTransactions()
+    {
+        const string merchant = "Link Cafe Two Groups";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var (_, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
+        var scanId = await ScanAsync(token, merchant);
+
+        var a = await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
+        var b = await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "entertainment");
+
+        a.StatusCode.Should().Be(HttpStatusCode.Created);
+        b.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await LinkRowsAsync(scanId)).Should().BeEquivalentTo(new[]
+        {
+            ((await DataOf(a)).GetProperty("id").GetGuid(), "food"),
+            ((await DataOf(b)).GetProperty("id").GetGuid(), "entertainment"),
+        });
+    }
+
+    [Fact]
+    public async Task SavingSameGroupTwice_SecondTransactionIsSavedButNotLinked()
+    {
+        const string merchant = "Link Cafe Double Tap";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+
+        var first = await SaveAsync(token, account, food, merchant, "Receipt", scanId, Guid.NewGuid(), "food");
+        var second = await SaveAsync(token, account, food, merchant, "Receipt", scanId, Guid.NewGuid(), "food");
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Tx.Should().Be((await DataOf(first)).GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task ReplayWithSameClientRequestId_DoesNotLinkAgain()
+    {
+        const string merchant = "Link Cafe Replay Group";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+        var id = Guid.NewGuid();
+
+        await SaveAsync(token, account, food, merchant, "Receipt", scanId, id, "food");
+        var replay = await SaveAsync(token, account, food, merchant, "Receipt", scanId, id, "household");
+
+        replay.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Group.Should().Be("food");
+    }
+
+    [Fact]
+    public async Task MissingReceiptGroup_FallsBackToTransactionCategory()
+    {
+        const string merchant = "Link Cafe No Group";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+
+        await SaveAsync(token, account, food, merchant, "Receipt", scanId);
+
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Group.Should().Be("food");
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("LONG")]
+    public async Task OversizedOrBlankReceiptGroup_FallsBackAndNeverThrows(string group)
+    {
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, "Link Cafe Bad Group " + group.Length);
+
+        var response = await SaveAsync(token, account, food, "Link Cafe Bad Group", "Receipt", scanId, group: group == "LONG" ? new string('x', 300) : group);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Group.Should().Be("food");
+    }
+
+    [Fact]
+    public async Task ReceiptGroup_IgnoredWhenSourceIsNotReceipt()
+    {
+        const string merchant = "Link Cafe Manual Group";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+
+        var response = await SaveAsync(token, account, food, merchant, "Manual", scanId, group: "household");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await LinkRowsAsync(scanId)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TwoGroupsSavedFromOneScan_JoinShowsTwoTransactions()
+    {
+        const string merchant = "Link Cafe Join Test";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var (_, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
+        var scanId = await ScanAsync(token, merchant);
+        await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
+        await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "entertainment");
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var rows = await db.ReceiptScanLinks.AsNoTracking().Where(l => l.ScanId == scanId)
+            .Select(l => new { l.GroupCategorySlug, Chosen = l.Transaction!.Category!.Slug }).ToListAsync();  // scan -> links -> transactions -> category
+
+        rows.Should().BeEquivalentTo(new[] { new { GroupCategorySlug = "food", Chosen = "food" }, new { GroupCategorySlug = "entertainment", Chosen = "entertainment" } });
     }
 
     [Fact]
