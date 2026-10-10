@@ -298,30 +298,62 @@ public class ScanReceiptSplitTests
         dto.Groups!.Select(g => g.CategorySlug).Should().Equal("shopping", "food");
     }
 
+    // Ba món gốc: Dầu gội 50.000 | Cà phê sữa 30.000 | Bút 10.000 = 90.000.
+    private static OcrServiceResponse ThreeItemBill() => MixedBill() with
+    {
+        TotalAmount = 90_000,
+        Items =
+        [
+            new OcrItem("Dầu gội", 50_000, null, false),
+            new OcrItem("Cà phê sữa", 30_000, null, false),
+            new OcrItem("Bút", 10_000, null, false),
+        ],
+    };
+
     [Fact]
     public async Task UnknownItems_ProduceNullSlugGroupAndNeedsReview()
     {
-        ClassifyItemsReturns(r => Classified(r, null, null, "shopping"));
+        OcrReturns(ThreeItemBill());
+        ClassifyItemsReturns(r => Classified(r, "shopping", null, "education"));
 
         var dto = await Handler().HandleAsync(Command());
 
-        dto.Groups!.Select(g => g.CategorySlug).Should().Equal("shopping", null);
+        dto.Groups!.Select(g => g.CategorySlug).Should().Equal("shopping", null, "education");
         _saved.Single().NeedsReview.Should().BeTrue();
-        _savedItems.Single().Items[0].CategorySlug.Should().BeNull();
-        _savedItems.Single().Items[0].CategorySource.Should().Be("unknown");
+        _savedItems.Single().Items[1].CategorySlug.Should().BeNull();
+        _savedItems.Single().Items[1].CategorySource.Should().Be("unknown");
     }
 
     [Fact]
-    public async Task UnknownGroupLargest_TopLevelCategoryIsNull()
+    public async Task LargestGroupUnknown_TopLevelSlugIsLargestKnownGroup()
     {
-        ClassifyItemsReturns(r => Classified(r, "food", "food", null));
+        OcrReturns(ThreeItemBill());
+        ClassifyItemsReturns(r => Classified(r, null, "food", "education"));
 
         var dto = await Handler().HandleAsync(Command());
 
-        dto.Groups![0].CategorySlug.Should().BeNull();
-        dto.CategorySlug.Should().BeNull();
-        _saved.Single().CategorySlug.Should().BeNull();
+        dto.Groups!.Select(g => (g.CategorySlug, g.AmountCents))
+            .Should().Equal(((string?)null, 50_000L), ("food", 30_000L), ("education", 10_000L));
+        dto.AmountCents.Should().Be(90_000);
+        dto.CategorySlug.Should().Be("food");
+        _saved.Single().CategorySlug.Should().Be("food");
         _saved.Single().NeedsReview.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SingleKnownCategoryWithOneUnmatchedItem_FallsBackToOldPathAndMatchesFlagOff()
+    {
+        // Bill một danh mục (food) mà rule sót Dầu gội, kể cả khi món sót là món lớn nhất.
+        ClassifyItemsReturns(r => Classified(r, "food", "food", null));
+        var flagOff = await Handler(enabled: false).HandleAsync(Command());
+        _saved.Clear();
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Should().BeEquivalentTo(flagOff, o => o.Excluding(d => d.ScanId));
+        dto.CategorySlug.Should().Be("food");
+        ShouldBeOldPath(dto, OldPathOfMixedBill);
+        _classifyRequests.Should().ContainSingle();
     }
 
     [Fact]

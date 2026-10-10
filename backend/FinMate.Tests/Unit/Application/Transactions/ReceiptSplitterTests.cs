@@ -111,17 +111,41 @@ public class ReceiptSplitterTests
     }
 
     [Fact]
-    public void Unknown_items_form_one_group_with_null_slug()
+    public void Two_known_groups_plus_unknown_keeps_the_unknown_group()
     {
-        var items = new[] { Item("Bánh", 40_000), Item("Món lạ 1", 10_000), Item("Món lạ 2", 5_000) };
+        var items = new[] { Item("Bánh", 40_000), Item("Món lạ 1", 10_000), Item("Món lạ 2", 5_000), Item("Bút", 8_000) };
+        var classified = new List<ClassifiedItem>
+        {
+            new(0, "food", "rule"), new(1, null, "unknown"), new(2, "beauty", "unknown"), new(3, "education", "rule"),
+        };
+        var groups = ReceiptSplitter.Split(items, classified, 63_000)!;
+
+        groups.Select(g => (g.CategorySlug, g.AmountCents))
+            .Should().Equal(("food", 40_000L), ((string?)null, 15_000L), ("education", 8_000L));
+        groups[1].Items.Select(i => i.Name).Should().Equal("Món lạ 1", "Món lạ 2");
+    }
+
+    [Fact]
+    public void One_known_group_plus_unknown_returns_null()
+    {
+        // Bill một danh mục thật mà rule sót một món: không tách thành "danh mục + chưa rõ", để đường cũ quyết.
+        // Slug kèm nguồn "unknown" cũng không tính là nhóm đã biết.
+        var items = new[] { Item("Bánh", 40_000), Item("Món lạ", 10_000), Item("Kẹo", 5_000) };
         var classified = new List<ClassifiedItem>
         {
             new(0, "food", "rule"), new(1, null, "unknown"), new(2, "beauty", "unknown"),
         };
-        var groups = ReceiptSplitter.Split(items, classified, 55_000)!;
+        ReceiptSplitter.Split(items, classified, 55_000).Should().BeNull();
 
-        groups.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("food", 40_000L), ((string?)null, 15_000L));
-        groups[1].Items.Select(i => i.Name).Should().Equal("Món lạ 1", "Món lạ 2");
+        // Món chưa rõ lớn nhất cũng vậy (bill nhà thuốc 28b8).
+        ReceiptSplitter.Split(items, Classes(null, "health", null), 55_000).Should().BeNull();
+    }
+
+    [Fact]
+    public void Only_unknown_items_returns_null()
+    {
+        var items = new[] { Item("Món lạ 1", 40_000), Item("Món lạ 2", 10_000) };
+        ReceiptSplitter.Split(items, Classes(null, null), 50_000).Should().BeNull();
     }
 
     [Fact]

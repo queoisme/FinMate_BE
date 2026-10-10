@@ -251,8 +251,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             return null;
         }
 
+        // App cũ chỉ đọc slug trên cùng: lấy nhóm lớn nhất CÓ danh mục (Split bảo đảm có ít nhất hai nhóm như vậy).
         var dto = new ScannedReceiptDto(
-            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, groups[0].CategorySlug, confidence,
+            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt,
+            groups.First(g => g.CategorySlug is not null).CategorySlug, confidence,
             Groups: groups);
         var needsReview = ocr.NeedsReview || groups.Any(g => g.CategorySlug is null);
         var scan = await RecordScanAsync(userId, dto, ItemsCategorySource, needsReview, ct);

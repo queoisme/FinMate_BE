@@ -171,6 +171,32 @@ public class ScanReceiptSplitControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task OneKnownCategoryPlusUnknown_ReturnsNoGroupsAndTheOldCategory()
+    {
+        const string merchant = "Split One Known Mart";
+        FakeAIServiceClient.SetBill(merchant, new BillClassifyResponse("food", "dining", 0.8, "brand"));
+        FakeAIServiceClient.ClassifyItemsHandler = r => new ClassifyItemsResponse(
+            r.Items.Select((item, i) => item.Name == "Dầu gội"
+                ? new ClassifiedItem(i, null, "unknown")
+                : new ClassifiedItem(i, "food", "rule")).ToList(), false);
+        var client = ClientWith(Bill(merchant), splitEnabled: true);
+        var token = await RegisterAndLoginAsync(client);
+
+        var data = await ScanAsync(client, token);
+
+        HasNoGroups(data).Should().BeTrue();
+        data.GetProperty("amountCents").GetInt64().Should().Be(82_000);
+        data.GetProperty("categorySlug").GetString().Should().Be("food");
+        SeenFor(merchant).Should().ContainSingle();
+
+        var scanId = data.GetProperty("scanId").GetGuid();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.ReceiptScanItems.AsNoTracking().CountAsync(i => i.ScanId == scanId)).Should().Be(0);
+        (await db.ReceiptScans.AsNoTracking().SingleAsync(s => s.Id == scanId)).CategorySource.Should().Be("brand");
+    }
+
+    [Fact]
     public async Task ConsentIsReadFromTheDatabaseAtEveryScan()
     {
         const string merchant = "Split Consent Mart";

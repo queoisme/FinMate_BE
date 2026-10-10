@@ -14,7 +14,7 @@ public record ReceiptGroup(string? CategorySlug, long AmountCents, IReadOnlyList
 /// <summary>
 /// Tách bill thành các nhóm theo danh mục. BE là nơi cộng tiền, không tin tổng của AI.
 ///
-/// Trả <c>null</c> mỗi khi không chắc: dữ liệu lệch, parent hỏng, nhóm âm, chỉ ra một nhóm, hay tổng các nhóm
+/// Trả <c>null</c> mỗi khi không chắc: dữ liệu lệch, parent hỏng, nhóm âm, dưới 2 nhóm có danh mục, hay tổng các nhóm
 /// không khớp tổng bill tới từng đồng. Null nghĩa là bên gọi quay về đường cũ (một nhóm), nên sai thì im lặng an toàn.
 /// </summary>
 public static class ReceiptSplitter
@@ -109,7 +109,9 @@ public static class ReceiptSplitter
                 bucketOfRoot[root] = bucket;
             }
 
-            if (buckets.Count < 2)
+            // Cần ít nhất 2 nhóm ĐÃ BIẾT danh mục. "Một danh mục + chưa rõ" là bill một danh mục mà rule sót món:
+            // tách ra thì một bill thành hai giao dịch, nên để đường cũ phân loại cả bill.
+            if (buckets.Count(b => b.Slug is not null) < 2)
             {
                 return null;
             }
