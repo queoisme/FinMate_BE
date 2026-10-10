@@ -108,6 +108,8 @@ def _reread_with_vietocr(bgr, box, text: str) -> str:
 
 
 _SLOPE_MIN_WIDTH = 80  # quad hẹp hơn (số lượng, "8%") đo độ dốc không tin được
+_SLOPE_MIN_QUADS = 3  # ít quad rộng hơn thì một quad nhiễu quyết cả trang
+_SLOPE_MAX = 0.2  # ~11 độ; ảnh nghiêng hơn thế thì OCR đã hỏng, đừng chỉnh
 
 
 def _deskew(quads) -> list[tuple[float, float, float, float]]:
@@ -117,7 +119,9 @@ def _deskew(quads) -> list[tuple[float, float, float, float]]:
     quanh trục x=0) và chiều cao lấy theo cạnh trái của quad, không theo hộp bao (hộp bao của chữ nghiêng cao quá).
     Trang phẳng (s = 0) ra đúng hộp bao như cũ. ponytail: một độ dốc cho cả trang; giấy cong thì chưa xử lý."""
     slopes = [(q[1][1] - q[0][1]) / (q[1][0] - q[0][0]) for q in quads if q[1][0] - q[0][0] > _SLOPE_MIN_WIDTH]
-    s = median(slopes) if slopes else 0.0
+    s = median(slopes) if len(slopes) >= _SLOPE_MIN_QUADS else 0.0
+    if abs(s) > _SLOPE_MAX:
+        s = 0.0  # độ dốc sai có thể hoán giá giữa các hàng mà tổng vẫn khớp: không tin thì giữ hộp thẳng trục
     out = []
     for q in quads:
         xs, ys = [p[0] for p in q], [p[1] for p in q]

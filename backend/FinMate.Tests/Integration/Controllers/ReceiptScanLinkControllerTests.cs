@@ -98,6 +98,24 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
             receiptScanId = scanId, clientRequestId, receiptGroup = group,
         })));
 
+    /// <summary>
+    /// Đánh dấu lần quét là đã tách (đúng giá trị đường tách ghi vào receipt_scans.category_source). OCR giả không trả món,
+    /// nên các test lưu nhiều nhóm phải đánh dấu: lần quét không tách chỉ nối dưới một khóa cố định.
+    /// </summary>
+    private async Task MarkSplitAsync(Guid scanId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE receipt_scans SET category_source = {ReceiptScan.ItemsCategorySource} WHERE id = {scanId}");
+    }
+
+    private async Task SetScanSlugAsync(Guid scanId, string slug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE receipt_scans SET category_slug = {slug} WHERE id = {scanId}");
+    }
+
     private async Task<ReceiptScan> ScanRowAsync(Guid scanId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -189,19 +207,56 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         (await LinkedTransactionsAsync(scanId)).Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task SameGroupSavedTwiceLinksTheFirstTransactionOnly()
+    [Theory]
+    [InlineData("food", "food")]
+    [InlineData("food", "entertainment")]
+    public async Task UnsplitScanSavedTwiceLinksTheFirstTransactionOnly(string firstSlug, string secondSlug)
     {
-        const string merchant = "Link Cafe Twice Test";
+        // Lần quét không tách nối dưới MỘT khóa (slug của lần quét), không theo danh mục giao dịch: hai lần Lưu với hai danh mục
+        // khác nhau vẫn chỉ một dòng nối, nên JOIN đo độ chính xác không đếm một lần quét hai lần.
+        var merchant = $"Link Cafe Twice Test {firstSlug} {secondSlug}";
         var token = await RegisterAndLoginAsync();
-        var (account, category) = await AccountAndCategoryAsync(token, "food");
+        var (account, first) = await AccountAndCategoryAsync(token, firstSlug);
+        var (_, second) = await AccountAndCategoryAsync(token, secondSlug);
         var scanId = await ScanAsync(token, merchant);
 
-        var first = await DataOf(await SaveAsync(token, account, category, merchant, "Receipt", scanId));
-        var second = await SaveAsync(token, account, category, merchant, "Receipt", scanId);  // hai lần Lưu cùng một lần quét
+        var saved = await DataOf(await SaveAsync(token, account, first, merchant, "Receipt", scanId));
+        var again = await SaveAsync(token, account, second, merchant, "Receipt", scanId);  // hai lần Lưu cùng một lần quét
 
-        second.StatusCode.Should().Be(HttpStatusCode.Created);  // vẫn lưu: đó là hai khoản chi thật
-        (await LinkedTransactionsAsync(scanId)).Should().Equal(first.GetProperty("id").GetGuid());
+        again.StatusCode.Should().Be(HttpStatusCode.Created);  // vẫn lưu: đó là hai khoản chi thật
+        (await LinkRowsAsync(scanId)).Should().Equal((saved.GetProperty("id").GetGuid(), ReceiptScanLink.UnknownGroup));  // OCR giả: lần quét không có slug
+    }
+
+    [Fact]
+    public async Task ScanRecordedAsSplitWithoutItemRows_DoesNotTeachMerchantMemory()
+    {
+        // Lưu món hỏng lúc quét: không có dòng receipt_scan_items, nhưng category_source = "items" vẫn là lần quét đã tách.
+        const string merchant = "Link Cafe Split No Items";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
+
+        var response = await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        FakeAIServiceClient.Learned(merchant).Should().BeEmpty();
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Group.Should().Be("food");
+    }
+
+    [Fact]
+    public async Task UnsplitScanIgnoresReceiptGroupAndLinksUnderTheScansOwnSlug()
+    {
+        const string merchant = "Link Cafe Unsplit Group";
+        var token = await RegisterAndLoginAsync();
+        var (account, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
+        var scanId = await ScanAsync(token, merchant);
+        await SetScanSlugAsync(scanId, "food");
+
+        var first = await DataOf(await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "household"));
+        await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "group-b");
+
+        (await LinkRowsAsync(scanId)).Should().Equal((first.GetProperty("id").GetGuid(), "food"));
     }
 
     private async Task<List<(Guid Tx, string Group)>> LinkRowsAsync(Guid scanId)
@@ -220,6 +275,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var (_, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
 
         var a = await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
         var b = await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "group-b");  // nhóm khác danh mục: chứng minh receiptGroup đi qua HTTP
@@ -240,6 +296,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var token = await RegisterAndLoginAsync();
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
 
         var first = await SaveAsync(token, account, food, merchant, "Receipt", scanId, Guid.NewGuid(), "food");
         var second = await SaveAsync(token, account, food, merchant, "Receipt", scanId, Guid.NewGuid(), "food");
@@ -256,6 +313,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var token = await RegisterAndLoginAsync();
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
         var id = Guid.NewGuid();
 
         await SaveAsync(token, account, food, merchant, "Receipt", scanId, id, "food");
@@ -266,12 +324,13 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task MissingReceiptGroup_FallsBackToTransactionCategory()
+    public async Task MissingReceiptGroupOnSplitScan_FallsBackToTransactionCategory()
     {
         const string merchant = "Link Cafe No Group";
         var token = await RegisterAndLoginAsync();
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
 
         await SaveAsync(token, account, food, merchant, "Receipt", scanId);
 
@@ -286,6 +345,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var token = await RegisterAndLoginAsync();
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var scanId = await ScanAsync(token, "Link Cafe Bad Group " + group.Length);
+        await MarkSplitAsync(scanId);
 
         var response = await SaveAsync(token, account, food, "Link Cafe Bad Group", "Receipt", scanId, group: group == "LONG" ? new string('x', 300) : group);
 
@@ -315,6 +375,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var (_, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
         await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
         await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "group-b");
 
@@ -388,6 +449,7 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var token = await RegisterAndLoginAsync();
         var (account, food) = await AccountAndCategoryAsync(token, "food");
         var scanId = await ScanAsync(token, merchant);
+        await MarkSplitAsync(scanId);
         var id = Guid.NewGuid();
 
         var response = await SaveAsync(token, account, food, merchant, "Receipt", scanId, id, "fo\u0000od");

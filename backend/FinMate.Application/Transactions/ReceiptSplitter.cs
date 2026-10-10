@@ -15,16 +15,24 @@ public record ReceiptGroup(string? CategorySlug, long AmountCents, IReadOnlyList
 /// Tách bill thành các nhóm theo danh mục. BE là nơi cộng tiền, không tin tổng của AI.
 ///
 /// Trả <c>null</c> mỗi khi không chắc: dữ liệu lệch, parent hỏng, nhóm âm, dưới 2 nhóm có danh mục, hay tổng các nhóm
-/// không khớp tổng bill tới từng đồng. Null nghĩa là bên gọi quay về đường cũ (một nhóm), nên sai thì im lặng an toàn.
+/// không khớp tổng bill tới từng đồng. Null nghĩa là bên gọi quay về đường cũ (phân loại cả bill như trước tính năng này, không có nhóm), nên sai thì im lặng an toàn.
 /// </summary>
 public static class ReceiptSplitter
 {
+    // Từ vựng phụ thu phải chứa mọi từ của _SURCHARGE_RE/_PRE_TAX_RE trong ocr-service/items.py (dòng thuế/phí OCR tách ở
+    // cuối bill); bài kiểm tra Every_ocr_surcharge_term_is_a_surcharge liệt kê chúng. Khác có chủ đích: "thuê" (đi thuê) không tính.
     // Cụm từ phụ thu, so trên tên đã bỏ dấu, chữ thường.
     private static readonly string[] SurchargePhrases =
         ["phi phuc vu", "phi dich vu", "phi giao hang", "phi dong goi", "tui nilon"];
 
     // So nguyên từ trên tên chữ thường còn dấu: "thuê" (đi thuê) không phải "thuế", "vatican" không phải "vat".
     private static readonly HashSet<string> SurchargeWords = ["vat", "thuế", "thue"];
+
+    // "service" khớp cả khi OCR dính chữ ("SERVICECHARGE"), giống ocr-service.
+    private const string ServiceWord = "service";
+
+    // "Tổng tiền chưa thuế", "trước VAT" là dòng cộng tạm, không phải phụ thu.
+    private static readonly HashSet<string> PreTaxWords = ["chua", "truoc"];
 
     public static IReadOnlyList<ReceiptGroup>? Split(IReadOnlyList<OcrItem> items, IReadOnlyList<ClassifiedItem> classified, long total)
     {
@@ -51,15 +59,17 @@ public static class ReceiptSplitter
         }
 
         var lower = item.Name.ToLowerInvariant();
-        var words = Words(lower);
-        if (words.Any(SurchargeWords.Contains))
+        var foldedWords = Words(Fold(lower));
+        if (foldedWords.Any(PreTaxWords.Contains))
         {
-            return true;
+            return false;
         }
 
         // Đệm khoảng trắng hai đầu để cụm từ chỉ khớp trọn từ.
-        var folded = $" {string.Join(' ', Words(Fold(lower)))} ";
-        return SurchargePhrases.Any(p => folded.Contains($" {p} "));
+        var folded = $" {string.Join(' ', foldedWords)} ";
+        return Words(lower).Any(SurchargeWords.Contains)
+            || folded.Contains(ServiceWord, StringComparison.Ordinal)
+            || SurchargePhrases.Any(p => folded.Contains($" {p} "));
     }
 
     private sealed class Bucket(string? slug, int firstIndex)

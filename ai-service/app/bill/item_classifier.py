@@ -5,6 +5,7 @@ Chỉ điều phối, không chạm DB: route nạp sẵn ``instruction``. Khôn
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from app.bill.classifier import _category_from_products, classify_category_detailed
@@ -12,6 +13,14 @@ from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
+
+# Số tiền kiểu 45,000 / 1.250.000 (kèm đ/d/vnd dính trước hoặc sau): ô tên đôi khi dính giá, không được gửi giá ra ngoài.
+_MONEY_RE = re.compile(r"(?<!\w)(?:(?:vnd|đ|d)\s?)?\d{1,3}(?:[.,]\d{3})+(?:\s?(?:vnd|đ|d))?(?!\w)", re.IGNORECASE)
+
+
+def _strip_money(name: str) -> str:
+    return " ".join(_MONEY_RE.sub(" ", name).split())
+
 
 def _merchant_default(merchant: str | None) -> str | None:
     """Nhóm mặc định của THƯƠNG HIỆU (bảng bill_brands), đã đổi sang slug BE.
@@ -36,7 +45,7 @@ async def classify_items(
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
     results: list[tuple[str | None, str] | None] = [None] * len(items)  # (slug, nguồn); None = chưa quyết
 
-    # Bước 2: luật/từ khóa theo đúng tên món. Món thuốc dừng ở đây nên không bao giờ gửi ra ngoài.
+    # Bước 2: luật/từ khóa theo đúng tên món.
     for i, item in enumerate(items):
         if item.parent is None:
             hit = _category_from_products([item.name], None)
@@ -51,12 +60,19 @@ async def classify_items(
             if item.parent is None and results[i] is None:
                 results[i] = (default, "merchant")
 
-    # Bước 4: Gemini cho tối đa 20 món còn lại đầu tiên, chỉ tên.
+    # Bước 4: Gemini cho tối đa 20 món còn lại đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
+    # Hóa đơn thuốc không bao giờ gửi: bỏ qua Gemini nếu cả hóa đơn (cửa hàng + mọi tên món) xếp vào healthcare
+    # hoặc có bất kỳ món nào đã ra health (luật hay nhóm mặc định của thương hiệu).
     ai_used = False
-    pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None][:MAX_NAMES]
-    if pending and allow_ai and instruction.strip() and gemini.available:
+    bill_category, bill_source, _ = classify_category_detailed(merchant, [item.name for item in items])
+    health_bill = (SLUG_BY_LOCAL_CATEGORY.get(bill_category) == "health" and bill_source != "none") or any(
+        r is not None and r[0] == "health" for r in results
+    )
+    clean = {i: _strip_money(item.name) for i, item in enumerate(items)}
+    pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and clean[i]][:MAX_NAMES]
+    if pending and allow_ai and not health_bill and instruction.strip() and gemini.available:
         try:  # GeminiClient tự giới hạn tổng thời gian (8 giây) và khóa mạch khi quá hạn
-            answers = await gemini.classify([items[i].name for i in pending], instruction)
+            answers = await gemini.classify([clean[i] for i in pending], instruction)
         except GeminiFailed:
             answers = None  # món lạ thành unknown; không bao giờ ném lỗi ra cho client
         if answers is not None:

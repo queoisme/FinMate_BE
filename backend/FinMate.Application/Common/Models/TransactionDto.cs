@@ -43,8 +43,8 @@ public record ParsedTransactionDto(
 /// <c>source = Receipt</c>) để nối lần quét với giao dịch. Thêm vào cuối nên client cũ vẫn đọc được; client chưa dùng thì bỏ qua.
 /// </param>
 /// <param name="Groups">
-/// Các nhóm khi bill được tách theo món (lớn nhất trước); null khi không tách. Có nhóm thì <c>AmountCents</c> vẫn là tổng bill
-/// và <c>CategorySlug</c> là nhóm lớn nhất (null nếu nhóm lớn nhất là nhóm chưa rõ), nên client cũ không vỡ.
+/// Các nhóm khi bill được tách theo món (lớn nhất trước); null khi không tách. Chỉ tách khi có từ 2 nhóm có danh mục. Có nhóm thì
+/// <c>AmountCents</c> vẫn là tổng bill và <c>CategorySlug</c> là nhóm CÓ danh mục lớn nhất (không bao giờ null khi tách được), nên client cũ không vỡ.
 /// </param>
 public record ScannedReceiptDto(
     string OcrResult,

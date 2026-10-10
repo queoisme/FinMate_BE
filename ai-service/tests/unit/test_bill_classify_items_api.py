@@ -53,14 +53,20 @@ async def test_api_requires_internal_key():
 
 
 async def test_api_classifies_items():
-    res = await post({"items": [{"name": "Paracetamol", "parent": None}, {"name": "Qwerty", "parent": None},
+    res = await post({"items": [{"name": "Gạo ST25", "parent": None}, {"name": "Qwerty", "parent": None},
                                 {"name": "+ zz", "parent": 1}], "merchant_name": None})
     assert res.status_code == 200
     assert res.json() == {"ai_used": True, "items": [
-        {"index": 0, "category_slug": "health", "source": "rule"},
+        {"index": 0, "category_slug": "food", "source": "rule"},
         {"index": 1, "category_slug": "shopping", "source": "ai"},
         {"index": 2, "category_slug": "shopping", "source": "inherit"},
     ]}
+
+
+async def test_api_health_bill_never_calls_gemini(gemini):
+    res = await post({"items": [{"name": "Paracetamol", "parent": None}, {"name": "Qwerty", "parent": None}],
+                      "merchant_name": None})
+    assert res.status_code == 200 and gemini.calls == [] and res.json()["ai_used"] is False
 
 
 @pytest.mark.parametrize("items", [[], [{"name": "x", "parent": None}] * 61, [{"name": "x" * 201, "parent": None}]])

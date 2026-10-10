@@ -1,6 +1,5 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -49,18 +48,25 @@ public class ReceiptScanRepository : IReceiptScanRepository
 
     public Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)
         // Lọc theo chủ sở hữu: không đọc món của người khác.
-        => HasTwoGroupsAsync(i => i.ScanId == scanId && _context.ReceiptScans.Any(s => s.Id == scanId && s.UserId == userId), ct);
+        => IsAnySplitAsync(_context.ReceiptScans.Where(s => s.Id == scanId && s.UserId == userId), ct);
 
     public Task<bool> IsLinkedToSplitScanAsync(Guid transactionId, Guid userId, CancellationToken ct = default)
-        => HasTwoGroupsAsync(i =>
-            _context.ReceiptScanLinks.Any(l => l.TransactionId == transactionId && l.ScanId == i.ScanId)
-            && _context.ReceiptScans.Any(s => s.Id == i.ScanId && s.UserId == userId), ct);
+        => IsAnySplitAsync(_context.ReceiptScans.Where(s =>
+            s.UserId == userId && _context.ReceiptScanLinks.Any(l => l.TransactionId == transactionId && l.ScanId == s.Id)), ct);
 
-    /// <summary>Điều kiện "tách" dùng chung: từ 2 nhóm khác nhau (slug null = unknown), bỏ dòng giảm giá/phụ thu.</summary>
-    private async Task<bool> HasTwoGroupsAsync(Expression<Func<ReceiptScanItem, bool>> scope, CancellationToken ct)
+    /// <summary>
+    /// Điều kiện "tách" dùng chung: lần quét được ghi nguồn "items" (đường tách ghi vậy, kể cả khi lưu món hỏng), hoặc các món đã lưu
+    /// có từ 2 nhóm khác nhau (slug null = unknown), bỏ dòng giảm giá/phụ thu.
+    /// </summary>
+    private async Task<bool> IsAnySplitAsync(IQueryable<ReceiptScan> scans, CancellationToken ct)
     {
+        if (await scans.AnyAsync(s => s.CategorySource == ReceiptScan.ItemsCategorySource, ct))
+        {
+            return true;
+        }
+
         var groups = await _context.ReceiptScanItems.AsNoTracking()
-            .Where(scope)
+            .Where(i => scans.Any(s => s.Id == i.ScanId))
             .Where(i => i.CategorySource != "discount" && i.CategorySource != "surcharge")
             .Select(i => i.CategorySlug ?? ReceiptScanLink.UnknownGroup)
             .Distinct()

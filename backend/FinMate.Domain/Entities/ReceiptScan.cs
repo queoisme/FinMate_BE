@@ -38,8 +38,11 @@ public class ReceiptScan
     /// <summary>Slug hệ thống AI đoán; null khi AI không nhận ra hoặc không chạy được (không ghi "other" cho có).</summary>
     public string? CategorySlug { get; set; }
 
-    /// <summary>Nhận ra nhờ đâu: memory | brand | keyword | product | model | none. Null khi đi đường cũ (không biết).</summary>
+    /// <summary>Nhận ra nhờ đâu: memory | brand | keyword | product | model | none, hoặc <see cref="ItemsCategorySource"/> khi bill được tách theo món. Null khi đi đường cũ (không biết).</summary>
     public string? CategorySource { get; set; }
+
+    /// <summary>Nguồn ghi cho lần quét đã tách theo món; IsSplit dựa vào nó khi lưu món hỏng.</summary>
+    public const string ItemsCategorySource = "items";
 
     public double? Confidence { get; set; }
 

@@ -315,6 +315,31 @@ public class ReceiptScanLinkRepositoryTests : IClassFixture<ReceiptScanDbFixture
         (await repo.IsSplitAsync(foodAndSurcharge, user)).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task IsSplit_TrueForScanRecordedAsItemsEvenWithoutItemRows()
+    {
+        // AddItemsAsync có thể hỏng sau khi lần quét đã được tách: category_source = "items" vẫn nói lần quét đó đã tách.
+        await using var db = _fixture.NewContext();
+        var (user, account) = await SeedUserAsync(db);
+        var (other, _) = await SeedUserAsync(db);
+        var repo = new ReceiptScanRepository(db);
+        var split = await SeedScanAsync(db, user);
+        var plain = await SeedScanAsync(db, user);
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE receipt_scans SET category_source = 'items' WHERE id = {split}");
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE receipt_scans SET category_source = 'brand' WHERE id = {plain}");
+        var inSplit = await SeedTransactionAsync(db, user, account);
+        var inPlain = await SeedTransactionAsync(db, user, account);
+        await repo.LinkToTransactionAsync(split, user, inSplit, "food");
+        await repo.LinkToTransactionAsync(plain, user, inPlain, "food");
+
+        (await repo.IsSplitAsync(split, user)).Should().BeTrue();
+        (await repo.IsSplitAsync(plain, user)).Should().BeFalse();
+        (await repo.IsSplitAsync(split, other)).Should().BeFalse();
+        (await repo.IsLinkedToSplitScanAsync(inSplit, user)).Should().BeTrue();
+        (await repo.IsLinkedToSplitScanAsync(inPlain, user)).Should().BeFalse();
+        (await repo.IsLinkedToSplitScanAsync(inSplit, other)).Should().BeFalse();
+    }
+
     // ---- IsLinkedToSplitScan ----
 
     [Fact]

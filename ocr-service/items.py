@@ -15,7 +15,9 @@ _HEADER_RE = re.compile(r"\b(?:sl|tong|ten hang|mat hang|don gia|thanh tien|so l
 _SUBTOTAL_RE = re.compile(r"^t[o0-9]ng\b|tong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
 _FINAL_RE = re.compile(r"thanh to[a4]n|phai tra|phai thu|total")  # dòng tổng cuối: hết vùng bill
 _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
-# thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, không phải thuế
+# thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, không phải thuế.
+# Đồng bộ với ReceiptSplitter.IsSurcharge (backend, FinMate.Application/Transactions): thêm từ ở đây thì thêm ở BE và ở
+# ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
 _SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|phi phuc vu|phi dich vu|service")
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng

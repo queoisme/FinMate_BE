@@ -33,6 +33,8 @@ public class ReceiptScanLinkTests
         var budget = new Mock<IBudgetPeriodService>();
         budget.Setup(b => b.ApplyDeltaAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        // Các test dưới đây (trừ khi tự đặt lại) nói về lần quét ĐÃ TÁCH: khóa nối là receiptGroup đã làm sạch.
+        _scans.Setup(r => r.IsSplitAsync(_scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _handler = new CreateManualTransactionCommandHandler(
             _transactions.Object, accounts.Object, categories.Object, budget.Object, new Mock<IBudgetAlertNotifier>().Object,
             new Mock<IGamificationService>().Object, new Mock<IAIServiceClient>().Object, _scans.Object, new Mock<ICacheService>().Object,
@@ -111,6 +113,32 @@ public class ReceiptScanLinkTests
 
         created.AlreadyExisted.Should().BeTrue();
         _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("household")]
+    [InlineData(null)]
+    public async Task UnsplitScan_LinksUnderTheScansOwnSlugIgnoringGroupAndCategory(string? group)
+    {
+        _scans.Setup(r => r.IsSplitAsync(_scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _scans.Setup(r => r.GetByIdAsync(_scanId, _userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ReceiptScan { Id = _scanId, UserId = _userId, CategorySlug = "shopping" });
+
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: group));
+
+        LinkWasCalledWith(created.Transaction.Id, "shopping", Times.Once());
+    }
+
+    [Fact]
+    public async Task UnsplitScanWithoutSlug_LinksTheUnknownGroup()
+    {
+        _scans.Setup(r => r.IsSplitAsync(_scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _scans.Setup(r => r.GetByIdAsync(_scanId, _userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ReceiptScan { Id = _scanId, UserId = _userId, CategorySlug = null });
+
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: "food"));
+
+        LinkWasCalledWith(created.Transaction.Id, ReceiptScanLink.UnknownGroup, Times.Once());
     }
 
     [Fact]

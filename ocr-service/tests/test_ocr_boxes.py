@@ -29,10 +29,8 @@ def test_read_boxes_keeps_x_extent_and_deskews_y(monkeypatch):
     _fake(monkeypatch)
     first = ocr.read_boxes(_png())[0]
     assert (first.text, first.conf) == ("Sua tuoi", 0.9)
-    assert (first.x0, first.x1) == (10, 110)
-    # độ dốc trung vị của hai quad = (0,02 + -0,01)/2 = 0,005; tâm (60, 30) -> 30 - 0,005*60 = 29,7
-    assert abs((first.y0 + first.y1) / 2 - 29.7) < 1e-6
-    assert abs((first.y1 - first.y0) - (2 ** 2 + 18 ** 2) ** 0.5) < 1e-6  # chiều cao lấy theo cạnh quad
+    # chỉ hai quad rộng (< 3): không đủ tin độ dốc, giữ hộp bao thẳng trục như cũ
+    assert (first.x0, first.y0, first.x1, first.y1) == (10, 20, 110, 40)
 
 
 def _quad(x0, x1, top, slope, h=30):
@@ -47,6 +45,16 @@ def _bbox(q):
 
 def test_flat_page_is_unchanged_by_deskew():
     quads = [_quad(50, 400, 100 + 40 * i, 0.0) for i in range(5)] + [_quad(800, 950, 100 + 40 * i, 0.0) for i in range(5)]
+    assert ocr._deskew(quads) == [_bbox(q) for q in quads]
+
+
+def test_deskew_needs_three_wide_quads():
+    quads = [_quad(50, 400, 100, 0.05), _quad(800, 950, 100, 0.05), _quad(50, 100, 140, 0.05)]  # quad thứ ba hẹp
+    assert ocr._deskew(quads) == [_bbox(q) for q in quads]
+
+
+def test_deskew_ignores_a_wild_slope():
+    quads = [_quad(50, 400, 100, 0.9), _quad(50, 400, 600, 0.9), _quad(800, 950, 100, 0.01)]  # trung vị 0,9 > 0,2
     assert ocr._deskew(quads) == [_bbox(q) for q in quads]
 
 

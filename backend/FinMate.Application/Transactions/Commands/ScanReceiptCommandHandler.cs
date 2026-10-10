@@ -40,7 +40,6 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
     private const int MaxItemNameLength = 120;
     private const int MaxSourceLength = 16;
-    private const string ItemsCategorySource = "items";
     private const string UnknownSource = "unknown";
     private const string DiscountSource = "discount";
     private const string SurchargeSource = "surcharge";
@@ -205,9 +204,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         // Đọc thẳng từ DB mỗi lần quét: người dùng vừa tắt đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
         var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.ShareReceiptItemsWithAi ?? false;
 
+        // Cùng giá trị như /bill/classify: tên OCR thô để nhận thương hiệu (tên hiển thị đã sửa có thể làm hỏng nhóm mặc định).
         var request = new ClassifyItemsRequest(
             userId,
-            merchant,
+            ocr.MerchantName ?? ocr.MerchantDisplay,
             regular.Select(i => new ClassifyItemInput(
                 items[i].Name,
                 items[i].Parent is { } parent && regularIndexOf.TryGetValue(parent, out var k) ? k : null)).ToList(),
@@ -257,7 +257,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             groups.First(g => g.CategorySlug is not null).CategorySlug, confidence,
             Groups: groups);
         var needsReview = ocr.NeedsReview || groups.Any(g => g.CategorySlug is null);
-        var scan = await RecordScanAsync(userId, dto, ItemsCategorySource, needsReview, ct);
+        var scan = await RecordScanAsync(userId, dto, ReceiptScan.ItemsCategorySource, needsReview, ct);
 
         // scan vừa tạo trong chính request này, nên AddItemsAsync (không tự kiểm chủ sở hữu) an toàn.
         try

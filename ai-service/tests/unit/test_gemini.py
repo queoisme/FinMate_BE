@@ -208,3 +208,16 @@ async def test_hang_past_overall_limit_raises_and_opens_circuit():
     with pytest.raises(GeminiFailed):
         await c.classify(["b"], "r")
     assert seen == [1]  # lần sau bị khóa mạch, không gọi mạng
+
+
+async def test_failure_log_carries_reason_token_not_names():
+    secret = "TENMONBIMAT"
+    with structlog.testing.capture_logs() as logs:
+        with pytest.raises(GeminiFailed):
+            await _client(lambda r: httpx.Response(500)).classify([secret], "INSTR-BIMAT")
+        with pytest.raises(GeminiFailed):
+            await _client(_echo(["food", "food"])).classify([secret], "INSTR-BIMAT")
+    failed = [entry for entry in logs if entry["event"] == "gemini_failed"]
+    assert [entry["error"] for entry in failed] == ["http_500", "bad_count"]
+    dump = json.dumps(logs, default=str)
+    assert secret not in dump and "INSTR-BIMAT" not in dump

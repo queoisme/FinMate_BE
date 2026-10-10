@@ -83,10 +83,39 @@ async def test_gemini_skipped_when_unavailable_or_no_instruction():
 
 
 async def test_health_items_matched_by_rules_are_never_sent_to_gemini():
+    # Một món thuốc khớp luật => cả hóa đơn không gửi Gemini (món lạ còn lại có thể cũng là thuốc).
     gemini = FakeGemini(lambda n: "other")
     out, _ = await run(items("Paracetamol 500mg", "Thuốc ho Bảo Thanh", "Qwerty"), gemini=gemini)
+    assert gemini.calls == []
+    assert out == [(0, "health", "rule"), (1, "health", "rule"), (2, None, "unknown")]
+
+
+async def test_pharmacy_not_in_brand_table_never_reaches_gemini():
+    gemini = FakeGemini(lambda n: "shopping")
+    out, used = await run(items("Panadol Extra", "Efferalgan 500mg", "V.Rohto"), merchant="Nhà thuốc Minh Châu", gemini=gemini)
+    assert gemini.calls == [] and used is False
+    assert all(o[2] != "ai" for o in out)
+
+
+async def test_grocery_bill_unknown_item_still_reaches_gemini():
+    gemini = FakeGemini(lambda n: "shopping")
+    out, used = await run(items("Gạo ST25", "Qwerty"), merchant="Tạp hóa Cô Ba", gemini=gemini)
+    assert gemini.calls == [["Qwerty"]] and used is True
+    assert out[1] == (1, "shopping", "ai")
+
+
+async def test_money_tokens_are_stripped_before_gemini():
+    gemini = FakeGemini(lambda n: "food")
+    out, _ = await run(items("Qwerty 2 45,000", "Asdf 12.000đ", "Zxcv vnd 1.250.000", "Nuoc 1,500ml"), gemini=gemini)
+    assert gemini.calls == [["Qwerty 2", "Asdf", "Zxcv", "Nuoc 1,500ml"]]
+    assert [o[1] for o in out] == ["food"] * 4
+
+
+async def test_name_empty_after_money_strip_is_not_sent():
+    gemini = FakeGemini(lambda n: "food")
+    out, _ = await run(items("45.000đ", "Qwerty"), gemini=gemini)
     assert gemini.calls == [["Qwerty"]]
-    assert out[:2] == [(0, "health", "rule"), (1, "health", "rule")]
+    assert out == [(0, None, "unknown"), (1, "food", "ai")]
 
 
 async def test_only_unmatched_names_sent_to_gemini_max_20():

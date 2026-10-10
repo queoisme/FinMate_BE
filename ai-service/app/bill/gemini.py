@@ -120,7 +120,8 @@ class GeminiClient:
                     raise GeminiFailed("overall_timeout") from error
             except GeminiFailed as error:
                 self._open_until = self._clock() + CIRCUIT_SECONDS
-                logger.warning("gemini_failed", error=type(error).__name__, count=len(to_send))
+                # args[0] luôn là mã cố định (http_500, bad_count, ReadTimeout...), không bao giờ là tên món/chỉ dẫn/phản hồi
+                logger.warning("gemini_failed", error=error.args[0] if error.args else "unknown", count=len(to_send))
                 raise
             for key, category in zip(send_keys, result):
                 answers[key] = category
@@ -150,6 +151,8 @@ class GeminiClient:
             categories = self._validate(json.loads(text), len(names))
         except GeminiFailed:
             raise
+        except httpx.HTTPStatusError as error:
+            raise GeminiFailed(f"http_{error.response.status_code}") from error
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
             # ValueError gồm cả JSONDecodeError
             raise GeminiFailed(type(error).__name__) from error

@@ -404,7 +404,8 @@ public class ScanReceiptSplitTests
 
         var request = _classifyRequests.Single();
         request.UserId.Should().Be(_userId);
-        request.MerchantName.Should().Be("Circle K");
+        request.MerchantName.Should().Be("CIRCLE K");  // tên OCR thô như /bill/classify (nhận thương hiệu), không phải tên hiển thị
+        dto.MerchantName.Should().Be("Circle K");
         request.Items.Should().Equal(
             new ClassifyItemInput("Trà sữa", null),
             new ClassifyItemInput("Thạch", 0),

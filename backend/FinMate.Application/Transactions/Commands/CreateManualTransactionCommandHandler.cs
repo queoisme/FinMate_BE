@@ -134,18 +134,29 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         var scanWasSplit = false;
         if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
         {
-            // receiptGroup do client gửi chỉ là khóa nối: rỗng hoặc quá 100 ký tự (cột giới hạn 100, vượt là SQL ném), hoặc có ký tự điều khiển (Postgres từ chối NUL) thì dùng slug danh mục đã lưu.
-            var group = command.ReceiptGroup?.Trim();
-            if (string.IsNullOrEmpty(group) || group.Length > 100 || group.Any(char.IsControl))
-            {
-                group = category?.Slug ?? ReceiptScanLink.UnknownGroup;
-            }
-
             // Giao dịch đã lưu rồi: nối/kiểm tra lỗi (mất kết nối, v.v.) không được biến thành 500 để client bấm Lưu lại và tạo trùng.
             try
             {
-                await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
                 scanWasSplit = await _receiptScanRepository.IsSplitAsync(scanId, command.UserId, ct);
+                string group;
+                if (scanWasSplit)
+                {
+                    // receiptGroup do client gửi chỉ là khóa nối: rỗng hoặc quá 100 ký tự (cột giới hạn 100, vượt là SQL ném), hoặc có ký tự điều khiển (Postgres từ chối NUL) thì dùng slug danh mục đã lưu.
+                    group = command.ReceiptGroup?.Trim() ?? string.Empty;
+                    if (group.Length == 0 || group.Length > 100 || group.Any(char.IsControl))
+                    {
+                        group = category?.Slug ?? ReceiptScanLink.UnknownGroup;
+                    }
+                }
+                else
+                {
+                    // Lần quét không tách: một khóa cố định (slug AI đoán cho cả bill), bỏ qua receiptGroup và danh mục người dùng chọn,
+                    // để lưu cùng lần quét hai lần với hai danh mục khác nhau vẫn chỉ nối một giao dịch (phép đo độ chính xác không đếm đôi).
+                    var scan = await _receiptScanRepository.GetByIdAsync(scanId, command.UserId, ct);
+                    group = scan?.CategorySlug ?? ReceiptScanLink.UnknownGroup;
+                }
+
+                await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {

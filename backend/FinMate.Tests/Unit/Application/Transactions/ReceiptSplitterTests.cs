@@ -217,6 +217,34 @@ public class ReceiptSplitterTests
     public void Surcharge_detection(string name, bool expected)
         => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().Be(expected);
 
+    // Mọi từ trong _SURCHARGE_RE của ocr-service/items.py (dòng thuế/phí OCR tách ra ở cuối bill) phải là phụ thu ở BE,
+    // và các dòng "chưa/trước thuế" (_PRE_TAX_RE) không phải. Sửa danh sách bên kia thì sửa cả bài kiểm tra này.
+    [Theory]
+    [InlineData("Thue")]
+    [InlineData("VAT")]
+    [InlineData("Phi phuc vu")]
+    [InlineData("Phi dich vu")]
+    [InlineData("Service charge 5%")]
+    [InlineData("SERVICECHARGE 5%")]
+    [InlineData("Phí service")]
+    public void Every_ocr_surcharge_term_is_a_surcharge(string name)
+        => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().BeTrue();
+
+    [Theory]
+    [InlineData("Tổng tiền chưa thuế")]
+    [InlineData("Tiền hàng trước VAT")]
+    [InlineData("Service chưa VAT")]
+    public void Pre_tax_lines_are_not_surcharges(string name)
+        => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().BeFalse();
+
+    [Fact]
+    public void Service_charge_merges_into_the_largest_group_instead_of_forming_its_own()
+    {
+        var items = new[] { Item("Bánh", 60_000), Item("Sách", 30_000), Item("Service charge 5%", 4_500) };
+        var groups = ReceiptSplitter.Split(items, Classes("food", "education", null), 94_500)!;
+        groups.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("food", 64_500L), ("education", 30_000L));
+    }
+
     [Fact]
     public void Surcharge_detection_ignores_discounts_and_toppings()
     {
