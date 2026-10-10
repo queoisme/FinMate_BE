@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -46,12 +47,21 @@ public class ReceiptScanRepository : IReceiptScanRepository
         return inserted == 1;
     }
 
-    public async Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)
+    public Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)
+        // Lọc theo chủ sở hữu: không đọc món của người khác.
+        => HasTwoGroupsAsync(i => i.ScanId == scanId && _context.ReceiptScans.Any(s => s.Id == scanId && s.UserId == userId), ct);
+
+    public Task<bool> IsLinkedToSplitScanAsync(Guid transactionId, Guid userId, CancellationToken ct = default)
+        => HasTwoGroupsAsync(i =>
+            _context.ReceiptScanLinks.Any(l => l.TransactionId == transactionId && l.ScanId == i.ScanId)
+            && _context.ReceiptScans.Any(s => s.Id == i.ScanId && s.UserId == userId), ct);
+
+    /// <summary>Điều kiện "tách" dùng chung: từ 2 nhóm khác nhau (slug null = unknown), bỏ dòng giảm giá/phụ thu.</summary>
+    private async Task<bool> HasTwoGroupsAsync(Expression<Func<ReceiptScanItem, bool>> scope, CancellationToken ct)
     {
         var groups = await _context.ReceiptScanItems.AsNoTracking()
-            .Where(i => i.ScanId == scanId
-                && _context.ReceiptScans.Any(s => s.Id == scanId && s.UserId == userId)  // lọc theo chủ sở hữu: không đọc món của người khác
-                && i.CategorySource != "discount" && i.CategorySource != "surcharge")
+            .Where(scope)
+            .Where(i => i.CategorySource != "discount" && i.CategorySource != "surcharge")
             .Select(i => i.CategorySlug ?? ReceiptScanLink.UnknownGroup)
             .Distinct()
             .Take(2)

@@ -35,6 +35,7 @@ public class CreateManualTransactionCommandHandlerTests
             _aiServiceClient.Object,
             _receiptScanRepository.Object,
             _cache.Object,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CreateManualTransactionCommandHandler>.Instance,
             new CreateManualTransactionCommandValidator());
     }
 

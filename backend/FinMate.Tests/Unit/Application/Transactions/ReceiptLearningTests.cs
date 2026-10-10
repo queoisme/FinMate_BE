@@ -4,6 +4,7 @@ using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -60,7 +61,8 @@ public class ReceiptLearningTests
         return new CreateManualTransactionCommandHandler(
             new Mock<ITransactionRepository>().Object, accounts.Object, categories.Object, budget.Object,
             new Mock<IBudgetAlertNotifier>().Object, new Mock<IGamificationService>().Object, _ai.Object,
-            _scans.Object, new Mock<ICacheService>().Object, new CreateManualTransactionCommandValidator());
+            _scans.Object, new Mock<ICacheService>().Object, NullLogger<CreateManualTransactionCommandHandler>.Instance,
+            new CreateManualTransactionCommandValidator());
     }
 
     private CreateManualTransactionCommand Create(
@@ -144,7 +146,7 @@ public class ReceiptLearningTests
         var handler = new UpdateTransactionCommandHandler(
             transactions.Object, new Mock<IFinancialAccountRepository>().Object, categories.Object, _ai.Object,
             new Mock<IBudgetPeriodService>().Object, new Mock<IBudgetAlertNotifier>().Object, new Mock<ICacheService>().Object,
-            new UpdateTransactionCommandValidator());
+            _scans.Object, NullLogger<UpdateTransactionCommandHandler>.Instance, new UpdateTransactionCommandValidator());
         return (handler, transaction, account);
     }
 
@@ -184,5 +186,84 @@ public class ReceiptLearningTests
         await handler.HandleAsync(Update(transaction, newCategory));
 
         _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LinkThrowing_StillSavesAndTeachesNothing()
+    {
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = _userId, BalanceCents = 100_000 };
+        var category = System("food");
+        var scanId = Guid.NewGuid();
+        _scans.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var result = await CreateHandler(category, account).HandleAsync(Create(account, category, TransactionSource.Receipt, "Co.opmart", scanId));
+
+        result.AlreadyExisted.Should().BeFalse();
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task IsSplitThrowing_StillSavesAndTeachesNothing()
+    {
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = _userId, BalanceCents = 100_000 };
+        var category = System("food");
+        var scanId = Guid.NewGuid();
+        _scans.Setup(r => r.IsSplitAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var result = await CreateHandler(category, account).HandleAsync(Create(account, category, TransactionSource.Receipt, "Co.opmart", scanId));
+
+        result.AlreadyExisted.Should().BeFalse();
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CorrectingACategoryOfASplitScanTransactionTeachesNothing()
+    {
+        var newCategory = System("entertainment");
+        var (handler, transaction, _) = UpdateSetup(TransactionSource.Receipt, System("food"), newCategory);
+        _scans.Setup(r => r.IsLinkedToSplitScanAsync(transaction.Id, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        await handler.HandleAsync(Update(transaction, newCategory));
+
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CorrectingACategoryOfAnUnsplitScanTransactionStillTeaches()
+    {
+        var newCategory = System("entertainment");
+        var (handler, transaction, _) = UpdateSetup(TransactionSource.Receipt, System("food"), newCategory);
+        _scans.Setup(r => r.IsLinkedToSplitScanAsync(transaction.Id, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        await handler.HandleAsync(Update(transaction, newCategory));
+
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WhenTheSplitLookupFailsTheEditSucceedsAndTeachesNothing()
+    {
+        var newCategory = System("entertainment");
+        var (handler, transaction, _) = UpdateSetup(TransactionSource.Receipt, System("food"), newCategory);
+        _scans.Setup(r => r.IsLinkedToSplitScanAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var dto = await handler.HandleAsync(Update(transaction, newCategory));
+
+        dto.Id.Should().Be(transaction.Id);
+        _ai.Verify(a => a.LearnMerchantAsync(It.IsAny<LearnMerchantRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TheSplitLookupIsSkippedWhenNothingWouldBeLearnedAnyway()
+    {
+        var newCategory = System("entertainment");
+        var (handler, transaction, _) = UpdateSetup(TransactionSource.Manual, System("food"), newCategory);
+
+        await handler.HandleAsync(Update(transaction, newCategory));
+
+        _scans.Verify(r => r.IsLinkedToSplitScanAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

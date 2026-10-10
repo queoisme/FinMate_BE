@@ -30,6 +30,8 @@ public class UpdateTransactionCommandHandlerTests
             _budgetPeriodService.Object,
             _budgetAlertNotifier.Object,
             _cache.Object,
+            new Mock<IReceiptScanRepository>().Object,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<UpdateTransactionCommandHandler>.Instance,
             new UpdateTransactionCommandValidator());
     }
 

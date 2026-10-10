@@ -5,6 +5,7 @@ using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.Transactions.Commands;
 
@@ -17,6 +18,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly ICacheService _cache;
+    private readonly IReceiptScanRepository _receiptScanRepository;
+    private readonly ILogger<UpdateTransactionCommandHandler> _logger;
     private readonly IValidator<UpdateTransactionCommand> _validator;
 
     public UpdateTransactionCommandHandler(
@@ -27,6 +30,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
         ICacheService cache,
+        IReceiptScanRepository receiptScanRepository,
+        ILogger<UpdateTransactionCommandHandler> logger,
         IValidator<UpdateTransactionCommand> validator)
     {
         _transactionRepository = transactionRepository;
@@ -36,6 +41,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
         _cache = cache;
+        _receiptScanRepository = receiptScanRepository;
+        _logger = logger;
         _validator = validator;
     }
 
@@ -171,13 +178,30 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         }
 
         // Sửa danh mục của một khoản chi từ hóa đơn: lựa chọn mới của người dùng thắng gợi ý cũ của AI, và lần quét sau cùng cửa hàng ra đúng nó.
-        if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName, scanWasSplit: false))
+        if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName, scanWasSplit: false)
+            && !await LinkedToSplitScanAsync(transaction.Id, command.UserId, ct))
         {
             await _aiServiceClient.LearnMerchantAsync(
                 new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
         }
 
         return TransactionMapper.ToDto(transaction);
+    }
+
+    /// <summary>
+    /// Giao dịch này đến từ lần quét đã tách nhiều nhóm? Lỗi tra cứu coi như CÓ (không học): bỏ lỡ một bài vô hại, dạy sai thì kéo dài.
+    /// </summary>
+    private async Task<bool> LinkedToSplitScanAsync(Guid transactionId, Guid userId, CancellationToken ct)
+    {
+        try
+        {
+            return await _receiptScanRepository.IsLinkedToSplitScanAsync(transactionId, userId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Split-scan lookup failed while correcting a category: {ExceptionType}", ex.GetType().Name);
+            return true;
+        }
     }
 
     /// <summary>

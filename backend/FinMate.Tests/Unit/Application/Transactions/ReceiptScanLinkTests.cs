@@ -4,6 +4,7 @@ using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -35,7 +36,7 @@ public class ReceiptScanLinkTests
         _handler = new CreateManualTransactionCommandHandler(
             _transactions.Object, accounts.Object, categories.Object, budget.Object, new Mock<IBudgetAlertNotifier>().Object,
             new Mock<IGamificationService>().Object, new Mock<IAIServiceClient>().Object, _scans.Object, new Mock<ICacheService>().Object,
-            new CreateManualTransactionCommandValidator());
+            NullLogger<CreateManualTransactionCommandHandler>.Instance, new CreateManualTransactionCommandValidator());
     }
 
     private CreateManualTransactionCommand Command(TransactionSource source, Guid? scanId, Guid? clientRequestId = null, string? group = null)
@@ -152,5 +153,25 @@ public class ReceiptScanLinkTests
         await _handler.HandleAsync(Command(TransactionSource.Manual, _scanId, group: "household"));
 
         _scans.Verify(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReceiptGroupWithControlCharacter_FallsBack()
+    {
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId, group: "fo\u0000od"));
+
+        LinkWasCalledWith(created.Transaction.Id, "food", Times.Once());
+    }
+
+    [Fact]
+    public async Task LinkThrowing_StillReturnsTheSavedTransaction()
+    {
+        _scans.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var created = await _handler.HandleAsync(Command(TransactionSource.Receipt, _scanId));
+
+        created.AlreadyExisted.Should().BeFalse();
+        _transactions.Verify(r => r.AddAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

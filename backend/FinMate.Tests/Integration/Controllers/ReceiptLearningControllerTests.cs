@@ -201,4 +201,26 @@ public class ReceiptLearningControllerTests : IClassFixture<AuthApiFactory>
 
         FakeAIServiceClient.Learned(merchant).Should().ContainSingle();
     }
+
+    [Fact]
+    public async Task CorrectingASplitScanTransaction_DoesNotTeachMerchantMemory()
+    {
+        const string merchant = "Learn Cafe Patch Split Test";
+        var token = await RegisterAndLoginAsync();
+        var account = await CashAccountAsync(token);
+        var food = await SystemCategoryAsync(token, "food");
+        var health = await SystemCategoryAsync(token, "health");
+        var scanId = await SeedScanAsync(token, ("food", "model"), ("health", "model"));
+        var created = await DataOf(await CreateFromScanAsync(token, account, food, merchant, scanId));
+        FakeAIServiceClient.Learned(merchant).Should().BeEmpty();
+
+        var response = await _client.SendAsync(Authed(HttpMethod.Patch, $"/api/v1/transactions/{created.GetProperty("id").GetGuid()}", token, new
+        {
+            financialAccountId = account, counterAccountId = (Guid?)null, categoryId = health, amountCents = 16_000, transactionType = "Debit",
+            transactedAt = DateTimeOffset.UtcNow, merchantName = merchant, description = (string?)null,
+        }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        FakeAIServiceClient.Learned(merchant).Should().BeEmpty();  // nhóm khác nhau trên một hóa đơn: sửa danh mục cũng không được dạy cửa hàng
+    }
 }

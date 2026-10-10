@@ -222,14 +222,14 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var scanId = await ScanAsync(token, merchant);
 
         var a = await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
-        var b = await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "entertainment");
+        var b = await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "group-b");  // nhóm khác danh mục: chứng minh receiptGroup đi qua HTTP
 
         a.StatusCode.Should().Be(HttpStatusCode.Created);
         b.StatusCode.Should().Be(HttpStatusCode.Created);
         (await LinkRowsAsync(scanId)).Should().BeEquivalentTo(new[]
         {
             ((await DataOf(a)).GetProperty("id").GetGuid(), "food"),
-            ((await DataOf(b)).GetProperty("id").GetGuid(), "entertainment"),
+            ((await DataOf(b)).GetProperty("id").GetGuid(), "group-b"),
         });
     }
 
@@ -316,14 +316,14 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var (_, entertainment) = await AccountAndCategoryAsync(token, "entertainment");
         var scanId = await ScanAsync(token, merchant);
         await SaveAsync(token, account, food, merchant, "Receipt", scanId, group: "food");
-        await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "entertainment");
+        await SaveAsync(token, account, entertainment, merchant, "Receipt", scanId, group: "group-b");
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
         var rows = await db.ReceiptScanLinks.AsNoTracking().Where(l => l.ScanId == scanId)
             .Select(l => new { l.GroupCategorySlug, Chosen = l.Transaction!.Category!.Slug }).ToListAsync();  // scan -> links -> transactions -> category
 
-        rows.Should().BeEquivalentTo(new[] { new { GroupCategorySlug = "food", Chosen = "food" }, new { GroupCategorySlug = "entertainment", Chosen = "entertainment" } });
+        rows.Should().BeEquivalentTo(new[] { new { GroupCategorySlug = "food", Chosen = "food" }, new { GroupCategorySlug = "group-b", Chosen = "entertainment" } });
     }
 
     [Fact]
@@ -379,5 +379,20 @@ public class ReceiptScanLinkControllerTests : IClassFixture<AuthApiFactory>
         var row = await ScanRowAsync(scanId);  // bản ghi bóc tách vẫn còn, chỉ mất dòng nối
         (await LinkedTransactionsAsync(scanId)).Should().BeEmpty();
         row.AmountCents.Should().Be(16_000);
+    }
+
+    [Fact]
+    public async Task ReceiptGroupWithControlCharacter_FallsBackAndTheSaveStillSucceeds()
+    {
+        const string merchant = "Link Cafe Nul Group";
+        var token = await RegisterAndLoginAsync();
+        var (account, food) = await AccountAndCategoryAsync(token, "food");
+        var scanId = await ScanAsync(token, merchant);
+        var id = Guid.NewGuid();
+
+        var response = await SaveAsync(token, account, food, merchant, "Receipt", scanId, id, "fo\u0000od");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);  // Postgres từ chối NUL trong text: không được thành 500 sau khi tiền đã lưu
+        (await LinkRowsAsync(scanId)).Should().ContainSingle().Which.Group.Should().Be("food");
     }
 }

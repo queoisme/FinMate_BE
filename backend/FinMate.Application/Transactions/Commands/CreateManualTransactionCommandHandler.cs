@@ -5,6 +5,7 @@ using FinMate.Domain.Entities;
 using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.Transactions.Commands;
 
@@ -19,6 +20,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ICacheService _cache;
+    private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
 
     public CreateManualTransactionCommandHandler(
@@ -31,6 +33,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IAIServiceClient aiServiceClient,
         IReceiptScanRepository receiptScanRepository,
         ICacheService cache,
+        ILogger<CreateManualTransactionCommandHandler> logger,
         IValidator<CreateManualTransactionCommand> validator)
     {
         _transactionRepository = transactionRepository;
@@ -42,6 +45,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _aiServiceClient = aiServiceClient;
         _receiptScanRepository = receiptScanRepository;
         _cache = cache;
+        _logger = logger;
         _validator = validator;
     }
 
@@ -130,15 +134,25 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         var scanWasSplit = false;
         if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
         {
-            // receiptGroup do client gửi chỉ là khóa nối: rỗng hoặc quá 100 ký tự (cột giới hạn 100, vượt là SQL ném) thì dùng slug danh mục đã lưu.
+            // receiptGroup do client gửi chỉ là khóa nối: rỗng hoặc quá 100 ký tự (cột giới hạn 100, vượt là SQL ném), hoặc có ký tự điều khiển (Postgres từ chối NUL) thì dùng slug danh mục đã lưu.
             var group = command.ReceiptGroup?.Trim();
-            if (string.IsNullOrEmpty(group) || group.Length > 100)
+            if (string.IsNullOrEmpty(group) || group.Length > 100 || group.Any(char.IsControl))
             {
                 group = category?.Slug ?? ReceiptScanLink.UnknownGroup;
             }
 
-            await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
-            scanWasSplit = await _receiptScanRepository.IsSplitAsync(scanId, command.UserId, ct);
+            // Giao dịch đã lưu rồi: nối/kiểm tra lỗi (mất kết nối, v.v.) không được biến thành 500 để client bấm Lưu lại và tạo trùng.
+            try
+            {
+                await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
+                scanWasSplit = await _receiptScanRepository.IsSplitAsync(scanId, command.UserId, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                // Chỉ ghi tên loại lỗi (không ghi message: có thể chứa dữ liệu). Không biết có tách hay không thì KHÔNG học: bỏ lỡ một bài vô hại, dạy sai thì kéo dài.
+                scanWasSplit = true;
+                _logger.LogWarning("Receipt scan link/split check failed after the transaction was saved: {ExceptionType}", ex.GetType().Name);
+            }
         }
 
         // Người dùng đã chọn danh mục cho cửa hàng trên một hóa đơn: nhờ AI Service nhớ cho lần quét sau (best-effort, sau khi đã lưu).

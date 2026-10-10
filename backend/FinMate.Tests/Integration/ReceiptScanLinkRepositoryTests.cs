@@ -315,6 +315,31 @@ public class ReceiptScanLinkRepositoryTests : IClassFixture<ReceiptScanDbFixture
         (await repo.IsSplitAsync(foodAndSurcharge, user)).Should().BeFalse();
     }
 
+    // ---- IsLinkedToSplitScan ----
+
+    [Fact]
+    public async Task IsLinkedToSplitScan_TrueForTwoGroupFalseForOneNoLinkAndOtherUser()
+    {
+        await using var db = _fixture.NewContext();
+        var (user, account) = await SeedUserAsync(db);
+        var (other, _) = await SeedUserAsync(db);
+        var repo = new ReceiptScanRepository(db);
+        var splitScan = await SeedScanAsync(db, user);
+        var plainScan = await SeedScanAsync(db, user);
+        await repo.AddItemsAsync(splitScan, [Item(0, "food"), Item(1, null), Item(2, null, "discount")]);
+        await repo.AddItemsAsync(plainScan, [Item(0, "food"), Item(1, "food"), Item(2, null, "surcharge")]);
+        var inSplit = await SeedTransactionAsync(db, user, account);
+        var inPlain = await SeedTransactionAsync(db, user, account);
+        var unlinked = await SeedTransactionAsync(db, user, account);
+        await repo.LinkToTransactionAsync(splitScan, user, inSplit, "food");
+        await repo.LinkToTransactionAsync(plainScan, user, inPlain, "food");
+
+        (await repo.IsLinkedToSplitScanAsync(inSplit, user)).Should().BeTrue();
+        (await repo.IsLinkedToSplitScanAsync(inPlain, user)).Should().BeFalse();
+        (await repo.IsLinkedToSplitScanAsync(unlinked, user)).Should().BeFalse();
+        (await repo.IsLinkedToSplitScanAsync(inSplit, other)).Should().BeFalse();
+    }
+
     // ---- migration ----
 
     [Fact]
