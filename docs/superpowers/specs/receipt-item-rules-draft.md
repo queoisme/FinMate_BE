@@ -88,7 +88,7 @@ Chỉ dùng đúng các giá trị sau (10 nhóm chi tiêu của BE, bỏ `incom
 ## 4. Dạng kết quả trả về (code, ép bằng schema)
 
 ```json
-{ "items": [ { "index": 0, "category": "food" }, { "index": 1, "category": "shopping" } ] }
+[ { "index": 0, "category": "food" }, { "index": 1, "category": "shopping" } ]
 ```
 
 - Đúng một phần tử cho mỗi món gửi lên, `index` là chỉ số của món trong mảng gửi.

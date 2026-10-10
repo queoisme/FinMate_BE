@@ -1,6 +1,6 @@
 # Thiết kế: tách hóa đơn theo từng món thành nhiều giao dịch
 
-Ngày: 2026-10-09 · Trạng thái: **chờ bạn đọc duyệt** (chưa có kế hoạch triển khai, chưa có code) · Rule Gemini: [receipt-item-rules-draft.md](receipt-item-rules-draft.md)
+Ngày: 2026-10-09 · Trạng thái: **đã triển khai trên nhánh `feat/receipt-item-split`**, chờ merge và chờ duyệt Task 17 (`ARCHITECTURE.md`, `TECH_STACK.md`); cờ `Receipt:SplitByItemsEnabled` mặc định tắt · Rule Gemini: [receipt-item-rules-draft.md](receipt-item-rules-draft.md)
 
 ## 1. Mục tiêu và ràng buộc
 
@@ -36,7 +36,7 @@ App ──ảnh──▶ BE ──ảnh──▶ ocr-service
                           ▼
              BE ◀── items[{name, amount, parent, is_discount}], items_ok, tổng bill
               │
-              │  (items_ok và ≥ 2 món)   tên món + parent + allow_ai
+              │  (items_ok, ≥ 2 món chính thường, không phụ kiện mồ côi)   tên món + parent + allow_ai
               ▼
          ai-service  POST /bill/classify-items
               │  phụ kiện thừa kế → luật DB → nhóm mặc định thương hiệu → Gemini (tên, chỉ khi allow_ai) → unknown
@@ -47,7 +47,9 @@ App ──ảnh──▶ BE ──ảnh──▶ ocr-service
             App: hiện các nhóm  ──Lưu──▶  BE: mỗi nhóm một POST /transactions (receiptScanId + receiptGroup)
 ```
 
-Mọi bước lỗi đều **rơi về đường cũ** (một nhóm, đánh dấu cần xem lại). Quét không bao giờ thất bại vì tính năng này.
+Mọi bước lỗi đều **rơi về đường cũ không đổi**: phân loại cả bill như trước khi có tính năng này, không có `groups`. Quét không thất bại vì tính năng này.
+
+**Cổng vào** (kiểm tra TRƯỚC khi đọc cờ đồng ý trong DB và trước khi gọi ai-service): `items_ok`, có ít nhất 2 hàng **chính** thường (không phải giảm giá/phụ thu, `parent = null`) và không có phụ kiện mồ côi (parent trỏ vào dòng không phải món thường). Bill không qua cổng thì không gửi tên món đi đâu cả.
 
 ## 4. ocr-service: bóc tách từng món
 
@@ -55,13 +57,13 @@ Mọi bước lỗi đều **rơi về đường cũ** (một nhóm, đánh dấ
 
 **Module mới `items.py`:** `extract_items(boxes, total) → {items, items_ok}`.
 
-0. **Chỉnh nghiêng (`ocr._deskew`):** đo độ dốc trang bằng trung vị độ dốc cạnh trên của các quad PaddleOCR rộng hơn 80px, rồi đưa mỗi hộp về trang ngang (giữ x, tâm dọc thành `cy - s·cx`, chiều cao lấy theo cạnh quad). Ảnh chụp lệch không còn làm giá ở mép phải trôi sang hàng của món dưới; kiểm tra tổng không bắt được lỗi đó vì giá vẫn cộng đủ. Trang phẳng giữ nguyên tọa độ.
+0. **Chỉnh nghiêng (`ocr._deskew`):** đo độ dốc trang bằng trung vị độ dốc cạnh trên của các quad PaddleOCR rộng hơn 80px, rồi đưa mỗi hộp về trang ngang (giữ x, tâm dọc thành `cy - s·cx`, chiều cao lấy theo cạnh quad). Ảnh chụp lệch không còn làm giá ở mép phải trôi sang hàng của món dưới; kiểm tra tổng không bắt được lỗi đó vì giá vẫn cộng đủ. Trang phẳng giữ nguyên tọa độ. **Chốt an toàn:** chỉ dùng độ dốc khi có ít nhất 3 quad rộng và |độ dốc| ≤ 0,2; không thì độ dốc = 0 (hộp bao thẳng trục như cũ), vì độ dốc sai có thể hoán giá giữa các hàng mà tổng vẫn khớp.
 1. **Gom hàng ngang:** sắp hộp theo tâm dọc (đã chỉnh nghiêng); hộp lệch dưới 0,6 lần chiều cao hộp trung vị so với hàng đang gom thì cùng hàng.
 2. **Giá:** hộp ngoài cùng bên phải có dạng tiền (`19,000`, `22.000đ`, `-3,000đ`) và nằm ở 35% bên phải tờ giấy. Chữ còn lại bên trái ghép theo thứ tự trái sang phải là tên. Dùng lại `_amounts` của `extract.py` để hai nơi đọc tiền giống nhau.
 3. **Tên xuống dòng:** hàng không có giá nằm ngay trên hàng có giá thì nối vào tên. Hàng chỉ có số nhỏ (cột số lượng) bị bỏ.
 4. **Phụ kiện bắt đầu bằng `+`:** là một món có giá riêng; trường `parent` trỏ tới món chính ngay trên nó.
 5. **Giảm giá:** hàng có số âm hoặc nhãn giảm, chiết khấu, voucher, khuyến mãi. `is_discount = true`.
-6. **Vùng lấy món:** bắt đầu sau dòng tiêu đề cột (`SL`, `Tổng`, `Tên hàng`...) gần nhất phía trên hàng món đầu tiên (hàng có ô tiền đúng dạng có dấu nghìn và không phải dòng tổng; mã KH, điểm, điện thoại ở đầu phiếu không tính). Danh sách món kết thúc ở **dòng cộng tạm** (`Cộng tiền hàng`, `Tạm tính`, `Tiền hàng`, `Tổng...`, `Thành tiền`, hoặc một số in trần đúng bằng tổng các món đang cộng). Sau đó tới **dòng tổng cuối** (`thanh toán`, `phải trả`, `phải thu`, `total`, hoặc `Tổng cộng` sau cộng tạm) chỉ nhận: thuế/VAT/phí phục vụ/phí dịch vụ là **món phụ thu** (`parent = null`, `is_discount = false`, giữ nhãn; "chưa thuế" không tính), số âm hoặc nhãn giảm là **giảm giá cả bill**; các hàng khác (tiền khách đưa, tiền thừa) bỏ. Trong bảng món, ô không phải tiền ở mép phải ("8%", ghi chú tay) bị bỏ qua khi tìm giá.
+6. **Vùng lấy món:** bắt đầu sau dòng tiêu đề cột (`SL`, `Tổng`, `Tên hàng`...) gần nhất phía trên hàng món đầu tiên (hàng có ô tiền đúng dạng có dấu nghìn và không phải dòng tổng; mã KH, điểm, điện thoại ở đầu phiếu không tính). Danh sách món kết thúc ở **dòng cộng tạm** (`Cộng tiền hàng`, `Tạm tính`, `Tiền hàng`, `Tổng...`, `Thành tiền`, hoặc một số in trần đúng bằng tổng các món đang cộng). Sau đó tới **dòng tổng cuối** (`thanh toán`, `phải trả`, `phải thu`, `total`, hoặc `Tổng cộng` sau cộng tạm) chỉ nhận: thuế/VAT/phí phục vụ/phí dịch vụ/`service` ("Service charge") là **món phụ thu** (`parent = null`, `is_discount = false`, giữ nhãn; nhãn có "chưa" hoặc "trước" — "chưa thuế", "trước VAT" — là cộng tạm, không tính). BE (`ReceiptSplitter.IsSurcharge`) nhận đủ các từ này (và thêm phí giao hàng, phí đóng gói, túi nilon); hai danh sách ghi chú trỏ nhau và có test liệt kê từ của ocr-service. Số âm hoặc nhãn giảm là **giảm giá cả bill**; các hàng khác (tiền khách đưa, tiền thừa) bỏ. Trong bảng món, ô không phải tiền ở mép phải ("8%", ghi chú tay) bị bỏ qua khi tìm giá.
 7. **Kiểm tra:** tổng các món + phụ thu - giảm giá phải bằng **đúng từng đồng** tổng bill. Lệch, hoặc dưới 2 món thật (không tính phụ thu và giảm giá), thì `items_ok = false`.
 
 Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên người, địa chỉ, số dài đã bị che).
@@ -76,17 +78,17 @@ Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên ngư
 
 **Endpoint mới** `POST /api/v1/bill/classify-items` (không đổi `/bill/classify`).
 
-- **Nhận:** `{ items: [{name, parent}], merchant?, user_hash, allow_ai }` — không có số tiền.
-- **Trả:** `{ items: [{index, category, source}], ai_used }`, `category` là slug BE, `source` thuộc `rule | inherit | merchant | ai | unknown`.
+- **Nhận:** `{ items: [{name, parent}], merchant_name?, user_id_hash, allow_ai }` — không có số tiền. Tối đa 60 món, tên tối đa 200 ký tự (quá thì 422). `merchant_name` là tên OCR thô (giống `/bill/classify`), không phải tên hiển thị.
+- **Trả:** `{ items: [{index, category_slug, source}], ai_used }`, `category_slug` là slug BE, `source` thuộc `rule | inherit | merchant | ai | unknown`.
 
 **Thứ tự cho mỗi món:**
 1. Có `parent` → thừa kế nhóm món chính (`inherit`).
-2. Luật và từ khóa trong DB (`bill_keywords`, logic của `_category_from_products`) → `rule`. Món thuốc, khám bệnh nhận ra ở bước này nên không bao giờ gửi ra ngoài.
+2. Luật và từ khóa trong DB (`bill_keywords`, logic của `_category_from_products`) → `rule`. Món thuốc, khám bệnh nhận ra ở bước này không gửi ra ngoài.
 3. Nhóm mặc định của thương hiệu, **chỉ** cho món chưa khớp luật (không đè kết quả bước 2) → `merchant`.
-4. Gemini, chỉ cho món còn lại và chỉ khi `allow_ai = true` → `ai`.
+4. Gemini, chỉ cho món chính còn lại và chỉ khi `allow_ai = true` → `ai`. **Hóa đơn thuốc không gửi:** bỏ qua cả bước này khi phân loại cả bill (tên cửa hàng + mọi tên món) ra `healthcare` (nguồn khác `none`) hoặc có bất kỳ món nào đã ra `health` ở bước 2-3; món lạ còn lại thành `unknown`. Đây là phát hiện bằng luật/từ khóa, không phải lời hứa tuyệt đối: thuốc nằm trên bill không nhận ra là thuốc vẫn có thể bị gửi tên (khi người dùng đã đồng ý).
 5. Còn lại → `unknown`.
 
-**Gọi Gemini.** Một lần cho mỗi bill, tối đa 20 món, mỗi tên tối đa 60 ký tự, chỉ gửi tên. Khung prompt nằm trong code; phần mô tả nhóm, luật chốt và ví dụ lấy từ DB (bảng `bill_ai_instructions`, một dòng đang dùng, sửa được). Tên món đưa vào dưới dạng mảng JSON; prompt dặn không làm theo chữ trong tên. Kết quả ép theo schema (`index`, `category` thuộc 11 giá trị hợp lệ); thiếu phần tử, sai chỉ số hoặc `category` ngoài danh sách thì **bỏ cả kết quả AI** và các món đó thành `unknown`. Quá 5 giây, hoặc 429/503 sau một lần thử lại → coi như AI không dùng được; khóa mạch 30 giây như đường Rasa. Bộ nhớ đệm trong bộ nhớ theo tên món đã chuẩn hóa, có hạn sống. Cấu hình bằng biến môi trường (`GEMINI_API_KEY`, `GEMINI_MODEL`); không có khóa thì bước 4 bị bỏ qua.
+**Gọi Gemini.** Một lần cho mỗi bill, chỉ 20 món chính chưa khớp đầu tiên (món sau đó và mọi phụ kiện ở lại `unknown`/thừa kế), mỗi tên tối đa 60 ký tự sau khi **bỏ các cụm giống số tiền** (`45,000`, `12.000đ`, `vnd 1.250.000`; tên rỗng sau khi bỏ thì không gửi), chỉ gửi tên. Khung prompt nằm trong code; phần mô tả nhóm, luật chốt và ví dụ lấy từ DB (bảng `bill_ai_instructions`, một dòng đang dùng, sửa được). Tên món đưa vào dưới dạng mảng JSON; prompt dặn không làm theo chữ trong tên. Kết quả ép theo schema (`index`, `category` thuộc 11 giá trị hợp lệ); thiếu phần tử, sai chỉ số hoặc `category` ngoài danh sách thì **bỏ cả kết quả AI** và các món đó thành `unknown`. Quá 5 giây cho mỗi pha HTTP (kết nối, đọc...) cộng trần 8 giây cho cả lần gọi (gồm lần thử lại), hoặc 429/503 sau một lần thử lại → coi như AI không dùng được (log chỉ ghi mã lý do như `http_500`, `bad_count`, không ghi tên món); khóa mạch 30 giây như đường Rasa. Bộ nhớ đệm trong bộ nhớ theo tên món đã chuẩn hóa, có hạn sống. Cấu hình bằng biến môi trường (`GEMINI_API_KEY`, `GEMINI_MODEL`); không có khóa thì bước 4 bị bỏ qua.
 
 **Điều kiện dùng Gemini.** Dùng bản trả phí hoặc Vertex AI, không dùng bản miễn phí (cần đọc lại điều khoản hiện hành trước khi dùng thật). Người dùng phải đồng ý (cờ ở mục 6).
 
@@ -100,11 +102,11 @@ Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên ngư
 - `OcrServiceResponse` thêm `Items` và `ItemsOk`.
 - `ScanReceiptCommandHandler`: nếu `ItemsOk` và có từ 2 món, gọi `ClassifyItemsAsync`, rồi **tính tiền** (BE là nơi cộng, không tin tổng của AI):
   - Món cùng nhóm cộng lại. Giảm giá dính ngay dưới một món tính cho nhóm món đó; giảm giá chung chia theo tỷ lệ tiền (món có giá lớn nhất nhận phần dư làm tròn để tổng khớp).
-  - Phụ phí gộp vào nhóm lớn nhất.
-  - Món `unknown` gom vào một nhóm `categorySlug = null` và đánh dấu cần xem lại.
-  - Tổng các nhóm phải bằng tổng bill, lệch thì rơi về đường cũ.
-- `ScannedReceiptDto` thêm `groups: [{categorySlug, amountCents, items: [{name, amountCents}]}]`. Các trường cũ giữ nguyên: `amountCents` là tổng bill, `categorySlug` là nhóm lớn nhất, nên app cũ không vỡ.
-- `POST /transactions` thêm `receiptGroup` (slug nhóm AI đề xuất) đi cùng `receiptScanId`. App tách bill gọi hai lần, mỗi lần một nhóm, mỗi lần một `clientRequestId` (gọi lại an toàn nhờ cơ chế đã có).
+  - Phần dư làm tròn và phụ phí gộp vào nhóm lớn nhất **tính theo tiền gốc** (trước giảm giá; bằng nhau thì nhóm xuất hiện trước).
+  - Chỉ tách khi có **từ 2 nhóm có danh mục**; khi đó món `unknown` gom vào một nhóm `categorySlug = null` (cần xem lại). Dưới 2 nhóm có danh mục thì đường cũ.
+  - Tổng các nhóm phải bằng tổng bill, lệch (hoặc nhóm 0đ/âm) thì rơi về đường cũ.
+- `ScannedReceiptDto` thêm `groups: [{categorySlug, amountCents, items: [{name, amountCents}]}]`. Các trường cũ giữ nguyên: `amountCents` là tổng bill, `categorySlug` là nhóm **có danh mục** lớn nhất (không bao giờ null khi tách được), nên app cũ không vỡ.
+- `POST /transactions` thêm `receiptGroup` (slug nhóm AI đề xuất) đi cùng `receiptScanId`. App tách bill gọi mỗi nhóm một lần, mỗi nhóm một `clientRequestId` **cố định** (uuid v5 của `scanId:nhóm`, uuid v4 khi không có `scanId`), nên mở lại màn rà soát và lưu lại không tạo trùng (gọi lại an toàn nhờ cơ chế đã có).
 - Cờ đồng ý chia sẻ với AI: một cột mới trên hồ sơ người dùng, mặc định tắt, đổi qua `PATCH /users/me`. BE đọc cờ này rồi gửi `allow_ai`.
 
 ### Cấu hình bật tắt
@@ -113,7 +115,7 @@ Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên ngư
 ### DB (EF, chỉ thêm, không sửa bảng lõi)
 - **`receipt_scan_items`:** `scan_id` (FK, xóa lần quét thì xóa món), `position`, `name`, `amount_cents`, `category_slug` (null được), `category_source`, `parent_position`. Không có chữ OCR.
 - **`receipt_scan_links`** thay cột `receipt_scans.transaction_id` của Phase 23: `transaction_id` là khóa chính (một giao dịch tối đa một lần quét), `scan_id`, `group_category_slug`, và duy nhất `(scan_id, group_category_slug)` để mỗi nhóm của một lần quét chỉ nối một giao dịch. Xóa hẳn giao dịch thì chỉ gỡ liên kết (`ON DELETE CASCADE` trên bảng nối giữ nguyên ý nghĩa SET NULL cũ). Migration **chép** các liên kết cũ sang bảng mới (nhóm = `category_slug` của lần quét), sau đó bỏ cột cũ và chỉ mục `uq_receipt_scans_transaction_id`.
-- `LinkToTransactionAsync` giữ nguyên chữ ký, ghi vào bảng nối; mã sai, của người khác, hoặc nhóm đã nối thì bỏ qua (giao dịch vẫn lưu), như cũ.
+- `LinkToTransactionAsync` thêm tham số `groupCategorySlug`, ghi vào bảng nối; mã sai, của người khác, hoặc nhóm đã nối thì bỏ qua (giao dịch vẫn lưu), như cũ. Khóa nối: lần quét **đã tách** (có từ 2 nhóm trong `receipt_scan_items`, hoặc `receipt_scans.category_source = "items"`) dùng `receiptGroup` đã làm sạch (rỗng, > 100 ký tự hay có ký tự điều khiển thì dùng slug danh mục đã lưu); lần quét **không tách** luôn nối dưới một khóa cố định = `category_slug` của lần quét (`unknown` khi null), bỏ qua `receiptGroup` và danh mục giao dịch, nên một lần quét không tách nối tối đa một giao dịch như cột cũ.
 
 ### Học
 Bill đã tách từ 2 nhóm trở lên **không dạy bộ nhớ cửa hàng** (cửa hàng đó không thuộc một nhóm). `ReceiptMemory.ShouldLearn` thêm điều kiện này.
@@ -125,17 +127,18 @@ Hiện các nhóm (tên nhóm, số tiền, danh sách món) trên màn rà soá
 
 | Tình huống | Kết quả |
 |---|---|
-| `items_ok = false` hoặc dưới 2 món | Đường cũ: một nhóm, cần xem lại |
-| Tổng các nhóm lệch tổng bill | Đường cũ |
-| Gemini lỗi, quá hạn, hoặc trả sai schema | Món lạ thành `unknown`, cần xem lại |
-| Người dùng chưa đồng ý chia sẻ | Không gọi Gemini, món lạ thành `unknown` |
-| ai-service không trả lời | Mọi món `unknown` (hoặc đường cũ), quét vẫn thành công |
+| `items_ok = false`, dưới 2 món chính thường, hoặc có phụ kiện mồ côi | Đường cũ không đổi (không gọi ai-service) |
+| Tổng các nhóm lệch tổng bill, nhóm 0đ/âm | Đường cũ |
+| Dưới 2 nhóm có danh mục | Đường cũ |
+| Gemini lỗi, quá hạn, hoặc trả sai schema | Món lạ thành `unknown`; còn từ 2 nhóm có danh mục thì vẫn tách, không thì đường cũ |
+| Người dùng chưa đồng ý chia sẻ, hoặc hóa đơn thuốc | Không gọi Gemini; như dòng trên |
+| ai-service lỗi hoặc không trả lời | Đường cũ, quét vẫn thành công |
 | Lưu nhóm đầu được, nhóm sau lỗi | App gọi lại nhóm sau, an toàn nhờ `clientRequestId` |
 
 ## 9. Kiểm thử
 
 - **ocr-service:** test `items.py` với hộp tọa độ lấy từ bill thật (Ngô Gia và vài bill khác: tên xuống dòng, phụ kiện, giảm giá); script đo tỷ lệ tổng khớp trên 30 bill chuẩn; test chữ ký `read_lines` không đổi.
-- **ai-service:** thứ tự luật (inherit, rule, merchant, ai, unknown); Gemini giả trả sai schema thì bị bỏ; chuỗi cố tình chèn lệnh trong tên món; món thuốc không bao giờ ra ngoài; `allow_ai = false` thì không gọi; khóa mạch; luật `bill_keywords` đã chuyển nhóm; `alembic check` sạch.
+- **ai-service:** thứ tự luật (inherit, rule, merchant, ai, unknown); Gemini giả trả sai schema thì bị bỏ; chuỗi cố tình chèn lệnh trong tên món; hóa đơn thuốc (cả nhà thuốc không có trong bảng thương hiệu) không gọi Gemini; cụm số tiền bị bỏ khỏi tên; `allow_ai = false` thì không gọi; khóa mạch; luật `bill_keywords` đã chuyển nhóm; `alembic check` sạch.
 - **BE:** gom nhóm, chia giảm giá và phần dư làm tròn, gộp phụ phí, chặn tổng lệch; quét rồi lưu hai giao dịch trên Postgres thật; nhóm trùng bị chặn (23505); xóa hẳn giao dịch chỉ gỡ liên kết; migration chép đúng dữ liệu cũ; bill tách nhóm không dạy bộ nhớ cửa hàng; cờ `SplitByItemsEnabled` tắt thì hành vi y hệt hiện tại.
 - **App:** hiện các nhóm, lưu nhiều giao dịch, app cũ vẫn chạy với phản hồi mới.
 - **Chạy thật trên `docker compose`:** quét bill Ngô Gia (một nhóm) và một bill nhiều nhóm, JOIN `receipt_scan_items` với giao dịch đã lưu.
