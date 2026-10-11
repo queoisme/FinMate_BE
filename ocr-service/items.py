@@ -21,6 +21,8 @@ _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 # ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
 _SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|phi phuc vu|phi dich vu|service")
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
+# dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
+_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the|khach dua|tien thua|tra lai|thanh toan|diem")
 _TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
@@ -94,7 +96,9 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     first_priced = next((i for i in range(len(raw)) if money_row(i)), None)
     if first_priced is None:  # bill in giá không dấu nghìn ("30000"): giữ luật cũ, hàng có giá đầu tiên bất kỳ
         first_priced = next((i for i, r in enumerate(raw) if _price(r, price_x)), len(raw))
-    start = next((i + 1 for i in reversed(range(first_priced)) if _HEADER_RE.search(texts[i])), None)
+    # hàng có tiền ở cột giá ("Tổng cộng 50,000") là dòng tổng, không phải tiêu đề cột
+    start = next((i + 1 for i in reversed(range(first_priced))
+                  if _HEADER_RE.search(texts[i]) and _price(raw[i], price_x) is None), None)
     headerless = start is None
     if headerless:
         start = first_priced
@@ -129,6 +133,8 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
         cells = r if p is None else r[:next(k for k, b in enumerate(r) if b is p[0])]  # ô bên phải giá không thuộc tên
         words = [b.text for b in cells if not _NUMERIC_RE.match(b.text)]
         own = " ".join(words).strip()
+        if _PAYMENT_RE.search(_norm(own)):
+            break  # tiền khách trả không phải món; không khép bảng (closed giữ nguyên)
         if p is not None and not own and not pending and count >= 2 and p[1] == sum(i.amount for i in items):
             tail = closed = True  # số trần bằng đúng tổng đang cộng: dòng cộng tiền hàng in tách khỏi nhãn của nó
             continue

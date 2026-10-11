@@ -279,3 +279,56 @@ def test_no_header_without_subtotal_or_total_label_sets_ok_false():
     # không tiêu đề thì bảng món phải khép bằng dòng cộng/tổng; tổng trùng hợp không đủ
     boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) + row(240, ("Trà đào", 50, 250), ("20,000", 800, 950))
     assert extract_items(boxes, 50000).ok is False
+
+
+def test_headerless_payment_lines_are_not_items():
+    # tên món không có giá đọc được; hai dòng trả tiền cộng đúng tổng không được thành danh sách món
+    boxes = row(200, ("Trà sữa", 50, 250)) + row(240, ("Trà đào", 50, 250)) \
+        + row(280, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(320, ("Chuyển khoản", 50, 300), ("20,000", 800, 950)) \
+        + row(360, ("Tổng thanh toán", 50, 300), ("50,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False
+
+
+def test_headerless_payment_lines_in_right_column_with_prices_in_middle():
+    boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 450, 550)) + row(240, ("Trà đào", 50, 250), ("20,000", 450, 550)) \
+        + row(280, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(320, ("Chuyển khoản", 50, 300), ("20,000", 800, 950)) \
+        + row(360, ("Tổng thanh toán", 50, 300), ("50,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False
+
+
+def test_priced_total_row_is_not_a_column_header():
+    boxes = row(200, ("Trà sữa", 50, 250), ("30000", 800, 950)) + row(240, ("Trà đào", 50, 250), ("20000", 800, 950)) \
+        + row(280, ("Tổng cộng", 50, 250), ("50,000", 800, 950)) \
+        + row(320, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(360, ("Chuyển khoản", 50, 300), ("20,000", 800, 950)) \
+        + row(400, ("Đã thanh toán", 50, 300), ("50,000", 800, 950))
+    r = extract_items(boxes, 50000)
+    assert not (r.ok and any("Tiền mặt" in i.name or "Chuyển khoản" in i.name for i in r.items))
+
+
+def test_card_payment_after_bare_total_header_is_not_an_item():
+    boxes = row(160, ("Tổng", 800, 900)) + row(200, ("Trà sữa", 50, 250)) \
+        + row(240, ("Thẻ", 50, 150), ("20,000", 800, 950)) + row(280, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(320, ("Tổng cộng", 50, 250), ("50,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False
+
+
+def test_headerless_sl_footer_then_payments_closed_by_total_sets_ok_false():
+    boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) \
+        + row(240, ("Trà đào", 50, 250), ("20,000", 800, 950)) \
+        + row(280, ("SL: 2", 50, 200)) \
+        + row(320, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
+        + row(360, ("Chuyển khoản", 50, 300), ("20,000", 800, 950)) \
+        + row(400, ("Tổng tiền", 50, 250), ("50,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False
+
+
+def test_fee_including_vat_before_subtotal_is_an_item_not_a_surcharge():
+    boxes = HEADER + row(200, ("Cà phê", 50, 300), ("30,000", 800, 950)) \
+        + row(240, ("Bánh", 50, 300), ("20,000", 800, 950)) + row(280, ("Tạm tính", 50, 300), ("50,000", 800, 950)) \
+        + row(320, ("Gồm VAT 8%", 50, 300), ("4,000", 800, 950)) \
+        + row(360, ("Tổng cộng", 50, 300), ("50,000", 800, 950))
+    r = extract_items(boxes, 50000)
+    assert r.ok is True and [i.name for i in r.items] == ["Cà phê", "Bánh"]

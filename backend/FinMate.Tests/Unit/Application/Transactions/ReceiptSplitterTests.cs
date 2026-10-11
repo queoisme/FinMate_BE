@@ -227,6 +227,8 @@ public class ReceiptSplitterTests
     [InlineData("Service charge 5%")]
     [InlineData("SERVICECHARGE 5%")]
     [InlineData("Phí service")]
+    [InlineData("Thuế VAT 8%")]
+    [InlineData("Phí phục vụ 5%")]
     public void Every_ocr_surcharge_term_is_a_surcharge(string name)
         => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().BeTrue();
 
@@ -234,6 +236,9 @@ public class ReceiptSplitterTests
     [InlineData("Tổng tiền chưa thuế")]
     [InlineData("Tiền hàng trước VAT")]
     [InlineData("Service chưa VAT")]
+    [InlineData("Gồm VAT 8%")]
+    [InlineData("Phí dịch vụ (gồm VAT)")]
+    [InlineData("Tổng cộng (gồm thuế)")]
     public void Pre_tax_lines_are_not_surcharges(string name)
         => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().BeFalse();
 

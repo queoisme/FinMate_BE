@@ -65,7 +65,7 @@ _PRODUCT_KEYWORDS = {
     "shopping": ("vang 9999", "vang 999", "vang 24k", "vang 18k", "nhan tron", "nhan cuoi", "nhan vang", "kim cuong", "vang mieng",
                  # hóa đơn mỹ phẩm không logo (siêu thị/nhà thuốc nhiều dòng khác nên danh mục của họ vẫn thắng)
                  "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai",  # đồ dùng gia đình tiêu hao là shopping, không phải thực phẩm
-                 "khan uot", "khan giay", "kem danh rang", "ban chai danh rang", "dau goi", "sua tam",  # đồ vệ sinh cá nhân dùng một lần
+                 "khan uot", "khan giay", "kem danh rang", "ban chai danh rang", "dau goi", "sua tam", "sua tam trang",  # đồ vệ sinh cá nhân dùng một lần
                  "sua rua mat", "tay trang", "kem chong nang", "son moi", "mat na", "nuoc hoa",
                  # quần áo, giày dép, túi xách, đồ điện tử nhỏ
                  "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",

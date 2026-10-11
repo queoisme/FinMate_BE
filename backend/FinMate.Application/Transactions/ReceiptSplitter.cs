@@ -31,8 +31,9 @@ public static class ReceiptSplitter
     // "service" khớp cả khi OCR dính chữ ("SERVICECHARGE"), giống ocr-service.
     private const string ServiceWord = "service";
 
-    // "Tổng tiền chưa thuế", "trước VAT" là dòng cộng tạm, không phải phụ thu.
-    private static readonly HashSet<string> PreTaxWords = ["chua", "truoc"];
+    // "Tổng tiền chưa thuế", "trước VAT" là dòng cộng tạm; "gồm VAT", "Tổng cộng (gồm thuế)" là thuế đã nằm trong giá: không phải phụ thu.
+    // Đồng bộ với _PRE_TAX_RE của ocr-service/items.py.
+    private static readonly HashSet<string> PreTaxWords = ["chua", "truoc", "gom"];
 
     public static IReadOnlyList<ReceiptGroup>? Split(IReadOnlyList<OcrItem> items, IReadOnlyList<ClassifiedItem> classified, long total)
     {

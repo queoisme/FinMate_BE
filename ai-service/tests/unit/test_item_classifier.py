@@ -172,3 +172,8 @@ async def test_wet_wipes_are_shopping_and_drinks_take_store_default_without_ai()
 async def test_personal_care_disposables_are_shopping_by_rule():
     out, _ = await run(items("Khăn giấy rút 100 tờ", "Kem đánh răng 180g", "Dầu gội 650ml", "Sữa tắm 900g"), allow_ai=False)
     assert [o[1:] for o in out] == [("shopping", "rule")] * 4
+
+
+async def test_whitening_shower_gel_is_shopping_not_spa():
+    out, _ = await run(items("Sữa tắm trắng da 900g"), allow_ai=False)
+    assert out == [(0, "shopping", "rule")]
