@@ -255,10 +255,12 @@ ngân sách) nằm ở backend. Route liên quan (đều dưới `[Route("api/v1
 **Quét hóa đơn (`ScanReceiptCommandHandler`).**
 1. Chặn sớm: ảnh rỗng, quá **5 MB** (`MaxImageBytes`), hoặc không phải JPEG/PNG/WebP/HEIC/HEIF → lỗi nghiệp vụ, không gọi mạng.
 2. `IOcrServiceClient.IsConfigured` quyết đường đi. `Program.cs` đăng ký `DisabledOcrServiceClient` khi `OCR_SERVICE_URL`
-   trống (→ đường cũ `POST /api/v1/ocr` của ai-service, y như Phase 10); có URL thì đăng ký `OcrServiceClient` và
+   trống (→ đường cũ `POST /api/v1/ocr` của ai-service, y như Phase 10 — đây là **lựa chọn cấu hình**, không phải đường dự
+   phòng lúc chạy); có URL thì đăng ký `OcrServiceClient` và
    **bắt buộc** có `OCR_SERVICE_API_KEY` (thiếu thì ném lúc khởi động), header `Authorization: Bearer`, timeout 60 giây.
 3. Đường ocr-service: `OcrServiceClient` gửi ảnh + `X-User-Hash = UserIdHasher.Hash(userId)`. 422 với `code = not_a_receipt`
-   → `unreadable`; không có tổng tiền → `no_amount`; lỗi mạng/HTTP/JSON → `AIServiceUnavailableException`.
+   → `unreadable`; không có tổng tiền → `no_amount`; lỗi mạng/HTTP/JSON → `AIServiceUnavailableException` và **lần quét thất bại**
+   (backend không quay sang `/api/v1/ocr`).
 4. Độ tin cậy do backend tính (`ReceiptConfidence.Compute`): 0,55 nếu tổng tiền đọc từ dòng có nhãn (`total_source = "text"`),
    0,35 nếu không; +0,15 có tên cửa hàng; +0,10 có ngày; trần **0,80**; ocr-service báo `needs_review` thì trần **0,50**.
    Cùng công thức với `receipt_ocr._confidence` của ai-service, nên hai đường cho cùng con số.
@@ -300,7 +302,7 @@ ai-service/
 │   │   │   ├── feedback.py       # POST /api/v1/feedback
 │   │   │   ├── bill.py           # POST /api/v1/bill/classify, /bill/learn, /bill/classify-items (§3.3)
 │   │   │   ├── chat.py           # POST /api/v1/chat/parse (§3.3, §3.6)
-│   │   │   ├── ocr.py            # POST /api/v1/ocr — Tesseract tại chỗ, hoặc ocr-service khi đặt OCR_SERVICE_URL
+│   │   │   ├── ocr.py            # POST /api/v1/ocr — ocr-service khi đặt OCR_SERVICE_URL, chỉ khi KHÔNG đặt mới dùng Tesseract tại chỗ
 │   │   │   ├── stats.py          # GET /api/v1/stats
 │   │   │   └── health.py         # GET /api/v1/health
 │   │   └── deps.py               # Dependencies injection
@@ -321,7 +323,7 @@ ai-service/
 │   ├── bill/                     # Phân loại hóa đơn (thêm 2026-10-10 cho tách từng món)
 │   │   ├── item_classifier.py    # classify_items: thừa kế → luật DB → nhóm thương hiệu → Gemini → unknown
 │   │   ├── gemini.py             # GeminiClient: chỉ gửi tên món, kiểm kết quả theo schema, cache, khóa mạch 30s
-│   │   ├── classifier.py         # cả bill → 1 trong 9 nhóm: bộ nhớ > thương hiệu > từ khóa tên cửa hàng > mặt hàng > từ khóa toàn văn > model
+│   │   ├── classifier.py         # cả bill → 1 trong 9 nhóm: bộ nhớ > thương hiệu trong tên > từ khóa tên > thương hiệu trong toàn văn > mặt hàng > từ khóa toàn văn
 │   │   ├── knowledge.py          # DbBillKnowledge: nạp bill_brands/bill_keywords (TTL 60s), tra/ghi bộ nhớ cửa hàng theo user_id_hash
 │   │   ├── brands.py             # thương hiệu → nhóm (bản trong code = mặc định, DB thay tại chỗ)
 │   │   └── item_rules_seed.py    # bản SEED chỉ dẫn Gemini (nhóm, luật chốt, ví dụ) cho bảng bill_ai_instructions (0008)
@@ -369,8 +371,10 @@ ai-service/
 │   └── integration/
 ├── alembic/                      # DB migrations cho AI DB (0001–0008; Dockerfile chạy `alembic upgrade head` lúc khởi động)
 ├── rasa/                         # Dữ liệu + cấu hình Rasa NLU (§3.6); container `rasa` mount thư mục này
-│   ├── config.yml, domain.yml, data/nlu.yml, tests/nlu_test.yml
-│   └── models/                   # finmate-nlu-v3.tar.gz — KHÔNG nằm trong git (.gitignore)
+│   ├── config.yml, domain.yml, credentials.yml, endpoints.yml, README.md
+│   ├── data/nlu.yml, data/rules.yml, data/stories.yml   # rules/stories chưa dùng
+│   ├── tests/nlu_test.yml, tests/test_stories.yml
+│   └── models/README.md          # file model finmate-nlu-v3.tar.gz đặt ở đây, KHÔNG nằm trong git (.gitignore)
 ├── requirements.txt
 └── Dockerfile
 ```
@@ -417,6 +421,10 @@ POST /api/v1/analyze
 ```
 
 ### 3.3 API Contract — Backend ↔ AI Service
+
+> **Cập nhật 2026-10-11.** Trong mọi ví dụ dưới đây, `"sha256-of-user-id"` chỉ là chỗ giữ chỗ: giá trị thật phải là SHA-256 dạng
+> hex **đúng 64 ký tự** (schema ép `min_length = max_length = 64` ở `/analyze`, `/feedback`, `/ocr`, `/chat/parse`, `/bill/*`);
+> gửi chuỗi khác độ dài thì nhận 422.
 
 **Request (Backend → AI Service):**
 ```json
@@ -569,7 +577,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
   "ai_used": true
 }
 ```
-- **Không có số tiền** trong request, và `user_id` thật không rời backend (`user_id_hash` là SHA-256).
+- **Không có số tiền** trong request, và `user_id` thật không rời backend (`user_id_hash` là SHA-256 hex đúng 64 ký tự).
 - Giới hạn: 1–60 món, mỗi tên tối đa 200 ký tự; `parent` phải là chỉ số của một món **đứng trước** (phụ kiện
   `+` thừa kế nhóm món chính). `source` ∈ `rule | inherit | merchant | ai | unknown`; `category_slug` null khi `unknown`.
 - Thứ tự quyết: thừa kế → luật/từ khóa trong DB → nhóm mặc định **của thương hiệu** (chỉ cho món chưa khớp luật) →
@@ -600,7 +608,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
   "processing_ms": 12
 }
 ```
-- `text` tối đa 500 ký tự; `user_id_hash` đúng 64 ký tự. **Không lưu gì, không giữ trạng thái**, không ghi nội dung câu hay số tiền vào log.
+- `text` tối đa 500 ký tự; `user_id_hash` phải là SHA-256 hex đúng 64 ký tự (ví dụ trên chỉ là chỗ giữ chỗ). **Không lưu gì, không giữ trạng thái**, không ghi nội dung câu hay số tiền vào log.
 - `intent` ∈ `add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
   out_of_scope | needs_amount | empty`. Có `entry` với ba intent ghi giao dịch, có `query` với `ask_spending`, còn lại chỉ `reply_text`.
 - `entry.kind` ∈ `expense | income | transfer`. Chi tiêu: `category_slug` là slug backend hoặc `null` (backend hỏi người dùng);
@@ -621,11 +629,14 @@ Authorization: Bearer {INTERNAL_API_KEY}
 ```json
 { "category_slug": "food", "local_category": "groceries", "confidence": 0.8, "source": "brand", "processing_ms": 3 }
 ```
+- `user_id_hash`: SHA-256 hex đúng 64 ký tự (ví dụ là chỗ giữ chỗ).
 - `lines` là chữ **đã lọc** dữ liệu cá nhân (do ocr-service lọc), tối đa 200 dòng, mỗi dòng cắt còn 200 ký tự; `merchant_name` ≤ 200 ký tự.
-- Thứ tự: **bộ nhớ cửa hàng của chính người dùng** (bảng mới `bill_user_merchant_choice` trước, bảng cũ `bill_user_merchant_category` sau)
-  → thương hiệu → từ khóa tên cửa hàng → mặt hàng → từ khóa toàn văn → model. Nhớ từ bảng mới (slug backend) thì trả nguyên slug đó,
-  `local_category = null`, `source = "memory"`.
-- `source` ∈ `memory | brand | keyword | product | model | none`. Không nhận ra (`none`) → `category_slug = null`, `confidence = 0`:
+- Thứ tự (`classify_category_detailed`): **bộ nhớ cửa hàng của chính người dùng** (bảng mới `bill_user_merchant_choice` trước, bảng
+  cũ `bill_user_merchant_category` sau) → thương hiệu trong tên cửa hàng (0,8) → từ khóa trong tên (0,75) → thương hiệu nằm trong toàn
+  văn, vd. website/địa chỉ (0,7) → mặt hàng (0,7/0,6) → từ khóa toàn văn (0,6) → `none`. Nhớ từ bảng mới (slug backend) thì trả nguyên
+  slug đó, `local_category = null`, `source = "memory"`.
+- `source` ∈ `memory | brand | keyword | product | model | none` theo schema, nhưng **hiện không bao giờ ra `model`**: route không truyền
+  model học nào vào bộ phân loại (cập nhật 2026-10-11). Không nhận ra (`none`) → `category_slug = null`, `confidence = 0`:
   backend hỏi người dùng thay vì ghi `other` cho có. `confidence` bị chặn trần **0,80** (luồng hóa đơn luôn cần người xem lại).
 - `local_category` giữ nhóm 9-nhóm (phân biệt `dining`/`groceries` mà backend gộp thành `food`, §3.7). Không ghi DB, không log nội dung.
 
@@ -638,6 +649,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
 ```json
 { "learned": true }
 ```
+- `user_id_hash`: SHA-256 hex đúng 64 ký tự (ví dụ là chỗ giữ chỗ); `merchant_name` 1–200 ký tự.
 - `category_slug` phải thuộc `BILL_CHOICE_SLUGS` = 11 slug backend **trừ** `income` (sai → 422). Ghi/ghi đè một dòng
   `bill_user_merchant_choice` theo `(user_id_hash, merchant_key)`; `merchant_key` = tên bỏ dấu, chữ thường, gọn khoảng trắng.
 - `learned = false` khi tên cửa hàng không dùng làm khóa được (không phải lỗi). Log chỉ ghi `learned`, không ghi tên hay danh mục.
@@ -648,7 +660,10 @@ Tesseract mà gọi `{OCR_SERVICE_URL}/analyze-bill` (`app/pipeline/stages/remot
 `X-User-Hash`, timeout `OCR_SERVICE_TIMEOUT_SECONDS` mặc định 30 giây) và đổi kết quả về đúng contract `/ocr` ở trên (không đổi
 trường nào). Ngày vẫn đọc từ các dòng đã lọc bằng bộ đọc ngày cũ; danh mục 9 nhóm quy về slug qua `SLUG_BY_LOCAL_CATEGORY`, độ tin
 cậy danh mục trần 0,80, bill bị đánh dấu cần xem lại thì độ tin cậy trích xuất trần 0,50. ocr-service trả 422 `not_a_receipt` →
-`unreadable`; lỗi khác → 503. Đây là đường **thứ hai**; đường backend điều phối (§2.4) không đi qua route này.
+`unreadable`; lỗi khác → 503. Đặt URL mà thiếu `OCR_SERVICE_API_KEY` cũng → 503. Có URL thì route **không bao giờ** quay về
+Tesseract: Tesseract chỉ chạy khi ai-service **không** có `OCR_SERVICE_URL` (lựa chọn cấu hình, không phải dự phòng lúc chạy;
+compose đặt URL cho cả backend lẫn ai-service nên bộ chạy mặc định không dùng Tesseract; **chưa quyết định gỡ Tesseract**). Đây là đường **thứ hai**; đường backend
+điều phối (§2.4) không đi qua route này.
 
 ### 3.4 Tách hóa đơn theo từng món (thêm 2026-10-10)
 
@@ -706,8 +721,10 @@ AI > tự làm sạch), `total_amount` (đồng), `total_source` (`text` khi đ�
 `transacted_at` (ISO, giờ +07:00), `lines` (chữ **đã lọc**), `category` (9 nhóm) + `category_source` + `category_confidence`,
 `needs_review`, `quality`, `receipt_score`, `scan_id`, `items: [{name, amount, parent, is_discount}]`, `items_ok`. Không giống hóa đơn
 hoặc không có chữ → 422 `{"code": "not_a_receipt"}`; ảnh > 10 MB hoặc không phải ảnh → 400; lỗi khác → 500.
-Backend (`OcrServiceClient`) chỉ gửi `image` nên `use_ai` (nhờ Gemini sửa tên/nhóm trong `ai_refine.py`) và `share_data` (ghi bill lạ
-vào `bill_unknown_scans`) **không bật** trên đường backend hiện tại.
+Backend (`OcrServiceClient`) chỉ gửi `image` nên `use_ai` và `share_data` (ghi bill lạ vào `bill_unknown_scans`) **không bật** trên
+đường backend hiện tại. Lưu ý `use_ai` (`ai_refine.py`): khác đường `classify-items` của ai-service, nó gửi **tên cửa hàng, các dòng
+mặt hàng đã lọc và tổng tiền** ra Gemini, hoặc ra một API tương thích OpenAI khi `FINMATE_AI_PROVIDER=openai`
+(`FINMATE_AI_BASE_URL`, `FINMATE_AI_API_KEY`, `FINMATE_AI_MODEL`). **Không được bật** cờ này trên đường backend khi chưa rà soát riêng tư.
 
 **Module** (một dòng mỗi file):
 - `ocr.py` — PaddleOCR (đọc chữ + hộp tọa độ), làm thẳng ảnh nghiêng, đọc lại đầu phiếu bằng VietOCR (`FINMATE_VIETOCR=0` để tắt).
@@ -740,11 +757,12 @@ Không có `FINMATE_DATABASE_URL` (chạy ngoài docker) thì dùng file cạnh 
 
 ### 3.6 Chat và Rasa NLU (thêm 2026-10-11)
 
-`POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/chat/`:
+`POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/chat/`. Rasa và route này được ghi vào kiến trúc
+như một phần của stack với sự đồng ý của chủ dự án ngày 2026-10-11.
 
 - **Rasa chỉ hiểu câu**: trả ý định (10 intent: `add_expense, add_income, transfer_money, ask_spending, greet, goodbye, confirm,
   deny, cancel, out_of_scope`) và thực thể (`amount`, `merchant`). Rasa **không** quyết ghi hay không, chỉ nhận đúng câu chữ
-  (`{"text": ...}`, không có mã người dùng), không nối DB nào (tracker store trong `endpoints.yml` để comment); ai-service quyết intent cuối cùng, backend quyết mọi hậu quả (§2.4).
+  (`{"text": ...}`, không có mã người dùng), không nối DB nào (compose **không** mount `endpoints.yml` vào container `rasa`, nên Rasa dùng tracker mặc định trong bộ nhớ); ai-service quyết intent cuối cùng, backend quyết mọi hậu quả (§2.4).
 - **Container `rasa`** (image `rasa/rasa:3.6.21`, `run --enable-api -m models/finmate-nlu-v3.tar.gz --port 5005`), không mở cổng ra
   máy chủ. Mount `ai-service/rasa/{models,config.yml,domain.yml,data,tests}`. Pipeline DIET 100 epoch + FallbackClassifier 0,4
   (`ai-service/rasa/config.yml`). Model `ai-service/rasa/models/finmate-nlu-v3.tar.gz` **không nằm trong git** (`.gitignore`);
@@ -782,6 +800,19 @@ Phép quy đổi **mất thông tin** (`dining` và `groceries` cùng thành `fo
 Vì vậy bộ nhớ cửa hàng mới `bill_user_merchant_choice` (alembic 0007) lưu **nguyên slug backend** người dùng đã chọn (không mất gì),
 còn bảng cũ `bill_user_merchant_category` giữ 9 nhóm; `/bill/classify` tra bảng mới trước, bảng cũ sau. Slug lạ làm giao dịch mất
 danh mục một cách im lặng (backend tra `GetSystemBySlugAsync`), nên mọi đầu ra đều được lọc lại theo `CATEGORY_SLUGS`.
+
+**Giới hạn đã biết (ghi 2026-10-11, đối chiếu code):**
+- **Hai bộ nhớ cửa hàng không nói chuyện với nhau.** `/bill/learn` chỉ ghi `bill_user_merchant_choice`, và chỉ `/bill/classify` của
+  ai-service đọc bảng đó. `category` và `merchant_display` ("tên người dùng đã chốt") của ocr-service chỉ đọc bảng cũ
+  `bill_user_merchant_category`; trên đường backend không ai ghi bảng cũ (backend không gọi `/merchant-category`), nên view
+  `bill_merchant_votes` và việc gom phiếu thành thương hiệu (`promotion_pg.py`) không có dữ liệu mới. Route `/api/v1/ocr` của ai-service
+  (qua `remote_ocr`) dùng `category` của ocr-service, tức là cũng không thấy lựa chọn đã học.
+- **Không có timeout riêng cho các lời gọi Refit** `/chat/parse`, `/bill/classify`, `/bill/classify-items`: `Program.cs` không đặt
+  `Timeout` cho client Refit nên áp mặc định 100 giây của `HttpClient`. Chỉ `/bill/learn` có 3 giây và lời gọi ocr-service có 60 giây.
+- **Tên cửa hàng lệch giữa lúc phân loại và lúc học.** Phân loại gửi tên OCR thô (`MerchantName ?? MerchantDisplay`), còn học gửi tên
+  cửa hàng của giao dịch đã lưu (thường là tên hiển thị hoặc tên người dùng sửa). Hai tên chuẩn hóa ra hai `merchant_key` khác nhau thì
+  lựa chọn đã học không bao giờ khớp lần quét sau.
+- **Kiến thức trong DB cần seed tay** trên DB mới (xem §4.2).
 
 ---
 
@@ -823,7 +854,7 @@ mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptSca
   xóa hẳn giao dịch chỉ gỡ liên kết. Migration chép các liên kết cũ trước khi bỏ cột.
 - `users.share_receipt_items_with_ai` (cột mới, `NOT NULL DEFAULT false`) — đồng ý cho AI hỗ trợ phân loại tên món.
 
-### 4.2 AI DB — 24 bảng + 2 view đã tạo, 3 bảng hoãn
+### 4.2 AI DB — 24 bảng (không tính `alembic_version`) + 2 view đã tạo, 3 bảng hoãn
 
 ```
 Dataset:        raw_samples, labeled_samples, sample_splits, provider_patterns
@@ -840,7 +871,7 @@ Bill (hóa đơn): bill_brands, bill_keywords, bill_user_merchant_category, bill
 
 **Cập nhật 2026-10-11.** Tiêu đề cũ ghi "12 bảng đã tạo" — đúng tới alembic `0004`, nhưng `0006`–`0008` đã thêm 12 bảng `bill_*`
 và 2 view mà mục này chưa liệt kê (bản 2026-10-10 chỉ ghi `bill_ai_instructions`). Đếm theo migration và đối chiếu `\dt` trên DB dev
-(`alembic_version = 0008`): **24 bảng + 2 view**. `0005` không tạo bảng, chỉ nới CHECK `raw_samples.source` để nhận `'receipt'`.
+(`alembic_version = 0008`): **24 bảng + 2 view**, không tính bảng hệ thống `alembic_version` (DB thật có 25 bảng gốc). `0005` không tạo bảng, chỉ nới CHECK `raw_samples.source` để nhận `'receipt'`.
 
 | Bảng / view | Alembic | Mục đích, cột đáng chú ý |
 |---|---|---|
@@ -868,6 +899,9 @@ và chỉ dẫn Gemini (`bill_ai_instructions`) sửa trực tiếp trong DB, **
 trong `classifier.py`, `item_rules_seed.py`) chỉ là mặc định/seed và đường lui. ai-service: `DbBillKnowledge.refresh_if_stale` nạp lại
 `bill_brands`/`bill_keywords` khi đã quá **60 giây** (DB lỗi thì giữ bản đang dùng, ghi cảnh báo); chỉ dẫn Gemini cũng cache 60 giây.
 ocr-service: nạp lúc khởi động, nạp lại qua `POST /admin/reload-knowledge` (§3.5).
+**DB mới thì `bill_brands`/`bill_keywords` rỗng:** alembic `0006` chỉ tạo schema, không seed; chỉ `ocr-service/seed_knowledge_to_pg.py`
+(chạy tay, có `--write`) nạp bản trong code vào DB. Trước khi chạy nó, cả hai service dùng bản trong code; việc `0008` chuyển 4 từ khóa
+sang `shopping` chỉ có tác dụng khi các dòng đó đã được seed (nó `INSERT … SELECT` rồi `DELETE` trên chính `bill_keywords`).
 
 **Cập nhật 2026-10-10.** `bill_ai_instructions` (alembic `0008`): đoạn mô tả nhóm, luật chốt khi nhập nhằng và ví dụ mà
 `ai-service` đưa cho Gemini — **sửa trong DB, không cần build lại**; đúng một dòng `is_active` (chỉ mục duy nhất từng phần).
@@ -964,11 +998,14 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
 - `notification_body` gốc → xóa sau 90 ngày (DataCleanupJob)
 - AI DB không lưu `user_id` thực → luôn SHA-256 hash
 - Admin không đọc được `amount_cents` hay `description` của user cụ thể
-- **Gemini (thêm 2026-10-10, tuỳ chọn, mặc định tắt):** chỉ nhận **tên món** (≤ 20 món, ≤ 60 ký tự, đã cắt cụm trông như
+- **Gemini (thêm 2026-10-10, tuỳ chọn, mặc định tắt) — đường ai-service `classify-items`:** chỉ nhận **tên món** (≤ 20 món, ≤ 60 ký tự, đã cắt cụm trông như
   giá) của các món luật không nhận ra; không nhận ảnh, chữ OCR thô, giá, tên cửa hàng, ngày giờ, ID người dùng. Cần **cả**
   cờ `Receipt:SplitByItemsEnabled` và đồng ý của người dùng (đọc từ DB mỗi lần quét). Bill nhận ra là nhà thuốc/y tế thì không
   gửi gì; thuốc nằm trên bill **không** được nhận ra là y tế vẫn có thể bị gửi khi người dùng đã đồng ý (giới hạn đã biết).
   Không ghi tên món, giá, nhóm hay nội dung chỉ dẫn vào log (chỉ ghi số lượng, trạng thái, thời gian).
+- **ocr-service `use_ai` (cập nhật 2026-10-11):** đường AI thứ hai, nằm trong `ocr-service/ai_refine.py`, gửi **tên cửa hàng, các dòng mặt
+  hàng đã lọc và tổng tiền** (không ảnh) tới Gemini hoặc một API tương thích OpenAI. Hiện **tắt** vì backend không bao giờ gửi `use_ai`;
+  không được bật khi chưa rà soát riêng tư (§3.5).
 - `receipt_scan_items` lưu tên món + số tiền + nhóm (trường đã bóc tách), không lưu chữ OCR hay ảnh; mất khi người dùng bị xóa.
 - **Chat (thêm 2026-10-11):** câu chat đi backend → ai-service → `rasa` (nội bộ, không ra bên thứ ba), không kèm mã người dùng sang Rasa.
   `/chat/parse` không lưu câu và chỉ log `intent`, `source`, `processing_ms`. **Chữ hóa đơn:** chỉ chữ **đã lọc** (`privacy.sanitize_lines`)

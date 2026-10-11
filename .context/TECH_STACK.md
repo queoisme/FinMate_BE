@@ -207,13 +207,14 @@ Vì sao PaddleOCR giờ được dùng: lý do cấm ở trên là nó kéo `tor
 ai-service. Ở đây nó nằm trong image riêng của `ocr-service`, nên image ai-service **vẫn không có**
 `paddleocr`/`torch` và quy tắc tách requirements của Phase 9 vẫn đúng. PaddleOCR đọc ảnh nghiêng/mờ
 tốt hơn Tesseract và cho hộp tọa độ, thứ bắt buộc để ghép tên món với giá.
-Đường cũ `POST /api/v1/ocr` (Tesseract trong ai-service) **vẫn còn** làm đường dự phòng khi backend
-chưa cấu hình `OCR_SERVICE_URL`; chưa quyết định gỡ Tesseract.
+Đường cũ `POST /api/v1/ocr` (Tesseract trong ai-service) **vẫn còn**, nhưng là **lựa chọn cấu hình**, không phải đường dự
+phòng lúc chạy (sửa 2026-10-11, bản trước gọi nhầm là "dự phòng"): backend chỉ đi đường này khi **không** đặt `OCR_SERVICE_URL`;
+có URL mà ocr-service lỗi thì lần quét thất bại, không quay về Tesseract. Chưa quyết định gỡ Tesseract.
 Ảnh vẫn chỉ đi qua bộ nhớ, không lưu ở đâu. `ocr-service` chỉ trả về chữ **đã lọc** dữ liệu cá nhân
 (số điện thoại, email, tên người, địa chỉ, số tài khoản) và các món đã tách; chữ gốc không rời nó.
 
-**Dịch vụ bên thứ ba duy nhất: Gemini API (TUỲ CHỌN, mặc định TẮT) — phân loại tên món (2026-10-10).**
-Gọi bằng `httpx` có sẵn (`generateContent`), **không thêm package nào**. Chỉ `ai-service` được gọi,
+**Dịch vụ bên thứ ba: Gemini API (TUỲ CHỌN, mặc định TẮT) — phân loại tên món (2026-10-10), đường ai-service `classify-items`.**
+Gọi bằng `httpx` có sẵn (`generateContent`), **không thêm package nào**. Trên đường này chỉ `ai-service` gọi,
 và chỉ khi **cả hai** điều sau đúng: cờ `Receipt:SplitByItemsEnabled` của backend bật **và** người dùng
 bật công tắc đồng ý (`users.share_receipt_items_with_ai`, mặc định tắt cho mọi người). Không có khóa
 `GEMINI_API_KEY` thì tính năng vẫn chạy bằng luật, món chưa biết thành `unknown`.
@@ -224,14 +225,20 @@ khoản bản miễn phí có thể dùng dữ liệu để cải thiện mô h�
 khi dùng thật). Mô hình mặc định `gemini-3.5-flash-lite`. Lỗi/quá hạn → rơi về luật: timeout 5 giây
 mỗi pha và 8 giây cho cả lời gọi, khóa mạch 30 giây sau lỗi, không bao giờ làm hỏng việc quét.
 Đây **không** phải "OCR đám mây": nó chỉ nhận văn bản đã lọc, không nhận ảnh.
+**Cập nhật 2026-10-11 — còn một đường AI thứ hai, đang TẮT.** `ocr-service/ai_refine.py` (chỉ khi request `/analyze-bill` có
+`use_ai=true`) gửi **tên cửa hàng, các dòng mặt hàng đã lọc và tổng tiền** (không ảnh) tới Gemini, hoặc tới một API tương thích
+OpenAI khi `FINMATE_AI_PROVIDER=openai`. Backend không bao giờ gửi `use_ai` nên đường này không chạy; không được bật khi chưa rà soát
+riêng tư. Câu "chỉ tên món, không tên cửa hàng" ở trên chỉ đúng cho đường ai-service.
 
 **Cập nhật 2026-10-11 — đối chiếu requirements/Dockerfile/compose với code.**
 - `ai-service/requirements.txt` **không đổi** so với danh sách ở trên (vẫn `pytesseract`, `Pillow`, không có `paddleocr`, `torch`, `rasa`);
-  `ai-service/Dockerfile` vẫn cài `tesseract-ocr` + `tesseract-ocr-vie`. Tesseract vẫn là đường dự phòng **trong** ai-service: route
-  `/api/v1/ocr` dùng nó khi ai-service không có `OCR_SERVICE_URL`; có URL thì route đó chuyển sang ocr-service (`remote_ocr.py`).
-  Vậy hiện có **hai** bộ đọc OCR: PaddleOCR + VietOCR trong `ocr-service` (đường chính khi backend có `OCR_SERVICE_URL`) và Tesseract
-  trong `ai-service` (dự phòng).
-- **Rasa NLU (chat, Phase 19–20)** chạy thành container riêng từ image `rasa/rasa:3.6.21` — **không** nằm trong requirements của
+  `ai-service/Dockerfile` vẫn cài `tesseract-ocr` + `tesseract-ocr-vie`. Tesseract trong ai-service là **lựa chọn cấu hình**, không
+  phải dự phòng lúc chạy: route `/api/v1/ocr` chỉ dùng nó khi ai-service **không** có `OCR_SERVICE_URL`; có URL thì route luôn gọi
+  ocr-service (`remote_ocr.py`), ocr-service lỗi hoặc thiếu `OCR_SERVICE_API_KEY` → 503, không quay về Tesseract. Backend cũng không
+  quay về: ocr-service lỗi → `AIServiceUnavailableException`, lần quét thất bại. Compose đặt `OCR_SERVICE_URL` cho cả backend và
+  ai-service, nên bộ chạy mặc định không dùng Tesseract. Hai bộ đọc OCR: PaddleOCR + VietOCR trong `ocr-service` (khi có URL) và
+  Tesseract trong `ai-service` (khi không có URL). Chưa quyết định gỡ Tesseract.
+- **Rasa NLU (chat, Phase 19–20)** — ghi vào stack với sự đồng ý của chủ dự án ngày 2026-10-11 — chạy thành container riêng từ image `rasa/rasa:3.6.21` — **không** nằm trong requirements của
   ai-service. ai-service gọi nó bằng `httpx` có sẵn (`POST {RASA_URL}/model/parse`, timeout 2 giây, cầu dao 30 giây). Không có
   `RASA_URL` thì chat chạy bằng luật. Model đã huấn luyện (`ai-service/rasa/models/finmate-nlu-v3.tar.gz`) bị git bỏ qua; dữ liệu
   huấn luyện (`ai-service/rasa/data/nlu.yml`) và bộ đo (`ai-service/rasa/tests/nlu_test.yml`) nằm trong git.
@@ -278,7 +285,7 @@ httpx==0.28.*             # test client cho FastAPI
 | `pandas` (trong production pipeline) | Dùng numpy/stdlib — pandas quá nặng cho inference |
 | `requests` (sync) | Dùng `httpx` async thay thế |
 | `easyocr`, `paddleocr` (trong image **ai-service**) | Kéo `torch` vào image phục vụ — xem mục OCR ở §2.2. `paddleocr` chỉ được dùng trong image riêng của `ocr-service` |
-| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống. Gemini (§2.2) chỉ nhận **tên món đã lọc**, không nhận ảnh |
+| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống. Gemini trên đường ai-service `classify-items` (§2.2) chỉ nhận **tên món đã lọc**, không nhận ảnh; đường `use_ai` của ocr-service (đang tắt) gửi thêm tên cửa hàng và tổng tiền |
 
 ---
 
@@ -326,7 +333,6 @@ services:
   postgres-main: # PostgreSQL 16 — Backend DB
   postgres-ai:   # PostgreSQL 16 — AI DB
   redis:         # Redis 7
-  hangfire-dashboard: # Exposed port cho dev monitoring
 ```
 
 **Cập nhật 2026-10-11 (đối chiếu `docker-compose.yml`).** Không có service `hangfire-dashboard`: dashboard `/hangfire` chạy ngay
@@ -377,10 +383,14 @@ BREVO_SENDER_EMAIL=
 BREVO_SENDER_NAME=FinMate
 
 # Quét hóa đơn qua ocr-service. Có OCR_SERVICE_URL thì backend điều phối; trống thì quay về POST /api/v1/ocr
-# của ai-service (Tesseract; hoặc ocr-service nếu chính ai-service có OCR_SERVICE_URL — cập nhật 2026-10-11).
-# Khóa phải giống OCR_SERVICE_API_KEY trong ocr-service/.env. Có URL mà thiếu khóa thì backend ném lỗi lúc khởi động.
+# của ai-service (Tesseract; hoặc ocr-service nếu chính ai-service có OCR_SERVICE_URL — cập nhật 2026-10-11). Đây là lựa chọn
+# cấu hình: có URL mà ocr-service lỗi thì lần quét thất bại, KHÔNG quay về /api/v1/ocr. Chưa quyết định gỡ Tesseract.
+# Khóa phải giống OCR_SERVICE_API_KEY trong ocr-service/.env. Có URL mà khóa:
+#   - THIẾU hẳn biến → backend ném lỗi lúc khởi động;
+#   - để TRỐNG (OCR_SERVICE_API_KEY=) → vẫn khởi động, mọi lần quét nhận 401 từ ocr-service → AIServiceUnavailableException;
+#   - còn giá trị MẪU "change-me…" → StartupSecretGuard từ chối khởi động ngoài Development.
 OCR_SERVICE_URL=http://ocr-service:8000
-OCR_SERVICE_API_KEY=
+OCR_SERVICE_API_KEY=change-me-min-32-chars-local-dev-ocr-key   # giá trị mẫu như backend/.env.example; thay khi deploy
 # Tách hóa đơn theo từng món thành nhiều nhóm. Mặc định TẮT (false); bật thì bill có từ 2 danh mục thật
 # tách thành nhiều giao dịch khi lưu. Không bật thì quét hóa đơn chạy y như trước.
 Receipt__SplitByItemsEnabled=false
@@ -410,7 +420,8 @@ GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_TIMEOUT_SECONDS=5
 
 # Thêm 2026-10-11 (đối chiếu app/core/config.py, tên biến = tên trường viết hoa).
-# OCR service: có URL thì POST /api/v1/ocr đọc qua ocr-service, trống thì Tesseract tại chỗ. Compose đặt URL.
+# OCR service: có URL thì POST /api/v1/ocr luôn đọc qua ocr-service (lỗi → 503, không quay về Tesseract); trống thì Tesseract
+# tại chỗ (lựa chọn cấu hình). Compose đặt URL.
 OCR_SERVICE_URL=http://ocr-service:8000
 OCR_SERVICE_API_KEY=...        # phải giống khóa ở backend/.env và ocr-service/.env
 OCR_SERVICE_TIMEOUT_SECONDS=30
@@ -429,9 +440,15 @@ FINMATE_DATABASE_URL=...       # DB của AI (finmate_ai): luật, thương hi�
 FINMATE_VIETOCR=1              # 0 = tắt bước VietOCR đọc lại đầu phiếu
 FINMATE_ADMIN_TOKEN=           # bật POST /admin/reload-knowledge (header X-Admin-Token); trống = tắt hẳn
 FINMATE_USER_HASH=             # mã người dùng mặc định khi request không có X-User-Hash (máy dev); mặc định "local"
-FINMATE_AI_PROVIDER=gemini     # ai_refine.py, chỉ khi request có use_ai=true (backend không gửi)
+FINMATE_AI_PROVIDER=gemini     # ai_refine.py, chỉ khi request có use_ai=true (backend không gửi); gemini | openai
 GEMINI_API_KEY=                # như trên; không commit
 GEMINI_MODEL=gemini-3.5-flash-lite
+FINMATE_AI_BASE_URL=           # provider "openai" (API tương thích OpenAI); TUỲ CHỌN
+FINMATE_AI_API_KEY=            # như trên; không commit
+FINMATE_AI_MODEL=              # như trên
+# Chỉ cho script chạy tay (db_setup.py), service không đọc:
+FINMATE_IMPORT_DIR=            # thư mục nguồn của --import (mặc định: thư mục ocr-service)
+FINMATE_GOLD_DIR=              # thư mục ảnh bộ chuẩn của --gold (mặc định: thư mục cha)
 ```
 
 ---
@@ -537,7 +554,9 @@ ocr-service/tests/
 ├── conftest.py      # autouse: bộ nhớ cửa hàng + dataset ghi ra file tạm; bỏ kiểm khóa nội bộ (trừ test_internal_key.py)
 ├── pg_fake.py       # giả PostgreSQL bằng SQLite cho các test *_pg (không thay được thử trên Postgres thật)
 ├── fixtures/
-└── test_*.py        # một file mỗi module: extract, items, privacy, dates, quality, crop, api, knowledge_pg…
+└── test_*.py        # theo module (test_extract, test_items, test_privacy, test_dates, test_api…) VÀ theo hành vi
+                     # (test_header_rescue, test_receipt_detection, test_databill_regressions…); vài module như
+                     # vietocr_onnx.py không có file test riêng
 ```
 - `pytest`, test nằm cạnh code của service. Thay bộ đọc OCR bằng hàm giả (`conftest.boxes_patch` thay `main.read_boxes`), nên phần
   lớn test không cần model PaddleOCR. Chạy trong image: xem `ocr-service/README.md`.
