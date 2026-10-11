@@ -136,6 +136,10 @@
 | Python | 3.11 | Dùng pyenv để manage version |
 | Package manager | pip + `requirements.txt` | Không dùng Poetry hay Conda |
 
+> **Cập nhật 2026-10-11.** Bảng trên là của `ai-service` (`FROM python:3.11-slim`). `ocr-service` chạy **Python 3.10**
+> (`ocr-service/Dockerfile`: `FROM python:3.10-slim`), cài `requirements.txt` kèm `constraints.txt` ghim đúng phiên bản đã chạy thử
+> (numpy, opencv, paddle…). `rasa` dùng image chính thức `rasa/rasa:3.6.21`, không build từ repo.
+
 ### 2.2 requirements.txt — ĐƯỢC DÙNG
 
 **Web framework:**
@@ -220,6 +224,23 @@ khoản bản miễn phí có thể dùng dữ liệu để cải thiện mô h�
 khi dùng thật). Mô hình mặc định `gemini-3.5-flash-lite`. Lỗi/quá hạn → rơi về luật: timeout 5 giây
 mỗi pha và 8 giây cho cả lời gọi, khóa mạch 30 giây sau lỗi, không bao giờ làm hỏng việc quét.
 Đây **không** phải "OCR đám mây": nó chỉ nhận văn bản đã lọc, không nhận ảnh.
+
+**Cập nhật 2026-10-11 — đối chiếu requirements/Dockerfile/compose với code.**
+- `ai-service/requirements.txt` **không đổi** so với danh sách ở trên (vẫn `pytesseract`, `Pillow`, không có `paddleocr`, `torch`, `rasa`);
+  `ai-service/Dockerfile` vẫn cài `tesseract-ocr` + `tesseract-ocr-vie`. Tesseract vẫn là đường dự phòng **trong** ai-service: route
+  `/api/v1/ocr` dùng nó khi ai-service không có `OCR_SERVICE_URL`; có URL thì route đó chuyển sang ocr-service (`remote_ocr.py`).
+  Vậy hiện có **hai** bộ đọc OCR: PaddleOCR + VietOCR trong `ocr-service` (đường chính khi backend có `OCR_SERVICE_URL`) và Tesseract
+  trong `ai-service` (dự phòng).
+- **Rasa NLU (chat, Phase 19–20)** chạy thành container riêng từ image `rasa/rasa:3.6.21` — **không** nằm trong requirements của
+  ai-service. ai-service gọi nó bằng `httpx` có sẵn (`POST {RASA_URL}/model/parse`, timeout 2 giây, cầu dao 30 giây). Không có
+  `RASA_URL` thì chat chạy bằng luật. Model đã huấn luyện (`ai-service/rasa/models/finmate-nlu-v3.tar.gz`) bị git bỏ qua; dữ liệu
+  huấn luyện (`ai-service/rasa/data/nlu.yml`) và bộ đo (`ai-service/rasa/tests/nlu_test.yml`) nằm trong git.
+- `ocr-service/requirements.txt` thực tế không ghim phiên bản (`fastapi`, `uvicorn`, `python-multipart`, `pillow`, `numpy`,
+  `paddleocr==2.7.3`, `paddlepaddle==2.6.2`, `onnxruntime`, `scikit-learn`, `psycopg[binary]`, `pytest`, `httpx`); phiên bản thật do
+  `constraints.txt` ghim. Model PaddleOCR được tải sẵn vào image lúc build. `ai_refine.py` của ocr-service gọi Gemini (hoặc API
+  tương thích OpenAI) bằng `httpx`, chỉ khi request có `use_ai=true` — backend hiện không gửi cờ này.
+- Backend: không thêm/bớt NuGet nào cho chat, OCR hay Rasa (`OcrServiceClient` dùng `HttpClient` qua `AddHttpClient`, chat/bill
+  dùng Refit có sẵn).
 
 **HTTP client (gọi về backend nếu cần):**
 ```
@@ -308,6 +329,12 @@ services:
   hangfire-dashboard: # Exposed port cho dev monitoring
 ```
 
+**Cập nhật 2026-10-11 (đối chiếu `docker-compose.yml`).** Không có service `hangfire-dashboard`: dashboard `/hangfire` chạy ngay
+trong tiến trình `backend` (cổng 8080). Cổng mở ra máy: `backend` 8080, `ai-service` 8000, `postgres-main` 5433, `postgres-ai` 5434,
+`redis` 6379. `ocr-service` và `rasa` **không** mở cổng (chỉ mạng nội bộ). `ocr-service` không có Postgres riêng: dùng `finmate_ai`
+của `postgres-ai` (`FINMATE_DATABASE_URL`) và chờ `ai-service` healthy (ai-service chạy `alembic upgrade head` lúc khởi động).
+`backend` chờ `ocr-service` đã chạy. `rasa` chạy `rasa/rasa:3.6.21` với model `models/finmate-nlu-v3.tar.gz` mount từ `ai-service/rasa/`.
+
 ### 4.2 Environment Variables
 
 **Backend (.env):**
@@ -350,7 +377,8 @@ BREVO_SENDER_EMAIL=
 BREVO_SENDER_NAME=FinMate
 
 # Quét hóa đơn qua ocr-service. Có OCR_SERVICE_URL thì backend điều phối; trống thì quay về POST /api/v1/ocr
-# của ai-service (Tesseract). Khóa phải giống OCR_SERVICE_API_KEY trong ocr-service/.env.
+# của ai-service (Tesseract; hoặc ocr-service nếu chính ai-service có OCR_SERVICE_URL — cập nhật 2026-10-11).
+# Khóa phải giống OCR_SERVICE_API_KEY trong ocr-service/.env. Có URL mà thiếu khóa thì backend ném lỗi lúc khởi động.
 OCR_SERVICE_URL=http://ocr-service:8000
 OCR_SERVICE_API_KEY=
 # Tách hóa đơn theo từng món thành nhiều nhóm. Mặc định TẮT (false); bật thì bill có từ 2 danh mục thật
@@ -380,12 +408,30 @@ LOG_LEVEL=INFO
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_TIMEOUT_SECONDS=5
+
+# Thêm 2026-10-11 (đối chiếu app/core/config.py, tên biến = tên trường viết hoa).
+# OCR service: có URL thì POST /api/v1/ocr đọc qua ocr-service, trống thì Tesseract tại chỗ. Compose đặt URL.
+OCR_SERVICE_URL=http://ocr-service:8000
+OCR_SERVICE_API_KEY=...        # phải giống khóa ở backend/.env và ocr-service/.env
+OCR_SERVICE_TIMEOUT_SECONDS=30
+# Rasa cho POST /api/v1/chat/parse. Trống = chỉ dùng luật. Compose đặt http://rasa:5005.
+RASA_URL=http://rasa:5005
+# Khoản chi dưới mức này (đồng) mới được gắn auto_save_ok; 0 = không bao giờ.
+CHAT_AUTO_SAVE_BELOW=2000000
 ```
 
 **OCR Service (.env):**
 ```
-OCR_SERVICE_API_KEY=...        # chỉ backend/ai-service gọi được; phải giống khóa ở hai nơi kia
-FINMATE_DATABASE_URL=...       # DB của AI (finmate_ai): luật, thương hiệu, bill đã gắn nhãn
+OCR_SERVICE_API_KEY=...        # chỉ backend/ai-service gọi được; phải giống khóa ở hai nơi kia. Trống = từ chối mọi request (503)
+FINMATE_DATABASE_URL=...       # DB của AI (finmate_ai): luật, thương hiệu, bill đã gắn nhãn. Compose tự đặt; trống = dùng file cạnh code
+
+# Thêm 2026-10-11 — TUỲ CHỌN (đối chiếu os.environ.get trong ocr-service/*.py):
+FINMATE_VIETOCR=1              # 0 = tắt bước VietOCR đọc lại đầu phiếu
+FINMATE_ADMIN_TOKEN=           # bật POST /admin/reload-knowledge (header X-Admin-Token); trống = tắt hẳn
+FINMATE_USER_HASH=             # mã người dùng mặc định khi request không có X-User-Hash (máy dev); mặc định "local"
+FINMATE_AI_PROVIDER=gemini     # ai_refine.py, chỉ khi request có use_ai=true (backend không gửi)
+GEMINI_API_KEY=                # như trên; không commit
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 ---
@@ -483,3 +529,17 @@ tests/
 ```
 
 **Test data:** Mỗi provider phải có ít nhất 10 sample notifications trong `tests/fixtures/`
+
+### 6.3 OCR Service Tests (thêm 2026-10-11)
+
+```
+ocr-service/tests/
+├── conftest.py      # autouse: bộ nhớ cửa hàng + dataset ghi ra file tạm; bỏ kiểm khóa nội bộ (trừ test_internal_key.py)
+├── pg_fake.py       # giả PostgreSQL bằng SQLite cho các test *_pg (không thay được thử trên Postgres thật)
+├── fixtures/
+└── test_*.py        # một file mỗi module: extract, items, privacy, dates, quality, crop, api, knowledge_pg…
+```
+- `pytest`, test nằm cạnh code của service. Thay bộ đọc OCR bằng hàm giả (`conftest.boxes_patch` thay `main.read_boxes`), nên phần
+  lớn test không cần model PaddleOCR. Chạy trong image: xem `ocr-service/README.md`.
+- Backend: test tích hợp đi qua HTTP với Testcontainers PostgreSQL (`Testcontainers.PostgreSql` trong `FinMate.Tests.csproj`); ai-service
+  và ocr-service được thay bằng client giả (`FakeAIServiceClient`; `IOcrServiceClient` giả khai báo trong từng file test), ví dụ `ScanReceiptViaOcrServiceControllerTests`, `ChatControllerTests`.
