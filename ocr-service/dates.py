@@ -18,6 +18,7 @@ _DMY = re.compile(r"(?<!\d)(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(?:(\d{4})(
 # yyyy-mm-dd (hoặc yyyy/mm/dd, yyyy.mm.dd) của máy POS; ngày 2 chữ số được phép dính liền với giờ: "2026-10-0913:38"
 _YMD = re.compile(r"(?<!\d)(\d{4})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(?:(\d{2})(?=\d{1,2}:\d{2})|(\d{1,2})(?!\d))")
 _TIME = re.compile(r"\s*(\d{1,2}):(\d{2})")
+_BARE_TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$")  # dòng chỉ có giờ ("12:31:13"): OCR hay tách giờ khỏi ngày thành hai dòng
 _WORDS = re.compile(r"ngay\s*(\d{1,2})\s*thang\s*(\d{1,2})\s*nam\s*(\d{4})")
 _PERIOD_OR_DUE = re.compile(r"(?:^|\s)(?:tu ngay|den ngay|ky tinh phi|ky thanh toan|han thanh toan|han cuoi|truoc ngay|het han)(?:\s|$)|\btu\b.*\bden\b")
 
@@ -60,10 +61,16 @@ def _candidates(line: str) -> list[datetime]:
 def find_date(lines: list[str], now: datetime | None = None) -> datetime | None:
     now = (now or datetime.now(VN)).astimezone(VN)
     best = None
-    for line in lines:
+    for i, line in enumerate(lines):
         found = _candidates(line)
         if len(found) > 1 or _PERIOD_OR_DUE.search(_fold(line)):
             continue  # khoảng ngày hoặc hạn/kỳ tính phí, không phải ngày giao dịch
+        if found and not re.search(r"\d{1,2}:\d{2}", line):  # ngày không kèm giờ cùng dòng: lấy giờ ở dòng sát bên nếu dòng đó chỉ có giờ
+            for j in (i - 1, i + 1):
+                m = _BARE_TIME.match(lines[j]) if 0 <= j < len(lines) else None
+                if m and int(m.group(1)) <= 23 and int(m.group(2)) <= 59:
+                    found = [v.replace(hour=int(m.group(1)), minute=int(m.group(2))) for v in found]
+                    break
         for value in found:
             if _MIN_YEAR <= value.year and value <= now + _FUTURE_SLACK and (best is None or value > best):
                 best = value

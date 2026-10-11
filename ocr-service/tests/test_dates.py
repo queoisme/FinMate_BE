@@ -57,3 +57,18 @@ def test_impossible_or_irrelevant_numbers_are_not_dates(line):
 )
 def test_year_first_dates_from_pos_machines(line, expected):
     assert find_date([line], datetime(2026, 10, 9, 20, 0, tzinfo=VN)) == expected
+
+
+def test_time_on_the_adjacent_line_is_attached_to_the_date():
+    # bill Ministop: OCR đọc "12:31:13" và "11/10/2026" thành hai dòng liền nhau
+    now = datetime(2026, 10, 11, 20, 0, tzinfo=VN)
+    expected = datetime(2026, 10, 11, 12, 31, tzinfo=VN)
+    assert find_date(["Hoa don Ban hang", "12:31:13", "11/10/2026", "19,000"], now) == expected
+    assert find_date(["11/10/2026", "12:31", "19,000"], now) == expected
+
+
+def test_adjacent_time_is_ignored_when_it_is_not_a_bare_time_or_the_date_has_its_own_time():
+    now = datetime(2026, 10, 11, 20, 0, tzinfo=VN)
+    assert find_date(["Gio vao 12:31 den 13:00", "11/10/2026"], now) == datetime(2026, 10, 11, 12, 0, tzinfo=VN)  # dòng giờ có chữ: không phải giờ trần
+    assert find_date(["09:05", "11/10/2026 13:16"], now) == datetime(2026, 10, 11, 13, 16, tzinfo=VN)  # ngày đã có giờ riêng
+    assert find_date(["25:99", "11/10/2026"], now) == datetime(2026, 10, 11, 12, 0, tzinfo=VN)  # giờ không hợp lệ
