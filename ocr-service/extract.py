@@ -140,6 +140,9 @@ def _amounts(text: str, skip_negative: bool = False) -> list[int]:
     return result
 
 
+_CASH_LABEL = re.compile(r"tien mat|tien khach|khach dua|tien thua|tien thoi|tra lai|\bcash\b|\bchange\b")  # tiền khách đưa / tiền thối lại
+
+
 def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: bool = False) -> int | None:
     """Số tiền lớn nhất trên (hoặc ngay dưới) các dòng chứa từ khóa."""
     candidates = []
@@ -152,10 +155,10 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
         return [a for a in _amounts(text, True) if a >= _MIN_AMOUNT]
 
     for i, line in enumerate(lines):
-        # "tong" trơn phải là đầu một từ: "TraYuzumatongboncha" (mật ong) là tên hàng. Từ khóa dài vẫn khớp giữa chữ
-        # vì OCR hay dính nhãn ("Khachphai tra").
+        # "tong" trơn phải gần đầu một từ: "TraYuzumatongboncha" / "MatOng" (mật ong) là tên hàng. Cho phép MỘT ký tự rác
+        # dính phía trước ("ITong tien:"). Từ khóa dài vẫn khớp giữa chữ vì OCR hay dính nhãn ("Khachphai tra").
         norm = _norm(line)
-        if not any(re.search(r"(?<![a-z])tong", norm) if k == "tong" else k in norm for k in keywords):
+        if not any(re.search(r"(?<![a-z]{2})tong", norm) if k == "tong" else k in norm for k in keywords):
             continue
         squeezed = _alnum(_norm(line))
         if any(m in squeezed for m in markers):
@@ -170,13 +173,15 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
             # gần như chỉ là số tiền (không phải ngày giờ), lấy số lớn nhất trong 3 dòng kế để không dính số
             # bị rớt chữ số ngay dưới nhãn.
             # OCR đọc số bên phải TRƯỚC nhãn bên trái cả khối ("47,000", "Tổng cộng", "50,000", "Tiền mặt"): nếu ngay trước nhãn
-            # đã có số tiền thì số nằm ngay trên một nhãn khác là của nhãn đó (tiền mặt, tiền thừa), không phải của nhãn này.
-            # ponytail: khối xen kẽ kiểu nhãn-trước-số mà dòng trước nhãn là giá món cuối sẽ bị đọc ngược; cần tọa độ hộp chữ mới phân biệt chắc.
+            # đã có số tiền thì số nằm ngay trên nhãn tiền khách đưa / tiền thừa là của nhãn đó, không phải của nhãn này.
+            # Chỉ xét nhãn tiền mặt/tiền thừa: dòng chữ thường (cảm ơn, ngày, VAT, phí) sau tổng không làm mất tổng.
+            # ponytail: khối nhãn-trước-số xen kẽ có dòng tiền mặt/tiền thừa ("Tong cong", "54,000", "Tien khach dua", "100,000",
+            # "Tien thua"...) vẫn có thể ra giá món cuối hoặc tiền khách đưa (code cũ cũng sai); sửa thật = ghép nhãn với số theo tọa độ y của hộp chữ.
             amount_before = i > 0 and letters(lines[i - 1]) <= 3 and bool(money(lines[i - 1]))
             for j in range(i + 1, min(i + 4, len(lines))):
                 nxt = lines[j]
                 if letters(nxt) <= 3 and not _DATE_OR_TIME.search(nxt):
-                    if amount_before and j + 1 < len(lines) and letters(lines[j + 1]) > 3:
+                    if amount_before and j + 1 < len(lines) and _CASH_LABEL.search(_norm(lines[j + 1])):
                         continue
                     found.extend(money(nxt))
             if not found and i and letters(lines[i - 1]) <= 3:

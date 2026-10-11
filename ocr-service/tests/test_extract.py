@@ -165,8 +165,10 @@ def test_column_split_labels_first_then_amounts_still_resolves():
 
 
 def test_cash_and_change_are_never_the_total():
-    lines = ["Ca phe sua", "29,000", "Tong cong", "29,000", "Tien khach dua", "100,000", "Tien thua", "71,000"]
-    assert extract_total(lines) == 29_000
+    # hai món, OCR đọc số bên phải trước nhãn: 100.000 (khách đưa) và 46.000 (tiền thừa) nằm sau "Tong cong" nhưng là của nhãn kế
+    lines = ["Banh mi", "25,000", "Ca phe", "29,000", "54,000", "Tong cong", "100,000", "Tien khach dua", "46,000", "Tien thua"]
+    assert extract_total(lines) == 54_000
+    assert extract_total(["Banh mi", "25,000", "Ca phe", "29,000", "54,000", "Tong cong", "100,000", "Tien mat", "-46,000", "Tien thoi"]) == 54_000
     # nhãn dính chữ "Khachphai tra" (ảnh thật 960345d1) vẫn là nhãn phải trả; "Tien khach dua" sau đó không thay thế nó
     glued = ["Cong tien hang", "125,000", "Chiet khau", "0", "Khachphai tra", "130,000", "Tien khach dua", "0", "Tralai", "0"]
     assert extract_total(glued) == 130_000
@@ -176,3 +178,20 @@ def test_subtotal_only_still_falls_back_and_single_line_total_unchanged():
     assert extract_total(["Tong (tam tinh)", "42.000d"]) == 42_000
     assert extract_total(["Banh mi", "Tong cong 125.000"]) == 125_000
     assert extract_total(["Tra mat ong", "Tong cong", "35.000"]) == 35_000  # "Tong" là chữ đầu từ vẫn là nhãn
+
+
+def test_amount_after_the_total_label_is_kept_when_followed_by_ordinary_text():
+    # bố cục nhãn-trước-số phổ biến: số sau nhãn Tổng là tổng dù dòng kế là chữ cuối phiếu, ngày, ghi chú VAT hay nhãn phí
+    for tail in ("Cam on quy khach", "Ngay 11/10/2026", "Da bao gom VAT"):
+        assert extract_total(["Banh mi", "25,000", "Tong cong", "54,000", tail]) == 54_000, tail
+    assert extract_total(["Tong tien hang", "60,000", "Phi dich vu", "6,000", "Khach phai tra", "66,000", "Cam on quy khach"]) == 66_000
+    assert extract_total(["Tam tinh", "54,000", "Phi giao hang", "15,000", "Can thanh toan", "69,000", "Hotline 1900"]) == 69_000
+
+
+def test_total_label_with_one_glued_noise_character_still_matches():
+    for label in ("ITong tien:", "lTONG TIEN", "ITổng:", "Ttong tien", "BTong tien hang", "|Tong", "_Tong", "1.Tong", "(Tong)",
+                  "*Tong", "TổngTiền", "Tongcong", "TÔNG CỘNG"):
+        assert extract_total(["Banh mi", label, "35,000"]) == 35_000, label
+    # tên hàng chứa "tong" giữa chữ không phải nhãn
+    for name in ("TraYuzumatongboncha", "BonchaTacMatOng450", "Banh thanhtong"):
+        assert extract_total([name, "35,000"]) is None, name
