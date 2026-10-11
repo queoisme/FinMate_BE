@@ -131,3 +131,48 @@ def test_household_consumables_are_shopping():
 def test_food_staples_stay_groceries():
     for item in ("Gao ST25 5kg", "Sua tuoi Vinamilk 1L"):
         assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("groceries", "product"), item
+
+
+# Hóa đơn cửa hàng tiện lợi (đã bỏ dòng địa chỉ/MST): OCR đọc số tiền bên phải TRƯỚC nhãn bên trái trên cả khối tổng tiền.
+# Tên hàng "TraYuzumatongboncha" / "...MatOng..." (mật ong) chứa chuỗi "tong".
+CONVENIENCE = ["CÔNG TY TNHH MINISTOP VIỆT NAM", "Hoa don Ban hang", "12:31:13", "11/10/2026",
+               "19,000", "19,000", "14,000*", "Khan uot ALLCARE 20", "14,000", "BonchaTacMatOng450", "14,000*", "14,000",
+               "Boncha Viet Quat 45", "14,000*", "14,000", "TraYuzumatongboncha",
+               "61,000", "Tam tinh:", "-14,000", "Khuyen mai:", "47,000", "Tong cong (gom thue):", "50,000", "Tien mat",
+               "-3,000", "(Tien mat)Tien thua:", "Ministop xin cam on"]
+
+
+def test_subtotal_is_not_the_total_when_a_payable_label_follows():
+    # "tong" nằm giữa tên hàng ("matong" = mật ong) không phải nhãn Tổng: không được lấy 61.000 (tạm tính) ở dòng kế
+    assert extract_total(CONVENIENCE) == 47_000
+    r = analyze([(l, 0.95) for l in CONVENIENCE])
+    assert r["total_amount"] == 47_000 and r["merchant"] == "CÔNG TY TNHH MINISTOP VIỆT NAM" and r["category"] == "groceries"
+
+
+def test_amount_emitted_before_its_label_belongs_to_that_label():
+    # "50,000" đứng sau "Tong cong" nhưng ngay trước nhãn "Tien mat": đó là tiền khách đưa, không phải tổng
+    block = ["61,000", "Tam tinh:", "-14,000", "Khuyen mai:", "47,000", "Tong cong (gom thue):", "50,000", "Tien mat",
+             "-3,000", "(Tien mat)Tien thua:", "Cam on quy khach"]
+    assert extract_total(block) == 47_000
+
+
+def test_column_split_labels_first_then_amounts_still_resolves():
+    # OCR tách cột: cả khối nhãn rồi mới tới khối số tiền
+    assert extract_total(["Tam tinh:", "Tong cong:", "100,000", "125,000"]) == 125_000
+    # nhãn không có số ngay trước: số sau nhãn vẫn là của nhãn dù kế tiếp là dòng chữ cuối phiếu
+    assert extract_total(["Ca phe", "Tong cong:", "125,000", "Cam on quy khach"]) == 125_000
+    assert extract_total(["Tong cong:", "So luong 2", "125,000", "Cam on quy khach"]) == 125_000
+
+
+def test_cash_and_change_are_never_the_total():
+    lines = ["Ca phe sua", "29,000", "Tong cong", "29,000", "Tien khach dua", "100,000", "Tien thua", "71,000"]
+    assert extract_total(lines) == 29_000
+    # nhãn dính chữ "Khachphai tra" (ảnh thật 960345d1) vẫn là nhãn phải trả; "Tien khach dua" sau đó không thay thế nó
+    glued = ["Cong tien hang", "125,000", "Chiet khau", "0", "Khachphai tra", "130,000", "Tien khach dua", "0", "Tralai", "0"]
+    assert extract_total(glued) == 130_000
+
+
+def test_subtotal_only_still_falls_back_and_single_line_total_unchanged():
+    assert extract_total(["Tong (tam tinh)", "42.000d"]) == 42_000
+    assert extract_total(["Banh mi", "Tong cong 125.000"]) == 125_000
+    assert extract_total(["Tra mat ong", "Tong cong", "35.000"]) == 35_000  # "Tong" là chữ đầu từ vẫn là nhãn

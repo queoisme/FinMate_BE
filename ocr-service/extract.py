@@ -144,8 +144,18 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
     """Số tiền lớn nhất trên (hoặc ngay dưới) các dòng chứa từ khóa."""
     candidates = []
     markers = [_alnum(m) for m in _TITLE_MARKERS]
+
+    def letters(text: str) -> int:  # số chữ cái, bỏ đơn vị tiền
+        return sum(ch.isalpha() for ch in re.sub(r"\b(?:dong|vnd|d)\b", " ", _norm(text)))
+
+    def money(text: str) -> list[int]:
+        return [a for a in _amounts(text, True) if a >= _MIN_AMOUNT]
+
     for i, line in enumerate(lines):
-        if not any(k in _norm(line) for k in keywords):
+        # "tong" trơn phải là đầu một từ: "TraYuzumatongboncha" (mật ong) là tên hàng. Từ khóa dài vẫn khớp giữa chữ
+        # vì OCR hay dính nhãn ("Khachphai tra").
+        norm = _norm(line)
+        if not any(re.search(r"(?<![a-z])tong", norm) if k == "tong" else k in norm for k in keywords):
             continue
         squeezed = _alnum(_norm(line))
         if any(m in squeezed for m in markers):
@@ -159,13 +169,19 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
             # OCR tách cột: số tiền có thể nằm vài dòng dưới nhãn (xen một dòng "Số lượng"...). Chỉ nhận dòng
             # gần như chỉ là số tiền (không phải ngày giờ), lấy số lớn nhất trong 3 dòng kế để không dính số
             # bị rớt chữ số ngay dưới nhãn.
-            for nxt in lines[i + 1:i + 4]:
-                bare = re.sub(r"\b(?:dong|vnd|d)\b", " ", _norm(nxt))  # bỏ đơn vị tiền khi đếm chữ
-                if sum(ch.isalpha() for ch in bare) <= 3 and not _DATE_OR_TIME.search(nxt):
-                    found.extend(a for a in _amounts(nxt, True) if a >= _MIN_AMOUNT)
-            if not found and i and sum(ch.isalpha() for ch in re.sub(r"\b(?:dong|vnd|d)\b", " ", _norm(lines[i - 1]))) <= 3:
+            # OCR đọc số bên phải TRƯỚC nhãn bên trái cả khối ("47,000", "Tổng cộng", "50,000", "Tiền mặt"): nếu ngay trước nhãn
+            # đã có số tiền thì số nằm ngay trên một nhãn khác là của nhãn đó (tiền mặt, tiền thừa), không phải của nhãn này.
+            # ponytail: khối xen kẽ kiểu nhãn-trước-số mà dòng trước nhãn là giá món cuối sẽ bị đọc ngược; cần tọa độ hộp chữ mới phân biệt chắc.
+            amount_before = i > 0 and letters(lines[i - 1]) <= 3 and bool(money(lines[i - 1]))
+            for j in range(i + 1, min(i + 4, len(lines))):
+                nxt = lines[j]
+                if letters(nxt) <= 3 and not _DATE_OR_TIME.search(nxt):
+                    if amount_before and j + 1 < len(lines) and letters(lines[j + 1]) > 3:
+                        continue
+                    found.extend(money(nxt))
+            if not found and i and letters(lines[i - 1]) <= 3:
                 # OCR hay đọc số tiền ở bên phải TRƯỚC nhãn bên trái cùng hàng ("37.200đ" rồi "Tổng cộng"): nhãn không có số phía sau thì lấy dòng ngay trước
-                found.extend(a for a in _amounts(lines[i - 1], True) if a >= _MIN_AMOUNT)
+                found.extend(money(lines[i - 1]))
         candidates.extend(a for a in found if a >= _MIN_AMOUNT)
     return max(candidates) if candidates else None
 
