@@ -15,11 +15,12 @@ _HEADER_RE = re.compile(r"\b(?:sl|tong|ten hang|mat hang|don gia|thanh tien|so l
 _SUBTOTAL_RE = re.compile(r"^t[o0-9]ng\b|tong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
 _FINAL_RE = re.compile(r"thanh to[a4]n|phai tra|phai thu|total")  # dòng tổng cuối: hết vùng bill
 _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
-# thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, không phải thuế.
+# thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, "Tổng cộng (gồm thuế)"
+# là tổng cuối, không phải thuế.
 # Đồng bộ với ReceiptSplitter.IsSurcharge (backend, FinMate.Application/Transactions): thêm từ ở đây thì thêm ở BE và ở
 # ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
 _SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|phi phuc vu|phi dich vu|service")
-_PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b")
+_PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
@@ -84,7 +85,8 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     # vùng lấy món: sau dòng tiêu đề cột. Tiêu đề phải đứng trước hàng món đầu tiên ("SL: 2" ở chân bill không phải
     # tiêu đề). Hàng món đầu tiên = ô tiền đúng dạng (có dấu nghìn) và không phải dòng tổng, nên mã KH, điểm tích lũy,
     # Nợ/Có, điện thoại, "Tổng tiền các đơn" ở đầu phiếu không chặn mất tiêu đề. Lấy tiêu đề gần bảng món nhất.
-    # Giới hạn: bill không có tiêu đề cột thì không tách món, ok=False.
+    # Bill không in tiêu đề cột (cửa hàng tiện lợi): bảng món bắt đầu từ hàng món đầu tiên, nhưng phải khép bằng
+    # dòng cộng tạm/tổng (closed) và vẫn phải cộng đúng tổng bill; thiếu một trong hai thì ok=False.
     def money_row(i: int) -> bool:
         p = _price(raw[i], price_x, skip_trailing=True)
         return p is not None and bool(_MONEY_BOX_RE.fullmatch(p[0].text.strip())) \
@@ -93,8 +95,10 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     if first_priced is None:  # bill in giá không dấu nghìn ("30000"): giữ luật cũ, hàng có giá đầu tiên bất kỳ
         first_priced = next((i for i, r in enumerate(raw) if _price(r, price_x)), len(raw))
     start = next((i + 1 for i in reversed(range(first_priced)) if _HEADER_RE.search(texts[i])), None)
-    if start is None:
-        return ItemsResult([], False)
+    headerless = start is None
+    if headerless:
+        start = first_priced
+    closed = False  # gặp dòng cộng tạm hoặc tổng cuối sau các món
 
     items: list[Item] = []
     count = 0  # số món thật (không tính giảm giá, thuế, phí)
@@ -103,6 +107,7 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     tail = False  # đã qua dòng cộng tiền hàng: chỉ nhận thuế/phí và giảm giá cả bill tới dòng tổng cuối
     for r, text in zip(raw[start:], texts[start:]):
         if _FINAL_RE.search(text):
+            closed = True
             break
         if tail:
             p = _price(r, price_x)  # vùng tổng không phải bảng: chỉ lấy ô ngoài cùng bên phải
@@ -118,14 +123,14 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
             # các hàng khác (tiền khách đưa, tiền thừa, cộng lặp lại) không thuộc tổng bill: bỏ
             continue
         if _SUBTOTAL_RE.search(text):
-            tail = True
+            tail = closed = True
             continue
         p = _price(r, price_x, skip_trailing=True)
         cells = r if p is None else r[:next(k for k, b in enumerate(r) if b is p[0])]  # ô bên phải giá không thuộc tên
         words = [b.text for b in cells if not _NUMERIC_RE.match(b.text)]
         own = " ".join(words).strip()
         if p is not None and not own and not pending and count >= 2 and p[1] == sum(i.amount for i in items):
-            tail = True  # số trần bằng đúng tổng đang cộng: dòng cộng tiền hàng in tách khỏi nhãn của nó
+            tail = closed = True  # số trần bằng đúng tổng đang cộng: dòng cộng tiền hàng in tách khỏi nhãn của nó
             continue
         addon = own.startswith("+")  # phụ kiện xét theo chữ của chính hàng có giá, không theo tên mang xuống
         if p is None:
@@ -145,5 +150,5 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
             items.append(Item(name, p[1], None, False))
 
     # tổng các món + thuế/phí - giảm giá phải bằng đúng tổng bill; thuế/phí không tính vào số món
-    ok = total is not None and count >= 2 and sum(i.amount for i in items) == total
+    ok = total is not None and count >= 2 and sum(i.amount for i in items) == total and (closed or not headerless)
     return ItemsResult(items, ok)

@@ -159,3 +159,16 @@ async def test_no_gemini_call_when_everything_matched():
     gemini = FakeGemini()
     _, used = await run(items("Gạo ST25", "Bột giặt"), gemini=gemini)
     assert gemini.calls == [] and used is False
+
+
+async def test_wet_wipes_are_shopping_and_drinks_take_store_default_without_ai():
+    # bill cửa hàng tiện lợi: khăn ướt theo luật là shopping, nước uống tên lạ nhận nhóm mặc định của thương hiệu → 2 nhóm
+    its = items("Khan uot ALLCARE 20", "BonchaTacMatOng450", "Boncha Viet Quat 45", "TraYuzumatongboncha")
+    out, used = await run(its, merchant="Ministop", allow_ai=False)
+    assert out == [(0, "shopping", "rule"), (1, "food", "merchant"), (2, "food", "merchant"), (3, "food", "merchant")]
+    assert used is False
+
+
+async def test_personal_care_disposables_are_shopping_by_rule():
+    out, _ = await run(items("Khăn giấy rút 100 tờ", "Kem đánh răng 180g", "Dầu gội 650ml", "Sữa tắm 900g"), allow_ai=False)
+    assert [o[1:] for o in out] == [("shopping", "rule")] * 4

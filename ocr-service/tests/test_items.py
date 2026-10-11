@@ -242,3 +242,40 @@ def test_no_header_before_first_price_sets_ok_false():
         + row(320, ("Tiền mặt", 50, 250), ("30,000", 800, 950)) \
         + row(360, ("Chuyển khoản", 50, 300), ("20,000", 800, 950))
     assert extract_items(boxes, 50000).ok is False
+
+
+# Bill cửa hàng tiện lợi không in tiêu đề cột: tên | SL | đơn giá | thành tiền (dấu * dính sau), cộng tạm rồi khuyến mãi
+NO_HEADER_QTY_UNIT = [
+    *row(20, ("CÔNG TY TNHH CỬA HÀNG MẪU", 300, 900)),
+    *row(70, ("12 Đường Mẫu, TP.HCM", 300, 900)),
+    *row(120, ("Hoa don Ban hang", 500, 750)),
+    *row(170, ("11/10/2026", 300, 450), ("12:31:13", 860, 990)),
+    *row(220, ("Khan uot MAU 20", 310, 570), ("1", 650, 670), ("19,000", 700, 800), ("19,000", 880, 985)),
+    *row(260, ("TraXanhMatOng450", 310, 560), ("1", 650, 670), ("14,000", 700, 800), ("14,000*", 880, 1000)),
+    *row(300, ("Nuoc Viet Quat 45", 310, 570), ("1", 650, 670), ("14,000", 700, 800), ("14,000*", 880, 1000)),
+    *row(340, ("TraChanhMatOng", 310, 575), ("1", 650, 670), ("14,000", 700, 800), ("14,000*", 880, 1000)),
+    *row(380, ("Tam tinh:", 300, 440), ("61,000", 880, 990)),
+    *row(420, ("Khuyen mai:", 300, 460), ("-14,000", 880, 990)),
+    *row(460, ("Tong cong (gom thue):", 300, 600), ("47,000", 880, 1000)),
+    *row(500, ("Tien mat", 300, 420), ("50,000", 880, 1000)),
+    *row(540, ("(Tien mat)Tien thua:", 300, 580), ("-3,000", 880, 1000)),
+]
+
+
+def test_no_header_qty_unit_total_columns_with_subtotal_and_promotion():
+    r = extract_items(NO_HEADER_QTY_UNIT, 47000)
+    assert r.ok is True
+    assert [(i.name, i.amount, i.is_discount) for i in r.items] == [
+        ("Khan uot MAU 20", 19000, False), ("TraXanhMatOng450", 14000, False),
+        ("Nuoc Viet Quat 45", 14000, False), ("TraChanhMatOng", 14000, False),
+        ("Khuyen mai:", -14000, True)]
+
+
+def test_no_header_wrong_total_sets_ok_false():
+    assert extract_items(NO_HEADER_QTY_UNIT, 61000).ok is False
+
+
+def test_no_header_without_subtotal_or_total_label_sets_ok_false():
+    # không tiêu đề thì bảng món phải khép bằng dòng cộng/tổng; tổng trùng hợp không đủ
+    boxes = row(200, ("Trà sữa", 50, 250), ("30,000", 800, 950)) + row(240, ("Trà đào", 50, 250), ("20,000", 800, 950))
+    assert extract_items(boxes, 50000).ok is False
