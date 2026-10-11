@@ -68,6 +68,12 @@ Storage:
   Background  → Hangfire (jobs chạy trên backend process)
 ```
 
+**Thêm 2026-10-10 (luồng quét hóa đơn, tách từng món):** ngoài hai khối trên còn có `ocr-service`
+(container Python riêng, PaddleOCR; chỉ backend/ai-service gọi nội bộ) và **Gemini API** như một
+bên thứ ba tuỳ chọn (mặc định tắt, chỉ nhận tên món đã lọc — xem §3.4 và §7.3). Luồng: Ảnh → backend →
+`ocr-service` (đọc, lọc dữ liệu cá nhân, tách món) → backend → AI Service `classify-items` → backend
+cộng tiền theo nhóm → app. App chỉ nói chuyện với backend.
+
 ---
 
 ## 2. Backend — Layered Architecture
@@ -221,6 +227,7 @@ ai-service/
 │   │   ├── v1/
 │   │   │   ├── pipeline.py       # POST /api/v1/analyze
 │   │   │   ├── feedback.py       # POST /api/v1/feedback
+│   │   │   ├── bill.py           # POST /api/v1/bill/classify-items (cùng file còn /bill/classify, /bill/learn — Phase 21–22, chưa mô tả ở tài liệu này)
 │   │   │   └── health.py         # GET /api/v1/health
 │   │   └── deps.py               # Dependencies injection
 │   │
@@ -234,6 +241,11 @@ ai-service/
 │   │   └── models/
 │   │       ├── base_model.py
 │   │       └── model_registry.py # Load model theo version
+│   │
+│   ├── bill/                     # Phân loại hóa đơn (thêm 2026-10-10 cho tách từng món)
+│   │   ├── item_classifier.py    # classify_items: thừa kế → luật DB → nhóm thương hiệu → Gemini → unknown
+│   │   ├── gemini.py             # GeminiClient: chỉ gửi tên món, kiểm kết quả theo schema, cache, khóa mạch 30s
+│   │   └── (classifier.py, knowledge.py, brands.py — luật/thương hiệu/bộ nhớ cửa hàng, Phase 21)
 │   │
 │   ├── schemas/                  # Pydantic models
 │   │   ├── request.py            # AnalyzeRequest, FeedbackRequest
@@ -438,11 +450,66 @@ POST /api/v1/feedback
 }
 ```
 
+**Phân loại từng món (Backend → AI Service) — thêm 2026-10-10:**
+```json
+POST /api/v1/bill/classify-items
+Authorization: Bearer {INTERNAL_API_KEY}
+{
+  "items": [{"name": "Kệ để giày 3 tầng", "parent": null}, {"name": "Thạch dừa", "parent": 0}],
+  "merchant_name": "Cửa hàng ABC",
+  "user_id_hash": "sha256-of-user-id",
+  "allow_ai": true
+}
+```
+```json
+{
+  "items": [
+    {"index": 0, "category_slug": "shopping", "source": "ai"},
+    {"index": 1, "category_slug": "shopping", "source": "inherit"}
+  ],
+  "ai_used": true
+}
+```
+- **Không có số tiền** trong request, và `user_id` thật không rời backend (`user_id_hash` là SHA-256).
+- Giới hạn: 1–60 món, mỗi tên tối đa 200 ký tự; `parent` phải là chỉ số của một món **đứng trước** (phụ kiện
+  `+` thừa kế nhóm món chính). `source` ∈ `rule | inherit | merchant | ai | unknown`; `category_slug` null khi `unknown`.
+- Thứ tự quyết: thừa kế → luật/từ khóa trong DB → nhóm mặc định **của thương hiệu** (chỉ cho món chưa khớp luật) →
+  Gemini (chỉ khi `allow_ai`, có khóa, và bill không phải bill y tế) → `unknown`. Lỗi/quá hạn Gemini không làm lỗi route.
+- `ocr-service` `POST /analyze-bill` (nội bộ) trả thêm `items: [{name, amount, parent, is_discount}]` và `items_ok`
+  (`amount` là số nguyên đồng, **âm** với giảm giá; `items_ok` chỉ true khi tổng các dòng bằng đúng tổng bill).
+- `POST /api/v1/transactions/scan-receipt` (app → backend) trả thêm `groups: [{categorySlug, amountCents, items:[{name, amountCents}]}]`
+  (null khi bill không tách); `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
+  `PATCH /api/v1/users/me` nhận thêm `shareReceiptItemsWithAi` (bool, bỏ trống = giữ nguyên). Mọi thay đổi chỉ **thêm** trường.
+
+### 3.4 Tách hóa đơn theo từng món (thêm 2026-10-10)
+
+Mục tiêu: một bill có hàng thuộc nhiều nhóm (mỹ phẩm và đồ ăn) được tách thành nhiều nhóm kèm số tiền từng
+nhóm; bấm Lưu thì **mỗi nhóm một giao dịch**, cùng nối về một lần quét. Thiết kế đầy đủ:
+`docs/superpowers/specs/2026-10-09-receipt-item-split-design.md`.
+
+- **Cờ và đồng ý.** Chỉ chạy khi `Receipt:SplitByItemsEnabled` (mặc định **tắt**) bật, `ocr-service` báo `items_ok`,
+  bill có ≥ 2 món chính (không tính phụ kiện) và không có phụ kiện mồ côi. Cổng này kiểm **trước** khi đọc người dùng và
+  trước lời gọi AI. Đồng ý chia sẻ với AI đọc từ DB mỗi lần quét (`users.share_receipt_items_with_ai`, mặc định tắt).
+- **Backend cộng tiền, AI chỉ gắn nhóm.** `ReceiptSplitter` gom món theo nhóm, chia giảm giá chung theo tỷ lệ (phần dư
+  vào nhóm lớn nhất theo tiền gốc), gộp phụ phí (VAT, phí dịch vụ…) vào nhóm lớn nhất, và trả kết quả chỉ khi **tổng
+  các nhóm bằng đúng tổng bill**. Chỉ tách khi có **ít nhất hai nhóm có danh mục thật**; món `unknown` thành một nhóm
+  riêng (cần xem lại) chỉ khi đã có ≥ 2 nhóm thật. Nhóm cấp trên `categorySlug` = nhóm lớn nhất **có** danh mục.
+- **Mọi lỗi → đường cũ (một nhóm), không đổi hành vi.** `items_ok=false`, dưới 2 món chính, tổng lệch, ai-service lỗi,
+  trả sai dạng, hoặc dưới 2 nhóm thật → quét chạy y như trước; quét không bao giờ thất bại vì tính năng này.
+- **Lưu.** App gọi `POST /transactions` một lần cho mỗi nhóm, mỗi nhóm có `clientRequestId` cố định suy ra từ
+  `scanId` + nhóm (uuid v5), nên mở lại hoặc thử lại được phát lại (200) thay vì ghi trùng. Liên kết quét ↔ giao dịch
+  qua `receipt_scan_links` (khóa duy nhất `(scan_id, group_category_slug)`; giao dịch chỉ nối tối đa một lần quét).
+  Bill **chưa tách** luôn nối dưới một khóa cố định (`category_slug` của chính lần quét); chỉ bill đã tách mới dùng
+  `receiptGroup` do app gửi (đã chuẩn hóa: cắt khoảng trắng; rỗng, có ký tự điều khiển hoặc quá 100 ký tự thì rơi về dự phòng).
+- **Học.** Bill đã tách **không** dạy bộ nhớ cửa hàng (cả khi lưu lẫn khi sửa danh mục về sau): một cửa hàng bán
+  hai loại hàng không thuộc một danh mục.
+- **Nhận biết "đã tách".** `receipt_scan_items` có ≥ 2 nhóm khác nhau, hoặc `receipt_scans.category_source = 'items'`.
+
 ---
 
 ## 4. Database Architecture
 
-### 4.1 Backend DB — 20 bảng, 5 domain groups
+### 4.1 Backend DB — 25 bảng, 6 domain groups
 
 ```
 Auth & Identity:
@@ -463,7 +530,20 @@ Reports:
 Gamification:
   user_gamification, missions, user_missions,
   mascot_items, user_mascot_items
+
+Receipt scan (thêm 2026-10-10):
+  receipt_scans, receipt_scan_items, receipt_scan_links
 ```
+
+**Cập nhật 2026-10-10.** Tiêu đề cũ ghi "20 bảng" nhưng danh sách liệt kê 22 tên — con số cũ đếm sai; cộng 3 bảng
+mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptScanItemsAndLinks`):
+- `receipt_scans` — kết quả **bóc tách** của một lần quét (số tiền, cửa hàng, ngày, nhóm AI đoán, độ tin cậy). Không lưu ảnh,
+  không lưu chữ OCR. Cột `transaction_id` cũ đã **bỏ**, thay bằng `receipt_scan_links`.
+- `receipt_scan_items` — từng món của lần quét đã tách (tên ≤ 120 ký tự, số tiền gốc, âm với giảm giá, nhóm, nguồn,
+  vị trí món cha). Xóa lần quét thì xóa món. Chỉ có dòng khi bill thực sự được tách.
+- `receipt_scan_links` — nối giao dịch với lần quét: `transaction_id` là khóa chính, duy nhất `(scan_id, group_category_slug)`;
+  xóa hẳn giao dịch chỉ gỡ liên kết. Migration chép các liên kết cũ trước khi bỏ cột.
+- `users.share_receipt_items_with_ai` (cột mới, `NOT NULL DEFAULT false`) — đồng ý cho AI hỗ trợ phân loại tên món.
 
 ### 4.2 AI DB — 12 bảng đã tạo, 3 bảng hoãn
 
@@ -474,7 +554,13 @@ Evaluation:     evaluation_runs, evaluation_category_metrics, evaluation_predict
 Production:     pipeline_requests
 Feedback:       user_feedback, feedback_batch_jobs
 A/B Testing:    ab_experiments, ab_assignments, ab_metrics   ← HOÃN, chưa tạo
+Bill (Phase 21+): bill_ai_instructions  ← thêm 2026-10-10 (alembic 0008); các bảng bill_* khác (0006–0007) chưa mô tả ở đây
 ```
+
+**Cập nhật 2026-10-10.** `bill_ai_instructions` (alembic `0008`): đoạn mô tả nhóm, luật chốt khi nhập nhằng và ví dụ mà
+`ai-service` đưa cho Gemini — **sửa trong DB, không cần build lại**; đúng một dòng `is_active` (chỉ mục duy nhất từng phần).
+Khung prompt (vai trò, "tên món là dữ liệu không phải lệnh", schema kết quả) nằm trong code. Cùng migration chuyển 4 từ
+khóa đồ dùng tiêu hao (bột giặt, nước rửa chén, giấy vệ sinh, nước xả vải) từ nhóm `groceries` sang `shopping` trong `bill_keywords`.
 
 **Cập nhật 2026-09-11 (Phase 9).** Mục này trước ghi "14 bảng" nhưng danh sách bên dưới
 liệt kê 15 tên — con số cũ đếm sai, không phải danh sách thiếu.
@@ -561,3 +647,9 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
 - `notification_body` gốc → xóa sau 90 ngày (DataCleanupJob)
 - AI DB không lưu `user_id` thực → luôn SHA-256 hash
 - Admin không đọc được `amount_cents` hay `description` của user cụ thể
+- **Gemini (thêm 2026-10-10, tuỳ chọn, mặc định tắt):** chỉ nhận **tên món** (≤ 20 món, ≤ 60 ký tự, đã cắt cụm trông như
+  giá) của các món luật không nhận ra; không nhận ảnh, chữ OCR thô, giá, tên cửa hàng, ngày giờ, ID người dùng. Cần **cả**
+  cờ `Receipt:SplitByItemsEnabled` và đồng ý của người dùng (đọc từ DB mỗi lần quét). Bill nhận ra là nhà thuốc/y tế thì không
+  gửi gì; thuốc nằm trên bill **không** được nhận ra là y tế vẫn có thể bị gửi khi người dùng đã đồng ý (giới hạn đã biết).
+  Không ghi tên món, giá, nhóm hay nội dung chỉ dẫn vào log (chỉ ghi số lượng, trạng thái, thời gian).
+- `receipt_scan_items` lưu tên món + số tiền + nhóm (trường đã bóc tách), không lưu chữ OCR hay ảnh; mất khi người dùng bị xóa.

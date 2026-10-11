@@ -189,6 +189,38 @@ tiền, đôi khi cả bốn số cuối thẻ. Gửi chúng ra dịch vụ bên
 riêng tư đã dựng (AI DB không giữ `user_id` thật, không log `notification_body`, che số tài
 khoản trong `raw_samples`). Ảnh được xử lý trong bộ nhớ rồi bỏ, không lưu ở đâu cả.
 
+**Cập nhật 2026-10-10 — OCR tách thành container riêng `ocr-service` (đọc hóa đơn, tách từng món).**
+`ocr-service` là một dịch vụ Python riêng, image riêng, chỉ backend/ai-service gọi nội bộ bằng khóa
+`OCR_SERVICE_API_KEY`. Nó dùng:
+```
+paddleocr==2.7.3          # đọc chữ + hộp tọa độ từng dòng (ghép tên món với giá theo vị trí)
+paddlepaddle==2.6.2
+onnxruntime               # VietOCR (ONNX) đọc lại các dòng đầu phiếu để giữ dấu tiếng Việt
+opencv (qua paddleocr)    # cắt tờ hóa đơn khỏi nền, làm thẳng ảnh nghiêng
+scikit-learn, psycopg[binary], pillow, numpy, httpx, fastapi, uvicorn, python-multipart
+```
+Vì sao PaddleOCR giờ được dùng: lý do cấm ở trên là nó kéo `torch` vào image **phục vụ** của
+ai-service. Ở đây nó nằm trong image riêng của `ocr-service`, nên image ai-service **vẫn không có**
+`paddleocr`/`torch` và quy tắc tách requirements của Phase 9 vẫn đúng. PaddleOCR đọc ảnh nghiêng/mờ
+tốt hơn Tesseract và cho hộp tọa độ, thứ bắt buộc để ghép tên món với giá.
+Đường cũ `POST /api/v1/ocr` (Tesseract trong ai-service) **vẫn còn** làm đường dự phòng khi backend
+chưa cấu hình `OCR_SERVICE_URL`; chưa quyết định gỡ Tesseract.
+Ảnh vẫn chỉ đi qua bộ nhớ, không lưu ở đâu. `ocr-service` chỉ trả về chữ **đã lọc** dữ liệu cá nhân
+(số điện thoại, email, tên người, địa chỉ, số tài khoản) và các món đã tách; chữ gốc không rời nó.
+
+**Dịch vụ bên thứ ba duy nhất: Gemini API (TUỲ CHỌN, mặc định TẮT) — phân loại tên món (2026-10-10).**
+Gọi bằng `httpx` có sẵn (`generateContent`), **không thêm package nào**. Chỉ `ai-service` được gọi,
+và chỉ khi **cả hai** điều sau đúng: cờ `Receipt:SplitByItemsEnabled` của backend bật **và** người dùng
+bật công tắc đồng ý (`users.share_receipt_items_with_ai`, mặc định tắt cho mọi người). Không có khóa
+`GEMINI_API_KEY` thì tính năng vẫn chạy bằng luật, món chưa biết thành `unknown`.
+Thứ gửi ra: **chỉ tên món** của các món luật không nhận ra (tối đa 20 món, mỗi tên tối đa 60 ký tự,
+đã cắt các cụm trông như giá tiền). **Không gửi**: ảnh, chữ OCR thô, giá, tên cửa hàng, ngày giờ, ID
+người dùng. Bill nhận ra là bill nhà thuốc/y tế thì không gửi gì. Dùng bản **trả phí/Vertex** (điều
+khoản bản miễn phí có thể dùng dữ liệu để cải thiện mô hình; cần đọc lại điều khoản hiện hành trước
+khi dùng thật). Mô hình mặc định `gemini-3.5-flash-lite`. Lỗi/quá hạn → rơi về luật: timeout 5 giây
+mỗi pha và 8 giây cho cả lời gọi, khóa mạch 30 giây sau lỗi, không bao giờ làm hỏng việc quét.
+Đây **không** phải "OCR đám mây": nó chỉ nhận văn bản đã lọc, không nhận ảnh.
+
 **HTTP client (gọi về backend nếu cần):**
 ```
 httpx==0.28.*             # async HTTP client
@@ -224,8 +256,8 @@ httpx==0.28.*             # test client cho FastAPI
 | `tensorflow` | Dùng PyTorch |
 | `pandas` (trong production pipeline) | Dùng numpy/stdlib — pandas quá nặng cho inference |
 | `requests` (sync) | Dùng `httpx` async thay thế |
-| `easyocr`, `paddleocr` | Kéo `torch` vào image phục vụ — xem mục OCR ở §2.2 |
-| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống |
+| `easyocr`, `paddleocr` (trong image **ai-service**) | Kéo `torch` vào image phục vụ — xem mục OCR ở §2.2. `paddleocr` chỉ được dùng trong image riêng của `ocr-service` |
+| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống. Gemini (§2.2) chỉ nhận **tên món đã lọc**, không nhận ảnh |
 
 ---
 
@@ -268,6 +300,8 @@ httpx==0.28.*             # test client cho FastAPI
 services:
   backend:      # ASP.NET Core 9
   ai-service:   # Python FastAPI
+  ocr-service:  # Python FastAPI + PaddleOCR — đọc hóa đơn, lọc dữ liệu cá nhân, tách từng món (nội bộ)
+  rasa:         # Rasa NLU cho chat — chỉ ai-service gọi; tắt thì ai-service trả lời bằng luật
   postgres-main: # PostgreSQL 16 — Backend DB
   postgres-ai:   # PostgreSQL 16 — AI DB
   redis:         # Redis 7
@@ -315,6 +349,14 @@ BREVO_API_KEY=
 BREVO_SENDER_EMAIL=
 BREVO_SENDER_NAME=FinMate
 
+# Quét hóa đơn qua ocr-service. Có OCR_SERVICE_URL thì backend điều phối; trống thì quay về POST /api/v1/ocr
+# của ai-service (Tesseract). Khóa phải giống OCR_SERVICE_API_KEY trong ocr-service/.env.
+OCR_SERVICE_URL=http://ocr-service:8000
+OCR_SERVICE_API_KEY=
+# Tách hóa đơn theo từng món thành nhiều nhóm. Mặc định TẮT (false); bật thì bill có từ 2 danh mục thật
+# tách thành nhiều giao dịch khi lưu. Không bật thì quét hóa đơn chạy y như trước.
+Receipt__SplitByItemsEnabled=false
+
 # Chặn đăng nhập khi email chưa xác minh. Mặc định BẬT; AuthApiFactory đặt false cho bộ test.
 REQUIRE_EMAIL_VERIFICATION=
 
@@ -332,6 +374,18 @@ REDIS_URL=redis://...
 INTERNAL_API_KEY=...           # phải match AI_SERVICE_API_KEY của backend
 MODEL_REGISTRY_PATH=/models
 LOG_LEVEL=INFO
+
+# Phân loại tên món bằng Gemini — TUỲ CHỌN. Trống GEMINI_API_KEY = không gọi Gemini, món lạ thành unknown.
+# Khóa nằm trong ai-service/.env (bị git bỏ qua), tuyệt đối không commit. Dùng bản trả phí.
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_TIMEOUT_SECONDS=5
+```
+
+**OCR Service (.env):**
+```
+OCR_SERVICE_API_KEY=...        # chỉ backend/ai-service gọi được; phải giống khóa ở hai nơi kia
+FINMATE_DATABASE_URL=...       # DB của AI (finmate_ai): luật, thương hiệu, bill đã gắn nhãn
 ```
 
 ---
