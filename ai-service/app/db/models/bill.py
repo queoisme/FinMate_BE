@@ -219,6 +219,23 @@ class BillUserMerchantChoice(Base):
     )
 
 
+class BillItemCache(Base):
+    """Tên món (đã bỏ dấu, bỏ số tiền) -> slug mà Gemini đã trả lời. Dùng chung mọi người dùng, KHÔNG có cột người dùng.
+
+    Chỉ ghi tên giống tên hàng thật (xem ``item_classifier._rememberable``) và slug hợp lệ; câu trả lời đầu tiên thắng.
+    """
+
+    __tablename__ = "bill_item_cache"
+
+    item_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    category_slug: Mapped[str] = mapped_column(String(32), nullable=False)
+    hits: Mapped[int] = mapped_column(nullable=False, server_default=text("1"))
+    created_at: Mapped[created_at]
+    updated_at: Mapped[timestamptz] = mapped_column(nullable=False, server_default=text("now()"))
+
+    __table_args__ = (CheckConstraint(_in("category_slug", BILL_CHOICE_SLUGS), name="chk_bill_item_cache_slug"),)
+
+
 class BillBrand(Base):
     __tablename__ = "bill_brands"
 

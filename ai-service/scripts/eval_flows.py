@@ -76,6 +76,12 @@ class _NoKnowledge:
     async def refresh_if_stale(self) -> None:
         return None
 
+    async def cached_items(self, keys):
+        return {}
+
+    async def remember_items(self, answers) -> None:
+        return None
+
 
 class _SilentGemini:
     available = True

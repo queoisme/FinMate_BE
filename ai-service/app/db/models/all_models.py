@@ -17,6 +17,7 @@ from app.db.models.bill import (
     BillTrainingJob,
     BillUnknownScan,
     BillUserMerchantCategory,
+    BillItemCache,
     BillUserMerchantChoice,
 )
 from app.db.models.evaluation import (
@@ -44,6 +45,7 @@ __all__ = [
     "BillTrainingJob",
     "BillUnknownScan",
     "BillUserMerchantCategory",
+    "BillItemCache",
     "BillUserMerchantChoice",
     "EvaluationCategoryMetric",
     "EvaluationPrediction",

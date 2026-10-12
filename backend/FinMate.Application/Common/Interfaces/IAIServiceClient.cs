@@ -150,7 +150,7 @@ public record ClassifyItemInput(string Name, int? Parent);
 
 public record ClassifyItemsRequest(Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi);
 
-/// <param name="Source">rule | inherit | merchant | ai | unknown.</param>
+/// <param name="Source">rule | cache | inherit | merchant | ai | unknown.</param>
 public record ClassifiedItem(int Index, string? CategorySlug, string Source);
 
 public record ClassifyItemsResponse(IReadOnlyList<ClassifiedItem> Items, bool AiUsed);

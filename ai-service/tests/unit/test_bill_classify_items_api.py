@@ -17,6 +17,12 @@ class FakeKnowledge:
     async def refresh_if_stale(self):
         return None
 
+    async def cached_items(self, keys):
+        return {}
+
+    async def remember_items(self, answers):
+        return None
+
 
 class FakeGemini:
     available = True

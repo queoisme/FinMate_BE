@@ -79,7 +79,7 @@ class ClassifyItemOut(BaseModel):
     index: int
     # Slug backend, hoặc None khi không nhận ra (backend gom vào nhóm cần xem lại).
     category_slug: str | None = None
-    source: Literal["rule", "inherit", "merchant", "ai", "unknown"]
+    source: Literal["rule", "cache", "inherit", "merchant", "ai", "unknown"]
 
 
 class BillClassifyItemsResponse(BaseModel):

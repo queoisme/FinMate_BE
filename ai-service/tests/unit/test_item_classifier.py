@@ -10,11 +10,19 @@ from app.schemas.bill import ClassifyItemIn
 
 
 class FakeKnowledge:
-    def __init__(self):
+    def __init__(self, cache=None):
         self.refreshes = 0
+        self.cache = dict(cache or {})  # item_key -> slug, đã có sẵn trong bảng nhớ
+        self.remembered_items: dict[str, str] = {}  # những gì classify_items đã ghi thêm
 
     async def refresh_if_stale(self):
         self.refreshes += 1
+
+    async def cached_items(self, keys):
+        return {k: self.cache[k] for k in keys if k in self.cache}
+
+    async def remember_items(self, answers):
+        self.remembered_items.update(answers)
 
 
 class FakeGemini:
@@ -35,8 +43,8 @@ def items(*specs):
     return [ClassifyItemIn(name=s, parent=None) if isinstance(s, str) else ClassifyItemIn(name=s[0], parent=s[1]) for s in specs]
 
 
-async def run(its, merchant=None, gemini=None, instruction="LUAT", allow_ai=True):
-    out, used = await classify_items(its, merchant, FakeKnowledge(), gemini or FakeGemini(), instruction, allow_ai)
+async def run(its, merchant=None, gemini=None, instruction="LUAT", allow_ai=True, knowledge=None):
+    out, used = await classify_items(its, merchant, knowledge or FakeKnowledge(), gemini or FakeGemini(), instruction, allow_ai)
     return [(o.index, o.category_slug, o.source) for o in out], used
 
 
@@ -216,3 +224,56 @@ async def test_health_store_default_still_blocks_gemini():
     gemini = FakeGemini(answer=lambda name: "shopping")
     _out, used = await run(items("Qwerty abc"), merchant="Nhà thuốc Long Châu", gemini=gemini)
     assert gemini.calls == [] and not used
+
+
+async def test_cached_answer_is_used_without_calling_gemini():
+    gemini = FakeGemini(answer=lambda name: "food")
+    out, used = await run(items("Qwerty Abc"), gemini=gemini, knowledge=FakeKnowledge({"qwerty abc": "shopping"}))
+    assert out == [(0, "shopping", "cache")] and gemini.calls == [] and not used
+
+
+async def test_cache_read_works_when_ai_is_not_allowed():
+    out, _ = await run(items("Qwerty Abc"), allow_ai=False, knowledge=FakeKnowledge({"qwerty abc": "family"}))
+    assert out == [(0, "family", "cache")]
+
+
+async def test_cache_key_ignores_case_accents_money_and_spacing():
+    knowledge = FakeKnowledge({"qwerty abc": "shopping"})
+    out, _ = await run(items("  QWERTY   ábc 45,000đ "), allow_ai=False, knowledge=knowledge)
+    assert out == [(0, "shopping", "cache")]
+
+
+async def test_rule_beats_cache():
+    out, _ = await run(items("Gạo ST25"), allow_ai=False, knowledge=FakeKnowledge({"gao st25": "shopping"}))
+    assert out == [(0, "food", "rule")]
+
+
+async def test_gemini_answer_is_remembered():
+    knowledge = FakeKnowledge()
+    await run(items("Qwerty Abc"), gemini=FakeGemini(answer=lambda name: "shopping"), knowledge=knowledge)
+    assert knowledge.remembered_items == {"qwerty abc": "shopping"}
+
+
+async def test_unknown_answer_is_never_remembered():
+    knowledge = FakeKnowledge()
+    await run(items("Qwerty Abc"), gemini=FakeGemini(answer=lambda name: "unknown"), knowledge=knowledge)
+    assert knowledge.remembered_items == {}
+
+
+async def test_invalid_slug_from_the_model_is_never_remembered():
+    knowledge = FakeKnowledge()
+    await run(items("Qwerty Abc"), gemini=FakeGemini(answer=lambda name: "income"), knowledge=knowledge)
+    assert knowledge.remembered_items == {}
+
+
+async def test_junk_names_are_never_remembered():
+    knowledge = FakeKnowledge()
+    junk = ["SP002993", "A12", "ab", "x" * 61, "Qwe\nrty abc"]
+    await run(items(*junk), gemini=FakeGemini(answer=lambda name: "shopping"), knowledge=knowledge)
+    assert knowledge.remembered_items == {}
+
+
+async def test_ai_not_allowed_never_writes_the_cache():
+    knowledge = FakeKnowledge()
+    await run(items("Qwerty Abc"), allow_ai=False, knowledge=knowledge)
+    assert knowledge.remembered_items == {}

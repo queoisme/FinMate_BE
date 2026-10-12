@@ -40,6 +40,14 @@ _LEARN_SQL = text(
 )
 
 
+_ITEM_CACHE_GET_SQL = text("SELECT item_key, category_slug FROM bill_item_cache WHERE item_key = ANY(:keys)")
+# Câu trả lời ĐẦU TIÊN thắng: món đã có trong bảng thì không gọi Gemini nữa, chỉ hai request ghi cùng lúc mới vào nhánh này.
+_ITEM_CACHE_PUT_SQL = text(
+    "INSERT INTO bill_item_cache (item_key, category_slug) VALUES (:key, :slug) "
+    "ON CONFLICT (item_key) DO UPDATE SET hits = bill_item_cache.hits + 1, updated_at = now()"
+)
+
+
 def merchant_key(name: str) -> str:
     """Tên cửa hàng bỏ dấu, chữ thường, gọn khoảng trắng: đúng khóa mà ocr-service lưu (``memory._key``)."""
     return " ".join(classifier._norm(name).split())
@@ -60,6 +68,14 @@ class BillKnowledge(Protocol):
 
     async def learn(self, user_id_hash: str, merchant_name: str, category_slug: str) -> bool:
         """Ghi nhớ người dùng đã chọn ``category_slug`` cho cửa hàng này. False khi tên không dùng được làm khóa."""
+        ...
+
+    async def cached_items(self, keys: list[str]) -> dict[str, str]:
+        """Nhóm (slug backend) đã nhớ cho từng khóa tên món (``item_key``); khóa chưa có thì vắng mặt. Lỗi DB thì trả {}."""
+        ...
+
+    async def remember_items(self, answers: dict[str, str]) -> None:
+        """Ghi các câu trả lời của Gemini (khóa -> slug). Không gắn người dùng. Lỗi DB chỉ cảnh báo."""
         ...
 
 
@@ -139,6 +155,29 @@ class DbBillKnowledge:
         return True
 
 
+    async def cached_items(self, keys: list[str]) -> dict[str, str]:
+        if not keys:
+            return {}
+        try:
+            async with self._session_factory() as session:
+                rows = (await session.execute(_ITEM_CACHE_GET_SQL, {"keys": keys})).all()
+        except Exception as error:  # noqa: BLE001 - bảng nhớ chỉ là đường tắt: lỗi thì để Gemini/luật lo
+            logger.warning("bill_item_cache_read_failed", error=type(error).__name__)
+            return {}
+        return {key: slug for key, slug in rows}
+
+    async def remember_items(self, answers: dict[str, str]) -> None:
+        if not answers:
+            return
+        try:
+            async with self._session_factory() as session:
+                for key, slug in answers.items():
+                    await session.execute(_ITEM_CACHE_PUT_SQL, {"key": key, "slug": slug})
+                await session.commit()
+        except Exception as error:  # noqa: BLE001 - không nhớ được thì lần sau hỏi lại, không được làm hỏng kết quả
+            logger.warning("bill_item_cache_write_failed", error=type(error).__name__)
+
+
 class NoBillKnowledge:
     """Không có DB: chỉ dùng bản trong code, không nhớ gì."""
 
@@ -150,3 +189,9 @@ class NoBillKnowledge:
 
     async def learn(self, user_id_hash: str, merchant_name: str, category_slug: str) -> bool:
         return False
+
+    async def cached_items(self, keys: list[str]) -> dict[str, str]:
+        return {}
+
+    async def remember_items(self, answers: dict[str, str]) -> None:
+        return None

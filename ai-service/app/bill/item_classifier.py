@@ -11,8 +11,9 @@ from collections.abc import Sequence
 
 from app.bill.classifier import _category_from_products, classify_category_detailed
 from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
-from app.bill.knowledge import BillKnowledge
+from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.core.enums import CATEGORY_SLUGS
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
 
 # Số tiền kiểu 45,000 / 1.250.000 (kèm đ/d/vnd dính trước hoặc sau): ô tên đôi khi dính giá, không được gửi giá ra ngoài.
@@ -21,6 +22,21 @@ _MONEY_RE = re.compile(r"(?<!\w)(?:(?:vnd|đ|d)\s?)?\d{1,3}(?:[.,]\d{3})+(?:\s?(
 
 def _strip_money(name: str) -> str:
     return " ".join(_MONEY_RE.sub(" ", name).split())
+
+
+_REMEMBERABLE = frozenset(CATEGORY_SLUGS) - {"income"}  # đúng tập mà CHECK của bill_item_cache chấp nhận
+_MIN_KEY, _MAX_KEY = 3, 60
+
+
+def item_key(name: str) -> str:
+    """Khóa của bảng nhớ tên món: bỏ số tiền, bỏ dấu, chữ thường, gọn khoảng trắng."""
+    return merchant_key(_strip_money(name))
+
+
+def _rememberable(name: str, key: str) -> bool:
+    """Chỉ nhớ tên giống tên hàng thật: không phải mã (SP002993), không quá ngắn/dài, không chứa ký tự điều khiển."""
+    letters = sum(c.isalpha() for c in key)
+    return _MIN_KEY <= len(key) <= _MAX_KEY and letters >= 3 and letters >= sum(c.isdigit() for c in key) and name.isprintable()
 
 
 def _merchant_default(merchant: str | None) -> str | None:
@@ -56,6 +72,17 @@ async def classify_items(
 
     default = _merchant_default(merchant)
 
+    # Bước 2b: tên món đã từng được Gemini trả lời (bảng nhớ dùng chung, không gắn người dùng). Đọc bảng không gửi gì ra ngoài nên
+    # chạy kể cả khi người dùng chưa cho phép AI.
+    clean = {i: _strip_money(item.name) for i, item in enumerate(items)}
+    keys = {i: item_key(item.name) for i, item in enumerate(items)}
+    open_ = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and keys[i]]
+    if open_:
+        cached = await knowledge.cached_items(sorted({keys[i] for i in open_}))
+        for i in open_:
+            if cached.get(keys[i]) in _REMEMBERABLE:
+                results[i] = (cached[keys[i]], "cache")
+
     # Bước 3: Gemini cho tối đa 20 món còn lại đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
     # Hóa đơn thuốc không bao giờ gửi: bỏ qua Gemini nếu cả hóa đơn (cửa hàng + mọi tên món) xếp vào healthcare,
     # nếu nhóm mặc định của thương hiệu là health, hoặc có bất kỳ món nào đã ra health bằng luật.
@@ -66,7 +93,6 @@ async def classify_items(
         or default == "health"
         or any(r is not None and r[0] == "health" for r in results)
     )
-    clean = {i: _strip_money(item.name) for i, item in enumerate(items)}
     pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and clean[i]][:MAX_NAMES]
     if pending and allow_ai and not health_bill and instruction.strip() and gemini.available:
         try:  # GeminiClient tự giới hạn tổng thời gian (8 giây) và khóa mạch khi quá hạn
@@ -75,9 +101,14 @@ async def classify_items(
             answers = None  # món lạ rơi xuống nhóm mặc định / unknown; không bao giờ ném lỗi ra cho client
         if answers is not None:
             ai_used = True
+            learned: dict[str, str] = {}
             for i, category in zip(pending, answers):
                 if category != "unknown":
                     results[i] = (category, "ai")
+                    if category in _REMEMBERABLE and _rememberable(items[i].name, keys[i]):
+                        learned[keys[i]] = category
+            if learned:
+                await knowledge.remember_items(learned)
 
     # Bước 4: nhóm mặc định của cửa hàng, chỉ cho món chưa khớp luật và Gemini không quyết được.
     if default:
