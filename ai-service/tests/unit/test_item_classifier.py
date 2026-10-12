@@ -177,3 +177,42 @@ async def test_personal_care_disposables_are_shopping_by_rule():
 async def test_whitening_shower_gel_is_shopping_not_spa():
     out, _ = await run(items("Sữa tắm trắng da 900g"), allow_ai=False)
     assert out == [(0, "shopping", "rule")]
+
+
+async def test_gemini_beats_store_default_for_unmatched_items():
+    gemini = FakeGemini(answer=lambda name: "shopping")
+    out, used = await run(items("Qwerty abc"), merchant="Ministop", gemini=gemini)
+    assert out == [(0, "shopping", "ai")] and used
+
+
+async def test_store_default_used_when_ai_not_allowed():
+    out, _ = await run(items("Qwerty abc"), merchant="Ministop", allow_ai=False)
+    assert out == [(0, "food", "merchant")]
+
+
+async def test_store_default_used_when_gemini_says_unknown():
+    out, used = await run(items("Qwerty abc"), merchant="Ministop", gemini=FakeGemini(answer=lambda name: "unknown"))
+    assert out == [(0, "food", "merchant")] and used
+
+
+async def test_store_default_used_when_gemini_fails():
+    out, used = await run(items("Qwerty abc"), merchant="Ministop", gemini=FakeGemini(fail=True))
+    assert out == [(0, "food", "merchant")] and not used
+
+
+async def test_rule_hit_never_reaches_gemini_even_with_a_store_default():
+    gemini = FakeGemini(answer=lambda name: "shopping")
+    out, _ = await run(items("Gạo ST25"), merchant="Ministop", gemini=gemini)
+    assert out == [(0, "food", "rule")] and gemini.calls == []
+
+
+async def test_topping_of_a_gemini_decided_item_inherits_the_ai_result():
+    gemini = FakeGemini(answer=lambda name: "shopping")
+    out, _ = await run(items("Qwerty abc", ("+ Zxcv", 0)), merchant="Ministop", gemini=gemini)
+    assert out == [(0, "shopping", "ai"), (1, "shopping", "inherit")]
+
+
+async def test_health_store_default_still_blocks_gemini():
+    gemini = FakeGemini(answer=lambda name: "shopping")
+    _out, used = await run(items("Qwerty abc"), merchant="Nhà thuốc Long Châu", gemini=gemini)
+    assert gemini.calls == [] and not used
