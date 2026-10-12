@@ -44,6 +44,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private const string DiscountSource = "discount";
     private const string SurchargeSource = "surcharge";
 
+    // Phần tiền chưa rõ nhóm từ mức này của tổng bill trở lên thì app nên bảo người dùng xem lại.
+    private const int UnknownSharePercentForReview = 20;
+
     // Hóa đơn thường được quét sau lúc chi một lúc (khác chat), nên cửa sổ rộng hơn chat. Chỉ cảnh báo.
     private static readonly TimeSpan DuplicateWindow = TimeSpan.FromHours(3);
 
@@ -147,7 +150,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         var dto = new ScannedReceiptDto(
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence,
             PossibleDuplicateTransactionId: await DuplicateOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, ct));
-        return await RecordAsync(command.UserId, dto, category?.Source, ocr.NeedsReview, ct);
+        // Cờ tách nhóm bật mà các dòng món không khớp tổng bill (ItemsOk = false): bill phải về một nhóm, người dùng nên xem lại.
+        var needsReview = ocr.NeedsReview || (_options.SplitByItemsEnabled && !ocr.ItemsOk);
+        return await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
     }
 
     /// <summary>
@@ -158,7 +163,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)
     {
         var scan = await RecordScanAsync(userId, dto, categorySource, needsReview, ct);
-        return dto with { ScanId = scan.Id };
+        return dto with { ScanId = scan.Id, NeedsReview = needsReview };
     }
 
     private async Task<ReceiptScan> RecordScanAsync(
@@ -271,7 +276,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt,
             groups.First(g => g.CategorySlug is not null).CategorySlug, confidence,
             Groups: groups);
-        var needsReview = ocr.NeedsReview || groups.Any(g => g.CategorySlug is null);
+        var unknownCents = groups.Where(g => g.CategorySlug is null).Sum(g => g.AmountCents);
+        var needsReview = ocr.NeedsReview || unknownCents * 100 >= ocr.TotalAmount!.Value * UnknownSharePercentForReview;
         var scan = await RecordScanAsync(userId, dto, ReceiptScan.ItemsCategorySource, needsReview, ct);
 
         // scan vừa tạo trong chính request này, nên AddItemsAsync (không tự kiểm chủ sở hữu) an toàn.
@@ -286,7 +292,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             _logger.LogWarning("Không lưu được các món của lần quét: {ExceptionType}", ex.GetType().Name);
         }
 
-        return dto with { ScanId = scan.Id };
+        return dto with { ScanId = scan.Id, NeedsReview = needsReview };
     }
 
     private Task<Guid?> DuplicateOfAsync(Guid userId, long amountCents, DateTimeOffset? at, CancellationToken ct)

@@ -56,4 +56,5 @@ public record ScannedReceiptDto(
     double? Confidence,
     Guid? ScanId = null,
     IReadOnlyList<ReceiptGroup>? Groups = null,
-    Guid? PossibleDuplicateTransactionId = null);
+    Guid? PossibleDuplicateTransactionId = null,
+    bool NeedsReview = false);

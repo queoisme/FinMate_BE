@@ -143,7 +143,8 @@ public class ScanReceiptSplitTests
 
         var dto = await Handler().HandleAsync(Command());
 
-        ShouldBeOldPath(dto, OldPathOfMixedBill);
+        ShouldBeOldPath(dto, OldPathOfMixedBill with { NeedsReview = true });  // vẫn là đường cũ, nhưng giờ báo app xem lại
+        _saved.Single().NeedsReview.Should().BeTrue();
         _classifyRequests.Should().BeEmpty();
     }
 
@@ -499,5 +500,72 @@ public class ScanReceiptSplitTests
         dto.Groups.Where(g => g.AmountCents == target).Should().OnlyContain(g => g.PossibleDuplicateTransactionId == existing);
         dto.Groups.Where(g => g.AmountCents != target).Should().OnlyContain(g => g.PossibleDuplicateTransactionId == null);
         dto.PossibleDuplicateTransactionId.Should().BeNull();  // cờ cả bill chỉ dành cho bill không tách
+    }
+
+    // ------------------------------------------------------------ cờ NeedsReview trả về cho app
+
+    // Hai món biết nhóm (40.000 + 40.000) và một món chưa rõ nhóm; tổng bill = 80.000 + unknown.
+    private static OcrServiceResponse BillWithUnknown(long unknownCents) => MixedBill() with
+    {
+        TotalAmount = 80_000 + unknownCents,
+        Items =
+        [
+            new OcrItem("Cà phê sữa", 40_000, null, false),
+            new OcrItem("Dầu gội", 40_000, null, false),
+            new OcrItem("Món lạ", unknownCents, null, false),
+        ],
+    };
+
+    [Theory]
+    [InlineData(19_000, false)]  // 19,19% tổng bill
+    [InlineData(20_000, true)]  // đúng 20%
+    [InlineData(40_000, true)]
+    public async Task TheScanSaysNeedsReviewFromTwentyPercentUnknown(long unknownCents, bool expected)
+    {
+        OcrReturns(BillWithUnknown(unknownCents));
+        ClassifyItemsReturns(r => Classified(r, "food", "shopping", null));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.NeedsReview.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task AFullyClassifiedBillDoesNotNeedReview()
+    {
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.NeedsReview.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task OcrDoubtAloneNeedsReview()
+    {
+        OcrReturns(MixedBill() with { NeedsReview = true });
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.NeedsReview.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task FallingBackBecauseTheLinesDidNotAddUpNeedsReview()
+    {
+        OcrReturns(MixedBill() with { ItemsOk = false });
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Groups.Should().BeNull();
+        dto.NeedsReview.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WithTheFlagOffTheOldPathIsNotFlaggedJustForNotSplitting()
+    {
+        OcrReturns(MixedBill() with { ItemsOk = false });
+
+        var dto = await Handler(enabled: false).HandleAsync(Command());
+
+        dto.NeedsReview.Should().BeFalse();
     }
 }
