@@ -594,7 +594,9 @@ Authorization: Bearer {INTERNAL_API_KEY}
 - `POST /api/v1/transactions/scan-receipt` (app → backend) trả thêm `groups: [{categorySlug, amountCents, items:[{name, amountCents}]}]`
   (null khi bill không tách), `needsReview` (bool: OCR chưa chắc, hoặc phần chưa rõ nhóm ≥ 20% tổng bill, hoặc cờ tách bật mà các dòng
   không khớp tổng) và `possibleDuplicateTransactionId` (cả bill khi không tách; từng nhóm trong `groups` khi tách): một khoản chi cùng
-  số tiền của chính người dùng trong ±3 giờ. Chỉ để cảnh báo; `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
+  số tiền của chính người dùng trong ±3 giờ. Chỉ để cảnh báo. Ảnh chụp **màn hình danh sách đơn** (ví dụ "Đơn đã mua" của Shopee, ocr-service `screen_type = order_list`)
+  trả thêm `orders: [{merchantName, amountCents, description, categorySlug}]` (≥ 2 đơn, mỗi đơn phân loại theo cửa hàng + sản phẩm của nó, lỗi thì giữ nhóm OCR đoán) và
+  `incompleteOrders` (số đơn bị cắt dở); `amountCents` cấp trên vẫn là đơn đầu. App hiện mỗi đơn một thẻ nháp, lưu độc lập (không `receiptScanId`). `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
   `PATCH /api/v1/users/me` nhận thêm `shareReceiptItemsWithAi` (bool, bỏ trống = giữ nguyên). Mọi thay đổi chỉ **thêm** trường.
 
 **Chat (Backend → AI Service) — thêm Phase 19–20, ghi vào tài liệu 2026-10-11:**
