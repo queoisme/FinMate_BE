@@ -7,12 +7,17 @@ nội dung câu hay số tiền vào log (AGENTS.md §3.2).
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from datetime import datetime
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_internal_api_key
+from app.api.v1.bill import get_bill_knowledge
+from app.bill.item_classifier import item_key
+from app.bill.knowledge import BillKnowledge
 from app.chat.nlu import RasaNlu, open_nlu
 from app.chat.parser import VN, ChatParse, parse_chat
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
@@ -29,6 +34,26 @@ _nlu: RasaNlu | None = open_nlu(settings.rasa_url)
 def set_nlu(nlu: RasaNlu | None) -> None:
     global _nlu
     _nlu = nlu
+
+
+async def _with_cached_categories(parsed: ChatParse, knowledge: BillKnowledge) -> ChatParse:
+    """Khoản chi chưa rõ nhóm: tra bảng nhớ tên món (câu trả lời Gemini đã lưu từ hóa đơn). Chỉ GỢI Ý: có nhóm nhưng không bao giờ tự ghi,
+    vì nguồn gốc là một phỏng đoán. Bảng lỗi thì giữ nguyên kết quả, không làm hỏng câu chat."""
+    open_keys = {item_key(e.description) for e in parsed.entries if e.kind == "expense" and e.category is None and e.description}
+    open_keys.discard("")
+    if not open_keys:
+        return parsed
+    try:
+        cached = await knowledge.cached_items(sorted(open_keys))
+    except Exception:  # noqa: BLE001 - chat không được chết vì bảng nhớ
+        return parsed
+
+    def fill(entry):
+        slug = cached.get(item_key(entry.description)) if entry.kind == "expense" and entry.category is None and entry.description else None
+        return replace(entry, category=slug, auto_save_ok=False) if slug in CATEGORY_SLUGS and slug != INCOME_SLUG else entry
+
+    entries = tuple(fill(e) for e in parsed.entries)
+    return replace(parsed, entries=entries, entry=entries[0]) if entries else parsed
 
 
 def _slug(category: str | None) -> str | None:
@@ -80,7 +105,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
 
 
 @router.post("/chat/parse", response_model=ChatParseResponse)
-async def chat_parse(body: ChatParseRequest) -> ChatParseResponse:
+async def chat_parse(body: ChatParseRequest, knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)]) -> ChatParseResponse:
     started = time.perf_counter()
     nlu = await _nlu.parse(body.text) if _nlu else None
     parsed = parse_chat(
@@ -89,6 +114,7 @@ async def chat_parse(body: ChatParseRequest) -> ChatParseResponse:
         now=datetime.now(VN),
         auto_save_below=settings.chat_auto_save_below,
     )
+    parsed = await _with_cached_categories(parsed, knowledge)
     response = _to_response(parsed)
     response.processing_ms = int((time.perf_counter() - started) * 1000)
     logger.info("chat_parsed", intent=response.intent, source=response.nlu.source, processing_ms=response.processing_ms)

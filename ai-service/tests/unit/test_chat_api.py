@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.api.v1 import chat as chat_route
+from app.api.v1.bill import get_bill_knowledge
 from app.chat.nlu import RasaNlu
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
@@ -12,10 +13,25 @@ from app.main import app
 HASH = "a" * 64
 
 
+class FakeKnowledge:
+    """Bảng nhớ tên món giả: đếm số lần được hỏi để biết route chỉ hỏi khi cần."""
+
+    def __init__(self, cache=None, fail=False):
+        self.cache, self.fail, self.calls = dict(cache or {}), fail, []
+
+    async def cached_items(self, keys):
+        self.calls.append(list(keys))
+        if self.fail:
+            raise RuntimeError("db down")
+        return {k: self.cache[k] for k in keys if k in self.cache}
+
+
 @pytest.fixture(autouse=True)
 def no_rasa():
     chat_route.set_nlu(None)
+    app.dependency_overrides[get_bill_knowledge] = lambda: FakeKnowledge()  # test đơn vị không đụng DB
     yield
+    app.dependency_overrides.pop(get_bill_knowledge, None)
     chat_route.set_nlu(None)
 
 
@@ -166,3 +182,47 @@ async def test_an_expense_phrase_without_a_number_asks_for_the_amount(text):
 @pytest.mark.parametrize("text", ["ăn gì bây giờ?", "xin chào", "thời tiết hôm nay thế nào", "nên mua nhà hay thuê nhà"])
 async def test_questions_and_small_talk_do_not_ask_for_an_amount(text):
     assert (await post(text)).json()["intent"] != "needs_amount"
+
+
+def use_cache(**cache):
+    fake = FakeKnowledge({k.replace("_", " "): v for k, v in cache.items()})
+    app.dependency_overrides[get_bill_knowledge] = lambda: fake
+    return fake
+
+
+async def test_cached_category_fills_an_unknown_phrase_but_never_auto_saves():
+    fake = use_cache(zxqv_gizmo="shopping")
+    entry = (await post("zxqv gizmo 50k")).json()["entry"]
+    assert entry["category_slug"] == "shopping" and entry["auto_save_ok"] is False
+    assert fake.calls == [["zxqv gizmo"]]
+
+
+async def test_a_rule_hit_never_consults_the_cache():
+    fake = use_cache(pho_bo="shopping")
+    entry = (await post("ăn phở bò 45k")).json()["entry"]
+    assert entry["category_slug"] == "food" and fake.calls == []
+
+
+async def test_income_and_transfers_never_consult_the_cache():
+    fake = use_cache()
+    await post("nhận lương 12 triệu")
+    await post("chuyển khoản 200k")
+    assert fake.calls == []
+
+
+async def test_cache_failure_is_harmless():
+    app.dependency_overrides[get_bill_knowledge] = lambda: FakeKnowledge(fail=True)
+    response = await post("zxqv gizmo 50k")
+    assert response.status_code == 200 and response.json()["entry"]["category_slug"] is None
+
+
+async def test_every_unknown_entry_of_a_multi_entry_sentence_is_looked_up_once():
+    fake = use_cache(zxqv_gizmo="shopping", qwop_widget="family")
+    body = (await post("zxqv gizmo 50k, qwop widget 30k, ăn phở 45k")).json()
+    assert [e["category_slug"] for e in body["entries"]] == ["shopping", "family", "food"]
+    assert len(fake.calls) == 1 and sorted(fake.calls[0]) == ["qwop widget", "zxqv gizmo"]
+
+
+async def test_a_cached_slug_outside_the_taxonomy_is_ignored():
+    use_cache(zxqv_gizmo="income")
+    assert (await post("zxqv gizmo 50k")).json()["entry"]["category_slug"] is None
