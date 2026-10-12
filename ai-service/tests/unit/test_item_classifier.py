@@ -277,3 +277,34 @@ async def test_ai_not_allowed_never_writes_the_cache():
     knowledge = FakeKnowledge()
     await run(items("Qwerty Abc"), allow_ai=False, knowledge=knowledge)
     assert knowledge.remembered_items == {}
+
+
+async def test_one_letter_ocr_typo_still_matches_a_product_keyword():
+    out, _ = await run(items("KHAM UOT Bobby"), allow_ai=False)
+    assert out == [(0, "shopping", "rule")]
+
+
+async def test_fuzzy_match_never_reaches_gemini():
+    gemini = FakeGemini(answer=lambda name: "food")
+    out, _ = await run(items("KHAM UOT Bobby"), gemini=gemini)
+    assert out == [(0, "shopping", "rule")] and gemini.calls == []
+
+
+async def test_codes_and_short_words_get_no_fuzzy_hit():
+    out, _ = await run(items("SP002993", "nuoc", "xyz"), allow_ai=False)
+    assert out == [(0, None, "unknown"), (1, None, "unknown"), (2, None, "unknown")]
+
+
+async def test_a_different_real_word_is_not_pulled_into_a_keyword():
+    out, _ = await run(items("Khan tam bong", "Banh quy bo"), allow_ai=False)  # khăn tắm không phải khăn ướt
+    assert out == [(0, None, "unknown"), (1, None, "unknown")]
+
+
+async def test_a_one_letter_difference_between_two_real_products_is_not_a_typo():
+    out, _ = await run(items("Nuoc muoi sinh ly"), allow_ai=False)  # nước muối ≠ nước suối
+    assert out == [(0, None, "unknown")]
+
+
+async def test_missing_letter_and_confusable_letter_typos_match():
+    out, _ = await run(items("KHAN UOTT", "KHA UOT", "KHAM UOT"), allow_ai=False)
+    assert [o[1] for o in out] == ["shopping"] * 3

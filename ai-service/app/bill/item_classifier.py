@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from difflib import SequenceMatcher
 
-from app.bill.classifier import _category_from_products, classify_category_detailed
+from app.bill.classifier import _PRODUCT_KEYWORDS, _category_from_products, _norm, classify_category_detailed
 from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
@@ -37,6 +38,51 @@ def _rememberable(name: str, key: str) -> bool:
     """Chỉ nhớ tên giống tên hàng thật: không phải mã (SP002993), không quá ngắn/dài, không chứa ký tự điều khiển."""
     letters = sum(c.isalpha() for c in key)
     return _MIN_KEY <= len(key) <= _MAX_KEY and letters >= 3 and letters >= sum(c.isdigit() for c in key) and name.isprintable()
+
+
+_FUZZY_MIN_KEYWORD = 7  # từ khóa ngắn hơn thì một chữ sai đã là một từ khác ("sua"/"sau")
+_FUZZY_CUTOFF = 0.85  # một chữ sai trong từ khóa 8 ký tự = 0,875
+# Cặp chữ OCR hay nhầm. Chỉ nhận lệch đúng một chữ nằm trong bảng này, hoặc thiếu/thừa một chữ: ngưỡng điểm một mình không phân biệt được
+# "kham uot" (lỗi OCR) với "nuoc muoi" ≠ "nuoc suoi" (hai món khác nhau thật).
+_OCR_PAIRS = {frozenset(p) for p in ("mn", "uv", "il", "l1", "i1", "o0", "ce", "ao", "nh", "rn", "s5", "b6", "g9", "z2")}
+
+
+def _ocr_typo(cand: str, kw: str) -> bool:
+    ops = [op for op in SequenceMatcher(None, cand, kw).get_opcodes() if op[0] != "equal"]
+    if len(ops) != 1:
+        return False
+    tag, a0, a1, b0, b1 = ops[0]
+    if tag == "replace":
+        return a1 - a0 == 1 and b1 - b0 == 1 and frozenset((cand[a0], kw[b0])) in _OCR_PAIRS
+    return (a1 - a0) + (b1 - b0) == 1  # thiếu hoặc thừa đúng một chữ
+
+
+def _fuzzy_rule(name: str) -> str | None:
+    """Slug backend khi tên món gần như trùng một từ khóa sản phẩm (OCR sai/thiếu một chữ), None nếu không có hoặc không chắc.
+
+    Chỉ gọi khi luật khớp chính xác không ra. So từng cụm từ liên tiếp trong tên với từ khóa có cùng số từ; chữ cái đầu phải trùng.
+    Hai nhóm cùng gần như nhau thì không đoán.
+    """
+    words = " ".join(_norm(name).replace("'", "").split()).split()
+    best: tuple[float, int, str] | None = None
+    tie = False
+    for category, keywords in _PRODUCT_KEYWORDS.items():
+        for kw in keywords:
+            if len(kw) < _FUZZY_MIN_KEYWORD:
+                continue
+            n = len(kw.split())
+            for start in range(len(words) - n + 1):
+                cand = " ".join(words[start : start + n])
+                if cand[0] != kw[0] or cand == kw:
+                    continue
+                ratio = SequenceMatcher(None, cand, kw).ratio()
+                if ratio < _FUZZY_CUTOFF or not _ocr_typo(cand, kw):
+                    continue
+                if best is None or (ratio, len(kw)) > best[:2]:
+                    best, tie = (ratio, len(kw), category), False
+                elif (ratio, len(kw)) == best[:2] and category != best[2]:
+                    tie = True
+    return None if best is None or tie else SLUG_BY_LOCAL_CATEGORY.get(best[2])
 
 
 def _merchant_default(merchant: str | None) -> str | None:
@@ -67,6 +113,13 @@ async def classify_items(
         if item.parent is None:
             hit = _category_from_products([item.name], None)
             slug = SLUG_BY_LOCAL_CATEGORY.get(hit[0]) if hit else None
+            if slug:
+                results[i] = (slug, "rule")
+
+    # Bước 2a: gần như trùng một từ khóa (OCR sai một chữ). Vẫn là luật nên cũng không tốn lượt gọi Gemini.
+    for i, item in enumerate(items):
+        if item.parent is None and results[i] is None:
+            slug = _fuzzy_rule(item.name)
             if slug:
                 results[i] = (slug, "rule")
 
