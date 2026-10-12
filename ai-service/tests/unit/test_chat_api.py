@@ -116,3 +116,53 @@ async def test_response_carries_entries_and_the_date():
 async def test_single_entry_is_also_listed_and_has_no_date():
     body = (await post("đi ăn 200k")).json()
     assert body["entries"] == [body["entry"]] and body["entry"]["occurred_at"] is None
+
+
+@pytest.mark.parametrize(
+    ("text", "slug"),
+    [
+        ("uống nước 10k", "food"),
+        ("mua 2 lít sữa 50k", "food"),
+        ("mua sữa bột 400k", "family"),
+        ("đóng học phí 3 triệu", "education"),
+        ("đóng tiền nước 200k", "housing"),
+        ("sửa nhà 2 triệu", None),  # "sửa" bỏ dấu thành "sua": không được kéo sang sữa
+        ("uống thuốc 50k", "health"),
+        ("cắt tóc 80k", "other"),  # từ khóa nằm cạnh học phí trong bảng cũ: đừng làm rơi khi chuyển học phí sang education
+    ],
+)
+async def test_ambiguous_words_resolve_by_context_and_otherwise_stay_unknown(text, slug):
+    assert (await post(text)).json()["entry"]["category_slug"] == slug
+
+
+@pytest.mark.parametrize("text", ["mua nước 20k", "20k"])
+async def test_unknown_category_is_never_auto_saved(text):
+    entry = (await post(text)).json()["entry"]
+    assert entry["auto_save_ok"] is False
+    if text == "mua nước 20k":
+        assert entry["category_slug"] is None
+
+
+async def test_amount_only_has_no_description():
+    entry = (await post("20k")).json()["entry"]
+    assert entry["amount_cents"] == 20_000 and entry["description"] is None
+
+
+async def test_bank_transfer_is_a_transfer_and_never_auto_saved():
+    entry = (await post("chuyển khoản 200k")).json()["entry"]
+    assert entry["kind"] == "transfer" and entry["auto_save_ok"] is False and entry["category_slug"] is None
+
+
+async def test_a_leading_minus_does_not_make_the_amount_negative():
+    entry = (await post("-50k ăn cơm")).json()["entry"]
+    assert (entry["kind"], entry["amount_cents"]) == ("expense", 50_000)
+
+
+@pytest.mark.parametrize("text", ["ăn cơm", "mua nước", "đi ăn", "uống cà phê"])
+async def test_an_expense_phrase_without_a_number_asks_for_the_amount(text):
+    assert (await post(text)).json()["intent"] == "needs_amount"
+
+
+@pytest.mark.parametrize("text", ["ăn gì bây giờ?", "xin chào", "thời tiết hôm nay thế nào", "nên mua nhà hay thuê nhà"])
+async def test_questions_and_small_talk_do_not_ask_for_an_amount(text):
+    assert (await post(text)).json()["intent"] != "needs_amount"

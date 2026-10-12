@@ -47,6 +47,8 @@ _INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
 _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
 _QUERY = re.compile(r"bao nhieu|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
 
+_EXPENSE_VERB = re.compile(r"(?:an|uong|mua|di an|di uong|do xang|dong|tra|nap|thue)(?![a-z])")
+
 _REPLIES = {
     "greet": "Chào bạn! Mình là Mầm, bạn cứ nhắn khoản chi tiêu, ví dụ \"ăn phở 45k\", hoặc hỏi \"tháng này tôi tiêu bao nhiêu?\".",
     "goodbye": "Tạm biệt bạn! Cần ghi chi tiêu thì nhắn mình nhé.",
@@ -172,7 +174,10 @@ def _rule_intent(text: str, norm: str) -> str:
         return "ask_spending"
     if norm in _GREET:
         return "greet"
-    return "thanks" if norm in _THANKS else "out_of_scope"
+    if norm in _THANKS:
+        return "thanks"
+    # Cụm chi tiêu không kèm số tiền ("ăn cơm", "mua nước", "đi ăn"): hỏi số tiền thay vì bảo ngoài chủ đề. Câu hỏi đã bị chặn trước đó.
+    return "needs_amount" if _EXPENSE_VERB.match(norm) or category_from_text(norm) else "out_of_scope"
 
 
 def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
