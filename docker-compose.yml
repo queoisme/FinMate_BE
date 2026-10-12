@@ -55,6 +55,8 @@ services:
       # Có URL (và OCR_SERVICE_API_KEY trong backend/.env) thì backend điều phối quét hóa đơn: ocr-service đọc và lọc,
       # ai-service phân loại. Bỏ dòng này thì quét qua POST /api/v1/ocr của ai-service như trước.
       OCR_SERVICE_URL: "http://ocr-service:8000"
+      # Có URL (và STT_SERVICE_API_KEY trong backend/.env) thì POST /api/v1/transactions/voice nghe được giọng nói.
+      STT_SERVICE_URL: "http://stt-service:8000"
     ports:
       - "8080:8080"
       # /hangfire dashboard is served by this same process, no separate container
@@ -70,6 +72,19 @@ services:
         condition: service_healthy
       ocr-service:
         condition: service_started
+      stt-service:
+        condition: service_started
+
+  # Giọng nói → chữ (GIPFormer ONNX, CPU). KHÔNG mở cổng ra máy chủ: chỉ backend gọi, qua khóa STT_SERVICE_API_KEY
+  # (giống nhau trong stt-service/.env và backend/.env). Audio chỉ đi qua bộ nhớ. Model (~258MB) đặt ở
+  # stt-service/models/gipformer1.5-fp32/, mount vào /models (xem stt-service/README.md).
+  stt-service:
+    build:
+      context: ./stt-service
+    env_file:
+      - ./stt-service/.env
+    volumes:
+      - ./stt-service/models:/models:ro
 
   # OCR hóa đơn (PaddleOCR + VietOCR). KHÔNG mở cổng ra máy chủ: chỉ backend và ai-service gọi được, qua mạng
   # nội bộ và khóa OCR_SERVICE_API_KEY. Ảnh chỉ đi qua bộ nhớ, không lưu ở đâu. Khóa nằm trong

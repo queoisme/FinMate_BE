@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+numpy>=1.26,<3
+av>=14,<17
+sherpa-onnx>=1.12,<2
+sherpa-onnx-core>=1.12,<2
+httpx
+pytest

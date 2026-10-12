@@ -221,6 +221,24 @@ public class Program
             });
         }
 
+        // STT service riêng (GIPFormer): có URL thì POST /transactions/voice nghe được; không có thì endpoint trả 503.
+        var sttServiceUrl = builder.Configuration["STT_SERVICE_URL"];
+        if (string.IsNullOrWhiteSpace(sttServiceUrl))
+        {
+            builder.Services.AddSingleton<ISttServiceClient, DisabledSttServiceClient>();
+        }
+        else
+        {
+            var sttServiceApiKey = builder.Configuration["STT_SERVICE_API_KEY"]
+                ?? throw new InvalidOperationException("STT_SERVICE_API_KEY is not configured.");
+            builder.Services.AddHttpClient<ISttServiceClient, SttServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(sttServiceUrl.TrimEnd('/') + "/");
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sttServiceApiKey);
+                client.Timeout = TimeSpan.FromSeconds(60);
+            });
+        }
+
         builder.Services.AddRefitClient<IAIServiceApi>()
             .ConfigureHttpClient(client =>
             {
@@ -405,6 +423,7 @@ public class Program
             bool.TryParse(builder.Configuration["Receipt:SplitByItemsEnabled"], out var splitByItems) && splitByItems));
         builder.Services.AddScoped<IScanReceiptCommandHandler, ScanReceiptCommandHandler>();
         builder.Services.AddScoped<IChatCommandHandler, ChatCommandHandler>();
+        builder.Services.AddScoped<IVoiceChatCommandHandler, VoiceChatCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
         builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
 

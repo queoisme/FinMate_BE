@@ -22,6 +22,7 @@ public class TransactionsController : ControllerBase
     private readonly IParseNaturalLanguageCommandHandler _parseHandler;
     private readonly IScanReceiptCommandHandler _scanReceiptHandler;
     private readonly IChatCommandHandler _chatHandler;
+    private readonly IVoiceChatCommandHandler _voiceHandler;
     private readonly IGetTransactionListQueryHandler _listHandler;
     private readonly IGetTransactionDetailQueryHandler _detailHandler;
 
@@ -34,6 +35,7 @@ public class TransactionsController : ControllerBase
         IParseNaturalLanguageCommandHandler parseHandler,
         IScanReceiptCommandHandler scanReceiptHandler,
         IChatCommandHandler chatHandler,
+        IVoiceChatCommandHandler voiceHandler,
         IGetTransactionListQueryHandler listHandler,
         IGetTransactionDetailQueryHandler detailHandler)
     {
@@ -45,6 +47,7 @@ public class TransactionsController : ControllerBase
         _parseHandler = parseHandler;
         _scanReceiptHandler = scanReceiptHandler;
         _chatHandler = chatHandler;
+        _voiceHandler = voiceHandler;
         _listHandler = listHandler;
         _detailHandler = detailHandler;
     }
@@ -209,6 +212,29 @@ public class TransactionsController : ControllerBase
         var result = await _chatHandler.HandleAsync(
             new ChatCommand(CurrentUserId, request.Text, request.FinancialAccountId, request.ClientRequestId), ct);
         return Ok(ApiResponse<ChatResultDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Giọng nói → chữ (stt-service) → đúng luồng <c>POST /transactions/chat</c>. Trả <c>transcript</c> để client cho người dùng xem
+    /// câu đã nghe được, kèm kết quả chat. Audio không được lưu ở đâu. Form: <c>file</c> (≤10 MiB), tùy chọn
+    /// <c>financialAccountId</c>, <c>clientRequestId</c>.
+    /// </summary>
+    [HttpPost("voice")]
+    [RequestSizeLimit(VoiceChatCommandHandler.MaxAudioBytes + 4096)]
+    public async Task<IActionResult> Voice(IFormFile file, [FromForm] Guid? financialAccountId, [FromForm] Guid? clientRequestId, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            throw new BusinessRuleException(TransactionErrorCodes.VoiceAudioInvalid, "Vui lòng ghi âm hoặc chọn tệp âm thanh.");
+        }
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+
+        var result = await _voiceHandler.HandleAsync(
+            new VoiceChatCommand(CurrentUserId, buffer.ToArray(), file.FileName, file.ContentType ?? string.Empty,
+                financialAccountId, clientRequestId), ct);
+        return Ok(ApiResponse<VoiceChatResultDto>.Ok(result));
     }
 
     [HttpPost("parse")]

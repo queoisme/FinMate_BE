@@ -18,4 +18,10 @@ public static class TransactionErrorCodes
 
     /// <summary>Ảnh hóa đơn rỗng hoặc không phải định dạng ảnh được chấp nhận.</summary>
     public const string ReceiptImageInvalid = "TRANSACTION_RECEIPT_IMAGE_INVALID";
+
+    /// <summary>Audio rỗng, quá 10 MiB hoặc không phải định dạng âm thanh được chấp nhận.</summary>
+    public const string VoiceAudioInvalid = "TRANSACTION_VOICE_AUDIO_INVALID";
+
+    /// <summary>Không nghe ra lời nào (im lặng hoặc quá nhiễu): người dùng nên ghi lại hoặc gõ tay.</summary>
+    public const string VoiceNoSpeech = "TRANSACTION_VOICE_NO_SPEECH";
 }

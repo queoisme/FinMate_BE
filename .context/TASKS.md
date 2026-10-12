@@ -955,3 +955,10 @@ Phần chạy với tài khoản Google thật cần user tạo client secret v�
 **Chạy thật trọn vẹn sau khi sửa:** `/start` → đăng nhập Google thật → trang hiện mã bàn giao → `/exchange` trả JWT → `GET /users/me` trả đúng `thiennguyen.csnt@gmail.com`. DB xác nhận `google_id` đã gắn vào tài khoản email/mật khẩu sẵn có (auto-link) và `email_verified_at` được đặt tự động như Phase 17 thiết kế. Dùng lại mã bàn giao lần hai → `AUTH_TOKEN_INVALID`.
 
 **Điều thực nghiệm dạy được:** ASP.NET chuẩn hoá URI redirect nên `finmate://auth?code=…` ra thành `finmate://auth/?code=…` (thêm một dấu gạch chéo). Vô hại với intent filter của Android vì nó khớp theo scheme + host, nhưng đã ghi vào test để phía Flutter không mất thời gian truy khi thấy đường link khác chuỗi cấu hình.
+
+## Phase 27 — Voice: giọng nói → chữ → luồng chat (2026-10-13)
+Lấy phần xử lý voice của gói Voice Lab (STT GIPFormer ONNX) gắn vào hệ thống: **không** mang theo luồng OpenRouter/privacy riêng.
+- `stt-service/` (mới, nội bộ): `POST /transcribe` audio → chữ thường. Model ~258MB đặt tay ở `stt-service/models/gipformer1.5-fp32/` (git bỏ qua, xem README).
+- Backend: `POST /api/v1/transactions/voice` (multipart `file`) → `ISttServiceClient` → `IChatCommandHandler` (cùng luồng gõ chữ: nhiều khoản, ngày, danh mục chung, trùng lặp, xác nhận). Trả `{transcript, chat}`.
+- Cấu hình: `STT_SERVICE_URL` (compose), `STT_SERVICE_API_KEY` (backend/.env = stt-service/.env). Thiếu URL → endpoint trả lỗi AI service không khả dụng.
+- Đã chạy thật: 3 file mp3 (edge-tts) qua BE → "hôm qua ăn phở bốn mươi nghìn rồi đổ xăng bảy mươi nghìn" ra 2 nháp 40.000 food + 70.000 transport. Chưa đo WER/độ chính xác trên giọng thật. App Flutter chưa có nút ghi âm.

@@ -49,3 +49,8 @@ backend/secrets/
 
 # OS
 .DS_Store
+
+# stt-service: model ONNX (~258MB, đặt tay vào models/gipformer1.5-fp32/ — xem stt-service/README.md)
+stt-service/models/
+stt-service/**/__pycache__/
+stt-service/.env
