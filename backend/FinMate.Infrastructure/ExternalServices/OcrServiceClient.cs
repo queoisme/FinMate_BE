@@ -42,7 +42,16 @@ public class OcrServiceClient : IOcrServiceClient
         [property: JsonPropertyName("transacted_at")] DateTimeOffset? TransactedAt,
         [property: JsonPropertyName("total_source")] string? TotalSource,
         [property: JsonPropertyName("items")] List<ItemBody>? Items = null,
-        [property: JsonPropertyName("items_ok")] bool ItemsOk = false);
+        [property: JsonPropertyName("items_ok")] bool ItemsOk = false,
+        [property: JsonPropertyName("orders")] List<OrderBody>? Orders = null,
+        [property: JsonPropertyName("incomplete_orders")] int IncompleteOrders = 0);
+
+    internal record OrderBody(
+        [property: JsonPropertyName("merchant")] string? Merchant,
+        [property: JsonPropertyName("merchant_display")] string? MerchantDisplay,
+        [property: JsonPropertyName("total_amount")] long? TotalAmount,
+        [property: JsonPropertyName("product")] string? Product,
+        [property: JsonPropertyName("category")] string? Category);
 
     internal record ItemBody(
         [property: JsonPropertyName("name")] string Name,
@@ -103,5 +112,8 @@ public class OcrServiceClient : IOcrServiceClient
             body.TransactedAt,
             body.TotalSource,
             body.Items?.Select(i => new OcrItem(i.Name, i.Amount, i.Parent, i.IsDiscount)).ToList(),
-            body.ItemsOk);
+            body.ItemsOk,
+            body.Orders?.Where(o => o.TotalAmount is > 0)
+                .Select(o => new OcrOrder(o.Merchant, o.MerchantDisplay, o.TotalAmount!.Value, o.Product, o.Category)).ToList(),
+            body.IncompleteOrders);
 }

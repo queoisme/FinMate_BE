@@ -57,4 +57,9 @@ public record ScannedReceiptDto(
     Guid? ScanId = null,
     IReadOnlyList<ReceiptGroup>? Groups = null,
     Guid? PossibleDuplicateTransactionId = null,
-    bool NeedsReview = false);
+    bool NeedsReview = false,
+    IReadOnlyList<ScannedOrder>? Orders = null,
+    int IncompleteOrders = 0);
+
+/// <summary>Một đơn trong ảnh chụp màn hình danh sách đơn hàng; app hiện mỗi đơn một bản nháp để người dùng xác nhận từng đơn.</summary>
+public record ScannedOrder(string? MerchantName, long AmountCents, string? Description, string? CategorySlug);

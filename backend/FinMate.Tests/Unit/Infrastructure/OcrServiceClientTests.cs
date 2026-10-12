@@ -188,4 +188,33 @@ public class OcrServiceClientTests
         result.Items.Should().BeNull();
         result.ItemsOk.Should().BeFalse();
     }
+
+    // Phản hồi thật của OCR service với ảnh chụp màn hình "Đơn đã mua" của Shopee (3 đơn), bỏ bớt các trường backend không dùng.
+    private const string RealOrderListJson =
+        """{"total_amount": 78742, "merchant": "nlp shop LIvB", "merchant_display": "nlp shop LIv", "category": "shopping", "category_source": "screen", "needs_review": true, "transacted_at": null, "total_source": "text", "screen_type": "order_list", "incomplete_orders": 0, "lines": [], "orders": [{"merchant": "nlp shop LIvB", "merchant_display": "nlp shop LIv", "total_amount": 78742, "product": "Siéu ré Móc khoá li nhán nhú yéu thuong tr...", "category": "shopping", "category_source": "memory"}, {"merchant": "Cow&Kitty", "merchant_display": "Cow&Kitty", "total_amount": 224400, "product": "Tui Deo Chéo Nu Cow & Kitty Mau Hong Dé.", "category": "shopping", "category_source": "memory"}, {"merchant": "Mommy's Joy", "merchant_display": "Mommy's Joy", "total_amount": 247253, "product": "Máy Bay Diéu Khién Tu Xa 4 Canh Do Cho...", "category": "shopping", "category_source": "memory"}]}""";
+
+    [Fact]
+    public async Task EveryOrderOfAnOrderListScreenshotIsKept()
+    {
+        var (client, _) = ClientReturning(_ => Task.FromResult(Json(HttpStatusCode.OK, RealOrderListJson)));
+
+        var result = await client.AnalyzeAsync(Request());
+
+        result.Orders!.Select(o => o.Amount).Should().Equal(78_742, 224_400, 247_253);
+        result.Orders!.Select(o => o.MerchantName).Should().Equal("nlp shop LIvB", "Cow&Kitty", "Mommy's Joy");
+        result.Orders![1].Product.Should().StartWith("Tui Deo");
+        result.IncompleteOrders.Should().Be(0);
+        result.TotalAmount.Should().Be(78_742);  // tổng cấp trên vẫn là đơn đầu tiên, app cũ vẫn chạy
+    }
+
+    [Fact]
+    public async Task AnOrdinaryReceiptHasNoOrders()
+    {
+        var (client, _) = ClientReturning(_ => Task.FromResult(Json(HttpStatusCode.OK, RealOcrJson)));
+
+        var result = await client.AnalyzeAsync(Request());
+
+        result.Orders.Should().BeNull();
+        result.IncompleteOrders.Should().Be(0);
+    }
 }

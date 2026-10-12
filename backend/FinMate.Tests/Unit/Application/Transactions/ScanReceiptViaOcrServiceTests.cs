@@ -286,4 +286,107 @@ public class ScanReceiptViaOcrServiceTests
 
         scanned.PossibleDuplicateTransactionId.Should().BeNull();
     }
+
+    private static OcrServiceResponse OrderList(int incomplete = 0, int orders = 3) => Highlands() with
+    {
+        TotalAmount = 78_742,
+        MerchantName = "nlp shop LIvB",
+        MerchantDisplay = "nlp shop LIv",
+        Lines = [],
+        Orders = new OcrOrder[]
+        {
+            new("nlp shop LIvB", "nlp shop LIv", 78_742, "Siêu rẻ Móc khoá lời nhắn", "shopping"),
+            new("Cow&Kitty", "Cow&Kitty", 224_400, "Túi Đeo Chéo Nữ Cow & Kitty", "shopping"),
+            new("Mommy's Joy", "Mommy's Joy", 247_253, "Máy Bay Điều Khiển Từ Xa", "shopping"),
+        }.Take(orders).ToList(),
+        IncompleteOrders = incomplete,
+    };
+
+    [Fact]
+    public async Task AnOrderListScreenshotComesBackAsOneEntryPerOrder()
+    {
+        OcrReturns(OrderList());
+        AiClassifiesAs(new BillClassifyResponse("shopping", "shopping", 0.8, "keyword"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.Orders!.Select(o => (o.MerchantName, o.AmountCents, o.CategorySlug)).Should().Equal(
+            ("nlp shop LIv", 78_742L, "shopping"), ("Cow&Kitty", 224_400L, "shopping"), ("Mommy's Joy", 247_253L, "shopping"));
+        scanned.Orders![1].Description.Should().Contain("Cow & Kitty");
+        scanned.AmountCents.Should().Be(78_742);  // app cũ chỉ đọc khoản đầu
+        _saved.Should().HaveCount(1);  // vẫn chỉ một bản ghi quét
+    }
+
+    [Fact]
+    public async Task EachOrderIsClassifiedByItsOwnShopAndProduct()
+    {
+        OcrReturns(OrderList());
+        var seen = new List<BillClassifyRequest>();
+        _ai.Setup(a => a.ClassifyBillAsync(It.IsAny<BillClassifyRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<BillClassifyRequest, CancellationToken>((r, _) => seen.Add(r))
+            .ReturnsAsync(new BillClassifyResponse("shopping", "shopping", 0.8, "keyword"));
+
+        await _handler.HandleAsync(Command());
+
+        seen.Select(r => r.MerchantName).Should().Contain(new[] { "Cow&Kitty", "Mommy's Joy" });
+        seen.Should().OnlyContain(r => r.UserId == _userId);
+    }
+
+    [Fact]
+    public async Task AFailedClassificationOfAnOrderFallsBackToTheCategoryTheOcrServiceGuessed()
+    {
+        OcrReturns(OrderList());
+        _ai.Setup(a => a.ClassifyBillAsync(It.IsAny<BillClassifyRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AIServiceUnavailableException("down"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.Orders.Should().HaveCount(3);  // đơn không bị bỏ
+        scanned.Orders.Should().OnlyContain(o => o.CategorySlug == "shopping");  // nhóm OCR service đoán ("shopping" -> slug backend)
+    }
+
+    [Fact]
+    public async Task AnOrderTheAiDoesNotRecogniseKeepsTheOcrGuessInsteadOfLosingItsCategory()
+    {
+        OcrReturns(OrderList());
+        AiClassifiesAs(new BillClassifyResponse(null, null, 0.0, "none"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.Orders.Should().OnlyContain(o => o.CategorySlug == "shopping");
+    }
+
+    [Fact]
+    public async Task WithNeitherGuessTheCategoryStaysEmptyForTheUserToPick()
+    {
+        OcrReturns(OrderList() with { Orders = new[] { new OcrOrder("A", "A", 10_000, "x", null), new OcrOrder("B", "B", 20_000, "y", "nonsense") } });
+        AiClassifiesAs(new BillClassifyResponse(null, null, 0.0, "none"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.Orders.Should().OnlyContain(o => o.CategorySlug == null);
+    }
+
+    [Fact]
+    public async Task IncompleteOrdersAreReportedSoTheAppCanSaySo()
+    {
+        OcrReturns(OrderList(incomplete: 1));
+        AiClassifiesAs(new BillClassifyResponse("shopping", "shopping", 0.8, "keyword"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.IncompleteOrders.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task OneOrderIsJustAnOrdinaryScan()
+    {
+        OcrReturns(OrderList(orders: 1));
+        AiClassifiesAs(new BillClassifyResponse("shopping", "shopping", 0.8, "keyword"));
+
+        var scanned = await _handler.HandleAsync(Command());
+
+        scanned.Orders.Should().BeNull();
+        scanned.AmountCents.Should().Be(78_742);
+    }
 }

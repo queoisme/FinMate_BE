@@ -720,6 +720,7 @@
 - [x] **Bộ kiểm thử nhất quán** — *66 cụm qua cả hai đường, nhãn viết trước (`consistency_cases.jsonl`, `eval_flows.py --consistency`). Baseline: 31/66 cùng danh mục.*
 - [x] **`category_resolver`** — *Gộp từ khóa bill + từ vựng chat + từ điển cửa hàng; dài nhất thắng, hòa thì slug cụ thể; khớp gần đúng OCR; không biết thì `None`.*
 - [x] **Món trên bill và chat dùng chung** — *`classify_items` và `parse_chat` gọi `resolve`; chat tắt khớp gần đúng; chat tra `bill_item_cache` chỉ để gợi ý. Món 52→60/72, sai-mà-tự-tin 2→0; chat giữ 62/63; nhất quán 65/66.*
+- [x] **Ảnh chụp màn hình nhiều đơn (2026-10-12)** — *ocr-service đã tách `orders` từ lâu nhưng backend bỏ qua nên chỉ lấy đơn đầu (Shopee 3 đơn → 1 khoản). Backend giờ trả `orders` + `incompleteOrders`, app hiện một thẻ nháp mỗi đơn. Chạy thật: 78.742 + 224.400 + 247.253, đều `shopping`.*
 - [ ] **Chưa làm:** Gemini cho chat (cần xin đồng ý riêng); chuyển `bill_brands`/`bill_keywords` sang slug backend; bỏ bản sao bảng từ khóa trong ocr-service; câu truy vấn tổng ("tiêu cho thuốc bao nhiêu") vẫn dùng từ vựng cũ.
 
 ## Backlog (Future — Không trong MVP scope)

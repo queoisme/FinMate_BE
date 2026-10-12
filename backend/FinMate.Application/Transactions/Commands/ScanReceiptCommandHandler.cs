@@ -44,6 +44,13 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private const string DiscountSource = "discount";
     private const string SurchargeSource = "surcharge";
 
+    // 9 nhóm của bộ luật bill (OCR service) -> slug hệ thống của backend. Cùng bảng với ai-service/app/core/category_map.py.
+    private static readonly Dictionary<string, string> LocalToSlug = new()
+    {
+        ["dining"] = "food", ["groceries"] = "food", ["shopping"] = "shopping", ["transport"] = "transport", ["housing"] = "housing",
+        ["utilities"] = "bills", ["healthcare"] = "health", ["entertainment"] = "entertainment", ["other"] = "other",
+    };
+
     // Phần tiền chưa rõ nhóm từ mức này của tổng bill trở lên thì app nên bảo người dùng xem lại.
     private const int UnknownSharePercentForReview = 20;
 
@@ -141,6 +148,11 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             hasDate: ocr.TransactedAt is not null,
             needsReview: ocr.NeedsReview);
 
+        if (ocr.Orders is { Count: > 1 } orders)
+        {
+            return await ScanOrderListAsync(command.UserId, ocr, orders, merchant, confidence, ct);
+        }
+
         if (await TrySplitAsync(command.UserId, ocr, merchant, confidence, ct) is { } split)
         {
             return split;
@@ -153,6 +165,42 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         // Cờ tách nhóm bật mà các dòng món không khớp tổng bill (ItemsOk = false): bill phải về một nhóm, người dùng nên xem lại.
         var needsReview = ocr.NeedsReview || (_options.SplitByItemsEnabled && !ocr.ItemsOk);
         return await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
+    }
+
+    /// <summary>
+    /// Ảnh chụp màn hình danh sách đơn (nhiều đơn): mỗi đơn là một khoản riêng, phân loại theo cửa hàng + sản phẩm của chính nó.
+    /// Một lần quét chỉ ghi MỘT bản ghi (khoản đầu); app tự nối từng đơn sang giao dịch khi người dùng bấm lưu.
+    /// </summary>
+    private async Task<ScannedReceiptDto> ScanOrderListAsync(
+        Guid userId, OcrServiceResponse ocr, IReadOnlyList<OcrOrder> orders, string? merchant, double confidence, CancellationToken ct)
+    {
+        var scanned = new List<ScannedOrder>();
+        foreach (var order in orders)
+        {
+            var name = order.MerchantDisplay ?? order.MerchantName;
+            var category = await ClassifyOrderAsync(userId, order, ct);
+            // AI Service không nhận ra (hoặc lỗi) thì giữ nhóm OCR service đã đoán: màn "Đơn đã mua" của sàn thương mại luôn là mua sắm.
+            var slug = category?.CategorySlug ?? (order.Category is { } local && LocalToSlug.TryGetValue(local, out var mapped) ? mapped : null);
+            scanned.Add(new ScannedOrder(name, order.Amount, order.Product, slug));
+        }
+
+        var dto = new ScannedReceiptDto(
+            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, scanned[0].CategorySlug, confidence,
+            Orders: scanned, IncompleteOrders: ocr.IncompleteOrders);
+        return await RecordAsync(userId, dto, categorySource: null, ocr.NeedsReview, ct);
+    }
+
+    private async Task<BillClassifyResponse?> ClassifyOrderAsync(Guid userId, OcrOrder order, CancellationToken ct)
+    {
+        try
+        {
+            return await _aiServiceClient.ClassifyBillAsync(
+                new BillClassifyRequest(userId, order.MerchantName ?? order.MerchantDisplay, order.Product is null ? [] : [order.Product]), ct);
+        }
+        catch (AIServiceUnavailableException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

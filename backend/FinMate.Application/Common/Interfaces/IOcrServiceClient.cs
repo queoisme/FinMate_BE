@@ -13,6 +13,8 @@ public record OcrServiceRequest(Guid UserId, byte[] Image, string FileName, stri
 /// <param name="NeedsReview">OCR service tự thấy chưa chắc (ảnh mờ, số không khớp nhau...).</param>
 /// <param name="Items">Từng dòng hàng OCR tách được; null khi OCR service bản cũ chưa trả trường này.</param>
 /// <param name="ItemsOk">OCR service tự thấy các dòng hàng khớp tổng tiền (false khi bản cũ).</param>
+/// <param name="Orders">Ảnh chụp màn hình danh sách đơn (ví dụ "Đơn đã mua" của Shopee): mỗi đơn một phần tử; null với hóa đơn thường. <see cref="TotalAmount"/> vẫn là đơn đầu tiên.</param>
+/// <param name="IncompleteOrders">Số đơn bị cắt dở ở mép ảnh nên không đọc được tiền.</param>
 /// <param name="TotalSource">"text" khi tổng tiền đọc được từ dòng có nhãn tổng; "items" khi chỉ cộng từ các dòng hàng.</param>
 public record OcrServiceResponse(
     bool Readable,
@@ -26,7 +28,14 @@ public record OcrServiceResponse(
     DateTimeOffset? TransactedAt,
     string? TotalSource,
     IReadOnlyList<OcrItem>? Items = null,
-    bool ItemsOk = false);
+    bool ItemsOk = false,
+    IReadOnlyList<OcrOrder>? Orders = null,
+    int IncompleteOrders = 0);
+
+/// <param name="Amount">Tổng tiền của đơn (đồng VND).</param>
+/// <param name="Product">Tên sản phẩm hiển thị đầu đơn (đã rút gọn trên màn hình).</param>
+/// <param name="Category">Nhóm OCR service đoán (9 nhóm), chỉ để tham khảo.</param>
+public record OcrOrder(string? MerchantName, string? MerchantDisplay, long Amount, string? Product, string? Category);
 
 /// <param name="Amount">Đồng VND, ÂM với dòng giảm giá. Phụ phí (VAT...) là dòng IsDiscount=false, Parent=null.</param>
 /// <param name="Parent">Chỉ số dòng cha (topping/giảm giá gắn vào món nào); null nếu là dòng độc lập.</param>
