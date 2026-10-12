@@ -135,6 +135,66 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task ASecondIdenticalExpenseWithinTenMinutesAsksInsteadOfSaving()
+    {
+        const string first = "chat-test: dup A 70k";
+        const string second = "chat-test: dup B 70k";
+        FakeAIServiceClient.SetChat(first, Expense(first, 70_000, auto: true));
+        FakeAIServiceClient.SetChat(second, Expense(second, 70_000, auto: true));
+        var token = await RegisterAndLoginAsync();
+        var accountId = await CreateCashAccountAsync(token, 1_000_000);
+
+        var saved = await ChatAsync(token, first);
+        var again = await ChatAsync(token, second);
+
+        saved.GetProperty("action").GetString().Should().Be(ChatActions.Saved);
+        again.GetProperty("action").GetString().Should().Be(ChatActions.Confirm);
+        again.GetProperty("draft").GetProperty("possibleDuplicateTransactionId").GetGuid()
+            .Should().Be(saved.GetProperty("transaction").GetProperty("id").GetGuid());
+        (await BalanceOfAsync(token, accountId)).Should().Be(930_000);  // chỉ khoản đầu bị trừ
+    }
+
+    [Fact]
+    public async Task AnotherUsersIdenticalExpenseIsNotADuplicate()
+    {
+        const string text = "chat-test: dup other user 80k";
+        FakeAIServiceClient.SetChat(text, Expense(text, 80_000, auto: true));
+        var alice = await RegisterAndLoginAsync();
+        await CreateCashAccountAsync(alice, 1_000_000);
+        var bob = await RegisterAndLoginAsync();
+        await CreateCashAccountAsync(bob, 1_000_000);
+
+        await ChatAsync(alice, text);
+        var data = await ChatAsync(bob, text);
+
+        data.GetProperty("action").GetString().Should().Be(ChatActions.Saved);
+    }
+
+    [Fact]
+    public async Task ReplayingTheSameClientRequestReturnsTheSavedTransactionNotAWarning()
+    {
+        const string text = "chat-test: replay 90k";
+        FakeAIServiceClient.SetChat(text, Expense(text, 90_000, auto: true));
+        var token = await RegisterAndLoginAsync();
+        var accountId = await CreateCashAccountAsync(token, 1_000_000);
+        var clientRequestId = Guid.NewGuid();
+
+        async Task<JsonElement> SendAsync()
+        {
+            var response = await _client.SendAsync(Authed(HttpMethod.Post, "/api/v1/transactions/chat", token, new { text, clientRequestId }));
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return doc.RootElement.GetProperty("data").Clone();
+        }
+
+        var first = await SendAsync();
+        var replay = await SendAsync();
+
+        replay.GetProperty("action").GetString().Should().Be(ChatActions.Saved);
+        replay.GetProperty("transaction").GetProperty("id").GetGuid().Should().Be(first.GetProperty("transaction").GetProperty("id").GetGuid());
+        (await BalanceOfAsync(token, accountId)).Should().Be(910_000);  // chỉ trừ một lần
+    }
+
+    [Fact]
     public async Task AnExpenseTheAiIsNotSureAboutCreatesNothing()
     {
         const string text = "chat-test: mua áo 3 triệu";
@@ -170,8 +230,10 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
     public async Task TotalsComeFromTheUsersOwnTransactions()
     {
         const string spend = "chat-test: ăn tối 150k";
+        const string spendAgain = "chat-test: ăn trưa 120k";  // khác số tiền: hai khoản cùng số tiền sát nhau giờ được hỏi lại
         const string ask = "chat-test: tháng này tôi tiêu bao nhiêu";
         FakeAIServiceClient.SetChat(spend, Expense(spend, 150_000, auto: true));
+        FakeAIServiceClient.SetChat(spendAgain, Expense(spendAgain, 120_000, auto: true));
         var (monthStart, nextMonth) = VietnamTime.MonthRange(DateTimeOffset.UtcNow);
         FakeAIServiceClient.SetChat(ask, new ChatParseResponse(
             "ask_spending", null, null,
@@ -179,13 +241,13 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
         var token = await RegisterAndLoginAsync();
         await CreateCashAccountAsync(token);
         await ChatAsync(token, spend);
-        await ChatAsync(token, spend);
+        await ChatAsync(token, spendAgain);
 
         var data = await ChatAsync(token, ask);
 
         data.GetProperty("action").GetString().Should().Be(ChatActions.Summary);
         var summary = data.GetProperty("summary");
-        summary.GetProperty("totalCents").GetInt64().Should().Be(300_000);
+        summary.GetProperty("totalCents").GetInt64().Should().Be(270_000);
         summary.GetProperty("items").EnumerateArray().Should().ContainSingle()
             .Which.GetProperty("categorySlug").GetString().Should().Be("food");
     }

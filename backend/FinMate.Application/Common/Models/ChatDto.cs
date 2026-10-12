@@ -40,7 +40,8 @@ public record ChatDraftDto(
     bool ToOthers,
     Guid? SuggestedFinancialAccountId,
     IReadOnlyList<string> MissingFields,
-    DateTimeOffset? OccurredAt = null);
+    DateTimeOffset? OccurredAt = null,
+    Guid? PossibleDuplicateTransactionId = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 

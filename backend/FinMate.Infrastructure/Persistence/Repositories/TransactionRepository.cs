@@ -20,6 +20,29 @@ public class TransactionRepository : ITransactionRepository
             .Include(t => t.Category)
             .Include(t => t.FinancialAccount)
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
+    public Task<Guid?> FindPossibleDuplicateAsync(
+        Guid userId,
+        long amountCents,
+        DateTimeOffset at,
+        TimeSpan window,
+        Guid? exceptClientRequestId = null,
+        CancellationToken ct = default)
+    {
+        var from = at - window;
+        var to = at + window;
+        return _context.Transactions
+            .Where(t => t.UserId == userId
+                && t.TransactionType == TransactionType.Debit
+                && t.CounterAccountId == null
+                && t.AmountCents == amountCents
+                && t.TransactedAt >= from
+                && t.TransactedAt <= to
+                && (exceptClientRequestId == null || t.ClientRequestId != exceptClientRequestId))
+            .OrderByDescending(t => t.TransactedAt)
+            .Select(t => (Guid?)t.Id)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public Task<Transaction?> GetByClientRequestIdAsync(
         Guid userId, Guid clientRequestId, CancellationToken ct = default)
         => _context.Transactions

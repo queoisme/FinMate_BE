@@ -23,6 +23,7 @@ public class ScanReceiptSplitTests
     private readonly Mock<IOcrServiceClient> _ocr = new();
     private readonly Mock<IReceiptScanRepository> _scans = new();
     private readonly Mock<IUserRepository> _users = new();
+    private readonly Mock<ITransactionRepository> _transactions = new();
     private readonly List<ReceiptScan> _saved = new();
     private readonly List<(Guid ScanId, IReadOnlyList<ReceiptScanItem> Items)> _savedItems = new();
     private readonly List<ClassifyItemsRequest> _classifyRequests = new();
@@ -52,7 +53,7 @@ public class ScanReceiptSplitTests
 
     private ScanReceiptCommandHandler Handler(bool enabled = true) => new(
         _ai.Object, _ocr.Object, _scans.Object, new ReceiptOptions(enabled), _users.Object,
-        NullLogger<ScanReceiptCommandHandler>.Instance);
+        _transactions.Object, NullLogger<ScanReceiptCommandHandler>.Instance);
 
     private ScanReceiptCommand Command() => new(_userId, new byte[1024], "hoa-don.jpg", "image/jpeg");
 
@@ -479,5 +480,24 @@ public class ScanReceiptSplitTests
         await Handler().HandleAsync(Command());
 
         _savedItems.Single().Items[0].Name.Should().HaveLength(120);
+    }
+
+    [Fact]
+    public async Task OnlyTheGroupMatchingARecentExpenseCarriesThePossibleDuplicate()
+    {
+        var existing = Guid.NewGuid();
+        var plain = await Handler().HandleAsync(Command());  // chạy một lần để biết số tiền từng nhóm
+        var target = plain.Groups![0].AmountCents;
+        _transactions
+            .Setup(t => t.FindPossibleDuplicateAsync(
+                _userId, target, BillDate, TimeSpan.FromHours(3), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Groups!.Count.Should().BeGreaterThan(1);
+        dto.Groups.Where(g => g.AmountCents == target).Should().OnlyContain(g => g.PossibleDuplicateTransactionId == existing);
+        dto.Groups.Where(g => g.AmountCents != target).Should().OnlyContain(g => g.PossibleDuplicateTransactionId == null);
+        dto.PossibleDuplicateTransactionId.Should().BeNull();  // cờ cả bill chỉ dành cho bill không tách
     }
 }

@@ -19,6 +19,7 @@ public class ScanReceiptViaOcrServiceTests
 
     private readonly Mock<IAIServiceClient> _ai = new();
     private readonly Mock<IOcrServiceClient> _ocr = new();
+    private readonly Mock<ITransactionRepository> _transactions = new();
     private readonly Mock<IReceiptScanRepository> _scans = new();
     private readonly List<ReceiptScan> _saved = new();
     private readonly ScanReceiptCommandHandler _handler;
@@ -36,7 +37,7 @@ public class ScanReceiptViaOcrServiceTests
             .Returns(Task.CompletedTask);
         _handler = new ScanReceiptCommandHandler(
             _ai.Object, _ocr.Object, _scans.Object, new ReceiptOptions(false), new Mock<IUserRepository>().Object,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance);
+            _transactions.Object, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance);
         OcrReturns(Highlands());
         AiClassifiesAs(new BillClassifyResponse("food", "dining", 0.8, "brand"));
     }
@@ -262,5 +263,27 @@ public class ScanReceiptViaOcrServiceTests
 
         await act.Should().ThrowAsync<BusinessRuleException>();
         _saved.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AnUnsplitBillMatchingARecentExpenseCarriesThePossibleDuplicate()
+    {
+        var existing = Guid.NewGuid();
+        _transactions
+            .Setup(t => t.FindPossibleDuplicateAsync(
+                It.IsAny<Guid>(), 16_000, BillDate, TimeSpan.FromHours(3), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var scanned = await _handler.HandleAsync(new ScanReceiptCommand(Guid.NewGuid(), new byte[1024], "hoa-don.jpg", "image/jpeg"));
+
+        scanned.PossibleDuplicateTransactionId.Should().Be(existing);
+    }
+
+    [Fact]
+    public async Task WithoutAMatchNothingIsFlagged()
+    {
+        var scanned = await _handler.HandleAsync(new ScanReceiptCommand(Guid.NewGuid(), new byte[1024], "hoa-don.jpg", "image/jpeg"));
+
+        scanned.PossibleDuplicateTransactionId.Should().BeNull();
     }
 }

@@ -24,11 +24,15 @@ public class ChatCommandHandler : IChatCommandHandler
     private const string IncomeMetric = "income";
     private const string UncategorizedName = "Chưa phân loại";
 
+    // Gửi lại cùng một câu do mạng chập chờn hay bấm hai lần: hẹp để hai ly cà phê thật cách nhau lâu hơn không bị cảnh báo.
+    private static readonly TimeSpan DuplicateWindow = TimeSpan.FromMinutes(10);
+
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ICreateManualTransactionCommandHandler _createHandler;
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IReportRepository _reportRepository;
+    private readonly ITransactionRepository _transactionRepository;
     private readonly IValidator<ChatCommand> _validator;
 
     public ChatCommandHandler(
@@ -37,6 +41,7 @@ public class ChatCommandHandler : IChatCommandHandler
         IFinancialAccountRepository financialAccountRepository,
         ICategoryRepository categoryRepository,
         IReportRepository reportRepository,
+        ITransactionRepository transactionRepository,
         IValidator<ChatCommand> validator)
     {
         _aiServiceClient = aiServiceClient;
@@ -44,6 +49,7 @@ public class ChatCommandHandler : IChatCommandHandler
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
         _reportRepository = reportRepository;
+        _transactionRepository = transactionRepository;
         _validator = validator;
     }
 
@@ -57,7 +63,12 @@ public class ChatCommandHandler : IChatCommandHandler
         {
             // Nhiều khoản trong một câu: luôn qua bước xác nhận, không bao giờ ghi ngay (một câu sai là sai nhiều khoản cùng lúc).
             var accountId = await ResolveAccountAsync(command, ct);
-            var drafts = many.Select(e => DraftOf(e, accountId)).ToList();
+            var drafts = new List<ChatDraftDto>();
+            foreach (var e in many)
+            {
+                drafts.Add(DraftOf(e, accountId, await FindDuplicateAsync(command, e, ct)));
+            }
+
             return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, drafts[0], null, drafts);
         }
 
@@ -80,8 +91,10 @@ public class ChatCommandHandler : IChatCommandHandler
         ChatCommand command, ChatParseResponse parsed, ChatParseEntry entry, CancellationToken ct)
     {
         var accountId = await ResolveAccountAsync(command, ct);
+        var duplicate = await FindDuplicateAsync(command, entry, ct);
 
-        if (entry.AutoSaveOk && entry.Kind == ExpenseKind && accountId is not null && entry.AmountCents > 0)
+        // Có thể trùng thì không ghi ngay: hỏi lại (kèm mã giao dịch có thể trùng), người dùng vẫn lưu được nếu đó là khoản thứ hai thật.
+        if (duplicate is null && entry.AutoSaveOk && entry.Kind == ExpenseKind && accountId is not null && entry.AmountCents > 0)
         {
             var category = entry.CategorySlug is null
                 ? null
@@ -105,10 +118,16 @@ public class ChatCommandHandler : IChatCommandHandler
             }
         }
 
-        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, DraftOf(entry, accountId), null);
+        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, DraftOf(entry, accountId, duplicate), null);
     }
 
-    private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId)
+    private Task<Guid?> FindDuplicateAsync(ChatCommand command, ChatParseEntry entry, CancellationToken ct)
+        => entry.Kind == ExpenseKind && entry.AmountCents > 0
+            ? _transactionRepository.FindPossibleDuplicateAsync(
+                command.UserId, entry.AmountCents, entry.OccurredAt ?? DateTimeOffset.UtcNow, DuplicateWindow, command.ClientRequestId, ct)
+            : Task.FromResult<Guid?>(null);
+
+    private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null)
     {
         var missing = new List<string>();
         if (entry.Kind == TransferKind)
@@ -146,7 +165,8 @@ public class ChatCommandHandler : IChatCommandHandler
             entry.ToOthers,
             entry.Kind == TransferKind ? null : accountId,
             missing,
-            entry.OccurredAt);
+            entry.OccurredAt,
+            duplicate);
     }
 
     /// <summary>Ví người dùng chọn, hoặc ví duy nhất của họ; nhiều ví mà không chọn thì null (không đoán).</summary>

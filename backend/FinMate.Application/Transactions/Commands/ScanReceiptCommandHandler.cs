@@ -44,10 +44,14 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private const string DiscountSource = "discount";
     private const string SurchargeSource = "surcharge";
 
+    // Hóa đơn thường được quét sau lúc chi một lúc (khác chat), nên cửa sổ rộng hơn chat. Chỉ cảnh báo.
+    private static readonly TimeSpan DuplicateWindow = TimeSpan.FromHours(3);
+
     private readonly IOcrServiceClient _ocrServiceClient;
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ReceiptOptions _options;
     private readonly IUserRepository _userRepository;
+    private readonly ITransactionRepository _transactionRepository;
     private readonly ILogger<ScanReceiptCommandHandler> _logger;
 
     public ScanReceiptCommandHandler(
@@ -56,6 +60,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         IReceiptScanRepository receiptScanRepository,
         ReceiptOptions options,
         IUserRepository userRepository,
+        ITransactionRepository transactionRepository,
         ILogger<ScanReceiptCommandHandler> logger)
     {
         _aiServiceClient = aiServiceClient;
@@ -63,6 +68,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         _receiptScanRepository = receiptScanRepository;
         _options = options;
         _userRepository = userRepository;
+        _transactionRepository = transactionRepository;
         _logger = logger;
     }
 
@@ -139,7 +145,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
         var category = await ClassifyAsync(command.UserId, ocr, ct);
         var dto = new ScannedReceiptDto(
-            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence);
+            SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence,
+            PossibleDuplicateTransactionId: await DuplicateOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, ct));
         return await RecordAsync(command.UserId, dto, category?.Source, ocr.NeedsReview, ct);
     }
 
@@ -251,6 +258,14 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             return null;
         }
 
+        var flagged = new List<ReceiptGroup>();
+        foreach (var group in groups)
+        {
+            flagged.Add(group with { PossibleDuplicateTransactionId = await DuplicateOfAsync(userId, group.AmountCents, ocr.TransactedAt, ct) });
+        }
+
+        groups = flagged;
+
         // App cũ chỉ đọc slug trên cùng: lấy nhóm lớn nhất CÓ danh mục (Split bảo đảm có ít nhất hai nhóm như vậy).
         var dto = new ScannedReceiptDto(
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt,
@@ -273,6 +288,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
         return dto with { ScanId = scan.Id };
     }
+
+    private Task<Guid?> DuplicateOfAsync(Guid userId, long amountCents, DateTimeOffset? at, CancellationToken ct)
+        => _transactionRepository.FindPossibleDuplicateAsync(
+            userId, amountCents, at ?? DateTimeOffset.UtcNow, DuplicateWindow, null, ct);
 
     private static ReceiptScanItem ToScanItem(OcrItem item, int position, ClassifiedItem classified)
     {

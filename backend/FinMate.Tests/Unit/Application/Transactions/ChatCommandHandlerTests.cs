@@ -18,6 +18,7 @@ public class ChatCommandHandlerTests
     private readonly Mock<IFinancialAccountRepository> _accounts = new();
     private readonly Mock<ICategoryRepository> _categories = new();
     private readonly Mock<IReportRepository> _reports = new();
+    private readonly Mock<ITransactionRepository> _transactions = new();
     private readonly ChatCommandHandler _handler;
 
     private readonly Guid _userId = Guid.NewGuid();
@@ -27,7 +28,7 @@ public class ChatCommandHandlerTests
     public ChatCommandHandlerTests()
     {
         _handler = new ChatCommandHandler(
-            _ai.Object, _create.Object, _accounts.Object, _categories.Object, _reports.Object, new ChatCommandValidator());
+            _ai.Object, _create.Object, _accounts.Object, _categories.Object, _reports.Object, _transactions.Object, new ChatCommandValidator());
 
         _accounts
             .Setup(a => a.GetListByUserAsync(_userId, It.IsAny<CancellationToken>()))
@@ -350,5 +351,81 @@ public class ChatCommandHandlerTests
         var result = await _handler.HandleAsync(Command());
 
         result.Draft!.OccurredAt.Should().Be(yesterday);
+    }
+
+    // ------------------------------------------------------------ giao dịch trùng
+
+    private void ADuplicateExists(Guid id) => _transactions
+        .Setup(t => t.FindPossibleDuplicateAsync(
+            _userId, It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+        .ReturnsAsync(id);
+
+    [Fact]
+    public async Task AutoSaveIsDowngradedToConfirmWhenTheSameAmountWasJustSaved()
+    {
+        var existing = Guid.NewGuid();
+        ADuplicateExists(existing);
+        AiReturns(Entry());
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.Action.Should().Be(ChatActions.Confirm);
+        result.Draft!.PossibleDuplicateTransactionId.Should().Be(existing);
+        NothingWasCreated();
+    }
+
+    [Fact]
+    public async Task ADraftThatWouldNeverAutoSaveStillCarriesTheWarning()
+    {
+        var existing = Guid.NewGuid();
+        ADuplicateExists(existing);
+        AiReturns(Entry(auto: false));
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.Draft!.PossibleDuplicateTransactionId.Should().Be(existing);
+    }
+
+    [Fact]
+    public async Task EveryDraftOfASeveralEntrySentenceIsChecked()
+    {
+        var existing = Guid.NewGuid();
+        _transactions
+            .Setup(t => t.FindPossibleDuplicateAsync(
+                _userId, 10_000, It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        var first = Item(20_000, "ăn cơm");
+        var second = Item(10_000, "uống nước");
+        AiReturns(new ChatParseResponse("add_expense", null, first, null, 5, new[] { first, second }));
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.Drafts!.Select(d => d.PossibleDuplicateTransactionId).Should().Equal(null, existing);
+    }
+
+    [Fact]
+    public async Task TheLookupIsScopedToTheUserUsesTenMinutesAndSkipsTheSameClientRequest()
+    {
+        var clientRequestId = Guid.NewGuid();
+        AiReturns(Entry());
+
+        await _handler.HandleAsync(new ChatCommand(_userId, "đi ăn 200k", null, clientRequestId));
+
+        _transactions.Verify(t => t.FindPossibleDuplicateAsync(
+            _userId, 200_000, It.IsAny<DateTimeOffset>(), TimeSpan.FromMinutes(10), clientRequestId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("income")]
+    [InlineData("transfer")]
+    public async Task OnlyExpensesAreCheckedForDuplicates(string kind)
+    {
+        AiReturns(Entry(kind: kind, category: null, auto: false));
+
+        await _handler.HandleAsync(Command());
+
+        _transactions.Verify(t => t.FindPossibleDuplicateAsync(
+            It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

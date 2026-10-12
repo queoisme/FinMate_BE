@@ -55,4 +55,5 @@ public record ScannedReceiptDto(
     string? CategorySlug,
     double? Confidence,
     Guid? ScanId = null,
-    IReadOnlyList<ReceiptGroup>? Groups = null);
+    IReadOnlyList<ReceiptGroup>? Groups = null,
+    Guid? PossibleDuplicateTransactionId = null);

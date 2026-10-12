@@ -21,7 +21,7 @@ public class ScanReceiptCommandHandlerTests
         _handler = new ScanReceiptCommandHandler(
             _aiServiceClient.Object, ocrService.Object, new Mock<IReceiptScanRepository>().Object,
             new FinMate.Application.Transactions.ReceiptOptions(false), new Mock<IUserRepository>().Object,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance);
+            new Mock<ITransactionRepository>().Object, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance);
 
         _aiServiceClient
             .Setup(c => c.ScanReceiptAsync(It.IsAny<ScanReceiptRequest>(), It.IsAny<CancellationToken>()))

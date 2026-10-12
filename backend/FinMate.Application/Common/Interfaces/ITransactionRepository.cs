@@ -43,4 +43,17 @@ public interface ITransactionRepository
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Khoản chi (Debit, không phải chuyển tiền) cùng số tiền của chính <paramref name="userId"/> trong khoảng
+    /// [<paramref name="at"/> − window, <paramref name="at"/> + window], hoặc null. Chỉ để CẢNH BÁO có thể trùng; không bao giờ chặn.
+    /// <paramref name="exceptClientRequestId"/>: bỏ qua giao dịch của chính lần gửi này, để gửi lại cùng một yêu cầu vẫn nhận lại giao dịch cũ.
+    /// </summary>
+    Task<Guid?> FindPossibleDuplicateAsync(
+        Guid userId,
+        long amountCents,
+        DateTimeOffset at,
+        TimeSpan window,
+        Guid? exceptClientRequestId = null,
+        CancellationToken ct = default);
 }

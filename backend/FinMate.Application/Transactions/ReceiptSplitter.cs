@@ -9,7 +9,8 @@ namespace FinMate.Application.Transactions;
 public record ReceiptGroupItem(string Name, long AmountCents);
 
 /// <summary>Một nhóm của bill. <c>AmountCents</c> là tiền thực trả sau giảm giá và phụ thu; slug null = món chưa rõ nhóm.</summary>
-public record ReceiptGroup(string? CategorySlug, long AmountCents, IReadOnlyList<ReceiptGroupItem> Items);
+public record ReceiptGroup(
+    string? CategorySlug, long AmountCents, IReadOnlyList<ReceiptGroupItem> Items, Guid? PossibleDuplicateTransactionId = null);
 
 /// <summary>
 /// Tách bill thành các nhóm theo danh mục. BE là nơi cộng tiền, không tin tổng của AI.
