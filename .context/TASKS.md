@@ -713,6 +713,15 @@
 - [x] **App (`FinMate_FE`): màn chat (2026-10-12)** — *Mỗi khoản trong câu nhiều khoản là một thẻ nháp riêng (kèm lời báo "N khoản"); thẻ và màn rà soát hiện ngày khi khác hôm nay, cảnh báo "có thể trùng" (cả bill hoặc từng nhóm) và "AI chưa chắc" khi `needsReview`; thẻ "Đã ghi" hiện ngày. `flutter test` 282 xanh, `flutter analyze` sạch; fixture là phản hồi thật của BE. Chưa thử trên máy Android thật.*
 - [ ] **Chưa làm:** chuyển ngưỡng/hiệu chỉnh độ chắc; nhớ lựa chọn theo từng người dùng; fixture "mua đồ 1,5tr" (kỳ vọng không nhóm) cố ý để đỏ vì từ vựng "mua đồ" → shopping; eval món chưa đo được tác dụng của Gemini/cache (Gemini giả).
 
+## Phase 26 — Gộp phần phân loại của chat và món trên bill (2026-10-12)
+
+> Kế hoạch: `docs/superpowers/plans/2026-10-12-unify-classification.md`. Nhánh `feat/unify-classification`. Cùng một cụm từ đi bằng chat hay bill phải ra cùng danh mục (prompt `finance_ai_pipeline_prompt.md` §5.3).
+
+- [x] **Bộ kiểm thử nhất quán** — *66 cụm qua cả hai đường, nhãn viết trước (`consistency_cases.jsonl`, `eval_flows.py --consistency`). Baseline: 31/66 cùng danh mục.*
+- [x] **`category_resolver`** — *Gộp từ khóa bill + từ vựng chat + từ điển cửa hàng; dài nhất thắng, hòa thì slug cụ thể; khớp gần đúng OCR; không biết thì `None`.*
+- [x] **Món trên bill và chat dùng chung** — *`classify_items` và `parse_chat` gọi `resolve`; chat tắt khớp gần đúng; chat tra `bill_item_cache` chỉ để gợi ý. Món 52→60/72, sai-mà-tự-tin 2→0; chat giữ 62/63; nhất quán 65/66.*
+- [ ] **Chưa làm:** Gemini cho chat (cần xin đồng ý riêng); chuyển `bill_brands`/`bill_keywords` sang slug backend; bỏ bản sao bảng từ khóa trong ocr-service; câu truy vấn tổng ("tiêu cho thuốc bao nhiêu") vẫn dùng từ vựng cũ.
+
 ## Backlog (Future — Không trong MVP scope)
 
 - *(Receipt OCR và Voice input đã kéo lên MVP ngày 2026-09-11 — xem Phase 10 quyết định #4)*

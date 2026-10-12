@@ -98,3 +98,7 @@ def test_fuzzy_can_be_turned_off_for_typed_text():
     assert resolve("khan uott", fuzzy=False) == Resolution(None, "none")
     assert resolve("hôm nay trời đẹp quá", fuzzy=False).slug is None  # "dep qua" gần "dep quai" nhưng đây là câu chat, không phải lỗi OCR
     assert resolve("khan uot", fuzzy=False).slug == "shopping"
+
+
+def test_pork_belly_is_an_exact_keyword_not_a_lucky_typo_match():
+    assert resolve("thịt ba chỉ") == Resolution("food", "keyword")  # trước đây chỉ ra food nhờ khớp gần đúng "thit ba" ~ "thit bo"

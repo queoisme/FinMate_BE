@@ -817,6 +817,17 @@ Vì vậy bộ nhớ cửa hàng mới `bill_user_merchant_choice` (alembic 0007
 còn bảng cũ `bill_user_merchant_category` giữ 9 nhóm; `/bill/classify` tra bảng mới trước, bảng cũ sau. Slug lạ làm giao dịch mất
 danh mục một cách im lặng (backend tra `GetSystemBySlugAsync`), nên mọi đầu ra đều được lọc lại theo `CATEGORY_SLUGS`.
 
+**Bộ phân loại chung chat + món trên bill (thêm 2026-10-12).** `app/core/category_resolver.py` gộp ba nguồn từ khóa từng tách rời
+thành một chỉ mục `từ khóa → slug backend`: từ khóa sản phẩm của bill (`classifier._PRODUCT_KEYWORDS`, 9 nhóm đổi sang slug, vẫn nạp lại từ DB trong
+tối đa 60 giây: `knowledge.apply_rows` gọi `invalidate()`), từ vựng chat (`vocab.CHAT_KEYWORDS`, phần chi tiêu) và từ điển `merchant_categories.json`
+(bỏ `income`). `resolve(text, *, fuzzy=True) -> Resolution(slug|None, source)`: khớp từng từ (đã bỏ dấu), **từ khóa dài nhất thắng**, cùng độ dài thì slug
+cụ thể hơn thắng (`family, education, health, housing, bills, entertainment, transport, shopping, food, other`), nên sữa bột và tã là `family`;
+không khớp thì khớp gần đúng cho lỗi OCR một chữ (cặp chữ hay nhầm hoặc thiếu/thừa một chữ; từ khóa ≥ 7 ký tự; thắng cả từ khóa chính xác ngắn hơn);
+không biết thì `None`, không ép `other`. Chat gọi với `fuzzy=False` (câu chat thường bị khớp gần đúng nhầm) và kiểm tra tên danh mục người dùng gõ
+("giáo dục") trước. Chat còn tra bảng `bill_item_cache` cho khoản chưa rõ nhóm, chỉ **gợi ý** (`auto_save_ok = false`). Đo trên 66 cụm: cùng danh mục ở chat và bill
+31/66 → 65/66 (`scripts/eval_flows.py --consistency`, `docs/evaluation.md`). **Không gộp:** phân loại cả bill (thương hiệu, từ khóa tên cửa hàng, bỏ phiếu theo dòng),
+bảng DB `bill_brands`/`bill_keywords` (vẫn 9 nhóm), và bản sao bảng từ khóa trong ocr-service.
+
 **Giới hạn đã biết (ghi 2026-10-11, đối chiếu code):**
 - **Hai bộ nhớ cửa hàng không nói chuyện với nhau.** `/bill/learn` chỉ ghi `bill_user_merchant_choice`, và chỉ `/bill/classify` của
   ai-service đọc bảng đó. `category` và `merchant_display` ("tên người dùng đã chốt") của ocr-service chỉ đọc bảng cũ

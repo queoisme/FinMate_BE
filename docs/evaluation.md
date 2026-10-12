@@ -152,3 +152,38 @@ Bộ `consistency_cases.jsonl`: 66 cụm, mỗi cụm đi qua đường chat và
    - 'giặt ủi': chat=other bill=unknown kỳ vọng=other
    - 'hàng khác': chat=other bill=unknown kỳ vọng=unknown
 ```
+
+## Sau khi gộp bộ phân loại (2026-10-12)
+
+```
+== chat: 62/63 đúng, accuracy 0.984, bỏ qua 0.016, sai mà tự tin 1
+   nhầm [('expense', 1500000, None)] -> [('expense', 1500000, 'shopping')]: 1
+   - 'mua đồ 1,5tr': muốn [('expense', 1500000, None)], ra [('expense', 1500000, 'shopping')]
+== items: 60/72 đúng, accuracy 0.833, bỏ qua 0.236, sai mà tự tin 0
+   nhầm food -> unknown: 7
+   nhầm shopping -> unknown: 2
+   nhầm health -> unknown: 2
+   nhầm other -> unknown: 1
+   - 'Sting dau 330ml @ None': muốn food, ra unknown
+   - 'Oreo vani @ None': muốn food, ra unknown
+   - 'Sua chua Vinamilk @ None': muốn food, ra unknown
+   - 'Pepsi lon @ None': muốn food, ra unknown
+   - 'Tra bi dao Ngo Gia @ None': muốn food, ra unknown
+   - 'Keo cao su @ None': muốn food, ra unknown
+   - 'Onigiri ca hoi @ None': muốn food, ra unknown
+   - 'Pin AA Panasonic @ None': muốn shopping, ra unknown
+   - 'But bi Thien Long @ None': muốn shopping, ra unknown
+   - 'Nuoc muoi sinh ly @ None': muốn health, ra unknown
+   - 'Berberin @ None': muốn health, ra unknown
+   - 'Phi giao hang @ None': muốn other, ra unknown
+== consistency: 65/66 cùng danh mục ở chat và bill (agree_rate 0.985), cùng và đúng kỳ vọng 64
+   - 'hàng khác': chat=other bill=unknown kỳ vọng=unknown
+```
+
+So với baseline cùng ngày (cùng bộ câu, cùng nhãn kỳ vọng):
+
+- **Cùng danh mục ở chat và bill: 31/66 lên 65/66.** Cùng danh mục và đúng kỳ vọng: 30 lên 64.
+- **Món trên bill: 52/72 lên 60/72, số ca "sai mà tự tin" từ 2 xuống 0.**
+- **Chat: giữ 62/63** (ca còn sai vẫn là "mua đồ 1,5tr", cố ý).
+- Còn một ca lệch: **"hàng khác"**. Chat hiểu "khác" là tên danh mục Khác mà người dùng gõ; món trên bill gọi "hàng khác" thì chưa rõ. Giữ nguyên có chủ ý.
+- Tác dụng phụ đã gặp và xử lý: khớp gần đúng trên câu chat làm "hôm nay trời đẹp quá" thành mua sắm ("đẹp quá" ~ "dép quai"), nên chat tắt khớp gần đúng (chỉ dành cho lỗi OCR).

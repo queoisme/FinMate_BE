@@ -17,7 +17,7 @@ INCOME_LABELS = {
 CHAT_KEYWORDS = {
     "dining": ("an", "an sang", "an trua", "an toi", "an khuya", "an vat", "an uong", "an lau", "an com", "an pho", "nhau", "di nhau", "nhau nhet", "lau", "nuong",
                "quan an", "nha hang", "do an", "dat do an", "do uong", "tra sua", "tra chanh", "ca phe", "cafe", "cf", "buffet", "tiec", "banh", "kem", "uong"),
-    "groceries": ("cho", "di cho", "sieu thi", "di sieu thi", "tap hoa", "mua rau", "mua thit", "mua ca", "mua trung", "mua sua", "thuc pham", "dong gia", "lit sua", "hop sua"),
+    "groceries": ("cho", "di cho", "sieu thi", "di sieu thi", "tap hoa", "mua rau", "mua thit", "thit ba chi", "mua ca", "mua trung", "mua sua", "thuc pham", "dong gia", "lit sua", "hop sua"),
     "transport": ("xang", "do xang", "gui xe", "do xe", "taxi", "grab", "xanh sm", "gojek", "ve xe", "ve tau", "ve may bay", "rua xe", "sua xe", "thay nhot",
                   "di lai", "cau duong", "phi cau duong", "di chuyen", "xe om", "xe buyt"),
     "shopping": ("mua sam", "mua ao", "mua quan", "mua giay", "mua dep", "mua tui", "mua do", "mua dien thoai", "mua may tinh", "shopee", "lazada", "tiki", "tiktok shop",
