@@ -187,3 +187,18 @@ So với baseline cùng ngày (cùng bộ câu, cùng nhãn kỳ vọng):
 - **Chat: giữ 62/63** (ca còn sai vẫn là "mua đồ 1,5tr", cố ý).
 - Còn một ca lệch: **"hàng khác"**. Chat hiểu "khác" là tên danh mục Khác mà người dùng gõ; món trên bill gọi "hàng khác" thì chưa rõ. Giữ nguyên có chủ ý.
 - Tác dụng phụ đã gặp và xử lý: khớp gần đúng trên câu chat làm "hôm nay trời đẹp quá" thành mua sắm ("đẹp quá" ~ "dép quai"), nên chat tắt khớp gần đúng (chỉ dành cho lỗi OCR).
+
+## Rasa NLU: v3 (267 câu) so với v4 (thêm 1.100 câu tổng hợp), 2026-10-12
+
+Đo bằng `rasa test nlu` (`ai-service/rasa/tools/summarize_report.py`). Bộ cũ = 74 câu viết tay; bộ mới `nlu_test_v2.yml` = 320 câu TỔNG HỢP, mẫu câu/món/cửa hàng/ngày khác hẳn bộ huấn luyện (script kiểm tra chống rò rỉ). Không có câu nào là chat thật của người dùng.
+
+| | v3 bộ cũ | v4 bộ cũ | v3 bộ mới | v4 bộ mới |
+|---|---|---|---|---|
+| Ý định đúng | 93,2% | 93,2% | 79,4% | **81,9%** |
+| F1 trung bình ý định | 0,924 | 0,935 | 0,740 | **0,787** |
+| `amount` F1 | 0,96 | **0,98** | 0,80 | **0,97** |
+| `merchant` F1 | 1,00 (n=3) | 0,86 (n=3) | 0,49 | **0,32** (recall 0,20) |
+| `date` F1 | chưa có | chưa có | 0,00 | **0,58** |
+| Ý định yếu nhất | out_of_scope 0,75 | out_of_scope 0,78 | add_income 0,55 | add_income 0,69 |
+
+Nhận xét: số tiền chính xác hơn rõ (0,80 → 0,97), ngày bắt đầu được nhận, ý định cải thiện vừa phải. `merchant` tệ hơn vì bộ sinh chỉ có 2 mẫu câu chứa cửa hàng (ít ví dụ) — cần thêm mẫu hoặc nhờ luật `_merchant_in` trong parser. Ý định vẫn chỉ ~82% trên câu lạ nên dữ liệu thật vẫn cần.

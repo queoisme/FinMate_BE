@@ -15,6 +15,7 @@ intents:
 entities:
   - amount
   - merchant
+  - date
 
 responses:
   utter_greet:
