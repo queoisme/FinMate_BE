@@ -1,0 +1,371 @@
+version: "3.1"
+
+# NGUỒN: MASSIVE 1.1 (Amazon Science), giấy phép CC BY 4.0, https://github.com/alexa/massive. Đã điều chỉnh: chọn chủ đề không liên quan chi tiêu,
+# đổi nhãn ý định thành out_of_scope, giữ thực thể ngày. Sinh bởi rasa/tools/import_massive.py (seed cố định).
+nlu:
+- intent: out_of_scope
+  examples: |
+    - [hai thứ tư tính từ hôm nay trở lại](date) là ngày nào
+    - [hôm nay](date) là [thứ hai](date) đúng không
+    - [hôm nay](date) là sinh nhật ai trên facebook
+    - [hôm nay](date) mang dù
+    - [hôm nay](date) trời có nắng không
+    - [hôm qua](date) có gì hot
+    - [ngày mai](date) là ngày mấy
+    - [năm nay](date) còn bao nhiêu ngày nữa
+    - [thứ tư](date) tuần tới là ngày mấy
+    - ai chơi kèn oboe trong đoạn này
+    - ai là nghệ sĩ của bài hát đang được phát
+    - ai đang hát vậy
+    - ai đã viết cho tôi hoặc đề cập đến tôi ở mạng xã hội
+    - alexa cho biết thời tiết ở thành phố của chúng tôi
+    - alexa cho tôi những tin tức trên kênh v. o. v. giao thông
+    - bài hát này ai hát
+    - bài hát này phát hành khi nào
+    - bỏ qua cho tới podcast tiếp theo
+    - bài hát nào tôi nghe nhiều nhất
+    - bài hát này dài bao lâu
+    - bài hát này là bài gì vậy
+    - báo cho tôi biết nếu tôi nhận một thư điện tử mới [hôm nay](date)
+    - báo cáo khiếu nại cho samsung bằng tweet
+    - báo thức tôi lúc tám giờ sáng
+    - bây giờ là mấy giờ ở new york
+    - bữa tối sinh nhật [thứ sáu](date) có trong lịch chưa
+    - bật bài gửi người yêu cũ của hồ ngọc hà tiếp theo
+    - bật bài hát của mỹ tâm trong sách nói
+    - bật loa
+    - bật lên
+    - bật đèn lên
+    - bắt đầu hai mươi câu hỏi
+    - bắt đầu một danh sách mới cho tôi
+    - bắt đầu một danh sách tên chó
+    - bỏ trứng ra khỏi danh sách
+    - bữa tiệc [tuần này](date) tổ chức vào ngày nào
+    - ca sĩ này tên là gì
+    - các đèn giảm tới số bảy
+    - cái gì đang trên đài
+    - chào buổi tối
+    - cho chúng tôi biết tin tức về cuộc bầu cử tổng thống
+    - cho giày vào danh sách của tôi
+    - cho nhỏ loa
+    - cho tôi biết thời tiết [của tuần này](date)
+    - cho tôi biết tên của bài hát đang phát ngay bây giờ
+    - cho tôi biết bài hát
+    - cho tôi biết các bài viết về iphone tám mới
+    - cho tôi biết cách làm bánh cuốn
+    - cho tôi biết có gì trong danh sách việc cần làm [hôm nay](date)
+    - cho tôi biết công thức làm bánh quy
+    - cho tôi biết cụm từ bắt đầu của loại nhạc này
+    - cho tôi biết giờ tại sài gòn
+    - cho tôi biết ngày của [thứ hai tuần thứ ba trong tháng này](date)
+    - cho tôi cập nhật facebook của vũ từ cuối tuần
+    - cho tôi một kênh radio cổ điển
+    - cho tôi tin tức mới nhất về donald trump
+    - cho tôi xem các bài đăng trên facebook của chồng tôi [hôm nay](date)
+    - cho tôi xem các danh sách
+    - cho tôi xem dự báo thời tiết của bắc kinh
+    - cho tôi xem hình của ca sĩ
+    - cho tôi xem một vài tin tức từ b. b. c.
+    - cho tôi xem nhạc của nghệ sĩ đó
+    - cho tôi xem những lần báo thức tôi đã thiết lập trong tuần
+    - cho tôi xem thời tiết [ngày hôm qua](date)
+    - cho tôi xem toàn bộ email đã nhận gần đây kèm mốc thời gian
+    - chào olly tôi có nhận được email nào mới không
+    - chúng ta sẽ gặp nhau vào bữa tiệc [ngày hôm nay](date) chứ
+    - chơi loa to hơn
+    - chỉnh màu ánh sáng thành màu đỏ bên ngoài ngôi nhà
+    - có cái gì mới
+    - cài đặt cuộc họp với tuấn và lan
+    - cách nướng khoai tây
+    - cách nấu xíu mại
+    - cách tôi làm món cá ngừ hầm từ đầu
+    - câm mồm
+    - có bao nhiêu báo thức hiện tại đã được cài đặt
+    - có bao nhiêu sinh nhật trong [ngày hai mươi ba](date)
+    - có báo thức nào [hôm nay](date) không
+    - có bài viết nào về gấu bắc cực không
+    - có bất kỳ báo thức nào được đặt ngay bây giờ không
+    - có bất kỳ email nào liên quan đến việc thăng chức của tôi không
+    - có email mới nào chưa đọc yahoo email
+    - có gì hot trên mạng xã hội ngay bây giờ
+    - có gì mới trên các mạng truyền thông xã hội
+    - có gì mới trên zing m. p. ba
+    - có gì trong cà ri
+    - có gì trong danh sách việc cần làm của tôi [hôm nay](date)
+    - có gì trong lịch trình [hôm nay](date)
+    - có những nội dung gì trong chương trình làm việc của tôi
+    - có phải [thứ bảy thứ hai](date) là vào [ngày mười hai](date) đúng không
+    - công thức làm mì ý
+    - công thức làm nước chấm bánh cuốn
+    - công thức xíu mại ngon nhất
+    - cảnh báo tôi trong ba tiếng
+    - cập nhật biểu tình ba đặc khu
+    - dự báo hiện tại cho maine là gì
+    - dịch vụ khách hàng tweet than phiền như sau
+    - dừng phát âm thanh trong bốn mươi phút
+    - email để cho nam biết tôi sẽ đến trễ
+    - giảm tiếng ồn xuống
+    - giáo dục
+    - giải thích công thức nấu cơm
+    - giảm loa xuống
+    - giảm độ sáng các bóng đèn trong phòng ngủ
+    - giờ hiện tại ở hà nội là mấy giờ
+    - giờ hiện tại ở hà nội việt nam là bao nhiêu
+    - google các bước chuẩn bị món ăn
+    - google xáo trộn danh sách phát
+    - gợi lại nói sau
+    - gọi tôi dậy lúc năm rưỡi sáng
+    - gọi tôi lúc sáu giờ sáng
+    - gọi điện thoại khách hàng qua thư điện tử
+    - gửi email đến nam về công việc [ngày mai](date)
+    - gửi một lời phàn nàn đến siêu thị mẹ và bé trên twitter
+    - gửi một phản hồi cho thư điện tử này
+    - gửi một tweet đến điện lực hà nội
+    - gửi thư điện tử bây giờ
+    - hãy phát bất kỳ album của hồ ngọc hà
+    - hey siri mấy giờ rồi
+    - hiển thị các danh sách của tôi
+    - hiển thị một danh sách mới
+    - hiển thị thời tiết ở dĩ an lúc ba giờ chiều
+    - hiện cho tôi những thư điện tử mới nhất
+    - hiện tại ngoài trời ấm áp không
+    - huỷ cuộc hẹn [ngày ba tháng tư](date)
+    - hãy cho tôi biết ngày giờ
+    - hãy nói cho tôi tin tức ở hà nội
+    - hãy tự tắt âm đi
+    - hãy đặt báo thức cho buổi hẹn [ngày mai](date) lúc bảy giờ sáng
+    - hủy báo thức cho yoga
+    - im lặng ngay lập tức
+    - khi nào tuyết sẽ rơi nữa
+    - khiếu nại với dịch vụ chăm sóc khách hàng của amazon cho tôi
+    - kích hoạt chế độ im lặng
+    - làm ơi phát cho tôi danh sách phát nhạc pop của tôi
+    - làm ơn bật các đèn lên
+    - làm ơn lưu bài hát hiện tại vào mục yêu thích
+    - làm ơn mở ứng dụng audible và tiếp tục phát nhạc
+    - làm ơn để các đèn ít sáng hơn
+    - loại nhạc nào đang được phát bây giờ
+    - ly tôi cần cuộc hẹn đó được đăng vào lịch
+    - làm cho tôi nước ép hạnh phúc
+    - làm cho âm thanh to hơn
+    - làm gì [hôm nay](date)
+    - làm sao để làm bánh mì ngon
+    - làm sao để làm gà nướng
+    - làm ơn giữ yên lặng
+    - làm ơn hãy đặt báo thức
+    - làm ơn sắp xếp để đánh thức tôi lúc ba giờ sáng báo thức
+    - lên lịch cuộc hẹn với lê thư hai giờ ba mươi chiều [thứ sáu](date)
+    - lời nhắc
+    - mang cho tôi một tách cà phê
+    - mang tới nhật ký công tác của tôi
+    - món ăn quyến rũ nhất để nấu vào một buổi hẹn hò là gì
+    - múi giờ giữa ấn độ và mỹ
+    - mở lại muôn kiếp nhân sinh chỗ mà chúng tôi đã bỏ giữa
+    - mở sách nói này cho tôi
+    - mười giờ tối ở đây là mấy giờ ở hà nội
+    - mạng podcast
+    - mất bao lâu để đun sôi nước
+    - mấy giờ ở cairo
+    - mấy giờ ở hà nội
+    - mấy giờ ở hà nội
+    - mở danh sách của tôi
+    - mở email mới nhất của nam
+    - mở lịch của tôi
+    - mở lời bài hát
+    - mở nhạc của mây trắng ngẫu nhiên
+    - mở podcast của vov
+    - mở to lên đi
+    - mở trang vnexpress dot com
+    - mở đèn tới mức tối đa
+    - mở ứng dụng new york times
+    - mục này cần được thêm vào danh sách
+    - nguyên liệu gì trong món mì ống và pho mát
+    - nguyễn hưng sống ở đâu và số điện thoại của anh ấy là gì
+    - ngày [mười lăm tháng ba](date) sẽ là ngày nào
+    - ngày hiện tại là ngày bao nhiêu
+    - nhiệt độ bao nhiêu
+    - những tin tức ở khu vực của tôi
+    - nhắc tôi vất rác vào [thứ ba](date)
+    - nhắc tôi về ngày kỷ niệm của tôi trước
+    - nhắc tôi về thời gian họp lúc bảy giờ tối [thứ hai](date) tới
+    - nhớ chọn mỹ tâm cho lần tới
+    - những bài báo mới nhất từ tin tức yahoo là gì
+    - những báo thức nào đã được đặt cho tôi
+    - những báo thức nào được cài [tuần này](date)
+    - những danh sách nào đang mở
+    - nói cho tôi về tin nhắn cuối cùng
+    - này danh sách của tôi là những gì
+    - này olly kể tin tức hàng đầu [hôm nay](date) của tôi
+    - nói cho tôi biết thời gian của một thành phố khác ở mỹ
+    - nói hòa phát rằng tôi vẫn đang chờ
+    - nói nhỏ lại chút
+    - nói to lên đi
+    - nói với thái nguyễn
+    - năm danh sách cuối cùng tôi lập là gì
+    - nếu có bất kỳ báo thức nào thì hãy xóa nó đi
+    - olly gần đây tôi có nhận được email nào từ mẹ không
+    - olly huy đã gửi thư điện tử đến tôi chưa
+    - olly làm ơn làm cho tôi một cốc cà phê
+    - olly nói cho tôi có gì mới
+    - olly pha cà phê
+    - olly thông báo cho tôi một thư điện tử từ huy về cuộc họp
+    - olly trời sẽ đẹp vào [thứ bảy](date) phải không
+    - olly tôi cần đặt báo thức [ngày mai](date)
+    - pha cà phê
+    - phát cho tôi một bài hát của anh khoa
+    - phát nhạc buồn
+    - phát michael jackson
+    - phát podcast của trạm dừng cảm xúc
+    - phát tiếp sách nói đã phát gần đây
+    - phát tập mười của podcast
+    - phía nam sẽ nóng vào [ngày mai](date)
+    - podcast văn học nghệ thuật trên thời sự
+    - rượu gạo nấu với gì
+    - soạn thảo phản hồi cho thư điện tử của sơn
+    - sự kiện tiếp theo trong lịch của tôi là gì
+    - số điện thoại của hiếu là gì
+    - số điện thoại của hà lan là số mấy
+    - sự kiện sắp tới là gì
+    - thay đổi màu các đèn từ màu đỏ sang xanh dương
+    - thay đổi màu đèn
+    - thay đổi nhạc
+    - thu thập tất cả bài hát của tôi từ mỹ tâm
+    - thêm bài hát vào mục yêu thích của tôi
+    - thêm bài này vào danh sách yêu thích của tôi
+    - thêm cuộc hẹn với hùng vào hai giờ chiều [ngày mai](date)
+    - thông báo bình luận trên facebook
+    - thời tiết [tuần này](date) sé có nắng hay không nhỉ
+    - thời gian để luộc trứng luộc là bao lâu
+    - thời gian ở thành phố khác là gì
+    - thời tiết ở khu dân cư
+    - tin tức giải trí
+    - tin tức mới nhất [hôm nay](date)
+    - tin tức mới nhất từ trump là gì
+    - tin tức mới nhất về donald trump
+    - tin tức xung quanh thành phố
+    - tin tức ở ai len có gì
+    - tìm cho tôi tên của nghệ sĩ của bài hát này
+    - tìm phát trực tuyến của giang ơi trên sirius
+    - tiếp tục đọc trần trụi giữa bầy sói
+    - trời lạnh đến mức nào
+    - trời nóng [hôm nay](date)
+    - trời sẽ ấm vào [ngày mai](date) phải không
+    - trạng thái của tôi từ [hôm qua](date) có bao nhiêu lượt thích
+    - trời có đang bão bây giờ không
+    - trời sẽ lạnh không
+    - tweet khiếu nại của tôi và đề cập đến dịch vụ hóa trang này
+    - tweet một lời phàn nàn
+    - tweet một khiếu nại lên trang web shopee
+    - tweets gần nhất
+    - tất cả đèn phòng tăng độ sáng
+    - tên bài hát là gì
+    - tìm cho tôi công thức làm bánh
+    - tìm cho tôi công thức nấu bò kho
+    - tìm công thức làm món bít tết ngon
+    - tìm công thức nấu ăn sử dụng thịt bò xay và bí ngòi
+    - tìm kiếm nội dung mới về chủ đề đó
+    - tìm thực đơn không chứa gluten
+    - tôi có cần kem chống nắng [hôm nay](date) không
+    - tôi có liên hệ của nguyễn hồng nhung không
+    - tôi có nên mang dù theo [hôm nay](date) không
+    - tôi có bất kỳ báo thức nào được đặt trong [ngày mai](date) không
+    - tôi có bất kỳ thư điện tử nào từ huy không
+    - tôi có các danh sách đúng không chúng là những gì
+    - tôi có ngày nghỉ nào [tuần này](date) không
+    - tôi có nhận được email nào về lời mời làm việc không
+    - tôi có nên bôi kem chống nắng
+    - tôi có số của tuyết không
+    - tôi cần cài một báo thức tôi có bao nhiêu báo thức rồi
+    - tôi cần một chiếc quần dài không
+    - tôi cần thêm mì ý và sữa vào danh sách tạp hóa
+    - tôi cần thông itn
+    - tôi cần đặt báo thức để gọi cho mẹ tôi lúc ba giờ chiều
+    - tôi không muốn có âm thanh
+    - tôi muốn căn phòng bớt sáng đi
+    - tôi muốn một cốc cà phê bây giờ
+    - tôi muốn đèn trong nhà bếp tắt
+    - tôi muốn đăng lên facebook
+    - tôi nên mặc gì ngoài trời lạnh không
+    - tôi nên nướng ức gà trong bao lâu
+    - tôi nên nấu gà trong bao lâu
+    - tôi sẽ cần mặc áo khoác [hôm nay](date) không
+    - tôi đang trong cuộc họp vui lòng không nói
+    - tôi đã lên lịch cho những báo thức nào [ngày mai](date)
+    - tôi đã mở bài hát nào nhiều nhất
+    - tắt các đèn trong phòng khách
+    - tắt đèn hành lang
+    - tắt đèn ở phòng ngủ
+    - tắt ổ cắm
+    - tắt ổ cắm thông minh
+    - tại giây phút hiện tại là mấy giờ theo giờ thái bình dương
+    - tạo báo thức lúc bốn giờ đúng sáng [ngày mai](date)
+    - tạo một danh sách mới cho đồ dùng học tập
+    - tạo một danh sách mới trước [ngày mai](date)
+    - tạo một danh sách mới về giống chó
+    - tải ứng dụng nấu ăn
+    - tắt tiếng loa ở phòng khách
+    - tắt tiếng trong vòng hai mươi phút
+    - tắt ổ cắm wemo
+    - tắt đèn bên trái
+    - v. t. c
+    - viết một phàn nàn về vincom
+    - viết phản hồi thư điện tử mới nhất được nhận
+    - việt nam mấy giờ rồi
+    - vui lòng cho tôi biết các báo thức sắp tới
+    - vui lòng cho tôi biết giờ hiện tại ở luân đôn
+    - vui lòng cho tôi biết lễ kết hôn của ông nam là khi nào
+    - vui lòng cho tôi tất cả cập nhật về cuộc bầu cử
+    - vui lòng chỉnh các đèn dịu hơn
+    - vui lòng gọi tôi dậy lúc bảy rưỡi sáng
+    - vui lòng gửi email sau đến chú huy dạ cháu sẽ đến đó
+    - vui lòng làm món bánh mì kẹp thịt
+    - vui lòng làm sáng đèn
+    - vui lòng mở email cho người mới
+    - vui lòng tiếp tục phát tập podcast tiếp theo
+    - vui lòng tìm tin tức ở kênh mười bốn
+    - vui lòng tắt tiếng âm thanh
+    - vui lòng tắt đi
+    - vui lòng xóa báo thức tôi đã cài
+    - vui lòng xóa danh sách việc cần làm từ [hôm nay](date)
+    - vui lòng yên lặng trong hai tiếng tới
+    - vui lòng đặt báo thức [hôm nay](date)
+    - vui lòng đặt báo thức cho [tất cả các ngày](date)
+    - vui lòng đọc tất cả những thư điện tử mới
+    - xoá mọi thứ khỏi lịch của tôi
+    - xoá sự kiện tiếp theo trên lịch
+    - xoá tất cả những nội dung trong lịch của tôi
+    - xáo trộn các bài hát trong album này
+    - xóa báo thức lúc bốn giờ sáng
+    - xóa danh sách nhạc tiếng anh cũ của tôi
+    - xóa danh sách những cuộc hẹn của bình
+    - xóa danh sách này
+    - xóa danh sách tạp hóa của tôi
+    - xóa lịch hiện tại
+    - xóa tất cả lịch buổi hòa nhạc
+    - ấn nút tắt tiếng
+    - ý nghĩa của ca sĩ qua tên bài hát người hãy quên em đi
+    - điều cuối cùng mẹ tôi nói là gì
+    - đun cà phê
+    - đánh dấu bữa tiệc sinh nhật của sương mai vào [ngày mười hai](date)
+    - đánh thức tôi vào lúc bình minh
+    - đêm nay có mây không
+    - đăng bài trên instagram
+    - đăng lên twitter của trung rằng ông ta là một kẻ khốn
+    - đăng status cho những điều sau
+    - đưa tôi đến bài đăng phổ biến nhất
+    - đặt báo thức lúc năm giờ đúng tối nay gắn tên taxi
+    - đặt chế độ tắt tiếng trong một giờ
+    - đặt lại bài hát trước đó lặp lại
+    - đặt lời nhắc cho buổi tối hẹn hò với chồng [thứ sáu](date) tới
+    - đếnn [ngày mai](date) tạo một danh sách mới
+    - đề cập đến điều trong danh sách
+    - để làm pizza cần những gì
+    - đọc cho tôi nghe thêm tam quốc diễn nghĩa
+    - đọc sách nói tam quốc diễn nghĩa
+    - đọc to danh sách việc cần làm của tôi
+    - đọc tôi nghe bài báo cập nhật nhất trên kênh mười bốn
+    - đọc tôi nghe một bài báo về bầu cử quốc hội
+    - đừng nói gì cả
+    - ở hà nội hiện tại là mấy giờ
+    - ở hà nội việt nam là mấy giờ
+    - ở đó thời tiết có lạnh không

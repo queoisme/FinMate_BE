@@ -202,3 +202,18 @@ So với baseline cùng ngày (cùng bộ câu, cùng nhãn kỳ vọng):
 | Ý định yếu nhất | out_of_scope 0,75 | out_of_scope 0,78 | add_income 0,55 | add_income 0,69 |
 
 Nhận xét: số tiền chính xác hơn rõ (0,80 → 0,97), ngày bắt đầu được nhận, ý định cải thiện vừa phải. `merchant` tệ hơn vì bộ sinh chỉ có 2 mẫu câu chứa cửa hàng (ít ví dụ) — cần thêm mẫu hoặc nhờ luật `_merchant_in` trong parser. Ý định vẫn chỉ ~82% trên câu lạ nên dữ liệu thật vẫn cần.
+
+## Rasa NLU v5: thêm 364 câu ngoài chủ đề từ MASSIVE vi-VN (CC BY 4.0), 2026-10-12
+
+Tải `amazon-massive-dataset-1.1.tar.gz` (40.251.390 byte; có LICENSE CC BY 4.0). `vi-VN.jsonl` có **16.521** dòng thật (11.514 train, 2.033 dev, 2.974 test; báo cáo Deep Research ghi 19.521 là sai số học). `rasa/tools/import_massive.py` chọn 13 chủ đề không liên quan chi tiêu, loại câu có từ tiền bạc/mua bán, đổi nhãn thành `out_of_scope`, giữ thực thể ngày. Train: 364 câu (phần train+dev của MASSIVE). Test giữ riêng: 129 câu (phần test của MASSIVE, loại câu trùng bộ train).
+
+| | v3 | v4 | v5 |
+|---|---|---|---|
+| Bộ cũ 74 câu: ý định đúng | 93,2% | 93,2% | **95,9%** |
+| Bộ tổng hợp 320 câu: ý định đúng | 79,4% | **81,9%** | 81,2% |
+| Bộ tổng hợp: `amount` F1 | 0,80 | **0,97** | 0,91 |
+| Bộ tổng hợp: `date` F1 | 0,00 | **0,58** | 0,42 |
+| Bộ tổng hợp: `merchant` F1 | 0,49 | 0,32 | 0,38 |
+| **129 câu ngoài chủ đề THẬT (MASSIVE test): nhận đúng `out_of_scope`** | 56,6% | 49,6% | **93,0%** |
+
+Nhận xét: đây là con số có ý nghĩa nhất trong cả đợt vì bộ test là câu do người thật viết (không do mình sinh). v3/v4 chỉ nhận đúng khoảng một nửa câu ngoài chủ đề; v5 nhận 120/129. Đổi lại `amount` F1 và `date` F1 trên bộ tổng hợp tụt nhẹ so với v4 (0,97→0,91; 0,58→0,42): thực thể ngày của MASSIVE ("hôm nay là thứ hai") làm Rasa gán nhãn ngày rộng hơn. `merchant` vẫn yếu (cần thêm mẫu câu). Rasa không đánh giá ý định khi file test chỉ có một ý định, nên số 93% đo bằng file ghép thêm một câu `add_expense` (chỉ để bật đánh giá, recall `out_of_scope` không đổi).

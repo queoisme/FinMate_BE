@@ -17,3 +17,10 @@ docker compose run --rm rasa test nlu --nlu tests/nlu_test.yml -m models/finmate
 
 Rasa hay quá tự tin với từ lạ (từng đọc "cắt kính cận 800k" là thu nhập, độ chắc 1,0), nên `app/chat/parser.py` không tin Rasa
 khi câu có từ khóa chi tiêu rõ mà không có dấu hiệu thu hay chuyển tiền.
+
+## Dữ liệu huấn luyện (cập nhật 2026-10-12)
+
+- `data/nlu.yml`: 267 câu viết tay.
+- `data/nlu_generated.yml` + `tests/nlu_test_v2.yml`: dữ liệu TỔNG HỢP do `tools/generate_nlu.py` sinh (train và test dùng mẫu câu/món/cửa hàng tách biệt).
+- `data/nlu_massive_oos.yml` + `tests/nlu_test_massive_oos.yml`: câu ngoài chủ đề lấy từ **MASSIVE 1.1 (Amazon Science, CC BY 4.0, https://github.com/alexa/massive)**, đã điều chỉnh bằng `tools/import_massive.py`. Cần ghi nguồn này khi phân phối.
+- Đo: `tools/summarize_report.py results/<thư mục>`; kết quả v3/v4/v5 ở `docs/evaluation.md`.
