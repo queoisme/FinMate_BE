@@ -69,7 +69,9 @@ public class ChatCommandHandler : IChatCommandHandler
                 drafts.Add(DraftOf(e, accountId, await FindDuplicateAsync(command, e, ct)));
             }
 
-            return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, drafts[0], null, drafts);
+            // Client cũ chỉ đọc `draft` (bản đầu): câu trả lời nói rõ có nhiều khoản để người dùng không im lặng mất các khoản sau.
+            var reply = parsed.ReplyText ?? $"Mình thấy {drafts.Count} khoản trong câu này. Bạn kiểm tra và xác nhận từng khoản nhé.";
+            return new ChatResultDto(ChatActions.Confirm, parsed.Intent, reply, null, drafts[0], null, drafts);
         }
 
         if (parsed.Entry is not null)

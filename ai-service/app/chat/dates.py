@@ -31,6 +31,8 @@ def _noon(day: datetime) -> datetime:
 def parse_when(text: str, now: datetime) -> When | None:
     norm = normalize(text)
     found = _RELATIVE.search(norm)
+    if found and found.group("part") == "toi" and "tối" not in unicodedata.normalize("NFC", text).lower()[found.start() : found.end()]:
+        found = None  # "tôi qua quán ăn" = tôi (đại từ) + qua, bỏ dấu trùng "tối qua": chỉ nhận khi có dấu đúng
     if found:
         today = now.astimezone(VN)
         if found.group("part"):

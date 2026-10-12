@@ -46,3 +46,12 @@ def test_no_date(text):
 def test_phrase_is_removed_from_the_sentence():
     text = "ăn phở 45k hôm qua"
     assert remove_when(text, parse_when(text, NOW)) == "ăn phở 45k"
+
+
+def test_pronoun_toi_is_not_the_evening():
+    assert parse_when("tôi qua quán ăn 50k", NOW) is None  # "tôi qua" = tôi + qua (đi qua), không phải "tối qua"
+    assert parse_when("tôi nay ăn phở 45k", NOW) is None
+
+
+def test_accented_toi_still_means_evening():
+    assert parse_when("ăn tối 80k tối qua", NOW).value == datetime(2026, 10, 11, 19, 0, tzinfo=VN)

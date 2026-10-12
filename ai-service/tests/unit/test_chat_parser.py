@@ -196,3 +196,12 @@ def test_sentence_date_applies_to_every_clause_without_its_own():
 
 def test_no_date_means_none():
     assert parse("ăn phở 45k").entry.occurred_at is None
+
+
+def test_leftover_amount_in_the_description_is_never_auto_saved():
+    entry = parse("ăn 20k,30k").entry  # hai số tiền mà không tách được: không ghi ngay một con số có thể sai
+    assert entry.auto_save_ok is False
+
+
+def test_a_normal_single_amount_is_still_auto_saved():
+    assert parse("ăn phở 45k").entry.auto_save_ok is True

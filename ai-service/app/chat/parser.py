@@ -47,6 +47,8 @@ _INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
 _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
 _QUERY = re.compile(r"bao nhieu|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
 
+# Số tiền còn sót trong mô tả (kể cả dính dấu phẩy: "20k,30k"). Không tính "lít" vì "mua 2 lít sữa 50k" là số lượng.
+_STRAY_AMOUNT = re.compile(r"\d+(?:[.,]\d+)?\s*(?:k|nghin|ngan|canh|trieu|tr|cu)(?![a-z])")
 _EXPENSE_VERB = re.compile(r"(?:an|uong|mua|di an|di uong|do xang|dong|tra|nap|thue)(?![a-z])")
 
 _REPLIES = {
@@ -227,7 +229,11 @@ def _entry(
 ) -> Entry | None:
     when = parse_when(text, now)
     entry = _entry_core(remove_when(text, when) if when else text, kind, nlu, auto_below, fallback_category)
-    return replace(entry, occurred_at=when.value if when else default_when) if entry else None
+    if not entry:
+        return None
+    if entry.auto_save_ok and _STRAY_AMOUNT.search(normalize(entry.description)):  # còn số tiền thứ hai trong mô tả ("ăn 20k,30k"): không ghi ngay một con số có thể sai
+        entry = replace(entry, auto_save_ok=False)
+    return replace(entry, occurred_at=when.value if when else default_when)
 
 
 def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallback_category: Callable[[str | None, str], str | None] | None) -> Entry | None:

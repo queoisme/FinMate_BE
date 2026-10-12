@@ -428,4 +428,16 @@ public class ChatCommandHandlerTests
             It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task SeveralEntriesSayHowManyInTheReplyTextSoAnOldClientDoesNotLoseThemSilently()
+    {
+        var first = Item(20_000, "ăn cơm");
+        var second = Item(10_000, "uống nước");
+        AiReturns(new ChatParseResponse("add_expense", null, first, null, 5, new[] { first, second }));
+
+        var result = await _handler.HandleAsync(Command("ăn cơm 20k, uống nước 10k"));
+
+        result.ReplyText.Should().Contain("2 khoản");
+    }
 }
