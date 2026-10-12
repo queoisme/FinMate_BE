@@ -710,7 +710,8 @@
 - [x] **Chat: tách nhiều khoản, ngày, câu mơ hồ** — *`clauses.py`, `dates.py`; `entries[]`, `occurred_at`; `education`/`family` trong từ vựng chat; "ăn cơm" không số tiền → `needs_amount` kể cả không có Rasa.*
 - [x] **Backend: nhiều bản nháp, ngày, cảnh báo trùng, `needsReview`** — *`drafts`, `occurredAt`, `possibleDuplicateTransactionId` (chat ±10 phút, quét ±3 giờ; chỉ cảnh báo), `ScannedReceiptDto.NeedsReview`. Backend 830 test xanh, ai-service 440.*
 - [x] **Chạy thật trên `docker compose`** — *Chat có Rasa: nhiều khoản → 3 bản nháp, "hôm qua" → ghi đúng ngày, khoản trùng → hỏi lại kèm mã, "mua nước" không ép nhóm, "đóng học phí" → education, "chuyển khoản" → chuyển tiền. Quét bill tổng hợp: tách shopping 570.000 + food 100.000.*
-- [ ] **Chưa làm:** màn chat ở app (hiện `drafts`, ngày, cảnh báo trùng, `needsReview`); chuyển ngưỡng/hiệu chỉnh độ chắc; nhớ lựa chọn theo từng người dùng; fixture "mua đồ 1,5tr" (kỳ vọng không nhóm) cố ý để đỏ vì từ vựng "mua đồ" → shopping; eval món chưa đo được tác dụng của Gemini/cache (Gemini giả).
+- [x] **App (`FinMate_FE`): màn chat (2026-10-12)** — *Mỗi khoản trong câu nhiều khoản là một thẻ nháp riêng (kèm lời báo "N khoản"); thẻ và màn rà soát hiện ngày khi khác hôm nay, cảnh báo "có thể trùng" (cả bill hoặc từng nhóm) và "AI chưa chắc" khi `needsReview`; thẻ "Đã ghi" hiện ngày. `flutter test` 282 xanh, `flutter analyze` sạch; fixture là phản hồi thật của BE. Chưa thử trên máy Android thật.*
+- [ ] **Chưa làm:** chuyển ngưỡng/hiệu chỉnh độ chắc; nhớ lựa chọn theo từng người dùng; fixture "mua đồ 1,5tr" (kỳ vọng không nhóm) cố ý để đỏ vì từ vựng "mua đồ" → shopping; eval món chưa đo được tác dụng của Gemini/cache (Gemini giả).
 
 ## Backlog (Future — Không trong MVP scope)
 
