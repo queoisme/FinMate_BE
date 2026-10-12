@@ -28,7 +28,7 @@ CHAT_KEYWORDS = {
     "entertainment": ("xem phim", "di xem phim", "rap phim", "phim", "game", "nap game", "karaoke", "bowling", "ca nhac", "concert", "vui choi", "giai tri", "du lich"),
     # "sua bot" thắng "mua sua" (groceries) nhờ dài hơn; "sua" đứng một mình bị bỏ vì "sửa nhà" bỏ dấu cũng là "sua nha".
     "education": ("hoc phi", "khoa hoc", "hoc them", "luyen thi", "sach giao khoa", "tien hoc"),
-    "family": ("sua bot", "mua sua bot", "ta quan", "ta dan", "do so sinh", "do cho be", "do choi tre em", "do choi"),
+    "family": ("sua bot", "mua sua bot", "binh sua", "ta quan", "ta dan", "do so sinh", "do cho be", "do choi tre em", "do choi"),
     "other": ("cat toc", "giat ui", "gui hang", "khac"),
     # thu nhập (loại chung "other_income" không có từ khóa: chỉ chọn bằng nút/tên loại, không đoán từ các từ chung như "thu nhập", "nhận được")
     "salary": ("luong", "nhan luong", "luong ve", "co luong", "luong thang"),
