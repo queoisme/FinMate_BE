@@ -62,3 +62,50 @@ Chỉ đo lớp luật/từ điển (không Rasa, không DB, Gemini luôn trả 
 Nhận xét: (1) cả 5 câu nhiều khoản chỉ ra một khoản, đúng như phân tích; (2) "ăn cơm", "mua nước", "đi ăn" ra `out_of_scope` khi không có Rasa
 (trả `needs_amount` hiện chỉ có khi Rasa nhận ra ý định); (3) `family` (tã, sữa bột) chưa có trong luật món nên ra `food` hoặc unknown;
 (4) 9 món ăn uống phổ biến (Sting, Pepsi, Oreo...) chưa có trong luật món.
+
+## Sau khi sửa 2026-10-12
+
+```
+== chat: 62/63 đúng, accuracy 0.984, bỏ qua 0.016, sai mà tự tin 1
+   nhầm [('expense', 1500000, None)] -> [('expense', 1500000, 'shopping')]: 1
+   - 'mua đồ 1,5tr': muốn [('expense', 1500000, None)], ra [('expense', 1500000, 'shopping')]
+== items: 52/72 đúng, accuracy 0.722, bỏ qua 0.319, sai mà tự tin 2
+   nhầm food -> unknown: 8
+   nhầm shopping -> unknown: 2
+   nhầm health -> unknown: 2
+   nhầm family -> food: 2
+   nhầm family -> unknown: 2
+   nhầm education -> unknown: 2
+   nhầm other -> unknown: 2
+   - 'Sting dau 330ml @ None': muốn food, ra unknown
+   - 'Oreo vani @ None': muốn food, ra unknown
+   - 'Sua chua Vinamilk @ None': muốn food, ra unknown
+   - 'Pepsi lon @ None': muốn food, ra unknown
+   - 'Tra bi dao Ngo Gia @ None': muốn food, ra unknown
+   - 'Keo cao su @ None': muốn food, ra unknown
+   - 'Onigiri ca hoi @ None': muốn food, ra unknown
+   - 'Banh bao @ None': muốn food, ra unknown
+   - 'Pin AA Panasonic @ None': muốn shopping, ra unknown
+   - 'But bi Thien Long @ None': muốn shopping, ra unknown
+   - 'Nuoc muoi sinh ly @ None': muốn health, ra unknown
+   - 'Berberin @ None': muốn health, ra unknown
+   - 'Ta quan Bobby L @ None': muốn family, ra food
+   - 'Sua bot Enfa A+ @ None': muốn family, ra food
+   - 'Do choi tre em @ None': muốn family, ra unknown
+   - 'Binh sua em be @ None': muốn family, ra unknown
+   - 'Sach luyen thi IELTS @ None': muốn education, ra unknown
+   - 'Hoc phi @ None': muốn education, ra unknown
+   - 'Phi giao hang @ None': muốn other, ra unknown
+   - 'Giat ui @ None': muốn other, ra unknown
+```
+
+So với baseline (cùng bộ câu, cùng nhãn kỳ vọng):
+
+- **Chat: 50/63 → 62/63.** Cả 5 câu nhiều khoản đã tách đúng; "ăn cơm", "mua nước", "đi ăn" ra `needs_amount`; `học phí` → `education`, `sữa bột` → `family`, `uống nước` → `food`, `mua 2 lít sữa` → `food`.
+- Câu còn sai: **"mua đồ 1,5tr"** (kỳ vọng không nhóm, ra `shopping`). Không sửa nhãn kỳ vọng lẫn từ vựng cho khớp: "mua đồ" → shopping là chủ ý của từ vựng chat.
+- **Món: 51/72 → 52/72.** Rất ít thay đổi vì bộ đo chạy với Gemini giả luôn "unknown": tác dụng của Gemini-trước-nhóm-mặc-định và của `bill_item_cache` không đo được ở đây
+  (đã kiểm riêng bằng test đơn vị và chạy thật). Phần còn lại sai là món chưa có trong luật (Sting, Pepsi, Oreo, tã/sữa bột em bé, học phí, phí giao hàng...) hoặc
+  cần Gemini; ví dụ "Ta quan"/"Sua bot" ra `food` vì luật món chưa có nhóm `family`.
+- Đã thử khớp gần đúng ở món: một ca ("nước muối sinh lý" → "nước suối") làm tăng số ca sai-mà-tự-tin nên bị loại bằng luật cặp chữ OCR hay nhầm.
+
+Giới hạn của số đo: bộ kiểm thử do người sửa luật viết, nhỏ (63 + 72), chưa phải tập giữ riêng từ bill thật của người dùng. Dùng để thấy hướng, không phải độ chính xác tuyệt đối.

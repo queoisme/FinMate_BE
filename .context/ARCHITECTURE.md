@@ -274,6 +274,10 @@ ngân sách) nằm ở backend. Route liên quan (đều dưới `[Route("api/v1
   danh mục hệ thống → ghi luôn qua `CreateManualTransactionCommandHandler` (`source = Manual`, có `clientRequestId` chống trùng),
   `action = "saved"`. Thiếu bất kỳ điều kiện nào → `action = "confirm"` kèm bản nháp và `missingFields` (`category`/`account`/`accounts`);
   thu nhập và chuyển tiền **luôn** qua xác nhận. Hoàn tác/sửa dùng `DELETE`/`PATCH /transactions/{id}` có sẵn.
+- Câu có **nhiều khoản** (`entries` > 1): luôn `action = "confirm"`, `drafts` có đủ từng bản nháp (`draft` = bản đầu), không bao giờ ghi ngay.
+- Ngày trong câu (`occurred_at`, ví dụ "hôm qua") được dùng làm `transactedAt` khi ghi và có trong bản nháp (`occurredAt`).
+- **Cảnh báo trùng** (chỉ chi tiêu): có khoản Debit cùng số tiền của chính người dùng trong ±10 phút (chat) thì KHÔNG ghi ngay mà hỏi lại,
+  bản nháp mang `possibleDuplicateTransactionId`. Gửi lại cùng `clientRequestId` vẫn nhận lại giao dịch cũ (không bị coi là trùng).
 - `query` → `action = "summary"`: backend tự cộng từ giao dịch của chính người dùng (ai-service không thấy số liệu).
 - Còn lại → `action = "reply"` (chào, ngoài chủ đề, thiếu số tiền…).
 
@@ -579,13 +583,18 @@ Authorization: Bearer {INTERNAL_API_KEY}
 ```
 - **Không có số tiền** trong request, và `user_id` thật không rời backend (`user_id_hash` là SHA-256 hex đúng 64 ký tự).
 - Giới hạn: 1–60 món, mỗi tên tối đa 200 ký tự; `parent` phải là chỉ số của một món **đứng trước** (phụ kiện
-  `+` thừa kế nhóm món chính). `source` ∈ `rule | inherit | merchant | ai | unknown`; `category_slug` null khi `unknown`.
-- Thứ tự quyết: thừa kế → luật/từ khóa trong DB → nhóm mặc định **của thương hiệu** (chỉ cho món chưa khớp luật) →
-  Gemini (chỉ khi `allow_ai`, có khóa, và bill không phải bill y tế) → `unknown`. Lỗi/quá hạn Gemini không làm lỗi route.
+  `+` thừa kế nhóm món chính). `source` ∈ `rule | cache | inherit | merchant | ai | unknown`; `category_slug` null khi `unknown`.
+- Thứ tự quyết (cập nhật 2026-10-12): thừa kế → luật/từ khóa trong DB → **khớp gần đúng** từ khóa sản phẩm (OCR sai một chữ, chỉ cặp chữ hay
+  nhầm như m/n, u/v, hoặc thiếu/thừa một chữ; từ khóa ≥ 7 ký tự) → **bộ nhớ tên món** `bill_item_cache` (câu trả lời Gemini đã lưu, dùng chung,
+  đọc được cả khi chưa `allow_ai`) → Gemini (chỉ khi `allow_ai`, có khóa, và bill không phải bill y tế; câu trả lời hợp lệ được ghi vào
+  `bill_item_cache`, câu đầu tiên thắng) → nhóm mặc định **của thương hiệu** (chỉ món Gemini không quyết được) → `unknown`.
+  Gemini đứng TRƯỚC nhóm mặc định cửa hàng vì cửa hàng tiện lợi bán cả đồ ăn lẫn khăn ướt. Lỗi/quá hạn Gemini không làm lỗi route.
 - `ocr-service` `POST /analyze-bill` (nội bộ) trả thêm `items: [{name, amount, parent, is_discount}]` và `items_ok`
   (`amount` là số nguyên đồng, **âm** với giảm giá; `items_ok` chỉ true khi tổng các dòng bằng đúng tổng bill).
 - `POST /api/v1/transactions/scan-receipt` (app → backend) trả thêm `groups: [{categorySlug, amountCents, items:[{name, amountCents}]}]`
-  (null khi bill không tách); `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
+  (null khi bill không tách), `needsReview` (bool: OCR chưa chắc, hoặc phần chưa rõ nhóm ≥ 20% tổng bill, hoặc cờ tách bật mà các dòng
+  không khớp tổng) và `possibleDuplicateTransactionId` (cả bill khi không tách; từng nhóm trong `groups` khi tách): một khoản chi cùng
+  số tiền của chính người dùng trong ±3 giờ. Chỉ để cảnh báo; `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
   `PATCH /api/v1/users/me` nhận thêm `shareReceiptItemsWithAi` (bool, bỏ trống = giữ nguyên). Mọi thay đổi chỉ **thêm** trường.
 
 **Chat (Backend → AI Service) — thêm Phase 19–20, ghi vào tài liệu 2026-10-11:**
@@ -600,8 +609,9 @@ Authorization: Bearer {INTERNAL_API_KEY}
   "reply_text": null,
   "entry": {
     "kind": "expense", "amount_cents": 45000, "description": "ăn phở", "merchant": null,
-    "category_slug": "food", "income_type": null, "auto_save_ok": true, "to_others": false
+    "category_slug": "food", "income_type": null, "auto_save_ok": true, "to_others": false, "occurred_at": null
   },
+  "entries": [ /* mọi khoản trong câu; entry = entries[0]; câu một khoản thì entries = [entry] */ ],
   "query": null,
   "nlu": { "source": "rasa", "intent": "add_expense", "confidence": 0.98 },
   "unclear_reason": null,
@@ -616,6 +626,10 @@ Authorization: Bearer {INTERNAL_API_KEY}
   "Chuyển cho người khác / trả nợ" trả về `kind = "expense"`, `category_slug = "other"`, `to_others = true`.
 - `auto_save_ok` chỉ `true` khi: chi tiêu, đã có slug, số tiền dưới `CHAT_AUTO_SAVE_BELOW` (mặc định 2.000.000 đồng; 0 = không bao giờ),
   và Rasa (nếu có) trả `add_expense` với độ chắc ≥ 0,9. Đây chỉ là **gợi ý**; backend còn tự kiểm ví và danh mục (§2.4).
+- `entries` (thêm 2026-10-12): câu có nhiều số tiền ("ăn cơm 20k, uống nước 10k") tách thành nhiều khoản; chỉ tách khi **cả hai vế** có số tiền
+  và vế sau có chữ mô tả, nên "1,5tr", "1.250.000", "mua 2 lít sữa 50k", "ăn 20k + 30k" vẫn là một khoản. Câu nhiều khoản không khoản nào
+  `auto_save_ok` và đọc loại (chi/thu) theo luật từng vế. `occurred_at`: "hôm nay/qua/kia", "sáng/trưa/chiều/tối nay|qua", "ngày 5/10" (giờ Việt Nam,
+  không nhận ngày tương lai; số trần "5/10" không nhận). Khóa `education` và `family` của từ vựng chat là slug backend dùng thẳng.
 - `query`: `metric` ∈ `expense | income | balance`, `period_key`/`period_label` (mặc định "tháng này"), `start`/`end` nửa mở `[start, end)`
   theo giờ Việt Nam; `category_slug` chỉ khi `metric = expense`. Tổng do **backend** tính.
 - `nlu.source` ∈ `rasa | rules`; `unclear_reason` ∈ `low_confidence | disagree | not_understood | null` (chưa lưu ở đâu).
@@ -772,7 +786,9 @@ như một phần của stack với sự đồng ý của chủ dự án ngày 2
 - **Gộp Rasa với luật** (`app/chat/parser.py`): Rasa chắc dưới 0,6 → bỏ qua; câu có số tiền mà Rasa bảo `out_of_scope` dưới 0,75 →
   theo luật; Rasa nói thu nhập/chuyển tiền nhưng luật thấy chi tiêu **và** câu có từ khóa chi tiêu rõ → theo luật (Rasa hay quá tự
   tin với từ lạ); Rasa và luật bất đồng loại giao dịch → Rasa chỉ thắng khi chắc ≥ 0,97; câu hỏi (có "?", "… không", "có nên…") không
-  phải câu hỏi tổng → `out_of_scope`. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9.
+  phải câu hỏi tổng → `out_of_scope`. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
+  "mua nước") trả `needs_amount` kể cả khi không có Rasa (có động từ chi tiêu hoặc từ danh mục; câu hỏi đã bị chặn trước). Các mô-đun
+  `app/chat/clauses.py` (tách khoản) và `app/chat/dates.py` (ngày) thêm 2026-10-12.
 - **Số tiền và danh mục** luôn do luật: `amount.py` (Rasa chỉ giúp khi luật không thấy số), `vocab.py` (9 nhóm). Khi từ vựng chat
   không ra nhóm, route thử từ điển cửa hàng của pipeline thông báo (`categorize_by_rules`, chỉ nhận khớp độ chắc ≥ 0,90, không nhận `income`).
 
@@ -854,7 +870,7 @@ mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptSca
   xóa hẳn giao dịch chỉ gỡ liên kết. Migration chép các liên kết cũ trước khi bỏ cột.
 - `users.share_receipt_items_with_ai` (cột mới, `NOT NULL DEFAULT false`) — đồng ý cho AI hỗ trợ phân loại tên món.
 
-### 4.2 AI DB — 24 bảng (không tính `alembic_version`) + 2 view đã tạo, 3 bảng hoãn
+### 4.2 AI DB — 25 bảng (không tính `alembic_version`) + 2 view đã tạo, 3 bảng hoãn
 
 ```
 Dataset:        raw_samples, labeled_samples, sample_splits, provider_patterns
@@ -863,7 +879,7 @@ Evaluation:     evaluation_runs, evaluation_category_metrics, evaluation_predict
 Production:     pipeline_requests
 Feedback:       user_feedback, feedback_batch_jobs
 A/B Testing:    ab_experiments, ab_assignments, ab_metrics   ← HOÃN, chưa tạo
-Bill (hóa đơn): bill_brands, bill_keywords, bill_user_merchant_category, bill_user_merchant_choice, bill_ai_instructions,
+Bill (hóa đơn): bill_brands, bill_keywords, bill_user_merchant_category, bill_user_merchant_choice, bill_ai_instructions, bill_item_cache,
                 bill_raw_samples, bill_labeled_samples, bill_training_jobs, bill_model_versions,
                 bill_evaluation_runs, bill_evaluation_category_metrics, bill_unknown_scans
                 + view bill_unknown_merchants, bill_merchant_votes
@@ -871,7 +887,7 @@ Bill (hóa đơn): bill_brands, bill_keywords, bill_user_merchant_category, bill
 
 **Cập nhật 2026-10-11.** Tiêu đề cũ ghi "12 bảng đã tạo" — đúng tới alembic `0004`, nhưng `0006`–`0008` đã thêm 12 bảng `bill_*`
 và 2 view mà mục này chưa liệt kê (bản 2026-10-10 chỉ ghi `bill_ai_instructions`). Đếm theo migration và đối chiếu `\dt` trên DB dev
-(`alembic_version = 0008`): **24 bảng + 2 view**, không tính bảng hệ thống `alembic_version` (DB thật có 25 bảng gốc). `0005` không tạo bảng, chỉ nới CHECK `raw_samples.source` để nhận `'receipt'`.
+(`alembic_version = 0009`, cập nhật 2026-10-12): **25 bảng + 2 view**, không tính bảng hệ thống `alembic_version` (DB thật có 25 bảng gốc). `0005` không tạo bảng, chỉ nới CHECK `raw_samples.source` để nhận `'receipt'`.
 
 | Bảng / view | Alembic | Mục đích, cột đáng chú ý |
 |---|---|---|
@@ -888,6 +904,7 @@ và 2 view mà mục này chưa liệt kê (bản 2026-10-10 chỉ ghi `bill_ai_
 | `bill_unknown_merchants` (view) | 0006 | Hàng đợi duyệt: cửa hàng lạ `status = 'new'` gom theo `merchant_key` (số bill, số lượt, số người) |
 | `bill_merchant_votes` (view) | 0006 | Phiếu bầu: bao nhiêu người xếp một cửa hàng vào một nhóm (từ `bill_user_merchant_category`) |
 | `bill_user_merchant_choice` | 0007 | Bộ nhớ cửa hàng **mới**: slug **backend** người dùng chọn khi lưu giao dịch (CHECK = 11 slug trừ `income`); UNIQUE `(user_id_hash, merchant_key)`. Ghi bởi `/bill/learn` |
+| `bill_item_cache` | 0009 | Tên món (bỏ dấu, bỏ số tiền, tối đa 60 ký tự) → slug backend mà Gemini đã trả lời; `item_key` PK, `hits`; CHECK = 10 slug (trừ `income`). **Dùng chung, không có cột người dùng**; ghi bằng upsert, câu trả lời đầu tiên thắng |
 | `bill_ai_instructions` | 0008 | Chỉ dẫn Gemini sửa được trong DB; đúng một dòng `is_active` (xem dưới) |
 
 `bill_*` tách khỏi `raw_samples`/`labeled_samples` vì hai bảng cũ có CHECK 11 slug và nguồn/người gắn nhãn cố định, còn bill dùng 9 nhóm;
