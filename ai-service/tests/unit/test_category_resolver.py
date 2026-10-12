@@ -51,8 +51,15 @@ def test_one_letter_typo_matches_but_two_real_words_do_not():
     assert resolve("nuoc muoi sinh ly").slug is None  # nước muối ≠ nước suối
 
 
-def test_an_exact_short_keyword_beats_a_typo_of_a_longer_one():
-    assert resolve("kham uot") == Resolution("health", "keyword")  # "kham" (khám) là từ khóa thật, không phải lỗi gõ của "khan uot"
+def test_a_longer_typo_match_beats_a_shorter_exact_keyword():
+    # OCR hay đọc nhầm n/m: "kham uot" là "khan uot" (8 ký tự), không phải "kham" (khám, 4 ký tự) + "uot"
+    assert resolve("kham uot") == Resolution("shopping", "fuzzy")
+    assert resolve("KHAM UOT Bobby").slug == "shopping"
+
+
+def test_an_exact_keyword_as_long_or_longer_is_never_overridden_by_a_typo_match():
+    assert resolve("kham benh") == Resolution("health", "keyword")
+    assert resolve("tien dien") == Resolution("housing", "keyword")
 
 
 def test_digits_glued_to_a_word_still_match_and_money_words_do_not_crash():

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.bill import brands, classifier
 from app.bill.classifier import classify_category_detailed
 from app.bill.knowledge import DbBillKnowledge, Remembered, merchant_key
+from app.core import category_resolver
 from app.db.bill_views import MERCHANT_VOTES_VIEW, UNKNOWN_MERCHANTS_VIEW
 
 USER = "a" * 64
@@ -30,6 +31,7 @@ def restore_tables():
                               classifier._CATEGORY_KEYWORDS, classifier._PRODUCT_KEYWORDS), saved):
         target.clear()
         target.update(value)
+    category_resolver.invalidate()  # chỉ mục bộ phân loại chung dựng từ các bảng trên: dựng lại từ bản trong code
 
 
 async def execute(session, sql: str, **params):
@@ -220,3 +222,13 @@ async def test_the_database_only_accepts_backend_expense_slugs_as_choices(sessio
     await execute(session, insert, u=USER, k="k-ok", c="food")
     with pytest.raises(IntegrityError):  # một người, một cửa hàng, một dòng
         await execute(session, insert, u=USER, k="k-ok", c="bills")
+
+
+async def test_database_keywords_reach_the_resolver_after_refresh(session, factory):
+    category_resolver.invalidate()
+    assert category_resolver.resolve("zxqv thing").slug is None
+    await add_keyword(session, "product", "shopping", "zxqv thing")
+
+    await DbBillKnowledge(factory).refresh_if_stale()
+
+    assert category_resolver.resolve("zxqv thing").slug == "shopping"

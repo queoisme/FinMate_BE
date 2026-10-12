@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bill import brands, classifier
+from app.core import category_resolver
 from app.db.session import AsyncSessionLocal
 
 logger = structlog.get_logger(__name__)
@@ -99,6 +100,7 @@ def apply_rows(brand_rows: list, keyword_rows: list) -> None:
         if by_kind[kind]:
             table.clear()
             table.update({category: tuple(words) for category, words in by_kind[kind].items()})
+    category_resolver.invalidate()  # bộ phân loại chung dựng chỉ mục từ các bảng trên: lần dùng kế tiếp xây lại
 
 
 class DbBillKnowledge:

@@ -296,8 +296,8 @@ async def test_codes_and_short_words_get_no_fuzzy_hit():
 
 
 async def test_a_different_real_word_is_not_pulled_into_a_keyword():
-    out, _ = await run(items("Khan tam bong", "Banh quy bo"), allow_ai=False)  # khăn tắm không phải khăn ướt
-    assert out == [(0, None, "unknown"), (1, None, "unknown")]
+    out, _ = await run(items("Khan tam bong", "Banh quy bo"), allow_ai=False)  # khăn tắm không phải khăn ướt; bánh quy là đồ ăn nhờ từ "banh"
+    assert out == [(0, None, "unknown"), (1, "food", "rule")]
 
 
 async def test_a_one_letter_difference_between_two_real_products_is_not_a_typo():
@@ -308,3 +308,18 @@ async def test_a_one_letter_difference_between_two_real_products_is_not_a_typo()
 async def test_missing_letter_and_confusable_letter_typos_match():
     out, _ = await run(items("KHAN UOTT", "KHA UOT", "KHAM UOT"), allow_ai=False)
     assert [o[1] for o in out] == ["shopping"] * 3
+
+
+async def test_item_rule_step_matches_the_resolver():
+    from app.core.category_resolver import resolve
+
+    phrases = ["ta quan Bobby", "sua bot Enfa", "hoc phi", "kham benh", "bot giat Omo", "vitamin C", "nuoc ngot Pepsi", "khan uot", "khan uott", "SP002993"]
+    for phrase in phrases:
+        out, _ = await run(items(phrase), allow_ai=False)
+        expected = resolve(phrase).slug
+        assert out == [(0, expected, "rule" if expected else "unknown")], phrase
+
+
+async def test_sua_bot_is_family_not_food_on_a_receipt():
+    out, _ = await run(items("Sua bot Enfa A+ 800g"), allow_ai=False)
+    assert out == [(0, "family", "rule")]

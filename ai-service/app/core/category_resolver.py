@@ -117,8 +117,8 @@ def _ocr_typo(cand: str, kw: str) -> bool:
     return (a1 - a0) + (b1 - b0) == 1  # thiếu hoặc thừa đúng một chữ
 
 
-def _fuzzy(norm: str, index: dict[str, str]) -> str | None:
-    """Slug khi cụm trong câu gần như trùng một từ khóa (OCR sai/thiếu một chữ). Hai slug cùng gần như nhau thì không đoán."""
+def _fuzzy(norm: str, index: dict[str, str]) -> tuple[str, int] | None:
+    """(slug, độ dài từ khóa) khi cụm trong câu gần như trùng một từ khóa (OCR sai/thiếu một chữ). Hai slug cùng gần như nhau thì không đoán."""
     words = norm.split()
     best: tuple[float, int, str] | None = None
     tie = False
@@ -137,7 +137,7 @@ def _fuzzy(norm: str, index: dict[str, str]) -> str | None:
                 best, tie = (ratio, len(kw), slug), False
             elif (ratio, len(kw)) == best[:2] and slug != best[2]:
                 tie = True
-    return None if best is None or tie else best[2]
+    return None if best is None or tie else (best[2], best[1])
 
 
 def resolve(text: str) -> Resolution:
@@ -156,7 +156,9 @@ def resolve(text: str) -> Resolution:
                 candidate = (len(key), -_PRIORITY[slug], slug)
                 if best is None or candidate > best:
                     best = candidate
-    if best:
-        return Resolution(best[2], "keyword")
-    slug = _fuzzy(norm, index)
-    return Resolution(slug, "fuzzy") if slug else _NONE
+    # Khớp gần đúng thắng khi từ khóa của nó DÀI hơn từ khóa khớp chính xác: "kham uot" (OCR đọc nhầm n/m của "khan uot") phải ra khăn ướt,
+    # không bị từ khóa ngắn "kham" (khám) kéo đi. Chính xác dài bằng hoặc dài hơn thì vẫn thắng.
+    fuzzy = _fuzzy(norm, index)
+    if fuzzy and (best is None or fuzzy[1] > best[0]):
+        return Resolution(fuzzy[0], "fuzzy")
+    return Resolution(best[2], "keyword") if best else _NONE
