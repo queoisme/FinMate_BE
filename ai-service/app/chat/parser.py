@@ -12,11 +12,12 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 
 from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
+from app.chat.clauses import split_clauses
 
 VN = timezone(timedelta(hours=7))  # Việt Nam không có giờ mùa hè
 MIN_NLU_CONFIDENCE = 0.6  # Rasa chắc dưới mức này thì bỏ qua, dùng luật
@@ -93,6 +94,7 @@ class ChatParse:
     nlu_intent: str | None
     nlu_confidence: float | None
     unclear_reason: str | None  # low_confidence | disagree | not_understood | None
+    entries: tuple[Entry, ...] = ()  # mọi khoản trong câu (nhiều khoản khi câu có nhiều số tiền); ``entry`` = khoản đầu
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -264,17 +266,26 @@ def parse_chat(
 
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
-                         extra.get("unclear_reason"))
+                         extra.get("unclear_reason"), extra.get("entries", ()))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
     intent = _resolve_intent(text, norm, nlu)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
+        clauses = split_clauses(text)
+        if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
+            many = tuple(
+                replace(e, auto_save_ok=False)
+                for c in clauses
+                if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category))
+            )
+            if len(many) > 1:
+                return result(intent, entry=many[0], entries=many, unclear_reason=reason)
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
-        return result(intent, entry=entry, unclear_reason=reason)
+        return result(intent, entry=entry, entries=(entry,), unclear_reason=reason)
     if intent == "ask_spending":
         return result(intent, query=_query(norm, now or datetime.now(VN)), unclear_reason=reason)
     return result(intent, reply_text=_REPLIES.get(intent, _REPLIES["out_of_scope"]), unclear_reason=reason)

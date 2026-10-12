@@ -146,3 +146,39 @@ def test_unclear_reasons():
     assert parse("nhận lương 14 củ", nlu("add_expense", 0.90)).unclear_reason == "disagree"
     assert parse("hôm nay trời đẹp quá").unclear_reason == "not_understood"
     assert parse("iphone 20 triệu có đáng mua không").unclear_reason is None  # câu hỏi, không phải tin khó hiểu
+
+
+def test_three_expenses_in_one_sentence_become_three_entries():
+    parsed = parse("ăn cơm 20k, uống nước 10k, đổ xăng 50k")
+    assert [e.amount for e in parsed.entries] == [20_000, 10_000, 50_000]
+    assert [e.kind for e in parsed.entries] == ["expense"] * 3
+    assert parsed.entries[0].category == "dining" and parsed.entries[2].category == "transport"
+    assert parsed.entry == parsed.entries[0]
+
+
+def test_and_splits_two_entries():
+    assert [e.amount for e in parse("ăn phở 45k và cà phê 30k").entries] == [45_000, 30_000]
+
+
+def test_mixed_kinds_are_read_per_clause():
+    parsed = parse("nhận lương 12 triệu, ăn cơm 20k")
+    assert [(e.kind, e.amount) for e in parsed.entries] == [("income", 12_000_000), ("expense", 20_000)]
+
+
+def test_decimal_comma_thousands_dot_and_quantity_stay_one_entry():
+    for text, amount in (("mua đồ 1,5tr", 1_500_000), ("đi taxi 1.250.000", 1_250_000), ("mua 2 lít sữa 50k", 50_000)):
+        parsed = parse(text)
+        assert [e.amount for e in parsed.entries] == [amount], text
+
+
+def test_multi_entries_are_never_auto_save_ok_even_with_rasa_absent():
+    assert not any(e.auto_save_ok for e in parse("ăn cơm 20k, đổ xăng 50k").entries)
+
+
+def test_single_sentence_still_has_one_entry_in_entries():
+    parsed = parse("ăn cơm 20k")
+    assert parsed.entries == (parsed.entry,) and parsed.entry.auto_save_ok
+
+
+def test_non_entry_intents_have_no_entries():
+    assert parse("tháng này tôi tiêu bao nhiêu?").entries == ()
