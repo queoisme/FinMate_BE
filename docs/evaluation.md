@@ -109,3 +109,46 @@ So với baseline (cùng bộ câu, cùng nhãn kỳ vọng):
 - Đã thử khớp gần đúng ở món: một ca ("nước muối sinh lý" → "nước suối") làm tăng số ca sai-mà-tự-tin nên bị loại bằng luật cặp chữ OCR hay nhầm.
 
 Giới hạn của số đo: bộ kiểm thử do người sửa luật viết, nhỏ (63 + 72), chưa phải tập giữ riêng từ bill thật của người dùng. Dùng để thấy hướng, không phải độ chính xác tuyệt đối.
+
+## Baseline unify 2026-10-12 (trước khi gộp bộ phân loại)
+
+Bộ `consistency_cases.jsonl`: 66 cụm, mỗi cụm đi qua đường chat và đường món trên bill (Gemini giả, không cửa hàng). Kỳ vọng theo bản luật đã duyệt, viết trước khi sửa.
+
+```
+== consistency: 31/66 cùng danh mục ở chat và bill (agree_rate 0.47), cùng và đúng kỳ vọng 30
+   - 'nước ngọt Pepsi': chat=unknown bill=food kỳ vọng=food
+   - 'sữa tươi TH': chat=unknown bill=food kỳ vọng=food
+   - 'thịt ba chỉ': chat=unknown bill=food kỳ vọng=food
+   - 'gạo ST25': chat=unknown bill=food kỳ vọng=food
+   - 'mì gói Hảo Hảo': chat=unknown bill=food kỳ vọng=food
+   - 'bia Tiger': chat=unknown bill=food kỳ vọng=food
+   - 'bột giặt Omo': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'nước rửa chén Sunlight': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'giấy vệ sinh': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'khăn ướt': chat=food bill=shopping kỳ vọng=shopping
+   - 'dầu gội Clear': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'kem đánh răng': chat=food bill=shopping kỳ vọng=shopping
+   - 'sữa tắm Dove': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'sữa rửa mặt Cerave': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'kem chống nắng': chat=food bill=shopping kỳ vọng=shopping
+   - 'áo thun': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'giày thể thao': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'ốp lưng điện thoại': chat=unknown bill=shopping kỳ vọng=shopping
+   - 'vitamin C': chat=unknown bill=health kỳ vọng=health
+   - 'paracetamol': chat=unknown bill=health kỳ vọng=health
+   - 'khám bệnh': chat=health bill=unknown kỳ vọng=health
+   - 'nha khoa': chat=health bill=unknown kỳ vọng=health
+   - 'xét nghiệm máu': chat=health bill=unknown kỳ vọng=health
+   - 'tã quần Bobby': chat=family bill=food kỳ vọng=family
+   - 'sữa bột Enfa': chat=family bill=food kỳ vọng=family
+   - 'bình sữa cho bé': chat=food bill=unknown kỳ vọng=family
+   - 'đồ chơi trẻ em': chat=family bill=unknown kỳ vọng=family
+   - 'học phí': chat=education bill=unknown kỳ vọng=education
+   - 'khóa học tiếng Anh': chat=education bill=unknown kỳ vọng=education
+   - 'sách giáo khoa': chat=education bill=unknown kỳ vọng=education
+   - 'luyện thi IELTS': chat=education bill=unknown kỳ vọng=education
+   - 'internet': chat=bills bill=unknown kỳ vọng=bills
+   - 'đi grab': chat=transport bill=unknown kỳ vọng=transport
+   - 'giặt ủi': chat=other bill=unknown kỳ vọng=other
+   - 'hàng khác': chat=other bill=unknown kỳ vọng=unknown
+```

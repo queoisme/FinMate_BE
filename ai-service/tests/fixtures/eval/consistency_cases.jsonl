@@ -1,0 +1,66 @@
+{"phrase": "cà phê sữa", "expect": "food"}
+{"phrase": "bánh mì", "expect": "food"}
+{"phrase": "phở bò", "expect": "food"}
+{"phrase": "cơm tấm", "expect": "food"}
+{"phrase": "nước ngọt Pepsi", "expect": "food"}
+{"phrase": "sữa chua Vinamilk", "expect": "food"}
+{"phrase": "sữa tươi TH", "expect": "food"}
+{"phrase": "trà sữa", "expect": "food"}
+{"phrase": "thịt ba chỉ", "expect": "food"}
+{"phrase": "gạo ST25", "expect": "food"}
+{"phrase": "mì gói Hảo Hảo", "expect": "food"}
+{"phrase": "bia Tiger", "expect": "food"}
+{"phrase": "lẩu thái", "expect": "food"}
+{"phrase": "bún bò", "expect": "food"}
+{"phrase": "bột giặt Omo", "expect": "shopping"}
+{"phrase": "nước rửa chén Sunlight", "expect": "shopping"}
+{"phrase": "giấy vệ sinh", "expect": "shopping"}
+{"phrase": "khăn ướt", "expect": "shopping"}
+{"phrase": "dầu gội Clear", "expect": "shopping"}
+{"phrase": "kem đánh răng", "expect": "shopping"}
+{"phrase": "sữa tắm Dove", "expect": "shopping"}
+{"phrase": "sữa rửa mặt Cerave", "expect": "shopping"}
+{"phrase": "kem chống nắng", "expect": "shopping"}
+{"phrase": "áo thun", "expect": "shopping"}
+{"phrase": "giày thể thao", "expect": "shopping"}
+{"phrase": "ốp lưng điện thoại", "expect": "shopping"}
+{"phrase": "vitamin C", "expect": "health"}
+{"phrase": "paracetamol", "expect": "health"}
+{"phrase": "khẩu trang y tế", "expect": "health"}
+{"phrase": "khám bệnh", "expect": "health"}
+{"phrase": "thuốc ho", "expect": "health"}
+{"phrase": "nha khoa", "expect": "health"}
+{"phrase": "xét nghiệm máu", "expect": "health"}
+{"phrase": "tã quần Bobby", "expect": "family"}
+{"phrase": "sữa bột Enfa", "expect": "family"}
+{"phrase": "bình sữa cho bé", "expect": "family"}
+{"phrase": "đồ chơi trẻ em", "expect": "family"}
+{"phrase": "học phí", "expect": "education"}
+{"phrase": "khóa học tiếng Anh", "expect": "education"}
+{"phrase": "sách giáo khoa", "expect": "education"}
+{"phrase": "luyện thi IELTS", "expect": "education"}
+{"phrase": "tiền điện", "expect": "housing"}
+{"phrase": "tiền nước", "expect": "housing"}
+{"phrase": "tiền thuê nhà", "expect": "housing"}
+{"phrase": "phí chung cư", "expect": "housing"}
+{"phrase": "tiền gas", "expect": "housing"}
+{"phrase": "internet", "expect": "bills"}
+{"phrase": "nạp tiền điện thoại", "expect": "bills"}
+{"phrase": "cước điện thoại", "expect": "bills"}
+{"phrase": "vé xem phim", "expect": "entertainment"}
+{"phrase": "nạp thẻ game", "expect": "entertainment"}
+{"phrase": "karaoke", "expect": "entertainment"}
+{"phrase": "đổ xăng", "expect": "transport"}
+{"phrase": "gửi xe", "expect": "transport"}
+{"phrase": "đi grab", "expect": "transport"}
+{"phrase": "vé xe khách", "expect": "transport"}
+{"phrase": "thay nhớt", "expect": "transport"}
+{"phrase": "sửa xe", "expect": "transport"}
+{"phrase": "cắt tóc", "expect": "other"}
+{"phrase": "giặt ủi", "expect": "other"}
+{"phrase": "nước", "expect": "unknown"}
+{"phrase": "mua nước", "expect": "unknown"}
+{"phrase": "SP002993", "expect": "unknown"}
+{"phrase": "A12", "expect": "unknown"}
+{"phrase": "hàng khác", "expect": "unknown"}
+{"phrase": "XYZ-77", "expect": "unknown"}

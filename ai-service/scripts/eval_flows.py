@@ -5,7 +5,7 @@ Không dùng Rasa, DB hay Gemini thật: chat chạy bằng luật, món chạy 
 nên số đo là của lớp luật/từ điển. Nhãn kỳ vọng được viết trước khi sửa luật và không được sửa theo kết quả.
 
 Chạy:
-    python scripts/eval_flows.py [--chat|--items]
+    python scripts/eval_flows.py [--chat|--items|--consistency]
 """
 
 from __future__ import annotations
@@ -106,6 +106,46 @@ def run_items() -> dict:
     return _report(asyncio.run(go()))
 
 
+def run_consistency() -> dict:
+    """Cùng một cụm từ đi bằng chat và bằng món trên bill có ra cùng danh mục không (và có đúng kỳ vọng không)."""
+    cases = _load("consistency_cases.jsonl")
+
+    async def item_slugs():
+        out = {}
+        for case in cases:
+            result, _ = await classify_items(
+                [ClassifyItemIn(name=case["phrase"], parent=None)], None, _NoKnowledge(), _SilentGemini(), "x", False
+            )
+            out[case["phrase"]] = result[0].category_slug or "unknown"
+        return out
+
+    item_by_phrase = asyncio.run(item_slugs())
+    disagreements, agree, correct = [], 0, 0
+    for case in cases:
+        parsed = parse_chat(case["phrase"] + " 50k", None, now=NOW, fallback_category=_lexicon_category)
+        chat = (_slug(parsed.entry.category) if parsed.entry else None) or "unknown"
+        item = item_by_phrase[case["phrase"]]
+        if chat == item:
+            agree += 1
+            correct += chat == case["expect"]
+        else:
+            disagreements.append((case["phrase"], chat, item, case["expect"]))
+    return {
+        "total": len(cases),
+        "agree": agree,
+        "agree_rate": round(agree / len(cases), 3),
+        "correct": correct,
+        "disagreements": disagreements,
+    }
+
+
+def _print_consistency(report: dict) -> None:
+    print(f"== consistency: {report['agree']}/{report['total']} cùng danh mục ở chat và bill (agree_rate {report['agree_rate']}), "
+          f"cùng và đúng kỳ vọng {report['correct']}")
+    for phrase, chat, item, expect in report["disagreements"]:
+        print(f"   - {phrase!r}: chat={chat} bill={item} kỳ vọng={expect}")
+
+
 def _print(title: str, report: dict) -> None:
     print(f"== {title}: {report['correct']}/{report['total']} đúng, accuracy {report['accuracy']}, "
           f"bỏ qua {report['abstain_rate']}, sai mà tự tin {report['wrong_confident']}")
@@ -120,12 +160,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--chat", action="store_true")
     parser.add_argument("--items", action="store_true")
+    parser.add_argument("--consistency", action="store_true")
     args = parser.parse_args()
-    both = not (args.chat or args.items)
+    both = not (args.chat or args.items or args.consistency)
     if args.chat or both:
         _print("chat", run_chat())
     if args.items or both:
         _print("items", run_items())
+    if args.consistency or both:
+        _print_consistency(run_consistency())
     return 0
 
 

@@ -33,3 +33,13 @@ def test_runner_reports_metrics_for_both_sets():
     for report in (chat, items):
         assert report["total"] > 0 and 0 <= report["accuracy"] <= 1 and 0 <= report["abstain_rate"] <= 1
         assert len(report["failures"]) == report["total"] - report["correct"]
+
+
+def test_consistency_fixture_is_valid_and_runner_reports():
+    cases = lines("consistency_cases.jsonl")
+    assert len(cases) >= 50
+    assert all(case["expect"] in (set(CATEGORY_SLUGS) - {"income"}) | {"unknown"} for case in cases)
+    report = eval_flows.run_consistency()
+    assert report["total"] == len(cases)
+    assert 0 <= report["agree_rate"] <= 1 and report["agree"] <= report["total"] and report["correct"] <= report["total"]
+    assert len(report["disagreements"]) == report["total"] - report["agree"]
