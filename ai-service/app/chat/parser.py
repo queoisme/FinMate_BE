@@ -13,13 +13,13 @@ import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
 from app.chat.clauses import split_clauses
+from app.chat.dates import VN, parse_when, remove_when
 
-VN = timezone(timedelta(hours=7))  # Việt Nam không có giờ mùa hè
 MIN_NLU_CONFIDENCE = 0.6  # Rasa chắc dưới mức này thì bỏ qua, dùng luật
 OUT_OF_SCOPE_OVERRIDE = 0.75  # câu có số tiền mà Rasa bảo "ngoài chủ đề" chỉ bị từ chối khi Rasa chắc từ mức này
 KIND_TRUST = 0.97  # Rasa và luật bất đồng loại giao dịch: Rasa chỉ thắng khi chắc từ mức này
@@ -71,6 +71,7 @@ class Entry:
     income_type: str | None  # salary | bonus | gift | side_income | refund | other_income (khi kind = income và đoán được)
     auto_save_ok: bool  # đủ chắc để ghi ngay không cần hỏi (chỉ với chi tiêu)
     to_others: bool  # "chuyển cho người khác / trả nợ": tiền rời khỏi người dùng nên tính là chi tiêu
+    occurred_at: datetime | None = None  # ngày nói trong câu ("hôm qua", "ngày 5/10"); None = không nói, backend dùng giờ hiện tại
 
 
 @dataclass(frozen=True)
@@ -210,7 +211,21 @@ def _auto_ok(kind: str, value: int, category: str | None, nlu: dict | None, auto
     return nlu is None or (nlu["intent"] == "add_expense" and nlu["confidence"] >= AUTO_CONFIDENCE)
 
 
-def _entry(text: str, kind: str, nlu: dict | None, auto_below: int, fallback_category: Callable[[str | None, str], str | None] | None) -> Entry | None:
+def _entry(
+    text: str,
+    kind: str,
+    nlu: dict | None,
+    auto_below: int,
+    fallback_category: Callable[[str | None, str], str | None] | None,
+    now: datetime,
+    default_when: datetime | None = None,
+) -> Entry | None:
+    when = parse_when(text, now)
+    entry = _entry_core(remove_when(text, when) if when else text, kind, nlu, auto_below, fallback_category)
+    return replace(entry, occurred_at=when.value if when else default_when) if entry else None
+
+
+def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallback_category: Callable[[str | None, str], str | None] | None) -> Entry | None:
     entities = (nlu or {}).get("entities", {})
     match = parse_amount(text)
     if match:
@@ -258,6 +273,7 @@ def parse_chat(
 ) -> ChatParse:
     """nlu: kết quả Rasa {"intent", "confidence", "entities"} hoặc None. fallback_category(merchant, mô tả) -> nhóm 9 nhóm hoặc None."""
     text = (text or "").strip()
+    now = now or datetime.now(VN)
     norm = re.sub(r"\s+", " ", normalize(text)).strip(" .!?,")
     if nlu is not None and nlu["confidence"] < MIN_NLU_CONFIDENCE:
         nlu = None
@@ -275,17 +291,18 @@ def parse_chat(
     if intent in _ENTRY_INTENTS:
         clauses = split_clauses(text)
         if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
+            whole = parse_when(text, now)  # ngày nói ở một vế ("... cà phê 30k hôm qua") áp cho các vế không có ngày riêng
             many = tuple(
                 replace(e, auto_save_ok=False)
                 for c in clauses
-                if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category))
+                if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category, now, whole.value if whole else None))
             )
             if len(many) > 1:
                 return result(intent, entry=many[0], entries=many, unclear_reason=reason)
-        entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category)
+        entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason)
     if intent == "ask_spending":
-        return result(intent, query=_query(norm, now or datetime.now(VN)), unclear_reason=reason)
+        return result(intent, query=_query(norm, now), unclear_reason=reason)
     return result(intent, reply_text=_REPLIES.get(intent, _REPLIES["out_of_scope"]), unclear_reason=reason)

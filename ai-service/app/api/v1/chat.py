@@ -50,20 +50,23 @@ def _slug(category: str | None) -> str | None:
     return mapped if mapped in CATEGORY_SLUGS else None
 
 
+def _to_entry(e) -> ChatEntry:
+    return ChatEntry(
+        kind=e.kind,
+        amount_cents=e.amount,
+        description=e.description or None,
+        merchant=e.merchant,
+        category_slug=INCOME_SLUG if e.kind == "income" else _slug(e.category),
+        income_type=e.income_type,
+        auto_save_ok=e.auto_save_ok and _slug(e.category) is not None,
+        to_others=e.to_others,
+        occurred_at=e.occurred_at,
+    )
+
+
 def _to_response(parsed: ChatParse) -> ChatParseResponse:
-    entry = None
-    if parsed.entry:
-        e = parsed.entry
-        entry = ChatEntry(
-            kind=e.kind,
-            amount_cents=e.amount,
-            description=e.description or None,
-            merchant=e.merchant,
-            category_slug=INCOME_SLUG if e.kind == "income" else _slug(e.category),
-            income_type=e.income_type,
-            auto_save_ok=e.auto_save_ok and _slug(e.category) is not None,
-            to_others=e.to_others,
-        )
+    entries = [_to_entry(e) for e in parsed.entries]
+    entry = entries[0] if entries else None
     query = None
     if parsed.query:
         q = parsed.query
@@ -80,6 +83,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
         intent=parsed.intent,
         reply_text=parsed.reply_text,
         entry=entry,
+        entries=entries,
         query=query,
         nlu=ChatNlu(source=parsed.nlu_source, intent=parsed.nlu_intent, confidence=parsed.nlu_confidence),
         unclear_reason=parsed.unclear_reason,

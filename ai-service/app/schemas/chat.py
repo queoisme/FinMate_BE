@@ -29,6 +29,8 @@ class ChatEntry(BaseModel):
     auto_save_ok: bool = False
     # "Chuyển cho người khác / trả nợ" đã được tính là chi tiêu (tiền rời khỏi người dùng).
     to_others: bool = False
+    # Ngày nói trong câu ("hôm qua", "ngày 5/10"), giờ Việt Nam; None khi không nói (backend dùng giờ hiện tại).
+    occurred_at: datetime | None = None
 
 
 class ChatQuery(BaseModel):
@@ -53,6 +55,8 @@ class ChatParseResponse(BaseModel):
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None
+    # Mọi khoản trong câu; ``entry`` luôn là phần tử đầu. Câu có nhiều khoản thì không khoản nào ``auto_save_ok``.
+    entries: list[ChatEntry] = Field(default_factory=list)
     query: ChatQuery | None = None
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.

@@ -104,3 +104,15 @@ async def test_rasa_circuit_breaker_stops_calling_after_a_failure():
     nlu = RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
     assert await nlu.parse("a") is None and await nlu.parse("b") is None
     assert len(calls) == 1
+
+
+async def test_response_carries_entries_and_the_date():
+    body = (await post("hôm qua ăn phở 45k, cà phê 30k")).json()
+    assert [e["amount_cents"] for e in body["entries"]] == [45_000, 30_000]
+    assert body["entry"] == body["entries"][0] and body["entries"][0]["occurred_at"] is not None
+    assert all(not e["auto_save_ok"] for e in body["entries"])
+
+
+async def test_single_entry_is_also_listed_and_has_no_date():
+    body = (await post("đi ăn 200k")).json()
+    assert body["entries"] == [body["entry"]] and body["entry"]["occurred_at"] is None

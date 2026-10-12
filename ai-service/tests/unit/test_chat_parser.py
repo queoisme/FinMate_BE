@@ -182,3 +182,17 @@ def test_single_sentence_still_has_one_entry_in_entries():
 
 def test_non_entry_intents_have_no_entries():
     assert parse("tháng này tôi tiêu bao nhiêu?").entries == ()
+
+
+def test_entry_carries_the_date_and_loses_the_date_words():
+    entry = parse("ăn phở 45k hôm qua").entry
+    assert entry.occurred_at == datetime(2026, 10, 13, 12, 0, tzinfo=VN) and entry.description == "ăn phở"
+
+
+def test_sentence_date_applies_to_every_clause_without_its_own():
+    parsed = parse("hôm qua ăn phở 45k, cà phê 30k")
+    assert [e.occurred_at for e in parsed.entries] == [datetime(2026, 10, 13, 12, 0, tzinfo=VN)] * 2
+
+
+def test_no_date_means_none():
+    assert parse("ăn phở 45k").entry.occurred_at is None
