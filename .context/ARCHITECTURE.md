@@ -820,10 +820,10 @@ danh mục một cách im lặng (backend tra `GetSystemBySlugAsync`), nên mọ
 **Bộ phân loại chung chat + món trên bill (thêm 2026-10-12).** `app/core/category_resolver.py` gộp ba nguồn từ khóa từng tách rời
 thành một chỉ mục `từ khóa → slug backend`: từ khóa sản phẩm của bill (`classifier._PRODUCT_KEYWORDS`, 9 nhóm đổi sang slug, vẫn nạp lại từ DB trong
 tối đa 60 giây: `knowledge.apply_rows` gọi `invalidate()`), từ vựng chat (`vocab.CHAT_KEYWORDS`, phần chi tiêu) và từ điển `merchant_categories.json`
-(bỏ `income`). `resolve(text, *, fuzzy=True) -> Resolution(slug|None, source)`: khớp từng từ (đã bỏ dấu), **từ khóa dài nhất thắng**, cùng độ dài thì slug
+(bỏ `income`). `resolve(text, *, chat=False) -> Resolution(slug|None, source)`: khớp từng từ (đã bỏ dấu), **từ khóa dài nhất thắng**, cùng độ dài thì slug
 cụ thể hơn thắng (`family, education, health, housing, bills, entertainment, transport, shopping, food, other`), nên sữa bột và tã là `family`;
 không khớp thì khớp gần đúng cho lỗi OCR một chữ (cặp chữ hay nhầm hoặc thiếu/thừa một chữ; từ khóa ≥ 7 ký tự; thắng cả từ khóa chính xác ngắn hơn);
-không biết thì `None`, không ép `other`. Chat gọi với `fuzzy=False` (câu chat thường bị khớp gần đúng nhầm) và kiểm tra tên danh mục người dùng gõ
+không biết thì `None`, không ép `other`. Chat gọi với `chat=True` (nhận thêm từ ngắn của từ vựng chat như `ăn`, `lẩu`, `chợ` mà bill KHÔNG nhận vì bỏ dấu trùng `khăn ăn`, `chổi lau nhà`; và không khớp gần đúng vì câu chat dễ bị khớp nhầm) và kiểm tra tên danh mục người dùng gõ
 ("giáo dục") trước. Chat còn tra bảng `bill_item_cache` cho khoản chưa rõ nhóm, chỉ **gợi ý** (`auto_save_ok = false`). Đo trên 66 cụm: cùng danh mục ở chat và bill
 31/66 → 65/66 (`scripts/eval_flows.py --consistency`, `docs/evaluation.md`). **Không gộp:** phân loại cả bill (thương hiệu, từ khóa tên cửa hàng, bỏ phiếu theo dòng),
 bảng DB `bill_brands`/`bill_keywords` (vẫn 9 nhóm), và bản sao bảng từ khóa trong ocr-service.

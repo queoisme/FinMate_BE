@@ -47,7 +47,9 @@ class Resolution:
 
 
 _NONE = Resolution(None, "none")
-_state: tuple[dict[str, str], int] | None = None  # (từ khóa -> slug, số từ tối đa của một từ khóa); gán MỘT lần khi xây xong
+# (từ khóa -> slug, số từ tối đa của một từ khóa, từ khóa chỉ dành cho chat); gán MỘT lần khi xây xong
+_State = tuple[dict[str, str], int, frozenset[str]]
+_state: _State | None = None
 
 
 def _tokens(text: str) -> list[str]:
@@ -60,34 +62,51 @@ def _slug_of(group: str) -> str | None:
 
 
 def _pairs():
+    """(từ khóa, slug, có phải từ khóa sản phẩm của bill không)."""
     for group, words in classifier._PRODUCT_KEYWORDS.items():
         for word in words:
-            yield word, _slug_of(group)
+            yield word, _slug_of(group), True
     for group, words in vocab.CHAT_KEYWORDS.items():
         for word in words:
-            yield word, _slug_of(group)
+            yield word, _slug_of(group), False
     for word, slug in load_lexicon():
-        yield fold(word), _slug_of(slug)
+        yield fold(word), _slug_of(slug), False
 
 
-def _build() -> tuple[dict[str, str], int]:
+# Từ ngắn không nằm trong bảng sản phẩm của bill (từ vựng chat, từ điển cửa hàng: "an" = ăn, "lau" = lẩu, "cho" = chợ) bỏ dấu thì trùng từ khác
+# ("khăn ăn", "chổi lau nhà", "an toàn"): chỉ tin khi người dùng GÕ câu chat, không dùng để đoán tên món trên hóa đơn.
+_CHAT_ONLY_MAX_LEN = 3
+
+
+def _build() -> _State:
     index: dict[str, str] = {}
-    for word, slug in _pairs():
+    from_product: set[str] = set()
+    all_keys: set[str] = set()
+    for word, slug, is_product in _pairs():
         if slug is None:
             continue
         key = " ".join(_tokens(fold(word)))
         if len(key) < 2 or key in _NOT_ITEM_WORDS:
             continue
+        all_keys.add(key)
+        if is_product:
+            from_product.add(key)
         if key not in index or _PRIORITY[slug] < _PRIORITY[index[key]]:
             index[key] = slug
-    return index, max((len(k.split()) for k in index), default=1)
+    chat_only = frozenset(k for k in all_keys - from_product if " " not in k and len(k) <= _CHAT_ONLY_MAX_LEN)
+    return index, max((len(k.split()) for k in index), default=1), chat_only
+
+
+def _get_state() -> _State:
+    global _state
+    state = _state
+    if state is None:
+        state = _state = _build()
+    return state
 
 
 def _index() -> dict[str, str]:
-    global _state
-    if _state is None:
-        _state = _build()
-    return _state[0]
+    return _get_state()[0]
 
 
 def invalidate() -> None:
@@ -140,26 +159,26 @@ def _fuzzy(norm: str, index: dict[str, str]) -> tuple[str, int] | None:
     return None if best is None or tie else (best[2], best[1])
 
 
-def resolve(text: str, *, fuzzy: bool = True) -> Resolution:
-    """``fuzzy=False`` cho văn bản người gõ (chat): khớp gần đúng chỉ dành cho lỗi OCR, còn câu chat thường bị nó khớp nhầm ("đẹp quá" ~ "dép quai")."""
+def resolve(text: str, *, chat: bool = False) -> Resolution:
+    """``chat=True`` cho câu người gõ: nhận cả từ ngắn của từ vựng chat ("ăn", "lẩu", "chợ") và KHÔNG khớp gần đúng, vì khớp gần đúng chỉ dành cho
+    lỗi OCR còn câu chat thường bị nó khớp nhầm ("đẹp quá" ~ "dép quai"). Mặc định là tên món trên hóa đơn."""
     norm = _prepare(text or "")
     if not norm:
         return _NONE
-    index = _index()
-    max_words = _state[1] if _state else 1
+    index, max_words, chat_only = _get_state()  # MỘT bản chụp: invalidate() chạy xen giữa không làm max_words về mặc định
     words = _tokens(norm)
     best: tuple[int, int, str] | None = None  # (độ dài từ khóa, -ưu tiên, slug)
     for n in range(1, max_words + 1):
         for start in range(len(words) - n + 1):
             key = " ".join(words[start : start + n])
             slug = index.get(key)
-            if slug:
+            if slug and (chat or key not in chat_only):
                 candidate = (len(key), -_PRIORITY[slug], slug)
                 if best is None or candidate > best:
                     best = candidate
     # Khớp gần đúng thắng khi từ khóa của nó DÀI hơn từ khóa khớp chính xác: "kham uot" (OCR đọc nhầm n/m của "khan uot") phải ra khăn ướt,
     # không bị từ khóa ngắn "kham" (khám) kéo đi. Chính xác dài bằng hoặc dài hơn thì vẫn thắng.
-    near = _fuzzy(norm, index) if fuzzy else None
+    near = None if chat else _fuzzy(norm, index)
     if near and (best is None or near[1] > best[0]):
         return Resolution(near[0], "fuzzy")
     return Resolution(best[2], "keyword") if best else _NONE

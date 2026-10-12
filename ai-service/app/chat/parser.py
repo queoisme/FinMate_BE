@@ -163,7 +163,7 @@ def expense_category(text: str) -> str | None:
     label = _category_from_label(normalize(text))
     if label:
         return SLUG_BY_LOCAL_CATEGORY.get(label, label)
-    return resolve(text, fuzzy=False).slug
+    return resolve(text, chat=True).slug
 
 
 def detect_kind(text: str) -> str:

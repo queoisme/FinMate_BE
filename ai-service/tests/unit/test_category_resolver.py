@@ -95,10 +95,27 @@ def test_baby_bottle_is_family_not_groceries_because_of_the_word_cho():
 
 
 def test_fuzzy_can_be_turned_off_for_typed_text():
-    assert resolve("khan uott", fuzzy=False) == Resolution(None, "none")
-    assert resolve("hôm nay trời đẹp quá", fuzzy=False).slug is None  # "dep qua" gần "dep quai" nhưng đây là câu chat, không phải lỗi OCR
-    assert resolve("khan uot", fuzzy=False).slug == "shopping"
+    assert resolve("khan uott", chat=True) == Resolution(None, "none")
+    assert resolve("hôm nay trời đẹp quá", chat=True).slug is None  # "dep qua" gần "dep quai" nhưng đây là câu chat, không phải lỗi OCR
+    assert resolve("khan uot", chat=True).slug == "shopping"
 
 
 def test_pork_belly_is_an_exact_keyword_not_a_lucky_typo_match():
     assert resolve("thịt ba chỉ") == Resolution("food", "keyword")  # trước đây chỉ ra food nhờ khớp gần đúng "thit ba" ~ "thit bo"
+
+
+@pytest.mark.parametrize("name", ["Chổi lau nhà", "Nước lau sàn", "Khăn ăn", "an toàn"])
+def test_short_chat_words_do_not_decide_receipt_items(name):
+    # "lau" (lẩu) và "an" (ăn) bỏ dấu trùng với lau (lau nhà) và an (an toàn): chỉ hợp lý khi người dùng GÕ câu chat
+    assert resolve(name).slug is None
+
+
+def test_short_chat_words_still_work_in_chat():
+    assert resolve("an com", chat=True).slug == "food"
+    assert resolve("lau thai", chat=True).slug == "food"
+    assert resolve("di cho", chat=True).slug == "food"
+
+
+def test_resolve_uses_one_snapshot_of_the_index(monkeypatch):
+    monkeypatch.setattr(category_resolver, "_get_state", lambda: ({"sua bot": "family"}, 2, frozenset()))
+    assert resolve("sua bot").slug == "family"  # số từ tối đa lấy cùng bản chụp với chỉ mục, kể cả khi invalidate() chạy xen giữa
