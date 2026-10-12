@@ -282,4 +282,73 @@ public class ChatCommandHandlerTests
         await act.Should().ThrowAsync<AIServiceUnavailableException>();
         NothingWasCreated();
     }
+
+    // ------------------------------------------------------------ nhiều khoản và ngày
+
+    private static ChatParseEntry Item(long amount, string description, bool auto = true, DateTimeOffset? at = null)
+        => new("expense", amount, description, null, "food", null, auto, false, at);
+
+    [Fact]
+    public async Task SeveralEntriesAreAllReturnedAsDraftsAndNothingIsSaved()
+    {
+        var first = Item(20_000, "ăn cơm");
+        var second = Item(10_000, "uống nước");
+        AiReturns(new ChatParseResponse("add_expense", null, first, null, 5, new[] { first, second }));
+
+        var result = await _handler.HandleAsync(Command("ăn cơm 20k, uống nước 10k"));
+
+        result.Action.Should().Be(ChatActions.Confirm);  // kể cả khi AI lỡ báo auto_save_ok
+        result.Drafts!.Select(d => d.AmountCents).Should().Equal(20_000, 10_000);
+        result.Draft.Should().BeSameAs(result.Drafts![0]);
+        result.Drafts.Should().OnlyContain(d => d.SuggestedFinancialAccountId == _accountId);
+        NothingWasCreated();
+    }
+
+    [Fact]
+    public async Task ASingleEntryInTheListBehavesLikeBefore()
+    {
+        var only = Item(200_000, "đi ăn");
+        AiReturns(new ChatParseResponse("add_expense", null, only, null, 5, new[] { only }));
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.Action.Should().Be(ChatActions.Saved);
+        result.Drafts.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TheDateInTheSentenceIsUsedWhenSaving()
+    {
+        var yesterday = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.FromHours(7));
+        AiReturns(new ChatParseResponse("add_expense", null, Item(45_000, "ăn phở", at: yesterday), null, 5));
+
+        await _handler.HandleAsync(Command("ăn phở 45k hôm qua"));
+
+        _create.Verify(c => c.HandleAsync(
+            It.Is<CreateManualTransactionCommand>(x => x.TransactedAt == yesterday), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithoutADateTheCurrentTimeIsUsed()
+    {
+        AiReturns(Entry());
+        var before = DateTimeOffset.UtcNow;
+
+        await _handler.HandleAsync(Command());
+
+        _create.Verify(c => c.HandleAsync(
+            It.Is<CreateManualTransactionCommand>(x => x.TransactedAt >= before && x.TransactedAt <= DateTimeOffset.UtcNow),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ADraftCarriesTheDateToTheClient()
+    {
+        var yesterday = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.FromHours(7));
+        AiReturns(new ChatParseResponse("add_expense", null, Item(45_000, "ăn phở", auto: false, at: yesterday), null, 5));
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.Draft!.OccurredAt.Should().Be(yesterday);
+    }
 }

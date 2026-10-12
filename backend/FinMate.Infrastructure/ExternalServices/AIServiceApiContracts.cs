@@ -99,7 +99,8 @@ public record ChatEntryApiResult(
     [property: JsonPropertyName("category_slug")] string? CategorySlug,
     [property: JsonPropertyName("income_type")] string? IncomeType,
     [property: JsonPropertyName("auto_save_ok")] bool AutoSaveOk,
-    [property: JsonPropertyName("to_others")] bool ToOthers);
+    [property: JsonPropertyName("to_others")] bool ToOthers,
+    [property: JsonPropertyName("occurred_at")] DateTimeOffset? OccurredAt = null);
 
 public record ChatQueryApiResult(
     [property: JsonPropertyName("metric")] string Metric,
@@ -114,7 +115,8 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("reply_text")] string? ReplyText,
     [property: JsonPropertyName("entry")] ChatEntryApiResult? Entry,
     [property: JsonPropertyName("query")] ChatQueryApiResult? Query,
-    [property: JsonPropertyName("processing_ms")] int? ProcessingMs);
+    [property: JsonPropertyName("processing_ms")] int? ProcessingMs,
+    [property: JsonPropertyName("entries")] IReadOnlyList<ChatEntryApiResult>? Entries = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,

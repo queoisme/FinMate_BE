@@ -117,6 +117,24 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task SeveralEntriesInOneSentenceComeBackAsDraftsAndChargeNothing()
+    {
+        const string text = "chat-test: ăn cơm 20k, uống nước 10k";
+        var first = new ChatParseEntry("expense", 20_000, "ăn cơm", null, "food", null, true, false);
+        var second = new ChatParseEntry("expense", 10_000, "uống nước", null, "food", null, true, false);
+        FakeAIServiceClient.SetChat(text, new ChatParseResponse("add_expense", null, first, null, 5, new[] { first, second }));
+        var token = await RegisterAndLoginAsync();
+        var accountId = await CreateCashAccountAsync(token, 1_000_000);
+
+        var data = await ChatAsync(token, text);
+
+        data.GetProperty("action").GetString().Should().Be(ChatActions.Confirm);
+        data.GetProperty("drafts").EnumerateArray().Select(d => d.GetProperty("amountCents").GetInt64()).Should().Equal(20_000, 10_000);
+        data.GetProperty("draft").GetProperty("amountCents").GetInt64().Should().Be(20_000);
+        (await BalanceOfAsync(token, accountId)).Should().Be(1_000_000);
+    }
+
+    [Fact]
     public async Task AnExpenseTheAiIsNotSureAboutCreatesNothing()
     {
         const string text = "chat-test: mua áo 3 triệu";

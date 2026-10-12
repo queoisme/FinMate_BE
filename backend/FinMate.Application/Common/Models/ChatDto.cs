@@ -39,7 +39,8 @@ public record ChatDraftDto(
     string? IncomeType,
     bool ToOthers,
     Guid? SuggestedFinancialAccountId,
-    IReadOnlyList<string> MissingFields);
+    IReadOnlyList<string> MissingFields,
+    DateTimeOffset? OccurredAt = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 
@@ -63,4 +64,5 @@ public record ChatResultDto(
     string? ReplyText,
     TransactionDto? Transaction,
     ChatDraftDto? Draft,
-    ChatSummaryDto? Summary);
+    ChatSummaryDto? Summary,
+    IReadOnlyList<ChatDraftDto>? Drafts = null);

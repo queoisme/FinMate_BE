@@ -61,4 +61,20 @@ public class ChatParseContractTests
         doc.RootElement.GetProperty("text").GetString().Should().Be("đi ăn 200k");
         doc.RootElement.GetProperty("user_id_hash").GetString().Should().HaveLength(64);
     }
+
+    // Sinh bằng ChatParseResponse.model_dump_json() với câu "hôm qua ăn phở 45k, cà phê 30k" (có entries và occurred_at).
+    private const string MultiJson =
+        """{"intent":"add_expense","reply_text":null,"entry":{"kind":"expense","amount_cents":45000,"description":"ăn phở","merchant":null,"category_slug":"food","income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":"2026-10-13T12:00:00+07:00"},"entries":[{"kind":"expense","amount_cents":45000,"description":"ăn phở","merchant":null,"category_slug":"food","income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":"2026-10-13T12:00:00+07:00"},{"kind":"expense","amount_cents":30000,"description":"cà phê","merchant":null,"category_slug":"food","income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":"2026-10-13T12:00:00+07:00"}],"query":null,"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":4}""";
+
+    [Fact]
+    public void EntriesAndTheDateDeserialiseAndTheOldShapeStillDoes()
+    {
+        var many = JsonSerializer.Deserialize<ChatParseApiResponse>(MultiJson, Options)!;
+        many.Entries!.Select(e => e.AmountCents).Should().Equal(45_000, 30_000);
+        many.Entry!.OccurredAt.Should().Be(new DateTimeOffset(2026, 10, 13, 12, 0, 0, TimeSpan.FromHours(7)));
+
+        var old = JsonSerializer.Deserialize<ChatParseApiResponse>(ExpenseJson, Options)!;  // AI Service cũ: không có entries, occurred_at
+        old.Entries.Should().BeNull();
+        old.Entry!.OccurredAt.Should().BeNull();
+    }
 }

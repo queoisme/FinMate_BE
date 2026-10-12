@@ -108,7 +108,8 @@ public record ChatParseEntry(
     string? CategorySlug,
     string? IncomeType,
     bool AutoSaveOk,
-    bool ToOthers);
+    bool ToOthers,
+    DateTimeOffset? OccurredAt = null);
 
 /// <param name="Metric">"expense" | "income" | "balance".</param>
 /// <param name="From">Đầu kỳ (giờ VN).</param>
@@ -127,7 +128,8 @@ public record ChatParseResponse(
     string? ReplyText,
     ChatParseEntry? Entry,
     ChatParseQuery? Query,
-    int? ProcessingMs);
+    int? ProcessingMs,
+    IReadOnlyList<ChatParseEntry>? Entries = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.

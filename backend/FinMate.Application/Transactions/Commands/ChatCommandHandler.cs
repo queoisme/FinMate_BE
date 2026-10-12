@@ -53,6 +53,14 @@ public class ChatCommandHandler : IChatCommandHandler
 
         var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text), ct);
 
+        if (parsed.Entries is { Count: > 1 } many)
+        {
+            // Nhiều khoản trong một câu: luôn qua bước xác nhận, không bao giờ ghi ngay (một câu sai là sai nhiều khoản cùng lúc).
+            var accountId = await ResolveAccountAsync(command, ct);
+            var drafts = many.Select(e => DraftOf(e, accountId)).ToList();
+            return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, drafts[0], null, drafts);
+        }
+
         if (parsed.Entry is not null)
         {
             return await HandleEntryAsync(command, parsed, parsed.Entry, ct);
@@ -87,7 +95,7 @@ public class ChatCommandHandler : IChatCommandHandler
                         category.Id,
                         entry.AmountCents,
                         TransactionType.Debit,
-                        DateTimeOffset.UtcNow,
+                        entry.OccurredAt ?? DateTimeOffset.UtcNow,
                         entry.MerchantName,
                         entry.Description,
                         command.ClientRequestId,
@@ -137,7 +145,8 @@ public class ChatCommandHandler : IChatCommandHandler
             entry.IncomeType,
             entry.ToOthers,
             entry.Kind == TransferKind ? null : accountId,
-            missing);
+            missing,
+            entry.OccurredAt);
     }
 
     /// <summary>Ví người dùng chọn, hoặc ví duy nhất của họ; nhiều ví mà không chọn thì null (không đoán).</summary>

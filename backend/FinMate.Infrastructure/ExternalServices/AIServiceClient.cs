@@ -180,20 +180,13 @@ public class AIServiceClient : IAIServiceClient
             throw new AIServiceUnavailableException("AI Service không phản hồi hoặc trả lỗi.");
         }
 
+        static ChatParseEntry Map(ChatEntryApiResult e) => new(
+            e.Kind, e.AmountCents, e.Description, e.Merchant, e.CategorySlug, e.IncomeType, e.AutoSaveOk, e.ToOthers, e.OccurredAt);
+
         return new ChatParseResponse(
             response.Intent,
             response.ReplyText,
-            response.Entry is null
-                ? null
-                : new ChatParseEntry(
-                    response.Entry.Kind,
-                    response.Entry.AmountCents,
-                    response.Entry.Description,
-                    response.Entry.Merchant,
-                    response.Entry.CategorySlug,
-                    response.Entry.IncomeType,
-                    response.Entry.AutoSaveOk,
-                    response.Entry.ToOthers),
+            response.Entry is null ? null : Map(response.Entry),
             response.Query is null
                 ? null
                 : new ChatParseQuery(
@@ -203,7 +196,8 @@ public class AIServiceClient : IAIServiceClient
                     response.Query.End,
                     response.Query.CategorySlug,
                     response.Query.IncomeType),
-            response.ProcessingMs);
+            response.ProcessingMs,
+            response.Entries?.Select(Map).ToList());
     }
 
     public async Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)
