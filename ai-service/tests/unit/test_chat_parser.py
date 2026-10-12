@@ -37,7 +37,7 @@ def test_slang_and_written_amounts(text, amount):
 
 def test_expense_with_a_known_category_is_auto_saveable():
     entry = parse("đi ăn 200k").entry
-    assert (entry.kind, entry.amount, entry.category, entry.auto_save_ok) == ("expense", 200_000, "dining", True)
+    assert (entry.kind, entry.amount, entry.category, entry.auto_save_ok) == ("expense", 200_000, "food", True)
     assert entry.description == "đi ăn"
 
 
@@ -80,7 +80,7 @@ def test_rasa_must_be_sure_and_agree_for_auto_save():
 
 def test_rasa_overconfident_income_is_ignored_when_the_sentence_has_a_clear_expense_keyword():
     parsed = parse("cắt kính cận 800k", nlu("add_income", 1.0))
-    assert parsed.intent == "add_expense" and parsed.entry.category == "healthcare"
+    assert parsed.intent == "add_expense" and parsed.entry.category == "health"
     assert parse("mua kính râm 300k").entry.category == "shopping"
 
 
@@ -152,7 +152,7 @@ def test_three_expenses_in_one_sentence_become_three_entries():
     parsed = parse("ăn cơm 20k, uống nước 10k, đổ xăng 50k")
     assert [e.amount for e in parsed.entries] == [20_000, 10_000, 50_000]
     assert [e.kind for e in parsed.entries] == ["expense"] * 3
-    assert parsed.entries[0].category == "dining" and parsed.entries[2].category == "transport"
+    assert parsed.entries[0].category == "food" and parsed.entries[2].category == "transport"
     assert parsed.entry == parsed.entries[0]
 
 
@@ -205,3 +205,29 @@ def test_leftover_amount_in_the_description_is_never_auto_saved():
 
 def test_a_normal_single_amount_is_still_auto_saved():
     assert parse("ăn phở 45k").entry.auto_save_ok is True
+
+
+def test_chat_category_equals_the_shared_resolver_for_known_phrases():
+    from app.core.category_resolver import resolve
+
+    for phrase in ["ta quan Bobby", "sua bot Enfa", "hoc phi", "kham benh", "bot giat Omo", "vitamin C", "nuoc ngot Pepsi", "khan uot", "kem danh rang", "cat toc"]:
+        assert parse(phrase + " 50k").entry.category == resolve(phrase).slug, phrase
+
+
+def test_receipt_style_goods_now_get_a_category_in_chat():
+    assert parse("bột giặt 80k").entry.category == "shopping"
+    assert parse("vitamin C 120k").entry.category == "health"
+    assert parse("khăn ướt 20k").entry.category == "shopping"  # trước đây chat xếp khăn ướt vào ăn uống
+
+
+def test_category_words_typed_by_the_user_still_count():
+    assert parse("chi cho giáo dục 500k").entry.category == "education"
+
+
+def test_unknown_stays_unknown_and_is_not_auto_saved():
+    entry = parse("mua nước 20k").entry
+    assert entry.category is None and entry.auto_save_ok is False
+
+
+def test_chat_never_fuzzy_matches_ordinary_sentences():
+    assert parse("hôm nay trời đẹp quá").intent == "out_of_scope"  # "đẹp quá" ~ "dép quai" nếu dùng khớp gần đúng của OCR

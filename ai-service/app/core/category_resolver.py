@@ -140,7 +140,8 @@ def _fuzzy(norm: str, index: dict[str, str]) -> tuple[str, int] | None:
     return None if best is None or tie else (best[2], best[1])
 
 
-def resolve(text: str) -> Resolution:
+def resolve(text: str, *, fuzzy: bool = True) -> Resolution:
+    """``fuzzy=False`` cho văn bản người gõ (chat): khớp gần đúng chỉ dành cho lỗi OCR, còn câu chat thường bị nó khớp nhầm ("đẹp quá" ~ "dép quai")."""
     norm = _prepare(text or "")
     if not norm:
         return _NONE
@@ -158,7 +159,7 @@ def resolve(text: str) -> Resolution:
                     best = candidate
     # Khớp gần đúng thắng khi từ khóa của nó DÀI hơn từ khóa khớp chính xác: "kham uot" (OCR đọc nhầm n/m của "khan uot") phải ra khăn ướt,
     # không bị từ khóa ngắn "kham" (khám) kéo đi. Chính xác dài bằng hoặc dài hơn thì vẫn thắng.
-    fuzzy = _fuzzy(norm, index)
-    if fuzzy and (best is None or fuzzy[1] > best[0]):
-        return Resolution(fuzzy[0], "fuzzy")
+    near = _fuzzy(norm, index) if fuzzy else None
+    if near and (best is None or near[1] > best[0]):
+        return Resolution(near[0], "fuzzy")
     return Resolution(best[2], "keyword") if best else _NONE

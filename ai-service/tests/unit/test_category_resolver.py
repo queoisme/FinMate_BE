@@ -92,3 +92,9 @@ def test_never_returns_income_or_a_slug_outside_the_taxonomy():
 
 def test_baby_bottle_is_family_not_groceries_because_of_the_word_cho():
     assert resolve("bình sữa cho bé").slug == "family"  # "cho" (chợ) đứng một mình là groceries, "binh sua" dài hơn thì thắng
+
+
+def test_fuzzy_can_be_turned_off_for_typed_text():
+    assert resolve("khan uott", fuzzy=False) == Resolution(None, "none")
+    assert resolve("hôm nay trời đẹp quá", fuzzy=False).slug is None  # "dep qua" gần "dep quai" nhưng đây là câu chat, không phải lỗi OCR
+    assert resolve("khan uot", fuzzy=False).slug == "shopping"

@@ -19,6 +19,8 @@ from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
 from app.chat.clauses import split_clauses
 from app.chat.dates import VN, parse_when, remove_when
+from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.core.category_resolver import resolve
 
 MIN_NLU_CONFIDENCE = 0.6  # Rasa chắc dưới mức này thì bỏ qua, dùng luật
 OUT_OF_SCOPE_OVERRIDE = 0.75  # câu có số tiền mà Rasa bảo "ngoài chủ đề" chỉ bị từ chối khi Rasa chắc từ mức này
@@ -71,7 +73,7 @@ class Entry:
     amount: int  # đồng VND
     description: str
     merchant: str | None
-    category: str | None  # nhóm chi tiêu của bộ luật (9 nhóm); None khi chưa biết; thu nhập/chuyển tiền không có
+    category: str | None  # slug backend (cùng bộ phân loại với món trên bill); None khi chưa biết; thu nhập/chuyển tiền không có
     income_type: str | None  # salary | bonus | gift | side_income | refund | other_income (khi kind = income và đoán được)
     auto_save_ok: bool  # đủ chắc để ghi ngay không cần hỏi (chỉ với chi tiêu)
     to_others: bool  # "chuyển cho người khác / trả nợ": tiền rời khỏi người dùng nên tính là chi tiêu
@@ -144,6 +146,26 @@ def category_from_text(norm: str, kind: str = "expense") -> str | None:
     return best[1] if best else None
 
 
+def _category_from_label(norm: str) -> str | None:
+    """Tên danh mục gõ thẳng trong câu ("chi cho giáo dục 500k", "tiêu cho ăn uống"): nhãn dài nhất thắng."""
+    best = None
+    for label_norm, slug in _SLUG_BY_LABEL.items():
+        if re.search(rf"(?<![a-z]){re.escape(label_norm)}(?![a-z])", norm) and (best is None or len(label_norm) > best[0]):
+            best = (len(label_norm), slug)
+    return best[1] if best else None
+
+
+def expense_category(text: str) -> str | None:
+    """Slug backend của khoản chi: tên danh mục gõ thẳng trong câu trước (người dùng nói rõ), rồi bộ phân loại chung với bill. None = chưa rõ.
+
+    Không khớp gần đúng: đó là cho lỗi OCR, còn câu chat bình thường dễ bị nó khớp nhầm.
+    """
+    label = _category_from_label(normalize(text))
+    if label:
+        return SLUG_BY_LOCAL_CATEGORY.get(label, label)
+    return resolve(text, fuzzy=False).slug
+
+
 def detect_kind(text: str) -> str:
     """"expense" | "income" | "transfer" theo dấu hiệu trong câu (luật; Rasa có thể ghi đè khi rất chắc)."""
     low = unicodedata.normalize("NFC", text).lower()
@@ -179,7 +201,7 @@ def _rule_intent(text: str, norm: str) -> str:
     if norm in _THANKS:
         return "thanks"
     # Cụm chi tiêu không kèm số tiền ("ăn cơm", "mua nước", "đi ăn"): hỏi số tiền thay vì bảo ngoài chủ đề. Câu hỏi đã bị chặn trước đó.
-    return "needs_amount" if _EXPENSE_VERB.match(norm) or category_from_text(norm) else "out_of_scope"
+    return "needs_amount" if _EXPENSE_VERB.match(norm) or expense_category(norm) else "out_of_scope"
 
 
 def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
@@ -191,7 +213,7 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
     name = nlu["intent"]
     if name == "out_of_scope" and rule in _ENTRY_INTENTS and nlu["confidence"] < OUT_OF_SCOPE_OVERRIDE:
         return rule  # câu có số tiền mà Rasa chỉ hơi nghiêng về ngoài chủ đề: ưu tiên ghi, người dùng còn được xác nhận
-    if name in ("add_income", "transfer_money") and rule == "add_expense" and category_from_text(norm, "expense"):
+    if name in ("add_income", "transfer_money") and rule == "add_expense" and expense_category(norm):
         return rule  # Rasa hay quá tự tin với từ lạ ("cắt kính cận 800k" -> thu nhập 1.0): không có dấu hiệu thu/chuyển mà có từ khóa chi tiêu rõ thì là chi tiêu
     if name in _ENTRY_INTENTS and rule in _ENTRY_INTENTS and name != rule and nlu["confidence"] < KIND_TRUST:
         return rule  # bất đồng loại giao dịch mà Rasa chưa thật chắc: tin dấu hiệu trong câu
@@ -258,7 +280,7 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
         income_type = category_from_text(normalize(description), "income") or category_from_text(norm_text, "income")
         return Entry("income", value, description, None, None, income_type, False, False)
     merchant = _merchant_in(description) or entities.get("merchant")
-    category = category_from_text(normalize(description))
+    category = expense_category(" ".join(part for part in (merchant, description) if part))
     if category is None and fallback_category is not None:
         category = fallback_category(merchant, description)
     return Entry("expense", value, description, merchant, category, None, _auto_ok("expense", value, category, nlu, auto_below), False)

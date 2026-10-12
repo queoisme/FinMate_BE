@@ -18,15 +18,10 @@ from app.chat.parser import VN, ChatParse, parse_chat
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
-from app.pipeline.stages.categorizer import categorize_by_rules
 from app.schemas.chat import ChatEntry, ChatNlu, ChatParseRequest, ChatParseResponse, ChatQuery
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
-
-# Bảng từ vựng chat chỉ có 9 nhóm và không biết tên cửa hàng riêng; khi nó không đoán được thì thử từ điển cửa hàng của AI Service.
-# Chỉ nhận khớp chính xác (độ tin cậy của một lần trúng từ điển), không nhận phỏng đoán "other".
-_LEXICON_HIT = 0.90
 
 _nlu: RasaNlu | None = open_nlu(settings.rasa_url)
 
@@ -34,12 +29,6 @@ _nlu: RasaNlu | None = open_nlu(settings.rasa_url)
 def set_nlu(nlu: RasaNlu | None) -> None:
     global _nlu
     _nlu = nlu
-
-
-def _lexicon_category(merchant: str | None, description: str) -> str | None:
-    outcome = categorize_by_rules(" ".join(part for part in (merchant, description) if part))
-    hit = outcome.confidence >= _LEXICON_HIT and outcome.category_slug != INCOME_SLUG  # chi tiêu thì không thể là "income"
-    return outcome.category_slug if hit else None
 
 
 def _slug(category: str | None) -> str | None:
@@ -99,7 +88,6 @@ async def chat_parse(body: ChatParseRequest) -> ChatParseResponse:
         nlu,
         now=datetime.now(VN),
         auto_save_below=settings.chat_auto_save_below,
-        fallback_category=_lexicon_category,
     )
     response = _to_response(parsed)
     response.processing_ms = int((time.perf_counter() - started) * 1000)

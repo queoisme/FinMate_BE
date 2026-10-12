@@ -20,7 +20,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from app.api.v1.chat import _lexicon_category, _slug  # noqa: E402
+from app.api.v1.chat import _slug  # noqa: E402
 from app.bill.item_classifier import classify_items  # noqa: E402
 from app.chat.parser import VN, parse_chat  # noqa: E402
 from app.core.category_map import INCOME_SLUG  # noqa: E402
@@ -61,7 +61,7 @@ def _shape(entry) -> tuple:
 def run_chat() -> dict:
     rows = []
     for case in _load("chat_cases.jsonl"):
-        parsed = parse_chat(case["text"], None, now=NOW, fallback_category=_lexicon_category)
+        parsed = parse_chat(case["text"], None, now=NOW)
         if "intent" in case:
             rows.append((case["text"], case["intent"], parsed.intent, False))
             continue
@@ -122,7 +122,7 @@ def run_consistency() -> dict:
     item_by_phrase = asyncio.run(item_slugs())
     disagreements, agree, correct = [], 0, 0
     for case in cases:
-        parsed = parse_chat(case["phrase"] + " 50k", None, now=NOW, fallback_category=_lexicon_category)
+        parsed = parse_chat(case["phrase"] + " 50k", None, now=NOW)
         chat = (_slug(parsed.entry.category) if parsed.entry else None) or "unknown"
         item = item_by_phrase[case["phrase"]]
         if chat == item:
