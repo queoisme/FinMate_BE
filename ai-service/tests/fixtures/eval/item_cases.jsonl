@@ -1,0 +1,72 @@
+{"name": "Sting dau 330ml", "merchant": null, "expect": "food"}
+{"name": "Oreo vani", "merchant": null, "expect": "food"}
+{"name": "Banh mi sandwich", "merchant": null, "expect": "food"}
+{"name": "Com nam", "merchant": null, "expect": "food"}
+{"name": "Sua chua Vinamilk", "merchant": null, "expect": "food"}
+{"name": "Nuoc suoi Aquafina 500ml", "merchant": null, "expect": "food"}
+{"name": "Pepsi lon", "merchant": null, "expect": "food"}
+{"name": "Mi goi Hao Hao", "merchant": null, "expect": "food"}
+{"name": "Xuc xich", "merchant": null, "expect": "food"}
+{"name": "Tra bi dao Ngo Gia", "merchant": null, "expect": "food"}
+{"name": "Ca phe sua da", "merchant": null, "expect": "food"}
+{"name": "Thit ba chi 500g", "merchant": null, "expect": "food"}
+{"name": "Trung ga", "merchant": null, "expect": "food"}
+{"name": "Snack khoai tay Lays", "merchant": null, "expect": "food"}
+{"name": "Keo cao su", "merchant": null, "expect": "food"}
+{"name": "Bia Tiger lon", "merchant": null, "expect": "food"}
+{"name": "Onigiri ca hoi", "merchant": null, "expect": "food"}
+{"name": "Banh bao", "merchant": null, "expect": "food"}
+{"name": "Sua tuoi TH true milk", "merchant": null, "expect": "food"}
+{"name": "Gao ST25 5kg", "merchant": null, "expect": "food"}
+{"name": "Khan uot Bobby", "merchant": null, "expect": "shopping"}
+{"name": "Khan giay An An", "merchant": null, "expect": "shopping"}
+{"name": "Kem danh rang PS", "merchant": null, "expect": "shopping"}
+{"name": "Ban chai danh rang", "merchant": null, "expect": "shopping"}
+{"name": "Dau goi Clear", "merchant": null, "expect": "shopping"}
+{"name": "Sua tam Dove", "merchant": null, "expect": "shopping"}
+{"name": "Bot giat Omo 3kg", "merchant": null, "expect": "shopping"}
+{"name": "Nuoc rua chen Sunlight", "merchant": null, "expect": "shopping"}
+{"name": "Giay ve sinh Pulppy", "merchant": null, "expect": "shopping"}
+{"name": "Nuoc xa vai Comfort", "merchant": null, "expect": "shopping"}
+{"name": "Sua rua mat Cerave", "merchant": null, "expect": "shopping"}
+{"name": "Kem chong nang", "merchant": null, "expect": "shopping"}
+{"name": "Pin AA Panasonic", "merchant": null, "expect": "shopping"}
+{"name": "But bi Thien Long", "merchant": null, "expect": "shopping"}
+{"name": "Ao thun", "merchant": null, "expect": "shopping"}
+{"name": "Op lung dien thoai", "merchant": null, "expect": "shopping"}
+{"name": "Khan uot Bobby", "merchant": "Ministop", "expect": "shopping"}
+{"name": "Bot giat Omo 3kg", "merchant": "Ministop", "expect": "shopping"}
+{"name": "Dau goi Clear", "merchant": "Ministop", "expect": "shopping"}
+{"name": "Paracetamol 500mg", "merchant": null, "expect": "health"}
+{"name": "Vitamin C 1000mg", "merchant": null, "expect": "health"}
+{"name": "Khau trang y te", "merchant": null, "expect": "health"}
+{"name": "Thuoc ho Prospan", "merchant": null, "expect": "health"}
+{"name": "Bang gac y te", "merchant": null, "expect": "health"}
+{"name": "Oresol", "merchant": null, "expect": "health"}
+{"name": "Nuoc muoi sinh ly", "merchant": null, "expect": "health"}
+{"name": "Berberin", "merchant": null, "expect": "health"}
+{"name": "Ta quan Bobby L", "merchant": null, "expect": "family"}
+{"name": "Sua bot Enfa A+", "merchant": null, "expect": "family"}
+{"name": "Do choi tre em", "merchant": null, "expect": "family"}
+{"name": "Binh sua em be", "merchant": null, "expect": "family"}
+{"name": "Ve xem phim 2D", "merchant": null, "expect": "entertainment"}
+{"name": "Nap the game Garena", "merchant": null, "expect": "entertainment"}
+{"name": "Xang RON95", "merchant": null, "expect": "transport"}
+{"name": "Gui xe may", "merchant": null, "expect": "transport"}
+{"name": "Phi cau duong", "merchant": null, "expect": "transport"}
+{"name": "Ve xe khach", "merchant": null, "expect": "transport"}
+{"name": "Tien dien thang 9", "merchant": null, "expect": "housing"}
+{"name": "Phi quan ly chung cu", "merchant": null, "expect": "housing"}
+{"name": "Tien nuoc", "merchant": null, "expect": "housing"}
+{"name": "Cuoc internet thang 10", "merchant": null, "expect": "bills"}
+{"name": "Nap tien dien thoai", "merchant": null, "expect": "bills"}
+{"name": "Sach luyen thi IELTS", "merchant": null, "expect": "education"}
+{"name": "Hoc phi", "merchant": null, "expect": "education"}
+{"name": "Cat toc nam", "merchant": null, "expect": "other"}
+{"name": "Phi giao hang", "merchant": null, "expect": "other"}
+{"name": "Giat ui", "merchant": null, "expect": "other"}
+{"name": "SP002993", "merchant": null, "expect": "unknown"}
+{"name": "A12", "merchant": null, "expect": "unknown"}
+{"name": "hang khac", "merchant": null, "expect": "unknown"}
+{"name": "XYZ-77", "merchant": null, "expect": "unknown"}
+{"name": "Mon dac biet", "merchant": null, "expect": "unknown"}

@@ -1,0 +1,63 @@
+{"text": "ăn cơm 20k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "an com 20k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "ăn phở 45k", "expect": [{"kind": "expense", "amount": 45000, "category": "food"}]}
+{"text": "cà phê 30k", "expect": [{"kind": "expense", "amount": 30000, "category": "food"}]}
+{"text": "uống trà sữa 40k", "expect": [{"kind": "expense", "amount": 40000, "category": "food"}]}
+{"text": "đổ xăng 50k", "expect": [{"kind": "expense", "amount": 50000, "category": "transport"}]}
+{"text": "đi grab 65k", "expect": [{"kind": "expense", "amount": 65000, "category": "transport"}]}
+{"text": "gửi xe 5k", "expect": [{"kind": "expense", "amount": 5000, "category": "transport"}]}
+{"text": "đóng học phí 3 triệu", "expect": [{"kind": "expense", "amount": 3000000, "category": "education"}]}
+{"text": "xem phim 90k", "expect": [{"kind": "expense", "amount": 90000, "category": "entertainment"}]}
+{"text": "tiền điện 500k", "expect": [{"kind": "expense", "amount": 500000, "category": "housing"}]}
+{"text": "đóng tiền nước 200k", "expect": [{"kind": "expense", "amount": 200000, "category": "housing"}]}
+{"text": "đóng tiền internet 250k", "expect": [{"kind": "expense", "amount": 250000, "category": "bills"}]}
+{"text": "mua thuốc 80k", "expect": [{"kind": "expense", "amount": 80000, "category": "health"}]}
+{"text": "khám bệnh 300k", "expect": [{"kind": "expense", "amount": 300000, "category": "health"}]}
+{"text": "mua áo 250k", "expect": [{"kind": "expense", "amount": 250000, "category": "shopping"}]}
+{"text": "mua giày 600k", "expect": [{"kind": "expense", "amount": 600000, "category": "shopping"}]}
+{"text": "ăn sáng hai mươi nghìn", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "ăn trưa 20.000đ", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "đi chợ 2tr5", "expect": [{"kind": "expense", "amount": 2500000, "category": "food"}]}
+{"text": "ăn lẩu 1 triệu rưỡi", "expect": [{"kind": "expense", "amount": 1500000, "category": "food"}]}
+{"text": "đi ăn 3 củ 8", "expect": [{"kind": "expense", "amount": 3800000, "category": "food"}]}
+{"text": "nhận lương 12 triệu", "expect": [{"kind": "income", "amount": 12000000, "category": "income"}]}
+{"text": "nhận lương 14 củ 5", "expect": [{"kind": "income", "amount": 14500000, "category": "income"}]}
+{"text": "được mẹ cho 500k", "expect": [{"kind": "income", "amount": 500000, "category": "income"}]}
+{"text": "nhận lì xì 200k", "expect": [{"kind": "income", "amount": 200000, "category": "income"}]}
+{"text": "nhận thưởng 5 triệu", "expect": [{"kind": "income", "amount": 5000000, "category": "income"}]}
+{"text": "chuyển khoản 200k", "expect": [{"kind": "transfer", "amount": 200000, "category": null}]}
+{"text": "chuyển 2 triệu sang tiết kiệm", "expect": [{"kind": "transfer", "amount": 2000000, "category": null}]}
+{"text": "rút tiền 500k", "expect": [{"kind": "transfer", "amount": 500000, "category": null}]}
+{"text": "trả nợ bạn 300k", "expect": [{"kind": "expense", "amount": 300000, "category": "other"}]}
+{"text": "chuyển cho mẹ 1 triệu", "expect": [{"kind": "expense", "amount": 1000000, "category": "other"}]}
+{"text": "mua nước 20k", "expect": [{"kind": "expense", "amount": 20000, "category": null}]}
+{"text": "uống nước 10k", "expect": [{"kind": "expense", "amount": 10000, "category": "food"}]}
+{"text": "ăn cơm 20k, uống nước 10k, đổ xăng 50k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 10000, "category": "food"}, {"kind": "expense", "amount": 50000, "category": "transport"}]}
+{"text": "ăn cơm 20k, uống nước 10k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 10000, "category": "food"}]}
+{"text": "ăn phở 45k và cà phê 30k", "expect": [{"kind": "expense", "amount": 45000, "category": "food"}, {"kind": "expense", "amount": 30000, "category": "food"}]}
+{"text": "nhận lương 12 triệu, ăn cơm 20k", "expect": [{"kind": "income", "amount": 12000000, "category": "income"}, {"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "đi grab 50k rồi ăn trưa 40k", "expect": [{"kind": "expense", "amount": 50000, "category": "transport"}, {"kind": "expense", "amount": 40000, "category": "food"}]}
+{"text": "mua 2 lít sữa 50k", "expect": [{"kind": "expense", "amount": 50000, "category": "food"}]}
+{"text": "mua đồ 1,5tr", "expect": [{"kind": "expense", "amount": 1500000, "category": null}]}
+{"text": "đi taxi 1.250.000", "expect": [{"kind": "expense", "amount": 1250000, "category": "transport"}]}
+{"text": "ăn bún chả hết 55 cành", "expect": [{"kind": "expense", "amount": 55000, "category": "food"}]}
+{"text": "ăn cơm 20k, 2 người", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}]}
+{"text": "ăn sáng 25k hôm qua", "expect": [{"kind": "expense", "amount": 25000, "category": "food"}]}
+{"text": "tiền thuê nhà 3 triệu", "expect": [{"kind": "expense", "amount": 3000000, "category": "housing"}]}
+{"text": "cắt tóc 80k", "expect": [{"kind": "expense", "amount": 80000, "category": "other"}]}
+{"text": "mua sữa bột 400k", "expect": [{"kind": "expense", "amount": 400000, "category": "family"}]}
+{"text": "nạp tiền điện thoại 100k", "expect": [{"kind": "expense", "amount": 100000, "category": "bills"}]}
+{"text": "đổ xăng 50k hôm kia", "expect": [{"kind": "expense", "amount": 50000, "category": "transport"}]}
+{"text": "-50k ăn cơm", "expect": [{"kind": "expense", "amount": 50000, "category": "food"}]}
+{"text": "tháng này tôi tiêu bao nhiêu?", "intent": "ask_spending"}
+{"text": "hôm nay chi bao nhiêu", "intent": "ask_spending"}
+{"text": "tiêu cho ăn uống tháng này bao nhiêu", "intent": "ask_spending"}
+{"text": "xin chào", "intent": "greet"}
+{"text": "cảm ơn", "intent": "thanks"}
+{"text": "thời tiết hôm nay thế nào", "intent": "out_of_scope"}
+{"text": "iphone 20 triệu có đáng mua không", "intent": "out_of_scope"}
+{"text": "nên mua nhà hay thuê nhà", "intent": "out_of_scope"}
+{"text": "ăn cơm", "intent": "needs_amount"}
+{"text": "mua nước", "intent": "needs_amount"}
+{"text": "đi ăn", "intent": "needs_amount"}
+{"text": "", "intent": "empty"}
