@@ -48,6 +48,8 @@ _gemini = GeminiClient(
     settings.gemini_model,
     settings.gemini_timeout_seconds,
     fallback_models=tuple(m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()),
+    backup_key=settings.openrouter_api_key,
+    backup_model=settings.openrouter_model,
 )
 
 

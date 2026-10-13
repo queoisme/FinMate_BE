@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Model dự phòng, cách nhau bằng dấu phẩy: thử lần lượt khi model chính quá tải (503) hay hết giờ
     gemini_fallback_models: str = "gemini-3.5-flash,gemini-3.1-flash-lite"  # 3.5-flash đúng 6/6 khi không 503; 3.7/3.8 hiện luôn 503
     gemini_timeout_seconds: float = 20.0
+    # Dự phòng khi mọi model Gemini đều lỗi (OpenRouter). Để trống khóa thì tắt. Đo 2026-10-13: nemotron-3-super:free 6-16s, đúng 5-6/6; gemma-4 :free bị 429
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
 
 
 settings = Settings()

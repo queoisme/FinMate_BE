@@ -1,4 +1,4 @@
-"""Gọi Gemini để phân loại tên món trên hóa đơn khi luật/ML không chắc.
+"""Gọi Gemini để phân loại tên món trên hóa đơn khi luật/ML không chắc; mọi model Gemini đều lỗi thì thử nhà cung cấp dự phòng (OpenRouter).
 
 Chỉ gửi tên món (mảng JSON) + chỉ dẫn; không giá, không cửa hàng, không user. Tuyệt đối không log tên món hay chỉ dẫn.
 """
@@ -24,11 +24,35 @@ MAX_NAMES = 20
 MAX_NAME_LEN = 60
 CIRCUIT_SECONDS = 30.0
 # Trần cho cả lần gọi (gồm lần thử lại): timeout của httpx chỉ tính theo từng pha (kết nối, đọc...).
-OVERALL_TIMEOUT = 40.0  # đo thật 2026-10-13: 3 tên món mất 9-23 giây
+OVERALL_TIMEOUT = 30.0  # trần cho chuỗi model Gemini; nhà cung cấp dự phòng có trần riêng cùng cỡ. Đo 2026-10-13: model chính ~4 giây
 RETRY_DELAY = 1.5
 CACHE_MAX = 2000
 CACHE_TTL = 24 * 3600
 _URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+_BACKUP_URL = "https://openrouter.ai/api/v1/chat/completions"
+_BACKUP_SCHEMA = {  # OpenRouter bắt gốc là object nên bọc mảng trong "items"
+    "type": "json_schema",
+    "json_schema": {
+        "name": "item_categories",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"index": {"type": "integer"}, "category": {"type": "string", "enum": CATEGORIES}},
+                        "required": ["index", "category"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["items"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 # Phần 0 của bản luật đã duyệt: cố định trong code, không sửa qua DB.
 _SKELETON = (
@@ -63,10 +87,14 @@ class GeminiClient:
         clock: Callable[[], float] = time.monotonic,
         overall_timeout: float = OVERALL_TIMEOUT,
         fallback_models: tuple[str, ...] = (),
+        backup_key: str | None = None,
+        backup_model: str = "",
     ) -> None:
         self._overall_timeout = overall_timeout
         self._key = api_key
         self._model = model
+        self._backup_key = backup_key if backup_model else None  # thiếu tên model thì coi như chưa cấu hình
+        self._backup_model = backup_model
         self._models = (model, *fallback_models)  # model chính quá tải (503, hết giờ) thì thử model kế
         self._timeout = timeout
         self._transport = transport
@@ -76,7 +104,7 @@ class GeminiClient:
 
     @property
     def available(self) -> bool:
-        return bool(self._key) and self._clock() >= self._open_until
+        return bool(self._key or self._backup_key) and self._clock() >= self._open_until
 
     def _cache_get(self, key: str) -> str | None:
         hit = self._cache.get(key)
@@ -115,11 +143,7 @@ class GeminiClient:
                 send_keys.append(key)
         if to_send:
             try:
-                try:
-                    async with asyncio.timeout(self._overall_timeout):
-                        result = await self._call_models(to_send, instruction)
-                except TimeoutError as error:  # quá trần cả lần gọi: như mọi lỗi khác, khóa mạch
-                    raise GeminiFailed("overall_timeout") from error
+                result = await self._call_chain(to_send, instruction)
             except GeminiFailed as error:
                 self._open_until = self._clock() + CIRCUIT_SECONDS
                 # args[0] luôn là mã cố định (http_500, bad_count, ReadTimeout...), không bao giờ là tên món/chỉ dẫn/phản hồi
@@ -129,6 +153,27 @@ class GeminiClient:
                 answers[key] = category
                 self._cache_put(key, category)
         return [answers[k] for k in keys]
+
+    async def _call_chain(self, names: list[str], instruction: str) -> list[str]:
+        """Chuỗi model Gemini trước, rồi nhà cung cấp dự phòng. Mỗi chặng có trần thời gian riêng; chỉ khi cả hai đều lỗi mới ném lỗi."""
+        last: GeminiFailed | None = None
+        if self._key:
+            try:
+                async with asyncio.timeout(self._overall_timeout):
+                    return await self._call_models(names, instruction)
+            except TimeoutError:  # quá trần cả chặng: như mọi lỗi khác
+                last = GeminiFailed("overall_timeout")
+            except GeminiFailed as error:
+                last = error
+        if self._backup_key:
+            try:
+                async with asyncio.timeout(self._overall_timeout):
+                    return await self._call_backup(names, instruction)
+            except TimeoutError:
+                last = GeminiFailed("backup_overall_timeout")
+            except GeminiFailed as error:
+                last = error
+        raise last or GeminiFailed("no_provider")
 
     async def _call_models(self, names: list[str], instruction: str) -> list[str]:
         """Thử lần lượt từng model; chỉ khi TẤT CẢ đều lỗi mới ném lỗi (và khi đó cầu dao mới mở). Model còn lại để dành cho lần thử sau cùng
@@ -170,6 +215,34 @@ class GeminiClient:
             # ValueError gồm cả JSONDecodeError
             raise GeminiFailed(type(error).__name__) from error
         logger.info("gemini_ok", count=len(names), latency_ms=round((self._clock() - started) * 1000))
+        return categories
+
+    async def _call_backup(self, names: list[str], instruction: str) -> list[str]:
+        prompt = (
+            f"{_SKELETON}\n\n{instruction}\n\nNAMES:\n{json.dumps(names, ensure_ascii=False)}\n\n"
+            'Trả đúng một object JSON dạng {"items": [...]}.'
+        )
+        body = {
+            "model": self._backup_model,
+            "temperature": 0,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": _BACKUP_SCHEMA,
+            "reasoning": {"effort": "low"},  # model suy nghĩ nhiều thì chậm; việc này chỉ là gắn nhãn
+        }
+        started = self._clock()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
+                res = await client.post(_BACKUP_URL, headers={"Authorization": f"Bearer {self._backup_key}"}, json=body)
+            res.raise_for_status()
+            content = res.json()["choices"][0]["message"]["content"]
+            categories = self._validate(json.loads(content)["items"], len(names))
+        except GeminiFailed:
+            raise
+        except httpx.HTTPStatusError as error:
+            raise GeminiFailed(f"backup_http_{error.response.status_code}") from error
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
+            raise GeminiFailed(f"backup_{type(error).__name__}") from error
+        logger.info("backup_ai_ok", count=len(names), latency_ms=round((self._clock() - started) * 1000))
         return categories
 
     @staticmethod

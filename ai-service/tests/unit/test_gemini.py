@@ -265,3 +265,125 @@ async def test_every_model_failing_opens_the_circuit():
 
     assert seen == ["primary", "backup"]
     assert not c.available
+
+
+# ---- nhà cung cấp dự phòng (OpenRouter): chỉ được gọi khi mọi model Gemini đều lỗi
+
+def _or_reply(entries):
+    return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"items": entries})}}]})
+
+
+def _backup_client(handler, key="gkey", clock=None):
+    kw = {"clock": clock} if clock else {}
+    return GeminiClient(
+        key, "primary", 5.0, transport=httpx.MockTransport(handler), fallback_models=("second",),
+        backup_key="or-secret", backup_model="vendor/model:free", **kw,
+    )
+
+
+def _router(gemini, openrouter):
+    return lambda req: openrouter(req) if req.url.host == "openrouter.ai" else gemini(req)
+
+
+async def test_backup_answers_when_every_gemini_model_fails():
+    asked = []
+
+    def or_handler(req):
+        asked.append(req)
+        return _or_reply([{"index": 0, "category": "shopping"}, {"index": 1, "category": "food"}])
+
+    c = _backup_client(_router(lambda req: httpx.Response(503), or_handler))
+    assert await c.classify(["Nudc hoa", "Tao"], "LUAT") == ["shopping", "food"]
+    assert len(asked) == 1
+
+
+async def test_backup_request_has_only_names_and_instruction_and_its_own_key():
+    seen = []
+
+    def or_handler(req):
+        seen.append(req)
+        return _or_reply([{"index": 0, "category": "food"}])
+
+    c = _backup_client(_router(lambda req: httpx.Response(503), or_handler))
+    await c.classify(["Sting dau"], "LUAT-X")
+    req = seen[0]
+    body = json.loads(req.content)
+    assert req.headers["authorization"] == "Bearer or-secret"
+    assert body["model"] == "vendor/model:free" and body["temperature"] == 0
+    text = req.content.decode()
+    assert "Sting dau" in text and "LUAT-X" in text
+    assert "gkey" not in text and "or-secret" not in text  # khóa chỉ ở header, không lọt vào nội dung
+
+
+async def test_backup_is_never_called_while_gemini_works():
+    asked = []
+
+    def or_handler(req):
+        asked.append(req)
+        return _or_reply([{"index": 0, "category": "health"}])
+
+    gemini = lambda req: _reply([{"index": 0, "category": "food"}])  # noqa: E731
+    assert await _backup_client(_router(gemini, or_handler)).classify(["com"], "rules") == ["food"]
+    assert asked == []
+
+
+async def test_backup_answer_keeps_the_circuit_closed_and_is_cached():
+    asked = []
+
+    def or_handler(req):
+        asked.append(req)
+        return _or_reply([{"index": 0, "category": "food"}])
+
+    c = _backup_client(_router(lambda req: httpx.Response(503), or_handler))
+    await c.classify(["com"], "rules")
+    assert c.available
+    await c.classify(["com"], "rules")
+    assert len(asked) == 1
+
+
+async def test_gemini_and_backup_both_failing_raises_and_opens_the_circuit():
+    now = [100.0]
+    c = _backup_client(_router(lambda req: httpx.Response(503), lambda req: httpx.Response(429)), clock=lambda: now[0])
+    with pytest.raises(GeminiFailed):
+        await c.classify(["com"], "rules")
+    assert not c.available
+    now[0] += 31
+    assert c.available
+
+
+@pytest.mark.parametrize("content", ["khong phai json", json.dumps({"items": [{"index": 0, "category": "bogus"}]}), json.dumps({"items": []}), None])
+async def test_backup_bad_answers_are_failures(content):
+    def or_handler(req):
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    c = _backup_client(_router(lambda req: httpx.Response(503), or_handler))
+    with pytest.raises(GeminiFailed):
+        await c.classify(["com"], "rules")
+
+
+async def test_backup_alone_works_when_there_is_no_gemini_key():
+    gemini_calls = []
+
+    def gemini(req):
+        gemini_calls.append(req)
+        return httpx.Response(500)
+
+    c = _backup_client(_router(gemini, lambda req: _or_reply([{"index": 0, "category": "family"}])), key=None)
+    assert c.available
+    assert await c.classify(["ta"], "rules") == ["family"]
+    assert gemini_calls == []
+
+
+async def test_no_keys_at_all_means_unavailable():
+    c = GeminiClient(None, "m", 5.0, backup_key=None, backup_model="x")
+    assert not c.available
+
+
+async def test_backup_failure_log_has_a_reason_token_not_names_or_the_key():
+    cap = structlog.testing.capture_logs
+    with cap() as logs:
+        c = _backup_client(_router(lambda req: httpx.Response(503), lambda req: httpx.Response(401)))
+        with pytest.raises(GeminiFailed):
+            await c.classify(["Nudc hoa X-Men"], "rules")
+    flat = json.dumps(logs, default=str)
+    assert "Nudc" not in flat and "or-secret" not in flat
