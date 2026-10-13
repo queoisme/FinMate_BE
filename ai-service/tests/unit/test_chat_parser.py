@@ -417,3 +417,40 @@ def test_giving_money_away_stays_an_expense_even_when_rasa_says_income(text):
     # Rasa v5 trả add_income 1.0 cho "cho mẹ 500k" (lẫn với "mẹ cho"): tiền đi ra
     parsed = parse(text, nlu("add_income", 1.0))
     assert (parsed.intent, parsed.entry.kind) == ("add_expense", "expense")
+
+
+# ---- không có dấu phẩy/"và" giữa các khoản (giọng nói không có dấu câu): vẫn là từng khoản riêng, không được mất khoản nào
+def test_items_with_no_separator_between_them_are_split_by_their_amounts():
+    parsed = parse("ăn cơm 25k uống nước 10k")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "uống nước")]
+    assert not any(e.auto_save_ok for e in parsed.entries)
+
+
+def test_spoken_items_without_punctuation_are_split_too():
+    parsed = parse("ăn cơm hai lăm ngàn uống nước mười ngàn")
+    assert [e.amount for e in parsed.entries] == [25_000, 10_000]
+
+
+def test_amount_first_style_is_split_before_the_next_amount():
+    parsed = parse("25k ăn cơm 10k uống nước")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "uống nước")]
+
+
+@pytest.mark.parametrize("text", ["mua 2 lít sữa 50k", "mua sữa 50k hộp 2 lít", "ăn cơm 25k cho 2 người", "mua sữa rửa mặt 80k"])
+def test_quantities_and_side_notes_do_not_cause_a_split(text):
+    assert len(parse(text).entries) == 1
+
+
+# ---- "trong 100k có 20k ăn cơm và 80k mua sữa rửa mặt": 100k là tổng để đối chiếu, hai khoản là 20k và 80k
+@pytest.mark.parametrize("text", ["trong 100k có 20k ăn cơm và 80k mua sữa rửa mặt", "100k gồm ăn cơm 20k và mua sữa rửa mặt 80k"])
+def test_a_breakdown_of_a_stated_total_becomes_the_items_plus_a_check(text):
+    parsed = parse(text)
+    assert [(e.amount, e.category) for e in parsed.entries] == [(20_000, "food"), (80_000, "shopping")]
+    assert [e.description for e in parsed.entries] == ["ăn cơm", "mua sữa rửa mặt"]
+    assert (parsed.total_amount, parsed.total_mismatch) == (100_000, False)
+
+
+def test_a_breakdown_that_does_not_add_up_is_flagged():
+    parsed = parse("trong 100k có 20k ăn cơm và 70k mua sữa rửa mặt")
+    assert (parsed.total_amount, parsed.total_mismatch) == (100_000, True)
+    assert not any(e.auto_save_ok for e in parsed.entries)

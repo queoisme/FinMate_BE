@@ -6,8 +6,10 @@ số lượng ("mua 2 lít sữa 50k"), vế phụ ("ăn cơm 20k, 2 người") 
 from __future__ import annotations
 
 import re
+import unicodedata
 
-from app.services.amount_normalizer import parse_amount, remove_amount
+from app.services.vi_text import fold
+from app.services.amount_normalizer import find_amounts, parse_amount, remove_amount
 
 # Dấu phẩy nằm giữa hai chữ số ("1,5tr") không phải dấu phân cách.
 _SEPARATOR = re.compile(
@@ -88,6 +90,14 @@ def extract_total(text: str) -> tuple[str, int | None]:
 
     Chỉ tách khi phần còn lại vẫn có số tiền, để câu chỉ có "tổng 60k" vẫn được coi là một khoản như trước.
     """
+    # "trong 100k có 20k ăn cơm và 80k mua sữa" / "100k gồm ăn cơm 20k và ...": số đầu câu là tổng, phần sau là các khoản
+    lead = re.match(r"\s*(?:trong\s+)?", text)
+    first = find_amounts(text[lead.end():])[:1]
+    if first and first[0].start == 0:
+        after = text[lead.end():][first[0].end:]
+        keyword = _BREAKDOWN_KEYWORD.match(after)
+        if keyword and parse_amount(after[keyword.end():]):
+            return after[keyword.end():], first[0].value
     for label in _TOTAL_LABEL.finditer(text):
         amount = parse_amount(text[label.end():])
         if not amount or amount.start > 0:  # số tiền phải liền ngay sau nhãn
@@ -127,3 +137,29 @@ def split_amountless(text: str) -> tuple[str, tuple[str, ...]]:
     if not skipped:
         return text, ()
     return "".join((sep if sep is not None else "") + part for sep, part in kept), tuple(skipped)
+
+
+_VOLUME = re.compile(r"(?<![a-z])lit(?![a-z])")
+
+
+def split_on_amounts(text: str) -> list[str]:
+    """Tách các khoản không có dấu phẩy/"và" ngăn cách (giọng nói không có dấu câu): "ăn cơm 25k uống nước 10k" -> hai khoản.
+
+    Câu viết kiểu "mô tả rồi tiền" cắt ngay SAU mỗi số tiền; câu viết kiểu "tiền rồi mô tả" ("25k ăn cơm 10k uống nước") cắt ngay TRƯỚC số
+    tiền kế. Chỉ cắt khi giữa hai số tiền có chữ mô tả, và "2 lít" (thể tích, không phải 200.000) không được coi là số tiền, nên
+    "mua 2 lít sữa 50k" và "mua sữa 50k hộp 2 lít" vẫn là một khoản.
+    """
+    nfc = unicodedata.normalize("NFC", text)
+    found = [m for m in find_amounts(text) if not _VOLUME.search(fold(nfc[m.start:m.end]))]
+    if len(found) < 2:
+        return [text]
+    amount_first = not _WORD.search(nfc[: found[0].start])
+    cuts = [nxt.start if amount_first else prev.end for prev, nxt in zip(found, found[1:]) if _WORD.search(nfc[prev.end : nxt.start])]
+    if not cuts:
+        return [text]
+    bounds = [0, *cuts, len(nfc)]
+    pieces = (re.sub(r"\s+(?:và|va|rồi|roi)$", "", nfc[a:b].strip(" ,;"), flags=re.IGNORECASE) for a, b in zip(bounds, bounds[1:]))  # "... và" cuối vế là từ nối
+    return [piece for piece in pieces if piece]
+
+
+_BREAKDOWN_KEYWORD = re.compile(r"\s*(?:bao gồm|gồm có|trong đó|gồm|có)\s+", re.IGNORECASE)

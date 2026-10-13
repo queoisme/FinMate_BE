@@ -88,8 +88,8 @@ def _words(norm: str) -> list[AmountMatch]:
     return found
 
 
-def parse_amount(text: str) -> AmountMatch | None:
-    """Số tiền trong câu (số xuất hiện cuối cùng), hoặc None. start/end tính trên câu đã chuẩn hóa; xem normalize()."""
+def find_amounts(text: str) -> list[AmountMatch]:
+    """Mọi số tiền trong câu, theo thứ tự xuất hiện (``parse_amount`` chỉ lấy số cuối). start/end tính trên câu đã chuẩn hóa; xem normalize()."""
     norm = normalize(text)
     nfc = unicodedata.normalize("NFC", text).lower()
     candidates = _slang(norm) + _plain(norm)  # số viết bằng chữ số được ưu tiên; chỉ khi không có mới đọc số viết bằng chữ
@@ -97,7 +97,13 @@ def parse_amount(text: str) -> AmountMatch | None:
         candidates = _words(_thousand_marked(norm, nfc))
     # bỏ ứng viên nằm trọn trong ứng viên khác (số "1.5" trong "1.5tr" cũng khớp dạng thường)
     candidates = [c for c in candidates if not any(o is not c and o.start <= c.start and c.end <= o.end and (o.end - o.start) > (c.end - c.start) for o in candidates)]
-    return max(candidates, key=lambda c: c.start) if candidates else None
+    return sorted(candidates, key=lambda c: c.start)
+
+
+def parse_amount(text: str) -> AmountMatch | None:
+    """Số tiền trong câu (số xuất hiện cuối cùng), hoặc None. start/end tính trên câu đã chuẩn hóa; xem normalize()."""
+    found = find_amounts(text)
+    return found[-1] if found else None
 
 
 def normalize(text: str) -> str:

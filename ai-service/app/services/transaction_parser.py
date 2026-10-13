@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from app.services import vocab
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
-from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses
+from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
 from app.services.dates import VN, parse_when, remove_when
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
@@ -346,6 +346,7 @@ def parse_chat(
             return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")
         suspicious = has_unresolved_cancel(text)  # còn chữ hủy/nhầm không áp được: không tự ghi
         text, stated_total = extract_total(text)  # "... tổng cộng 60k": số đối chiếu, không phải một khoản
+        text = ", ".join(split_on_amounts(text))  # "ăn cơm 25k uống nước 10k" (giọng nói không có dấu câu): tách theo số tiền
         text, skipped = split_amountless(text)
         clauses = split_clauses(text)
         if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
