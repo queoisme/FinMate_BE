@@ -597,7 +597,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
   số tiền của chính người dùng trong ±3 giờ. Chỉ để cảnh báo. Ảnh chụp **màn hình danh sách đơn** (ví dụ "Đơn đã mua" của Shopee, ocr-service `screen_type = order_list`)
   trả thêm `orders: [{merchantName, amountCents, description, categorySlug}]` (≥ 2 đơn, mỗi đơn phân loại theo cửa hàng + sản phẩm của nó, lỗi thì giữ nhóm OCR đoán) và
   `incompleteOrders` (số đơn bị cắt dở); `amountCents` cấp trên vẫn là đơn đầu. App hiện mỗi đơn một thẻ nháp, lưu độc lập (không `receiptScanId`). `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
-  `PATCH /api/v1/users/me` nhận thêm `shareReceiptItemsWithAi` (bool, bỏ trống = giữ nguyên). Mọi thay đổi chỉ **thêm** trường.
+  Đồng ý của người dùng ghi qua `POST /api/v1/users/me/consents` (`{kind: terms|ai, version}`, 409 `AUTH_CONSENT_VERSION_OUTDATED` nếu app hiển thị câu chữ khác phiên bản hiện hành) và rút lại AI qua `DELETE /api/v1/users/me/consents/ai`; hồ sơ trả `termsAccepted` và `aiConsentGranted`. `PATCH /users/me` không còn đổi được đồng ý.
 
 **Chat (Backend → AI Service) — thêm Phase 19–20, ghi vào tài liệu 2026-10-11:**
 ```json
@@ -689,7 +689,7 @@ nhóm; bấm Lưu thì **mỗi nhóm một giao dịch**, cùng nối về một
 
 - **Cờ và đồng ý.** Chỉ chạy khi `Receipt:SplitByItemsEnabled` (mặc định **tắt**) bật, `ocr-service` báo `items_ok`,
   bill có ≥ 2 món chính (không tính phụ kiện) và không có phụ kiện mồ côi. Cổng này kiểm **trước** khi đọc người dùng và
-  trước lời gọi AI. Đồng ý chia sẻ với AI đọc từ DB mỗi lần quét (`users.share_receipt_items_with_ai`, mặc định tắt).
+  trước lời gọi AI. Đồng ý chia sẻ với AI đọc từ DB mỗi lần quét (`User.AiConsentGranted`: `ai_consent_version` bằng `ConsentVersions.Ai`; đổi câu chữ màn đồng ý thì tăng số phiên bản và mọi người phải đồng ý lại).
 - **Backend cộng tiền, AI chỉ gắn nhóm.** `ReceiptSplitter` gom món theo nhóm, chia giảm giá chung theo tỷ lệ (phần dư
   vào nhóm lớn nhất theo tiền gốc), gộp phụ phí (VAT, phí dịch vụ…) vào nhóm lớn nhất, và trả kết quả chỉ khi **tổng
   các nhóm bằng đúng tổng bill**. Chỉ tách khi có **ít nhất hai nhóm có danh mục thật**; món `unknown` thành một nhóm
@@ -881,7 +881,7 @@ mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptSca
   vị trí món cha). Xóa lần quét thì xóa món. Chỉ có dòng khi bill thực sự được tách.
 - `receipt_scan_links` — nối giao dịch với lần quét: `transaction_id` là khóa chính, duy nhất `(scan_id, group_category_slug)`;
   xóa hẳn giao dịch chỉ gỡ liên kết. Migration chép các liên kết cũ trước khi bỏ cột.
-- `users.share_receipt_items_with_ai` (cột mới, `NOT NULL DEFAULT false`) — đồng ý cho AI hỗ trợ phân loại tên món.
+- `users.terms_version`/`terms_accepted_at` và `users.ai_consent_version`/`ai_consent_at` (nullable) — đồng ý Điều khoản + Chính sách và đồng ý gửi tên món cho AI, kèm phiên bản và thời điểm. Thay cột `share_receipt_items_with_ai`; đồng ý cũ không được chuyển sang vì câu chữ mới.
 
 ### 4.2 AI DB — 25 bảng (không tính `alembic_version`) + 2 view đã tạo, 3 bảng hoãn
 

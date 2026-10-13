@@ -216,7 +216,7 @@ có URL mà ocr-service lỗi thì lần quét thất bại, không quay về Te
 **Dịch vụ bên thứ ba: Gemini API (TUỲ CHỌN, mặc định TẮT) — phân loại tên món (2026-10-10), đường ai-service `classify-items`.**
 Gọi bằng `httpx` có sẵn (`generateContent`), **không thêm package nào**. Trên đường này chỉ `ai-service` gọi,
 và chỉ khi **cả hai** điều sau đúng: cờ `Receipt:SplitByItemsEnabled` của backend bật **và** người dùng
-bật công tắc đồng ý (`users.share_receipt_items_with_ai`, mặc định tắt cho mọi người). Không có khóa
+đã đồng ý màn "gửi tên món cho AI" ở đúng phiên bản hiện hành (`users.ai_consent_version` = `ConsentVersions.Ai`; chưa đồng ý hoặc đã rút lại thì NULL). Không có khóa
 `GEMINI_API_KEY` thì tính năng vẫn chạy bằng luật, món chưa biết thành `unknown`.
 Thứ gửi ra: **chỉ tên món** của các món luật không nhận ra (tối đa 20 món, mỗi tên tối đa 60 ký tự,
 đã cắt các cụm trông như giá tiền). **Không gửi**: ảnh, chữ OCR thô, giá, tên cửa hàng, ngày giờ, ID
