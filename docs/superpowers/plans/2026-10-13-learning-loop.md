@@ -79,6 +79,8 @@
 
 ### Task 3: Backend gửi mẫu khi quét và gắn nhãn khi lưu/sửa
 
+> **Chờ quyết định kiến trúc:** nếu giao dịch chuyển sang lưu ở máy (xem `2026-10-13-local-first-and-chat-fixes.md`, Giai đoạn C mục 4), phần gắn nhãn lúc lưu/sửa phải do app gửi thay vì backend. Phần gửi mẫu chờ nhãn khi quét vẫn ở backend.
+
 **Files:**
 - Modify: `backend/FinMate.Application/Common/Interfaces/IAIServiceClient.cs`, `backend/FinMate.Infrastructure/ExternalServices/{AIServiceClient,IAIServiceApi,AIServiceApiContracts}.cs`, `ScanReceiptCommandHandler.cs`, `CreateManualTransactionCommandHandler.cs` (quanh dòng 133-175, nơi đã nối `ReceiptScanId` và gọi `ReceiptMemory.ShouldLearn`), `UpdateTransactionCommandHandler.cs` (quanh dòng 181)
 - Test: `backend/FinMate.Tests/Unit/Application/Transactions/TrainingSampleTests.cs`, `backend/FinMate.Tests/Unit/Infrastructure/AIServiceClientTrainingSampleTests.cs`
