@@ -226,3 +226,9 @@ async def test_every_unknown_entry_of_a_multi_entry_sentence_is_looked_up_once()
 async def test_a_cached_slug_outside_the_taxonomy_is_ignored():
     use_cache(zxqv_gizmo="income")
     assert (await post("zxqv gizmo 50k")).json()["entry"]["category_slug"] is None
+
+
+async def test_stated_total_is_returned_for_checking():
+    body = (await post("mua bánh mì 25k và cà phê 35k tổng cộng 70k")).json()
+    assert [e["amount_cents"] for e in body["entries"]] == [25_000, 35_000]
+    assert (body["total_amount"], body["total_mismatch"]) == (70_000, True)

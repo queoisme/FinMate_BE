@@ -58,6 +58,9 @@ class ChatParseResponse(BaseModel):
     # Mọi khoản trong câu; ``entry`` luôn là phần tử đầu. Câu có nhiều khoản thì không khoản nào ``auto_save_ok``.
     entries: list[ChatEntry] = Field(default_factory=list)
     query: ChatQuery | None = None
+    # Tổng người dùng nói trong câu ("tổng cộng 60k"), và có khác tổng các khoản đọc được không; để app/backend cảnh báo.
+    total_amount: int | None = None
+    total_mismatch: bool = False
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.
     unclear_reason: str | None = None

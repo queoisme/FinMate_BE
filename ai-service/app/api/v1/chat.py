@@ -101,6 +101,8 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
         query=query,
         nlu=ChatNlu(source=parsed.nlu_source, intent=parsed.nlu_intent, confidence=parsed.nlu_confidence),
         unclear_reason=parsed.unclear_reason,
+        total_amount=parsed.total_amount,
+        total_mismatch=parsed.total_mismatch,
     )
 
 

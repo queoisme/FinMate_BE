@@ -67,3 +67,22 @@ def apply_cancellations(text: str) -> tuple[str, bool]:
     if not changed:
         return text, False
     return "".join((sep if i else "") + part for i, (sep, part) in enumerate(kept)).strip(), True
+
+
+# Nhãn tổng đứng riêng như một từ và liền ngay sau là số tiền ("tổng cộng 60k", "tổng là 60k"); "bộ tổng hợp đề 150k" không khớp.
+_TOTAL_LABEL = re.compile(r"(?<!\w)(?:tổng\s+cộng|tổng\s+số|tổng|tất\s+cả)(?:\s*[:：]|\s+là|\s+hết)?\s*", re.IGNORECASE)
+
+
+def extract_total(text: str) -> tuple[str, int | None]:
+    """Tách số tiền tổng người dùng nói ra khỏi câu: trả (câu không còn phần tổng, số tiền tổng).
+
+    Chỉ tách khi phần còn lại vẫn có số tiền, để câu chỉ có "tổng 60k" vẫn được coi là một khoản như trước.
+    """
+    for label in _TOTAL_LABEL.finditer(text):
+        amount = parse_amount(text[label.end():])
+        if not amount or amount.start > 0:  # số tiền phải liền ngay sau nhãn
+            continue
+        rest = (text[:label.start()] + text[label.end() + amount.end:]).strip(" ,;.")
+        if parse_amount(rest):
+            return rest, amount.value
+    return text, None

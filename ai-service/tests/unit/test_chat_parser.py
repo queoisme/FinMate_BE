@@ -254,3 +254,22 @@ def test_cancel_only_drops_the_item_before_it():
 @pytest.mark.parametrize("text", ["không cần hủy, ghi cà phê 30k", "mua hủ tiếu 30k"])
 def test_words_that_only_look_like_cancellation_are_kept(text):
     assert [e.amount for e in parse(text).entries] == [30_000]
+
+
+# ---- "tổng cộng 60k" là số để đối chiếu, không phải một khoản chi
+def test_stated_total_is_a_check_not_an_expense():
+    parsed = parse("mua bánh mì 25k và cà phê 35k tổng cộng 60k")
+    assert [e.amount for e in parsed.entries] == [25_000, 35_000]
+    assert (parsed.total_amount, parsed.total_mismatch) == (60_000, False)
+
+
+def test_stated_total_that_differs_is_flagged():
+    parsed = parse("mua bánh mì 25k và cà phê 35k tổng cộng 70k")
+    assert [e.amount for e in parsed.entries] == [25_000, 35_000]
+    assert (parsed.total_amount, parsed.total_mismatch) == (70_000, True)
+
+
+def test_word_total_inside_an_item_name_is_not_a_total():
+    parsed = parse("mua bộ tổng hợp đề 150k")
+    assert [e.amount for e in parsed.entries] == [150_000]
+    assert parsed.total_amount is None
