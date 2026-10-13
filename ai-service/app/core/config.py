@@ -34,10 +34,9 @@ class Settings(BaseSettings):
 
     # Gemini phân loại tên món hóa đơn khi luật/ML không chắc. Để trống khóa thì không gọi Gemini.
     gemini_api_key: str | None = None
-    # Đo thật 2026-10-13 với đúng chỉ dẫn của hóa đơn: gemini-3.1-flash-lite trả lời ~5 giây, còn gemini-3.5-flash-lite/3.5-flash đang quá tải (503, hết giờ)
-    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_model: str = "gemini-3-flash-preview"  # đo 2026-10-13 (4 lượt, 6 món): 3,6-5,1s và đúng 6/6; 3.1-flash-lite mất 11-45s và đúng 4/6
     # Model dự phòng, cách nhau bằng dấu phẩy: thử lần lượt khi model chính quá tải (503) hay hết giờ
-    gemini_fallback_models: str = "gemini-3.5-flash-lite"
+    gemini_fallback_models: str = "gemini-3.5-flash,gemini-3.1-flash-lite"  # 3.5-flash đúng 6/6 khi không 503; 3.7/3.8 hiện luôn 503
     gemini_timeout_seconds: float = 20.0
 
 
