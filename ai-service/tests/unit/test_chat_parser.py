@@ -231,3 +231,26 @@ def test_unknown_stays_unknown_and_is_not_auto_saved():
 
 def test_chat_never_fuzzy_matches_ordinary_sentences():
     assert parse("hôm nay trời đẹp quá").intent == "out_of_scope"  # "đẹp quá" ~ "dép quai" nếu dùng khớp gần đúng của OCR
+
+
+# ---- phủ định và hủy: "mua cà phê 30k rồi hủy" không được ghi 30.000
+def test_cancelled_only_item_records_nothing():
+    parsed = parse("mua cà phê 30k rồi hủy")
+    assert parsed.entries == ()
+    assert parsed.intent == "out_of_scope"
+    assert parsed.unclear_reason == "cancelled"
+
+
+def test_spoken_correction_replaces_the_amount():
+    parsed = parse("mua cà phê 30k, nhầm, là 35k")
+    assert [e.amount for e in parsed.entries] == [35_000]
+
+
+def test_cancel_only_drops_the_item_before_it():
+    parsed = parse("ăn phở 40k rồi hủy, mua cà phê 30k")
+    assert [e.amount for e in parsed.entries] == [30_000]
+
+
+@pytest.mark.parametrize("text", ["không cần hủy, ghi cà phê 30k", "mua hủ tiếu 30k"])
+def test_words_that_only_look_like_cancellation_are_kept(text):
+    assert [e.amount for e in parse(text).entries] == [30_000]

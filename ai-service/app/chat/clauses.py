@@ -31,3 +31,39 @@ def split_clauses(text: str) -> list[str]:
         else:
             clauses[-1] += separator + part
     return [clause.strip() for clause in clauses] if len(clauses) > 1 else [text]
+
+
+# Một vế chỉ gồm lời hủy ("hủy", "thôi", "không mua nữa"): bỏ khoản đứng ngay trước nó. "không cần hủy" hay "hủ tiếu" không khớp vì
+# phải là cả vế.
+_CANCEL = re.compile(
+    r"^\s*(?:à\s+|ờ\s+|ơ\s+)?(?:hủy|huỷ|hoãn|bỏ|thôi|không\s+mua\s+nữa|khỏi)(?:\s+(?:đi|nhé|nha|luôn|khoản\s+đó|cái\s+đó))?\s*$",
+    re.IGNORECASE,
+)
+_CORRECTION = re.compile(r"^\s*(?:à\s+|ờ\s+)?(?:nhầm|sai\s+rồi|nhầm\s+rồi)\s*$", re.IGNORECASE)
+
+
+def apply_cancellations(text: str) -> tuple[str, bool]:
+    """Áp lời hủy và lời sửa trong câu: trả (câu đã bỏ các khoản bị hủy / đã đổi tiền, có áp dụng gì không)."""
+    pieces = _SEPARATOR.split(text)
+    parts, separators = pieces[0::2], [""] + pieces[1::2]
+    kept: list[tuple[str, str]] = []
+    changed = correcting = False
+    for separator, part in zip(separators, parts):
+        if _CANCEL.match(part):
+            if kept:
+                kept.pop()
+            changed = True
+        elif _CORRECTION.match(part):
+            correcting = True
+            changed = True
+        elif correcting and (new := parse_amount(part)) and kept:
+            earlier_sep, earlier = kept[-1]
+            old = parse_amount(earlier)
+            if old:
+                kept[-1] = (earlier_sep, remove_amount(earlier, old).strip() + " " + part[new.start:new.end])
+            correcting = False
+        else:
+            kept.append((separator, part))
+    if not changed:
+        return text, False
+    return "".join((sep if i else "") + part for i, (sep, part) in enumerate(kept)).strip(), True

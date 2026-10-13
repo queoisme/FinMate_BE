@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
-from app.chat.clauses import split_clauses
+from app.chat.clauses import apply_cancellations, split_clauses
 from app.chat.dates import VN, parse_when, remove_when
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.category_resolver import resolve
@@ -59,6 +59,7 @@ _REPLIES = {
     "thanks": "Không có gì! Cần ghi thêm khoản nào cứ nhắn mình nhé.",
     "empty": "Bạn nhắn khoản chi tiêu nhé, ví dụ: ăn phở 45k.",
     "needs_amount": "Mình chưa thấy số tiền. Bạn nhắn kèm số tiền nhé, ví dụ \"ăn phở 45k\".",
+    "cancelled": "Mình đã bỏ khoản đó, không ghi gì. Cần ghi khoản khác cứ nhắn mình nhé.",
     "out_of_scope": "Mình chỉ giúp ghi chi tiêu, thu nhập và xem tổng thôi. Bạn thử \"ăn phở 45k\" hoặc \"tháng này tôi tiêu bao nhiêu?\" nhé.",
 }
 _REPLIES["confirm"] = _REPLIES["deny"] = _REPLIES["cancel"] = "Hiện chưa có khoản nào đang chờ xác nhận. Bạn nhắn khoản mới nhé, ví dụ \"ăn phở 45k\"."
@@ -322,6 +323,9 @@ def parse_chat(
     intent = _resolve_intent(text, norm, nlu)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
+        text, cancelled = apply_cancellations(text)  # "rồi hủy", "nhầm, là 35k": áp trước khi tách khoản
+        if cancelled and not parse_amount(text):
+            return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")
         clauses = split_clauses(text)
         if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
             whole = parse_when(text, now)  # ngày nói ở một vế ("... cà phê 30k hôm qua") áp cho các vế không có ngày riêng
