@@ -24,7 +24,7 @@ MAX_NAMES = 20
 MAX_NAME_LEN = 60
 CIRCUIT_SECONDS = 30.0
 # Trần cho cả lần gọi (gồm lần thử lại): timeout của httpx chỉ tính theo từng pha (kết nối, đọc...).
-OVERALL_TIMEOUT = 8.0
+OVERALL_TIMEOUT = 12.0
 RETRY_DELAY = 1.5
 CACHE_MAX = 2000
 CACHE_TTL = 24 * 3600
@@ -62,10 +62,12 @@ class GeminiClient:
         transport: httpx.AsyncBaseTransport | None = None,
         clock: Callable[[], float] = time.monotonic,
         overall_timeout: float = OVERALL_TIMEOUT,
+        fallback_models: tuple[str, ...] = (),
     ) -> None:
         self._overall_timeout = overall_timeout
         self._key = api_key
         self._model = model
+        self._models = (model, *fallback_models)  # model chính quá tải (503, hết giờ) thì thử model kế
         self._timeout = timeout
         self._transport = transport
         self._clock = clock
@@ -115,7 +117,7 @@ class GeminiClient:
             try:
                 try:
                     async with asyncio.timeout(self._overall_timeout):
-                        result = await self._call(to_send, instruction)
+                        result = await self._call_models(to_send, instruction)
                 except TimeoutError as error:  # quá trần cả lần gọi: như mọi lỗi khác, khóa mạch
                     raise GeminiFailed("overall_timeout") from error
             except GeminiFailed as error:
@@ -128,7 +130,18 @@ class GeminiClient:
                 self._cache_put(key, category)
         return [answers[k] for k in keys]
 
-    async def _call(self, names: list[str], instruction: str) -> list[str]:
+    async def _call_models(self, names: list[str], instruction: str) -> list[str]:
+        """Thử lần lượt từng model; chỉ khi TẤT CẢ đều lỗi mới ném lỗi (và khi đó cầu dao mới mở). Model còn lại để dành cho lần thử sau cùng
+        mới được thử lại khi gặp 429/503; model đang quá tải thì bỏ qua ngay thay vì chờ."""
+        last: GeminiFailed | None = None
+        for index, model in enumerate(self._models):
+            try:
+                return await self._call(names, instruction, model, retry=index == len(self._models) - 1)
+            except GeminiFailed as error:
+                last = error
+        raise last or GeminiFailed("no_model")
+
+    async def _call(self, names: list[str], instruction: str, model: str | None = None, retry: bool = True) -> list[str]:
         prompt = f"{_SKELETON}\n\n{instruction}\n\nNAMES:\n{json.dumps(names, ensure_ascii=False)}"
         body = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -141,9 +154,9 @@ class GeminiClient:
         started = self._clock()
         try:
             async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-                url, headers = _URL.format(model=self._model), {"x-goog-api-key": self._key}
+                url, headers = _URL.format(model=model or self._model), {"x-goog-api-key": self._key}
                 res = await client.post(url, headers=headers, json=body)
-                if res.status_code in (429, 503):
+                if retry and res.status_code in (429, 503):
                     await asyncio.sleep(RETRY_DELAY)
                     res = await client.post(url, headers=headers, json=body)
             res.raise_for_status()

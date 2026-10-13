@@ -203,9 +203,10 @@ async def test_store_default_used_when_gemini_says_unknown():
     assert out == [(0, "food", "merchant")] and used
 
 
-async def test_store_default_used_when_gemini_fails():
+async def test_store_default_not_used_when_gemini_fails_the_item_stays_unknown():
+    # đổi hành vi có chủ ý (2026-10-13): AI được phép mà lỗi thì để "chưa rõ" cho người dùng chọn, không gán nhóm mặc định của cửa hàng
     out, used = await run(items("Qwerty abc"), merchant="Ministop", gemini=FakeGemini(fail=True))
-    assert out == [(0, "food", "merchant")] and not used
+    assert out == [(0, None, "unknown")] and not used
 
 
 async def test_rule_hit_never_reaches_gemini_even_with_a_store_default():
@@ -323,3 +324,21 @@ async def test_item_rule_step_matches_the_resolver():
 async def test_sua_bot_is_family_not_food_on_a_receipt():
     out, _ = await run(items("Sua bot Enfa A+ 800g"), allow_ai=False)
     assert out == [(0, "family", "rule")]
+
+
+# ---- đã cho phép AI mà AI không trả lời được: để "chưa rõ" cho người dùng chọn, KHÔNG gán nhóm mặc định của cửa hàng
+# (cửa hàng tiện lợi bán cả pin, khăn ướt, bút lẫn đồ ăn: nhóm mặc định là Ăn uống sẽ xếp sai những thứ đó một cách im lặng)
+async def test_when_ai_was_allowed_but_failed_unmatched_items_stay_unknown():
+    out, used = await run(items("Cơm hộp gà", "Pin AA Zxq"), merchant="Ministop", gemini=FakeGemini(fail=True), allow_ai=True)
+    assert out == [(0, "food", "rule"), (1, None, "unknown")]
+    assert used is False
+
+
+async def test_when_ai_is_unavailable_the_circuit_open_case_is_the_same():
+    out, _ = await run(items("Pin AA Zxq"), merchant="Ministop", gemini=FakeGemini(available=False), allow_ai=True)
+    assert out == [(0, None, "unknown")]
+
+
+async def test_without_consent_the_merchant_default_still_applies():
+    out, _ = await run(items("Pin AA Zxq"), merchant="Ministop", allow_ai=False)
+    assert out == [(0, "food", "merchant")]

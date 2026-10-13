@@ -43,7 +43,12 @@ def get_bill_knowledge() -> BillKnowledge:
     return _knowledge
 
 
-_gemini = GeminiClient(settings.gemini_api_key, settings.gemini_model, settings.gemini_timeout_seconds)
+_gemini = GeminiClient(
+    settings.gemini_api_key,
+    settings.gemini_model,
+    settings.gemini_timeout_seconds,
+    fallback_models=tuple(m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()),
+)
 
 
 def get_gemini_client() -> GeminiClient:

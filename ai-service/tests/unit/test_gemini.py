@@ -221,3 +221,47 @@ async def test_failure_log_carries_reason_token_not_names():
     assert [entry["error"] for entry in failed] == ["http_500", "bad_count"]
     dump = json.dumps(logs, default=str)
     assert secret not in dump and "INSTR-BIMAT" not in dump
+
+
+# ---- model dự phòng: model chính quá tải (503/hết giờ) thì thử model kế, không bỏ cuộc cả lần gọi
+def _by_model(handlers):
+    seen = []
+
+    def handler(req):
+        model = req.url.path.split("/models/")[1].split(":")[0]
+        seen.append(model)
+        return handlers[model](req)
+
+    return handler, seen
+
+
+def _fallback_client(handler, clock=None):
+    kw = {"clock": clock} if clock else {}
+    return GeminiClient("key", "primary", 5.0, transport=httpx.MockTransport(handler), fallback_models=("backup",), **kw)
+
+
+async def test_overloaded_primary_falls_back_to_the_next_model():
+    handler, seen = _by_model({"primary": lambda r: httpx.Response(503, json={}), "backup": _echo(["shopping", "food"])})
+    c = _fallback_client(handler)
+
+    assert await c.classify(["pin aa", "com"], "rules") == ["shopping", "food"]
+    assert seen == ["primary", "backup"]  # không thử lại cùng model đang quá tải
+    assert c.available  # có model trả lời được thì không khóa mạch
+
+
+async def test_a_good_primary_never_touches_the_fallback():
+    handler, seen = _by_model({"primary": _echo(["food"]), "backup": lambda r: pytest.fail("không được gọi")})
+    assert await _fallback_client(handler).classify(["com"], "rules") == ["food"]
+    assert seen == ["primary"]
+
+
+async def test_every_model_failing_opens_the_circuit():
+    handler, seen = _by_model({"primary": lambda r: httpx.Response(503, json={}), "backup": lambda r: httpx.Response(500, json={})})
+    now = [0.0]
+    c = _fallback_client(handler, clock=lambda: now[0])
+
+    with pytest.raises(GeminiFailed):
+        await c.classify(["com"], "rules")
+
+    assert seen == ["primary", "backup"]
+    assert not c.available

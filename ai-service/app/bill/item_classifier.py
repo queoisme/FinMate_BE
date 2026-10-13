@@ -94,11 +94,15 @@ async def classify_items(
         or any(r is not None and r[0] == "health" for r in results)
     )
     pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and clean[i]][:MAX_NAMES]
-    if pending and allow_ai and not health_bill and instruction.strip() and gemini.available:
-        try:  # GeminiClient tự giới hạn tổng thời gian (8 giây) và khóa mạch khi quá hạn
-            answers = await gemini.classify([clean[i] for i in pending], instruction)
-        except GeminiFailed:
-            answers = None  # món lạ rơi xuống nhóm mặc định / unknown; không bao giờ ném lỗi ra cho client
+    ai_failed = False  # đã cho phép AI mà AI không trả lời được: món lạ để "chưa rõ", không rơi xuống nhóm mặc định của cửa hàng
+    if pending and allow_ai and not health_bill and instruction.strip():
+        answers = None
+        if gemini.available:
+            try:  # GeminiClient tự giới hạn tổng thời gian và khóa mạch khi mọi model đều lỗi
+                answers = await gemini.classify([clean[i] for i in pending], instruction)
+            except GeminiFailed:
+                answers = None  # không bao giờ ném lỗi ra cho client
+        ai_failed = answers is None
         if answers is not None:
             ai_used = True
             learned: dict[str, str] = {}
@@ -110,8 +114,9 @@ async def classify_items(
             if learned:
                 await knowledge.remember_items(learned)
 
-    # Bước 4: nhóm mặc định của cửa hàng, chỉ cho món chưa khớp luật và Gemini không quyết được.
-    if default:
+    # Bước 4: nhóm mặc định của cửa hàng, chỉ cho món chưa khớp luật. KHÔNG áp khi AI được phép mà thất bại: cửa hàng tiện lợi bán pin, khăn ướt,
+    # bút lẫn đồ ăn, gán "Ăn uống" cho cả bill là xếp sai một cách im lặng; để "chưa rõ" thì người dùng chọn.
+    if default and not ai_failed:
         for i, item in enumerate(items):
             if item.parent is None and results[i] is None:
                 results[i] = (default, "merchant")
