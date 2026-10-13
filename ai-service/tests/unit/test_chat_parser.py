@@ -300,3 +300,8 @@ def test_category_source_is_rule_when_keywords_decide():
 def test_category_source_is_none_when_nothing_decides():
     entry = parse("zxqv gizmo 50k").entry
     assert (entry.category, entry.category_source) == (None, None)
+
+
+def test_a_skipped_clause_blocks_auto_save():
+    # "ăn phở 40k và cà phê": người dùng nói hai thứ nhưng chỉ có một số tiền; không được ghi ngay một khoản có thể thiếu
+    assert parse("ăn phở 40k và cà phê").entry.auto_save_ok is False

@@ -353,6 +353,8 @@ def parse_chat(
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
+        if skipped:  # người dùng nói thêm một thứ không có số tiền: không ghi ngay
+            entry = replace(entry, auto_save_ok=False)
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         return result(intent, query=_query(norm, now), unclear_reason=reason)
