@@ -274,7 +274,7 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
         if not found:
             return None
         value, description = found.value, re.sub(r"\s+", " ", text.replace(phrase, " ")).strip()
-    description = re.sub(r"^(?:vừa|mới|nay|hôm nay|hôm qua|tôi|mình|em|đã|hết|tốn|mất|chi|tiêu|khoảng)\s+", "", description, flags=re.I).strip()
+    description = re.sub(r"^(?:và|rồi|còn|vừa|mới|nay|hôm nay|hôm qua|tôi|mình|em|đã|hết|tốn|mất|chi|tiêu|khoảng)\s+", "", description, flags=re.I).strip()
     description = re.sub(r"\s+(?:hết|tốn|mất|khoảng|hết khoảng)$", "", description, flags=re.I).strip()  # "ăn bún chả hết 55 cành" -> "ăn bún chả"
     norm_text = normalize(text)
     if kind == "transfer":

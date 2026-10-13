@@ -331,3 +331,8 @@ def test_words_that_only_look_like_amounts_are_not_money(text):
 
 def test_digits_still_win_over_number_words_in_the_same_sentence():
     assert parse_amount("hai ba người ăn cơm 50k").value == 50_000
+
+
+@pytest.mark.parametrize("text", ["rồi mua cơm hai lăm ngàn", "và mua cơm hai lăm ngàn", "còn mua cơm 25k"])
+def test_leading_connector_is_not_part_of_the_description(text):
+    assert parse(text).entry.description == "mua cơm"
