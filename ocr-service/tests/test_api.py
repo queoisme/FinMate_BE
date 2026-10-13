@@ -538,3 +538,28 @@ def test_items_that_do_not_add_up_to_the_total_ask_for_review(monkeypatch):
     assert body["total_amount"] == 150000
     assert body["items_ok"] is False
     assert body["needs_review"] is True
+
+
+def test_a_correct_tong_cong_total_does_not_leave_the_review_flag_from_the_wrong_one(monkeypatch):
+    # ảnh thật (Tạp hóa Đức Cường): đọc theo thứ tự dòng thì tổng bị chọn nhầm là 42.000 (số lặp của món cuối) và gắn cờ "nhắc kiểm tra";
+    # tổng đọc theo hàng (157.680) phải thay luôn cả tổng lẫn các cờ tính từ nó
+    def item(n, name, qty, unit, amount):
+        return [(str(n), 50, 70), (name, 150, 450), (str(qty), 570, 590), (unit, 650, 750), (amount, 820, 950)]
+
+    boxes = _layout(
+        [("TAP HOA", 300, 700)], [("DUC CUONG", 300, 700)], [("HOA DON BAN HANG", 50, 500)],
+        [("STT", 50, 100), ("Ten hang", 150, 400), ("SL", 560, 600), ("Don gia", 650, 750), ("Thanh tien", 800, 950)],
+        item(1, "Mi Hao Hao tom chua cay", 2, "5.000", "10.000"), item(2, "Sua tuoi Vinamilk 1L", 1, "34.000", "34.000"),
+        item(3, "Nuoc suoi Aquafina 500ml", 2, "7.000", "14.000"), item(4, "Nuoc rua chen Sunlight", 1, "28.000", "28.000"),
+        item(5, "Khan giay Pulppy 10 goi", 1, "18.000", "18.000"), item(6, "Bot giat OMO 800g", 1, "42.000", "42.000"),
+        [("Tam tinh:", 500, 700), ("146.000", 800, 950)], [("Thue GTGT (8%):", 500, 750), ("11.680", 820, 950)],
+        [("Tong cong:", 500, 700), ("157.680", 800, 950)], [("Tien khach dua:", 500, 750), ("200.000", 800, 950)],
+        [("Tien thoi lai:", 500, 750), ("42.320", 820, 950)], [("CAM ON QUY KHACH", 300, 700)],
+    )
+    monkeypatch.setattr(main, "read_boxes", lambda _data: boxes)
+
+    body = _post(_png_bytes()).json()
+
+    assert body["total_amount"] == 157680
+    assert body["items_ok"] is True
+    assert body["needs_review"] is False

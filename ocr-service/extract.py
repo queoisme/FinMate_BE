@@ -766,12 +766,14 @@ def analyze(
     lookup: Callable[[str | None], str | None] | None = None,
     predict: Callable[[str | None, list[str]], tuple[str, float]] | None = None,
     find_known: Callable[[list[str]], str | None] | None = None,
+    forced_total: int | None = None,
 ) -> dict:
+    """forced_total: tổng đã đọc theo HÀNG (items.payable_total), đáng tin hơn luật theo thứ tự dòng; có thì thay luôn tổng và các cờ tính từ tổng."""
     texts = [t for t, _ in lines]
     confidence = sum(c for _, c in lines) / len(lines) if lines else 0.0
     # Tên cửa hàng người dùng đã từng chốt, nằm ở bất kỳ dòng nào, được ưu tiên hơn việc đoán theo vị trí.
     merchant = (find_known(texts) if find_known else None) or extract_merchant(texts, [c for _, c in lines])
-    total = extract_total(texts)
+    total = forced_total if forced_total is not None else extract_total(texts)
     words_total = extract_words_total(texts)
     words_check = None if words_total is None else ("match" if words_total == total else "mismatch")
     total_from_words = total is None and words_total is not None

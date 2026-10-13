@@ -74,11 +74,8 @@ def process(path: Path) -> dict:
     except NoTextError:
         return {"total": None, "items": [], "ok": False, "screen": False}
     lines = [(b.text, b.conf) for b in boxes]
-    total = analyze(lines)["total_amount"]
     screen = bool(app_screens.parse([t for t, _ in lines]))
-    row_total = None if screen else payable_total(boxes)  # như main.analyze_bill
-    if row_total is not None:
-        total = row_total
+    total = analyze(lines, forced_total=None if screen else payable_total(boxes))["total_amount"]  # như main.analyze_bill
     items, ok = ([], False) if screen else main._bill_items(boxes, total)
     return {"total": total, "items": items, "ok": ok, "screen": screen}
 

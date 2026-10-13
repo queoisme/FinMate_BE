@@ -55,10 +55,7 @@ def process(path: Path, use_ai: bool = False) -> dict:
     score = receipt_score([t for t, _ in lines])
     if score < MIN_RECEIPT_SCORE:
         return {"rejected": "not_a_receipt", "score": score, "sec": time.time() - t0}
-    r = analyze(lines)
-    row_total = payable_total(boxes)  # như main.analyze_bill: tổng đọc theo hàng đáng tin hơn luật theo thứ tự dòng
-    if row_total is not None:
-        r["total_amount"] = row_total
+    r = analyze(lines, forced_total=payable_total(boxes))  # như main.analyze_bill: tổng đọc theo hàng đáng tin hơn luật theo thứ tự dòng
     r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE
     if use_ai:  # giống main.py: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), chỉ khi lượt quét còn lưỡng lự
         display = lambda m: (format_merchant_name(m) or m) if m else None  # noqa: E731

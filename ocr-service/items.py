@@ -22,7 +22,7 @@ _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 _SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|\bgtgt\b|phi phuc vu|phi dich vu|service")  # gtgt: OCR hay đọc "Thuế" thành "Thu€"
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
-_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the|khach dua|tien thua|tra lai|thanh toan|diem")
+_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
@@ -83,28 +83,41 @@ def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tu
 
 
 _PAYABLE_ROW_RE = re.compile(r"tong thanh toan|phai tra|can thanh toan")
+_TONG_CONG_ROW_RE = re.compile(r"\btong cong\b")  # nhãn tổng cuối của bill không in "Thanh toán"; chỉ dùng khi không có nhãn ở trên
+_SUBTOTAL_ROW_RE = re.compile(r"tien hang|tam tinh")  # "Tổng cộng tiền hàng" là cộng tạm, chưa tính thuế/giảm giá
 _CASH_ROW_RE = re.compile(r"khach dua|khach tra|tien mat|tien thua|thoi lai|tra lai|hinh thuc")
 
 
 def payable_total(boxes: list[OcrBox]) -> int | None:
-    """Số khách phải trả: số tiền nằm CÙNG HÀNG với nhãn "Tổng thanh toán" / "Phải trả" / "Cần thanh toán".
+    """Số khách phải trả: số tiền nằm CÙNG HÀNG với nhãn "Tổng thanh toán" / "Phải trả" / "Cần thanh toán"; không có thì hàng "Tổng cộng".
 
     Đọc theo hàng nên không phụ thuộc thứ tự OCR đọc các dòng: luật theo dòng (extract.extract_total) phải đoán số nằm trước hay sau nhãn
-    và đoán sai khi dòng ngay trên nhãn là một số khác (số thuế), rồi lấy nhầm thuế, tiền khách đưa hay tiền thối. Hàng "Hình thức thanh toán:
-    Tiền mặt", tiền khách đưa, tiền thối không phải tổng. Nhiều hàng khớp thì lấy hàng cuối. Không có hàng nào khớp: None (giữ kết quả của luật theo dòng)."""
+    và đoán sai khi dòng ngay trên nhãn là một số khác (số thuế), rồi lấy nhầm thuế, tiền khách đưa, tiền thối, hay số lặp của món cuối.
+    Hàng "Hình thức thanh toán: Tiền mặt", tiền khách đưa, tiền thối, "Tổng cộng tiền hàng" và "Tạm tính" không phải tổng. Nhiều hàng khớp
+    thì lấy hàng cuối; nhãn thanh toán thắng nhãn "Tổng cộng" (cộng tạm trước thuế), và "Tổng cộng" chỉ nhận khi là hàng duy nhất. Không hàng nào khớp: None (giữ kết quả của luật theo dòng)."""
     if not boxes:
         return None
-    found = None
+    payable = None
+    tong_cong: list[int] = []
     for r in _rows(boxes):
         text = _norm(" ".join(b.text for b in r))
-        if not _PAYABLE_ROW_RE.search(text) or _CASH_ROW_RE.search(text):
+        if _CASH_ROW_RE.search(text):
             continue
-        for box in reversed(r):
-            amounts = [a for a in _amounts(box.text, True) if a >= _MIN_AMOUNT]
-            if amounts:
-                found = amounts[-1]
-                break
-    return found
+        if _PAYABLE_ROW_RE.search(text):
+            tier = "payable"
+        elif _TONG_CONG_ROW_RE.search(text) and not _SUBTOTAL_ROW_RE.search(text):
+            tier = "tong_cong"
+        else:
+            continue
+        amount = next((a for box in reversed(r) for a in [x for x in _amounts(box.text, True) if x >= _MIN_AMOUNT][-1:]), None)
+        if amount is not None:
+            if tier == "payable":
+                payable = amount
+            else:
+                tong_cong.append(amount)
+    if payable is not None:
+        return payable
+    return tong_cong[0] if len(tong_cong) == 1 else None  # nhiều "Tổng cộng" là cộng riêng từng khối bảng (hóa đơn A4): không dòng nào là tổng bill
 
 
 def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:

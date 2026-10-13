@@ -200,13 +200,11 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
             lookup=lambda m: memory.get(m),
             predict=category_model.predict if category_model else None,
             find_known=memory.find_in_lines,
+            forced_total=None if screen else payable_total(boxes),  # tổng đọc theo HÀNG (nhãn + số cùng hàng) đáng tin hơn luật theo thứ tự dòng
         )
         # tên đẹp người dùng đã chốt cho cửa hàng này > tên tự làm sạch từ chữ OCR
         display = lambda m: (memory.display_name(m) or format_merchant_name(m) or m) if m else None  # noqa: E731
         if screen:
-        row_total = None if screen else payable_total(boxes)  # tổng đọc theo HÀNG (nhãn + số cùng hàng) đáng tin hơn luật theo thứ tự dòng
-        if row_total is not None:
-            result["total_amount"] = row_total
             app_screens.apply(result, screen, lookup=memory.get, display=display)
         # app không nhận chữ OCR (có thể chứa điện thoại, tài khoản, tên khách/nhân viên, địa chỉ): chỉ nhận mã lượt quét
         clean_lines = sanitize_lines(result.pop("raw_lines"))
@@ -221,11 +219,11 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
         result["quality"] = quality
         result["receipt_score"] = score
         result["items"], result["items_ok"] = ([], False) if screen else _bill_items(boxes, result["total_amount"])
+        if not result["items_ok"] and sum(1 for i in result["items"] if i["parent"] is None and not i["is_discount"]) >= 2:
+            result["needs_review"] = True  # đọc được bảng món nhưng cộng không ra tổng (kể cả thuế/phí/giảm giá): một trong hai đọc sai, nhắc người dùng kiểm tra
         weak_image = quality != "ok" or (score < CONFIDENT_RECEIPT_SCORE and not screen)  # ảnh kém, hoặc chỉ "hơi giống" hóa đơn
         if use_ai:  # người dùng chủ động bật: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), không gửi ảnh
             ai_refine.apply_ai(result, clean_lines, display, force_review=weak_image)
-        if not result["items_ok"] and sum(1 for i in result["items"] if i["parent"] is None and not i["is_discount"]) >= 2:
-            result["needs_review"] = True  # đọc được bảng món nhưng cộng không ra tổng (kể cả thuế/phí/giảm giá): một trong hai đọc sai, nhắc người dùng kiểm tra
         result["merchant_display"] = (
             memory.display_name(result["merchant"]) or result.get("ai_merchant") or display(result["merchant"])
         )  # tên người dùng đã chốt > tên AI chuẩn hóa > tên tự làm sạch

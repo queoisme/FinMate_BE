@@ -367,7 +367,7 @@ def test_payable_total_accepts_the_amount_inside_the_label_box():
 
 def test_payable_total_none_without_a_payable_label_or_without_boxes():
     assert payable_total([]) is None
-    assert payable_total(row(100, ("Tổng cộng", 50, 400), ("50.000", 780, 950))) is None  # nhãn khác: giữ luật cũ ở extract.py
+    assert payable_total(row(100, ("Thành tiền", 50, 400), ("50.000", 780, 950))) is None  # nhãn khác: giữ luật cũ ở extract.py
 
 
 # ---- bảng có cột STT (bill siêu thị/tiện lợi in sẵn): hàng mô tả không giá nằm DƯỚI món, không phải phần đầu tên của món sau
@@ -397,3 +397,38 @@ def test_vat_row_read_as_thu_euro_gtgt_is_still_a_surcharge_so_the_sum_balances(
 def test_gtgt_alone_marks_a_surcharge():
     rows = [*STT_TABLE[:-2], *row(270, ("Thuế GTGT (8%):", 50, 400), ("2.000", 820, 950)), *row(320, ("Tổng thanh toán:", 50, 450), ("27.000", 800, 950))]
     assert extract_items(rows, 27000).ok is True
+
+
+# ---- bill "Tổng cộng" (Tạp hóa Đức Cường, ảnh thật 2026-10-14): nhãn không phải "Tổng thanh toán" nhưng vẫn là tổng cuối
+TONG_CONG_ROWS = [
+    *row(500, ("Tạm tính:", 500, 700), ("146.000", 800, 950)),
+    *row(540, ("Thuế GTGT (8%):", 500, 750), ("11.680", 820, 950)),
+    *row(590, ("Tổng cộng:", 500, 700), ("157.680", 800, 950)),
+    *row(650, ("Tiền khách đưa:", 500, 750), ("200.000", 800, 950)),
+    *row(690, ("Tiền thối lại:", 500, 750), ("42.320", 820, 950)),
+]
+
+
+def test_payable_total_falls_back_to_the_tong_cong_row():
+    assert payable_total(TONG_CONG_ROWS) == 157680
+
+
+def test_payable_label_beats_a_tong_cong_subtotal_row():
+    rows = [*row(100, ("Tổng cộng", 50, 400), ("100.000", 780, 950)), *row(140, ("Thuế GTGT", 50, 400), ("8.000", 800, 950)),
+            *row(180, ("Tổng thanh toán", 50, 400), ("108.000", 780, 950))]
+    assert payable_total(rows) == 108000
+
+
+def test_tong_cong_of_goods_or_tam_tinh_is_a_subtotal_not_the_total():
+    assert payable_total(row(100, ("Tổng cộng tiền hàng", 50, 400), ("100.000", 780, 950))) is None
+    assert payable_total(row(100, ("Tạm tính", 50, 400), ("100.000", 780, 950))) is None
+
+
+def test_tong_cong_row_without_an_amount_on_the_row_is_ignored():
+    assert payable_total(row(100, ("Tổng cộng:", 50, 400))) is None
+
+
+def test_several_tong_cong_rows_are_block_subtotals_not_a_total():
+    # hóa đơn A4 nhiều khối bảng, mỗi khối có "Tổng cộng" riêng (ảnh thật d2b8bddd): không chọn dòng nào làm tổng bill
+    rows = [*row(100, ("Tổng cộng", 50, 400), ("78.589", 780, 950)), *row(300, ("Tổng cộng", 50, 400), ("982.364", 780, 950))]
+    assert payable_total(rows) is None
