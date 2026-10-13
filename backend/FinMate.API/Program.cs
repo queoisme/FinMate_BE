@@ -424,6 +424,7 @@ public class Program
         builder.Services.AddScoped<IScanReceiptCommandHandler, ScanReceiptCommandHandler>();
         builder.Services.AddScoped<IChatCommandHandler, ChatCommandHandler>();
         builder.Services.AddScoped<IVoiceChatCommandHandler, VoiceChatCommandHandler>();
+        builder.Services.AddScoped<IChatAnalyzeCommandHandler, ChatAnalyzeCommandHandler>();
         builder.Services.AddScoped<IGetTransactionListQueryHandler, GetTransactionListQueryHandler>();
         builder.Services.AddScoped<IGetTransactionDetailQueryHandler, GetTransactionDetailQueryHandler>();
 

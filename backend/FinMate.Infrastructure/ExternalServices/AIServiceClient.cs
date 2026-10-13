@@ -181,7 +181,7 @@ public class AIServiceClient : IAIServiceClient
         }
 
         static ChatParseEntry Map(ChatEntryApiResult e) => new(
-            e.Kind, e.AmountCents, e.Description, e.Merchant, e.CategorySlug, e.IncomeType, e.AutoSaveOk, e.ToOthers, e.OccurredAt);
+            e.Kind, e.AmountCents, e.Description, e.Merchant, e.CategorySlug, e.IncomeType, e.AutoSaveOk, e.ToOthers, e.OccurredAt, e.CategorySource);
 
         return new ChatParseResponse(
             response.Intent,
@@ -197,7 +197,10 @@ public class AIServiceClient : IAIServiceClient
                     response.Query.CategorySlug,
                     response.Query.IncomeType),
             response.ProcessingMs,
-            response.Entries?.Select(Map).ToList());
+            response.Entries?.Select(Map).ToList(),
+            response.TotalAmount,
+            response.TotalMismatch,
+            response.Skipped);
     }
 
     public async Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)

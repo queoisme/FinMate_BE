@@ -100,6 +100,7 @@ public record ChatParseRequest(Guid UserId, string Text);
 /// <param name="IncomeType">salary | bonus | gift | side_income | refund | other_income, khi đoán được.</param>
 /// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, Rasa (nếu có) chắc.</param>
 /// <param name="ToOthers">"Chuyển cho người khác / trả nợ" đã được AI tính là chi tiêu.</param>
+/// <param name="CategorySource">rule (từ khóa quyết định) | cache (chỉ gợi ý từ bảng nhớ tên món) | null (chưa biết).</param>
 public record ChatParseEntry(
     string Kind,
     long AmountCents,
@@ -109,7 +110,8 @@ public record ChatParseEntry(
     string? IncomeType,
     bool AutoSaveOk,
     bool ToOthers,
-    DateTimeOffset? OccurredAt = null);
+    DateTimeOffset? OccurredAt = null,
+    string? CategorySource = null);
 
 /// <param name="Metric">"expense" | "income" | "balance".</param>
 /// <param name="From">Đầu kỳ (giờ VN).</param>
@@ -129,7 +131,10 @@ public record ChatParseResponse(
     ChatParseEntry? Entry,
     ChatParseQuery? Query,
     int? ProcessingMs,
-    IReadOnlyList<ChatParseEntry>? Entries = null);
+    IReadOnlyList<ChatParseEntry>? Entries = null,
+    int? TotalAmount = null,
+    bool TotalMismatch = false,
+    IReadOnlyList<string>? Skipped = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.

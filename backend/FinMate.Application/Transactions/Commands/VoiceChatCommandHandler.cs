@@ -29,12 +29,7 @@ public class VoiceChatCommandHandler(ISttServiceClient stt, IChatCommandHandler 
 
     public async Task<VoiceChatResultDto> HandleAsync(VoiceChatCommand command, CancellationToken ct = default)
     {
-        var type = NormalizeType(command.ContentType);
-        if (command.Audio.Length is 0 or > MaxAudioBytes || !AudioTypes.Contains(type))
-        {
-            throw new BusinessRuleException(TransactionErrorCodes.VoiceAudioInvalid,
-                "Âm thanh phải có từ 1 byte đến 10 MiB và đúng định dạng (m4a, wav, mp3, ogg, webm, flac).");
-        }
+        var type = ValidatedType(command.Audio, command.ContentType);
 
         if (!stt.IsConfigured) throw new AIServiceUnavailableException("STT service chưa được cấu hình (STT_SERVICE_URL).");
 
@@ -47,6 +42,19 @@ public class VoiceChatCommandHandler(ISttServiceClient stt, IChatCommandHandler 
 
         var result = await chat.HandleAsync(new ChatCommand(command.UserId, text, command.FinancialAccountId, command.ClientRequestId), ct);
         return new VoiceChatResultDto(text, result);
+    }
+
+    /// <summary>Kiểu âm thanh đã chuẩn hóa; ném <see cref="TransactionErrorCodes.VoiceAudioInvalid"/> khi tệp rỗng, quá lớn hoặc sai định dạng.</summary>
+    public static string ValidatedType(byte[] audio, string contentType)
+    {
+        var type = NormalizeType(contentType);
+        if (audio.Length is 0 or > MaxAudioBytes || !AudioTypes.Contains(type))
+        {
+            throw new BusinessRuleException(TransactionErrorCodes.VoiceAudioInvalid,
+                "Âm thanh phải có từ 1 byte đến 10 MiB và đúng định dạng (m4a, wav, mp3, ogg, webm, flac).");
+        }
+
+        return type;
     }
 
     // m4a của iOS/Android khai là audio/m4a hoặc audio/x-m4a, nhưng stt-service chỉ nhận audio/mp4 (cùng container).

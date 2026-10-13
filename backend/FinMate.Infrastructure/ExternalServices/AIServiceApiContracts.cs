@@ -100,7 +100,8 @@ public record ChatEntryApiResult(
     [property: JsonPropertyName("income_type")] string? IncomeType,
     [property: JsonPropertyName("auto_save_ok")] bool AutoSaveOk,
     [property: JsonPropertyName("to_others")] bool ToOthers,
-    [property: JsonPropertyName("occurred_at")] DateTimeOffset? OccurredAt = null);
+    [property: JsonPropertyName("occurred_at")] DateTimeOffset? OccurredAt = null,
+    [property: JsonPropertyName("category_source")] string? CategorySource = null);
 
 public record ChatQueryApiResult(
     [property: JsonPropertyName("metric")] string Metric,
@@ -116,7 +117,10 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("entry")] ChatEntryApiResult? Entry,
     [property: JsonPropertyName("query")] ChatQueryApiResult? Query,
     [property: JsonPropertyName("processing_ms")] int? ProcessingMs,
-    [property: JsonPropertyName("entries")] IReadOnlyList<ChatEntryApiResult>? Entries = null);
+    [property: JsonPropertyName("entries")] IReadOnlyList<ChatEntryApiResult>? Entries = null,
+    [property: JsonPropertyName("total_amount")] int? TotalAmount = null,
+    [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
+    [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
