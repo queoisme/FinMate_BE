@@ -63,7 +63,7 @@ async def test_api_classifies_items():
                                 {"name": "+ zz", "parent": 1}], "merchant_name": None})
     assert res.status_code == 200
     assert res.json() == {"ai_used": True, "items": [
-        {"index": 0, "category_slug": "food", "source": "rule"},
+        {"index": 0, "category_slug": "shopping", "source": "ai"},  # AI quyết trước luật
         {"index": 1, "category_slug": "shopping", "source": "ai"},
         {"index": 2, "category_slug": "shopping", "source": "inherit"},
     ]}

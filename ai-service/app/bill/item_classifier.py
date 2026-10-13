@@ -1,7 +1,8 @@
 """Phân loại từng món trên hóa đơn (mục 5 của thiết kế tách bill theo món).
 
-Thứ tự cho mỗi món: thừa kế món chính → luật/từ khóa dùng chung với chat (``app.services.category_resolver``, gồm cả bảng DB) → bảng nhớ → Gemini (chỉ tên, chỉ khi được phép) → nhóm mặc định của cửa hàng → unknown.
-Gemini đứng TRƯỚC nhóm mặc định: cửa hàng tiện lợi bán cả đồ ăn lẫn khăn ướt, nên "mặc định là ăn uống" đoán sai một cách tự tin.
+Thứ tự cho mỗi món (món phụ thừa kế món chính). Đã cho phép AI: bảng nhớ → Gemini (chỉ tên) → luật/từ khóa dùng chung với chat (``app.services.category_resolver``) làm dự phòng → nhóm mặc định của cửa hàng → unknown.
+Chưa cho phép AI (hoặc hóa đơn thuốc): luật → bảng nhớ → nhóm mặc định → unknown.
+Gemini đứng TRƯỚC luật và nhóm mặc định: một hóa đơn chứa nhiều nhóm hàng, "mặc định là ăn uống" hay một từ khóa đoán sai một cách tự tin.
 Chỉ điều phối, không chạm DB: route nạp sẵn ``instruction``. Không log tên món, cửa hàng hay kết quả của mô hình.
 """
 from __future__ import annotations
@@ -61,41 +62,48 @@ async def classify_items(
     allow_ai: bool,
 ) -> tuple[list[ClassifyItemOut], bool]:
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
-    results: list[tuple[str | None, str] | None] = [None] * len(items)  # (slug, nguồn); None = chưa quyết
 
-    # Bước 2: luật/từ khóa theo đúng tên món, dùng chung với chat (kể cả khớp gần đúng cho lỗi OCR một chữ). Vẫn là luật nên không tốn lượt gọi Gemini.
+    # Luật/từ khóa theo đúng tên món, dùng chung với chat (kể cả khớp gần đúng cho lỗi OCR một chữ).
+    rules: list[str | None] = [None] * len(items)
     for i, item in enumerate(items):
         if item.parent is None:
-            slug = resolve(item.name).slug
-            if slug:
-                results[i] = (slug, "rule")
+            rules[i] = resolve(item.name).slug
 
     default = _merchant_default(merchant)
-
-    # Bước 2b: tên món đã từng được Gemini trả lời (bảng nhớ dùng chung, không gắn người dùng). Đọc bảng không gửi gì ra ngoài nên
-    # chạy kể cả khi người dùng chưa cho phép AI.
     clean = {i: _strip_money(item.name) for i, item in enumerate(items)}
     keys = {i: item_key(item.name) for i, item in enumerate(items)}
-    open_ = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and keys[i]]
+    top = [i for i, item in enumerate(items) if item.parent is None]
+
+    # Hóa đơn thuốc không bao giờ gửi ra ngoài: cả hóa đơn (cửa hàng + mọi tên món) xếp vào healthcare, nhóm mặc định của
+    # thương hiệu là health, hoặc có bất kỳ món nào đã ra health bằng luật.
+    bill_category, bill_source, _ = classify_category_detailed(merchant, [item.name for item in items])
+    health_bill = (
+        (SLUG_BY_LOCAL_CATEGORY.get(bill_category) == "health" and bill_source != "none")
+        or default == "health"
+        or "health" in rules
+    )
+    # Một hóa đơn thường có nhiều nhóm hàng (cửa hàng tiện lợi bán cả đồ ăn, pin, khăn ướt) nên luật từ khóa không đủ: khi người dùng cho phép AI,
+    # AI quyết trước, luật chỉ là dự phòng lúc AI lỗi hoặc trả "không rõ". Chưa cho phép thì luật quyết như cũ.
+    ai_first = allow_ai and not health_bill
+    results: list[tuple[str | None, str] | None] = [None] * len(items)  # (slug, nguồn); None = chưa quyết
+    if not ai_first:
+        for i in top:
+            if rules[i]:
+                results[i] = (rules[i], "rule")
+
+    # Tên món đã từng được Gemini trả lời (bảng nhớ dùng chung, không gắn người dùng). Đọc bảng không gửi gì ra ngoài nên chạy cả khi chưa cho phép AI.
+    open_ = [i for i in top if results[i] is None and keys[i]]
     if open_:
         cached = await knowledge.cached_items(sorted({keys[i] for i in open_}))
         for i in open_:
             if cached.get(keys[i]) in _REMEMBERABLE:
                 results[i] = (cached[keys[i]], "cache")
 
-    # Bước 3: Gemini cho tối đa 20 món còn lại đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
-    # Hóa đơn thuốc không bao giờ gửi: bỏ qua Gemini nếu cả hóa đơn (cửa hàng + mọi tên món) xếp vào healthcare,
-    # nếu nhóm mặc định của thương hiệu là health, hoặc có bất kỳ món nào đã ra health bằng luật.
+    # Gemini cho tối đa 20 món chưa quyết đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
     ai_used = False
-    bill_category, bill_source, _ = classify_category_detailed(merchant, [item.name for item in items])
-    health_bill = (
-        (SLUG_BY_LOCAL_CATEGORY.get(bill_category) == "health" and bill_source != "none")
-        or default == "health"
-        or any(r is not None and r[0] == "health" for r in results)
-    )
-    pending = [i for i, item in enumerate(items) if item.parent is None and results[i] is None and clean[i]][:MAX_NAMES]
     ai_failed = False  # đã cho phép AI mà AI không trả lời được: món lạ để "chưa rõ", không rơi xuống nhóm mặc định của cửa hàng
-    if pending and allow_ai and not health_bill and instruction.strip():
+    pending = [i for i in top if results[i] is None and clean[i]][:MAX_NAMES] if ai_first else []
+    if pending and instruction.strip():
         answers = None
         if gemini.available:
             try:  # GeminiClient tự giới hạn tổng thời gian và khóa mạch khi mọi model đều lỗi
@@ -114,14 +122,19 @@ async def classify_items(
             if learned:
                 await knowledge.remember_items(learned)
 
-    # Bước 4: nhóm mặc định của cửa hàng, chỉ cho món chưa khớp luật. KHÔNG áp khi AI được phép mà thất bại: cửa hàng tiện lợi bán pin, khăn ướt,
+    # Luật làm dự phòng cho món AI không quyết (lỗi, "không rõ", hoặc nằm ngoài 20 món đầu).
+    for i in top:
+        if results[i] is None and rules[i]:
+            results[i] = (rules[i], "rule")
+
+    # Nhóm mặc định của cửa hàng, chỉ cho món chưa khớp gì. KHÔNG áp khi AI được phép mà thất bại: cửa hàng tiện lợi bán pin, khăn ướt,
     # bút lẫn đồ ăn, gán "Ăn uống" cho cả bill là xếp sai một cách im lặng; để "chưa rõ" thì người dùng chọn.
     if default and not ai_failed:
-        for i, item in enumerate(items):
-            if item.parent is None and results[i] is None:
+        for i in top:
+            if results[i] is None:
                 results[i] = (default, "merchant")
 
-    # Bước 1 (làm sau cùng vì cần kết quả CUỐI của món chính) và bước 5.
+    # Món phụ thừa kế nhóm của món chính (làm sau cùng vì cần kết quả CUỐI của món chính); còn lại là unknown.
     out: list[ClassifyItemOut] = []
     for i, item in enumerate(items):
         if item.parent is not None:

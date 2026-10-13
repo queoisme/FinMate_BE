@@ -1,4 +1,4 @@
-"""Phân loại từng món: thừa kế → luật → nhóm mặc định cửa hàng → Gemini (chỉ khi được phép) → unknown."""
+"""Phân loại từng món. Được phép dùng AI: bảng nhớ → Gemini → luật (dự phòng) → nhóm mặc định → unknown. Chưa cho phép: luật → bảng nhớ → nhóm mặc định → unknown."""
 
 import asyncio
 
@@ -106,10 +106,10 @@ async def test_pharmacy_not_in_brand_table_never_reaches_gemini():
 
 
 async def test_grocery_bill_unknown_item_still_reaches_gemini():
-    gemini = FakeGemini(lambda n: "shopping")
+    gemini = FakeGemini(lambda n: "shopping" if n == "Qwerty" else "food")
     out, used = await run(items("Gạo ST25", "Qwerty"), merchant="Tạp hóa Cô Ba", gemini=gemini)
-    assert gemini.calls == [["Qwerty"]] and used is True
-    assert out[1] == (1, "shopping", "ai")
+    assert gemini.calls == [["Gạo ST25", "Qwerty"]] and used is True
+    assert out == [(0, "food", "ai"), (1, "shopping", "ai")]
 
 
 async def test_money_tokens_are_stripped_before_gemini():
@@ -126,15 +126,14 @@ async def test_name_empty_after_money_strip_is_not_sent():
     assert out == [(0, None, "unknown"), (1, "food", "ai")]
 
 
-async def test_only_unmatched_names_sent_to_gemini_max_20():
+async def test_only_the_first_20_names_are_sent_to_gemini_the_rest_fall_back_to_rules():
     names = ["Gạo ST25"] + [f"Mon la {i}" for i in range(25)] + [("+ phu", 3)]
     gemini = FakeGemini(lambda n: "shopping")
     out, used = await run(items(*names), gemini=gemini)
-    assert len(gemini.calls) == 1 and gemini.calls[0] == [f"Mon la {i}" for i in range(20)]
+    assert len(gemini.calls) == 1 and gemini.calls[0] == ["Gạo ST25"] + [f"Mon la {i}" for i in range(19)]
     assert used is True
-    assert out[0] == (0, "food", "rule")
-    assert all(o == (i, "shopping", "ai") for i, o in enumerate(out[1:21], start=1))
-    assert all(o == (i, None, "unknown") for i, o in enumerate(out[21:26], start=21))
+    assert all(o == (i, "shopping", "ai") for i, o in enumerate(out[:20]))
+    assert all(o == (i, None, "unknown") for i, o in enumerate(out[20:26], start=20))
     assert out[26] == (26, "shopping", "inherit")
 
 
@@ -163,10 +162,28 @@ async def test_merchant_name_keywords_are_not_a_default_only_brands_are():
         assert out == [(0, None, "unknown")], merchant
 
 
-async def test_no_gemini_call_when_everything_matched():
-    gemini = FakeGemini()
-    _, used = await run(items("Gạo ST25", "Bột giặt"), gemini=gemini)
-    assert gemini.calls == [] and used is False
+async def test_ai_decides_before_the_rules_when_allowed():
+    # một cửa hàng bán nhiều loại hàng: AI là bên quyết, luật từ khóa chỉ là dự phòng
+    gemini = FakeGemini(lambda n: "family" if "Gạo" in n else "shopping")
+    out, used = await run(items("Gạo ST25", "Bột giặt"), gemini=gemini)
+    assert gemini.calls == [["Gạo ST25", "Bột giặt"]] and used is True
+    assert out == [(0, "family", "ai"), (1, "shopping", "ai")]
+
+
+async def test_rule_is_the_fallback_when_ai_says_unknown():
+    out, used = await run(items("Gạo ST25"), gemini=FakeGemini(lambda n: "unknown"))
+    assert out == [(0, "food", "rule")] and used is True
+
+
+async def test_rule_is_the_fallback_when_ai_fails():
+    out, used = await run(items("Gạo ST25", "Bột giặt"), gemini=FakeGemini(fail=True))
+    assert out == [(0, "food", "rule"), (1, "shopping", "rule")] and used is False
+
+
+async def test_without_consent_rules_decide_and_gemini_is_never_called():
+    gemini = FakeGemini(lambda n: "family")
+    out, _ = await run(items("Gạo ST25", "Bột giặt"), gemini=gemini, allow_ai=False)
+    assert out == [(0, "food", "rule"), (1, "shopping", "rule")] and gemini.calls == []
 
 
 async def test_wet_wipes_are_shopping_and_drinks_take_store_default_without_ai():
@@ -209,10 +226,10 @@ async def test_store_default_not_used_when_gemini_fails_the_item_stays_unknown()
     assert out == [(0, None, "unknown")] and not used
 
 
-async def test_rule_hit_never_reaches_gemini_even_with_a_store_default():
+async def test_ai_beats_both_a_rule_hit_and_the_store_default():
     gemini = FakeGemini(answer=lambda name: "shopping")
     out, _ = await run(items("Gạo ST25"), merchant="Ministop", gemini=gemini)
-    assert out == [(0, "food", "rule")] and gemini.calls == []
+    assert out == [(0, "shopping", "ai")]
 
 
 async def test_topping_of_a_gemini_decided_item_inherits_the_ai_result():
@@ -244,9 +261,15 @@ async def test_cache_key_ignores_case_accents_money_and_spacing():
     assert out == [(0, "shopping", "cache")]
 
 
-async def test_rule_beats_cache():
+async def test_rule_beats_cache_without_consent():
     out, _ = await run(items("Gạo ST25"), allow_ai=False, knowledge=FakeKnowledge({"gao st25": "shopping"}))
     assert out == [(0, "food", "rule")]
+
+
+async def test_cache_of_an_earlier_ai_answer_beats_the_rule_when_ai_is_allowed():
+    gemini = FakeGemini()
+    out, _ = await run(items("Gạo ST25"), gemini=gemini, knowledge=FakeKnowledge({"gao st25": "shopping"}))
+    assert out == [(0, "shopping", "cache")] and gemini.calls == []
 
 
 async def test_gemini_answer_is_remembered():
@@ -285,10 +308,9 @@ async def test_one_letter_ocr_typo_still_matches_a_product_keyword():
     assert out == [(0, "shopping", "rule")]
 
 
-async def test_fuzzy_match_never_reaches_gemini():
-    gemini = FakeGemini(answer=lambda name: "food")
-    out, _ = await run(items("KHAM UOT Bobby"), gemini=gemini)
-    assert out == [(0, "shopping", "rule")] and gemini.calls == []
+async def test_fuzzy_rule_match_is_the_fallback_when_ai_says_unknown():
+    out, _ = await run(items("KHAM UOT Bobby"), gemini=FakeGemini())
+    assert out == [(0, "shopping", "rule")]
 
 
 async def test_codes_and_short_words_get_no_fuzzy_hit():
