@@ -10,7 +10,7 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
-from app.chat.amount import normalize
+from app.services.amount_normalizer import normalize
 
 VN = timezone(timedelta(hours=7))  # Việt Nam không có giờ mùa hè
 _DAYPART_HOUR = {"sang": 8, "trua": 12, "chieu": 17, "toi": 19}

@@ -1,6 +1,6 @@
 """Phân loại từng món trên hóa đơn (mục 5 của thiết kế tách bill theo món).
 
-Thứ tự cho mỗi món: thừa kế món chính → luật/từ khóa dùng chung với chat (``app.core.category_resolver``, gồm cả bảng DB) → bảng nhớ → Gemini (chỉ tên, chỉ khi được phép) → nhóm mặc định của cửa hàng → unknown.
+Thứ tự cho mỗi món: thừa kế món chính → luật/từ khóa dùng chung với chat (``app.services.category_resolver``, gồm cả bảng DB) → bảng nhớ → Gemini (chỉ tên, chỉ khi được phép) → nhóm mặc định của cửa hàng → unknown.
 Gemini đứng TRƯỚC nhóm mặc định: cửa hàng tiện lợi bán cả đồ ăn lẫn khăn ướt, nên "mặc định là ăn uống" đoán sai một cách tự tin.
 Chỉ điều phối, không chạm DB: route nạp sẵn ``instruction``. Không log tên món, cửa hàng hay kết quả của mô hình.
 """
@@ -13,7 +13,7 @@ from app.bill.classifier import classify_category_detailed
 from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
-from app.core.category_resolver import resolve
+from app.services.category_resolver import resolve
 from app.core.enums import CATEGORY_SLUGS
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
 

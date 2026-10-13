@@ -15,12 +15,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
-from app.chat import vocab
-from app.chat.amount import normalize, parse_amount, remove_amount
-from app.chat.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses
-from app.chat.dates import VN, parse_when, remove_when
+from app.services import vocab
+from app.services.amount_normalizer import normalize, parse_amount, remove_amount
+from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses
+from app.services.dates import VN, parse_when, remove_when
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
-from app.core.category_resolver import resolve
+from app.services.category_resolver import resolve
 
 MIN_NLU_CONFIDENCE = 0.6  # Rasa chắc dưới mức này thì bỏ qua, dùng luật
 OUT_OF_SCOPE_OVERRIDE = 0.75  # câu có số tiền mà Rasa bảo "ngoài chủ đề" chỉ bị từ chối khi Rasa chắc từ mức này

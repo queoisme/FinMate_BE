@@ -3,8 +3,8 @@
 import pytest
 
 from app.bill import classifier
-from app.core import category_resolver
-from app.core.category_resolver import Resolution, invalidate, resolve
+from app.services import category_resolver
+from app.services.category_resolver import Resolution, invalidate, resolve
 from app.core.enums import CATEGORY_SLUGS
 
 

@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from app.chat.dates import VN, parse_when, remove_when
+from app.services.dates import VN, parse_when, remove_when
 
 NOW = datetime(2026, 10, 12, 10, 0, tzinfo=VN)  # thứ Hai
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from app.chat.amount import parse_amount, remove_amount
+from app.services.amount_normalizer import parse_amount, remove_amount
 
 # Dấu phẩy nằm giữa hai chữ số ("1,5tr") không phải dấu phân cách.
 _SEPARATOR = re.compile(

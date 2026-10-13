@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.chat.clauses import split_clauses
+from app.services.clauses import split_clauses
 
 
 @pytest.mark.parametrize(

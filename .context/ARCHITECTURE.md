@@ -773,7 +773,7 @@ Không có `FINMATE_DATABASE_URL` (chạy ngoài docker) thì dùng file cạnh 
 
 ### 3.6 Chat và Rasa NLU (thêm 2026-10-11)
 
-`POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/chat/`. Rasa và route này được ghi vào kiến trúc
+`POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/services/`. Rasa và route này được ghi vào kiến trúc
 như một phần của stack với sự đồng ý của chủ dự án ngày 2026-10-11.
 
 - **Rasa chỉ hiểu câu**: trả ý định (10 intent: `add_expense, add_income, transfer_money, ask_spending, greet, goodbye, confirm,
@@ -783,14 +783,14 @@ như một phần của stack với sự đồng ý của chủ dự án ngày 2
   máy chủ. Mount `ai-service/rasa/{models,config.yml,domain.yml,data,tests}`. Pipeline DIET 100 epoch + FallbackClassifier 0,4
   (`ai-service/rasa/config.yml`). Model `ai-service/rasa/models/finmate-nlu-v3.tar.gz` **không nằm trong git** (`.gitignore`);
   lệnh huấn luyện lại nằm trong comment của service `rasa` ở `docker-compose.yml`.
-- **Cách ai-service gọi** (`app/chat/nlu.py`): `POST {RASA_URL}/model/parse`, timeout 2 giây. Bất kỳ lỗi nào → trả `None` (dùng luật),
+- **Cách ai-service gọi** (`app/services/nlu.py`): `POST {RASA_URL}/model/parse`, timeout 2 giây. Bất kỳ lỗi nào → trả `None` (dùng luật),
   cảnh báo tối đa mỗi 60 giây, và **cầu dao 30 giây** không gọi lại Rasa. `RASA_URL` trống → chỉ dùng luật.
-- **Gộp Rasa với luật** (`app/chat/parser.py`): Rasa chắc dưới 0,6 → bỏ qua; câu có số tiền mà Rasa bảo `out_of_scope` dưới 0,75 →
+- **Gộp Rasa với luật** (`app/services/transaction_parser.py`): Rasa chắc dưới 0,6 → bỏ qua; câu có số tiền mà Rasa bảo `out_of_scope` dưới 0,75 →
   theo luật; Rasa nói thu nhập/chuyển tiền nhưng luật thấy chi tiêu **và** câu có từ khóa chi tiêu rõ → theo luật (Rasa hay quá tự
   tin với từ lạ); Rasa và luật bất đồng loại giao dịch → Rasa chỉ thắng khi chắc ≥ 0,97; câu hỏi (có "?", "… không", "có nên…") không
   phải câu hỏi tổng → `out_of_scope`. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
   "mua nước") trả `needs_amount` kể cả khi không có Rasa (có động từ chi tiêu hoặc từ danh mục; câu hỏi đã bị chặn trước). Các mô-đun
-  `app/chat/clauses.py` (tách khoản) và `app/chat/dates.py` (ngày) thêm 2026-10-12.
+  `app/services/clauses.py` (tách khoản) và `app/services/dates.py` (ngày) thêm 2026-10-12.
 - **Số tiền và danh mục** luôn do luật: `amount.py` (Rasa chỉ giúp khi luật không thấy số), `vocab.py` (9 nhóm). Khi từ vựng chat
   không ra nhóm, route thử từ điển cửa hàng của pipeline thông báo (`categorize_by_rules`, chỉ nhận khớp độ chắc ≥ 0,90, không nhận `income`).
 
@@ -799,7 +799,7 @@ như một phần của stack với sự đồng ý của chủ dự án ngày 2
 | Bộ | Giá trị | Dùng ở |
 |---|---|---|
 | **11 slug backend** (`CATEGORY_SLUGS`, `app/core/enums.py`; do `CategorySeeder` của backend seed) | `food, transport, shopping, education, housing, bills, entertainment, health, family, income, other` | mọi thứ ra khỏi ai-service về backend: `/analyze`, `/ocr`, `/chat/parse`, `/bill/classify`, `/bill/classify-items`; `bill_user_merchant_choice` (trừ `income`) |
-| **9 nhóm bill/chat** (`app/bill/classifier.py` `CATEGORIES`; `app/chat/vocab.py`; ocr-service) | `dining, transport, shopping, groceries, housing, utilities, healthcare, entertainment, other` | luật/thương hiệu/từ khóa trong `bill_brands`, `bill_keywords`; ocr-service `category`; `bill_labeled_samples`; bảng cũ `bill_user_merchant_category` |
+| **9 nhóm bill/chat** (`app/bill/classifier.py` `CATEGORIES`; `app/services/vocab.py`; ocr-service) | `dining, transport, shopping, groceries, housing, utilities, healthcare, entertainment, other` | luật/thương hiệu/từ khóa trong `bill_brands`, `bill_keywords`; ocr-service `category`; `bill_labeled_samples`; bảng cũ `bill_user_merchant_category` |
 
 Quy đổi duy nhất là `SLUG_BY_LOCAL_CATEGORY` (`app/core/category_map.py`), dùng ở `/bill/classify`, `/chat/parse` và `remote_ocr.py`:
 
@@ -819,7 +819,7 @@ Vì vậy bộ nhớ cửa hàng mới `bill_user_merchant_choice` (alembic 0007
 còn bảng cũ `bill_user_merchant_category` giữ 9 nhóm; `/bill/classify` tra bảng mới trước, bảng cũ sau. Slug lạ làm giao dịch mất
 danh mục một cách im lặng (backend tra `GetSystemBySlugAsync`), nên mọi đầu ra đều được lọc lại theo `CATEGORY_SLUGS`.
 
-**Bộ phân loại chung chat + món trên bill (thêm 2026-10-12).** `app/core/category_resolver.py` gộp ba nguồn từ khóa từng tách rời
+**Bộ phân loại chung chat + món trên bill (thêm 2026-10-12).** `app/services/category_resolver.py` gộp ba nguồn từ khóa từng tách rời
 thành một chỉ mục `từ khóa → slug backend`: từ khóa sản phẩm của bill (`classifier._PRODUCT_KEYWORDS`, 9 nhóm đổi sang slug, vẫn nạp lại từ DB trong
 tối đa 60 giây: `knowledge.apply_rows` gọi `invalidate()`), từ vựng chat (`vocab.CHAT_KEYWORDS`, phần chi tiêu) và từ điển `merchant_categories.json`
 (bỏ `income`). `resolve(text, *, chat=False) -> Resolution(slug|None, source)`: khớp từng từ (đã bỏ dấu), **từ khóa dài nhất thắng**, cùng độ dài thì slug
@@ -1040,3 +1040,6 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
 - **Chat (thêm 2026-10-11):** câu chat đi backend → ai-service → `rasa` (nội bộ, không ra bên thứ ba), không kèm mã người dùng sang Rasa.
   `/chat/parse` không lưu câu và chỉ log `intent`, `source`, `processing_ms`. **Chữ hóa đơn:** chỉ chữ **đã lọc** (`privacy.sanitize_lines`)
   rời ocr-service; chữ gốc và ảnh thì không.
+
+
+**Bố cục `ai-service/` cho phần chat + phân loại (2026-10-13).** `rasa/` (NLU), `dictionaries/` (từ vựng phân loại, mỗi nhóm một tệp JSON: `kind`, `label`, `keywords`; nạp một lần lúc khởi động bởi `app/services/vocab.py`), `category-classifier/` (`train|validation|test.csv` chia theo cửa hàng, xuất bằng `scripts/export_category_dataset.py`, không nằm trong git) và `app/services/`: `transaction_parser.py` (câu → khoản), `category_resolver.py` (từ khóa → danh mục, dùng chung chat và hóa đơn), `amount_normalizer.py` (số tiền) cùng các phần phụ của chúng (`clauses.py`, `dates.py`, `nlu.py` gọi Rasa, `vocab.py`, `vi_text.py`). Thay cho `app/chat/` và `app/core/category_resolver.py` cũ.

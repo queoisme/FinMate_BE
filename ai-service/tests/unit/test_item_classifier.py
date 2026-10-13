@@ -311,7 +311,7 @@ async def test_missing_letter_and_confusable_letter_typos_match():
 
 
 async def test_item_rule_step_matches_the_resolver():
-    from app.core.category_resolver import resolve
+    from app.services.category_resolver import resolve
 
     phrases = ["ta quan Bobby", "sua bot Enfa", "hoc phi", "kham benh", "bot giat Omo", "vitamin C", "nuoc ngot Pepsi", "khan uot", "khan uott", "SP002993"]
     for phrase in phrases:

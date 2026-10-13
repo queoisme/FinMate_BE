@@ -8,7 +8,7 @@ import re
 import unicodedata
 from typing import NamedTuple
 
-from app.chat.vi_text import _DIGITS, _NUMBER_WORDS, _WORD_ALIAS, fold, words_to_amount
+from app.services.vi_text import _DIGITS, _NUMBER_WORDS, _WORD_ALIAS, fold, words_to_amount
 
 UNITS = {"k": 1_000, "nghin": 1_000, "ngan": 1_000, "canh": 1_000, "tr": 1_000_000, "trieu": 1_000_000, "cu": 1_000_000, "lit": 100_000}
 _NUM = r"\d+(?:[.,]\d+)?"

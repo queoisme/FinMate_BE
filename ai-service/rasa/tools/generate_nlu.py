@@ -17,7 +17,7 @@ import random
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-from app.chat.vi_text import fold  # noqa: E402
+from app.services.vi_text import fold  # noqa: E402
 
 RASA = pathlib.Path(__file__).resolve().parents[1]
 SEED = 20261012

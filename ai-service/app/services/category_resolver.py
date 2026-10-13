@@ -2,7 +2,7 @@
 
 Gộp ba nguồn từ khóa vốn tách rời thành một chỉ mục ``từ khóa -> slug backend``:
   * từ khóa sản phẩm của bill (``app.bill.classifier._PRODUCT_KEYWORDS``, nhóm 9-nhóm đổi sang slug; được nạp lại từ DB),
-  * từ vựng chat (``app.chat.vocab.CHAT_KEYWORDS``, phần chi tiêu),
+  * từ vựng chat (``app.services.vocab.CHAT_KEYWORDS``, phần chi tiêu),
   * từ điển tên cửa hàng của luồng thông báo (``app/data/merchant_categories.json``, bỏ ``income``).
 
 Quy tắc: khớp theo từ nguyên vẹn (đã bỏ dấu), **từ khóa dài nhất thắng**; cùng độ dài thì slug cụ thể hơn thắng
@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from app.bill import classifier
-from app.chat import vocab
-from app.chat.vi_text import fold
+from app.services import vocab
+from app.services.vi_text import fold
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.enums import CATEGORY_SLUGS
 from app.pipeline.stages.categorizer import load_lexicon

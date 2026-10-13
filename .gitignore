@@ -54,3 +54,6 @@ backend/secrets/
 stt-service/models/
 stt-service/**/__pycache__/
 stt-service/.env
+
+# ai-service: tập dữ liệu phân loại xuất từ DB (chứa chữ hóa đơn), sinh bằng scripts/export_category_dataset.py
+ai-service/category-classifier/*.csv

@@ -5,7 +5,7 @@ import pytest
 
 from app.api.v1 import chat as chat_route
 from app.api.v1.bill import get_bill_knowledge
-from app.chat.nlu import RasaNlu
+from app.services.nlu import RasaNlu
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
 from app.main import app

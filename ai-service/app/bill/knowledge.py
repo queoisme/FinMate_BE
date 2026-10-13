@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bill import brands, classifier
-from app.core import category_resolver
+from app.services import category_resolver
 from app.db.session import AsyncSessionLocal
 
 logger = structlog.get_logger(__name__)

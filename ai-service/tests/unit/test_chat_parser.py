@@ -4,8 +4,8 @@ from datetime import datetime
 
 import pytest
 
-from app.chat.amount import parse_amount
-from app.chat.parser import VN, parse_chat, period_range
+from app.services.amount_normalizer import parse_amount
+from app.services.transaction_parser import VN, parse_chat, period_range
 
 NOW = datetime(2026, 10, 14, 15, 30, tzinfo=VN)  # thứ Tư
 
@@ -208,7 +208,7 @@ def test_a_normal_single_amount_is_still_auto_saved():
 
 
 def test_chat_category_equals_the_shared_resolver_for_known_phrases():
-    from app.core.category_resolver import resolve
+    from app.services.category_resolver import resolve
 
     for phrase in ["ta quan Bobby", "sua bot Enfa", "hoc phi", "kham benh", "bot giat Omo", "vitamin C", "nuoc ngot Pepsi", "khan uot", "kem danh rang", "cat toc"]:
         assert parse(phrase + " 50k").entry.category == resolve(phrase).slug, phrase

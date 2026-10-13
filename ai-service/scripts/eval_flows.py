@@ -22,7 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from app.api.v1.chat import _slug  # noqa: E402
 from app.bill.item_classifier import classify_items  # noqa: E402
-from app.chat.parser import VN, parse_chat  # noqa: E402
+from app.services.transaction_parser import VN, parse_chat  # noqa: E402
 from app.core.category_map import INCOME_SLUG  # noqa: E402
 from app.schemas.bill import ClassifyItemIn  # noqa: E402
 

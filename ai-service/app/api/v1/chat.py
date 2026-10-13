@@ -18,8 +18,8 @@ from app.api.deps import verify_internal_api_key
 from app.api.v1.bill import get_bill_knowledge
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
-from app.chat.nlu import RasaNlu, open_nlu
-from app.chat.parser import VN, ChatParse, parse_chat
+from app.services.nlu import RasaNlu, open_nlu
+from app.services.transaction_parser import VN, ChatParse, parse_chat
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS

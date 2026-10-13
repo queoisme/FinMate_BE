@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.bill import brands, classifier
 from app.bill.classifier import classify_category_detailed
 from app.bill.knowledge import DbBillKnowledge, Remembered, merchant_key
-from app.core import category_resolver
+from app.services import category_resolver
 from app.db.bill_views import MERCHANT_VOTES_VIEW, UNKNOWN_MERCHANTS_VIEW
 
 USER = "a" * 64
