@@ -232,3 +232,11 @@ async def test_stated_total_is_returned_for_checking():
     body = (await post("mua bánh mì 25k và cà phê 35k tổng cộng 70k")).json()
     assert [e["amount_cents"] for e in body["entries"]] == [25_000, 35_000]
     assert (body["total_amount"], body["total_mismatch"]) == (70_000, True)
+
+
+async def test_category_source_tells_rule_from_cache_from_unknown():
+    use_cache(zxqv_gizmo="shopping")
+    rule = (await post("ăn phở bò 45k")).json()["entry"]
+    cached = (await post("zxqv gizmo 50k")).json()["entry"]
+    unknown = (await post("qwrt plugh 50k")).json()["entry"]
+    assert (rule["category_source"], cached["category_source"], unknown["category_source"]) == ("rule", "cache", None)

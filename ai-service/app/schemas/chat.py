@@ -23,6 +23,8 @@ class ChatEntry(BaseModel):
     merchant: str | None = None
     # Chi tiêu: slug backend, None nếu chưa đoán được (backend hỏi người dùng). Thu nhập luôn "income". Chuyển tiền: None.
     category_slug: str | None = None
+    # rule | cache | None: "rule" = từ khóa chung quyết định; "cache" = chỉ là gợi ý từ bảng nhớ tên món; None = chưa biết.
+    category_source: str | None = None
     # Loại thu nhập (salary | bonus | gift | side_income | refund | other_income) khi đoán được; backend chỉ có slug "income".
     income_type: str | None = None
     # Đủ chắc để ghi ngay không cần hỏi: chỉ với chi tiêu đã biết danh mục, dưới ngưỡng tiền, và Rasa (nếu có) chắc đó là chi tiêu.

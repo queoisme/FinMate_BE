@@ -50,7 +50,7 @@ async def _with_cached_categories(parsed: ChatParse, knowledge: BillKnowledge) -
 
     def fill(entry):
         slug = cached.get(item_key(entry.description)) if entry.kind == "expense" and entry.category is None and entry.description else None
-        return replace(entry, category=slug, auto_save_ok=False) if slug in CATEGORY_SLUGS and slug != INCOME_SLUG else entry
+        return replace(entry, category=slug, category_source="cache", auto_save_ok=False) if slug in CATEGORY_SLUGS and slug != INCOME_SLUG else entry
 
     entries = tuple(fill(e) for e in parsed.entries)
     return replace(parsed, entries=entries, entry=entries[0]) if entries else parsed
@@ -71,6 +71,7 @@ def _to_entry(e) -> ChatEntry:
         description=e.description or None,
         merchant=e.merchant,
         category_slug=INCOME_SLUG if e.kind == "income" else _slug(e.category),
+        category_source=e.category_source if e.kind == "expense" and _slug(e.category) else None,
         income_type=e.income_type,
         auto_save_ok=e.auto_save_ok and _slug(e.category) is not None,
         to_others=e.to_others,

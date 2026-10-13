@@ -78,6 +78,7 @@ class Entry:
     income_type: str | None  # salary | bonus | gift | side_income | refund | other_income (khi kind = income và đoán được)
     auto_save_ok: bool  # đủ chắc để ghi ngay không cần hỏi (chỉ với chi tiêu)
     to_others: bool  # "chuyển cho người khác / trả nợ": tiền rời khỏi người dùng nên tính là chi tiêu
+    category_source: str | None = None  # rule | cache | None: từ khóa quyết định, bảng nhớ tên món gợi ý, hoặc chưa biết
     occurred_at: datetime | None = None  # ngày nói trong câu ("hôm qua", "ngày 5/10"); None = không nói, backend dùng giờ hiện tại
 
 
@@ -287,7 +288,8 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
     category = expense_category(" ".join(part for part in (merchant, description) if part))
     if category is None and fallback_category is not None:
         category = fallback_category(merchant, description)
-    return Entry("expense", value, description, merchant, category, None, _auto_ok("expense", value, category, nlu, auto_below), False)
+    return Entry("expense", value, description, merchant, category, None, _auto_ok("expense", value, category, nlu, auto_below), False,
+                 category_source="rule" if category else None)
 
 
 def _query(norm: str, now: datetime) -> Query:

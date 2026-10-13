@@ -290,3 +290,13 @@ def test_clause_without_amount_is_reported_not_merged():
 @pytest.mark.parametrize("text", ["ăn cơm 20k, 2 người", "ăn cơm 20k và 2 người", "ăn phở 40k và uống trà sữa 30k"])
 def test_side_notes_and_full_items_are_not_reported_as_skipped(text):
     assert parse(text).skipped == ()
+
+
+# ---- nguồn của danh mục, để app biết khi nào bộ nhớ riêng được phép thắng
+def test_category_source_is_rule_when_keywords_decide():
+    assert parse("ăn phở 45k").entry.category_source == "rule"
+
+
+def test_category_source_is_none_when_nothing_decides():
+    entry = parse("zxqv gizmo 50k").entry
+    assert (entry.category, entry.category_source) == (None, None)
