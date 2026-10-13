@@ -281,3 +281,28 @@ def test_a_clean_all_caps_name_is_not_flagged_by_the_garbled_name_rule():
     assert looks_garbled_name("CONG TY TNHH THUONG MAI GIA iNH XANH") is True
     for ok in ("QUÁN CƠM NHA BEP", "Bách Hóa Xanh", "MiniStop", "Highlands Coffee", "GS25", "iPhone Store", "McDonald's"):
         assert looks_garbled_name(ok) is False, ok
+
+
+# ---- tên logo đọc nát: dòng logo ĐÚNG ("GIA ĐÌNH XANH") có sẵn nhưng bị dòng công ty ("... GIA iNH XANH") chiếm chỗ; website in cuối bill xác nhận dòng nào là tên
+GIA_DINH_XANH_FULL = ["SIEU TH!", "GIA ĐÌNH XANH", "TUOI NGON MI NGAY - Vi GIA iNH BAN", "CONG TY TNHH THUONG MAI GIA iNH XANH", "MST: [sdt]", "TP. H Chi Minh",
+                      "Ngay: 24/04/2025", "STT Tén hang", "SL", "Don gia", "Thanh tién", "Gao thom 5kg", "1", "125.000", "125.000",
+                      "Tong thanh toan:", "125.000", "CAM ON QUY KHACH DA MUA SAM!", "Website: www.giadinhxanh.vn"]
+
+
+def test_header_line_that_matches_the_website_domain_is_the_merchant_name():
+    name = extract_merchant(GIA_DINH_XANH_FULL)
+    assert _alnum_for_test(name) == "giadinhxanh"
+
+
+def test_company_line_still_wins_when_no_header_line_matches_the_website():
+    lines = ["CÔNG TY TNHH ABC VIỆT NAM", "Số 1 Lê Lợi", "STT", "Tên hàng", "Website: www.xyzxyzxyz.vn"]
+    assert "abc" in _alnum_for_test(extract_merchant(lines))
+
+
+def test_logo_word_read_with_o_instead_of_q_is_repaired_at_the_start_of_a_word():
+    lines = ["QUÁN CƠM", "NHA BEP OUE", "COM NGON NHU d NHA", "TP. H6 Chi Minh", "Ngay: 26/04/2025", "STT"]
+    assert _alnum_for_test(extract_merchant(lines)) == "quancomnhabepque"
+
+
+def test_real_words_starting_with_ou_are_not_touched_outside_the_ou_vowel_pattern():
+    assert _alnum_for_test(extract_merchant(["OUTLET SHOP 88", "Số 1 Lê Lợi", "STT"])) == "outletshop88"

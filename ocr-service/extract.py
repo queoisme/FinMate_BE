@@ -402,8 +402,19 @@ _VENUE_ONLY = {"coffee", "cafe", "tea", "shop", "store", "restaurant", "quan", "
 
 def extract_merchant(lines: list[str], confidences: list[float] | None = None) -> str | None:
     """Như _extract_merchant nhưng không nhận tên chỉ gồm một từ loại hình ("COFFEE" còn sót lại khi logo bị đọc mất): trả None để app hỏi."""
-    name = _strip_greeting(_extract_merchant(lines, confidences))
+    name = _fix_q_misread(_strip_greeting(_extract_merchant(lines, confidences)))
     return None if name and _alnum(_norm(name)) in _VENUE_ONLY else name
+
+
+_OU_WORD = re.compile(r"^[Oo][Uu][EAYeayÊêÂâ]\w*$")
+
+
+def _fix_q_misread(name: str | None) -> str | None:
+    """Chữ "Q" in đậm ở logo hay bị đọc thành "O": "OUE", "OUAN", "OUY" không phải âm tiết tiếng Việt (chỉ có "QUE", "QUAN", "QUY"), nên "OU"+nguyên âm đầu từ
+    luôn là "QU". Chỉ sửa chữ cái đầu của từ như vậy; từ khác ("OUTLET") giữ nguyên."""
+    if not name:
+        return name
+    return " ".join(("Q" if w[0] == "O" else "q") + w[1:] if _OU_WORD.match(w) else w for w in name.split())
 
 
 def looks_garbled_name(name: str | None) -> bool:
@@ -458,6 +469,12 @@ def _extract_merchant(lines: list[str], confidences: list[float] | None = None) 
     table = next((i for i, l in enumerate(lines) if _alnum(_norm(l)) in _TABLE_HEADERS or _alnum(_norm(l)).startswith("stt")), len(lines))
     cut = min(cut, table)
     pool = [(i, l) for i, l in usable if i < cut] or usable
+    # Website in cuối bill ("www.giadinhxanh.vn") xác nhận dòng nào ở đầu bill là TÊN: dòng công ty ("... GIA iNH XANH") thường đọc nát hơn dòng logo ("GIA ĐÌNH XANH").
+    stems = {m.group(1).replace("-", "") for l in lines if (m := _SITE_RE.search(_norm(l)))}
+    for _, line in pool[:12]:
+        squeezed = _alnum(_norm(line))
+        if not any(m in squeezed for m in markers) and any(squeezed == st or (len(st) >= 6 and (squeezed.startswith(st) or squeezed.endswith(st))) for st in stems):
+            return line  # dòng tiêu đề ("PHIẾU THANH TOÁN BÁCH HÓA XANH") không phải tên: để bước thương hiệu cắt lấy đoạn tên
     for _, line in pool[:12]:  # thương hiệu đã biết: loại được chữ nền (bàn phím, bàn...) ở đầu ảnh
         brand = next((b for b in BRAND_CATEGORIES if _brand_in(b, _norm(line))), None)
         if brand and "www." not in line.lower() and "@" not in line:  # dòng email/website để nhánh tên miền trả về tên thương hiệu, không trả cả địa chỉ email
