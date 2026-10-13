@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FinMate.API.Controllers;
+using FinMate.Application.Auth.Commands;
+using FinMate.Domain.Entities;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Infrastructure.Persistence;
 using FluentAssertions;
@@ -89,10 +91,9 @@ public class ScanReceiptSplitControllerTests : IClassFixture<AuthApiFactory>
 
     private static async Task SetConsentAsync(HttpClient client, string token, bool consent)
     {
-        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/users/me")
-        {
-            Content = JsonContent.Create(new UpdateProfileRequest("Split Test User", null, consent)),
-        };
+        var request = consent
+            ? new HttpRequestMessage(HttpMethod.Post, "/api/v1/users/me/consents") { Content = JsonContent.Create(new AcceptConsentRequest(ConsentKind.Ai, ConsentVersions.Ai)) }
+            : new HttpRequestMessage(HttpMethod.Delete, "/api/v1/users/me/consents/ai");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         (await client.SendAsync(request)).EnsureSuccessStatusCode();
     }

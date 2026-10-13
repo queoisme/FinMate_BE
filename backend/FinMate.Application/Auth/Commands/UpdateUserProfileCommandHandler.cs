@@ -38,25 +38,11 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
             user.MonthlyIncomeCents = income > 0 ? income : null;
         }
 
-        if (command.ShareReceiptItemsWithAi is { } share)
-        {
-            user.ShareReceiptItemsWithAi = share;
-        }
-
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 
         await _cacheService.RemoveAsync(CacheKeys.UserProfile(user.Id), ct);
 
-        return new UserProfileDto(
-            user.Id,
-            user.Email,
-            user.DisplayName,
-            user.Role.ToString(),
-            user.MonthlyIncomeCents,
-            user.NotificationPrefs.PushEnabled,
-            user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled,
-            user.ShareReceiptItemsWithAi);
+        return UserProfileDto.From(user);
     }
 }

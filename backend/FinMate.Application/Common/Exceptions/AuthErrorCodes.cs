@@ -21,6 +21,9 @@ public static class AuthErrorCodes
     /// <summary>Xin mã mới quá sớm. Giới hạn theo EMAIL, không chỉ theo IP.</summary>
     public const string OtpRequestedTooSoon = "AUTH_OTP_REQUESTED_TOO_SOON";
 
+    /// <summary>App gửi lên phiên bản câu chữ đồng ý khác phiên bản hiện hành của server (app cũ hoặc câu chữ vừa đổi).</summary>
+    public const string ConsentVersionOutdated = "AUTH_CONSENT_VERSION_OUTDATED";
+
     /// <summary>Thiếu GOOGLE_CLIENT_SECRET nên luồng OAuth qua trình duyệt chưa bật được.</summary>
     public const string GoogleOAuthNotConfigured = "AUTH_GOOGLE_OAUTH_NOT_CONFIGURED";
 }

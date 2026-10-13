@@ -1,0 +1,101 @@
+using FinMate.Application.Auth.Commands;
+using FinMate.Application.Common.Exceptions;
+using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
+using FluentAssertions;
+using Moq;
+using Xunit;
+
+namespace FinMate.Tests.Unit.Application.Auth;
+
+/// <summary>Đồng ý điều khoản chung và đồng ý gửi tên món cho AI: ghi phiên bản + thời điểm, chỉ chấp nhận đúng phiên bản hiện hành.</summary>
+public class ConsentCommandHandlerTests
+{
+    private readonly Mock<IUserRepository> _users = new();
+    private readonly Mock<ICacheService> _cache = new();
+    private readonly ConsentCommandHandler _handler;
+    private readonly User _user = new() { Id = Guid.NewGuid(), Email = "a@finmate.local", DisplayName = "A" };
+
+    public ConsentCommandHandlerTests()
+    {
+        _users.Setup(r => r.GetByIdAsync(_user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
+        _handler = new ConsentCommandHandler(_users.Object, _cache.Object);
+    }
+
+    [Fact]
+    public void NewUser_HasAgreedToNothing()
+    {
+        _user.TermsAccepted.Should().BeFalse();
+        _user.AiConsentGranted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AcceptAi_RecordsVersionAndTime_AndLeavesTermsAlone()
+    {
+        var before = DateTimeOffset.UtcNow;
+
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
+
+        dto.AiConsentGranted.Should().BeTrue();
+        dto.TermsAccepted.Should().BeFalse();
+        _user.AiConsentVersion.Should().Be(ConsentVersions.Ai);
+        _user.AiConsentAt.Should().BeOnOrAfter(before);
+        _users.Verify(r => r.UpdateAsync(_user, It.IsAny<CancellationToken>()), Times.Once);
+        _cache.Verify(c => c.RemoveAsync(It.Is<string>(k => k.Contains(_user.Id.ToString())), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AcceptTerms_RecordsVersionAndTime_AndLeavesAiAlone()
+    {
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+
+        dto.TermsAccepted.Should().BeTrue();
+        dto.AiConsentGranted.Should().BeFalse();
+        _user.TermsVersion.Should().Be(ConsentVersions.Terms);
+        _user.TermsAcceptedAt.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(ConsentKind.Ai)]
+    [InlineData(ConsentKind.Terms)]
+    public async Task AcceptingAStaleVersion_IsRefused_AndNothingIsSaved(ConsentKind kind)
+    {
+        // app cũ hiển thị câu chữ cũ: không được "đồng ý" thay cho câu chữ mới
+        var act = () => _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, kind, 0));
+
+        (await act.Should().ThrowAsync<ConflictException>()).Which.ErrorCode.Should().Be(AuthErrorCodes.ConsentVersionOutdated);
+        _users.Verify(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void ConsentGivenToAnOlderVersion_NoLongerCounts()
+    {
+        _user.AiConsentVersion = ConsentVersions.Ai - 1;
+        _user.TermsVersion = ConsentVersions.Terms - 1;
+
+        _user.AiConsentGranted.Should().BeFalse();
+        _user.TermsAccepted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task WithdrawAi_ClearsOnlyTheAiConsent()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
+
+        var dto = await _handler.WithdrawAiAsync(_user.Id);
+
+        dto.AiConsentGranted.Should().BeFalse();
+        dto.TermsAccepted.Should().BeTrue();
+        _user.AiConsentVersion.Should().BeNull();
+        _user.AiConsentAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UnknownUser_IsNotFound()
+    {
+        var act = () => _handler.WithdrawAiAsync(Guid.NewGuid());
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+}

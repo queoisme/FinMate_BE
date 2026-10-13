@@ -28,16 +28,7 @@ public class GetUserProfileQueryHandler : IGetUserProfileQueryHandler
         var user = await _userRepository.GetByIdAsync(query.UserId, ct)
             ?? throw new NotFoundException("User", query.UserId);
 
-        var profile = new UserProfileDto(
-            user.Id,
-            user.Email,
-            user.DisplayName,
-            user.Role.ToString(),
-            user.MonthlyIncomeCents,
-            user.NotificationPrefs.PushEnabled,
-            user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled,
-            user.ShareReceiptItemsWithAi);
+        var profile = UserProfileDto.From(user);
 
         await _cacheService.SetAsync(cacheKey, profile, CacheKeys.UserProfileTtl, ct);
 

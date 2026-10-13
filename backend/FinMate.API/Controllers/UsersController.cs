@@ -14,15 +14,18 @@ public class UsersController : ControllerBase
 {
     private readonly IGetUserProfileQueryHandler _getProfileHandler;
     private readonly IUpdateUserProfileCommandHandler _updateProfileHandler;
+    private readonly IConsentCommandHandler _consentHandler;
     private readonly IUpdateNotificationPrefsCommandHandler _updateNotificationPrefsHandler;
 
     public UsersController(
         IGetUserProfileQueryHandler getProfileHandler,
         IUpdateUserProfileCommandHandler updateProfileHandler,
+        IConsentCommandHandler consentHandler,
         IUpdateNotificationPrefsCommandHandler updateNotificationPrefsHandler)
     {
         _getProfileHandler = getProfileHandler;
         _updateProfileHandler = updateProfileHandler;
+        _consentHandler = consentHandler;
         _updateNotificationPrefsHandler = updateNotificationPrefsHandler;
     }
 
@@ -39,8 +42,23 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequest request, CancellationToken ct)
     {
         var profile = await _updateProfileHandler.HandleAsync(
-            new UpdateUserProfileCommand(CurrentUserId, request.DisplayName, request.MonthlyIncomeCents, request.ShareReceiptItemsWithAi),
+            new UpdateUserProfileCommand(CurrentUserId, request.DisplayName, request.MonthlyIncomeCents),
             ct);
+        return Ok(ApiResponse<UserProfileDto>.Ok(profile));
+    }
+
+    /// <summary>Đồng ý một phiên bản câu chữ (điều khoản chung hoặc gửi tên món cho AI). 409 nếu app hiển thị bản khác bản hiện hành.</summary>
+    [HttpPost("me/consents")]
+    public async Task<IActionResult> AcceptConsent([FromBody] AcceptConsentRequest request, CancellationToken ct)
+    {
+        var profile = await _consentHandler.AcceptAsync(new AcceptConsentCommand(CurrentUserId, request.Kind, request.Version), ct);
+        return Ok(ApiResponse<UserProfileDto>.Ok(profile));
+    }
+
+    [HttpDelete("me/consents/ai")]
+    public async Task<IActionResult> WithdrawAiConsent(CancellationToken ct)
+    {
+        var profile = await _consentHandler.WithdrawAiAsync(CurrentUserId, ct);
         return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 
@@ -62,5 +80,6 @@ public class UsersController : ControllerBase
 /// <param name="MonthlyIncomeCents">
 /// Thu nhập hằng tháng dự kiến (docx Bước 1.3). Bỏ trống = giữ nguyên; gửi 0 để xoá.
 /// </param>
-public record UpdateProfileRequest(string DisplayName, long? MonthlyIncomeCents = null, bool? ShareReceiptItemsWithAi = null);
+public record UpdateProfileRequest(string DisplayName, long? MonthlyIncomeCents = null);
+public record AcceptConsentRequest(ConsentKind Kind, int Version);
 public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled, bool MissionRemindersEnabled);

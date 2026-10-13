@@ -1585,6 +1585,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<DateTimeOffset?>("AiConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ai_consent_at");
+
+                    b.Property<int?>("AiConsentVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("ai_consent_version");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1634,11 +1642,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("role");
 
-                    b.Property<bool>("ShareReceiptItemsWithAi")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("share_receipt_items_with_ai");
+                    b.Property<DateTimeOffset?>("TermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("terms_accepted_at");
+
+                    b.Property<int?>("TermsVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("terms_version");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

@@ -29,11 +29,20 @@ public class User
     /// </summary>
     public DateTimeOffset? EmailVerifiedAt { get; set; }
 
+    /// <summary>Phiên bản Điều khoản + Chính sách quyền riêng tư mà người dùng đã đồng ý, và lúc đồng ý. NULL = chưa đồng ý.</summary>
+    public int? TermsVersion { get; set; }
+    public DateTimeOffset? TermsAcceptedAt { get; set; }
+
     /// <summary>
-    /// Người dùng đồng ý gửi TÊN MÓN trên hoá đơn cho AI để phân loại. Mặc định false: không
-    /// có đồng ý rõ ràng thì không chia sẻ. Chỉ chính chủ đổi được, qua PATCH /users/me.
+    /// Phiên bản đồng ý gửi TÊN MÓN trên hoá đơn cho AI bên thứ ba, và lúc đồng ý. NULL = chưa đồng ý hoặc đã rút lại: không có
+    /// đồng ý rõ ràng thì không chia sẻ. Chỉ chính chủ đổi được, qua POST/DELETE /users/me/consents.
     /// </summary>
-    public bool ShareReceiptItemsWithAi { get; set; }
+    public int? AiConsentVersion { get; set; }
+    public DateTimeOffset? AiConsentAt { get; set; }
+
+    /// <summary>Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại.</summary>
+    public bool TermsAccepted => TermsVersion == ConsentVersions.Terms;
+    public bool AiConsentGranted => AiConsentVersion == ConsentVersions.Ai;
 
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }

@@ -50,15 +50,6 @@ public class RegisterCommandHandler : IRegisterCommandHandler
         await _userRepository.AddAsync(user, ct);
         await _auditLogService.LogAsync(AuditEvents.UserRegistered, user.Id, ct: ct);
 
-        return new UserProfileDto(
-            user.Id,
-            user.Email,
-            user.DisplayName,
-            user.Role.ToString(),
-            user.MonthlyIncomeCents,
-            user.NotificationPrefs.PushEnabled,
-            user.NotificationPrefs.BudgetAlertsEnabled,
-            user.NotificationPrefs.MissionRemindersEnabled,
-            user.ShareReceiptItemsWithAi);
+        return UserProfileDto.From(user);
     }
 }

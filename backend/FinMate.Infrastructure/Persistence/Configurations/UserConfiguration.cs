@@ -43,10 +43,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
-        builder.Property(u => u.ShareReceiptItemsWithAi)
-            .HasColumnName("share_receipt_items_with_ai")
-            .HasDefaultValue(false)
-            .IsRequired();
+        builder.Property(u => u.TermsVersion).HasColumnName("terms_version");
+        builder.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
+        builder.Property(u => u.AiConsentVersion).HasColumnName("ai_consent_version");
+        builder.Property(u => u.AiConsentAt).HasColumnName("ai_consent_at");
+        builder.Ignore(u => u.TermsAccepted);
+        builder.Ignore(u => u.AiConsentGranted);
         builder.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");
 
         builder.OwnsOne(u => u.NotificationPrefs, prefs =>

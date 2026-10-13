@@ -44,7 +44,7 @@ public class ScanReceiptSplitTests
             .Callback<Guid, IReadOnlyList<ReceiptScanItem>, CancellationToken>((id, items, _) => _savedItems.Add((id, items)))
             .Returns(Task.CompletedTask);
         _users.Setup(u => u.GetByIdAsync(_userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => new User { Id = _userId, ShareReceiptItemsWithAi = _consent });
+            .ReturnsAsync(() => new User { Id = _userId, AiConsentVersion = _consent ? ConsentVersions.Ai : null });
         _ai.Setup(a => a.ClassifyBillAsync(It.IsAny<BillClassifyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new BillClassifyResponse("food", "dining", 0.8, "brand"));
         OcrReturns(MixedBill());

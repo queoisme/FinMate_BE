@@ -393,6 +393,7 @@ public class Program
         builder.Services.AddScoped<IGetUserProfileQueryHandler, GetUserProfileQueryHandler>();
         builder.Services.AddScoped<IUpdateUserProfileCommandHandler, UpdateUserProfileCommandHandler>();
         builder.Services.AddScoped<IUpdateNotificationPrefsCommandHandler, UpdateNotificationPrefsCommandHandler>();
+        builder.Services.AddScoped<IConsentCommandHandler, ConsentCommandHandler>();
 
         builder.Services.AddScoped<IRegisterDeviceTokenCommandHandler, RegisterDeviceTokenCommandHandler>();
         builder.Services.AddScoped<IUnregisterDeviceTokenCommandHandler, UnregisterDeviceTokenCommandHandler>();

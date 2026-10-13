@@ -261,8 +261,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             return null;
         }
 
-        // Đọc thẳng từ DB mỗi lần quét: người dùng vừa tắt đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
-        var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.ShareReceiptItemsWithAi ?? false;
+        // Đọc thẳng từ DB mỗi lần quét: người dùng vừa rút đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
+        var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.AiConsentGranted ?? false;
 
         // Cùng giá trị như /bill/classify: tên OCR thô để nhận thương hiệu (tên hiển thị đã sửa có thể làm hỏng nhóm mặc định).
         var request = new ClassifyItemsRequest(
