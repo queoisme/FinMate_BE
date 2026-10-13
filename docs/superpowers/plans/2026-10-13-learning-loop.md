@@ -176,6 +176,30 @@
 
 ---
 
+## Lộ trình theo hai sơ đồ mục tiêu
+
+Hai sơ đồ bạn gửi ngày 13/10 (luồng hóa đơn và vòng học từ phản hồi) khớp với plan này như sau:
+
+| Sơ đồ | Bước | Task | Trạng thái |
+|---|---|---|---|
+| Vòng học | Người dùng xác nhận/sửa | có sẵn | xong |
+| Vòng học | Lưu dữ liệu đã xác nhận | 1, 2, 3, 4 | **Giai đoạn 1** |
+| Vòng học | Kiểm duyệt, bổ sung dataset | 5 (báo cáo) | **Giai đoạn 1** |
+| Vòng học | Retrain + Evaluate → triển khai | 6, 7, 8 | **Giai đoạn 2** |
+| Hóa đơn | ML Category Classifier | 6, 7 | Giai đoạn 2 (chờ đủ dữ liệu) |
+| Hóa đơn | Confidence & Conflict Checker | Giai đoạn 3 | chưa làm |
+| Hóa đơn | Số lượng, đơn giá từng món | Giai đoạn 3 | chưa làm |
+
+**Giai đoạn 1 (Task 1 đến 5): thu dữ liệu.** Tự nó đã đưa vào dùng được và là thứ có thời hạn: mỗi tuần chưa bật thu là mất một tuần dữ liệu. Làm trước và cho vài người thử bật cờ ngay sau khi xong. Task 5 cho biết khi nào đủ để sang giai đoạn 2.
+
+**Giai đoạn 2 (Task 6 đến 8): huấn luyện và phục vụ.** Chỉ bắt đầu khi `learning_report.py` báo `ready = true`. Nếu báo chưa đủ thì không làm, và việc đó không phải là sự cố.
+
+**Giai đoạn 3: bổ sung cho khớp sơ đồ hóa đơn, mỗi mục là một plan riêng.**
+1. *Điểm tin cậy từng món:* thay nhãn nguồn (`rule`, `cache`, `ai`...) bằng thêm một điểm số, để "Confidence & Conflict Checker" quyết định theo ngưỡng thay vì chỉ theo nguồn. Cần có model ở Task 7 trước vì chỉ model mới có xác suất.
+2. *Nhãn cấp món cho hóa đơn tách nhiều nhóm:* Task 3 cố ý bỏ qua hóa đơn tách nhóm. Sơ đồ phân loại từng dòng sản phẩm nên cuối cùng cần nhãn cấp món. Mở rộng `bill_training_samples` thêm một bảng món con.
+3. *Số lượng và đơn giá:* mở rộng `Item` ở `ocr-service/items.py` (hiện chỉ `name`, `amount`, `parent`, `is_discount`). Chạm vào `ocr-service` nên chờ phiên khác sửa xong `main.py`/`ocr.py`, và cần ví dụ hóa đơn thật có cột số lượng.
+4. *Chat dùng bộ nhớ riêng của người dùng:* hiện `_with_cached_categories` chỉ tra bảng chung `bill_item_cache`.
+
 ## Ngoài phạm vi (cố ý)
 
 - **Rasa học từ chat:** cần quyết định riêng về lưu câu chat (câu chat chưa qua bộ lọc dữ liệu cá nhân như hóa đơn) và nhãn ý định. Làm kế hoạch riêng sau khi vòng hóa đơn chạy.
