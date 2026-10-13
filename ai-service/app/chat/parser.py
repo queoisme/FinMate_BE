@@ -37,7 +37,7 @@ _PERIODS = (("hom nay", "hôm nay"), ("hom qua", "hôm qua"), ("tuan nay", "tu�
             ("thang truoc", "tháng trước"), ("thang nay", "tháng này"))
 
 # Dấu hiệu loại giao dịch. Các từ dễ nhầm khi bỏ dấu ("thưởng" / "thường") được khớp trên câu CÓ dấu.
-_INCOME_ACCENTED = re.compile(r"nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:mẹ|bố|ba|cô|chú|dì|bác|anh|em|sếp|khách) (?:cho|gửi|tặng|trả|biếu)|lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm|khách trả|bán (?:được|đồ|xe|điện thoại|hàng)")
+_INCOME_ACCENTED = re.compile(r"nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:mẹ|bố|ba|cô|chú|dì|bác|anh|em|sếp|khách)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm|khách trả|bán (?:được|đồ|xe|điện thoại|hàng)")
 _INCOME_PLAIN = re.compile(r"(?<![a-z])(?:nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|khach tra|ban duoc|ban do|ban xe|freelance)(?![a-z])")
 _RECEIVED = re.compile(r"nhan (?:luong|tien|thuong)|duoc (?:cho|tang)")  # chắc chắn là tiền vào dù câu có chữ "chuyển"
 _NOT_INCOME = re.compile(r"(?<![a-z])(?:tra|phat|ung) (?:luong|cong|thuong)(?![a-z])")  # "trả lương nhân viên" là tiền ra

@@ -33,7 +33,7 @@ CHAT_KEYWORDS = {
     # thu nhập (loại chung "other_income" không có từ khóa: chỉ chọn bằng nút/tên loại, không đoán từ các từ chung như "thu nhập", "nhận được")
     "salary": ("luong", "nhan luong", "luong ve", "co luong", "luong thang"),
     "bonus": ("thuong", "tien thuong", "thuong tet", "hoa hong", "bonus"),
-    "gift": ("duoc cho", "duoc tang", "me cho", "bo cho", "ba cho", "me gui", "bo gui", "ba gui", "li xi", "mung tuoi", "qua tang", "bieu"),
+    "gift": ("duoc cho", "duoc tang", "me cho", "bo cho", "ba cho", "me toi cho", "bo toi cho", "ba toi cho", "me minh cho", "bo minh cho", "me gui", "bo gui", "ba gui", "li xi", "mung tuoi", "qua tang", "bieu"),
     "side_income": ("ban do", "ban xe", "ban duoc", "ban hang", "freelance", "lam them", "khach tra", "tien cong"),
     "refund": ("hoan tien", "tien hoan", "duoc hoan", "cashback"),
 }

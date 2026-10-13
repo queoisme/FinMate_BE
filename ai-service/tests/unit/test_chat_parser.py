@@ -386,3 +386,27 @@ def test_people_and_places_are_not_reported_as_missing_items(text):
 @pytest.mark.parametrize(("text", "amount"), [("mua nhà ba triệu rưỡi", 3_500_000), ("mua cơm hai trăm nghìn rưỡi", 200_500), ("mua áo hai triệu rưỡi", 2_500_000), ("mua áo triệu rưỡi", 1_500_000)])
 def test_half_after_a_spoken_number_keeps_the_number(text, amount):
     assert parse_amount(text).value == amount
+
+
+# ---- "cho" (đưa) không phải "chợ": bỏ dấu làm hai từ trùng nhau và mọi câu có chữ "cho" bị xếp vào Ăn uống
+@pytest.mark.parametrize("text", ["mẹ tôi cho ba triệu", "mẹ cho tôi 3 triệu", "bố tôi cho 500k"])
+def test_money_given_to_the_user_is_income_even_without_rasa(text):
+    parsed = parse(text)
+    assert parsed.intent == "add_income"
+    assert (parsed.entry.kind, parsed.entry.income_type) == ("income", "gift")
+
+
+def test_money_given_to_the_user_is_income_when_rasa_agrees():
+    assert parse("mẹ tôi cho ba triệu", nlu("add_income", 1.0)).entry.kind == "income"
+
+
+@pytest.mark.parametrize("text", ["cho mẹ 500k", "cho bạn vay 200k", "tôi cho em 100k"])
+def test_giving_money_away_is_not_food(text):
+    entry = parse(text).entry
+    assert entry.category is None
+    assert entry.auto_save_ok is False
+
+
+@pytest.mark.parametrize("text", ["đi chợ 150k", "chợ 150k", "ra chợ mua rau 80k", "di cho 150k"])
+def test_the_market_is_still_food(text):
+    assert parse(text).entry.category == "food"

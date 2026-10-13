@@ -31,6 +31,10 @@ _VALID = frozenset(CATEGORY_SLUGS) - {"income"}
 # "khác" trong từ vựng chat là TÊN danh mục "Khác", không phải tên một mặt hàng: "hàng khác" phải là chưa rõ.
 _NOT_ITEM_WORDS = frozenset({"khac"})
 
+# Từ khóa chỉ được nhận khi câu gốc viết ĐÚNG dấu: bỏ dấu thì "chợ" (đi chợ) trùng "cho" (đưa) và mọi câu có chữ "cho" thành Ăn uống
+# ("mẹ tôi cho ba triệu", "cho mẹ 500k"). Gõ không dấu thì vẫn có "đi cho"/"di cho" trong từ vựng.
+_NEEDS_ACCENT = {"cho": "chợ"}
+
 _TOKEN = re.compile(r"[a-z]+|\d+")  # "bo200g" -> bo, 200, g: chữ dính số vẫn khớp
 
 _FUZZY_MIN_KEYWORD = 7  # từ khóa ngắn hơn thì một chữ sai đã là một từ khác ("sua"/"sau")
@@ -165,6 +169,7 @@ def resolve(text: str, *, chat: bool = False) -> Resolution:
     norm = _prepare(text or "")
     if not norm:
         return _NONE
+    original = unicodedata.normalize("NFC", text).lower()
     index, max_words, chat_only = _get_state()  # MỘT bản chụp: invalidate() chạy xen giữa không làm max_words về mặc định
     words = _tokens(norm)
     best: tuple[int, int, str] | None = None  # (độ dài từ khóa, -ưu tiên, slug)
@@ -172,7 +177,8 @@ def resolve(text: str, *, chat: bool = False) -> Resolution:
         for start in range(len(words) - n + 1):
             key = " ".join(words[start : start + n])
             slug = index.get(key)
-            if slug and (chat or key not in chat_only):
+            accent = _NEEDS_ACCENT.get(key)
+            if slug and (chat or key not in chat_only) and (accent is None or accent in original):
                 candidate = (len(key), -_PRIORITY[slug], slug)
                 if best is None or candidate > best:
                     best = candidate
