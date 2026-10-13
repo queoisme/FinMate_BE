@@ -9,7 +9,7 @@ def fold(text: str) -> str:
     return "".join(c for c in text if unicodedata.category(c) != "Mn").lower()
 
 
-_WORD_ALIAS = {"uoi": "muoi", "tra": "tram"}  # OCR bỏ dấu và rớt chữ: "mươi" -> "uoi", "trăm" -> "tra" (chỉ có hiệu lực trong đoạn đọc số)
+_WORD_ALIAS = {"uoi": "muoi", "tra": "tram", "nghn": "nghin"}  # OCR bỏ dấu và rớt chữ: "mươi" -> "uoi", "trăm" -> "tra" (chỉ có hiệu lực trong đoạn đọc số)
 _DIGITS = {"mot": 1, "hai": 2, "ba": 3, "bon": 4, "tu": 4, "nam": 5, "lam": 5, "sau": 6, "bay": 7, "tam": 8, "chin": 9}
 _ZERO_WORDS = {"khong", "linh", "le"}
 _NUMBER_WORDS = set(_DIGITS) | _ZERO_WORDS | {"muoi", "moi", "tram", "nghin", "ngan", "trieu"}
@@ -22,11 +22,15 @@ def words_to_amount(text: str) -> int | None:
     if start is None:
         return None
     millions = thousands = cur = pending = n = 0
+    last_digit = False
     for w in words[start:]:
         w = _WORD_ALIAS.get(w, w)
+        was_digit, last_digit = last_digit, w in _DIGITS
         if w in ("dong", "d"):
             break
         if w in _DIGITS:
+            if was_digit and pending >= 2:  # nói tắt hàng chục: "hai lăm" = 25, "ba mốt" = 31
+                cur, pending = cur + pending * 10, 0
             pending = _DIGITS[w]
         elif w in _ZERO_WORDS:
             continue

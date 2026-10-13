@@ -305,3 +305,29 @@ def test_category_source_is_none_when_nothing_decides():
 def test_a_skipped_clause_blocks_auto_save():
     # "ăn phở 40k và cà phê": người dùng nói hai thứ nhưng chỉ có một số tiền; không được ghi ngay một khoản có thể thiếu
     assert parse("ăn phở 40k và cà phê").entry.auto_save_ok is False
+
+
+# ---- cách nói đời thường mà giọng nói hay trả ra: "hai lăm ngàn" = 25.000, "ngàn" = "nghìn", "ba mốt nghìn" = 31.000
+@pytest.mark.parametrize(
+    ("text", "amount"),
+    [
+        ("mua cơm hai lăm ngàn", 25_000),
+        ("mua cơm hai lăm nghìn", 25_000),
+        ("mua cơm bốn lăm ngàn", 45_000),
+        ("mua cơm ba mốt nghìn", 31_000),
+        ("mua cơm bốn mươi ngàn", 40_000),
+        ("mua cơm ba ngàn", 3_000),
+        ("mua cơm hai mươi lăm nghìn", 25_000),  # cách nói đầy đủ không đổi
+    ],
+)
+def test_colloquial_spoken_amounts(text, amount):
+    assert parse_amount(text).value == amount
+
+
+@pytest.mark.parametrize("text", ["rút tiền ở ngân hàng", "hôm nay ba bốn người ăn cơm"])
+def test_words_that_only_look_like_amounts_are_not_money(text):
+    assert parse_amount(text) is None
+
+
+def test_digits_still_win_over_number_words_in_the_same_sentence():
+    assert parse_amount("hai ba người ăn cơm 50k").value == 50_000
