@@ -14,10 +14,11 @@
 
 - Ảnh và âm thanh KHÔNG bao giờ được lưu hay gửi để học. Chỉ chữ đã lọc dữ liệu cá nhân của ocr-service.
 - Đồng ý thu dữ liệu huấn luyện là cờ RIÊNG `ContributeDataForTraining`, mặc định `false`. Không dùng lại `ShareReceiptItemsWithAi` (cờ đó chỉ cho phép gửi tên món cho Gemini).
+- **Gemini (Google) là bên thứ ba và KHÔNG phải nguồn nhãn.** Câu trả lời của Gemini (và bảng `bill_item_cache` lưu nó) chỉ là dự đoán, không bao giờ được ghi vào `final_slug`; nhãn huấn luyện chỉ đến từ người dùng xác nhận hoặc sửa. Việc gửi tên món cho Gemini vẫn do cờ cũ `ShareReceiptItemsWithAi` quyết; mẫu huấn luyện của kế hoạch này là đường hoàn toàn riêng, không đi qua Gemini và không gửi gì thêm cho Gemini.
 - Log không bao giờ ghi chữ hóa đơn, tên cửa hàng, số tiền hay danh mục (AGENTS.md §3.2).
 - Người dùng ai-service luôn là `user_id_hash` (SHA-256), không phải userId.
 - Nhãn hợp lệ là một trong `CATEGORY_SLUGS` của ai-service trừ `income` (11 slug backend: food, transport, shopping, education, housing, bills, entertainment, health, family, other + bỏ income).
-- Model không bao giờ tự phục vụ: `train` → `candidate`; chỉ lệnh `promote` mới đổi sang `active`. Cổng tối thiểu: ≥300 mẫu có nhãn, ≥30 cửa hàng khác nhau, ≥3 danh mục mỗi danh mục ≥20 mẫu, CV nhóm theo cửa hàng ≥0,85 và hơn độ chính xác của luật hiện tại trên cùng mẫu.
+- Model không bao giờ tự phục vụ: `train` → `candidate`; chỉ lệnh `promote` mới đổi sang `active`. Cổng tối thiểu: ≥300 mẫu có nhãn, ≥30 cửa hàng khác nhau, ≥3 danh mục mỗi danh mục ≥20 mẫu, CV nhóm theo cửa hàng ≥0,85 và hơn độ chính xác của luật hiện tại trên cùng mẫu (luật + bộ nhớ, KHÔNG tính Gemini vì không phải lúc nào cũng được phép gọi).
 - Mọi commit kết thúc bằng `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Không push, không merge.
 
 ## Review Focus
@@ -119,9 +120,9 @@
 
 **Interfaces:**
 - Consumes: Task 2 bảng `bill_training_samples`.
-- Produces: `async def build_report(session) -> LearningReport` với `labeled`, `pending`, `merchants` (khác nhau), `per_slug: dict[str, int]`, `rule_accuracy: float | None` (luật hiện tại `classify_category_detailed` + `resolve` đổi sang slug, chấm trên các mẫu có nhãn), `ready: bool` (đủ ngưỡng Global Constraints), `missing: list[str]` (vd. "cần thêm 120 mẫu"). CLI in bảng tiếng Việt.
+- Produces: `async def build_report(session) -> LearningReport` với `labeled`, `pending`, `merchants` (khác nhau), `per_slug: dict[str, int]`, `rule_accuracy: float | None` (luật hiện tại `classify_category_detailed` + `resolve` đổi sang slug, chấm trên các mẫu có nhãn), `accuracy_by_source: dict[str, tuple[int, float]]` (với mỗi `predicted_source` như `memory`, `brand`, `keyword`, `rule`, `cache`, `ai`: số mẫu có nhãn và tỉ lệ dự đoán trùng nhãn người dùng; đây là số đo độ đúng THẬT của Gemini và của bộ nhớ so với người dùng), `ready: bool` (đủ ngưỡng Global Constraints), `missing: list[str]` (vd. "cần thêm 120 mẫu"). CLI in bảng tiếng Việt.
 
-- [ ] **Step 1: Viết test (RED)**: `report_counts_labeled_and_pending`, `ready_false_below_thresholds_lists_what_is_missing`, `ready_true_when_all_thresholds_met`, `rule_accuracy_none_without_labels`, `rule_accuracy_matches_hand_computed`.
+- [ ] **Step 1: Viết test (RED)**: `report_counts_labeled_and_pending`, `ready_false_below_thresholds_lists_what_is_missing`, `ready_true_when_all_thresholds_met`, `rule_accuracy_none_without_labels`, `rule_accuracy_matches_hand_computed`, `accuracy_by_source_separates_ai_from_rules` (hai nguồn có tỉ lệ đúng khác nhau thì báo riêng, nguồn không có mẫu thì không xuất hiện).
 - [ ] **Step 2: Chạy** `pytest tests/unit/test_learning_report.py -q`. Expected: FAIL.
 - [ ] **Step 3: Implement** `build_report` và CLI `python scripts/learning_report.py`.
 - [ ] **Step 4: Chạy** test Step 2. Expected: PASS.
@@ -195,16 +196,19 @@ Hai sơ đồ bạn gửi ngày 13/10 (luồng hóa đơn và vòng học từ p
 **Giai đoạn 2 (Task 6 đến 8): huấn luyện và phục vụ.** Chỉ bắt đầu khi `learning_report.py` báo `ready = true`. Nếu báo chưa đủ thì không làm, và việc đó không phải là sự cố.
 
 **Giai đoạn 3: bổ sung cho khớp sơ đồ hóa đơn, mỗi mục là một plan riêng.**
+0. *Kiểm toán Gemini:* dùng `accuracy_by_source` của Task 5 để quyết định có đáng trả tiền và gửi dữ liệu ra ngoài không. Nếu `ai` đúng thấp hơn model hoặc luật ở cùng loại món thì giảm dùng Gemini; nếu cao hơn thì giữ làm tầng cuối.
 1. *Điểm tin cậy từng món:* thay nhãn nguồn (`rule`, `cache`, `ai`...) bằng thêm một điểm số, để "Confidence & Conflict Checker" quyết định theo ngưỡng thay vì chỉ theo nguồn. Cần có model ở Task 7 trước vì chỉ model mới có xác suất.
 2. *Nhãn cấp món cho hóa đơn tách nhiều nhóm:* Task 3 cố ý bỏ qua hóa đơn tách nhóm. Sơ đồ phân loại từng dòng sản phẩm nên cuối cùng cần nhãn cấp món. Mở rộng `bill_training_samples` thêm một bảng món con.
 3. *Số lượng và đơn giá:* mở rộng `Item` ở `ocr-service/items.py` (hiện chỉ `name`, `amount`, `parent`, `is_discount`). Chạm vào `ocr-service` nên chờ phiên khác sửa xong `main.py`/`ocr.py`, và cần ví dụ hóa đơn thật có cột số lượng.
 4. *Chat dùng bộ nhớ riêng của người dùng:* hiện `_with_cached_categories` chỉ tra bảng chung `bill_item_cache`.
+5. *Người dùng sửa thì đè bộ nhớ tên món:* `bill_item_cache` hiện là "câu trả lời đầu tiên thắng", nên một đáp án sai của Gemini sống mãi và lan sang mọi người dùng. Cần đường sửa từ nhãn người dùng (và đếm phiếu giữa nhiều người) trước khi tin cậy nó. Đây là rủi ro chất lượng thật nhất của việc có Gemini trong vòng lặp.
 
 ## Ngoài phạm vi (cố ý)
 
 - **Rasa học từ chat:** cần quyết định riêng về lưu câu chat (câu chat chưa qua bộ lọc dữ liệu cá nhân như hóa đơn) và nhãn ý định. Làm kế hoạch riêng sau khi vòng hóa đơn chạy.
 - **STT học từ giọng người dùng:** lưu âm thanh nặng về quyền riêng tư; không làm.
 - **Nhãn cấp món cho hóa đơn tách nhiều nhóm và danh sách đơn:** phiên bản này bỏ qua (Task 3). Mở rộng sau khi có dữ liệu cả hóa đơn.
+- **Huấn luyện ngược từ đáp án của Gemini (chưng cất):** không làm. Đáp án Gemini chưa được người dùng xác nhận nên huấn luyện trên đó chỉ nhân bản lỗi của nó.
 - **Gửi `share_data` sang ocr-service / dùng `/merchant-category` / dataset JSONL cũ:** không dùng; kế hoạch này không đụng `ocr-service`.
 - **Bảng `user_feedback` cho khoản từ hóa đơn/chat:** không cần; nhãn nằm ở `bill_training_samples`.
 
