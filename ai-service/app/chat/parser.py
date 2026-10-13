@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
-from app.chat.clauses import apply_cancellations, extract_total, split_amountless, split_clauses
+from app.chat.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses
 from app.chat.dates import VN, parse_when, remove_when
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.category_resolver import resolve
@@ -338,6 +338,7 @@ def parse_chat(
         text, cancelled = apply_cancellations(text)  # "rồi hủy", "nhầm, là 35k": áp trước khi tách khoản
         if cancelled and not parse_amount(text):
             return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")
+        suspicious = has_unresolved_cancel(text)  # còn chữ hủy/nhầm không áp được: không tự ghi
         text, stated_total = extract_total(text)  # "... tổng cộng 60k": số đối chiếu, không phải một khoản
         text, skipped = split_amountless(text)
         clauses = split_clauses(text)
@@ -353,7 +354,7 @@ def parse_chat(
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
-        if skipped:  # người dùng nói thêm một thứ không có số tiền: không ghi ngay
+        if skipped or suspicious or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
             entry = replace(entry, auto_save_ok=False)
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":

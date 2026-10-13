@@ -336,3 +336,53 @@ def test_digits_still_win_over_number_words_in_the_same_sentence():
 @pytest.mark.parametrize("text", ["rồi mua cơm hai lăm ngàn", "và mua cơm hai lăm ngàn", "còn mua cơm 25k"])
 def test_leading_connector_is_not_part_of_the_description(text):
     assert parse(text).entry.description == "mua cơm"
+
+
+# ---- đợt sửa sau review: mọi tín hiệu "có thể sai" đều chặn tự ghi
+def test_a_mismatched_total_blocks_auto_save():
+    for text in ["ăn trưa 50k, mời sếp tổng 200k", "ăn phở 40k tổng cộng 45k"]:
+        parsed = parse(text)
+        assert parsed.entry.auto_save_ok is False, text
+
+
+def test_boss_title_is_not_a_total_label():
+    parsed = parse("ăn trưa 50k, mời sếp tổng 200k")
+    assert parsed.total_amount is None
+    assert [e.amount for e in parsed.entries] == [50_000, 200_000]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "mua cà phê 30k. Hủy",
+        "mua cà phê 30k, à thôi hủy đi",
+        "mua cà phê 30k, thôi khỏi",
+        "mua cà phê 30k, rồi hủy",
+        "mua cà phê 30k nhưng hủy rồi",
+        "ăn cơm 20k, 2 người, hủy",
+    ],
+)
+def test_more_ways_of_cancelling_never_auto_save(text):
+    parsed = parse(text)
+    assert not any(e.auto_save_ok for e in parsed.entries), text
+
+
+def test_cancel_after_a_side_note_drops_the_item_not_the_note():
+    assert parse("ăn cơm 20k, 2 người, hủy").entries == ()
+
+
+def test_amountless_clause_after_a_comma_is_reported_too():
+    parsed = parse("ăn phở 40k, cà phê")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(40_000, "ăn phở")]
+    assert parsed.skipped == ("cà phê",)
+    assert parsed.entry.auto_save_ok is False
+
+
+@pytest.mark.parametrize("text", ["chuyển khoản 500k cho mẹ và em", "ăn trưa 50k với Lan và Hoa", "ăn phở 40k rồi về nhà"])
+def test_people_and_places_are_not_reported_as_missing_items(text):
+    assert parse(text).skipped == ()
+
+
+@pytest.mark.parametrize(("text", "amount"), [("mua nhà ba triệu rưỡi", 3_500_000), ("mua cơm hai trăm nghìn rưỡi", 200_500), ("mua áo hai triệu rưỡi", 2_500_000), ("mua áo triệu rưỡi", 1_500_000)])
+def test_half_after_a_spoken_number_keeps_the_number(text, amount):
+    assert parse_amount(text).value == amount

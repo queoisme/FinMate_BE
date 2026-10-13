@@ -44,6 +44,9 @@ def _slang(norm: str) -> list[AmountMatch]:
                 end = frac.end()
         found.append(AmountMatch(round(value), m.start(), end))
     for m in re.finditer(r"(?<![a-z])(?P<u>cu|lit|trieu|nghin)\s+ruoi(?![a-z])", norm):  # "củ rưỡi", "lít rưỡi" không có số đứng trước
+        before = norm[:m.start()].split()
+        if before and (before[-1] in _NUMBER_WORDS or before[-1].isdigit()):
+            continue  # "ba triệu rưỡi": số đứng trước, để đường đọc bằng chữ tính (3.500.000), không phải 1,5 triệu
         if not any(f.start <= m.start() < f.end for f in found):
             found.append(AmountMatch(round(1.5 * UNITS[m.group("u")]), m.start(), m.end()))
     return found
