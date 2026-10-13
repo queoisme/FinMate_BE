@@ -9,6 +9,6 @@ public static class ConsentVersions
     /// <summary>Điều khoản sử dụng + Chính sách quyền riêng tư.</summary>
     public const int Terms = 1;
 
-    /// <summary>Gửi TÊN MÓN trên hoá đơn cho dịch vụ AI bên thứ ba (Google Gemini) để phân loại.</summary>
-    public const int Ai = 1;
+    /// <summary>Gửi TÊN MÓN trên hoá đơn cho dịch vụ AI bên thứ ba (Google Gemini; dự phòng OpenRouter) để phân loại. Bản 2: thêm OpenRouter.</summary>
+    public const int Ai = 2;
 }
