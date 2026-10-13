@@ -196,6 +196,10 @@ def is_question(text: str, norm: str) -> bool:
     return text.rstrip().endswith("?") or norm.endswith(" khong") or bool(re.match(r"(?:co nen|nen|lieu|co phai) ", norm))
 
 
+# "cho mẹ 500k", "tôi cho em 100k": tiền đi ra. Rasa hay lẫn với "mẹ cho" (tiền vào) nên luật giữ quyền khi câu không có dấu hiệu tiền vào.
+_GIVING_AWAY = re.compile(r"(?<![a-z])cho\s+(?:me|bo|ba|ong|co|chu|di|bac|anh|chi|em|ban|con|vo|chong)(?![a-z])")
+
+
 def _rule_intent(text: str, norm: str) -> str:
     if parse_amount(text):
         return {"expense": "add_expense", "income": "add_income", "transfer": "transfer_money"}[detect_kind(text)]
@@ -218,6 +222,8 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
     name = nlu["intent"]
     if name == "out_of_scope" and rule in _ENTRY_INTENTS and nlu["confidence"] < OUT_OF_SCOPE_OVERRIDE:
         return rule  # câu có số tiền mà Rasa chỉ hơi nghiêng về ngoài chủ đề: ưu tiên ghi, người dùng còn được xác nhận
+    if name == "add_income" and rule == "add_expense" and _GIVING_AWAY.search(norm):
+        return rule
     if name in ("add_income", "transfer_money") and rule == "add_expense" and expense_category(norm):
         return rule  # Rasa hay quá tự tin với từ lạ ("cắt kính cận 800k" -> thu nhập 1.0): không có dấu hiệu thu/chuyển mà có từ khóa chi tiêu rõ thì là chi tiêu
     if name in _ENTRY_INTENTS and rule in _ENTRY_INTENTS and name != rule and nlu["confidence"] < KIND_TRUST:

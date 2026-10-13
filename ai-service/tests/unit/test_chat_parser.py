@@ -410,3 +410,10 @@ def test_giving_money_away_is_not_food(text):
 @pytest.mark.parametrize("text", ["đi chợ 150k", "chợ 150k", "ra chợ mua rau 80k", "di cho 150k"])
 def test_the_market_is_still_food(text):
     assert parse(text).entry.category == "food"
+
+
+@pytest.mark.parametrize("text", ["cho mẹ 500k", "tôi cho em 100k", "cho bạn vay 200k"])
+def test_giving_money_away_stays_an_expense_even_when_rasa_says_income(text):
+    # Rasa v5 trả add_income 1.0 cho "cho mẹ 500k" (lẫn với "mẹ cho"): tiền đi ra
+    parsed = parse(text, nlu("add_income", 1.0))
+    assert (parsed.intent, parsed.entry.kind) == ("add_expense", "expense")
