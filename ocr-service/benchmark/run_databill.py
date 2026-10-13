@@ -23,6 +23,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import ai_refine                                        # noqa: E402
 import ocr                                              # noqa: E402
+from totals import choose_total                          # noqa: E402
 from items import payable_total                          # noqa: E402
 from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, _alnum, _norm, analyze, receipt_score  # noqa: E402
 from merchant_name import format_merchant_name          # noqa: E402
@@ -55,7 +56,9 @@ def process(path: Path, use_ai: bool = False) -> dict:
     score = receipt_score([t for t, _ in lines])
     if score < MIN_RECEIPT_SCORE:
         return {"rejected": "not_a_receipt", "score": score, "sec": time.time() - t0}
-    r = analyze(lines, forced_total=payable_total(boxes))  # như main.analyze_bill: tổng đọc theo hàng đáng tin hơn luật theo thứ tự dòng
+    total, verified = choose_total(boxes, fallback=payable_total(boxes))  # như main.analyze_bill
+    r = analyze(lines, forced_total=total)
+    r["total_verified"] = verified
     r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE
     if use_ai:  # giống main.py: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), chỉ khi lượt quét còn lưỡng lự
         display = lambda m: (format_merchant_name(m) or m) if m else None  # noqa: E731
@@ -72,13 +75,13 @@ def main() -> None:
         r = process(DATA / name, use_ai)
         if "rejected" in r:
             row = dict(name=name, kind=exp["kind"], total_ok=False, merchant_ok=False, cat_ok=False, review=True,
-                       got_total=None, got_merchant=None, got_cat=None, sec=r["sec"], rejected=r["rejected"])
+                       got_total=None, got_merchant=None, got_cat=None, sec=r["sec"], rejected=r["rejected"], verified=False)
         else:
             row = dict(name=name, kind=exp["kind"], total_ok=r["total_amount"] == exp["total"],
                        merchant_ok=merchant_ok(exp["merchant"], r["display"]),
                        cat_ok=r["category"] == exp["category"], review=bool(r["needs_review"]),
                        got_total=r["total_amount"], got_merchant=r["display"] or None, got_cat=r["category"],
-                       sec=r["sec"], src=r["category_source"], ai=r.get("ai_status"))
+                       sec=r["sec"], src=r["category_source"], ai=r.get("ai_status"), verified=bool(r.get("total_verified")))
         row["all_ok"] = row["total_ok"] and row["merchant_ok"] and row["cat_ok"]
         row["silent"] = (not row["all_ok"]) and not row["review"]
         rows.append(row)
@@ -96,6 +99,9 @@ def main() -> None:
     print(f"đúng cả ba        : {pct('all_ok')}")
     print(f"LỖI ÂM THẦM       : {pct('silent')}   <- sai mà app không nhắc kiểm tra")
     print(f"nhắc kiểm tra     : {pct('review')}  (trong đó nhắc dù đúng cả ba: {sum(r['all_ok'] and r['review'] for r in rows)})")
+    ver = [r for r in rows if r["verified"]]
+    unver = [r for r in rows if not r["verified"]]
+    print(f"tổng ĐÃ kiểm chứng bằng số học: {len(ver)}/{n}, trong đó đúng {sum(r['total_ok'] for r in ver)}; CHƯA kiểm chứng: {len(unver)}, trong đó đúng {sum(r['total_ok'] for r in unver)}")
     print(f"thời gian TB      : {sum(r['sec'] for r in rows)/n:.1f} giây/ảnh")
     if use_ai:
         st = [r.get("ai") for r in rows]

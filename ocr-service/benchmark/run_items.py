@@ -67,6 +67,7 @@ def process(path: Path) -> dict:
     import main
     from extract import analyze
     from items import payable_total
+    from totals import choose_total
     from ocr import NoTextError, read_boxes
 
     try:
@@ -75,7 +76,8 @@ def process(path: Path) -> dict:
         return {"total": None, "items": [], "ok": False, "screen": False}
     lines = [(b.text, b.conf) for b in boxes]
     screen = bool(app_screens.parse([t for t, _ in lines]))
-    total = analyze(lines, forced_total=None if screen else payable_total(boxes))["total_amount"]  # như main.analyze_bill
+    forced = None if screen else choose_total(boxes, fallback=payable_total(boxes))[0]  # như main.analyze_bill
+    total = analyze(lines, forced_total=forced)["total_amount"]
     items, ok = ([], False) if screen else main._bill_items(boxes, total)
     return {"total": total, "items": items, "ok": ok, "screen": screen}
 

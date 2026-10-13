@@ -26,6 +26,7 @@ from knowledge_pg import open_knowledge
 from merchant_name import format_merchant_name
 import ocr
 from items import extract_items, payable_total
+from totals import choose_total
 from ocr import NoTextError, read_boxes
 from quality import image_quality
 from storage_pg import current_user, open_stores
@@ -195,13 +196,16 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
         screen = app_screens.parse(texts)  # ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn)
         if score < MIN_RECEIPT_SCORE and not screen:
             return _not_a_receipt("Ảnh này không giống hóa đơn. Hãy chụp hoặc chọn ảnh hóa đơn rõ chữ.")
+        # tổng chọn bằng ràng buộc số học (tạm tính + thuế - giảm giá, tiền khách đưa - tiền thối, cộng các món); chưa kiểm chứng được thì dùng cách đọc theo nhãn
+        total_choice = (None, False) if screen else choose_total(boxes, fallback=payable_total(boxes))
         result = analyze(
             lines,
             lookup=lambda m: memory.get(m),
             predict=category_model.predict if category_model else None,
             find_known=memory.find_in_lines,
-            forced_total=None if screen else payable_total(boxes),  # tổng đọc theo HÀNG (nhãn + số cùng hàng) đáng tin hơn luật theo thứ tự dòng
+            forced_total=total_choice[0],
         )
+        result["total_verified"] = total_choice[1]
         # tên đẹp người dùng đã chốt cho cửa hàng này > tên tự làm sạch từ chữ OCR
         display = lambda m: (memory.display_name(m) or format_merchant_name(m) or m) if m else None  # noqa: E731
         if screen:
