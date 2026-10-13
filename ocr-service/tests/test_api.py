@@ -492,3 +492,49 @@ def test_screen_bill_returns_no_items(monkeypatch):
     monkeypatch.setattr(main, "read_boxes", boxes_patch(lambda _: [(t, 0.95) for t in RIDE]))
     body = _post(_png_bytes()).json()
     assert body["items"] == [] and body["items_ok"] is False, body
+
+
+def _layout(*rows):
+    """Hộp chữ có tọa độ: mỗi hàng là danh sách (chữ, x0, x1); hàng thứ i cao 30px tại y = i * 45."""
+    from ocr import OcrBox
+    return [OcrBox(t, 0.95, x0, i * 45, x1, i * 45 + 30) for i, row in enumerate(rows) for t, x0, x1 in row]
+
+
+def test_total_is_the_amount_on_the_payable_row_even_when_the_line_above_is_a_number(monkeypatch):
+    # ảnh thật (bill Nhà Bếp Quê): dòng ngay trước "Tổng thanh toán" là số thuế; luật đọc theo thứ tự dòng từng lấy nhầm thuế làm tổng
+    boxes = _layout(
+        [("QUAN COM NHA BEP QUE", 300, 700)], [("HOA DON BAN LE", 300, 700)],
+        [("Com suon nuong", 50, 300), ("2", 500, 520), ("45.000", 600, 700), ("90.000", 800, 950)],
+        [("Canh chua ca", 50, 300), ("1", 500, 520), ("35.000", 600, 700), ("35.000", 800, 950)],
+        [("Tong tien hang (2 mon):", 50, 450), ("125.000", 800, 950)],
+        [("Thue GTGT (8%):", 50, 400), ("10.000", 820, 950)],
+        [("Tong thanh toan:", 50, 450), ("135.000", 780, 950)],
+        [("Tien khach dua:", 50, 400), ("200.000", 780, 950)],
+        [("Tien thoi lai:", 50, 400), ("65.000", 800, 950)],
+        [("Cam on quy khach", 300, 700)],
+    )
+    monkeypatch.setattr(main, "read_boxes", lambda _data: boxes)
+
+    r = _post(_png_bytes())
+
+    assert r.status_code == 200
+    assert r.json()["total_amount"] == 135000
+
+
+def test_items_that_do_not_add_up_to_the_total_ask_for_review(monkeypatch):
+    # bảng món đọc được (2 món = 125.000) nhưng tổng ở nhãn là 150.000: lệch mà không có dòng thuế/phí nào giải thích -> nhắc kiểm tra
+    boxes = _layout(
+        [("QUAN COM NHA BEP QUE", 300, 700)], [("HOA DON BAN LE", 300, 700)],
+        [("STT", 50, 100), ("Ten hang", 150, 400), ("SL", 560, 600), ("Don gia", 650, 750), ("Thanh tien", 800, 950)],
+        [("1", 50, 70), ("Com suon nuong", 150, 400), ("2", 570, 590), ("45.000", 650, 750), ("90.000", 820, 950)],
+        [("2", 50, 70), ("Canh chua ca", 150, 400), ("1", 570, 590), ("35.000", 650, 750), ("35.000", 820, 950)],
+        [("Tong thanh toan:", 50, 450), ("150.000", 780, 950)],
+        [("Cam on quy khach", 300, 700)],
+    )
+    monkeypatch.setattr(main, "read_boxes", lambda _data: boxes)
+
+    body = _post(_png_bytes()).json()
+
+    assert body["total_amount"] == 150000
+    assert body["items_ok"] is False
+    assert body["needs_review"] is True

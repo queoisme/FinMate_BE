@@ -332,3 +332,68 @@ def test_fee_including_vat_before_subtotal_is_an_item_not_a_surcharge():
         + row(360, ("Tổng cộng", 50, 300), ("50,000", 800, 950))
     r = extract_items(boxes, 50000)
     assert r.ok is True and [i.name for i in r.items] == ["Cà phê", "Bánh"]
+
+
+# ---- tổng khách phải trả đọc theo HÀNG: nhãn và số cùng hàng, không phụ thuộc thứ tự OCR đọc các dòng
+from items import payable_total  # noqa: E402
+
+BILL_ROWS = [
+    *row(500, ("Tổng tiền hàng (5 món):", 50, 450), ("160.000", 800, 950)),
+    *row(540, ("Thuế GTGT (8%):", 50, 400), ("12.800", 820, 950)),
+    *row(600, ("Tổng thanh toán:", 50, 450), ("172.800", 780, 950)),
+    *row(650, ("Tiền khách đưa:", 50, 400), ("200.000", 780, 950)),
+    *row(690, ("Tiền thối lại:", 50, 400), ("27.200", 800, 950)),
+    *row(740, ("Hình thức thanh toán: Tiền mặt", 50, 600)),
+]
+
+
+def test_payable_total_is_the_amount_on_the_same_row_as_the_payable_label():
+    assert payable_total(BILL_ROWS) == 172800  # không phải thuế phía trên (12.800) hay tiền khách đưa phía dưới (200.000)
+
+
+def test_payable_total_ignores_the_payment_method_row_and_cash_rows():
+    only_cash = [*row(100, ("Tiền khách đưa:", 50, 400), ("200.000", 780, 950)), *row(140, ("Hình thức thanh toán: Tiền mặt", 50, 600))]
+    assert payable_total(only_cash) is None
+
+
+def test_payable_total_takes_the_last_matching_row():
+    rows = [*row(100, ("Tổng thanh toán (tạm)", 50, 400), ("100.000", 780, 950)), *row(200, ("Phải trả:", 50, 400), ("90.000", 780, 950))]
+    assert payable_total(rows) == 90000
+
+
+def test_payable_total_accepts_the_amount_inside_the_label_box():
+    assert payable_total(row(100, ("Tong thanh toan: 59.400", 50, 900))) == 59400
+
+
+def test_payable_total_none_without_a_payable_label_or_without_boxes():
+    assert payable_total([]) is None
+    assert payable_total(row(100, ("Tổng cộng", 50, 400), ("50.000", 780, 950))) is None  # nhãn khác: giữ luật cũ ở extract.py
+
+
+# ---- bảng có cột STT (bill siêu thị/tiện lợi in sẵn): hàng mô tả không giá nằm DƯỚI món, không phải phần đầu tên của món sau
+STT_TABLE = [
+    *row(20, ("STT", 50, 100), ("Tên hàng", 150, 400), ("SL", 560, 600), ("Đơn giá", 650, 750), ("Thành tiền", 800, 950)),
+    *row(70, ("1", 50, 70), ("Mì ly Hảo Hảo", 150, 400), ("1", 570, 590), ("10.000", 650, 750), ("10.000", 820, 950)),
+    *row(105, ("hương vị tôm chua cay 67g", 150, 500)),
+    *row(150, ("2", 50, 70), ("Trà xanh C2", 150, 400), ("1", 570, 590), ("15.000", 650, 750), ("15.000", 820, 950)),
+    *row(185, ("chai 500ml", 150, 400)),
+    *row(230, ("Tổng tiền hàng (2 món):", 50, 450), ("25.000", 800, 950)),
+    *row(270, ("Thu€ GTGT (8%):", 50, 400), ("2.000", 820, 950)),
+    *row(320, ("Tổng thanh toán:", 50, 450), ("27.000", 800, 950)),
+]
+
+
+def test_description_row_below_an_stt_item_is_not_glued_to_the_next_item_name():
+    r = extract_items(STT_TABLE, 27000)
+    assert [i.name for i in r.items if not i.is_discount][:2] == ["Mì ly Hảo Hảo", "Trà xanh C2"]
+
+
+def test_vat_row_read_as_thu_euro_gtgt_is_still_a_surcharge_so_the_sum_balances():
+    r = extract_items(STT_TABLE, 27000)
+    assert r.ok is True
+    assert [(i.amount, i.parent) for i in r.items] == [(10000, None), (15000, None), (2000, None)]
+
+
+def test_gtgt_alone_marks_a_surcharge():
+    rows = [*STT_TABLE[:-2], *row(270, ("Thuế GTGT (8%):", 50, 400), ("2.000", 820, 950)), *row(320, ("Tổng thanh toán:", 50, 450), ("27.000", 800, 950))]
+    assert extract_items(rows, 27000).ok is True

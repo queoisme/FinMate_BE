@@ -31,7 +31,19 @@
     "d2b8bddd-74d4-4b9d-a621-fe2b514ae547.jpg": 8,
     "f7f25d72-0c02-42c3-8652-e9353e1c5279.jpg": 4,
     "vinarice-phieu-giao-hang.webp": 3,
-    "nha-tro-hoa-don-dich-vu.webp": null
+    "nha-tro-hoa-don-dich-vu.webp": null,
+    "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png": 3,
+    "BIll-10-14-2026/MINISTOP Vietnamese Receipt Close-Up.png": 5,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_30 AM.png": 4,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_35 AM.png": 5,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_40 AM.png": 3,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_44 AM.png": 4,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_50 AM.png": 4,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_55 AM.png": 5,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_59 AM.png": 5,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_05 AM.png": 4,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_09 AM.png": 5,
+    "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png": 4
   },
   "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": [
     {"name_contains": "tayox", "amount": 140000},
@@ -159,5 +171,97 @@
     {"name_contains": "230g", "amount": 164180},
     {"name_contains": "100g", "amount": 90000},
     {"name_contains": "454g", "amount": 334590}
+  ],
+  "_added_2026_10_14": {
+    "_note": "12 bill ảnh do ChatGPT tạo (tổng hợp, KHÔNG phải ảnh thật), nhãn do Claude đọc trực tiếp từ ảnh, người dùng chưa duyệt lại. Bố cục: nhãn và số xếp thành các dòng rời (nhãn rồi số), có thuế/phí/giảm giá. Giảm giá in không dấu trừ ('Giảm giá: 5.000') vẫn là khoản giảm.",
+    "files": [
+      "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png",
+      "BIll-10-14-2026/MINISTOP Vietnamese Receipt Close-Up.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_30 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_35 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_40 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_44 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_50 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_55 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_59 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_05 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_09 AM.png",
+      "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png"
+    ]
+  },
+  "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png": [
+    {"name_contains": "nuoc cam", "amount": 28000},
+    {"name_contains": "tao rocket", "amount": 49000},
+    {"name_contains": "nuoc hoa", "amount": 109000}
+  ],
+  "BIll-10-14-2026/MINISTOP Vietnamese Receipt Close-Up.png": [
+    {"name_contains": "oreo", "amount": 24000},
+    {"name_contains": "nuoc suoi", "amount": 9000},
+    {"name_contains": "romano", "amount": 49000},
+    {"name_contains": "khan uot", "amount": 15000},
+    {"name_contains": "giay ve sinh", "amount": 22000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_30 AM.png": [
+    {"name_contains": "mi ly", "amount": 10000},
+    {"name_contains": "tra xanh", "amount": 15000},
+    {"name_contains": "snack", "amount": 18000},
+    {"name_contains": "khan giay", "amount": 12000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_35 AM.png": [
+    {"name_contains": "gao thom", "amount": 125000},
+    {"name_contains": "dau an", "amount": 42000},
+    {"name_contains": "nuoc rua chen", "amount": 28000},
+    {"name_contains": "trung ga", "amount": 32000},
+    {"name_contains": "duong cat", "amount": 24000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_40 AM.png": [
+    {"name_contains": "ve nguoi lon", "amount": 240000},
+    {"name_contains": "bap rang", "amount": 60000},
+    {"name_contains": "nuoc ngot", "amount": 70000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_44 AM.png": [
+    {"name_contains": "kham noi", "amount": 150000},
+    {"name_contains": "xet nghiem", "amount": 250000},
+    {"name_contains": "thuoc ha sot", "amount": 35000},
+    {"name_contains": "ho so y te", "amount": 20000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_50 AM.png": [
+    {"name_contains": "ca phe sua", "amount": 29000},
+    {"name_contains": "bac xiu", "amount": 32000},
+    {"name_contains": "banh tiramisu", "amount": 55000},
+    {"name_contains": "nuoc suoi", "amount": 12000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_55 AM.png": [
+    {"name_contains": "paracetamol", "amount": 15000},
+    {"name_contains": "vitamin c", "amount": 12000},
+    {"name_contains": "khau trang", "amount": 40000},
+    {"name_contains": "nuoc muoi", "amount": 18000},
+    {"name_contains": "bang ca nhan", "amount": 10000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_59 AM.png": [
+    {"name_contains": "com suon", "amount": 90000},
+    {"name_contains": "canh chua", "amount": 35000},
+    {"name_contains": "rau muong", "amount": 25000},
+    {"name_contains": "tra da", "amount": 6000},
+    {"name_contains": "khan lanh", "amount": 4000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_05 AM.png": [
+    {"name_contains": "nuoc tinh khiet", "amount": 40000},
+    {"name_contains": "nuoc suoi", "amount": 45000},
+    {"name_contains": "phi giao hang", "amount": 15000},
+    {"name_contains": "hoan vo", "amount": -40000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_09 AM.png": [
+    {"name_contains": "vo ke", "amount": 36000},
+    {"name_contains": "but bi", "amount": 10000},
+    {"name_contains": "bia nut", "amount": 8000},
+    {"name_contains": "so tay", "amount": 15000},
+    {"name_contains": "thuoc", "amount": 7000}
+  ],
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png": [
+    {"name_contains": "ve vao cong", "amount": 160000},
+    {"name_contains": "the game", "amount": 100000},
+    {"name_contains": "bap rang", "amount": 30000},
+    {"name_contains": "nuoc ngot", "amount": 36000}
   ]
 }

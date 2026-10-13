@@ -185,5 +185,77 @@
     "total": 3660000,
     "category": "housing",
     "kind": "ảnh chụp tin nhắn hóa đơn nhà trọ (tiền phòng + điện + nước + dịch vụ); ngày tháng 05/10/2026 và tổng bị tách dòng"
+  },
+  "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png": {
+    "merchant": "bachhoaxanh",
+    "total": 186000,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Bách Hóa Xanh, 3 món (nước hoa lẫn thực phẩm), có tiền khách đưa/tiền thừa"
+  },
+  "BIll-10-14-2026/MINISTOP Vietnamese Receipt Close-Up.png": {
+    "merchant": "ministop",
+    "total": 128520,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Ministop, 5 món + thuế GTGT 8% đọc thành 'Thu€'"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_30 AM.png": {
+    "merchant": "minimartanphu",
+    "total": 59400,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Mini Mart An Phú, tên hàng xuống dòng mô tả, thuế 8%"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_35 AM.png": {
+    "merchant": "giadinhxanh",
+    "total": 258120,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Siêu thị Gia Đình Xanh, giảm giá -12.000 + thuế 8%, tên logo đọc mất chữ Đ"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_40 AM.png": {
+    "merchant": "starview",
+    "total": 399600,
+    "category": "entertainment",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Rạp phim Star View, vé + bắp nước, thuế 8%"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_44 AM.png": {
+    "merchant": "antam",
+    "total": 375000,
+    "category": "healthcare",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Bệnh viện An Tâm, giảm trừ BHYT -80.000"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_50 AM.png": {
+    "merchant": "maycafe",
+    "total": 145152,
+    "category": "dining",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Mây Cafe, phí phục vụ 5% + thuế 8%"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_55 AM.png": {
+    "merchant": "phucan",
+    "total": 90000,
+    "category": "healthcare",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Nhà thuốc Phúc An, 'Giảm giá: 5.000' không có dấu trừ"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_28_59 AM.png": {
+    "merchant": "nhabepque",
+    "total": 172800,
+    "category": "dining",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Quán cơm Nhà Bếp Quê, thuế 8% (tên 'Quê' bị đọc thành 'OUE')"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_05 AM.png": {
+    "merchant": "hainam",
+    "total": 60000,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Đại lý nước tinh khiết Hải Nam, phí giao hàng + hoàn vỏ bình -40.000, nhãn 'cung cấp nước uống' không phải cước nước"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_09 AM.png": {
+    "merchant": "huongduong",
+    "total": 73000,
+    "category": "shopping",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Nhà sách Hướng Dương, 'Bút bi Thiên Long' trong tên hàng không phải tên cửa hàng, giảm giá không dấu trừ"
+  },
+  "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png": {
+    "merchant": "happyzone",
+    "total": 300000,
+    "category": "entertainment",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-14: Khu giải trí Happy Zone, giảm giá -26.000, logo 'KHU GIẢI TRÍ' trên dòng công ty"
   }
 }

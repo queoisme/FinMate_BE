@@ -43,22 +43,25 @@ _PRODUCT_KEYWORDS = {
                "thach dua", "thach suong sao", "thach tran chau", "soda chanh", "nuoc cam ep", "sua chua uong",
                "khoai mi", "banh khoai",
                # món quen thuộc ở quán ăn nhanh, quán cơm, quán phở
-               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu"),
+               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu",
+               # học từ 12 bill ảnh 2026-10-14: "răng" (nha khoa) khớp nhầm "bắp rang", chặn luôn AI cho cả bill
+               "bap rang", "bap rang bo", "canh chua", "rau muong", "xao toi"),
     "groceries": ("gao", "nuoc mam", "dau an", "duong cat", "sua tuoi", "trung ga", "thit heo", "thit bo",
                   "thit ga", "bap bo", "bo vien", "suon heo", "rau", "mi goi", "banh keo", "snack",
                   "nuoc ngot", "bia", "xuong ga", "sua bot", "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi",
                   "bot ngot", "bot canh", "bot chien", "mayonnaise", "nuoc cham",
                   # hàng tiêu dùng, thực phẩm tươi/đóng gói thường gặp ở tạp hóa, đại lý
                   "nuoc suoi", "ca chua", "xuc xich", "ca basa",
-                  "banh mi sandwich", "banh mi gon"),
+                  "banh mi sandwich", "banh mi gon", "mi ly", "hao hao"),
     "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
                    "natri clorid", "thuoc", "amoxicillin", "oresol",
                    "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su",
-                   "kinh can", "kinh mat", "trong kinh", "gong kinh"),
+                   "kinh can", "kinh mat", "trong kinh", "gong kinh",
+                   "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem", "phi kham", "kham noi"),
     "transport": ("xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong", "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"),
     # vé và dịch vụ vui chơi
     "entertainment": ("ve xem phim", "vexem phim", "xem phim", "ve phim", "bap nuoc", "ve vao cong", "ve tham quan", "ve cong vien", "cong vien nuoc", "khu vui choi",
-                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi"),
+                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi", "ve nguoi lon", "ve tre em", "the game"),
     # dịch vụ làm đẹp/cá nhân (không có nhóm riêng nên là "other"): spa, salon, cắt tóc, nail, mi, triệt lông
     "other": ("cat toc", "goi dau thu gian", "nhuom toc", "uon toc", "lam mong", "noi mi", "triet long", "tam trang", "xong hoi", "cao rau"),
     # phiếu mua/bán vàng bạc thường không có logo: nhận qua tên hàng
@@ -70,7 +73,9 @@ _PRODUCT_KEYWORDS = {
                  # quần áo, giày dép, túi xách, đồ điện tử nhỏ
                  "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",
                  "tui xach", "balo", "that lung", "kinh ram", "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal",
-                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim"),
+                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
+                 # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
+                 "bia nut", "bia ho so", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
     "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
     "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
                   "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm

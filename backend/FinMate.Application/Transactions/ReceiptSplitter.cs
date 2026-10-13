@@ -27,7 +27,8 @@ public static class ReceiptSplitter
         ["phi phuc vu", "phi dich vu", "phi giao hang", "phi dong goi", "tui nilon"];
 
     // So nguyên từ trên tên chữ thường còn dấu: "thuê" (đi thuê) không phải "thuế", "vatican" không phải "vat".
-    private static readonly HashSet<string> SurchargeWords = ["vat", "thuế", "thue"];
+    // "gtgt" (giá trị gia tăng): OCR hay đọc "Thuế" thành "Thu€" nên chỉ còn "GTGT" nhận ra được dòng thuế.
+    private static readonly HashSet<string> SurchargeWords = ["vat", "thuế", "thue", "gtgt"];
 
     // "service" khớp cả khi OCR dính chữ ("SERVICECHARGE"), giống ocr-service.
     private const string ServiceWord = "service";

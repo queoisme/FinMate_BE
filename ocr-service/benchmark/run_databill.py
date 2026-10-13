@@ -10,6 +10,7 @@ Các chỉ số:
   - nhắc kiểm tra nhầm: đúng cả ba mà vẫn nhắc (phiền người dùng nhưng không hại)
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -22,13 +23,14 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import ai_refine                                        # noqa: E402
 import ocr                                              # noqa: E402
+from items import payable_total                          # noqa: E402
 from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, _alnum, _norm, analyze, receipt_score  # noqa: E402
 from merchant_name import format_merchant_name          # noqa: E402
 from privacy import sanitize_lines                      # noqa: E402
 from quality import assess_quality, image_quality       # noqa: E402
 
 HERE = Path(__file__).parent
-DATA = HERE.parents[1] / "data-bill"
+DATA = Path(os.environ.get("DATA_BILL") or HERE.parents[1] / "data-bill")
 EXPECTED = {k: v for k, v in json.loads((HERE / "expected_databill.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 
 
@@ -46,13 +48,17 @@ def process(path: Path, use_ai: bool = False) -> dict:
     t0 = time.time()
     quality = image_quality(data)
     try:
-        lines = ocr.read_lines(data)
+        boxes = ocr.read_boxes(data)
+        lines = [(b.text, b.conf) for b in boxes]
     except ocr.NoTextError:
         return {"rejected": "no_text", "sec": time.time() - t0}
     score = receipt_score([t for t, _ in lines])
     if score < MIN_RECEIPT_SCORE:
         return {"rejected": "not_a_receipt", "score": score, "sec": time.time() - t0}
     r = analyze(lines)
+    row_total = payable_total(boxes)  # như main.analyze_bill: tổng đọc theo hàng đáng tin hơn luật theo thứ tự dòng
+    if row_total is not None:
+        r["total_amount"] = row_total
     r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE
     if use_ai:  # giống main.py: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), chỉ khi lượt quét còn lưỡng lự
         display = lambda m: (format_merchant_name(m) or m) if m else None  # noqa: E731

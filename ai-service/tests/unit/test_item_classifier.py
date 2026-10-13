@@ -324,7 +324,7 @@ async def test_a_different_real_word_is_not_pulled_into_a_keyword():
 
 
 async def test_a_one_letter_difference_between_two_real_products_is_not_a_typo():
-    out, _ = await run(items("Nuoc muoi sinh ly"), allow_ai=False)  # nước muối ≠ nước suối
+    out, _ = await run(items("Nuoc muoi ngam"), allow_ai=False)  # nước muối ≠ nước suối (riêng "nước muối sinh lý" đã có từ khóa y tế)
     assert out == [(0, None, "unknown")]
 
 
@@ -364,3 +364,57 @@ async def test_when_ai_is_unavailable_the_circuit_open_case_is_the_same():
 async def test_without_consent_the_merchant_default_still_applies():
     out, _ = await run(items("Pin AA Zxq"), merchant="Ministop", allow_ai=False)
     assert out == [(0, "food", "merchant")]
+
+
+# ---- 12 bill ảnh thật 2026-10-14: luật nhận nhầm khiến cả bill bị chặn AI (một món "y tế" giả -> không gửi Gemini cho cả bill)
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("Bap rang vua", "food"),            # "răng" (nha khoa) khớp "rang" trong "bắp rang"
+    ("Bap rang mini", "food"),
+    ("Bia nut A4", "shopping"),          # bìa nút, không phải bia
+    ("Thuoc ke nhua 20cm", "shopping"),  # thước kẻ, không phải thuốc
+    ("Thuóc 20cm", "shopping"),
+    ("But bi xanh", "shopping"),
+    ("So tay nho", "shopping"),
+    ("Vo ke ngang 200 trang", "shopping"),
+    ("Romano Men 100g", "shopping"),
+    ("Canh chua ca", "food"),
+    ("Mi ly Hao Hao", "food"),
+    ("Phi ho so y te", "health"),
+    ("Bang ca nhan", "health"),
+    ("Nuoc muoi sinh ly", "health"),
+    ("Ve nguoi lon", "entertainment"),
+    ("Nu6c ngot vua", "food"),           # OCR đọc "o" thành "6"
+])
+async def test_rules_know_the_items_found_on_the_2026_10_14_bills(name, expected):
+    out, _ = await run(items(name), allow_ai=False)
+    assert out[0][1] == expected, name
+
+
+async def test_a_bill_with_popcorn_is_no_longer_blocked_from_gemini_as_a_health_bill():
+    gemini = FakeGemini(lambda n: "entertainment" if "Ve" in n else "food")
+    out, used = await run(items("Ve nguoi lon", "Bap rang vua", "Nuoc ngot vua"), merchant="Rap phim Star View", gemini=gemini)
+    assert used is True and gemini.calls
+
+
+# ---- dạy bảng nhớ từ nhãn đã được người kiểm (scripts/learn_items.py)
+from app.bill.item_classifier import learnable_items  # noqa: E402
+
+
+def test_learnable_items_keys_labels_like_the_cache_and_skips_what_must_never_be_remembered():
+    cases = [
+        {"name": "Nudc hoa X-Men 109.000đ", "expect": "shopping"},   # tên có dính giá: khóa bỏ giá, dấu, hoa thường
+        {"name": "Bap rang vua", "expect": "food"},
+        {"name": "SP002993", "expect": "food"},                       # mã hàng
+        {"name": "Hang la", "expect": "unknown"},                     # không có nhãn
+        {"name": "Luong thang 9", "expect": "income"},                # income không bao giờ vào bảng nhớ
+        {"name": "ab", "expect": "food"},                             # quá ngắn
+        {"name": "Mon hop le", "expect": "khong-co-nhom-nay"},        # slug không hợp lệ
+    ]
+    assert learnable_items(cases) == {"nudc hoa x-men": "shopping", "bap rang vua": "food"}
+
+
+def test_learnable_items_later_label_wins_for_the_same_name():
+    assert learnable_items([{"name": "Bia nut", "expect": "food"}, {"name": "BIA NÚT", "expect": "shopping"}]) == {"bia nut": "shopping"}

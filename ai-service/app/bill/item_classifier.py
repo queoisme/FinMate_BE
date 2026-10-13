@@ -41,6 +41,19 @@ def _rememberable(name: str, key: str) -> bool:
     return _MIN_KEY <= len(key) <= _MAX_KEY and letters >= 3 and letters >= sum(c.isdigit() for c in key) and name.isprintable()
 
 
+def learnable_items(cases: Sequence[dict]) -> dict[str, str]:
+    """Từ các nhãn đã được người kiểm ({"name", "expect"}) ra ``khóa -> slug`` để ghi vào bảng nhớ tên món.
+
+    Cùng bộ lọc với câu trả lời của Gemini: không nhớ income, slug lạ, tên giống mã hàng, quá ngắn/dài. Nhãn đứng sau thắng nhãn đứng trước."""
+    learned: dict[str, str] = {}
+    for case in cases:
+        name, slug = str(case.get("name", "")), case.get("expect")
+        key = item_key(name)
+        if slug in _REMEMBERABLE and key and _rememberable(name, key):
+            learned[key] = slug
+    return learned
+
+
 def _merchant_default(merchant: str | None) -> str | None:
     """Nhóm mặc định của THƯƠNG HIỆU (bảng bill_brands), đã đổi sang slug BE.
 

@@ -70,3 +70,52 @@
 {"name": "hang khac", "merchant": null, "expect": "unknown"}
 {"name": "XYZ-77", "merchant": null, "expect": "unknown"}
 {"name": "Mon dac biet", "merchant": null, "expect": "unknown"}
+{"name": "Nuóc cam Twister", "merchant": "Bách Hóa Xanh", "expect": "food"}
+{"name": "Táo Rocket hop", "merchant": "Bách Hóa Xanh", "expect": "food"}
+{"name": "Nuóc hoa X-Men", "merchant": "Bách Hóa Xanh", "expect": "shopping"}
+{"name": "Oreo Chocolate 133g", "merchant": "MiniStop", "expect": "food"}
+{"name": "Nuóc sui Aquaria 1.5L", "merchant": "MiniStop", "expect": "food"}
+{"name": "Romano Men 100g", "merchant": "MiniStop", "expect": "shopping"}
+{"name": "Khán uót Unik 80 t", "merchant": "MiniStop", "expect": "shopping"}
+{"name": "Giáy ve sinh Bless You 10 cun 1", "merchant": "MiniStop", "expect": "shopping"}
+{"name": "Mi ly Hao Hao", "merchant": "Minimart An Phú", "expect": "food"}
+{"name": "Tra xanh C2", "merchant": "Minimart An Phú", "expect": "food"}
+{"name": "Snack khoai tay Lay's", "merchant": "Minimart An Phú", "expect": "food"}
+{"name": "Khan giay b6 tui Pulppy 1", "merchant": "Minimart An Phú", "expect": "shopping"}
+{"name": "Gao thom 5kg", "merchant": "GIA i NH XANH", "expect": "food"}
+{"name": "Gao thom Hucng Viet 5kg Dau an 1L", "merchant": "GIA i NH XANH", "expect": "food"}
+{"name": "Nuóc rua chén", "merchant": "GIA i NH XANH", "expect": "shopping"}
+{"name": "Trúng ga hop 10 qua", "merchant": "GIA i NH XANH", "expect": "food"}
+{"name": "ung cát 1kg", "merchant": "GIA i NH XANH", "expect": "food"}
+{"name": "Vé ngui lón", "merchant": "Star View Cinema Việt Nam", "expect": "entertainment"}
+{"name": "Bap rang vua", "merchant": "Star View Cinema Việt Nam", "expect": "food"}
+{"name": "Nu6c ngot vua", "merchant": "Star View Cinema Việt Nam", "expect": "food"}
+{"name": "Phi khám noi tong quát", "merchant": "Bệnh Viên An Tâm", "expect": "health"}
+{"name": "Xét nghiém mau co ban", "merchant": "Bệnh Viên An Tâm", "expect": "health"}
+{"name": "Thuoc ha sot (Paracetamol 500mg)", "merchant": "Bệnh Viên An Tâm", "expect": "health"}
+{"name": "Phi ho so y té", "merchant": "Bệnh Viên An Tâm", "expect": "health"}
+{"name": "Ca phe sua da", "merchant": "May Cafe", "expect": "food"}
+{"name": "Bac xiu", "merchant": "May Cafe", "expect": "food"}
+{"name": "Banh tiramisu", "merchant": "May Cafe", "expect": "food"}
+{"name": "Nuóc suói Aquafina 500ml 1", "merchant": "May Cafe", "expect": "food"}
+{"name": "Paracetamol 500mg", "merchant": "Nhà Thuốc Phúc An", "expect": "health"}
+{"name": "Vitamin C sui", "merchant": "Nhà Thuốc Phúc An", "expect": "health"}
+{"name": "Khau trang y té", "merchant": "Nhà Thuốc Phúc An", "expect": "health"}
+{"name": "Nuóc mui sinh ly", "merchant": "Nhà Thuốc Phúc An", "expect": "health"}
+{"name": "Bang cá nhan", "merchant": "Nhà Thuốc Phúc An", "expect": "health"}
+{"name": "Com sun nuóng", "merchant": "Quán Cơm Nha Bep Oue", "expect": "food"}
+{"name": "Canh chua ca", "merchant": "Quán Cơm Nha Bep Oue", "expect": "food"}
+{"name": "Rau muong xáo toi", "merchant": "Quán Cơm Nha Bep Oue", "expect": "food"}
+{"name": "Tra da", "merchant": "Quán Cơm Nha Bep Oue", "expect": "food"}
+{"name": "Nudc tinh khiét 20L", "merchant": "Đại Lý Nước Tinh Khiết Hái Nam", "expect": "food"}
+{"name": "Nuóc sui chai 500ml", "merchant": "Đại Lý Nước Tinh Khiết Hái Nam", "expect": "food"}
+{"name": "Phi giao hang", "merchant": "Đại Lý Nước Tinh Khiết Hái Nam", "expect": "other"}
+{"name": "V ké ngang 200 trang", "merchant": "Nhà Sách Hưởng Dương", "expect": "shopping"}
+{"name": "But bi xanh", "merchant": "Nhà Sách Hưởng Dương", "expect": "shopping"}
+{"name": "Bia nut A4", "merchant": "Nhà Sách Hưởng Dương", "expect": "shopping"}
+{"name": "So tay nh6", "merchant": "Nhà Sách Hưởng Dương", "expect": "shopping"}
+{"name": "Thuóc 20cm", "merchant": "Nhà Sách Hưởng Dương", "expect": "shopping"}
+{"name": "Vé váo cong ngui lón", "merchant": "Happy Zone Việt Nam", "expect": "entertainment"}
+{"name": "Thé game nap 100.000d", "merchant": "Happy Zone Việt Nam", "expect": "entertainment"}
+{"name": "Bap rang mini", "merchant": "Happy Zone Việt Nam", "expect": "food"}
+{"name": "Nuóc ngot lon", "merchant": "Happy Zone Việt Nam", "expect": "food"}

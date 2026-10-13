@@ -48,7 +48,7 @@ def test_ambiguous_words_and_codes_stay_none(phrase):
 def test_one_letter_typo_matches_but_two_real_words_do_not():
     assert resolve("khan uott") == Resolution("shopping", "fuzzy")  # thừa một chữ
     assert resolve("kha uot") == Resolution("shopping", "fuzzy")  # thiếu một chữ
-    assert resolve("nuoc muoi sinh ly").slug is None  # nước muối ≠ nước suối
+    assert resolve("nuoc muoi ngam").slug is None  # nước muối ≠ nước suối (riêng "nước muối sinh lý" đã có từ khóa y tế)
 
 
 def test_a_longer_typo_match_beats_a_shorter_exact_keyword():

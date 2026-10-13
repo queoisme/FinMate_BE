@@ -31,8 +31,8 @@ _MAX_MODEL_CONFIDENCE = 0.69  # trần độ tin cậy của gợi ý mô hình 
 _CATEGORY_KEYWORDS = {
     "transport": ("xang", "petro", "grab", "taxi", "gojek", "nha xe", "bai giu xe", "bai do xe", "gui xe", "rua xe", "garage", "tram xe"),
     "healthcare": ("pharmacy", "pharmacity", "nha thuoc", "nhathuoc", "benh vien", "phong kham", "nha khoa", "rang ham mat", "tham my vien", "da lieu", "mat kinh", "eyewear", "benhvien", "phongkham", "nhakhoa"),
-    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "cong vien nuoc", "bowling"),
-    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua"),
+    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "khu giai tri", "giai tri", "cong vien nuoc", "bowling"),
+    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua", "nuoc tinh khiet", "dai ly nuoc"),  # đại lý nước uống: bán nước đóng chai/bình, không phải cước nước sinh hoạt
     "housing": ("dien luc", "evn", "tien nuoc", "cap nuoc", "nuoc sach", "nha tro", "phong tro", "chung cu", "dai ly gas", "binh gas"),
     "utilities": ("internet", "viettel", "vnpt", "fpt telecom", "truyen hinh", "vien thong", "wifi"),
     "dining": ("cafe", "coffee", "pho", "banh mi", "com tam", "quan com", "tra sua", "restaurant",
@@ -379,15 +379,19 @@ def _brand_from_website(lines: list[str]) -> str | None:
 
 def _join_logo_lines(lines: list[str], confs: list[float], i: int, line: str, markers: list[str]) -> str:
     """Logo/tên chia hai dòng IN HOA liền nhau ("NHÀ TRỌ" / "SẠCH SẼ") thì ghép lại; không ghép dòng tiêu đề, địa chỉ, có số."""
-    def plain_caps(text: str) -> bool:
+    def plain_caps(text: str, max_words: int = 4) -> bool:
         words = text.split()
-        return text == text.upper() and 1 <= len(words) <= 4 and not any(c.isdigit() for c in text) and sum(c.isalpha() for c in text) >= 3
+        return text == text.upper() and 1 <= len(words) <= max_words and not any(c.isdigit() for c in text) and sum(c.isalpha() for c in text) >= 3
 
-    if i + 1 >= len(lines) or not plain_caps(line.strip()) or confs[i + 1] < _MIN_NAME_CONFIDENCE:
+    # "ĐẠI LÝ NƯỚC TINH KHIẾT" (loại hình, dài hơn 4 từ) đứng trên tên riêng "HẢI NAM"
+    first_words = 6 if _norm(line).startswith("dai ly") else 4
+    if i + 1 >= len(lines) or not plain_caps(line.strip(), first_words) or confs[i + 1] < _MIN_NAME_CONFIDENCE:
         return line
     nxt = lines[i + 1].strip()
     norm = _norm(nxt)
-    if (not plain_caps(nxt) or _mostly_generic(nxt) or _looks_like_code_or_status(nxt) or any(w in norm for w in _NOT_NAME_WORDS)
+    # "duong" chỉ là địa chỉ khi đứng đầu dòng ("Đường Lê Lợi"); "HƯỞNG DƯƠNG" là tên riêng
+    not_name = any(w in norm for w in _NOT_NAME_WORDS if w != "duong") or norm.startswith("duong ")
+    if (not plain_caps(nxt) or _mostly_generic(nxt) or _looks_like_code_or_status(nxt) or not_name
             or any(m in _alnum(norm) for m in markers)):
         return line
     return f"{line.strip()} {nxt}"
@@ -400,6 +404,17 @@ def extract_merchant(lines: list[str], confidences: list[float] | None = None) -
     """Như _extract_merchant nhưng không nhận tên chỉ gồm một từ loại hình ("COFFEE" còn sót lại khi logo bị đọc mất): trả None để app hỏi."""
     name = _strip_greeting(_extract_merchant(lines, confidences))
     return None if name and _alnum(_norm(name)) in _VENUE_ONLY else name
+
+
+def looks_garbled_name(name: str | None) -> bool:
+    """Tên cửa hàng đọc nát: chữ thường lẫn giữa dòng IN HOA ("GIA iNH XANH" khi OCR mất chữ "Đ") là lỗi đọc, không phải cách viết thật.
+
+    Bắt hai dạng: từ gồm một chữ thường rồi từ hai chữ hoa trở lên ("iNH"), và một chữ thường đứng riêng giữa các từ IN HOA ("GIA i NH")."""
+    words = (name or "").split()
+    if any(re.fullmatch(r"[a-z][A-Z]{2,}", w) for w in words):
+        return True
+    caps = sum(1 for w in words if len(w) >= 2 and w.isalpha() and w.isupper())
+    return caps >= 2 and any(len(w) == 1 and w.isalpha() and w.islower() for w in words)
 
 
 def _strip_greeting(name: str | None) -> str | None:
@@ -439,6 +454,9 @@ def _extract_merchant(lines: list[str], confidences: list[float] | None = None) 
     # So cả dạng viết liền ("PHIEUGIAONHANTHANHTOAN") vì OCR hay mất dấu cách.
     markers = [_alnum(m) for m in _TITLE_MARKERS]
     cut = next((i for i, l in enumerate(lines) if any(m in _alnum(_norm(l)) for m in markers)), len(lines))
+    # Từ dòng tiêu đề bảng món ("STT", "Tên hàng") trở xuống là tên hàng, không phải tên cửa hàng: "Bút bi Thiên Long" không làm cửa hàng là Thiên Long.
+    table = next((i for i, l in enumerate(lines) if _alnum(_norm(l)) in _TABLE_HEADERS or _alnum(_norm(l)).startswith("stt")), len(lines))
+    cut = min(cut, table)
     pool = [(i, l) for i, l in usable if i < cut] or usable
     for _, line in pool[:12]:  # thương hiệu đã biết: loại được chữ nền (bàn phím, bàn...) ở đầu ảnh
         brand = next((b for b in BRAND_CATEGORIES if _brand_in(b, _norm(line))), None)
@@ -485,22 +503,25 @@ _PRODUCT_KEYWORDS = {
                "thach dua", "thach suong sao", "thach tran chau", "soda chanh", "nuoc cam ep", "sua chua uong",
                "khoai mi", "banh khoai",
                # món quen thuộc ở quán ăn nhanh, quán cơm, quán phở
-               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu"),
+               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu",
+               # học từ 12 bill ảnh 2026-10-14: "răng" (nha khoa) khớp nhầm "bắp rang", chặn luôn AI cho cả bill
+               "bap rang", "bap rang bo", "canh chua", "rau muong", "xao toi"),
     "groceries": ("gao", "nuoc mam", "dau an", "duong cat", "sua tuoi", "trung ga", "thit heo", "thit bo",
                   "thit ga", "bap bo", "bo vien", "suon heo", "rau", "mi goi", "banh keo", "snack",
                   "nuoc ngot", "bia", "xuong ga", "sua bot", "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi",
                   "bot ngot", "bot canh", "bot chien", "mayonnaise", "nuoc cham",
                   # hàng tiêu dùng, thực phẩm tươi/đóng gói thường gặp ở tạp hóa, đại lý
                   "nuoc suoi", "ca chua", "xuc xich", "ca basa",
-                  "banh mi sandwich", "banh mi gon"),
+                  "banh mi sandwich", "banh mi gon", "mi ly", "hao hao"),
     "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
                    "natri clorid", "thuoc", "amoxicillin", "oresol",
                    "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su",
-                   "kinh can", "kinh mat", "trong kinh", "gong kinh"),
+                   "kinh can", "kinh mat", "trong kinh", "gong kinh",
+                   "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem", "phi kham", "kham noi"),
     "transport": ("xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong", "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"),
     # vé và dịch vụ vui chơi
     "entertainment": ("ve xem phim", "vexem phim", "xem phim", "ve phim", "bap nuoc", "ve vao cong", "ve tham quan", "ve cong vien", "cong vien nuoc", "khu vui choi",
-                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi"),
+                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi", "ve nguoi lon", "ve tre em", "the game"),
     # dịch vụ làm đẹp/cá nhân (không có nhóm riêng nên là "other"): spa, salon, cắt tóc, nail, mi, triệt lông
     "other": ("cat toc", "goi dau thu gian", "nhuom toc", "uon toc", "lam mong", "noi mi", "triet long", "tam trang", "xong hoi", "cao rau"),
     # phiếu mua/bán vàng bạc thường không có logo: nhận qua tên hàng
@@ -512,7 +533,9 @@ _PRODUCT_KEYWORDS = {
                  # quần áo, giày dép, túi xách, đồ điện tử nhỏ
                  "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",
                  "tui xach", "balo", "that lung", "kinh ram", "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal",
-                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim"),
+                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
+                 # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
+                 "bia nut", "bia ho so", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
     "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
     "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
                   "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm
@@ -567,10 +590,13 @@ def classify_category_detailed(
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, merchant_norm)]
     if matches:  # nhiều tên khớp (vd. "Supersports Aeon"): tên cụ thể hơn (dài hơn) thắng tên trung tâm thương mại
         return BRAND_CATEGORIES[best_brand(matches, merchant_norm)], "brand", 0.8
+    # Logo ghi loại hình ở đầu phiếu ("KHU GIẢI TRÍ" / "HAPPY ZONE") trong khi tên cửa hàng chọn được lại là dòng công ty: với giải trí xét thêm 4 dòng đầu.
+    head_norm = _norm(" ".join(lines[:4]))
     for category, keywords in _CATEGORY_KEYWORDS.items():
         if category == "groceries" and ("dien may" in merchant_norm or "noi that" in merchant_norm):
             continue  # "Siêu thị điện máy", "Siêu thị nội thất" bán đồ gia dụng/điện tử, không phải thực phẩm
-        if any(_has_keyword(merchant_norm, k) for k in keywords):
+        name_text = f"{merchant_norm} {head_norm}" if category == "entertainment" else merchant_norm
+        if any(_has_keyword(name_text, k) for k in keywords):
             return category, "keyword", 0.75
     for brand, category in BRAND_CATEGORIES.items():  # tên thương hiệu viết liền trong website/địa chỉ
         if _brand_in(brand, body_norm):
@@ -758,6 +784,7 @@ def analyze(
         "confidence": round(confidence, 2),
         "needs_review": (
             merchant is None
+            or looks_garbled_name(merchant)  # tên đọc nát ("GIA iNH XANH"): không được im lặng
             or (looks_like_address(merchant) and source not in ("brand", "memory"))  # phiếu không in tên: tên đang là địa chỉ
             or total is None
             or words_check == "mismatch"

@@ -66,6 +66,7 @@ def process(path: Path) -> dict:
     import app_screens
     import main
     from extract import analyze
+    from items import payable_total
     from ocr import NoTextError, read_boxes
 
     try:
@@ -75,6 +76,9 @@ def process(path: Path) -> dict:
     lines = [(b.text, b.conf) for b in boxes]
     total = analyze(lines)["total_amount"]
     screen = bool(app_screens.parse([t for t, _ in lines]))
+    row_total = None if screen else payable_total(boxes)  # như main.analyze_bill
+    if row_total is not None:
+        total = row_total
     items, ok = ([], False) if screen else main._bill_items(boxes, total)
     return {"total": total, "items": items, "ok": ok, "screen": screen}
 

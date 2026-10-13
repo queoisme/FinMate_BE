@@ -206,3 +206,78 @@ def test_payable_total_not_taken_from_the_cash_tendered_line_below_it():
 def test_label_value_still_found_across_a_quantity_line_before_the_next_label():
     # nhãn tách khỏi số bởi một dòng chữ KHÔNG phải nhãn khác: giữ hành vi cũ (lấy số lớn nhất trước khi gặp nhãn mới)
     assert extract_total(["Tong cong", "So luong", "125.000"]) == 125000
+
+
+# ---- ảnh thật 2026-10-14 (Nhà sách Hướng Dương): thương hiệu trong TÊN HÀNG ("Bút bi Thiên Long") không được thành tên cửa hàng
+NHA_SACH = ["NHÀ SÁCH", "HƯỞNG DƯƠNG", "TRI THỨC ĐỒNG HÀNH CÙNG BẠN", "NHÀ SÁCH HƯỚNG DƯƠNG", "S6 123 Nguyén Van Cu, P. An Binh", "MST: [so-dai]",
+            "Ngay: 26/04/2025", "Gi: 16:42", "SÓ HD: HD[so-dai]", "POS: 02", "Ca: 1", "STT", "Tén hang", "SL", "Don giá", "Thanh tién", "1",
+            "V ké ngang 200 trang", "3", "12.000", "36.000", "Vd Hong Ha 200 trang", "2", "But bi xanh", "2", "5.000", "10.000",
+            "But bi Thién Long TL-027", "3", "Bia nut A4"]
+
+
+def test_brand_inside_an_item_line_is_not_the_merchant():
+    name = extract_merchant(NHA_SACH)
+    assert name and "nhasach" in _alnum_for_test(name)
+    assert "thienlong" not in _alnum_for_test(name)
+
+
+def test_brand_in_the_header_zone_still_wins_over_later_lines():
+    lines = ["Highlands Coffee", "Số 12 Lê Lợi", "STT", "Tên hàng", "Cà phê sữa 35.000", "Tổng cộng 35.000"]
+    assert "highlands" in _alnum_for_test(extract_merchant(lines))
+
+
+def _alnum_for_test(text):
+    import unicodedata
+    folded = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn").lower().replace("đ", "d")
+    return "".join(ch for ch in folded if ch.isalnum())
+
+
+def test_two_line_logo_name_is_joined_even_when_the_second_line_contains_duong():
+    # "HƯỞNG DƯƠNG" là tên riêng; "duong" chỉ là địa chỉ khi là chữ đầu dòng ("Đường Lê Lợi")
+    assert _alnum_for_test(extract_merchant(NHA_SACH)) == "nhasachhuongduong"
+
+
+def test_descriptor_line_and_brand_line_are_joined_for_an_agent_name():
+    lines = ["ĐẠI LÝ NƯỚC TINH KHIẾT", "HÁI NAM", "CHUYEN CUNG CAP NUóC UoNG DóNG BINH, DóNG CHAI", "GIAO HÀNG TẬN NƠI", "Ngay: 26/04/2025", "Gi: 16:18", "STT"]
+    assert _alnum_for_test(extract_merchant(lines)) == "dailynuoctinhkhiethainam"
+
+
+def test_a_street_line_is_still_not_joined_to_the_name():
+    lines = ["SIEU THI MINH ANH", "DUONG LE LOI", "Ngay: 26/04/2025", "STT"]
+    assert _alnum_for_test(extract_merchant(lines)) == "sieuthiminhanh"
+
+
+# ---- ảnh thật 2026-10-14: danh mục
+def test_amusement_park_header_giai_tri_is_entertainment_even_when_the_name_line_is_the_company():
+    lines = ["KHU GIẢI TRÍ", "HAPPY", "LZONE", "CÔNG TY TNHH HAPPY ZONE VIỆT NAM", "KHU GIẢI TRÍ HAPPY ZONE", "Thé game nap 100.000d", "Bap rang mini", "Nuóc ngot lon"]
+    category, source, _ = classify_category_detailed("CÔNG TY TNHH HAPPY ZONE VIỆT NAM", lines)
+    assert category == "entertainment"
+
+
+def test_drinking_water_agent_is_groceries_not_a_water_utility_bill():
+    lines = ["ĐẠI LÝ NƯỚC TINH KHIẾT", "HÁI NAM", "CHUYEN CUNG CAP NUóC UoNG DóNG BINH, DóNG CHAI", "Nudc tinh khiét 20L", "Nuóc sui chai 500ml"]
+    category, source, _ = classify_category_detailed("ĐẠI LÝ NƯỚC TINH KHIẾT HÁI NAM", lines)
+    assert category == "groceries"
+
+
+def test_a_real_water_utility_bill_is_still_housing():
+    assert classify_category_detailed("CÔNG TY CẤP NƯỚC SÀI GÒN", ["Tien nuoc thang 9", "Tong cong 120.000"])[0] == "housing"
+
+
+# ---- tự phát hiện lỗi của chính nó: tên cửa hàng đọc nát phải nhắc người dùng kiểm tra
+GIA_DINH_XANH = ["SIEU TH!", "GIA ĐÌNH XANH", "TUOI NGON MI NGAY - Vi GIA iNH BAN", "CONG TY TNHH THUONG MAI GIA iNH XANH", "MST: [sdt]",
+                 "Ngay: 24/04/2025", "STT Tén hang", "SL", "Don gia", "Thanh tién", "Gao thom 5kg", "1", "125.000", "125.000",
+                 "Tong tién hang (1 món):", "125.000", "Tong thanh toan:", "125.000", "Tién khach dua:", "200.000", "CAM ON QUY KHACH"]
+
+
+def test_merchant_name_with_a_stray_lowercase_letter_inside_caps_asks_for_review():
+    # "GIA iNH XANH": chữ "Đ" bị đọc mất, còn "iNH" lẫn hoa thường giữa dòng IN HOA: tên chắc chắn sai, không được im lặng
+    result = analyze([(t, 0.95) for t in GIA_DINH_XANH])
+    assert result["needs_review"] is True
+
+
+def test_a_clean_all_caps_name_is_not_flagged_by_the_garbled_name_rule():
+    from extract import looks_garbled_name
+    assert looks_garbled_name("CONG TY TNHH THUONG MAI GIA iNH XANH") is True
+    for ok in ("QUÁN CƠM NHA BEP", "Bách Hóa Xanh", "MiniStop", "Highlands Coffee", "GS25", "iPhone Store", "McDonald's"):
+        assert looks_garbled_name(ok) is False, ok

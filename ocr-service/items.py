@@ -19,7 +19,7 @@ _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 # là tổng cuối, không phải thuế.
 # Đồng bộ với ReceiptSplitter.IsSurcharge (backend, FinMate.Application/Transactions): thêm từ ở đây thì thêm ở BE và ở
 # ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
-_SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|phi phuc vu|phi dich vu|service")
+_SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|\bgtgt\b|phi phuc vu|phi dich vu|service")  # gtgt: OCR hay đọc "Thuế" thành "Thu€"
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
 _PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the|khach dua|tien thua|tra lai|thanh toan|diem")
@@ -60,6 +60,12 @@ def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
     return [sorted(r, key=lambda b: b.x0) for r in rows]
 
 
+def _starts_with_stt(row: list[OcrBox], left: float, right: float) -> bool:
+    """Hàng mở đầu bằng số thứ tự món (cột STT): ô trái nhất là số 1-2 chữ số nằm sát mép trái tờ giấy."""
+    first = row[0]
+    return bool(re.fullmatch(r"\d{1,2}[.)]?", first.text.strip())) and first.x0 < left + 0.15 * (right - left)
+
+
 def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tuple[OcrBox, int] | None:
     """Hộp ngoài cùng bên phải có dạng tiền và nằm ở cột giá.
 
@@ -74,6 +80,31 @@ def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tu
         if not skip_trailing:
             return None
     return None
+
+
+_PAYABLE_ROW_RE = re.compile(r"tong thanh toan|phai tra|can thanh toan")
+_CASH_ROW_RE = re.compile(r"khach dua|khach tra|tien mat|tien thua|thoi lai|tra lai|hinh thuc")
+
+
+def payable_total(boxes: list[OcrBox]) -> int | None:
+    """Số khách phải trả: số tiền nằm CÙNG HÀNG với nhãn "Tổng thanh toán" / "Phải trả" / "Cần thanh toán".
+
+    Đọc theo hàng nên không phụ thuộc thứ tự OCR đọc các dòng: luật theo dòng (extract.extract_total) phải đoán số nằm trước hay sau nhãn
+    và đoán sai khi dòng ngay trên nhãn là một số khác (số thuế), rồi lấy nhầm thuế, tiền khách đưa hay tiền thối. Hàng "Hình thức thanh toán:
+    Tiền mặt", tiền khách đưa, tiền thối không phải tổng. Nhiều hàng khớp thì lấy hàng cuối. Không có hàng nào khớp: None (giữ kết quả của luật theo dòng)."""
+    if not boxes:
+        return None
+    found = None
+    for r in _rows(boxes):
+        text = _norm(" ".join(b.text for b in r))
+        if not _PAYABLE_ROW_RE.search(text) or _CASH_ROW_RE.search(text):
+            continue
+        for box in reversed(r):
+            amounts = [a for a in _amounts(box.text, True) if a >= _MIN_AMOUNT]
+            if amounts:
+                found = amounts[-1]
+                break
+    return found
 
 
 def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
@@ -108,6 +139,7 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     count = 0  # số món thật (không tính giảm giá, thuế, phí)
     main: int | None = None
     pending: list[str] = []  # tên xuống dòng: hàng không giá ngay trên hàng có giá
+    after_stt_item = False  # hàng có giá vừa rồi mở đầu bằng số STT: hàng không giá kế tiếp (không STT) là mô tả của món đó
     tail = False  # đã qua dòng cộng tiền hàng: chỉ nhận thuế/phí và giảm giá cả bill tới dòng tổng cuối
     for r, text in zip(raw[start:], texts[start:]):
         if _FINAL_RE.search(text):
@@ -139,12 +171,16 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
             tail = closed = True  # số trần bằng đúng tổng đang cộng: dòng cộng tiền hàng in tách khỏi nhãn của nó
             continue
         addon = own.startswith("+")  # phụ kiện xét theo chữ của chính hàng có giá, không theo tên mang xuống
+        stt = _starts_with_stt(r, left, right)
         if p is None:
+            if after_stt_item and not stt:
+                continue  # bill có cột STT: dòng mô tả dưới món ("hương vị tôm chua cay 67g") không phải phần đầu tên món sau
             if not addon:  # "+ Ít đá" không giá là ghi chú tùy chọn: bỏ, không nối vào tên món sau
                 pending += words  # hàng chỉ có số nhỏ (cột số lượng) không thêm gì
             continue
         name = " ".join(pending + [own.lstrip("+ ").strip() if addon else own]).strip()
         pending = []
+        after_stt_item = stt
         if _NEGATIVE_RE.search(p[0].text) or _DISCOUNT_RE.search(_norm(name)):
             items.append(Item(name, -p[1], None, True))
         elif addon:
