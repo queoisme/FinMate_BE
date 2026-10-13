@@ -432,3 +432,30 @@ def test_several_tong_cong_rows_are_block_subtotals_not_a_total():
     # hóa đơn A4 nhiều khối bảng, mỗi khối có "Tổng cộng" riêng (ảnh thật d2b8bddd): không chọn dòng nào làm tổng bill
     rows = [*row(100, ("Tổng cộng", 50, 400), ("78.589", 780, 950)), *row(300, ("Tổng cộng", 50, 400), ("982.364", 780, 950))]
     assert payable_total(rows) is None
+
+
+# ---- hồi quy 2026-10-14 sau khi sửa \b: "Thẻ game nạp" (món) bị coi là dòng thanh toán bằng thẻ nên bảng món dừng ở món 2
+THE_GAME_TABLE = [
+    *row(20, ("STT", 50, 100), ("Tên hàng", 150, 400), ("SL", 560, 600), ("Đơn giá", 650, 750), ("Thành tiền", 800, 950)),
+    *row(70, ("1", 50, 70), ("Vé vào cổng người lớn", 150, 450), ("2", 570, 590), ("80.000", 650, 750), ("160.000", 820, 950)),
+    *row(120, ("2", 50, 70), ("Thẻ game nạp 100.000đ", 150, 450), ("1", 570, 590), ("100.000", 650, 750), ("100.000", 820, 950)),
+    *row(170, ("3", 50, 70), ("Bắp rang mini", 150, 450), ("1", 570, 590), ("30.000", 650, 750), ("30.000", 820, 950)),
+    *row(230, ("Tổng tiền hàng (3 món):", 50, 450), ("290.000", 800, 950)),
+    *row(280, ("Tổng thanh toán:", 50, 450), ("290.000", 800, 950)),
+]
+
+
+def test_a_game_card_item_is_not_a_card_payment_line():
+    r = extract_items(THE_GAME_TABLE, 290000)
+    assert [i.amount for i in r.items] == [160000, 100000, 30000] and r.ok is True
+
+
+def test_a_real_card_payment_row_still_ends_the_item_table():
+    rows = [*THE_GAME_TABLE[:20], *row(210, ("Thẻ ATM", 50, 300), ("290.000", 800, 950))]
+    assert [i.amount for i in extract_items(rows, 290000).items] == [160000, 100000, 30000]
+
+
+def test_glued_ocr_tax_label_is_a_surcharge():
+    rows = [*THE_GAME_TABLE[:20], *row(230, ("Tiền hàng", 50, 450), ("290.000", 800, 950)), *row(270, ("ThueGTGT8%)", 50, 400), ("23.200", 820, 950)),
+            *row(320, ("Tong thanh toan", 50, 450), ("313.200", 800, 950))]
+    assert extract_items(rows, 313200).ok is True

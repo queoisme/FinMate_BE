@@ -19,10 +19,10 @@ _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 # là tổng cuối, không phải thuế.
 # Đồng bộ với ReceiptSplitter.IsSurcharge (backend, FinMate.Application/Transactions): thêm từ ở đây thì thêm ở BE và ở
 # ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
-_SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|\bgtgt\b|phi phuc vu|phi dich vu|service")  # gtgt: OCR hay đọc "Thuế" thành "Thu€"
+_SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|gtgt|phi phuc vu|phi dich vu|service")  # gtgt: OCR hay đọc "Thuế" thành "Thu€"
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
-_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
+_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\s*:|^the\s*$|^the\s+(?:atm|tin dung|ghi no|visa|master|jcb|napas|ngan hang)\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")

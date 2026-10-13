@@ -71,6 +71,7 @@ public static class ReceiptSplitter
         // Đệm khoảng trắng hai đầu để cụm từ chỉ khớp trọn từ.
         var folded = $" {string.Join(' ', foldedWords)} ";
         return Words(lower).Any(SurchargeWords.Contains)
+            || folded.Contains("gtgt", StringComparison.Ordinal) // OCR hay viết dính: "ThueGTGT8%)"
             || folded.Contains(ServiceWord, StringComparison.Ordinal)
             || SurchargePhrases.Any(p => folded.Contains($" {p} "));
     }

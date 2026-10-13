@@ -228,6 +228,7 @@ public class ReceiptSplitterTests
     [InlineData("SERVICECHARGE 5%")]
     [InlineData("Phí service")]
     [InlineData("Thu€ GTGT (8%)")]
+    [InlineData("ThueGTGT8%)")]
     [InlineData("Thuế VAT 8%")]
     [InlineData("Phí phục vụ 5%")]
     public void Every_ocr_surcharge_term_is_a_surcharge(string name)
