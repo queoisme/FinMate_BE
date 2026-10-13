@@ -61,6 +61,8 @@ class ChatParseResponse(BaseModel):
     # Tổng người dùng nói trong câu ("tổng cộng 60k"), và có khác tổng các khoản đọc được không; để app/backend cảnh báo.
     total_amount: int | None = None
     total_mismatch: bool = False
+    # Vế không có số tiền trong câu nhiều khoản ("... và cà phê"): không thành khoản, để app hỏi lại.
+    skipped: list[str] = Field(default_factory=list)
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.
     unclear_reason: str | None = None

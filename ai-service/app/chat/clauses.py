@@ -86,3 +86,27 @@ def extract_total(text: str) -> tuple[str, int | None]:
         if parse_amount(rest):
             return rest, amount.value
     return text, None
+
+
+_AND = re.compile(r"\s+(?:và|va|rồi|roi|sau đó|sau do)\s+", re.IGNORECASE)
+_FILLER = {"nhé", "nha", "nhá", "luôn", "nữa", "giúp", "với", "đấy", "ạ", "nhỉ"}
+
+
+def split_amountless(text: str) -> tuple[str, tuple[str, ...]]:
+    """Vế cuối nối bằng "và/rồi" mà không có số tiền ("ăn phở 40k và cà phê") không bị gộp vào mô tả: tách ra để báo cho người dùng.
+
+    Chỉ áp khi phần đầu có số tiền; vế phụ ("2 người", bắt đầu bằng chữ số) và lời đệm ("nhé") vẫn nằm trong khoản.
+    """
+    pieces = _AND.split(text)
+    if len(pieces) < 2 or not parse_amount(pieces[0]):
+        return text, ()
+    kept, skipped = [pieces[0]], []
+    for piece in pieces[1:]:
+        words = _WORD.findall(piece)
+        if parse_amount(piece) or not words or piece.strip()[0].isdigit() or all(w.lower() in _FILLER for w in words):
+            kept.append(piece)
+        else:
+            skipped.append(piece.strip(" ,;."))
+    if not skipped:
+        return text, ()
+    return " và ".join(kept), tuple(skipped)

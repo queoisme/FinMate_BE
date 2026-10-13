@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from app.chat import vocab
 from app.chat.amount import normalize, parse_amount, remove_amount
-from app.chat.clauses import apply_cancellations, extract_total, split_clauses
+from app.chat.clauses import apply_cancellations, extract_total, split_amountless, split_clauses
 from app.chat.dates import VN, parse_when, remove_when
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.category_resolver import resolve
@@ -105,6 +105,7 @@ class ChatParse:
     entries: tuple[Entry, ...] = ()  # mọi khoản trong câu (nhiều khoản khi câu có nhiều số tiền); ``entry`` = khoản đầu
     total_amount: int | None = None  # tổng người dùng nói ("tổng cộng 60k"): để đối chiếu, không phải một khoản chi
     total_mismatch: bool = False  # tổng đã nói khác tổng các khoản đọc được
+    skipped: tuple[str, ...] = ()  # vế nối bằng "và/rồi" không có số tiền: không thành khoản, báo cho người dùng
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -325,7 +326,7 @@ def parse_chat(
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
                          extra.get("unclear_reason"), extra.get("entries", ()),
-                         extra.get("total_amount"), extra.get("total_mismatch", False))
+                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
@@ -336,6 +337,7 @@ def parse_chat(
         if cancelled and not parse_amount(text):
             return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")
         text, stated_total = extract_total(text)  # "... tổng cộng 60k": số đối chiếu, không phải một khoản
+        text, skipped = split_amountless(text)
         clauses = split_clauses(text)
         if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
             whole = parse_when(text, now)  # ngày nói ở một vế ("... cà phê 30k hôm qua") áp cho các vế không có ngày riêng
@@ -345,11 +347,11 @@ def parse_chat(
                 if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category, now, whole.value if whole else None))
             )
             if len(many) > 1:
-                return result(intent, entry=many[0], entries=many, unclear_reason=reason, **_total_check(stated_total, many))
+                return result(intent, entry=many[0], entries=many, unclear_reason=reason, skipped=skipped, **_total_check(stated_total, many))
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
-        return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, **_total_check(stated_total, (entry,)))
+        return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         return result(intent, query=_query(norm, now), unclear_reason=reason)
     return result(intent, reply_text=_REPLIES.get(intent, _REPLIES["out_of_scope"]), unclear_reason=reason)

@@ -103,6 +103,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
         unclear_reason=parsed.unclear_reason,
         total_amount=parsed.total_amount,
         total_mismatch=parsed.total_mismatch,
+        skipped=list(parsed.skipped),
     )
 
 

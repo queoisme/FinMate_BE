@@ -72,8 +72,9 @@ def _words(norm: str) -> list[AmountMatch]:
             continue
         end = m.end()
         half = re.match(r"\s*ruoi(?![a-z])", norm[end:])  # "một triệu rưỡi", "hai trăm nghìn rưỡi" hiếm nhưng "triệu rưỡi" thường gặp
-        if half and re.search(r"(trieu|nghin|ngan)\s*$", run):
-            value += 500_000 if run.rstrip().endswith("trieu") else 500
+        bonus = {"trieu": 500_000, "nghin": 500, "ngan": 500, "tram": 50}.get(words[-1])  # "hai trăm rưỡi" = 250 (không tự nhân 1000, xem number_words)
+        if half and bonus:
+            value += bonus
             end += half.end()
         found.append(AmountMatch(value, m.start(), end))
     return found

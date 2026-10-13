@@ -273,3 +273,20 @@ def test_word_total_inside_an_item_name_is_not_a_total():
     parsed = parse("mua bộ tổng hợp đề 150k")
     assert [e.amount for e in parsed.entries] == [150_000]
     assert parsed.total_amount is None
+
+
+# ---- "hai trăm rưỡi" và vế thiếu tiền
+def test_half_hundred_reads_like_the_spoken_equivalent():
+    assert parse_amount("ăn cơm hai trăm rưỡi").value == parse_amount("ăn cơm hai trăm năm mươi").value == 250
+    assert parse_amount("mua áo một triệu rưỡi").value == 1_500_000  # không đổi
+
+
+def test_clause_without_amount_is_reported_not_merged():
+    parsed = parse("ăn phở 40k và cà phê")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(40_000, "ăn phở")]
+    assert parsed.skipped == ("cà phê",)
+
+
+@pytest.mark.parametrize("text", ["ăn cơm 20k, 2 người", "ăn cơm 20k và 2 người", "ăn phở 40k và uống trà sữa 30k"])
+def test_side_notes_and_full_items_are_not_reported_as_skipped(text):
+    assert parse(text).skipped == ()
