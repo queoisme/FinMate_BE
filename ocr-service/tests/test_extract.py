@@ -195,3 +195,14 @@ def test_total_label_with_one_glued_noise_character_still_matches():
     # tên hàng chứa "tong" giữa chữ không phải nhãn
     for name in ("TraYuzumatongboncha", "BonchaTacMatOng450", "Banh thanhtong"):
         assert extract_total([name, "35,000"]) is None, name
+
+
+def test_payable_total_not_taken_from_the_cash_tendered_line_below_it():
+    # ảnh thật Bách Hóa Xanh: số tiền nằm dòng dưới nhãn; tìm số theo nhãn không được đi qua nhãn kế ("Tiền khách đưa") lấy luôn 200.000
+    lines = ["Tong tien hang (3 mon):", "186.000", "Chiet khau:", "0", "Tong thanh toan:", "186.000", "Tien khach dua:", "200.000", "Tien thua:", "14.000"]
+    assert extract_total(lines) == 186000
+
+
+def test_label_value_still_found_across_a_quantity_line_before_the_next_label():
+    # nhãn tách khỏi số bởi một dòng chữ KHÔNG phải nhãn khác: giữ hành vi cũ (lấy số lớn nhất trước khi gặp nhãn mới)
+    assert extract_total(["Tong cong", "So luong", "125.000"]) == 125000

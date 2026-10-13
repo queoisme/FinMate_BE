@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.1-flash-lite"
     # Model dự phòng, cách nhau bằng dấu phẩy: thử lần lượt khi model chính quá tải (503) hay hết giờ
     gemini_fallback_models: str = "gemini-3.5-flash-lite"
-    gemini_timeout_seconds: float = 10.0
+    gemini_timeout_seconds: float = 20.0
 
 
 settings = Settings()

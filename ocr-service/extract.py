@@ -184,6 +184,8 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
                     if amount_before and j + 1 < len(lines) and _CASH_LABEL.search(_norm(lines[j + 1])):
                         continue
                     found.extend(money(nxt))
+                elif found and _CASH_LABEL.search(_norm(nxt)):
+                    break  # đã có số của nhãn này; số sau nhãn tiền khách đưa / tiền thừa ("Tiền khách đưa: 200.000") là của nhãn đó, không phải tổng
             if not found and i and letters(lines[i - 1]) <= 3:
                 # OCR hay đọc số tiền ở bên phải TRƯỚC nhãn bên trái cùng hàng ("37.200đ" rồi "Tổng cộng"): nhãn không có số phía sau thì lấy dòng ngay trước
                 found.extend(money(lines[i - 1]))

@@ -24,7 +24,7 @@ MAX_NAMES = 20
 MAX_NAME_LEN = 60
 CIRCUIT_SECONDS = 30.0
 # Trần cho cả lần gọi (gồm lần thử lại): timeout của httpx chỉ tính theo từng pha (kết nối, đọc...).
-OVERALL_TIMEOUT = 25.0
+OVERALL_TIMEOUT = 40.0  # đo thật 2026-10-13: 3 tên món mất 9-23 giây
 RETRY_DELAY = 1.5
 CACHE_MAX = 2000
 CACHE_TTL = 24 * 3600
