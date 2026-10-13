@@ -70,7 +70,7 @@ public class ChatCommandHandler : IChatCommandHandler
             }
 
             // Client cũ chỉ đọc `draft` (bản đầu): câu trả lời nói rõ có nhiều khoản để người dùng không im lặng mất các khoản sau.
-            var reply = parsed.ReplyText ?? $"Mình thấy {drafts.Count} khoản trong câu này. Bạn kiểm tra và xác nhận từng khoản nhé.";
+            var reply = WithNotes(parsed.ReplyText ?? $"Mình thấy {drafts.Count} khoản trong câu này. Bạn kiểm tra và xác nhận từng khoản nhé.", parsed);
             return new ChatResultDto(ChatActions.Confirm, parsed.Intent, reply, null, drafts[0], null, drafts);
         }
 
@@ -120,7 +120,32 @@ public class ChatCommandHandler : IChatCommandHandler
             }
         }
 
-        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, parsed.ReplyText, null, DraftOf(entry, accountId, duplicate), null);
+        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, WithNotes(parsed.ReplyText, parsed), null, DraftOf(entry, accountId, duplicate), null);
+    }
+
+    // Chạy được cả khi runtime ở chế độ globalization-invariant (không có culture vi-VN): tự đổi dấu phân cách nghìn sang dấu chấm.
+    private static string Money(long cents) => cents.ToString("N0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', '.') + " ₫";
+
+    /// <summary>
+    /// Điều AI thấy chưa khớp trong câu (vế thiếu số tiền, tổng đã nói khác tổng các khoản) được nói thẳng với người dùng: nếu không,
+    /// khoản bị bỏ biến mất im lặng. AI đã chặn ghi ngay trong các trường hợp này nên luôn có bước xác nhận để đọc lời nhắn.
+    /// </summary>
+    private static string? WithNotes(string? reply, ChatParseResponse parsed)
+    {
+        var notes = new List<string>();
+        foreach (var clause in parsed.Skipped ?? [])
+        {
+            notes.Add($"Mình chưa thấy số tiền cho \"{clause}\" nên chưa ghi. Bạn nhắn thêm số tiền nhé.");
+        }
+
+        if (parsed.TotalMismatch && parsed.TotalAmount is { } stated)
+        {
+            var entries = parsed.Entries is { Count: > 0 } many ? many : parsed.Entry is null ? [] : new[] { parsed.Entry };
+            var sum = entries.Sum(e => e.AmountCents);
+            notes.Add($"Bạn nói tổng {Money(stated)} nhưng các khoản cộng lại là {Money(sum)}. Kiểm tra lại giúp mình nhé.");
+        }
+
+        return notes.Count == 0 ? reply : string.Join(" ", new[] { reply }.Concat(notes).Where(t => !string.IsNullOrWhiteSpace(t)));
     }
 
     private Task<Guid?> FindDuplicateAsync(ChatCommand command, ChatParseEntry entry, CancellationToken ct)

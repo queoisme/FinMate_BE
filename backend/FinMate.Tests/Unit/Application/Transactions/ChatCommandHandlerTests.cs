@@ -440,4 +440,44 @@ public class ChatCommandHandlerTests
 
         result.ReplyText.Should().Contain("2 khoản");
     }
+
+    // ------------------------------------------------------------ ghi chú cho người dùng khi câu chưa khớp (đường chat cũ)
+
+    [Fact]
+    public async Task AClauseWithoutAnAmountIsMentionedInTheReply()
+    {
+        AiReturns(new ChatParseResponse("add_expense", null,
+            new ChatParseEntry("expense", 40_000, "ăn phở", null, "food", null, false, false, null, "rule"), null, 5,
+            Skipped: ["cà phê"]));
+
+        var result = await _handler.HandleAsync(Command("ăn phở 40k và cà phê"));
+
+        result.Action.Should().Be(ChatActions.Confirm);
+        result.ReplyText.Should().Contain("cà phê").And.Contain("số tiền");
+    }
+
+    [Fact]
+    public async Task AStatedTotalThatDoesNotAddUpIsMentionedInTheReply()
+    {
+        AiReturns(new ChatParseResponse("add_expense", null,
+            new ChatParseEntry("expense", 50_000, "ăn trưa", null, "food", null, false, false, null, "rule"), null, 5,
+            TotalAmount: 200_000, TotalMismatch: true));
+
+        var result = await _handler.HandleAsync(Command("ăn trưa 50k tổng 200k"));
+
+        result.ReplyText.Should().Contain("200.000").And.Contain("50.000");
+    }
+
+    [Fact]
+    public async Task NoteIsAppendedToTheMultiItemReplyToo()
+    {
+        AiReturns(new ChatParseResponse("add_expense", null, null, null, 5,
+            [new ChatParseEntry("expense", 40_000, "ăn phở", null, "food", null, false, false),
+             new ChatParseEntry("expense", 70_000, "đổ xăng", null, "transport", null, false, false)],
+            TotalAmount: 100_000, TotalMismatch: true));
+
+        var result = await _handler.HandleAsync(Command("ăn phở 40k, đổ xăng 70k tổng cộng 100k"));
+
+        result.ReplyText.Should().Contain("2 khoản").And.Contain("100.000").And.Contain("110.000");
+    }
 }

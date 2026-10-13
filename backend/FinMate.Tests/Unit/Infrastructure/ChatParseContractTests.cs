@@ -105,4 +105,17 @@ public class ChatParseContractTests
         response.TotalAmount.Should().BeNull();
         response.TotalMismatch.Should().BeFalse();
     }
+
+    // Sinh bằng ChatParseResponse.model_dump_json() cho "mua xe 2000tr và bảo hiểm 200tr tổng 2200tr": tổng 2,2 tỷ vượt int32.
+    private const string BigTotalJson =
+        """{"intent":"add_expense","reply_text":null,"entry":{"kind":"expense","amount_cents":2000000000,"description":"mua xe","merchant":null,"category_slug":null,"category_source":null,"income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":null},"entries":[{"kind":"expense","amount_cents":2000000000,"description":"mua xe","merchant":null,"category_slug":null,"category_source":null,"income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":null},{"kind":"expense","amount_cents":200000000,"description":"bảo hiểm","merchant":null,"category_slug":null,"category_source":null,"income_type":null,"auto_save_ok":false,"to_others":false,"occurred_at":null}],"query":null,"total_amount":2200000000,"total_mismatch":false,"skipped":[],"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":7}""";
+
+    [Fact]
+    public void ATotalAboveInt32StillDeserialises()
+    {
+        var response = JsonSerializer.Deserialize<ChatParseApiResponse>(BigTotalJson, Options)!;
+
+        response.TotalAmount.Should().Be(2_200_000_000L);
+        response.Entries!.Select(e => e.AmountCents).Should().Equal(2_000_000_000L, 200_000_000L);
+    }
 }

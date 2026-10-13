@@ -118,7 +118,7 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("query")] ChatQueryApiResult? Query,
     [property: JsonPropertyName("processing_ms")] int? ProcessingMs,
     [property: JsonPropertyName("entries")] IReadOnlyList<ChatEntryApiResult>? Entries = null,
-    [property: JsonPropertyName("total_amount")] int? TotalAmount = null,
+    [property: JsonPropertyName("total_amount")] long? TotalAmount = null,
     [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
     [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null);
 

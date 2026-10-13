@@ -132,7 +132,7 @@ public record ChatParseResponse(
     ChatParseQuery? Query,
     int? ProcessingMs,
     IReadOnlyList<ChatParseEntry>? Entries = null,
-    int? TotalAmount = null,
+    long? TotalAmount = null,
     bool TotalMismatch = false,
     IReadOnlyList<string>? Skipped = null);
 
