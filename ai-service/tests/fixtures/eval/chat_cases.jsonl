@@ -32,9 +32,9 @@
 {"text": "chuyển cho mẹ 1 triệu", "expect": [{"kind": "expense", "amount": 1000000, "category": "other"}]}
 {"text": "mua nước 20k", "expect": [{"kind": "expense", "amount": 20000, "category": null}]}
 {"text": "uống nước 10k", "expect": [{"kind": "expense", "amount": 10000, "category": "food"}]}
-{"text": "ăn cơm 20k, uống nước 10k, đổ xăng 50k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 10000, "category": "food"}, {"kind": "expense", "amount": 50000, "category": "transport"}]}
-{"text": "ăn cơm 20k, uống nước 10k", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 10000, "category": "food"}]}
-{"text": "ăn phở 45k và cà phê 30k", "expect": [{"kind": "expense", "amount": 45000, "category": "food"}, {"kind": "expense", "amount": 30000, "category": "food"}]}
+{"text": "ăn cơm 20k, uống nước 10k, đổ xăng 50k", "expect": [{"kind": "expense", "amount": 30000, "category": "food"}, {"kind": "expense", "amount": 50000, "category": "transport"}]}
+{"text": "ăn cơm 20k, uống nước 10k", "expect": [{"kind": "expense", "amount": 30000, "category": "food"}]}
+{"text": "ăn phở 45k và cà phê 30k", "expect": [{"kind": "expense", "amount": 75000, "category": "food"}]}
 {"text": "nhận lương 12 triệu, ăn cơm 20k", "expect": [{"kind": "income", "amount": 12000000, "category": "income"}, {"kind": "expense", "amount": 20000, "category": "food"}]}
 {"text": "đi grab 50k rồi ăn trưa 40k", "expect": [{"kind": "expense", "amount": 50000, "category": "transport"}, {"kind": "expense", "amount": 40000, "category": "food"}]}
 {"text": "mua 2 lít sữa 50k", "expect": [{"kind": "expense", "amount": 50000, "category": "food"}]}
@@ -61,3 +61,6 @@
 {"text": "mua nước", "intent": "needs_amount"}
 {"text": "đi ăn", "intent": "needs_amount"}
 {"text": "", "intent": "empty"}
+{"text": "ăn cơm 25k uống nước 10k", "expect": [{"kind": "expense", "amount": 35000, "category": "food"}]}
+{"text": "ăn cơm 25k và mua sữa rửa mặt 80k", "expect": [{"kind": "expense", "amount": 25000, "category": "food"}, {"kind": "expense", "amount": 80000, "category": "shopping"}]}
+{"text": "trong 100k có 20k ăn cơm và 80k mua sữa rửa mặt", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 80000, "category": "shopping"}]}

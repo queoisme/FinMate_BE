@@ -123,7 +123,7 @@ async def test_rasa_circuit_breaker_stops_calling_after_a_failure():
 
 
 async def test_response_carries_entries_and_the_date():
-    body = (await post("hôm qua ăn phở 45k, cà phê 30k")).json()
+    body = (await post("hôm qua ăn phở 45k, đổ xăng 30k")).json()
     assert [e["amount_cents"] for e in body["entries"]] == [45_000, 30_000]
     assert body["entry"] == body["entries"][0] and body["entries"][0]["occurred_at"] is not None
     assert all(not e["auto_save_ok"] for e in body["entries"])
@@ -229,7 +229,7 @@ async def test_a_cached_slug_outside_the_taxonomy_is_ignored():
 
 
 async def test_stated_total_is_returned_for_checking():
-    body = (await post("mua bánh mì 25k và cà phê 35k tổng cộng 70k")).json()
+    body = (await post("mua bánh mì 25k và đổ xăng 35k tổng cộng 70k")).json()
     assert [e["amount_cents"] for e in body["entries"]] == [25_000, 35_000]
     assert (body["total_amount"], body["total_mismatch"]) == (70_000, True)
 

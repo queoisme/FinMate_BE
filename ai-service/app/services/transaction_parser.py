@@ -308,6 +308,35 @@ def _query(norm: str, now: datetime) -> Query:
     return Query("expense", key, label, start, end, category_from_text(norm), None)
 
 
+def _merge_same_category(entries: tuple[Entry, ...]) -> tuple[Entry, ...]:
+    """Các khoản CÙNG danh mục (cùng loại thu, cùng ngày, cùng cửa hàng) trong một câu thành MỘT khoản; khác danh mục thì giữ riêng.
+    Danh mục chưa biết (None) không bao giờ được gộp: chưa biết thì không khẳng định được là cùng loại."""
+    merged: dict[tuple, Entry] = {}
+    order: list[tuple] = []
+    for index, e in enumerate(entries):
+        label = e.category if e.kind == "expense" else e.income_type if e.kind == "income" else None
+        key = (e.kind, label, e.occurred_at, e.merchant, e.to_others) if label else ("alone", index)
+        if key in merged:
+            first = merged[key]
+            parts = [p for p in (first.description + ", " + e.description).split(", ") if p]
+            merged[key] = replace(first, amount=first.amount + e.amount, description=", ".join(dict.fromkeys(parts)), auto_save_ok=False)
+        else:
+            merged[key] = e
+            order.append(key)
+    return tuple(merged[k] for k in order)
+
+
+def _money(amount: int) -> str:
+    return f"{amount:,}".replace(",", ".") + " ₫"
+
+
+def _merge_note(before: tuple[Entry, ...], after: tuple[Entry, ...]) -> str | None:
+    if len(after) == len(before):
+        return None
+    gone = len(before) - len(after)
+    return f"Mình gộp {gone + 1 if len(after) == 1 else 'các'} khoản cùng danh mục lại cho gọn, bạn kiểm tra giúp mình nhé."
+
+
 def _total_check(stated: int | None, entries: tuple[Entry, ...]) -> dict:
     if stated is None:
         return {}
@@ -357,7 +386,9 @@ def parse_chat(
                 if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category, now, whole.value if whole else None))
             )
             if len(many) > 1:
-                return result(intent, entry=many[0], entries=many, unclear_reason=reason, skipped=skipped, **_total_check(stated_total, many))
+                merged = _merge_same_category(many)  # cùng danh mục thì một khoản, khác danh mục thì tách riêng
+                return result(intent, entry=merged[0], entries=merged, unclear_reason=reason, skipped=skipped,
+                              reply_text=_merge_note(many, merged), **_total_check(stated_total, merged))
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)

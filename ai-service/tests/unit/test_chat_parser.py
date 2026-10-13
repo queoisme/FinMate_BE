@@ -148,16 +148,16 @@ def test_unclear_reasons():
     assert parse("iphone 20 triệu có đáng mua không").unclear_reason is None  # câu hỏi, không phải tin khó hiểu
 
 
-def test_three_expenses_in_one_sentence_become_three_entries():
+def test_three_expenses_in_one_sentence_become_one_entry_per_category():
     parsed = parse("ăn cơm 20k, uống nước 10k, đổ xăng 50k")
-    assert [e.amount for e in parsed.entries] == [20_000, 10_000, 50_000]
-    assert [e.kind for e in parsed.entries] == ["expense"] * 3
-    assert parsed.entries[0].category == "food" and parsed.entries[2].category == "transport"
+    assert [e.amount for e in parsed.entries] == [30_000, 50_000]  # hai khoản Ăn uống gộp một, Di chuyển riêng
+    assert [e.kind for e in parsed.entries] == ["expense"] * 2
+    assert parsed.entries[0].category == "food" and parsed.entries[1].category == "transport"
     assert parsed.entry == parsed.entries[0]
 
 
 def test_and_splits_two_entries():
-    assert [e.amount for e in parse("ăn phở 45k và cà phê 30k").entries] == [45_000, 30_000]
+    assert [e.amount for e in parse("ăn phở 45k và đổ xăng 30k").entries] == [45_000, 30_000]
 
 
 def test_mixed_kinds_are_read_per_clause():
@@ -190,7 +190,7 @@ def test_entry_carries_the_date_and_loses_the_date_words():
 
 
 def test_sentence_date_applies_to_every_clause_without_its_own():
-    parsed = parse("hôm qua ăn phở 45k, cà phê 30k")
+    parsed = parse("hôm qua ăn phở 45k, đổ xăng 30k")
     assert [e.occurred_at for e in parsed.entries] == [datetime(2026, 10, 13, 12, 0, tzinfo=VN)] * 2
 
 
@@ -258,13 +258,13 @@ def test_words_that_only_look_like_cancellation_are_kept(text):
 
 # ---- "tổng cộng 60k" là số để đối chiếu, không phải một khoản chi
 def test_stated_total_is_a_check_not_an_expense():
-    parsed = parse("mua bánh mì 25k và cà phê 35k tổng cộng 60k")
+    parsed = parse("mua bánh mì 25k và đổ xăng 35k tổng cộng 60k")
     assert [e.amount for e in parsed.entries] == [25_000, 35_000]
     assert (parsed.total_amount, parsed.total_mismatch) == (60_000, False)
 
 
 def test_stated_total_that_differs_is_flagged():
-    parsed = parse("mua bánh mì 25k và cà phê 35k tổng cộng 70k")
+    parsed = parse("mua bánh mì 25k và đổ xăng 35k tổng cộng 70k")
     assert [e.amount for e in parsed.entries] == [25_000, 35_000]
     assert (parsed.total_amount, parsed.total_mismatch) == (70_000, True)
 
@@ -421,19 +421,19 @@ def test_giving_money_away_stays_an_expense_even_when_rasa_says_income(text):
 
 # ---- không có dấu phẩy/"và" giữa các khoản (giọng nói không có dấu câu): vẫn là từng khoản riêng, không được mất khoản nào
 def test_items_with_no_separator_between_them_are_split_by_their_amounts():
-    parsed = parse("ăn cơm 25k uống nước 10k")
-    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "uống nước")]
+    parsed = parse("ăn cơm 25k đổ xăng 10k")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "đổ xăng")]
     assert not any(e.auto_save_ok for e in parsed.entries)
 
 
 def test_spoken_items_without_punctuation_are_split_too():
-    parsed = parse("ăn cơm hai lăm ngàn uống nước mười ngàn")
+    parsed = parse("ăn cơm hai lăm ngàn đổ xăng mười ngàn")
     assert [e.amount for e in parsed.entries] == [25_000, 10_000]
 
 
 def test_amount_first_style_is_split_before_the_next_amount():
-    parsed = parse("25k ăn cơm 10k uống nước")
-    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "uống nước")]
+    parsed = parse("25k ăn cơm 10k đổ xăng")
+    assert [(e.amount, e.description) for e in parsed.entries] == [(25_000, "ăn cơm"), (10_000, "đổ xăng")]
 
 
 @pytest.mark.parametrize("text", ["mua 2 lít sữa 50k", "mua sữa 50k hộp 2 lít", "ăn cơm 25k cho 2 người", "mua sữa rửa mặt 80k"])
@@ -454,3 +454,43 @@ def test_a_breakdown_that_does_not_add_up_is_flagged():
     parsed = parse("trong 100k có 20k ăn cơm và 70k mua sữa rửa mặt")
     assert (parsed.total_amount, parsed.total_mismatch) == (100_000, True)
     assert not any(e.auto_save_ok for e in parsed.entries)
+
+
+# ---- khác danh mục thì tách riêng, cùng danh mục thì gộp thành một khoản
+def test_items_of_the_same_category_are_merged_into_one_entry():
+    parsed = parse("ăn cơm 25k uống nước 10k")
+    assert [(e.amount, e.category, e.description) for e in parsed.entries] == [(35_000, "food", "ăn cơm, uống nước")]
+    assert parsed.entry is parsed.entries[0]
+    assert "gộp" in parsed.reply_text
+    assert not parsed.entry.auto_save_ok
+
+
+def test_spoken_items_of_the_same_category_are_merged_too():
+    assert [e.amount for e in parse("ăn cơm hai lăm ngàn uống nước mười ngàn").entries] == [35_000]
+
+
+def test_items_of_different_categories_stay_separate():
+    parsed = parse("ăn cơm 25k và mua sữa rửa mặt 80k")
+    assert [(e.amount, e.category) for e in parsed.entries] == [(25_000, "food"), (80_000, "shopping")]
+    assert parsed.reply_text is None
+
+
+def test_only_the_same_category_is_merged_inside_a_mixed_sentence():
+    parsed = parse("ăn cơm 20k, uống nước 10k và đổ xăng 50k")
+    assert [(e.amount, e.category) for e in parsed.entries] == [(30_000, "food"), (50_000, "transport")]
+
+
+def test_unknown_categories_are_never_merged():
+    parsed = parse("zxqv gizmo 50k, qwrt plugh 30k")
+    assert [(e.amount, e.category) for e in parsed.entries] == [(50_000, None), (30_000, None)]
+
+
+def test_items_on_different_days_are_not_merged():
+    parsed = parse("hôm qua ăn cơm 25k, hôm nay uống nước 10k")
+    assert [e.amount for e in parsed.entries] == [25_000, 10_000]
+
+
+def test_a_stated_total_is_compared_with_the_merged_sum():
+    parsed = parse("trong 30k có 20k ăn cơm và 10k uống nước")
+    assert [e.amount for e in parsed.entries] == [30_000]
+    assert (parsed.total_amount, parsed.total_mismatch) == (30_000, False)
