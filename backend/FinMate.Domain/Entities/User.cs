@@ -40,9 +40,14 @@ public class User
     public int? AiConsentVersion { get; set; }
     public DateTimeOffset? AiConsentAt { get; set; }
 
+    /// <summary>Đồng ý đóng góp dữ liệu huấn luyện (chữ hoá đơn đã lọc + nhãn cuối). NULL = chưa đồng ý hoặc đã rút lại. Tách biệt với đồng ý AI.</summary>
+    public int? TrainingConsentVersion { get; set; }
+    public DateTimeOffset? TrainingConsentAt { get; set; }
+
     /// <summary>Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại.</summary>
     public bool TermsAccepted => TermsVersion == ConsentVersions.Terms;
     public bool AiConsentGranted => AiConsentVersion == ConsentVersions.Ai;
+    public bool TrainingConsentGranted => TrainingConsentVersion == ConsentVersions.Training;
 
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }

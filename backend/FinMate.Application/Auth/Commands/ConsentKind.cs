@@ -8,4 +8,5 @@ public enum ConsentKind
 {
     Terms,
     Ai,
+    Training,
 }

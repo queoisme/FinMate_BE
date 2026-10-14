@@ -12,7 +12,8 @@ public record UserProfileDto(
     bool BudgetAlertsEnabled,
     bool MissionRemindersEnabled,
     bool TermsAccepted,
-    bool AiConsentGranted)
+    bool AiConsentGranted,
+    bool TrainingConsentGranted)
 {
     public static UserProfileDto From(User user) => new(
         user.Id,
@@ -24,5 +25,6 @@ public record UserProfileDto(
         user.NotificationPrefs.BudgetAlertsEnabled,
         user.NotificationPrefs.MissionRemindersEnabled,
         user.TermsAccepted,
-        user.AiConsentGranted);
+        user.AiConsentGranted,
+        user.TrainingConsentGranted);
 }

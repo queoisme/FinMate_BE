@@ -55,10 +55,10 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 
-    [HttpDelete("me/consents/ai")]
-    public async Task<IActionResult> WithdrawAiConsent(CancellationToken ct)
+    [HttpDelete("me/consents/{kind}")]
+    public async Task<IActionResult> WithdrawConsent(ConsentKind kind, CancellationToken ct)
     {
-        var profile = await _consentHandler.WithdrawAiAsync(CurrentUserId, ct);
+        var profile = await _consentHandler.WithdrawAsync(CurrentUserId, kind, ct);
         return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 

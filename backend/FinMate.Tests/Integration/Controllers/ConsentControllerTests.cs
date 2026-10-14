@@ -25,7 +25,7 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
 
     private record AuthResultBody(bool Success, AuthResultData Data);
     private record AuthResultData(string AccessToken);
-    private record ProfileData(Guid Id, bool TermsAccepted, bool AiConsentGranted);
+    private record ProfileData(Guid Id, bool TermsAccepted, bool AiConsentGranted, bool TrainingConsentGranted);
     private record ProfileBody(bool Success, ProfileData Data);
     private record ErrorBody(ErrorData Error);
     private record ErrorData(string Code);
@@ -85,6 +85,36 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
         var withdrawn = await ProfileAsync(token);
         withdrawn.AiConsentGranted.Should().BeFalse();
         withdrawn.TermsAccepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TrainingConsent_IsSeparateFromAiConsent_AndWithdrawable()
+    {
+        var token = await RegisterAndLoginAsync();
+        (await AcceptAsync(token, "ai", ConsentVersions.Ai)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ProfileAsync(token)).TrainingConsentGranted.Should().BeFalse("đồng ý AI không kéo theo đồng ý thu dữ liệu huấn luyện");
+
+        (await AcceptAsync(token, "training", ConsentVersions.Training)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var both = await ProfileAsync(token);
+        both.TrainingConsentGranted.Should().BeTrue();
+        both.AiConsentGranted.Should().BeTrue();
+
+        (await SendAsync(token, HttpMethod.Delete, "/api/v1/users/me/consents/training")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var after = await ProfileAsync(token);
+        after.TrainingConsentGranted.Should().BeFalse();
+        after.AiConsentGranted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WithdrawingTheTerms_IsRefused()
+    {
+        var token = await RegisterAndLoginAsync();
+        await AcceptAsync(token, "terms", ConsentVersions.Terms);
+
+        var response = await SendAsync(token, HttpMethod.Delete, "/api/v1/users/me/consents/terms");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ProfileAsync(token)).TermsAccepted.Should().BeTrue();
     }
 
     [Fact]

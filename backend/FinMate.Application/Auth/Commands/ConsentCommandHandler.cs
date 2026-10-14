@@ -19,7 +19,13 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
     public async Task<UserProfileDto> AcceptAsync(AcceptConsentCommand command, CancellationToken ct = default)
     {
-        var current = command.Kind == ConsentKind.Terms ? ConsentVersions.Terms : ConsentVersions.Ai;
+        var current = command.Kind switch
+        {
+            ConsentKind.Terms => ConsentVersions.Terms,
+            ConsentKind.Ai => ConsentVersions.Ai,
+            ConsentKind.Training => ConsentVersions.Training,
+            _ => throw new ArgumentOutOfRangeException(nameof(command)),
+        };
         if (command.Version != current)
         {
             throw new ConflictException(AuthErrorCodes.ConsentVersionOutdated,
@@ -28,25 +34,44 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
         var user = await LoadAsync(command.UserId, ct);
         var now = DateTimeOffset.UtcNow;
-        if (command.Kind == ConsentKind.Terms)
+        switch (command.Kind)
         {
-            user.TermsVersion = current;
-            user.TermsAcceptedAt = now;
-        }
-        else
-        {
-            user.AiConsentVersion = current;
-            user.AiConsentAt = now;
+            case ConsentKind.Terms:
+                user.TermsVersion = current;
+                user.TermsAcceptedAt = now;
+                break;
+            case ConsentKind.Ai:
+                user.AiConsentVersion = current;
+                user.AiConsentAt = now;
+                break;
+            default:
+                user.TrainingConsentVersion = current;
+                user.TrainingConsentAt = now;
+                break;
         }
 
         return await SaveAsync(user, ct);
     }
 
-    public async Task<UserProfileDto> WithdrawAiAsync(Guid userId, CancellationToken ct = default)
+    public async Task<UserProfileDto> WithdrawAsync(Guid userId, ConsentKind kind, CancellationToken ct = default)
     {
+        if (kind == ConsentKind.Terms)
+        {
+            throw new BusinessRuleException(AuthErrorCodes.ConsentNotWithdrawable, "Điều khoản chung không rút lại được. Muốn ngừng sử dụng, hãy xoá tài khoản.");
+        }
+
         var user = await LoadAsync(userId, ct);
-        user.AiConsentVersion = null;
-        user.AiConsentAt = null;
+        if (kind == ConsentKind.Ai)
+        {
+            user.AiConsentVersion = null;
+            user.AiConsentAt = null;
+        }
+        else
+        {
+            user.TrainingConsentVersion = null;
+            user.TrainingConsentAt = null;
+        }
+
         return await SaveAsync(user, ct);
     }
 

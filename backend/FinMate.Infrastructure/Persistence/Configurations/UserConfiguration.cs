@@ -47,6 +47,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
         builder.Property(u => u.AiConsentVersion).HasColumnName("ai_consent_version");
         builder.Property(u => u.AiConsentAt).HasColumnName("ai_consent_at");
+        builder.Property(u => u.TrainingConsentVersion).HasColumnName("training_consent_version");
+        builder.Property(u => u.TrainingConsentAt).HasColumnName("training_consent_at");
+        builder.Ignore(u => u.TrainingConsentGranted);
         builder.Ignore(u => u.TermsAccepted);
         builder.Ignore(u => u.AiConsentGranted);
         builder.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");

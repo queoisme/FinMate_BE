@@ -1650,6 +1650,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("terms_version");
 
+                    b.Property<DateTimeOffset?>("TrainingConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("training_consent_at");
+
+                    b.Property<int?>("TrainingConsentVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("training_consent_version");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");

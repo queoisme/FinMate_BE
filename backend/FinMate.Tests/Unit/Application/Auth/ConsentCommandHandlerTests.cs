@@ -27,6 +27,7 @@ public class ConsentCommandHandlerTests
     {
         _user.TermsAccepted.Should().BeFalse();
         _user.AiConsentGranted.Should().BeFalse();
+        _user.TrainingConsentGranted.Should().BeFalse();
     }
 
     [Fact]
@@ -55,9 +56,22 @@ public class ConsentCommandHandlerTests
         _user.TermsAcceptedAt.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task AcceptTraining_RecordsVersionAndTime_AndLeavesAiAndTermsAlone()
+    {
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Training, ConsentVersions.Training));
+
+        dto.TrainingConsentGranted.Should().BeTrue();
+        dto.AiConsentGranted.Should().BeFalse();
+        dto.TermsAccepted.Should().BeFalse();
+        _user.TrainingConsentVersion.Should().Be(ConsentVersions.Training);
+        _user.TrainingConsentAt.Should().NotBeNull();
+    }
+
     [Theory]
     [InlineData(ConsentKind.Ai)]
     [InlineData(ConsentKind.Terms)]
+    [InlineData(ConsentKind.Training)]
     public async Task AcceptingAStaleVersion_IsRefused_AndNothingIsSaved(ConsentKind kind)
     {
         // app cũ hiển thị câu chữ cũ: không được "đồng ý" thay cho câu chữ mới
@@ -72,9 +86,11 @@ public class ConsentCommandHandlerTests
     {
         _user.AiConsentVersion = ConsentVersions.Ai - 1;
         _user.TermsVersion = ConsentVersions.Terms - 1;
+        _user.TrainingConsentVersion = ConsentVersions.Training - 1;
 
         _user.AiConsentGranted.Should().BeFalse();
         _user.TermsAccepted.Should().BeFalse();
+        _user.TrainingConsentGranted.Should().BeFalse();
     }
 
     [Fact]
@@ -83,7 +99,7 @@ public class ConsentCommandHandlerTests
         await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
         await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
 
-        var dto = await _handler.WithdrawAiAsync(_user.Id);
+        var dto = await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
 
         dto.AiConsentGranted.Should().BeFalse();
         dto.TermsAccepted.Should().BeTrue();
@@ -92,9 +108,31 @@ public class ConsentCommandHandlerTests
     }
 
     [Fact]
+    public async Task WithdrawTraining_ClearsOnlyTheTrainingConsent()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Training, ConsentVersions.Training));
+
+        var dto = await _handler.WithdrawAsync(_user.Id, ConsentKind.Training);
+
+        dto.TrainingConsentGranted.Should().BeFalse();
+        dto.AiConsentGranted.Should().BeTrue();
+        _user.TrainingConsentVersion.Should().BeNull();
+        _user.TrainingConsentAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TermsCannotBeWithdrawn()
+    {
+        var act = () => _handler.WithdrawAsync(_user.Id, ConsentKind.Terms);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(AuthErrorCodes.ConsentNotWithdrawable);
+    }
+
+    [Fact]
     public async Task UnknownUser_IsNotFound()
     {
-        var act = () => _handler.WithdrawAiAsync(Guid.NewGuid());
+        var act = () => _handler.WithdrawAsync(Guid.NewGuid(), ConsentKind.Ai);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

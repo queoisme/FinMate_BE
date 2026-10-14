@@ -24,6 +24,9 @@ public static class AuthErrorCodes
     /// <summary>App gửi lên phiên bản câu chữ đồng ý khác phiên bản hiện hành của server (app cũ hoặc câu chữ vừa đổi).</summary>
     public const string ConsentVersionOutdated = "AUTH_CONSENT_VERSION_OUTDATED";
 
+    /// <summary>Điều khoản chung không rút lại được (muốn thôi thì xoá tài khoản).</summary>
+    public const string ConsentNotWithdrawable = "AUTH_CONSENT_NOT_WITHDRAWABLE";
+
     /// <summary>Thiếu GOOGLE_CLIENT_SECRET nên luồng OAuth qua trình duyệt chưa bật được.</summary>
     public const string GoogleOAuthNotConfigured = "AUTH_GOOGLE_OAUTH_NOT_CONFIGURED";
 }
