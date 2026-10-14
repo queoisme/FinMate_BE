@@ -18,6 +18,7 @@ from app.bill.knowledge import merchant_key
 from app.db.models.bill import BILL_CHOICE_SLUGS
 
 MAX_LINES = 200
+PENDING_RETENTION_DAYS = 7  # mẫu chưa gắn nhãn (lần quét không được lưu) bị xóa sau từng ấy ngày
 MAX_LINE_CHARS = 200
 
 # Từ 9 chữ số trở lên (điện thoại, số tài khoản, mã vạch), kể cả khi xen khoảng trắng/chấm/gạch: ocr-service đã che, đây là lưới an toàn thứ hai.
@@ -58,6 +59,7 @@ async def add_pending(session: AsyncSession, sample: PendingSample) -> bool:
     ).first()
     if inserted:
         await session.commit()
+        await purge_pending(session, days=PENDING_RETENTION_DAYS)  # không có scheduler: dọn mẫu chưa nhãn quá hạn mỗi khi có mẫu mới
         return True
     owner = (await session.execute(text("SELECT user_id_hash FROM bill_training_samples WHERE scan_id = :scan_id"), {"scan_id": sample.scan_id})).scalar_one_or_none()
     return owner == sample.user_id_hash

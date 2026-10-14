@@ -213,3 +213,35 @@ async def test_erase_route_validates_the_hash_and_the_key(client):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as anonymous:
         assert (await anonymous.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})).status_code == 401
+
+
+async def test_add_pending_also_purges_old_unlabeled_samples(session):
+    # không có scheduler: mỗi lần có mẫu mới thì dọn luôn mẫu chưa nhãn quá hạn, để lời hứa "xóa sau 7 ngày" tự đúng
+    stale, kept_old_label, fresh = sample(), sample(), sample()
+    await samples.add_pending(session, stale)
+    await samples.add_pending(session, kept_old_label)
+    await samples.label(session, kept_old_label.scan_id, HASH, "food")
+    await session.execute(text("UPDATE bill_training_samples SET created_at = now() - interval '8 days'"))
+    await session.commit()
+
+    await samples.add_pending(session, fresh)
+
+    assert {r.scan_id for r in await rows(session)} == {kept_old_label.scan_id, fresh.scan_id}
+
+
+async def test_learning_report_reads_labeled_and_pending_from_db(session):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+    from learning_report import build_report
+
+    labeled, pending = sample(), sample(merchant_name="Cửa hàng khác")
+    for s in (labeled, pending):
+        await samples.add_pending(session, s)
+    await samples.label(session, labeled.scan_id, HASH, "food")
+
+    report = await build_report(session)
+
+    assert (report.labeled, report.pending, report.merchants) == (1, 1, 1)
+    assert report.per_slug == {"food": 1} and report.accuracy_by_source == {"keyword": (1, 1.0)}
