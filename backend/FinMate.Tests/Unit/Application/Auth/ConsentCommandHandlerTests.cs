@@ -1,6 +1,7 @@
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FluentAssertions;
 using Moq;
@@ -13,13 +14,14 @@ public class ConsentCommandHandlerTests
 {
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<ICacheService> _cache = new();
+    private readonly Mock<ITrainingSampleService> _training = new();
     private readonly ConsentCommandHandler _handler;
     private readonly User _user = new() { Id = Guid.NewGuid(), Email = "a@finmate.local", DisplayName = "A" };
 
     public ConsentCommandHandlerTests()
     {
         _users.Setup(r => r.GetByIdAsync(_user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
-        _handler = new ConsentCommandHandler(_users.Object, _cache.Object);
+        _handler = new ConsentCommandHandler(_users.Object, _cache.Object, _training.Object);
     }
 
     [Fact]
@@ -119,6 +121,26 @@ public class ConsentCommandHandlerTests
         dto.AiConsentGranted.Should().BeTrue();
         _user.TrainingConsentVersion.Should().BeNull();
         _user.TrainingConsentAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WithdrawTraining_ErasesWhatTheUserAlreadyContributed()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Training, ConsentVersions.Training));
+
+        await _handler.WithdrawAsync(_user.Id, ConsentKind.Training);
+
+        _training.Verify(t => t.EraseAsync(_user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithdrawingAiOrAcceptingAnythingNeverErasesTrainingSamples()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Training, ConsentVersions.Training));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
+        await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
+
+        _training.Verify(t => t.EraseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

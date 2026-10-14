@@ -124,6 +124,28 @@ public class TrainingSampleServiceTests
         _ai.Verify(a => a.LabelTrainingSampleAsync(It.IsAny<TrainingLabelRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // ---- xóa dữ liệu đã đóng góp
+
+    [Fact]
+    public async Task Erase_CallsTheAiServiceEvenThoughConsentIsAlreadyWithdrawn()
+    {
+        UserConsentedTo(null);  // rút đồng ý xong mới xóa: không được đòi đang đồng ý
+
+        await Service().EraseAsync(_userId);
+
+        _ai.Verify(a => a.EraseTrainingSamplesAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Erase_NeverThrowsWhenTheAiServiceFails()
+    {
+        _ai.Setup(a => a.EraseTrainingSamplesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("boom"));
+
+        var act = () => Service().EraseAsync(_userId);
+
+        await act.Should().NotThrowAsync();
+    }
+
     [Fact]
     public async Task Label_NeverThrowsWhenTheAiServiceFails()
     {

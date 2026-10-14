@@ -2,6 +2,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Auth.Commands;
@@ -10,11 +11,13 @@ public class ConsentCommandHandler : IConsentCommandHandler
 {
     private readonly IUserRepository _userRepository;
     private readonly ICacheService _cacheService;
+    private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu thì không có gì để xóa
 
-    public ConsentCommandHandler(IUserRepository userRepository, ICacheService cacheService)
+    public ConsentCommandHandler(IUserRepository userRepository, ICacheService cacheService, ITrainingSampleService? trainingSamples = null)
     {
         _userRepository = userRepository;
         _cacheService = cacheService;
+        _trainingSamples = trainingSamples;
     }
 
     public async Task<UserProfileDto> AcceptAsync(AcceptConsentCommand command, CancellationToken ct = default)
@@ -72,7 +75,14 @@ public class ConsentCommandHandler : IConsentCommandHandler
             user.TrainingConsentAt = null;
         }
 
-        return await SaveAsync(user, ct);
+        var profile = await SaveAsync(user, ct);
+        if (kind == ConsentKind.Training && _trainingSamples is not null)
+        {
+            // Rút đồng ý thì dữ liệu đã đóng góp cũng bị xóa (best-effort sau khi đã lưu việc rút: dịch vụ tự nuốt lỗi).
+            await _trainingSamples.EraseAsync(userId, ct);
+        }
+
+        return profile;
     }
 
     private async Task<User> LoadAsync(Guid userId, CancellationToken ct) =>

@@ -94,6 +94,16 @@ class BillSampleLabelResponse(BaseModel):
     labeled: bool
 
 
+class BillSampleEraseRequest(BaseModel):
+    """``POST /api/v1/bill/samples/erase``: xóa MỌI mẫu huấn luyện của một người dùng (rút đồng ý đóng góp dữ liệu, hoặc xóa tài khoản)."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+
+
+class BillSampleEraseResponse(BaseModel):
+    deleted: int
+
+
 class ClassifyItemIn(BaseModel):
     """Một món trên hóa đơn: chỉ tên (đã lọc) và món chính nó thuộc về (phụ kiện "+"). Không có số tiền."""
 

@@ -17,6 +17,9 @@ public interface ITrainingSampleService
 
     /// <summary>Nhãn cuối là <paramref name="category"/>; null, danh mục tự tạo hoặc thu nhập thì bỏ qua (AI chỉ biết slug hệ thống).</summary>
     Task LabelAsync(Guid userId, Guid scanId, Category? category, CancellationToken ct = default);
+
+    /// <summary>Xóa mọi mẫu đã đóng góp của người dùng. KHÔNG đòi đang đồng ý (thường gọi ngay sau khi họ rút đồng ý hoặc khi xóa tài khoản).</summary>
+    Task EraseAsync(Guid userId, CancellationToken ct = default);
 }
 
 public class TrainingSampleService : ITrainingSampleService
@@ -55,6 +58,18 @@ public class TrainingSampleService : ITrainingSampleService
         }
 
         await RunAsync(userId, () => _aiServiceClient.LabelTrainingSampleAsync(new TrainingLabelRequest(scanId, userId, system.Slug), ct), ct);
+    }
+
+    public async Task EraseAsync(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _aiServiceClient.EraseTrainingSamplesAsync(userId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Erasing training samples failed: {ExceptionType}", ex.GetType().Name);
+        }
     }
 
     private async Task RunAsync(Guid userId, Func<Task> send, CancellationToken ct)

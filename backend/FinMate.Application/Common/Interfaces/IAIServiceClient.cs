@@ -215,4 +215,7 @@ public interface IAIServiceClient
 
     /// <summary>Best-effort. Gắn nhãn cuối (danh mục người dùng đã chọn) cho mẫu của lần quét; gắn lại thì nhãn sau thắng.</summary>
     Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default);
+
+    /// <summary>Best-effort. Xóa MỌI mẫu huấn luyện của người dùng ở ai-service (rút đồng ý đóng góp dữ liệu, hoặc xóa cứng tài khoản).</summary>
+    Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default);
 }

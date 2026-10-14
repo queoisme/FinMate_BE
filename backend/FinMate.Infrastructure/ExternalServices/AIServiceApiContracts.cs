@@ -151,6 +151,9 @@ public record BillSampleLabelApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
     [property: JsonPropertyName("final_slug")] string FinalSlug);
 
+public record BillSampleEraseApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash);
+
 public record ClassifyItemApiInput(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("parent")] int? Parent);

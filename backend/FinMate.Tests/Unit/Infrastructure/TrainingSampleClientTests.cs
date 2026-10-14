@@ -73,6 +73,21 @@ public class TrainingSampleClientTests
     }
 
     [Fact]
+    public async Task ErasingSendsOnlyAHashOfTheUser()
+    {
+        BillSampleEraseApiRequest? sent = null;
+        _api.Setup(a => a.BillSamplesEraseAsync(It.IsAny<BillSampleEraseApiRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<BillSampleEraseApiRequest, CancellationToken>((r, _) => sent = r)
+            .Returns(Task.CompletedTask);
+
+        await new AIServiceClient(_api.Object).EraseTrainingSamplesAsync(UserId);
+
+        sent!.UserIdHash.Should().MatchRegex("^[0-9a-f]{64}$").And.NotContain(UserId.ToString("N")[..8]);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(sent, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        json.RootElement.GetProperty("user_id_hash").GetString().Should().HaveLength(64);
+    }
+
+    [Fact]
     public async Task ADeadAiServiceNeverThrowsToTheCaller()
     {
         _api.Setup(a => a.BillSampleAsync(It.IsAny<BillSampleApiRequest>(), It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("down"));
@@ -82,6 +97,8 @@ public class TrainingSampleClientTests
 
         await ((Func<Task>)(() => client.RecordTrainingSampleAsync(Sample))).Should().NotThrowAsync();
         await ((Func<Task>)(() => client.LabelTrainingSampleAsync(Label))).Should().NotThrowAsync();
+        _api.Setup(a => a.BillSamplesEraseAsync(It.IsAny<BillSampleEraseApiRequest>(), It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("down"));
+        await ((Func<Task>)(() => client.EraseTrainingSamplesAsync(UserId))).Should().NotThrowAsync();
     }
 
     [Fact]

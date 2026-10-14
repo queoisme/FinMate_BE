@@ -33,6 +33,8 @@ from app.schemas.bill import (
     BillClassifyResponse,
     BillLearnRequest,
     BillLearnResponse,
+    BillSampleEraseRequest,
+    BillSampleEraseResponse,
     BillSampleLabelRequest,
     BillSampleLabelResponse,
     BillSampleRequest,
@@ -167,6 +169,17 @@ async def label_bill_sample(
         labeled = False
     logger.info("bill_sample_labeled", labeled=labeled)
     return BillSampleLabelResponse(labeled=labeled)
+
+
+@router.post("/bill/samples/erase", response_model=BillSampleEraseResponse)
+async def erase_bill_samples(
+    body: BillSampleEraseRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillSampleEraseResponse:
+    """Xóa mọi mẫu huấn luyện của người dùng này (cả mẫu đã có nhãn). Lỗi DB để lan ra (500): người gọi cần biết việc xóa chưa xong."""
+    async with factory() as session:
+        deleted = await bill_samples.delete_by_user_hash(session, body.user_id_hash)
+    logger.info("bill_samples_erased", deleted=deleted)
+    return BillSampleEraseResponse(deleted=deleted)
 
 
 @router.post("/bill/classify-items", response_model=BillClassifyItemsResponse)

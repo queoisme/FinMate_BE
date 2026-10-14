@@ -74,6 +74,9 @@ public class AIServiceClient : IAIServiceClient
         => BestEffortAsync(t => _api.BillSampleLabelAsync(
             request.ScanId, new BillSampleLabelApiRequest(UserIdHasher.Hash(request.UserId), request.FinalSlug), t), ct);
 
+    public Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.BillSamplesEraseAsync(new BillSampleEraseApiRequest(UserIdHasher.Hash(userId)), t), ct);
+
     private static async Task BestEffortAsync(Func<CancellationToken, Task> send, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

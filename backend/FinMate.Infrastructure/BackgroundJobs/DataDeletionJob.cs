@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 
 namespace FinMate.Infrastructure.BackgroundJobs;
 
@@ -10,13 +11,16 @@ public class DataDeletionJob
 {
     private readonly IDataDeletionRequestRepository _dataDeletionRequestRepository;
     private readonly IUserHardDeleter _userHardDeleter;
+    private readonly ITrainingSampleService? _trainingSamples;
 
     public DataDeletionJob(
         IDataDeletionRequestRepository dataDeletionRequestRepository,
-        IUserHardDeleter userHardDeleter)
+        IUserHardDeleter userHardDeleter,
+        ITrainingSampleService? trainingSamples = null)
     {
         _dataDeletionRequestRepository = dataDeletionRequestRepository;
         _userHardDeleter = userHardDeleter;
+        _trainingSamples = trainingSamples;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -25,6 +29,12 @@ public class DataDeletionJob
 
         foreach (var request in due)
         {
+            // Mẫu huấn luyện ở ai-service chỉ tìm được qua người dùng này: xóa TRƯỚC khi xóa tài khoản.
+            if (_trainingSamples is not null)
+            {
+                await _trainingSamples.EraseAsync(request.UserId, ct);
+            }
+
             await _userHardDeleter.HardDeleteAsync(request.UserId, ct);
             await _dataDeletionRequestRepository.MarkProcessedAsync(request, ct);
         }

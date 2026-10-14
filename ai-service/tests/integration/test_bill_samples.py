@@ -190,3 +190,26 @@ async def test_route_requires_internal_key():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         res = await c.post("/api/v1/bill/samples", json={"scan_id": str(uuid.uuid4()), "user_id_hash": HASH, "lines": ["a"]})
     assert res.status_code == 401
+
+
+async def test_erase_route_deletes_only_that_users_samples(client, session):
+    mine, theirs = sample(), sample(user_id_hash=OTHER)
+    await samples.add_pending(session, mine)
+    await samples.add_pending(session, theirs)
+    await samples.label(session, mine.scan_id, HASH, "food")  # đã có nhãn cũng bị xóa: đó chính là dữ liệu người dùng đã đóng góp
+
+    res = await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})
+
+    assert res.json() == {"deleted": 1}
+    assert [r.user_id_hash for r in await rows(session)] == [OTHER]
+
+
+async def test_erase_route_with_nothing_stored_deletes_zero(client):
+    assert (await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})).json() == {"deleted": 0}
+
+
+async def test_erase_route_validates_the_hash_and_the_key(client):
+    assert (await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": "short"})).status_code == 422
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as anonymous:
+        assert (await anonymous.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})).status_code == 401
