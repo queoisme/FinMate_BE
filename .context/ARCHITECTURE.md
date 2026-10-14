@@ -287,6 +287,13 @@ danh mục là danh mục **hệ thống** (không phải danh mục tự tạo)
 không nối với lần quét đã tách). `AIServiceClient.LearnMerchantAsync` gọi `/bill/learn` với timeout **3 giây** và nuốt lỗi
 (`ApiException`/`HttpRequestException`/`TaskCanceledException`): ghi nhớ không bao giờ làm hỏng việc lưu.
 
+**Đóng góp dữ liệu huấn luyện (vòng học).** Loại đồng ý thứ ba `ConsentKind.Training` (`ConsentVersions.Training`), tách khỏi đồng ý AI. Chỉ khi đang đồng ý, `TrainingSampleService`
+(đọc lại người dùng từ DB mỗi lần) gửi chữ hóa đơn ĐÃ lọc từ ocr-service sang ai-service `POST /bill/samples` (bảng `bill_training_samples`, mỗi lần quét một hàng, không ảnh,
+không âm thanh) và khi người dùng lưu/sửa danh mục hệ thống thì `POST /bill/samples/{scan_id}/label`. Nhãn chỉ đến từ người dùng, không bao giờ từ Gemini. Chuỗi từ 9 chữ số liền bị từ chối.
+Mẫu chưa nhãn bị xóa sau 7 ngày (`purge_loop` chạy mỗi giờ trong ai-service). Rút đồng ý (`DELETE /users/me/consents/training`) và xóa cứng tài khoản (`DataDeletionJob`) gọi
+`POST /bill/samples/erase`; lỗi xóa KHÔNG bị nuốt: rút đồng ý trả 503 (bấm lại để xóa tiếp), job giữ người dùng lại để đêm sau thử lại. `python scripts/learning_report.py` cho biết đã đủ dữ liệu
+để huấn luyện chưa (Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` chưa làm, chờ dữ liệu).
+
 **Mã người dùng ra ngoài.** `UserIdHasher.Hash` = SHA-256 của `Guid.ToString()` dạng hex thường; cùng một hàm cho AI Service
 (`user_id_hash`) và ocr-service (`X-User-Hash`), nên một người dùng có cùng mã ở cả hai nơi và cùng khóa trong bảng `bill_*`.
 
