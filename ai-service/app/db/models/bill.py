@@ -31,7 +31,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.enums import CATEGORY_SLUGS
-from app.db.base import Base, created_at, long_text, timestamptz, uuid_pk
+from app.db.base import Base, created_at, long_text, timestamptz, uuid_fk, uuid_pk
 
 BILL_CATEGORY_GROUPS = (
     "dining",
@@ -234,6 +234,35 @@ class BillItemCache(Base):
     updated_at: Mapped[timestamptz] = mapped_column(nullable=False, server_default=text("now()"))
 
     __table_args__ = (CheckConstraint(_in("category_slug", BILL_CHOICE_SLUGS), name="chk_bill_item_cache_slug"),)
+
+
+class BillTrainingSample(Base):
+    """Chữ ĐÃ lọc của một lần quét + nhãn cuối do NGƯỜI DÙNG chọn, chỉ khi họ đồng ý đóng góp dữ liệu. Không ảnh, không chữ gốc.
+
+    ``scan_id`` là id bản ghi quét ở backend (một lần quét = một hàng). Hàng chưa gắn nhãn bị dọn sau 7 ngày (``app.bill.samples.purge_pending``).
+    ``user_id_hash`` là SHA-256 một chiều của người dùng; xóa theo người dùng dùng đúng cột này.
+    """
+
+    __tablename__ = "bill_training_samples"
+
+    scan_id: Mapped[uuid_fk] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    merchant_key: Mapped[str | None] = mapped_column(Text)
+    lines: Mapped[str] = mapped_column(Text, nullable=False)  # các dòng đã lọc nối bằng xuống dòng
+    total_amount: Mapped[int | None] = mapped_column(BigInteger)
+    predicted_slug: Mapped[str | None] = mapped_column(String(32))
+    predicted_source: Mapped[str | None] = mapped_column(String(16))
+    final_slug: Mapped[str | None] = mapped_column(String(32))
+    label_kind: Mapped[str | None] = mapped_column(String(12))  # confirmed | corrected
+    created_at: Mapped[created_at]
+    labeled_at: Mapped[timestamptz | None]
+
+    __table_args__ = (
+        CheckConstraint(f"final_slug IS NULL OR {_in('final_slug', BILL_CHOICE_SLUGS)}", name="chk_bill_training_samples_final_slug"),
+        CheckConstraint("label_kind IS NULL OR label_kind IN ('confirmed', 'corrected')", name="chk_bill_training_samples_label_kind"),
+        Index("ix_bill_training_samples_user", "user_id_hash"),
+        Index("ix_bill_training_samples_pending", "created_at", postgresql_where=text("final_slug IS NULL")),
+    )
 
 
 class BillBrand(Base):

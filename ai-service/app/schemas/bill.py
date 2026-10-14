@@ -6,6 +6,7 @@ Không nhận ảnh, không nhận chữ gốc, không lưu gì. Người gọi 
 
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -49,6 +50,48 @@ class BillLearnRequest(BaseModel):
 class BillLearnResponse(BaseModel):
     # False khi tên cửa hàng không dùng được làm khóa (chỉ toàn khoảng trắng); không phải lỗi.
     learned: bool
+
+
+class BillSampleRequest(BaseModel):
+    """``POST /api/v1/bill/samples``: chữ ĐÃ lọc của một lần quét, gửi CHỈ khi người dùng đồng ý đóng góp dữ liệu (backend kiểm tra cờ)."""
+
+    scan_id: uuid.UUID
+    user_id_hash: str = Field(min_length=64, max_length=64)
+    merchant_name: str | None = Field(default=None, max_length=200)
+    lines: list[str] = Field(min_length=1, max_length=200)
+    total_amount: int | None = Field(default=None, ge=0)
+    predicted_slug: str | None = None
+    predicted_source: str | None = Field(default=None, max_length=16)
+
+    @field_validator("predicted_slug")
+    @classmethod
+    def _known_slug(cls, value: str | None) -> str | None:
+        if value is not None and value not in BILL_CHOICE_SLUGS:
+            raise ValueError(f"predicted_slug phải là một trong {list(BILL_CHOICE_SLUGS)}")
+        return value
+
+
+class BillSampleResponse(BaseModel):
+    # False khi mẫu bị từ chối (chữ còn số dài như số điện thoại/tài khoản) hoặc mã quét đã thuộc người khác; không phải lỗi.
+    stored: bool
+
+
+class BillSampleLabelRequest(BaseModel):
+    """``POST /api/v1/bill/samples/{scan_id}/label``: nhãn cuối người dùng đã chọn khi lưu/sửa khoản chi từ hóa đơn."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+    final_slug: str
+
+    @field_validator("final_slug")
+    @classmethod
+    def _expense_slug(cls, value: str) -> str:
+        if value not in BILL_CHOICE_SLUGS:
+            raise ValueError(f"final_slug phải là một trong {list(BILL_CHOICE_SLUGS)}")
+        return value
+
+
+class BillSampleLabelResponse(BaseModel):
+    labeled: bool
 
 
 class ClassifyItemIn(BaseModel):

@@ -8,16 +8,19 @@ từ khóa) đang nằm trong code, sẽ chuyển sang DB của AI cùng bộ nh
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import verify_internal_api_key
 from app.bill.classifier import CATEGORIES, classify_category_detailed
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
+from app.bill import samples as bill_samples
 from app.bill.knowledge import BillKnowledge, DbBillKnowledge
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
@@ -30,6 +33,10 @@ from app.schemas.bill import (
     BillClassifyResponse,
     BillLearnRequest,
     BillLearnResponse,
+    BillSampleLabelRequest,
+    BillSampleLabelResponse,
+    BillSampleRequest,
+    BillSampleResponse,
 )
 
 logger = structlog.get_logger(__name__)
@@ -123,6 +130,43 @@ async def learn_bill_merchant(
     learned = await knowledge.learn(body.user_id_hash, body.merchant_name, body.category_slug)
     logger.info("bill_merchant_learned", learned=learned)  # không ghi tên cửa hàng hay danh mục
     return BillLearnResponse(learned=learned)
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Phiên DB cho mẫu huấn luyện. Test thay bằng factory của DB thử qua ``dependency_overrides``."""
+    return AsyncSessionLocal
+
+
+@router.post("/bill/samples", response_model=BillSampleResponse)
+async def store_bill_sample(
+    body: BillSampleRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillSampleResponse:
+    """Lưu chữ ĐÃ lọc của một lần quét làm mẫu chờ nhãn. Backend chỉ gọi khi người dùng đã đồng ý; lỗi DB không bao giờ thành 500 (best-effort)."""
+    try:
+        async with factory() as session:
+            stored = await bill_samples.add_pending(session, bill_samples.PendingSample(
+                scan_id=body.scan_id, user_id_hash=body.user_id_hash, lines=body.lines, merchant_name=body.merchant_name,
+                total_amount=body.total_amount, predicted_slug=body.predicted_slug, predicted_source=body.predicted_source))
+    except Exception as error:  # noqa: BLE001 - mẫu học là phần phụ, không được làm hỏng luồng quét
+        logger.warning("bill_sample_store_failed", error=type(error).__name__)
+        stored = False
+    logger.info("bill_sample_stored", stored=stored, lines=len(body.lines))  # không ghi chữ hóa đơn, tên cửa hàng hay số tiền
+    return BillSampleResponse(stored=stored)
+
+
+@router.post("/bill/samples/{scan_id}/label", response_model=BillSampleLabelResponse)
+async def label_bill_sample(
+    scan_id: uuid.UUID, body: BillSampleLabelRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillSampleLabelResponse:
+    """Gắn nhãn cuối (danh mục người dùng đã chọn) cho mẫu của lần quét này; gắn lại thì nhãn sau thắng."""
+    try:
+        async with factory() as session:
+            labeled = await bill_samples.label(session, scan_id, body.user_id_hash, body.final_slug)
+    except Exception as error:  # noqa: BLE001
+        logger.warning("bill_sample_label_failed", error=type(error).__name__)
+        labeled = False
+    logger.info("bill_sample_labeled", labeled=labeled)
+    return BillSampleLabelResponse(labeled=labeled)
 
 
 @router.post("/bill/classify-items", response_model=BillClassifyItemsResponse)
