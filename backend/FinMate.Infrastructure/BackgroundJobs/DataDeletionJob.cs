@@ -30,9 +30,10 @@ public class DataDeletionJob
         foreach (var request in due)
         {
             // Mẫu huấn luyện ở ai-service chỉ tìm được qua người dùng này: xóa TRƯỚC khi xóa tài khoản.
-            if (_trainingSamples is not null)
+            // Chưa xóa được thì giữ nguyên người dùng và yêu cầu: đêm sau job chạy lại (xóa cứng xong là không còn cách tìm dữ liệu của họ).
+            if (_trainingSamples is not null && !await _trainingSamples.EraseAsync(request.UserId, ct))
             {
-                await _trainingSamples.EraseAsync(request.UserId, ct);
+                continue;
             }
 
             await _userHardDeleter.HardDeleteAsync(request.UserId, ct);

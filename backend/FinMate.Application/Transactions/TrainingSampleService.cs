@@ -19,7 +19,8 @@ public interface ITrainingSampleService
     Task LabelAsync(Guid userId, Guid scanId, Category? category, CancellationToken ct = default);
 
     /// <summary>Xóa mọi mẫu đã đóng góp của người dùng. KHÔNG đòi đang đồng ý (thường gọi ngay sau khi họ rút đồng ý hoặc khi xóa tài khoản).</summary>
-    Task EraseAsync(Guid userId, CancellationToken ct = default);
+    /// <summary>True khi ai-service xác nhận đã xóa. False khi chưa xóa được (không ném lỗi): người gọi KHÔNG được báo "đã xóa" và phải thử lại sau.</summary>
+    Task<bool> EraseAsync(Guid userId, CancellationToken ct = default);
 }
 
 public class TrainingSampleService : ITrainingSampleService
@@ -60,15 +61,17 @@ public class TrainingSampleService : ITrainingSampleService
         await RunAsync(userId, () => _aiServiceClient.LabelTrainingSampleAsync(new TrainingLabelRequest(scanId, userId, system.Slug), ct), ct);
     }
 
-    public async Task EraseAsync(Guid userId, CancellationToken ct = default)
+    public async Task<bool> EraseAsync(Guid userId, CancellationToken ct = default)
     {
         try
         {
             await _aiServiceClient.EraseTrainingSamplesAsync(userId, ct);
+            return true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogWarning("Erasing training samples failed: {ExceptionType}", ex.GetType().Name);
+            return false;
         }
     }
 

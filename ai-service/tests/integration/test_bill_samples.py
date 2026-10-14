@@ -1,5 +1,6 @@
 """Mẫu huấn luyện chờ nhãn trên Postgres thật: chỉ chữ đã lọc, nhãn cuối thắng, xóa theo người dùng, dọn mẫu chưa gắn nhãn."""
 
+import asyncio
 import uuid
 
 import httpx
@@ -245,3 +246,34 @@ async def test_learning_report_reads_labeled_and_pending_from_db(session):
 
     assert (report.labeled, report.pending, report.merchants) == (1, 1, 1)
     assert report.per_slug == {"food": 1} and report.accuracy_by_source == {"keyword": (1, 1.0)}
+
+
+@pytest.mark.parametrize(
+    "row",
+    ["Com suon 2 45.000 90.000", "1 45.000 45.000", "Ca phe sua 29.000 1 29.000", "Mon A 1 20.000 20.000", "14-10-2026 10:32:05", "10.000.000"],
+)
+def test_real_item_rows_are_not_mistaken_for_long_numbers(row):
+    # cột số lượng/đơn giá/thành tiền cách nhau bằng khoảng trắng: cộng chữ số qua khoảng trắng sẽ loại gần hết hóa đơn có nhiều món
+    assert samples.has_long_digit_run([row]) is False
+
+
+@pytest.mark.parametrize("row", ["Sdt 0912 345 678", "Lien he +84 912 345 678", "STK 1234567890123", "so 12.345.678.901", "Ma 123-456-789"])
+def test_phone_and_account_numbers_are_still_rejected(row):
+    assert samples.has_long_digit_run([row]) is True
+
+
+async def test_purge_loop_removes_stale_pending_without_any_new_insert(session):
+    # lời hứa "xóa sau 7 ngày" không được phụ thuộc vào việc có người quét tiếp
+    stale = sample()
+    await samples.add_pending(session, stale)
+    await session.execute(text("UPDATE bill_training_samples SET created_at = now() - interval '8 days'"))
+    await session.commit()
+    task = asyncio.create_task(samples.purge_loop(async_sessionmaker(session.bind, expire_on_commit=False), interval_seconds=0.05))
+
+    for _ in range(40):
+        await asyncio.sleep(0.05)
+        if not await rows(session):
+            break
+    task.cancel()
+
+    assert await rows(session) == []

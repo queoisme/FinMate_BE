@@ -78,8 +78,11 @@ public class ConsentCommandHandler : IConsentCommandHandler
         var profile = await SaveAsync(user, ct);
         if (kind == ConsentKind.Training && _trainingSamples is not null)
         {
-            // Rút đồng ý thì dữ liệu đã đóng góp cũng bị xóa (best-effort sau khi đã lưu việc rút: dịch vụ tự nuốt lỗi).
-            await _trainingSamples.EraseAsync(userId, ct);
+            // Rút đồng ý thì dữ liệu đã đóng góp cũng phải bị xóa. Việc rút đã lưu (không thu thêm nữa); nếu chưa xóa được thì báo lỗi để người dùng bấm lại, không báo "đã xóa" khi chưa.
+            if (!await _trainingSamples.EraseAsync(userId, ct))
+            {
+                throw new AIServiceUnavailableException("Đã dừng thu thêm dữ liệu, nhưng chưa xóa được dữ liệu bạn đã đóng góp. Thử lại sau ít phút nhé.");
+            }
         }
 
         return profile;

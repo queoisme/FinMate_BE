@@ -24,12 +24,30 @@ public class DataDeletionJobTests
         var hardDeleter = new Mock<IUserHardDeleter>();
         hardDeleter.Setup(h => h.HardDeleteAsync(userId, It.IsAny<CancellationToken>())).Callback(() => order.Add("hard-delete")).Returns(Task.CompletedTask);
         var training = new Mock<ITrainingSampleService>();
-        training.Setup(t => t.EraseAsync(userId, It.IsAny<CancellationToken>())).Callback(() => order.Add("erase")).Returns(Task.CompletedTask);
+        training.Setup(t => t.EraseAsync(userId, It.IsAny<CancellationToken>())).Callback(() => order.Add("erase")).ReturnsAsync(true);
 
         await new DataDeletionJob(requests.Object, hardDeleter.Object, training.Object).RunAsync();
 
         Assert.Equal(["erase", "hard-delete"], order);
         requests.Verify(r => r.MarkProcessedAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WhenTheEraseFailsTheUserIsKeptSoTheNextRunRetries()
+    {
+        var userId = Guid.NewGuid();
+        var request = new DataDeletionRequest { Id = Guid.NewGuid(), UserId = userId };
+        var requests = new Mock<IDataDeletionRequestRepository>();
+        requests.Setup(r => r.GetDueAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>())).ReturnsAsync([request]);
+        var hardDeleter = new Mock<IUserHardDeleter>();
+        var training = new Mock<ITrainingSampleService>();
+        training.Setup(t => t.EraseAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        await new DataDeletionJob(requests.Object, hardDeleter.Object, training.Object).RunAsync();
+
+        // xóa cứng xong thì không còn cách nào tìm ra dữ liệu của họ ở ai-service
+        hardDeleter.Verify(h => h.HardDeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        requests.Verify(r => r.MarkProcessedAsync(It.IsAny<DataDeletionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

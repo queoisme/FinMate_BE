@@ -97,8 +97,14 @@ public class TrainingSampleClientTests
 
         await ((Func<Task>)(() => client.RecordTrainingSampleAsync(Sample))).Should().NotThrowAsync();
         await ((Func<Task>)(() => client.LabelTrainingSampleAsync(Label))).Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task AFailedEraseReachesTheCallerSoItCanBeRetriedAndReported()
+    {
         _api.Setup(a => a.BillSamplesEraseAsync(It.IsAny<BillSampleEraseApiRequest>(), It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("down"));
-        await ((Func<Task>)(() => client.EraseTrainingSamplesAsync(UserId))).Should().NotThrowAsync();
+
+        await ((Func<Task>)(() => new AIServiceClient(_api.Object).EraseTrainingSamplesAsync(UserId))).Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]

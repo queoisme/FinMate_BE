@@ -137,13 +137,17 @@ public class TrainingSampleServiceTests
     }
 
     [Fact]
-    public async Task Erase_NeverThrowsWhenTheAiServiceFails()
+    public async Task Erase_ReportsFailureInsteadOfThrowingWhenTheAiServiceFails()
     {
         _ai.Setup(a => a.EraseTrainingSamplesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("boom"));
 
-        var act = () => Service().EraseAsync(_userId);
+        (await Service().EraseAsync(_userId)).Should().BeFalse();  // người gọi phải biết dữ liệu CHƯA bị xóa để không báo đã xóa
+    }
 
-        await act.Should().NotThrowAsync();
+    [Fact]
+    public async Task Erase_ReportsSuccess()
+    {
+        (await Service().EraseAsync(_userId)).Should().BeTrue();
     }
 
     [Fact]

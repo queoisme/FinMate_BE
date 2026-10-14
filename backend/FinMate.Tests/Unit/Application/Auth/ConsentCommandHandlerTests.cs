@@ -21,6 +21,7 @@ public class ConsentCommandHandlerTests
     public ConsentCommandHandlerTests()
     {
         _users.Setup(r => r.GetByIdAsync(_user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
+        _training.Setup(t => t.EraseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _handler = new ConsentCommandHandler(_users.Object, _cache.Object, _training.Object);
     }
 
@@ -131,6 +132,18 @@ public class ConsentCommandHandlerTests
         await _handler.WithdrawAsync(_user.Id, ConsentKind.Training);
 
         _training.Verify(t => t.EraseAsync(_user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithdrawTraining_WhenTheEraseFails_TellsTheCallerAndStillClearsConsent()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Training, ConsentVersions.Training));
+        _training.Setup(t => t.EraseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var act = () => _handler.WithdrawAsync(_user.Id, ConsentKind.Training);
+
+        await act.Should().ThrowAsync<AIServiceUnavailableException>();  // không được báo "đã xóa" khi chưa xóa được
+        _user.TrainingConsentVersion.Should().BeNull();  // thu thêm thì đã dừng; bấm lại sẽ xóa tiếp
     }
 
     [Fact]

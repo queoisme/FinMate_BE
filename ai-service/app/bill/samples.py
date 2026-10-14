@@ -7,23 +7,29 @@ số tiền hay danh mục vào log; ảnh không bao giờ được lưu ở đ
 
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
 from dataclasses import dataclass
 
+import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bill.knowledge import merchant_key
 from app.db.models.bill import BILL_CHOICE_SLUGS
 
+logger = structlog.get_logger(__name__)
+
 MAX_LINES = 200
 PENDING_RETENTION_DAYS = 7  # mẫu chưa gắn nhãn (lần quét không được lưu) bị xóa sau từng ấy ngày
 MAX_LINE_CHARS = 200
 
-# Từ 9 chữ số trở lên (điện thoại, số tài khoản, mã vạch), kể cả khi xen khoảng trắng/chấm/gạch: ocr-service đã che, đây là lưới an toàn thứ hai.
-# Số tiền thường dưới 9 chữ số ("1.250.000" = 7); chuỗi nhiều chữ số hơn bị từ chối chứ không cố cắt.
-_LONG_DIGITS = re.compile(r"(?:\d[ .\-]?){9,}")
+# Lưới an toàn thứ hai sau ocr-service/privacy.py (dùng cùng định nghĩa): số điện thoại, hoặc một chuỗi liền (chỉ xen chấm/gạch, KHÔNG xen khoảng trắng) có từ
+# 9 chữ số trở lên (số tài khoản, mã vạch). Không cộng chữ số qua khoảng trắng: dòng món "2 45.000 90.000" (số lượng, đơn giá, thành tiền) sẽ bị loại oan.
+_PHONE = re.compile(r"(?<!\d)(?:\+?84|0)[\s.\-]?\d{2,3}[\s.\-]?\d{3}[\s.\-]?\d{3,4}(?!\d)")
+_RUN = re.compile(r"(?<!\d)\d[\d.\-]{7,}\d(?!\d)")
+_MIN_DIGITS = 9
 
 
 @dataclass(frozen=True)
@@ -38,7 +44,7 @@ class PendingSample:
 
 
 def has_long_digit_run(lines: list[str]) -> bool:
-    return any(_LONG_DIGITS.search(line) for line in lines)
+    return any(_PHONE.search(line) or any(sum(c.isdigit() for c in m.group()) >= _MIN_DIGITS for m in _RUN.finditer(line)) for line in lines)
 
 
 async def add_pending(session: AsyncSession, sample: PendingSample) -> bool:
@@ -97,3 +103,16 @@ async def purge_pending(session: AsyncSession, days: int = 7) -> int:
     )
     await session.commit()
     return result.rowcount or 0
+
+
+async def purge_loop(factory, interval_seconds: float = 3600) -> None:
+    """Dọn mẫu chưa nhãn quá hạn định kỳ (ai-service không có scheduler ngoài). Lỗi một lượt chỉ ghi log rồi thử lại lượt sau; hủy task để dừng."""
+    while True:
+        try:
+            async with factory() as session:
+                purged = await purge_pending(session, days=PENDING_RETENTION_DAYS)
+            if purged:
+                logger.info("training_samples_purged", count=purged)
+        except Exception as error:  # noqa: BLE001 - một lượt dọn lỗi không được giết vòng lặp
+            logger.warning("training_samples_purge_failed", error_type=type(error).__name__)
+        await asyncio.sleep(interval_seconds)

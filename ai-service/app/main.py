@@ -1,11 +1,13 @@
 """FastAPI entry point."""
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
 
 from app.api.v1.bill import router as bill_router
+from app.bill.samples import purge_loop
 from app.api.v1.chat import router as chat_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.health import router as health_router
@@ -37,7 +39,9 @@ async def lifespan(app: FastAPI):
             await pipeline.refresh(session, force=True)
     except Exception as error:  # noqa: BLE001 - cố ý bắt rộng, xem docstring
         logger.error("startup_warmup_failed", error=str(error))
+    purge_task = asyncio.create_task(purge_loop(AsyncSessionLocal))  # mẫu huấn luyện chưa nhãn quá 7 ngày bị xóa định kỳ
     yield
+    purge_task.cancel()
 
 
 app = FastAPI(title="FinMate AI Service", lifespan=lifespan)
