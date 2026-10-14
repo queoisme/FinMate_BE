@@ -21,6 +21,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ILogger<UpdateTransactionCommandHandler> _logger;
     private readonly IValidator<UpdateTransactionCommand> _validator;
+    private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -32,7 +33,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ICacheService cache,
         IReceiptScanRepository receiptScanRepository,
         ILogger<UpdateTransactionCommandHandler> logger,
-        IValidator<UpdateTransactionCommand> validator)
+        IValidator<UpdateTransactionCommand> validator,
+        ITrainingSampleService? trainingSamples = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -44,6 +46,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _receiptScanRepository = receiptScanRepository;
         _logger = logger;
         _validator = validator;
+        _trainingSamples = trainingSamples;
     }
 
     public async Task<TransactionDto> HandleAsync(UpdateTransactionCommand command, CancellationToken ct = default)
@@ -185,7 +188,34 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
                 new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
         }
 
+        if (categoryChanged && transaction.Source == TransactionSource.Receipt && _trainingSamples is not null)
+        {
+            await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
+        }
+
         return TransactionMapper.ToDto(transaction);
+    }
+
+    /// <summary>
+    /// Người dùng sửa danh mục: nhãn cuối của mẫu huấn luyện thuộc lần quét đã nối với giao dịch này (nhãn sau thắng). Bỏ qua khi chưa nối lần quét nào,
+    /// lần quét đã tách nhiều nhóm, hoặc tra cứu lỗi; lỗi không bao giờ làm hỏng việc sửa.
+    /// </summary>
+    private async Task RelabelTrainingSampleAsync(Guid transactionId, Guid userId, Category? category, CancellationToken ct)
+    {
+        try
+        {
+            var scanId = await _receiptScanRepository.GetLinkedScanIdAsync(transactionId, userId, ct);
+            if (scanId is null || await LinkedToSplitScanAsync(transactionId, userId, ct))
+            {
+                return;
+            }
+
+            await _trainingSamples!.LabelAsync(userId, scanId.Value, category, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Training sample relabel failed after the category was corrected: {ExceptionType}", ex.GetType().Name);
+        }
     }
 
     /// <summary>

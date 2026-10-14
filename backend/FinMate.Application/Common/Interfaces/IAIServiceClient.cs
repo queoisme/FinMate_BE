@@ -152,6 +152,14 @@ public record BillClassifyResponse(string? CategorySlug, string? LocalCategory, 
 // lưu một khoản chi từ hóa đơn; lần quét sau AI Service gợi ý đúng danh mục đó cho người dùng đó. Chỉ tên cửa hàng và slug, không chữ OCR.
 public record LearnMerchantRequest(Guid UserId, string MerchantName, string CategorySlug);
 
+// POST /api/v1/bill/samples — mẫu huấn luyện chờ nhãn của một lần quét (Giai đoạn 1 của vòng tự học). Chỉ chữ ĐÃ lọc dữ liệu cá nhân, không ảnh;
+// gửi CHỈ khi người dùng đã đồng ý đóng góp dữ liệu. ScanId là id bản ghi quét ở backend.
+public record TrainingSampleRequest(
+    Guid ScanId, Guid UserId, string? MerchantName, IReadOnlyList<string> Lines, long? TotalAmount, string? PredictedSlug, string? PredictedSource);
+
+// POST /api/v1/bill/samples/{scan_id}/label — danh mục cuối người dùng đã chọn (slug hệ thống, không phải thu nhập).
+public record TrainingLabelRequest(Guid ScanId, Guid UserId, string FinalSlug);
+
 // POST /api/v1/bill/classify-items — phân loại từng món. KHÔNG bao giờ gửi số tiền, chỉ tên món và chỉ số dòng cha.
 public record ClassifyItemInput(string Name, int? Parent);
 
@@ -201,4 +209,10 @@ public interface IAIServiceClient
     /// và không được làm chậm hay làm hỏng việc lưu.
     /// </summary>
     Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default);
+
+    /// <summary>Best-effort như <see cref="LearnMerchantAsync"/>. Lưu chữ ĐÃ lọc của một lần quét làm mẫu chờ nhãn; chỉ gọi khi người dùng đồng ý đóng góp dữ liệu.</summary>
+    Task RecordTrainingSampleAsync(TrainingSampleRequest request, CancellationToken ct = default);
+
+    /// <summary>Best-effort. Gắn nhãn cuối (danh mục người dùng đã chọn) cho mẫu của lần quét; gắn lại thì nhãn sau thắng.</summary>
+    Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default);
 }

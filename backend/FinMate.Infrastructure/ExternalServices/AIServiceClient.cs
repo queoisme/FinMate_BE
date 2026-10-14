@@ -61,14 +61,26 @@ public class AIServiceClient : IAIServiceClient
     // Ghi nhớ chỉ là phần thêm sau khi giao dịch đã lưu: chờ quá vài giây là bỏ, không để AI Service treo kéo theo việc lưu.
     private static readonly TimeSpan LearnTimeout = TimeSpan.FromSeconds(3);
 
-    public async Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default)
+    public Task LearnMerchantAsync(LearnMerchantRequest request, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.BillLearnAsync(
+            new BillLearnApiRequest(UserIdHasher.Hash(request.UserId), request.MerchantName, request.CategorySlug), t), ct);
+
+    public Task RecordTrainingSampleAsync(TrainingSampleRequest request, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.BillSampleAsync(
+            new BillSampleApiRequest(request.ScanId, UserIdHasher.Hash(request.UserId), request.MerchantName, request.Lines, request.TotalAmount,
+                request.PredictedSlug, request.PredictedSource), t), ct);
+
+    public Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.BillSampleLabelAsync(
+            request.ScanId, new BillSampleLabelApiRequest(UserIdHasher.Hash(request.UserId), request.FinalSlug), t), ct);
+
+    private static async Task BestEffortAsync(Func<CancellationToken, Task> send, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(LearnTimeout);
         try
         {
-            await _api.BillLearnAsync(
-                new BillLearnApiRequest(UserIdHasher.Hash(request.UserId), request.MerchantName, request.CategorySlug), timeout.Token);
+            await send(timeout.Token);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
         {

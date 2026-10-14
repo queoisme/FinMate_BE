@@ -75,6 +75,14 @@ public class ReceiptScanRepository : IReceiptScanRepository
         return groups >= 2;
     }
 
+    public async Task<Guid?> GetLinkedScanIdAsync(Guid transactionId, Guid userId, CancellationToken ct = default)
+    {
+        return await _context.ReceiptScans.AsNoTracking()
+            .Where(s => s.UserId == userId && _context.ReceiptScanLinks.Any(l => l.TransactionId == transactionId && l.ScanId == s.Id))
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.ReceiptScans.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId, ct);
 }

@@ -63,6 +63,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private readonly IUserRepository _userRepository;
     private readonly ITransactionRepository _transactionRepository;
     private readonly ILogger<ScanReceiptCommandHandler> _logger;
+    private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     public ScanReceiptCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -71,7 +72,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         ReceiptOptions options,
         IUserRepository userRepository,
         ITransactionRepository transactionRepository,
-        ILogger<ScanReceiptCommandHandler> logger)
+        ILogger<ScanReceiptCommandHandler> logger,
+        ITrainingSampleService? trainingSamples = null)
     {
         _aiServiceClient = aiServiceClient;
         _ocrServiceClient = ocrServiceClient;
@@ -80,6 +82,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         _userRepository = userRepository;
         _transactionRepository = transactionRepository;
         _logger = logger;
+        _trainingSamples = trainingSamples;
     }
 
     public async Task<ScannedReceiptDto> HandleAsync(
@@ -164,7 +167,24 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             PossibleDuplicateTransactionId: await DuplicateOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, ct));
         // Cờ tách nhóm bật mà các dòng món không khớp tổng bill (ItemsOk = false): bill phải về một nhóm, người dùng nên xem lại.
         var needsReview = ocr.NeedsReview || (_options.SplitByItemsEnabled && !ocr.ItemsOk);
-        return await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
+        var recorded = await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
+        await RecordTrainingSampleAsync(command.UserId, recorded, merchant, ocr, category, ct);
+        return recorded;
+    }
+
+    /// <summary>
+    /// Mẫu chờ nhãn cho vòng tự học: chỉ cho bill MỘT nhóm (bill tách nhóm và danh sách đơn đã thoát ra từ trước), chỉ chữ ĐÃ lọc của OCR service,
+    /// và dịch vụ chỉ gửi khi người dùng đang đồng ý. Không bao giờ ném lỗi.
+    /// </summary>
+    private async Task RecordTrainingSampleAsync(
+        Guid userId, ScannedReceiptDto scanned, string? merchant, OcrServiceResponse ocr, BillClassifyResponse? category, CancellationToken ct)
+    {
+        if (_trainingSamples is null || scanned.ScanId is not { } scanId)
+        {
+            return;
+        }
+
+        await _trainingSamples.RecordAsync(userId, scanId, merchant, ocr.Lines, ocr.TotalAmount, category?.CategorySlug, category?.Source, ct);
     }
 
     /// <summary>

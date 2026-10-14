@@ -28,6 +28,9 @@ public interface IReceiptScanRepository
     /// </summary>
     Task<bool> IsLinkedToSplitScanAsync(Guid transactionId, Guid userId, CancellationToken ct = default);
 
+    /// <summary>Mã lần quét mà giao dịch đã được nối tới (của <paramref name="userId"/>); null khi giao dịch chưa nối với lần quét nào.</summary>
+    Task<Guid?> GetLinkedScanIdAsync(Guid transactionId, Guid userId, CancellationToken ct = default);
+
     /// <summary>Lọc theo <paramref name="userId"/> như mọi truy vấn khác: id một lần quét không được đủ để đọc bản ghi của người khác.</summary>
     Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default);
 }

@@ -138,6 +138,19 @@ public record BillLearnApiRequest(
     [property: JsonPropertyName("merchant_name")] string MerchantName,
     [property: JsonPropertyName("category_slug")] string CategorySlug);
 
+public record BillSampleApiRequest(
+    [property: JsonPropertyName("scan_id")] Guid ScanId,
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("merchant_name")] string? MerchantName,
+    [property: JsonPropertyName("lines")] IReadOnlyList<string> Lines,
+    [property: JsonPropertyName("total_amount")] long? TotalAmount,
+    [property: JsonPropertyName("predicted_slug")] string? PredictedSlug,
+    [property: JsonPropertyName("predicted_source")] string? PredictedSource);
+
+public record BillSampleLabelApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("final_slug")] string FinalSlug);
+
 public record ClassifyItemApiInput(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("parent")] int? Parent);

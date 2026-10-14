@@ -28,6 +28,7 @@ using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
 using FinMate.Application.SavingGoals.Commands;
 using FinMate.Application.SavingGoals.Queries;
+using FinMate.Application.Transactions;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
 using FinMate.Domain.Enums;
@@ -338,6 +339,7 @@ public class Program
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
+        builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();

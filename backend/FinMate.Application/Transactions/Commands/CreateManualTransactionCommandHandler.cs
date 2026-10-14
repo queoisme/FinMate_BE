@@ -22,6 +22,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ICacheService _cache;
     private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
+    private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -34,7 +35,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IReceiptScanRepository receiptScanRepository,
         ICacheService cache,
         ILogger<CreateManualTransactionCommandHandler> logger,
-        IValidator<CreateManualTransactionCommand> validator)
+        IValidator<CreateManualTransactionCommand> validator,
+        ITrainingSampleService? trainingSamples = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -47,6 +49,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _cache = cache;
         _logger = logger;
         _validator = validator;
+        _trainingSamples = trainingSamples;
     }
 
     public async Task<TransactionCreationResult> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default)
@@ -164,6 +167,12 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
                 scanWasSplit = true;
                 _logger.LogWarning("Receipt scan link/split check failed after the transaction was saved: {ExceptionType}", ex.GetType().Name);
             }
+        }
+
+        // Nhãn cuối cho vòng tự học: chỉ khi giao dịch nối với lần quét MỘT nhóm (scanWasSplit = false; lỗi kiểm tra thì đã coi là tách). Dịch vụ tự kiểm cờ đồng ý.
+        if (_trainingSamples is not null && command.ReceiptScanId is { } labelledScan && command.Source == TransactionSource.Receipt && !scanWasSplit)
+        {
+            await _trainingSamples.LabelAsync(command.UserId, labelledScan, category, ct);
         }
 
         // Người dùng đã chọn danh mục cho cửa hàng trên một hóa đơn: nhờ AI Service nhớ cho lần quét sau (best-effort, sau khi đã lưu).

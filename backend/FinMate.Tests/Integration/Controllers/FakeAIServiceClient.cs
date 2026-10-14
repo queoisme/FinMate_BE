@@ -55,6 +55,10 @@ public class FakeAIServiceClient : IAIServiceClient
         return Task.CompletedTask;
     }
 
+    public Task RecordTrainingSampleAsync(TrainingSampleRequest request, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default) => Task.CompletedTask;
+
     private static readonly Dictionary<string, BillClassifyResponse> BillScenarios = new();
 
     /// <summary>Đặt sẵn kết quả <c>/bill/classify</c> theo tên cửa hàng gửi lên; không có thì "không nhận ra".</summary>
