@@ -44,7 +44,13 @@
     "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_05 AM.png": 4,
     "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_09 AM.png": 5,
     "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png": 4,
-    "BIll-10-14-2026/Tap hoa Duc Cuong.webp": 6
+    "BIll-10-14-2026/Tap hoa Duc Cuong.webp": 6,
+    "BIll-10-15-2026/bach-hoa-mini-an-khang.png": 6,
+    "BIll-10-15-2026/circle-k.png": 4,
+    "BIll-10-15-2026/grab.png": null,
+    "BIll-10-15-2026/fahasa.png": 4,
+    "BIll-10-15-2026/con-cung-me-va-be.png": 3,
+    "BIll-10-15-2026/lau-thien-duong.png": 3
   },
   "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": [
     {"name_contains": "tayox", "amount": 140000},
@@ -190,6 +196,17 @@
       "BIll-10-14-2026/ChatGPT Image Oct 14, 2026, 12_29_13 AM.png"
     ]
   },
+  "_added_2026_10_15": {
+    "_note": "6 bill ảnh do ChatGPT tạo (tổng hợp, KHÔNG phải ảnh thật), nhãn do Claude đọc trực tiếp từ ảnh, người dùng chưa duyệt lại. Sinh ra từ các lỗi gặp khi thử 2026-10-15 (tên cửa hàng, nhóm hàng, phụ phí, chiết khấu chung). Grab là ảnh chụp màn hình app nên số dòng là null và không có nhãn món.",
+    "files": [
+      "BIll-10-15-2026/bach-hoa-mini-an-khang.png",
+      "BIll-10-15-2026/circle-k.png",
+      "BIll-10-15-2026/grab.png",
+      "BIll-10-15-2026/fahasa.png",
+      "BIll-10-15-2026/con-cung-me-va-be.png",
+      "BIll-10-15-2026/lau-thien-duong.png"
+    ]
+  },
   "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png": [
     {"name_contains": "nuoc cam", "amount": 28000},
     {"name_contains": "tao rocket", "amount": 49000},
@@ -272,5 +289,36 @@
     {"name_contains": "nuoc rua chen", "amount": 28000},
     {"name_contains": "khan giay", "amount": 18000},
     {"name_contains": "bot giat", "amount": 42000}
+  ],
+  "BIll-10-15-2026/bach-hoa-mini-an-khang.png": [
+    {"name_contains": "sua tuoi", "amount": 64000},
+    {"name_contains": "trung ga", "amount": 35000},
+    {"name_contains": "rau muong", "amount": 12000},
+    {"name_contains": "nuoc giat", "amount": 189000},
+    {"name_contains": "giay ve sinh", "amount": 78000},
+    {"name_contains": "dau goi", "amount": 165000}
+  ],
+  "BIll-10-15-2026/circle-k.png": [
+    {"name_contains": "mi hao hao", "amount": 13500},
+    {"name_contains": "coca", "amount": 24000},
+    {"name_contains": "bat lua", "amount": 10000},
+    {"name_contains": "the nap", "amount": 50000}
+  ],
+  "BIll-10-15-2026/fahasa.png": [
+    {"name_contains": "sach giai tich", "amount": 98000},
+    {"name_contains": "200 trang", "amount": 60000},
+    {"name_contains": "but bi", "amount": 50000},
+    {"name_contains": "balo", "amount": 320000},
+    {"name_contains": "chiet khau", "amount": -20000}
+  ],
+  "BIll-10-15-2026/con-cung-me-va-be.png": [
+    {"name_contains": "ta dan", "amount": 249000},
+    {"name_contains": "sua bot", "amount": 485000},
+    {"name_contains": "khan", "amount": 58000}
+  ],
+  "BIll-10-15-2026/lau-thien-duong.png": [
+    {"name_contains": "lau thai", "amount": 380000},
+    {"name_contains": "bo my", "amount": 240000},
+    {"name_contains": "nuoc ngot", "amount": 80000}
   ]
 }

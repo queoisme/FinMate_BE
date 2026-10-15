@@ -263,5 +263,41 @@
     "total": 157680,
     "category": "groceries",
     "kind": "ảnh người dùng gửi 2026-10-14: Tạp hóa Đức Cường, 'Tạm tính' + thuế 8% + 'Tổng cộng' (không có nhãn 'Tổng thanh toán'), số lặp 42.000 của món cuối từng bị lấy làm tổng"
+  },
+  "BIll-10-15-2026/bach-hoa-mini-an-khang.png": {
+    "merchant": "bachhoamini",
+    "total": 543000,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Bách Hóa Mini An Khang, logo hai dòng, 'An Khang' trùng chuỗi nhà thuốc nên từng bị xếp healthcare, STT dính vào tên món"
+  },
+  "BIll-10-15-2026/circle-k.png": {
+    "merchant": "circlek",
+    "total": 97500,
+    "category": "groceries",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Circle K, ba nhóm hàng (đồ ăn, bật lửa, thẻ nạp điện thoại), tiền mặt và tiền thừa"
+  },
+  "BIll-10-15-2026/grab.png": {
+    "merchant": "grab",
+    "total": 74000,
+    "category": "transport",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: chi tiết chuyến Grab (ảnh chụp màn hình app), phí nền tảng 3.000 là phụ phí của chuyến xe, khuyến mãi -15.000"
+  },
+  "BIll-10-15-2026/fahasa.png": {
+    "merchant": "fahasa",
+    "total": 508000,
+    "category": "shopping",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Nhà sách Fahasa, chiết khấu thành viên -20.000 không dính món nào (từng bị chia theo tỷ lệ ra số lẻ)"
+  },
+  "BIll-10-15-2026/con-cung-me-va-be.png": {
+    "merchant": "concungmevabe",
+    "total": 792000,
+    "category": "shopping",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Con Cưng Mẹ và Bé, khẩu hiệu 'Mẹ và Bé' chữ hoa-thường dưới logo, tã/sữa bột/khăn ướt cùng nhóm Gia đình"
+  },
+  "BIll-10-15-2026/lau-thien-duong.png": {
+    "merchant": "thienduong",
+    "total": 791000,
+    "category": "dining",
+    "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Lẩu Thiên Đường, 'THIÊN' từng bị coi là tên người nên tên cửa hàng thành dòng địa chỉ; phí phục vụ 5% và VAT 8%"
   }
 }
