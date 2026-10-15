@@ -57,7 +57,7 @@ _PRODUCT_KEYWORDS = {
     "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
                    "natri clorid", "thuoc", "amoxicillin", "oresol",
                    "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su",
-                   "kinh can", "kinh mat", "trong kinh", "gong kinh",
+                   "kinh can", "trong kinh", "gong kinh",
                    "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem", "phi kham", "kham noi"),
     "transport": ("xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong", "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"),
     # vé và dịch vụ vui chơi
@@ -76,7 +76,7 @@ _PRODUCT_KEYWORDS = {
                  "tui xach", "balo", "that lung", "kinh ram", "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal",
                  "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
                  # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
-                 "bia nut", "bia ho so", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
+                 "bia nut", "bia ho so", "kinh mat", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
     "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "phi rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
     "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
                   "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm

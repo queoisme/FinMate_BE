@@ -217,7 +217,7 @@ def test_chat_category_equals_the_shared_resolver_for_known_phrases():
 def test_receipt_style_goods_now_get_a_category_in_chat():
     assert parse("bột giặt 80k").entry.category == "shopping"
     assert parse("vitamin C 120k").entry.category == "health"
-    assert parse("khăn ướt 20k").entry.category == "shopping"  # trước đây chat xếp khăn ướt vào ăn uống
+    assert parse("khăn ướt 20k").entry.category == "family"  # luật 6: khăn ướt là đồ cho em bé (trước đây ăn uống, rồi mua sắm)
 
 
 def test_category_words_typed_by_the_user_still_count():

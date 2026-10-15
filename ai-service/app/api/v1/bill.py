@@ -17,12 +17,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import verify_internal_api_key
+from collections import Counter
+
 from app.bill.classifier import CATEGORIES, brand_backend_slug, classify_category_detailed
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
 from app.bill import samples as bill_samples
 from app.bill.knowledge import BillKnowledge, DbBillKnowledge
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.services.category_resolver import resolve
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.core.enums import CATEGORY_SLUGS
@@ -62,6 +65,25 @@ _gemini = GeminiClient(
     backup_key=settings.openrouter_api_key,
     backup_model=settings.openrouter_model,
 )
+
+
+_ITEM_VOTE_SLUGS = ("family", "education")  # hai nhóm backend mà bộ 9 nhóm của luật cả bill không biểu diễn được
+
+
+def _item_vote_slug(lines: list[str]) -> tuple[str, float] | None:
+    """Bill chỉ toàn đồ em bé / đồ học tập: bỏ phiếu theo luật từng món (``resolve``) để ra ``family`` / ``education``.
+
+    Chỉ nhận khi nhóm thắng là một trong hai nhóm trên và hơn hẳn nhóm đứng sau (hòa thì thôi: bill nhiều nhóm được tách theo món).
+    """
+    votes = Counter(slug for line in lines if (slug := resolve(line).slug))
+    ranked = votes.most_common(2)
+    if not ranked or ranked[0][0] not in _ITEM_VOTE_SLUGS:
+        return None
+    top, n = ranked[0]
+    runner_up = ranked[1][1] if len(ranked) > 1 else 0
+    if n == runner_up:
+        return None
+    return top, 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
 
 
 def get_gemini_client() -> GeminiClient:
@@ -117,6 +139,11 @@ async def classify_bill(
             category_slug=brand_slug, local_category=None, confidence=0.8, source="brand",
             processing_ms=int((time.perf_counter() - started) * 1000))
     category, source, confidence = classify_category_detailed(merchant, lines, remembered=remembered)
+    if not remembered and (source in ("product", "none") or (source == "brand" and confidence < 0.8)) and (voted := _item_vote_slug(lines)):
+        # nhóm cục bộ chỉ đến từ từ khóa sản phẩm / tên thương hiệu của món (bút Thiên Long), không phải từ cửa hàng: theo luật từng món
+        return BillClassifyResponse(
+            category_slug=voted[0], local_category=None, confidence=min(voted[1], _MAX_CONFIDENCE), source="product",
+            processing_ms=int((time.perf_counter() - started) * 1000))
     known = source != "none"
 
     response = BillClassifyResponse(

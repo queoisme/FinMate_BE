@@ -186,11 +186,11 @@ async def test_without_consent_rules_decide_and_gemini_is_never_called():
     assert out == [(0, "food", "rule"), (1, "shopping", "rule")] and gemini.calls == []
 
 
-async def test_wet_wipes_are_shopping_and_drinks_take_store_default_without_ai():
-    # bill cửa hàng tiện lợi: khăn ướt theo luật là shopping, nước uống tên lạ nhận nhóm mặc định của thương hiệu → 2 nhóm
+async def test_wet_wipes_are_family_and_drinks_take_store_default_without_ai():
+    # bill cửa hàng tiện lợi: khăn ướt theo luật là family (luật 6), nước uống tên lạ nhận nhóm mặc định của thương hiệu → 2 nhóm
     its = items("Khan uot ALLCARE 20", "BonchaTacMatOng450", "Boncha Viet Quat 45", "TraYuzumatongboncha")
     out, used = await run(its, merchant="Ministop", allow_ai=False)
-    assert out == [(0, "shopping", "rule"), (1, "food", "merchant"), (2, "food", "merchant"), (3, "food", "merchant")]
+    assert out == [(0, "family", "rule"), (1, "food", "merchant"), (2, "food", "merchant"), (3, "food", "merchant")]
     assert used is False
 
 
@@ -305,12 +305,12 @@ async def test_ai_not_allowed_never_writes_the_cache():
 
 async def test_one_letter_ocr_typo_still_matches_a_product_keyword():
     out, _ = await run(items("KHAM UOT Bobby"), allow_ai=False)
-    assert out == [(0, "shopping", "rule")]
+    assert out == [(0, "family", "rule")]
 
 
 async def test_fuzzy_rule_match_is_the_fallback_when_ai_says_unknown():
     out, _ = await run(items("KHAM UOT Bobby"), gemini=FakeGemini())
-    assert out == [(0, "shopping", "rule")]
+    assert out == [(0, "family", "rule")]
 
 
 async def test_codes_and_short_words_get_no_fuzzy_hit():
@@ -330,7 +330,7 @@ async def test_a_one_letter_difference_between_two_real_products_is_not_a_typo()
 
 async def test_missing_letter_and_confusable_letter_typos_match():
     out, _ = await run(items("KHAN UOTT", "KHA UOT", "KHAM UOT"), allow_ai=False)
-    assert [o[1] for o in out] == ["shopping"] * 3
+    assert [o[1] for o in out] == ["family"] * 3
 
 
 async def test_item_rule_step_matches_the_resolver():
@@ -374,11 +374,11 @@ import pytest  # noqa: E402
     ("Bap rang vua", "food"),            # "răng" (nha khoa) khớp "rang" trong "bắp rang"
     ("Bap rang mini", "food"),
     ("Bia nut A4", "shopping"),          # bìa nút, không phải bia
-    ("Thuoc ke nhua 20cm", "shopping"),  # thước kẻ, không phải thuốc
-    ("Thuóc 20cm", "shopping"),
-    ("But bi xanh", "shopping"),
+    ("Thuoc ke nhua 20cm", "education"),  # thước kẻ (luật 7: đồ dùng học tập), không phải thuốc
+    ("Thuóc 20cm", "education"),
+    ("But bi xanh", "education"),
     ("So tay nho", "shopping"),
-    ("Vo ke ngang 200 trang", "shopping"),
+    ("Vo ke ngang 200 trang", "education"),
     ("Romano Men 100g", "shopping"),
     ("Canh chua ca", "food"),
     ("Mi ly Hao Hao", "food"),

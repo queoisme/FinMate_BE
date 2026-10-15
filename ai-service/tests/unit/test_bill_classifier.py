@@ -274,3 +274,25 @@ async def test_a_bookstore_bill_whose_items_are_all_one_group_is_education_not_s
     from app.bill.classifier import brand_backend_slug
 
     assert brand_backend_slug("Nhà sách FAHASA") == "education"
+
+
+# Bộ 9 nhóm của luật cả bill không có Gia đình và Giáo dục. Bill chỉ toàn đồ em bé / đồ học tập (cửa hàng lạ) từng ra Ăn uống / Mua sắm; giờ bỏ phiếu theo
+# luật từng món để ra đúng slug. Chỉ áp khi nhóm cục bộ đến từ từ khóa sản phẩm hoặc không rõ: thương hiệu và từ khóa tên cửa hàng vẫn thắng.
+@pytest.mark.parametrize(
+    ("lines", "slug"),
+    [
+        (["Sua bot Enfa 800g", "Ta dan Bobby", "Tong cong 900.000"], "family"),
+        (["Khan uot Bobby 80 to", "Ta quan Huggies", "Tong cong 300.000"], "family"),
+        (["But bi Thien Long", "Vo ke ngang 200 trang", "Thuoc ke 30cm", "Tong cong 80.000"], "education"),
+    ],
+)
+async def test_a_bill_of_only_baby_or_school_items_gets_that_group_from_the_item_rules(knowledge, lines, slug):
+    body = (await post({"merchant_name": "Cua hang ABC", "lines": lines})).json()
+    assert (body["category_slug"], body["source"]) == (slug, "product")
+
+
+async def test_item_rules_do_not_override_a_mixed_bill_a_brand_or_a_remembered_shop(knowledge):
+    mixed = (await post({"merchant_name": "Cua hang ABC", "lines": ["Sua bot Enfa 800g", "Sua tuoi Vinamilk", "Tong cong 500.000"]})).json()
+    assert mixed["category_slug"] != "family"  # hòa phiếu: giữ kết quả cục bộ, bill nhiều nhóm sẽ được tách theo món
+    brand = (await post({"merchant_name": "Circle K", "lines": ["Khan uot Bobby", "Ta dan Bobby"]})).json()
+    assert (brand["category_slug"], brand["source"]) == ("food", "brand")

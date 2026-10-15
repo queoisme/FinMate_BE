@@ -102,12 +102,33 @@ def test_returns_none_when_there_is_no_number_word(text):
         ("hai lít", 200_000),
         ("hai lít rưỡi", 250_000),
         ("một xị", 100_000),
+        ("năm chai", 5_000_000),
+        ("hai chai rưỡi", 2_500_000),
+        ("mua xe năm tỏi", 5_000_000_000),
+        ("một tỏi hai", 1_200_000_000),
     ],
 )
 def test_slang_units_come_from_the_data_file(spoken, expected):
     assert parse_number_words(spoken) == expected
 
 
-@pytest.mark.parametrize("spoken", ["mua hai củ cải", "đổ hai lít xăng", "hai xị rượu"])
+@pytest.mark.parametrize(
+    "spoken",
+    [
+        "mua hai củ cải",
+        "đổ hai lít xăng",
+        "hai xị rượu",
+        "mua hai chai nước",
+        "hai chai bia",
+        "hai chai coca",
+        "hai chai trà xanh",
+        "hai chai cà phê",
+        "hai chai nước ngọt",
+        "ba chai rượu",
+        "hai tỏi tây",
+        "mua hai củ tỏi",
+        "nấu ăn hết hai tỏi",
+    ],
+)
 def test_slang_word_that_is_an_ordinary_word_is_not_money(spoken):
     assert parse_number_words(spoken) is None
