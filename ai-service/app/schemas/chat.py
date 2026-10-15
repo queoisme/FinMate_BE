@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 class ChatParseRequest(BaseModel):
     text: str = Field(max_length=500)
     user_id_hash: str = Field(min_length=64, max_length=64)
+    # Người dùng đã đồng ý gửi cụm sản phẩm cho AI bên thứ ba (backend đọc từ DB mỗi lần). Mặc định tắt: không gửi gì ra ngoài.
+    allow_ai: bool = False
 
 
 class ChatEntry(BaseModel):

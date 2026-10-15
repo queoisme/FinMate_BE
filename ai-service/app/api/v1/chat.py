@@ -15,9 +15,12 @@ import structlog
 from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_internal_api_key
-from app.api.v1.bill import get_bill_knowledge
+from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_classify_stats, get_gemini_client
+from app.bill.classify_stats import ClassifyStatsRecorder
+from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
+from app.services.chat_ai import apply_ai_categories
 from app.services.nlu import RasaNlu, open_nlu
 from app.services.transaction_parser import VN, ChatParse, parse_chat
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
@@ -109,7 +112,13 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
 
 
 @router.post("/chat/parse", response_model=ChatParseResponse)
-async def chat_parse(body: ChatParseRequest, knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)]) -> ChatParseResponse:
+async def chat_parse(
+    body: ChatParseRequest,
+    knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
+    gemini: Annotated[GeminiClient, Depends(get_gemini_client)],
+    instruction: Annotated[str, Depends(get_ai_instruction)],
+    recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
+) -> ChatParseResponse:
     started = time.perf_counter()
     nlu = await _nlu.parse(body.text) if _nlu else None
     parsed = parse_chat(
@@ -118,7 +127,14 @@ async def chat_parse(body: ChatParseRequest, knowledge: Annotated[BillKnowledge,
         now=datetime.now(VN),
         auto_save_below=settings.chat_auto_save_below,
     )
-    parsed = await _with_cached_categories(parsed, knowledge)
+    ai_stats: dict[str, int] = {}
+    parsed = await apply_ai_categories(parsed, knowledge, gemini, instruction, body.allow_ai, stats=ai_stats)  # AI quyết trước (khi đã đồng ý), luật dự phòng
+    parsed = await _with_cached_categories(parsed, knowledge)  # phần còn chưa rõ nhóm: gợi ý từ bảng nhớ
+    if body.allow_ai and ai_stats:
+        try:
+            await recorder.record({f"chat_ai_{k}": v for k, v in ai_stats.items()} | {"chat_ai_messages": 1})  # chỉ số đếm
+        except Exception as error:  # noqa: BLE001
+            logger.warning("classify_stats_failed", error_type=type(error).__name__)
     response = _to_response(parsed)
     response.processing_ms = int((time.perf_counter() - started) * 1000)
     logger.info("chat_parsed", intent=response.intent, source=response.nlu.source, processing_ms=response.processing_ms)
