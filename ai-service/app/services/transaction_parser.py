@@ -50,6 +50,7 @@ _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
 _QUERY = re.compile(r"bao nhieu|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
 
 # Số tiền còn sót trong mô tả (kể cả dính dấu phẩy: "20k,30k"). Không tính "lít" vì "mua 2 lít sữa 50k" là số lượng.
+_PERCENT = re.compile(r"phan\s+tram|%")
 _STRAY_AMOUNT = re.compile(r"\d+(?:[.,]\d+)?\s*(?:k|nghin|ngan|canh|trieu|tr|cu)(?![a-z])")
 _EXPENSE_VERB = re.compile(r"(?:an|uong|mua|di an|di uong|do xang|dong|tra|nap|thue)(?![a-z])")
 
@@ -277,7 +278,7 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
         assumed = match.assumed
     else:  # luật không thấy số tiền nhưng Rasa cắt được một cụm số tiền: đọc cụm đó
         phrase = entities.get("amount")
-        found = parse_amount(phrase) if phrase else None
+        found = parse_amount(phrase) if phrase and not _PERCENT.search(normalize(text)) else None  # "giảm năm mươi phần trăm": Rasa cắt "năm mươi", mất chữ phần trăm
         if not found:
             return None
         value, description = found.value, re.sub(r"\s+", " ", text.replace(phrase, " ")).strip()

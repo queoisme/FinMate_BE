@@ -66,3 +66,11 @@ def test_a_count_of_people_or_things_is_not_scaled():
     for text in ("mời hai mươi người", "đi hai mươi ngày"):
         _, found = entries(text)
         assert all(e.amount != 20_000 for e in found), text
+
+
+def test_a_percentage_is_not_an_amount_even_when_rasa_cuts_the_number_out_of_it():
+    # Rasa trả thực thể amount = "năm mươi" (mất chữ "phần trăm" phía sau); đường dự phòng đọc cụm đó không được biến nó thành khoản chi
+    nlu = {"intent": "add_expense", "confidence": 0.9, "entities": {"amount": "năm mươi"}}
+    parsed = parse_chat("giảm năm mươi phần trăm", nlu, now=NOW)
+    found = list(getattr(parsed, "entries", None) or ([parsed.entry] if parsed.entry else []))
+    assert not any(e.amount for e in found)
