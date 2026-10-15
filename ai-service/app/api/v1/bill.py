@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.api.deps import verify_internal_api_key
 from collections import Counter
 
+from app.bill.classify_stats import ClassifyStatsRecorder, build_counts
 from app.bill.classifier import CATEGORIES, brand_backend_slug, classify_category_detailed
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
@@ -84,6 +85,14 @@ def _item_vote_slug(lines: list[str]) -> tuple[str, float] | None:
     if n == runner_up:
         return None
     return top, 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
+
+
+_classify_stats = ClassifyStatsRecorder()
+
+
+def get_classify_stats() -> ClassifyStatsRecorder:
+    """Bộ đếm mức dùng (chỉ số đếm theo ngày). Test thay bằng bản giả qua ``dependency_overrides``."""
+    return _classify_stats
 
 
 def get_gemini_client() -> GeminiClient:
@@ -236,11 +245,17 @@ async def classify_bill_items(
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
     gemini: Annotated[GeminiClient, Depends(get_gemini_client)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
+    recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
 ) -> BillClassifyItemsResponse:
     """Phân loại từng món (không có số tiền): thừa kế → luật → nhóm cửa hàng → Gemini (khi ``allow_ai``) → unknown."""
     started = time.perf_counter()
     merchant = body.merchant_name.strip() if body.merchant_name and body.merchant_name.strip() else None
-    items, ai_used = await classify_items(body.items, merchant, knowledge, gemini, instruction, body.allow_ai)
+    stats: dict[str, int] = {}
+    items, ai_used = await classify_items(body.items, merchant, knowledge, gemini, instruction, body.allow_ai, stats=stats)
+    try:
+        await recorder.record(build_counts(items, body.allow_ai, ai_used, stats))  # đo mức dùng: chỉ số đếm, lỗi thì bỏ qua
+    except Exception as error:  # noqa: BLE001
+        logger.warning("classify_stats_failed", error_type=type(error).__name__)
     logger.info(  # chỉ đếm: không ghi tên món, cửa hàng, chỉ dẫn hay kết quả của mô hình
         "bill_items_classified",
         items=len(items),

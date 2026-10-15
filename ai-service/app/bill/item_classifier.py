@@ -75,7 +75,9 @@ async def classify_items(
     gemini: GeminiClient,
     instruction: str,
     allow_ai: bool,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[ClassifyItemOut], bool]:
+    """``stats`` (tuỳ chọn): được điền số đếm để đo mức dùng Gemini (``ai_candidates``, ``ai_sent``, ``ai_failed``, ``health_bill``)."""
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
 
     # Luật/từ khóa theo đúng tên món, dùng chung với chat (kể cả khớp gần đúng cho lỗi OCR một chữ).
@@ -100,6 +102,8 @@ async def classify_items(
     # Một hóa đơn thường có nhiều nhóm hàng (cửa hàng tiện lợi bán cả đồ ăn, pin, khăn ướt) nên luật từ khóa không đủ: khi người dùng cho phép AI,
     # AI quyết trước, luật chỉ là dự phòng lúc AI lỗi hoặc trả "không rõ". Chưa cho phép thì luật quyết như cũ.
     ai_first = allow_ai and not health_bill
+    if stats is not None and health_bill:
+        stats["health_bill"] = 1
     results: list[tuple[str | None, str] | None] = [None] * len(items)  # (slug, nguồn); None = chưa quyết
     if not ai_first:
         for i in top:
@@ -117,7 +121,8 @@ async def classify_items(
     # Gemini cho tối đa 20 món chưa quyết đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
     ai_used = False
     ai_failed = False  # đã cho phép AI mà AI không trả lời được: món lạ để "chưa rõ", không rơi xuống nhóm mặc định của cửa hàng
-    pending = [i for i in top if results[i] is None and clean[i]][:MAX_NAMES] if ai_first else []
+    candidates = [i for i in top if results[i] is None and clean[i]] if ai_first else []
+    pending = candidates[:MAX_NAMES]
     if pending and instruction.strip():
         answers = None
         if gemini.available:
@@ -126,6 +131,8 @@ async def classify_items(
             except GeminiFailed:
                 answers = None  # không bao giờ ném lỗi ra cho client
         ai_failed = answers is None
+        if stats is not None:
+            stats.update({"ai_candidates": len(candidates), "ai_sent": len(pending), **({"ai_failed": 1} if ai_failed else {})})
         if answers is not None:
             ai_used = True
             learned: dict[str, str] = {}

@@ -294,6 +294,10 @@ Mẫu chưa nhãn bị xóa sau 7 ngày (`purge_loop` chạy mỗi giờ trong a
 `POST /bill/samples/erase`; lỗi xóa KHÔNG bị nuốt: rút đồng ý trả 503 (bấm lại để xóa tiếp), job giữ người dùng lại để đêm sau thử lại. `python scripts/learning_report.py` cho biết đã đủ dữ liệu
 để huấn luyện chưa (Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` chưa làm, chờ dữ liệu).
 
+**Đo mức dùng Gemini (thêm 2026-10-15).** `/bill/classify-items` cộng dồn số đếm theo ngày vào `bill_classify_stats` (chỉ `day`, `metric`, `value`: không tên món, cửa hàng hay người dùng):
+số món do bộ nhớ, luật, cửa hàng, Gemini hay "chưa rõ" trả lời, số lần gọi Gemini, số món cần AI nhưng vượt trần 20 món mỗi lần, lỗi AI, hóa đơn thuốc (không bao giờ gửi) và lượt không đồng ý AI.
+Việc ghi là phần phụ (chờ tối đa 1 giây, lỗi thì bỏ qua). Xem bằng `python scripts/classify_stats.py [--days 14]`. Lưu ý thiết kế "AI quyết trước, luật dự phòng": khi người dùng đã đồng ý AI, món chưa có trong bộ nhớ đều đi qua Gemini kể cả khi luật đã biết.
+
 **Mã người dùng ra ngoài.** `UserIdHasher.Hash` = SHA-256 của `Guid.ToString()` dạng hex thường; cùng một hàm cho AI Service
 (`user_id_hash`) và ocr-service (`X-User-Hash`), nên một người dùng có cùng mã ở cả hai nơi và cùng khóa trong bảng `bill_*`.
 

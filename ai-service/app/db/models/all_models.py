@@ -15,6 +15,7 @@ from app.db.models.bill import (
     BillModelVersion,
     BillRawSample,
     BillTrainingJob,
+    BillClassifyStat,
     BillTrainingSample,
     BillUnknownScan,
     BillUserMerchantCategory,

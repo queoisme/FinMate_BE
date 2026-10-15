@@ -14,10 +14,13 @@ Nội dung:
 Hai view ``bill_unknown_merchants`` và ``bill_merchant_votes`` chỉ nằm trong migration (view không phải model ORM).
 """
 
+from datetime import date
+
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     Float,
     ForeignKey,
     Index,
@@ -265,6 +268,16 @@ class BillTrainingSample(Base):
     )
 
 
+class BillClassifyStat(Base):
+    """Bộ đếm theo ngày của ``/bill/classify-items``: bao nhiêu món được trả lời bởi bộ nhớ, luật, Gemini... CHỈ số đếm, không tên món, cửa hàng hay người dùng."""
+
+    __tablename__ = "bill_classify_stats"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    metric: Mapped[str] = mapped_column(String(32), primary_key=True)
+    value: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+
+
 class BillBrand(Base):
     __tablename__ = "bill_brands"
 
@@ -347,6 +360,7 @@ class BillUnknownScan(Base):
 
 __all__ = [
     "BILL_CATEGORY_GROUPS",
+    "BillClassifyStat",
     "BillBrand",
     "BillEvaluationCategoryMetric",
     "BillEvaluationRun",
