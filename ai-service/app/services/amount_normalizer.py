@@ -4,6 +4,7 @@ Quy ước tiếng lóng: k/nghìn/ngàn/cành = 1.000; tr/triệu/củ = 1.000.
 chữ số ngay sau đơn vị là phần thập phân của đơn vị ("3 củ 8" = 3,8 triệu, "1tr2" = 1,2 triệu); "rưỡi" = +0,5 đơn vị.
 Nhiều số trong câu ("mua 2 lít sữa 50k") thì lấy số xuất hiện CUỐI: người ta thường nói giá ở cuối câu.
 """
+import functools
 import re
 import unicodedata
 from typing import NamedTuple
@@ -88,6 +89,34 @@ def _words(norm: str) -> list[AmountMatch]:
     return found
 
 
+_K_UNIT = re.compile(r"\s*(?P<u>ka|k|ca)(?![a-z])")
+# "ca" đứng một mình sau số là chữ "k" đọc theo tiếng Việt ("năm mươi ca" = 50k), nhưng cũng là danh từ ("hai ca trực", "ca cao"): chỉ nhận khi hết câu,
+# sau dấu câu, hoặc ngay trước một liên từ/trạng từ thường gặp, và chỉ với "ca" không dấu ("cà phê", "cá" không phải đơn vị).
+_CA_FOLLOWERS = {"va", "roi", "nhe", "nha", "thoi", "xong", "sau", "truoc", "voi", "luc", "hom"}
+
+
+def _extend_with_k_unit(find):
+    """Số đọc bằng chữ nhỏ hơn 1.000 mà liền sau là "k"/"ka"/"ca" thì là nghìn và nuốt luôn chữ đơn vị (50k = "năm mươi k"/"năm mươi ca")."""
+
+    @functools.wraps(find)
+    def wrapper(text: str) -> list[AmountMatch]:
+        norm = normalize(text)
+        nfc = unicodedata.normalize("NFC", text).lower()
+        out = []
+        for m in find(text):
+            unit = _K_UNIT.match(norm, m.end) if m.value < 1000 and not any(c.isdigit() for c in nfc[m.start:m.end]) else None
+            if unit and nfc[unit.start("u"):unit.end("u")] == unit.group("u"):
+                rest = norm[unit.end():]
+                follower = re.match(r"\s*([a-z]+)", rest)
+                if unit.group("u") != "ca" or not rest.strip() or rest.lstrip()[:1] in ",.;!?" or (follower and follower.group(1) in _CA_FOLLOWERS):
+                    m = AmountMatch(m.value * 1000, m.start, unit.end())
+            out.append(m)
+        return out
+
+    return wrapper
+
+
+@_extend_with_k_unit
 def find_amounts(text: str) -> list[AmountMatch]:
     """Mọi số tiền trong câu, theo thứ tự xuất hiện (``parse_amount`` chỉ lấy số cuối). start/end tính trên câu đã chuẩn hóa; xem normalize()."""
     norm = normalize(text)
