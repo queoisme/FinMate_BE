@@ -18,7 +18,7 @@ _MIN_LABEL_CONFIDENCE = 0.7  # dòng có nhãn rõ ("Tên NPP:") được nới 
 _LOGO_TAGLINES = {"mevabe"}  # đã _alnum(_norm()): "Mẹ và Bé"
 _GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
 _BUSINESS_WORDS = ("nha thuoc", "cong ty", "chi nhanh", "sieu thi", "nha hang", "tap hoa", "pharmacy", "quan an", "benh vien", "phong kham", "nha khoa")
-_TITLE_MARKERS = ("phieu tinh tien", "phieu thanh toan", "hoa don", "phieu thu", "phieu giao", "phieu xuat kho",
+_TITLE_MARKERS = ("bien lai", "phieu tinh tien", "phieu thanh toan", "hoa don", "phieu thu", "phieu giao", "phieu xuat kho",
                   "phieu nhap kho", "phieu ban hang", "phieu ban le", "phieu mua hang", "don hang", "giao nhan")
 _HEADER_DATE = re.compile(r"^([A-Z][A-Z0-9]{2,14})\s*[-–]\s*\d{1,2}[/.]\d{1,2}[/.]\d{2,4}")  # "WAMIHS-21/09/2026 15:41"
 _SITE_RE = re.compile(r"www\.([a-z0-9-]{4,})\.")
@@ -565,7 +565,7 @@ _PRODUCT_KEYWORDS = {
                  "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
                  # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
                  "bia nut", "bia ho so", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
-    "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
+    "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "phi rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
     "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
                   "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm
 }

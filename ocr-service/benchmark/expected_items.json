@@ -50,7 +50,16 @@
     "BIll-10-15-2026/grab.png": null,
     "BIll-10-15-2026/fahasa.png": 4,
     "BIll-10-15-2026/con-cung-me-va-be.png": 3,
-    "BIll-10-15-2026/lau-thien-duong.png": 3
+    "BIll-10-15-2026/lau-thien-duong.png": 3,
+    "BIll-10-15-2026/15anh-01_Highlands_Coffee.png": 3,
+    "BIll-10-15-2026/15anh-02_Com_Tam.png": 3,
+    "BIll-10-15-2026/15anh-05_Long_Chau.png": 3,
+    "BIll-10-15-2026/15anh-06_Petrolimex.png": 1,
+    "BIll-10-15-2026/15anh-08_EVN.png": 1,
+    "BIll-10-15-2026/15anh-10_CGV.png": 2,
+    "BIll-10-15-2026/15anh-11_Dien_May.png": 2,
+    "BIll-10-15-2026/15anh-14_Phong_Tro.png": 4,
+    "BIll-10-15-2026/15anh-15_Ca_Phe.png": 3
   },
   "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": [
     {"name_contains": "tayox", "amount": 140000},
@@ -207,6 +216,20 @@
       "BIll-10-15-2026/lau-thien-duong.png"
     ]
   },
+  "_added_2026_10_15b": {
+    "_note": "9 bill còn lại của bộ 15 ảnh thử nghiệm OCR (render bằng code, chữ sạch, một số nghiêng), nhãn do Claude đọc trực tiếp từ ảnh, người dùng chưa duyệt lại. Ảnh tổng hợp nên điểm cao hơn bill thật. Bill phòng trọ không in tên cửa hàng nên đáp án tên là null.",
+    "files": [
+      "BIll-10-15-2026/15anh-01_Highlands_Coffee.png",
+      "BIll-10-15-2026/15anh-02_Com_Tam.png",
+      "BIll-10-15-2026/15anh-05_Long_Chau.png",
+      "BIll-10-15-2026/15anh-06_Petrolimex.png",
+      "BIll-10-15-2026/15anh-08_EVN.png",
+      "BIll-10-15-2026/15anh-10_CGV.png",
+      "BIll-10-15-2026/15anh-11_Dien_May.png",
+      "BIll-10-15-2026/15anh-14_Phong_Tro.png",
+      "BIll-10-15-2026/15anh-15_Ca_Phe.png"
+    ]
+  },
   "BIll-10-14-2026/Bách Hóa XANH Grocery Receipt.png": [
     {"name_contains": "nuoc cam", "amount": 28000},
     {"name_contains": "tao rocket", "amount": 49000},
@@ -320,5 +343,40 @@
     {"name_contains": "lau thai", "amount": 380000},
     {"name_contains": "bo my", "amount": 240000},
     {"name_contains": "nuoc ngot", "amount": 80000}
+  ],
+  "BIll-10-15-2026/15anh-01_Highlands_Coffee.png": [
+    {"name_contains": "ca phe sua", "amount": 49000},
+    {"name_contains": "tra dao", "amount": 59000},
+    {"name_contains": "banh mi", "amount": 38000}
+  ],
+  "BIll-10-15-2026/15anh-02_Com_Tam.png": [
+    {"name_contains": "com suon", "amount": 90000},
+    {"name_contains": "canh kho qua", "amount": 15000},
+    {"name_contains": "tra da", "amount": 10000}
+  ],
+  "BIll-10-15-2026/15anh-05_Long_Chau.png": [
+    {"name_contains": "paracetamol", "amount": 24000},
+    {"name_contains": "vitamin c", "amount": 85000},
+    {"name_contains": "khau trang", "amount": 40000}
+  ],
+  "BIll-10-15-2026/15anh-10_CGV.png": [
+    {"name_contains": "ve 2d", "amount": 190000},
+    {"name_contains": "combo bap", "amount": 109000}
+  ],
+  "BIll-10-15-2026/15anh-11_Dien_May.png": [
+    {"name_contains": "tai nghe", "amount": 690000},
+    {"name_contains": "cap sac", "amount": 170000}
+  ],
+  "BIll-10-15-2026/15anh-14_Phong_Tro.png": [
+    {"name_contains": "tien phong", "amount": 2500000},
+    {"name_contains": "tien dien", "amount": 343000},
+    {"name_contains": "tien nuoc", "amount": 60000},
+    {"name_contains": "phi rac", "amount": 100000}
+  ],
+  "BIll-10-15-2026/15anh-15_Ca_Phe.png": [
+    {"name_contains": "ca phe den", "amount": 75000},
+    {"name_contains": "sinh to", "amount": 80000},
+    {"name_contains": "banh flan", "amount": 25000},
+    {"name_contains": "giam gia", "amount": -18000}
   ]
 }

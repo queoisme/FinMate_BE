@@ -455,6 +455,7 @@ _BASE_BRANDS = {
     # tiện ích
     "vnpt": ("utilities", "VNPT"),
     "sawaco": ("housing", "Sawaco"),
+    "evn": ("housing", "EVN"),  # khớp nguyên từ (xem WHOLE_WORD_BRANDS): tiêu đề "HÓA ĐƠN TIỀN ĐIỆN EVN"
     "pvgas": ("housing", "PV Gas"),
     "gas south": ("housing", "Gas South"),
     # giải trí
@@ -473,4 +474,4 @@ for _table in (_MORE_BRANDS, _BASE_BRANDS):
 
 # Tên ngắn hoặc là từ thông dụng: chỉ khớp khi đứng thành cả từ (không khớp giữa chữ khác như "Nikel", "Junoon", "Havana Vans").
 # Rút ra từ trường "khop_an_toan" của đợt nghiên cứu và test nhận nhầm.
-WHOLE_WORD_BRANDS = {"nike", "juno", "converse", "puma", "fila", "lush", "clinique", "h&m", "muji", "cgv"}  # set (không phải frozenset): knowledge_pg cập nhật tại chỗ từ DB
+WHOLE_WORD_BRANDS = {"nike", "juno", "converse", "puma", "fila", "lush", "clinique", "h&m", "muji", "cgv", "evn"}  # set (không phải frozenset): knowledge_pg cập nhật tại chỗ từ DB

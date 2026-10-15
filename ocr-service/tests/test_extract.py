@@ -352,3 +352,26 @@ def test_vietnamese_personal_names_with_thi_are_still_recognised():
 def test_the_logo_beats_the_address_as_merchant_name():
     confs = [0.61, 0.93] + [0.9] * (len(_QUAN_LAU) - 2)
     assert extract_merchant(_QUAN_LAU, confs) == "LẦU THIÊN ĐƯỜNG"
+
+
+# Bộ 15 ảnh thử nghiệm: biên lai chỉ in tiêu đề (không in tên cửa hàng) và hóa đơn điện ghi EVN ngay trong tiêu đề.
+def test_a_receipt_title_is_not_a_merchant_name():
+    lines = ["BIÊN LAI THU TIỀN PHÒNG TRỌ", "Tiền phòng:", "2.500.000", "Tiền điện 98 số x 3.500:", "343.000", "TỔNG CỘNG:", "3.003.000"]
+    assert extract_merchant(lines) is None  # không có tên để lấy: app phải hỏi, không được lấy tiêu đề làm tên cửa hàng
+
+
+def test_evn_in_the_bill_title_is_the_merchant_and_an_electricity_bill_is_housing():
+    from merchant_name import format_merchant_name
+
+    lines = ["HÓA ĐƠN TIỀN ĐIỆN EVN", "Kỳ hóa đơn:", "tháng 09/2026", "Điện năng tiêu thụ:", "285 kWh", "Tiền điện:", "585.000", "TỔNG CỘNG:", "631.800"]
+    merchant = extract_merchant(lines)
+    assert merchant == "EVN"
+    assert format_merchant_name(merchant) == "EVN"
+    assert classify_category_detailed(merchant, lines)[0] == "housing"
+
+
+def test_a_boarding_house_receipt_with_a_garbled_water_line_is_still_housing():
+    # OCR thật: "Tién nu6c" không khớp "tien nuoc"; "Phí rác" (luật 8: rác là nhà ở) phải đủ để thắng "wifi" (hóa đơn dịch vụ)
+    lines = ["BIÊN LAI THU TIỀN PHÒNG TRỌ", "Tién phng:", "2.500.000", "Tién dién 98 s0 x 3.500", "343.000", "Tién nu6c 4 kh0i x 15.000:", "60.000",
+             "Phí rác và wifi:", "100.000", "TONG CONG:", "3.003.000"]
+    assert classify_category_detailed(None, lines)[0] == "housing"

@@ -299,5 +299,59 @@
     "total": 791000,
     "category": "dining",
     "kind": "ảnh AI tạo (ChatGPT) 2026-10-15: Lẩu Thiên Đường, 'THIÊN' từng bị coi là tên người nên tên cửa hàng thành dòng địa chỉ; phí phục vụ 5% và VAT 8%"
+  },
+  "BIll-10-15-2026/15anh-01_Highlands_Coffee.png": {
+    "merchant": "highlands",
+    "total": 157680,
+    "category": "dining",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Highlands Coffee, thuế GTGT 8%, tiền mặt và tiền thừa"
+  },
+  "BIll-10-15-2026/15anh-02_Com_Tam.png": {
+    "merchant": "comtam",
+    "total": 115000,
+    "category": "dining",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Quán cơm tấm Sườn Bì, ảnh nghiêng, không thuế, khách đưa 120.000"
+  },
+  "BIll-10-15-2026/15anh-05_Long_Chau.png": {
+    "merchant": "longchau",
+    "total": 149000,
+    "category": "healthcare",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Nhà thuốc Long Châu, có tên khách và số điện thoại (phải bị ẩn khi lưu mẫu)"
+  },
+  "BIll-10-15-2026/15anh-06_Petrolimex.png": {
+    "merchant": "petrolimex",
+    "total": 208250,
+    "category": "transport",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Cây xăng Petrolimex, số lượng thập phân 8,5 lít, một dòng hàng"
+  },
+  "BIll-10-15-2026/15anh-08_EVN.png": {
+    "merchant": "evn",
+    "total": 631800,
+    "category": "housing",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Hóa đơn tiền điện EVN, dòng kWh không phải tiền, thuế GTGT 8% trước tổng; điện nước là housing theo luật 8 đã duyệt (không phải utilities/bills)"
+  },
+  "BIll-10-15-2026/15anh-10_CGV.png": {
+    "merchant": "cgv",
+    "total": 299000,
+    "category": "entertainment",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Rạp CGV, vé và combo bắp nước, thanh toán thẻ"
+  },
+  "BIll-10-15-2026/15anh-11_Dien_May.png": {
+    "merchant": "dienmay",
+    "total": 860000,
+    "category": "shopping",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Siêu thị điện máy, ảnh nghiêng, tiền thừa 140.000 (không được xếp groceries dù có 'siêu thị')"
+  },
+  "BIll-10-15-2026/15anh-14_Phong_Tro.png": {
+    "merchant": null,
+    "total": 3003000,
+    "category": "housing",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Biên lai thu tiền phòng trọ: chỉ có tiêu đề biên lai, KHÔNG in tên cửa hàng nên đáp án tên là null; số lớn 3.003.000"
+  },
+  "BIll-10-15-2026/15anh-15_Ca_Phe.png": {
+    "merchant": "caphenho",
+    "total": 162000,
+    "category": "dining",
+    "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Quán cà phê nhỏ, ảnh nghiêng, có 'Tiền hàng' 180.000 rồi giảm giá 10% rồi 'Tổng cộng' 162.000 (không được lấy 180.000)"
   }
 }
