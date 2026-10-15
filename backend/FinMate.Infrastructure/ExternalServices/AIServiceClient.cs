@@ -198,7 +198,7 @@ public class AIServiceClient : IAIServiceClient
         ChatParseApiResponse response;
         try
         {
-            response = await _api.ChatParseAsync(new ChatParseApiRequest(request.Text, UserIdHasher.Hash(request.UserId)), ct);
+            response = await _api.ChatParseAsync(new ChatParseApiRequest(request.Text, UserIdHasher.Hash(request.UserId), request.AllowAi), ct);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
         {

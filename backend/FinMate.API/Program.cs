@@ -340,6 +340,7 @@ public class Program
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
+        builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();

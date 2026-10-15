@@ -89,7 +89,8 @@ public record OcrApiResponse(
 
 public record ChatParseApiRequest(
     [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("user_id_hash")] string UserIdHash);
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("allow_ai")] bool AllowAi = false);
 
 public record ChatEntryApiResult(
     [property: JsonPropertyName("kind")] string Kind,

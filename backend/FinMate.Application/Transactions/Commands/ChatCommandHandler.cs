@@ -34,6 +34,7 @@ public class ChatCommandHandler : IChatCommandHandler
     private readonly IReportRepository _reportRepository;
     private readonly ITransactionRepository _transactionRepository;
     private readonly IValidator<ChatCommand> _validator;
+    private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý (test cũ) thì không gửi gì ra bên thứ ba
 
     public ChatCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -42,7 +43,8 @@ public class ChatCommandHandler : IChatCommandHandler
         ICategoryRepository categoryRepository,
         IReportRepository reportRepository,
         ITransactionRepository transactionRepository,
-        IValidator<ChatCommand> validator)
+        IValidator<ChatCommand> validator,
+        IAiConsentReader? consent = null)
     {
         _aiServiceClient = aiServiceClient;
         _createHandler = createHandler;
@@ -51,13 +53,15 @@ public class ChatCommandHandler : IChatCommandHandler
         _reportRepository = reportRepository;
         _transactionRepository = transactionRepository;
         _validator = validator;
+        _consent = consent;
     }
 
     public async Task<ChatResultDto> HandleAsync(ChatCommand command, CancellationToken ct = default)
     {
         await _validator.ValidateAndThrowAsync(command, ct);
 
-        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text), ct);
+        var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
+        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi), ct);
 
         if (parsed.Entries is { Count: > 1 } many)
         {

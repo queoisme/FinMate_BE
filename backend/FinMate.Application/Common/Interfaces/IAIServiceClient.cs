@@ -93,7 +93,8 @@ public record ScanReceiptResponse(
 
 // POST /api/v1/chat/parse — route thứ năm của contract, thêm ở Phase 20. AI Service chỉ HIỂU câu chat và
 // trả quyết định; backend lưu giao dịch và tự tính tổng. AmountCents là đồng VND như mọi nơi khác.
-public record ChatParseRequest(Guid UserId, string Text);
+/// <param name="AllowAi">Người dùng đang đồng ý gửi cụm sản phẩm cho AI bên thứ ba (đọc từ DB). Mặc định tắt: không gửi gì ra ngoài.</param>
+public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false);
 
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>

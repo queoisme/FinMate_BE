@@ -18,12 +18,15 @@ public interface IChatAnalyzeCommandHandler
 /// Chỉ HIỂU câu (hoặc giọng nói rồi hiểu): không đọc, không ghi giao dịch, ví hay báo cáo. App tự quyết định ghi, kiểm trùng và tính
 /// tổng bằng dữ liệu trên máy (hướng local-first). Cố ý không nhận repository nào; test cấu trúc giữ điều đó.
 /// </summary>
-public class ChatAnalyzeCommandHandler(IAIServiceClient ai, ISttServiceClient stt, IValidator<ChatCommand> textRules) : IChatAnalyzeCommandHandler
+public class ChatAnalyzeCommandHandler(IAIServiceClient ai, ISttServiceClient stt, IValidator<ChatCommand> textRules, IAiConsentReader? consent = null) : IChatAnalyzeCommandHandler
 {
+    // Không có bộ đọc đồng ý (test cũ) thì coi như chưa đồng ý: không gửi gì ra bên thứ ba.
+    private async Task<bool> AllowAiAsync(Guid userId, CancellationToken ct) => consent is not null && await consent.HasAiConsentAsync(userId, ct);
+
     public async Task<ChatParseResponse> AnalyzeAsync(Guid userId, string text, CancellationToken ct = default)
     {
         await textRules.ValidateAndThrowAsync(new ChatCommand(userId, text), ct);
-        return await ai.ParseChatAsync(new ChatParseRequest(userId, text), ct);
+        return await ai.ParseChatAsync(new ChatParseRequest(userId, text, await AllowAiAsync(userId, ct)), ct);
     }
 
     public async Task<VoiceAnalyzeDto> AnalyzeVoiceAsync(Guid userId, byte[] audio, string fileName, string contentType, CancellationToken ct = default)
