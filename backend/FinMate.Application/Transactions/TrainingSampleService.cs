@@ -26,6 +26,8 @@ public interface ITrainingSampleService
 public class TrainingSampleService : ITrainingSampleService
 {
     private const string IncomeSlug = "income";
+    private const int MaxMerchantChars = 200;
+    private const int MaxLines = 200;
 
     private readonly IUserRepository _userRepository;
     private readonly IAIServiceClient _aiServiceClient;
@@ -47,8 +49,12 @@ public class TrainingSampleService : ITrainingSampleService
             return;
         }
 
+        // Cắt theo giới hạn của ai-service (BillSampleRequest): vượt thì nó trả 422 và lời gọi best-effort nuốt lỗi, mẫu mất mà không ai biết.
+        var clippedMerchant = merchantName is { Length: > MaxMerchantChars } ? merchantName[..MaxMerchantChars] : merchantName;
+        var clippedLines = lines.Count > MaxLines ? lines.Take(MaxLines).ToList() : lines;
+
         await RunAsync(userId, () => _aiServiceClient.RecordTrainingSampleAsync(
-            new TrainingSampleRequest(scanId, userId, merchantName, lines, totalAmount, predictedSlug, predictedSource), ct), ct);
+            new TrainingSampleRequest(scanId, userId, clippedMerchant, clippedLines, totalAmount, predictedSlug, predictedSource), ct), ct);
     }
 
     public async Task LabelAsync(Guid userId, Guid scanId, Category? category, CancellationToken ct = default)

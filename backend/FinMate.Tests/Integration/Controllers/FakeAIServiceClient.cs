@@ -55,11 +55,34 @@ public class FakeAIServiceClient : IAIServiceClient
         return Task.CompletedTask;
     }
 
-    public Task RecordTrainingSampleAsync(TrainingSampleRequest request, CancellationToken ct = default) => Task.CompletedTask;
+    private static readonly System.Collections.Concurrent.ConcurrentBag<TrainingSampleRequest> TrainingSamples = new();
+    private static readonly System.Collections.Concurrent.ConcurrentBag<TrainingLabelRequest> TrainingLabels = new();
+    private static readonly System.Collections.Concurrent.ConcurrentBag<Guid> ErasedUsers = new();
 
-    public Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default) => Task.CompletedTask;
+    /// <summary>Những mẫu huấn luyện / nhãn / lần xóa backend đã gửi cho AI (test lọc theo mã lần quét hoặc người dùng của riêng mình).</summary>
+    public static IReadOnlyList<TrainingSampleRequest> SamplesFor(Guid scanId) => TrainingSamples.Where(s => s.ScanId == scanId).ToList();
 
-    public Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default) => Task.CompletedTask;
+    public static IReadOnlyList<TrainingLabelRequest> LabelsFor(Guid scanId) => TrainingLabels.Where(l => l.ScanId == scanId).ToList();
+
+    public static bool WasErased(Guid userId) => ErasedUsers.Contains(userId);
+
+    public Task RecordTrainingSampleAsync(TrainingSampleRequest request, CancellationToken ct = default)
+    {
+        TrainingSamples.Add(request);
+        return Task.CompletedTask;
+    }
+
+    public Task LabelTrainingSampleAsync(TrainingLabelRequest request, CancellationToken ct = default)
+    {
+        TrainingLabels.Add(request);
+        return Task.CompletedTask;
+    }
+
+    public Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default)
+    {
+        ErasedUsers.Add(userId);
+        return Task.CompletedTask;
+    }
 
     private static readonly Dictionary<string, BillClassifyResponse> BillScenarios = new();
 

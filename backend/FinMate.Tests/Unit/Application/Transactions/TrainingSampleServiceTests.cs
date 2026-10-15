@@ -45,6 +45,20 @@ public class TrainingSampleServiceTests
     }
 
     [Fact]
+    public async Task Record_ClipsOversizedInputSoTheAiServiceNeverRejectsItWith422()
+    {
+        UserConsentedTo(ConsentVersions.Training);
+        var manyLines = Enumerable.Range(0, 350).Select(i => $"Mon {i}").ToList();
+
+        await Service().RecordAsync(_userId, _scanId, new string('x', 500), manyLines, 1_000, null, null);
+
+        // ai-service từ chối (422) tên cửa hàng > 200 ký tự và > 200 dòng, mà lời gọi best-effort sẽ nuốt lỗi: mẫu mất không dấu vết
+        _ai.Verify(a => a.RecordTrainingSampleAsync(
+            It.Is<TrainingSampleRequest>(r => r.MerchantName!.Length == 200 && r.Lines.Count == 200 && r.Lines[0] == "Mon 0"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Record_SendsNothingWithoutConsent()
     {
         UserConsentedTo(null);
