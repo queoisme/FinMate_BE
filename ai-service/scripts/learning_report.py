@@ -62,7 +62,7 @@ def summarize(rows: list[SampleRow], pending: int) -> LearningReport:
 
     by_source: dict[str, list[bool]] = {}
     for r in rows:
-        if r.predicted_source:
+        if r.predicted_source and r.predicted_source != "none":  # "none" = không đoán được gì, không phải một nguồn dự đoán
             by_source.setdefault(r.predicted_source, []).append(r.predicted_slug == r.final_slug)
 
     missing: list[str] = []

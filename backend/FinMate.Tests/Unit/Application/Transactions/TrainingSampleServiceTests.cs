@@ -138,6 +138,51 @@ public class TrainingSampleServiceTests
         _ai.Verify(a => a.LabelTrainingSampleAsync(It.IsAny<TrainingLabelRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Label_DiscardsTheSampleWhenTheUserMovesToACustomOrIncomeCategory()
+    {
+        UserConsentedTo(ConsentVersions.Training);
+        var mine = new Category { Id = Guid.NewGuid(), Slug = "cafe-cua-toi", Name = "Cà phê của tôi", UserId = Guid.NewGuid() };
+
+        await Service().LabelAsync(_userId, _scanId, mine);
+        await Service().LabelAsync(_userId, _scanId, System("income"));
+
+        // nhãn hệ thống đã gắn trước đó là nhãn họ vừa bác bỏ: không được giữ lại làm dữ liệu học
+        _ai.Verify(a => a.DiscardTrainingSampleAsync(_scanId, _userId, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Label_DoesNothingForAMissingCategory()
+    {
+        UserConsentedTo(ConsentVersions.Training);
+
+        await Service().LabelAsync(_userId, _scanId, null);
+
+        _ai.Verify(a => a.DiscardTrainingSampleAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Record_ErasesWhatWasSentIfConsentWasWithdrawnWhileTheCallWasInFlight()
+    {
+        _users.SetupSequence(u => u.GetByIdAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = _userId, TrainingConsentVersion = ConsentVersions.Training })
+            .ReturnsAsync(new User { Id = _userId, TrainingConsentVersion = null });
+
+        await Service().RecordAsync(_userId, _scanId, "X", Lines, 1_000, null, null);
+
+        _ai.Verify(a => a.EraseTrainingSamplesAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Record_DoesNotEraseWhenConsentStillStandsAfterTheCall()
+    {
+        UserConsentedTo(ConsentVersions.Training);
+
+        await Service().RecordAsync(_userId, _scanId, "X", Lines, 1_000, null, null);
+
+        _ai.Verify(a => a.EraseTrainingSamplesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // ---- xóa dữ liệu đã đóng góp
 
     [Fact]

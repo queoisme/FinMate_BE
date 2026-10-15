@@ -277,3 +277,25 @@ async def test_purge_loop_removes_stale_pending_without_any_new_insert(session):
     task.cancel()
 
     assert await rows(session) == []
+
+
+async def test_discard_removes_the_owners_sample_labeled_or_not(session):
+    # người dùng chuyển sang danh mục tự tạo/thu nhập: nhãn hệ thống cũ là nhãn họ vừa bác bỏ, không được giữ làm dữ liệu học
+    labeled, pending, someone_elses = sample(), sample(), sample(user_id_hash=OTHER)
+    for s in (labeled, pending, someone_elses):
+        await samples.add_pending(session, s)
+    await samples.label(session, labeled.scan_id, HASH, "food")
+
+    assert await samples.discard(session, labeled.scan_id, HASH) is True
+    assert await samples.discard(session, pending.scan_id, OTHER) is False  # không xóa được mẫu của người khác
+    assert await samples.discard(session, uuid.uuid4(), HASH) is False
+
+    assert {r.scan_id for r in await rows(session)} == {pending.scan_id, someone_elses.scan_id}
+
+
+async def test_discard_route(client, session):
+    s = sample()
+    await samples.add_pending(session, s)
+    res = await client.post(f"/api/v1/bill/samples/{s.scan_id}/discard", json={"user_id_hash": HASH})
+    assert res.json() == {"discarded": True}
+    assert await rows(session) == []

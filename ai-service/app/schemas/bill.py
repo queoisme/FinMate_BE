@@ -94,6 +94,16 @@ class BillSampleLabelResponse(BaseModel):
     labeled: bool
 
 
+class BillSampleDiscardRequest(BaseModel):
+    """``POST /api/v1/bill/samples/{scan_id}/discard``: người dùng chọn danh mục tự tạo/thu nhập nên mẫu của lần quét này không còn nhãn đáng học."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+
+
+class BillSampleDiscardResponse(BaseModel):
+    discarded: bool
+
+
 class BillSampleEraseRequest(BaseModel):
     """``POST /api/v1/bill/samples/erase``: xóa MỌI mẫu huấn luyện của một người dùng (rút đồng ý đóng góp dữ liệu, hoặc xóa tài khoản)."""
 

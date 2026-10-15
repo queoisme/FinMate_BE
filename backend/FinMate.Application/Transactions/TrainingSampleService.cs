@@ -53,14 +53,27 @@ public class TrainingSampleService : ITrainingSampleService
         var clippedMerchant = merchantName is { Length: > MaxMerchantChars } ? merchantName[..MaxMerchantChars] : merchantName;
         var clippedLines = lines.Count > MaxLines ? lines.Take(MaxLines).ToList() : lines;
 
-        await RunAsync(userId, () => _aiServiceClient.RecordTrainingSampleAsync(
+        var sent = await RunAsync(userId, () => _aiServiceClient.RecordTrainingSampleAsync(
             new TrainingSampleRequest(scanId, userId, clippedMerchant, clippedLines, totalAmount, predictedSlug, predictedSource), ct), ct);
+
+        // Rút đồng ý đúng lúc lời gọi đang bay: lần xóa của việc rút có thể đã chạy xong TRƯỚC khi mẫu này đến nơi. Kiểm lại và xóa nếu cần.
+        if (sent && !await StillConsentedAsync(userId, ct))
+        {
+            await EraseAsync(userId, ct);
+        }
     }
 
     public async Task LabelAsync(Guid userId, Guid scanId, Category? category, CancellationToken ct = default)
     {
+        if (category is null)
+        {
+            return;
+        }
+
         if (category is not { UserId: null } system || system.Slug == IncomeSlug)
         {
+            // Danh mục tự tạo hoặc thu nhập: nhãn hệ thống đã gắn trước đó là nhãn người dùng vừa bác bỏ, không được giữ lại làm dữ liệu học.
+            await RunAsync(userId, () => _aiServiceClient.DiscardTrainingSampleAsync(scanId, userId, ct), ct);
             return;
         }
 
@@ -81,7 +94,21 @@ public class TrainingSampleService : ITrainingSampleService
         }
     }
 
-    private async Task RunAsync(Guid userId, Func<Task> send, CancellationToken ct)
+    private async Task<bool> StillConsentedAsync(Guid userId, CancellationToken ct)
+    {
+        try
+        {
+            return await _userRepository.GetByIdAsync(userId, ct) is { TrainingConsentGranted: true };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Re-checking training consent failed: {ExceptionType}", ex.GetType().Name);
+            return true;  // không biết thì không xóa: lần rút kế tiếp hoặc việc dọn mẫu chờ nhãn sẽ xử lý
+        }
+    }
+
+    /// <returns>True khi đã gửi (đang đồng ý và lời gọi không lỗi).</returns>
+    private async Task<bool> RunAsync(Guid userId, Func<Task> send, CancellationToken ct)
     {
         try
         {
@@ -89,11 +116,15 @@ public class TrainingSampleService : ITrainingSampleService
             if (user is { TrainingConsentGranted: true })
             {
                 await send();
+                return true;
             }
+
+            return false;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogWarning("Training sample step failed after the transaction was saved: {ExceptionType}", ex.GetType().Name);
+            return false;
         }
     }
 }

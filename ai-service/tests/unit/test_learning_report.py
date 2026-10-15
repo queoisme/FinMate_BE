@@ -78,3 +78,9 @@ def test_accuracy_by_source_separates_ai_from_rules():
 def test_accuracy_by_source_omits_sources_without_labeled_samples():
     rows = [row(final="food", source="ai", predicted="food"), row(final="food", source=None, predicted=None)]
     assert set(summarize(rows, pending=0).accuracy_by_source) == {"ai"}
+
+
+def test_samples_without_a_prediction_are_not_a_source():
+    # "none" = hệ thống không đoán được gì; không phải một nguồn dự đoán có độ đúng 0%
+    rows = [row(final="food", source="none", predicted=None), row(final="food", source="ai", predicted="food")]
+    assert set(summarize(rows, pending=0).accuracy_by_source) == {"ai"}

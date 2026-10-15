@@ -36,6 +36,9 @@ public interface IAIServiceApi
     [Post("/api/v1/bill/samples/{scanId}/label")]
     Task BillSampleLabelAsync(Guid scanId, [Body] BillSampleLabelApiRequest request, CancellationToken ct = default);
 
+    [Post("/api/v1/bill/samples/{scanId}/discard")]
+    Task BillSampleDiscardAsync(Guid scanId, [Body] BillSampleDiscardApiRequest request, CancellationToken ct = default);
+
     [Post("/api/v1/bill/samples/erase")]
     Task BillSamplesEraseAsync([Body] BillSampleEraseApiRequest request, CancellationToken ct = default);
 

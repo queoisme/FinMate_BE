@@ -157,6 +157,17 @@ public class ConsentCommandHandlerTests
     }
 
     [Fact]
+    public async Task AnUndefinedKindIsRefusedNotTreatedAsTraining()
+    {
+        var accept = () => _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, (ConsentKind)7, 1));
+        var withdraw = () => _handler.WithdrawAsync(_user.Id, (ConsentKind)7);
+
+        (await accept.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(AuthErrorCodes.ConsentKindUnknown);
+        (await withdraw.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(AuthErrorCodes.ConsentKindUnknown);
+        _training.Verify(t => t.EraseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task TermsCannotBeWithdrawn()
     {
         var act = () => _handler.WithdrawAsync(_user.Id, ConsentKind.Terms);

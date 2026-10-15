@@ -27,7 +27,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
             ConsentKind.Terms => ConsentVersions.Terms,
             ConsentKind.Ai => ConsentVersions.Ai,
             ConsentKind.Training => ConsentVersions.Training,
-            _ => throw new ArgumentOutOfRangeException(nameof(command)),
+            _ => throw UnknownKind(),
         };
         if (command.Version != current)
         {
@@ -58,6 +58,11 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
     public async Task<UserProfileDto> WithdrawAsync(Guid userId, ConsentKind kind, CancellationToken ct = default)
     {
+        if (!Enum.IsDefined(kind))
+        {
+            throw UnknownKind();
+        }
+
         if (kind == ConsentKind.Terms)
         {
             throw new BusinessRuleException(AuthErrorCodes.ConsentNotWithdrawable, "Điều khoản chung không rút lại được. Muốn ngừng sử dụng, hãy xoá tài khoản.");
@@ -87,6 +92,9 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
         return profile;
     }
+
+    private static BusinessRuleException UnknownKind() =>
+        new(AuthErrorCodes.ConsentKindUnknown, "Loại đồng ý không hợp lệ.");
 
     private async Task<User> LoadAsync(Guid userId, CancellationToken ct) =>
         await _userRepository.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);

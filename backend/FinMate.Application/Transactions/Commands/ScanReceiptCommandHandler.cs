@@ -168,7 +168,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         // Cờ tách nhóm bật mà các dòng món không khớp tổng bill (ItemsOk = false): bill phải về một nhóm, người dùng nên xem lại.
         var needsReview = ocr.NeedsReview || (_options.SplitByItemsEnabled && !ocr.ItemsOk);
         var recorded = await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
-        await RecordTrainingSampleAsync(command.UserId, recorded, merchant, ocr, category, ct);
+        // Cùng tên cửa hàng mà bộ phân loại đã thấy (ClassifyAsync dùng tên OCR), không phải tên hiển thị đã làm đẹp.
+        await RecordTrainingSampleAsync(command.UserId, recorded, ocr.MerchantName ?? ocr.MerchantDisplay, ocr, category, ct);
         return recorded;
     }
 

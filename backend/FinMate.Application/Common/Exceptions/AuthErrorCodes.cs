@@ -24,6 +24,9 @@ public static class AuthErrorCodes
     /// <summary>App gửi lên phiên bản câu chữ đồng ý khác phiên bản hiện hành của server (app cũ hoặc câu chữ vừa đổi).</summary>
     public const string ConsentVersionOutdated = "AUTH_CONSENT_VERSION_OUTDATED";
 
+    /// <summary>Loại đồng ý không tồn tại (giá trị enum ngoài danh sách).</summary>
+    public const string ConsentKindUnknown = "AUTH_CONSENT_KIND_UNKNOWN";
+
     /// <summary>Điều khoản chung không rút lại được (muốn thôi thì xoá tài khoản).</summary>
     public const string ConsentNotWithdrawable = "AUTH_CONSENT_NOT_WITHDRAWABLE";
 

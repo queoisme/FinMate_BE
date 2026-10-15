@@ -74,6 +74,9 @@ public class AIServiceClient : IAIServiceClient
         => BestEffortAsync(t => _api.BillSampleLabelAsync(
             request.ScanId, new BillSampleLabelApiRequest(UserIdHasher.Hash(request.UserId), request.FinalSlug), t), ct);
 
+    public Task DiscardTrainingSampleAsync(Guid scanId, Guid userId, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.BillSampleDiscardAsync(scanId, new BillSampleDiscardApiRequest(UserIdHasher.Hash(userId)), t), ct);
+
     // Khác các lời gọi trên: xóa dữ liệu là lời hứa với người dùng nên lỗi PHẢI đến người gọi (để báo và thử lại), không được nuốt.
     private static readonly TimeSpan EraseTimeout = TimeSpan.FromSeconds(10);
 

@@ -78,6 +78,8 @@ public class FakeAIServiceClient : IAIServiceClient
         return Task.CompletedTask;
     }
 
+    public Task DiscardTrainingSampleAsync(Guid scanId, Guid userId, CancellationToken ct = default) => Task.CompletedTask;
+
     public Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default)
     {
         ErasedUsers.Add(userId);

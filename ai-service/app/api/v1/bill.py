@@ -33,6 +33,8 @@ from app.schemas.bill import (
     BillClassifyResponse,
     BillLearnRequest,
     BillLearnResponse,
+    BillSampleDiscardRequest,
+    BillSampleDiscardResponse,
     BillSampleEraseRequest,
     BillSampleEraseResponse,
     BillSampleLabelRequest,
@@ -169,6 +171,21 @@ async def label_bill_sample(
         labeled = False
     logger.info("bill_sample_labeled", labeled=labeled)
     return BillSampleLabelResponse(labeled=labeled)
+
+
+@router.post("/bill/samples/{scan_id}/discard", response_model=BillSampleDiscardResponse)
+async def discard_bill_sample(
+    scan_id: uuid.UUID, body: BillSampleDiscardRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillSampleDiscardResponse:
+    """Xóa mẫu của lần quét này (chỉ của đúng người dùng). Best-effort như ``label``: lỗi chỉ ghi log."""
+    try:
+        async with factory() as session:
+            discarded = await bill_samples.discard(session, scan_id, body.user_id_hash)
+    except Exception as error:  # noqa: BLE001
+        logger.warning("bill_sample_discard_failed", error=type(error).__name__)
+        discarded = False
+    logger.info("bill_sample_discarded", discarded=discarded)
+    return BillSampleDiscardResponse(discarded=discarded)
 
 
 @router.post("/bill/samples/erase", response_model=BillSampleEraseResponse)

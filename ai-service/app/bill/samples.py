@@ -89,6 +89,15 @@ async def label(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str, fi
     return updated is not None
 
 
+async def discard(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str) -> bool:
+    """Xóa mẫu của một lần quét (đã gắn nhãn hay chưa) khi người dùng chọn danh mục không phải hệ thống: không còn nhãn nào đáng học. False khi không có mẫu CỦA người đó."""
+    result = await session.execute(
+        text("DELETE FROM bill_training_samples WHERE scan_id = :scan AND user_id_hash = :user"), {"scan": scan_id, "user": user_id_hash}
+    )
+    await session.commit()
+    return bool(result.rowcount)
+
+
 async def delete_by_user_hash(session: AsyncSession, user_id_hash: str) -> int:
     """Xóa mọi mẫu của một người dùng (luồng xóa dữ liệu). Trả số hàng đã xóa."""
     result = await session.execute(text("DELETE FROM bill_training_samples WHERE user_id_hash = :user"), {"user": user_id_hash})

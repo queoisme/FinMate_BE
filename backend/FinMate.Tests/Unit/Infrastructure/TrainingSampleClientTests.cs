@@ -100,6 +100,23 @@ public class TrainingSampleClientTests
     }
 
     [Fact]
+    public async Task DiscardIsBestEffortAndSendsOnlyTheHashedUser()
+    {
+        BillSampleDiscardApiRequest? sent = null;
+        _api.Setup(a => a.BillSampleDiscardAsync(ScanId, It.IsAny<BillSampleDiscardApiRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, BillSampleDiscardApiRequest, CancellationToken>((_, r, _) => sent = r)
+            .Returns(Task.CompletedTask);
+        var client = new AIServiceClient(_api.Object);
+
+        await client.DiscardTrainingSampleAsync(ScanId, UserId);
+
+        sent!.UserIdHash.Should().MatchRegex("^[0-9a-f]{64}$");
+        _api.Setup(a => a.BillSampleDiscardAsync(It.IsAny<Guid>(), It.IsAny<BillSampleDiscardApiRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("down"));
+        await ((Func<Task>)(() => client.DiscardTrainingSampleAsync(ScanId, UserId))).Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task AFailedEraseReachesTheCallerSoItCanBeRetriedAndReported()
     {
         _api.Setup(a => a.BillSamplesEraseAsync(It.IsAny<BillSampleEraseApiRequest>(), It.IsAny<CancellationToken>())).ThrowsAsync(new HttpRequestException("down"));

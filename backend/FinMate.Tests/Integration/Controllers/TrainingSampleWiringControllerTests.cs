@@ -37,7 +37,7 @@ public class TrainingSampleWiringControllerTests : IClassFixture<AuthApiFactory>
 
         public Task<OcrServiceResponse> AnalyzeAsync(OcrServiceRequest request, CancellationToken ct = default)
             => Task.FromResult(new OcrServiceResponse(
-                true, 16_000, request.FileName, request.FileName, [request.FileName], "dining", "brand", false, null, "text"));
+                true, 16_000, request.FileName, "Cleaned " + request.FileName, [request.FileName], "dining", "brand", false, null, "text"));
     }
 
     private async Task<(string Token, Guid UserId)> RegisterAndLoginAsync()
@@ -103,7 +103,8 @@ public class TrainingSampleWiringControllerTests : IClassFixture<AuthApiFactory>
         var merchant = $"Wiring {Guid.NewGuid():N}";
 
         var scanId = await ScanAsync(token, merchant);
-        FakeAIServiceClient.SamplesFor(scanId).Should().ContainSingle(s => s.UserId == userId);
+        // cùng tên cửa hàng mà bộ phân loại đã thấy (tên OCR), không phải tên đã làm đẹp: để báo cáo chấm luật trên đúng đầu vào của lúc quét
+        FakeAIServiceClient.SamplesFor(scanId).Should().ContainSingle(s => s.UserId == userId && s.MerchantName == merchant);
 
         await SaveAsync(token, merchant, scanId, "shopping");
         FakeAIServiceClient.LabelsFor(scanId).Should().ContainSingle(l => l.UserId == userId && l.FinalSlug == "shopping");

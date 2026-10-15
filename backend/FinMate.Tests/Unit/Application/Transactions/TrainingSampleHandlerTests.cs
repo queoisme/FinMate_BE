@@ -66,7 +66,7 @@ public class TrainingSampleHandlerTests
 
         dto.ScanId.Should().Be(_savedScanId);
         _training.Verify(t => t.RecordAsync(
-            _userId, _savedScanId, "Circle K", It.Is<IReadOnlyList<string>>(l => l.SequenceEqual(new[] { "CIRCLE K", "Tong tien: 82.000" })),
+            _userId, _savedScanId, "CIRCLE K", It.Is<IReadOnlyList<string>>(l => l.SequenceEqual(new[] { "CIRCLE K", "Tong tien: 82.000" })),
             82_000L, "food", "brand", It.IsAny<CancellationToken>()), Times.Once);
     }
 
