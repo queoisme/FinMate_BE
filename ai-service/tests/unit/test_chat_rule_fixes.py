@@ -46,3 +46,32 @@ def test_lau_and_thuoc_keep_meaning_what_they_meant(text, slug):
 def test_the_resolver_agrees_on_the_bare_phrases():
     assert resolve("cây lau nhà", chat=True).slug == "shopping"
     assert resolve("mua thước kẻ", chat=True).slug == "education"
+
+
+# "mua đồ" (shopping, 6 ký tự) dài hơn "đồ ăn" (food, 5 ký tự): "mua đồ ăn" ra Mua sắm. Cùng loại với "mua thước kẻ"; phép quét 438 từ khóa x 6 động từ thấy đây là ca phổ biến nhất.
+@pytest.mark.parametrize(
+    ("text", "slug"),
+    [
+        ("mua đồ ăn 50k", "food"),
+        ("mua đồ ăn vặt 30k", "food"),
+        ("mua đồ ăn sáng 25k", "food"),
+        ("mua đồ uống 40k", "food"),
+        ("mua do an 50k", "food"),  # gõ không dấu
+        ("mua thêm đồ ăn 60k", "food"),
+    ],
+)
+def test_buying_food_or_drinks_is_food(text, slug):
+    assert category(text) == slug
+
+
+@pytest.mark.parametrize(
+    ("text", "slug"),
+    [
+        ("mua đồ 100k", "shopping"),  # "mua đồ" không nói rõ vẫn là mua sắm
+        ("mua đồ chơi cho bé 120k", "family"),
+        ("mua đồ gia dụng 200k", "shopping"),
+        ("ăn đồ ăn nhanh 70k", "food"),
+    ],
+)
+def test_the_food_fix_does_not_change_the_other_do_phrases(text, slug):
+    assert category(text) == slug
