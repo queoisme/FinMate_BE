@@ -1,5 +1,7 @@
 # Local-first cho chat và sửa lỗi chat Implementation Plan
 
+> **Đã chạy xong** (Giai đoạn A, B nằm trong git). Kế hoạch tiếp theo: `2026-10-16-local-first-summary-and-chat-fixes.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** (1) Sửa các lỗi chat đã tái hiện được; (2) đưa phần quyết định và dữ liệu cá nhân của chat về database trên máy, để server chỉ còn phân tích câu chữ, theo hướng "dữ liệu cá nhân ở máy, server giữ tài khoản, đồng bộ là bước riêng".
