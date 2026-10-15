@@ -30,13 +30,13 @@ Chỉ dùng đúng các giá trị sau (10 nhóm chi tiêu của BE, bỏ `incom
 |---|---|---|
 | `food` | Ăn uống | Đồ ăn, đồ uống, cà phê, trà sữa, nguyên liệu nấu ăn, rau thịt cá, bánh kẹo, nước ngọt, bia rượu, thực phẩm đóng gói |
 | `transport` | Di chuyển | Xăng dầu, gửi xe, vé xe, vé tàu xe máy bay, taxi, xe công nghệ, phí cầu đường, rửa xe, thay nhớt, phụ tùng xe |
-| `shopping` | Mua sắm | Quần áo, giày dép, túi xách, phụ kiện, mỹ phẩm, chăm sóc cá nhân, đồ điện tử, đồ gia dụng, trang sức, quà tặng, văn phòng phẩm thông thường |
-| `education` | Giáo dục | Học phí, khóa học, sách giáo khoa, sách học tập, dụng cụ học tập |
+| `shopping` | Mua sắm | Quần áo, giày dép, túi xách, phụ kiện, mỹ phẩm, chăm sóc cá nhân, đồ điện tử, đồ gia dụng, trang sức, quà tặng, văn phòng phẩm công sở (giấy in, kẹp, bìa hồ sơ) |
+| `education` | Giáo dục | Học phí, khóa học, sách giáo khoa, sách học tập, vở, bút, thước, balo học sinh và các dụng cụ học tập khác |
 | `housing` | Nhà ở | Tiền thuê nhà hoặc phòng, điện, nước, gas, phí rác, phí quản lý chung cư, sửa chữa nhà |
 | `bills` | Hóa đơn | Internet, điện thoại, nạp tiền điện thoại, gói data, truyền hình cáp, phí thuê bao dịch vụ |
 | `entertainment` | Giải trí | Vé xem phim, game, nạp thẻ game, karaoke, khu vui chơi, vé tham quan, concert, bắp nước ở rạp |
 | `health` | Sức khỏe | Thuốc, khám bệnh, xét nghiệm, nha khoa, kính mắt (gọng, tròng), thực phẩm chức năng, vitamin, khẩu trang, dụng cụ y tế |
-| `family` | Gia đình | Tã, sữa bột, đồ dùng cho em bé, đồ chơi trẻ em, đồ cho người thân |
+| `family` | Gia đình | Tã, bỉm, sữa bột, khăn ướt, bình sữa, đồ ăn dặm, đồ dùng cho em bé, đồ chơi trẻ em, đồ cho người thân |
 | `other` | Khác | Làm đẹp và dịch vụ cá nhân (cắt tóc, spa, nail), giặt ủi, chuyển phát, in ấn, thú cưng, và những thứ thật sự không thuộc nhóm nào ở trên |
 | `unknown` | Không chắc | Dùng khi không đoán được. Đừng ép vào một nhóm |
 
@@ -47,8 +47,8 @@ Chỉ dùng đúng các giá trị sau (10 nhóm chi tiêu của BE, bỏ `incom
 3. **Kính mắt đo độ (gọng, tròng)** là `health`. **Kính mát thời trang** là `shopping`.
 4. **Đồ ăn, đồ uống đóng gói mua ở siêu thị hay cửa hàng tiện lợi** vẫn là `food`, không phải `shopping`.
 5. **Đồ dùng tiêu hao trong nhà** (bột giặt, nước rửa chén, giấy vệ sinh, nước xả vải) là `shopping`. *(Điểm cần bạn quyết, xem cuối file.)*
-6. **Sữa bột và tã cho em bé** là `family`, không phải `food` hay `shopping`. Sữa tươi, sữa chua cho người lớn là `food`.
-7. **Sách giáo khoa, sách luyện thi, khóa học** là `education`. **Truyện, tiểu thuyết, văn phòng phẩm thông thường** là `shopping`.
+6. **Sữa bột, tã, bỉm, khăn ướt, bình sữa, đồ ăn dặm cho em bé** là `family`, không phải `food` hay `shopping`. Sữa tươi, sữa chua cho người lớn là `food`.
+7. **Sách giáo khoa, sách luyện thi, khóa học** là `education`. **Vở, bút, thước, balo học sinh** (đồ dùng học tập) là `education`. **Truyện, tiểu thuyết, văn phòng phẩm công sở** (giấy in, kẹp, bìa hồ sơ) là `shopping`.
 8. **Điện, nước, gas, rác, phí chung cư** là `housing`. **Internet, điện thoại, truyền hình** là `bills`.
 9. **Phụ phí** (phí giao hàng, phí dịch vụ, phí đóng gói, túi nilon) là `other`. *(Điểm cần bạn quyết.)*
 10. **Dịch vụ làm đẹp** (cắt tóc, gội đầu, nail, spa, massage) là `other`.

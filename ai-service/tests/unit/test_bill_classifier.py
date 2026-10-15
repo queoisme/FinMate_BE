@@ -265,3 +265,12 @@ def test_brand_backend_slug_matches_whole_words_only():
     assert brand_backend_slug("Quán cơm Con Cưng") is None
     assert brand_backend_slug("Highlands Coffee") is None
     assert brand_backend_slug(None) is None
+
+
+async def test_a_bookstore_bill_whose_items_are_all_one_group_is_education_not_shopping(knowledge):
+    # nhà sách Fahasa: cả bill chỉ còn một nhóm nên không tách, và phải theo nhóm của cửa hàng (Giáo dục) thay vì "Mua sắm" của bảng thương hiệu chung
+    body = (await post({"merchant_name": "FAHASA", "lines": ["Sach Giai tich", "Vo 200 trang", "Tong cong 508.000"]})).json()
+    assert (body["category_slug"], body["source"]) == ("education", "brand")
+    from app.bill.classifier import brand_backend_slug
+
+    assert brand_backend_slug("Nhà sách FAHASA") == "education"

@@ -425,3 +425,24 @@ async def test_a_baby_store_defaults_unknown_items_to_family():
 
     assert _merchant_default("CON CƯNG Mẹ và Bé") == "family"
     assert _merchant_default("Highlands Coffee") == "food"
+
+
+def _rule_row(slug: str) -> str:
+    from app.bill.item_rules_seed import ITEM_RULES_TEXT
+
+    return next(line for line in ITEM_RULES_TEXT.splitlines() if line.startswith(f"| `{slug}` |")).lower()
+
+
+def test_instruction_puts_baby_wipes_in_family_and_school_supplies_in_education():
+    # hóa đơn Con Cưng: khăn ướt cùng tã và sữa bột phải ra cùng một nhóm; hóa đơn Fahasa: vở, bút, balo học sinh cùng sách học tập
+    assert "khăn ướt" in _rule_row("family")
+    for word in ("vở", "bút", "balo học sinh"):
+        assert word in _rule_row("education"), word
+    assert "văn phòng phẩm công sở" in _rule_row("shopping")
+
+
+def test_instruction_keeps_phone_top_up_under_bills_with_an_example():
+    from app.bill.item_rules_seed import ITEM_RULES_TEXT
+
+    assert "nạp tiền điện thoại" in _rule_row("bills")
+    assert "| Nạp thẻ điện thoại Viettel 50.000 | `bills` |" in ITEM_RULES_TEXT
