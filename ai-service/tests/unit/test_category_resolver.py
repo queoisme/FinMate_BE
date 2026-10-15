@@ -104,10 +104,16 @@ def test_pork_belly_is_an_exact_keyword_not_a_lucky_typo_match():
     assert resolve("thịt ba chỉ") == Resolution("food", "keyword")  # trước đây chỉ ra food nhờ khớp gần đúng "thit ba" ~ "thit bo"
 
 
-@pytest.mark.parametrize("name", ["Chổi lau nhà", "Nước lau sàn", "Khăn ăn", "an toàn"])
+@pytest.mark.parametrize("name", ["Khăn ăn", "an toàn"])
 def test_short_chat_words_do_not_decide_receipt_items(name):
-    # "lau" (lẩu) và "an" (ăn) bỏ dấu trùng với lau (lau nhà) và an (an toàn): chỉ hợp lý khi người dùng GÕ câu chat
+    # "an" (ăn) bỏ dấu trùng với an (an toàn): chỉ hợp lý khi người dùng GÕ câu chat
     assert resolve(name).slug is None
+
+
+@pytest.mark.parametrize("name", ["Chổi lau nhà", "Nước lau sàn", "Cây lau nhà"])
+def test_lau_in_a_cleaning_item_is_household_not_a_hotpot(name):
+    # "lau" (lẩu) không được quyết món lau dọn: cụm dài hơn ("lau nhà", "nước lau sàn") là đồ gia dụng và thắng từ khóa ngắn "lau"
+    assert resolve(name).slug == "shopping"
 
 
 def test_short_chat_words_still_work_in_chat():

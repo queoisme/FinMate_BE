@@ -34,10 +34,10 @@ async def test_without_ai_consent_nothing_is_sent_and_the_rules_decide():
     assert got[0][0] == 80_000
 
 
-async def test_ai_decides_where_the_rules_are_wrong_and_the_result_needs_confirmation():
-    # luật xếp "cây lau nhà" vào Ăn uống (sai): AI quyết, và vì khác luật nên không tự lưu
-    ((amount, category, source, auto),) = await run("mua cây lau nhà 80k", FakeGemini(lambda n: "shopping"))
-    assert (amount, category, source, auto) == (80_000, "shopping", "ai", False)
+async def test_ai_decides_where_it_disagrees_with_the_rules_and_the_result_needs_confirmation():
+    # luật nói Ăn uống, AI nói Giải trí: AI quyết, và vì khác luật nên không tự lưu
+    ((amount, category, source, auto),) = await run("ăn phở 45k", FakeGemini(lambda n: "entertainment"))
+    assert (amount, category, source, auto) == (45_000, "entertainment", "ai", False)
 
 
 async def test_ai_fills_in_a_product_the_rules_do_not_know():
