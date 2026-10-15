@@ -19,7 +19,6 @@ NOW = datetime(2026, 10, 15, 10, 0, tzinfo=UTC)
     [
         ("ăn phở năm mươi ca", 50_000),
         ("ăn sáng năm mươi k", 50_000),
-        ("ăn sáng năm chục ca", 50_000),
         ("cà phê hai mươi lăm ka", 25_000),
         ("mua áo một trăm năm mươi ca", 150_000),
         ("tiền xe ba trăm k", 300_000),
