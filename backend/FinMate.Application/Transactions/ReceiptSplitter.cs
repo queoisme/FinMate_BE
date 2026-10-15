@@ -24,7 +24,7 @@ public static class ReceiptSplitter
     // cuối bill); bài kiểm tra Every_ocr_surcharge_term_is_a_surcharge liệt kê chúng. Khác có chủ đích: "thuê" (đi thuê) không tính.
     // Cụm từ phụ thu, so trên tên đã bỏ dấu, chữ thường.
     private static readonly string[] SurchargePhrases =
-        ["phi phuc vu", "phi dich vu", "phi giao hang", "phi dong goi", "tui nilon"];
+        ["phi phuc vu", "phi dich vu", "phi giao hang", "phi van chuyen", "phi nen tang", "phi dong goi", "tui nilon"];
 
     // So nguyên từ trên tên chữ thường còn dấu: "thuê" (đi thuê) không phải "thuế", "vatican" không phải "vat".
     // "gtgt" (giá trị gia tăng): OCR hay đọc "Thuế" thành "Thu€" nên chỉ còn "GTGT" nhận ra được dòng thuế.
@@ -70,10 +70,11 @@ public static class ReceiptSplitter
 
         // Đệm khoảng trắng hai đầu để cụm từ chỉ khớp trọn từ.
         var folded = $" {string.Join(' ', foldedWords)} ";
+        var squeezed = string.Concat(foldedWords);  // OCR hay làm mất dấu cách: "Phí nền tảng" đọc thành "Phinen tang"
         return Words(lower).Any(SurchargeWords.Contains)
             || folded.Contains("gtgt", StringComparison.Ordinal) // OCR hay viết dính: "ThueGTGT8%)"
             || folded.Contains(ServiceWord, StringComparison.Ordinal)
-            || SurchargePhrases.Any(p => folded.Contains($" {p} "));
+            || SurchargePhrases.Any(p => folded.Contains($" {p} ") || squeezed.Contains(p.Replace(" ", string.Empty), StringComparison.Ordinal));
     }
 
     private sealed class Bucket(string? slug, int firstIndex)
@@ -168,26 +169,9 @@ public static class ReceiptSplitter
 
             // Nhóm lớn nhất theo tiền gốc, hòa thì nhóm xuất hiện trước (buckets đã theo thứ tự xuất hiện).
             var largest = buckets.Aggregate((a, b) => b.Gross > a.Gross ? b : a);
-            var grossTotal = buckets.Sum(b => b.Gross);
-            if (sharedDiscount != 0)
-            {
-                if (grossTotal <= 0)
-                {
-                    return null;
-                }
-
-                // Chia theo tỷ lệ bằng số nguyên (cắt về 0), phần dư dồn nhóm lớn nhất để tổng khớp tuyệt đối.
-                long allocated = 0;
-                foreach (var b in buckets)
-                {
-                    var share = (long)((Int128)sharedDiscount * b.Gross / grossTotal);
-                    b.Net += share;
-                    allocated += share;
-                }
-
-                largest.Net += sharedDiscount - allocated;
-            }
-
+            // Giảm giá chung (không dính món nào) và phụ thu đều dồn vào nhóm lớn nhất: số tiền các nhóm không phát sinh số lẻ mà bill không in
+            // (chia theo tỷ lệ từng biến "chiết khấu 20.000" thành 94.288 / 413.712). Tổng vẫn khớp tuyệt đối.
+            largest.Net += sharedDiscount;
             largest.Net += surcharge;
 
             // Nhóm 0đ hay âm không lưu thành giao dịch được: quay về đường cũ.

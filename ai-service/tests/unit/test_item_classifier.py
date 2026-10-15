@@ -418,3 +418,10 @@ def test_learnable_items_keys_labels_like_the_cache_and_skips_what_must_never_be
 
 def test_learnable_items_later_label_wins_for_the_same_name():
     assert learnable_items([{"name": "Bia nut", "expect": "food"}, {"name": "BIA NÚT", "expect": "shopping"}]) == {"bia nut": "shopping"}
+
+
+async def test_a_baby_store_defaults_unknown_items_to_family():
+    from app.bill.item_classifier import _merchant_default
+
+    assert _merchant_default("CON CƯNG Mẹ và Bé") == "family"
+    assert _merchant_default("Highlands Coffee") == "food"

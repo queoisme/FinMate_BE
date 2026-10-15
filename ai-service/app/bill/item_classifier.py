@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from app.bill.classifier import classify_category_detailed
+from app.bill.classifier import brand_backend_slug, classify_category_detailed
 from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
@@ -62,6 +62,8 @@ def _merchant_default(merchant: str | None) -> str | None:
     """
     if not merchant:
         return None
+    if slug := brand_backend_slug(merchant):
+        return slug
     category, source, _ = classify_category_detailed(merchant, [])
     return SLUG_BY_LOCAL_CATEGORY.get(category) if source == "brand" else None
 

@@ -116,9 +116,9 @@ public class ScanReceiptSplitTests
     {
         var dto = await Handler().HandleAsync(Command());
 
-        // Giảm chung -5.000 chia theo tiền gốc (35.000 / 50.000), phần dư làm tròn và VAT vào nhóm lớn nhất.
+        // Giảm chung -5.000 và VAT +2.000 đều dồn vào nhóm lớn nhất (shopping 50.000), nên số tiền các nhóm vẫn tròn.
         dto.Groups.Should().NotBeNull();
-        dto.Groups!.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("shopping", 49_058L), ("food", 32_942L));
+        dto.Groups!.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("shopping", 47_000L), ("food", 35_000L));
         dto.Groups!.Sum(g => g.AmountCents).Should().Be(82_000);
         dto.Groups![1].Items.Select(i => i.Name).Should().Equal("Cà phê sữa", "Trân châu");
         dto.ScanId.Should().Be(_saved.Single().Id);

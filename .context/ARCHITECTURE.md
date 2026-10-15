@@ -697,8 +697,9 @@ nhóm; bấm Lưu thì **mỗi nhóm một giao dịch**, cùng nối về một
 - **Cờ và đồng ý.** Chỉ chạy khi `Receipt:SplitByItemsEnabled` (mặc định **tắt**) bật, `ocr-service` báo `items_ok`,
   bill có ≥ 2 món chính (không tính phụ kiện) và không có phụ kiện mồ côi. Cổng này kiểm **trước** khi đọc người dùng và
   trước lời gọi AI. Đồng ý chia sẻ với AI đọc từ DB mỗi lần quét (`User.AiConsentGranted`: `ai_consent_version` bằng `ConsentVersions.Ai`; đổi câu chữ màn đồng ý thì tăng số phiên bản và mọi người phải đồng ý lại).
-- **Backend cộng tiền, AI chỉ gắn nhóm.** `ReceiptSplitter` gom món theo nhóm, chia giảm giá chung theo tỷ lệ (phần dư
-  vào nhóm lớn nhất theo tiền gốc), gộp phụ phí (VAT, phí dịch vụ…) vào nhóm lớn nhất, và trả kết quả chỉ khi **tổng
+- **Backend cộng tiền, AI chỉ gắn nhóm.** `ReceiptSplitter` gom món theo nhóm, dồn giảm giá chung (không dính món nào) và
+  phụ phí (VAT, phí dịch vụ, phí nền tảng, phí vận chuyển…) vào nhóm lớn nhất theo tiền gốc (không chia theo tỷ lệ, để số tiền các nhóm không
+  phát sinh số lẻ mà bill không in; đổi 2026-10-15), và trả kết quả chỉ khi **tổng
   các nhóm bằng đúng tổng bill**. Chỉ tách khi có **ít nhất hai nhóm có danh mục thật**; món `unknown` thành một nhóm
   riêng (cần xem lại) chỉ khi đã có ≥ 2 nhóm thật. Nhóm cấp trên `categorySlug` = nhóm lớn nhất **có** danh mục.
 - **Mọi lỗi → đường cũ (một nhóm), không đổi hành vi.** `items_ok=false`, dưới 2 món chính, tổng lệch, ai-service lỗi,

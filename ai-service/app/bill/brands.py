@@ -354,6 +354,7 @@ _BASE_BRANDS = {
     "takashimaya": ("shopping", "Takashimaya"),
     # nhập từ đợt nghiên cứu nhóm đồ mẹ và bé / spa / salon / nha khoa 10/2026 (đã lọc; bỏ Toys R Us: chưa có cửa hàng ở VN, Cát Tường: đóng từ 2013, Sen Tài Thu, Sao Việt: nhiều phản ánh pháp lý)
     "concung.com": ("shopping", "Con Cưng"),  # "con cưng" riêng là cách gọi tình cảm (nhiều quán đặt tên này): chỉ khớp dạng đầy đủ
+    "con cung me va be": ("shopping", "Con Cưng Mẹ và Bé"),  # tên đầy đủ trên logo; tên trần "Con Cưng" còn là quán cơm (bị loại có chủ đích)
     "sieu thi con cung": ("shopping", "Con Cưng"),
     "con cung mart": ("shopping", "Con Cưng"),
     "con cung shop": ("shopping", "Con Cưng"),
@@ -474,4 +475,7 @@ for _table in (_MORE_BRANDS, _BASE_BRANDS):
 
 # Tên ngắn hoặc là từ thông dụng: chỉ khớp khi đứng thành cả từ (không khớp giữa chữ khác như "Nikel", "Junoon", "Havana Vans").
 # Rút ra từ trường "khop_an_toan" của đợt nghiên cứu và test nhận nhầm.
+# Thương hiệu có nhóm KHÔNG nằm trong 9 nhóm của bộ luật bill (vd. Gia đình): quy thẳng ra slug backend.
+BRAND_BACKEND_SLUG: dict[str, str] = {"con cung me va be": "family", "sieu thi con cung": "family", "con cung mart": "family", "con cung shop": "family"}
+
 WHOLE_WORD_BRANDS = {"nike", "juno", "converse", "puma", "fila", "lush", "clinique", "h&m", "muji", "cgv"}  # set (không phải frozenset): knowledge_pg cập nhật tại chỗ từ DB

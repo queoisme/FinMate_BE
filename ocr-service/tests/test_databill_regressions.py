@@ -428,3 +428,13 @@ def test_seller_label_survives_ocr_mistakes_in_the_word_ten():
 
 def test_ordinary_all_caps_header_with_a_date_is_not_mistaken_for_a_shop_code():
     assert extract_merchant(["NGAY-21/09/2026", "HIGHLANDS COFFEE", "Tong 50.000"]) != "NGAY"
+
+
+def test_con_cung_me_va_be_logo_is_joined_and_recognised_but_a_bare_con_cung_restaurant_is_not():
+    from merchant_name import format_merchant_name
+    lines = ["CON CƯNG", "Mẹ và Bé", "T[sdt]", "HÓA ĐƠN BÁN HÀNG", "Ten hang", "Ta dan Bobby", "249.000", "TONG CONG:", "792.000"]
+    merchant = extract_merchant(lines)
+    assert merchant == "CON CƯNG Mẹ và Bé"  # khẩu hiệu "Mẹ và Bé" in chữ hoa-thường dưới logo là một phần tên
+    assert classify_category_detailed(merchant, lines)[:2] == ("shopping", "brand")
+    assert format_merchant_name(merchant) == "Con Cưng Mẹ và Bé"
+    assert classify_category_detailed("Con Cung Quan Com", [])[1] != "brand"  # quán cơm tên "Con Cưng" không phải chuỗi mẹ và bé

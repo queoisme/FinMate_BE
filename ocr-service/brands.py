@@ -352,6 +352,7 @@ _BASE_BRANDS = {
     "takashimaya": ("shopping", "Takashimaya"),
     # nhập từ đợt nghiên cứu nhóm đồ mẹ và bé / spa / salon / nha khoa 10/2026 (đã lọc; bỏ Toys R Us: chưa có cửa hàng ở VN, Cát Tường: đóng từ 2013, Sen Tài Thu, Sao Việt: nhiều phản ánh pháp lý)
     "concung.com": ("shopping", "Con Cưng"),  # "con cưng" riêng là cách gọi tình cảm (nhiều quán đặt tên này): chỉ khớp dạng đầy đủ
+    "con cung me va be": ("shopping", "Con Cưng Mẹ và Bé"),  # tên đầy đủ trên logo; tên trần "Con Cưng" còn là quán cơm (bị loại có chủ đích)
     "sieu thi con cung": ("shopping", "Con Cưng"),
     "con cung mart": ("shopping", "Con Cưng"),
     "con cung shop": ("shopping", "Con Cưng"),

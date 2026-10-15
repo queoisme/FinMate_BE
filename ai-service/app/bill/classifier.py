@@ -8,7 +8,7 @@ import re
 import unicodedata
 from collections.abc import Callable
 
-from app.bill.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
+from app.bill.brands import BRAND_BACKEND_SLUG, BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
 CATEGORIES = ("dining", "transport", "shopping", "groceries", "housing", "utilities", "healthcare", "entertainment", "other")
 
@@ -168,6 +168,13 @@ def _category_from_products(lines: list[str], merchant: str | None = None) -> tu
         return None
     runner_up = ranked[1][1] if len(ranked) > 1 else 0
     return top, "product", 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
+
+
+def brand_backend_slug(merchant: str | None) -> str | None:
+    """Slug backend của thương hiệu có nhóm nằm ngoài 9 nhóm của bộ luật bill (vd. Con Cưng → family); None khi không phải."""
+    norm = _norm(merchant or "")
+    hits = [b for b in BRAND_BACKEND_SLUG if _brand_in(b, norm)]
+    return BRAND_BACKEND_SLUG[best_brand(hits, norm)] if hits else None
 
 
 def classify_category_detailed(

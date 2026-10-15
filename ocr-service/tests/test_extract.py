@@ -330,3 +330,25 @@ def test_the_pharmacy_chain_alone_is_still_a_pharmacy():
 def test_display_name_of_a_bach_hoa_store_keeps_its_own_name_not_the_pharmacy_chain_name():
     assert format_merchant_name("BÁCH HÓA MINI AN KHANG") == "Bách Hóa Mini An Khang"
     assert format_merchant_name("NHÀ THUỐC AN KHANG") == "Nhà thuốc An Khang"
+
+
+# Bill quán lẩu: logo "LẦU THIÊN ĐƯỜNG" bị coi là tên người ("Thiên" bắt đầu bằng "thi") nên tên cửa hàng thành dòng địa chỉ.
+_QUAN_LAU = ["633", "LẦU THIÊN ĐƯỜNG", "99 Hoang Van ThuOuan Ph NhunTP.HCH", "0T[sdt]", "HOA DON THANH TOAN", "S6HD[so-dai]",
+             "Ten mon", "SL", "Don gia", "Thanh tien", "Láu thai hai san", "1", "380.000", "380.000", "Tong cong:", "791.000"]
+
+
+def test_a_store_name_with_thien_or_thinh_is_not_taken_for_a_person():
+    from extract import _looks_like_person
+    for name in ("LẦU THIÊN ĐƯỜNG", "LẨU THIÊN HƯƠNG", "QUÁN THỊNH VƯỢNG", "BÁNH THIỆN PHÚC"):
+        assert _looks_like_person(name) is False, name
+
+
+def test_vietnamese_personal_names_with_thi_are_still_recognised():
+    from extract import _looks_like_person
+    for name in ("NGUYEN THI HOA", "Hồ Thị Hoàng Nga", "LE THI THU HA", "TRAN VAN BINH"):
+        assert _looks_like_person(name) is True, name
+
+
+def test_the_logo_beats_the_address_as_merchant_name():
+    confs = [0.61, 0.93] + [0.9] * (len(_QUAN_LAU) - 2)
+    assert extract_merchant(_QUAN_LAU, confs) == "LẦU THIÊN ĐƯỜNG"

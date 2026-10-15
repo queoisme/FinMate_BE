@@ -66,35 +66,38 @@ public class ReceiptSplitterTests
     }
 
     [Fact]
-    public void Shared_discount_is_split_proportionally_and_remainder_goes_to_the_largest_group()
+    public void Shared_discount_goes_entirely_to_the_largest_group_so_amounts_stay_round()
     {
-        // 20.000 : 10.000, giảm 1.000 → -666 / -333, dư -1 dồn nhóm lớn nhất.
-        var items = new[] { Item("Bánh", 20_000), Item("Bút", 10_000), Discount("Giảm chung", -1_000) };
-        var groups = ReceiptSplitter.Split(items, Classes("food", "education", null), 29_000)!;
+        // Fahasa: sách 98.000 + văn phòng phẩm/balo 430.000, "Chiết khấu thành viên" -20.000 không dính món nào.
+        // Chia theo tỷ lệ sẽ ra 94.288 / 413.712 (số không có trên bill); dồn nhóm lớn nhất giữ số tròn.
+        var items = new[] { Item("Sách Giải tích", 98_000), Item("Vở", 60_000), Item("Bút", 50_000), Item("Balo", 320_000), Discount("Chiết khấu", -20_000) };
+        var groups = ReceiptSplitter.Split(items, Classes("education", "shopping", "shopping", "shopping", null), 508_000)!;
 
-        groups.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("food", 19_333L), ("education", 9_667L));
+        groups.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("shopping", 410_000L), ("education", 98_000L));
     }
 
     [Fact]
-    public void Shared_discount_over_three_groups_puts_remainder_on_the_largest_group()
+    public void Shared_discount_on_equal_groups_goes_to_the_one_that_appears_first()
     {
-        // 10.000 x3, giảm 1.000 → -333 mỗi nhóm, dư -1; hòa nhau thì nhóm xuất hiện trước nhận.
         var items = new[] { Item("A", 10_000), Item("B", 10_000), Item("C", 10_000), Discount("Giảm", -1_000) };
         var groups = ReceiptSplitter.Split(items, Classes("food", "beauty", "education", null), 29_000)!;
 
-        groups.Select(g => (g.CategorySlug, g.AmountCents))
-            .Should().Equal(("beauty", 9_667L), ("education", 9_667L), ("food", 9_666L));
+        groups.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("beauty", 10_000L), ("education", 10_000L), ("food", 9_000L));
     }
 
     [Fact]
-    public void Shared_discount_remainder_two_goes_to_the_largest_group()
+    public void Shared_discount_larger_than_the_largest_group_returns_null()
     {
-        // 30.000 / 50.000 / 20.000, giảm 1.999 → -599 / -999 / -399 = -1.997, dư -2 dồn nhóm 50.000.
-        var items = new[] { Item("A", 30_000), Item("B", 50_000), Item("C", 20_000), Discount("Giảm", -1_999) };
-        var groups = ReceiptSplitter.Split(items, Classes("beauty", "food", "education", null), 98_001)!;
+        var items = new[] { Item("A", 10_000), Item("B", 9_000), Discount("Giảm", -10_000) };
+        ReceiptSplitter.Split(items, Classes("food", "beauty", null), 9_000).Should().BeNull();
+    }
 
-        groups.Select(g => (g.CategorySlug, g.AmountCents))
-            .Should().Equal(("food", 48_999L), ("beauty", 29_401L), ("education", 19_601L));
+    [Fact]
+    public void Grab_ride_with_a_platform_fee_and_a_promotion_is_one_group_so_the_whole_bill_stays_transport()
+    {
+        // "Phí nền tảng" thuộc chuyến xe, không phải khoản "other" riêng: bill chỉ còn một nhóm và quay về đường phân loại cả bill.
+        var items = new[] { Item("Cuoc chuyen di", 86_000), Item("Phi nen tang", 3_000), Discount("Khuyen mai", -15_000) };
+        ReceiptSplitter.Split(items, Classes("transport", "other", null), 74_000).Should().BeNull();
     }
 
     [Fact]
@@ -211,6 +214,11 @@ public class ReceiptSplitterTests
     [InlineData("Phí phục vụ 5%", true)]
     [InlineData("PHI DICH VU", true)]
     [InlineData("Túi nilon", true)]
+    [InlineData("Phí nền tảng", true)]
+    [InlineData("Phi nen tang", true)]
+    [InlineData("Phinen tang", true)]  // OCR dính chữ: "Phí nền tảng" đọc thành "Phinen tang"
+    [InlineData("Phivan chuyen", true)]
+    [InlineData("Phí vận chuyển", true)]
     [InlineData("Vatican Coffee", false)]
     [InlineData("Thuê xe đạp", false)]
     [InlineData("Trà Bí Đao", false)]

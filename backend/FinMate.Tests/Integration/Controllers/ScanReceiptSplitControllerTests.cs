@@ -148,7 +148,7 @@ public class ScanReceiptSplitControllerTests : IClassFixture<AuthApiFactory>
         data.GetProperty("categorySlug").GetString().Should().Be("shopping");
         var groups = data.GetProperty("groups").EnumerateArray().ToList();
         groups.Select(g => (g.GetProperty("categorySlug").GetString(), g.GetProperty("amountCents").GetInt64()))
-            .Should().Equal(("shopping", 49_058L), ("food", 32_942L));
+            .Should().Equal(("shopping", 47_000L), ("food", 35_000L));
         groups[1].GetProperty("items").EnumerateArray().Select(i => i.GetProperty("name").GetString())
             .Should().Equal("Cà phê sữa", "Trân châu");
 

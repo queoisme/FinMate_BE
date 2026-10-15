@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import verify_internal_api_key
-from app.bill.classifier import CATEGORIES, classify_category_detailed
+from app.bill.classifier import CATEGORIES, brand_backend_slug, classify_category_detailed
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
 from app.bill import samples as bill_samples
@@ -112,6 +112,10 @@ async def classify_bill(
             category_slug=memory.category, local_category=None, confidence=_MAX_CONFIDENCE, source="memory",
             processing_ms=int((time.perf_counter() - started) * 1000))
     remembered = memory.category if memory and not memory.backend_slug and memory.category in CATEGORIES else None  # nhóm lạ trong DB thì bỏ qua
+    if not remembered and (brand_slug := brand_backend_slug(merchant)):  # thương hiệu có nhóm ngoài 9 nhóm bộ luật (Con Cưng → family): trả thẳng slug backend
+        return BillClassifyResponse(
+            category_slug=brand_slug, local_category=None, confidence=0.8, source="brand",
+            processing_ms=int((time.perf_counter() - started) * 1000))
     category, source, confidence = classify_category_detailed(merchant, lines, remembered=remembered)
     known = source != "none"
 

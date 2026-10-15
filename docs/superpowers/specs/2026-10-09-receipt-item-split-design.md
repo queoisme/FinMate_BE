@@ -101,7 +101,7 @@ Tên món đi qua `sanitize_lines` trước khi ra khỏi ocr-service (tên ngư
 ### Hợp đồng (chỉ thêm trường)
 - `OcrServiceResponse` thêm `Items` và `ItemsOk`.
 - `ScanReceiptCommandHandler`: nếu `ItemsOk` và có từ 2 món, gọi `ClassifyItemsAsync`, rồi **tính tiền** (BE là nơi cộng, không tin tổng của AI):
-  - Món cùng nhóm cộng lại. Giảm giá dính ngay dưới một món tính cho nhóm món đó; giảm giá chung chia theo tỷ lệ tiền (món có giá lớn nhất nhận phần dư làm tròn để tổng khớp).
+  - Món cùng nhóm cộng lại. Giảm giá dính ngay dưới một món tính cho nhóm món đó; giảm giá chung dồn vào nhóm lớn nhất (không chia theo tỷ lệ, tránh số lẻ; đổi 2026-10-15).
   - Phần dư làm tròn và phụ phí gộp vào nhóm lớn nhất **tính theo tiền gốc** (trước giảm giá; bằng nhau thì nhóm xuất hiện trước).
   - Chỉ tách khi có **từ 2 nhóm có danh mục**; khi đó món `unknown` gom vào một nhóm `categorySlug = null` (cần xem lại). Dưới 2 nhóm có danh mục thì đường cũ.
   - Tổng các nhóm phải bằng tổng bill, lệch (hoặc nhóm 0đ/âm) thì rơi về đường cũ.

@@ -15,6 +15,7 @@ _MIN_AMOUNT = 1000  # bỏ qua số nhỏ như "Tổng số lượng 3"
 _MAX_AMOUNT = 999_999_999  # dưới 1 tỷ đồng
 _MIN_NAME_CONFIDENCE = 0.8  # dưới mức này thường là chữ viết tay/logo đọc hỏng
 _MIN_LABEL_CONFIDENCE = 0.7  # dòng có nhãn rõ ("Tên NPP:") được nới ngưỡng vì nhãn là bằng chứng thêm
+_LOGO_TAGLINES = {"mevabe"}  # đã _alnum(_norm()): "Mẹ và Bé"
 _GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
 _BUSINESS_WORDS = ("nha thuoc", "cong ty", "chi nhanh", "sieu thi", "nha hang", "tap hoa", "pharmacy", "quan an", "benh vien", "phong kham", "nha khoa")
 _TITLE_MARKERS = ("phieu tinh tien", "phieu thanh toan", "hoa don", "phieu thu", "phieu giao", "phieu xuat kho",
@@ -308,10 +309,14 @@ def _looks_like_code_or_status(line: str) -> bool:
             or any(squeezed.startswith(_alnum(p)) for p in _BUYER_PREFIXES))
 
 
+_THI_SYLLABLES = ("thien", "thinh", "thieu", "thiet", "thiep", "thiem", "thich")  # đã bỏ dấu: Thiên, Thịnh, Thiếu, Thiết, Thiệp, Thiêm, Thích
+
+
 def _looks_like_person(line: str) -> bool:
     """"HO THI HOANG NGA": họ + đệm "Thị/Văn" -> tên người (thu ngân, chủ hộ), không phải tên cửa hàng."""
     words = _norm(line).split()
-    return 3 <= len(words) <= 5 and words[0] != "sieu" and (words[1].startswith("thi") or words[1] == "van")  # họ có thể dính chữ rác ("InNGUYEN")
+    # "Thị" có thể dính tên đệm ("THIHOANG") nên chỉ cần bắt đầu bằng "thi", trừ các âm tiết thật bắt đầu bằng "thi": "LẨU THIÊN ĐƯỜNG", "QUÁN THỊNH VƯỢNG".
+    return 3 <= len(words) <= 5 and words[0] != "sieu" and ((words[1].startswith("thi") and not words[1].startswith(_THI_SYLLABLES)) or words[1] == "van")  # họ có thể dính chữ rác ("InNGUYEN")
 
 
 _ADDRESS_START = re.compile(r"^(?:[a-z]\d+|\d+[a-z]?)(?:\s*[-/,]\s*\d+[a-z]?)*\s+[a-z]")  # "H472 - 85 Hoang Huu Nam", "185 Hoang Huu Nam"
@@ -384,6 +389,8 @@ def _join_logo_lines(lines: list[str], confs: list[float], i: int, line: str, ma
         words = text.split()
         return text == text.upper() and 1 <= len(words) <= max_words and not any(c.isdigit() for c in text) and sum(c.isalpha() for c in text) >= 3
 
+    if i + 1 < len(lines) and confs[i + 1] >= _MIN_NAME_CONFIDENCE and _alnum(_norm(lines[i + 1])) in _LOGO_TAGLINES:
+        return f"{line.strip()} {lines[i + 1].strip()}"  # khẩu hiệu in chữ hoa-thường dưới logo ("CON CƯNG" / "Mẹ và Bé") là một phần tên
     # "ĐẠI LÝ NƯỚC TINH KHIẾT" (loại hình, dài hơn 4 từ) đứng trên tên riêng "HẢI NAM"
     first_words = 6 if _norm(line).startswith("dai ly") else 4
     if i + 1 >= len(lines) or not plain_caps(line.strip(), first_words) or confs[i + 1] < _MIN_NAME_CONFIDENCE:
