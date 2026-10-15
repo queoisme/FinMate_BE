@@ -2,7 +2,7 @@
 import re
 
 from brands import BRAND_CATEGORIES, BRAND_DISPLAY
-from extract import _alnum, _brand_in, _norm, best_brand
+from extract import _GENERIC_STORE, _alnum, _brand_in, _norm, best_brand
 
 _ACRONYMS = {"TNHH", "CP", "JSC", "TP", "VN", "HCM", "HN", "KFC", "BBQ", "CGV", "EVN", "FPT", "MB", "TM", "DV"}
 # Tiêu đề hóa đơn dính vào đầu tên; dài trước để khớp đúng cụm dài nhất.
@@ -95,6 +95,11 @@ def _pretty_word(word: str) -> str:
     return word.capitalize()
 
 
+def _brand_of_another_trade(matches: list[str], norm: str) -> bool:
+    """"BÁCH HÓA MINI AN KHANG" trùng tên chuỗi nhà thuốc An Khang: tên cửa hàng ghi loại hình bách hóa/tạp hóa thì giữ tên của nó, không đổi sang tên chuỗi khác ngành."""
+    return any(g in norm for g in _GENERIC_STORE) and BRAND_CATEGORIES[best_brand(matches, norm)] != "groceries"
+
+
 def format_merchant_name(raw: str | None) -> str:
     """Tên chuẩn: thương hiệu đã biết -> tên có dấu; còn lại -> làm sạch và viết hoa đầu từ. Gọi lại nhiều lần vẫn ra cùng kết quả."""
     text = re.sub(r"(?<=[A-Z])['`´’](?=[A-Z])", "", raw or "")      # DU'O'NG -> DUONG
@@ -106,7 +111,7 @@ def format_merchant_name(raw: str | None) -> str:
     text = _strip_company_form(text)
     norm = _norm(text)
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, norm)]
-    if matches:
+    if matches and not _brand_of_another_trade(matches, norm):
         return BRAND_DISPLAY[best_brand(matches, norm)]  # tên cụ thể hơn thắng; hòa thì tên xuất hiện sớm hơn trong dòng
     text = re.sub(r"(?<=[A-Za-z])\.(?=[A-Za-z])", " ", text)        # THUC.PHAM -> THUC PHAM
     text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)                # PizzaHut -> Pizza Hut

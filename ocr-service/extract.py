@@ -15,6 +15,7 @@ _MIN_AMOUNT = 1000  # bỏ qua số nhỏ như "Tổng số lượng 3"
 _MAX_AMOUNT = 999_999_999  # dưới 1 tỷ đồng
 _MIN_NAME_CONFIDENCE = 0.8  # dưới mức này thường là chữ viết tay/logo đọc hỏng
 _MIN_LABEL_CONFIDENCE = 0.7  # dòng có nhãn rõ ("Tên NPP:") được nới ngưỡng vì nhãn là bằng chứng thêm
+_GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
 _BUSINESS_WORDS = ("nha thuoc", "cong ty", "chi nhanh", "sieu thi", "nha hang", "tap hoa", "pharmacy", "quan an", "benh vien", "phong kham", "nha khoa")
 _TITLE_MARKERS = ("phieu tinh tien", "phieu thanh toan", "hoa don", "phieu thu", "phieu giao", "phieu xuat kho",
                   "phieu nhap kho", "phieu ban hang", "phieu ban le", "phieu mua hang", "don hang", "giao nhan")
@@ -475,10 +476,14 @@ def _extract_merchant(lines: list[str], confidences: list[float] | None = None) 
         squeezed = _alnum(_norm(line))
         if not any(m in squeezed for m in markers) and any(squeezed == st or (len(st) >= 6 and (squeezed.startswith(st) or squeezed.endswith(st))) for st in stems):
             return line  # dòng tiêu đề ("PHIẾU THANH TOÁN BÁCH HÓA XANH") không phải tên: để bước thương hiệu cắt lấy đoạn tên
-    for _, line in pool[:12]:  # thương hiệu đã biết: loại được chữ nền (bàn phím, bàn...) ở đầu ảnh
+    for idx, line in pool[:12]:  # thương hiệu đã biết: loại được chữ nền (bàn phím, bàn...) ở đầu ảnh
         brand = next((b for b in BRAND_CATEGORIES if _brand_in(b, _norm(line))), None)
         if brand and "www." not in line.lower() and "@" not in line:  # dòng email/website để nhánh tên miền trả về tên thương hiệu, không trả cả địa chỉ email
-            return _brand_span(line, brand)
+            span = _brand_span(line, brand)
+            above = lines[idx - 1].strip() if idx and confs[idx - 1] >= _MIN_NAME_CONFIDENCE else ""
+            if span == line and any(g in _norm(above) for g in _GENERIC_STORE):  # logo hai dòng "BÁCH HÓA MINI" / "AN KHANG": giữ cả loại hình
+                return _join_logo_lines(lines, confs, idx - 1, above, markers)
+            return span
     for i, line in pool[:12]:
         norm, squeezed = _norm(line), _alnum(_norm(line))  # so cả dạng viết liền ("ChiNhanhTongCongTy...")
         # dòng chỉ có đúng từ chỉ loại hình ("Chi nhánh") là nhãn trường, không phải tên
@@ -605,6 +610,9 @@ def classify_category_detailed(
     merchant_norm = _norm(merchant or "")
     body_norm = _norm(" ".join(l for l in lines if not re.search(chr(92) + "b(?:pass|password)" + chr(92) + "b", _norm(l))))  # dòng "Pass Wifi: ..." không phải cước internet
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, merchant_norm)]
+    # "BÁCH HÓA MINI AN KHANG": tên cửa hàng ghi rõ loại hình bách hóa/tạp hóa thì đó là tạp hóa, dù đoạn sau trùng tên một chuỗi khác (nhà thuốc An Khang).
+    if matches and any(g in merchant_norm for g in _GENERIC_STORE) and BRAND_CATEGORIES[best_brand(matches, merchant_norm)] != "groceries":
+        return "groceries", "keyword", 0.75
     if matches:  # nhiều tên khớp (vd. "Supersports Aeon"): tên cụ thể hơn (dài hơn) thắng tên trung tâm thương mại
         return BRAND_CATEGORIES[best_brand(matches, merchant_norm)], "brand", 0.8
     # Logo ghi loại hình ở đầu phiếu ("KHU GIẢI TRÍ" / "HAPPY ZONE") trong khi tên cửa hàng chọn được lại là dòng công ty: với giải trí xét thêm 4 dòng đầu.

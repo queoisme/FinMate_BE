@@ -459,3 +459,44 @@ def test_glued_ocr_tax_label_is_a_surcharge():
     rows = [*THE_GAME_TABLE[:20], *row(230, ("Tiền hàng", 50, 450), ("290.000", 800, 950)), *row(270, ("ThueGTGT8%)", 50, 400), ("23.200", 820, 950)),
             *row(320, ("Tong thanh toan", 50, 450), ("313.200", 800, 950))]
     assert extract_items(rows, 313200).ok is True
+
+
+# ---- bill "Bách Hóa Mini An Khang": OCR dính số STT vào tên ("1Soa tuoi", "5 Giay ve sinh"); dòng "1L", "3,2kg", "10 cuon" là phần tên xuống dòng của món TRÊN nó
+# Hộp lấy từ ảnh thật (x0, y0, x1, y1 theo pixel).
+def _boxes(*cells):
+    return [box(t, x0, y0, x1, y1) for t, x0, y0, x1, y1 in cells]
+
+
+AN_KHANG = _boxes(
+    ("STT", 6, 194, 30, 211), ("SLongia Thanhtien", 95, 194, 198, 211),
+    ("1Soa tuoi Vinamilk", 8, 224, 93, 237), ("2", 98, 226, 112, 235), ("32.000", 119, 225, 153, 239), ("64.000", 166, 227, 196, 238),
+    ("1L", 24, 238, 38, 251),
+    ("2Trung gavi 10qua1", 7, 261, 112, 275), ("35.000", 121, 262, 153, 276), ("35.000", 165, 261, 198, 277),
+    ("3Rau muong 500g", 7, 287, 93, 300), ("1", 99, 289, 109, 298), ("12.000", 120, 287, 153, 301), ("12.000", 164, 288, 198, 302),
+    ("4Nudc giat OMO", 7, 311, 84, 325), ("1189.000", 100, 313, 153, 327), ("189.000", 159, 313, 197, 327),
+    ("3,2kg", 23, 326, 53, 342),
+    ("5 Giay ve sinh", 7, 349, 77, 363), ("1", 101, 352, 110, 362), ("78.000", 120, 351, 153, 365), ("78.000", 165, 352, 197, 366),
+    ("10 cuon", 24, 364, 63, 378),
+    ("6Dau goi Clear", 6, 385, 81, 400), ("1165.000", 99, 387, 154, 401), ("165.000", 148, 389, 196, 400),
+    ("630g", 24, 400, 49, 416),
+    ("Tong cong:", 6, 429, 83, 451), ("543.000", 141, 434, 195, 450),
+)
+
+
+def test_stt_glued_to_the_name_is_stripped_and_wrapped_size_lines_do_not_leak_into_the_next_item():
+    r = extract_items(AN_KHANG, 543000)
+    assert r.ok is True
+    assert [i.name for i in r.items] == ["Soa tuoi Vinamilk", "Trung gavi 10qua1", "Rau muong 500g", "Nudc giat OMO", "Giay ve sinh", "Dau goi Clear"]
+    assert [i.amount for i in r.items] == [64000, 35000, 12000, 189000, 78000, 165000]
+
+
+def test_a_leading_digit_is_kept_when_it_is_not_the_next_stt_number():
+    # "7Up" là tên hàng, không phải STT 7 (món đầu tiên phải là STT 1)
+    boxes = _boxes(
+        ("STT", 6, 194, 30, 211), ("Tên hàng", 40, 194, 90, 211), ("Thành tiền", 150, 194, 198, 211),
+        ("7Up lon", 8, 224, 93, 237), ("12.000", 166, 227, 196, 238),
+        ("Mi Hao Hao", 8, 250, 93, 263), ("4.000", 166, 252, 196, 264),
+        ("Tong cong:", 6, 290, 83, 305), ("16.000", 141, 290, 195, 305),
+    )
+    r = extract_items(boxes, 16000)
+    assert [i.name for i in r.items][0] == "7Up lon"

@@ -12,6 +12,7 @@ from app.bill.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
 CATEGORIES = ("dining", "transport", "shopping", "groceries", "housing", "utilities", "healthcare", "entertainment", "other")
 
+_GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
 _MIN_MODEL_PROB = 0.5
 
 _MAX_MODEL_CONFIDENCE = 0.69
@@ -181,6 +182,9 @@ def classify_category_detailed(
     merchant_norm = _norm(merchant or "")
     body_norm = _norm(" ".join(l for l in lines if not re.search(chr(92) + "b(?:pass|password)" + chr(92) + "b", _norm(l))))  # dòng "Pass Wifi: ..." không phải cước internet
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, merchant_norm)]
+    # "BÁCH HÓA MINI AN KHANG": tên cửa hàng ghi rõ loại hình bách hóa/tạp hóa thì đó là tạp hóa, dù đoạn sau trùng tên một chuỗi khác (nhà thuốc An Khang).
+    if matches and any(g in merchant_norm for g in _GENERIC_STORE) and BRAND_CATEGORIES[best_brand(matches, merchant_norm)] != "groceries":
+        return "groceries", "keyword", 0.75
     if matches:  # nhiều tên khớp (vd. "Supersports Aeon"): tên cụ thể hơn (dài hơn) thắng tên trung tâm thương mại
         return BRAND_CATEGORIES[best_brand(matches, merchant_norm)], "brand", 0.8
     for category, keywords in _CATEGORY_KEYWORDS.items():

@@ -237,3 +237,13 @@ def test_household_consumables_are_shopping():
 def test_food_staples_stay_groceries():
     for item in ("Gao ST25 5kg", "Sua tuoi Vinamilk 1L"):
         assert classify_category_detailed("Cong ty ABC", [item, "50.000"])[:2] == ("groceries", "product"), item
+
+
+def test_a_bach_hoa_store_is_not_a_pharmacy_just_because_its_name_matches_a_pharmacy_chain():
+    category, source, _ = classify_category_detailed("BÁCH HÓA MINI AN KHANG", ["Sua tuoi Vinamilk 1L", "Rau muong 500g", "Tong cong 543.000"])
+    assert (category, source) == ("groceries", "keyword")
+
+
+def test_the_pharmacy_chain_alone_is_still_a_pharmacy():
+    assert classify_category_detailed("NHÀ THUỐC AN KHANG", ["Paracetamol", "Tong cong 24.000"])[:2] == ("healthcare", "brand")
+    assert classify_category_detailed("AN KHANG", ["Tong cong 24.000"])[:2] == ("healthcare", "brand")

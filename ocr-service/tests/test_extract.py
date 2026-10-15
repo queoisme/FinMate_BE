@@ -306,3 +306,27 @@ def test_logo_word_read_with_o_instead_of_q_is_repaired_at_the_start_of_a_word()
 
 def test_real_words_starting_with_ou_are_not_touched_outside_the_ou_vowel_pattern():
     assert _alnum_for_test(extract_merchant(["OUTLET SHOP 88", "Số 1 Lê Lợi", "STT"])) == "outletshop88"
+
+
+# Bill "BÁCH HÓA MINI" / "AN KHANG": logo hai dòng, dòng thứ hai trùng tên chuỗi nhà thuốc An Khang. Các dòng là chữ OCR thật của ảnh.
+_BACH_HOA_AN_KHANG = ["BÁCH HÓA MINI", "AN KHANG", "T[sdt]", "HÓA ĐƠN BÁN HÀNG", "S6HD[so-dai]", "Ngay26/04/202517:05", "STT", "Ten hang",
+                      "SLongia Thanhtien", "1Soa tuoi Vinamilk", "2", "32.000", "64.000", "3Rau muong 500g", "1", "12.000", "12.000",
+                      "Tong cong:", "543.000", "Thanh toan the", "543.000", "Cam on quy khach"]
+
+
+def test_two_line_logo_keeps_the_store_type_line_above_a_known_brand_name():
+    assert extract_merchant(_BACH_HOA_AN_KHANG) == "BÁCH HÓA MINI AN KHANG"
+
+
+def test_a_bach_hoa_store_is_not_a_pharmacy_just_because_its_name_matches_a_pharmacy_chain():
+    assert classify_category_detailed("BÁCH HÓA MINI AN KHANG", _BACH_HOA_AN_KHANG)[0] == "groceries"
+
+
+def test_the_pharmacy_chain_alone_is_still_a_pharmacy():
+    assert classify_category_detailed("NHÀ THUỐC AN KHANG", ["NHÀ THUỐC AN KHANG", "Paracetamol 2 24.000"])[:2] == ("healthcare", "brand")
+    assert classify_category_detailed("AN KHANG", ["AN KHANG", "Tong cong 24.000"])[:2] == ("healthcare", "brand")
+
+
+def test_display_name_of_a_bach_hoa_store_keeps_its_own_name_not_the_pharmacy_chain_name():
+    assert format_merchant_name("BÁCH HÓA MINI AN KHANG") == "Bách Hóa Mini An Khang"
+    assert format_merchant_name("NHÀ THUỐC AN KHANG") == "Nhà thuốc An Khang"

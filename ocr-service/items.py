@@ -66,6 +66,16 @@ def _starts_with_stt(row: list[OcrBox], left: float, right: float) -> bool:
     return bool(re.fullmatch(r"\d{1,2}[.)]?", first.text.strip())) and first.x0 < left + 0.15 * (right - left)
 
 
+_GLUED_STT_RE = re.compile(r"(\d{1,2})\s?(?=[^\W\d_])")  # "1Soa tuoi", "5 Giay ve sinh": OCR dính (hoặc cách một dấu) số STT vào tên
+
+
+def _glued_stt(row: list[OcrBox], left: float, right: float, expected: int) -> int | None:
+    """Số STT dính vào đầu tên món. Chỉ nhận khi đúng số STT kế tiếp ("7Up" ở món đầu không phải STT 7), để khỏi cắt nhầm chữ số đầu tên hàng."""
+    first = row[0]
+    m = _GLUED_STT_RE.match(first.text.strip())
+    return int(m.group(1)) if m and int(m.group(1)) == expected and first.x0 < left + 0.15 * (right - left) else None
+
+
 def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tuple[OcrBox, int] | None:
     """Hộp ngoài cùng bên phải có dạng tiền và nằm ở cột giá.
 
@@ -152,6 +162,7 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     count = 0  # số món thật (không tính giảm giá, thuế, phí)
     main: int | None = None
     pending: list[str] = []  # tên xuống dòng: hàng không giá ngay trên hàng có giá
+    next_stt = 1  # số STT kế tiếp mong đợi (để nhận STT dính vào tên)
     after_stt_item = False  # hàng có giá vừa rồi mở đầu bằng số STT: hàng không giá kế tiếp (không STT) là mô tả của món đó
     tail = False  # đã qua dòng cộng tiền hàng: chỉ nhận thuế/phí và giảm giá cả bill tới dòng tổng cuối
     for r, text in zip(raw[start:], texts[start:]):
@@ -185,12 +196,19 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
             continue
         addon = own.startswith("+")  # phụ kiện xét theo chữ của chính hàng có giá, không theo tên mang xuống
         stt = _starts_with_stt(r, left, right)
+        glued = None if stt else _glued_stt(r, left, right, next_stt)
+        if glued is not None:
+            stt = True
+        if stt:
+            next_stt += 1
         if p is None:
             if after_stt_item and not stt:
                 continue  # bill có cột STT: dòng mô tả dưới món ("hương vị tôm chua cay 67g") không phải phần đầu tên món sau
             if not addon:  # "+ Ít đá" không giá là ghi chú tùy chọn: bỏ, không nối vào tên món sau
                 pending += words  # hàng chỉ có số nhỏ (cột số lượng) không thêm gì
             continue
+        if glued is not None:
+            own = _GLUED_STT_RE.sub("", own, count=1)  # bỏ số STT dính ở đầu tên: "1Soa tuoi" -> "Soa tuoi"
         name = " ".join(pending + [own.lstrip("+ ").strip() if addon else own]).strip()
         pending = []
         after_stt_item = stt
