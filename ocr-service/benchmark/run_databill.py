@@ -21,7 +21,6 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
-import ai_refine                                        # noqa: E402
 import ocr                                              # noqa: E402
 from totals import choose_total                          # noqa: E402
 from items import payable_total                          # noqa: E402
@@ -43,7 +42,7 @@ def merchant_ok(expected, display: str) -> bool:
     return any(w in got for w in wanted)
 
 
-def process(path: Path, use_ai: bool = False) -> dict:
+def process(path: Path) -> dict:
     """Giống luồng trong main.py nhưng không dùng bộ nhớ cửa hàng."""
     data = path.read_bytes()
     t0 = time.time()
@@ -60,19 +59,16 @@ def process(path: Path, use_ai: bool = False) -> dict:
     r = analyze(lines, forced_total=total)
     r["total_verified"] = verified
     r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE
-    if use_ai:  # giống main.py: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), chỉ khi lượt quét còn lưỡng lự
-        display = lambda m: (format_merchant_name(m) or m) if m else None  # noqa: E731
-        ai_refine.apply_ai(r, sanitize_lines([t for t, _ in lines]), display, force_review=quality != "ok" or score < CONFIDENT_RECEIPT_SCORE)
-    r["display"] = r.get("ai_merchant") or format_merchant_name(r["merchant"]) or (r["merchant"] or "")
+    r["display"] = format_merchant_name(r["merchant"]) or (r["merchant"] or "")
     r.update({"quality": quality, "score": score, "sec": time.time() - t0, "lines": [t for t, _ in lines]})
     return r
 
 
 def main() -> None:
-    verbose, fail_only, use_ai = "--verbose" in sys.argv, "--fail-only" in sys.argv, "--ai" in sys.argv
+    verbose, fail_only = "--verbose" in sys.argv, "--fail-only" in sys.argv
     rows = []
     for name, exp in EXPECTED.items():
-        r = process(DATA / name, use_ai)
+        r = process(DATA / name)
         if "rejected" in r:
             row = dict(name=name, kind=exp["kind"], total_ok=False, merchant_ok=False, cat_ok=False, review=True,
                        got_total=None, got_merchant=None, got_cat=None, sec=r["sec"], rejected=r["rejected"], verified=False)
@@ -81,7 +77,7 @@ def main() -> None:
                        merchant_ok=merchant_ok(exp["merchant"], r["display"]),
                        cat_ok=r["category"] == exp["category"], review=bool(r["needs_review"]),
                        got_total=r["total_amount"], got_merchant=r["display"] or None, got_cat=r["category"],
-                       sec=r["sec"], src=r["category_source"], ai=r.get("ai_status"), verified=bool(r.get("total_verified")))
+                       sec=r["sec"], src=r["category_source"], verified=bool(r.get("total_verified")))
         row["all_ok"] = row["total_ok"] and row["merchant_ok"] and row["cat_ok"]
         row["silent"] = (not row["all_ok"]) and not row["review"]
         rows.append(row)
@@ -103,9 +99,6 @@ def main() -> None:
     unver = [r for r in rows if not r["verified"]]
     print(f"tổng ĐÃ kiểm chứng bằng số học: {len(ver)}/{n}, trong đó đúng {sum(r['total_ok'] for r in ver)}; CHƯA kiểm chứng: {len(unver)}, trong đó đúng {sum(r['total_ok'] for r in unver)}")
     print(f"thời gian TB      : {sum(r['sec'] for r in rows)/n:.1f} giây/ảnh")
-    if use_ai:
-        st = [r.get("ai") for r in rows]
-        print(f"AI                : gọi {st.count('ok') + st.count('error') + st.count('not_configured')}/{n} ảnh | thành công {st.count('ok')} | lỗi {st.count('error')} | thiếu khóa {st.count('not_configured')}")
 
 
 if __name__ == "__main__":

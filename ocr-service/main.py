@@ -15,7 +15,6 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-import ai_refine
 import dates
 import app_screens
 import vietocr_onnx
@@ -179,7 +178,7 @@ def _bill_items(boxes, total):
 
 
 @app.post("/analyze-bill", dependencies=[Depends(verify_internal_api_key), Depends(bind_user)])
-def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), share_data: bool = Form(False)):
+def analyze_bill(image: UploadFile = File(...), share_data: bool = Form(False)):
     data = image.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
         return _error(400, "Ảnh quá lớn (tối đa 10 MB)")
@@ -226,11 +225,9 @@ def analyze_bill(image: UploadFile = File(...), use_ai: bool = Form(False), shar
         if not result["items_ok"] and sum(1 for i in result["items"] if i["parent"] is None and not i["is_discount"]) >= 2:
             result["needs_review"] = True  # đọc được bảng món nhưng cộng không ra tổng (kể cả thuế/phí/giảm giá): một trong hai đọc sai, nhắc người dùng kiểm tra
         weak_image = quality != "ok" or (score < CONFIDENT_RECEIPT_SCORE and not screen)  # ảnh kém, hoặc chỉ "hơi giống" hóa đơn
-        if use_ai:  # người dùng chủ động bật: chỉ gửi tên cửa hàng, mặt hàng, tổng tiền (chữ đã lọc), không gửi ảnh
-            ai_refine.apply_ai(result, clean_lines, display, force_review=weak_image)
         result["merchant_display"] = (
-            memory.display_name(result["merchant"]) or result.get("ai_merchant") or display(result["merchant"])
-        )  # tên người dùng đã chốt > tên AI chuẩn hóa > tên tự làm sạch
+            memory.display_name(result["merchant"]) or display(result["merchant"])
+        )  # tên người dùng đã chốt > tên tự làm sạch
         if weak_image:
             result["needs_review"] = True
         if share_data and not screen and result["category_source"] not in ("memory", "brand"):  # người dùng đồng ý chia sẻ; bill lạ = chưa biết cửa hàng

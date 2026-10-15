@@ -733,7 +733,7 @@ nằm trong RAM của tiến trình.
 | Route | Xác thực | Việc |
 |---|---|---|
 | `GET /health` | không | `{"status": "ok"}` — sống ngay khi khởi động, model nạp song song |
-| `POST /analyze-bill` | Bearer `OCR_SERVICE_API_KEY` + `X-User-Hash` (tuỳ chọn, hex 16–64 ký tự) | multipart `image`; form `use_ai`, `share_data` (mặc định `false`) |
+| `POST /analyze-bill` | Bearer `OCR_SERVICE_API_KEY` + `X-User-Hash` (tuỳ chọn, hex 16–64 ký tự) | multipart `image`; form `share_data` (mặc định `false`) |
 | `POST /merchant-category` | Bearer + `X-User-Hash` | lưu "cửa hàng → nhóm" vào bộ nhớ của ocr-service (bảng cũ `bill_user_merchant_category`) và dataset; **backend hiện không gọi** |
 | `POST /admin/reload-knowledge` | header `X-Admin-Token` = `FINMATE_ADMIN_TOKEN` (chưa đặt = tắt hẳn, 403) | nạp lại thương hiệu/từ khóa từ DB không cần khởi động lại |
 
@@ -744,10 +744,8 @@ AI > tự làm sạch), `total_amount` (đồng), `total_source` (`text` khi đ�
 `transacted_at` (ISO, giờ +07:00), `lines` (chữ **đã lọc**), `category` (9 nhóm) + `category_source` + `category_confidence`,
 `needs_review`, `quality`, `receipt_score`, `scan_id`, `items: [{name, amount, parent, is_discount}]`, `items_ok`. Không giống hóa đơn
 hoặc không có chữ → 422 `{"code": "not_a_receipt"}`; ảnh > 10 MB hoặc không phải ảnh → 400; lỗi khác → 500.
-Backend (`OcrServiceClient`) chỉ gửi `image` nên `use_ai` và `share_data` (ghi bill lạ vào `bill_unknown_scans`) **không bật** trên
-đường backend hiện tại. Lưu ý `use_ai` (`ai_refine.py`): khác đường `classify-items` của ai-service, nó gửi **tên cửa hàng, các dòng
-mặt hàng đã lọc và tổng tiền** ra Gemini, hoặc ra một API tương thích OpenAI khi `FINMATE_AI_PROVIDER=openai`
-(`FINMATE_AI_BASE_URL`, `FINMATE_AI_API_KEY`, `FINMATE_AI_MODEL`). **Không được bật** cờ này trên đường backend khi chưa rà soát riêng tư.
+Backend (`OcrServiceClient`) chỉ gửi `image` nên `share_data` (ghi bill lạ vào `bill_unknown_scans`) **không bật** trên đường backend hiện tại.
+ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py` đã xóa 2026-10-15); chỉ ai-service `classify-items` gọi Gemini/OpenRouter.
 
 **Module** (một dòng mỗi file):
 - `ocr.py` — PaddleOCR (đọc chữ + hộp tọa độ), làm thẳng ảnh nghiêng, đọc lại đầu phiếu bằng VietOCR (`FINMATE_VIETOCR=0` để tắt).
@@ -764,7 +762,6 @@ mặt hàng đã lọc và tổng tiền** ra Gemini, hoặc ra một API tươn
 - `text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
 - `memory.py` / `storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
 - `knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
-- `ai_refine.py` — Gemini (tuỳ chọn, chỉ khi `use_ai`) chuẩn hóa tên/nhóm từ chữ đã lọc.
 - `category_model.py`, `train_category_model.py`, `training_pg.py`, `promotion_pg.py`, `datasets_pg.py`, `db_setup.py`, `seed_knowledge_to_pg.py`
   — script huấn luyện/nạp dữ liệu chạy tay (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
 
@@ -1040,9 +1037,8 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
   cờ `Receipt:SplitByItemsEnabled` và đồng ý của người dùng (đọc từ DB mỗi lần quét). Bill nhận ra là nhà thuốc/y tế thì không
   gửi gì; thuốc nằm trên bill **không** được nhận ra là y tế vẫn có thể bị gửi khi người dùng đã đồng ý (giới hạn đã biết).
   Không ghi tên món, giá, nhóm hay nội dung chỉ dẫn vào log (chỉ ghi số lượng, trạng thái, thời gian).
-- **ocr-service `use_ai` (cập nhật 2026-10-11):** đường AI thứ hai, nằm trong `ocr-service/ai_refine.py`, gửi **tên cửa hàng, các dòng mặt
-  hàng đã lọc và tổng tiền** (không ảnh) tới Gemini hoặc một API tương thích OpenAI. Hiện **tắt** vì backend không bao giờ gửi `use_ai`;
-  không được bật khi chưa rà soát riêng tư (§3.5).
+- **ocr-service không còn đường AI bên thứ ba (2026-10-15):** `ocr-service/ai_refine.py` và cờ `use_ai` đã bị xóa vì backend không bao giờ gửi cờ này.
+  Muốn thêm lại phải rà soát riêng tư trước (§3.5).
 - `receipt_scan_items` lưu tên món + số tiền + nhóm (trường đã bóc tách), không lưu chữ OCR hay ảnh; mất khi người dùng bị xóa.
 - **Chat (thêm 2026-10-11):** câu chat đi backend → ai-service → `rasa` (nội bộ, không ra bên thứ ba), không kèm mã người dùng sang Rasa.
   `/chat/parse` không lưu câu và chỉ log `intent`, `source`, `processing_ms`. **Chữ hóa đơn:** chỉ chữ **đã lọc** (`privacy.sanitize_lines`)

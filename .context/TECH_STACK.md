@@ -225,10 +225,8 @@ khoản bản miễn phí có thể dùng dữ liệu để cải thiện mô h�
 khi dùng thật). Mô hình mặc định `gemini-3.5-flash-lite`. Lỗi/quá hạn → rơi về luật: timeout 5 giây
 mỗi pha và 8 giây cho cả lời gọi, khóa mạch 30 giây sau lỗi, không bao giờ làm hỏng việc quét.
 Đây **không** phải "OCR đám mây": nó chỉ nhận văn bản đã lọc, không nhận ảnh.
-**Cập nhật 2026-10-11 — còn một đường AI thứ hai, đang TẮT.** `ocr-service/ai_refine.py` (chỉ khi request `/analyze-bill` có
-`use_ai=true`) gửi **tên cửa hàng, các dòng mặt hàng đã lọc và tổng tiền** (không ảnh) tới Gemini, hoặc tới một API tương thích
-OpenAI khi `FINMATE_AI_PROVIDER=openai`. Backend không bao giờ gửi `use_ai` nên đường này không chạy; không được bật khi chưa rà soát
-riêng tư. Câu "chỉ tên món, không tên cửa hàng" ở trên chỉ đúng cho đường ai-service.
+**Cập nhật 2026-10-15:** đường AI thứ hai trong ocr-service (`ai_refine.py`, cờ `use_ai`) đã bị xóa vì không bao giờ chạy trong app. Giờ chỉ còn đường
+ai-service `classify-items` gọi Gemini/OpenRouter.
 
 **Cập nhật 2026-10-11 — đối chiếu requirements/Dockerfile/compose với code.**
 - `ai-service/requirements.txt` **không đổi** so với danh sách ở trên (vẫn `pytesseract`, `Pillow`, không có `paddleocr`, `torch`, `rasa`);
@@ -244,8 +242,7 @@ riêng tư. Câu "chỉ tên món, không tên cửa hàng" ở trên chỉ đú
   huấn luyện (`ai-service/rasa/data/nlu.yml`) và bộ đo (`ai-service/rasa/tests/nlu_test.yml`) nằm trong git.
 - `ocr-service/requirements.txt` thực tế không ghim phiên bản (`fastapi`, `uvicorn`, `python-multipart`, `pillow`, `numpy`,
   `paddleocr==2.7.3`, `paddlepaddle==2.6.2`, `onnxruntime`, `scikit-learn`, `psycopg[binary]`, `pytest`, `httpx`); phiên bản thật do
-  `constraints.txt` ghim. Model PaddleOCR được tải sẵn vào image lúc build. `ai_refine.py` của ocr-service gọi Gemini (hoặc API
-  tương thích OpenAI) bằng `httpx`, chỉ khi request có `use_ai=true` — backend hiện không gửi cờ này.
+  `constraints.txt` ghim. Model PaddleOCR được tải sẵn vào image lúc build.
 - Backend: không thêm/bớt NuGet nào cho chat, OCR hay Rasa (`OcrServiceClient` dùng `HttpClient` qua `AddHttpClient`, chat/bill
   dùng Refit có sẵn).
 
@@ -285,7 +282,7 @@ httpx==0.28.*             # test client cho FastAPI
 | `pandas` (trong production pipeline) | Dùng numpy/stdlib — pandas quá nặng cho inference |
 | `requests` (sync) | Dùng `httpx` async thay thế |
 | `easyocr`, `paddleocr` (trong image **ai-service**) | Kéo `torch` vào image phục vụ — xem mục OCR ở §2.2. `paddleocr` chỉ được dùng trong image riêng của `ocr-service` |
-| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống. Gemini trên đường ai-service `classify-items` (§2.2) chỉ nhận **tên món đã lọc**, không nhận ảnh; đường `use_ai` của ocr-service (đang tắt) gửi thêm tên cửa hàng và tổng tiền |
+| OCR đám mây (`google-cloud-vision`…) | Ảnh hóa đơn không được rời khỏi hệ thống. Gemini trên đường ai-service `classify-items` (§2.2) chỉ nhận **tên món đã lọc**, không nhận ảnh |
 
 ---
 
@@ -440,12 +437,6 @@ FINMATE_DATABASE_URL=...       # DB của AI (finmate_ai): luật, thương hi�
 FINMATE_VIETOCR=1              # 0 = tắt bước VietOCR đọc lại đầu phiếu
 FINMATE_ADMIN_TOKEN=           # bật POST /admin/reload-knowledge (header X-Admin-Token); trống = tắt hẳn
 FINMATE_USER_HASH=             # mã người dùng mặc định khi request không có X-User-Hash (máy dev); mặc định "local"
-FINMATE_AI_PROVIDER=gemini     # ai_refine.py, chỉ khi request có use_ai=true (backend không gửi); gemini | openai
-GEMINI_API_KEY=                # như trên; không commit
-GEMINI_MODEL=gemini-3.5-flash-lite
-FINMATE_AI_BASE_URL=           # provider "openai" (API tương thích OpenAI); TUỲ CHỌN
-FINMATE_AI_API_KEY=            # như trên; không commit
-FINMATE_AI_MODEL=              # như trên
 # Chỉ cho script chạy tay (db_setup.py), service không đọc:
 FINMATE_IMPORT_DIR=            # thư mục nguồn của --import (mặc định: thư mục ocr-service)
 FINMATE_GOLD_DIR=              # thư mục ảnh bộ chuẩn của --gold (mặc định: thư mục cha)
