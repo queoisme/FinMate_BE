@@ -298,6 +298,13 @@ Mẫu chưa nhãn bị xóa sau 7 ngày (`purge_loop` chạy mỗi giờ trong a
 số món do bộ nhớ, luật, cửa hàng, Gemini hay "chưa rõ" trả lời, số lần gọi Gemini, số món cần AI nhưng vượt trần 20 món mỗi lần, lỗi AI, hóa đơn thuốc (không bao giờ gửi) và lượt không đồng ý AI.
 Việc ghi là phần phụ (chờ tối đa 1 giây, lỗi thì bỏ qua). Xem bằng `python scripts/classify_stats.py [--days 14]`. Lưu ý thiết kế "AI quyết trước, luật dự phòng": khi người dùng đã đồng ý AI, món chưa có trong bộ nhớ đều đi qua Gemini kể cả khi luật đã biết.
 
+**Chat và giọng nói: AI phân loại sản phẩm trước (thêm 2026-10-16).** Giống luồng hóa đơn. `ChatAnalyzeCommandHandler` và `ChatCommandHandler` đọc đồng ý AI của người dùng
+từ DB mỗi lần (qua `IAiConsentReader`, để handler "chỉ hiểu câu" vẫn không nhận repository nào) và gửi `allow_ai` cho `POST /chat/parse`. Có đồng ý thì `app/services/chat_ai.py`
+gửi CỤM SẢN PHẨM (mô tả đã bỏ số tiền, mọi khoản của một câu trong một lời gọi) qua `classify_items`: bộ nhớ, rồi Gemini, luật dự phòng. Thuốc/đồ y tế không bao giờ gửi; thu nhập,
+chuyển tiền và chi cho người khác không phải sản phẩm nên không gửi. AI khác luật thì không bao giờ tự lưu (`auto_save_ok = false`); trùng luật giữ "ghi nhanh". AI lỗi hoặc quá
+6 giây thì giữ kết quả của luật. Không đồng ý thì không gửi gì (chỉ đọc bộ nhớ gợi ý). Câu chữ đồng ý AI phiên bản 3 nêu rõ chat và giọng nói; các đồng ý bản cũ ngừng có hiệu lực.
+App hỏi đồng ý MỘT lần khi gửi tin nhắn hoặc giọng nói đầu tiên; "Để sau" vẫn chat được bằng luật. Số đếm dùng AI của chat nằm trong `bill_classify_stats` (`chat_ai_*`).
+
 **Mã người dùng ra ngoài.** `UserIdHasher.Hash` = SHA-256 của `Guid.ToString()` dạng hex thường; cùng một hàm cho AI Service
 (`user_id_hash`) và ocr-service (`X-User-Hash`), nên một người dùng có cùng mã ở cả hai nơi và cùng khóa trong bảng `bill_*`.
 
