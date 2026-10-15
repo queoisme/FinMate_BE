@@ -29,6 +29,7 @@ class AmountMatch(NamedTuple):
     value: int
     start: int  # vị trí trong câu đã chuẩn hóa (NFC, bỏ dấu): cùng độ dài với câu gốc
     end: int
+    assumed: bool = False  # số nhỏ viết bằng chữ không đơn vị: đơn vị là nghìn do ĐOÁN, chưa được người dùng xác nhận
 
 
 def _slang(norm: str) -> list[AmountMatch]:
@@ -95,6 +96,12 @@ _K_UNIT = re.compile(r"\s*(?P<u>ka|k|ca)(?![a-z])")
 _CA_FOLLOWERS = {"va", "roi", "nhe", "nha", "thoi", "xong", "sau", "truoc", "voi", "luc", "hom"}
 
 
+_PERCENT_AFTER = re.compile(r"\s*(?:phan\s+tram|%)")
+_CURRENCY_AFTER = re.compile(r"\s*(?:dong|vnd|d)(?![a-z])")  # "bốn mươi lăm đồng": đơn vị rõ ràng, hiểu đúng 45 đồng
+# danh từ đếm/thời gian đứng ngay sau số: "hai mươi người", "ba mươi ngày" là số lượng, không phải tiền
+_COUNT_AFTER = re.compile(r"\s*(?:nguoi|cai|ly|to|chai|lan|chuyen|ngay|thang|nam|tuoi|gio|phut|giay|kg|ky|lang|lit|con|chiec|bo|cuon|qua|trai|hop|goi|vien|cay|ban|phong|tang|bua|dem|tuan)(?![a-z])")
+
+
 def _extend_with_k_unit(find):
     """Số đọc bằng chữ nhỏ hơn 1.000 mà liền sau là "k"/"ka"/"ca" thì là nghìn và nuốt luôn chữ đơn vị (50k = "năm mươi k"/"năm mươi ca")."""
 
@@ -104,12 +111,21 @@ def _extend_with_k_unit(find):
         nfc = unicodedata.normalize("NFC", text).lower()
         out = []
         for m in find(text):
-            unit = _K_UNIT.match(norm, m.end) if m.value < 1000 and not any(c.isdigit() for c in nfc[m.start:m.end]) else None
+            spoken = m.value < 1000 and not any(c.isdigit() for c in nfc[m.start:m.end])
+            unit = _K_UNIT.match(norm, m.end) if spoken else None
             if unit and nfc[unit.start("u"):unit.end("u")] == unit.group("u"):
                 rest = norm[unit.end():]
                 follower = re.match(r"\s*([a-z]+)", rest)
                 if unit.group("u") != "ca" or not rest.strip() or rest.lstrip()[:1] in ",.;!?" or (follower and follower.group(1) in _CA_FOLLOWERS):
                     m = AmountMatch(m.value * 1000, m.start, unit.end())
+                    out.append(m)
+                    continue
+            if spoken:
+                tail = norm[m.end:]
+                if _PERCENT_AFTER.match(tail):
+                    continue  # "giảm năm mươi phần trăm" là tỷ lệ, không phải số tiền
+                if m.value > 0 and not (_CURRENCY_AFTER.match(tail) or _COUNT_AFTER.match(tail)):
+                    m = m._replace(assumed=True)  # không đơn vị: bên dựng khoản chi hiểu là nghìn và bắt xác nhận
             out.append(m)
         return out
 

@@ -274,12 +274,14 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
     match = parse_amount(text)
     if match:
         value, description = match.value, remove_amount(text, match)
+        assumed = match.assumed
     else:  # luật không thấy số tiền nhưng Rasa cắt được một cụm số tiền: đọc cụm đó
         phrase = entities.get("amount")
         found = parse_amount(phrase) if phrase else None
         if not found:
             return None
         value, description = found.value, re.sub(r"\s+", " ", text.replace(phrase, " ")).strip()
+        assumed = found.assumed
     description = re.sub(r"^(?:và|rồi|còn|vừa|mới|nay|hôm nay|hôm qua|tôi|mình|em|đã|hết|tốn|mất|chi|tiêu|khoảng)\s+", "", description, flags=re.I).strip()
     description = re.sub(r"\s+(?:hết|tốn|mất|khoảng|hết khoảng)$", "", description, flags=re.I).strip()  # "ăn bún chả hết 55 cành" -> "ăn bún chả"
     norm_text = normalize(text)
@@ -294,7 +296,9 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
     category = expense_category(" ".join(part for part in (merchant, description) if part))
     if category is None and fallback_category is not None:
         category = fallback_category(merchant, description)
-    return Entry("expense", value, description, merchant, category, None, _auto_ok("expense", value, category, nlu, auto_below), False,
+    if assumed:
+        value *= 1000  # số nhỏ không đơn vị ("ăn phở bốn mươi lăm"): nghìn. Đoán nên không bao giờ tự lưu
+    return Entry("expense", value, description, merchant, category, None, _auto_ok("expense", value, category, nlu, auto_below) and not assumed, False,
                  category_source="rule" if category else None)
 
 
