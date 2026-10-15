@@ -48,9 +48,12 @@ def test_an_explicit_dong_unit_is_taken_literally():
     assert entry.amount == 45
 
 
-def test_the_users_sentence_has_30k_and_50k():
-    _, found = entries("là hôm nay tôi mua hai lạng thịt lợn hết ba mươi nghìn và tôi đi ăn hết năm mươi")
-    assert [e.amount for e in found] == [30_000, 50_000]
+def test_the_second_half_of_the_users_sentence_is_50k_not_50_dong():
+    # câu gốc: "...hết ba mươi nghìn và tôi đi ăn hết năm mươi": vế sau không đơn vị. Đọc từng vế (hai khoản cùng danh mục có thể bị gộp thành một).
+    _, (entry,) = entries("tôi đi ăn hết năm mươi")
+    assert (entry.amount, entry.category, entry.auto_save_ok) == (50_000, "food", False)
+    _, (entry,) = entries("tôi mua hai lạng thịt lợn hết ba mươi nghìn")
+    assert entry.amount == 30_000
 
 
 def test_a_percentage_is_not_an_amount():
