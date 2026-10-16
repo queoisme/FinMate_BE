@@ -962,3 +962,12 @@ Lấy phần xử lý voice của gói Voice Lab (STT GIPFormer ONNX) gắn vào
 - Backend: `POST /api/v1/transactions/voice` (multipart `file`) → `ISttServiceClient` → `IChatCommandHandler` (cùng luồng gõ chữ: nhiều khoản, ngày, danh mục chung, trùng lặp, xác nhận). Trả `{transcript, chat}`.
 - Cấu hình: `STT_SERVICE_URL` (compose), `STT_SERVICE_API_KEY` (backend/.env = stt-service/.env). Thiếu URL → endpoint trả lỗi AI service không khả dụng.
 - Đã chạy thật: 3 file mp3 (edge-tts) qua BE → "hôm qua ăn phở bốn mươi nghìn rồi đổ xăng bảy mươi nghìn" ra 2 nháp 40.000 food + 70.000 transport. Chưa đo WER/độ chính xác trên giọng thật. App Flutter chưa có nút ghi âm.
+
+## Phase 28 — Vòng học: huấn luyện và phục vụ mô hình nhóm hóa đơn (2026-10-16)
+Hoàn tất Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` (Task 1-5 đã xong trước đó). Mô hình **tắt** cho đến khi có đủ nhãn thật.
+- `app/bill/slug_model.py`: cổng mẫu dùng chung với `learning_report.py`; `train()` ra `candidate` chỉ khi CV theo cửa hàng ≥ 0,85 và hơn luật; `record_training` / `promote` / `retire`; `SlugModel` (tệp hỏng thì bỏ qua); `load_active` khi khởi động.
+- `scripts/train_bill_model.py` (`--train | --promote <v> | --retire | --list`), `scripts/eval_category_dataset.py` (đo trên CSV, tách nhãn thật khỏi tổng hợp).
+- Phục vụ: `/bill/classify` thử mô hình **sau** bộ nhớ, thương hiệu, từ khóa, bình chọn món, và chỉ khi luật trả `none` và xác suất ≥ 0,8 (`source = "model"`, độ tin cậy ≤ 0,8). Không dùng trong `classify_items` (mô hình học trên chữ cả hóa đơn, không phải từng món).
+- Runbook: `docs/learning-loop.md`. Quy trình đã chạy thử trọn vẹn trên DB tạm với dữ liệu giả.
+- Số đo baseline (`docs/evaluation.md`): mô hình chưa hơn luật; học trên dữ liệu tổng hợp rồi đo trên thật chỉ đúng 56,5%. Cần nhãn thật từ người dùng đóng góp.
+- Chưa làm: không có endpoint nạp lại mô hình (promote xong phải khởi động lại ai-service); thu mẫu thật từ người dùng thử.

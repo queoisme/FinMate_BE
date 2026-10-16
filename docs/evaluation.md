@@ -217,3 +217,22 @@ Tải `amazon-massive-dataset-1.1.tar.gz` (40.251.390 byte; có LICENSE CC BY 4.
 | **129 câu ngoài chủ đề THẬT (MASSIVE test): nhận đúng `out_of_scope`** | 56,6% | 49,6% | **93,0%** |
 
 Nhận xét: đây là con số có ý nghĩa nhất trong cả đợt vì bộ test là câu do người thật viết (không do mình sinh). v3/v4 chỉ nhận đúng khoảng một nửa câu ngoài chủ đề; v5 nhận 120/129. Đổi lại `amount` F1 và `date` F1 trên bộ tổng hợp tụt nhẹ so với v4 (0,97→0,91; 0,58→0,42): thực thể ngày của MASSIVE ("hôm nay là thứ hai") làm Rasa gán nhãn ngày rộng hơn. `merchant` vẫn yếu (cần thêm mẫu câu). Rasa không đánh giá ý định khi file test chỉ có một ý định, nên số 93% đo bằng file ghép thêm một câu `add_expense` (chỉ để bật đánh giá, recall `out_of_scope` không đổi).
+
+## Mô hình nhóm hóa đơn, baseline 2026-10-16
+
+`ai-service/scripts/eval_category_dataset.py` trên `category-classifier/*.csv`. Chỉ để báo cáo: **không có mô hình nào được bật**.
+Dữ liệu: train 542 dòng (483 `synthetic_ocr`, chỉ 59 nhãn thật), validation+test 200 dòng (177 tổng hợp, **23 thật**); nhãn thật chủ yếu là `food`.
+
+| Thí nghiệm | n | Mô hình | Luật hiện tại | Phủ ở ngưỡng 0,8 | Đúng khi đã trả lời |
+|---|---|---|---|---|---|
+| A. học toàn bộ train, đo validation+test (tất cả) | 200 | 93,5% | 92,5% | 42,5% | 100% |
+| A. chỉ phần tổng hợp | 177 | 94,9% | 93,2% | 45,8% | 100% |
+| A. chỉ phần THẬT | 23 | 82,6% | 87,0% | 17,4% | 100% (4 mẫu) |
+| B. học CHỈ dữ liệu tổng hợp, đo phần thật | 23 | **56,5%** | 87,0% | 4,3% | 100% (1 mẫu) |
+| C. chỉ nhãn thật, CV theo cửa hàng | 82 | 81,7% | | | |
+
+Cách đọc:
+- Mô hình **chưa hơn luật** (93,5% so với 92,5% là nhiễu ở cỡ mẫu này; trên phần thật thì luật nhỉnh hơn). Cổng của vòng học (CV ≥ 0,85 và hơn luật) sẽ từ chối bản này.
+- Khoảng cách giữa dữ liệu tổng hợp và thật rất lớn: học trên tổng hợp rồi đo trên thật chỉ đúng 56,5%. Dữ liệu tổng hợp không thay được nhãn của người dùng thật.
+- "100% khi đã trả lời" đứng trên 1-4 mẫu ở phần thật nên **chưa nói lên điều gì**. Cần ít nhất vài trăm mẫu thật (xem cổng trong `docs/learning-loop.md`).
+- Khớp với lần huấn luyện cũ: 5 bản trong `bill_model_versions` đều bị loại vì CV 71-79% < 80%.
