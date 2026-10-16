@@ -247,6 +247,14 @@ public class Program
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
             });
 
+        // Quản trị luật phân loại của AI: chuyển tiếp nguyên văn tới /api/v1/admin/rules của AI Service (cùng khóa nội bộ).
+        builder.Services.AddHttpClient<IAiRulesAdminClient, AiRulesAdminClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -377,6 +385,7 @@ public class Program
         builder.Services.AddScoped<ISetSystemCategoryActivationCommandHandler, SetSystemCategoryActivationCommandHandler>();
         builder.Services.AddScoped<IGetMissionListQueryHandler, GetMissionListQueryHandler>();
         builder.Services.AddScoped<ICreateMissionCommandHandler, CreateMissionCommandHandler>();
+        builder.Services.AddScoped<IAdminAiRulesService, AdminAiRulesService>();
         builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
         builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
         builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();

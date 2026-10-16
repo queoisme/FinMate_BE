@@ -971,3 +971,10 @@ Hoàn tất Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` 
 - Runbook: `docs/learning-loop.md`. Quy trình đã chạy thử trọn vẹn trên DB tạm với dữ liệu giả.
 - Số đo baseline (`docs/evaluation.md`): mô hình chưa hơn luật; học trên dữ liệu tổng hợp rồi đo trên thật chỉ đúng 56,5%. Cần nhãn thật từ người dùng đóng góp.
 - Chưa làm: không có endpoint nạp lại mô hình (promote xong phải khởi động lại ai-service); thu mẫu thật từ người dùng thử.
+
+## Phase 29 — API quản trị luật phân loại của AI (2026-10-16)
+Để màn hình admin trên web (làm riêng) chỉnh được luật mà không phải sửa code hay build lại. Mới có API, chưa có giao diện. Tài liệu cho người dựng giao diện: `docs/ai-rules-admin-api.md`.
+- AI Service: `GET/PUT/PATCH/POST/DELETE /api/v1/admin/rules/*` (khóa nội bộ + tiêu đề `X-Actor-Hash` cho thao tác ghi) cho thương hiệu, từ khóa hóa đơn (merchant/product), bộ nhớ tên món, chỉ dẫn Gemini; `/preview` thử luật trước khi lưu bằng chính hàm của `/bill/classify` (`classify_by_rules`); `/history` + `/history/{id}/revert`. Bảng mới `bill_rule_audit` (migration 0014). Mọi thay đổi có hiệu lực ngay (đánh dấu bộ kiến thức cũ, bỏ cache chỉ dẫn), không đợi nhịp 60 giây.
+- Backend: `AdminAiRulesController` dưới `AdminOnly`, `AiRulesAdminClient` (HttpClient + khóa nội bộ, băm id admin), `AdminAiRulesService` ghi `audit_logs` (`Admin.AiRule.Changed`) CHỈ khi AI Service chấp nhận. Lỗi 404/409/422 của AI Service giữ nguyên mã và thông điệp, lỗi khác là 503.
+- Chỉ chỉnh được DỮ LIỆU luật: từ điển chat và logic (đọc số tiền/ngày, chọn tên cửa hàng/tổng tiền trên OCR) vẫn nằm trong code; thương hiệu `family`/`education` ánh xạ trong code.
+- Chưa làm: tự chạy bộ đo hồi quy trước khi áp dụng; cảnh báo xung đột "từ khóa là một phần của từ khóa dài hơn ở nhóm khác"; giao diện web; hàng đợi "món bị người dùng sửa nhiều nhất" (cần thu nhãn sửa của người dùng).
