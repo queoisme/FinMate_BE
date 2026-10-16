@@ -1,0 +1,62 @@
+"""Vòng đời phiên bản mô hình nhóm hóa đơn trên Postgres thật: train chỉ tạo candidate, promote đổi active và cho bản trước nghỉ."""
+
+import pytest
+from sqlalchemy import select
+
+from app.bill.slug_model import STAGE, TrainResult, _pipeline, promote, record_training, retire
+from app.db.models.bill import BillModelVersion, BillTrainingJob
+
+
+def candidate() -> TrainResult:
+    pipeline = _pipeline().fit(["pho bun com", "xang taxi gui xe", "pho com bun", "taxi xang gui xe"], ["food", "transport", "food", "transport"])
+    return TrainResult("candidate", "Đạt", 0.9, 0.5, pipeline, {"samples": 4})
+
+
+def rejected() -> TrainResult:
+    return TrainResult("rejected", "Chưa đủ dữ liệu: cần thêm 296 mẫu có nhãn", None, None, None, {"samples": 4})
+
+
+async def statuses(session) -> dict[str, str]:
+    rows = (await session.execute(select(BillModelVersion).where(BillModelVersion.stage == STAGE))).scalars().all()
+    return {r.version: r.status for r in rows}
+
+
+async def test_train_never_activates(session, tmp_path):
+    version = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    assert (await statuses(session)) == {version: "candidate"}
+    assert (tmp_path / STAGE / f"{version}.joblib").exists()
+    assert (await session.execute(select(BillTrainingJob).where(BillTrainingJob.stage == STAGE))).scalars().one().sample_count == 4
+
+
+async def test_rejected_is_recorded_with_reason_and_no_artifact(session, tmp_path):
+    version = await record_training(session, rejected(), sample_count=4, registry_path=str(tmp_path))
+    row = (await session.execute(select(BillModelVersion))).scalars().one()
+    assert row.version == version and row.status == "rejected" and row.artifact_path == ""
+    assert "296" in row.notes
+    assert not list(tmp_path.rglob("*.joblib"))
+
+
+async def test_promote_activates_candidate_and_retires_previous(session, tmp_path):
+    first = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    await promote(session, first)
+    second = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    assert (await statuses(session))[first] == "active"
+    await promote(session, second)
+    assert await statuses(session) == {first: "retired", second: "active"}
+
+
+async def test_promote_refuses_a_rejected_or_unknown_version(session, tmp_path):
+    version = await record_training(session, rejected(), sample_count=4, registry_path=str(tmp_path))
+    with pytest.raises(ValueError):
+        await promote(session, version)
+    with pytest.raises(ValueError):
+        await promote(session, "does-not-exist")
+    assert "active" not in (await statuses(session)).values()
+
+
+async def test_retire_deactivates_the_active_version(session, tmp_path):
+    version = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    await promote(session, version)
+    assert await retire(session) == 1
+    assert await statuses(session) == {version: "retired"}
+    assert await retire(session) == 0

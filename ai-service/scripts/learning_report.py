@@ -19,11 +19,7 @@ from app.bill.classifier import classify_category_detailed
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 
-# Cổng tối thiểu để huấn luyện (kế hoạch learning-loop, Global Constraints). Là giả định chưa kiểm chứng; chỉnh khi có dữ liệu thật.
-MIN_LABELED = 300
-MIN_MERCHANTS = 30
-MIN_STRONG_SLUGS = 3  # số danh mục đủ MIN_PER_SLUG mẫu
-MIN_PER_SLUG = 20
+from app.bill.slug_model import MIN_LABELED, MIN_MERCHANTS, MIN_PER_SLUG, MIN_STRONG_SLUGS, sample_gate  # noqa: F401 - cổng dùng chung với huấn luyện
 
 
 @dataclass(frozen=True)
@@ -65,14 +61,7 @@ def summarize(rows: list[SampleRow], pending: int) -> LearningReport:
         if r.predicted_source and r.predicted_source != "none":  # "none" = không đoán được gì, không phải một nguồn dự đoán
             by_source.setdefault(r.predicted_source, []).append(r.predicted_slug == r.final_slug)
 
-    missing: list[str] = []
-    if len(rows) < MIN_LABELED:
-        missing.append(f"cần thêm {MIN_LABELED - len(rows)} mẫu có nhãn (đang có {len(rows)}/{MIN_LABELED})")
-    if merchants < MIN_MERCHANTS:
-        missing.append(f"cần thêm {MIN_MERCHANTS - merchants} cửa hàng khác nhau (đang có {merchants}/{MIN_MERCHANTS})")
-    strong = sum(1 for n in per_slug.values() if n >= MIN_PER_SLUG)
-    if strong < MIN_STRONG_SLUGS:
-        missing.append(f"cần thêm {MIN_STRONG_SLUGS - strong} danh mục có từ {MIN_PER_SLUG} mẫu trở lên (đang có {strong}/{MIN_STRONG_SLUGS})")
+    missing = sample_gate(rows)
 
     return LearningReport(
         labeled=len(rows),
@@ -86,14 +75,18 @@ def summarize(rows: list[SampleRow], pending: int) -> LearningReport:
     )
 
 
-async def build_report(session) -> LearningReport:
+async def load_labeled(session) -> list[SampleRow]:
     labeled = (
         await session.execute(
             text("SELECT merchant_key, lines, final_slug, predicted_source, predicted_slug FROM bill_training_samples WHERE final_slug IS NOT NULL")
         )
     ).all()
+    return [SampleRow(r.merchant_key, r.lines.split("\n"), r.final_slug, r.predicted_source, r.predicted_slug) for r in labeled]
+
+
+async def build_report(session) -> LearningReport:
+    rows = await load_labeled(session)
     pending = (await session.execute(text("SELECT count(*) FROM bill_training_samples WHERE final_slug IS NULL"))).scalar_one()
-    rows = [SampleRow(r.merchant_key, r.lines.split("\n"), r.final_slug, r.predicted_source, r.predicted_slug) for r in labeled]
     return summarize(rows, pending)
 
 
