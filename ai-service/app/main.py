@@ -7,6 +7,7 @@ import structlog
 from fastapi import FastAPI
 
 from app.api.v1.bill import router as bill_router
+from app.bill import slug_model
 from app.bill.samples import purge_loop
 from app.api.v1.chat import router as chat_router
 from app.api.v1.feedback import router as feedback_router
@@ -39,6 +40,12 @@ async def lifespan(app: FastAPI):
             await pipeline.refresh(session, force=True)
     except Exception as error:  # noqa: BLE001 - cố ý bắt rộng, xem docstring
         logger.error("startup_warmup_failed", error=str(error))
+    try:  # mô hình nhóm hóa đơn đã duyệt (nếu có); không có hoặc lỗi thì hệ thống chạy bằng luật như cũ
+        async with AsyncSessionLocal() as session:
+            slug_model.set_active(await slug_model.load_active(session))
+        logger.info("slug_model_loaded", active=slug_model.active() is not None)
+    except Exception as error:  # noqa: BLE001
+        logger.error("slug_model_startup_failed", error_type=type(error).__name__)
     purge_task = asyncio.create_task(purge_loop(AsyncSessionLocal))  # mẫu huấn luyện chưa nhãn quá 7 ngày bị xóa định kỳ
     yield
     purge_task.cancel()

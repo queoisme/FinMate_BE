@@ -25,8 +25,13 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import structlog
+
 from app.bill.classifier import _norm
+from app.bill.knowledge import merchant_key
 from app.db.models.bill import BillModelVersion, BillTrainingJob
+
+logger = structlog.get_logger(__name__)
 
 # Cổng tối thiểu để huấn luyện (kế hoạch learning-loop, Global Constraints). Là giả định chưa kiểm chứng; chỉnh khi có dữ liệu thật.
 MIN_LABELED = 300
@@ -166,3 +171,49 @@ async def retire(session: AsyncSession) -> int:
     result = await session.execute(update(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.status == "active").values(status="retired"))
     await session.commit()
     return result.rowcount
+
+
+class SlugModel:
+    """Mô hình đã duyệt, nạp để phục vụ. ``predict`` luôn trả một (nhóm, xác suất); người gọi so với ``MIN_PROBABILITY``."""
+
+    def __init__(self, pipeline: Pipeline) -> None:
+        self._pipeline = pipeline
+
+    def predict(self, merchant: str | None, lines: Sequence[str]) -> tuple[str, float]:
+        probs = self._pipeline.predict_proba([record_text(merchant_key(merchant) if merchant else None, lines)])[0]
+        best = int(probs.argmax())
+        return str(self._pipeline.classes_[best]), float(probs[best])
+
+    @classmethod
+    def load_file(cls, path: str | Path) -> SlugModel | None:
+        """None khi tệp không có hoặc hỏng: hệ thống tiếp tục bằng luật, không sập vì một tệp mô hình."""
+        try:
+            pipeline = joblib.load(path)
+            if not hasattr(pipeline, "predict_proba"):
+                raise ValueError("not a classifier")
+            return cls(pipeline)
+        except Exception as error:  # noqa: BLE001 - joblib/pickle ném nhiều loại lỗi tùy kiểu hỏng
+            logger.warning("slug_model_load_failed", error_type=type(error).__name__)
+            return None
+
+
+_active: SlugModel | None = None
+
+
+def active() -> SlugModel | None:
+    return _active
+
+
+def set_active(model: SlugModel | None) -> None:
+    global _active
+    _active = model
+
+
+async def load_active(session: AsyncSession) -> SlugModel | None:
+    """Mô hình của bản ``active`` trong DB (None nếu không có bản nào hoặc tệp hỏng)."""
+    row = (
+        await session.execute(
+            select(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.status == "active").order_by(BillModelVersion.trained_at.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    return SlugModel.load_file(row.artifact_path) if row else None

@@ -24,8 +24,9 @@ from app.bill.classifier import CATEGORIES, brand_backend_slug, classify_categor
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
 from app.bill import samples as bill_samples
+from app.bill import slug_model
 from app.bill.knowledge import BillKnowledge, DbBillKnowledge
-from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
@@ -153,6 +154,12 @@ async def classify_bill(
         return BillClassifyResponse(
             category_slug=voted[0], local_category=None, confidence=min(voted[1], _MAX_CONFIDENCE), source="product",
             processing_ms=int((time.perf_counter() - started) * 1000))
+    if source == "none" and (model := slug_model.active()):  # luật không biết: mô hình đã duyệt chỉ trả lời khi đủ tự tin
+        guess, probability = model.predict(merchant, lines)
+        if probability >= slug_model.MIN_PROBABILITY and guess in CATEGORY_SLUGS and guess != INCOME_SLUG:
+            return BillClassifyResponse(
+                category_slug=guess, local_category=None, confidence=min(probability, _MAX_CONFIDENCE), source="model",
+                processing_ms=int((time.perf_counter() - started) * 1000))
     known = source != "none"
 
     response = BillClassifyResponse(

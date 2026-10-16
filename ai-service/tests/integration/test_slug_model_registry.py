@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy import select
 
-from app.bill.slug_model import STAGE, TrainResult, _pipeline, promote, record_training, retire
+from app.bill.slug_model import STAGE, TrainResult, _pipeline, load_active, promote, record_training, retire
 from app.db.models.bill import BillModelVersion, BillTrainingJob
 
 
@@ -60,3 +60,23 @@ async def test_retire_deactivates_the_active_version(session, tmp_path):
     assert await retire(session) == 1
     assert await statuses(session) == {version: "retired"}
     assert await retire(session) == 0
+
+
+async def test_load_active_returns_the_promoted_model_and_none_before_or_after(session, tmp_path):
+    assert await load_active(session) is None
+    version = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    assert await load_active(session) is None  # candidate chưa được phục vụ
+    await promote(session, version)
+    model = await load_active(session)
+    assert model is not None and model.predict(None, ["pho bun"])[0] == "food"
+    await retire(session)
+    assert await load_active(session) is None
+
+
+async def test_load_active_ignores_a_missing_or_corrupt_artifact(session, tmp_path):
+    version = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
+    await promote(session, version)
+    (tmp_path / STAGE / f"{version}.joblib").write_bytes(b"garbage")
+    assert await load_active(session) is None
+    (tmp_path / STAGE / f"{version}.joblib").unlink()
+    assert await load_active(session) is None
