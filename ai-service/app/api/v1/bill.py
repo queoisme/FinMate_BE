@@ -17,16 +17,17 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import verify_internal_api_key
-from collections import Counter
 
 from app.bill.classify_stats import ClassifyStatsRecorder, build_counts
-from app.bill.classifier import CATEGORIES, brand_backend_slug, classify_category_detailed
+from app.bill.classifier import CATEGORIES
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
 from app.bill import samples as bill_samples
 from app.bill import slug_model
+from app.bill.rules_classify import MAX_CONFIDENCE as _MAX_CONFIDENCE
+from app.bill.rules_classify import classify_by_rules
 from app.bill.knowledge import BillKnowledge, DbBillKnowledge
-from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
+from app.core.category_map import INCOME_SLUG
 from app.services.category_resolver import resolve
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
@@ -69,25 +70,6 @@ _gemini = GeminiClient(
 )
 
 
-_ITEM_VOTE_SLUGS = ("family", "education")  # hai nhóm backend mà bộ 9 nhóm của luật cả bill không biểu diễn được
-
-
-def _item_vote_slug(lines: list[str]) -> tuple[str, float] | None:
-    """Bill chỉ toàn đồ em bé / đồ học tập: bỏ phiếu theo luật từng món (``resolve``) để ra ``family`` / ``education``.
-
-    Chỉ nhận khi nhóm thắng là một trong hai nhóm trên và hơn hẳn nhóm đứng sau (hòa thì thôi: bill nhiều nhóm được tách theo món).
-    """
-    votes = Counter(slug for line in lines if (slug := resolve(line).slug))
-    ranked = votes.most_common(2)
-    if not ranked or ranked[0][0] not in _ITEM_VOTE_SLUGS:
-        return None
-    top, n = ranked[0]
-    runner_up = ranked[1][1] if len(ranked) > 1 else 0
-    if n == runner_up:
-        return None
-    return top, 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
-
-
 _classify_stats = ClassifyStatsRecorder()
 
 
@@ -124,8 +106,6 @@ async def get_ai_instruction() -> str:
 
 
 _MAX_LINE_CHARS = 200
-# Kết quả của luồng hóa đơn luôn cần người xem lại; trần này khớp trần của OCR (remote_ocr.py).
-_MAX_CONFIDENCE = 0.80
 
 
 @router.post("/bill/classify", response_model=BillClassifyResponse)
@@ -144,29 +124,19 @@ async def classify_bill(
             category_slug=memory.category, local_category=None, confidence=_MAX_CONFIDENCE, source="memory",
             processing_ms=int((time.perf_counter() - started) * 1000))
     remembered = memory.category if memory and not memory.backend_slug and memory.category in CATEGORIES else None  # nhóm lạ trong DB thì bỏ qua
-    if not remembered and (brand_slug := brand_backend_slug(merchant)):  # thương hiệu có nhóm ngoài 9 nhóm bộ luật (Con Cưng → family): trả thẳng slug backend
-        return BillClassifyResponse(
-            category_slug=brand_slug, local_category=None, confidence=0.8, source="brand",
-            processing_ms=int((time.perf_counter() - started) * 1000))
-    category, source, confidence = classify_category_detailed(merchant, lines, remembered=remembered)
-    if not remembered and (source in ("product", "none") or (source == "brand" and confidence < 0.8)) and (voted := _item_vote_slug(lines)):
-        # nhóm cục bộ chỉ đến từ từ khóa sản phẩm / tên thương hiệu của món (bút Thiên Long), không phải từ cửa hàng: theo luật từng món
-        return BillClassifyResponse(
-            category_slug=voted[0], local_category=None, confidence=min(voted[1], _MAX_CONFIDENCE), source="product",
-            processing_ms=int((time.perf_counter() - started) * 1000))
-    if source == "none" and (model := slug_model.active()):  # luật không biết: mô hình đã duyệt chỉ trả lời khi đủ tự tin
+    result = classify_by_rules(merchant, lines, remembered)
+    if result.source == "none" and (model := slug_model.active()):  # luật không biết: mô hình đã duyệt chỉ trả lời khi đủ tự tin
         guess, probability = model.predict(merchant, lines)
         if probability >= slug_model.MIN_PROBABILITY and guess in CATEGORY_SLUGS and guess != INCOME_SLUG:
             return BillClassifyResponse(
                 category_slug=guess, local_category=None, confidence=min(probability, _MAX_CONFIDENCE), source="model",
                 processing_ms=int((time.perf_counter() - started) * 1000))
-    known = source != "none"
 
     response = BillClassifyResponse(
-        category_slug=SLUG_BY_LOCAL_CATEGORY.get(category) if known else None,
-        local_category=category if known else None,
-        confidence=min(confidence, _MAX_CONFIDENCE) if known else 0.0,
-        source=source,
+        category_slug=result.category_slug,
+        local_category=result.local_category,
+        confidence=result.confidence,
+        source=result.source,
         processing_ms=int((time.perf_counter() - started) * 1000),
     )
     logger.info("bill_classified", source=response.source, lines=len(lines), processing_ms=response.processing_ms)

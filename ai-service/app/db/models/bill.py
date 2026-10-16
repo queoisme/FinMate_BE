@@ -331,6 +331,28 @@ class BillAiInstruction(Base):
     )
 
 
+class BillRuleAudit(Base):
+    """Nhật ký mọi thay đổi luật qua API quản trị: trước/sau của dòng bị đổi, ai đổi (``actor_hash`` = SHA-256 id admin, không phải id thật), vì sao.
+    Là nguồn cho "hoàn tác": mỗi dòng đủ để đưa luật về trạng thái trước đó."""
+
+    __tablename__ = "bill_rule_audit"
+
+    id: Mapped[uuid_pk]
+    resource: Mapped[str] = mapped_column(String(16), nullable=False)  # brand | keyword | item_cache | instruction
+    resource_key: Mapped[str] = mapped_column(Text, nullable=False)  # brand_key | id của từ khóa | item_key | id của chỉ dẫn
+    action: Mapped[str] = mapped_column(String(12), nullable=False)  # create | update | activate | deactivate | delete | revert
+    before: Mapped[dict | None] = mapped_column(JSONB)
+    after: Mapped[dict | None] = mapped_column(JSONB)
+    actor_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[created_at]
+
+    __table_args__ = (
+        Index("idx_bill_rule_audit_created", "created_at"),
+        Index("idx_bill_rule_audit_resource", "resource", "resource_key"),
+    )
+
+
 class BillUnknownScan(Base):
     """Bill lạ: chưa nhận ra cửa hàng. Chỉ ghi khi người dùng đồng ý chia sẻ; chữ đã lọc, không ảnh."""
 
@@ -368,6 +390,7 @@ __all__ = [
     "BillLabeledSample",
     "BillModelVersion",
     "BillRawSample",
+    "BillRuleAudit",
     "BillTrainingJob",
     "BillUnknownScan",
     "BillUserMerchantCategory",
