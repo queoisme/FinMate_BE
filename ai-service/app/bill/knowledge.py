@@ -115,6 +115,10 @@ class DbBillKnowledge:
         self._clock = clock
         self._loaded_at: float | None = None
 
+    def mark_stale(self) -> None:
+        """Luật vừa đổi qua API quản trị: lần ``refresh_if_stale`` kế tiếp nạp lại ngay."""
+        self._loaded_at = None
+
     async def refresh_if_stale(self) -> None:
         now = self._clock()
         if self._loaded_at is not None and now - self._loaded_at < self._ttl:

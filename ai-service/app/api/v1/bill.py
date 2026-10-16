@@ -105,6 +105,12 @@ async def get_ai_instruction() -> str:
     return _instruction[1]
 
 
+def invalidate_ai_instruction() -> None:
+    """Chỉ dẫn vừa đổi qua API quản trị: lần gọi Gemini kế tiếp đọc lại từ DB thay vì chờ hết nhịp 60 giây."""
+    global _instruction
+    _instruction = None
+
+
 _MAX_LINE_CHARS = 200
 
 

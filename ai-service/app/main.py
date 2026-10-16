@@ -4,16 +4,19 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.api.v1.bill import router as bill_router
 from app.bill import slug_model
+from app.bill.rules_admin import RuleError
 from app.bill.samples import purge_loop
 from app.api.v1.chat import router as chat_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ocr import router as ocr_router
 from app.api.v1.pipeline import router as pipeline_router
+from app.api.v1.rules_admin import router as rules_admin_router
 from app.api.v1.stats import router as stats_router
 from app.core.config import settings
 from app.core.logging import configure_logging
@@ -60,3 +63,10 @@ app.include_router(stats_router, prefix="/api/v1", tags=["stats"])
 app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(bill_router, prefix="/api/v1", tags=["bill"])
+app.include_router(rules_admin_router, prefix="/api/v1")
+
+
+@app.exception_handler(RuleError)
+async def rule_error_handler(_request: Request, error: RuleError) -> JSONResponse:
+    """Lỗi nghiệp vụ của API quản trị luật: JSON ``{"error": {"code", "message"}}`` cùng mã HTTP (404/409/422) để backend ánh xạ lại."""
+    return JSONResponse(status_code=error.status, content={"error": {"code": error.code, "message": error.message}})
