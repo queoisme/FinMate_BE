@@ -15,7 +15,7 @@ import structlog
 from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_internal_api_key
-from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_classify_stats, get_gemini_client
+from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client, get_classify_stats
 from app.bill.classify_stats import ClassifyStatsRecorder
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import item_key
@@ -115,7 +115,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
 async def chat_parse(
     body: ChatParseRequest,
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
-    gemini: Annotated[GeminiClient, Depends(get_gemini_client)],
+    gemini: Annotated[GeminiClient, Depends(get_chat_gemini_client)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
     recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
 ) -> ChatParseResponse:

@@ -7,7 +7,7 @@ An toàn:
 - Chỉ gửi CỤM SẢN PHẨM (mô tả đã bỏ số tiền), gộp mọi khoản của một câu vào MỘT lời gọi.
 - Thuốc và đồ sức khỏe không bao giờ gửi ra ngoài (luật quyết).
 - Thu nhập, chuyển tiền và chi cho người khác ("trả nợ cho Nam") không phải sản phẩm nên không gửi.
-- AI lỗi hay chậm quá ``CHAT_AI_TIMEOUT_SECONDS`` thì giữ kết quả của luật: chat không bị giữ lại vì một bên thứ ba.
+- AI lỗi hay chậm quá ``settings.chat_ai_timeout_seconds`` thì giữ kết quả của luật: chat không bị giữ lại vì một bên thứ ba.
 Không log nội dung câu hay kết quả.
 """
 
@@ -22,6 +22,7 @@ from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
 from app.bill.knowledge import BillKnowledge
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
+from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
 from app.schemas.bill import ClassifyItemIn
 from app.services.category_resolver import resolve
@@ -29,7 +30,6 @@ from app.services.transaction_parser import ChatParse, Entry
 
 logger = structlog.get_logger(__name__)
 
-CHAT_AI_TIMEOUT_SECONDS = 6.0  # chat là hội thoại: quá ngưỡng này thì dùng luật, không bắt người dùng chờ
 
 
 def _backend_slug(category: str | None) -> str | None:
@@ -52,7 +52,7 @@ async def apply_ai_categories(
     instruction: str,
     allow_ai: bool,
     *,
-    timeout: float = CHAT_AI_TIMEOUT_SECONDS,
+    timeout: float | None = None,  # None: lấy từ settings (chat là hội thoại: quá ngưỡng thì dùng luật, không bắt người dùng chờ)
     stats: dict[str, int] | None = None,
 ) -> ChatParse:
     if not allow_ai:
@@ -62,7 +62,7 @@ async def apply_ai_categories(
         return parsed
     items = [ClassifyItemIn(name=parsed.entries[i].description, parent=None) for i in targets]
     try:
-        out, _ = await asyncio.wait_for(classify_items(items, None, knowledge, gemini, instruction, True, stats=stats), timeout)
+        out, _ = await asyncio.wait_for(classify_items(items, None, knowledge, gemini, instruction, True, stats=stats), settings.chat_ai_timeout_seconds if timeout is None else timeout)
     except Exception as error:  # noqa: BLE001 - AI lỗi/chậm: giữ kết quả của luật
         logger.warning("chat_ai_failed", error_type=type(error).__name__)
         if stats is not None:

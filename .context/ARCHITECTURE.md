@@ -306,7 +306,13 @@ chuyển tiền và chi cho người khác không phải sản phẩm nên khôn
 **Đồng ý AI gộp vào Điều khoản (2026-10-17).** Không còn màn hỏi riêng: Điều khoản bản 2 (`ConsentVersions.Terms = 2`) nêu rõ việc gửi tên món / cụm sản phẩm cho Google Gemini hoặc OpenRouter, và
 `ConsentCommandHandler` bật luôn đồng ý AI (`AiConsentVersion = Ai`) khi người dùng đồng ý Điều khoản. Người dùng tắt/bật lại bằng công tắc trong Hồ sơ (`DELETE` / `POST /users/me/consents/ai`). Chủ động tắt được ghi là
 `AiConsentVersion = ConsentVersions.AiOptedOut (0)`, khác `null` (chưa bao giờ quyết định): đồng ý một bản Điều khoản mới sau này KHÔNG bật lại AI cho người đã tắt. Đóng góp dữ liệu huấn luyện (`Training`)
-vẫn là lựa chọn riêng, không bao giờ đi kèm điều khoản. Tắt AI thì chat, giọng nói và quét bill vẫn dùng được, chỉ phân loại bằng luật. Số đếm dùng AI của chat nằm trong `bill_classify_stats` (`chat_ai_*`).
+vẫn là lựa chọn riêng, không bao giờ đi kèm điều khoản. Tắt AI thì chat, giọng nói và quét bill vẫn dùng được, chỉ phân loại bằng luật.
+
+**Gemini cho chat tách khỏi hóa đơn (2026-10-17).** Chat có client riêng (`get_chat_gemini_client`): `gemini-3.1-flash-lite` trước, `gemini-3-flash-preview` dự phòng, không đi OpenRouter, cầu dao riêng
+(hóa đơn tải nặng không làm chat mất AI). Ba trần lồng nhau: mỗi model `CHAT_GEMINI_TIMEOUT_SECONDS=3.5` < cả chuỗi `CHAT_GEMINI_OVERALL_SECONDS=7.5` < bước AI trong chat `CHAT_AI_TIMEOUT_SECONDS=9.0`,
+để chuỗi tự thất bại và mở cầu dao 30 giây (chat dùng luật) TRƯỚC khi bị hủy từ ngoài; nếu bị hủy từ ngoài thì cầu dao không mở và lúc Gemini chậm mọi tin nhắn đều chờ đủ trần.
+Đo 2026-10-17 với khóa Gemini hiện dùng (nhiều khả năng gói miễn phí): `gemini-3-flash-preview` trả 429 cho 30/30 lượt liên tiếp, `3.1-flash-lite` trả 429 ở ~27 lượt/phút (22/30 thành công); độ chính xác trên 64 món có nhãn:
+lite 85% (46/54), model chính 86% (44/51), mẫu nhỏ nên coi là ngang nhau. Nguyên nhân chính của việc chat hay quay về luật là HẠN MỨC của gói, không phải code: cần gói trả phí khi có nhiều người dùng. Số đếm dùng AI của chat nằm trong `bill_classify_stats` (`chat_ai_*`).
 
 **Mã người dùng ra ngoài.** `UserIdHasher.Hash` = SHA-256 của `Guid.ToString()` dạng hex thường; cùng một hàm cho AI Service
 (`user_id_hash`) và ocr-service (`X-User-Hash`), nên một người dùng có cùng mã ở cả hai nơi và cùng khóa trong bảng `bill_*`.

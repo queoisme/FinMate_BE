@@ -78,6 +78,22 @@ def get_classify_stats() -> ClassifyStatsRecorder:
     return _classify_stats
 
 
+# Chat có client riêng: chuỗi model nhanh hơn, trần thời gian chặt hơn, không đi nhà cung cấp dự phòng (OpenRouter), và cầu dao tách biệt với luồng hóa đơn
+# (hóa đơn tải nặng không làm chat mất AI, và ngược lại).
+_chat_gemini = GeminiClient(
+    settings.gemini_api_key,
+    settings.chat_gemini_model,
+    settings.chat_gemini_timeout_seconds,
+    overall_timeout=settings.chat_gemini_overall_seconds,
+    fallback_models=tuple(m.strip() for m in settings.chat_gemini_fallback_models.split(",") if m.strip()),
+)
+
+
+def get_chat_gemini_client() -> GeminiClient:
+    """Gemini cho chat và giọng nói. Test thay bằng bản giả qua ``dependency_overrides``."""
+    return _chat_gemini
+
+
 def get_gemini_client() -> GeminiClient:
     """Một client dùng chung (giữ cache và khóa mạch 30 giây). Test thay bằng bản giả qua ``dependency_overrides``."""
     return _gemini

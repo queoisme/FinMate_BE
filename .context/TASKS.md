@@ -985,3 +985,8 @@ Người dùng chỉ đồng ý MỘT lần (Điều khoản + Chính sách, b�
 - App: màn Điều khoản có thêm đoạn "Phân loại chi tiêu bằng AI" (gửi gì, không gửi gì, bên nhận, tắt ở đâu); xóa `ai_consent_screen.dart` và mọi `ensureAiConsent`; Hồ sơ có công tắc "Phân loại chi tiêu bằng AI" (mặc định bật). Tắt AI thì quét bill/chat/giọng nói vẫn chạy bằng luật.
 - Không đổi: đóng góp dữ liệu huấn luyện vẫn là đồng ý riêng, tắt mặc định.
 - **Câu chữ Điều khoản bản 2 do trợ lý soạn, chủ dự án chưa duyệt; nên có người am hiểu pháp lý xem lại trước khi phát hành.** Cũng nên kiểm tra điều khoản dùng dữ liệu của gói Gemini/OpenRouter đang dùng.
+
+## Phase 31 — Chat dùng Gemini riêng, nhanh và chịu giới hạn (2026-10-17)
+- Client Gemini riêng cho chat/giọng nói (xem ARCHITECTURE): model nhanh trước, trần thời gian lồng nhau (3,5 / 7,5 / 9 giây, cấu hình bằng `CHAT_GEMINI_*` và `CHAT_AI_TIMEOUT_SECONDS`), cầu dao tách khỏi hóa đơn. Hóa đơn giữ chuỗi model cũ.
+- Đo thật: khóa hiện dùng bị 429 dày khi gọi liên tiếp (model chính 30/30, lite 8/30). Việc cần làm tiếp phía vận hành: bật gói trả phí cho Gemini, và thay model dự phòng OpenRouter `:free` bằng model trả phí hoặc bỏ.
+- Ghi chú: `tests/integration/test_rules_admin.py::test_set_brand_active_toggles_and_unknown_is_404` hỏng một lần trong lượt chạy toàn bộ rồi không tái hiện (5 lần chạy sau đều xanh); nghi ngờ phụ thuộc thứ tự thời gian của dòng nhật ký.
