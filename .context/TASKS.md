@@ -978,3 +978,10 @@ Hoàn tất Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` 
 - Backend: `AdminAiRulesController` dưới `AdminOnly`, `AiRulesAdminClient` (HttpClient + khóa nội bộ, băm id admin), `AdminAiRulesService` ghi `audit_logs` (`Admin.AiRule.Changed`) CHỈ khi AI Service chấp nhận. Lỗi 404/409/422 của AI Service giữ nguyên mã và thông điệp, lỗi khác là 503.
 - Chỉ chỉnh được DỮ LIỆU luật: từ điển chat và logic (đọc số tiền/ngày, chọn tên cửa hàng/tổng tiền trên OCR) vẫn nằm trong code; thương hiệu `family`/`education` ánh xạ trong code.
 - Chưa làm: tự chạy bộ đo hồi quy trước khi áp dụng; cảnh báo xung đột "từ khóa là một phần của từ khóa dài hơn ở nhóm khác"; giao diện web; hàng đợi "món bị người dùng sửa nhiều nhất" (cần thu nhãn sửa của người dùng).
+
+## Phase 30 — Gộp đồng ý AI vào Điều khoản (2026-10-17)
+Người dùng chỉ đồng ý MỘT lần (Điều khoản + Chính sách, bản 2), không còn bảng hỏi riêng khi dùng chat, giọng nói hay quét bill.
+- Backend: `ConsentVersions.Terms = 2` (mọi người dùng đồng ý lại bản mới); `ConsentCommandHandler` bật `AiConsentVersion` khi đồng ý Điều khoản, trừ người đã chủ động tắt (`AiOptedOut = 0`). Rút AI ghi `AiOptedOut`. Không cần migration (cột `int?` có sẵn).
+- App: màn Điều khoản có thêm đoạn "Phân loại chi tiêu bằng AI" (gửi gì, không gửi gì, bên nhận, tắt ở đâu); xóa `ai_consent_screen.dart` và mọi `ensureAiConsent`; Hồ sơ có công tắc "Phân loại chi tiêu bằng AI" (mặc định bật). Tắt AI thì quét bill/chat/giọng nói vẫn chạy bằng luật.
+- Không đổi: đóng góp dữ liệu huấn luyện vẫn là đồng ý riêng, tắt mặc định.
+- **Câu chữ Điều khoản bản 2 do trợ lý soạn, chủ dự án chưa duyệt; nên có người am hiểu pháp lý xem lại trước khi phát hành.** Cũng nên kiểm tra điều khoản dùng dữ liệu của gói Gemini/OpenRouter đang dùng.

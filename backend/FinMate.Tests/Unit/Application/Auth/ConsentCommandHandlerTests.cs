@@ -49,14 +49,53 @@ public class ConsentCommandHandlerTests
     }
 
     [Fact]
-    public async Task AcceptTerms_RecordsVersionAndTime_AndLeavesAiAlone()
+    public async Task AcceptTerms_RecordsVersionAndTime_AndTurnsAiOn_BecauseTheTermsTextDisclosesIt()
     {
         var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
 
         dto.TermsAccepted.Should().BeTrue();
-        dto.AiConsentGranted.Should().BeFalse();
+        dto.AiConsentGranted.Should().BeTrue();
+        dto.TrainingConsentGranted.Should().BeFalse("đóng góp dữ liệu huấn luyện không bao giờ đi kèm điều khoản");
         _user.TermsVersion.Should().Be(ConsentVersions.Terms);
         _user.TermsAcceptedAt.Should().NotBeNull();
+        _user.AiConsentVersion.Should().Be(ConsentVersions.Ai);
+        _user.AiConsentAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AcceptTerms_UpgradesAnOutdatedAiConsent_ToTheCurrentVersion()
+    {
+        _user.AiConsentVersion = ConsentVersions.Ai - 1;  // đã từng đồng ý bản cũ
+
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+
+        dto.AiConsentGranted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AcceptTerms_NeverTurnsAiBackOn_ForSomeoneWhoSwitchedItOff()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
+
+        // Điều khoản đổi phiên bản sau này: người đã chủ động tắt AI không bị bật lại ngầm
+        _user.TermsVersion = ConsentVersions.Terms - 1;
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+
+        dto.TermsAccepted.Should().BeTrue();
+        dto.AiConsentGranted.Should().BeFalse();
+        _user.AiConsentVersion.Should().Be(ConsentVersions.AiOptedOut);
+    }
+
+    [Fact]
+    public async Task AcceptAi_AfterSwitchingItOff_TurnsItBackOn()
+    {
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
+
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
+
+        dto.AiConsentGranted.Should().BeTrue();
     }
 
     [Fact]
@@ -106,7 +145,7 @@ public class ConsentCommandHandlerTests
 
         dto.AiConsentGranted.Should().BeFalse();
         dto.TermsAccepted.Should().BeTrue();
-        _user.AiConsentVersion.Should().BeNull();
+        _user.AiConsentVersion.Should().Be(ConsentVersions.AiOptedOut, "ghi nhận là chủ động tắt, khác với chưa bao giờ quyết định");
         _user.AiConsentAt.Should().BeNull();
     }
 

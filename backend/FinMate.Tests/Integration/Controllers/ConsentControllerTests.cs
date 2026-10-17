@@ -72,10 +72,8 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
         (await AcceptAsync(token, "terms", ConsentVersions.Terms)).StatusCode.Should().Be(HttpStatusCode.OK);
         var afterTerms = await ProfileAsync(token);
         afterTerms.TermsAccepted.Should().BeTrue("phải được lưu, không chỉ trả lại trong response");
-        afterTerms.AiConsentGranted.Should().BeFalse();
-
-        (await AcceptAsync(token, "ai", ConsentVersions.Ai)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await ProfileAsync(token)).AiConsentGranted.Should().BeTrue();
+        afterTerms.AiConsentGranted.Should().BeTrue("điều khoản chung đã nêu việc gửi tên món cho AI nên một lần đồng ý là đủ");
+        afterTerms.TrainingConsentGranted.Should().BeFalse("đóng góp dữ liệu huấn luyện luôn là lựa chọn riêng");
 
         // Đổi tên không được đụng tới đồng ý.
         (await SendAsync(token, HttpMethod.Patch, "/api/v1/users/me", new { displayName = "Renamed" })).EnsureSuccessStatusCode();
@@ -85,6 +83,23 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
         var withdrawn = await ProfileAsync(token);
         withdrawn.AiConsentGranted.Should().BeFalse();
         withdrawn.TermsAccepted.Should().BeTrue();
+
+        // Bật lại bằng công tắc trong Hồ sơ
+        (await AcceptAsync(token, "ai", ConsentVersions.Ai)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ProfileAsync(token)).AiConsentGranted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TermsOfAnOlderVersion_AreRefused_SoAnOldAppCannotAgreeToTheNewText()
+    {
+        var token = await RegisterAndLoginAsync();
+
+        var response = await AcceptAsync(token, "terms", ConsentVersions.Terms - 1);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var profile = await ProfileAsync(token);
+        profile.TermsAccepted.Should().BeFalse();
+        profile.AiConsentGranted.Should().BeFalse();
     }
 
     [Fact]

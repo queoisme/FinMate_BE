@@ -34,8 +34,9 @@ public class User
     public DateTimeOffset? TermsAcceptedAt { get; set; }
 
     /// <summary>
-    /// Phiên bản đồng ý gửi TÊN MÓN trên hoá đơn cho AI bên thứ ba, và lúc đồng ý. NULL = chưa đồng ý hoặc đã rút lại: không có
-    /// đồng ý rõ ràng thì không chia sẻ. Chỉ chính chủ đổi được, qua POST/DELETE /users/me/consents.
+    /// Phiên bản đồng ý gửi TÊN MÓN / cụm sản phẩm cho AI bên thứ ba, và lúc đồng ý. Được bật khi đồng ý Điều khoản (điều khoản đã nêu việc này) hoặc bằng công tắc
+    /// trong Hồ sơ. NULL = chưa bao giờ quyết định; <see cref="ConsentVersions.AiOptedOut"/> = chủ động tắt (đồng ý điều khoản mới không bật lại).
+    /// Không có đồng ý đúng phiên bản thì không chia sẻ. Chỉ chính chủ đổi được, qua POST/DELETE /users/me/consents.
     /// </summary>
     public int? AiConsentVersion { get; set; }
     public DateTimeOffset? AiConsentAt { get; set; }

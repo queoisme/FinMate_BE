@@ -42,6 +42,13 @@ public class ConsentCommandHandler : IConsentCommandHandler
             case ConsentKind.Terms:
                 user.TermsVersion = current;
                 user.TermsAcceptedAt = now;
+                // Điều khoản đã nêu việc gửi tên món cho AI nên một lần đồng ý là đủ; trừ người đã chủ động tắt AI thì giữ nguyên lựa chọn của họ.
+                if (user.AiConsentVersion != ConsentVersions.AiOptedOut)
+                {
+                    user.AiConsentVersion = ConsentVersions.Ai;
+                    user.AiConsentAt = now;
+                }
+
                 break;
             case ConsentKind.Ai:
                 user.AiConsentVersion = current;
@@ -71,7 +78,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
         var user = await LoadAsync(userId, ct);
         if (kind == ConsentKind.Ai)
         {
-            user.AiConsentVersion = null;
+            user.AiConsentVersion = ConsentVersions.AiOptedOut;  // ghi nhận là chủ động tắt, không phải "chưa quyết định"
             user.AiConsentAt = null;
         }
         else

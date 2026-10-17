@@ -303,7 +303,10 @@ từ DB mỗi lần (qua `IAiConsentReader`, để handler "chỉ hiểu câu" v
 gửi CỤM SẢN PHẨM (mô tả đã bỏ số tiền, mọi khoản của một câu trong một lời gọi) qua `classify_items`: bộ nhớ, rồi Gemini, luật dự phòng. Thuốc/đồ y tế không bao giờ gửi; thu nhập,
 chuyển tiền và chi cho người khác không phải sản phẩm nên không gửi. AI khác luật thì không bao giờ tự lưu (`auto_save_ok = false`); trùng luật giữ "ghi nhanh". AI lỗi hoặc quá
 6 giây thì giữ kết quả của luật. Không đồng ý thì không gửi gì (chỉ đọc bộ nhớ gợi ý). Câu chữ đồng ý AI phiên bản 3 nêu rõ chat và giọng nói; các đồng ý bản cũ ngừng có hiệu lực.
-App hỏi đồng ý MỘT lần khi gửi tin nhắn hoặc giọng nói đầu tiên; "Để sau" vẫn chat được bằng luật. Số đếm dùng AI của chat nằm trong `bill_classify_stats` (`chat_ai_*`).
+**Đồng ý AI gộp vào Điều khoản (2026-10-17).** Không còn màn hỏi riêng: Điều khoản bản 2 (`ConsentVersions.Terms = 2`) nêu rõ việc gửi tên món / cụm sản phẩm cho Google Gemini hoặc OpenRouter, và
+`ConsentCommandHandler` bật luôn đồng ý AI (`AiConsentVersion = Ai`) khi người dùng đồng ý Điều khoản. Người dùng tắt/bật lại bằng công tắc trong Hồ sơ (`DELETE` / `POST /users/me/consents/ai`). Chủ động tắt được ghi là
+`AiConsentVersion = ConsentVersions.AiOptedOut (0)`, khác `null` (chưa bao giờ quyết định): đồng ý một bản Điều khoản mới sau này KHÔNG bật lại AI cho người đã tắt. Đóng góp dữ liệu huấn luyện (`Training`)
+vẫn là lựa chọn riêng, không bao giờ đi kèm điều khoản. Tắt AI thì chat, giọng nói và quét bill vẫn dùng được, chỉ phân loại bằng luật. Số đếm dùng AI của chat nằm trong `bill_classify_stats` (`chat_ai_*`).
 
 **Mã người dùng ra ngoài.** `UserIdHasher.Hash` = SHA-256 của `Guid.ToString()` dạng hex thường; cùng một hàm cho AI Service
 (`user_id_hash`) và ocr-service (`X-User-Hash`), nên một người dùng có cùng mã ở cả hai nơi và cùng khóa trong bảng `bill_*`.
@@ -615,7 +618,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
   số tiền của chính người dùng trong ±3 giờ. Chỉ để cảnh báo. Ảnh chụp **màn hình danh sách đơn** (ví dụ "Đơn đã mua" của Shopee, ocr-service `screen_type = order_list`)
   trả thêm `orders: [{merchantName, amountCents, description, categorySlug}]` (≥ 2 đơn, mỗi đơn phân loại theo cửa hàng + sản phẩm của nó, lỗi thì giữ nhóm OCR đoán) và
   `incompleteOrders` (số đơn bị cắt dở); `amountCents` cấp trên vẫn là đơn đầu. App hiện mỗi đơn một thẻ nháp, lưu độc lập (không `receiptScanId`). `POST /api/v1/transactions` nhận thêm `receiptGroup` (cùng `receiptScanId`);
-  Đồng ý của người dùng ghi qua `POST /api/v1/users/me/consents` (`{kind: terms|ai, version}`, 409 `AUTH_CONSENT_VERSION_OUTDATED` nếu app hiển thị câu chữ khác phiên bản hiện hành) và rút lại AI qua `DELETE /api/v1/users/me/consents/ai`; hồ sơ trả `termsAccepted` và `aiConsentGranted`. `PATCH /users/me` không còn đổi được đồng ý.
+  Đồng ý của người dùng ghi qua `POST /api/v1/users/me/consents` (`{kind: terms|ai, version}`, 409 `AUTH_CONSENT_VERSION_OUTDATED` nếu app hiển thị câu chữ khác phiên bản hiện hành) và rút lại AI qua `DELETE /api/v1/users/me/consents/ai` (đồng ý `terms` ở bản hiện hành cũng bật AI, xem phần "Đồng ý AI gộp vào Điều khoản"); hồ sơ trả `termsAccepted` và `aiConsentGranted`. `PATCH /users/me` không còn đổi được đồng ý.
 
 **Chat (Backend → AI Service) — thêm Phase 19–20, ghi vào tài liệu 2026-10-11:**
 ```json

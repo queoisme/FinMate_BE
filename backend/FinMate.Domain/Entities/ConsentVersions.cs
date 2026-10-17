@@ -6,8 +6,17 @@ namespace FinMate.Domain.Entities;
 /// </summary>
 public static class ConsentVersions
 {
-    /// <summary>Điều khoản sử dụng + Chính sách quyền riêng tư.</summary>
-    public const int Terms = 1;
+    /// <summary>
+    /// Điều khoản sử dụng + Chính sách quyền riêng tư. Bản 2: nêu rõ việc gửi tên món / cụm sản phẩm cho dịch vụ AI bên thứ ba, nên đồng ý bản này
+    /// cũng bật phân loại bằng AI (người dùng không bị hỏi thêm; có thể tắt trong Hồ sơ). Đồng ý đóng góp dữ liệu huấn luyện thì KHÔNG đi kèm.
+    /// </summary>
+    public const int Terms = 2;
+
+    /// <summary>
+    /// Giá trị của <c>AiConsentVersion</c> khi người dùng CHỦ ĐỘNG tắt AI trong Hồ sơ. Khác với <c>null</c> (chưa bao giờ quyết định): đồng ý điều khoản mới
+    /// không được bật lại AI cho người đã tắt.
+    /// </summary>
+    public const int AiOptedOut = 0;
 
     /// <summary>Gửi TÊN MÓN trên hoá đơn và CỤM SẢN PHẨM trong tin nhắn/giọng nói (đã bỏ số tiền) cho dịch vụ AI bên thứ ba (Google Gemini; dự phòng OpenRouter) để phân loại. Bản 2: thêm OpenRouter. Bản 3: thêm chat và giọng nói.</summary>
     public const int Ai = 3;
