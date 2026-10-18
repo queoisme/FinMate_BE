@@ -47,6 +47,6 @@ Kết quả (v5 -> v6), Rasa thô / sau luật của `transaction_parser` (cùng
 | tổng hợp v2 (315) | 80,6 -> 93,0% | 46 -> 16 | 93,7 -> 96,2% | 8 -> 5 |
 
 Không ca nào bị tự lưu sai (`auto_save_ok`) ở cả hai model. Chỉ tiêu cần theo dõi là cột cuối (cộng gộp 1,9% trên 585 câu), do luật đã chặn phần lớn lỗi thô của Rasa.
-Chưa hết: ở bộ mới Rasa thô vẫn sai mà tự tin 12% (khung câu lạ như "tốn 40k cho cơm chiên"); lỗi còn lại sau luật chủ yếu là "2 củ" bị đọc thiếu tiền và câu xã giao có chữ "bao nhiêu" bị hiểu là câu hỏi chi tiêu (luật, không phải Rasa).
+Chưa hết: ở bộ mới Rasa thô vẫn sai mà tự tin 12% (khung câu lạ như "tốn 40k cho cơm chiên"). Hai lỗi còn lại sau luật không phải của Rasa và đã sửa trong `transaction_parser`/`amount_slang`: "rút 1 củ từ ví" mất số tiền ("từ" bị coi là củ từ khoai môn) và "bạn bao nhiêu tuổi" bị hiểu là câu hỏi chi tiêu. Sau sửa: sai mà không nhắc xem lại 0,9% (585 câu), đúng sau luật 100% / 92,5% / 98,4% / 97,1% (viết tay / mới / ngoài chủ đề / tổng hợp).
 
 Huấn luyện lại model mới rồi đo: `python scripts/scorecard.py --only rasa` (từ gốc repo). Model nằm ngoài git: sau khi huấn luyện đặt tên `finmate-nlu-vN` và sửa `docker-compose.yml`.
