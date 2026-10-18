@@ -56,3 +56,17 @@ class TestSmallTalkIsNotASpendingQuestion:
     @pytest.mark.parametrize("text", ["tháng này tôi tiêu bao nhiêu", "còn bao nhiêu tiền", "tổng chi tuần trước"])
     def test_real_spending_questions_without_rasa(self, text):
         assert parse_chat(text, None, now=NOW).intent == "ask_spending"
+
+
+class TestDisagreementNeverAutoSaves:
+    """Rasa chắc 1,0 và thắng luật khi bất đồng loại giao dịch; nhưng luật vừa bất đồng thì không được ghi thẳng không hỏi."""
+
+    def test_wallet_topup_misread_as_expense_is_not_auto_saved(self):
+        parsed = parse_chat("nạp 400k vào ví grab", rasa("add_expense"), now=NOW, auto_save_below=500_000)
+        assert parsed.unclear_reason == "disagree"
+        assert parsed.entry.auto_save_ok is False
+
+    def test_agreement_still_auto_saves(self):
+        parsed = parse_chat("ăn phở 45k", rasa("add_expense"), now=NOW, auto_save_below=500_000)
+        assert parsed.unclear_reason is None
+        assert parsed.entry.auto_save_ok is True

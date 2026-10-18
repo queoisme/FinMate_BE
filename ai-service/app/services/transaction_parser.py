@@ -401,8 +401,8 @@ def parse_chat(
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
-        if skipped or suspicious or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
-            entry = replace(entry, auto_save_ok=False)
+        if skipped or suspicious or reason == "disagree" or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
+            entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng ("nạp 400k vào ví grab")
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         return result(intent, query=_query(norm, now), unclear_reason=reason)
