@@ -1,5 +1,9 @@
 # Đánh giá luồng chat và phân loại món
 
+> **Bảng điểm toàn hệ thống** (chatbot + Rasa, Speech, OCR, một lệnh): `python scripts/scorecard.py` → `docs/scorecard.md`.
+> Mỗi phép đo chạy trong container của service tương ứng (cần `docker compose up`). `--skip ocr` để bỏ phần chậm nhất, `--ai` để đo thêm Gemini thật.
+> Phần dưới là số đo riêng của lớp luật chat/món ngày 2026-10-12.
+
 Bộ kiểm thử cố định: `ai-service/tests/fixtures/eval/{chat_cases,item_cases}.jsonl` (63 câu chat, 72 món). Chạy: `python scripts/eval_flows.py`.
 Chỉ đo lớp luật/từ điển (không Rasa, không DB, Gemini luôn trả "unknown"). Nhãn kỳ vọng viết trước khi sửa luật; không được sửa nhãn để qua.
 
