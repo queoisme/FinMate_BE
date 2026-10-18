@@ -47,6 +47,7 @@ _TO_OTHERS = re.compile(r"(?<![a-z])(?:cho|tra no|dao no|bieu|tang)(?![a-z])")
 _BALANCE_Q = re.compile(r"con lai|tiet kiem duoc|thu chi|chenh lech|du bao nhieu|so du")
 _INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
 _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
+_AMBIGUOUS_SEND = re.compile(r"(?<![a-z])gui(?! xe)(?![a-z])")  # "gửi tiền": gửi đi hay được gửi cho ("bạn ở ghép gửi tiền trọ" là tiền vào); "gửi xe" thì chắc chắn là chi
 _MONEY_WORD = re.compile(r"(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])")  # câu hỏi chi tiêu phải nhắc tới tiền
 # "bao nhiêu" + đơn vị không phải tiền là câu xã giao ("bạn bao nhiêu tuổi", "cao bao nhiêu mét"), không phải hỏi tổng chi tiêu.
 _QUERY = re.compile(r"bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
@@ -403,7 +404,7 @@ def parse_chat(
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
-        if skipped or suspicious or reason == "disagree" or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
+        if skipped or suspicious or reason == "disagree" or _AMBIGUOUS_SEND.search(norm) or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
             entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng ("nạp 400k vào ví grab")
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":

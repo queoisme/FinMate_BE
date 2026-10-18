@@ -95,3 +95,16 @@ class TestGapsRasaOverconfidenceExposed:
     def test_paying_someone_salary_is_not_income(self):
         assert parse_chat("tra tien luong nhan vien 5 trieu", None, now=NOW).intent == "add_expense"
 
+
+class TestAmbiguousSendNeverAutoSaves:
+    """"gửi tiền" mơ hồ chiều tiền ("bạn ở ghép gửi tiền trọ 1tr2" là tiền vào): chưa chắc thì hỏi, không ghi thẳng."""
+
+    @pytest.mark.parametrize("text", ["bạn ở ghép gửi tiền trọ 1tr2", "gửi tiền điện 500k", "ban o ghep gui tien tro 1tr2"])
+    def test_gui_is_never_auto_saved(self, text):
+        parsed = parse_chat(text, rasa("add_expense"), now=NOW, auto_save_below=2_000_000)
+        assert parsed.entry.auto_save_ok is False
+
+    def test_gui_xe_is_still_auto_saved(self):
+        parsed = parse_chat("gửi xe 5k", rasa("add_expense"), now=NOW, auto_save_below=2_000_000)
+        assert parsed.entry.auto_save_ok is True
+
