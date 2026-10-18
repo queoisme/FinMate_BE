@@ -107,7 +107,7 @@ services:
   # Huấn luyện lại:  docker compose run --rm rasa train nlu --nlu data --config config.yml --domain domain.yml --out models --fixed-model-name finmate-nlu-v3
   rasa:
     image: rasa/rasa:3.6.21
-    command: ["run", "--enable-api", "-m", "models/finmate-nlu-v6.tar.gz", "--port", "5005"]
+    command: ["run", "--enable-api", "-m", "models/finmate-nlu-v8.tar.gz", "--port", "5005"]
     restart: unless-stopped
     volumes:
       - ./ai-service/rasa/models:/app/models

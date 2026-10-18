@@ -13,6 +13,7 @@ pipeline:
     max_ngram: 4
   - name: DIETClassifier
     epochs: 100
+    random_seed: 1  # cố định để huấn luyện lại ra đúng model (kết quả dao động vài điểm giữa các seed)
     constrain_similarities: true
   - name: EntitySynonymMapper
   - name: FallbackClassifier

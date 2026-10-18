@@ -136,6 +136,7 @@ def chat_live(with_ai: bool):
 RASA_SETS = {  # tên file -> (nhãn, ngưỡng độ chính xác ý định)
     "nlu_test": ("câu viết tay", 0.90),
     "nlu_test_fresh": ("viết tay, món chưa từng thấy", 0.85),
+    "nlu_test_fresh2": ("viết tay, khung câu chưa từng thấy", 0.85),
     "nlu_test_massive_oos": ("ngoài chủ đề (MASSIVE)", 0.90),
     "nlu_test_v2": ("tổng hợp, nhiều biến thể", 0.80),
 }
@@ -259,7 +260,7 @@ BLOCKS = {  # khóa -> (nhóm, tiêu đề, hàm, độ tin cậy)
     "chat_live": ("Chatbot", "Chat qua endpoint thật (Rasa đang chạy)", None,
                   "Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần Rasa gây ra."),
     "rasa": ("Chatbot", "Rasa NLU (ý định + số tiền)", rasa,
-             "Bộ 'viết tay, món chưa từng thấy' (nlu_test_fresh) là bộ độc lập nhất: viết sau khi chốt dữ liệu học, không được đưa vào data/. "
+             "Hai bộ viết tay 'món chưa từng thấy' (nlu_test_fresh) và 'khung câu chưa từng thấy' (nlu_test_fresh2) là bộ độc lập nhất: không được đưa vào data/ (generate_nlu.py chặn). "
              "Bộ 'tổng hợp' do máy sinh, món và mẫu câu tách khỏi bộ học nhưng cùng 'họ' (nạp thẻ, trả tiền...), nên lạc quan hơn. "
              "'Sau luật' là thứ người dùng thấy; 'Rasa thô' chỉ để theo dõi model."),
     "voice_text": ("Speech", "Giọng nói, phần chữ → số tiền/loại/danh mục", voice_text,

@@ -6,7 +6,7 @@ Rasa tắt thì `ai-service` vẫn trả lời bằng luật (cầu dao 30 giây
 
 - `config.yml`, `domain.yml`, `data/nlu.yml`: DIET 100 epoch, 10 ý định (add_expense, add_income, transfer_money, ask_spending,
   greet, goodbye, confirm, deny, cancel, out_of_scope), thực thể `amount` và `merchant`. `rules.yml`/`stories.yml` chưa dùng.
-- `tests/nlu_test.yml`: 74 câu giữ riêng để đo. Model đang chạy `finmate-nlu-v6` (compose): 97,3% ý định trên bộ này (v3 từng 93,2%).
+- `tests/nlu_test.yml`: 74 câu giữ riêng để đo. Model đang chạy `finmate-nlu-v8` (compose): 97,3% ý định trên bộ này (v3 từng 93,2%).
 - `models/`: model đã huấn luyện, không nằm trong git.
 
 Đo lại sau khi sửa dữ liệu:
@@ -50,3 +50,33 @@ Không ca nào bị tự lưu sai (`auto_save_ok`) ở cả hai model. Chỉ ti�
 Chưa hết: ở bộ mới Rasa thô vẫn sai mà tự tin 12% (khung câu lạ như "tốn 40k cho cơm chiên"). Hai lỗi còn lại sau luật không phải của Rasa và đã sửa trong `transaction_parser`/`amount_slang`: "rút 1 củ từ ví" mất số tiền ("từ" bị coi là củ từ khoai môn) và "bạn bao nhiêu tuổi" bị hiểu là câu hỏi chi tiêu. Sau sửa: sai mà không nhắc xem lại 0,9% (585 câu), đúng sau luật 100% / 92,5% / 98,4% / 97,1% (viết tay / mới / ngoài chủ đề / tổng hợp).
 
 Huấn luyện lại model mới rồi đo: `python scripts/scorecard.py --only rasa` (từ gốc repo). Model nằm ngoài git: sau khi huấn luyện đặt tên `finmate-nlu-vN` và sửa `docker-compose.yml`.
+
+## Khung câu lạ (2026-10-19): v6 -> v8
+
+Sau đợt trước Rasa thô vẫn sai mà chắc tới 12-15% ở câu có khung/món chưa từng thấy ("tốn 40k cho cơm chiên", "thẻ gym tháng 500k", "nạp 400k vào ví grab").
+
+- Bộ test mới **`tests/nlu_test_fresh2.yml`** (72 câu viết tay, nhiều khung câu: tiền đứng đầu, từ đệm, đảo trật tự, không dấu, câu ngoài chủ đề có chữ tiền). Viết TRƯỚC khi đổi dữ liệu.
+  Cùng với `nlu_test_fresh.yml`, KHÔNG được đưa vào `data/`. `generate_nlu.py` giờ dừng nếu bộ học chứa câu của bất kỳ bộ test viết tay nào
+  (bắt được một rò rỉ có từ trước: "nên mua nhà hay thuê nhà" nằm cả trong bộ học lẫn `nlu_test.yml`; đã bỏ khỏi bộ học).
+- Dữ liệu sinh đợt 3: ~25 khung chi tiêu mới (tiền đứng đầu, "hết X cho Y", "Y tháng này X", "Y X nhé/luôn", cụm chưa có số tiền như "đi ăn"), ~100 danh từ/khoản định kỳ,
+  thu nhập kiểu "dì út gửi", nạp vào ví khác MoMo ("nạp X vào ví lazada"), "rút tiền X", ngoài chủ đề có chữ tiền ("đổi X sang yên"). Bộ học 1.141 -> 1.649 câu.
+- `config.yml` cố định `random_seed: 1`: huấn luyện lại ra đúng model. Giữa các seed kết quả lệch 1-4 điểm, nên đã so hai seed mỗi biến thể trước khi chọn.
+- Một biến thể thiếu "rút tiền X" và cụm ngắn làm hỏng hai câu của bộ chat chính ("rút tiền 500k" thành thu nhập, "đi ăn" thành xác nhận): đã thêm hai họ đó vào bộ học.
+
+| Bộ | Rasa thô đúng (v6 -> v8) | Sai mà chắc >= 0,8 | Đúng sau luật |
+|---|---|---|---|
+| viết tay (74) | 97,3 -> 97,3% | 1 -> 2 | 100 -> 98,6% |
+| món chưa từng thấy (67) | 86,6 -> 92,5% | 8 -> 5 | 92,5 -> 94,0% |
+| khung câu chưa từng thấy (72) | 84,7 -> 93,1% | 11 -> 4 | 84,7 -> 91,7% |
+| ngoài chủ đề (129) | 97,7 -> 96,1% | 3 -> 1 | 98,4 -> 97,7% |
+| tổng hợp v2 (315) | 93,0 -> 91,7% | 16 -> 21 | 97,1 -> 94,9% |
+
+Thắng rõ ở khung/món chưa từng thấy (mục tiêu), kém nhẹ ở bộ v2 máy sinh và vài câu viết tay: v8 không phải tốt hơn ở mọi chỗ.
+
+Chốt chặn phía luật (`transaction_parser`), vì model không bao giờ hết sai mà chắc:
+- Luật và Rasa bất đồng loại giao dịch (kể cả khi Rasa chắc 1,0 và thắng) thì **không tự lưu** ("nạp 400k vào ví grab" từng bị ghi thẳng thành chi tiêu).
+- Câu có "gửi" (trừ "gửi xe") không tự lưu vì mơ hồ chiều tiền ("bạn ở ghép gửi tiền trọ" là tiền vào).
+- "tổng tiền" là câu hỏi tổng; "tien luong" không dấu là thu nhập; Rasa ép câu hỏi tổng thành khoản chi thì dùng luật.
+
+Kết quả sản phẩm (657 câu qua `/chat/parse`): sai mà không được nhắc xem lại 1,2%, **tự lưu sai 0** (trước đó 1). Còn lại chủ yếu là câu mơ hồ ("xóa dữ liệu", "uống nước mía khoảng 2 lít 5")
+và vài câu Rasa chắc 1,0 mà luật không có dấu hiệu phản đối ("tiền lãi tiết kiệm 85k" bị hiểu là chi tiêu). Khoản chi tự lưu có ngưỡng 2 triệu (`chat_auto_save_below`) và hoàn tác được.
