@@ -70,3 +70,28 @@ class TestDisagreementNeverAutoSaves:
         parsed = parse_chat("ăn phở 45k", rasa("add_expense"), now=NOW, auto_save_below=500_000)
         assert parsed.unclear_reason is None
         assert parsed.entry.auto_save_ok is True
+
+
+class TestGapsRasaOverconfidenceExposed:
+    """Rasa chắc ~1,0 nhưng sai ở khung câu chưa thấy; luật phải đỡ được."""
+
+    @pytest.mark.parametrize("text", ["tính giúp tổng tiền tuần trước", "tinh giup tong tien 3 ngay qua", "tổng tiền sáng nay"])
+    def test_total_money_question_is_a_spending_query(self, text):
+        assert parse_chat(text, rasa("add_expense"), now=NOW).intent == "ask_spending"
+        assert parse_chat(text, None, now=NOW).intent == "ask_spending"
+
+    def test_total_marker_with_an_amount_is_still_an_expense(self):
+        assert parse_chat("ăn trưa 50k tổng tiền 50k", None, now=NOW).intent == "add_expense"
+
+    def test_unaccented_salary_is_income_for_rules_and_unsure_rasa(self):
+        assert parse_chat("95.000 tien luong ve", None, now=NOW).intent == "add_income"
+        assert parse_chat("95.000 tien luong ve", rasa("add_expense", 0.9), now=NOW).intent == "add_income"
+
+    def test_unaccented_salary_with_saturated_rasa_is_flagged_not_silent(self):
+        parsed = parse_chat("95.000 tien luong ve", rasa("add_expense", 0.997), now=NOW, auto_save_below=500_000)
+        assert parsed.unclear_reason == "disagree"
+        assert parsed.entry.auto_save_ok is False
+
+    def test_paying_someone_salary_is_not_income(self):
+        assert parse_chat("tra tien luong nhan vien 5 trieu", None, now=NOW).intent == "add_expense"
+

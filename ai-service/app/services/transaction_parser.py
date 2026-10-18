@@ -38,7 +38,7 @@ _PERIODS = (("hom nay", "hôm nay"), ("hom qua", "hôm qua"), ("tuan nay", "tu�
 
 # Dấu hiệu loại giao dịch. Các từ dễ nhầm khi bỏ dấu ("thưởng" / "thường") được khớp trên câu CÓ dấu.
 _INCOME_ACCENTED = re.compile(r"nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:mẹ|bố|ba|cô|chú|dì|bác|anh|em|sếp|khách)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm|khách trả|bán (?:được|đồ|xe|điện thoại|hàng)")
-_INCOME_PLAIN = re.compile(r"(?<![a-z])(?:nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|khach tra|ban duoc|ban do|ban xe|freelance)(?![a-z])")
+_INCOME_PLAIN = re.compile(r"(?<![a-z])(?:nhan luong|(?<!tra )tien luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|khach tra|ban duoc|ban do|ban xe|freelance)(?![a-z])")
 _RECEIVED = re.compile(r"nhan (?:luong|tien|thuong)|duoc (?:cho|tang)")  # chắc chắn là tiền vào dù câu có chữ "chuyển"
 _NOT_INCOME = re.compile(r"(?<![a-z])(?:tra|phat|ung) (?:luong|cong|thuong)(?![a-z])")  # "trả lương nhân viên" là tiền ra
 _TRANSFER_CUE = re.compile(r"(?<![a-z])(?:chuyen khoan|chuyen tien|chuyen|rut|nap(?: tien)?(?: \S+){0,3} vao|gui tiet kiem|tra no|dao no)(?![a-z])")  # "nạp 300k vào momo": số tiền nằm giữa
@@ -49,7 +49,7 @@ _INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
 _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
 _MONEY_WORD = re.compile(r"(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])")  # câu hỏi chi tiêu phải nhắc tới tiền
 # "bao nhiêu" + đơn vị không phải tiền là câu xã giao ("bạn bao nhiêu tuổi", "cao bao nhiêu mét"), không phải hỏi tổng chi tiêu.
-_QUERY = re.compile(r"bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
+_QUERY = re.compile(r"bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
 
 # Số tiền còn sót trong mô tả (kể cả dính dấu phẩy: "20k,30k"). Không tính "lít" vì "mua 2 lít sữa 50k" là số lượng.
 _PERCENT = re.compile(r"phan\s+tram|%")
@@ -223,6 +223,8 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
     if not nlu:
         return rule
     name = nlu["intent"]
+    if name in _ENTRY_INTENTS and rule == "ask_spending":
+        return rule  # luật chỉ ra ask_spending khi câu KHÔNG có số tiền mà có từ hỏi tổng ("tính giúp tổng tiền tuần trước"); Rasa ép thành khoản chi thì chỉ hỏi lại số tiền
     if name == "ask_spending" and not is_query(norm) and not _MONEY_WORD.search(norm):
         return rule  # Rasa quá tự tin với câu xã giao ("bạn bao nhiêu tuổi", "ô tô ở đâu rồi"): không có từ hỏi lẫn từ về tiền thì không phải hỏi chi tiêu
     if name == "out_of_scope" and rule in _ENTRY_INTENTS and nlu["confidence"] < OUT_OF_SCOPE_OVERRIDE:
