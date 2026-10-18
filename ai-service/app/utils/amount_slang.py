@@ -23,6 +23,8 @@ class SlangUnit:
     vnd: int
     not_followed_by: tuple[str, ...]
     not_with_context: tuple[str, ...]
+    # Mẫu regex khớp ở ĐẦU phần câu đứng sau từ lóng: cho trường hợp một từ đơn không đủ ("củ từ" là khoai môn, nhưng "1 củ từ ví" là 1 triệu rút từ ví).
+    not_followed_by_pattern: tuple[re.Pattern[str], ...] = ()
 
 
 def _load() -> dict[str, SlangUnit]:
@@ -34,6 +36,7 @@ def _load() -> dict[str, SlangUnit]:
                 vnd=int(entry["vnd"]),
                 not_followed_by=tuple(w.lower() for w in entry.get("not_followed_by", [])),
                 not_with_context=tuple(w.lower() for w in entry.get("not_with_context", [])),
+                not_followed_by_pattern=tuple(re.compile(p) for p in entry.get("not_followed_by_pattern", [])),
             )
     return units
 
@@ -46,6 +49,8 @@ def is_money(word: str, text: str, end: int) -> bool:
     unit = SLANG[word.lower()]
     lowered = text.lower()
     if any(context in lowered for context in unit.not_with_context):
+        return False
+    if any(pattern.match(lowered[end:].lstrip()) for pattern in unit.not_followed_by_pattern):
         return False
     following = lowered[end:].split()
     return not (following and following[0].strip(".,;:!?") in unit.not_followed_by)

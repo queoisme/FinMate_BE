@@ -1,10 +1,11 @@
 {
-  "_doc": "Từ lóng chỉ tiền. Sửa file này để đổi giá trị hoặc thêm từ, không cần đụng code. vnd = số đồng mà MỘT đơn vị đó bằng. not_followed_by: nếu từ đứng ngay sau là một trong các từ này thì đó không phải tiền (2 củ cải). not_with_context: nếu câu có từ nào trong danh sách thì bỏ qua (đổ 2 lít xăng là 2 lít, không phải 200k). Khớp trên chữ CÓ DẤU, xem ghi chú ở number_words.py.",
+  "_doc": "Từ lóng chỉ tiền. Sửa file này để đổi giá trị hoặc thêm từ, không cần đụng code. vnd = số đồng mà MỘT đơn vị đó bằng. not_followed_by: nếu từ đứng ngay sau là một trong các từ này thì đó không phải tiền (2 củ cải). not_followed_by_pattern: regex khớp ở đầu phần câu sau từ lóng, cho trường hợp một từ đơn không đủ (củ từ là khoai môn nhưng 1 củ từ ví là tiền). not_with_context: nếu câu có từ nào trong danh sách thì bỏ qua (đổ 2 lít xăng là 2 lít, không phải 200k). Khớp trên chữ CÓ DẤU, xem ghi chú ở number_words.py.",
   "units": [
     {
       "words": ["củ"],
       "vnd": 1000000,
-      "not_followed_by": ["cải", "hành", "tỏi", "khoai", "gừng", "riềng", "nghệ", "sen", "từ", "mì", "đậu", "sắn", "dền", "cà"],
+      "not_followed_by": ["cải", "hành", "tỏi", "khoai", "gừng", "riềng", "nghệ", "sen", "mì", "đậu", "sắn", "dền", "cà"],
+      "not_followed_by_pattern": ["từ[\\s.,;:!?]*$", "từ\\s+(?:\\d|giá|và|với|luộc|nấu|hầm|chiên|hấp|để)"],
       "not_with_context": []
     },
     {

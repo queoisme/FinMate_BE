@@ -47,7 +47,9 @@ _TO_OTHERS = re.compile(r"(?<![a-z])(?:cho|tra no|dao no|bieu|tang)(?![a-z])")
 _BALANCE_Q = re.compile(r"con lai|tiet kiem duoc|thu chi|chenh lech|du bao nhieu|so du")
 _INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
 _SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
-_QUERY = re.compile(r"bao nhieu|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
+_MONEY_WORD = re.compile(r"(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])")  # câu hỏi chi tiêu phải nhắc tới tiền
+# "bao nhiêu" + đơn vị không phải tiền là câu xã giao ("bạn bao nhiêu tuổi", "cao bao nhiêu mét"), không phải hỏi tổng chi tiêu.
+_QUERY = re.compile(r"bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
 
 # Số tiền còn sót trong mô tả (kể cả dính dấu phẩy: "20k,30k"). Không tính "lít" vì "mua 2 lít sữa 50k" là số lượng.
 _PERCENT = re.compile(r"phan\s+tram|%")
@@ -221,6 +223,8 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
     if not nlu:
         return rule
     name = nlu["intent"]
+    if name == "ask_spending" and not is_query(norm) and not _MONEY_WORD.search(norm):
+        return rule  # Rasa quá tự tin với câu xã giao ("bạn bao nhiêu tuổi", "ô tô ở đâu rồi"): không có từ hỏi lẫn từ về tiền thì không phải hỏi chi tiêu
     if name == "out_of_scope" and rule in _ENTRY_INTENTS and nlu["confidence"] < OUT_OF_SCOPE_OVERRIDE:
         return rule  # câu có số tiền mà Rasa chỉ hơi nghiêng về ngoài chủ đề: ưu tiên ghi, người dùng còn được xác nhận
     if name == "add_income" and rule == "add_expense" and _GIVING_AWAY.search(norm):
