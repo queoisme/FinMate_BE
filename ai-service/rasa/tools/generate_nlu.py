@@ -34,7 +34,16 @@ AMOUNTS_TEST = ["30k", "55k", "75k", "95k", "140k", "320k", "25 nghìn", "70 ngh
 
 ITEMS_TRAIN = ["ăn cơm", "ăn phở", "cà phê", "uống trà sữa", "đổ xăng", "đi grab", "gửi xe", "mua thuốc", "đi chợ", "tiền điện", "tiền nước", "tiền nhà",
                "đóng học phí", "xem phim", "mua áo", "mua giày", "nạp tiền điện thoại", "đóng tiền mạng", "cắt tóc", "mua sữa bột", "mua tã",
-               "mua bột giặt", "đi taxi", "ăn lẩu", "uống bia", "mua rau", "mua sách", "khám bệnh", "mua vitamin", "đi siêu thị", "ăn sáng", "ăn trưa"]
+               "mua bột giặt", "đi taxi", "ăn lẩu", "uống bia", "mua rau", "mua sách", "khám bệnh", "mua vitamin", "đi siêu thị", "ăn sáng", "ăn trưa",
+               # Mở rộng 2026-10-18: model nhớ "món -> ý định" nên gặp món lạ thì đoán theo chữ lạ ("nạp thẻ game" -> chuyển tiền). Thêm món đủ nhóm và
+               # nhiều động từ (trả tiền / nạp / thuê / đóng) cùng nằm trong chi tiêu để nó học động từ không quyết định ý định. Không trùng ITEMS_TEST.
+               "trả tiền điện", "trả tiền wifi", "trả tiền nước", "trả tiền thuê nhà", "trả tiền học", "trả tiền điện thoại", "nạp thẻ điện thoại",
+               "nạp tiền game", "nạp card", "nạp thẻ garena", "nạp xăng", "thuê xe", "thuê nhà", "thuê sân bóng", "thuê áo dài", "đóng tiền điện", "đóng tiền nước",
+               "đóng tiền học thêm", "đóng quỹ lớp", "đóng tiền ký túc xá", "ăn bún", "ăn mì", "ăn bánh xèo", "ăn cơm hộp", "ăn vặt", "uống nước ngọt", "uống sinh tố",
+               "uống cà phê", "mua nước", "mua kem", "mua trứng", "mua thịt", "mua gạo", "mua dầu ăn", "mua sữa tươi", "đổ dầu", "rửa xe", "sửa xe", "thay nhớt",
+               "mua vé xe", "mua vé tàu", "mua điện thoại", "mua tai nghe", "mua sạc", "mua quần", "mua váy", "mua mũ", "mua balo", "mua son", "mua kem chống nắng",
+               "mua hoa", "mua quà sinh nhật", "mừng cưới", "đi karaoke", "đi spa", "đi du lịch", "làm móng", "uốn tóc", "mua cát mèo", "mua hạt cho mèo", "khám mắt",
+               "cắt kính", "mua thuốc cảm", "tiêm phòng", "mua sách giáo khoa", "photo tài liệu", "in tài liệu"]
 ITEMS_TEST = ["ăn bún bò", "uống nước mía", "đổ bình xăng", "đi xe buýt", "mua cá", "mua bánh mì", "trả tiền gas", "đóng tiền rác", "mua quần jean",
               "mua khẩu trang", "khám nha khoa", "mua đồ chơi cho bé", "nạp thẻ game", "xem concert", "giặt ủi", "mua dầu gội", "thuê phòng trọ",
               "đóng bảo hiểm", "ăn chè", "mua trái cây", "gọi đồ ăn", "mua nồi cơm điện", "đi cà phê", "ăn tối"]
@@ -45,7 +54,9 @@ MERCHANTS_TEST = ["GS25", "Lotte Mart", "Coopmart", "Gojek", "Be", "Phở 24", "
 DATES_TRAIN = ["hôm qua", "hôm nay", "sáng nay", "chiều nay", "tối qua", "hôm kia", "ngày 5/10", "ngày 12/10", "15/10"]
 DATES_TEST = ["trưa nay", "tối nay", "ngày 3/10", "ngày 20 tháng 9", "sáng qua", "hôm thứ ba", "22/9"]
 
-INCOME_TRAIN = ["nhận lương", "lương tháng này", "được thưởng", "bán đồ cũ", "nhận tiền freelance", "mẹ cho", "được lì xì", "hoàn tiền", "nhận tiền làm thêm"]
+INCOME_TRAIN = ["nhận lương", "lương tháng này", "được thưởng", "bán đồ cũ", "nhận tiền freelance", "mẹ cho", "được lì xì", "hoàn tiền", "nhận tiền làm thêm",
+                "mẹ gửi", "chị gửi", "anh gửi", "bố cho", "chú cho", "nhận tiền bán hàng", "nhận tiền thưởng", "nhận tiền lãi", "nhận học bổng",
+                "khách chuyển khoản", "bạn trả lại tiền", "được trả nợ", "bán điện thoại cũ"]
 INCOME_TEST = ["lương về", "khách trả tiền", "bán xe cũ", "được tặng", "nhận tiền dạy thêm", "ba gửi", "tiền thưởng tết", "cashback"]
 
 TRANSFER_TRAIN = ["chuyển {a} sang tiết kiệm", "rút {a} tiền mặt", "nạp {a} vào momo", "chuyển khoản {a} cho mẹ", "trả nợ bạn {a}", "chuyển {a} từ ví sang thẻ",
@@ -62,7 +73,7 @@ ASK_TRAIN = ["{p} tôi tiêu bao nhiêu", "{p} chi bao nhiêu", "tổng chi {p}"
 ASK_TEST = ["cho mình biết {p} đã chi bao nhiêu", "thống kê {p}", "{p} mình xài hết bao nhiêu tiền", "chi tiêu {c} {p} là bao nhiêu",
             "tính giúp tổng tiền {p}", "{p} dư bao nhiêu"]
 
-OOS_TRAIN = ["thời tiết hôm nay thế nào", "kể chuyện cười đi", "giá vàng hôm nay bao nhiêu", "bạn tên gì", "iphone {a} có đáng mua không",
+OOS_TRAIN = ["với {a} một tháng sống ở sài gòn được không", "{a} mua xe máy gì được", "tiền {a} đầu tư gì tốt", "thời tiết hôm nay thế nào", "kể chuyện cười đi", "giá vàng hôm nay bao nhiêu", "bạn tên gì", "iphone {a} có đáng mua không",
              "nên mua nhà hay thuê nhà", "tư vấn đầu tư cổ phiếu giúp mình", "dịch giúp mình câu này sang tiếng anh", "bóng đá tối nay mấy giờ",
              "xe {a} có nên mua không", "làm sao để giàu nhanh", "hát một bài đi"]
 OOS_TEST = ["hôm nay trời đẹp quá", "ai là tổng thống nước mỹ", "laptop {a} có tốt không", "mua bitcoin bây giờ được không", "nấu phở thế nào ngon",
@@ -70,6 +81,7 @@ OOS_TEST = ["hôm nay trời đẹp quá", "ai là tổng thống nước mỹ",
 
 # ---------------------------------------------------------------- mẫu câu: TRAIN và TEST khác nhau về cấu trúc
 EXPENSE_TRAIN = ["{item} {amt}", "{item} hết {amt}", "{date} {item} {amt}", "{item} {amt} {date}", "vừa {item} {amt}", "mình {item} tốn {amt}",
+                 "hết {amt} vì {item}", "tiêu {amt} vào {item}", "bỏ ra {amt} {item}", "{item} tới {amt}", "hôm nay mình {item} hết {amt}", "đã {item} {amt}",
                  "{item} ở {merchant} {amt}", "chi {amt} {item}", "{item} {amt}, {item2} {amt2}", "{item} {amt} với {item2} {amt2}",
                  "{item} {amt} và {item2} {amt2}", "{date} {item} {amt} {item2} {amt2}"]
 EXPENSE_TEST = ["tốn {amt} cho {item}", "{item} mất {amt}", "{item} khoảng {amt}", "nay {item} hết {amt} rồi", "{item} {amt} rồi {item2} {amt2}",
@@ -172,7 +184,7 @@ def strip_markup(example: str) -> str:
 def main() -> int:
     rng = random.Random(SEED)
     train = generate("train", rng)
-    test = generate("test", rng)
+    test = generate("test", random.Random(SEED + 1))  # dòng ngẫu nhiên riêng: sửa bộ học không làm đổi bộ đo
 
     # --- chống rò rỉ: không câu nào trùng, và từ vựng/mẫu hai phía không giao nhau
     train_texts = {strip_markup(e) for v in train.values() for e in v}

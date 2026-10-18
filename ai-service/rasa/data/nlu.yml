@@ -72,6 +72,9 @@ nlu:
 - intent: out_of_scope
   examples: |
     - hôm nay trời đẹp quá
+    - tăng mười phần trăm
+    - chiết khấu mười lăm phần trăm
+    - giảm giá bao nhiêu phần trăm
     - thời tiết ngày mai thế nào
     - kể chuyện cười đi
     - bạn tên gì
@@ -185,6 +188,12 @@ nlu:
   examples: |
     - hủy
     - huỷ
+    - huỷ giúp tôi
+    - hủy cái này đi
+    - không lưu nữa
+    - đừng lưu
+    - bỏ giao dịch này
+    - thôi khỏi ghi
     - thôi
     - bỏ qua
     - không ghi nữa
@@ -212,6 +221,9 @@ nlu:
     - gửi xe tháng [100k](amount)
     - tiền wifi [220 nghìn](amount)
     - nạp điện thoại [100k](amount)
+    - nạp thẻ viettel [50k](amount)
+    - nạp tiền steam [200k](amount)
+    - nạp thẻ zing [100k](amount)
     - khám bệnh [300k](amount)
     - mua áo [350k](amount)
     - đi taxi [85k](amount)

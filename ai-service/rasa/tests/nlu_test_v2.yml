@@ -4,293 +4,293 @@ version: "3.1"
 nlu:
 - intent: add_expense
   examples: |
-    - [22/9](date), gọi đồ ăn [70 nghìn](amount)
-    - [22/9](date), mua khau trang [95k](amount)
-    - [22/9](date), mua khẩu trang [320k](amount)
-    - [22/9](date), mua trai cay [140k](amount)
-    - [hom thu ba](date), giat ui [95.000](amount)
-    - [hom thu ba](date), nap the game [35 canh](amount)
-    - [hôm thứ ba](date), mua cá [1tr8](amount)
-    - [ngay 3/10](date), dong bao hiem [hai muoi lam nghin](amount)
-    - [ngay 3/10](date), mua ca [hai tram nghin](amount)
-    - [ngày 3/10](date), mua cá [95.000](amount)
-    - [ngày 3/10](date), mua dầu gội [1 triệu rưỡi](amount)
-    - [ngày 3/10](date), uống nước mía [hai mươi lăm nghìn](amount)
-    - [ngày 3/10](date), ăn tối [1tr8](amount)
-    - [sang qua](date), goi do an [200.000d](amount)
-    - [sang qua](date), mua trai cay [hai muoi lam nghin](amount)
-    - [sáng qua](date), khám nha khoa [3tr5](amount)
-    - [toi nay](date), mua noi com dien [1tr8](amount)
-    - an bun bo xong het [1 trieu ruoi](amount)
-    - an che [2 lit 5](amount), them mua trai cay [30k](amount)
-    - an che [25 nghin](amount) roi mua khau trang [hai tram nghin](amount)
-    - an che xong het [200.000d](amount)
-    - do binh xang [95k](amount) roi xem concert [30k](amount)
-    - dong bao hiem [30k](amount) roi mua trai cay [320k](amount)
-    - dong bao hiem xong het [1 trieu ruoi](amount)
-    - dong bao hiem xong het [35 canh](amount)
-    - dong bao hiem xong het [95.000](amount)
-    - dong tien rac mat [3tr5](amount)
-    - ghe [be](merchant) do binh xang [210 nghin](amount)
-    - ghe [coopmart](merchant) di ca phe [70 nghin](amount)
-    - ghe [guardian](merchant) xem concert [sau muoi nghin](amount)
-    - ghe [long chau](merchant) mua khau trang [2 trieu](amount)
-    - ghe [lotte mart](merchant) dong tien rac [hai muoi lam nghin](amount)
-    - ghe [lotte mart](merchant) kham nha khoa [140k](amount)
-    - ghe [pho 24](merchant) xem concert [95k](amount)
-    - ghe [tiki](merchant) di xe buyt [35 canh](amount)
-    - ghé [Coopmart](merchant) mua trái cây [2 triệu](amount)
-    - ghé [GS25](merchant) ăn chè [95k](amount)
-    - ghé [Gojek](merchant) trả tiền gas [3tr5](amount)
-    - ghé [Guardian](merchant) mua cá [70 nghìn](amount)
-    - ghé [Guardian](merchant) ăn tối [2 triệu](amount)
-    - ghé [Long Châu](merchant) mua quần jean [ba mươi nghìn](amount)
-    - ghé [Long Châu](merchant) xem concert [35 cành](amount)
-    - ghé [Phở 24](merchant) mua dầu gội [65.000đ](amount)
-    - ghé [Phở 24](merchant) mua nồi cơm điện [hai mươi lăm nghìn](amount)
-    - ghé [Pizza 4P's](merchant) đi xe buýt [4 củ 2](amount)
-    - ghé [Tiki](merchant) gọi đồ ăn [320k](amount)
-    - ghé [Tiki](merchant) mua dầu gội [hai mươi lăm nghìn](amount)
-    - giat ui [65.000d](amount), them giat ui [2 lit 5](amount)
-    - giat ui khoang [95k](amount)
-    - goi do an [sau muoi nghin](amount), them tra tien gas [75k](amount)
-    - goi do an khoang [35 canh](amount)
-    - goi do an khoang [sau muoi nghin](amount)
-    - gọi đồ ăn mất [320k](amount)
-    - gọi đồ ăn mất [7 củ](amount)
-    - gọi đồ ăn xong hết [210 nghìn](amount)
-    - khám nha khoa khoảng [30k](amount)
-    - khám nha khoa khoảng [7 củ](amount)
-    - khám nha khoa khoảng [hai mươi lăm nghìn](amount)
-    - khám nha khoa mất [70 nghìn](amount)
-    - khám nha khoa xong hết [95k](amount)
-    - mua banh mi mat [320k](amount)
-    - mua bánh mì [30k](amount), thêm thuê phòng trọ [1 triệu rưỡi](amount)
-    - mua bánh mì [5 triệu](amount) rồi đổ bình xăng [75k](amount)
-    - mua ca mat [1 trieu ruoi](amount)
-    - mua ca xong het [140k](amount)
-    - mua ca xong het [1tr8](amount)
-    - mua cá mất [1tr8](amount)
-    - mua do choi cho be xong het [1 trieu ruoi](amount)
-    - mua do choi cho be xong het [hai tram nghin](amount)
-    - mua dầu gội khoảng [80 cành](amount)
-    - mua dầu gội khoảng [hai mươi lăm nghìn](amount)
-    - mua dầu gội mất [55k](amount)
-    - mua dầu gội mất [75k](amount)
-    - mua khau trang [2 trieu](amount) roi mua khau trang [hai muoi lam nghin](amount)
-    - mua khẩu trang xong hết [7 củ](amount)
-    - mua noi com dien [mot trieu ruoi](amount), them an toi [35 canh](amount)
-    - mua noi com dien mat [nam tram nghin](amount)
-    - mua noi com dien xong het [4 cu 2](amount)
-    - mua noi com dien xong het [sau muoi nghin](amount)
-    - mua nồi cơm điện [2 triệu](amount) rồi đóng bảo hiểm [2 lít 5](amount)
-    - mua quan jean xong het [2 lit 5](amount)
-    - mua quần jean mất [4 củ 2](amount)
-    - mua trai cay [35 canh](amount), them mua do choi cho be [65.000d](amount)
-    - mua trai cay [ba muoi nghin](amount), them mua dau goi [30k](amount)
-    - mua trái cây [7 củ](amount), thêm đóng tiền rác [80 cành](amount)
-    - mua trái cây xong hết [2 triệu](amount)
-    - mua đồ chơi cho bé [2 lít 5](amount) rồi mua cá [95.000](amount)
-    - mua đồ chơi cho bé [35 cành](amount), thêm ăn tối [80 cành](amount)
-    - mua đồ chơi cho bé khoảng [30k](amount)
-    - nap the game khoang [140k](amount)
-    - nap the game khoang [5 trieu](amount)
-    - nap the game xong het [ba muoi nghin](amount)
-    - nay do binh xang het [2 lit 5](amount) roi
-    - nay mua banh mi het [hai tram nghin](amount) roi
-    - nay mua cá hết [95k](amount) rồi
-    - nay mua quần jean hết [3tr5](amount) rồi
-    - nay mua trai cay het [mot trieu ruoi](amount) roi
-    - nay nạp thẻ game hết [25 nghìn](amount) rồi
-    - nay thuê phòng trọ hết [35 cành](amount) rồi
-    - nay thuê phòng trọ hết [sáu mươi nghìn](amount) rồi
-    - nay uống nước mía hết [210 nghìn](amount) rồi
-    - nay uống nước mía hết [320k](amount) rồi
-    - nay uống nước mía hết [sáu mươi nghìn](amount) rồi
-    - nay ăn tối hết [1tr8](amount) rồi
-    - nay đi cà phê hết [25 nghìn](amount) rồi
-    - nay đi xe buýt hết [30k](amount) rồi
-    - nay đi xe buýt hết [55k](amount) rồi
-    - nạp thẻ game [3tr5](amount) rồi nạp thẻ game [2 lít 5](amount)
-    - thuê phòng trọ xong hết [sáu mươi nghìn](amount)
-    - ton [1 trieu ruoi](amount) cho kham nha khoa
-    - ton [2 trieu](amount) cho tra tien gas
-    - ton [200.000d](amount) cho di ca phe
-    - ton [200.000d](amount) cho mua trai cay
+    - [22/9](date), mua bánh mì [30k](amount)
+    - [22/9](date), mua dau goi [70 nghin](amount)
+    - [22/9](date), mua khau trang [7 cu](amount)
+    - [22/9](date), mua quần jean [30k](amount)
+    - [22/9](date), uống nước mía [70 nghìn](amount)
+    - [hôm thứ ba](date), giặt ủi [5 triệu](amount)
+    - [hôm thứ ba](date), nạp thẻ game [hai trăm nghìn](amount)
+    - [hôm thứ ba](date), thuê phòng trọ [80 cành](amount)
+    - [ngay 20 thang 9](date), di xe buyt [hai muoi lam nghin](amount)
+    - [ngay 20 thang 9](date), mua dau goi [210 nghin](amount)
+    - [ngay 3/10](date), di xe buyt [35 canh](amount)
+    - [ngay 3/10](date), mua banh mi [210 nghin](amount)
+    - [ngày 20 tháng 9](date), giặt ủi [25 nghìn](amount)
+    - [ngày 20 tháng 9](date), ăn bún bò [65.000đ](amount)
+    - [ngày 20 tháng 9](date), ăn bún bò [7 củ](amount)
+    - [ngày 3/10](date), khám nha khoa [140k](amount)
+    - [sang qua](date), giat ui [5 trieu](amount)
+    - [sáng qua](date), khám nha khoa [2 lít 5](amount)
+    - [sáng qua](date), mua khẩu trang [70 nghìn](amount)
+    - [toi nay](date), mua khau trang [210 nghin](amount)
+    - [trua nay](date), nap the game [25 nghin](amount)
+    - [trưa nay](date), ăn tối [7 củ](amount)
+    - [trưa nay](date), đi xe buýt [140k](amount)
+    - [tối nay](date), thuê phòng trọ [1 triệu rưỡi](amount)
+    - [tối nay](date), đi cà phê [95k](amount)
+    - an bun bo [2 trieu](amount) roi xem concert [55k](amount)
+    - an bun bo [hai tram nghin](amount), them xem concert [hai muoi lam nghin](amount)
+    - an che khoang [hai tram nghin](amount)
+    - an toi mat [2 trieu](amount)
+    - di ca phe khoang [95k](amount)
+    - di ca phe mat [200.000d](amount)
+    - di xe buyt khoang [hai tram nghin](amount)
+    - dong bao hiem xong het [sau muoi nghin](amount)
+    - ghe [gs25](merchant) uong nuoc mia [55k](amount)
+    - ghe [guardian](merchant) an che [140k](amount)
+    - ghe [guardian](merchant) mua dau goi [2 trieu](amount)
+    - ghe [guardian](merchant) nap the game [mot trieu ruoi](amount)
+    - ghe [pho 24](merchant) an toi [25 nghin](amount)
+    - ghe [tiki](merchant) di xe buyt [80 canh](amount)
+    - ghé [Coopmart](merchant) đóng tiền rác [3tr5](amount)
+    - ghé [GS25](merchant) đi cà phê [2 lít 5](amount)
+    - ghé [Guardian](merchant) mua dầu gội [35 cành](amount)
+    - ghé [Guardian](merchant) mua đồ chơi cho bé [hai mươi lăm nghìn](amount)
+    - ghé [Long Châu](merchant) mua cá [320k](amount)
+    - ghé [Long Châu](merchant) mua khẩu trang [65.000đ](amount)
+    - ghé [Long Châu](merchant) trả tiền gas [ba mươi nghìn](amount)
+    - ghé [Lotte Mart](merchant) thuê phòng trọ [200.000đ](amount)
+    - ghé [Phở 24](merchant) xem concert [80 cành](amount)
+    - ghé [Phở 24](merchant) ăn tối [2 lít 5](amount)
+    - ghé [Pizza 4P's](merchant) khám nha khoa [1tr8](amount)
+    - ghé [Pizza 4P's](merchant) mua khẩu trang [ba mươi nghìn](amount)
+    - ghé [Pizza 4P's](merchant) nạp thẻ game [4 củ 2](amount)
+    - ghé [Pizza 4P's](merchant) ăn chè [hai trăm nghìn](amount)
+    - ghé [Pizza 4P's](merchant) ăn tối [1 triệu rưỡi](amount)
+    - ghé [Tiki](merchant) trả tiền gas [một triệu rưỡi](amount)
+    - ghé [Tiki](merchant) đóng bảo hiểm [2 lít 5](amount)
+    - giat ui [55k](amount) roi nap the game [95k](amount)
+    - giặt ủi [70 nghìn](amount), thêm mua bánh mì [2 triệu](amount)
+    - giặt ủi [95k](amount) rồi khám nha khoa [55k](amount)
+    - giặt ủi khoảng [25 nghìn](amount)
+    - giặt ủi mất [200.000đ](amount)
+    - kham nha khoa [75k](amount), them mua noi com dien [95.000](amount)
+    - khám nha khoa [75k](amount), thêm mua cá [95k](amount)
+    - khám nha khoa khoảng [ba mươi nghìn](amount)
+    - mua bánh mì khoảng [210 nghìn](amount)
+    - mua bánh mì mất [năm trăm nghìn](amount)
+    - mua bánh mì xong hết [80 cành](amount)
+    - mua cá [35 cành](amount), thêm xem concert [210 nghìn](amount)
+    - mua cá khoảng [4 củ 2](amount)
+    - mua dau goi khoang [200.000d](amount)
+    - mua do choi cho be [2 trieu](amount) roi mua do choi cho be [35 canh](amount)
+    - mua dầu gội [1 triệu rưỡi](amount), thêm mua dầu gội [4 củ 2](amount)
+    - mua dầu gội [35 cành](amount) rồi mua đồ chơi cho bé [30k](amount)
+    - mua khau trang [140k](amount) roi mua do choi cho be [7 cu](amount)
+    - mua khau trang [25 nghin](amount), them dong tien rac [1 trieu ruoi](amount)
+    - mua khau trang xong het [65.000d](amount)
+    - mua khẩu trang khoảng [2 triệu](amount)
+    - mua khẩu trang khoảng [200.000đ](amount)
+    - mua khẩu trang khoảng [70 nghìn](amount)
+    - mua khẩu trang khoảng [năm trăm nghìn](amount)
+    - mua khẩu trang mất [35 cành](amount)
+    - mua khẩu trang mất [80 cành](amount)
+    - mua khẩu trang mất [hai trăm nghìn](amount)
+    - mua noi com dien xong het [1 trieu ruoi](amount)
+    - mua noi com dien xong het [320k](amount)
+    - mua nồi cơm điện [25 nghìn](amount), thêm đóng bảo hiểm [ba mươi nghìn](amount)
+    - mua nồi cơm điện [80 cành](amount), thêm đóng bảo hiểm [35 cành](amount)
+    - mua nồi cơm điện [một triệu rưỡi](amount), thêm khám nha khoa [hai trăm nghìn](amount)
+    - mua nồi cơm điện khoảng [35 cành](amount)
+    - mua nồi cơm điện xong hết [140k](amount)
+    - mua nồi cơm điện xong hết [200.000đ](amount)
+    - mua quần jean [320k](amount), thêm đi cà phê [200.000đ](amount)
+    - mua trái cây [sáu mươi nghìn](amount) rồi xem concert [80 cành](amount)
+    - mua trái cây xong hết [30k](amount)
+    - mua đồ chơi cho bé [7 củ](amount), thêm thuê phòng trọ [sáu mươi nghìn](amount)
+    - mua đồ chơi cho bé [hai mươi lăm nghìn](amount), thêm nạp thẻ game [một triệu rưỡi](amount)
+    - nap the game mat [1tr8](amount)
+    - nap the game xong het [hai tram nghin](amount)
+    - nay an bun bo het [210 nghin](amount) roi
+    - nay an bun bo het [55k](amount) roi
+    - nay mua bánh mì hết [210 nghìn](amount) rồi
+    - nay mua khau trang het [65.000d](amount) roi
+    - nay mua khẩu trang hết [75k](amount) rồi
+    - nay mua noi com dien het [55k](amount) roi
+    - nay mua quan jean het [140k](amount) roi
+    - nay mua quan jean het [95.000](amount) roi
+    - nay mua trái cây hết [80 cành](amount) rồi
+    - nay trả tiền gas hết [1tr8](amount) rồi
+    - nay ăn chè hết [25 nghìn](amount) rồi
+    - nay ăn chè hết [4 củ 2](amount) rồi
+    - nay ăn chè hết [hai trăm nghìn](amount) rồi
+    - nay đóng tiền rác hết [3tr5](amount) rồi
+    - nay đóng tiền rác hết [ba mươi nghìn](amount) rồi
+    - nay đổ bình xăng hết [65.000đ](amount) rồi
+    - nạp thẻ game [140k](amount), thêm xem concert [95k](amount)
+    - nạp thẻ game [7 củ](amount) rồi đóng tiền rác [35 cành](amount)
+    - nạp thẻ game [95.000](amount), thêm mua nồi cơm điện [4 củ 2](amount)
+    - nạp thẻ game mất [95.000](amount)
+    - nạp thẻ game xong hết [4 củ 2](amount)
+    - nạp thẻ game xong hết [hai trăm nghìn](amount)
+    - thue phong tro [1tr8](amount) roi mua banh mi [hai tram nghin](amount)
+    - thue phong tro khoang [hai muoi lam nghin](amount)
+    - thue phong tro mat [4 cu 2](amount)
+    - thuê phòng trọ [năm trăm nghìn](amount), thêm nạp thẻ game [ba mươi nghìn](amount)
+    - thuê phòng trọ xong hết [1tr8](amount)
+    - ton [140k](amount) cho xem concert
+    - ton [200.000d](amount) cho mua ca
     - ton [210 nghin](amount) cho giat ui
-    - ton [320k](amount) cho uong nuoc mia
-    - ton [3tr5](amount) cho do binh xang
-    - ton [5 trieu](amount) cho tra tien gas
-    - ton [75k](amount) cho di xe buyt
-    - ton [80 canh](amount) cho an che
-    - ton [95.000](amount) cho giat ui
-    - ton [95k](amount) cho mua dau goi
-    - tra tien gas [65.000d](amount), them tra tien gas [320k](amount)
-    - tra tien gas [70 nghin](amount), them mua dau goi [hai tram nghin](amount)
-    - trả tiền gas [200.000đ](amount) rồi mua nồi cơm điện [năm trăm nghìn](amount)
-    - trả tiền gas [95.000](amount), thêm mua đồ chơi cho bé [95.000](amount)
-    - trả tiền gas khoảng [140k](amount)
-    - trả tiền gas xong hết [200.000đ](amount)
-    - tốn [210 nghìn](amount) cho đổ bình xăng
-    - tốn [320k](amount) cho trả tiền gas
-    - tốn [3tr5](amount) cho uống nước mía
-    - tốn [4 củ 2](amount) cho giặt ủi
-    - tốn [80 cành](amount) cho đi cà phê
-    - tốn [95.000](amount) cho mua khẩu trang
-    - tốn [ba mươi nghìn](amount) cho mua bánh mì
-    - tốn [hai mươi lăm nghìn](amount) cho giặt ủi
-    - tốn [sáu mươi nghìn](amount) cho thuê phòng trọ
-    - uống nước mía [200.000đ](amount) rồi đóng tiền rác [hai trăm nghìn](amount)
-    - uống nước mía mất [80 cành](amount)
-    - xem concert [1 triệu rưỡi](amount), thêm khám nha khoa [25 nghìn](amount)
-    - xem concert [2 lít 5](amount) rồi đóng bảo hiểm [140k](amount)
-    - xem concert [một triệu rưỡi](amount), thêm thuê phòng trọ [1tr8](amount)
-    - xem concert [sáu mươi nghìn](amount) rồi mua trái cây [200.000đ](amount)
-    - xem concert mat [4 cu 2](amount)
-    - ăn bún bò khoảng [95.000](amount)
-    - ăn bún bò mất [210 nghìn](amount)
-    - ăn bún bò mất [30k](amount)
-    - ăn chè [55k](amount), thêm mua quần jean [4 củ 2](amount)
-    - ăn chè mất [4 củ 2](amount)
-    - ăn tối [5 triệu](amount) rồi uống nước mía [1 triệu rưỡi](amount)
-    - ăn tối [95k](amount), thêm nạp thẻ game [3tr5](amount)
-    - ăn tối [năm trăm nghìn](amount) rồi khám nha khoa [75k](amount)
-    - ăn tối khoảng [140k](amount)
-    - ăn tối khoảng [35 cành](amount)
-    - ăn tối mất [25 nghìn](amount)
-    - ăn tối xong hết [5 triệu](amount)
-    - đi cà phê [3tr5](amount) rồi mua dầu gội [2 lít 5](amount)
-    - đi cà phê khoảng [1tr8](amount)
-    - đi cà phê mất [1 triệu rưỡi](amount)
-    - đi cà phê xong hết [4 củ 2](amount)
-    - đi xe buýt [95.000](amount) rồi thuê phòng trọ [70 nghìn](amount)
-    - đóng bảo hiểm [sáu mươi nghìn](amount), thêm mua nồi cơm điện [sáu mươi nghìn](amount)
-    - đóng bảo hiểm mất [7 củ](amount)
-    - đóng tiền rác [80 cành](amount), thêm ăn bún bò [1 triệu rưỡi](amount)
-    - đóng tiền rác khoảng [95k](amount)
-    - đổ bình xăng [2 triệu](amount), thêm gọi đồ ăn [80 cành](amount)
-    - đổ bình xăng [75k](amount), thêm mua trái cây [95k](amount)
-    - đổ bình xăng khoảng [75k](amount)
-    - đổ bình xăng khoảng [95k](amount)
-    - đổ bình xăng xong hết [200.000đ](amount)
-    - đổ bình xăng xong hết [210 nghìn](amount)
+    - ton [25 nghin](amount) cho di xe buyt
+    - ton [70 nghin](amount) cho an bun bo
+    - ton [95k](amount) cho mua banh mi
+    - ton [mot trieu ruoi](amount) cho an toi
+    - tra tien gas [80 canh](amount) roi dong tien rac [200.000d](amount)
+    - tra tien gas khoang [sau muoi nghin](amount)
+    - trả tiền gas mất [65.000đ](amount)
+    - tốn [2 lít 5](amount) cho gọi đồ ăn
+    - tốn [25 nghìn](amount) cho ăn chè
+    - tốn [4 củ 2](amount) cho uống nước mía
+    - tốn [7 củ](amount) cho ăn tối
+    - tốn [70 nghìn](amount) cho đổ bình xăng
+    - tốn [75k](amount) cho đi cà phê
+    - tốn [95.000](amount) cho đi xe buýt
+    - tốn [năm trăm nghìn](amount) cho nạp thẻ game
+    - uong nuoc mia [2 lit 5](amount), them nap the game [55k](amount)
+    - uong nuoc mia mat [7 cu](amount)
+    - uống nước mía [55k](amount) rồi uống nước mía [320k](amount)
+    - uống nước mía khoảng [2 lít 5](amount)
+    - uống nước mía xong hết [95.000](amount)
+    - xem concert khoang [95k](amount)
+    - xem concert khoảng [200.000đ](amount)
+    - xem concert mat [320k](amount)
+    - xem concert xong hết [80 cành](amount)
+    - ăn bún bò [65.000đ](amount), thêm mua đồ chơi cho bé [200.000đ](amount)
+    - ăn bún bò [ba mươi nghìn](amount) rồi mua cá [1 triệu rưỡi](amount)
+    - ăn bún bò khoảng [7 củ](amount)
+    - ăn bún bò mất [95k](amount)
+    - ăn bún bò xong hết [210 nghìn](amount)
+    - đi cà phê [30k](amount) rồi mua bánh mì [80 cành](amount)
+    - đi cà phê [55k](amount) rồi ăn tối [95k](amount)
+    - đi cà phê khoảng [70 nghìn](amount)
+    - đi cà phê xong hết [80 cành](amount)
+    - đi xe buýt [35 cành](amount), thêm mua khẩu trang [55k](amount)
+    - đi xe buýt [80 cành](amount), thêm đóng tiền rác [140k](amount)
+    - đi xe buýt xong hết [70 nghìn](amount)
+    - đi xe buýt xong hết [75k](amount)
+    - đóng bảo hiểm khoảng [25 nghìn](amount)
+    - đóng tiền rác khoảng [2 triệu](amount)
+    - đổ bình xăng mất [95.000](amount)
+    - đổ bình xăng xong hết [65.000đ](amount)
+    - đổ bình xăng xong hết [75k](amount)
 
 - intent: add_income
   examples: |
-    - [140k](amount) tiền tiền thưởng tết
-    - [25 nghìn](amount) tiền ba gửi
-    - [30k](amount) tien duoc tang
-    - [30k](amount) tiền khách trả tiền
-    - [3tr5](amount) tiền được tặng
-    - [55k](amount) tien cashback
-    - [75k](amount) tiền lương về
-    - [ba mươi nghìn](amount) tiền ba gửi
-    - ban xe cu: [7 cu](amount)
-    - bao ba gui [7 cu](amount)
-    - bao ban xe cu [55k](amount)
-    - bao cashback [140k](amount)
-    - bao khach tra tien [210 nghin](amount)
-    - báo nhận tiền dạy thêm [2 triệu](amount)
-    - báo nhận tiền dạy thêm [210 nghìn](amount)
-    - báo được tặng [một triệu rưỡi](amount)
-    - cashback: [70 nghìn](amount)
-    - cashback: [năm trăm nghìn](amount)
-    - duoc tang: [4 cu 2](amount)
-    - duoc tang: [7 cu](amount)
-    - khach tra tien: [210 nghin](amount)
-    - khach tra tien: [55k](amount)
-    - khach tra tien: [7 cu](amount)
-    - khach tra tien: [nam tram nghin](amount)
-    - khách trả tiền: [sáu mươi nghìn](amount)
-    - lương về: [hai trăm nghìn](amount)
+    - [1tr8](amount) tiền lương về
+    - [2 lit 5](amount) tien ba gui
+    - [2 lít 5](amount) tiền lương về
+    - [30k](amount) tiền cashback
+    - [65.000đ](amount) tiền nhận tiền dạy thêm
+    - [75k](amount) tiền cashback
+    - [80 cành](amount) tiền tiền thưởng tết
+    - [95.000](amount) tien luong ve
+    - [hai trăm nghìn](amount) tiền tiền thưởng tết
+    - [một triệu rưỡi](amount) tiền khách trả tiền
+    - [sáu mươi nghìn](amount) tiền tiền thưởng tết
+    - ba gui: [25 nghin](amount)
+    - bao ban xe cu [95.000](amount)
+    - bao khach tra tien [2 lit 5](amount)
+    - báo bán xe cũ [75k](amount)
+    - báo bán xe cũ [ba mươi nghìn](amount)
+    - báo bán xe cũ [hai mươi lăm nghìn](amount)
+    - báo cashback [95.000](amount)
+    - báo cashback [hai mươi lăm nghìn](amount)
+    - báo lương về [1tr8](amount)
+    - báo lương về [320k](amount)
+    - báo nhận tiền dạy thêm [7 củ](amount)
+    - báo nhận tiền dạy thêm [hai mươi lăm nghìn](amount)
+    - duoc tang: [mot trieu ruoi](amount)
+    - khách trả tiền: [80 cành](amount)
     - lương về: [một triệu rưỡi](amount)
-    - thang nay ba gui [hai tram nghin](amount)
-    - thang nay nhan tien day them [1tr8](amount)
-    - thang nay nhan tien day them [75k](amount)
-    - thang nay tien thuong tet [30k](amount)
-    - tháng này ba gửi [sáu mươi nghìn](amount)
-    - tháng này bán xe cũ [320k](amount)
-    - tháng này cashback [2 triệu](amount)
-    - tháng này cashback [75k](amount)
-    - tháng này cashback [hai mươi lăm nghìn](amount)
-    - tháng này khách trả tiền [sáu mươi nghìn](amount)
+    - thang nay luong ve [5 trieu](amount)
+    - tháng này ba gửi [35 cành](amount)
+    - tháng này cashback [1tr8](amount)
+    - tháng này cashback [năm trăm nghìn](amount)
+    - tháng này khách trả tiền [65.000đ](amount)
+    - tháng này lương về [210 nghìn](amount)
     - tháng này lương về [một triệu rưỡi](amount)
-    - tien thuong tet: [2 lit 5](amount)
-    - được tặng: [80 cành](amount)
+    - tháng này nhận tiền dạy thêm [2 lít 5](amount)
+    - tháng này nhận tiền dạy thêm [hai mươi lăm nghìn](amount)
+    - tiền thưởng tết: [65.000đ](amount)
+    - tiền thưởng tết: [một triệu rưỡi](amount)
+    - được tặng: [1 triệu rưỡi](amount)
+    - được tặng: [một triệu rưỡi](amount)
+    - được tặng: [năm trăm nghìn](amount)
 
 - intent: transfer_money
   examples: |
-    - bo [35 canh](amount) vao tiet kiem
-    - bỏ [1tr8](amount) vào tiết kiệm
-    - bỏ [95.000](amount) vào tiết kiệm
-    - bỏ [hai trăm nghìn](amount) vào tiết kiệm
-    - chuyen [5 trieu](amount) qua tai khoan ngan hang
-    - chuyen [80 canh](amount) qua tai khoan ngan hang
-    - chuyen tien cho em [2 lit 5](amount)
-    - chuyen tien cho em [2 trieu](amount)
-    - chuyển [140k](amount) qua tài khoản ngân hàng
+    - bo [2 trieu](amount) vao tiet kiem
+    - bo [4 cu 2](amount) vao tiet kiem
+    - bo [7 cu](amount) vao tiet kiem
+    - bo [nam tram nghin](amount) vao tiet kiem
+    - bỏ [2 lít 5](amount) vào tiết kiệm
+    - bỏ [95k](amount) vào tiết kiệm
+    - chuyen [2 trieu](amount) qua tai khoan ngan hang
+    - chuyen [210 nghin](amount) qua tai khoan ngan hang
+    - chuyen [4 cu 2](amount) qua tai khoan ngan hang
+    - chuyen [55k](amount) sang vi momo
+    - chuyen tien cho em [75k](amount)
+    - chuyen tien cho em [80 canh](amount)
+    - chuyển [200.000đ](amount) sang ví momo
     - chuyển [25 nghìn](amount) qua tài khoản ngân hàng
-    - chuyển [25 nghìn](amount) sang ví momo
-    - chuyển [3tr5](amount) qua tài khoản ngân hàng
+    - chuyển [320k](amount) qua tài khoản ngân hàng
+    - chuyển [320k](amount) sang ví momo
     - chuyển [65.000đ](amount) qua tài khoản ngân hàng
     - chuyển [7 củ](amount) qua tài khoản ngân hàng
-    - chuyển [70 nghìn](amount) sang ví momo
-    - chuyển [95.000](amount) sang ví momo
-    - chuyển [95k](amount) sang ví momo
-    - chuyển [sáu mươi nghìn](amount) qua tài khoản ngân hàng
-    - chuyển tiền cho em [35 cành](amount)
-    - chuyển tiền cho em [5 triệu](amount)
-    - chuyển tiền cho em [65.000đ](amount)
-    - nap [30k](amount) vao zalopay
-    - nạp [2 lít 5](amount) vào zalopay
-    - nạp [210 nghìn](amount) vào zalopay
+    - chuyển [7 củ](amount) sang ví momo
+    - chuyển [ba mươi nghìn](amount) qua tài khoản ngân hàng
+    - chuyển tiền cho em [210 nghìn](amount)
+    - chuyển tiền cho em [hai mươi lăm nghìn](amount)
+    - nạp [3tr5](amount) vào zalopay
     - nạp [hai trăm nghìn](amount) vào zalopay
-    - rut [hai muoi lam nghin](amount) o atm
+    - rut [7 cu](amount) o atm
+    - rut [hai tram nghin](amount) o atm
+    - rút [200.000đ](amount) ở atm
+    - rút [năm trăm nghìn](amount) ở atm
     - rút [sáu mươi nghìn](amount) ở atm
-    - tra tien no anh [210 nghin](amount)
-    - tra tien no anh [25 nghin](amount)
-    - tra tien no anh [75k](amount)
-    - tra tien no anh [80 canh](amount)
-    - tra tien no anh [hai muoi lam nghin](amount)
-    - trả tiền nợ anh [5 triệu](amount)
-    - trả tiền nợ anh [ba mươi nghìn](amount)
-    - trả tiền nợ anh [hai trăm nghìn](amount)
+    - tra tien no anh [320k](amount)
+    - trả tiền nợ anh [2 lít 5](amount)
+    - trả tiền nợ anh [2 triệu](amount)
+    - trả tiền nợ anh [4 củ 2](amount)
+    - trả tiền nợ anh [95k](amount)
+    - trả tiền nợ anh [hai mươi lăm nghìn](amount)
 
 - intent: ask_spending
   examples: |
+    - 3 ngay qua du bao nhieu
     - 3 ngày qua dư bao nhiêu
     - 3 ngày qua mình xài hết bao nhiêu tiền
-    - chi tieu ca phe sang nay la bao nhieu
-    - chi tieu ca phe tuan truoc la bao nhieu
+    - chi tieu ca phe nam nay la bao nhieu
+    - chi tieu giai tri 3 ngay qua la bao nhieu
+    - chi tieu giai tri tuan truoc la bao nhieu
+    - chi tieu suc khoe 3 ngay qua la bao nhieu
     - chi tieu suc khoe nam nay la bao nhieu
-    - chi tiêu cà phê năm nay là bao nhiêu
-    - chi tiêu giải trí năm nay là bao nhiêu
-    - chi tiêu sức khỏe năm nay là bao nhiêu
+    - chi tieu suc khoe sang nay la bao nhieu
+    - chi tiêu cà phê sáng nay là bao nhiêu
+    - chi tiêu giải trí 3 ngày qua là bao nhiêu
+    - chi tiêu giải trí sáng nay là bao nhiêu
     - chi tiêu sức khỏe sáng nay là bao nhiêu
-    - chi tiêu sức khỏe tuần trước là bao nhiêu
+    - cho minh biet 3 ngay qua da chi bao nhieu
     - cho minh biet nam nay da chi bao nhieu
     - cho minh biet sang nay da chi bao nhieu
     - cho minh biet tuan truoc da chi bao nhieu
-    - cho mình biết 3 ngày qua đã chi bao nhiêu
-    - cho mình biết năm nay đã chi bao nhiêu
     - cho mình biết sáng nay đã chi bao nhiêu
     - cho mình biết tuần trước đã chi bao nhiêu
+    - nam nay du bao nhieu
+    - nam nay minh xai het bao nhieu tien
     - năm nay dư bao nhiêu
     - năm nay mình xài hết bao nhiêu tiền
-    - sang nay du bao nhieu
     - sang nay minh xai het bao nhieu tien
     - sáng nay dư bao nhiêu
     - sáng nay mình xài hết bao nhiêu tiền
     - thong ke 3 ngay qua
-    - thong ke nam nay
+    - thong ke sang nay
     - thống kê 3 ngày qua
-    - thống kê năm nay
     - thống kê sáng nay
     - thống kê tuần trước
     - tinh giup tong tien 3 ngay qua
-    - tinh giup tong tien nam nay
-    - tinh giup tong tien sang nay
-    - tinh giup tong tien tuan truoc
+    - tuan truoc du bao nhieu
     - tuan truoc minh xai het bao nhieu tien
     - tuần trước dư bao nhiêu
     - tuần trước mình xài hết bao nhiêu tiền
@@ -311,25 +311,20 @@ nlu:
     - hom nay troi dep qua
     - hôm nay trời đẹp quá
     - lai suat ngan hang hien nay
-    - laptop 140k có tốt không
-    - laptop 2 lít 5 có tốt không
-    - laptop 200.000d co tot khong
-    - laptop 210 nghin co tot khong
-    - laptop 30k co tot khong
-    - laptop 30k có tốt không
-    - laptop 320k có tốt không
-    - laptop 3tr5 có tốt không
+    - laptop 2 lit 5 co tot khong
+    - laptop 210 nghìn có tốt không
     - laptop 4 cu 2 co tot khong
+    - laptop 4 củ 2 có tốt không
+    - laptop 5 trieu co tot khong
     - laptop 5 triệu có tốt không
+    - laptop 65.000đ có tốt không
     - laptop 7 củ có tốt không
-    - laptop 75k co tot khong
-    - laptop 75k có tốt không
+    - laptop 70 nghin co tot khong
+    - laptop 70 nghìn có tốt không
     - laptop 80 cành có tốt không
-    - laptop 95.000 co tot khong
-    - laptop 95k có tốt không
-    - laptop hai trăm nghìn có tốt không
-    - laptop năm trăm nghìn có tốt không
-    - laptop sáu mươi nghìn có tốt không
+    - laptop 95k co tot khong
+    - laptop hai tram nghin co tot khong
+    - laptop một triệu rưỡi có tốt không
     - lãi suất ngân hàng hiện nay
     - mua bitcoin bay gio duoc khong
     - mua bitcoin bây giờ được không

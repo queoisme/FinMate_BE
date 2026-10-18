@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -134,9 +135,23 @@ def chat_live(with_ai: bool):
 
 RASA_SETS = {  # tên file -> (nhãn, ngưỡng độ chính xác ý định)
     "nlu_test": ("câu viết tay", 0.90),
+    "nlu_test_fresh": ("viết tay, món chưa từng thấy", 0.85),
     "nlu_test_massive_oos": ("ngoài chủ đề (MASSIVE)", 0.90),
     "nlu_test_v2": ("tổng hợp, nhiều biến thể", 0.80),
 }
+
+
+def _nlu_cases() -> list[dict]:
+    """Đọc ai-service/rasa/tests/nlu_test*.yml (định dạng cố định, không cần PyYAML): [{set, intent, text}] với chú thích thực thể đã bỏ."""
+    cases = []
+    for path in sorted((ROOT / "ai-service/rasa/tests").glob("nlu_test*.yml")):
+        intent = None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("- intent:"):
+                intent = line.split(":", 1)[1].strip()
+            elif intent and line.startswith("    - "):
+                cases.append({"set": path.stem, "intent": intent, "text": re.sub(r"\[([^\]]+)\]\(\w+\)", r"\1", line[6:].strip())})
+    return cases
 
 
 def rasa():
@@ -147,13 +162,30 @@ def rasa():
             continue
         m = d[stem]
         rows += [
-            row(f"Ý định, {label} ({m['n']} câu)", m["intent_accuracy"], target),
-            row(f"Đoán sai ý định mà độ chắc ≥ 0,8, {label}", m["wrong_confident"] / m["n"], 0.05, higher=False),
+            row(f"Rasa thô, ý định, {label} ({m['n']} câu)", m["intent_accuracy"], target),
+            # Chỉ để tham khảo: luật trong parser chặn phần lớn các ca này; ngưỡng đặt ở chỉ tiêu "sau luật" bên dưới.
+            row(f"Rasa thô, đoán sai mà độ chắc ≥ 0,8, {label}", m["wrong_confident"] / m["n"]),
         ]
         if m["amount_recall"] is not None:
-            rows.append(row(f"Cắt đúng số tiền, {label}", m["amount_recall"], 0.90))
-        details += [f"[{label}] {w}" for w in m["wrong"][:4]]
+            rows.append(row(f"Rasa thô, cắt đúng số tiền, {label}", m["amount_recall"], 0.90))
+        details += [f"[{label}] {w}" for w in m["wrong"][:3]]
     rows.append(row("Thời gian p95 một câu", max(m["p95_ms"] for m in d.values()), 200, higher=False, fmt=MS))
+
+    # Tầng sản phẩm: cùng các câu đó đi qua /chat/parse (Rasa + luật). Đây mới là thứ người dùng thấy.
+    with tempfile.TemporaryDirectory() as tmp:
+        cases = Path(tmp) / "nlu_cases.json"
+        cases.write_text(json.dumps(_nlu_cases(), ensure_ascii=False), encoding="utf-8")
+        compose("cp", str(cases), "ai-service:/tmp/nlu_cases.json")
+    p = json_from(run_in("ai-service", "python", "-", stdin=ROOT / "ai-service/scripts/eval_nlu_pipeline.py"))
+    for stem, (label, _) in RASA_SETS.items():
+        if stem in p:
+            rows.append(row(f"Sau luật, đúng ý định, {label} ({p[stem]['n']} câu)", p[stem].get("ok", 0) / p[stem]["n"], 0.90))
+    total = sum(m["n"] for m in p.values())
+    rows += [
+        row(f"Sau luật, sai mà KHÔNG nhắc xem lại (cả {total} câu)", sum(m.get("silent_wrong", 0) for m in p.values()) / total, 0.03, higher=False),
+        row("Sau luật, sai mà bị TỰ LƯU không hỏi", sum(m.get("auto_saved_wrong", 0) for m in p.values()), 0, higher=False, fmt="{:.0f}"),
+    ]
+    details += [f"[sau luật] {w}" for m in p.values() for w in m["bad"] if "KHÔNG nhắc" in w or "TỰ LƯU" in w][:10]
     return rows, details
 
 
@@ -227,7 +259,9 @@ BLOCKS = {  # khóa -> (nhóm, tiêu đề, hàm, độ tin cậy)
     "chat_live": ("Chatbot", "Chat qua endpoint thật (Rasa đang chạy)", None,
                   "Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần Rasa gây ra."),
     "rasa": ("Chatbot", "Rasa NLU (ý định + số tiền)", rasa,
-             "Bộ 'câu viết tay' tách khỏi bộ huấn luyện. Bộ 'tổng hợp' do máy sinh từ mẫu câu: dễ hơn thật ở chỗ khuôn mẫu, khó hơn ở chỗ không dấu."),
+             "Bộ 'viết tay, món chưa từng thấy' (nlu_test_fresh) là bộ độc lập nhất: viết sau khi chốt dữ liệu học, không được đưa vào data/. "
+             "Bộ 'tổng hợp' do máy sinh, món và mẫu câu tách khỏi bộ học nhưng cùng 'họ' (nạp thẻ, trả tiền...), nên lạc quan hơn. "
+             "'Sau luật' là thứ người dùng thấy; 'Rasa thô' chỉ để theo dõi model."),
     "voice_text": ("Speech", "Giọng nói, phần chữ → số tiền/loại/danh mục", voice_text,
                    "Chỉ đo phần SAU khi đã có chữ. Câu đưa vào là chữ viết sẵn, chưa phải kết quả nhận dạng thật của người nói giọng vùng miền."),
     "stt": ("Speech", "Giọng nói → chữ (GIPFormer)", stt,

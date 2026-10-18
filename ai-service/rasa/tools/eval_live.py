@@ -8,6 +8,7 @@ Khác `rasa test nlu`: đo đúng service ai-service gọi, kèm độ trễ và
 """
 
 import json
+import os
 import re
 import statistics
 import sys
@@ -17,7 +18,7 @@ from pathlib import Path
 
 import yaml
 
-URL = "http://localhost:5005/model/parse"
+URL = os.environ.get("RASA_PARSE_URL", "http://localhost:5005/model/parse")  # đổi khi đo một model thử chạy trên cổng khác
 TESTS = Path("/app/tests")
 CONFIDENT = 0.8
 ENTITY = re.compile(r"\[([^\]]+)\]\((\w+)\)")
@@ -40,7 +41,7 @@ def parse(text: str) -> tuple[dict, float]:
 
 
 def measure(path: Path) -> dict:
-    n = correct = wrong_confident = amount_want = amount_hit = amount_extra = 0
+    n = correct = wrong_confident = wrong_saturated = amount_want = amount_hit = amount_extra = 0
     wrong, latencies = [], []
     for intent, text, amounts in cases(path):
         out, ms = parse(text)
@@ -50,6 +51,7 @@ def measure(path: Path) -> dict:
         correct += got == intent
         if got != intent:
             wrong_confident += confidence >= CONFIDENT
+            wrong_saturated += confidence >= 0.97  # ngưỡng KIND_TRUST của transaction_parser: trên mức này Rasa thắng luật
             wrong.append(f"{text!r}: muốn {intent}, ra {got} ({confidence:.2f})")
         found = [e["value"] for e in out["entities"] if e["entity"] == "amount"]
         amount_want += len(amounts)
@@ -60,6 +62,7 @@ def measure(path: Path) -> dict:
         "n": n,
         "intent_accuracy": round(correct / n, 3),
         "wrong_confident": wrong_confident,
+        "wrong_saturated": wrong_saturated,
         "amount_recall": round(amount_hit / amount_want, 3) if amount_want else None,
         "amount_spurious": amount_extra,
         "p50_ms": round(statistics.median(latencies)),

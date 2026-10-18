@@ -1,10 +1,10 @@
 # Bảng điểm khả thi FinMate
 
-Đo lúc 2026-10-18 22:22 bằng `python scripts/scorecard.py`. Ngưỡng là **đề xuất**, chủ dự án quyết định; "—" là chỉ số để tham khảo, chưa có ngưỡng.
+Đo lúc 2026-10-18 23:15 bằng `python scripts/scorecard.py`. Ngưỡng là **đề xuất**, chủ dự án quyết định; "—" là chỉ số để tham khảo, chưa có ngưỡng.
 
 | Nhóm | Kết quả |
 |---|---|
-| Chatbot | CHƯA ĐẠT (17/19 chỉ tiêu) |
+| Chatbot | ĐẠT (24/24 chỉ tiêu) |
 | Speech | ĐẠT (5/5 chỉ tiêu) |
 | OCR | ĐẠT (6/6 chỉ tiêu) |
 
@@ -42,51 +42,69 @@ Ca sai tiêu biểu:
 
 **Độ tin cậy:** Bộ giữ riêng ít bị tinh chỉnh theo hơn bộ chính, nhưng cũng do người viết luật gán nhãn.
 
-## Chatbot: Chat qua endpoint thật (Rasa đang chạy) — CHƯA ĐẠT
+## Chatbot: Chat qua endpoint thật (Rasa đang chạy) — ĐẠT
 
 | Chỉ tiêu | Đo được | Ngưỡng | |
 |---|---|---|---|
-| Rasa + luật: đúng (66 câu) | 97.0% | ≥ 95.0% | ĐẠT |
-| Rasa + luật: sai mà vẫn tự tin | 3.0% | ≤ 2.0% | CHƯA ĐẠT |
-| Rasa + luật: Rasa có trả lời | 100.0% | ≥ 95.0% | ĐẠT |
-| Rasa + luật: thời gian p95 | 35 ms | ≤ 500 ms | ĐẠT |
+| Rasa + luật: đúng (66 câu) | 98.5% | ≥ 95.0% | ĐẠT |
+| Rasa + luật: sai mà vẫn tự tin | 1.5% | ≤ 2.0% | ĐẠT |
+| Rasa + luật: Rasa có trả lời | 98.5% | ≥ 95.0% | ĐẠT |
+| Rasa + luật: thời gian p95 | 31 ms | ≤ 500 ms | ĐẠT |
 
 **Độ tin cậy:** Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần Rasa gây ra.
 
 Ca sai tiêu biểu:
 
 - 'mua đồ 1,5tr': muốn [('expense', 1500000, None)], ra [('expense', 1500000, 'shopping')]
-- 'cảm ơn': muốn thanks, ra confirm
 
-## Chatbot: Rasa NLU (ý định + số tiền) — CHƯA ĐẠT
+## Chatbot: Rasa NLU (ý định + số tiền) — ĐẠT
 
 | Chỉ tiêu | Đo được | Ngưỡng | |
 |---|---|---|---|
-| Ý định, câu viết tay (74 câu) | 95.9% | ≥ 90.0% | ĐẠT |
-| Đoán sai ý định mà độ chắc ≥ 0,8, câu viết tay | 4.1% | ≤ 5.0% | ĐẠT |
-| Cắt đúng số tiền, câu viết tay | 100.0% | ≥ 90.0% | ĐẠT |
-| Ý định, ngoài chủ đề (MASSIVE) (129 câu) | 93.0% | ≥ 90.0% | ĐẠT |
-| Đoán sai ý định mà độ chắc ≥ 0,8, ngoài chủ đề (MASSIVE) | 3.1% | ≤ 5.0% | ĐẠT |
-| Ý định, tổng hợp, nhiều biến thể (320 câu) | 80.9% | ≥ 80.0% | ĐẠT |
-| Đoán sai ý định mà độ chắc ≥ 0,8, tổng hợp, nhiều biến thể | 14.7% | ≤ 5.0% | CHƯA ĐẠT |
-| Cắt đúng số tiền, tổng hợp, nhiều biến thể | 92.2% | ≥ 90.0% | ĐẠT |
-| Thời gian p95 một câu | 28 ms | ≤ 200 ms | ĐẠT |
+| Rasa thô, ý định, câu viết tay (74 câu) | 97.3% | ≥ 90.0% | ĐẠT |
+| Rasa thô, đoán sai mà độ chắc ≥ 0,8, câu viết tay | 1.4% |  | — |
+| Rasa thô, cắt đúng số tiền, câu viết tay | 94.7% | ≥ 90.0% | ĐẠT |
+| Rasa thô, ý định, viết tay, món chưa từng thấy (67 câu) | 86.6% | ≥ 85.0% | ĐẠT |
+| Rasa thô, đoán sai mà độ chắc ≥ 0,8, viết tay, món chưa từng thấy | 11.9% |  | — |
+| Rasa thô, cắt đúng số tiền, viết tay, món chưa từng thấy | 95.9% | ≥ 90.0% | ĐẠT |
+| Rasa thô, ý định, ngoài chủ đề (MASSIVE) (129 câu) | 97.7% | ≥ 90.0% | ĐẠT |
+| Rasa thô, đoán sai mà độ chắc ≥ 0,8, ngoài chủ đề (MASSIVE) | 2.3% |  | — |
+| Rasa thô, ý định, tổng hợp, nhiều biến thể (315 câu) | 93.0% | ≥ 80.0% | ĐẠT |
+| Rasa thô, đoán sai mà độ chắc ≥ 0,8, tổng hợp, nhiều biến thể | 5.1% |  | — |
+| Rasa thô, cắt đúng số tiền, tổng hợp, nhiều biến thể | 95.0% | ≥ 90.0% | ĐẠT |
+| Thời gian p95 một câu | 24 ms | ≤ 200 ms | ĐẠT |
+| Sau luật, đúng ý định, câu viết tay (74 câu) | 98.6% | ≥ 90.0% | ĐẠT |
+| Sau luật, đúng ý định, viết tay, món chưa từng thấy (67 câu) | 91.0% | ≥ 90.0% | ĐẠT |
+| Sau luật, đúng ý định, ngoài chủ đề (MASSIVE) (129 câu) | 97.7% | ≥ 90.0% | ĐẠT |
+| Sau luật, đúng ý định, tổng hợp, nhiều biến thể (315 câu) | 96.2% | ≥ 90.0% | ĐẠT |
+| Sau luật, sai mà KHÔNG nhắc xem lại (cả 585 câu) | 1.9% | ≤ 3.0% | ĐẠT |
+| Sau luật, sai mà bị TỰ LƯU không hỏi | 0 | ≤ 0 | ĐẠT |
 
-**Độ tin cậy:** Bộ 'câu viết tay' tách khỏi bộ huấn luyện. Bộ 'tổng hợp' do máy sinh từ mẫu câu: dễ hơn thật ở chỗ khuôn mẫu, khó hơn ở chỗ không dấu.
+**Độ tin cậy:** Bộ 'viết tay, món chưa từng thấy' (nlu_test_fresh) là bộ độc lập nhất: viết sau khi chốt dữ liệu học, không được đưa vào data/. Bộ 'tổng hợp' do máy sinh, món và mẫu câu tách khỏi bộ học nhưng cùng 'họ' (nạp thẻ, trả tiền...), nên lạc quan hơn. 'Sau luật' là thứ người dùng thấy; 'Rasa thô' chỉ để theo dõi model.
 
 Ca sai tiêu biểu:
 
-- [câu viết tay] 'nạp game 200k': muốn add_expense, ra transfer_money (1.00)
-- [câu viết tay] 'hủy giúp mình': muốn cancel, ra out_of_scope (0.99)
-- [câu viết tay] 'lương 20 triệu có đủ sống không': muốn out_of_scope, ra add_income (1.00)
-- [ngoài chủ đề (MASSIVE)] 'giảm hai mươi phần trăm': muốn out_of_scope, ra add_expense (1.00)
-- [ngoài chủ đề (MASSIVE)] 'im lặng': muốn out_of_scope, ra deny (0.45)
-- [ngoài chủ đề (MASSIVE)] 'thay đổi tất cả các đèn trong nhà thành màu xanh dương': muốn out_of_scope, ra deny (0.56)
-- [ngoài chủ đề (MASSIVE)] 'thêm bữa trưa với dương': muốn out_of_scope, ra add_income (1.00)
-- [tổng hợp, nhiều biến thể] 'hom thu ba, nap the game 35 canh': muốn add_expense, ra add_income (0.96)
-- [tổng hợp, nhiều biến thể] 'hôm thứ ba, mua cá 1tr8': muốn add_expense, ra out_of_scope (1.00)
-- [tổng hợp, nhiều biến thể] 'ghé Gojek trả tiền gas 3tr5': muốn add_expense, ra add_income (1.00)
-- [tổng hợp, nhiều biến thể] 'giat ui khoang 95k': muốn add_expense, ra transfer_money (0.99)
+- [câu viết tay] 'gửi xe máy 3k': muốn add_expense, ra out_of_scope (1.00)
+- [câu viết tay] 'lương 20 triệu có đủ sống không': muốn out_of_scope, ra add_income (0.78)
+- [viết tay, món chưa từng thấy] 'đóng tiền gửi xe tháng 150k': muốn add_expense, ra add_income (1.00)
+- [viết tay, món chưa từng thấy] 'thuê xe máy đi đà lạt 180k': muốn add_expense, ra out_of_scope (1.00)
+- [viết tay, món chưa từng thấy] 'tốn 40k cho cơm chiên': muốn add_expense, ra add_income (1.00)
+- [ngoài chủ đề (MASSIVE)] 'xóa danh sách': muốn out_of_scope, ra deny (0.93)
+- [ngoài chủ đề (MASSIVE)] 'xóa dữ liệu': muốn out_of_scope, ra add_expense (1.00)
+- [ngoài chủ đề (MASSIVE)] 'ô tô ở đâu rồi': muốn out_of_scope, ra ask_spending (1.00)
+- [tổng hợp, nhiều biến thể] 'hôm thứ ba, giặt ủi 5 triệu': muốn add_expense, ra out_of_scope (1.00)
+- [tổng hợp, nhiều biến thể] 'hôm thứ ba, thuê phòng trọ 80 cành': muốn add_expense, ra out_of_scope (1.00)
+- [tổng hợp, nhiều biến thể] 'sang qua, giat ui 5 trieu': muốn add_expense, ra add_income (0.77)
+- [sau luật] 'rút 1 củ từ ví': muốn transfer_money, ra needs_amount (Rasa transfer_money 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'chuyển 2 củ từ ví sang thẻ': muốn transfer_money, ra needs_amount (Rasa transfer_money 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'hủy nhé': muốn cancel, ra goodbye (Rasa goodbye 0.918, KHÔNG nhắc xem lại)
+- [sau luật] 'xóa danh sách': muốn out_of_scope, ra deny (Rasa deny 0.933, KHÔNG nhắc xem lại)
+- [sau luật] 'xóa dữ liệu': muốn out_of_scope, ra needs_amount (Rasa add_expense 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'ô tô ở đâu rồi': muốn out_of_scope, ra ask_spending (Rasa ask_spending 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'uống nước mía khoảng 2 lít 5': muốn add_expense, ra needs_amount (Rasa add_expense 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'ban bao nhieu tuoi': muốn out_of_scope, ra ask_spending (Rasa ask_spending 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'bạn bao nhiêu tuổi': muốn out_of_scope, ra ask_spending (Rasa ask_spending 1.0, KHÔNG nhắc xem lại)
+- [sau luật] 'hom nay troi dep qua': muốn out_of_scope, ra ask_spending (Rasa ask_spending 0.914, KHÔNG nhắc xem lại)
 
 ## Speech: Giọng nói, phần chữ → số tiền/loại/danh mục — ĐẠT
 
@@ -113,9 +131,9 @@ Ca sai tiêu biểu:
 |---|---|---|---|
 | Tỷ lệ lỗi từ (WER), phần đầu câu (13 file) | 1.7% | ≤ 10.0% | ĐẠT |
 | Câu nhận dạng đúng hoàn toàn | 84.6% |  | — |
-| Tốc độ: thời gian xử lý / thời lượng âm thanh | 0.04 | ≤ 0.50 | ĐẠT |
+| Tốc độ: thời gian xử lý / thời lượng âm thanh | 0.05 | ≤ 0.50 | ĐẠT |
 
-**Độ tin cậy:** Chỉ vài chục file, một giọng/nguồn, tham chiếu suy ra từ tên file (bị cắt) nên chỉ chấm phần đầu câu. Thêm `Data_Voice/references.tsv` (tên_file<TAB>lời nói đầy đủ) để đo cả câu. Chưa có giọng thật trong môi trường ồn.
+**Độ tin cậy:** Rất ít file (hiện 13), một giọng/nguồn, tham chiếu suy ra từ tên file (bị cắt) nên chỉ chấm phần đầu câu. Thêm `Data_Voice/references.tsv` (tên_file<TAB>lời nói đầy đủ) để đo cả câu. Chưa có giọng thật trong môi trường ồn.
 
 Ca sai tiêu biểu:
 
@@ -132,7 +150,7 @@ Ca sai tiêu biểu:
 | Tên cửa hàng đúng | 93.1% | ≥ 90.0% | ĐẠT |
 | Danh mục đúng | 96.6% | ≥ 90.0% | ĐẠT |
 | Bill bị nhắc kiểm tra (phiền, không hại) | 27.6% |  | — |
-| Thời gian trung bình một ảnh | 2.4 giây | ≤ 5.0 giây | ĐẠT |
+| Thời gian trung bình một ảnh | 2.7 giây | ≤ 5.0 giây | ĐẠT |
 
 **Độ tin cậy:** Bộ ảnh này cũng là bộ đã dùng để sửa luật bóc tách, nên số đo lạc quan hơn ảnh lạ. Muốn biết độ chính xác thật cần ảnh chụp mới chưa từng dùng để chỉnh.
 
