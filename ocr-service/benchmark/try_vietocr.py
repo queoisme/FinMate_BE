@@ -11,9 +11,9 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
-import ocr  # noqa: E402
-import vietocr_onnx  # noqa: E402
-from crop import crop_receipt  # noqa: E402
+from reading import ocr  # noqa: E402
+from reading import vietocr_onnx  # noqa: E402
+from reading.crop import crop_receipt  # noqa: E402
 
 files = sys.argv[1:] or sorted(glob.glob(str(Path(__file__).resolve().parents[2] / "data-bill" / "*.jpg")))[:6]
 for f in files:

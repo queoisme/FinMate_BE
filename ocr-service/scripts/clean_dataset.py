@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(ROOT))
 
-from privacy import sanitize_lines  # noqa: E402
+from parsing.privacy import sanitize_lines  # noqa: E402
 
 PATH = ROOT / "dataset.jsonl"
 

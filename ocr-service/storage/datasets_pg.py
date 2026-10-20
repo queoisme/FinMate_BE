@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from storage.dataset import Dataset
-from extract import _alnum, _norm
+from parsing.extract import _alnum, _norm
 from storage.storage_pg import PgDataset, _cursor
 
 SYNTHETIC_LABEL = "synthetic_ocr"

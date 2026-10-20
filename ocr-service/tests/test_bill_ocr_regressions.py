@@ -4,9 +4,9 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from items import _rows, extract_items, payable_total
-from ocr import OcrBox
-from totals import choose_total
+from parsing.items import _rows, extract_items, payable_total
+from reading.ocr import OcrBox
+from parsing.totals import choose_total
 
 
 def box(text, x0, y0, x1, y1):

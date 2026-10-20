@@ -6,7 +6,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import numpy as np
 from PIL import Image
 
-from quality import assess_quality, enhance, image_quality
+from reading.quality import assess_quality, enhance, image_quality
 
 
 def _img(lo: int, hi: int, text_value: int | None = None) -> np.ndarray:

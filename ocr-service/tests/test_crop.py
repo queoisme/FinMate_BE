@@ -4,7 +4,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import numpy as np
 
-from crop import crop_receipt
+from reading.crop import crop_receipt
 
 
 def _scene(bg=40, paper=230, rect=(150, 40, 100, 220), size=(300, 400)) -> np.ndarray:

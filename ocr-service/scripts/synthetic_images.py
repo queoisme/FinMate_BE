@@ -19,10 +19,10 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(HERE))
 
-import ocr  # noqa: E402
-from extract import _alnum, _norm, analyze  # noqa: E402
-from merchant_name import format_merchant_name  # noqa: E402
-from privacy import sanitize_lines  # noqa: E402
+from reading import ocr  # noqa: E402
+from parsing.extract import _alnum, _norm, analyze  # noqa: E402
+from parsing.merchant_name import format_merchant_name  # noqa: E402
+from parsing.privacy import sanitize_lines  # noqa: E402
 from synthetic_bills import ITEMS, make_bill, money  # noqa: E402
 OUT_DIR = HERE.parent / "data-synthetic"
 OUT_JSONL = HERE / "dataset_synthetic_ocr.jsonl"

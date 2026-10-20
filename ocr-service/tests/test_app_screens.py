@@ -3,7 +3,7 @@ import sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app_screens import parse
+from parsing.app_screens import parse
 
 RIDE = ["16:55 1", "23", "06 Jun 2026,08:17PM", "Mã chuyến đi", "A-XXXX 6", "Ban khng thé xép hang, gúri tien tip hoác xem thng",
         "tin tài xế sau 7 ngày.", "Car", "0.67 km - 8phut", "353/2Dinh B Linh", "8:26 PM", "FPT Shop-Xo Viet Nghe Tinh", "8:34 PM",

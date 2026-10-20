@@ -5,7 +5,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from extract import receipt_score, MIN_RECEIPT_SCORE, CONFIDENT_RECEIPT_SCORE
+from parsing.extract import receipt_score, MIN_RECEIPT_SCORE, CONFIDENT_RECEIPT_SCORE
 
 FIX = pathlib.Path(__file__).parent / "fixtures" / "sample_ocr_lines.json"
 SAMPLES = json.loads(FIX.read_text(encoding="utf-8"))

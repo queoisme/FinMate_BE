@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE / "benchmark"))
 import run_databill as rd  # noqa: E402
 from classification.brands import BRAND_DISPLAY  # noqa: E402
 from storage.dataset import Dataset, redact_line  # noqa: E402
-from extract import _alnum, _norm  # noqa: E402
+from parsing.extract import _alnum, _norm  # noqa: E402
 
 DATASET = HERE / "dataset.jsonl"
 

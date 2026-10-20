@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from classification import brands
 from classification import chat_vocab
-import extract
+from parsing import extract
 from storage.memory import _key
 from storage.storage_pg import _cursor, _who, connect_from_env
 

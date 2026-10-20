@@ -7,8 +7,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import pytest
 from PIL import Image
 
-import ocr
-from text_clean import clean_ocr_text
+from reading import ocr
+from reading.text_clean import clean_ocr_text
 
 
 @pytest.mark.parametrize("raw,expected", [

@@ -14,7 +14,7 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from extract import _alnum, _norm
+from parsing.extract import _alnum, _norm
 
 MIN_RECORDS = 30        # ít hơn thì chưa đủ dữ liệu để tin
 MIN_CV_ACCURACY = 0.8   # độ chính xác kiểm tra chéo (nhóm theo cửa hàng) tối thiểu để bật mô hình

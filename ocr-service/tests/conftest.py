@@ -27,7 +27,7 @@ def internal_key_ok():
 
 def boxes_patch(read_lines_fn):
     """Bọc hàm đọc chữ giả (trả [(text, conf)]) thành hàm thay cho main.read_boxes: xếp chồng các dòng thành hộp."""
-    from ocr import OcrBox
+    from reading.ocr import OcrBox
 
     def fake(data):
         return [OcrBox(t, c, 0.0, i * 20.0, 100.0, i * 20.0 + 18.0) for i, (t, c) in enumerate(read_lines_fn(data))]

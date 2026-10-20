@@ -1,8 +1,8 @@
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from merchant_name import format_merchant_name
-from extract import _amounts, extract_total, extract_merchant, classify_category_detailed, analyze, items_cross_check
+from parsing.merchant_name import format_merchant_name
+from parsing.extract import _amounts, extract_total, extract_merchant, classify_category_detailed, analyze, items_cross_check
 
 
 def classify_category(merchant, lines):
@@ -64,7 +64,7 @@ def test_total_survives_ocr_cutting_the_last_digit_when_a_number_wraps_to_the_ne
 
 
 def test_amount_in_words_survives_ocr_gluing_words_together():
-    from extract import extract_words_total
+    from parsing.extract import extract_words_total
     lines = ["Mot trieu ba tram linhnamnghin", "dong chan)", "Cam on va hen gap lai!"]
     assert extract_words_total(lines) == 1_305_000
     assert extract_words_total(["Cam on quy khach", "Hen gap lai"]) is None
@@ -277,7 +277,7 @@ def test_merchant_name_with_a_stray_lowercase_letter_inside_caps_asks_for_review
 
 
 def test_a_clean_all_caps_name_is_not_flagged_by_the_garbled_name_rule():
-    from extract import looks_garbled_name
+    from parsing.extract import looks_garbled_name
     assert looks_garbled_name("CONG TY TNHH THUONG MAI GIA iNH XANH") is True
     for ok in ("QUÁN CƠM NHA BEP", "Bách Hóa Xanh", "MiniStop", "Highlands Coffee", "GS25", "iPhone Store", "McDonald's"):
         assert looks_garbled_name(ok) is False, ok
@@ -338,13 +338,13 @@ _QUAN_LAU = ["633", "LẦU THIÊN ĐƯỜNG", "99 Hoang Van ThuOuan Ph NhunTP.HC
 
 
 def test_a_store_name_with_thien_or_thinh_is_not_taken_for_a_person():
-    from extract import _looks_like_person
+    from parsing.extract import _looks_like_person
     for name in ("LẦU THIÊN ĐƯỜNG", "LẨU THIÊN HƯƠNG", "QUÁN THỊNH VƯỢNG", "BÁNH THIỆN PHÚC"):
         assert _looks_like_person(name) is False, name
 
 
 def test_vietnamese_personal_names_with_thi_are_still_recognised():
-    from extract import _looks_like_person
+    from parsing.extract import _looks_like_person
     for name in ("NGUYEN THI HOA", "Hồ Thị Hoàng Nga", "LE THI THU HA", "TRAN VAN BINH"):
         assert _looks_like_person(name) is True, name
 
@@ -361,7 +361,7 @@ def test_a_receipt_title_is_not_a_merchant_name():
 
 
 def test_evn_in_the_bill_title_is_the_merchant_and_an_electricity_bill_is_housing():
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
 
     lines = ["HÓA ĐƠN TIỀN ĐIỆN EVN", "Kỳ hóa đơn:", "tháng 09/2026", "Điện năng tiêu thụ:", "285 kWh", "Tiền điện:", "585.000", "TỔNG CỘNG:", "631.800"]
     merchant = extract_merchant(lines)

@@ -3,7 +3,7 @@ import sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from privacy import sanitize_lines
+from parsing.privacy import sanitize_lines
 
 
 def test_phone_with_separators_email_and_long_account_numbers_are_masked():

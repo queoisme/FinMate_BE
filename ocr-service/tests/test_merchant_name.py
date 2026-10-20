@@ -5,7 +5,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import pytest
 
 from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
-from merchant_name import format_merchant_name
+from parsing.merchant_name import format_merchant_name
 
 CASES = {
     "BACHHóA XANH": "Bách Hóa Xanh",

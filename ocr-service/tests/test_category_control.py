@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from extract import analyze, classify_category_detailed, compute_coverage
+from parsing.extract import analyze, classify_category_detailed, compute_coverage
 
 FIX = pathlib.Path(__file__).parent / "fixtures" / "sample_ocr_lines.json"
 SAMPLES = json.loads(FIX.read_text(encoding="utf-8"))
@@ -55,7 +55,7 @@ def test_total_is_the_repeated_payable_amount_not_a_quantity_row(key):
 
 
 def test_quantity_label_is_not_a_total_label():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     assert extract_total(["Tong so luong", "23,220"]) is None
     assert extract_total(["Tong so luong", "11,610", "Tong tien phai tra", "0", "Tien chua chiet khau", "1,419,282", "1,419,282"]) == 1419282
@@ -69,7 +69,7 @@ def test_address_fragments_and_cut_off_text_are_never_the_merchant(key):
 
 
 def test_glued_company_line_is_found_but_an_address_line_is_not():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["S32Binh.DiAnTp.HCM", "ChiNhanhTongCongTyThuongMaiSaiGon", "PHIEU GIAO NHAN VA THANH TOAN"]
     assert extract_merchant(lines, [0.9, 0.9, 0.9]) == "ChiNhanhTongCongTyThuongMaiSaiGon"
@@ -81,7 +81,7 @@ def test_satra_variant_with_readable_header_gets_the_company_name():
 
 
 def test_field_and_date_lines_are_never_the_merchant():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     assert extract_merchant(["Ngay hoa don: 01/10/2026", "NVBH: Phan Thi My Linh", "Cua hang Hoa Sen"], [0.9] * 3) == "Cua hang Hoa Sen"
     assert extract_merchant(["Ngay hoa don: 01/10/2026", "Hoa don so: IN042620", "DT GSNPP:"], [0.9] * 3) is None
@@ -96,7 +96,7 @@ def test_distributor_note_whose_header_is_unreadable_leaves_the_name_empty_but_k
 
 
 def test_title_line_is_not_a_total_label_and_date_or_staff_code_is_not_money():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     # "PHIEU THANH TOAN" chỉ là tiêu đề; dòng ngày giờ + mã nhân viên NV:305162 không phải tiền
     lines = ["PHIEU THANH TOAN BACH HOA XANH", "So CT: OV136193610001671", "03/10/2026 18:34 - NV:305162",
@@ -106,7 +106,7 @@ def test_title_line_is_not_a_total_label_and_date_or_staff_code_is_not_money():
 
 
 def test_numbers_after_code_labels_are_not_amounts():
-    from extract import _amounts
+    from parsing.extract import _amounts
 
     assert _amounts("NV:305162") == []
     assert _amounts("So HD: 90135  Tong 50.000") == [50000]
@@ -121,7 +121,7 @@ def test_scanned_bach_hoa_xanh_bill_total_is_the_printed_70900():
 
 
 def test_total_value_two_lines_below_its_label_beats_a_truncated_number_right_below():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     # nhãn "Tổng tiền hàng", dòng kế tiếp bị rớt chữ số (1.712,00), số đúng nằm sau dòng "Số lượng sản phẩm"
     lines = ["Tong tin hing", "1.712,00", "S6luyngsanpham", "Th1.712.000", "Cam on quy khach"]
@@ -130,14 +130,14 @@ def test_total_value_two_lines_below_its_label_beats_a_truncated_number_right_be
 
 
 def test_glued_title_is_not_the_merchant_and_a_seller_label_gives_the_name():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["PHIEUGIAONHANTHANHTOAN", "T@n NPP Cong Ty TNHH MinhPhTanh", "TenKH99993554CoCoMart"]
     assert extract_merchant(lines, [0.98, 0.76, 0.9]) == "Cong Ty TNHH MinhPhTanh"
 
 
 def test_buyer_label_lines_are_not_the_merchant():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     assert extract_merchant(["Ten khach hang: HO KINH DOANH COCO MART", "Highlands Coffee"], [0.95, 0.95]) == "Highlands Coffee"
     assert extract_merchant(["Nguoi mua: Nguyen Van A", "Cua hang Hoa Sen"], [0.95, 0.95]) == "Cua hang Hoa Sen"
@@ -157,7 +157,7 @@ def test_pink_distributor_slip_gets_total_and_name_but_garbled_products_stay_unc
 
 
 def test_company_name_split_across_stamp_lines_is_joined():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["KHAU THUC PHAM SACH", "CONG TY TNHH TM DV XNK", "THUC.PHAM SACH", "Chi Minh, Viet Nam.", "MST0312356259"]
     assert extract_merchant(lines, [0.96, 0.91, 0.92, 0.96, 0.96]) == "CONG TY TNHH TM DV XNK THUC.PHAM SACH"
@@ -179,7 +179,7 @@ def test_a4_delivery_note_gets_company_name_total_and_category():
 
 
 def test_document_code_and_status_label_are_not_the_merchant():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["12:12 1", "PN007415 Q", "Da nhap hang", "27/09/2026 11:42", "x", "Phi - Banh mi khong"]
     assert extract_merchant(lines, [0.93, 0.96, 0.87, 0.98, 0.9, 0.94]) == "Phi - Banh mi khong"
@@ -221,7 +221,7 @@ def test_pos_import_screenshot_gets_supplier_name_and_category_from_products():
 
 
 def test_document_code_is_never_read_as_money():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     # "PHIEU THANH TOAN" ở tiêu đề + dòng "So CT: OV106696607150588" ngay dưới
     lines = ["PHIEU THANH TOAN", "So CT: OV106696607150588 -16/07/2026", "Phai thanh toan:", "17.447", "Tien chuyen khoan", "17.000"]
@@ -230,14 +230,14 @@ def test_document_code_is_never_read_as_money():
 
 
 def test_label_only_reads_a_following_line_that_is_just_a_number():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     assert extract_total(["Tong cong", "Cam on quy khach 99.000 da mua"]) is None   # dòng sau là câu chữ
     assert extract_total(["Tong cong", "125.000 d"]) == 125000                      # dòng sau là số tiền
 
 
 def test_title_words_are_stripped_from_a_brand_line():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     assert extract_merchant(["PHIEU THANH TOAN BACHHóA XANH"], [0.89]) == "BACHHóA XANH"
     assert extract_merchant(["Kisnac"], [0.9]) == "Kisnac"
@@ -251,7 +251,7 @@ def test_bach_hoa_xanh_bill_total_and_name():
 
 
 def test_descriptor_line_below_the_receipt_title_is_not_the_merchant():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["co.cpmart", "tmcmoin", "Chi Minh", "PHIEU TINH TIEN", "Don hang sieu thi"]
     assert extract_merchant(lines, [0.86, 0.62, 0.83, 0.94, 0.95]) == "co.cpmart"
@@ -272,7 +272,7 @@ def test_coopmart_bill_gets_logo_name_and_groceries():
 
 
 def test_known_brand_line_beats_background_text_like_a_keyboard():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     # bàn phím trong ảnh bị OCR đọc thành chữ rõ nét ở đầu ("Pause Break")
     assert extract_merchant(["FA", "Paus", "Braak", "WinMart"], [0.5, 0.97, 0.89, 0.96]) == "WinMart"
@@ -286,7 +286,7 @@ def test_winmart_bill_gets_brand_name_total_and_category():
 
 
 def test_merchant_skips_low_confidence_handwriting_and_prefers_website_name():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     lines = ["gh", "Magi", "FPTRetail", "www.nhathuoclongchau.com"]
     assert extract_merchant(lines, [0.67, 0.62, 0.96, 0.99]) == "nhathuoclongchau"
@@ -295,7 +295,7 @@ def test_merchant_skips_low_confidence_handwriting_and_prefers_website_name():
 
 
 def test_business_word_line_beats_logo_line():
-    from extract import extract_merchant
+    from parsing.extract import extract_merchant
 
     assert extract_merchant(["FPTRetail", "NHA THUOC LONG CHAU"], [0.9, 0.9]) == "NHA THUOC LONG CHAU"
 
@@ -327,7 +327,7 @@ def test_thanh_pho_in_address_does_not_make_a_bill_dining():
 
 
 def test_amount_payable_wins_over_subtotal():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     assert extract_total(["Tong tien hang 570.500", "Tong can thanh toan 530.100"]) == 530100
     assert extract_total(["Cong tien hang 125.000", "Khach phai tra", "130.000"]) == 130000
@@ -341,7 +341,7 @@ def test_lamduong_bill_is_not_dining_and_total_is_130000():
 
 
 def test_total_fallback_uses_largest_repeated_amount_when_label_is_garbled():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     lines = ["ry tienhang", "570,500", "530.100", "570,500", "VISA570,500", "13,800", "13,800"]
     assert extract_total(lines) == 570500
@@ -349,7 +349,7 @@ def test_total_fallback_uses_largest_repeated_amount_when_label_is_garbled():
 
 
 def test_keyword_total_still_wins_over_repeated_amounts():
-    from extract import extract_total
+    from parsing.extract import extract_total
 
     assert extract_total(["TONG CONG 125.000", "Item 50.000", "Item 50.000"]) == 125000
 

@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from dates import VN, find_date
+from parsing.dates import VN, find_date
 
 NOW = datetime(2026, 10, 8, 20, 0, tzinfo=VN)
 

@@ -2,7 +2,7 @@ import sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from extract import extract_merchant
+from parsing.extract import extract_merchant
 
 
 def test_glued_field_labels_and_codes_are_never_the_merchant():
@@ -19,7 +19,7 @@ def test_generic_receipt_phrases_are_not_the_fallback_merchant():
 
 
 def test_cut_off_line_is_repaired_from_a_retry_read():
-    from ocr import repair_cut_off
+    from reading.ocr import repair_cut_off
     first = [("Chi Tram Quan 9 - banh khoai m", 0.93), ("Khoai mi nuong", 0.9)]
     retry = [("Chi Tram Quan 9 - banh khoai mi", 0.9), ("Khoai mi nuong", 0.9)]
     assert repair_cut_off(first, retry)[0][0] == "Chi Tram Quan 9 - banh khoai mi"
@@ -27,7 +27,7 @@ def test_cut_off_line_is_repaired_from_a_retry_read():
 
 
 def test_vietocr_only_adds_accents_unless_it_reads_a_known_brand():
-    from ocr import _prefer
+    from reading.ocr import _prefer
     assert _prefer("Chị Trâm", "Chi Tram") == "Chị Trâm"                      # chỉ thêm dấu
     assert _prefer("Pizzahd", "PizzaHut") == "PizzaHut"                       # đổi chữ, không phải thương hiệu: giữ Paddle
     assert _prefer("coopmart", "co.cpmart") == "coopmart"                     # thương hiệu: nhận VietOCR

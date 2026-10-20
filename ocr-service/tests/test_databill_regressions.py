@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from extract import _alnum, _norm, analyze, classify_category_detailed, extract_merchant  # noqa: E402
+from parsing.extract import _alnum, _norm, analyze, classify_category_detailed, extract_merchant  # noqa: E402
 
 
 def _m(*lines):
@@ -45,7 +45,7 @@ def test_seasoning_products_are_groceries():
                 "Bot ngot AJI-NO-MOTO 230g") == "groceries"
 
 
-from extract import words_to_amount  # noqa: E402
+from parsing.extract import words_to_amount  # noqa: E402
 
 
 def test_amount_in_words():
@@ -65,7 +65,7 @@ def test_words_total_from_lines_and_mismatch_is_flagged():
 
 def test_added_chains_give_category_and_display_name():
     from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     assert set(BRAND_CATEGORIES) <= set(BRAND_DISPLAY)
     for merchant, category, display in [("PIZZA HUT VN", "dining", "Pizza Hut"), ("Phuc Long Coffee", "dining", "Phúc Long"),
                                          ("THE GIOI DI DONG", "shopping", "Thế Giới Di Động"), ("PETROLIMEX CH 12", "transport", "Petrolimex"),
@@ -84,7 +84,7 @@ def test_brand_names_are_not_matched_inside_ordinary_words():
 
 def test_base_brand_table_gives_category_and_name_for_common_vn_chains():
     from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     assert set(BRAND_CATEGORIES) <= set(BRAND_DISPLAY)
     for merchant, category, display in [("POPEYES TTTM", "dining", "Popeyes"), ("Canifa Nguyen Trai", "shopping", "Canifa"),
                                          ("BITI'S HUNTER STORE", "shopping", "Biti's"), ("PNJ Quan 1", "shopping", "PNJ"),
@@ -97,7 +97,7 @@ def test_base_brand_table_gives_category_and_name_for_common_vn_chains():
 
 def test_researched_dining_chains_are_recognised_and_exited_ones_are_gone():
     from classification.brands import BRAND_CATEGORIES
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     for merchant, display in [("KFC Nguyen Hue", "KFC"), ("DOOKKI VINCOM", "Dookki"), ("Marugame Udon Saigon Centre", "Marugame Udon"),
                               ("PIZZA 4PS LE THANH TON", "Pizza 4P's"), ("Gyu-Kaku Japanese BBQ", "Gyu-Kaku"), ("foody.vn don 123", "ShopeeFood")]:
         assert classify_category_detailed(merchant, [])[:2] == ("dining", "brand"), merchant
@@ -221,7 +221,7 @@ def test_bank_account_number_is_not_the_total_even_on_a_line_that_says_thanh_toa
 
 
 def test_account_lines_and_bare_nine_digit_ids_are_never_money():
-    from extract import extract_total
+    from parsing.extract import extract_total
     assert extract_total(["So tai khoan nhan thanh toan: 909915990 - MBBANK"]) is None
     assert extract_total(["Ma don 123456789", "Tong cong 250.000"]) == 250000
     assert extract_total(["STK: 1903456789 Techcombank", "Thanh toan 99.000"]) == 99000
@@ -229,7 +229,7 @@ def test_account_lines_and_bare_nine_digit_ids_are_never_money():
 
 
 def _check(lines):
-    from extract import items_cross_check
+    from parsing.extract import items_cross_check
     return items_cross_check(lines)
 
 
@@ -246,7 +246,7 @@ def test_same_line_pos_rows_are_counted_and_other_numbers_are_not():
 
 
 def test_cross_check_levels_match_plausible_mismatch():
-    from extract import items_check_level
+    from parsing.extract import items_check_level
     assert items_check_level(2010000, 2010000) == "match"
     assert items_check_level(2171000, 2010000) == "plausible"    # có VAT 8%
     assert items_check_level(1800000, 2010000) == "plausible"    # có giảm giá
@@ -277,13 +277,13 @@ MM_HEADER = [("Kyhae3eriest", 0.66), ("Don vian hanoTRN TAM  EGA AET AN PH", 0.7
 
 def test_garbled_header_still_names_the_shop_from_its_website_domain():
     r = analyze(MM_HEADER)
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     assert format_merchant_name(r["merchant"]) == "MM Mega Market"
     assert r["category"] == "groceries"
 
 
 def test_amount_in_words_survives_ocr_dropping_the_accent_letters():
-    from extract import words_to_amount
+    from parsing.extract import words_to_amount
     assert words_to_amount("Hai trieu hai tram ba uoi bon nghin sau tra nam uoi bon dong") == 2234654
     assert analyze(MM_HEADER)["words_check"] == "match"
 
@@ -303,7 +303,7 @@ def test_date_on_a_payment_deadline_line_is_not_the_total_and_split_total_label_
 
 
 def test_years_and_dates_are_never_money_but_real_amounts_are():
-    from extract import extract_total
+    from parsing.extract import extract_total
     assert extract_total(["Han thanh toan truoc ngay 05/10/2026", "TONG 125.000"]) == 125000
     assert extract_total(["Thanh toan truoc 10/2026", "Tong cong 2026"]) is None            # "2026" trần là năm, không phải tiền
     assert extract_total(["TONG THANH TOAN", "3.660.000 dong"]) == 3660000                   # số kèm "đồng" vẫn là dòng số tiền
@@ -311,9 +311,9 @@ def test_years_and_dates_are_never_money_but_real_amounts_are():
 
 
 def test_two_line_logo_name_is_joined_into_one_name():
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     r = analyze(NHA_TRO)
-    from extract import _norm
+    from parsing.extract import _norm
     assert _norm(format_merchant_name(r["merchant"])) == "nha tro sach se"  # dấu cuối do OCR đọc, ở đây chỉ kiểm tra việc ghép hai dòng
 
 
@@ -431,7 +431,7 @@ def test_ordinary_all_caps_header_with_a_date_is_not_mistaken_for_a_shop_code():
 
 
 def test_con_cung_me_va_be_logo_is_joined_and_recognised_but_a_bare_con_cung_restaurant_is_not():
-    from merchant_name import format_merchant_name
+    from parsing.merchant_name import format_merchant_name
     lines = ["CON CƯNG", "Mẹ và Bé", "T[sdt]", "HÓA ĐƠN BÁN HÀNG", "Ten hang", "Ta dan Bobby", "249.000", "TONG CONG:", "792.000"]
     merchant = extract_merchant(lines)
     assert merchant == "CON CƯNG Mẹ và Bé"  # khẩu hiệu "Mẹ và Bé" in chữ hoa-thường dưới logo là một phần tên

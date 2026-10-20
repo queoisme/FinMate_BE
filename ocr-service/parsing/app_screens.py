@@ -9,7 +9,7 @@ ponytail: luật theo giao diện hiện tại của từng app; app đổi giao
 import re
 
 from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY, WHOLE_WORD_BRANDS
-from extract import _MAX_AMOUNT, _alnum, _amounts, _norm, best_brand
+from parsing.extract import _MAX_AMOUNT, _alnum, _amounts, _norm, best_brand
 
 _SHOP_BADGE = {"yeu", "thich", "thich+", "+"}
 _ORDER_TOTAL = re.compile(r"san\s*pham\)?\s*:?\s*([\d.,]+)")

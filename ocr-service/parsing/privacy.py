@@ -11,7 +11,7 @@ ponytail: dựa trên nhãn và mẫu số; thêm nhãn/mẫu ở đây khi gặ
 """
 import re
 
-from extract import _alnum, _looks_like_person, _norm, looks_like_address
+from parsing.extract import _alnum, _looks_like_person, _norm, looks_like_address
 
 _LABELS = ("khachhang", "tenkhachhang", "tenkh", "makhachhang", "makh", "nguoimua", "nguoinhan", "hotennguoi", "hoten",
            "nhanvien", "nvbh", "nvgh", "nvcv", "thungan", "diachi", "djachi", "dienthoai", "hotline",

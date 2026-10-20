@@ -2,7 +2,7 @@ import io
 
 from PIL import Image
 
-import ocr
+from reading import ocr
 
 
 class _FakeEngine:
@@ -59,7 +59,7 @@ def test_deskew_ignores_a_wild_slope():
 
 
 def test_deskew_fixes_pairing_on_tilted_page():
-    from items import extract_items
+    from parsing.items import extract_items
 
     slope = 0.05  # 50px trên 1000px = 1,25 hàng (8904 trôi 1,56 hàng): tâm giá gần tên hàng dưới hơn tên cùng hàng
     names = ["Bánh mì", "Nước cam", "Trà đào", "Cà phê", "Sữa chua"]

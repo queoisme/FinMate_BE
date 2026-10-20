@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from extract import _norm  # noqa: E402
+from parsing.extract import _norm  # noqa: E402
 
 HERE = Path(__file__).parent
 DATA = Path(os.environ.get("DATA_BILL") or HERE.parents[1] / "data-bill")
@@ -63,12 +63,12 @@ def match_labels(labels: list[dict], items: list[dict], by_name: bool = True, fu
 
 def process(path: Path) -> dict:
     """Giống main.analyze_bill (đọc hộp một lần, tổng qua analyze, tách món qua main._bill_items) nhưng không dùng bộ nhớ."""
-    import app_screens
+    from parsing import app_screens
     import main
-    from extract import analyze
-    from items import payable_total
-    from totals import choose_total
-    from ocr import NoTextError, read_boxes
+    from parsing.extract import analyze
+    from parsing.items import payable_total
+    from parsing.totals import choose_total
+    from reading.ocr import NoTextError, read_boxes
 
     try:
         boxes = read_boxes(path.read_bytes())

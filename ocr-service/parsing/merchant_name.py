@@ -2,7 +2,7 @@
 import re
 
 from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
-from extract import _GENERIC_STORE, _alnum, _brand_in, _norm, best_brand
+from parsing.extract import _GENERIC_STORE, _alnum, _brand_in, _norm, best_brand
 
 _ACRONYMS = {"TNHH", "CP", "JSC", "TP", "VN", "HCM", "HN", "KFC", "BBQ", "CGV", "EVN", "FPT", "MB", "TM", "DV"}
 # Tiêu đề hóa đơn dính vào đầu tên; dài trước để khớp đúng cụm dài nhất.

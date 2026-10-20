@@ -15,19 +15,19 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-import dates
-import app_screens
-import vietocr_onnx
+from parsing import dates
+from parsing import app_screens
+from reading import vietocr_onnx
 from classification.category_model import CategoryModel
-from privacy import sanitize_lines
-from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, analyze, receipt_score
+from parsing.privacy import sanitize_lines
+from parsing.extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, analyze, receipt_score
 from storage.knowledge_pg import open_knowledge
-from merchant_name import format_merchant_name
-import ocr
-from items import extract_items, payable_total
-from totals import choose_total
-from ocr import NoTextError, read_boxes
-from quality import image_quality
+from parsing.merchant_name import format_merchant_name
+from reading import ocr
+from parsing.items import extract_items, payable_total
+from parsing.totals import choose_total
+from reading.ocr import NoTextError, read_boxes
+from reading.quality import image_quality
 from storage.storage_pg import current_user, open_stores
 
 MAX_BYTES = 10 * 1024 * 1024

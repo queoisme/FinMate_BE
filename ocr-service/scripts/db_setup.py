@@ -47,8 +47,8 @@ def main(argv: list[str]) -> int:
                     if not k.startswith("_")}
 
         def lines_of(name: str) -> list[str]:  # OCR lười: chỉ chạy cho ảnh chưa có trong DB
-            import ocr
-            from privacy import sanitize_lines
+            from reading import ocr
+            from parsing.privacy import sanitize_lines
             return sanitize_lines([t for t, _ in ocr.read_lines((base / "data-bill" / name).read_bytes())])
 
         r = datasets_pg.import_gold(connect, expected, lines_of, write=write)

@@ -11,9 +11,9 @@ cần một luật riêng cho từng kiểu bố cục. Không ứng viên nào 
 import re
 from dataclasses import dataclass
 
-from extract import _MIN_AMOUNT, _amounts, _norm
-from items import _rows, extract_items
-from ocr import OcrBox
+from parsing.extract import _MIN_AMOUNT, _amounts, _norm
+from parsing.items import _rows, extract_items
+from reading.ocr import OcrBox
 
 _CASH = re.compile(r"khach dua|khach tra|tien khach|tien nhan")
 _CHANGE = re.compile(r"thoi lai|tien thua|tra lai|tien thoi")

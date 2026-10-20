@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 import main
-from ocr import NoTextError
+from reading.ocr import NoTextError
 from tests.conftest import boxes_patch
 
 client = TestClient(main.app)
@@ -352,7 +352,7 @@ def _items_rows():
 
 def _grid_boxes(rows):
     """Hộp có tọa độ thật: tên bên trái, giá bên phải, mỗi dòng một hàng."""
-    from ocr import OcrBox
+    from reading.ocr import OcrBox
     boxes = []
     for i, row in enumerate(rows):
         y = i * 20.0
@@ -374,7 +374,7 @@ def test_analyze_bill_returns_items_and_items_ok(monkeypatch):
 
 
 def test_item_names_are_sanitized(monkeypatch):
-    from items import Item, ItemsResult
+    from parsing.items import Item, ItemsResult
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("QUAN A", "50.000")))
     monkeypatch.setattr(main, "extract_items", lambda b, t: ItemsResult(
         [Item("Tra 0912345678", 20000, None, False), Item("Banh", 30000, None, False)], True))
@@ -384,7 +384,7 @@ def test_item_names_are_sanitized(monkeypatch):
 
 
 def test_item_name_sanitized_to_empty_is_dropped_and_not_ok(monkeypatch):
-    from items import Item, ItemsResult
+    from parsing.items import Item, ItemsResult
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("QUAN A", "50.000")))
     monkeypatch.setattr(main, "extract_items", lambda b, t: ItemsResult(
         [Item("0912345678", 20000, None, False), Item("Banh", 30000, None, False)], True))
@@ -421,7 +421,7 @@ def test_screen_bill_returns_no_items(monkeypatch):
 
 def _layout(*rows):
     """Hộp chữ có tọa độ: mỗi hàng là danh sách (chữ, x0, x1); hàng thứ i cao 30px tại y = i * 45."""
-    from ocr import OcrBox
+    from reading.ocr import OcrBox
     return [OcrBox(t, 0.95, x0, i * 45, x1, i * 45 + 30) for i, row in enumerate(rows) for t, x0, x1 in row]
 
 

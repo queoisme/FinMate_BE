@@ -3,8 +3,8 @@ import re
 from dataclasses import dataclass, replace
 from statistics import median
 
-from extract import _MIN_AMOUNT, _amounts, _norm
-from ocr import OcrBox
+from parsing.extract import _MIN_AMOUNT, _amounts, _norm
+from reading.ocr import OcrBox
 
 ROW_TOLERANCE = 0.6  # lệch tâm dọc dưới 0,6 lần chiều cao hộp trung vị thì cùng hàng
 PRICE_COLUMN = 0.35  # giá nằm trong 35% bên phải tờ giấy

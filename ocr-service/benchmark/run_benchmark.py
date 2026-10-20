@@ -17,10 +17,10 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from crop import crop_receipt                      # noqa: E402
-from extract import _alnum, _amounts, _norm, analyze  # noqa: E402
-from merchant_name import format_merchant_name     # noqa: E402
-from quality import assess_quality, enhance        # noqa: E402
+from reading.crop import crop_receipt                      # noqa: E402
+from parsing.extract import _alnum, _amounts, _norm, analyze  # noqa: E402
+from parsing.merchant_name import format_merchant_name     # noqa: E402
+from reading.quality import assess_quality, enhance        # noqa: E402
 
 HERE = Path(__file__).parent
 EXPECTED = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))

@@ -4,7 +4,7 @@ import os
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from extract import CATEGORIES, _alnum, _looks_like_code_or_status, _norm, _within_one_edit
+from parsing.extract import CATEGORIES, _alnum, _looks_like_code_or_status, _norm, _within_one_edit
 
 _FUZZY_MIN_LEN = 5
 _FUZZY_RATIO = 0.85

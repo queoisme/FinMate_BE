@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from storage.dataset import Dataset
-from extract import CATEGORIES
+from parsing.extract import CATEGORIES
 from storage.memory import MerchantMemory, _key
 
 SOURCE = "bill_scan"

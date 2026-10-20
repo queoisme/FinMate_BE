@@ -9,9 +9,9 @@ Chỉ một người chốt thì giữ riêng cho người đó, không đưa v�
 import uuid
 from datetime import datetime, timezone
 
-import extract
+from parsing import extract
 from storage import knowledge_pg
-from extract import _alnum, _brand_in, _looks_like_code_or_status
+from parsing.extract import _alnum, _brand_in, _looks_like_code_or_status
 from storage.storage_pg import _cursor
 
 MIN_USERS = 3

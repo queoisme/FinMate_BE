@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-_DIR = Path(__file__).parent / "models" / "vietocr"
+_DIR = Path(__file__).resolve().parent.parent / "models" / "vietocr"  # models/ nằm ở gốc dịch vụ, module này ở reading/
 _VOCAB = ('aAàÀảẢãÃáÁạẠăĂằẰẳẲẵẴắẮặẶâÂầẦẩẨẫẪấẤậẬbBcCdDđĐeEèÈẻẺẽẼéÉẹẸêÊềỀểỂễỄếẾệỆfFgGhHiIìÌỉỈĩĨíÍịỊjJkKlLmMnNoOòÒỏỎõÕóÓọỌôÔồỒổỔỗỖốỐộỘơƠờỜởỞỡỠớỚợỢpPqQrRsStTuUùÙủỦũŨúÚụỤưƯừỪửỬữỮứỨựỰvVwWxXyYỳỲỷỶỹỸýÝỵỴzZ'
           '0123456789!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ ')
 _GO, _EOS = 1, 2

@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 
 from classification import brands  # noqa: E402
-import extract  # noqa: E402
+from parsing import extract  # noqa: E402
 from storage import knowledge_pg  # noqa: E402
 from storage.storage_pg import connect_from_env  # noqa: E402
 

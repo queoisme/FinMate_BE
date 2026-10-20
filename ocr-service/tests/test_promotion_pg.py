@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from classification import brands  # noqa: E402
-import extract  # noqa: E402
+from parsing import extract  # noqa: E402
 from storage import knowledge_pg  # noqa: E402
 from storage.promotion_pg import promote  # noqa: E402
 from storage.storage_pg import PgMerchantMemory, _cursor  # noqa: E402

@@ -1,8 +1,8 @@
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from ocr import OcrBox
-from items import extract_items
+from reading.ocr import OcrBox
+from parsing.items import extract_items
 
 
 def box(text, x0, y0, x1, y1):
@@ -335,7 +335,7 @@ def test_fee_including_vat_before_subtotal_is_an_item_not_a_surcharge():
 
 
 # ---- tổng khách phải trả đọc theo HÀNG: nhãn và số cùng hàng, không phụ thuộc thứ tự OCR đọc các dòng
-from items import payable_total  # noqa: E402
+from parsing.items import payable_total  # noqa: E402
 
 BILL_ROWS = [
     *row(500, ("Tổng tiền hàng (5 món):", 50, 450), ("160.000", 800, 950)),

@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from classification import brands  # noqa: E402
-import extract  # noqa: E402
+from parsing import extract  # noqa: E402
 from storage import knowledge_pg  # noqa: E402
 import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

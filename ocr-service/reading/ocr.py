@@ -11,12 +11,12 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from crop import crop_receipt
+from reading.crop import crop_receipt
 from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
-from extract import _alnum, _norm
-from quality import assess_quality, enhance
-import vietocr_onnx
-from text_clean import clean_ocr_text
+from parsing.extract import _alnum, _norm
+from reading.quality import assess_quality, enhance
+from reading import vietocr_onnx
+from reading.text_clean import clean_ocr_text
 
 
 class NoTextError(Exception):

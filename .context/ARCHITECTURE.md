@@ -769,20 +769,20 @@ Backend (`OcrServiceClient`) chỉ gửi `image` nên `share_data` (ghi bill l�
 ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py` đã xóa 2026-10-15); chỉ ai-service `classify-items` gọi Gemini/OpenRouter.
 
 **Module** (một dòng mỗi file):
-- `ocr.py` — PaddleOCR (đọc chữ + hộp tọa độ), làm thẳng ảnh nghiêng, đọc lại đầu phiếu bằng VietOCR (`FINMATE_VIETOCR=0` để tắt).
-- `vietocr_onnx.py` — VietOCR seq2seq chạy qua onnxruntime (không cần PyTorch), model trong `models/vietocr/`.
-- `crop.py` — cắt vùng tờ hóa đơn khỏi nền (bàn, tay…) trước OCR.
-- `quality.py` — đánh giá/chỉnh độ sáng, đo mờ: `ok | too_dark | too_bright | blurry`.
-**Bố cục thư mục `ocr-service/`:** gốc là các module chạy trong service (đọc ảnh, bóc tách, `main.py`); `storage/` (lưu trữ: bộ nhớ, dataset, kiến thức, huấn luyện), `classification/` (thương hiệu, từ vựng chat, mô hình danh mục), `scripts/` (công cụ chạy tay, không chạy trong service).
+- `reading/ocr.py` — PaddleOCR (đọc chữ + hộp tọa độ), làm thẳng ảnh nghiêng, đọc lại đầu phiếu bằng VietOCR (`FINMATE_VIETOCR=0` để tắt).
+- `reading/vietocr_onnx.py` — VietOCR seq2seq chạy qua onnxruntime (không cần PyTorch), model trong `models/vietocr/`.
+- `reading/crop.py` — cắt vùng tờ hóa đơn khỏi nền (bàn, tay…) trước OCR.
+- `reading/quality.py` — đánh giá/chỉnh độ sáng, đo mờ: `ok | too_dark | too_bright | blurry`.
+**Bố cục thư mục `ocr-service/`:** gốc chỉ còn `main.py` (cổng vào, Dockerfile chạy `uvicorn main:app`); `reading/` (đọc ảnh), `parsing/` (bóc tách từ chữ đã đọc), `storage/` (lưu trữ: bộ nhớ, dataset, kiến thức, huấn luyện), `classification/` (thương hiệu, từ vựng chat, mô hình danh mục), `scripts/` (công cụ chạy tay, không chạy trong service). Import theo package, ví dụ `from parsing.items import extract_items`, `from reading import ocr`.
 
-- `extract.py` — luật bóc tổng tiền, tên cửa hàng, nhóm, `needs_review`, `receipt_score`.
-- `dates.py` — ngày giao dịch trên phiếu (bỏ kỳ cước/hạn thanh toán, bỏ ngày tương lai, lấy ngày muộn nhất còn lại).
-- `privacy.py` — `sanitize_lines`: bỏ dòng nhãn cá nhân, che email/SĐT/số tài khoản.
-- `items.py` — tách từng món (tên + giá, giảm giá âm, phụ kiện `parent`) từ hộp chữ; `ok` chỉ khi cộng đúng tổng.
-- `merchant_name.py` — làm đẹp tên cửa hàng (IN HOA, dính chữ, ký tự rác).
+- `parsing/extract.py` — luật bóc tổng tiền, tên cửa hàng, nhóm, `needs_review`, `receipt_score`.
+- `parsing/dates.py` — ngày giao dịch trên phiếu (bỏ kỳ cước/hạn thanh toán, bỏ ngày tương lai, lấy ngày muộn nhất còn lại).
+- `parsing/privacy.py` — `sanitize_lines`: bỏ dòng nhãn cá nhân, che email/SĐT/số tài khoản.
+- `parsing/items.py` — tách từng món (tên + giá, giảm giá âm, phụ kiện `parent`) từ hộp chữ; `ok` chỉ khi cộng đúng tổng.
+- `parsing/merchant_name.py` — làm đẹp tên cửa hàng (IN HOA, dính chữ, ký tự rác).
 - `classification/brands.py`, `classification/chat_vocab.py` — thương hiệu/từ khóa trong code (mặc định khi DB trống).
-- `app_screens.py` — ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn TMĐT).
-- `text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
+- `parsing/app_screens.py` — ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn TMĐT).
+- `reading/text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
 - `storage/memory.py` / `storage/dataset.py` / `storage/storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
 - `storage/knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
 - `classification/category_model.py`, `storage/training_pg.py`, `storage/promotion_pg.py`, `storage/datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`

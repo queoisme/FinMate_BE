@@ -21,13 +21,13 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
-import ocr                                              # noqa: E402
-from totals import choose_total                          # noqa: E402
-from items import payable_total                          # noqa: E402
-from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, _alnum, _norm, analyze, receipt_score  # noqa: E402
-from merchant_name import format_merchant_name          # noqa: E402
-from privacy import sanitize_lines                      # noqa: E402
-from quality import assess_quality, image_quality       # noqa: E402
+from reading import ocr                                              # noqa: E402
+from parsing.totals import choose_total                          # noqa: E402
+from parsing.items import payable_total                          # noqa: E402
+from parsing.extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, _alnum, _norm, analyze, receipt_score  # noqa: E402
+from parsing.merchant_name import format_merchant_name          # noqa: E402
+from parsing.privacy import sanitize_lines                      # noqa: E402
+from reading.quality import assess_quality, image_quality       # noqa: E402
 
 HERE = Path(__file__).parent
 DATA = Path(os.environ.get("DATA_BILL") or HERE.parents[1] / "data-bill")

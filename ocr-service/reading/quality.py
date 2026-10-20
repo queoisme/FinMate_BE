@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from crop import crop_receipt
+from reading.crop import crop_receipt
 
 # ponytail: ngưỡng chỉnh theo 4 ảnh mẫu (bình thường p99=238/p1=21, tối p99=46, cháy sáng p1=126);
 # thêm ảnh thật rồi chỉnh lại nếu báo nhầm.
