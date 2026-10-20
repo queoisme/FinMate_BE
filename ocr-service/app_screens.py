@@ -290,6 +290,30 @@ def _parse_bus_ticket(lines: list[str]) -> dict:
             "category": "transport", "keep_lines": [merchant] if merchant else []}
 
 
+_PAID_LABEL = re.compile(r"^tt\s*:?\s*(\d{1,3}(?:[.,]\d{3})+)")  # "TT: 260.000": tiền thanh toán trên phiếu lên xe
+
+
+def _is_paper_bus_ticket(norms: list[str]) -> bool:
+    """Phiếu lên xe khách bằng giấy (Vexere...). OCR đọc hỏng nhiều chữ nên cần ít nhất ba dấu hiệu độc lập, trong đó có tiêu đề hoặc tên nền tảng;
+    so khớp trên chữ viết liền vì khoảng trắng hay bị mất ("lenxe")."""
+    sq = _alnum("".join(norms))
+    title = "phieulenxe" in sq or "vexere" in sq
+    signals = ["phieulenxe" in sq, "vexere" in sq, "tenhk" in sq, "quetmaqr" in sq and "lenxe" in sq, any(_PAID_LABEL.match(n) for n in norms)]
+    return title and sum(signals) >= 3
+
+
+def _parse_paper_bus_ticket(lines: list[str]) -> dict:
+    """Số phải trả là dòng "TT:"; không có thì lấy số tiền lớn nhất (giá vé) và nhắc người dùng xem lại. Tổng đài (190.888.606) và biển số không phải tiền nên
+    chỉ nhận số có dấu nghìn trong khoảng giá vé. Không giữ dòng chữ nào để lưu vì phiếu có tên và số điện thoại hành khách."""
+    norms = [_norm(l).strip() for l in lines]
+    paid = next((int(re.sub(r"\D", "", m.group(1))) for n in norms if (m := _PAID_LABEL.match(n))), None)
+    prices = [a for l in lines for m in _THOUSANDS.findall(l) if 10_000 <= (a := int(re.sub(r"\D", "", m))) <= 20_000_000]
+    total = paid if paid is not None else (max(prices) if prices else None)
+    vexere = "vexere" in _alnum("".join(norms))
+    return {"screen_type": "bus_ticket", "merchant": "Vexere" if vexere else None, "total_amount": total, "category": "transport",
+            "keep_lines": [], "force_review": paid is None}
+
+
 def apply(result: dict, screen: dict, lookup, display) -> None:
     """Ghi kết quả đọc màn hình app đè lên kết quả phân tích hóa đơn thường. Cửa hàng người dùng đã lưu vẫn được ưu tiên về danh mục."""
     def category_of(name: str | None, default: str) -> tuple[str, str, float]:
@@ -338,6 +362,8 @@ def parse(lines: list[str]) -> dict | None:
         return _parse_provider_notice(lines)
     if _is_shipping_label(norms):
         return _parse_shipping_label(lines)
+    if _is_paper_bus_ticket(norms):
+        return _parse_paper_bus_ticket(lines)
     if _is_cinema_ticket(norms):
         return _parse_cinema_ticket(lines)
     return None
