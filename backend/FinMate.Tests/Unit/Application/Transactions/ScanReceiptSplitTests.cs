@@ -191,10 +191,82 @@ public class ScanReceiptSplitTests
         _classifyRequests.Should().ContainSingle();
     }
 
+    // Một nhóm duy nhất thì không tách thành nhiều giao dịch, nhưng nhóm AI/luật đã gán cho các món vẫn là bằng chứng tốt nhất cho cả bill.
+    private void BillLevelSays(string? slug, string source) => _ai
+        .Setup(a => a.ClassifyBillAsync(It.IsAny<BillClassifyRequest>(), It.IsAny<CancellationToken>()))
+        .ReturnsAsync(new BillClassifyResponse(slug, null, slug is null ? 0 : 0.7, source));
+
     [Fact]
-    public async Task OneCategoryOnly_FallsBackToOldPath()
+    public async Task OneCategoryOnly_UsesTheItemsCategoryForTheWholeBill()
     {
         ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Should().BeEquivalentTo(OldPathOfMixedBill, o => o.Excluding(d => d.ScanId));
+        dto.Groups.Should().BeNull();
+        _saved.Single().CategorySource.Should().Be("item_vote");  // không phải "items": nguồn đó nghĩa là bill đã tách và có dòng món
+        _savedItems.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OneCategoryOnly_FillsInWhenTheBillLevelHasNoCategory()
+    {
+        // Bánh tráng: tên cửa hàng không có trong từ điển nên đường cũ không ra nhóm, nhưng ba món đều là ăn uống.
+        BillLevelSays(null, "none");
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("food");
+        dto.Groups.Should().BeNull();
+        _saved.Single().CategorySlug.Should().Be("food");
+        _saved.Single().CategorySource.Should().Be("item_vote");
+    }
+
+    [Fact]
+    public async Task OneCategoryOnly_ItemsBeatABrandGuess()
+    {
+        // KidsPlaza: thương hiệu nói "mua sắm" nhưng mọi món là sữa.
+        BillLevelSays("shopping", "brand");
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("food");
+        _saved.Single().CategorySource.Should().Be("item_vote");
+    }
+
+    [Fact]
+    public async Task OneCategoryOnly_WhatTheUserRememberedForTheStoreStillWins()
+    {
+        BillLevelSays("family", "memory");
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("family");
+        _saved.Single().CategorySource.Should().Be("memory");
+    }
+
+    [Fact]
+    public async Task OneCategoryOnly_AnUnknownTinyItemDoesNotBlockIt()
+    {
+        // Trân châu (5.000) chưa rõ nhóm nhưng Cà phê (30.000) và Dầu gội (50.000) cùng "food": 94% số tiền đã biết.
+        BillLevelSays(null, "none");
+        ClassifyItemsReturns(r => Classified(r, "food", null, "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("food");
+        dto.Groups.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task MostlyUnknownItems_KeepTheBillLevelCategory()
+    {
+        // Chỉ 35.000 / 85.000 (41%) có nhóm: chưa đủ để thay đường cũ.
+        ClassifyItemsReturns(r => Classified(r, "food", "food", null));
 
         var dto = await Handler().HandleAsync(Command());
 

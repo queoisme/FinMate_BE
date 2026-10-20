@@ -41,6 +41,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private const int MaxItemNameLength = 120;
     private const int MaxSourceLength = 16;
     private const string UnknownSource = "unknown";
+    // Nhóm chung của các món khi bill không tách được (thường vì mọi món cùng một nhóm). Khác "items" (ReceiptScan.ItemsCategorySource): nguồn đó nghĩa là bill đã tách.
+    private const string ItemVoteSource = "item_vote";
+    private const string MemorySource = "memory";
+    private const int ItemVoteSharePercent = 60;
     private const string DiscountSource = "discount";
     private const string SurchargeSource = "surcharge";
 
@@ -156,12 +160,20 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             return await ScanOrderListAsync(command.UserId, ocr, orders, merchant, confidence, ct);
         }
 
-        if (await TrySplitAsync(command.UserId, ocr, merchant, confidence, ct) is { } split)
+        var (split, itemVote) = await TrySplitAsync(command.UserId, ocr, merchant, confidence, ct);
+        if (split is not null)
         {
             return split;
         }
 
         var category = await ClassifyAsync(command.UserId, ocr, ct);
+        if (itemVote is not null && category?.Source != MemorySource)
+        {
+            // Đường cũ chỉ nhìn cửa hàng và chữ (không có AI) nên hay không ra nhóm hoặc theo thương hiệu ("Kids Plaza" = mua sắm cho cả hóa đơn sữa).
+            // Các món đã được phân loại cùng một nhóm là bằng chứng tốt hơn, trừ khi người dùng đã chốt nhóm cho cửa hàng này.
+            category = new BillClassifyResponse(itemVote, null, 0.8, ItemVoteSource);
+        }
+
         var dto = new ScannedReceiptDto(
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence,
             PossibleDuplicateTransactionId: await DuplicateOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, ct));
@@ -260,12 +272,12 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     /// ai-service lỗi hay trả sai, hoặc <see cref="ReceiptSplitter"/> không ra được các nhóm khớp tổng bill.
     /// AI chỉ nhận TÊN món thường (không tiền, không giảm giá/phụ thu); log không bao giờ chứa tên hay tiền.
     /// </summary>
-    private async Task<ScannedReceiptDto?> TrySplitAsync(
+    private async Task<(ScannedReceiptDto? Split, string? ItemVote)> TrySplitAsync(
         Guid userId, OcrServiceResponse ocr, string? merchant, double confidence, CancellationToken ct)
     {
         if (!_options.SplitByItemsEnabled || !ocr.ItemsOk || ocr.Items is not { } items)
         {
-            return null;
+            return NoSplit;
         }
 
         // Chỉ số dòng gốc của các món thường; vị trí trong danh sách này là chỉ số gửi sang ai-service.
@@ -279,7 +291,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         var roots = regular.Count(i => items[i].Parent is null);
         if (roots < 2 || regular.Any(i => items[i].Parent is { } p && !regularIndexOf.ContainsKey(p)))
         {
-            return null;
+            return NoSplit;
         }
 
         // Đọc thẳng từ DB mỗi lần quét: người dùng vừa rút đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
@@ -303,12 +315,12 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         {
             // Client thật có thể ném cả NullReferenceException khi phản hồi lệch schema, không chỉ AIServiceUnavailableException.
             _logger.LogWarning("Tách nhóm hóa đơn bỏ qua: classify-items lỗi {ExceptionType}", ex.GetType().Name);
-            return null;
+            return NoSplit;
         }
 
         if (response?.Items is not { } replies || replies.Count != regular.Count)
         {
-            return null;
+            return NoSplit;
         }
 
         // Trải lại thành danh sách cùng độ dài, cùng thứ tự với ocr.Items; giảm giá/phụ thu giữ chỗ (Split bỏ qua các vị trí này).
@@ -318,7 +330,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         {
             if (reply is null || reply.Index < 0 || reply.Index >= regular.Count || filled[reply.Index])
             {
-                return null;
+                return NoSplit;
             }
 
             filled[reply.Index] = true;
@@ -329,7 +341,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         var groups = ReceiptSplitter.Split(items, expanded, ocr.TotalAmount!.Value);
         if (groups is null)
         {
-            return null;
+            return (null, ItemVote(items, expanded));
         }
 
         var flagged = new List<ReceiptGroup>();
@@ -361,7 +373,30 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             _logger.LogWarning("Không lưu được các món của lần quét: {ExceptionType}", ex.GetType().Name);
         }
 
-        return dto with { ScanId = scan.Id, NeedsReview = needsReview };
+        return (dto with { ScanId = scan.Id, NeedsReview = needsReview }, null);
+    }
+
+    private static readonly (ScannedReceiptDto? Split, string? ItemVote) NoSplit = (null, null);
+
+    /// <summary>
+    /// Bill không tách thành nhiều nhóm, nhưng các món ĐÃ BIẾT nhóm cùng một slug và chiếm đa số số tiền các món thường thì đó là nhóm của cả bill.
+    /// Trả slug khi chắc, null thì bên gọi giữ đường cũ.
+    /// </summary>
+    private static string? ItemVote(IReadOnlyList<OcrItem> items, ClassifiedItem[] classified)
+    {
+        var regular = Enumerable.Range(0, items.Count)
+            .Where(i => !items[i].IsDiscount && !ReceiptSplitter.IsSurcharge(items[i]))
+            .ToList();
+        var known = regular.Where(i => classified[i].Source != UnknownSource && classified[i].CategorySlug is not null).ToList();
+        var slugs = known.Select(i => classified[i].CategorySlug).Distinct().ToList();
+        if (slugs.Count != 1)
+        {
+            return null;
+        }
+
+        var regularCents = regular.Sum(i => items[i].Amount);
+        var knownCents = known.Sum(i => items[i].Amount);
+        return regularCents > 0 && knownCents * 100 >= regularCents * ItemVoteSharePercent ? slugs[0] : null;
     }
 
     private Task<Guid?> DuplicateOfAsync(Guid userId, long amountCents, DateTimeOffset? at, CancellationToken ct)
