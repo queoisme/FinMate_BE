@@ -1,7 +1,7 @@
 """Nhập các ảnh trong ai-service/data-bill vào dataset.jsonl làm dữ liệu huấn luyện (nhãn lấy từ benchmark/expected_databill.json).
 
-Chạy:  .\.venv\Scripts\python.exe import_databill.py            (xem trước, không ghi gì)
-       .\.venv\Scripts\python.exe import_databill.py --write    (sao lưu dataset rồi ghi thêm)
+Chạy:  .\.venv\Scripts\python.exe scripts/import_databill.py            (xem trước, không ghi gì)
+       .\.venv\Scripts\python.exe scripts/import_databill.py --write    (sao lưu dataset rồi ghi thêm)
 
 - Nhãn là phán đoán của người soạn expected_databill.json, đánh dấu label_source = "imported" để phân biệt với nhãn người dùng.
 - Bỏ ảnh không có tên cửa hàng đọc được, và ảnh trùng cửa hàng đã có trong dataset. Không đụng tới merchant_memory.json.
@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "benchmark"))
 

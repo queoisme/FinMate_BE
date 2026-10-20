@@ -1,6 +1,6 @@
 """Huấn luyện mô hình danh mục từ dataset.jsonl (hoặc từ PostgreSQL khi có FINMATE_DATABASE_URL).
 
-Chạy:  .\.venv\Scripts\python.exe train_category_model.py [--synthetic]   (--synthetic: thêm dataset_synthetic.jsonl vào phần huấn luyện)
+Chạy:  .\.venv\Scripts\python.exe scripts/train_category_model.py [--synthetic]   (--synthetic: thêm dataset_synthetic.jsonl vào phần huấn luyện)
 Chỉ tạo category_model.joblib khi đủ dữ liệu và độ chính xác kiểm tra chéo đạt ngưỡng.
 Có DB: mỗi lần chạy (kể cả không đạt) được ghi vào bill_training_jobs / bill_model_versions / evaluation_* (xem training_pg.py).
 Mô hình đạt ngưỡng cũng được lưu thành bản có phiên bản trong category_models/ để quay lại được.
@@ -11,12 +11,13 @@ import shutil
 import sys
 from pathlib import Path
 
-from category_model import MIN_CV_ACCURACY, MIN_RECORDS, CategoryModel, train
-from dataset import Dataset
-from storage_pg import open_stores
-from training_pg import new_version, open_training_recorder
+HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+sys.path.insert(0, str(HERE))
 
-HERE = Path(__file__).parent
+from category_model import MIN_CV_ACCURACY, MIN_RECORDS, CategoryModel, train  # noqa: E402
+from dataset import Dataset  # noqa: E402
+from storage_pg import open_stores  # noqa: E402
+from training_pg import new_version, open_training_recorder  # noqa: E402
 
 
 def run(dataset_path, model_path: Path, synthetic_path: Path | None = None, recorder=None) -> int:

@@ -43,7 +43,7 @@ chạy trước: compose đặt `depends_on: ai-service` healthy). Gồm bộ nh
 
 Bộ nhớ cửa hàng theo `X-User-Hash` (backend gửi SHA-256 của user_id).
 
-Nạp dữ liệu (`db_setup.py --seed/--import/--gold/--synthetic --write`) chỉ chạy được sau `alembic upgrade head`; db_setup không tạo bảng.
+Nạp dữ liệu (`python scripts/db_setup.py --seed/--import/--gold/--synthetic --write`) chỉ chạy được sau `alembic upgrade head`; db_setup không tạo bảng.
 
 ## Chưa làm
 

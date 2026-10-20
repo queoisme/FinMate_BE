@@ -1,7 +1,7 @@
 """Kiến thức nhận diện bill (thương hiệu, từ khóa danh mục) lấy từ PostgreSQL, và ghi bill lạ vào DB.
 
 - Khởi động API: nếu DB có dữ liệu thì thay các danh sách trong code (cập nhật tại chỗ nên mọi module vẫn dùng được); DB trống thì giữ bản trong code.
-- Nạp dữ liệu ban đầu: seed_knowledge_to_pg.py. Sau đó sửa trong DB (thêm dòng, đặt is_active = false) rồi gọi reload để áp dụng.
+- Nạp dữ liệu ban đầu: scripts/seed_knowledge_to_pg.py. Sau đó sửa trong DB (thêm dòng, đặt is_active = false) rồi gọi reload để áp dụng.
 - ponytail: reload cập nhật tại chỗ nên một yêu cầu đang chạy đúng lúc có thể lỗi hiếm gặp; reload khi vắng người hoặc khởi động lại.
 """
 import hashlib
@@ -90,8 +90,8 @@ def open_knowledge():
         return NoUnknownScans(), lambda: False
     try:
         reload(connect)
-    except Exception:  # noqa: BLE001 - DB chưa thiết lập (chưa chạy db_setup.py) không được làm API chết lúc khởi động
-        logging.getLogger(__name__).warning("Chưa nạp được kiến thức từ DB (đã chạy db_setup.py chưa?): dùng bản trong code", exc_info=True)
+    except Exception:  # noqa: BLE001 - DB chưa thiết lập (chưa chạy scripts/db_setup.py) không được làm API chết lúc khởi động
+        logging.getLogger(__name__).warning("Chưa nạp được kiến thức từ DB (đã chạy scripts/db_setup.py chưa?): dùng bản trong code", exc_info=True)
     return UnknownScans(connect, os.environ.get("FINMATE_USER_HASH", "local")), lambda: reload(connect)
 
 

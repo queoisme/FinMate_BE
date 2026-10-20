@@ -1,6 +1,7 @@
 import sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(1, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))  # công cụ chạy tay (train_category_model, db_setup...) mà test import
 
 import pytest
 

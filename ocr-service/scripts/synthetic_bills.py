@@ -1,6 +1,6 @@
 """Sinh hóa đơn giả (chỉ chữ) cho các danh mục còn thiếu dữ liệu thật, ghi ra dataset_synthetic.jsonl.
 
-Chạy:  .\.venv\Scripts\python.exe synthetic_bills.py [số_hóa_đơn_mỗi_danh_mục]   (mặc định 40)
+Chạy:  .\.venv\Scripts\python.exe scripts/synthetic_bills.py [số_hóa_đơn_mỗi_danh_mục]   (mặc định 40)
 
 - KHÔNG đụng tới dataset.jsonl. Bản ghi giả có label_source = "synthetic" và không chứa dữ liệu cá nhân.
 - Dữ liệu giả chỉ dùng để huấn luyện; độ chính xác để qua cổng 80% luôn đo trên hóa đơn THẬT (xem category_model.train).
@@ -11,10 +11,11 @@ import random
 import sys
 from pathlib import Path
 
-from brands import BRAND_CATEGORIES, BRAND_DISPLAY
-from extract import _alnum, _norm
+HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+sys.path.insert(0, str(HERE))
 
-HERE = Path(__file__).parent
+from brands import BRAND_CATEGORIES, BRAND_DISPLAY  # noqa: E402
+from extract import _alnum, _norm  # noqa: E402
 OUT = HERE / "dataset_synthetic.jsonl"
 
 # (tên mặt hàng, giá thấp, giá cao)

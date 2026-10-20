@@ -1,16 +1,19 @@
 """Nạp thương hiệu và từ khóa đang viết trong code vào PostgreSQL một lần (sau đó DB là nơi sửa).
 
 Chạy:  $env:FINMATE_DATABASE_URL = "postgresql://..."
-       .\\.venv\\Scripts\\python.exe seed_knowledge_to_pg.py            (xem trước, không ghi gì)
-       .\\.venv\\Scripts\\python.exe seed_knowledge_to_pg.py --write    (ghi vào DB)
+       .\\.venv\\Scripts\\python.exe scripts/seed_knowledge_to_pg.py            (xem trước, không ghi gì)
+       .\\.venv\\Scripts\\python.exe scripts/seed_knowledge_to_pg.py --write    (ghi vào DB)
 Chạy lại nhiều lần vẫn an toàn: dòng đã có (kể cả đã sửa trong DB) không bị ghi đè. Cần đã chạy migrations/0007_*.sql.
 """
 import sys
+from pathlib import Path
 
-import brands
-import extract
-import knowledge_pg
-from storage_pg import connect_from_env
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+
+import brands  # noqa: E402
+import extract  # noqa: E402
+import knowledge_pg  # noqa: E402
+from storage_pg import connect_from_env  # noqa: E402
 
 
 def main(write: bool) -> int:

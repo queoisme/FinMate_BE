@@ -783,8 +783,8 @@ ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py
 - `text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
 - `memory.py` / `storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
 - `knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
-- `category_model.py`, `train_category_model.py`, `training_pg.py`, `promotion_pg.py`, `datasets_pg.py`, `db_setup.py`, `seed_knowledge_to_pg.py`
-  — script huấn luyện/nạp dữ liệu chạy tay (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
+- `category_model.py`, `training_pg.py`, `promotion_pg.py`, `datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`
+  (và các công cụ chạy tay khác trong `ocr-service/scripts/`) — huấn luyện/nạp dữ liệu (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
 
 **Khởi động.** `lifespan` chạy `warm_up()` trong một thread nền: nạp PaddleOCR và VietOCR trước, vì lần quét đầu nạp model mất
 vài chục giây — quá timeout 30 giây của ai-service. Model PaddleOCR đã được tải sẵn vào image lúc build (`Dockerfile`).
@@ -954,7 +954,7 @@ và chỉ dẫn Gemini (`bill_ai_instructions`) sửa trực tiếp trong DB, **
 trong `classifier.py`, `item_rules_seed.py`) chỉ là mặc định/seed và đường lui. ai-service: `DbBillKnowledge.refresh_if_stale` nạp lại
 `bill_brands`/`bill_keywords` khi đã quá **60 giây** (DB lỗi thì giữ bản đang dùng, ghi cảnh báo); chỉ dẫn Gemini cũng cache 60 giây.
 ocr-service: nạp lúc khởi động, nạp lại qua `POST /admin/reload-knowledge` (§3.5).
-**DB mới thì `bill_brands`/`bill_keywords` rỗng:** alembic `0006` chỉ tạo schema, không seed; chỉ `ocr-service/seed_knowledge_to_pg.py`
+**DB mới thì `bill_brands`/`bill_keywords` rỗng:** alembic `0006` chỉ tạo schema, không seed; chỉ `ocr-service/scripts/seed_knowledge_to_pg.py`
 (chạy tay, có `--write`) nạp bản trong code vào DB. Trước khi chạy nó, cả hai service dùng bản trong code; việc `0008` chuyển 4 từ khóa
 sang `shopping` chỉ có tác dụng khi các dòng đó đã được seed (nó `INSERT … SELECT` rồi `DELETE` trên chính `bill_keywords`).
 

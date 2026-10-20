@@ -1,15 +1,18 @@
 """Gom phiếu bầu của người dùng thành thương hiệu mới trong DB (xem promotion_pg.py cho quy tắc ngưỡng).
 
 Chạy:  $env:FINMATE_DATABASE_URL = "postgresql://..."
-       .\\.venv\\Scripts\\python.exe promote_knowledge.py            (xem trước, không ghi gì)
-       .\\.venv\\Scripts\\python.exe promote_knowledge.py --write    (ghi vào DB)
+       .\\.venv\\Scripts\\python.exe scripts/promote_knowledge.py            (xem trước, không ghi gì)
+       .\\.venv\\Scripts\\python.exe scripts/promote_knowledge.py --write    (ghi vào DB)
 Sau khi ghi: POST /admin/reload-knowledge (hoặc khởi động lại API) để API dùng thương hiệu mới. Chạy theo lịch (cron) cũng được.
 Cần đã chạy migrations 0006-0008.
 """
 import sys
+from pathlib import Path
 
-from promotion_pg import MIN_AGREEMENT, MIN_CANDIDATE_USERS, MIN_USERS, promote
-from storage_pg import connect_from_env
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+
+from promotion_pg import MIN_AGREEMENT, MIN_CANDIDATE_USERS, MIN_USERS, promote  # noqa: E402
+from storage_pg import connect_from_env  # noqa: E402
 
 LABELS = {"promoted": "Bật ngay (đủ phiếu bầu, đồng thuận cao)", "upgraded": "Từ chờ lên bật (đủ phiếu bầu)",
           "pending": "Ghi ở trạng thái chờ (chưa đủ ngưỡng, cần duyệt)", "disputes": "Tranh chấp với dòng đã có (không ghi đè, cần duyệt)",

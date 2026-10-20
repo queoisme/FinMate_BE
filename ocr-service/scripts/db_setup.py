@@ -1,7 +1,7 @@
 """Nạp dữ liệu cho các bảng bill_* một lần: thương hiệu/từ khóa, dữ liệu đã huấn luyện.
 
 Schema do Alembic của ai-service quản lý (migration 0006): chạy `alembic upgrade head` trước.
-Chạy:  python db_setup.py [--seed] [--import] [--write]
+Chạy:  python scripts/db_setup.py [--seed] [--import] [--write]
   --seed      nạp thương hiệu và từ khóa đang viết trong code vào DB (seed_knowledge_to_pg.py)
   --import    nhập dataset.jsonl và merchant_memory.json vào DB; thư mục nguồn lấy từ FINMATE_IMPORT_DIR (mặc định: thư mục này)
   --gold      đánh dấu bộ chuẩn (gold) từ benchmark/expected_databill.json; ảnh lấy từ FINMATE_GOLD_DIR/data-bill (mặc định: thư mục ai-service)
@@ -15,10 +15,13 @@ import os
 import sys
 from pathlib import Path
 
-import datasets_pg
-import import_files_to_pg
-import knowledge_pg
-from storage_pg import connect_from_env
+ROOT = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+sys.path.insert(0, str(ROOT))
+
+import datasets_pg  # noqa: E402
+import import_files_to_pg  # noqa: E402
+import knowledge_pg  # noqa: E402
+from storage_pg import connect_from_env  # noqa: E402
 
 def main(argv: list[str]) -> int:
     connect = connect_from_env()
@@ -35,10 +38,10 @@ def main(argv: list[str]) -> int:
         else:
             print("Sẽ nạp thương hiệu và từ khóa từ code vào DB.")
     if "--import" in argv:
-        code = import_files_to_pg.do_import(Path(os.environ.get("FINMATE_IMPORT_DIR", Path(__file__).parent)), write)
+        code = import_files_to_pg.do_import(Path(os.environ.get("FINMATE_IMPORT_DIR", ROOT)), write)
         if code:
             return code
-    base = Path(os.environ.get("FINMATE_GOLD_DIR", Path(__file__).parent.parent))
+    base = Path(os.environ.get("FINMATE_GOLD_DIR", ROOT.parent))
     if "--gold" in argv:
         expected = {k: v for k, v in json.loads((base / "bill-api" / "benchmark" / "expected_databill.json").read_text(encoding="utf-8")).items()
                     if not k.startswith("_")}
@@ -57,7 +60,7 @@ def main(argv: list[str]) -> int:
             print(f"  gold: {old!r} -> {new!r}")
         print("Đã đổi tên gold." if write else "Xem trước tên gold sẽ đổi (chưa ghi).")
     if "--synthetic" in argv:
-        r = datasets_pg.import_synthetic(connect, Path(os.environ.get("FINMATE_IMPORT_DIR", Path(__file__).parent)) / "dataset_synthetic_ocr.jsonl", write=write)
+        r = datasets_pg.import_synthetic(connect, Path(os.environ.get("FINMATE_IMPORT_DIR", ROOT)) / "dataset_synthetic_ocr.jsonl", write=write)
         print(f"Bill giả qua OCR: {r['in_file']} trong file, {r['in_db']} trong DB{'' if write else ' (xem trước, chưa ghi)'}.")
     print("Xong." if write else "Chưa ghi gì (không có --write).")
     return 0

@@ -1,4 +1,4 @@
-# Dữ liệu cá nhân và dữ liệu đã học KHÔNG nằm trong image: nhập vào PostgreSQL bằng db_setup.py (xem ai-service/docker-compose.yml)
+# Dữ liệu cá nhân và dữ liệu đã học KHÔNG nằm trong image: nhập vào PostgreSQL bằng scripts/db_setup.py (xem ai-service/docker-compose.yml)
 dataset*.jsonl
 merchant_memory.json
 category_model.joblib

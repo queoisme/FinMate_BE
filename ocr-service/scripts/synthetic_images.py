@@ -1,6 +1,6 @@
 """Vẽ bill giả thành ẢNH, làm hỏng như ảnh chụp thật, rồi đọc bằng đúng OCR của app. Nhãn đã biết nên không cần gán tay.
 
-Chạy:  .\\.venv\\Scripts\\python.exe synthetic_images.py [số_ảnh=300] [seed=11]
+Chạy:  .\\.venv\\Scripts\\python.exe scripts/synthetic_images.py [số_ảnh=300] [seed=11]
 Ghi:   ..\\data-synthetic\\*.jpg + labels.json   và   dataset_synthetic_ocr.jsonl (chữ đã qua OCR + nhãn, label_source = "synthetic_ocr")
 In:    độ chính xác của luật hiện tại trên ảnh giả, theo danh mục (đây là thước đo phụ: nội dung do mình viết nên dễ hơn bill thật).
 Không đụng dataset.jsonl. Dữ liệu giả không chứa thông tin cá nhân.
@@ -16,13 +16,14 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import ocr
-from extract import _alnum, _norm, analyze
-from merchant_name import format_merchant_name
-from privacy import sanitize_lines
-from synthetic_bills import ITEMS, make_bill, money
+HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+sys.path.insert(0, str(HERE))
 
-HERE = Path(__file__).parent
+import ocr  # noqa: E402
+from extract import _alnum, _norm, analyze  # noqa: E402
+from merchant_name import format_merchant_name  # noqa: E402
+from privacy import sanitize_lines  # noqa: E402
+from synthetic_bills import ITEMS, make_bill, money  # noqa: E402
 OUT_DIR = HERE.parent / "data-synthetic"
 OUT_JSONL = HERE / "dataset_synthetic_ocr.jsonl"
 FONTS = [f"C:/Windows/Fonts/{n}.ttf" for n in ("cour", "consola", "CascadiaMono", "tahoma")]  # đã kiểm tra: đủ mọi chữ có dấu tiếng Việt (Arial Narrow và Lucida Console thì thiếu)

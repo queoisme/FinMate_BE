@@ -1,7 +1,7 @@
 """Làm sạch dữ liệu cá nhân trong dataset.jsonl đã lưu từ trước (dùng cùng bộ che với lúc lưu mới).
 
-Chạy:  .\.venv\Scripts\python.exe clean_dataset.py            (xem trước, không ghi)
-       .\.venv\Scripts\python.exe clean_dataset.py --write    (sao lưu dataset rồi ghi đè bản đã làm sạch)
+Chạy:  .\.venv\Scripts\python.exe scripts/clean_dataset.py            (xem trước, không ghi)
+       .\.venv\Scripts\python.exe scripts/clean_dataset.py --write    (sao lưu dataset rồi ghi đè bản đã làm sạch)
 Chạy nhiều lần cho kết quả như nhau.
 """
 import json
@@ -10,9 +10,12 @@ import sys
 import time
 from pathlib import Path
 
-from privacy import sanitize_lines
+ROOT = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
+sys.path.insert(0, str(ROOT))
 
-PATH = Path(__file__).parent / "dataset.jsonl"
+from privacy import sanitize_lines  # noqa: E402
+
+PATH = ROOT / "dataset.jsonl"
 
 
 def main(write: bool) -> None:

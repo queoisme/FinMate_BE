@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(1, str(Path(__file__).resolve().parents[1] / "scripts"))  # synthetic_bills
 sys.stdout.reconfigure(encoding="utf-8")
 
 from category_model import _group_key, _pipeline, record_text  # noqa: E402
