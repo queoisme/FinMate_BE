@@ -3,6 +3,7 @@ import re
 import unicodedata
 from typing import Callable
 
+from classification import data_files
 from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
 CATEGORIES = ("dining", "transport", "shopping", "groceries",
@@ -30,18 +31,7 @@ _MIN_MODEL_PROB = 0.5         # xác suất tối thiểu của mô hình học 
 _MAX_MODEL_CONFIDENCE = 0.69  # trần độ tin cậy của gợi ý mô hình (< 0.7 => luôn cần xác nhận)
 
 # Thứ tự quan trọng: nhóm đứng trước được ưu tiên khi trùng từ khóa.
-_CATEGORY_KEYWORDS = {
-    "transport": ("xang", "petro", "grab", "taxi", "gojek", "nha xe", "bai giu xe", "bai do xe", "gui xe", "rua xe", "garage", "tram xe"),
-    "healthcare": ("pharmacy", "pharmacity", "nha thuoc", "nhathuoc", "benh vien", "phong kham", "nha khoa", "rang ham mat", "tham my vien", "da lieu", "mat kinh", "eyewear", "benhvien", "phongkham", "nhakhoa"),
-    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "khu giai tri", "giai tri", "cong vien nuoc", "bowling"),
-    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua", "nuoc tinh khiet", "dai ly nuoc"),  # đại lý nước uống: bán nước đóng chai/bình, không phải cước nước sinh hoạt
-    "housing": ("dien luc", "evn", "tien nuoc", "cap nuoc", "nuoc sach", "nha tro", "phong tro", "chung cu", "dai ly gas", "binh gas"),
-    "utilities": ("internet", "viettel", "vnpt", "fpt telecom", "truyen hinh", "vien thong", "wifi"),
-    "dining": ("cafe", "coffee", "pho", "banh mi", "com tam", "quan com", "tra sua", "restaurant",
-               "nha hang", "quan an", "pizza", "kfc", "highland", "quan bun", "bun bo", "bun cha", "quan nhau", "tiem banh"),
-    "shopping": ("shop", "store", "thoi trang", "quan ao", "vang bac da quy", "trang suc", "kim hoan", "tiem vang", "cua hang giay", "giay dep",
-                 "my pham", "phu kien", "dien may", "noi that"),
-}
+_CATEGORY_KEYWORDS = data_files.keyword_table("merchant_keywords.json")
 
 
 # Bỏ dấu làm "phở" trùng "phố" (Thành phố...): từ khóa này chỉ tin khi nằm trong tên cửa hàng.
@@ -523,52 +513,7 @@ def _extract_merchant(lines: list[str], confidences: list[float] | None = None) 
 
 
 # Từ vựng sản phẩm (đã bỏ dấu), khớp nguyên từ. ponytail: bảng nhỏ viết tay; mô hình học (giai đoạn B) sẽ thay dần khi đủ dữ liệu.
-_PRODUCT_KEYWORDS = {
-    # Bỏ các từ mơ hồ khi mất dấu: "duong" (đường ăn/đường phố), "lau" (lẩu/lầu), "chao" (cháo/chào), "muoi" (muối/mười).
-    "dining": ("bun", "bun bo", "banh mi", "com", "mi quang", "hu tieu", "xoi", "lau thai", "nuong",
-               "ca phe", "tra sua", "sinh to", "nuoc ep", "tra dao", "banh canh", "goi cuon",
-               "pizza", "spaghetti", "carbonara", "cha ca", "nem ca", "tra da",
-               "hong tra", "tra dai loan", "tra xanh", "tra den", "tra vai", "tra tac", "tra chanh", "olong", "matcha", "tran chau",
-               "thach dua", "thach suong sao", "thach tran chau", "soda chanh", "nuoc cam ep", "sua chua uong",
-               "khoai mi", "banh khoai",
-               # món quen thuộc ở quán ăn nhanh, quán cơm, quán phở
-               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu",
-               # học từ 12 bill ảnh 2026-10-14: "răng" (nha khoa) khớp nhầm "bắp rang", chặn luôn AI cho cả bill
-               "bap rang", "bap rang bo", "canh chua", "rau muong", "xao toi"),
-    "groceries": ("gao", "nuoc mam", "dau an", "duong cat", "sua tuoi", "trung ga", "thit heo", "thit bo",
-                  "thit ga", "bap bo", "bo vien", "suon heo", "rau", "mi goi", "banh keo", "snack",
-                  "nuoc ngot", "bia", "xuong ga", "sua bot", "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi",
-                  "bot ngot", "bot canh", "bot chien", "mayonnaise", "nuoc cham",
-                  # hàng tiêu dùng, thực phẩm tươi/đóng gói thường gặp ở tạp hóa, đại lý
-                  "nuoc suoi", "ca chua", "xuc xich", "ca basa",
-                  "banh mi sandwich", "banh mi gon", "mi ly", "hao hao"),
-    "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
-                   "natri clorid", "thuoc", "amoxicillin", "oresol",
-                   "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su",
-                   "kinh can", "trong kinh", "gong kinh",
-                   "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem", "phi kham", "kham noi"),
-    "transport": ("xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong", "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"),
-    # vé và dịch vụ vui chơi
-    "entertainment": ("ve xem phim", "vexem phim", "xem phim", "ve phim", "bap nuoc", "ve vao cong", "ve tham quan", "ve cong vien", "cong vien nuoc", "khu vui choi",
-                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi", "ve nguoi lon", "ve tre em", "the game"),
-    # dịch vụ làm đẹp/cá nhân (không có nhóm riêng nên là "other"): spa, salon, cắt tóc, nail, mi, triệt lông
-    "other": ("cat toc", "goi dau thu gian", "nhuom toc", "uon toc", "lam mong", "noi mi", "triet long", "tam trang", "xong hoi", "cao rau"),
-    # phiếu mua/bán vàng bạc thường không có logo: nhận qua tên hàng
-    "shopping": ("vang 9999", "vang 999", "vang 24k", "vang 18k", "nhan tron", "nhan cuoi", "nhan vang", "kim cuong", "vang mieng",
-                 # hóa đơn mỹ phẩm không logo (siêu thị/nhà thuốc nhiều dòng khác nên danh mục của họ vẫn thắng)
-                 "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai",  # đồ dùng gia đình tiêu hao là shopping, không phải thực phẩm
-                 "khan uot", "khan giay", "kem danh rang", "ban chai danh rang", "dau goi", "sua tam", "sua tam trang",  # đồ vệ sinh cá nhân dùng một lần
-                 "sua rua mat", "tay trang", "kem chong nang", "son moi", "mat na", "nuoc hoa",
-                 # quần áo, giày dép, túi xách, đồ điện tử nhỏ
-                 "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",
-                 "tui xach", "balo", "that lung", "kinh ram", "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal",
-                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
-                 # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
-                 "bia nut", "bia ho so", "kinh mat", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
-    "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "phi rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
-    "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
-                  "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm
-}
+_PRODUCT_KEYWORDS = data_files.keyword_table("product_keywords.json")
 
 
 def _category_from_products(lines: list[str], merchant: str | None = None) -> tuple[str, str, float] | None:

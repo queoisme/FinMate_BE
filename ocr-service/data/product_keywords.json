@@ -1,0 +1,55 @@
+{
+  "dining": [
+    "bun", "bun bo", "banh mi", "com", "mi quang", "hu tieu", "xoi", "lau thai", "nuong", "ca phe", "tra sua",
+    "sinh to", "nuoc ep", "tra dao", "banh canh", "goi cuon", "pizza", "spaghetti", "carbonara", "cha ca", "nem ca",
+    "tra da", "hong tra", "tra dai loan", "tra xanh", "tra den", "tra vai", "tra tac", "tra chanh", "olong",
+    "matcha", "tran chau", "thach dua", "thach suong sao", "thach tran chau", "soda chanh", "nuoc cam ep",
+    "sua chua uong", "khoai mi", "banh khoai", "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo",
+    "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu", "bap rang", "bap rang bo", "canh chua",
+    "rau muong", "xao toi"
+  ],
+  "groceries": [
+    "gao", "nuoc mam", "dau an", "duong cat", "sua tuoi", "trung ga", "thit heo", "thit bo", "thit ga", "bap bo",
+    "bo vien", "suon heo", "rau", "mi goi", "banh keo", "snack", "nuoc ngot", "bia", "xuong ga", "sua bot",
+    "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi", "bot ngot", "bot canh",
+    "bot chien", "mayonnaise", "nuoc cham", "nuoc suoi", "ca chua", "xuc xich", "ca basa", "banh mi sandwich",
+    "banh mi gon", "mi ly", "hao hao"
+  ],
+  "healthcare": [
+    "paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon", "natri clorid", "thuoc",
+    "amoxicillin", "oresol", "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su", "kinh can",
+    "trong kinh", "gong kinh", "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem",
+    "phi kham", "kham noi"
+  ],
+  "transport": [
+    "xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong",
+    "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"
+  ],
+  "entertainment": [
+    "ve xem phim", "vexem phim", "xem phim", "ve phim", "bap nuoc", "ve vao cong", "ve tham quan", "ve cong vien",
+    "cong vien nuoc", "khu vui choi", "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac",
+    "ve concert", "ve kich", "truot bang", "gio choi", "ve nguoi lon", "ve tre em", "the game"
+  ],
+  "other": [
+    "cat toc", "goi dau thu gian", "nhuom toc", "uon toc", "lam mong", "noi mi", "triet long", "tam trang",
+    "xong hoi", "cao rau"
+  ],
+  "shopping": [
+    "vang 9999", "vang 999", "vang 24k", "vang 18k", "nhan tron", "nhan cuoi", "nhan vang", "kim cuong",
+    "vang mieng", "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai", "khan uot", "khan giay",
+    "kem danh rang", "ban chai danh rang", "dau goi", "sua tam", "sua tam trang", "sua rua mat", "tay trang",
+    "kem chong nang", "son moi", "mat na", "nuoc hoa", "quan jean", "quan tay", "quan short", "ao thun", "ao khoac",
+    "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay", "tui xach", "balo", "that lung", "kinh ram",
+    "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal", "dep sandal", "dep quai",
+    "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
+    "bia nut", "bia ho so", "kinh mat", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"
+  ],
+  "housing": [
+    "tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "phi rac", "tien gas",
+    "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"
+  ],
+  "utilities": [
+    "cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi",
+    "goi cuoc", "goi data", "cuoc di dong", "cap quang"
+  ]
+}

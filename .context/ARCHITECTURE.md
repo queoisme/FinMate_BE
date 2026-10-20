@@ -780,11 +780,11 @@ ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py
 - `parsing/privacy.py` — `sanitize_lines`: bỏ dòng nhãn cá nhân, che email/SĐT/số tài khoản.
 - `parsing/items.py` — tách từng món (tên + giá, giảm giá âm, phụ kiện `parent`) từ hộp chữ; `ok` chỉ khi cộng đúng tổng.
 - `parsing/merchant_name.py` — làm đẹp tên cửa hàng (IN HOA, dính chữ, ký tự rác).
-- `classification/brands.py`, `classification/chat_vocab.py` — thương hiệu/từ khóa trong code (mặc định khi DB trống).
+- `classification/brands.py`, `classification/chat_vocab.py` (và bảng từ khóa trong `parsing/extract.py`) — bảng thương hiệu/từ khóa mặc định khi DB trống. Dữ liệu nằm ở `ocr-service/data/*.json` (đọc qua `classification/data_files.py`), lý do từng mục ở `data/NOTES.md`; module giữ nguyên tên và kiểu bảng (dict/set sửa tại chỗ được) vì `knowledge_pg` cập nhật chúng từ DB.
 - `parsing/app_screens.py` — ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn TMĐT).
 - `reading/text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
 - `storage/memory.py` / `storage/dataset.py` / `storage/storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
-- `storage/knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
+- `storage/knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản mặc định từ `data/*.json`), ghi `bill_unknown_scans`.
 - `classification/category_model.py`, `storage/training_pg.py`, `storage/promotion_pg.py`, `storage/datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`
   (và các công cụ chạy tay khác trong `ocr-service/scripts/`) — huấn luyện/nạp dữ liệu (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
 
