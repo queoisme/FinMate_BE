@@ -1,7 +1,7 @@
 """Chuẩn hóa tên cửa hàng cho đẹp trước khi lưu/hiển thị (tên OCR thô thường IN HOA, dính chữ, dính ký tự rác)."""
 import re
 
-from brands import BRAND_CATEGORIES, BRAND_DISPLAY
+from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
 from extract import _GENERIC_STORE, _alnum, _brand_in, _norm, best_brand
 
 _ACRONYMS = {"TNHH", "CP", "JSC", "TP", "VN", "HCM", "HN", "KFC", "BBQ", "CGV", "EVN", "FPT", "MB", "TM", "DV"}

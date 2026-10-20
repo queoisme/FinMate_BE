@@ -2,7 +2,7 @@ import sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from dataset import Dataset, redact_line
+from storage.dataset import Dataset, redact_line
 
 
 def test_redact_masks_long_digit_runs_but_keeps_amounts():

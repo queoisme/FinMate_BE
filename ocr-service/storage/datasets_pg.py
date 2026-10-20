@@ -8,9 +8,9 @@ Chạy lại an toàn: không tạo bản trùng.
 import json
 from pathlib import Path
 
-from dataset import Dataset
+from storage.dataset import Dataset
 from extract import _alnum, _norm
-from storage_pg import PgDataset, _cursor
+from storage.storage_pg import PgDataset, _cursor
 
 SYNTHETIC_LABEL = "synthetic_ocr"
 

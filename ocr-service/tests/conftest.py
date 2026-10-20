@@ -6,8 +6,8 @@ sys.path.insert(1, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 import pytest
 
 import main
-from dataset import Dataset
-from memory import MerchantMemory
+from storage.dataset import Dataset
+from storage.memory import MerchantMemory
 
 
 @pytest.fixture(autouse=True)

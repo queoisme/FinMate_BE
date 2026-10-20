@@ -13,9 +13,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(HERE))
 
-from dataset import Dataset  # noqa: E402
-from memory import MerchantMemory, _entry  # noqa: E402
-from storage_pg import open_stores  # noqa: E402
+from storage.dataset import Dataset  # noqa: E402
+from storage.memory import MerchantMemory, _entry  # noqa: E402
+from storage.storage_pg import open_stores  # noqa: E402
 
 
 def do_import(source_dir: Path, write: bool) -> int:

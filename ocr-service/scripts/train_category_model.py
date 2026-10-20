@@ -14,10 +14,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(HERE))
 
-from category_model import MIN_CV_ACCURACY, MIN_RECORDS, CategoryModel, train  # noqa: E402
-from dataset import Dataset  # noqa: E402
-from storage_pg import open_stores  # noqa: E402
-from training_pg import new_version, open_training_recorder  # noqa: E402
+from classification.category_model import MIN_CV_ACCURACY, MIN_RECORDS, CategoryModel, train  # noqa: E402
+from storage.dataset import Dataset  # noqa: E402
+from storage.storage_pg import open_stores  # noqa: E402
+from storage.training_pg import new_version, open_training_recorder  # noqa: E402
 
 
 def run(dataset_path, model_path: Path, synthetic_path: Path | None = None, recorder=None) -> int:

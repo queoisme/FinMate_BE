@@ -14,7 +14,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(HERE))
 
-from brands import BRAND_CATEGORIES, BRAND_DISPLAY  # noqa: E402
+from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY  # noqa: E402
 from extract import _alnum, _norm  # noqa: E402
 OUT = HERE / "dataset_synthetic.jsonl"
 

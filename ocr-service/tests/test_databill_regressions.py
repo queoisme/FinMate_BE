@@ -64,7 +64,7 @@ def test_words_total_from_lines_and_mismatch_is_flagged():
 
 
 def test_added_chains_give_category_and_display_name():
-    from brands import BRAND_CATEGORIES, BRAND_DISPLAY
+    from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
     from merchant_name import format_merchant_name
     assert set(BRAND_CATEGORIES) <= set(BRAND_DISPLAY)
     for merchant, category, display in [("PIZZA HUT VN", "dining", "Pizza Hut"), ("Phuc Long Coffee", "dining", "Phúc Long"),
@@ -83,7 +83,7 @@ def test_brand_names_are_not_matched_inside_ordinary_words():
 
 
 def test_base_brand_table_gives_category_and_name_for_common_vn_chains():
-    from brands import BRAND_CATEGORIES, BRAND_DISPLAY
+    from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
     from merchant_name import format_merchant_name
     assert set(BRAND_CATEGORIES) <= set(BRAND_DISPLAY)
     for merchant, category, display in [("POPEYES TTTM", "dining", "Popeyes"), ("Canifa Nguyen Trai", "shopping", "Canifa"),
@@ -96,7 +96,7 @@ def test_base_brand_table_gives_category_and_name_for_common_vn_chains():
 
 
 def test_researched_dining_chains_are_recognised_and_exited_ones_are_gone():
-    from brands import BRAND_CATEGORIES
+    from classification.brands import BRAND_CATEGORIES
     from merchant_name import format_merchant_name
     for merchant, display in [("KFC Nguyen Hue", "KFC"), ("DOOKKI VINCOM", "Dookki"), ("Marugame Udon Saigon Centre", "Marugame Udon"),
                               ("PIZZA 4PS LE THANH TON", "Pizza 4P's"), ("Gyu-Kaku Japanese BBQ", "Gyu-Kaku"), ("foody.vn don 123", "ShopeeFood")]:

@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(1, str(Path(__file__).resolve().parents[1] / "scripts"))  # synthetic_bills
 sys.stdout.reconfigure(encoding="utf-8")
 
-from category_model import _group_key, _pipeline, record_text  # noqa: E402
-from dataset import Dataset  # noqa: E402
+from classification.category_model import _group_key, _pipeline, record_text  # noqa: E402
+from storage.dataset import Dataset  # noqa: E402
 from synthetic_bills import generate  # noqa: E402
 
 real = Dataset(Path(__file__).resolve().parents[1] / "dataset.jsonl").read_all()

@@ -7,12 +7,12 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-import brands  # noqa: E402
+from classification import brands  # noqa: E402
 import extract  # noqa: E402
-import knowledge_pg  # noqa: E402
+from storage import knowledge_pg  # noqa: E402
 import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from knowledge_pg import NoUnknownScans, UnknownScans  # noqa: E402
+from storage.knowledge_pg import NoUnknownScans, UnknownScans  # noqa: E402
 from PIL import Image  # noqa: E402
 from tests.conftest import boxes_patch  # noqa: E402
 from tests.pg_fake import make_connect  # noqa: E402
@@ -182,7 +182,7 @@ def test_reload_endpoint_is_disabled_without_a_token_and_checks_it(monkeypatch):
 
 # --- mã người dùng theo từng yêu cầu (header X-User-Hash) ---
 def test_each_request_uses_its_own_users_memory_and_unknown_scans(connect, monkeypatch):
-    from storage_pg import PgDataset, PgMerchantMemory
+    from storage.storage_pg import PgDataset, PgMerchantMemory
     monkeypatch.setattr(main, "memory", PgMerchantMemory(connect, "default" + "0" * 10))
     monkeypatch.setattr(main, "dataset", PgDataset(connect, "default" + "0" * 10))
     monkeypatch.setattr(main, "unknown_scans", UnknownScans(connect, "default" + "0" * 10))

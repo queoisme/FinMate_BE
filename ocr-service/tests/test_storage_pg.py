@@ -7,10 +7,10 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from dataset import Dataset  # noqa: E402
-from memory import MerchantMemory  # noqa: E402
-from storage_pg import PgDataset, PgMerchantMemory, open_stores  # noqa: E402
-from storage_pg import _cursor as knowledge_cursor  # noqa: E402
+from storage.dataset import Dataset  # noqa: E402
+from storage.memory import MerchantMemory  # noqa: E402
+from storage.storage_pg import PgDataset, PgMerchantMemory, open_stores  # noqa: E402
+from storage.storage_pg import _cursor as knowledge_cursor  # noqa: E402
 from tests.pg_fake import make_connect  # noqa: E402
 
 @pytest.fixture
@@ -98,7 +98,7 @@ def test_import_handles_old_memory_entries_that_are_just_a_category_string(tmp_p
 
 # --- bộ chuẩn (gold) và bill giả ---
 def test_gold_marks_existing_imported_bills_adds_missing_ones_and_is_idempotent(connect):
-    import datasets_pg
+    from storage import datasets_pg
     store = PgDataset(connect, "u1")
     store.append({"merchant": "Kisnac", "category": "groceries", "label_source": "imported", "total_amount": 570500, "lines": ["Kisnac", "TONG 570.500"]})
     store.append({"merchant": "Khác", "category": "dining", "label_source": "user", "total_amount": 70000, "lines": ["Pho"]})  # nhãn người dùng: không phải gold
@@ -123,7 +123,7 @@ def test_gold_marks_existing_imported_bills_adds_missing_ones_and_is_idempotent(
 
 
 def test_synthetic_bills_are_tagged_and_import_is_idempotent(connect, tmp_path):
-    import datasets_pg
+    from storage import datasets_pg
     import json
     rows = [{"merchant": f"Tiệm {i}", "category": "dining", "total_amount": 1000 * i, "lines": [f"Tiệm {i}", "Phở"], "label_source": "synthetic_ocr"} for i in range(1, 4)]
     path = tmp_path / "syn.jsonl"
@@ -135,13 +135,13 @@ def test_synthetic_bills_are_tagged_and_import_is_idempotent(connect, tmp_path):
 
 
 def test_group_key_treats_spacing_accents_and_punctuation_as_the_same_shop():
-    from category_model import _group_key
+    from classification.category_model import _group_key
     assert len({_group_key({"merchant": m}) for m in ("Bách Hóa Xanh", "bach hoa xanh", "BACHHOAXANH", "Bách-Hóa  Xanh.")}) == 1
     assert _group_key({"merchant": "Kisnac"}) != _group_key({"merchant": "Kisnac Mart"})
 
 
 def test_gold_names_are_normalised_to_the_display_name_of_the_same_shop(connect):
-    import datasets_pg
+    from storage import datasets_pg
     store = PgDataset(connect, "u1")
     store.append({"merchant": "Nhà thuốc Long Châu", "category": "healthcare", "label_source": "user", "total_amount": 1000, "lines": ["a"]})
     store.append({"merchant": "Minh Phát", "category": "groceries", "label_source": "user", "total_amount": 2000, "lines": ["b"]})

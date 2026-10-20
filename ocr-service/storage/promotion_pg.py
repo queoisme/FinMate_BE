@@ -10,9 +10,9 @@ import uuid
 from datetime import datetime, timezone
 
 import extract
-import knowledge_pg
+from storage import knowledge_pg
 from extract import _alnum, _brand_in, _looks_like_code_or_status
-from storage_pg import _cursor
+from storage.storage_pg import _cursor
 
 MIN_USERS = 3
 MIN_AGREEMENT = 0.8

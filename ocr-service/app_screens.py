@@ -8,7 +8,7 @@ ponytail: luật theo giao diện hiện tại của từng app; app đổi giao
 """
 import re
 
-from brands import BRAND_CATEGORIES, BRAND_DISPLAY, WHOLE_WORD_BRANDS
+from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY, WHOLE_WORD_BRANDS
 from extract import _MAX_AMOUNT, _alnum, _amounts, _norm, best_brand
 
 _SHOP_BADGE = {"yeu", "thich", "thich+", "+"}

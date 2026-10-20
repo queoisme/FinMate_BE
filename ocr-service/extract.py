@@ -3,7 +3,7 @@ import re
 import unicodedata
 from typing import Callable
 
-from brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
+from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
 CATEGORIES = ("dining", "transport", "shopping", "groceries",
               "housing", "utilities", "healthcare", "entertainment", "other")

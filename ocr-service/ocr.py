@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 
 from crop import crop_receipt
-from brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
+from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 from extract import _alnum, _norm
 from quality import assess_quality, enhance
 import vietocr_onnx

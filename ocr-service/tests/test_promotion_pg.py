@@ -6,11 +6,11 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-import brands  # noqa: E402
+from classification import brands  # noqa: E402
 import extract  # noqa: E402
-import knowledge_pg  # noqa: E402
-from promotion_pg import promote  # noqa: E402
-from storage_pg import PgMerchantMemory, _cursor  # noqa: E402
+from storage import knowledge_pg  # noqa: E402
+from storage.promotion_pg import promote  # noqa: E402
+from storage.storage_pg import PgMerchantMemory, _cursor  # noqa: E402
 from tests.pg_fake import make_connect  # noqa: E402
 from tests.test_knowledge_pg import restore_knowledge  # noqa: E402,F401  (khôi phục danh sách toàn cục sau mỗi test)
 

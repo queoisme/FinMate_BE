@@ -10,11 +10,11 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-import brands
-import chat_vocab
+from classification import brands
+from classification import chat_vocab
 import extract
-from memory import _key
-from storage_pg import _cursor, _who, connect_from_env
+from storage.memory import _key
+from storage.storage_pg import _cursor, _who, connect_from_env
 
 
 def _now() -> str:

@@ -11,8 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 
-from promotion_pg import MIN_AGREEMENT, MIN_CANDIDATE_USERS, MIN_USERS, promote  # noqa: E402
-from storage_pg import connect_from_env  # noqa: E402
+from storage.promotion_pg import MIN_AGREEMENT, MIN_CANDIDATE_USERS, MIN_USERS, promote  # noqa: E402
+from storage.storage_pg import connect_from_env  # noqa: E402
 
 LABELS = {"promoted": "Bật ngay (đủ phiếu bầu, đồng thuận cao)", "upgraded": "Từ chờ lên bật (đủ phiếu bầu)",
           "pending": "Ghi ở trạng thái chờ (chưa đủ ngưỡng, cần duyệt)", "disputes": "Tranh chấp với dòng đã có (không ghi đè, cần duyệt)",

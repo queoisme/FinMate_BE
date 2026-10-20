@@ -9,8 +9,8 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from category_model import MIN_CV_ACCURACY, MIN_RECORDS, TrainReport
-from storage_pg import _cursor, connect_from_env
+from classification.category_model import MIN_CV_ACCURACY, MIN_RECORDS, TrainReport
+from storage.storage_pg import _cursor, connect_from_env
 
 STAGE = "bill_category"
 # ponytail: đối chiếu các giá trị status với quy ước của pipeline thông báo ngân hàng

@@ -3,7 +3,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from memory import MerchantMemory
+from storage.memory import MerchantMemory
 
 
 def test_set_then_get_persists_across_instances(tmp_path):

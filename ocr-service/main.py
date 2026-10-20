@@ -18,17 +18,17 @@ from pydantic import BaseModel
 import dates
 import app_screens
 import vietocr_onnx
-from category_model import CategoryModel
+from classification.category_model import CategoryModel
 from privacy import sanitize_lines
 from extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, analyze, receipt_score
-from knowledge_pg import open_knowledge
+from storage.knowledge_pg import open_knowledge
 from merchant_name import format_merchant_name
 import ocr
 from items import extract_items, payable_total
 from totals import choose_total
 from ocr import NoTextError, read_boxes
 from quality import image_quality
-from storage_pg import current_user, open_stores
+from storage.storage_pg import current_user, open_stores
 
 MAX_BYTES = 10 * 1024 * 1024
 

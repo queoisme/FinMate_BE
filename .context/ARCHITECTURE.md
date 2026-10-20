@@ -773,17 +773,19 @@ ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py
 - `vietocr_onnx.py` — VietOCR seq2seq chạy qua onnxruntime (không cần PyTorch), model trong `models/vietocr/`.
 - `crop.py` — cắt vùng tờ hóa đơn khỏi nền (bàn, tay…) trước OCR.
 - `quality.py` — đánh giá/chỉnh độ sáng, đo mờ: `ok | too_dark | too_bright | blurry`.
+**Bố cục thư mục `ocr-service/`:** gốc là các module chạy trong service (đọc ảnh, bóc tách, `main.py`); `storage/` (lưu trữ: bộ nhớ, dataset, kiến thức, huấn luyện), `classification/` (thương hiệu, từ vựng chat, mô hình danh mục), `scripts/` (công cụ chạy tay, không chạy trong service).
+
 - `extract.py` — luật bóc tổng tiền, tên cửa hàng, nhóm, `needs_review`, `receipt_score`.
 - `dates.py` — ngày giao dịch trên phiếu (bỏ kỳ cước/hạn thanh toán, bỏ ngày tương lai, lấy ngày muộn nhất còn lại).
 - `privacy.py` — `sanitize_lines`: bỏ dòng nhãn cá nhân, che email/SĐT/số tài khoản.
 - `items.py` — tách từng món (tên + giá, giảm giá âm, phụ kiện `parent`) từ hộp chữ; `ok` chỉ khi cộng đúng tổng.
 - `merchant_name.py` — làm đẹp tên cửa hàng (IN HOA, dính chữ, ký tự rác).
-- `brands.py`, `chat_vocab.py` — thương hiệu/từ khóa trong code (mặc định khi DB trống).
+- `classification/brands.py`, `classification/chat_vocab.py` — thương hiệu/từ khóa trong code (mặc định khi DB trống).
 - `app_screens.py` — ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn TMĐT).
 - `text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
-- `memory.py` / `storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
-- `knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
-- `category_model.py`, `training_pg.py`, `promotion_pg.py`, `datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`
+- `storage/memory.py` / `storage/dataset.py` / `storage/storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
+- `storage/knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản trong code), ghi `bill_unknown_scans`.
+- `classification/category_model.py`, `storage/training_pg.py`, `storage/promotion_pg.py`, `storage/datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`
   (và các công cụ chạy tay khác trong `ocr-service/scripts/`) — huấn luyện/nạp dữ liệu (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
 
 **Khởi động.** `lifespan` chạy `warm_up()` trong một thread nền: nạp PaddleOCR và VietOCR trước, vì lần quét đầu nạp model mất
@@ -859,7 +861,7 @@ bảng DB `bill_brands`/`bill_keywords` (vẫn 9 nhóm), và bản sao bảng t�
 - **Hai bộ nhớ cửa hàng không nói chuyện với nhau.** `/bill/learn` chỉ ghi `bill_user_merchant_choice`, và chỉ `/bill/classify` của
   ai-service đọc bảng đó. `category` và `merchant_display` ("tên người dùng đã chốt") của ocr-service chỉ đọc bảng cũ
   `bill_user_merchant_category`; trên đường backend không ai ghi bảng cũ (backend không gọi `/merchant-category`), nên view
-  `bill_merchant_votes` và việc gom phiếu thành thương hiệu (`promotion_pg.py`) không có dữ liệu mới. Route `/api/v1/ocr` của ai-service
+  `bill_merchant_votes` và việc gom phiếu thành thương hiệu (`storage/promotion_pg.py`) không có dữ liệu mới. Route `/api/v1/ocr` của ai-service
   (qua `remote_ocr`) dùng `category` của ocr-service, tức là cũng không thấy lựa chọn đã học.
 - **Không có timeout riêng cho các lời gọi Refit** `/chat/parse`, `/bill/classify`, `/bill/classify-items`: `Program.cs` không đặt
   `Timeout` cho client Refit nên áp mặc định 100 giây của `HttpClient`. Chỉ `/bill/learn` có 3 giây và lời gọi ocr-service có 60 giây.

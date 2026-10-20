@@ -18,10 +18,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent  # thư mục dịch vụ (script nằm trong scripts/): nơi các module và file dữ liệu ở
 sys.path.insert(0, str(ROOT))
 
-import datasets_pg  # noqa: E402
+from storage import datasets_pg  # noqa: E402
 import import_files_to_pg  # noqa: E402
-import knowledge_pg  # noqa: E402
-from storage_pg import connect_from_env  # noqa: E402
+from storage import knowledge_pg  # noqa: E402
+from storage.storage_pg import connect_from_env  # noqa: E402
 
 def main(argv: list[str]) -> int:
     connect = connect_from_env()
@@ -55,7 +55,7 @@ def main(argv: list[str]) -> int:
         verb = "đã" if write else "sẽ"
         print(f"Bộ chuẩn (gold): {verb} đánh dấu {r['marked']} bill có sẵn, {verb} thêm {r['added']} bill mới, {r['already']} bill đã là gold từ trước.")
     if "--normalize-gold" in argv:
-        from brands import BRAND_DISPLAY
+        from classification.brands import BRAND_DISPLAY
         for old, new in datasets_pg.normalize_gold_names(connect, BRAND_DISPLAY, write=write):
             print(f"  gold: {old!r} -> {new!r}")
         print("Đã đổi tên gold." if write else "Xem trước tên gold sẽ đổi (chưa ghi).")

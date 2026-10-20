@@ -12,9 +12,9 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dataset import Dataset
+from storage.dataset import Dataset
 from extract import CATEGORIES
-from memory import MerchantMemory, _key
+from storage.memory import MerchantMemory, _key
 
 SOURCE = "bill_scan"
 # ponytail: đối chiếu hai quy ước này với pipeline thông báo ngân hàng của bạn trước khi huấn luyện chung

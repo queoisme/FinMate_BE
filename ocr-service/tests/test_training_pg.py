@@ -8,9 +8,9 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import train_category_model  # noqa: E402
-from storage_pg import _cursor  # noqa: E402
+from storage.storage_pg import _cursor  # noqa: E402
 from tests.pg_fake import make_connect  # noqa: E402
-from training_pg import TrainingRecorder  # noqa: E402
+from storage.training_pg import TrainingRecorder  # noqa: E402
 
 
 @pytest.fixture

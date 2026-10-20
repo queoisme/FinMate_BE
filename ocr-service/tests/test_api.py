@@ -83,7 +83,7 @@ def test_dark_image_reports_quality_and_forces_review(monkeypatch):
 
 
 def test_saved_merchant_category_is_used_by_next_analysis(monkeypatch, tmp_path):
-    from memory import MerchantMemory
+    from storage.memory import MerchantMemory
 
     monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("QWERTY", "125.000")))
@@ -115,8 +115,8 @@ def test_model_suggestion_is_used_for_unknown_merchant_but_still_flagged(monkeyp
 
 
 def test_saving_category_appends_redacted_labeled_record(monkeypatch, tmp_path):
-    from dataset import Dataset
-    from memory import MerchantMemory
+    from storage.dataset import Dataset
+    from storage.memory import MerchantMemory
 
     monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
     monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
@@ -191,8 +191,8 @@ def test_user_corrected_name_also_remembers_the_ocr_garbled_name(monkeypatch):
 
 
 def test_saving_without_bill_details_still_works_and_invalid_label_not_logged(monkeypatch, tmp_path):
-    from dataset import Dataset
-    from memory import MerchantMemory
+    from storage.dataset import Dataset
+    from storage.memory import MerchantMemory
 
     monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
     monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
@@ -207,7 +207,7 @@ def test_dataset_is_not_exposed_over_http():
 
 
 def test_merchant_category_rejects_bad_input(monkeypatch, tmp_path):
-    from memory import MerchantMemory
+    from storage.memory import MerchantMemory
 
     monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
     bad_category = client.post("/merchant-category", json={"merchant": "X", "category": "nope"})
@@ -255,7 +255,7 @@ def test_unexpected_error_returns_500(monkeypatch):
 
 
 def test_app_screen_ride_and_order_list_are_read_by_their_templates(monkeypatch):
-    from memory import MerchantMemory
+    from storage.memory import MerchantMemory
     from test_app_screens import RIDE, SHOPEE
     monkeypatch.setattr(main, "memory", MerchantMemory(pathlib.Path(__import__("tempfile").mkdtemp()) / "m.json"))
     monkeypatch.setattr(main, "read_boxes", boxes_patch(lambda _: [(t, 0.95) for t in RIDE]))
@@ -272,7 +272,7 @@ def test_app_screen_ride_and_order_list_are_read_by_their_templates(monkeypatch)
 
 
 def test_saved_shop_category_wins_over_the_shopping_default(monkeypatch, tmp_path):
-    from memory import MerchantMemory
+    from storage.memory import MerchantMemory
     from test_app_screens import SHOPEE
     mem = MerchantMemory(tmp_path / "m.json")
     mem.set("VUALOTCHUOT", "entertainment", name="VuaLotChuot")
@@ -284,8 +284,8 @@ def test_saved_shop_category_wins_over_the_shopping_default(monkeypatch, tmp_pat
 
 
 def test_scan_returns_no_ocr_text_and_saves_the_server_side_filtered_lines(monkeypatch, tmp_path):
-    from dataset import Dataset
-    from memory import MerchantMemory
+    from storage.dataset import Dataset
+    from storage.memory import MerchantMemory
     rows = ["HIGHLANDS COFFEE", "HOA DON BAN LE", "Khach hang: Nguyen Van A", "DT093.636.6628", "Mon A 1 20.000 20.000", "Mon B 2 15.000 30.000",
             "STK 1903.4567.8901.23 Techcombank", "Cam on quy khach", "TONG CONG 50.000", "Tien khach tra 50.000"]
     monkeypatch.setattr(main, "read_boxes", boxes_patch(lambda _: [(t, 0.95) for t in rows]))
@@ -303,8 +303,8 @@ def test_scan_returns_no_ocr_text_and_saves_the_server_side_filtered_lines(monke
 
 
 def test_saving_with_an_unknown_scan_id_still_sanitizes_the_lines_sent_instead(monkeypatch, tmp_path):
-    from dataset import Dataset
-    from memory import MerchantMemory
+    from storage.dataset import Dataset
+    from storage.memory import MerchantMemory
     monkeypatch.setattr(main, "memory", MerchantMemory(tmp_path / "m.json"))
     monkeypatch.setattr(main, "dataset", Dataset(tmp_path / "d.jsonl"))
     client.post("/merchant-category", json={"merchant": "Kisnac", "category": "groceries", "scan_id": "khong-co",

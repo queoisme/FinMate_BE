@@ -4,7 +4,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from category_model import CategoryModel, record_text, train
+from classification.category_model import CategoryModel, record_text, train
 from extract import classify_category_detailed
 
 # Dữ liệu tổng hợp: mỗi danh mục có từ vựng đặc trưng; mỗi cửa hàng xuất hiện 2 lần.
