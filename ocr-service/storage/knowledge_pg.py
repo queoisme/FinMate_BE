@@ -122,12 +122,6 @@ class UnknownScans:
             with _cursor(self._connect) as cur:
                 cur.execute("UPDATE bill_unknown_scans SET status = 'labeled' WHERE merchant_key = %s AND status = 'new'", (key,))
 
-    def pending(self, limit: int = 50) -> list[dict]:
-        with _cursor(self._connect) as cur:
-            cur.execute("SELECT merchant_read, predicted_category, predicted_source, seen_count FROM bill_unknown_scans "
-                        "WHERE status = 'new' ORDER BY seen_count DESC, last_seen_at DESC LIMIT %s", (limit,))
-            return [{"merchant": m, "predicted": c, "source": s, "seen": n} for m, c, s, n in cur.fetchall()]
-
 
 class NoUnknownScans:
     """Không có DB thì không ghi gì (bản chạy bằng file như cũ)."""
@@ -137,6 +131,3 @@ class NoUnknownScans:
 
     def mark_labeled(self, merchant) -> None:
         pass
-
-    def pending(self, limit: int = 50) -> list[dict]:
-        return []

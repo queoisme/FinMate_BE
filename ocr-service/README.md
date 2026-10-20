@@ -32,7 +32,7 @@ trước khi build image.
 ## Kiểm thử
 
 ```
-docker run --rm -v "$PWD:/app" -w /app <image-ocr-service> python -m pytest -q tests
+docker run --rm -v "$PWD:/app" -w /app <image-ocr-service> sh -c "pip install -q -r requirements-dev.txt -c constraints.txt && python -m pytest -q tests"
 ```
 
 ## Dữ liệu

@@ -5,7 +5,6 @@
 - Bill giả (dataset_synthetic_ocr.jsonl): ghi với labeled_by 'synthetic_ocr'. Huấn luyện chỉ dùng chúng để học, không đưa vào phần đo.
 Chạy lại an toàn: không tạo bản trùng.
 """
-import json
 from pathlib import Path
 
 from storage.dataset import Dataset

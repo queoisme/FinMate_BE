@@ -23,7 +23,7 @@ from reading import ocr  # noqa: E402
 from parsing.extract import _alnum, _norm, analyze  # noqa: E402
 from parsing.merchant_name import format_merchant_name  # noqa: E402
 from parsing.privacy import sanitize_lines  # noqa: E402
-from synthetic_bills import ITEMS, make_bill, money  # noqa: E402
+from synthetic_bills import ITEMS, make_bill  # noqa: E402
 OUT_DIR = HERE.parent / "data-synthetic"
 OUT_JSONL = HERE / "dataset_synthetic_ocr.jsonl"
 FONTS = [f"C:/Windows/Fonts/{n}.ttf" for n in ("cour", "consola", "CascadiaMono", "tahoma")]  # đã kiểm tra: đủ mọi chữ có dấu tiếng Việt (Arial Narrow và Lucida Console thì thiếu)

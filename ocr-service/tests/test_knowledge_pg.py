@@ -25,6 +25,13 @@ def connect(tmp_path):
     return make_connect(tmp_path / "pg.sqlite")
 
 
+def _pending(connect):
+    """Bill lạ đang chờ xem (status = 'new'), thấy nhiều lần nhất trước. Truy vấn trực tiếp: service chỉ ghi, người duyệt xem thẳng bảng."""
+    with knowledge_pg._cursor(connect) as cur:
+        cur.execute("SELECT merchant_read, seen_count FROM bill_unknown_scans WHERE status = 'new' ORDER BY seen_count DESC, last_seen_at DESC")
+        return [{"merchant": m, "seen": n} for m, n in cur.fetchall()]
+
+
 @pytest.fixture(autouse=True)
 def restore_knowledge():
     """reload/apply sửa các danh sách toàn cục tại chỗ: trả lại nguyên trạng sau mỗi test."""
@@ -97,17 +104,16 @@ def test_unknown_scans_dedupe_count_and_label_status(connect):
     scans.record("Tiệm Lạ Hoắc", ["Tiệm Lạ Hoắc", "Mon A 10.000"], 10000, "other", "none", 0.0)
     scans.record("Tiệm Lạ Hoắc", ["Tiệm Lạ Hoắc", "Mon A 10.000"], 10000, "other", "none", 0.0)  # cùng bill quét lại
     scans.record("Quán Mới", ["Quán Mới", "Mon B 20.000"], 20000, "dining", "keyword", 0.75)
-    pending = scans.pending()
+    pending = _pending(connect)
     assert [p["merchant"] for p in pending] == ["Tiệm Lạ Hoắc", "Quán Mới"] and pending[0]["seen"] == 2
     scans.mark_labeled("Tiệm Lạ Hoắc")  # người dùng đã chốt danh mục
-    assert [p["merchant"] for p in scans.pending()] == ["Quán Mới"]
+    assert [p["merchant"] for p in _pending(connect)] == ["Quán Mới"]
 
 
 def test_no_database_means_nothing_is_recorded():
     none = NoUnknownScans()
     none.record("X", ["X"], 1, "other", "none", 0.0)
-    none.mark_labeled("X")
-    assert none.pending() == []
+    none.mark_labeled("X")  # không có DB: không ghi gì và không lỗi
 
 
 # --- qua API ---
@@ -133,9 +139,9 @@ def test_unknown_bill_is_recorded_only_when_the_user_agreed_to_share(connect, mo
     monkeypatch.setattr(main, "unknown_scans", scans)
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("TIEM LA HOAC 99")))
     assert _scan(share=False).status_code == 200
-    assert scans.pending() == []  # không đồng ý thì không ghi gì
+    assert _pending(connect) == []  # không đồng ý thì không ghi gì
     assert _scan(share=True).status_code == 200
-    assert [p["merchant"] for p in scans.pending()] == ["TIEM LA HOAC 99"]
+    assert [p["merchant"] for p in _pending(connect)] == ["TIEM LA HOAC 99"]
 
 
 def test_known_brand_is_not_recorded_as_unknown(connect, monkeypatch):
@@ -143,7 +149,7 @@ def test_known_brand_is_not_recorded_as_unknown(connect, monkeypatch):
     monkeypatch.setattr(main, "unknown_scans", scans)
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("HIGHLANDS COFFEE")))
     assert _scan(share=True).status_code == 200
-    assert scans.pending() == []
+    assert _pending(connect) == []
 
 
 def test_saving_a_label_closes_the_matching_unknown_scans(connect, monkeypatch):
@@ -151,10 +157,10 @@ def test_saving_a_label_closes_the_matching_unknown_scans(connect, monkeypatch):
     monkeypatch.setattr(main, "unknown_scans", scans)
     monkeypatch.setattr(main, "read_boxes", boxes_patch(_bill("TIEM LA HOAC 99")))
     _scan(share=True)
-    assert len(scans.pending()) == 1
+    assert len(_pending(connect)) == 1
     r = client.post("/merchant-category", json={"merchant": "TIEM LA HOAC 99", "category": "shopping"})
     assert r.status_code == 200
-    assert scans.pending() == []
+    assert _pending(connect) == []
 
 
 def test_a_database_failure_does_not_break_the_scan(monkeypatch):

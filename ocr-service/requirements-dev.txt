@@ -1,0 +1,4 @@
+# Thư viện chỉ để chạy test (không có trong image chạy thật). Cài: pip install -r requirements-dev.txt -c constraints.txt
+-r requirements.txt
+pytest
+httpx

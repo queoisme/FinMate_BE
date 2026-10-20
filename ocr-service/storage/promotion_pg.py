@@ -10,7 +10,6 @@ import uuid
 from datetime import datetime, timezone
 
 from parsing import extract
-from storage import knowledge_pg
 from parsing.extract import _alnum, _brand_in, _looks_like_code_or_status
 from storage.storage_pg import _cursor
 

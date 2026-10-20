@@ -2,16 +2,7 @@
 ("ăn", "nhậu", "chợ", "áo") mà bill hiếm khi có. Đã bỏ dấu, chữ thường; khớp nguyên từ, từ dài nhất thắng.
 Khi có DB, danh sách này được nạp từ bảng bill_keywords (kind = 'chat') thay cho bản trong code (xem knowledge_pg.py)."""
 
-CATEGORY_LABELS = {
-    "dining": "Ăn uống", "transport": "Di chuyển", "shopping": "Mua sắm", "groceries": "Siêu thị & tạp hóa", "housing": "Nhà ở",
-    "utilities": "Viễn thông & internet", "healthcare": "Sức khỏe", "entertainment": "Giải trí", "other": "Khác",
-}
-
-# Loại thu nhập (tách khỏi danh mục chi tiêu; từ vựng của chúng nằm chung trong CHAT_KEYWORDS bên dưới, khóa là mã loại).
-INCOME_LABELS = {
-    "salary": "Lương", "bonus": "Thưởng", "gift": "Được cho/tặng", "side_income": "Làm thêm & bán đồ", "refund": "Hoàn tiền", "other_income": "Thu nhập khác",
-}
-
+# Khóa là mã danh mục chi tiêu (dining, transport...) hoặc mã loại thu nhập (salary, bonus, gift, side_income, refund, other_income).
 CHAT_KEYWORDS = {
     "dining": ("an", "an sang", "an trua", "an toi", "an khuya", "an vat", "an uong", "an lau", "an com", "an pho", "nhau", "di nhau", "nhau nhet", "lau", "nuong",
                "quan an", "nha hang", "do an", "dat do an", "do uong", "tra sua", "tra chanh", "ca phe", "cafe", "cf", "buffet", "tiec", "banh", "kem"),

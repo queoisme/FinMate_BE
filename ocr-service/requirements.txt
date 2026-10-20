@@ -8,6 +8,4 @@ paddlepaddle==2.6.2
 onnxruntime
 scikit-learn
 psycopg[binary]
-pytest
-httpx
 

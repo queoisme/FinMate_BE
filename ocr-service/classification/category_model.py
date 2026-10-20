@@ -76,12 +76,6 @@ def _grouped_cv_predictions(texts: list[str], labels: list[str], groups: list[st
     return preds
 
 
-def _grouped_cv_accuracy(texts: list[str], labels: list[str], groups: list[str],
-                         extra_texts: list[str] = (), extra_labels: list[str] = ()) -> float:
-    preds = _grouped_cv_predictions(texts, labels, groups, extra_texts, extra_labels)
-    return sum(p == y for p, y in zip(preds, labels)) / len(labels)
-
-
 def train(rows: list[dict], min_records: int = MIN_RECORDS, synthetic: list[dict] = ()) -> TrainReport:
     """rows: hóa đơn thật (dùng để đo và qua cổng). synthetic: hóa đơn giả, chỉ thêm vào phần huấn luyện."""
     classes: dict[str, int] = {}

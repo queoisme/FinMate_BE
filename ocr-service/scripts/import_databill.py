@@ -6,7 +6,6 @@ Chạy:  .\.venv\Scripts\python.exe scripts/import_databill.py            (xem t
 - Nhãn là phán đoán của người soạn expected_databill.json, đánh dấu label_source = "imported" để phân biệt với nhãn người dùng.
 - Bỏ ảnh không có tên cửa hàng đọc được, và ảnh trùng cửa hàng đã có trong dataset. Không đụng tới merchant_memory.json.
 """
-import json
 import shutil
 import sys
 import time

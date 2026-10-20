@@ -5,7 +5,6 @@ Chạy:  .\.venv\Scripts\python.exe benchmark\run_benchmark.py            (cấu
 Thêm ảnh: bỏ vào benchmark/images và khai báo đáp án trong benchmark/expected.json.
 Ảnh chứa thông tin cá nhân: giữ cục bộ, không đưa lên nơi công khai.
 """
-import io
 import json
 import sys
 import time
