@@ -451,6 +451,7 @@ _BASE_BRANDS = {
     "thanh buoi": ("transport", "Thành Bưởi"),
     "jetstar": ("transport", "Jetstar"),
     "vetc": ("transport", "VETC"),
+    "vexere": ("transport", "Vexere"),  # nền tảng bán vé xe khách; tên in trên phiếu lên xe giấy
     "saigon petro": ("transport", "Saigon Petro"),
     # tiện ích
     "vnpt": ("utilities", "VNPT"),
