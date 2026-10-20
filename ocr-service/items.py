@@ -60,7 +60,34 @@ def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
         else:
             rows.append([b])
             centers.append(cy)
-    return [sorted(r, key=lambda b: b.x0) for r in rows]
+    return _join_wrapped_amounts([sorted(r, key=lambda b: b.x0) for r in rows])
+
+
+_WRAPPED_AMOUNT_RE = re.compile(r"^\d{1,3}(?:[.,]\d{3})*[.,]\d{2}$")  # "452,43": số tiền bị cắt giữa ba chữ số cuối
+_TOTAL_LABEL_RE = re.compile(r"tong|thanh toan|phai tra|tam tinh|tien hang|total|cong")
+
+
+def _join_wrapped_amounts(rows: list[list[OcrBox]]) -> list[list[OcrBox]]:
+    """Cột tổng hẹp in "452,432" thành "452,43" ở hàng nhãn và "2" ở hàng ngay dưới: ghép lại thành một ô.
+
+    Chỉ ghép khi hàng nhãn có chữ kiểu tổng/thanh toán, ô cuối có dạng tiền bị cắt (còn thiếu đúng một chữ số) và hàng dưới chỉ có MỘT ô một chữ số nằm dưới ô đó;
+    nếu không, "2" là số lượng hay số khác (bảng món có hàng toàn số lượng) và để nguyên."""
+    out: list[list[OcrBox]] = []
+    i = 0
+    while i < len(rows):
+        row, nxt = rows[i], rows[i + 1] if i + 1 < len(rows) else None
+        last = row[-1]
+        if (nxt is not None and len(nxt) == 1 and re.fullmatch(r"\d", nxt[0].text.strip())
+                and _WRAPPED_AMOUNT_RE.fullmatch(last.text.strip())
+                and _TOTAL_LABEL_RE.search(_norm(" ".join(b.text for b in row[:-1])))
+                and last.x0 <= (nxt[0].x0 + nxt[0].x1) / 2 <= last.x1 + 0.5 * (last.x1 - last.x0)):
+            digit = nxt[0]
+            out.append(row[:-1] + [OcrBox(last.text.strip() + digit.text.strip(), min(last.conf, digit.conf), last.x0, last.y0, max(last.x1, digit.x1), digit.y1)])
+            i += 2
+            continue
+        out.append(row)
+        i += 1
+    return out
 
 
 def _starts_with_stt(row: list[OcrBox], left: float, right: float) -> bool:
@@ -106,14 +133,28 @@ def _unit_times_qty(row: list[OcrBox], price_box: OcrBox, amount: int) -> int | 
     left = [b for b in row if b.x0 < price_box.x0 and _NUMERIC_RE.match(b.text)]
     money = [b for b in left if _MONEY_BOX_RE.fullmatch(b.text.strip())]
     qty = [b for b in left if all(b is not m for m in money) and _QTY_RE.fullmatch(b.text.strip())]
-    if len(money) != 1 or len(qty) != 1:
+    if len(money) != 1 or len(qty) > 1:
         return None
     unit = max((a for a in _amounts(money[0].text) if a >= _MIN_AMOUNT), default=None)
     if unit is None:
         return None
-    expected = round(unit * float(qty[0].text.strip().replace(",", ".")))
-    got, want = str(amount), str(expected)
-    return expected if expected != amount and len(got) == len(want) and sum(x != y for x, y in zip(got, want)) == 1 else None
+    if qty:
+        candidates = {round(unit * float(qty[0].text.strip().replace(",", ".")))}
+    elif amount % unit == 0 and amount // unit <= _MAX_INFERRED_QTY:
+        return None  # đã là bội số của đơn giá: không có gì để sửa
+    else:
+        # OCR bỏ mất ô số lượng (chữ số nhỏ sát đường kẻ): thử các bội số 1..20 của đơn giá; chỉ nhận khi có ĐÚNG MỘT bội số lệch thành tiền một chữ số.
+        candidates = {unit * k for k in range(1, _MAX_INFERRED_QTY + 1)}
+    near = {e for e in candidates if e != amount and _one_digit_apart(amount, e)}
+    return near.pop() if len(near) == 1 else None
+
+
+_MAX_INFERRED_QTY = 20
+
+
+def _one_digit_apart(a: int, b: int) -> bool:
+    x, y = str(a), str(b)
+    return len(x) == len(y) and sum(c != d for c, d in zip(x, y)) == 1
 
 
 _PAYABLE_ROW_RE = re.compile(r"tong thanh toan|phai tra|can thanh toan")
