@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1.bill import router as bill_router
 from app.bill import slug_model
 from app.bill.rules_admin import RuleError
+from app.bill.seed_defaults import seed_bill_knowledge
 from app.bill.samples import purge_loop
 from app.api.v1.chat import router as chat_router
 from app.api.v1.feedback import router as feedback_router
@@ -43,6 +44,12 @@ async def lifespan(app: FastAPI):
             await pipeline.refresh(session, force=True)
     except Exception as error:  # noqa: BLE001 - cố ý bắt rộng, xem docstring
         logger.error("startup_warmup_failed", error=str(error))
+    try:  # thương hiệu/từ khóa mặc định trong code -> DB (chỉ thêm, DB thắng); lỗi thì DB giữ dữ liệu cũ, hệ thống vẫn chạy
+        if settings.seed_bill_knowledge:
+            async with AsyncSessionLocal() as session:
+                logger.info("bill_knowledge_seeded", **await seed_bill_knowledge(session))
+    except Exception as error:  # noqa: BLE001
+        logger.error("bill_knowledge_seed_failed", error_type=type(error).__name__)
     try:  # mô hình nhóm hóa đơn đã duyệt (nếu có); không có hoặc lỗi thì hệ thống chạy bằng luật như cũ
         async with AsyncSessionLocal() as session:
             slug_model.set_active(await slug_model.load_active(session))

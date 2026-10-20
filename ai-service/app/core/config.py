@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # pattern đã có. Cùng cách backend chạy ProviderConfigSeeder sau Database.Migrate().
     seed_provider_patterns: bool = True
 
+    # Thêm thương hiệu/từ khóa mặc định trong code (app/bill/seed_defaults.py) vào bill_brands / bill_keywords lúc khởi động, chỉ thêm,
+    # không đụng dòng đã có. Tắt thì chuỗi mới thêm vào code chỉ đến DB cũ qua script tay hoặc API quản trị.
+    seed_bill_knowledge: bool = True
+
     # OCR service riêng (PaddleOCR + VietOCR). Đặt cả URL lẫn khóa thì /ocr dùng nó; để trống thì /ocr vẫn dùng
     # Tesseract trong tiến trình này.
     ocr_service_url: str | None = None

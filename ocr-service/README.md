@@ -45,7 +45,7 @@ Bộ nhớ cửa hàng theo `X-User-Hash` (backend gửi SHA-256 của user_id).
 
 Nạp dữ liệu (`python scripts/db_setup.py --seed/--import/--gold/--synthetic --write`) chỉ chạy được sau `alembic upgrade head`; db_setup không tạo bảng.
 
-**Thương hiệu và từ khóa mặc định** nằm ở `data/*.json` (lý do từng mục: `data/NOTES.md`), không viết cứng trong `.py`. Khi chạy thật DB (`bill_brands`, `bill_keywords`) thắng: có dữ liệu trong DB thì nó thay bản mặc định. Thêm chuỗi mới vào `data/brands.json` thì DB cũ KHÔNG tự nhận: sau deploy chạy `python scripts/seed_knowledge_to_pg.py` (xem trước, liệt kê mục còn thiếu) rồi thêm `--write`. Seed chỉ thêm, an toàn chạy lại ở mọi môi trường; mục đã sửa hoặc đã tắt (`is_active = false`) trong DB không bị ghi đè. Muốn bỏ một mục thì tắt chứ đừng xóa dòng (xóa rồi seed sẽ thêm lại).
+**Thương hiệu và từ khóa mặc định** nằm ở `data/*.json` (lý do từng mục: `data/NOTES.md`), không viết cứng trong `.py`. Khi chạy thật DB (`bill_brands`, `bill_keywords`) thắng: có dữ liệu trong DB thì nó thay bản mặc định. Loại `merchant`/`product` và thương hiệu do ai-service sở hữu và tự seed vào DB lúc khởi động (`app/bill/seed_defaults.py`); `data/*.json` ở đây là bản dự phòng khi không có DB, phải giống bản của ai-service (test `ai-service/tests/unit/test_bill_seed_defaults.py` bắt lệch). Riêng từ khóa chat (`data/chat_keywords.json`) chỉ ocr-service dùng nên DB chỉ nhận qua `python scripts/seed_knowledge_to_pg.py` (xem trước, liệt kê mục còn thiếu) rồi thêm `--write`, chạy sau deploy có sửa file đó. Seed chỉ thêm, an toàn chạy lại ở mọi môi trường; mục đã sửa hoặc đã tắt (`is_active = false`) trong DB không bị ghi đè. Muốn bỏ một mục thì tắt chứ đừng xóa dòng (xóa rồi seed sẽ thêm lại).
 
 ## Chưa làm
 

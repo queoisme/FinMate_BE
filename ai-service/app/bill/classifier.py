@@ -21,8 +21,8 @@ _MAX_MODEL_CONFIDENCE = 0.69
 _CATEGORY_KEYWORDS = {
     "transport": ("xang", "petro", "grab", "taxi", "gojek", "nha xe", "bai giu xe", "bai do xe", "gui xe", "rua xe", "garage", "tram xe"),
     "healthcare": ("pharmacy", "pharmacity", "nha thuoc", "nhathuoc", "benh vien", "phong kham", "nha khoa", "rang ham mat", "tham my vien", "da lieu", "mat kinh", "eyewear", "benhvien", "phongkham", "nhakhoa"),
-    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "cong vien nuoc", "bowling"),
-    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua"),
+    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "khu giai tri", "giai tri", "cong vien nuoc", "bowling"),
+    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua", "nuoc tinh khiet", "dai ly nuoc"),  # đại lý nước uống: bán nước đóng chai/bình, không phải cước nước sinh hoạt (housing)
     "housing": ("dien luc", "evn", "tien nuoc", "cap nuoc", "nuoc sach", "nha tro", "phong tro", "chung cu", "dai ly gas", "binh gas"),
     "utilities": ("internet", "viettel", "vnpt", "fpt telecom", "truyen hinh", "vien thong", "wifi"),
     "dining": ("cafe", "coffee", "pho", "banh mi", "com tam", "quan com", "tra sua", "restaurant",
