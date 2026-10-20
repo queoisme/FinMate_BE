@@ -44,6 +44,9 @@ def classify_by_rules(merchant: str | None, lines: list[str], remembered: str | 
     if not remembered and (brand_slug := brand_backend_slug(merchant)):  # thương hiệu có nhóm ngoài 9 nhóm bộ luật (Con Cưng → family): trả thẳng slug backend
         return RuleResult(brand_slug, None, "brand", 0.8)
     category, source, confidence = classify_category_detailed(merchant, lines, remembered=remembered)
+    if not remembered and source == "brand" and confidence < 0.8 and (slug := brand_backend_slug(" ".join(lines))):
+        # thương hiệu chỉ thấy ở thân bill ("App KidsPlaza" ở chân phiếu, website) vì tên cửa hàng đọc sai: cùng ngoại lệ nhóm backend như khi nó nằm ở tên cửa hàng
+        return RuleResult(slug, None, "brand", min(confidence, MAX_CONFIDENCE))
     if not remembered and (source in ("product", "none") or (source == "brand" and confidence < 0.8)) and (voted := item_vote_slug(lines)):
         # nhóm cục bộ chỉ đến từ từ khóa sản phẩm / tên thương hiệu của món (bút Thiên Long), không phải từ cửa hàng: theo luật từng món
         return RuleResult(voted[0], None, "product", min(voted[1], MAX_CONFIDENCE))

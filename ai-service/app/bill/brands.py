@@ -477,6 +477,10 @@ for _table in (_MORE_BRANDS, _BASE_BRANDS):
 # Tên ngắn hoặc là từ thông dụng: chỉ khớp khi đứng thành cả từ (không khớp giữa chữ khác như "Nikel", "Junoon", "Havana Vans").
 # Rút ra từ trường "khop_an_toan" của đợt nghiên cứu và test nhận nhầm.
 # Thương hiệu có nhóm KHÔNG nằm trong 9 nhóm của bộ luật bill (vd. Gia đình): quy thẳng ra slug backend.
-BRAND_BACKEND_SLUG: dict[str, str] = {"con cung me va be": "family", "sieu thi con cung": "family", "con cung mart": "family", "con cung shop": "family", "fahasa": "education"}
+BRAND_BACKEND_SLUG: dict[str, str] = {
+    "con cung me va be": "family", "sieu thi con cung": "family", "con cung mart": "family", "con cung shop": "family", "fahasa": "education",
+    # chuỗi mẹ và bé khác: hóa đơn sữa/tã không phải "mua sắm" (Kids Plaza từng ra shopping dù toàn sữa)
+    "kids plaza": "family", "kidsplaza": "family", "bibo mart": "family", "bibomart": "family", "avakids": "family",
+}
 
 WHOLE_WORD_BRANDS = {"nike", "juno", "converse", "puma", "fila", "lush", "clinique", "h&m", "muji", "cgv", "evn"}  # set (không phải frozenset): knowledge_pg cập nhật tại chỗ từ DB
