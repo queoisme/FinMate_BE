@@ -957,7 +957,7 @@ trong `classifier.py`, `item_rules_seed.py`) chỉ là mặc định/seed và đ
 `bill_brands`/`bill_keywords` khi đã quá **60 giây** (DB lỗi thì giữ bản đang dùng, ghi cảnh báo); chỉ dẫn Gemini cũng cache 60 giây.
 ocr-service: nạp lúc khởi động, nạp lại qua `POST /admin/reload-knowledge` (§3.5).
 **DB mới thì `bill_brands`/`bill_keywords` rỗng:** alembic `0006` chỉ tạo schema, không seed; chỉ `ocr-service/scripts/seed_knowledge_to_pg.py`
-(chạy tay, có `--write`) nạp bản trong code vào DB. Trước khi chạy nó, cả hai service dùng bản trong code; việc `0008` chuyển 4 từ khóa
+(chạy tay, có `--write`; xem trước thì liệt kê mục còn thiếu) thêm vào DB các mục của `data/*.json` mà DB chưa có. Chỉ thêm, chạy lại an toàn, DB luôn thắng (mục đã sửa/đã tắt không bị ghi đè; muốn bỏ thì tắt, đừng xóa dòng). Trước khi chạy nó, service dùng bản mặc định trong `data/*.json`; việc `0008` chuyển 4 từ khóa
 sang `shopping` chỉ có tác dụng khi các dòng đó đã được seed (nó `INSERT … SELECT` rồi `DELETE` trên chính `bill_keywords`).
 
 **Cập nhật 2026-10-10.** `bill_ai_instructions` (alembic `0008`): đoạn mô tả nhóm, luật chốt khi nhập nhằng và ví dụ mà

@@ -50,3 +50,9 @@ def test_a_missing_data_file_fails_loudly_instead_of_starting_with_empty_tables(
     except FileNotFoundError:
         return
     raise AssertionError("đọc file không có phải báo lỗi")
+
+
+def test_eyeglasses_stay_health_but_sunglasses_are_shopping_in_every_default_table():
+    # Luật 3 của chỉ dẫn đã duyệt (ai-service, migration 0012): kính mát thời trang là shopping. Bản mặc định lệch DB thì seed thêm lại dòng sai.
+    for name in ("merchant_keywords.json", "product_keywords.json", "chat_keywords.json"):
+        assert "kinh mat" not in _json(name).get("healthcare", []), name

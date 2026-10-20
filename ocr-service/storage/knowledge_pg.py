@@ -1,7 +1,7 @@
 """Kiến thức nhận diện bill (thương hiệu, từ khóa danh mục) lấy từ PostgreSQL, và ghi bill lạ vào DB.
 
 - Khởi động API: nếu DB có dữ liệu thì thay các danh sách trong code (cập nhật tại chỗ nên mọi module vẫn dùng được); DB trống thì giữ bản trong code.
-- Nạp dữ liệu ban đầu: scripts/seed_knowledge_to_pg.py. Sau đó sửa trong DB (thêm dòng, đặt is_active = false) rồi gọi reload để áp dụng.
+- Nạp dữ liệu ban đầu và bổ sung mục mới của data/*.json: scripts/seed_knowledge_to_pg.py (chỉ thêm, DB luôn thắng). Sau đó sửa trong DB (thêm dòng, đặt is_active = false, KHÔNG xóa dòng vì seed sẽ thêm lại) rồi gọi reload để áp dụng.
 - ponytail: reload cập nhật tại chỗ nên một yêu cầu đang chạy đúng lúc có thể lỗi hiếm gặp; reload khi vắng người hoặc khởi động lại.
 """
 import hashlib
@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from classification import brands
 from classification import chat_vocab
+from classification import data_files
 from parsing import extract
 from storage.memory import _key
 from storage.storage_pg import _cursor, _who, connect_from_env
@@ -21,24 +22,50 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def seed(connect) -> dict:
-    """Ghi bản trong code vào DB (chạy lại an toàn: dòng đã có thì bỏ qua). Trả về số dòng mới."""
-    added = {"brands": 0, "keywords": 0}
+_KEYWORD_FILES = (("merchant", "merchant_keywords.json"), ("product", "product_keywords.json"), ("chat", "chat_keywords.json"))
+
+
+def _defaults() -> tuple[list[tuple], list[tuple]]:
+    """Bản mặc định đọc thẳng từ data/*.json: (thương hiệu, từ khóa). Không đọc các bảng đang chạy vì apply() có thể đã thay chúng bằng DB."""
+    data = data_files.load("brands.json")
+    whole = set(data["whole_word"])
+    brand_rows = [(b["key"], b["category"], b["display"], b["key"] in whole) for b in data["brands"]]
+    keyword_rows = [(kind, category, word, (rank + 1) * 10)
+                    for kind, name in _KEYWORD_FILES
+                    for rank, (category, words) in enumerate(data_files.keyword_table(name).items())
+                    for word in words]
+    return brand_rows, keyword_rows
+
+
+def missing(connect) -> dict:
+    """Mục có trong data/*.json mà DB chưa có dòng nào (kể cả dòng đã tắt: tắt là quyết định của DB, không phải thiếu). Đây là phần seed() sẽ thêm."""
+    brand_rows, keyword_rows = _defaults()
     with _cursor(connect) as cur:
-        for key, category in brands.BRAND_CATEGORIES.items():
+        cur.execute("SELECT brand_key FROM bill_brands")
+        have_brands = {r[0] for r in cur.fetchall()}
+        cur.execute("SELECT kind, category_slug, keyword FROM bill_keywords")
+        have_keywords = {tuple(r) for r in cur.fetchall()}
+    return {"brands": [key for key, *_ in brand_rows if key not in have_brands],
+            "keywords": [(kind, category, word) for kind, category, word, _ in keyword_rows if (kind, category, word) not in have_keywords]}
+
+
+def seed(connect) -> dict:
+    """Thêm vào DB những mục data/*.json còn thiếu (chạy lại an toàn: dòng đã có, đã sửa hay đã tắt đều giữ nguyên, không bao giờ ghi đè). Trả về số dòng mới."""
+    added = {"brands": 0, "keywords": 0}
+    brand_rows, keyword_rows = _defaults()
+    with _cursor(connect) as cur:
+        for key, category, display, whole in brand_rows:
             cur.execute(
                 "INSERT INTO bill_brands (id, brand_key, category_slug, display_name, whole_word, is_active, source, created_at, updated_at) "
                 "VALUES (%s, %s, %s, %s, %s, TRUE, 'seed', %s, %s) ON CONFLICT (brand_key) DO NOTHING",
-                (str(uuid.uuid4()), key, category, brands.BRAND_DISPLAY.get(key, key.title()), key in brands.WHOLE_WORD_BRANDS, _now(), _now()))
+                (str(uuid.uuid4()), key, category, display, whole, _now(), _now()))
             added["brands"] += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
-        for kind, table in (("merchant", extract._CATEGORY_KEYWORDS), ("product", extract._PRODUCT_KEYWORDS), ("chat", chat_vocab.CHAT_KEYWORDS)):
-            for rank, (category, words) in enumerate(table.items()):
-                for word in words:
-                    cur.execute(
-                        "INSERT INTO bill_keywords (id, kind, category_slug, keyword, category_priority, is_active, source, created_at) "
-                        "VALUES (%s, %s, %s, %s, %s, TRUE, 'seed', %s) ON CONFLICT (kind, category_slug, keyword) DO NOTHING",
-                        (str(uuid.uuid4()), kind, category, word, (rank + 1) * 10, _now()))
-                    added["keywords"] += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        for kind, category, word, priority in keyword_rows:
+            cur.execute(
+                "INSERT INTO bill_keywords (id, kind, category_slug, keyword, category_priority, is_active, source, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, TRUE, 'seed', %s) ON CONFLICT (kind, category_slug, keyword) DO NOTHING",
+                (str(uuid.uuid4()), kind, category, word, priority, _now()))
+            added["keywords"] += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
     return added
 
 

@@ -93,6 +93,35 @@ def test_seeding_again_never_overwrites_edits_made_in_the_database(connect):
     assert knowledge_pg.load(connect)["brands"]["highlands coffee"][0] == "shopping"
 
 
+def test_seed_copies_the_default_files_even_when_the_live_tables_were_changed(connect):
+    # Bảng trong bộ nhớ có thể đã bị DB thay (apply); seed phải luôn lấy từ data/*.json, nếu không bản "mặc định" trôi theo DB.
+    del brands.BRAND_CATEGORIES["highlands coffee"]
+    brands.BRAND_CATEGORIES["thuong hieu chi co trong bo nho"] = "dining"
+    knowledge_pg.seed(connect)
+    loaded = knowledge_pg.load(connect)["brands"]
+    assert "highlands coffee" in loaded and "thuong hieu chi co trong bo nho" not in loaded
+
+
+def test_a_new_default_entry_reaches_a_database_seeded_earlier(connect):
+    knowledge_pg.seed(connect)
+    assert knowledge_pg.missing(connect) == {"brands": [], "keywords": []}
+    _sql(connect, "DELETE FROM bill_brands WHERE brand_key = 'vexere'")  # DB dựng từ trước khi file có mục này
+    _sql(connect, "DELETE FROM bill_keywords WHERE kind = 'product' AND keyword = 'bun bo'")
+    plan = knowledge_pg.missing(connect)
+    assert plan["brands"] == ["vexere"] and ("product", "dining", "bun bo") in plan["keywords"]
+    assert knowledge_pg.seed(connect) == {"brands": 1, "keywords": 1}
+    assert knowledge_pg.missing(connect) == {"brands": [], "keywords": []}
+
+
+def test_an_entry_switched_off_in_the_database_is_not_brought_back_by_the_seed(connect):
+    knowledge_pg.seed(connect)
+    _sql(connect, "UPDATE bill_brands SET is_active = 0 WHERE brand_key = 'highlands coffee'")
+    assert knowledge_pg.missing(connect) == {"brands": [], "keywords": []}  # tắt = DB đã quyết, không phải thiếu
+    assert knowledge_pg.seed(connect) == {"brands": 0, "keywords": 0}
+    knowledge_pg.reload(connect)
+    assert "highlands coffee" not in brands.BRAND_CATEGORIES
+
+
 def test_empty_database_keeps_the_defaults_in_code(connect):
     before = dict(brands.BRAND_CATEGORIES)
     assert knowledge_pg.reload(connect) is False

@@ -36,7 +36,7 @@ def main(argv: list[str]) -> int:
             added = knowledge_pg.seed(connect)
             print(f"Nạp kiến thức: thêm {added['brands']} thương hiệu, {added['keywords']} từ khóa.")
         else:
-            print("Sẽ nạp thương hiệu và từ khóa từ code vào DB.")
+            print("Sẽ thêm các thương hiệu và từ khóa còn thiếu từ data/*.json vào DB (xem chi tiết: scripts/seed_knowledge_to_pg.py).")
     if "--import" in argv:
         code = import_files_to_pg.do_import(Path(os.environ.get("FINMATE_IMPORT_DIR", ROOT)), write)
         if code:
