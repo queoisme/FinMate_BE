@@ -3,7 +3,7 @@ r"""Đồng bộ thương hiệu và từ khóa mặc định (data/*.json) vào
 Chạy:  $env:FINMATE_DATABASE_URL = "postgresql://..."
        .\.venv\Scripts\python.exe scripts/seed_knowledge_to_pg.py            (xem trước: liệt kê mục còn thiếu, không ghi gì)
        .\.venv\Scripts\python.exe scripts/seed_knowledge_to_pg.py --write    (thêm các mục còn thiếu)
-Chạy lại bao nhiêu lần cũng an toàn và chạy ở môi trường nào cũng ra cùng kết quả: dòng đã có (đã sửa, hay đã tắt is_active = false) không bị ghi đè hay bật lại.
+Chạy lại bao nhiêu lần cũng an toàn và chạy ở môi trường nào cũng ra cùng kết quả: dòng đã có (đã sửa, đã tắt is_active = false, hoặc từ khóa đã chuyển sang nhóm khác) không bị ghi đè, bật lại hay thêm lại.
 Chạy sau mỗi lần deploy có sửa data/*.json (thêm chuỗi mới vào file thì DB cũ chỉ nhận được qua bước này). Cần đã chạy `alembic upgrade head`.
 Muốn bỏ một mục thì TẮT (is_active = false) trong DB, đừng xóa dòng: xóa rồi seed sẽ thêm lại.
 """

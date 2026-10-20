@@ -37,23 +37,29 @@ def _defaults() -> tuple[list[tuple], list[tuple]]:
     return brand_rows, keyword_rows
 
 
+def _known(cur) -> tuple[set, set]:
+    """(thương hiệu, (loại, từ khóa)) đã có dòng trong DB, kể cả dòng đã tắt hay đã chuyển sang nhóm khác: đó là quyết định của DB, không phải thiếu."""
+    cur.execute("SELECT brand_key FROM bill_brands")
+    brand_keys = {r[0] for r in cur.fetchall()}
+    cur.execute("SELECT kind, keyword FROM bill_keywords")  # không xét nhóm: từ đã được chuyển nhóm (migration, người duyệt) thì không thêm lại ở nhóm cũ
+    return brand_keys, {tuple(r) for r in cur.fetchall()}
+
+
 def missing(connect) -> dict:
-    """Mục có trong data/*.json mà DB chưa có dòng nào (kể cả dòng đã tắt: tắt là quyết định của DB, không phải thiếu). Đây là phần seed() sẽ thêm."""
+    """Mục có trong data/*.json mà DB chưa có (xem _known). Đây là phần seed() sẽ thêm."""
     brand_rows, keyword_rows = _defaults()
     with _cursor(connect) as cur:
-        cur.execute("SELECT brand_key FROM bill_brands")
-        have_brands = {r[0] for r in cur.fetchall()}
-        cur.execute("SELECT kind, category_slug, keyword FROM bill_keywords")
-        have_keywords = {tuple(r) for r in cur.fetchall()}
+        have_brands, have_keywords = _known(cur)
     return {"brands": [key for key, *_ in brand_rows if key not in have_brands],
-            "keywords": [(kind, category, word) for kind, category, word, _ in keyword_rows if (kind, category, word) not in have_keywords]}
+            "keywords": [(kind, category, word) for kind, category, word, _ in keyword_rows if (kind, word) not in have_keywords]}
 
 
 def seed(connect) -> dict:
-    """Thêm vào DB những mục data/*.json còn thiếu (chạy lại an toàn: dòng đã có, đã sửa hay đã tắt đều giữ nguyên, không bao giờ ghi đè). Trả về số dòng mới."""
+    """Thêm vào DB những mục data/*.json còn thiếu (chạy lại an toàn: dòng đã có, đã sửa, đã tắt hay từ khóa đã chuyển nhóm đều giữ nguyên, không bao giờ ghi đè). Trả về số dòng mới."""
     added = {"brands": 0, "keywords": 0}
     brand_rows, keyword_rows = _defaults()
     with _cursor(connect) as cur:
+        _, have_keywords = _known(cur)
         for key, category, display, whole in brand_rows:
             cur.execute(
                 "INSERT INTO bill_brands (id, brand_key, category_slug, display_name, whole_word, is_active, source, created_at, updated_at) "
@@ -61,6 +67,8 @@ def seed(connect) -> dict:
                 (str(uuid.uuid4()), key, category, display, whole, _now(), _now()))
             added["brands"] += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
         for kind, category, word, priority in keyword_rows:
+            if (kind, word) in have_keywords:
+                continue
             cur.execute(
                 "INSERT INTO bill_keywords (id, kind, category_slug, keyword, category_priority, is_active, source, created_at) "
                 "VALUES (%s, %s, %s, %s, %s, TRUE, 'seed', %s) ON CONFLICT (kind, category_slug, keyword) DO NOTHING",

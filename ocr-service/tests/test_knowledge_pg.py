@@ -122,6 +122,15 @@ def test_an_entry_switched_off_in_the_database_is_not_brought_back_by_the_seed(c
     assert "highlands coffee" not in brands.BRAND_CATEGORIES
 
 
+def test_a_keyword_moved_to_another_category_in_the_database_is_not_added_back(connect):
+    # Migration 0008/0012 của ai-service chuyển từ khóa giữa các nhóm: thêm lại dòng cũ sẽ khiến một từ nằm ở hai nhóm.
+    knowledge_pg.seed(connect)
+    _sql(connect, "UPDATE bill_keywords SET category_slug = 'other' WHERE kind = 'product' AND category_slug = 'dining' AND keyword = 'bun bo'")
+    assert knowledge_pg.missing(connect) == {"brands": [], "keywords": []}
+    assert knowledge_pg.seed(connect) == {"brands": 0, "keywords": 0}
+    assert knowledge_pg.load(connect)["product"]["dining"].count("bun bo") == 0
+
+
 def test_empty_database_keeps_the_defaults_in_code(connect):
     before = dict(brands.BRAND_CATEGORIES)
     assert knowledge_pg.reload(connect) is False
