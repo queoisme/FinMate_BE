@@ -1,6 +1,6 @@
 """Bóc tách từng món (tên + giá) từ các hộp chữ OCR của hóa đơn giấy."""
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from statistics import median
 
 from extract import _MIN_AMOUNT, _amounts, _norm
@@ -11,8 +11,8 @@ PRICE_COLUMN = 0.35  # giá nằm trong 35% bên phải tờ giấy
 
 _HEADER_RE = re.compile(r"\b(?:sl|tong|ten hang|mat hang|don gia|thanh tien|so luong)\b")
 # Dòng cộng tạm: hết danh sách món nhưng tổng bill còn có thể cộng thuế/phí, trừ giảm giá cả bill ở dưới.
-# ponytail: "^t[o0-9]ng" bắt cả "T6ng" do OCR đọc sai; tên món mở đầu bằng "Tông..." sẽ bị coi là dòng tổng
-_SUBTOTAL_RE = re.compile(r"^t[o0-9]ng\b|tong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
+# ponytail: "^t[oe0-9]ng" bắt cả "T6ng", "Téng" do OCR đọc sai "Tổng"; tên món mở đầu bằng "Tông..." sẽ bị coi là dòng tổng
+_SUBTOTAL_RE = re.compile(r"^t[oe0-9]ng\b|tong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
 _FINAL_RE = re.compile(r"thanh to[a4]n|phai tra|phai thu|total")  # dòng tổng cuối: hết vùng bill
 _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 # thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, "Tổng cộng (gồm thuế)"
@@ -23,7 +23,7 @@ _SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|gtgt|phi phuc vu|phi dich vu|servi
 _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
 _PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\s*:|^the\s*$|^the\s+(?:atm|tin dung|ghi no|visa|master|jcb|napas|ngan hang)\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
-_TOTAL_WORD_RE = re.compile(r"\bt[o0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
+_TOTAL_WORD_RE = re.compile(r"\bt[oe0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
 # ô chỉ chứa một số tiền có dấu nhóm nghìn ("66.000", "1,920,500đ"); loại "2,770ĐIỂM", "Nợ: 1311", số điện thoại
@@ -42,6 +42,9 @@ class Item:
 class ItemsResult:
     items: list[Item]
     ok: bool
+    # Tổng các món nếu mọi hàng "đơn giá | số lượng | thành tiền" có thành tiền lệch đúng một chữ số được thay bằng đơn giá x số lượng; None khi không có hàng nào.
+    # Chưa kiểm chứng (cần tổng bill), nên chỉ để totals.choose_total thêm vào các ứng viên.
+    fixed_total: int | None = None
 
 
 def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
@@ -90,6 +93,27 @@ def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tu
         if not skip_trailing:
             return None
     return None
+
+
+_QTY_RE = re.compile(r"^\d{1,3}(?:[.,]\d{1,3})?$")  # "2", "0.367"
+
+
+def _unit_times_qty(row: list[OcrBox], price_box: OcrBox, amount: int) -> int | None:
+    """Hàng đủ ba cột "đơn giá | số lượng | thành tiền" mà thành tiền chỉ lệch (đơn giá x số lượng) đúng MỘT chữ số: OCR đọc sai ("20.009" thay vì "20.000").
+
+    Chỉ đoán khi bên trái ô giá có đúng một ô tiền (đơn giá) và đúng một ô số lượng. Cột khuyến mại (hai ô tiền) hay số lượng lẻ kiểu "0.367" (trông như tiền)
+    thì bỏ qua. Kết quả chỉ được dùng khi nó làm tổng các món khớp tổng bill (xem extract_items): khuyến mại thật cũng có thể lệch một chữ số."""
+    left = [b for b in row if b.x0 < price_box.x0 and _NUMERIC_RE.match(b.text)]
+    money = [b for b in left if _MONEY_BOX_RE.fullmatch(b.text.strip())]
+    qty = [b for b in left if all(b is not m for m in money) and _QTY_RE.fullmatch(b.text.strip())]
+    if len(money) != 1 or len(qty) != 1:
+        return None
+    unit = max((a for a in _amounts(money[0].text) if a >= _MIN_AMOUNT), default=None)
+    if unit is None:
+        return None
+    expected = round(unit * float(qty[0].text.strip().replace(",", ".")))
+    got, want = str(amount), str(expected)
+    return expected if expected != amount and len(got) == len(want) and sum(x != y for x, y in zip(got, want)) == 1 else None
 
 
 _PAYABLE_ROW_RE = re.compile(r"tong thanh toan|phai tra|can thanh toan")
@@ -165,6 +189,10 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     next_stt = 1  # số STT kế tiếp mong đợi (để nhận STT dính vào tên)
     after_stt_item = False  # hàng có giá vừa rồi mở đầu bằng số STT: hàng không giá kế tiếp (không STT) là mô tả của món đó
     tail = False  # đã qua dòng cộng tiền hàng: chỉ nhận thuế/phí và giảm giá cả bill tới dòng tổng cuối
+    tail_discounts: list[Item] = []  # giảm giá cả bill ở vùng tổng: có bill giá từng dòng ĐÃ trừ khuyến mại, nên khoản này không được trừ lần nữa
+    subtotal_amount: int | None = None  # số in ở dòng cộng tạm
+    lines_sum_at_tail = 0  # tổng các dòng ngay trước dòng cộng tạm
+    fixes: dict[int, int] = {}  # chỉ số món -> thành tiền suy ra từ đơn giá x số lượng (xem _unit_times_qty)
     for r, text in zip(raw[start:], texts[start:]):
         if _FINAL_RE.search(text):
             closed = True
@@ -178,12 +206,15 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
                 items.append(Item(label, p[1], None, False))
             elif _NEGATIVE_RE.search(p[0].text) or _DISCOUNT_RE.search(_norm(label)):
                 items.append(Item(label, -p[1], None, True))
+                tail_discounts.append(items[-1])
             elif "tong cong" in text:
                 break  # "Tổng cộng" sau dòng cộng tạm là tổng cuối
             # các hàng khác (tiền khách đưa, tiền thừa, cộng lặp lại) không thuộc tổng bill: bỏ
             continue
         if _SUBTOTAL_RE.search(text):
             tail = closed = True
+            if (sub := _price(r, price_x)) is not None:
+                subtotal_amount, lines_sum_at_tail = sub[1], sum(i.amount for i in items)
             continue
         p = _price(r, price_x, skip_trailing=True)
         cells = r if p is None else r[:next(k for k, b in enumerate(r) if b is p[0])]  # ô bên phải giá không thuộc tên
@@ -214,14 +245,28 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
         after_stt_item = stt
         if _NEGATIVE_RE.search(p[0].text) or _DISCOUNT_RE.search(_norm(name)):
             items.append(Item(name, -p[1], None, True))
-        elif addon:
-            count += 1
-            items.append(Item(name, p[1], main, False))
         else:
             count += 1
-            main = len(items)
-            items.append(Item(name, p[1], None, False))
+            if not addon:
+                main = len(items)
+            items.append(Item(name, p[1], main if addon else None, False))
+            if (fixed := _unit_times_qty(r, p[0], p[1])) is not None:
+                fixes[len(items) - 1] = fixed
 
     # tổng các món + thuế/phí - giảm giá phải bằng đúng tổng bill; thuế/phí không tính vào số món
-    ok = total is not None and count >= 2 and sum(i.amount for i in items) == total and (closed or not headerless)
-    return ItemsResult(items, ok)
+    def balanced(candidate: list[Item]) -> bool:
+        return total is not None and count >= 2 and sum(i.amount for i in candidate) == total and (closed or not headerless)
+
+    def repaired(candidate: list[Item]) -> list[Item]:
+        return [replace(it, amount=fixes[k]) if k in fixes else it for k, it in enumerate(candidate)]
+
+    # Không khớp: thử (a) bỏ giảm giá cả bill đã nằm sẵn trong giá từng dòng, (b) sửa thành tiền OCR đọc lệch một chữ số, (c) cả hai.
+    # Chỉ nhận khi PHÉP SỬA làm tổng khớp đúng tổng bill: có bằng chứng số học mới đổi số đã đọc.
+    chosen = items
+    if total is not None and not balanced(items):
+        # Giảm giá cuối chỉ là "đã nằm trong giá từng dòng" khi tạm tính in trên bill đúng bằng tổng các dòng cộng giảm giá (906.500 + 22.500 = 929.000).
+        # Tạm tính bằng đúng tổng các dòng thì giá dòng là giá gốc và giảm giá phải được trừ.
+        netted = bool(tail_discounts) and subtotal_amount == lines_sum_at_tail + sum(-d.amount for d in tail_discounts)
+        without_tail = [i for i in items if all(i is not d for d in tail_discounts)] if netted else items
+        chosen = next((c for c in (without_tail, repaired(items), repaired(without_tail)) if balanced(c)), items)
+    return ItemsResult(chosen, balanced(chosen), sum(i.amount for i in repaired(items)) if fixes else None)

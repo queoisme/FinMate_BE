@@ -73,11 +73,14 @@ def choose_total(boxes: list[OcrBox], fallback: int | None = None) -> tuple[int 
     targets = {c - g for c in cash for g in change if c > g}
     targets |= {s + tax - discount for s in subtotals}
     try:
-        items = extract_items(boxes, None).items
+        split = extract_items(boxes, None)
+        items = split.items
     except Exception:  # noqa: BLE001 - tách món lỗi thì chỉ mất một ràng buộc, không được làm hỏng việc chọn tổng
-        items = []
+        split, items = None, []
     if sum(1 for i in items if i.parent is None and not i.is_discount) >= 2:
         targets.add(sum(i.amount for i in items))
+        if split.fixed_total is not None:  # thành tiền OCR đọc lệch một chữ số đã sửa bằng đơn giá x số lượng: tổng đã sửa cũng là ứng viên
+            targets.add(split.fixed_total)
     targets = {t for t in targets if t >= _MIN_AMOUNT}
 
     # Ứng viên: số thỏa ràng buộc nằm ở dòng nhãn tổng hoặc dòng nhãn lạ ("Tong c0ng", "Cộng"). Dòng tạm tính/thuế/giảm giá/tiền khách đưa/tiền thối
