@@ -4,6 +4,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
+from parsing.extract import extract_total
 from parsing.items import _rows, extract_items, payable_total
 from reading.ocr import OcrBox
 from parsing.totals import choose_total
@@ -164,3 +165,27 @@ class TestWrappedTotal:
         boxes = row(800, ("Tổng thanh toán:", 50, 400), ("452,43", 850, 913)) + row(836, ("Cam on", 50, 300), ("2", 903, 913))
         assert len(_rows(boxes)) == 2
 
+
+class TestHandwrittenBillWithMergedCellsAndClippedTotalLabel:
+    """Hóa đơn viết tay KINGFOOD (22/10/2026): 7 món OCR tách ô, 3 món cuối bị gộp tên + "SL x đơn giá = thành tiền" vào MỘT ô, và nhãn
+    "TỔNG CỘNG" rơi chữ đầu thành "ONG CONG". Trước đây chỉ tách được 7/10 món (cộng 256.000), tổng bị đoán là 68.000 (số lặp nhiều nhất)."""
+    ROWS = [("1. Sua tuoi 1L", "1x32.000=32.000"), ("2. Banh mi goi", "1x28.000=28.000"), ("3. Nuoc cam 1L", "1x45.000=45.000"),
+            ("4. Yen mach 500g", "1x68.000=68.000"), ("5. Vo o ly", "2X12.000=24.000"), ("6. But bi xanh", "3X8.000=24.000"),
+            ("7. Sach tap to", "1x35.000=35.000")]
+    MERGED = ["8.Khau trang 10 chiec1x 25.000=25.000", "9.Nuoc muoi sinh ly2x12.000=24.000", "10. Ban chai danh rang 2x 18.000= 36.000"]
+    BOXES = [box("KINGFOOD", 360, 60, 680, 110), box("HOA DON BAN HANG", 280, 130, 760, 170), box("Ngay: 22/10/2026", 380, 190, 690, 230)]         + [b for k, (name, calc) in enumerate(ROWS) for b in row(280 + 70 * k, (name, 170, 440), (calc, 540, 880))]         + [b for k, text in enumerate(MERGED) for b in row(280 + 70 * (7 + k), (text, 170, 880))]         + row(1010, ("ONG CONG: 341.000", 165, 660))
+
+    def test_a_name_and_its_amount_in_one_box_are_still_an_item(self):
+        res = extract_items(self.BOXES, 341_000)
+        assert [i.amount for i in res.items] == [32_000, 28_000, 45_000, 68_000, 24_000, 24_000, 35_000, 25_000, 24_000, 36_000]
+        assert res.ok
+        assert "Khau trang" in res.items[7].name and "25.000" not in res.items[7].name  # phần tiền không dính vào tên món
+
+    def test_the_total_is_verified_by_the_items_even_when_its_label_lost_a_letter(self):
+        assert choose_total(self.BOXES) == (341_000, True)
+
+    def test_a_total_label_that_lost_its_first_letter_is_still_a_label(self):
+        lines = ["KINGFOOD", "1. Sua tuoi 1x68.000=68.000", "2. Banh mi 1x68.000=68.000", "ONG CONG: 341.000"]
+        assert extract_total(lines) == 341_000  # không phải 68.000 (số lặp nhiều nhất)
+        assert extract_total(["1. Sua 1x68.000=68.000", "2. Banh 1x68.000=68.000", "TONG CONG: 341.000"]) == 341_000
+        assert extract_total(["1. Sua 1x68.000=68.000", "2. Banh 1x68.000=68.000", "Mong cong bien: 341.000"]) != 341_000  # chữ khác thì không phải nhãn

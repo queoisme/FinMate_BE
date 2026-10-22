@@ -12,7 +12,7 @@ PRICE_COLUMN = 0.35  # giá nằm trong 35% bên phải tờ giấy
 _HEADER_RE = re.compile(r"\b(?:sl|tong|ten hang|mat hang|don gia|thanh tien|so luong)\b")
 # Dòng cộng tạm: hết danh sách món nhưng tổng bill còn có thể cộng thuế/phí, trừ giảm giá cả bill ở dưới.
 # ponytail: "^t[oe0-9]ng" bắt cả "T6ng", "Téng" do OCR đọc sai "Tổng"; tên món mở đầu bằng "Tông..." sẽ bị coi là dòng tổng
-_SUBTOTAL_RE = re.compile(r"^t[oe0-9]ng\b|tong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
+_SUBTOTAL_RE = re.compile(r"^t[oe0-9]ng\b|\bt?ong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
 _FINAL_RE = re.compile(r"thanh to[a4]n|phai tra|phai thu|total")  # dòng tổng cuối: hết vùng bill
 _DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
 # thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, "Tổng cộng (gồm thuế)"
@@ -195,11 +195,36 @@ def payable_total(boxes: list[OcrBox]) -> int | None:
     return tong_cong[0] if len(tong_cong) == 1 else None  # nhiều "Tổng cộng" là cộng riêng từng khối bảng (hóa đơn A4): không dòng nào là tổng bill
 
 
+# Ô gộp tên món với phần số ở cuối ("8.Khau trang 10 chiec1x 25.000=25.000"): nhãn là phần đầu, đuôi là chuỗi số/dấu/x/= chạy tới cuối ô.
+_MERGED_TAIL_RE = re.compile(r"^(?P<label>.*?)(?P<tail>\d[\d\s.,x×*=]*)(?P<unit>\s?(?:đ|d|vnd))?$", re.IGNORECASE)
+_CALC_RE = re.compile(r"\d\s*[x×*]\s*\d[\d.,]*\s*=\s*\d")  # "SL x đơn giá = thành tiền": dấu hiệu của dòng món, không phải dòng tổng ("ONG CONG: 341.000")
+
+
+def _split_merged_cells(boxes: list[OcrBox], price_x: float) -> list[OcrBox]:
+    """Tách ô OCR gộp tên món với số tiền thành hai ô (tên | số), để số tiền nằm lại ở cột giá.
+
+    Chỉ đụng ô mà tâm nằm TRƯỚC cột giá (ô tiền thật không ở đó nên số tiền trong ô sẽ bị bỏ sót), có ít nhất 3 chữ cái ở phần tên và đuôi
+    đúng dạng dòng món "SL x đơn giá = thành tiền" với một số tiền hợp lệ. Dòng tổng ("ONG CONG: 341.000"), ngày ("22/10/2026") hay "500g" giữ nguyên.
+    Ô tiền mới đặt trong cột giá vì số tiền luôn nằm ở mép phải ô.
+    ponytail: tọa độ cắt chia theo số ký tự (chữ viết tay rộng hẹp không đều), chỉ cần đúng hàng và đúng bên của cột giá."""
+    out: list[OcrBox] = []
+    for b in boxes:
+        text = b.text.rstrip()
+        m = None if (b.x0 + b.x1) / 2 >= price_x else _MERGED_TAIL_RE.match(text)
+        if m is None or sum(c.isalpha() for c in m["label"]) < 3 or not _CALC_RE.search(m["tail"])                 or not [a for a in _amounts(m["tail"]) if a >= extract._MIN_AMOUNT]:
+            out.append(b)
+            continue
+        cut = b.x0 + (b.x1 - b.x0) * len(m["label"]) / len(text)
+        out += [replace(b, text=m["label"].rstrip(), x1=cut), replace(b, text=text[len(m["label"]):], x0=max(cut, price_x))]
+    return out
+
+
 def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     if not boxes:
         return ItemsResult([], False)
     left, right = min(b.x0 for b in boxes), max(b.x1 for b in boxes)
     price_x = right - PRICE_COLUMN * (right - left)
+    boxes = _split_merged_cells(boxes, price_x)
     raw = _rows(boxes)
     texts = [_norm(" ".join(b.text for b in r)).strip() for r in raw]
 

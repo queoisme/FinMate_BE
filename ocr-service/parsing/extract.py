@@ -150,7 +150,8 @@ def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: b
         # "tong" trơn phải gần đầu một từ: "TraYuzumatongboncha" / "MatOng" (mật ong) là tên hàng. Cho phép MỘT ký tự rác
         # dính phía trước ("ITong tien:"). Từ khóa dài vẫn khớp giữa chữ vì OCR hay dính nhãn ("Khachphai tra").
         norm = _norm(line)
-        if not any(re.search(r"(?<![a-z]{2})tong", norm) if k == "tong" else k in norm for k in keywords):
+        # Nhãn nhiều chữ có thể rơi chữ cái đầu khi OCR đọc chữ to ("TỔNG CỘNG" -> "ONG CONG"): chữ thứ hai giữ nhãn không bị nhầm với từ khác.
+        if not any(re.search(r"(?<![a-z]{2})tong", norm) if k == "tong" else (k in norm or (" " in k and re.match(rf"\W*{re.escape(k[1:])}", norm))) for k in keywords):
             continue
         squeezed = _alnum(_norm(line))
         if any(m in squeezed for m in markers):
