@@ -211,7 +211,7 @@ def _split_merged_cells(boxes: list[OcrBox], price_x: float) -> list[OcrBox]:
     for b in boxes:
         text = b.text.rstrip()
         m = None if (b.x0 + b.x1) / 2 >= price_x else _MERGED_TAIL_RE.match(text)
-        if m is None or sum(c.isalpha() for c in m["label"]) < 3 or not _CALC_RE.search(m["tail"])                 or not [a for a in _amounts(m["tail"]) if a >= extract._MIN_AMOUNT]:
+        if m is None or sum(c.isalpha() for c in m["label"]) < 3 or not _CALC_RE.search(m["tail"])                 or not [a for a in _amounts(m["tail"]) if a >= _MIN_AMOUNT]:
             out.append(b)
             continue
         cut = b.x0 + (b.x1 - b.x0) * len(m["label"]) / len(text)
