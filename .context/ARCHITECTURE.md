@@ -714,16 +714,17 @@ Mục tiêu: một bill có hàng thuộc nhiều nhóm (mỹ phẩm và đồ �
 nhóm; bấm Lưu thì **mỗi nhóm một giao dịch**, cùng nối về một lần quét. Thiết kế đầy đủ:
 `docs/superpowers/specs/2026-10-09-receipt-item-split-design.md`.
 
-- **Cờ và đồng ý.** Chỉ chạy khi `Receipt:SplitByItemsEnabled` (mặc định **tắt**) bật, `ocr-service` báo `items_ok`,
-  bill có ≥ 2 món chính (không tính phụ kiện) và không có phụ kiện mồ côi. Cổng này kiểm **trước** khi đọc người dùng và
+- **Cờ và đồng ý.** Chỉ chạy khi `Receipt:SplitByItemsEnabled` (mặc định **tắt**) bật, bill có ≥ 2 món chính
+  (không tính phụ kiện) và không có phụ kiện mồ côi. Từ 2026-10-23 cổng **không còn đòi** `items_ok` để hỏi AI (xem §3.4.1). Cổng này kiểm **trước** khi đọc người dùng và
   trước lời gọi AI. Đồng ý chia sẻ với AI đọc từ DB mỗi lần quét (`User.AiConsentGranted`: `ai_consent_version` bằng `ConsentVersions.Ai`; đổi câu chữ màn đồng ý thì tăng số phiên bản và mọi người phải đồng ý lại).
 - **Backend cộng tiền, AI chỉ gắn nhóm.** `ReceiptSplitter` gom món theo nhóm, dồn giảm giá chung (không dính món nào) và
   phụ phí (VAT, phí dịch vụ, phí nền tảng, phí vận chuyển…) vào nhóm lớn nhất theo tiền gốc (không chia theo tỷ lệ, để số tiền các nhóm không
   phát sinh số lẻ mà bill không in; đổi 2026-10-15), và trả kết quả chỉ khi **tổng
   các nhóm bằng đúng tổng bill**. Chỉ tách khi có **ít nhất hai nhóm có danh mục thật**; món `unknown` thành một nhóm
   riêng (cần xem lại) chỉ khi đã có ≥ 2 nhóm thật. Nhóm cấp trên `categorySlug` = nhóm lớn nhất **có** danh mục.
-- **Mọi lỗi → đường cũ (một nhóm), không đổi hành vi.** `items_ok=false`, dưới 2 món chính, tổng lệch, ai-service lỗi,
-  trả sai dạng, hoặc dưới 2 nhóm thật → quét chạy y như trước; quét không bao giờ thất bại vì tính năng này.
+- **Mọi lỗi → đường cũ (một nhóm), không đổi hành vi.** Dưới 2 món chính, tổng lệch, ai-service lỗi, trả sai dạng, hoặc dưới 2 nhóm thật →
+  quét chạy y như trước; quét không bao giờ thất bại vì tính năng này. Riêng `items_ok=false` xem §3.4.1: vẫn phân loại tên món, chỉ không chia tiền
+  (trừ khi các món đọc được còn thiếu so với tổng).
 - **Lưu.** App gọi `POST /transactions` một lần cho mỗi nhóm, mỗi nhóm có `clientRequestId` cố định suy ra từ
   `scanId` + nhóm (uuid v5), nên mở lại hoặc thử lại được phát lại (200) thay vì ghi trùng. Liên kết quét ↔ giao dịch
   qua `receipt_scan_links` (khóa duy nhất `(scan_id, group_category_slug)`; giao dịch chỉ nối tối đa một lần quét).
@@ -732,6 +733,40 @@ nhóm; bấm Lưu thì **mỗi nhóm một giao dịch**, cùng nối về một
 - **Học.** Bill đã tách **không** dạy bộ nhớ cửa hàng (cả khi lưu lẫn khi sửa danh mục về sau): một cửa hàng bán
   hai loại hàng không thuộc một danh mục.
 - **Nhận biết "đã tách".** `receipt_scan_items` có ≥ 2 nhóm khác nhau, hoặc `receipt_scans.category_source = 'items'`.
+
+### 3.4.1 Quy tắc đọc bill và phân loại món (thêm 2026-10-23)
+
+Rút ra khi sửa các bill viết tay và in nhiệt (KINGFOOD, Thảo Vy, Minh Khang). Nguyên tắc chung: **sửa theo lớp lỗi, không theo từng bill**.
+Mỗi quy tắc dưới đây có test mô tả một lớp tình huống bằng tọa độ giả (không dựa vào đúng ảnh nào) và được đo trên 58 ảnh thật
+(`ocr-service/benchmark/run_databill.py`, `run_items.py`; ảnh nằm NGOÀI repo, đặt `DATA_BILL` trỏ tới thư mục `data-bill`): quy tắc không được làm bill nào lùi. Kiểm lại trên
+bản HEAD sạch (`git worktree`) trước khi commit, vì cây làm việc có thể chứa việc dở khác.
+
+**Bộ tách món (`ocr-service/parsing/items.py`)**
+- **Bằng chứng số học thắng ngưỡng tọa độ.** Ô "SL x đơn giá = thành tiền" mà phép nhân đúng là thành tiền của dòng, bất kể ô nằm ở đâu trên giấy
+  (`_verified_calc`, dùng trong `_price`). Phép nhân sai (OCR đọc lệch một chữ số) thì không nhận, chỉ cột giá quyết định như cũ. Không dùng "mép phải"
+  hay thêm ngưỡng tọa độ: dòng ngắn và chữ viết tay làm tâm ô lệch cột giá chừng vài chục pixel, ngưỡng nào cũng chỉ đúng cho vài ảnh.
+- **Ô gộp tên món với phép tính** ("8.Khau trang 10 chiec1x 25.000=25.000") được tách thành tên | số (`_split_merged_cells`), chỉ khi đuôi đúng dạng
+  phép tính, nên dòng tổng, ngày, "500g" giữ nguyên.
+- **Dấu "=" thuộc ký hiệu phép tính** (`_NUMERIC_RE`): thiếu nó thì "1x69.000=6" bị tính là chữ của tên món.
+- **Bill có số thứ tự nhưng không có tiêu đề cột:** dòng giá đầu tiên không có tên riêng thì lấy tên từ hàng ngay trên, nếu hàng đó mở đầu bằng "1"
+  (`_FIRST_ITEM_RE`); trước đây tên món 1 bị bỏ.
+- **Dòng có phép tính mà thành tiền đọc hỏng** ("35.0V0") là một dòng món hoàn chỉnh: mất món đó, nhưng tên không bị nối vào tên món sau (`_CALC_START_RE`).
+  Không đoán thành tiền từ SL x đơn giá khi nó không được xác nhận.
+- **Nhãn tổng nhiều chữ chịu được việc rơi chữ cái đầu** ("TỔNG CỘNG" thành "ONG CONG"): `_keyword_total` (extract.py) và `_SUBTOTAL_RE` (items.py).
+  Bill không có tiêu đề cột chỉ được tin khi thấy dòng tổng khép bảng.
+- **Giới hạn đã biết:** dòng gộp ô chỉ có "tên + giá" (không có phép tính) chưa tách; OCR không thấy hẳn một dòng chữ viết tay thì không sửa được ở phía sau.
+
+**Backend (`ScanReceiptCommandHandler.TrySplitAsync`): tách cổng.** Phân loại **tên** món không cần giá nên **không** đòi `items_ok`; `items_ok` chỉ quyết định có
+**chia tiền** hay không. Có từ 2 món gốc thì luôn hỏi AI (khi người dùng đã đồng ý). Sau đó:
+- `items_ok`: chia nhóm như mục trên.
+- Không `items_ok` nhưng các món đọc được **còn thiếu** so với tổng: chia theo các món đọc được, thêm một nhóm chưa rõ "Các món chưa đọc được" cho đủ tổng.
+  Món bù này **không** gửi AI và **không** lưu như món thật; bill luôn `needsReview`.
+- Không `items_ok`, đọc thừa hoặc đủ mà vẫn chưa kiểm chứng: không chia (tiền chưa kiểm chứng được); danh mục bill lấy theo nhóm chiếm đa số
+  các món đã biết (`item_vote`) và `needsReview`.
+
+**ai-service (`item_classifier.py`).** Không còn quy tắc chặn Gemini với hóa đơn có món sức khỏe (quyết định của chủ sản phẩm, 2026-10-23). Người dùng
+đã đồng ý AI thì mọi món đều được gửi (chỉ tên, đã bỏ giá); chưa đồng ý thì chỉ dùng luật. Quyền riêng tư chỉ còn do đồng ý AI quyết, nên câu chữ màn đồng ý
+phải nói đúng điều này. Đường chat (`chat_ai.py`) vẫn giữ luật riêng, chưa gỡ.
 
 ### 3.5 OCR Service — `ocr-service/` (thêm 2026-10-11)
 
