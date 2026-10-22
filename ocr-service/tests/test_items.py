@@ -500,3 +500,62 @@ def test_a_leading_digit_is_kept_when_it_is_not_the_next_stt_number():
     )
     r = extract_items(boxes, 16000)
     assert [i.name for i in r.items][0] == "7Up lon"
+
+
+# ---- dòng món viết "SL x đơn giá = thành tiền": phép nhân đúng là bằng chứng số học, không cần ô nằm đúng cột giá theo tọa độ
+def _handwritten_rows(calc_of_first: str):
+    return [
+        *row(20, ("CUA HANG A", 300, 700)),
+        *row(80, ("1. Mi goi", 100, 330), (calc_of_first, 480, 800)),            # ô ngắn: tâm nằm trước cột giá
+        *row(130, ("2. So tay", 100, 330), ("1 x 35.000 = 35.000", 470, 830)),
+        *row(180, ("3. Vitamin C", 100, 330), ("2 x 45.000 = 90.000", 500, 960)),
+        *row(240, ("TONG: 149.000", 600, 980)),
+    ]
+
+
+def test_a_calculation_cell_whose_product_checks_out_is_the_line_amount_wherever_it_sits():
+    r = extract_items(_handwritten_rows("4 x 6.000 = 24.000"), 149_000)
+    assert [i.amount for i in r.items] == [24_000, 35_000, 90_000]
+    assert r.ok is True
+
+
+def test_a_calculation_cell_whose_product_does_not_check_out_is_not_trusted_off_the_price_column():
+    r = extract_items(_handwritten_rows("4 x 6.000 = 25.000"), 149_000)  # 4 x 6.000 = 24.000, OCR đọc sai thành tiền
+    assert 25_000 not in [i.amount for i in r.items]
+
+
+# Bill in nhiệt không có tiêu đề cột: tên món ở hàng trên, phép tính ở hàng dưới (OCR tách "1x69.000=6" khỏi "69.000").
+NAME_ABOVE_CALC = [
+    *row(100, ("1. Banh mi goi", 160, 390)),
+    *row(140, ("1x28.000=", 410, 640), ("28.000", 625, 725)),
+    *row(180, ("2. But chi mau", 160, 390)),
+    *row(220, ("1x69.000=6", 410, 645), ("69.000", 630, 730)),
+    *row(260, ("3. Vitamin tong hop", 160, 450)),
+    *row(300, ("1x95.000=95.000", 410, 740)),
+    *row(380, ("TONG CONG: 192.000", 450, 770)),
+]
+
+
+def test_a_calculation_cell_with_an_equals_sign_is_not_part_of_the_item_name():
+    r = extract_items(NAME_ABOVE_CALC, 192_000)
+    assert [i.name for i in r.items][1] == "2. But chi mau"
+
+
+def test_the_first_item_keeps_its_name_when_the_bill_has_no_column_header():
+    r = extract_items(NAME_ABOVE_CALC, 192_000)
+    assert [i.name for i in r.items] == ["1. Banh mi goi", "2. But chi mau", "3. Vitamin tong hop"]
+    assert r.ok is True
+
+
+def test_a_row_with_a_calculation_but_an_unreadable_amount_is_lost_without_leaking_into_the_next_item():
+    # Dòng có "SL x đơn giá" là một dòng món hoàn chỉnh, không phải phần tên xuống dòng của món sau: thành tiền bị đọc hỏng ("35.0V0") thì mất món đó.
+    rows = [
+        *row(20, ("CUA HANG A", 300, 700)),
+        *row(80, ("1. Mi goi", 100, 330), ("4 x 6.000 = 24.000", 480, 800)),
+        *row(130, ("2. So tay", 100, 330), ("1x35.000=35.0V0", 470, 830)),
+        *row(180, ("3. Vitamin C", 100, 330), ("2 x 45.000 = 90.000", 500, 960)),
+        *row(240, ("TONG: 149.000", 600, 980)),
+    ]
+    r = extract_items(rows, 149_000)
+    assert [(i.name, i.amount) for i in r.items] == [("1. Mi goi", 24_000), ("3. Vitamin C", 90_000)]
+    assert r.ok is False  # thiếu một món nên không cộng đủ tổng

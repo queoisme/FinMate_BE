@@ -24,7 +24,7 @@ _PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
 _PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\s*:|^the\s*$|^the\s+(?:atm|tin dung|ghi no|visa|master|jcb|napas|ngan hang)\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[oe0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
-_NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD]*$")  # số lượng, đơn giá: không phải chữ của tên
+_NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD=]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
 # ô chỉ chứa một số tiền có dấu nhóm nghìn ("66.000", "1,920,500đ"); loại "2,770ĐIỂM", "Nợ: 1311", số điện thoại
 _MONEY_BOX_RE = re.compile(r"[-+]?\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?\s*(?:đ|d|vnd)?", re.IGNORECASE)
@@ -106,12 +106,31 @@ def _glued_stt(row: list[OcrBox], left: float, right: float, expected: int) -> i
     return int(m.group(1)) if m and int(m.group(1)) == expected and first.x0 < left + 0.15 * (right - left) else None
 
 
+_CALC_CELL_RE = re.compile(r"^\s*(\d{1,3})\s*[x×*]\s*(\d[\d.,]*)\s*=\s*(\d[\d.,]*)\s*(?:đ|d|vnd)?\s*$", re.IGNORECASE)
+
+
+def _verified_calc(text: str) -> int | None:
+    """Thành tiền của ô "SL x đơn giá = thành tiền" khi SL x đơn giá đúng bằng thành tiền, ngược lại None.
+
+    Phép nhân khớp là bằng chứng số học rằng đây là thành tiền của dòng món, nên ô được nhận ngay cả khi tâm ô nằm trước cột giá
+    (dòng ngắn, chữ viết tay). Phép nhân lệch (OCR đọc sai một chữ số) thì không nhận: khi đó chỉ vị trí cột giá mới quyết định."""
+    m = _CALC_CELL_RE.match(text)
+    if m is None:
+        return None
+    unit, amount = _amounts(m[2]), _amounts(m[3])
+    if len(unit) != 1 or len(amount) != 1:
+        return None
+    return amount[0] if amount[0] >= _MIN_AMOUNT and int(m[1]) * unit[0] == amount[0] else None
+
+
 def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tuple[OcrBox, int] | None:
-    """Hộp ngoài cùng bên phải có dạng tiền và nằm ở cột giá.
+    """Hộp ngoài cùng bên phải có dạng tiền và nằm ở cột giá (hoặc là ô phép tính đã kiểm bằng phép nhân, xem _verified_calc).
 
     skip_trailing: trong bảng món, bỏ qua các ô không phải tiền ở mép phải (thuế suất "8%", "KKKNT", ghi chú tay)
     rồi lấy ô tiền gần nhất bên trái, miễn còn trong cột giá."""
     for box in reversed(row):
+        if (calc := _verified_calc(box.text)) is not None:
+            return box, calc
         if (box.x0 + box.x1) / 2 < price_x:
             return None
         found = [a for a in _amounts(box.text) if a >= _MIN_AMOUNT]
@@ -219,6 +238,17 @@ def _split_merged_cells(boxes: list[OcrBox], price_x: float) -> list[OcrBox]:
     return out
 
 
+def _row_words(r: list[OcrBox], p: tuple[OcrBox, int] | None) -> list[str]:
+    """Các ô chữ của hàng (bỏ ô số/phép tính và ô bên phải giá, vì chúng không thuộc tên)."""
+    cells = r if p is None else r[:next(k for k, b in enumerate(r) if b is p[0])]
+    return [b.text for b in cells if not _NUMERIC_RE.match(b.text)]
+
+
+# Số thứ tự món 1 đầu hàng ("1. Banh mi goi"): bằng chứng hàng đó là tên món đầu tiên chứ không phải tiêu đề hay địa chỉ.
+_FIRST_ITEM_RE = re.compile(r"^1\s*[.)]?\s*[^\W\d_]")
+_CALC_START_RE = re.compile(r"^\s*\d{1,3}\s*[x×*]\s*\d")  # ô mở đầu bằng "SL x đơn giá": dòng món có phép tính
+
+
 def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     if not boxes:
         return ItemsResult([], False)
@@ -246,6 +276,10 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
     headerless = start is None
     if headerless:
         start = first_priced
+        # Bill có cột số thứ tự nhưng không in tiêu đề cột, tên món đặt ở hàng TRÊN hàng giá: hàng giá đầu tiên không có tên riêng thì tên món 1 là
+        # hàng ngay trên nó nếu hàng đó mở đầu bằng số thứ tự 1 (nếu không, tên bị bỏ và món 1 chỉ còn phép tính).
+        if start > 0 and _FIRST_ITEM_RE.match(texts[start - 1]) and _price(raw[start - 1], price_x) is None                 and not " ".join(_row_words(raw[start], _price(raw[start], price_x, skip_trailing=True))).strip():
+            start -= 1
     closed = False  # gặp dòng cộng tạm hoặc tổng cuối sau các món
 
     items: list[Item] = []
@@ -283,8 +317,7 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
                 subtotal_amount, lines_sum_at_tail = sub[1], sum(i.amount for i in items)
             continue
         p = _price(r, price_x, skip_trailing=True)
-        cells = r if p is None else r[:next(k for k, b in enumerate(r) if b is p[0])]  # ô bên phải giá không thuộc tên
-        words = [b.text for b in cells if not _NUMERIC_RE.match(b.text)]
+        words = _row_words(r, p)
         own = " ".join(words).strip()
         if _PAYMENT_RE.search(_norm(own)):
             break  # tiền khách trả không phải món; không khép bảng (closed giữ nguyên)
@@ -299,6 +332,9 @@ def extract_items(boxes: list[OcrBox], total: int | None) -> ItemsResult:
         if stt:
             next_stt += 1
         if p is None:
+            if any(_CALC_START_RE.match(b.text) for b in r):
+                pending = []  # dòng món có phép tính nhưng thành tiền đọc hỏng ("35.0V0"): mất món này, tên không được nối sang tên món sau
+                continue
             if after_stt_item and not stt:
                 continue  # bill có cột STT: dòng mô tả dưới món ("hương vị tôm chua cay 67g") không phải phần đầu tên món sau
             if not addon:  # "+ Ít đá" không giá là ghi chú tùy chọn: bỏ, không nối vào tên món sau
