@@ -295,7 +295,7 @@ Mẫu chưa nhãn bị xóa sau 7 ngày (`purge_loop` chạy mỗi giờ trong a
 để huấn luyện chưa (Task 6-8 của `docs/superpowers/plans/2026-10-13-learning-loop.md` chưa làm, chờ dữ liệu).
 
 **Đo mức dùng Gemini (thêm 2026-10-15).** `/bill/classify-items` cộng dồn số đếm theo ngày vào `bill_classify_stats` (chỉ `day`, `metric`, `value`: không tên món, cửa hàng hay người dùng):
-số món do bộ nhớ, luật, cửa hàng, Gemini hay "chưa rõ" trả lời, số lần gọi Gemini, số món cần AI nhưng vượt trần 20 món mỗi lần, lỗi AI, hóa đơn thuốc (không bao giờ gửi) và lượt không đồng ý AI.
+số món do bộ nhớ, luật, cửa hàng, Gemini hay "chưa rõ" trả lời, số lần gọi Gemini, số món cần AI nhưng vượt trần 20 món mỗi lần, lỗi AI và lượt không đồng ý AI. (Bộ đếm "hóa đơn thuốc" đã bỏ ngày 2026-10-23: quy tắc không gửi Gemini hóa đơn có món sức khỏe đã được chủ sản phẩm gỡ; quyền riêng tư chỉ còn do đồng ý AI của người dùng quyết. Đường chat `chat_ai.py` vẫn giữ luật riêng, chưa gỡ.)
 Việc ghi là phần phụ (chờ tối đa 1 giây, lỗi thì bỏ qua). Xem bằng `python scripts/classify_stats.py [--days 14]`. Lưu ý thiết kế "AI quyết trước, luật dự phòng": khi người dùng đã đồng ý AI, món chưa có trong bộ nhớ đều đi qua Gemini kể cả khi luật đã biết.
 
 **Chat và giọng nói: AI phân loại sản phẩm trước (thêm 2026-10-16).** Giống luồng hóa đơn. `ChatAnalyzeCommandHandler` và `ChatCommandHandler` đọc đồng ý AI của người dùng

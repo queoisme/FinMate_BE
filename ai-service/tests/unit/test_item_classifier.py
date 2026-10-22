@@ -90,19 +90,25 @@ async def test_gemini_skipped_when_unavailable_or_no_instruction():
         assert gemini.calls == [] and used is False and out == [(0, None, "unknown")]
 
 
-async def test_health_items_matched_by_rules_are_never_sent_to_gemini():
-    # Một món thuốc khớp luật => cả hóa đơn không gửi Gemini (món lạ còn lại có thể cũng là thuốc).
-    gemini = FakeGemini(lambda n: "other")
-    out, _ = await run(items("Paracetamol 500mg", "Thuốc ho Bảo Thanh", "Qwerty"), gemini=gemini)
-    assert gemini.calls == []
-    assert out == [(0, "health", "rule"), (1, "health", "rule"), (2, None, "unknown")]
+async def test_a_bill_with_health_items_goes_to_gemini_like_any_other_bill():
+    # Quyết định của chủ sản phẩm (2026-10-23): bỏ quy tắc chặn hóa đơn sức khỏe, người dùng đã đồng ý AI thì mọi món đều được gửi (chỉ tên, đã bỏ giá).
+    gemini = FakeGemini(lambda n: "shopping" if n == "Qwerty" else "health")
+    out, used = await run(items("Paracetamol 500mg", "Thuốc ho Bảo Thanh", "Qwerty"), gemini=gemini)
+    assert used is True and gemini.calls == [["Paracetamol 500mg", "Thuốc ho Bảo Thanh", "Qwerty"]]
+    assert out == [(0, "health", "ai"), (1, "health", "ai"), (2, "shopping", "ai")]
 
 
-async def test_pharmacy_not_in_brand_table_never_reaches_gemini():
-    gemini = FakeGemini(lambda n: "shopping")
+async def test_pharmacy_bill_reaches_gemini_when_the_user_allowed_ai():
+    gemini = FakeGemini(lambda n: "health")
     out, used = await run(items("Panadol Extra", "Efferalgan 500mg", "V.Rohto"), merchant="Nhà thuốc Minh Châu", gemini=gemini)
-    assert gemini.calls == [] and used is False
-    assert all(o[2] != "ai" for o in out)
+    assert used is True and gemini.calls == [["Panadol Extra", "Efferalgan 500mg", "V.Rohto"]]
+    assert all(o[1] == "health" for o in out)
+
+
+async def test_pharmacy_bill_stays_with_rules_when_the_user_did_not_allow_ai():
+    gemini = FakeGemini(lambda n: "health")
+    _out, used = await run(items("Panadol Extra", "Efferalgan 500mg", "V.Rohto"), merchant="Nhà thuốc Minh Châu", gemini=gemini, allow_ai=False)
+    assert gemini.calls == [] and used is False  # quyền riêng tư vẫn do đồng ý của người dùng quyết
 
 
 async def test_grocery_bill_unknown_item_still_reaches_gemini():
@@ -238,10 +244,10 @@ async def test_topping_of_a_gemini_decided_item_inherits_the_ai_result():
     assert out == [(0, "shopping", "ai"), (1, "shopping", "inherit")]
 
 
-async def test_health_store_default_still_blocks_gemini():
+async def test_a_pharmacy_merchant_no_longer_blocks_gemini():
     gemini = FakeGemini(answer=lambda name: "shopping")
-    _out, used = await run(items("Qwerty abc"), merchant="Nhà thuốc Long Châu", gemini=gemini)
-    assert gemini.calls == [] and not used
+    out, used = await run(items("Qwerty abc"), merchant="Nhà thuốc Long Châu", gemini=gemini)
+    assert used is True and gemini.calls == [["Qwerty abc"]] and out == [(0, "shopping", "ai")]
 
 
 async def test_cached_answer_is_used_without_calling_gemini():

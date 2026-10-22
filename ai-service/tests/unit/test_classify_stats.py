@@ -42,13 +42,13 @@ async def test_classify_items_reports_how_many_names_needed_ai_and_how_many_were
     assert stats == {"ai_candidates": MAX_NAMES + 5, "ai_sent": MAX_NAMES}
 
 
-async def test_classify_items_reports_ai_failure_and_health_bills():
+async def test_classify_items_reports_ai_failure_and_counts_health_bills_like_any_other():
     failed: dict[str, int] = {}
     await classify_items(items("Qwerty Abc"), None, FakeKnowledge(), FakeGemini(fail=True), "LUAT", True, stats=failed)
     assert failed == {"ai_candidates": 1, "ai_sent": 1, "ai_failed": 1}
     health: dict[str, int] = {}
     await classify_items(items("Paracetamol 500mg", "Qwerty Abc"), None, FakeKnowledge(), FakeGemini(), "LUAT", True, stats=health)
-    assert health == {"health_bill": 1}  # hóa đơn thuốc không bao giờ gửi ra ngoài
+    assert health == {"ai_candidates": 2, "ai_sent": 2}  # không còn bộ đếm hóa đơn sức khỏe: mọi món đều là ứng viên của AI
 
 
 async def test_the_route_records_counts_without_any_item_text():
@@ -102,7 +102,7 @@ async def test_a_failing_recorder_never_breaks_classification():
 
 def test_summarize_turns_daily_counters_into_rates():
     rows = {"2026-10-15": {"requests": 10, "items": 100, "src_cache": 40, "src_rule": 20, "src_ai": 30, "src_merchant": 5, "src_unknown": 5,
-                           "ai_requests": 6, "noconsent_requests": 2, "ai_candidates": 50, "ai_sent": 30, "ai_failed": 1, "health_bill": 1}}
+                           "ai_requests": 6, "noconsent_requests": 2, "ai_candidates": 50, "ai_sent": 30, "ai_failed": 1}}
     day = summarize(rows)[0]
     assert day["date"] == "2026-10-15"
     assert day["items_per_bill"] == 10

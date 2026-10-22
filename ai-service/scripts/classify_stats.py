@@ -42,7 +42,6 @@ def summarize(rows: dict[str, dict[str, int]]) -> list[dict]:
             "ai_calls_per_bill": round(m.get("ai_requests", 0) / bills, 4) if bills else 0,
             "overflow_rate": _rate(candidates - sent, candidates),
             "ai_failed": m.get("ai_failed", 0),
-            "health_bills": m.get("health_bill", 0),
             "noconsent_rate": _rate(m.get("noconsent_requests", 0), bills),
         })
     return out

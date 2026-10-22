@@ -1,7 +1,7 @@
 """Phân loại từng món trên hóa đơn (mục 5 của thiết kế tách bill theo món).
 
 Thứ tự cho mỗi món (món phụ thừa kế món chính). Đã cho phép AI: bảng nhớ → Gemini (chỉ tên) → luật/từ khóa dùng chung với chat (``app.services.category_resolver``) làm dự phòng → nhóm mặc định của cửa hàng → unknown.
-Chưa cho phép AI (hoặc hóa đơn thuốc): luật → bảng nhớ → nhóm mặc định → unknown.
+Chưa cho phép AI: luật → bảng nhớ → nhóm mặc định → unknown. Không có ngoại lệ theo nhóm hàng: hóa đơn có món sức khỏe cũng đi qua AI như mọi hóa đơn (chủ sản phẩm bỏ quy tắc chặn ngày 2026-10-23).
 Gemini đứng TRƯỚC luật và nhóm mặc định: một hóa đơn chứa nhiều nhóm hàng, "mặc định là ăn uống" hay một từ khóa đoán sai một cách tự tin.
 Chỉ điều phối, không chạm DB: route nạp sẵn ``instruction``. Không log tên món, cửa hàng hay kết quả của mô hình.
 """
@@ -77,7 +77,7 @@ async def classify_items(
     allow_ai: bool,
     stats: dict[str, int] | None = None,
 ) -> tuple[list[ClassifyItemOut], bool]:
-    """``stats`` (tuỳ chọn): được điền số đếm để đo mức dùng Gemini (``ai_candidates``, ``ai_sent``, ``ai_failed``, ``health_bill``)."""
+    """``stats`` (tuỳ chọn): được điền số đếm để đo mức dùng Gemini (``ai_candidates``, ``ai_sent``, ``ai_failed``)."""
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
 
     # Luật/từ khóa theo đúng tên món, dùng chung với chat (kể cả khớp gần đúng cho lỗi OCR một chữ).
@@ -91,19 +91,9 @@ async def classify_items(
     keys = {i: item_key(item.name) for i, item in enumerate(items)}
     top = [i for i, item in enumerate(items) if item.parent is None]
 
-    # Hóa đơn thuốc không bao giờ gửi ra ngoài: cả hóa đơn (cửa hàng + mọi tên món) xếp vào healthcare, nhóm mặc định của
-    # thương hiệu là health, hoặc có bất kỳ món nào đã ra health bằng luật.
-    bill_category, bill_source, _ = classify_category_detailed(merchant, [item.name for item in items])
-    health_bill = (
-        (SLUG_BY_LOCAL_CATEGORY.get(bill_category) == "health" and bill_source != "none")
-        or default == "health"
-        or "health" in rules
-    )
     # Một hóa đơn thường có nhiều nhóm hàng (cửa hàng tiện lợi bán cả đồ ăn, pin, khăn ướt) nên luật từ khóa không đủ: khi người dùng cho phép AI,
     # AI quyết trước, luật chỉ là dự phòng lúc AI lỗi hoặc trả "không rõ". Chưa cho phép thì luật quyết như cũ.
-    ai_first = allow_ai and not health_bill
-    if stats is not None and health_bill:
-        stats["health_bill"] = 1
+    ai_first = allow_ai
     results: list[tuple[str | None, str] | None] = [None] * len(items)  # (slug, nguồn); None = chưa quyết
     if not ai_first:
         for i in top:

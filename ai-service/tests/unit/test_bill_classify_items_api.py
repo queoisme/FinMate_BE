@@ -69,10 +69,10 @@ async def test_api_classifies_items():
     ]}
 
 
-async def test_api_health_bill_never_calls_gemini(gemini):
+async def test_api_health_bill_goes_to_gemini_like_any_other(gemini):
     res = await post({"items": [{"name": "Paracetamol", "parent": None}, {"name": "Qwerty", "parent": None}],
                       "merchant_name": None})
-    assert res.status_code == 200 and gemini.calls == [] and res.json()["ai_used"] is False
+    assert res.status_code == 200 and gemini.calls == [["Paracetamol", "Qwerty"]] and res.json()["ai_used"] is True
 
 
 @pytest.mark.parametrize("items", [[], [{"name": "x", "parent": None}] * 61, [{"name": "x" * 201, "parent": None}]])
