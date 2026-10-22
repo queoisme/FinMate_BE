@@ -145,7 +145,54 @@ public class ScanReceiptSplitTests
 
         ShouldBeOldPath(dto, OldPathOfMixedBill with { NeedsReview = true });  // vẫn là đường cũ, nhưng giờ báo app xem lại
         _saved.Single().NeedsReview.Should().BeTrue();
-        _classifyRequests.Should().BeEmpty();
+        // Cổng cộng-đúng-tổng chỉ quyết định có CHIA TIỀN hay không; phân loại tên món không phụ thuộc vào nó nên AI vẫn được hỏi.
+        _classifyRequests.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ItemsNotOkButShortOfTheTotal_StillClassifiesAndSplitsWithAnUnreadRemainder()
+    {
+        OcrReturns(MixedBill() with
+        {
+            TotalAmount = 100_000,
+            Items = [new OcrItem("Sữa tươi", 30_000, null, false), new OcrItem("Vở ô ly", 20_000, null, false), new OcrItem("Kem đánh răng", 10_000, null, false)],
+            ItemsOk = false,
+        });
+        ClassifyItemsReturns(r => Classified(r, "food", "education", "shopping"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        _classifyRequests.Single().Items.Select(i => i.Name).Should().Equal("Sữa tươi", "Vở ô ly", "Kem đánh răng");  // phần bù không bao giờ gửi cho AI
+        dto.Groups.Should().NotBeNull();
+        dto.Groups!.Select(g => (g.CategorySlug, g.AmountCents)).Should()
+            .BeEquivalentTo(new (string?, long)[] { ("food", 30_000), ("education", 20_000), ("shopping", 10_000), (null, 40_000) });
+        dto.NeedsReview.Should().BeTrue();  // đọc chưa đủ món nên luôn báo xem lại
+        _savedItems.Single().Items.Should().HaveCount(3);  // chỉ lưu món đọc được, không lưu dòng bù
+    }
+
+    [Fact]
+    public async Task ItemsNotOkWithOneCategoryOnTheItemsRead_UsesTheItemVoteAsTheBillCategory()
+    {
+        OcrReturns(MixedBill() with { ItemsOk = false });
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Groups.Should().BeNull();  // số tiền chưa kiểm chứng được nên không chia, nhưng danh mục bill vẫn lấy từ các món
+        dto.CategorySlug.Should().Be("food");
+        dto.NeedsReview.Should().BeTrue();
+        _saved.Single().CategorySource.Should().Be("item_vote");
+    }
+
+    [Fact]
+    public async Task ItemsNotOkAndAboveTheTotal_DoesNotSplit()
+    {
+        OcrReturns(MixedBill() with { TotalAmount = 50_000, ItemsOk = false });
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Groups.Should().BeNull();
+        dto.NeedsReview.Should().BeTrue();
     }
 
     [Fact]

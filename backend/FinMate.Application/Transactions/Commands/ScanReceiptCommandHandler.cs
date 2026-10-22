@@ -43,6 +43,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private const string UnknownSource = "unknown";
     // Nhóm chung của các món khi bill không tách được (thường vì mọi món cùng một nhóm). Khác "items" (ReceiptScan.ItemsCategorySource): nguồn đó nghĩa là bill đã tách.
     private const string ItemVoteSource = "item_vote";
+
+    /// <summary>Tên món bù khi OCR đọc thiếu món so với tổng bill; không bao giờ gửi cho AI hay lưu như một món thật.</summary>
+    private const string UnreadItemsName = "Các món chưa đọc được";
     private const string MemorySource = "memory";
     private const int ItemVoteSharePercent = 60;
     private const string DiscountSource = "discount";
@@ -275,7 +278,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private async Task<(ScannedReceiptDto? Split, string? ItemVote)> TrySplitAsync(
         Guid userId, OcrServiceResponse ocr, string? merchant, double confidence, CancellationToken ct)
     {
-        if (!_options.SplitByItemsEnabled || !ocr.ItemsOk || ocr.Items is not { } items)
+        // Không đòi ItemsOk ở đây: phân loại TÊN món không cần giá, nên một dòng OCR đọc sót không được làm cả bill mất phân loại.
+        // ItemsOk chỉ còn quyết định có CHIA TIỀN thành nhóm hay không (xem bên dưới).
+        if (!_options.SplitByItemsEnabled || ocr.Items is not { } items)
         {
             return NoSplit;
         }
@@ -338,7 +343,18 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             expanded[original] = new ClassifiedItem(original, reply.CategorySlug, reply.Source ?? UnknownSource);
         }
 
-        var groups = ReceiptSplitter.Split(items, expanded, ocr.TotalAmount!.Value);
+        // Các dòng chưa cộng đúng tổng (ItemsOk = false): chỉ chia khi các món đọc được CÒN THIẾU so với tổng, bằng cách thêm một món "chưa đọc được"
+        // (nhóm chưa rõ) cho đủ tổng, và luôn báo xem lại. Đọc thừa hoặc đủ mà vẫn không được xác nhận thì không chia: số tiền chưa kiểm chứng được.
+        var splitItems = items;
+        var splitClassified = expanded;
+        var shortfall = ocr.TotalAmount!.Value - items.Sum(i => i.Amount);
+        if (!ocr.ItemsOk && shortfall > 0)
+        {
+            splitItems = [.. items, new OcrItem(UnreadItemsName, shortfall, null, false)];
+            splitClassified = [.. expanded, new ClassifiedItem(items.Count, null, UnknownSource)];
+        }
+
+        var groups = ocr.ItemsOk || shortfall > 0 ? ReceiptSplitter.Split(splitItems, splitClassified, ocr.TotalAmount!.Value) : null;
         if (groups is null)
         {
             return (null, ItemVote(items, expanded));
@@ -358,7 +374,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             groups.First(g => g.CategorySlug is not null).CategorySlug, confidence,
             Groups: groups);
         var unknownCents = groups.Where(g => g.CategorySlug is null).Sum(g => g.AmountCents);
-        var needsReview = ocr.NeedsReview || unknownCents * 100 >= ocr.TotalAmount!.Value * UnknownSharePercentForReview;
+        var needsReview = ocr.NeedsReview || !ocr.ItemsOk || unknownCents * 100 >= ocr.TotalAmount!.Value * UnknownSharePercentForReview;
         var scan = await RecordScanAsync(userId, dto, ReceiptScan.ItemsCategorySource, needsReview, ct);
 
         // scan vừa tạo trong chính request này, nên AddItemsAsync (không tự kiểm chủ sở hữu) an toàn.

@@ -132,7 +132,7 @@ public class ScanReceiptSplitControllerTests : IClassFixture<AuthApiFactory>
 
         HasNoGroups(data).Should().BeTrue();
         data.GetProperty("categorySlug").GetString().Should().Be("food");
-        FakeAIServiceClient.ClassifyItemsSeen.Should().BeEmpty();
+        FakeAIServiceClient.ClassifyItemsSeen.Should().NotBeEmpty();  // phân loại tên món không phụ thuộc cổng cộng-đúng-tổng
     }
 
     [Fact]
