@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.api.v1.bill import router as bill_router
 from app.bill import slug_model
@@ -62,6 +62,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="FinMate AI Service", lifespan=lifespan)
+
+
+@app.get("/swagger/index.html", include_in_schema=False)
+@app.get("/swagger", include_in_schema=False)
+async def swagger_shortcut() -> RedirectResponse:
+    """Lối tắt quen thuộc của ASP.NET: mở Swagger UI của FastAPI (/docs)."""
+    return RedirectResponse("/docs")
+
 
 app.include_router(health_router, prefix="/api/v1", tags=["health"])
 app.include_router(pipeline_router, prefix="/api/v1", tags=["pipeline"])
