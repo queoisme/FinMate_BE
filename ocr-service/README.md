@@ -29,6 +29,13 @@ docker compose up -d --build ocr-service ai-service
 Model VietOCR **không nằm trong git** (3 file ONNX, ~86MB): đặt vào `models/vietocr/{cnn,encoder,decoder}.onnx`
 trước khi build image.
 
+## OCR Google Cloud Vision (đường chính)
+
+Có `GOOGLE_VISION_API_KEY` (đặt trong `ocr-service/.env`, xem `.env.example`) thì `reading/google_vision.py` gọi Cloud Vision `DOCUMENT_TEXT_DETECTION` (gợi ý tiếng Việt)
+trước; lỗi, hết hạn mức, Google không thấy chữ, hoặc chưa có khóa thì dùng OCR cục bộ (PaddleOCR + VietOCR) như cũ, lần quét không thất bại. Sau một lần lỗi, Google bị tạm
+nghỉ `GOOGLE_VISION_COOLDOWN_SECONDS` giây. `FINMATE_OCR_ENGINE=local` ép OCR cục bộ, dùng để đo so sánh hai bên bằng cùng bộ ảnh (`benchmark/run_databill.py`, `run_items.py`).
+Chữ Google không qua sửa dấu lạ hay VietOCR. **Ảnh hóa đơn rời hệ thống sang Google** (quyết định của chủ sản phẩm 2026-10-26, luôn gửi, chưa che dữ liệu cá nhân): màn đồng ý phải nói đúng điều này.
+
 ## Kiểm thử
 
 ```

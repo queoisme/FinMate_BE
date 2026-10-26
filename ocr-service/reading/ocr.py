@@ -15,7 +15,7 @@ from reading.crop import crop_receipt
 from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 from parsing.extract import _alnum, _norm
 from reading.quality import assess_quality, enhance
-from reading import vietocr_onnx
+from reading import google_vision, vietocr_onnx
 from reading.text_clean import clean_ocr_text
 
 
@@ -168,8 +168,17 @@ def upscale_small(bgr: np.ndarray, original_width: int | None = None) -> np.ndar
     return cv2.resize(bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
 
 
+def _boxes_from_google(lines) -> list[OcrBox]:
+    """Dòng Google Vision (chữ, độ tin cậy, 4 góc) thành OcrBox: chỉnh nghiêng như hộp của OCR cục bộ rồi xếp từ trên xuống.
+    Chữ Google giữ nguyên (đã đủ dấu): không qua sửa dấu lạ hay VietOCR."""
+    coords = _deskew([quad for _text, _conf, quad in lines])
+    return sorted((OcrBox(text, float(conf), *c) for (text, conf, _quad), c in zip(lines, coords)), key=lambda b: (b.y0, b.x0))
+
+
 def read_boxes(image_bytes: bytes) -> list[OcrBox]:
-    """Trả về các dòng chữ kèm hộp bao theo thứ tự từ trên xuống."""
+    """Trả về các dòng chữ kèm hộp bao theo thứ tự từ trên xuống. Google Cloud Vision đọc trước; lỗi hoặc chưa cấu hình thì OCR cục bộ."""
+    if (google := google_vision.read_lines_or_none(image_bytes)) is not None:
+        return _boxes_from_google(google)
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     bgr = crop_receipt(np.array(img)[:, :, ::-1])  # Paddle nhận BGR; bỏ nền trước khi đo sáng
     bgr = upscale_small(enhance(bgr, assess_quality(bgr)), img.width)

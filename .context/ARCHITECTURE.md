@@ -833,6 +833,11 @@ ai-service quản lý. ocr-service đọc `bill_brands`, `bill_keywords`, `bill_
 `bill_training_jobs`/`bill_model_versions`/`bill_evaluation_*`, `bill_brands` (nguồn `vote`) qua script chạy tay.
 Không có `FINMATE_DATABASE_URL` (chạy ngoài docker) thì dùng file cạnh code.
 
+**Hai đường đọc chữ (thêm 2026-10-26).** `reading/ocr.read_boxes` hỏi Google Cloud Vision (`reading/google_vision.py`, `DOCUMENT_TEXT_DETECTION`) trước khi có
+`GOOGLE_VISION_API_KEY`; Google lỗi hoặc không thấy chữ thì chạy OCR cục bộ (PaddleOCR + VietOCR). Dòng Google thành `OcrBox` qua cùng `_deskew`, nên bộ tách món, chọn tổng
+và nhận cửa hàng phía sau không đổi. **Ảnh rời hệ thống sang Google, chưa che dữ liệu cá nhân, luôn gửi** (quyết định chủ sản phẩm): cần cập nhật câu chữ màn đồng ý và tăng
+`ConsentVersions` cho khớp. Chất lượng Google so với OCR cục bộ chưa đo: đo bằng `FINMATE_OCR_ENGINE=local` và `auto` trên cùng bộ ảnh trước khi coi là mặc định.
+
 ### 3.6 Chat và Rasa NLU (thêm 2026-10-11)
 
 `POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/services/`. Rasa và route này được ghi vào kiến trúc
