@@ -63,6 +63,14 @@ public class ChatCommandHandler : IChatCommandHandler
         var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
         var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi), ct);
 
+        if (parsed.Goal is { } goal)
+        {
+            // Đặt mục tiêu tiết kiệm: luôn qua bước xác nhận, không tạo gì ở đây. Client tạo bằng POST /saving-goals sau khi người dùng bấm Tạo.
+            return new ChatResultDto(
+                ChatActions.Goal, parsed.Intent, parsed.ReplyText, null, null, null, null,
+                new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText));
+        }
+
         if (parsed.Entries is { Count: > 1 } many)
         {
             // Nhiều khoản trong một câu: luôn qua bước xác nhận, không bao giờ ghi ngay (một câu sai là sai nhiều khoản cùng lúc).
@@ -244,8 +252,11 @@ public class ChatCommandHandler : IChatCommandHandler
         Guid userId, ChatParseQuery query, DateOnly from, DateOnly to, CancellationToken ct)
     {
         var spend = await _reportRepository.GetCategorySpendAsync(userId, from, to, ct);
+        // Hỏi về hai danh mục trở lên ("giải trí và mua sắm") thì AI gửi cả danh sách; câu cũ chỉ có một CategorySlug.
+        var slugs = query.CategorySlugs is { Count: > 0 } many ? many
+            : query.CategorySlug is null ? null : new[] { query.CategorySlug };
         var rows = spend
-            .Where(s => query.CategorySlug is null || s.CategorySlug == query.CategorySlug)
+            .Where(s => slugs is null || (s.CategorySlug is not null && slugs.Contains(s.CategorySlug)))
             .Where(s => s.SpentCents > 0)
             .ToList();
         var sum = rows.Sum(s => s.SpentCents);

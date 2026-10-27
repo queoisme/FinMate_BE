@@ -72,6 +72,28 @@ public class AiRulesAdminClientTests
     }
 
     [Fact]
+    public async Task TheConfigArea_GoesToTheConfigEndpointsOfTheAiService_WithTheSameAuthAndActor()
+    {
+        var (client, handler) = ClientReturning(_ => Json(HttpStatusCode.Created, """{"version":3}"""));
+        using var body = JsonDocument.Parse("""{"content":{"a":1},"note":"abc"}""");
+
+        await client.SendAsync(new AiRulesRequest(HttpMethod.Post, "documents/chat_dictionary/drafts", null, body.RootElement.Clone(), Admin, AiRulesRequest.ConfigArea));
+
+        handler.PathAndQuery.Should().Be("/api/v1/admin/config/documents/chat_dictionary/drafts");
+        handler.ActorHeader.Should().Be(HashOf(Admin));
+    }
+
+    [Fact]
+    public async Task TheDefaultArea_StillMeansTheRulesEndpoints()
+    {
+        var (client, handler) = ClientReturning(_ => Json(HttpStatusCode.OK, "{}"));
+
+        await client.SendAsync(new AiRulesRequest(HttpMethod.Get, "meta"));
+
+        handler.PathAndQuery.Should().Be("/api/v1/admin/rules/meta");
+    }
+
+    [Fact]
     public async Task NoContent_ReturnsNull()
     {
         var (client, _) = ClientReturning(_ => new HttpResponseMessage(HttpStatusCode.NoContent));

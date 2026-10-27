@@ -46,4 +46,21 @@ public static class AuditEvents
 
     // Luật phân loại của AI (thương hiệu, từ khóa, bộ nhớ tên món, chỉ dẫn Gemini). Chỉ thay đổi THÀNH CÔNG mới ghi; nội dung trước/sau nằm ở nhật ký của AI Service.
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
+    /// <summary>Tài liệu cấu hình của AI/OCR (từ vựng chat, từ điển cửa hàng, ngưỡng...) được lưu bản nháp hoặc kích hoạt. Nội dung từng phiên bản do AI Service giữ (config_documents).</summary>
+    public const string AdminAiConfigChanged = "Admin.AiConfig.Changed";
+
+    // Danh mục cách quản lý tài chính, khảo sát đầu vào và mẫu mục tiêu. Chỉ ghi khi có thay đổi thật (gửi lại đúng nội dung cũ không để lại dòng nào).
+    public const string AdminFinanceMethodCreated = "Admin.FinanceMethod.Created";
+    public const string AdminFinanceMethodUpdated = "Admin.FinanceMethod.Updated";
+    public const string AdminFinanceMethodActivationChanged = "Admin.FinanceMethod.ActivationChanged";
+    public const string AdminSurveyQuestionCreated = "Admin.SurveyQuestion.Created";
+    public const string AdminSurveyQuestionUpdated = "Admin.SurveyQuestion.Updated";
+    public const string AdminSurveyQuestionActivationChanged = "Admin.SurveyQuestion.ActivationChanged";
+    public const string AdminSurveyOptionCreated = "Admin.SurveyOption.Created";
+    public const string AdminSurveyOptionUpdated = "Admin.SurveyOption.Updated";
+    public const string AdminSurveyOptionActivationChanged = "Admin.SurveyOption.ActivationChanged";
+    public const string AdminGoalTemplateCreated = "Admin.GoalTemplate.Created";
+    public const string AdminGoalTemplateUpdated = "Admin.GoalTemplate.Updated";
+    public const string AdminGoalTemplateActivationChanged = "Admin.GoalTemplate.ActivationChanged";
+    public const string AdminMethodGoalTemplatesReplaced = "Admin.MethodGoalTemplates.Replaced";
 }

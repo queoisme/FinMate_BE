@@ -33,6 +33,7 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         Environment.SetEnvironmentVariable("GOOGLE_CLIENT_ID", "dummy-client-id.apps.googleusercontent.com");
         Environment.SetEnvironmentVariable("AI_SERVICE_URL", "http://localhost:1");
         Environment.SetEnvironmentVariable("AI_SERVICE_API_KEY", "dummy-ai-service-key-for-tests-min-32-chars");
+        Environment.SetEnvironmentVariable("AI_CATEGORY_SYNC_ENABLED", "false"); // không có AI Service trong bộ test
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_USER", "admin");
         Environment.SetEnvironmentVariable("HANGFIRE_DASHBOARD_PASS", "admin");
         // Phase 8 cần một tài khoản Admin thật để test policy AdminOnly. AdminUserSeeder là

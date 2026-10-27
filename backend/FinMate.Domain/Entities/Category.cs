@@ -2,6 +2,12 @@ namespace FinMate.Domain.Entities;
 
 public class Category
 {
+    /// <summary>
+    /// "Cho vay / Mượn": cả tiền cho người khác mượn (Debit) lẫn tiền mượn/được trả nợ (Credit).
+    /// Số dư ví vẫn tính, nhưng KHÔNG tính vào tổng chi, tổng thu, ngân sách và dự báo: đó là tiền sẽ về lại (hoặc phải trả lại), không phải chi tiêu hay thu nhập.
+    /// </summary>
+    public const string LoanSlug = "loan";
+
     public Guid Id { get; set; }
     public Guid? UserId { get; set; }
     public string Name { get; set; } = string.Empty;

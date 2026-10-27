@@ -13,7 +13,9 @@ public record UserProfileDto(
     bool MissionRemindersEnabled,
     bool TermsAccepted,
     bool AiConsentGranted,
-    bool TrainingConsentGranted)
+    bool TrainingConsentGranted,
+    bool SurveyAiConsentGranted = false,
+    string OnboardingStatus = "pending")
 {
     public static UserProfileDto From(User user) => new(
         user.Id,
@@ -26,5 +28,7 @@ public record UserProfileDto(
         user.NotificationPrefs.MissionRemindersEnabled,
         user.TermsAccepted,
         user.AiConsentGranted,
-        user.TrainingConsentGranted);
+        user.TrainingConsentGranted,
+        user.SurveyAiConsentGranted,
+        user.OnboardingStatus.ToString().ToLowerInvariant());
 }

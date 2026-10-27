@@ -16,6 +16,7 @@ public class BudgetPeriodServiceAlertTests
 {
     private readonly Mock<IBudgetRepository> _budgetRepository = new();
     private readonly Mock<IBudgetAlertNotifier> _alertNotifier = new();
+    private readonly Mock<IAlertThresholdProvider> _thresholds = new();
     private readonly BudgetPeriodService _service;
 
     private readonly Guid _userId = Guid.NewGuid();
@@ -26,7 +27,10 @@ public class BudgetPeriodServiceAlertTests
         _alertNotifier
             .Setup(n => n.IsEnabledAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _service = new BudgetPeriodService(_budgetRepository.Object, _alertNotifier.Object);
+        _thresholds
+            .Setup(t => t.GetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AlertThresholds.Default);
+        _service = new BudgetPeriodService(_budgetRepository.Object, _alertNotifier.Object, _thresholds.Object);
     }
 
     private BudgetPeriod Arrange(long limitCents, long alreadySpentCents, string categoryName = "Ăn uống")
@@ -108,9 +112,9 @@ public class BudgetPeriodServiceAlertTests
         alerts[0].Percent.Should().Be(100);
 
         // Hai mốc thấp bị đóng lại để lần sau không bắn ngược.
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().NotBeNull();
-        period.Alert100SentAt.Should().NotBeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().NotBeNull();
+        period.AlertOverSentAt.Should().NotBeNull();
     }
 
     [Fact]
@@ -187,7 +191,7 @@ public class BudgetPeriodServiceAlertTests
     [Fact]
     public async Task TurningAlertsOffLeavesTheThresholdUnspentForLater()
     {
-        // Tắt thông báo không được ĂN mất mốc. Nếu đánh dấu Alert70SentAt lúc này, người dùng
+        // Tắt thông báo không được ĂN mất mốc. Nếu đánh dấu AlertT1SentAt lúc này, người dùng
         // bật lại vào ngày mai sẽ không bao giờ nhận cảnh báo cho mốc đã trót vượt.
         _alertNotifier
             .Setup(n => n.IsEnabledAsync(_userId, It.IsAny<CancellationToken>()))
@@ -197,7 +201,7 @@ public class BudgetPeriodServiceAlertTests
         (await SpendAsync(750_000)).Should().BeEmpty();
 
         period.SpentCents.Should().Be(750_000, "số tiền vẫn phải được cộng dồn");
-        period.Alert70SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().BeNull();
     }
 
     [Fact]

@@ -45,10 +45,22 @@ public class User
     public int? TrainingConsentVersion { get; set; }
     public DateTimeOffset? TrainingConsentAt { get; set; }
 
+    /// <summary>Đồng ý gửi signals từ khảo sát đầu vào cho AI bên thứ ba (xem <see cref="ConsentVersions.SurveyAi"/>). NULL = chưa đồng ý hoặc đã rút lại. Tách biệt với đồng ý AI về tên món.</summary>
+    public int? SurveyAiConsentVersion { get; set; }
+    public DateTimeOffset? SurveyAiConsentAt { get; set; }
+
     /// <summary>Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại.</summary>
     public bool TermsAccepted => TermsVersion == ConsentVersions.Terms;
     public bool AiConsentGranted => AiConsentVersion == ConsentVersions.Ai;
     public bool TrainingConsentGranted => TrainingConsentVersion == ConsentVersions.Training;
+    public bool SurveyAiConsentGranted => SurveyAiConsentVersion == ConsentVersions.SurveyAi;
+
+    /// <summary>
+    /// Khảo sát đầu vào đã làm hay bỏ qua chưa. Tài khoản có TRƯỚC tính năng này được migration đặt
+    /// <see cref="OnboardingStatus.Completed"/> để không bắt họ làm lại; chỉ tài khoản mới mặc định <see cref="OnboardingStatus.Pending"/>.
+    /// </summary>
+    public OnboardingStatus OnboardingStatus { get; set; } = OnboardingStatus.Pending;
+    public DateTimeOffset? OnboardingCompletedAt { get; set; }
 
     public NotificationPreferences NotificationPrefs { get; set; } = new();
     public bool IsLocked { get; set; }

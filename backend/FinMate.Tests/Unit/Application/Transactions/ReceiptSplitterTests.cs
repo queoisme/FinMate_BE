@@ -225,8 +225,28 @@ public class ReceiptSplitterTests
     public void Surcharge_detection(string name, bool expected)
         => ReceiptSplitter.IsSurcharge(Item(name, 1_000)).Should().Be(expected);
 
+    // Từ vựng phụ thu nằm ở MỘT tệp chung với ocr-service (ocr-service/data/shared_words.json, nhúng vào BE): hai bài dưới đây đi qua đúng các vai trò đó,
+    // nên thêm một từ vào tệp là bài kiểm tra tự phủ nó. Các InlineData bên dưới là ví dụ viết tay độc lập với tệp.
+    [Fact]
+    public void Every_word_in_the_shared_surcharge_roles_is_a_surcharge()
+    {
+        foreach (var word in SharedWords.Words("tax", "tax_glued", "tax_accented", "service", "service_glued", "surcharge_extra"))
+        {
+            ReceiptSplitter.IsSurcharge(Item(word, 1_000)).Should().BeTrue($"'{word}' nằm trong từ vựng phụ thu chung");
+        }
+    }
+
+    [Fact]
+    public void A_pre_tax_word_turns_a_surcharge_line_into_a_subtotal()
+    {
+        foreach (var word in SharedWords.Words("pre_tax"))
+        {
+            ReceiptSplitter.IsSurcharge(Item($"Tổng {word} thuế", 1_000)).Should().BeFalse($"'{word}' là từ chỉ dòng cộng tạm");
+        }
+    }
+
     // Mọi từ trong _SURCHARGE_RE của ocr-service/items.py (dòng thuế/phí OCR tách ra ở cuối bill) phải là phụ thu ở BE,
-    // và các dòng "chưa/trước thuế" (_PRE_TAX_RE) không phải. Sửa danh sách bên kia thì sửa cả bài kiểm tra này.
+    // và các dòng "chưa/trước thuế" (_PRE_TAX_RE) không phải.
     [Theory]
     [InlineData("Thue")]
     [InlineData("VAT")]

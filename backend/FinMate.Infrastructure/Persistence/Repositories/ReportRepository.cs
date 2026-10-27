@@ -55,6 +55,7 @@ public class ReportRepository : IReportRepository
         var rows = await _context.Transactions
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
+                && (t.Category == null || t.Category.Slug != Category.LoanSlug)  // cho vay/mượn không phải chi tiêu hay thu nhập
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType })
@@ -79,6 +80,7 @@ public class ReportRepository : IReportRepository
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType == TransactionType.Debit
+                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .GroupBy(t => new { t.CategoryId, Name = t.Category!.Name, Slug = t.Category!.Slug })
@@ -160,6 +162,7 @@ public class ReportRepository : IReportRepository
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType == TransactionType.Debit
+                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .OrderBy(t => t.TransactedAt)

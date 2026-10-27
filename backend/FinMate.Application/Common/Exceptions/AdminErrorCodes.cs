@@ -30,4 +30,8 @@ public static class AdminErrorCodes
     public const string PackageNameDuplicate = "ADMIN_PACKAGE_NAME_DUPLICATE";
     public const string SystemCategorySlugDuplicate = "ADMIN_SYSTEM_CATEGORY_SLUG_DUPLICATE";
     public const string MissionCodeDuplicate = "ADMIN_MISSION_CODE_DUPLICATE";
+    public const string FinanceMethodCodeDuplicate = "ADMIN_FINANCE_METHOD_CODE_DUPLICATE";
+    public const string SurveyQuestionCodeDuplicate = "ADMIN_SURVEY_QUESTION_CODE_DUPLICATE";
+    public const string SurveyOptionCodeDuplicate = "ADMIN_SURVEY_OPTION_CODE_DUPLICATE";
+    public const string GoalTemplateCodeDuplicate = "ADMIN_GOAL_TEMPLATE_CODE_DUPLICATE";
 }

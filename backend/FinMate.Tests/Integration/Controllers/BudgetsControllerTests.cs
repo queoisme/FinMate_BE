@@ -144,6 +144,43 @@ public class BudgetsControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task LoanTransactions_DoNotSpendAnyBudget_BeforeOrAfterTheBudgetExists_AndDeletingThemDoesNotRefund()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var accountId = await CreateCashAccountAsync(accessToken);
+        var foodId = await GetSystemCategoryIdAsync(accessToken, "food");
+        var loanId = await GetSystemCategoryIdAsync(accessToken, "loan");
+
+        Task<HttpResponseMessage> Debit(Guid categoryId, long cents) => PostAsync("/api/v1/transactions", accessToken, new
+        {
+            financialAccountId = accountId,
+            categoryId,
+            amountCents = cents,
+            transactionType = "Debit",
+            transactedAt = DateTimeOffset.UtcNow,
+            merchantName = "Test",
+        });
+
+        // Cho mượn TRƯỚC khi có ngân sách: lúc lập ngân sách tổng, khoản đã chi được cộng lại từ giao dịch cũ và không được tính khoản cho mượn.
+        var lent = await Debit(loanId, 5_000_000);
+        lent.StatusCode.Should().Be(HttpStatusCode.Created);
+        var lentId = (await lent.Content.ReadFromJsonAsync<TransactionBody>(JsonOptions))!.Data.Id;
+        (await PostAsync("/api/v1/budgets", accessToken, new { categoryId = (Guid?)null, limitCents = 5_000_000L }))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+        (await GetSummaryAsync(accessToken)).TotalBudget!.SpentCents.Should().Be(0);
+
+        // Cho mượn SAU khi có ngân sách, rồi chi tiêu thật: chỉ khoản chi thật được tính.
+        (await Debit(loanId, 1_000_000)).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await Debit(foodId, 200_000)).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await GetSummaryAsync(accessToken)).TotalBudget!.SpentCents.Should().Be(200_000);
+
+        // Xóa khoản cho mượn không được hoàn lại hạn mức (nếu hoàn thì ngân sách âm).
+        (await _client.SendAsync(AuthedRequest(HttpMethod.Delete, $"/api/v1/transactions/{lentId}", accessToken)))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await GetSummaryAsync(accessToken)).TotalBudget!.SpentCents.Should().Be(200_000);
+    }
+
+    [Fact]
     public async Task ChangingTransactionCategory_MovesSpendToTheOtherBudget()
     {
         var accessToken = await RegisterAndLoginAsync();

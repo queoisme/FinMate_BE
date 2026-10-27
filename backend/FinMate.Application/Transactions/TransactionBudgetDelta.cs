@@ -1,6 +1,7 @@
 using FinMate.Application.Budgets;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions;
@@ -15,10 +16,11 @@ internal static class TransactionBudgetDelta
     /// Chỉ Debit tiêu hạn mức. Credit là tiền vào nên không ăn vào budget chi tiêu; Transfer là
     /// dịch chuyển giữa 2 ví của chính user nên cũng không (ARCHITECTURE.md §0 quyết định #1) —
     /// cả hai đều rơi vào nhánh 0 ở đây, đây là chốt chặn duy nhất cho toàn bộ 4 handler.
+    /// Debit thuộc danh mục "Cho vay / Mượn" (<see cref="Category.LoanSlug"/>) cũng là 0: tiền cho mượn sẽ về lại nên không ăn vào hạn mức nào.
     /// Trả về số dương — caller đảo dấu khi cần revert.
     /// </summary>
-    internal static long Spend(TransactionType type, long amountCents)
-        => type == TransactionType.Debit ? amountCents : 0;
+    internal static long Spend(TransactionType type, long amountCents, Category? category)
+        => type == TransactionType.Debit && category?.Slug != Category.LoanSlug ? amountCents : 0;  // cho vay/mượn không phải chi tiêu
 
     internal static Task InvalidateSummaryAsync(
         ICacheService cache,

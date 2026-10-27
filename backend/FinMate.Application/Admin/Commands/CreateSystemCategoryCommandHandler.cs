@@ -12,15 +12,18 @@ public class CreateSystemCategoryCommandHandler : ICreateSystemCategoryCommandHa
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<CreateSystemCategoryCommand> _validator;
+    private readonly IAiCategorySyncService _aiCategorySync;
 
     public CreateSystemCategoryCommandHandler(
         ICategoryRepository categoryRepository,
         IAuditLogService auditLogService,
-        IValidator<CreateSystemCategoryCommand> validator)
+        IValidator<CreateSystemCategoryCommand> validator,
+        IAiCategorySyncService aiCategorySync)
     {
         _categoryRepository = categoryRepository;
         _auditLogService = auditLogService;
         _validator = validator;
+        _aiCategorySync = aiCategorySync;
     }
 
     public async Task<AdminCategoryDto> HandleAsync(
@@ -60,6 +63,9 @@ public class CreateSystemCategoryCommandHandler : ICreateSystemCategoryCommandHa
             command.IpAddress,
             new { category.Id, category.Slug, category.Name },
             ct);
+
+        // AI Service nhận danh mục mới ngay (không cần migration hay deploy bên đó). Thất bại không làm hỏng việc admin vừa làm: job định kỳ kéo lại.
+        await _aiCategorySync.TrySyncAsync(command.AdminId, $"Admin tạo danh mục hệ thống '{category.Slug}'", ct);
 
         return AdminMapper.ToDto(category);
     }

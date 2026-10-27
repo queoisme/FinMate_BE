@@ -17,6 +17,10 @@ RUN dotnet restore FinMate.sln
 
 COPY . .
 
+# Từ vựng hóa đơn dùng chung với ocr-service/ai-service (FinMate.Application nhúng nó làm tài nguyên): build context "lexicon" của docker-compose
+# là ocr-service/data. Đường dẫn /ocr-service/data khớp ..\..\ocr-service\data tính từ /src/FinMate.Application trong FinMate.Application.csproj.
+COPY --from=lexicon shared_words.json /ocr-service/data/shared_words.json
+
 # Release chứ không phải Debug. Directory.Build.props bật TreatWarningsAsErrors nên bước này
 # tự nó là một cổng thật: một warning là hỏng build, không lọt được vào image.
 RUN dotnet publish FinMate.API -c Release -o /app --no-restore

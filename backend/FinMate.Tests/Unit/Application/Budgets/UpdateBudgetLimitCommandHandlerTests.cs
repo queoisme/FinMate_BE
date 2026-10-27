@@ -14,12 +14,16 @@ public class UpdateBudgetLimitCommandHandlerTests
 {
     private readonly Mock<IBudgetRepository> _budgetRepository = new();
     private readonly Mock<ICacheService> _cache = new();
+    private readonly Mock<IAlertThresholdProvider> _thresholds = new();
     private readonly UpdateBudgetLimitCommandHandler _handler;
 
     public UpdateBudgetLimitCommandHandlerTests()
     {
+        _thresholds
+            .Setup(t => t.GetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AlertThresholds.Default);
         _handler = new UpdateBudgetLimitCommandHandler(
-            _budgetRepository.Object, _cache.Object, new UpdateBudgetLimitCommandValidator());
+            _budgetRepository.Object, _cache.Object, new UpdateBudgetLimitCommandValidator(), _thresholds.Object);
     }
 
     private (Budget Budget, BudgetPeriod Period) Setup(Guid userId, long limitCents, long spentCents)
@@ -37,9 +41,9 @@ public class UpdateBudgetLimitCommandHandlerTests
             BudgetId = budget.Id,
             LimitCents = limitCents,
             SpentCents = spentCents,
-            Alert70SentAt = DateTimeOffset.UtcNow,
-            Alert90SentAt = DateTimeOffset.UtcNow,
-            Alert100SentAt = DateTimeOffset.UtcNow,
+            AlertT1SentAt = DateTimeOffset.UtcNow,
+            AlertT2SentAt = DateTimeOffset.UtcNow,
+            AlertOverSentAt = DateTimeOffset.UtcNow,
         };
 
         _budgetRepository.Setup(r => r.GetByIdAsync(budget.Id, userId, It.IsAny<CancellationToken>()))
@@ -61,9 +65,9 @@ public class UpdateBudgetLimitCommandHandlerTests
 
         budget.LimitCents.Should().Be(10_000_000);
         period.LimitCents.Should().Be(10_000_000);
-        period.Alert70SentAt.Should().BeNull();
-        period.Alert90SentAt.Should().BeNull();
-        period.Alert100SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().BeNull();
+        period.AlertT2SentAt.Should().BeNull();
+        period.AlertOverSentAt.Should().BeNull();
     }
 
     [Fact]
@@ -74,9 +78,9 @@ public class UpdateBudgetLimitCommandHandlerTests
 
         await _handler.HandleAsync(new UpdateBudgetLimitCommand(userId, budget.Id, 1_200_000));
 
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().NotBeNull();
-        period.Alert100SentAt.Should().NotBeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().NotBeNull();
+        period.AlertOverSentAt.Should().NotBeNull();
     }
 
     [Fact]
@@ -89,8 +93,8 @@ public class UpdateBudgetLimitCommandHandlerTests
         // dưới 90% và không còn vượt limit. Mỗi mốc xét độc lập nên chỉ 90 và 100 được mở lại.
         await _handler.HandleAsync(new UpdateBudgetLimitCommand(userId, budget.Id, 1_050_000));
 
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().BeNull();
-        period.Alert100SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().BeNull();
+        period.AlertOverSentAt.Should().BeNull();
     }
 }

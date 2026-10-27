@@ -8,12 +8,16 @@ public class BudgetPeriodService : IBudgetPeriodService
 {
     private readonly IBudgetRepository _budgetRepository;
     private readonly IBudgetAlertNotifier _alertNotifier;
+    private readonly IAlertThresholdProvider _thresholdProvider;
 
     public BudgetPeriodService(
-        IBudgetRepository budgetRepository, IBudgetAlertNotifier alertNotifier)
+        IBudgetRepository budgetRepository,
+        IBudgetAlertNotifier alertNotifier,
+        IAlertThresholdProvider thresholdProvider)
     {
         _budgetRepository = budgetRepository;
         _alertNotifier = alertNotifier;
+        _thresholdProvider = thresholdProvider;
     }
 
     public async Task<IReadOnlyList<BudgetAlert>> ApplyDeltaAsync(
@@ -37,6 +41,7 @@ public class BudgetPeriodService : IBudgetPeriodService
         var (periodStart, periodEnd) = VietnamTime.MonthRange(transactedAt);
         var now = DateTimeOffset.UtcNow;
         var alerts = new List<BudgetAlert>();
+        AlertThresholds? thresholds = null;
 
         foreach (var budget in budgets)
         {
@@ -68,7 +73,10 @@ public class BudgetPeriodService : IBudgetPeriodService
             if (spentDeltaCents > 0)
             {
                 var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
-                var alert = BudgetAlertEvaluator.Evaluate(period, userId, scope);
+
+                // Ngưỡng T1/T2 của người dùng: chỉ tra khi chi tiêu TĂNG (mới cần đánh giá), và đúng một lần cho cả vòng lặp.
+                thresholds ??= await _thresholdProvider.GetAsync(userId, ct);
+                var alert = BudgetAlertEvaluator.Evaluate(period, userId, scope, thresholds);
 
                 // Hỏi tuỳ chọn thông báo TRƯỚC khi đánh dấu — và chỉ hỏi khi thật sự có mốc
                 // vừa chạm, nên giao dịch bình thường không phải trả giá một truy vấn thừa.

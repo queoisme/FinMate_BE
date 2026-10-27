@@ -19,11 +19,16 @@ public class BudgetAlertJob
 {
     private readonly IBudgetRepository _budgetRepository;
     private readonly IBudgetAlertNotifier _notifier;
+    private readonly IAlertThresholdProvider _thresholdProvider;
 
-    public BudgetAlertJob(IBudgetRepository budgetRepository, IBudgetAlertNotifier notifier)
+    public BudgetAlertJob(
+        IBudgetRepository budgetRepository,
+        IBudgetAlertNotifier notifier,
+        IAlertThresholdProvider thresholdProvider)
     {
         _budgetRepository = budgetRepository;
         _notifier = notifier;
+        _thresholdProvider = thresholdProvider;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -31,11 +36,18 @@ public class BudgetAlertJob
         var now = DateTimeOffset.UtcNow;
         var candidates = await _budgetRepository.GetPeriodsForAlertAsync(now, ct);
         var alerts = new List<BudgetAlert>();
+        var thresholdsByUser = new Dictionary<Guid, AlertThresholds>();   // một người có thể có nhiều ngân sách trong cùng lượt quét
 
         foreach (var (period, budget) in candidates)
         {
             var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
-            var alert = BudgetAlertEvaluator.Evaluate(period, budget.UserId, scope);
+            if (!thresholdsByUser.TryGetValue(budget.UserId, out var thresholds))
+            {
+                thresholds = await _thresholdProvider.GetAsync(budget.UserId, ct);
+                thresholdsByUser[budget.UserId] = thresholds;
+            }
+
+            var alert = BudgetAlertEvaluator.Evaluate(period, budget.UserId, scope, thresholds);
             if (alert is null || !await _notifier.IsEnabledAsync(budget.UserId, ct))
             {
                 continue;

@@ -14,7 +14,16 @@ public static class ChatActions
 
     /// <summary>Chào hỏi, ngoài chủ đề, thiếu số tiền...: chỉ có <see cref="ChatResultDto.ReplyText"/>.</summary>
     public const string Reply = "reply";
+
+    /// <summary>Đặt mục tiêu tiết kiệm: client hiện <see cref="ChatResultDto.Goal"/> để xác nhận rồi tự gọi <c>POST /saving-goals</c>. Không bao giờ tự tạo.</summary>
+    public const string Goal = "goal";
 }
+
+/// <summary>Bản nháp mục tiêu tiết kiệm từ câu chat. Chưa tạo gì: tạo bằng <c>POST /saving-goals</c> sau khi người dùng xác nhận.</summary>
+/// <param name="NameIsDefault">Người dùng không nói tên nên <paramref name="Name"/> là tên mặc định; client cho sửa.</param>
+/// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>
+/// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để hiện kèm ngày cụ thể.</param>
+public record ChatGoalDraftDto(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
 
 /// <summary>Trường còn thiếu trong <see cref="ChatDraftDto.MissingFields"/>.</summary>
 public static class ChatMissingFields
@@ -66,4 +75,5 @@ public record ChatResultDto(
     TransactionDto? Transaction,
     ChatDraftDto? Draft,
     ChatSummaryDto? Summary,
-    IReadOnlyList<ChatDraftDto>? Drafts = null);
+    IReadOnlyList<ChatDraftDto>? Drafts = null,
+    ChatGoalDraftDto? Goal = null);

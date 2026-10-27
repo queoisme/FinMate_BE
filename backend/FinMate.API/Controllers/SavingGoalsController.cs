@@ -49,7 +49,7 @@ public class SavingGoalsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateSavingGoalRequest request, CancellationToken ct)
     {
         var goal = await _createHandler.HandleAsync(
-            new CreateSavingGoalCommand(CurrentUserId, request.Name, request.TargetCents, request.Deadline), ct);
+            new CreateSavingGoalCommand(CurrentUserId, request.Name, request.TargetCents, request.Deadline, request.GoalTemplateCode), ct);
         return StatusCode(StatusCodes.Status201Created, ApiResponse<SavingGoalDto>.Ok(goal));
     }
 
@@ -84,6 +84,7 @@ public class SavingGoalsController : ControllerBase
     }
 }
 
-public record CreateSavingGoalRequest(string Name, long TargetCents, DateTimeOffset? Deadline);
+/// <param name="GoalTemplateCode">Mã mẫu từ <c>GET /me/goal-suggestions</c> nếu mục tiêu được tạo từ gợi ý; bỏ trống khi tự đặt.</param>
+public record CreateSavingGoalRequest(string Name, long TargetCents, DateTimeOffset? Deadline, string? GoalTemplateCode = null);
 public record UpdateSavingGoalRequest(string Name, long TargetCents, DateTimeOffset? Deadline);
 public record ContributeToGoalRequest(long AmountCents, string? Note, DateTimeOffset? ContributedAt);

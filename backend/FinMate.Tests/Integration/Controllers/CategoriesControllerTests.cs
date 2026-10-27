@@ -47,7 +47,7 @@ public class CategoriesControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task GetList_IncludesAllElevenSystemCategories()
+    public async Task GetList_IncludesAllTwelveSystemCategories()
     {
         var accessToken = await RegisterAndLoginAsync();
 
@@ -55,8 +55,8 @@ public class CategoriesControllerTests : IClassFixture<AuthApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<CategoryListBody>(JsonOptions);
 
-        body!.Data.Count(c => c.IsSystem).Should().Be(11);
-        body.Data.Select(c => c.Slug).Should().Contain(new[] { "food", "income", "other" });
+        body!.Data.Count(c => c.IsSystem).Should().Be(12);  // 11 danh mục chi/thu + "loan" (Cho vay / Mượn)
+        body.Data.Select(c => c.Slug).Should().Contain(new[] { "food", "income", "loan", "other" });
     }
 
     [Fact]

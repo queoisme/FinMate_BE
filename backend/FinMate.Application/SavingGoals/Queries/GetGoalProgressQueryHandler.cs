@@ -81,39 +81,16 @@ public class GetGoalProgressQueryHandler : IGetGoalProgressQueryHandler
             return null;
         }
 
-        // Làm tròn LÊN: còn 45 ngày là còn 2 tháng để góp, không phải 1,5 tháng.
-        var monthsRemaining = Math.Max(1, (int)Math.Ceiling((goal.Deadline.Value - now).TotalDays / 30.0));
-        var requiredPerMonth = (long)Math.Ceiling(remaining / (double)monthsRemaining);
-
+        // Công thức nằm ở GoalFeasibilityCalculator, dùng chung với bản xem trước cho mục tiêu chưa tạo.
         var user = await _userRepository.GetByIdAsync(userId, ct);
-        if (user?.MonthlyIncomeCents is not { } income || income <= 0)
-        {
-            // Chưa khai thu nhập: vẫn trả về "mỗi tháng cần bao nhiêu" vì đó là con số hữu ích
-            // tự thân, nhưng không kết luận khả thi hay không.
-            return new GoalFeasibilityDto(requiredPerMonth, null, null, null, null);
-        }
+        var income = user?.MonthlyIncomeCents;
 
-        var budgets = await _budgetRepository.GetListForUserAsync(userId, ct);
-        var available = income - budgets.Sum(b => b.LimitCents);
+        // Chỉ nạp ngân sách khi đã biết thu nhập: không có thu nhập thì tổng hạn mức không dùng vào đâu.
+        var budgetLimits = income is > 0
+            ? (await _budgetRepository.GetListForUserAsync(userId, ct)).Sum(b => b.LimitCents)
+            : 0;
 
-        if (requiredPerMonth <= available)
-        {
-            return new GoalFeasibilityDto(requiredPerMonth, available, true, null, null);
-        }
-
-        // Hai hướng điều chỉnh docx nêu. Chỉ gợi ý kéo dài hạn khi còn dư ra được đồng nào —
-        // thu nhập đã hết sạch vào ngân sách thì kéo dài bao lâu cũng không góp nổi.
-        DateTimeOffset? suggestedDeadline = null;
-        long? suggestedTarget = null;
-
-        if (available > 0)
-        {
-            var monthsNeeded = (int)Math.Ceiling(remaining / (double)available);
-            suggestedDeadline = now.AddMonths(monthsNeeded);
-            suggestedTarget = goal.SavedCents + available * monthsRemaining;
-        }
-
-        return new GoalFeasibilityDto(requiredPerMonth, available, false, suggestedDeadline, suggestedTarget);
+        return GoalFeasibilityCalculator.Compute(remaining, goal.SavedCents, goal.Deadline.Value, now, income, budgetLimits);
     }
 
     /// <summary>

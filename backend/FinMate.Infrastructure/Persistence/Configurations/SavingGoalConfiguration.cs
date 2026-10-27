@@ -41,6 +41,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
         builder.Property(g => g.CompletedAt).HasColumnName("completed_at");
         builder.Property(g => g.DeadlineNotifiedAt).HasColumnName("deadline_notified_at");
 
+        builder.Property(g => g.GoalTemplateId).HasColumnName("goal_template_id");
+        builder.Property(g => g.UserMethodId).HasColumnName("user_method_id");
+
         builder.Property(g => g.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(g => g.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(g => g.DeletedAt).HasColumnName("deleted_at");
@@ -53,5 +56,16 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
             .WithMany()
             .HasForeignKey(g => g.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Mẫu và phương pháp chỉ là NGUỒN GỐC của mục tiêu: mất chúng thì mục tiêu vẫn sống, chỉ mất nhãn gốc.
+        builder.HasOne<GoalTemplate>()
+            .WithMany()
+            .HasForeignKey(g => g.GoalTemplateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<UserMethod>()
+            .WithMany()
+            .HasForeignKey(g => g.UserMethodId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

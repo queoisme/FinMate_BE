@@ -244,17 +244,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<DateTimeOffset?>("Alert100SentAt")
+                    b.Property<DateTimeOffset?>("AlertOverSentAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("alert_100_sent_at");
+                        .HasColumnName("alert_over_sent_at");
 
-                    b.Property<DateTimeOffset?>("Alert70SentAt")
+                    b.Property<DateTimeOffset?>("AlertT1SentAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("alert_70_sent_at");
+                        .HasColumnName("alert_t1_sent_at");
 
-                    b.Property<DateTimeOffset?>("Alert90SentAt")
+                    b.Property<DateTimeOffset?>("AlertT2SentAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("alert_90_sent_at");
+                        .HasColumnName("alert_t2_sent_at");
 
                     b.Property<Guid>("BudgetId")
                         .HasColumnType("uuid")
@@ -515,6 +515,122 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("device_tokens", null, t =>
                         {
                             t.HasCheckConstraint("chk_device_tokens_platform", "platform IN ('android','ios','web')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.FinanceMethod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Eligibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("eligibility")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("GoalMode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("goal_mode");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ParamDefs")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("param_defs")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("StarterSteps")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("starter_steps")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("summary");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("version");
+
+                    b.Property<string>("WhyText")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("why_text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_finance_methods_code");
+
+                    b.HasIndex("IsActive", "SortOrder")
+                        .HasDatabaseName("idx_finance_methods_active_order");
+
+                    b.ToTable("finance_methods", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_finance_methods_eligibility", "jsonb_typeof(eligibility) = 'object'");
+
+                            t.HasCheckConstraint("chk_finance_methods_goal_mode", "goal_mode IN ('reserve_first','envelope','available_to_spend','track_only')");
+
+                            t.HasCheckConstraint("chk_finance_methods_param_defs", "jsonb_typeof(param_defs) = 'array'");
+
+                            t.HasCheckConstraint("chk_finance_methods_role", "role IN ('primary','supporting','both')");
+
+                            t.HasCheckConstraint("chk_finance_methods_starter_steps", "jsonb_typeof(starter_steps) = 'array'");
+
+                            t.HasCheckConstraint("chk_finance_methods_version", "version >= 1");
                         });
                 });
 
@@ -964,6 +1080,198 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.GoalTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DefaultParams")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("default_params")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_goal_templates_code");
+
+                    b.ToTable("goal_templates", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_goal_templates_default_params", "jsonb_typeof(default_params) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
+                {
+                    b.Property<Guid>("MethodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("method_id");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<string>("Conditions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("conditions");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("MethodId", "TemplateId");
+
+                    b.HasIndex("TemplateId")
+                        .HasDatabaseName("idx_method_goal_templates_template_id");
+
+                    b.ToTable("method_goal_templates", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_method_goal_templates_conditions", "conditions IS NULL OR jsonb_typeof(conditions) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MethodRecommendation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("MethodVersions")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("method_versions")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("shown")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid>("PrimaryMethodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("primary_method_id");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<string>("Reasons")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("reasons")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("SignalsSnapshot")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("signals_snapshot")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source");
+
+                    b.Property<Guid?>("SupportMethodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("support_method_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrimaryMethodId");
+
+                    b.HasIndex("SupportMethodId");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("idx_method_recommendations_user_created");
+
+                    b.ToTable("method_recommendations", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_method_recommendations_decided", "(outcome = 'shown') = (decided_at IS NULL)");
+
+                            t.HasCheckConstraint("chk_method_recommendations_method_versions", "jsonb_typeof(method_versions) = 'object'");
+
+                            t.HasCheckConstraint("chk_method_recommendations_outcome", "outcome IN ('shown','accepted','changed','skipped')");
+
+                            t.HasCheckConstraint("chk_method_recommendations_prompt_version", "source <> 'ai' OR prompt_version IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_method_recommendations_reasons", "jsonb_typeof(reasons) = 'array'");
+
+                            t.HasCheckConstraint("chk_method_recommendations_signals_snapshot", "jsonb_typeof(signals_snapshot) = 'object'");
+
+                            t.HasCheckConstraint("chk_method_recommendations_source", "source IN ('ai','rule_fallback')");
+
+                            t.HasCheckConstraint("chk_method_recommendations_support_differs", "support_method_id IS NULL OR support_method_id <> primary_method_id");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.NotificationLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1325,6 +1633,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<Guid?>("GoalTemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("goal_template_id");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1357,10 +1669,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<Guid?>("UserMethodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_method_id");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("GoalTemplateId");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("idx_saving_goals_user_id");
+
+                    b.HasIndex("UserMethodId");
 
                     b.ToTable("saving_goals", null, t =>
                         {
@@ -1450,6 +1770,134 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("spending_insights", null, t =>
                         {
                             t.HasCheckConstraint("chk_spending_insights_insight_type", "insight_type IN ('vs_last_month','recurring_detected','unusual_spending')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SurveyOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<string>("Signals")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("signals")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuestionId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_survey_options_question_code");
+
+                    b.ToTable("survey_options", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_survey_options_signals", "jsonb_typeof(signals) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SurveyQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("GroupCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("group_code");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("ShowIf")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("show_if");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_survey_questions_code");
+
+                    b.HasIndex("IsActive", "SortOrder")
+                        .HasDatabaseName("idx_survey_questions_active_order");
+
+                    b.ToTable("survey_questions", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_survey_questions_show_if", "show_if IS NULL OR jsonb_typeof(show_if) = 'object'");
                         });
                 });
 
@@ -1632,6 +2080,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("monthly_income_cents");
 
+                    b.Property<DateTimeOffset?>("OnboardingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("onboarding_completed_at");
+
+                    b.Property<string>("OnboardingStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("pending")
+                        .HasColumnName("onboarding_status");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
@@ -1641,6 +2101,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("role");
+
+                    b.Property<DateTimeOffset?>("SurveyAiConsentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("survey_ai_consent_at");
+
+                    b.Property<int?>("SurveyAiConsentVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("survey_ai_consent_version");
 
                     b.Property<DateTimeOffset?>("TermsAcceptedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1675,8 +2143,154 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("users", null, t =>
                         {
+                            t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
+
+                            t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
+
                             t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
+
+                            t.HasCheckConstraint("chk_users_survey_ai_consent", "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserMethod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ChosenVia")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("chosen_via");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<Guid>("MethodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("method_id");
+
+                    b.Property<int>("MethodVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("method_version");
+
+                    b.Property<string>("Params")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("params")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid?>("RecommendationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recommendation_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("active")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MethodId");
+
+                    b.HasIndex("RecommendationId");
+
+                    b.HasIndex("UserId", "Role")
+                        .IsUnique()
+                        .HasDatabaseName("uq_user_methods_active_role")
+                        .HasFilter("status = 'active'");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("idx_user_methods_user_status");
+
+                    b.ToTable("user_methods", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_user_methods_chosen_via", "chosen_via IN ('recommended','manual')");
+
+                            t.HasCheckConstraint("chk_user_methods_ended", "(status = 'ended') = (ended_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_user_methods_method_version", "method_version >= 1");
+
+                            t.HasCheckConstraint("chk_user_methods_params", "jsonb_typeof(params) = 'object'");
+
+                            t.HasCheckConstraint("chk_user_methods_period", "ended_at IS NULL OR ended_at >= started_at");
+
+                            t.HasCheckConstraint("chk_user_methods_role", "role IN ('primary','supporting')");
+
+                            t.HasCheckConstraint("chk_user_methods_status", "status IN ('active','ended')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("answered_at");
+
+                    b.Property<string>("OptionCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("option_code");
+
+                    b.Property<string>("QuestionCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("question_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "QuestionCode")
+                        .IsUnique()
+                        .HasDatabaseName("uq_user_survey_answers_user_question");
+
+                    b.ToTable("user_survey_answers", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.AiResult", b =>
@@ -1820,6 +2434,41 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("SavingGoal");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.FinanceMethod", null)
+                        .WithMany()
+                        .HasForeignKey("MethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.GoalTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MethodRecommendation", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.FinanceMethod", null)
+                        .WithMany()
+                        .HasForeignKey("PrimaryMethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.FinanceMethod", null)
+                        .WithMany()
+                        .HasForeignKey("SupportMethodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.NotificationLog", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.FinancialAccount", "FinancialAccount")
@@ -1890,11 +2539,21 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
+                    b.HasOne("FinMate.Domain.Entities.GoalTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("GoalTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.UserMethod", null)
+                        .WithMany()
+                        .HasForeignKey("UserMethodId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("User");
                 });
@@ -1915,6 +2574,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SurveyOption", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.SurveyQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.Transaction", b =>
@@ -1993,6 +2661,35 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("NotificationPrefs")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserMethod", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.FinanceMethod", null)
+                        .WithMany()
+                        .HasForeignKey("MethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.MethodRecommendation", null)
+                        .WithMany()
+                        .HasForeignKey("RecommendationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

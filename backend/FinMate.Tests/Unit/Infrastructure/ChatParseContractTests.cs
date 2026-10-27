@@ -52,6 +52,40 @@ public class ChatParseContractTests
         query.End.Should().Be(new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.FromHours(7)));
     }
 
+    // Sinh bằng ChatParseResponse.model_dump_json() cho "tháng này tôi đã tiêu bao nhiêu tiền cho giải trí và mua sắm" (2026-10-17): có category_slugs.
+    private const string TwoCategoryQueryJson =
+        """{"intent":"ask_spending","reply_text":null,"entry":null,"entries":[],"query":{"metric":"expense","period_key":"thang nay","period_label":"tháng này","start":"2026-10-01T00:00:00+07:00","end":"2026-11-01T00:00:00+07:00","category_slug":"entertainment","category_slugs":["entertainment","shopping"],"income_type":null},"total_amount":null,"total_mismatch":false,"skipped":[],"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":3}""";
+
+    [Fact]
+    public void AQueryAboutTwoCategoriesKeepsBothAndTheOldShapeStillDeserialises()
+    {
+        var two = JsonSerializer.Deserialize<ChatParseApiResponse>(TwoCategoryQueryJson, Options)!.Query!;
+        two.CategorySlugs.Should().Equal("entertainment", "shopping");
+        two.CategorySlug.Should().Be("entertainment");
+
+        var old = JsonSerializer.Deserialize<ChatParseApiResponse>(QueryJson, Options)!.Query!;  // AI Service cũ: không có category_slugs
+        old.CategorySlugs.Should().BeNull();
+        old.CategorySlug.Should().Be("food");
+    }
+
+    // Sinh bằng ChatParseResponse.model_dump_json() cho "đặt mục tiêu vào 2 tháng sau tôi sẽ mua được xe máy khoảng 50 triệu" (hôm nay 17/10/2026).
+    private const string GoalJson =
+        """{"intent":"create_goal","reply_text":"Mình hiểu mục tiêu của bạn như thế này. Bạn kiểm tra rồi bấm Tạo mục tiêu nhé.","entry":null,"entries":[],"query":null,"total_amount":null,"total_mismatch":false,"skipped":[],"goal":{"name":"Mua xe máy","name_is_default":false,"target_cents":50000000,"deadline":"2026-12-17T23:59:59+07:00","deadline_text":"2 tháng sau"},"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":4}""";
+
+    [Fact]
+    public void AGoalDraftDeserialisesWithItsDeadlineInVietnamTimeAndOldResponsesHaveNone()
+    {
+        var goal = JsonSerializer.Deserialize<ChatParseApiResponse>(GoalJson, Options)!.Goal!;
+        goal.Name.Should().Be("Mua xe máy");
+        goal.NameIsDefault.Should().BeFalse();
+        goal.TargetCents.Should().Be(50_000_000);
+        goal.DeadlineText.Should().Be("2 tháng sau");
+        goal.Deadline.Should().Be(new DateTimeOffset(2026, 12, 17, 23, 59, 59, TimeSpan.FromHours(7)));
+        goal.Deadline!.Value.Offset.Should().Be(TimeSpan.FromHours(7));
+
+        JsonSerializer.Deserialize<ChatParseApiResponse>(ExpenseJson, Options)!.Goal.Should().BeNull();  // AI Service cũ: không có goal
+    }
+
     [Fact]
     public void TheRequestIsSentWithTheNamesTheAiServiceExpects()
     {

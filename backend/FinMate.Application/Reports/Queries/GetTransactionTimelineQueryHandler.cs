@@ -2,6 +2,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Transactions;
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Reports.Queries;
@@ -37,8 +38,9 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
             .OrderByDescending(g => g.Key)
             .Select(g => new TimelineDayDto(
                 g.Key,
-                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : 0L),
-                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : 0L),
+                // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày.
+                g.Sum(t => t.TransactionType == TransactionType.Debit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
+                g.Sum(t => t.TransactionType == TransactionType.Credit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
                 g.Select(TransactionMapper.ToDto).ToList()))
             .ToList();
 

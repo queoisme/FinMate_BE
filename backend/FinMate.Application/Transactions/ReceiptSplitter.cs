@@ -20,22 +20,21 @@ public record ReceiptGroup(
 /// </summary>
 public static class ReceiptSplitter
 {
-    // Từ vựng phụ thu phải chứa mọi từ của _SURCHARGE_RE/_PRE_TAX_RE trong ocr-service/items.py (dòng thuế/phí OCR tách ở
-    // cuối bill); bài kiểm tra Every_ocr_surcharge_term_is_a_surcharge liệt kê chúng. Khác có chủ đích: "thuê" (đi thuê) không tính.
-    // Cụm từ phụ thu, so trên tên đã bỏ dấu, chữ thường.
-    private static readonly string[] SurchargePhrases =
-        ["phi phuc vu", "phi dich vu", "phi giao hang", "phi van chuyen", "phi nen tang", "phi dong goi", "tui nilon"];
+    // Từ vựng phụ thu KHÔNG còn viết ở đây: nó đọc từ ocr-service/data/shared_words.json (xem SharedWords), cùng nguồn với items.py/totals.py của ocr-service,
+    // nên thêm một từ phụ thu ở đó là cả OCR và BE cùng biết. "thuê" (đi thuê) không tính là thuế vì vai trò tax_accented chỉ có dạng "thuế" và
+    // phép so từ dưới đây chạy trên tên còn dấu.
+    // Cụm từ phụ thu, so trên tên đã bỏ dấu, chữ thường: phí phục vụ/dịch vụ (chung với OCR) và phụ thu chỉ bước tách món dùng (surcharge_extra).
+    private static readonly string[] SurchargePhrases = SharedWords.Words("service", "surcharge_extra");
 
     // So nguyên từ trên tên chữ thường còn dấu: "thuê" (đi thuê) không phải "thuế", "vatican" không phải "vat".
     // "gtgt" (giá trị gia tăng): OCR hay đọc "Thuế" thành "Thu€" nên chỉ còn "GTGT" nhận ra được dòng thuế.
-    private static readonly HashSet<string> SurchargeWords = ["vat", "thuế", "thue", "gtgt"];
+    private static readonly HashSet<string> SurchargeWords = [.. SharedWords.Words("tax", "tax_glued", "tax_accented")];
 
-    // "service" khớp cả khi OCR dính chữ ("SERVICECHARGE"), giống ocr-service.
-    private const string ServiceWord = "service";
+    // Từ khớp cả khi OCR dính chữ: "SERVICECHARGE", "ThueGTGT8%)" (vai trò service_glued, tax_glued).
+    private static readonly string[] GluedWords = SharedWords.Words("service_glued", "tax_glued");
 
     // "Tổng tiền chưa thuế", "trước VAT" là dòng cộng tạm; "gồm VAT", "Tổng cộng (gồm thuế)" là thuế đã nằm trong giá: không phải phụ thu.
-    // Đồng bộ với _PRE_TAX_RE của ocr-service/items.py.
-    private static readonly HashSet<string> PreTaxWords = ["chua", "truoc", "gom"];
+    private static readonly HashSet<string> PreTaxWords = [.. SharedWords.Words("pre_tax")];
 
     public static IReadOnlyList<ReceiptGroup>? Split(IReadOnlyList<OcrItem> items, IReadOnlyList<ClassifiedItem> classified, long total)
     {
@@ -72,8 +71,7 @@ public static class ReceiptSplitter
         var folded = $" {string.Join(' ', foldedWords)} ";
         var squeezed = string.Concat(foldedWords);  // OCR hay làm mất dấu cách: "Phí nền tảng" đọc thành "Phinen tang"
         return Words(lower).Any(SurchargeWords.Contains)
-            || folded.Contains("gtgt", StringComparison.Ordinal) // OCR hay viết dính: "ThueGTGT8%)"
-            || folded.Contains(ServiceWord, StringComparison.Ordinal)
+            || GluedWords.Any(word => folded.Contains(word, StringComparison.Ordinal))
             || SurchargePhrases.Any(p => folded.Contains($" {p} ") || squeezed.Contains(p.Replace(" ", string.Empty), StringComparison.Ordinal));
     }
 

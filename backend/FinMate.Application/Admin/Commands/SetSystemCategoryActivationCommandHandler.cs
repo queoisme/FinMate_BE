@@ -9,13 +9,16 @@ public class SetSystemCategoryActivationCommandHandler : ISetSystemCategoryActiv
 {
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAuditLogService _auditLogService;
+    private readonly IAiCategorySyncService _aiCategorySync;
 
     public SetSystemCategoryActivationCommandHandler(
         ICategoryRepository categoryRepository,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IAiCategorySyncService aiCategorySync)
     {
         _categoryRepository = categoryRepository;
         _auditLogService = auditLogService;
+        _aiCategorySync = aiCategorySync;
     }
 
     public async Task<AdminCategoryDto> HandleAsync(
@@ -45,6 +48,10 @@ public class SetSystemCategoryActivationCommandHandler : ISetSystemCategoryActiv
             command.IpAddress,
             new { category.Id, category.Slug, category.IsActive },
             ct);
+
+        // Tắt/bật phải sang AI Service để nó ngừng (hoặc tiếp tục) nhận danh mục này cho dữ liệu mới; thất bại thì job định kỳ kéo lại.
+        await _aiCategorySync.TrySyncAsync(
+            command.AdminId, $"Admin {(category.IsActive ? "bật" : "tắt")} danh mục hệ thống '{category.Slug}'", ct);
 
         return AdminMapper.ToDto(category);
     }

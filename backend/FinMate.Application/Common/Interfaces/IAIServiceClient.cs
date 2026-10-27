@@ -123,9 +123,15 @@ public record ChatParseQuery(
     DateTimeOffset From,
     DateTimeOffset To,
     string? CategorySlug,
-    string? IncomeType);
+    string? IncomeType,
+    IReadOnlyList<string>? CategorySlugs = null);
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
+/// <summary>Bản nháp mục tiêu tiết kiệm AI hiểu từ câu chat (intent create_goal). Chưa phải mục tiêu: người dùng xác nhận rồi app mới tạo.</summary>
+/// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>
+/// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để app hiện kèm ngày cụ thể cho họ soát.</param>
+public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
+
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,
@@ -135,7 +141,8 @@ public record ChatParseResponse(
     IReadOnlyList<ChatParseEntry>? Entries = null,
     long? TotalAmount = null,
     bool TotalMismatch = false,
-    IReadOnlyList<string>? Skipped = null);
+    IReadOnlyList<string>? Skipped = null,
+    ChatParseGoal? Goal = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.

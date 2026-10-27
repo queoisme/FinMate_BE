@@ -36,6 +36,14 @@ public class FinMateDbContext : DbContext
     public DbSet<UserMission> UserMissions => Set<UserMission>();
     public DbSet<MascotItem> MascotItems => Set<MascotItem>();
     public DbSet<UserMascotItem> UserMascotItems => Set<UserMascotItem>();
+    public DbSet<FinanceMethod> FinanceMethods => Set<FinanceMethod>();
+    public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
+    public DbSet<SurveyOption> SurveyOptions => Set<SurveyOption>();
+    public DbSet<GoalTemplate> GoalTemplates => Set<GoalTemplate>();
+    public DbSet<MethodGoalTemplate> MethodGoalTemplates => Set<MethodGoalTemplate>();
+    public DbSet<UserSurveyAnswer> UserSurveyAnswers => Set<UserSurveyAnswer>();
+    public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
+    public DbSet<UserMethod> UserMethods => Set<UserMethod>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

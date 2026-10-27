@@ -9,7 +9,7 @@ namespace FinMate.Infrastructure.ExternalServices;
 /// <summary>Chuyển tiếp API quản trị luật tới AI Service (khóa nội bộ nằm trong HttpClient đã cấu hình ở DI).</summary>
 public class AiRulesAdminClient : IAiRulesAdminClient
 {
-    private const string Prefix = "api/v1/admin/rules/";
+    private const string Prefix = "api/v1/admin/";
     private const string ActorHeader = "X-Actor-Hash";
 
     private readonly HttpClient _http;
@@ -21,7 +21,7 @@ public class AiRulesAdminClient : IAiRulesAdminClient
 
     public async Task<JsonElement?> SendAsync(AiRulesRequest request, CancellationToken ct = default)
     {
-        using var message = new HttpRequestMessage(request.Method, Prefix + request.Path.TrimStart('/') + BuildQuery(request.Query));
+        using var message = new HttpRequestMessage(request.Method, $"{Prefix}{request.Area}/{request.Path.TrimStart('/')}{BuildQuery(request.Query)}");
         if (request.ActorId is { } actor)
         {
             message.Headers.Add(ActorHeader, UserIdHasher.Hash(actor));

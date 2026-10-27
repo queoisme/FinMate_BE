@@ -118,7 +118,7 @@ public class ImmutableKeyGuardTests
             .ReturnsAsync(category);
 
         var handler = new UpdateSystemCategoryCommandHandler(
-            repository.Object, _auditLogService.Object, new UpdateSystemCategoryCommandValidator());
+            repository.Object, _auditLogService.Object, new UpdateSystemCategoryCommandValidator(), Mock.Of<IAiCategorySyncService>());
 
         var act = () => handler.HandleAsync(new UpdateSystemCategoryCommand(
             _adminId, category.Id, null, "food_and_drink", null, null));
@@ -146,7 +146,7 @@ public class ImmutableKeyGuardTests
             .ReturnsAsync(category);
 
         var handler = new UpdateSystemCategoryCommandHandler(
-            repository.Object, _auditLogService.Object, new UpdateSystemCategoryCommandValidator());
+            repository.Object, _auditLogService.Object, new UpdateSystemCategoryCommandValidator(), Mock.Of<IAiCategorySyncService>());
 
         var act = () => handler.HandleAsync(new UpdateSystemCategoryCommand(
             _adminId, category.Id, "Đổi tên", null, null, null));

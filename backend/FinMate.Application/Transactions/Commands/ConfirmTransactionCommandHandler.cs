@@ -83,7 +83,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
             command.UserId,
             transaction.CategoryId,
-            TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
+            TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
             transaction.TransactedAt,
             ct);
 

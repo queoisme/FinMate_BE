@@ -14,15 +14,20 @@ public class BudgetAlertJobTests
     private readonly Mock<IBudgetRepository> _budgetRepository = new();
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPushNotificationService> _push = new();
+    private readonly Mock<IAlertThresholdProvider> _thresholds = new();
     private readonly BudgetAlertJob _job;
 
     public BudgetAlertJobTests()
     {
         // Dùng BudgetAlertNotifier THẬT chứ không mock: các test dưới đây kiểm chính hành vi
         // của nó (tôn trọng PushEnabled/BudgetAlertsEnabled), mock đi là mất luôn phần đó.
+        _thresholds
+            .Setup(t => t.GetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(FinMate.Application.Budgets.AlertThresholds.Default);
         _job = new BudgetAlertJob(
             _budgetRepository.Object,
-            new BudgetAlertNotifier(_userRepository.Object, _push.Object));
+            new BudgetAlertNotifier(_userRepository.Object, _push.Object),
+            _thresholds.Object);
     }
 
     private (Budget Budget, BudgetPeriod Period) Arrange(
@@ -62,7 +67,7 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.VerifyNoOtherCalls();
-        period.Alert70SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().BeNull();
     }
 
     [Fact]
@@ -76,9 +81,9 @@ public class BudgetAlertJobTests
         _push.Verify(p => p.NotifyAsync(
             It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().BeNull();
-        period.Alert100SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().BeNull();
+        period.AlertOverSentAt.Should().BeNull();
     }
 
     [Fact]
@@ -97,9 +102,9 @@ public class BudgetAlertJobTests
         _push.Verify(p => p.NotifyAsync(
             It.IsAny<Guid>(), "Đã dùng quá 70% hạn mức", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().NotBeNull();
-        period.Alert100SentAt.Should().BeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().NotBeNull();
+        period.AlertOverSentAt.Should().BeNull();
     }
 
     [Fact]
@@ -121,9 +126,9 @@ public class BudgetAlertJobTests
         _push.Verify(p => p.NotifyAsync(
             It.IsAny<Guid>(), "Sắp cạn hạn mức chi tiêu", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        period.Alert70SentAt.Should().NotBeNull();
-        period.Alert90SentAt.Should().NotBeNull();
-        period.Alert100SentAt.Should().NotBeNull();
+        period.AlertT1SentAt.Should().NotBeNull();
+        period.AlertT2SentAt.Should().NotBeNull();
+        period.AlertOverSentAt.Should().NotBeNull();
     }
 
     [Fact]
@@ -159,7 +164,7 @@ public class BudgetAlertJobTests
         await _job.RunAsync();
 
         _push.VerifyNoOtherCalls();
-        period.Alert100SentAt.Should().BeNull();
+        period.AlertOverSentAt.Should().BeNull();
     }
 
     [Fact]

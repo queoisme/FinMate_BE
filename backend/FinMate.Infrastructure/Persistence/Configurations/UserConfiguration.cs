@@ -10,7 +10,22 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("users", t => t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')"));
+        builder.ToTable("users", t =>
+        {
+            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
+            t.HasCheckConstraint(
+                "chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
+
+            // Còn "pending" thì chưa có mốc kết thúc; đã làm hay đã bỏ qua thì phải có.
+            t.HasCheckConstraint(
+                "chk_users_onboarding_completed_at",
+                "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
+
+            // Phiên bản và thời điểm đồng ý luôn đi cùng nhau.
+            t.HasCheckConstraint(
+                "chk_users_survey_ai_consent",
+                "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
+        });
 
         builder.HasKey(u => u.Id);
         builder.Property(u => u.Id)
@@ -49,10 +64,21 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.AiConsentAt).HasColumnName("ai_consent_at");
         builder.Property(u => u.TrainingConsentVersion).HasColumnName("training_consent_version");
         builder.Property(u => u.TrainingConsentAt).HasColumnName("training_consent_at");
+        builder.Property(u => u.SurveyAiConsentVersion).HasColumnName("survey_ai_consent_version");
+        builder.Property(u => u.SurveyAiConsentAt).HasColumnName("survey_ai_consent_at");
+        builder.Ignore(u => u.SurveyAiConsentGranted);
         builder.Ignore(u => u.TrainingConsentGranted);
         builder.Ignore(u => u.TermsAccepted);
         builder.Ignore(u => u.AiConsentGranted);
         builder.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");
+
+        builder.Property(u => u.OnboardingStatus)
+            .HasColumnName("onboarding_status")
+            .HasConversion(v => v.ToString().ToLowerInvariant(), v => Enum.Parse<OnboardingStatus>(v, true))
+            .HasMaxLength(20)
+            .HasDefaultValue(OnboardingStatus.Pending)
+            .IsRequired();
+        builder.Property(u => u.OnboardingCompletedAt).HasColumnName("onboarding_completed_at");
 
         builder.OwnsOne(u => u.NotificationPrefs, prefs =>
         {

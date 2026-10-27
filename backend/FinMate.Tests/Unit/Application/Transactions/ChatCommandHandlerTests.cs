@@ -232,6 +232,55 @@ public class ChatCommandHandlerTests
         result.Summary.Items.Should().ContainSingle().Which.CategorySlug.Should().Be("food");
     }
 
+    // ------------------------------------------------------------ đặt mục tiêu
+
+    [Fact]
+    public async Task AGoalSentenceReturnsAGoalDraftAndCreatesNothing()
+    {
+        var deadline = new DateTimeOffset(2026, 12, 17, 23, 59, 59, TimeSpan.FromHours(7));
+        AiReturns(new ChatParseResponse(
+            "create_goal", "Mình hiểu mục tiêu của bạn như thế này.", null, null, 4,
+            Goal: new ChatParseGoal("Mua xe máy", false, 50_000_000, deadline, "2 tháng sau")));
+
+        var result = await _handler.HandleAsync(Command("đặt mục tiêu vào 2 tháng sau tôi sẽ mua được xe máy khoảng 50 triệu"));
+
+        result.Action.Should().Be(ChatActions.Goal);
+        result.Goal.Should().Be(new ChatGoalDraftDto("Mua xe máy", false, 50_000_000, deadline, "2 tháng sau"));
+        result.ReplyText.Should().Contain("mục tiêu");
+        result.Draft.Should().BeNull();
+        NothingWasCreated();  // luôn qua bước xác nhận: backend không tự tạo mục tiêu
+    }
+
+    [Fact]
+    public async Task AGoalSentenceWithoutAnAmountIsJustTheQuestionBack()
+    {
+        AiReturns(new ChatParseResponse("create_goal", "Bạn muốn tiết kiệm bao nhiêu?", null, null, 4));
+
+        var result = await _handler.HandleAsync(Command("đặt mục tiêu tiết kiệm"));
+
+        result.Action.Should().Be(ChatActions.Reply);
+        result.Goal.Should().BeNull();
+        result.ReplyText.Should().Contain("bao nhiêu");
+    }
+
+    [Fact]
+    public async Task AskingAboutTwoCategoriesTotalsBothAndShowsBothRows()
+    {
+        MonthHas(
+            1_000_000, 0,
+            new CategorySpend(null, "Ăn uống", "food", 300_000),
+            new CategorySpend(null, "Mua sắm", "shopping", 500_000),
+            new CategorySpend(null, "Giải trí", "entertainment", 200_000));
+        AiReturns(new("ask_spending", null, null,
+            new ChatParseQuery("expense", "tháng này", From, To, "entertainment", null, new[] { "entertainment", "shopping" }), 5));
+
+        var result = await _handler.HandleAsync(Command("tháng này tôi đã tiêu bao nhiêu tiền cho giải trí và mua sắm"));
+
+        result.Summary!.TotalCents.Should().Be(700_000);  // 200.000 giải trí + 500.000 mua sắm, không lẫn ăn uống
+        result.Summary.Items.Select(i => i.CategorySlug).Should().Equal("shopping", "entertainment");
+        result.Summary.Items.Sum(i => i.Share).Should().BeApproximately(1.0, 0.01);
+    }
+
     [Fact]
     public async Task BalanceIsIncomeMinusExpense()
     {

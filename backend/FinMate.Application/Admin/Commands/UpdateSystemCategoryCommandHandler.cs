@@ -11,15 +11,18 @@ public class UpdateSystemCategoryCommandHandler : IUpdateSystemCategoryCommandHa
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<UpdateSystemCategoryCommand> _validator;
+    private readonly IAiCategorySyncService _aiCategorySync;
 
     public UpdateSystemCategoryCommandHandler(
         ICategoryRepository categoryRepository,
         IAuditLogService auditLogService,
-        IValidator<UpdateSystemCategoryCommand> validator)
+        IValidator<UpdateSystemCategoryCommand> validator,
+        IAiCategorySyncService aiCategorySync)
     {
         _categoryRepository = categoryRepository;
         _auditLogService = auditLogService;
         _validator = validator;
+        _aiCategorySync = aiCategorySync;
     }
 
     public async Task<AdminCategoryDto> HandleAsync(
@@ -63,6 +66,9 @@ public class UpdateSystemCategoryCommandHandler : IUpdateSystemCategoryCommandHa
             command.IpAddress,
             new { category.Id, category.Slug, category.Name, category.IconName },
             ct);
+
+        // AI Service chỉ giữ tên hiển thị của danh mục; đồng bộ để nó không lệch (thất bại thì job định kỳ kéo lại).
+        await _aiCategorySync.TrySyncAsync(command.AdminId, $"Admin sửa danh mục hệ thống '{category.Slug}'", ct);
 
         return AdminMapper.ToDto(category);
     }

@@ -188,6 +188,36 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task LoanTransactions_AreNotCountedAsSpendOrIncome_ButStayInTheTimelineList()
+    {
+        var token = await RegisterAndLoginAsync();
+        var accountId = await CashAccountAsync(token);
+        var food = await SystemCategoryAsync(token, "food");
+        var loan = await SystemCategoryAsync(token, "loan");
+        var now = DateTimeOffset.UtcNow;
+
+        await SpendAsync(token, accountId, food, 300_000, now);
+        await SpendAsync(token, accountId, loan, 5_000_000, now);              // cho bạn mượn
+        await SpendAsync(token, accountId, loan, 2_000_000, now, "Credit");    // bạn trả nợ
+
+        var summary = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/monthly-summary", token)))
+            .Content.ReadFromJsonAsync<MonthlySummaryBody>(JsonOptions))!.Data;
+        summary.TotalSpentCents.Should().Be(300_000);
+        summary.TotalIncomeCents.Should().Be(0);
+
+        var breakdown = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/category-breakdown", token)))
+            .Content.ReadFromJsonAsync<BreakdownBody>(JsonOptions))!.Data;
+        breakdown.TotalSpentCents.Should().Be(300_000);
+        breakdown.Items.Should().OnlyContain(i => i.CategorySlug != "loan");
+
+        var day = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/timeline?limit=50", token)))
+            .Content.ReadFromJsonAsync<TimelineBody>(JsonOptions))!.Data.Single();
+        day.TotalSpentCents.Should().Be(300_000);
+        day.TotalIncomeCents.Should().Be(0);
+        day.Transactions.Should().HaveCount(3);  // vẫn hiện trong lịch sử
+    }
+
+    [Fact]
     public async Task Timeline_GroupsTransactionsByDayWithDailyTotals()
     {
         var token = await RegisterAndLoginAsync();

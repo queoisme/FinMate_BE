@@ -11,6 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Từ vựng hóa đơn dùng chung với ocr-service/ai-service (xem Transactions/SharedWords.cs). Đường dẫn tính từ thư mục dự án: khi chạy trong repo là
+         <repo>/ocr-service/data, trong Docker Dockerfile chép tệp vào /ocr-service/data (build context "lexicon" của docker-compose). -->
+    <EmbeddedResource Include="..\..\ocr-service\data\shared_words.json" LogicalName="shared_words.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.*" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.*" />
   </ItemGroup>

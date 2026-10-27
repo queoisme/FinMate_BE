@@ -143,6 +143,7 @@ public class TransactionRepository : ITransactionRepository
             t.UserId == userId
             && t.Status == TransactionStatus.Confirmed
             && t.TransactionType == TransactionType.Debit
+            && (t.Category == null || t.Category.Slug != Category.LoanSlug)  // cho vay/mượn không tiêu hạn mức
             && t.TransactedAt >= from
             && t.TransactedAt < to);
 

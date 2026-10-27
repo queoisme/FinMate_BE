@@ -110,7 +110,15 @@ public record ChatQueryApiResult(
     [property: JsonPropertyName("start")] DateTimeOffset Start,
     [property: JsonPropertyName("end")] DateTimeOffset End,
     [property: JsonPropertyName("category_slug")] string? CategorySlug,
-    [property: JsonPropertyName("income_type")] string? IncomeType);
+    [property: JsonPropertyName("income_type")] string? IncomeType,
+    [property: JsonPropertyName("category_slugs")] IReadOnlyList<string>? CategorySlugs = null);
+
+public record ChatGoalApiResult(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("name_is_default")] bool NameIsDefault,
+    [property: JsonPropertyName("target_cents")] long TargetCents,
+    [property: JsonPropertyName("deadline")] DateTimeOffset? Deadline,
+    [property: JsonPropertyName("deadline_text")] string? DeadlineText);
 
 public record ChatParseApiResponse(
     [property: JsonPropertyName("intent")] string Intent,
@@ -121,7 +129,8 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("entries")] IReadOnlyList<ChatEntryApiResult>? Entries = null,
     [property: JsonPropertyName("total_amount")] long? TotalAmount = null,
     [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
-    [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null);
+    [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null,
+    [property: JsonPropertyName("goal")] ChatGoalApiResult? Goal = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,

@@ -4,6 +4,7 @@ using FinMate.API.HealthChecks;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
+using FinMate.Application.Admin.FinanceCatalog;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Auth;
 using FinMate.Application.Auth.Commands;
@@ -17,6 +18,7 @@ using FinMate.Application.Categories.Commands;
 using FinMate.Application.Categories.Queries;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Devices.Commands;
+using FinMate.Application.FinanceMethods;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Gamification;
@@ -255,6 +257,15 @@ public class Program
             client.Timeout = TimeSpan.FromSeconds(15);
         });
 
+        // Chọn cách quản lý tài chính qua AI (docs/ai-finance-method-recommend-api.md). Timeout 30 giây = trần cả route của ai-service (24 giây: Gemini tối đa 14 giây rồi tới OpenRouter) cộng vài giây dư;
+        // quá hạn hay lỗi thì MethodRecommendationService dùng rule. Thường chỉ mất vài giây; 30 giây là trường hợp xấu nhất khi cả hai nhà cung cấp đều chậm.
+        builder.Services.AddHttpClient<IMethodAiClient, MethodAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -345,6 +356,18 @@ public class Program
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
+        builder.Services.AddScoped<IAlertThresholdProvider, AlertThresholdProvider>();
+
+        // Cách quản lý tài chính, khảo sát đầu vào, mục tiêu theo phương pháp.
+        builder.Services.AddScoped<IFinanceMethodRepository, FinanceMethodRepository>();
+        builder.Services.AddScoped<ISurveyRepository, SurveyRepository>();
+        builder.Services.AddScoped<IUserMethodRepository, UserMethodRepository>();
+        builder.Services.AddScoped<IFinanceSnapshotRepository, FinanceSnapshotRepository>();
+        builder.Services.AddScoped<ISurveyService, SurveyService>();
+        builder.Services.AddScoped<IMethodRecommendationService, MethodRecommendationService>();
+        builder.Services.AddScoped<IUserMethodService, UserMethodService>();
+        builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
+        builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
@@ -386,6 +409,10 @@ public class Program
         builder.Services.AddScoped<IGetMissionListQueryHandler, GetMissionListQueryHandler>();
         builder.Services.AddScoped<ICreateMissionCommandHandler, CreateMissionCommandHandler>();
         builder.Services.AddScoped<IAdminAiRulesService, AdminAiRulesService>();
+        // Đẩy danh mục hệ thống sang AI Service; AI_CATEGORY_SYNC_ENABLED=false để tắt hẳn (ví dụ bộ test tích hợp không có AI Service).
+        builder.Services.AddSingleton(new AiCategorySyncOptions(builder.Configuration.GetValue<bool?>("AI_CATEGORY_SYNC_ENABLED") ?? true));
+        builder.Services.AddScoped<IAiCategorySyncService, AiCategorySyncService>();
+        builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
         builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
         builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();
@@ -474,6 +501,7 @@ public class Program
         builder.Services.AddScoped<StreakCheckJob>();
         builder.Services.AddScoped<MissionResetJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
+        builder.Services.AddScoped<AiCategorySyncJob>();
 
         builder.Services.AddFinMateRateLimiting(builder.Configuration);
 
@@ -511,6 +539,9 @@ public class Program
             FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MascotItemSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.SurveySeeder.SeedAsync(db).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.FinanceMethodSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.GoalTemplateSeeder.SeedAsync(db).GetAwaiter().GetResult();   // SAU FinanceMethodSeeder: bảng nối tham chiếu phương pháp
         }
 
         // TRƯỚC mọi middleware đọc IP hay scheme — nó viết lại chính hai thứ đó.
@@ -594,6 +625,14 @@ public class Program
             "mission-reset",
             job => job.RunAsync(CancellationToken.None),
             "1 17 * * *");
+
+        // Bù cho mọi lần đồng bộ hụt (AI Service khởi động sau backend, được dựng lại với DB trống): mỗi giờ, và một lần ngay lúc khởi động.
+        // Lần khởi động đi qua Hangfire nên AI Service chưa lên thì được thử lại thay vì làm hỏng việc khởi động của backend.
+        RecurringJob.AddOrUpdate<AiCategorySyncJob>(
+            "ai-category-sync",
+            job => job.RunAsync(CancellationToken.None),
+            "30 * * * *");
+        BackgroundJob.Enqueue<AiCategorySyncJob>(job => job.RunAsync(CancellationToken.None));
 
         app.MapControllers();
         // Tách sống/sẵn-sàng vì hai bên hành động khác nhau: liveness hỏng thì khởi động lại

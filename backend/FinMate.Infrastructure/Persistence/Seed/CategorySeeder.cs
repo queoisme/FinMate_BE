@@ -18,6 +18,7 @@ public static class CategorySeeder
         ("health", "Sức khỏe", "favorite"),
         ("family", "Gia đình", "family_restroom"),
         ("income", "Thu nhập", "payments"),
+        (Category.LoanSlug, "Cho vay / Mượn", "handshake"),
         ("other", "Khác", "category"),
     };
 

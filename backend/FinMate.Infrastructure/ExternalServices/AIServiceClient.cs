@@ -220,12 +220,16 @@ public class AIServiceClient : IAIServiceClient
                     response.Query.Start,
                     response.Query.End,
                     response.Query.CategorySlug,
-                    response.Query.IncomeType),
+                    response.Query.IncomeType,
+                    response.Query.CategorySlugs),
             response.ProcessingMs,
             response.Entries?.Select(Map).ToList(),
             response.TotalAmount,
             response.TotalMismatch,
-            response.Skipped);
+            response.Skipped,
+            response.Goal is null
+                ? null
+                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText));
     }
 
     public async Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)

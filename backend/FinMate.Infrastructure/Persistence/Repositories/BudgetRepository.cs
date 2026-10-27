@@ -74,8 +74,8 @@ public class BudgetRepository : IBudgetRepository
                   join b in _context.Budgets.Include(b => b.Category) on p.BudgetId equals b.Id
                   where p.PeriodStart <= now
                       && p.PeriodEnd > now
-                      && p.SpentCents * 100 >= p.LimitCents * 70
-                      && (p.Alert70SentAt == null || p.Alert90SentAt == null || p.Alert100SentAt == null)
+                      && p.SpentCents * 100 >= p.LimitCents * FinMate.Application.Budgets.AlertThresholds.MinT1Pct   // lọc thô: T1 của mỗi người khác nhau, evaluator mới là nơi quyết định
+                      && (p.AlertT1SentAt == null || p.AlertT2SentAt == null || p.AlertOverSentAt == null)
                   select new BudgetAlertCandidate(p, b))
             .ToListAsync(ct);
 

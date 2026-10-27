@@ -110,7 +110,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
             command.UserId,
             category?.Id,
-            TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents),
+            TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, category),
             command.TransactedAt,
             ct);
 

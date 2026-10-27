@@ -58,7 +58,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 transaction.CategoryId,
-                -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents),
+                -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
                 transaction.TransactedAt,
                 ct);
 

@@ -16,6 +16,12 @@ public class SavingGoal
     /// <summary>Đánh dấu đã nhắc quá hạn — để GoalDeadlineCheckJob không gửi lại mỗi ngày.</summary>
     public DateTimeOffset? DeadlineNotifiedAt { get; set; }
 
+    /// <summary>Mẫu mục tiêu đã dùng để tạo. NULL = mục tiêu người dùng tự đặt.</summary>
+    public Guid? GoalTemplateId { get; set; }
+
+    /// <summary>Phương pháp đang dùng lúc tạo mục tiêu (để biết mục tiêu này theo <c>goal_mode</c> nào). NULL = tạo khi chưa dùng phương pháp nào.</summary>
+    public Guid? UserMethodId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

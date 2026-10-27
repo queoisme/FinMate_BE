@@ -11,15 +11,18 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
     private readonly IBudgetRepository _budgetRepository;
     private readonly ICacheService _cache;
     private readonly IValidator<UpdateBudgetLimitCommand> _validator;
+    private readonly IAlertThresholdProvider _thresholdProvider;
 
     public UpdateBudgetLimitCommandHandler(
         IBudgetRepository budgetRepository,
         ICacheService cache,
-        IValidator<UpdateBudgetLimitCommand> validator)
+        IValidator<UpdateBudgetLimitCommand> validator,
+        IAlertThresholdProvider thresholdProvider)
     {
         _budgetRepository = budgetRepository;
         _cache = cache;
         _validator = validator;
+        _thresholdProvider = thresholdProvider;
     }
 
     public async Task<BudgetDto> HandleAsync(UpdateBudgetLimitCommand command, CancellationToken ct = default)
@@ -43,22 +46,10 @@ public class UpdateBudgetLimitCommandHandler : IUpdateBudgetLimitCommandHandler
             currentPeriod.UpdatedAt = now;
 
             // Nâng hạn mức đủ để không còn vượt ngưỡng → cho phép alert bắn lại nếu sau đó
-            // user tiêu chạm ngưỡng lần nữa trong cùng chu kỳ. Xét độc lập từng mốc: nâng
-            // hạn mức có thể đưa user xuống dưới 90% mà vẫn còn trên 70%.
-            if (currentPeriod.SpentCents * 100 < command.LimitCents * 70)
-            {
-                currentPeriod.Alert70SentAt = null;
-            }
-
-            if (currentPeriod.SpentCents * 100 < command.LimitCents * 90)
-            {
-                currentPeriod.Alert90SentAt = null;
-            }
-
-            if (currentPeriod.SpentCents < command.LimitCents)
-            {
-                currentPeriod.Alert100SentAt = null;
-            }
+            // user tiêu chạm ngưỡng lần nữa trong cùng chu kỳ. Xét độc lập từng mức theo T1/T2 CỦA NGƯỜI NÀY:
+            // nâng hạn mức có thể đưa user xuống dưới T2 mà vẫn còn trên T1.
+            var thresholds = await _thresholdProvider.GetAsync(command.UserId, ct);
+            BudgetAlertEvaluator.ReopenBelow(currentPeriod, thresholds);
         }
 
         await _budgetRepository.UpdateAsync(budget, ct);
