@@ -488,3 +488,9 @@ def test_a_correct_tong_cong_total_does_not_leave_the_review_flag_from_the_wrong
     assert body["total_amount"] == 157680
     assert body["items_ok"] is True
     assert body["needs_review"] is False
+
+
+def test_bill_items_keep_a_name_that_only_looks_like_a_person(monkeypatch):
+    from parsing.items import Item, ItemsResult
+    monkeypatch.setattr(main, "extract_items", lambda boxes, total: ItemsResult([Item("ý thịt xông", 175000, None, False)], True))
+    assert main._bill_items([], 175000) == ([{"name": "ý thịt xông", "amount": 175000, "parent": None, "is_discount": False}], True)

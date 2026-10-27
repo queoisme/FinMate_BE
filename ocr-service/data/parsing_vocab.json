@@ -1,0 +1,660 @@
+{
+ "parsing.extract._PAYABLE_KEYWORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "phai tra",
+   "can thanh toan",
+   "tong thanh toan",
+   "thanh toan"
+  ]
+ },
+ "parsing.extract._TOTAL_KEYWORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "tong cong",
+   "thanh tien",
+   "tong",
+   "total",
+   "cong tien hang"
+  ]
+ },
+ "parsing.extract._BUSINESS_WORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "nha thuoc",
+   "cong ty",
+   "chi nhanh",
+   "sieu thi",
+   "nha hang",
+   "tap hoa",
+   "pharmacy",
+   "quan an",
+   "benh vien",
+   "phong kham",
+   "nha khoa"
+  ]
+ },
+ "parsing.extract._TITLE_MARKERS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "bien lai",
+   "phieu tinh tien",
+   "phieu thanh toan",
+   "hoa don",
+   "phieu thu",
+   "phieu giao",
+   "phieu xuat kho",
+   "phieu nhap kho",
+   "phieu ban hang",
+   "phieu ban le",
+   "phieu mua hang",
+   "don hang",
+   "giao nhan"
+  ]
+ },
+ "parsing.extract._RECEIPT_VOCAB": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "hoa don",
+   "phieu",
+   "tong",
+   "thanh toan",
+   "thanh tien",
+   "don gia",
+   "so luong",
+   "vat",
+   "ma so thue",
+   "tien mat",
+   "chiet khau",
+   "khuyen mai",
+   "cam on",
+   "total",
+   "subtotal",
+   "cash",
+   "receipt",
+   "invoice",
+   "tien khach",
+   "phai tra",
+   "diem tich",
+   "ban le"
+  ]
+ },
+ "parsing.extract._TITLE_WORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "phieu",
+   "hoa don",
+   "thanh toan"
+  ]
+ },
+ "parsing.extract._SELLER_LABELS": {
+  "type": "tuple2",
+  "doc": "Nhãn bên bán (\"Tên NPP: ...\") cho ra tên cửa hàng; nhãn bên mua (\"Tên khách hàng: ...\") thì không.",
+  "value": [
+   [
+    "npp"
+   ],
+   [
+    "ncc"
+   ],
+   [
+    "nha",
+    "cung",
+    "cap"
+   ],
+   [
+    "don",
+    "vi",
+    "ban"
+   ],
+   [
+    "cua",
+    "hang"
+   ],
+   [
+    "nguoi",
+    "ban"
+   ]
+  ]
+ },
+ "parsing.extract._BUYER_PREFIXES": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "ten khach hang",
+   "ten kh",
+   "khach hang",
+   "nguoi mua",
+   "nguoi nhan",
+   "dia chi",
+   "dja chi",
+   "dien giai",
+   "don vi co quan"
+  ]
+ },
+ "parsing.extract._BUYER_LABELS": {
+  "type": "tuple",
+  "doc": "nhãn đứng riêng một dòng, giá trị ở dòng sau (kể cả mẫu hóa đơn bán lẻ in sẵn: \"Họ tên người mua hàng:\")",
+  "value": [
+   "khach",
+   "khachhang",
+   "nguoimua",
+   "tenkh",
+   "nguoinhan",
+   "hotennguoimuahang",
+   "tenkhachhang"
+  ]
+ },
+ "parsing.extract._CITY_MARKERS": {
+  "type": "tuple",
+  "doc": "Dòng địa chỉ (có tên thành phố / bắt đầu bằng \"Số 32\"...) không phải tên cửa hàng",
+  "value": [
+   "tphcm",
+   "hchiminh",
+   "hochiminh",
+   "tphn",
+   "hanoi",
+   "thanhphoho",
+   "cantho",
+   "danang",
+   "haiphong"
+  ]
+ },
+ "parsing.extract._GENERIC_WORDS": {
+  "type": "set",
+  "doc": "Từ vựng chung của hóa đơn: dòng chủ yếu gồm các từ này không phải tên cửa hàng (\"Cảm ơn quý khách\", \"Tổng thành tiền\") chỉ từ chắc chắn là từ vựng hóa đơn (không có \"hoa\", \"hang\"...)",
+  "value": [
+   "cam",
+   "can",
+   "chiet",
+   "cong",
+   "don",
+   "dua",
+   "email",
+   "ghi",
+   "gia",
+   "hotline",
+   "khach",
+   "khau",
+   "khuyen",
+   "luong",
+   "mon",
+   "ngan",
+   "nhan",
+   "on",
+   "phai",
+   "phieu",
+   "quy",
+   "stt",
+   "thanh",
+   "thoai",
+   "thua",
+   "tien",
+   "toan",
+   "tong",
+   "vat",
+   "vien",
+   "website"
+  ]
+ },
+ "parsing.extract._FIELD_LABEL_PREFIXES": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "nvgh",
+   "nvbh",
+   "nvcv",
+   "dtnpp",
+   "dtddnpp",
+   "dtgsnpp",
+   "hoadonso",
+   "hoaddnso",
+   "hoddnso",
+   "hoadons",
+   "ngayhoadon",
+   "ngayhoaddn",
+   "ngayhdn",
+   "ngayin",
+   "ngayddn",
+   "ngay",
+   "sdt",
+   "mst",
+   "stt",
+   "soct",
+   "loaitien"
+  ]
+ },
+ "parsing.extract._STATUS_PHRASES": {
+  "type": "tuple",
+  "doc": "hình thức phục vụ in trên phiếu quán",
+  "value": [
+   "da nhap hang",
+   "da thanh toan",
+   "da giao",
+   "da huy",
+   "hoan thanh",
+   "dang xu ly",
+   "cho xu ly",
+   "in store",
+   "instore",
+   "take away",
+   "takeaway",
+   "mang ve",
+   "tai cho",
+   "dine in",
+   "pager"
+  ]
+ },
+ "parsing.extract._THI_SYLLABLES": {
+  "type": "tuple",
+  "doc": "đã bỏ dấu: mọi âm tiết tiếng Việt bắt đầu bằng \"thi\" (trừ \"thi\" riêng, tức Thị): thìa, thích, thiếc, thiêm, thiên, thiêng, thiệp, thiết, thiếu, thím, thín, thịnh, thịp, thịt, thiu. So bằng nhau cả từ",
+  "value": [
+   "thien",
+   "thinh",
+   "thieu",
+   "thiet",
+   "thiep",
+   "thiem",
+   "thich",
+   "thia",
+   "thiec",
+   "thieng",
+   "thim",
+   "thin",
+   "thip",
+   "thit",
+   "thiu"
+  ]
+ },
+ "parsing.extract._TABLE_HEADERS": {
+  "type": "set",
+  "doc": "tiêu đề cột (\"T.Tiền\")",
+  "value": [
+   "dongia",
+   "dvt",
+   "sanpham",
+   "sl",
+   "soluong",
+   "stt",
+   "tenhang",
+   "tensp",
+   "thanhtien",
+   "ttien",
+   "tenhangvaquy",
+   "cachphamchat"
+  ]
+ },
+ "parsing.extract._POLICY_LINE": {
+  "type": "tuple",
+  "doc": "dạng viết liền: dòng chính sách/lời cảm ơn, không phải tên cửa hàng",
+  "value": [
+   "doitra",
+   "camon",
+   "hangdamua",
+   "khongdoi",
+   "baohanh"
+  ]
+ },
+ "parsing.extract._NOT_NAME_WORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "dia chi",
+   "tel",
+   "mst",
+   "ma so thue",
+   "dien thoai",
+   "email",
+   "website",
+   "duong",
+   "phuong",
+   "quan",
+   "thanh pho",
+   "viet nam",
+   "chi minh",
+   "hotline",
+   "fax"
+  ]
+ },
+ "parsing.extract._VENUE_ONLY": {
+  "type": "set",
+  "doc": "",
+  "value": [
+   "bar",
+   "cafe",
+   "coffee",
+   "hang",
+   "market",
+   "mart",
+   "nha",
+   "pub",
+   "quan",
+   "restaurant",
+   "shop",
+   "store",
+   "tea"
+  ]
+ },
+ "parsing.extract._DIGITS": {
+  "type": "dict",
+  "doc": "",
+  "value": {
+   "mot": 1,
+   "hai": 2,
+   "ba": 3,
+   "bon": 4,
+   "tu": 4,
+   "nam": 5,
+   "lam": 5,
+   "sau": 6,
+   "bay": 7,
+   "tam": 8,
+   "chin": 9
+  }
+ },
+ "parsing.extract._ZERO_WORDS": {
+  "type": "set",
+  "doc": "",
+  "value": [
+   "khong",
+   "le",
+   "linh"
+  ]
+ },
+ "parsing.merchant_name._ACRONYMS": {
+  "type": "set",
+  "doc": "",
+  "value": [
+   "BBQ",
+   "CGV",
+   "CP",
+   "DV",
+   "EVN",
+   "FPT",
+   "HCM",
+   "HN",
+   "JSC",
+   "KFC",
+   "MB",
+   "TM",
+   "TNHH",
+   "TP",
+   "VN"
+  ]
+ },
+ "parsing.merchant_name._LEGAL_PREFIXES": {
+  "type": "tuple",
+  "doc": "\"Công\" đã bị mất: \"Ty TNHH ...\" vẫn là loại hình",
+  "value": [
+   "cong ty",
+   "cty",
+   "tnhh",
+   "ho kinh doanh",
+   "dntn",
+   "doanh nghiep tu nhan",
+   "co phan",
+   "ty tnhh",
+   "ty cp",
+   "ty mtv",
+   "ty co phan"
+  ]
+ },
+ "parsing.merchant_name._LEGAL_TOKENS": {
+  "type": "set",
+  "doc": "Từ loại hình + ngành nghề đứng đầu tên công ty, không phải tên riêng (\"CÔNG TY TNHH TM DV XNK <tên riêng>\")",
+  "value": [
+   "co",
+   "cong",
+   "cp",
+   "cty",
+   "dich",
+   "dntn",
+   "doanh",
+   "dv",
+   "ho",
+   "jsc",
+   "khau",
+   "kinh",
+   "mai",
+   "mot",
+   "mtv",
+   "nghiep",
+   "nhan",
+   "nhap",
+   "phan",
+   "san",
+   "sx",
+   "thanh",
+   "thuong",
+   "tm",
+   "tmdv",
+   "tnhh",
+   "tu",
+   "ty",
+   "va",
+   "vien",
+   "vu",
+   "xnk",
+   "xuat"
+  ]
+ },
+ "parsing.merchant_name._FORM_TOKENS": {
+  "type": "set",
+  "doc": "từ chỉ loại hình hoàn chỉnh",
+  "value": [
+   "cp",
+   "cty",
+   "dntn",
+   "doanh",
+   "jsc",
+   "mtv",
+   "nhan",
+   "phan",
+   "tnhh",
+   "ty"
+  ]
+ },
+ "parsing.privacy._LABELS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "khachhang",
+   "tenkhachhang",
+   "tenkh",
+   "makhachhang",
+   "makh",
+   "nguoimua",
+   "nguoinhan",
+   "hotennguoi",
+   "hoten",
+   "nhanvien",
+   "nvbh",
+   "nvgh",
+   "nvcv",
+   "thungan",
+   "diachi",
+   "djachi",
+   "dienthoai",
+   "hotline",
+   "sotaikhoan",
+   "taikhoan",
+   "khach"
+  ]
+ },
+ "parsing.privacy._SHORT_LABELS": {
+  "type": "tuple",
+  "doc": "nhãn ngắn: chỉ tính khi theo sau không phải chữ cái (\"Telecom\" không phải nhãn)",
+  "value": [
+   "nv",
+   "dt",
+   "dc",
+   "tel",
+   "stk",
+   "sdt",
+   "email"
+  ]
+ },
+ "parsing.privacy._CONTACT_LABELS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "dienthoai",
+   "sodienthoai",
+   "khachhang",
+   "tenkhachhang",
+   "tenkh",
+   "nguoimua",
+   "nguoinhan",
+   "hoten"
+  ]
+ },
+ "parsing.app_screens._SHOP_BADGE": {
+  "type": "set",
+  "doc": "",
+  "value": [
+   "+",
+   "thich",
+   "thich+",
+   "yeu"
+  ]
+ },
+ "parsing.app_screens._HOUSING_WORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "dien luc",
+   "evn",
+   "tien dien",
+   "tien nuoc",
+   "cap nuoc",
+   "nuoc sach",
+   "chung cu",
+   "nha tro",
+   "phong tro",
+   "thue nha",
+   "tien nha"
+  ]
+ },
+ "parsing.app_screens._CINEMA_WORDS": {
+  "type": "tuple",
+  "doc": "",
+  "value": [
+   "phong chieu",
+   "chieu phim",
+   "ve xem phim",
+   "gold class",
+   "galaxy cinema",
+   "lotte cinema",
+   "bhd star"
+  ]
+ },
+ "parsing.app_screens._COURIER_SHOP": {
+  "type": "tuple2",
+  "doc": "",
+  "value": [
+   [
+    "spx",
+    "Shopee"
+   ],
+   [
+    "shopee",
+    "Shopee"
+   ],
+   [
+    "lazada",
+    "Lazada"
+   ],
+   [
+    "tiktok",
+    "TikTok Shop"
+   ]
+  ]
+ },
+ "parsing.app_screens._WALLET_CATEGORY": {
+  "type": "tuple2",
+  "doc": "",
+  "value": [
+   [
+    "giai tri",
+    "entertainment"
+   ],
+   [
+    "an uong",
+    "dining"
+   ],
+   [
+    "di chuyen",
+    "transport"
+   ],
+   [
+    "mua sam",
+    "shopping"
+   ],
+   [
+    "sieu thi",
+    "groceries"
+   ],
+   [
+    "suc khoe",
+    "healthcare"
+   ],
+   [
+    "y te",
+    "healthcare"
+   ]
+  ]
+ },
+ "reading.text_clean._VN_MARKS": {
+  "type": "set",
+  "doc": "Dấu tiếng Việt hợp lệ: huyền, sắc, ngã, hỏi, nặng, mũ, trăng, râu",
+  "value": [
+   "̀",
+   "́",
+   "̂",
+   "̃",
+   "̆",
+   "̉",
+   "̛",
+   "̣"
+  ]
+ },
+ "reading.text_clean._REPLACE": {
+  "type": "dict",
+  "doc": "Chữ không phân rã được thành chữ gốc + dấu",
+  "value": {
+   "ß": "ss",
+   "ø": "o",
+   "Ø": "O",
+   "æ": "ae",
+   "Æ": "AE",
+   "œ": "oe",
+   "Œ": "OE",
+   "ð": "d",
+   "Ð": "D",
+   "þ": "th",
+   "Þ": "Th",
+   "δ": "d",
+   "Δ": "D",
+   "σ": "s",
+   "α": "a",
+   "β": "b",
+   "ε": "e",
+   "ι": "i",
+   "κ": "k",
+   "μ": "m",
+   "ν": "n",
+   "ο": "o",
+   "ρ": "p",
+   "τ": "t",
+   "υ": "u",
+   "ł": "l",
+   "Ł": "L"
+  }
+ }
+}

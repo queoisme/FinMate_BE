@@ -1,0 +1,255 @@
+{
+ "_doc": "Ngưỡng số của lớp đọc hóa đơn. 'samples' là số mẫu đã dùng để chỉnh giá trị (null = chưa ghi nguồn đo). Giá trị chỉnh theo vài mẫu thì CHƯA đáng tin cho ảnh lạ: đổi giá trị phải kiểm trên ảnh chưa dùng để chỉnh, không chỉnh cho qua ca đang đỏ.",
+ "parsing.extract._MIN_AMOUNT": {
+  "value": 1000,
+  "doc": "bỏ qua số nhỏ như \"Tổng số lượng 3\"",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MAX_AMOUNT": {
+  "value": 999999999,
+  "doc": "dưới 1 tỷ đồng",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_NAME_CONFIDENCE": {
+  "value": 0.8,
+  "doc": "dưới mức này thường là chữ viết tay/logo đọc hỏng",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_LABEL_CONFIDENCE": {
+  "value": 0.7,
+  "doc": "dòng có nhãn rõ (\"Tên NPP:\") được nới ngưỡng vì nhãn là bằng chứng thêm",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_OCR_CONFIDENCE": {
+  "value": 0.7,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_LINE_CONFIDENCE": {
+  "value": 0.85,
+  "doc": "chỉnh theo 2 hóa đơn mẫu: Kisnac mờ ~0.57, hóa đơn sạch 1.0",
+  "samples": 2,
+  "source": "chỉnh theo 2 hóa đơn mẫu: Kisnac mờ ~0,57, hóa đơn sạch 1,0"
+ },
+ "parsing.extract._MIN_COVERAGE": {
+  "value": 0.7,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_CATEGORY_CONFIDENCE": {
+  "value": 0.7,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MIN_MODEL_PROB": {
+  "value": 0.5,
+  "doc": "xác suất tối thiểu của mô hình học để đưa ra gợi ý",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract._MAX_MODEL_CONFIDENCE": {
+  "value": 0.69,
+  "doc": "trần độ tin cậy của gợi ý mô hình (< 0.7 => luôn cần xác nhận)",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.extract.MIN_RECEIPT_SCORE": {
+  "value": 5,
+  "doc": "dưới mức này: ảnh không giống hóa đơn",
+  "samples": 9,
+  "source": "luật chấm điểm chỉnh theo 9 hóa đơn thật và vài mẫu không phải hóa đơn (thực đơn, áp phích, căn cước)"
+ },
+ "parsing.extract.CONFIDENT_RECEIPT_SCORE": {
+  "value": 6,
+  "doc": "đúng bằng MIN: giống nhưng chưa chắc, vẫn nhận và nhắc kiểm tra",
+  "samples": 9,
+  "source": "cùng bộ 9 hóa đơn với MIN_RECEIPT_SCORE"
+ },
+ "parsing.items.ROW_TOLERANCE": {
+  "value": 0.6,
+  "doc": "lệch tâm dọc dưới 0,6 lần chiều cao hộp trung vị thì cùng hàng",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.items.PRICE_COLUMN": {
+  "value": 0.35,
+  "doc": "giá nằm trong 35% bên phải tờ giấy",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.items._MAX_INFERRED_QTY": {
+  "value": 20,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "parsing.dates._MIN_YEAR": {
+  "value": 2000,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.quality._DARK_P99": {
+  "value": 100,
+  "doc": "ponytail: ngưỡng chỉnh theo 4 ảnh mẫu (bình thường p99=238/p1=21, tối p99=46, cháy sáng p1=126); thêm ảnh thật rồi chỉnh lại nếu báo nhầm.",
+  "samples": 4,
+  "source": "chỉnh theo 4 ảnh mẫu (bình thường p99=238/p1=21, tối p99=46, cháy sáng p1=126)"
+ },
+ "reading.quality._BRIGHT_P1": {
+  "value": 100,
+  "doc": "",
+  "samples": 4,
+  "source": "chỉnh theo 4 ảnh mẫu"
+ },
+ "reading.quality._BLUR_VAR": {
+  "value": 8,
+  "doc": "ponytail: đo trên 28 ảnh thật: ảnh nét 9..2400, cùng ảnh đó làm mờ (sigma 2.5) chỉ còn <16; chọn 8 để không báo nhầm ảnh thật nào, chỉ bắt ảnh mờ nặng.",
+  "samples": 28,
+  "source": "đo trên 28 ảnh thật: ảnh nét 9..2400, cùng ảnh làm mờ (sigma 2.5) còn <16; chọn 8 để không báo nhầm ảnh thật nào"
+ },
+ "reading.crop._MIN_AREA_RATIO": {
+  "value": 0.15,
+  "doc": "vùng sáng nhỏ hơn mức này không phải hóa đơn",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MAX_BOX_RATIO": {
+  "value": 0.9,
+  "doc": "hóa đơn đã chiếm gần hết khung thì không cần cắt",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MARGIN_RATIO": {
+  "value": 0.06,
+  "doc": "chừa lề để không mất thanh logo/chữ đậm sát mép giấy",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MIN_RECT_FILL": {
+  "value": 0.9,
+  "doc": "vùng giấy lấp đầy >= 90% hình chữ nhật nhỏ nhất mới xoay thẳng; méo/nhàu thì chỉ cắt hộp",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MIN_TILT_DEGREES": {
+  "value": 3,
+  "doc": "nghiêng ít hơn mức này thì chỉ cắt, không xoay (tránh làm mờ ảnh)",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MIN_BOX_FILL": {
+  "value": 0.6,
+  "doc": "vùng sáng lấp đầy hộp bao của nó ít hơn mức này = dính cả nền sáng (kệ hàng, bàn) -> thử tách theo màu",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MAX_PAPER_SATURATION": {
+  "value": 50,
+  "doc": "giấy hóa đơn gần như không có màu; kệ hàng, bao bì, đồ vật thì có",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.crop._MIN_AREA_RATIO_RETRY": {
+  "value": 0.08,
+  "doc": "sau khi tách theo màu, tờ bill dài và hẹp chiếm ít diện tích khung hơn tờ vuông",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._VIET_HEAD_LINES": {
+  "value": 8,
+  "doc": "tên cửa hàng nằm ở đầu phiếu: các dòng đầu dùng cổng chặt (VietOCR chỉ được thêm dấu)",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._BODY_MIN_SIMILARITY": {
+  "value": 0.6,
+  "doc": "thân phiếu (tên món): nhận chữ VietOCR khi giống PaddleOCR (không tính dấu) từ mức này; dưới mức là VietOCR bịa chữ",
+  "samples": 58,
+  "source": "benchmark/run_databill + run_items trên 58 ảnh data-bill: 0,6 cho tên món chứa nguyên đoạn nhãn 149/157, 0,7: 148, 0,8: 148, 0,9: 144 (PaddleOCR thuần 123/161); tên cửa hàng 54/58 ở mọi mức"
+ },
+ "reading.ocr._SLOPE_MIN_WIDTH": {
+  "value": 80,
+  "doc": "quad hẹp hơn (số lượng, \"8%\") đo độ dốc không tin được",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._SLOPE_MIN_QUADS": {
+  "value": 3,
+  "doc": "ít quad rộng hơn thì một quad nhiễu quyết cả trang",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._SLOPE_MAX": {
+  "value": 0.2,
+  "doc": "~11 độ; ảnh nghiêng hơn thế thì OCR đã hỏng, đừng chỉnh",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._MIN_OCR_WIDTH": {
+  "value": 800,
+  "doc": "tờ bill hẹp hơn mức này (ảnh chụp xa rồi cắt) thì chữ quá nhỏ để đọc đúng, phóng to trước",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._TARGET_OCR_WIDTH": {
+  "value": 1000,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._MAX_UPSCALE": {
+  "value": 2.2,
+  "doc": "phóng quá mức này chỉ làm mờ thêm và chậm",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._MAX_SIDE": {
+  "value": 3200,
+  "doc": "",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.ocr._MAX_CROP_RATIO": {
+  "value": 0.7,
+  "doc": "chỉ phóng to khi tờ bill thật sự nhỏ trong khung (cắt còn <= 70% chiều rộng ảnh gốc)",
+  "samples": null,
+  "source": "chưa ghi nguồn đo"
+ },
+ "reading.google_vision._CELL_GAP_RATIO": {
+  "value": 2.0,
+  "doc": "Google gộp cả hàng bảng thành một dòng: cắt ô tại khoảng trống ngang rộng hơn mức này nhân bề rộng MỘT KÝ TỰ (không đo theo chiều cao hộp, vì ảnh nghiêng làm hộp phình ra)",
+  "samples": 58,
+  "source": "quét trên 58 ảnh data-bill (phản hồi Google lưu đệm): 0,5 -> tên cửa hàng 31/58; 1,0 -> 51/58; 1,5 đến 2,5 -> cùng một kết quả (tổng 57/58, tên 53/58, danh mục 56/58, items_ok 39/49, tên chứa nguyên đoạn 149/153); 3 trở lên -> items_ok 38/49. Chọn giữa vùng ổn định. Ngưỡng chỉnh trên đúng 58 ảnh này: cần kiểm trên ảnh mới"
+ },
+ "reading.ocr._CONTAINED_SHARE": {
+  "value": 0.9,
+  "doc": "hộp có từ mức này diện tích nằm trong một hộp lớn hơn là phát hiện trùng của OCR: bỏ",
+  "samples": null,
+  "source": "chưa quét: giá trị khởi đầu từ một ca thật (Google trả \"M\" nằm trong \"Bánh Mì\", bill CoCo Mart viết tay); cần kiểm trên ảnh mới"
+ },
+ "parsing.prepare._MIN_SHORTHAND_CELLS": {
+  "value": 3,
+  "doc": "cột tiền có ít nhất chừng này ô số nguyên 1-999 và không ô nào có dấu nghìn thì coi là viết tắt theo nghìn đồng (\"44\" = 44.000)",
+  "samples": null,
+  "source": "chưa quét: giá trị khởi đầu từ một ca thật (bill Tiệm rau viết tay, 15 ô); benchmark 58 ảnh chỉ kiểm không bill nào bị nhân nhầm"
+ },
+ "parsing.prepare._MIN_VALUE_LETTERS": {
+  "value": 3,
+  "doc": "ô bên phải một nhãn kết thúc bằng dấu hai chấm chỉ được ghép làm giá trị của nhãn khi có ít nhất chừng này chữ cái (số điện thoại, dấu chấm điền thì không)",
+  "samples": null,
+  "source": "chưa quét: giá trị khởi đầu từ hai ca thật (bill CoCo Mart: Colo Mart; Tiệm rau: Vin); benchmark 58 ảnh chỉ kiểm không làm hỏng bill nào"
+ },
+ "parsing.totals._MIN_NAME_LETTERS": {
+  "value": 2,
+  "doc": "tổng các món chỉ được dùng thay tổng đoán khi MỌI món có tên với ít nhất chừng này chữ cái (món không tên là dấu hiệu bảng món đọc rác)",
+  "samples": null,
+  "source": "chưa quét: giá trị khởi đầu từ hai ca thật (bill Tiệm rau: mọi tên có chữ; bill ảnh rất tối: có món không tên); benchmark chỉ kiểm không bill nào lùi"
+ }
+}

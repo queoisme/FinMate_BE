@@ -6,36 +6,38 @@ from typing import Callable
 from classification import data_files
 from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
-CATEGORIES = ("dining", "transport", "shopping", "groceries",
-              "housing", "utilities", "healthcare", "entertainment", "other")
+CATEGORIES = tuple(data_files.load("category_groups.json")["groups"])  # một nguồn chung với ai-service (data/NOTES.md)
 
 _AMOUNT_RE = re.compile(r"\d+(?:[.,]\d{3})*(?:[.,]\d{1,2})?(?!\d)")
-_PAYABLE_KEYWORDS = ("phai tra", "can thanh toan", "tong thanh toan", "thanh toan")
-_TOTAL_KEYWORDS = ("tong cong", "thanh tien", "tong", "total", "cong tien hang")
-_MIN_AMOUNT = 1000  # bỏ qua số nhỏ như "Tổng số lượng 3"
-_MAX_AMOUNT = 999_999_999  # dưới 1 tỷ đồng
-_MIN_NAME_CONFIDENCE = 0.8  # dưới mức này thường là chữ viết tay/logo đọc hỏng
-_MIN_LABEL_CONFIDENCE = 0.7  # dòng có nhãn rõ ("Tên NPP:") được nới ngưỡng vì nhãn là bằng chứng thêm
+_PAYABLE_KEYWORDS = data_files.table("parsing.extract._PAYABLE_KEYWORDS")
+_TOTAL_KEYWORDS = data_files.table("parsing.extract._TOTAL_KEYWORDS")
+_MIN_AMOUNT = data_files.threshold("parsing.extract._MIN_AMOUNT")
+_MAX_AMOUNT = data_files.threshold("parsing.extract._MAX_AMOUNT")
+_MIN_NAME_CONFIDENCE = data_files.threshold("parsing.extract._MIN_NAME_CONFIDENCE")
+_MIN_LABEL_CONFIDENCE = data_files.threshold("parsing.extract._MIN_LABEL_CONFIDENCE")
 _LOGO_TAGLINES = {"mevabe"}  # đã _alnum(_norm()): "Mẹ và Bé"
-_GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
-_BUSINESS_WORDS = ("nha thuoc", "cong ty", "chi nhanh", "sieu thi", "nha hang", "tap hoa", "pharmacy", "quan an", "benh vien", "phong kham", "nha khoa")
-_TITLE_MARKERS = ("bien lai", "phieu tinh tien", "phieu thanh toan", "hoa don", "phieu thu", "phieu giao", "phieu xuat kho",
-                  "phieu nhap kho", "phieu ban hang", "phieu ban le", "phieu mua hang", "don hang", "giao nhan")
+# từ vựng phân loại dùng chung với ai-service/bill/classifier.py: data/shared_words.json (generic_store: loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác)
+_GENERIC_STORE = data_files.shared_words("generic_store")
+_GROCERIES_NOT_FOR = data_files.shared_words("groceries_not_for")  # "Siêu thị điện máy", "Siêu thị nội thất" bán đồ gia dụng/điện tử, không phải thực phẩm
+_NOT_MEDICINE = data_files.shared_words("not_medicine")  # thuốc lá không phải thuốc chữa bệnh
+_PASSWORD_LINE = re.compile(rf"\b(?:{data_files.shared_alternation('password_line')})\b")  # "Pass Wifi: 1234" cuối phiếu quán cà phê không phải cước internet
+_BUSINESS_WORDS = data_files.table("parsing.extract._BUSINESS_WORDS")
+_TITLE_MARKERS = data_files.table("parsing.extract._TITLE_MARKERS")
 _HEADER_DATE = re.compile(r"^([A-Z][A-Z0-9]{2,14})\s*[-–]\s*\d{1,2}[/.]\d{1,2}[/.]\d{2,4}")  # "WAMIHS-21/09/2026 15:41"
 _SITE_RE = re.compile(r"www\.([a-z0-9-]{4,})\.")
-_MIN_OCR_CONFIDENCE = 0.7
-_MIN_LINE_CONFIDENCE = 0.85  # chỉnh theo 2 hóa đơn mẫu: Kisnac mờ ~0.57, hóa đơn sạch 1.0
-_MIN_COVERAGE = 0.7
-_MIN_CATEGORY_CONFIDENCE = 0.7
-_MIN_MODEL_PROB = 0.5         # xác suất tối thiểu của mô hình học để đưa ra gợi ý
-_MAX_MODEL_CONFIDENCE = 0.69  # trần độ tin cậy của gợi ý mô hình (< 0.7 => luôn cần xác nhận)
+_MIN_OCR_CONFIDENCE = data_files.threshold("parsing.extract._MIN_OCR_CONFIDENCE")
+_MIN_LINE_CONFIDENCE = data_files.threshold("parsing.extract._MIN_LINE_CONFIDENCE")
+_MIN_COVERAGE = data_files.threshold("parsing.extract._MIN_COVERAGE")
+_MIN_CATEGORY_CONFIDENCE = data_files.threshold("parsing.extract._MIN_CATEGORY_CONFIDENCE")
+_MIN_MODEL_PROB = data_files.threshold("parsing.extract._MIN_MODEL_PROB")
+_MAX_MODEL_CONFIDENCE = data_files.threshold("parsing.extract._MAX_MODEL_CONFIDENCE")
 
 # Thứ tự quan trọng: nhóm đứng trước được ưu tiên khi trùng từ khóa.
 _CATEGORY_KEYWORDS = data_files.keyword_table("merchant_keywords.json")
 
 
-# Bỏ dấu làm "phở" trùng "phố" (Thành phố...): từ khóa này chỉ tin khi nằm trong tên cửa hàng.
-_NAME_ONLY_KEYWORDS = {"pho", "nha tro", "phong tro", "chung cu"}  # chỉ tin khi nằm trong tên cửa hàng (địa chỉ giao hàng cũng có thể in "nhà trọ")
+# Từ khóa chỉ tin khi nằm trong tên cửa hàng (bỏ dấu làm "phở" trùng "phố"; địa chỉ giao hàng cũng có thể in "nhà trọ"). Dữ liệu dùng chung với ai-service.
+_NAME_ONLY_KEYWORDS = set(data_files.load("name_only_keywords.json"))
 
 
 def _has_keyword(norm: str, keyword: str) -> bool:
@@ -132,7 +134,7 @@ def _amounts(text: str, skip_negative: bool = False) -> list[int]:
     return result
 
 
-_CASH_LABEL = re.compile(r"tien mat|tien khach|khach dua|tien thua|tien thoi|tra lai|\bcash\b|\bchange\b")  # tiền khách đưa / tiền thối lại
+_CASH_LABEL = re.compile(data_files.shared_alternation("payment_tender", "cash_given", "change") + r"|\bcash\b|\bchange\b")  # tiền khách đưa / tiền thối lại
 
 
 def _keyword_total(lines: list[str], keywords: tuple[str, ...], skip_subtotal: bool = False) -> int | None:
@@ -212,13 +214,9 @@ def extract_total(lines: list[str]) -> int | None:
     return _total_with_source(lines)[0]
 
 
-MIN_RECEIPT_SCORE = 5        # dưới mức này: ảnh không giống hóa đơn
-CONFIDENT_RECEIPT_SCORE = 6  # đúng bằng MIN: giống nhưng chưa chắc, vẫn nhận và nhắc kiểm tra
-_RECEIPT_VOCAB = (
-    "hoa don", "phieu", "tong", "thanh toan", "thanh tien", "don gia", "so luong", "vat", "ma so thue",
-    "tien mat", "chiet khau", "khuyen mai", "cam on", "total", "subtotal", "cash", "receipt", "invoice",
-    "tien khach", "phai tra", "diem tich", "ban le",
-)
+MIN_RECEIPT_SCORE = data_files.threshold("parsing.extract.MIN_RECEIPT_SCORE")
+CONFIDENT_RECEIPT_SCORE = data_files.threshold("parsing.extract.CONFIDENT_RECEIPT_SCORE")
+_RECEIPT_VOCAB = data_files.table("parsing.extract._RECEIPT_VOCAB")
 
 
 def receipt_score(lines: list[str]) -> int:
@@ -237,7 +235,7 @@ def receipt_score(lines: list[str]) -> int:
     return score + (1 if len(lines) >= 6 else 0)
 
 
-_TITLE_WORDS = ("phieu", "hoa don", "thanh toan")
+_TITLE_WORDS = data_files.table("parsing.extract._TITLE_WORDS")
 
 
 def _brand_span(line: str, brand: str) -> str:
@@ -253,18 +251,13 @@ def _brand_span(line: str, brand: str) -> str:
     return line
 
 
-# Nhãn bên bán ("Tên NPP: ...") cho ra tên cửa hàng; nhãn bên mua ("Tên khách hàng: ...") thì không.
-_SELLER_LABELS = (("npp",), ("ncc",), ("nha", "cung", "cap"), ("don", "vi", "ban"), ("cua", "hang"), ("nguoi", "ban"))
-_BUYER_PREFIXES = ("ten khach hang", "ten kh", "khach hang", "nguoi mua", "nguoi nhan", "dia chi", "dja chi", "dien giai")
-_BUYER_LABELS = ("khach", "khachhang", "nguoimua", "tenkh", "nguoinhan")  # nhãn đứng riêng một dòng, giá trị ở dòng sau
+_SELLER_LABELS = data_files.table("parsing.extract._SELLER_LABELS")
+_BUYER_PREFIXES = data_files.table("parsing.extract._BUYER_PREFIXES")
+_BUYER_LABELS = data_files.table("parsing.extract._BUYER_LABELS")
 _CODE_TOKEN = re.compile(r"^[A-Za-z]{1,4}\d{4,}$")  # PN007415, SP008236...
-# Dòng địa chỉ (có tên thành phố / bắt đầu bằng "Số 32"...) không phải tên cửa hàng
-_CITY_MARKERS = ("tphcm", "hchiminh", "hochiminh", "tphn", "hanoi", "thanhphoho", "cantho", "danang", "haiphong")
+_CITY_MARKERS = data_files.table("parsing.extract._CITY_MARKERS")
 _GLUED_CODE = re.compile(r"[A-Za-z]{1,4}\d{5,}")  # IN042620, s6IN042620: mã chứng từ dính liền
-# Từ vựng chung của hóa đơn: dòng chủ yếu gồm các từ này không phải tên cửa hàng ("Cảm ơn quý khách", "Tổng thành tiền")
-_GENERIC_WORDS = {"cam", "on", "quy", "khach", "tong", "cong", "thanh", "toan", "tien", "don", "gia", "luong", "vat",
-                  "chiet", "khau", "hotline", "website", "email", "thoai", "nhan", "vien", "ngan", "ghi", "khuyen",
-                  "phieu", "stt", "mon", "can", "phai", "dua", "thua"}  # chỉ từ chắc chắn là từ vựng hóa đơn (không có "hoa", "hang"...)
+_GENERIC_WORDS = data_files.table("parsing.extract._GENERIC_WORDS")
 
 
 def _mostly_generic(line: str) -> bool:
@@ -272,13 +265,10 @@ def _mostly_generic(line: str) -> bool:
     return bool(words) and sum(w in _GENERIC_WORDS for w in words) / len(words) >= 0.6
 
 
-_FIELD_LABEL_PREFIXES = ("nvgh", "nvbh", "nvcv", "dtnpp", "dtddnpp", "dtgsnpp", "hoadonso", "hoaddnso", "hoddnso",
-                         "hoadons", "ngayhoadon", "ngayhoaddn", "ngayhdn", "ngayin", "ngayddn", "ngay", "sdt", "mst",
-                         "stt", "soct", "loaitien")
+_FIELD_LABEL_PREFIXES = data_files.table("parsing.extract._FIELD_LABEL_PREFIXES")
 _ANY_DATE = re.compile(r"\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4}")
 _FIELD_VALUE = re.compile(r"^[^:]{1,25}:\s*\S")  # "NVBH: Phan Thi..." / "Hoa don so: IN042620"
-_STATUS_PHRASES = ("da nhap hang", "da thanh toan", "da giao", "da huy", "hoan thanh", "dang xu ly", "cho xu ly",
-                    "in store", "instore", "take away", "takeaway", "mang ve", "tai cho", "dine in", "pager")  # hình thức phục vụ in trên phiếu quán
+_STATUS_PHRASES = data_files.table("parsing.extract._STATUS_PHRASES")
 
 
 def _looks_like_code_or_status(line: str) -> bool:
@@ -300,14 +290,15 @@ def _looks_like_code_or_status(line: str) -> bool:
             or any(squeezed.startswith(_alnum(p)) for p in _BUYER_PREFIXES))
 
 
-_THI_SYLLABLES = ("thien", "thinh", "thieu", "thiet", "thiep", "thiem", "thich")  # đã bỏ dấu: Thiên, Thịnh, Thiếu, Thiết, Thiệp, Thiêm, Thích
+_THI_SYLLABLES = data_files.table("parsing.extract._THI_SYLLABLES")
 
 
 def _looks_like_person(line: str) -> bool:
     """"HO THI HOANG NGA": họ + đệm "Thị/Văn" -> tên người (thu ngân, chủ hộ), không phải tên cửa hàng."""
     words = _norm(line).split()
-    # "Thị" có thể dính tên đệm ("THIHOANG") nên chỉ cần bắt đầu bằng "thi", trừ các âm tiết thật bắt đầu bằng "thi": "LẨU THIÊN ĐƯỜNG", "QUÁN THỊNH VƯỢNG".
-    return 3 <= len(words) <= 5 and words[0] != "sieu" and ((words[1].startswith("thi") and not words[1].startswith(_THI_SYLLABLES)) or words[1] == "van")  # họ có thể dính chữ rác ("InNGUYEN")
+    # "Thị" có thể dính tên đệm ("THIHOANG") nên chỉ cần bắt đầu bằng "thi", trừ khi cả từ là một âm tiết thật: "LẨU THIÊN ĐƯỜNG", "QUÁN THỊNH VƯỢNG", "BÒ THỊT NƯỚNG".
+    # So bằng nhau chứ không "bắt đầu bằng": tên đệm dính vào ("THITAM" = Thị Tâm) không trùng đúng âm tiết nào nên vẫn bị bắt.
+    return 3 <= len(words) <= 5 and words[0] != "sieu" and ((words[1].startswith("thi") and words[1] not in _THI_SYLLABLES) or words[1] == "van")  # họ có thể dính chữ rác ("InNGUYEN")
 
 
 _ADDRESS_START = re.compile(r"^(?:[a-z]\d+|\d+[a-z]?)(?:\s*[-/,]\s*\d+[a-z]?)*\s+[a-z]")  # "H472 - 85 Hoang Huu Nam", "185 Hoang Huu Nam"
@@ -335,10 +326,9 @@ def _seller_label_name(line: str) -> str | None:
     return None
 
 
-_TABLE_HEADERS = {"ttien", "thanhtien", "dongia", "sanpham", "soluong", "dvt", "stt", "sl", "tensp", "tenhang", "dongia"}  # tiêu đề cột ("T.Tiền")
-_POLICY_LINE = ("doitra", "camon", "hangdamua", "khongdoi", "baohanh")  # dạng viết liền: dòng chính sách/lời cảm ơn, không phải tên cửa hàng
-_NOT_NAME_WORDS = ("dia chi", "tel", "mst", "ma so thue", "dien thoai", "email", "website", "duong", "phuong",
-                   "quan", "thanh pho", "viet nam", "chi minh", "hotline", "fax")
+_TABLE_HEADERS = data_files.table("parsing.extract._TABLE_HEADERS")
+_POLICY_LINE = data_files.table("parsing.extract._POLICY_LINE")
+_NOT_NAME_WORDS = data_files.table("parsing.extract._NOT_NAME_WORDS")
 
 
 def _join_company_name(lines: list[str], confs: list[float], i: int, line: str) -> str:
@@ -396,7 +386,7 @@ def _join_logo_lines(lines: list[str], confs: list[float], i: int, line: str, ma
     return f"{line.strip()} {nxt}"
 
 
-_VENUE_ONLY = {"coffee", "cafe", "tea", "shop", "store", "restaurant", "quan", "nha", "hang", "bar", "pub", "market", "mart"}
+_VENUE_ONLY = data_files.table("parsing.extract._VENUE_ONLY")
 
 
 def extract_merchant(lines: list[str], confidences: list[float] | None = None) -> str | None:
@@ -467,7 +457,8 @@ def _extract_merchant(lines: list[str], confidences: list[float] | None = None) 
     # Từ dòng tiêu đề bảng món ("STT", "Tên hàng") trở xuống là tên hàng, không phải tên cửa hàng: "Bút bi Thiên Long" không làm cửa hàng là Thiên Long.
     table = next((i for i, l in enumerate(lines) if _alnum(_norm(l)) in _TABLE_HEADERS or _alnum(_norm(l)).startswith("stt")), len(lines))
     cut = min(cut, table)
-    pool = [(i, l) for i, l in usable if i < cut] or usable
+    # Tên cửa hàng nằm TRÊN bảng món: bill có tiêu đề bảng mà phía trên không có dòng nào dùng được (mẫu in sẵn không in tên người bán) thì để trống, không lấy chữ trong bảng
+    pool = [(i, l) for i, l in usable if i < cut] or [(i, l) for i, l in usable if i < table]
     # Website in cuối bill ("www.giadinhxanh.vn") xác nhận dòng nào ở đầu bill là TÊN: dòng công ty ("... GIA iNH XANH") thường đọc nát hơn dòng logo ("GIA ĐÌNH XANH").
     stems = {m.group(1).replace("-", "") for l in lines if (m := _SITE_RE.search(_norm(l)))}
     for _, line in pool[:12]:
@@ -527,9 +518,10 @@ def _category_from_products(lines: list[str], merchant: str | None = None) -> tu
         if merchant and line.strip() == merchant.strip():
             continue
         norm = " ".join(_norm(line).replace("'", "").split())  # OCR hay chèn dấu ' vào chữ ("nuo'ng")
-        norm = norm.replace("thuoc la", "")  # thuốc lá không phải thuốc chữa bệnh
+        for phrase in _NOT_MEDICINE:
+            norm = norm.replace(phrase, "")
         norm = re.sub(r"\bdien thoa\w?", "dienthoai", norm)  # "điện thoại" (kể cả OCR sai chữ cuối) là một từ riêng, không phải "tiền điện" + "thoại"
-        if re.search(r"\b(?:pass|password|mat khau)\b", norm):  # "Pass Wifi: 1234" cuối phiếu quán cà phê không phải cước internet
+        if _PASSWORD_LINE.search(norm):
             continue
         if re.search(r"https?|www\.|\.(com|vn|net|org)\b", norm):  # địa chỉ web không phải tên sản phẩm
             continue
@@ -561,7 +553,7 @@ def classify_category_detailed(
     if remembered:
         return remembered, "memory", 1.0
     merchant_norm = _norm(merchant or "")
-    body_norm = _norm(" ".join(l for l in lines if not re.search(chr(92) + "b(?:pass|password)" + chr(92) + "b", _norm(l))))  # dòng "Pass Wifi: ..." không phải cước internet
+    body_norm = _norm(" ".join(l for l in lines if not _PASSWORD_LINE.search(_norm(l))))
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, merchant_norm)]
     # "BÁCH HÓA MINI AN KHANG": tên cửa hàng ghi rõ loại hình bách hóa/tạp hóa thì đó là tạp hóa, dù đoạn sau trùng tên một chuỗi khác (nhà thuốc An Khang).
     if matches and any(g in merchant_norm for g in _GENERIC_STORE) and BRAND_CATEGORIES[best_brand(matches, merchant_norm)] != "groceries":
@@ -571,8 +563,8 @@ def classify_category_detailed(
     # Logo ghi loại hình ở đầu phiếu ("KHU GIẢI TRÍ" / "HAPPY ZONE") trong khi tên cửa hàng chọn được lại là dòng công ty: với giải trí xét thêm 4 dòng đầu.
     head_norm = _norm(" ".join(lines[:4]))
     for category, keywords in _CATEGORY_KEYWORDS.items():
-        if category == "groceries" and ("dien may" in merchant_norm or "noi that" in merchant_norm):
-            continue  # "Siêu thị điện máy", "Siêu thị nội thất" bán đồ gia dụng/điện tử, không phải thực phẩm
+        if category == "groceries" and any(w in merchant_norm for w in _GROCERIES_NOT_FOR):
+            continue
         name_text = f"{merchant_norm} {head_norm}" if category == "entertainment" else merchant_norm
         if any(_has_keyword(name_text, k) for k in keywords):
             return category, "keyword", 0.75
@@ -605,14 +597,16 @@ def compute_coverage(lines: list[tuple[str, float]]) -> float:
 
 
 _WORD_ALIAS = {"uoi": "muoi", "tra": "tram"}  # OCR bỏ dấu và rớt chữ: "mươi" -> "uoi", "trăm" -> "tra" (chỉ có hiệu lực trong đoạn đọc số)
-_DIGITS = {"mot": 1, "hai": 2, "ba": 3, "bon": 4, "tu": 4, "nam": 5, "lam": 5, "sau": 6, "bay": 7, "tam": 8, "chin": 9}
-_ZERO_WORDS = {"khong", "linh", "le"}
-_NUMBER_WORDS = set(_DIGITS) | _ZERO_WORDS | {"muoi", "moi", "tram", "nghin", "ngan", "trieu"}
+_DIGITS = data_files.table("parsing.extract._DIGITS")
+_ZERO_WORDS = data_files.table("parsing.extract._ZERO_WORDS")
+def _number_words() -> set:
+    """Từ chỉ số. Dựng lại mỗi lần gọi (rất nhỏ) vì _DIGITS và _ZERO_WORDS có thể vừa được thay bằng bản admin."""
+    return set(_DIGITS) | _ZERO_WORDS | {"muoi", "moi", "tram", "nghin", "ngan", "trieu"}
 
 
 def _words(text: str) -> list[str]:
     """Tách chữ thường không dấu; từ OCR dính nhau ("linhnamnghin") được tách lại nếu ghép trọn từ các từ chỉ số."""
-    known = _NUMBER_WORDS | set(_WORD_ALIAS) | {"dong"}
+    known = _number_words() | set(_WORD_ALIAS) | {"dong"}
     out = []
     for w in re.findall(r"[a-z]+", _norm(text)):
         best = [[]] + [None] * len(w)  # best[i] = cách tách ít mảnh nhất cho w[:i]
@@ -627,7 +621,8 @@ def _words(text: str) -> list[str]:
 def words_to_amount(text: str) -> int | None:
     """"Tám trăm bảy mươi ba nghìn đồng" -> 873000. Gặp chữ lạ (OCR hỏng) trong đoạn số thì trả None, không đoán."""
     words = _words(text)
-    start = next((i for i, w in enumerate(words) if w in _NUMBER_WORDS), None)
+    numbers = _number_words()
+    start = next((i for i, w in enumerate(words) if w in numbers), None)
     if start is None:
         return None
     millions = thousands = cur = pending = n = 0
@@ -655,8 +650,10 @@ def words_to_amount(text: str) -> int | None:
 
 def extract_words_total(lines: list[str]) -> int | None:
     """Số tiền bằng chữ in trên hóa đơn (có thể xuống dòng): thử từng dòng, rồi dòng đó nối dòng kế."""
+    numbers = _number_words()
+
     def n_words(s: str) -> int:
-        return sum(w in _NUMBER_WORDS for w in _words(s))
+        return sum(w in numbers for w in _words(s))
 
     for i, line in enumerate(lines):
         if n_words(line) < 2:

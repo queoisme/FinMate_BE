@@ -353,5 +353,17 @@
     "total": 162000,
     "category": "dining",
     "kind": "ảnh AI tạo (bộ 15 ảnh thử nghiệm OCR) 2026-10-15: Quán cà phê nhỏ, ảnh nghiêng, có 'Tiền hàng' 180.000 rồi giảm giá 10% rồi 'Tổng cộng' 162.000 (không được lấy 180.000)"
+  },
+  "Bill-handwritting/hoa-don-ban-le-mau-in-san-coco-mart.jpg": {
+    "merchant": null,
+    "total": 447000,
+    "category": "groceries",
+    "kind": "viết tay trên mẫu in sẵn (hóa đơn bán lẻ) 2026-10-27: không in tên người bán (chỉ có ô Họ tên người mua hàng: CoCo Mart), tổng 447.000 không có nhãn Tổng"
+  },
+  "Bill-handwritting/hoa-don-ban-hang-tiem-rau-tien-thu.jpg": {
+    "merchant": "tiemrautienthu",
+    "total": 366000,
+    "category": "groceries",
+    "kind": "viết tay trên mẫu in sẵn (tiệm rau) 2026-10-27: tiền viết tắt theo nghìn (44 = 44.000), người bán không ghi tổng; 366.000 là tổng 15 số viết tay"
   }
 }

@@ -35,3 +35,34 @@ def test_vietocr_only_adds_accents_unless_it_reads_a_known_brand():
     assert _prefer("Winmert", "WinMart") == "WinMart"                         # Paddle đã đúng thương hiệu: giữ
     assert _prefer("TRONG THI winmart THI THI", "tmcmi") == "tmcmi"           # bịa chữ, không giống Paddle: giữ
     assert _prefer("PHIẾU", "PHIEU") == "PHIẾU" and _prefer("phiếu", "PHIEU") == "PHIẾU"
+
+
+def test_body_lines_accept_vietocr_letter_fixes_but_not_invented_text():
+    # Thân phiếu (tên món): VietOCR được sửa cả chữ PaddleOCR đọc sai, miễn là còn giống; bịa chữ thì giữ Paddle.
+    # Đo trên 58 ảnh thật: tên món chứa nguyên đoạn nhãn 123/161 (Paddle) -> 149/157.
+    from reading.ocr import _prefer_body
+    assert _prefer_body("Pizza bốn loại", "Pizza bon loai") == "Pizza bốn loại"                      # thêm dấu
+    assert _prefer_body("Nước ngọt", "Nudc ngot") == "Nước ngọt"                                      # sửa chữ đọc sai
+    assert _prefer_body("Thông tin chuyển khoản thu thu thu", "Cong Jy TNHH Minh Pha") == "Cong Jy TNHH Minh Pha"  # bịa chữ
+    assert _prefer_body("sữa tươi", "SUA TUOI") == "SỮA TƯƠI"                                         # Paddle IN HOA: giữ IN HOA
+
+
+def test_header_lines_keep_the_strict_gate_while_body_lines_use_the_body_gate(monkeypatch):
+    import io
+    from PIL import Image
+    from reading import ocr
+
+    class Engine:
+        def ocr(self, bgr, cls=True):
+            return [[([[10, 20], [110, 22], [108, 40], [12, 38]], ("PizzaHut", 0.9)),
+                     ([[10, 60], [110, 62], [108, 80], [12, 78]], ("Nudc ngot", 0.9))]]
+
+    answers = iter(["Pizzahd", "Nước ngọt"])
+    monkeypatch.setattr(ocr, "_engine", lambda: Engine())
+    monkeypatch.setattr(ocr, "_use_vietocr", lambda: True)
+    monkeypatch.setattr(ocr, "_VIET_HEAD_LINES", 1)
+    monkeypatch.setattr(ocr, "crop_receipt", lambda a: a)
+    monkeypatch.setattr(ocr.vietocr_onnx, "recognize", lambda image: next(answers))
+    buf = io.BytesIO()
+    Image.new("RGB", (900, 300), "white").save(buf, "PNG")
+    assert [b.text for b in ocr.read_boxes(buf.getvalue())] == ["PizzaHut", "Nước ngọt"]  # đầu phiếu: "Pizzahd" bị chặn; thân: nhận

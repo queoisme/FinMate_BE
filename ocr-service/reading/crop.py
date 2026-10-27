@@ -1,15 +1,16 @@
 """Cắt vùng tờ hóa đơn khỏi nền (bàn phím, bàn, tay...) trước khi OCR."""
 import cv2
 import numpy as np
+from classification import data_files
 
-_MIN_AREA_RATIO = 0.15   # vùng sáng nhỏ hơn mức này không phải hóa đơn
-_MAX_BOX_RATIO = 0.90    # hóa đơn đã chiếm gần hết khung thì không cần cắt
-_MARGIN_RATIO = 0.06     # chừa lề để không mất thanh logo/chữ đậm sát mép giấy
-_MIN_RECT_FILL = 0.9     # vùng giấy lấp đầy >= 90% hình chữ nhật nhỏ nhất mới xoay thẳng; méo/nhàu thì chỉ cắt hộp
-_MIN_TILT_DEGREES = 3    # nghiêng ít hơn mức này thì chỉ cắt, không xoay (tránh làm mờ ảnh)
-_MIN_BOX_FILL = 0.6      # vùng sáng lấp đầy hộp bao của nó ít hơn mức này = dính cả nền sáng (kệ hàng, bàn) -> thử tách theo màu
-_MAX_PAPER_SATURATION = 50     # giấy hóa đơn gần như không có màu; kệ hàng, bao bì, đồ vật thì có
-_MIN_AREA_RATIO_RETRY = 0.08   # sau khi tách theo màu, tờ bill dài và hẹp chiếm ít diện tích khung hơn tờ vuông
+_MIN_AREA_RATIO = data_files.threshold("reading.crop._MIN_AREA_RATIO")
+_MAX_BOX_RATIO = data_files.threshold("reading.crop._MAX_BOX_RATIO")
+_MARGIN_RATIO = data_files.threshold("reading.crop._MARGIN_RATIO")
+_MIN_RECT_FILL = data_files.threshold("reading.crop._MIN_RECT_FILL")
+_MIN_TILT_DEGREES = data_files.threshold("reading.crop._MIN_TILT_DEGREES")
+_MIN_BOX_FILL = data_files.threshold("reading.crop._MIN_BOX_FILL")
+_MAX_PAPER_SATURATION = data_files.threshold("reading.crop._MAX_PAPER_SATURATION")
+_MIN_AREA_RATIO_RETRY = data_files.threshold("reading.crop._MIN_AREA_RATIO_RETRY")
 
 
 def _paper_only_contour(img_bgr: np.ndarray, mask: np.ndarray, k: int):

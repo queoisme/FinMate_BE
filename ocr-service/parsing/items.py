@@ -3,26 +3,28 @@ import re
 from dataclasses import dataclass, replace
 from statistics import median
 
-from parsing.extract import _MIN_AMOUNT, _amounts, _norm
+from parsing import extract  # ngưỡng đọc qua extract.<tên> lúc dùng: bản admin thay nóng không để lại giá trị cũ ở đây
+from parsing.extract import _amounts, _norm
 from reading.ocr import OcrBox
+from classification import data_files
 
-ROW_TOLERANCE = 0.6  # lệch tâm dọc dưới 0,6 lần chiều cao hộp trung vị thì cùng hàng
-PRICE_COLUMN = 0.35  # giá nằm trong 35% bên phải tờ giấy
+ROW_TOLERANCE = data_files.threshold("parsing.items.ROW_TOLERANCE")
+PRICE_COLUMN = data_files.threshold("parsing.items.PRICE_COLUMN")
 
 _HEADER_RE = re.compile(r"\b(?:sl|tong|ten hang|mat hang|don gia|thanh tien|so luong)\b")
 # Dòng cộng tạm: hết danh sách món nhưng tổng bill còn có thể cộng thuế/phí, trừ giảm giá cả bill ở dưới.
 # ponytail: "^t[oe0-9]ng" bắt cả "T6ng", "Téng" do OCR đọc sai "Tổng"; tên món mở đầu bằng "Tông..." sẽ bị coi là dòng tổng
 _SUBTOTAL_RE = re.compile(r"^t[oe0-9]ng\b|\bt?ong cong|thanh tien|c[o0]ng tien hang|t[a4]m tinh|^tien hang")
 _FINAL_RE = re.compile(r"thanh to[a4]n|phai tra|phai thu|total")  # dòng tổng cuối: hết vùng bill
-_DISCOUNT_RE = re.compile(r"giam|chiet khau|voucher|khuyen mai")
+_alt = data_files.shared_alternation  # từ vựng chung ocr-service / ai-service / backend: data/shared_words.json
+_DISCOUNT_RE = re.compile(_alt("discount"))
 # thuế/phí cộng sau dòng cộng tiền hàng; "tổng tiền chưa thuế/VAT", "trước thuế" là cộng tạm, "Tổng cộng (gồm thuế)"
 # là tổng cuối, không phải thuế.
-# Đồng bộ với ReceiptSplitter.IsSurcharge (backend, FinMate.Application/Transactions): thêm từ ở đây thì thêm ở BE và ở
-# ReceiptSplitterTests.Every_ocr_surcharge_term_is_a_surcharge, không thì BE coi dòng phí là một món thường.
-_SURCHARGE_RE = re.compile(r"\bthue\b|\bvat\b|gtgt|phi phuc vu|phi dich vu|service")  # gtgt: OCR hay đọc "Thuế" thành "Thu€"
-_PRE_TAX_RE = re.compile(r"\bchua\b|\btruoc\b|\bgom\b")
+# Từ vựng phụ thu nằm ở data/shared_words.json (vai trò tax, tax_glued, service, service_glued, pre_tax), cùng nguồn với ReceiptSplitter.IsSurcharge của backend.
+_SURCHARGE_RE = re.compile(rf"\b(?:{_alt('tax')})\b|{_alt('tax_glued', 'service', 'service_glued')}")  # tax_glued: OCR hay đọc "Thuế" thành "Thu€"
+_PRE_TAX_RE = re.compile(rf"\b(?:{_alt('pre_tax')})\b")
 # dòng trả tiền/tiền thối/điểm: luôn nằm sau các món, gặp là hết bảng món (không bao giờ là một món)
-_PAYMENT_RE = re.compile(r"tien mat|chuyen khoan|^the\s*:|^the\s*$|^the\s+(?:atm|tin dung|ghi no|visa|master|jcb|napas|ngan hang)\b|khach dua|tien thua|tra lai|thanh toan|\bdiem\b")
+_PAYMENT_RE = re.compile(_alt("payment_tender", "payment_label", "cash_given", "change") + r"|^the\s*:|^the\s*$|^the\s+(?:atm|tin dung|ghi no|visa|master|jcb|napas|ngan hang)\b|thanh toan|\bdiem\b")
 _TOTAL_WORD_RE = re.compile(r"\bt[oe0-9]ng\b")  # "Tổng" ở bất kỳ đâu trong hàng
 _NUMERIC_RE = re.compile(r"^[\d\s.,x×*+\-đdĐD=]*$")  # số lượng, đơn giá: không phải chữ của tên
 _NEGATIVE_RE = re.compile(r"-\s*\d")
@@ -47,8 +49,8 @@ class ItemsResult:
     fixed_total: int | None = None
 
 
-def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
-    """Gom hộp thành hàng ngang theo tâm dọc, mỗi hàng sắp trái sang phải."""
+def _group_rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
+    """Gom hộp thành hàng ngang theo tâm dọc, mỗi hàng sắp trái sang phải (chưa nối số tiền bị cắt)."""
     tol = ROW_TOLERANCE * median(b.y1 - b.y0 for b in boxes)
     rows: list[list[OcrBox]] = []
     centers: list[float] = []
@@ -60,7 +62,11 @@ def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
         else:
             rows.append([b])
             centers.append(cy)
-    return _join_wrapped_amounts([sorted(r, key=lambda b: b.x0) for r in rows])
+    return [sorted(r, key=lambda b: b.x0) for r in rows]
+
+
+def _rows(boxes: list[OcrBox]) -> list[list[OcrBox]]:
+    return _join_wrapped_amounts(_group_rows(boxes))
 
 
 _WRAPPED_AMOUNT_RE = re.compile(r"^\d{1,3}(?:[.,]\d{3})*[.,]\d{2}$")  # "452,43": số tiền bị cắt giữa ba chữ số cuối
@@ -120,7 +126,7 @@ def _verified_calc(text: str) -> int | None:
     unit, amount = _amounts(m[2]), _amounts(m[3])
     if len(unit) != 1 or len(amount) != 1:
         return None
-    return amount[0] if amount[0] >= _MIN_AMOUNT and int(m[1]) * unit[0] == amount[0] else None
+    return amount[0] if amount[0] >= extract._MIN_AMOUNT and int(m[1]) * unit[0] == amount[0] else None
 
 
 def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tuple[OcrBox, int] | None:
@@ -133,7 +139,7 @@ def _price(row: list[OcrBox], price_x: float, skip_trailing: bool = False) -> tu
             return box, calc
         if (box.x0 + box.x1) / 2 < price_x:
             return None
-        found = [a for a in _amounts(box.text) if a >= _MIN_AMOUNT]
+        found = [a for a in _amounts(box.text) if a >= extract._MIN_AMOUNT]
         if found:
             return box, found[-1]
         if not skip_trailing:
@@ -154,7 +160,7 @@ def _unit_times_qty(row: list[OcrBox], price_box: OcrBox, amount: int) -> int | 
     qty = [b for b in left if all(b is not m for m in money) and _QTY_RE.fullmatch(b.text.strip())]
     if len(money) != 1 or len(qty) > 1:
         return None
-    unit = max((a for a in _amounts(money[0].text) if a >= _MIN_AMOUNT), default=None)
+    unit = max((a for a in _amounts(money[0].text) if a >= extract._MIN_AMOUNT), default=None)
     if unit is None:
         return None
     if qty:
@@ -168,7 +174,7 @@ def _unit_times_qty(row: list[OcrBox], price_box: OcrBox, amount: int) -> int | 
     return near.pop() if len(near) == 1 else None
 
 
-_MAX_INFERRED_QTY = 20
+_MAX_INFERRED_QTY = data_files.threshold("parsing.items._MAX_INFERRED_QTY")
 
 
 def _one_digit_apart(a: int, b: int) -> bool:
@@ -179,7 +185,7 @@ def _one_digit_apart(a: int, b: int) -> bool:
 _PAYABLE_ROW_RE = re.compile(r"tong thanh toan|phai tra|can thanh toan")
 _TONG_CONG_ROW_RE = re.compile(r"\btong cong\b")  # nhãn tổng cuối của bill không in "Thanh toán"; chỉ dùng khi không có nhãn ở trên
 _SUBTOTAL_ROW_RE = re.compile(r"tien hang|tam tinh")  # "Tổng cộng tiền hàng" là cộng tạm, chưa tính thuế/giảm giá
-_CASH_ROW_RE = re.compile(r"khach dua|khach tra|tien mat|tien thua|thoi lai|tra lai|hinh thuc")
+_CASH_ROW_RE = re.compile(_alt("cash_given", "change", "payment_tender", "payment_label"))
 
 
 def payable_total(boxes: list[OcrBox]) -> int | None:
@@ -203,7 +209,7 @@ def payable_total(boxes: list[OcrBox]) -> int | None:
             tier = "tong_cong"
         else:
             continue
-        amount = next((a for box in reversed(r) for a in [x for x in _amounts(box.text, True) if x >= _MIN_AMOUNT][-1:]), None)
+        amount = next((a for box in reversed(r) for a in [x for x in _amounts(box.text, True) if x >= extract._MIN_AMOUNT][-1:]), None)
         if amount is not None:
             if tier == "payable":
                 payable = amount
@@ -230,7 +236,7 @@ def _split_merged_cells(boxes: list[OcrBox], price_x: float) -> list[OcrBox]:
     for b in boxes:
         text = b.text.rstrip()
         m = None if (b.x0 + b.x1) / 2 >= price_x else _MERGED_TAIL_RE.match(text)
-        if m is None or sum(c.isalpha() for c in m["label"]) < 3 or not _CALC_RE.search(m["tail"])                 or not [a for a in _amounts(m["tail"]) if a >= _MIN_AMOUNT]:
+        if m is None or sum(c.isalpha() for c in m["label"]) < 3 or not _CALC_RE.search(m["tail"])                 or not [a for a in _amounts(m["tail"]) if a >= extract._MIN_AMOUNT]:
             out.append(b)
             continue
         cut = b.x0 + (b.x1 - b.x0) * len(m["label"]) / len(text)

@@ -7,11 +7,10 @@ import numpy as np
 from PIL import Image
 
 from reading.crop import crop_receipt
+from classification import data_files
 
-# ponytail: ngưỡng chỉnh theo 4 ảnh mẫu (bình thường p99=238/p1=21, tối p99=46, cháy sáng p1=126);
-# thêm ảnh thật rồi chỉnh lại nếu báo nhầm.
-_DARK_P99 = 100
-_BRIGHT_P1 = 100
+_DARK_P99 = data_files.threshold("reading.quality._DARK_P99")
+_BRIGHT_P1 = data_files.threshold("reading.quality._BRIGHT_P1")
 
 
 def assess_quality(img_bgr: np.ndarray) -> str:
@@ -25,9 +24,7 @@ def assess_quality(img_bgr: np.ndarray) -> str:
     return "ok"
 
 
-# ponytail: đo trên 28 ảnh thật: ảnh nét 9..2400, cùng ảnh đó làm mờ (sigma 2.5) chỉ còn <16;
-# chọn 8 để không báo nhầm ảnh thật nào, chỉ bắt ảnh mờ nặng.
-_BLUR_VAR = 8
+_BLUR_VAR = data_files.threshold("reading.quality._BLUR_VAR")
 
 
 def sharpness(img_bgr: np.ndarray) -> float:

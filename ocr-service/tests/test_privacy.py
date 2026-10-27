@@ -79,3 +79,11 @@ def test_places_inside_shop_and_item_names_are_kept():
     keep = ["Bệnh viện quận 7", "Vé máy bay Hà Nội - TP.HCM", "Ve may bay Ha N8i - TP.HCM", "Điện lực Hồ Chí Minh", "CÔNG TY TNHH SX TM GẠO VIỆT NAM", "Quần jean nam ống đứng",
             "Phí cầu đường BOT", "Quán cơm tấm Cô Ba", "2 Ca phe sua", "10 Banh bao nhan thit"]
     assert sanitize_lines(keep) == keep
+
+
+def test_food_lines_with_thit_are_not_mistaken_for_a_person_but_real_names_still_are():
+    # "thịt" bắt đầu bằng "thi" như "Thị" trong tên người, nhưng là một âm tiết thật: dòng chữ thứ hai là âm tiết thật thì không phải tên người.
+    food = ["Bò thịt nướng", "Cơm thịt kho", "Gà thịt xông khói", "ý thịt xông", "Bánh thìa", "Lẩu Thiên Đường"]
+    assert sanitize_lines(food) == food
+    for person in ("HO THI HOANG NGA", "Nguyen Thi Hoa", "Tran Thihong Nhung"):  # "Thi" riêng hoặc dính tên đệm: vẫn bị bỏ
+        assert sanitize_lines([person]) == [], person

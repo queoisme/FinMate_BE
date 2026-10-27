@@ -20,24 +20,32 @@ from parsing import app_screens
 from reading import vietocr_onnx
 from classification.category_model import CategoryModel
 from parsing.privacy import sanitize_lines
-from parsing.extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, analyze, receipt_score
-from storage.knowledge_pg import open_knowledge
+from parsing import extract  # ngưỡng đọc qua extract.<tên> lúc dùng: bản admin thay nóng không để lại giá trị cũ ở đây
+from parsing.extract import analyze, receipt_score
+from storage import config_api
+from storage.knowledge_api import open_knowledge
 from parsing.merchant_name import format_merchant_name
 from reading import ocr
-from parsing.items import extract_items, payable_total
-from parsing.totals import choose_total
+from parsing.items import extract_items
+from parsing.prepare import prepare
+from parsing.totals import resolve_total
 from reading.ocr import NoTextError, read_boxes
 from reading.quality import image_quality
-from storage.storage_pg import current_user, open_stores
+from storage.ai_api import api_from_env, current_user
+from storage.storage_api import open_stores
 
 MAX_BYTES = 10 * 1024 * 1024
+logging.basicConfig(level=logging.INFO)  # không có dòng này thì log INFO (vd. "Đã áp dụng tài liệu cấu hình") bị nuốt, admin không biết bản mới đã chạy chưa
 
 def warm_up() -> None:
     """Nạp trước PaddleOCR và VietOCR: lần quét đầu sau khi khởi động mất vài chục giây vì nạp model, quá thời gian chờ 30 giây của AI Service."""
-    try:
+    def load() -> None:
         ocr._engine()
         if ocr._use_vietocr():
             vietocr_onnx._sessions()
+
+    try:
+        ocr.OCR_EXECUTOR.submit(load).result()  # cùng luồng với các lượt quét sau này
     except Exception:  # noqa: BLE001 - nạp trước lỗi thì lần quét đầu tự nạp lại và báo lỗi thật ở đó
         logging.getLogger(__name__).exception("Không nạp trước được OCR")
 
@@ -49,9 +57,16 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="FinMate OCR Service", lifespan=lifespan)
-# File cạnh code như trước; có biến môi trường FINMATE_DATABASE_URL thì lưu vào PostgreSQL (xem storage_pg.py)
+# File cạnh code như trước; có AI_SERVICE_URL + AI_SERVICE_API_KEY thì lưu qua API của AI Service (xem storage/ai_api.py). ocr-service không kết nối DB nào.
 memory, dataset = open_stores(Path(__file__).parent)
-unknown_scans, reload_knowledge = open_knowledge()  # có DB: nạp thương hiệu/từ khóa từ DB và ghi bill lạ vào DB
+unknown_scans, reload_knowledge = open_knowledge()  # có API: nạp thương hiệu/từ khóa từ AI Service và ghi bill lạ qua nó
+config_api_client = api_from_env()  # tài liệu cấu hình (từ vựng, ngưỡng) admin đã kích hoạt: có API thì nạp và theo dõi định kỳ, không có thì dùng data/*.json
+if config_api_client:
+    try:
+        config_api.reload(config_api_client)
+    except Exception:  # noqa: BLE001 - AI Service chưa lên hay chưa migrate không được làm API chết lúc khởi động
+        logging.getLogger(__name__).warning("Chưa nạp được tài liệu cấu hình từ AI Service: dùng bản trong data/", exc_info=True)
+    config_api.start_watcher(config_api_client)
 # Mô hình học chỉ có khi đã huấn luyện và qua cổng chặn (xem train_category_model.py); không có thì dùng luật.
 category_model = CategoryModel.load(Path(__file__).parent / "category_model.joblib")
 
@@ -153,11 +168,20 @@ def save_merchant_category(body: MerchantCategory):
 
 @app.post("/admin/reload-knowledge")
 def reload_knowledge_endpoint(x_admin_token: str | None = Header(None)):
-    """Áp dụng thương hiệu/từ khóa vừa sửa trong DB mà không khởi động lại. Cần FINMATE_ADMIN_TOKEN (chưa đặt thì tắt hẳn)."""
+    """Áp dụng thương hiệu/từ khóa vừa sửa ở AI Service mà không khởi động lại. Cần FINMATE_ADMIN_TOKEN (chưa đặt thì tắt hẳn)."""
     token = os.environ.get("FINMATE_ADMIN_TOKEN")
     if not token or not x_admin_token or not hmac.compare_digest(token, x_admin_token):
         return _error(403, "Không có quyền")
     return {"reloaded": reload_knowledge()}
+
+
+@app.post("/admin/reload-config")
+def reload_config_endpoint(x_admin_token: str | None = Header(None)):
+    """Áp dụng ngay tài liệu cấu hình (từ vựng, ngưỡng) admin vừa kích hoạt, không chờ nhịp theo dõi định kỳ. Cùng khóa FINMATE_ADMIN_TOKEN với reload-knowledge."""
+    token = os.environ.get("FINMATE_ADMIN_TOKEN")
+    if not token or not x_admin_token or not hmac.compare_digest(token, x_admin_token):
+        return _error(403, "Không có quyền")
+    return {"applied": config_api.reload(config_api_client) if config_api_client else {}}
 
 
 def _bill_items(boxes, total):
@@ -188,15 +212,15 @@ def analyze_bill(image: UploadFile = File(...), share_data: bool = Form(False)):
         return _error(400, "File tải lên không phải ảnh hợp lệ")
     try:
         quality = image_quality(data)
-        boxes = read_boxes(data)  # đọc đúng một lần; lines suy từ hộp nên logic cũ giữ nguyên
+        boxes, shorthand = prepare(read_boxes(data))  # đọc đúng một lần; lines suy từ hộp nên logic cũ giữ nguyên. prepare: sắp theo hàng, nhân số viết tắt theo nghìn
         lines = [(b.text, b.conf) for b in boxes]
         texts = [t for t, _ in lines]
         score = receipt_score(texts)
         screen = app_screens.parse(texts)  # ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn)
-        if score < MIN_RECEIPT_SCORE and not screen:
+        if score < extract.MIN_RECEIPT_SCORE and not screen:
             return _not_a_receipt("Ảnh này không giống hóa đơn. Hãy chụp hoặc chọn ảnh hóa đơn rõ chữ.")
         # tổng chọn bằng ràng buộc số học (tạm tính + thuế - giảm giá, tiền khách đưa - tiền thối, cộng các món); chưa kiểm chứng được thì dùng cách đọc theo nhãn
-        total_choice = (None, False) if screen else choose_total(boxes, fallback=payable_total(boxes))
+        total_choice = (None, False, "read") if screen else resolve_total(boxes, texts)
         result = analyze(
             lines,
             lookup=lambda m: memory.get(m),
@@ -205,6 +229,8 @@ def analyze_bill(image: UploadFile = File(...), share_data: bool = Form(False)):
             forced_total=total_choice[0],
         )
         result["total_verified"] = total_choice[1]
+        if shorthand or total_choice[2] == "items":
+            result["needs_review"] = True  # số tiền người bán viết tắt theo nghìn, hoặc bill không in tổng nên lấy tổng các món: người dùng xác nhận
         # tên đẹp người dùng đã chốt cho cửa hàng này > tên tự làm sạch từ chữ OCR
         display = lambda m: (memory.display_name(m) or format_merchant_name(m) or m) if m else None  # noqa: E731
         if screen:
@@ -224,7 +250,7 @@ def analyze_bill(image: UploadFile = File(...), share_data: bool = Form(False)):
         result["items"], result["items_ok"] = ([], False) if screen else _bill_items(boxes, result["total_amount"])
         if not result["items_ok"] and sum(1 for i in result["items"] if i["parent"] is None and not i["is_discount"]) >= 2:
             result["needs_review"] = True  # đọc được bảng món nhưng cộng không ra tổng (kể cả thuế/phí/giảm giá): một trong hai đọc sai, nhắc người dùng kiểm tra
-        weak_image = quality != "ok" or (score < CONFIDENT_RECEIPT_SCORE and not screen)  # ảnh kém, hoặc chỉ "hơi giống" hóa đơn
+        weak_image = quality != "ok" or (score < extract.CONFIDENT_RECEIPT_SCORE and not screen)  # ảnh kém, hoặc chỉ "hơi giống" hóa đơn
         result["merchant_display"] = (
             memory.display_name(result["merchant"]) or display(result["merchant"])
         )  # tên người dùng đã chốt > tên tự làm sạch

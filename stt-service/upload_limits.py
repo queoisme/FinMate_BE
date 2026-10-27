@@ -1,7 +1,11 @@
 """Reject oversized recognition bodies before multipart parsing; prevent disk spooling."""
 from starlette.formparsers import MultiPartParser
 
-MAX_BODY_BYTES = 10 * 1024 * 1024 + 4096
+# Giới hạn nhận âm thanh: MỘT nơi định nghĩa trong stt-service. Backend kiểm tra cùng hai giá trị này trước khi gọi sang
+# (VoiceChatCommandHandler.MaxAudioBytes / AudioTypes); tests/test_backend_contract.py canh cho hai bên không lệch.
+MAX_AUDIO_BYTES = 10 * 1024 * 1024
+AUDIO_TYPES = frozenset({"audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "audio/flac"})
+MAX_BODY_BYTES = MAX_AUDIO_BYTES + 4096  # chừa phần đầu multipart
 # Starlette renamed max_file_size to spool_max_size in later releases. Cover both.
 MultiPartParser.max_file_size = MAX_BODY_BYTES
 MultiPartParser.spool_max_size = MAX_BODY_BYTES

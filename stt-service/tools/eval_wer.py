@@ -18,7 +18,7 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, "/app")
-from speech import SAMPLE_RATE, GipformerEngine, decode_audio  # noqa: E402
+from speech import SAMPLE_RATE, decode_audio, engine_from_env  # noqa: E402
 
 VOICE = Path("/tmp/voice")
 CUT_AT = 44  # tên file dài từ ngần này ký tự (trước _uuid) là đã bị cắt giữa từ: bỏ từ cuối
@@ -57,7 +57,7 @@ def references() -> dict[str, tuple[list[str], bool]]:
 
 
 if __name__ == "__main__":
-    engine = GipformerEngine("/models/gipformer1.5-fp32", 2)
+    engine = engine_from_env()  # cùng model và số luồng với dịch vụ đang chạy (ASR_MODEL_DIR, STT_THREADS)
     clips, errors, ref_words, exact = [], 0, 0, 0
     for name, (ref, prefix_only) in sorted(references().items()):
         data = (VOICE / name).read_bytes()

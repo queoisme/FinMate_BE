@@ -7,8 +7,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import db_setup  # noqa: E402
 
 
-def test_main_needs_a_database_url(monkeypatch):
-    monkeypatch.delenv("FINMATE_DATABASE_URL", raising=False)
+def test_main_needs_the_ai_service_address_and_key(monkeypatch):
+    monkeypatch.delenv("AI_SERVICE_URL", raising=False)
+    monkeypatch.delenv("AI_SERVICE_API_KEY", raising=False)
     assert db_setup.main(["--seed"]) == 1
 
 

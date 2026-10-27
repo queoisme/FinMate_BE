@@ -1,8 +1,8 @@
-"""Huấn luyện mô hình danh mục từ dataset.jsonl (hoặc từ PostgreSQL khi có FINMATE_DATABASE_URL).
+r"""Huấn luyện mô hình danh mục từ dataset.jsonl (hoặc từ AI Service khi có AI_SERVICE_URL + AI_SERVICE_API_KEY).
 
 Chạy:  .\.venv\Scripts\python.exe scripts/train_category_model.py [--synthetic]   (--synthetic: thêm dataset_synthetic.jsonl vào phần huấn luyện)
 Chỉ tạo category_model.joblib khi đủ dữ liệu và độ chính xác kiểm tra chéo đạt ngưỡng.
-Có DB: mỗi lần chạy (kể cả không đạt) được ghi vào bill_training_jobs / bill_model_versions / evaluation_* (xem training_pg.py).
+Có API: mỗi lần chạy (kể cả không đạt) được ghi vào lịch sử huấn luyện của AI Service (xem storage/training_api.py).
 Mô hình đạt ngưỡng cũng được lưu thành bản có phiên bản trong category_models/ để quay lại được.
 Sau khi tạo, khởi động lại API để nạp mô hình.
 """
@@ -16,8 +16,8 @@ sys.path.insert(0, str(HERE))
 
 from classification.category_model import MIN_CV_ACCURACY, MIN_RECORDS, CategoryModel, train  # noqa: E402
 from storage.dataset import Dataset  # noqa: E402
-from storage.storage_pg import open_stores  # noqa: E402
-from storage.training_pg import new_version, open_training_recorder  # noqa: E402
+from storage.storage_api import open_stores  # noqa: E402
+from storage.training_api import new_version, open_training_recorder  # noqa: E402
 
 
 def run(dataset_path, model_path: Path, synthetic_path: Path | None = None, recorder=None) -> int:
@@ -49,7 +49,7 @@ def run(dataset_path, model_path: Path, synthetic_path: Path | None = None, reco
         artifact = str(versioned)
     if recorder:
         recorder.finish(job, report, version, artifact)
-        print(f"Đã ghi lần huấn luyện vào DB (phiên bản {version}, {'active' if report.trained else 'rejected'}).")
+        print(f"Đã ghi lần huấn luyện vào AI Service (phiên bản {version}, {'active' if report.trained else 'rejected'}).")
     if not report.trained:
         print(f"CHƯA bật mô hình: {report.reason}")
         return 1
@@ -60,6 +60,6 @@ def run(dataset_path, model_path: Path, synthetic_path: Path | None = None, reco
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     use_fake = "--synthetic" in sys.argv
-    has_db = bool(os.environ.get("FINMATE_DATABASE_URL"))
-    real_data = open_stores(HERE)[1] if has_db else HERE / "dataset.jsonl"  # có DB thì học từ DB
+    has_db = bool(os.environ.get("AI_SERVICE_URL") and os.environ.get("AI_SERVICE_API_KEY"))
+    real_data = open_stores(HERE)[1] if has_db else HERE / "dataset.jsonl"  # có API thì học từ AI Service
     sys.exit(run(real_data, HERE / "category_model.joblib", HERE / "dataset_synthetic.jsonl" if use_fake else None, open_training_recorder() if has_db else None))

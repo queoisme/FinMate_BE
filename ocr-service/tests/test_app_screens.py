@@ -57,6 +57,13 @@ def test_order_list_with_badge_and_name_on_one_line_and_orphan_total():
     assert r["incomplete_orders"] == 1
 
 
+def test_a_grabfood_screen_recognised_only_by_the_grab_phrase_does_not_crash():
+    # nhận ra GrabFood nhờ "với Grab" nhưng dòng mã đơn (GF-...) bị OCR làm mất: trước đây next() không có giá trị mặc định làm request sập bằng StopIteration
+    lines = [l for l in GRABFOOD if not l.startswith("GF-")]
+    r = parse(lines)
+    assert r["screen_type"] == "food_delivery" and r["merchant"] is None and r["total_amount"] == 130000
+
+
 def test_paper_receipts_and_unknown_screens_are_not_treated_as_app_screens():
     assert parse(["HIGHLANDS COFFEE", "Cam on quy khach", "TONG CONG 125.000"]) is None
     assert parse(["Hoàn thành", "Mua lại"]) is None  # thiếu dòng tổng tiền đơn

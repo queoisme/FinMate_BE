@@ -1,0 +1,23 @@
+{
+  "_doc": "Từ vựng hóa đơn mà NHIỀU dịch vụ cùng dùng: ocr-service (items.py, totals.py, extract.py), ai-service (bill/classifier.py, category_resolver.py) và backend (ReceiptSplitter.cs, nhúng làm tài nguyên lúc build). Trước đây mỗi nơi chép riêng và chỉ có chú thích 'đồng bộ với...' canh nhau. Mọi từ viết thường, BỎ DẤU (trừ mục *_accented), vì các dịch vụ khớp trên chữ đã bỏ dấu. Mỗi mục là một VAI TRÒ: dịch vụ nào cần vai trò nào thì đọc vai trò đó. Thêm từ vào đúng vai trò rồi chạy test của cả ba dịch vụ.",
+
+  "generic_store": {"words": ["bach hoa", "tap hoa"], "doc": "Loại hình ghi trong tên cửa hàng: thắng tên thương hiệu trùng của ngành khác ('BÁCH HÓA MINI AN KHANG' là tạp hóa, không phải nhà thuốc An Khang)."},
+  "groceries_not_for": {"words": ["dien may", "noi that"], "doc": "Tên cửa hàng chứa các từ này thì KHÔNG xếp vào tạp hóa: 'Siêu thị điện máy', 'Siêu thị nội thất' bán đồ gia dụng/điện tử, không phải thực phẩm."},
+  "not_medicine": {"words": ["thuoc la"], "doc": "Cụm bị bỏ khỏi dòng trước khi dò từ khóa: thuốc lá không phải thuốc chữa bệnh."},
+  "password_line": {"words": ["pass", "password", "mat khau"], "doc": "Dòng có các từ này bị bỏ qua khi phân loại: 'Pass Wifi: 1234' cuối phiếu quán cà phê không phải cước internet."},
+
+  "tax": {"words": ["thue", "vat"], "doc": "Từ chỉ thuế, khớp nguyên từ (có ranh giới từ): 'vatican' không phải 'vat'."},
+  "tax_glued": {"words": ["gtgt"], "doc": "'GTGT' (giá trị gia tăng) khớp cả khi dính chữ khác: OCR hay đọc 'Thuế' thành 'Thu€' nên chỉ còn 'GTGT' nhận ra được dòng thuế."},
+  "tax_ocr_misread": {"regex": ["thu[&€@$]"], "doc": "Mẫu regex cho chữ 'Thuế' bị OCR đọc sai. Chỉ ocr-service dùng."},
+  "tax_accented": {"words": ["thuế"], "doc": "Dạng CÓ DẤU của từ chỉ thuế, cho nơi khớp trên chữ chưa bỏ dấu (backend): 'thuê' (đi thuê) không được tính là thuế, nên không thể chỉ dựa vào dạng bỏ dấu 'thue'."},
+  "service": {"words": ["phi phuc vu", "phi dich vu"], "doc": "Phí phục vụ / phí dịch vụ."},
+  "service_glued": {"words": ["service"], "doc": "'service' khớp cả khi OCR dính chữ ('SERVICECHARGE')."},
+  "surcharge_extra": {"words": ["phi giao hang", "phi van chuyen", "phi nen tang", "phi dong goi", "tui nilon"], "doc": "Phụ thu mà chỉ bước tách món sau OCR (backend ReceiptSplitter) gộp vào nhóm lớn nhất; ocr-service không dùng."},
+  "pre_tax": {"words": ["chua", "truoc", "gom"], "doc": "'Tổng chưa thuế', 'trước VAT' là dòng cộng tạm; 'gồm VAT', 'Tổng cộng (gồm thuế)' là thuế đã nằm trong giá: không phải phụ thu. Khớp nguyên từ."},
+  "discount": {"words": ["giam", "chiet khau", "khuyen mai", "voucher"], "doc": "Dòng giảm giá."},
+
+  "cash_given": {"words": ["khach dua", "khach tra", "tien khach", "tien nhan"], "doc": "Tiền khách đưa: không phải tổng bill."},
+  "change": {"words": ["thoi lai", "tien thua", "tra lai", "tien thoi"], "doc": "Tiền thối lại: không phải tổng bill."},
+  "payment_tender": {"words": ["tien mat", "chuyen khoan"], "doc": "Dòng tiền trả bằng tiền mặt / chuyển khoản: luôn nằm sau các món, không phải món và không phải tổng."},
+  "payment_label": {"words": ["hinh thuc"], "doc": "Nhãn 'Hình thức thanh toán: Tiền mặt': hàng đó nói cách trả tiền, không phải tổng."}
+}

@@ -1,0 +1,14 @@
+{
+  "groups": ["dining", "transport", "shopping", "groceries", "housing", "utilities", "healthcare", "entertainment", "other"],
+  "backend_slug": {
+    "dining": "food",
+    "groceries": "food",
+    "shopping": "shopping",
+    "transport": "transport",
+    "housing": "housing",
+    "utilities": "bills",
+    "healthcare": "health",
+    "entertainment": "entertainment",
+    "other": "other"
+  }
+}

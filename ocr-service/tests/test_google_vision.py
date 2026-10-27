@@ -51,6 +51,24 @@ def test_words_are_joined_into_lines_at_each_line_break_with_their_boxes_and_con
     assert lines[0][2] == [(10, 20), (160, 20), (160, 40), (10, 40)]  # góc của từ đầu và từ cuối dòng
 
 
+# Một hàng bảng Google gộp thành MỘT dòng: số lượng + tên món (chữ sát nhau) rồi khoảng trống rộng, rồi số tiền (cột khác)
+ONE_ROW = _response(
+    _word("3", 10, 20, 24, 40), _word("GÓI", 34, 20, 80, 40), _word("Cut", 90, 20, 130, 40),  # không có EOL: Google không ngắt dòng ở cột
+)
+ONE_ROW["responses"][0]["fullTextAnnotation"]["pages"][0]["blocks"][0]["paragraphs"][0]["words"] += [
+    _word("234,000", 520, 20, 640, 40, 0.99, "LINE_BREAK")]
+
+
+def test_a_row_google_merged_into_one_line_is_cut_into_cells_at_the_wide_column_gaps():
+    # Bộ tách món viết theo ô của PaddleOCR (mỗi ô một hộp); dòng gộp cả hàng khiến "Cut 234,000" bị đọc như một tên món
+    assert [t for t, _c, _q in google_vision.parse(ONE_ROW)] == ["3 GÓI Cut", "234,000"]
+
+
+def test_words_close_together_stay_in_one_cell():
+    close = _response(_word("Sữa", 10, 20, 60, 40), _word("tươi", 70, 20, 120, 40), _word("1L", 130, 20, 160, 40, 0.90, "LINE_BREAK"))
+    assert [t for t, _c, _q in google_vision.parse(close)] == ["Sữa tươi 1L"]
+
+
 def test_a_response_without_text_or_with_an_api_error_has_no_lines():
     assert google_vision.parse({"responses": [{}]}) == []
     assert google_vision.parse({"responses": [{"error": {"code": 8, "message": "quota"}}]}) == []

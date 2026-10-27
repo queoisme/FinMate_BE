@@ -3,8 +3,9 @@ import re
 
 from classification.brands import BRAND_CATEGORIES, BRAND_DISPLAY
 from parsing.extract import _GENERIC_STORE, _brand_in, _norm, best_brand
+from classification import data_files
 
-_ACRONYMS = {"TNHH", "CP", "JSC", "TP", "VN", "HCM", "HN", "KFC", "BBQ", "CGV", "EVN", "FPT", "MB", "TM", "DV"}
+_ACRONYMS = data_files.table("parsing.merchant_name._ACRONYMS")
 # Tiêu đề hóa đơn dính vào đầu tên; dài trước để khớp đúng cụm dài nhất.
 _TITLE_PHRASES = sorted(
     ["hoa don ban le", "hoa don ban hang", "hoa don", "phieu thanh toan", "phieu tinh tien",
@@ -24,17 +25,11 @@ def _strip_title(text: str) -> str:
     return text
 
 
-_LEGAL_PREFIXES = ("cong ty", "cty", "tnhh", "ho kinh doanh", "dntn", "doanh nghiep tu nhan", "co phan",
-                   "ty tnhh", "ty cp", "ty mtv", "ty co phan")  # "Công" đã bị mất: "Ty TNHH ..." vẫn là loại hình
-# Từ loại hình + ngành nghề đứng đầu tên công ty, không phải tên riêng ("CÔNG TY TNHH TM DV XNK <tên riêng>")
-_LEGAL_TOKENS = {
-    "cong", "ty", "cty", "tnhh", "cp", "co", "phan", "mtv", "jsc", "ho", "kinh", "doanh", "dntn",
-    "doanh", "nghiep", "tu", "nhan", "tm", "dv", "xnk", "sx", "tmdv", "thuong", "mai", "dich", "vu",
-    "xuat", "nhap", "khau", "san", "va", "mot", "thanh", "vien",
-}
+_LEGAL_PREFIXES = data_files.table("parsing.merchant_name._LEGAL_PREFIXES")
+_LEGAL_TOKENS = data_files.table("parsing.merchant_name._LEGAL_TOKENS")
 
 
-_FORM_TOKENS = {"ty", "cty", "tnhh", "cp", "dntn", "jsc", "mtv", "doanh", "nhan", "phan"}  # từ chỉ loại hình hoàn chỉnh
+_FORM_TOKENS = data_files.table("parsing.merchant_name._FORM_TOKENS")
 
 
 _LEADING_JUNK = re.compile(r"^[iIlL|!](?=cong|CONG|Cong)")  # chữ thừa OCR đọc nhầm trước chữ "CÔNG"

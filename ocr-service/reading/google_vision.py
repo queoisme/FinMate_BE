@@ -17,6 +17,8 @@ import time
 import urllib.error
 import urllib.request
 
+from classification import data_files
+
 logger = logging.getLogger(__name__)
 
 _URL = "https://vision.googleapis.com/v1/images:annotate"
@@ -31,6 +33,8 @@ class _Cooldown:
 _COOLDOWN = _Cooldown()
 
 Quad = list[tuple[float, float]]
+
+_CELL_GAP_RATIO = data_files.threshold("reading.google_vision._CELL_GAP_RATIO")
 
 
 class GoogleVisionError(Exception):
@@ -69,11 +73,29 @@ def parse(response: dict) -> list[tuple[str, float, Quad]]:
                     words.append(("".join(s.get("text", "") for s in symbols), float(word.get("confidence", 0.0)), _vertices(word.get("boundingBox", {}))))
                     last = (symbols[-1].get("property") or {}).get("detectedBreak", {}).get("type") if symbols else None
                     if last in _END_OF_LINE:
-                        lines.append(_line(words))
+                        lines.extend(_cells(words))
                         words = []
         if words:
-            lines.append(_line(words))
+            lines.extend(_cells(words))
     return [line for line in lines if line[0].strip() and len(line[2]) == 4]
+
+
+def _cells(words: list[tuple[str, float, Quad]]) -> list[tuple[str, float, Quad]]:
+    """Một dòng Google thành các ô: cắt ở khoảng trống ngang giữa hai từ rộng hơn _CELL_GAP_RATIO lần bề rộng một ký tự.
+
+    Google gộp cả hàng bảng (số lượng, tên món, số tiền ở ba cột) thành một dòng, còn bộ tách món (parsing/items.py) làm việc theo ô: mỗi cột một hộp,
+    như PaddleOCR phát hiện. Cắt theo khoảng trống cột là cách hình học chung, không dựa vào chữ nào. Đo theo bề rộng ký tự chứ không theo chiều cao
+    hộp: ảnh nghiêng hay dòng có ngoặc làm chiều cao hộp phình ra, còn bề rộng ký tự vẫn tỉ lệ với cỡ chữ."""
+    cells, run = [], [words[0]]
+    for prev, word in zip(words, words[1:]):
+        if len(prev[2]) == 4 and len(word[2]) == 4:
+            char = max((w[2][1][0] - w[2][0][0]) / max(len(w[0]), 1) for w in (prev, word))
+            if word[2][0][0] - prev[2][1][0] > _CELL_GAP_RATIO * char:
+                cells.append(run)
+                run = []
+        run.append(word)
+    cells.append(run)
+    return [_line(cell) for cell in cells]
 
 
 def _line(words: list[tuple[str, float, Quad]]) -> tuple[str, float, Quad]:

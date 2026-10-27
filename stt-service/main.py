@@ -8,15 +8,14 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 
 import upload_limits
 from runtime import EngineSlot
-from speech import GipformerEngine
+from speech import engine_from_env
 
-MAX_AUDIO_BYTES = 10 * 1024 * 1024
-AUDIO_TYPES = {"audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/webm", "audio/flac"}
+MAX_AUDIO_BYTES = upload_limits.MAX_AUDIO_BYTES
+AUDIO_TYPES = upload_limits.AUDIO_TYPES
 
 app = FastAPI(title="FinMate STT service")
 app.add_middleware(upload_limits.RecognitionUploadLimits)
-slot = EngineSlot(lambda: GipformerEngine(os.getenv("ASR_MODEL_DIR", "/models/gipformer1.5-fp32"),
-                                          int(os.getenv("STT_THREADS", "2"))))
+slot = EngineSlot(engine_from_env)
 
 
 def verify_internal_api_key(authorization: str | None = Header(None)) -> None:

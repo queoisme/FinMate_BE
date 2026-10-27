@@ -5,13 +5,10 @@ Tiếng Việt không dùng các dấu đó, nên đổi về chữ gốc; dấu
 """
 import re
 import unicodedata
+from classification import data_files
 
-# Dấu tiếng Việt hợp lệ: huyền, sắc, ngã, hỏi, nặng, mũ, trăng, râu
-_VN_MARKS = {"̀", "́", "̃", "̉", "̣", "̂", "̆", "̛"}
-# Chữ không phân rã được thành chữ gốc + dấu
-_REPLACE = {"ß": "ss", "ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "ð": "d", "Ð": "D",
-            "þ": "th", "Þ": "Th", "δ": "d", "Δ": "D", "σ": "s", "α": "a", "β": "b", "ε": "e", "ι": "i",
-            "κ": "k", "μ": "m", "ν": "n", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "ł": "l", "Ł": "L"}
+_VN_MARKS = data_files.table("reading.text_clean._VN_MARKS")
+_REPLACE = data_files.table("reading.text_clean._REPLACE")
 _STRAY_SYMBOLS = re.compile(r"[§¤¶°¦©®™×÷¿¡]")
 
 

@@ -1,10 +1,9 @@
-"""Nhập dữ liệu cũ (dataset.jsonl + merchant_memory.json) vào PostgreSQL một lần.
+r"""Nhập dữ liệu cũ (dataset.jsonl + merchant_memory.json) vào AI Service một lần (qua API, không kết nối DB).
 
-Chạy:  $env:FINMATE_DATABASE_URL = "postgresql://..." ; $env:FINMATE_USER_HASH = "<mã băm user>"
-       .\\.venv\\Scripts\\python.exe scripts/import_files_to_pg.py            (xem trước, không ghi gì)
-       .\\.venv\\Scripts\\python.exe scripts/import_files_to_pg.py --write    (ghi vào DB)
-Chạy lại nhiều lần vẫn an toàn: bill trùng nội dung chỉ giữ một bản, cửa hàng trùng được cập nhật.
-Cần đã chạy migrations/0006_*.sql. Không xóa file cũ: giữ làm bản sao lưu.
+Chạy:  $env:AI_SERVICE_URL = "http://localhost:8000" ; $env:AI_SERVICE_API_KEY = "<INTERNAL_API_KEY của ai-service>" ; $env:FINMATE_USER_HASH = "<mã băm user>"
+       .\.venv\Scripts\python.exe scripts/import_files.py            (xem trước, không ghi gì)
+       .\.venv\Scripts\python.exe scripts/import_files.py --write    (ghi)
+Chạy lại nhiều lần vẫn an toàn: bill trùng nội dung chỉ giữ một bản, cửa hàng trùng được cập nhật. Không xóa file cũ: giữ làm bản sao lưu.
 """
 import os
 import sys
@@ -15,13 +14,13 @@ sys.path.insert(0, str(HERE))
 
 from storage.dataset import Dataset  # noqa: E402
 from storage.memory import MerchantMemory, _entry  # noqa: E402
-from storage.storage_pg import open_stores  # noqa: E402
+from storage.storage_api import open_stores  # noqa: E402
 
 
 def do_import(source_dir: Path, write: bool) -> int:
-    """Nhập merchant_memory.json và dataset.jsonl trong source_dir vào DB (source_dir có thể là thư mục được mount vào container)."""
-    if not os.environ.get("FINMATE_DATABASE_URL"):
-        print("Chưa đặt FINMATE_DATABASE_URL: không biết ghi vào DB nào.")
+    """Nhập merchant_memory.json và dataset.jsonl trong source_dir vào AI Service (source_dir có thể là thư mục được mount vào container)."""
+    if not (os.environ.get("AI_SERVICE_URL") and os.environ.get("AI_SERVICE_API_KEY")):
+        print("Chưa đặt AI_SERVICE_URL và AI_SERVICE_API_KEY: không biết ghi vào AI Service nào.")
         return 1
     old_memory, old_dataset = MerchantMemory(source_dir / "merchant_memory.json"), Dataset(source_dir / "dataset.jsonl")
     shops, bills = old_memory._load(), old_dataset.read_all()
@@ -30,7 +29,7 @@ def do_import(source_dir: Path, write: bool) -> int:
         print("Không thấy dataset.jsonl hay merchant_memory.json (hoặc rỗng): kiểm tra thư mục nguồn.")
         return 1
     if not write:
-        print("Xem trước thôi. Thêm --write để ghi vào DB.")
+        print("Xem trước thôi. Thêm --write để ghi.")
         return 0
     memory, dataset = open_stores(source_dir)
     for key, raw in shops.items():
@@ -38,7 +37,7 @@ def do_import(source_dir: Path, write: bool) -> int:
         memory.set(key, entry["category"], entry.get("name"))
     for bill in bills:
         dataset.append(bill)
-    print(f"Đã ghi. Trong DB hiện có {len(dataset.read_all())} bill quét.")
+    print(f"Đã ghi. Ở AI Service hiện có {len(dataset.read_all())} bill quét.")
     return 0
 
 

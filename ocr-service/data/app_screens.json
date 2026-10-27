@@ -1,0 +1,136 @@
+{
+  "_doc": "Chữ và hằng số gắn với GIAO DIỆN từng app mà parsing/app_screens.py dùng để nhận ra và đọc ảnh chụp màn hình (MoMo, Grab, Xanh SM, Shopee, CGV, Vexere, nhãn SPX...). App đổi chữ hoặc đổi số dòng thì sửa ở đây, không sửa code. Quy ước: mọi cụm chữ viết thường, BỎ DẤU, vì code so khớp trên dòng đã bỏ dấu (_norm); '*_prefix' là dòng bắt đầu bằng cụm đó, '*_phrase' là dòng chứa cụm đó, '*_regex' là regex trên dòng đã bỏ dấu, '*_span' là số dòng tính từ dòng neo, 'category' là một trong 9 nhóm hóa đơn (category_groups.json). Thứ tự ưu tiên giữa các loại màn hình và thuật toán đọc bố cục nằm trong code. Bảng từ khóa dài (cinema_words, courier_shop, wallet_category, housing_words, shop_badge) nằm ở parsing_vocab.json.",
+
+  "order_list": {
+    "doc": "Danh sách đơn đã mua trên sàn TMĐT: mỗi đơn có 'Hoàn thành', tên shop ngay trên đó và dòng 'Tổng số tiền (N sản phẩm): ...'.",
+    "completed_prefix": "hoan thanh",
+    "rebuy_phrase": "mua lai",
+    "total_regex": "san\\s*pham\\)?\\s*:?\\s*([\\d.,]+)",
+    "category": "shopping"
+  },
+  "ride": {
+    "doc": "Chi tiết chuyến xe công nghệ: không in tên hãng nên dùng tên chung để người dùng tự sửa nếu muốn.",
+    "anchor_phrase": "ma chuyen di",
+    "total_label": "total",
+    "total_span": 3,
+    "merchant": "Chuyến xe công nghệ",
+    "category": "transport"
+  },
+  "bill_category": {
+    "doc": "Hóa đơn dịch vụ: điện, nước, gas, chung cư, thuê nhà (housing_words trong parsing_vocab.json, cộng các từ nguyên từ dưới đây) thuộc housing; còn lại (internet, điện thoại, data) thuộc utilities.",
+    "housing_whole_words": ["gas"],
+    "housing_category": "housing",
+    "default_category": "utilities"
+  },
+  "service_payment": {
+    "doc": "Chi tiết giao dịch thanh toán hóa đơn dịch vụ: có dòng 'Nhà cung cấp', số tiền lớn ngay dưới tiêu đề.",
+    "provider_prefix": "nha cung cap",
+    "title_prefixes": ["chi tiet giao dich", "ma giao dich"],
+    "title_phrase": "chi tiet giao dich",
+    "amount_span": 5
+  },
+  "cinema_ticket": {
+    "doc": "Vé xem phim (nền chữ TICKET lặp lại, 'THẺ VÀO').",
+    "ticket_regex": "ticke|icket|tickz",
+    "entry_phrase": "the vao",
+    "min_tickets_with_cinema_word": 1,
+    "min_tickets_without_cinema_word": 3,
+    "cinema_whole_words": ["cgv"],
+    "chains": [
+      {"match": "galaxy", "whole_word": false, "name": "Galaxy Cinema"},
+      {"match": "lotte cinema", "whole_word": false, "name": "Lotte Cinema"},
+      {"match": "bhd", "whole_word": false, "name": "BHD Star"},
+      {"match": "cgv", "whole_word": true, "name": "CGV"},
+      {"match": "gold class", "whole_word": false, "name": "CGV"}
+    ],
+    "amount_min": 10000,
+    "amount_max": 5000000,
+    "category": "entertainment"
+  },
+  "shipping_label": {
+    "doc": "Nhãn dán trên kiện hàng (SPX, GHN...): cần ít nhất hai dấu hiệu độc lập vì nhãn 'Mã vận đơn' hay bị OCR đọc nát. Lấy số 'Tiền thu người nhận' (COD) nếu có.",
+    "signal_phrases": ["van don", "noi dung hang"],
+    "cod_label_words": ["tien thu", "nhan"],
+    "tracking_regex": "spx[a-z]{0,3}\\d{8,}",
+    "min_signals": 2,
+    "amount_window": 9,
+    "currency_word": "vnd",
+    "amount_min": 1000,
+    "category": "shopping"
+  },
+  "wallet_transaction": {
+    "doc": "'Chi tiết giao dịch' của ví điện tử khi KHÔNG có dòng 'Nhà cung cấp': số tiền lớn đầu trang, nhãn giao dịch phía trên, app tự ghi sẵn 'Danh mục'.",
+    "title_phrase": "chi tiet giao dich",
+    "transaction_id_prefix": "ma giao dich",
+    "excluded_when_prefix": "nha cung cap",
+    "category_prefixes": ["danh muc", "thuong xu"],
+    "category_label_prefix": "danh muc",
+    "generic_bill_phrase": "hoa don",
+    "label_span": 3,
+    "label_min_chars": 4,
+    "amount_span": 5,
+    "window_span": 9,
+    "default_category": "other"
+  },
+  "momo_result": {
+    "doc": "'Kết quả giao dịch' của MoMo: số tiền lớn dưới 'Giao dịch thành công', nhà cung cấp ở dòng sau nhãn 'Dịch vụ/ Cửa hàng'.",
+    "title_phrase": "ket qua giao dich",
+    "provider_label_prefix": "dich vu/",
+    "amount_span": 5
+  },
+  "provider_notice": {
+    "doc": "Tin nhắn 'Thông báo thanh toán thành công' của tài khoản OA (Zalo...): số tiền dưới nhãn 'Số tiền', nhà cung cấp là thương hiệu đã biết.",
+    "title_prefix": "thong bao thanh toan thanh",
+    "amount_label": "so tien",
+    "amount_span": 2,
+    "brand_window_lines": 10
+  },
+  "food_delivery": {
+    "doc": "Chi tiết đơn giao đồ ăn: GrabFood, Xanh SM Ngon (Green Food), ShopeeFood. Mỗi app một bố cục.",
+    "summary_phrase": "tom tat don hang",
+    "category": "dining",
+    "grab": {
+      "order_code_regex": "gf-?\\d{2,}",
+      "alt_phrase": "voi grab",
+      "end_prefix": "tong tam tinh",
+      "total_prefix": "tong cong",
+      "skip_lines": ["dat lai"]
+    },
+    "xanh": {
+      "detail_phrase": "chi tiet giao hang",
+      "order_phrase": "ma don hang",
+      "dish_total_regex": "mon\\W{0,4}([\\d.,]+)",
+      "dish_probe_regex": "mon\\W{0,4}\\d"
+    },
+    "shopee": {
+      "detail_phrase": "chi tiet don hang",
+      "fee_phrase": "phi giao hang",
+      "done_phrase": "don hoan tat",
+      "merchant_regex": "^\\W*\\w{0,2}\\s*do\\s*(?:an|uong)\\s*[|lI!]?\\s*(.+)$",
+      "total_prefixes": ["tong (", "tong("],
+      "end_prefix": "thong tin don hang"
+    }
+  },
+  "bus_ticket": {
+    "doc": "Chi tiết vé xe khách trên app (Vexere...): tên nhà xe ngay dưới tiêu đề, bỏ các dòng trạng thái vé.",
+    "title_phrase": "thong tin ve xe",
+    "total_prefix": "tong tien",
+    "total_span": 2,
+    "merchant_span": 5,
+    "status_regex": "(?<![a-z])ve (da|chua|het|bi)",
+    "category": "transport"
+  },
+  "paper_bus_ticket": {
+    "doc": "Phiếu lên xe khách bằng giấy (Vexere...): OCR đọc hỏng nhiều chữ nên cần ít nhất ba dấu hiệu độc lập, trong đó có tiêu đề hoặc tên nền tảng; so khớp trên chữ viết liền vì khoảng trắng hay bị mất. Số phải trả là dòng 'TT:'; không có thì lấy số lớn nhất trong khoảng giá vé.",
+    "title_tokens": ["phieulenxe", "vexere"],
+    "signal_tokens": ["phieulenxe", "vexere", "tenhk"],
+    "qr_tokens": ["quetmaqr", "lenxe"],
+    "paid_regex": "^tt\\s*:?\\s*(\\d{1,3}(?:[.,]\\d{3})+)",
+    "min_signals": 3,
+    "price_min": 10000,
+    "price_max": 20000000,
+    "platform_token": "vexere",
+    "platform_name": "Vexere",
+    "category": "transport"
+  }
+}

@@ -19,8 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
 from reading import ocr                                              # noqa: E402
-from parsing.totals import choose_total                          # noqa: E402
-from parsing.items import payable_total                          # noqa: E402
+from parsing.totals import resolve_total                          # noqa: E402
+from parsing.prepare import prepare                              # noqa: E402
 from parsing.extract import CONFIDENT_RECEIPT_SCORE, MIN_RECEIPT_SCORE, _alnum, _norm, analyze, receipt_score  # noqa: E402
 from parsing.merchant_name import format_merchant_name          # noqa: E402
 from reading.quality import image_quality              # noqa: E402
@@ -44,17 +44,17 @@ def process(path: Path) -> dict:
     t0 = time.time()
     quality = image_quality(data)
     try:
-        boxes = ocr.read_boxes(data)
+        boxes, shorthand = prepare(ocr.read_boxes(data))
         lines = [(b.text, b.conf) for b in boxes]
     except ocr.NoTextError:
         return {"rejected": "no_text", "sec": time.time() - t0}
     score = receipt_score([t for t, _ in lines])
     if score < MIN_RECEIPT_SCORE:
         return {"rejected": "not_a_receipt", "score": score, "sec": time.time() - t0}
-    total, verified = choose_total(boxes, fallback=payable_total(boxes))  # như main.analyze_bill
+    total, verified, source = resolve_total(boxes, [t for t, _ in lines])  # như main.analyze_bill
     r = analyze(lines, forced_total=total)
     r["total_verified"] = verified
-    r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE
+    r["needs_review"] = r["needs_review"] or quality != "ok" or score < CONFIDENT_RECEIPT_SCORE or shorthand or source == "items"
     r["display"] = format_merchant_name(r["merchant"]) or (r["merchant"] or "")
     r.update({"quality": quality, "score": score, "sec": time.time() - t0, "lines": [t for t, _ in lines]})
     return r

@@ -12,12 +12,11 @@ ponytail: dựa trên nhãn và mẫu số; thêm nhãn/mẫu ở đây khi gặ
 import re
 
 from parsing.extract import _alnum, _looks_like_person, _norm, looks_like_address
+from classification import data_files
 
-_LABELS = ("khachhang", "tenkhachhang", "tenkh", "makhachhang", "makh", "nguoimua", "nguoinhan", "hotennguoi", "hoten",
-           "nhanvien", "nvbh", "nvgh", "nvcv", "thungan", "diachi", "djachi", "dienthoai", "hotline",
-           "sotaikhoan", "taikhoan", "khach")
-_SHORT_LABELS = ("nv", "dt", "dc", "tel", "stk", "sdt", "email")  # nhãn ngắn: chỉ tính khi theo sau không phải chữ cái ("Telecom" không phải nhãn)
-_CONTACT_LABELS = ("dienthoai", "sodienthoai", "khachhang", "tenkhachhang", "tenkh", "nguoimua", "nguoinhan", "hoten")
+_LABELS = data_files.table("parsing.privacy._LABELS")
+_SHORT_LABELS = data_files.table("parsing.privacy._SHORT_LABELS")
+_CONTACT_LABELS = data_files.table("parsing.privacy._CONTACT_LABELS")
 _ADDRESS_LABELS = ("diachi",)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?84|0)[\s.\-]?\d{2,3}[\s.\-]?\d{3}[\s.\-]?\d{3,4}(?!\d)")

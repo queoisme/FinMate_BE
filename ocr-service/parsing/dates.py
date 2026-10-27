@@ -8,9 +8,10 @@ ponytail: chưa đọc ngày chỉ có tháng ("10/2026") hay ngày tháng khôn
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from classification import data_files
 
 VN = timezone(timedelta(hours=7))
-_MIN_YEAR = 2000
+_MIN_YEAR = data_files.threshold("parsing.dates._MIN_YEAR")
 _FUTURE_SLACK = timedelta(days=1)
 
 # dd/mm/yyyy (hoặc dd-mm-yy, dd.mm.yyyy); năm 4 chữ số được phép dính liền với giờ: "11-04-202613:16"

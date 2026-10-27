@@ -3,6 +3,7 @@ import io
 from difflib import SequenceMatcher
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import lru_cache
 from statistics import median
@@ -17,10 +18,18 @@ from parsing.extract import _alnum, _norm
 from reading.quality import assess_quality, enhance
 from reading import google_vision, vietocr_onnx
 from reading.text_clean import clean_ocr_text
+from classification import data_files
 
 
 class NoTextError(Exception):
     """Ảnh không đọc ra được chữ nào."""
+
+
+# PaddleOCR/oneDNN không chịu được việc gọi từ nhiều luồng (FastAPI chạy endpoint đồng bộ trong nhiều luồng): hai ảnh gửi gần
+# nhau gây lỗi "could not execute a primitive", kết quả sai rồi service treo. Mọi lượt OCR (kể cả nạp trước) chạy lần lượt
+# trên đúng MỘT luồng chuyên dụng.
+# ponytail: một lượt OCR tại một thời điểm; cần chạy song song thì tăng số tiến trình uvicorn
+OCR_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
 
 
 @lru_cache(maxsize=1)
@@ -61,7 +70,7 @@ def repair_cut_off(lines: list[tuple[str, float]], retry: list[tuple[str, float]
     return out
 
 
-_VIET_HEAD_LINES = 8  # tên cửa hàng nằm ở đầu phiếu: chỉ đọc lại vài dòng đầu cho nhanh
+_VIET_HEAD_LINES = data_files.threshold("reading.ocr._VIET_HEAD_LINES")
 
 
 def _use_vietocr() -> bool:
@@ -90,8 +99,23 @@ def _prefer(viet: str, paddle: str) -> str:
     return viet.upper() if paddle.isupper() else viet  # VietOCR hay đọc chữ IN HOA thành chữ thường
 
 
-def _reread_with_vietocr(bgr, box, text: str) -> str:
-    """Đọc lại dòng chữ bằng VietOCR để có đủ dấu; dòng nhiều chữ số (mã, số tiền) giữ kết quả Paddle vì VietOCR hay nhầm 0/O."""
+_BODY_MIN_SIMILARITY = data_files.threshold("reading.ocr._BODY_MIN_SIMILARITY")
+
+
+def _prefer_body(viet: str, paddle: str) -> str:
+    """Thân phiếu (tên món, đã qua phần đầu phiếu): nhận chữ VietOCR khi còn giống PaddleOCR (không tính dấu) từ _BODY_MIN_SIMILARITY trở lên.
+
+    Khác phần đầu phiếu (_prefer chỉ cho thêm dấu): PaddleOCR đọc sai cả chữ trên tên món ("Nudc ngot", "Stra chua uong") nên cần để VietOCR
+    sửa; dưới ngưỡng là VietOCR bịa chữ nên giữ Paddle."""
+    if not viet.strip() or SequenceMatcher(None, _alnum(_norm(viet)), _alnum(_norm(paddle))).ratio() < _BODY_MIN_SIMILARITY:
+        return paddle
+    return viet.upper() if paddle.isupper() else viet  # VietOCR hay đọc chữ IN HOA thành chữ thường
+
+
+def _reread_with_vietocr(bgr, box, text: str, header: bool = True) -> str:
+    """Đọc lại dòng chữ bằng VietOCR để có đủ dấu; dòng nhiều chữ số (mã, số tiền) giữ kết quả Paddle vì VietOCR hay nhầm 0/O.
+
+    header=True (đầu phiếu, tên cửa hàng): cổng chặt _prefer. header=False (thân phiếu, tên món): cổng _prefer_body."""
     letters = sum(c.isalpha() for c in text)
     digits = sum(c.isdigit() for c in text)
     if letters < 3 or digits > 0.3 * (letters + digits):
@@ -102,14 +126,14 @@ def _reread_with_vietocr(bgr, box, text: str) -> str:
     if crop.size == 0:
         return text
     viet = vietocr_onnx.recognize(Image.fromarray(crop[:, :, ::-1]))
-    # VietOCR hay bịa chữ trên dòng khó: chỉ nhận khi gần như trùng (không tính dấu) với kết quả Paddle,
-    # tức là chỉ dùng nó để thêm dấu và sửa chữ cuối bị rơi.
-    return _prefer(viet, text)
+    # VietOCR hay bịa chữ trên dòng khó: đầu phiếu chỉ nhận khi gần như trùng (không tính dấu) với kết quả Paddle,
+    # tức là chỉ dùng nó để thêm dấu và sửa chữ cuối bị rơi; thân phiếu xem _prefer_body.
+    return (_prefer if header else _prefer_body)(viet, text)
 
 
-_SLOPE_MIN_WIDTH = 80  # quad hẹp hơn (số lượng, "8%") đo độ dốc không tin được
-_SLOPE_MIN_QUADS = 3  # ít quad rộng hơn thì một quad nhiễu quyết cả trang
-_SLOPE_MAX = 0.2  # ~11 độ; ảnh nghiêng hơn thế thì OCR đã hỏng, đừng chỉnh
+_SLOPE_MIN_WIDTH = data_files.threshold("reading.ocr._SLOPE_MIN_WIDTH")
+_SLOPE_MIN_QUADS = data_files.threshold("reading.ocr._SLOPE_MIN_QUADS")
+_SLOPE_MAX = data_files.threshold("reading.ocr._SLOPE_MAX")
 
 
 def _deskew(quads) -> list[tuple[float, float, float, float]]:
@@ -141,18 +165,18 @@ def _run(bgr) -> list[OcrBox]:
     lines = result[0] or []
     out = []
     for i, ((box, (text, conf)), coords) in enumerate(zip(lines, _deskew([box for box, _ in lines]))):
-        text = clean_ocr_text(_reread_with_vietocr(bgr, box, text) if reread and i < _VIET_HEAD_LINES else text)
+        text = clean_ocr_text(_reread_with_vietocr(bgr, box, text, header=i < _VIET_HEAD_LINES) if reread else text)
         out.append(OcrBox(text, float(conf), *coords))
     return out
 
 
-_MIN_OCR_WIDTH = 800   # tờ bill hẹp hơn mức này (ảnh chụp xa rồi cắt) thì chữ quá nhỏ để đọc đúng, phóng to trước
-_TARGET_OCR_WIDTH = 1000
-_MAX_UPSCALE = 2.2     # phóng quá mức này chỉ làm mờ thêm và chậm
-_MAX_SIDE = 3200
+_MIN_OCR_WIDTH = data_files.threshold("reading.ocr._MIN_OCR_WIDTH")
+_TARGET_OCR_WIDTH = data_files.threshold("reading.ocr._TARGET_OCR_WIDTH")
+_MAX_UPSCALE = data_files.threshold("reading.ocr._MAX_UPSCALE")
+_MAX_SIDE = data_files.threshold("reading.ocr._MAX_SIDE")
 
 
-_MAX_CROP_RATIO = 0.7  # chỉ phóng to khi tờ bill thật sự nhỏ trong khung (cắt còn <= 70% chiều rộng ảnh gốc)
+_MAX_CROP_RATIO = data_files.threshold("reading.ocr._MAX_CROP_RATIO")
 
 
 def upscale_small(bgr: np.ndarray, original_width: int | None = None) -> np.ndarray:
@@ -168,17 +192,33 @@ def upscale_small(bgr: np.ndarray, original_width: int | None = None) -> np.ndar
     return cv2.resize(bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
 
 
+_CONTAINED_SHARE = data_files.threshold("reading.ocr._CONTAINED_SHARE")
+
+
+def drop_contained(boxes: list[OcrBox]) -> list[OcrBox]:
+    """Bỏ hộp nằm gần trọn trong một hộp lớn hơn: đó là phát hiện trùng (Google trả "M" của chữ "Mì" thành ô riêng bên trong ô "Bánh Mì"), ghép vào tên món thì thành "Bánh Mì M"."""
+    def inside(a: OcrBox, b: OcrBox) -> bool:
+        area = (a.x1 - a.x0) * (a.y1 - a.y0)
+        w, h = min(a.x1, b.x1) - max(a.x0, b.x0), min(a.y1, b.y1) - max(a.y0, b.y0)
+        return area > 0 and area < (b.x1 - b.x0) * (b.y1 - b.y0) and w > 0 and h > 0 and w * h / area >= _CONTAINED_SHARE
+    return [a for a in boxes if not any(inside(a, b) for b in boxes if b is not a)]
+
+
 def _boxes_from_google(lines) -> list[OcrBox]:
     """Dòng Google Vision (chữ, độ tin cậy, 4 góc) thành OcrBox: chỉnh nghiêng như hộp của OCR cục bộ rồi xếp từ trên xuống.
     Chữ Google giữ nguyên (đã đủ dấu): không qua sửa dấu lạ hay VietOCR."""
     coords = _deskew([quad for _text, _conf, quad in lines])
-    return sorted((OcrBox(text, float(conf), *c) for (text, conf, _quad), c in zip(lines, coords)), key=lambda b: (b.y0, b.x0))
+    return sorted(drop_contained([OcrBox(text, float(conf), *c) for (text, conf, _quad), c in zip(lines, coords)]), key=lambda b: (b.y0, b.x0))
 
 
 def read_boxes(image_bytes: bytes) -> list[OcrBox]:
     """Trả về các dòng chữ kèm hộp bao theo thứ tự từ trên xuống. Google Cloud Vision đọc trước; lỗi hoặc chưa cấu hình thì OCR cục bộ."""
     if (google := google_vision.read_lines_or_none(image_bytes)) is not None:
         return _boxes_from_google(google)
+    return OCR_EXECUTOR.submit(_read_boxes, image_bytes).result()
+
+
+def _read_boxes(image_bytes: bytes) -> list[OcrBox]:
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     bgr = crop_receipt(np.array(img)[:, :, ::-1])  # Paddle nhận BGR; bỏ nền trước khi đo sáng
     bgr = upscale_small(enhance(bgr, assess_quality(bgr)), img.width)

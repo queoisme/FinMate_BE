@@ -59,7 +59,9 @@
     "BIll-10-15-2026/15anh-10_CGV.png": 2,
     "BIll-10-15-2026/15anh-11_Dien_May.png": 2,
     "BIll-10-15-2026/15anh-14_Phong_Tro.png": 4,
-    "BIll-10-15-2026/15anh-15_Ca_Phe.png": 3
+    "BIll-10-15-2026/15anh-15_Ca_Phe.png": 3,
+    "Bill-handwritting/hoa-don-ban-le-mau-in-san-coco-mart.jpg": 2,
+    "Bill-handwritting/hoa-don-ban-hang-tiem-rau-tien-thu.jpg": 15
   },
   "76d18c56-3af9-440e-8000-9f58f31306b5.jpg": [
     {"name_contains": "tayox", "amount": 140000},
@@ -378,5 +380,26 @@
     {"name_contains": "sinh to", "amount": 80000},
     {"name_contains": "banh flan", "amount": 25000},
     {"name_contains": "giam gia", "amount": -18000}
+  ],
+  "Bill-handwritting/hoa-don-ban-le-mau-in-san-coco-mart.jpg": [
+    {"name_contains": "banh mi", "amount": 396000},
+    {"name_contains": "viet quat", "amount": 51000}
+  ],
+  "Bill-handwritting/hoa-don-ban-hang-tiem-rau-tien-thu.jpg": [
+    {"name_contains": "ca chua", "amount": 44000},
+    {"name_contains": "leo", "amount": 34000},
+    {"name_contains": "cai thao", "amount": 22000},
+    {"name_contains": "su hao", "amount": 30000},
+    {"name_contains": "bi do", "amount": 24000},
+    {"name_contains": "sup lo trang", "amount": 24000},
+    {"name_contains": "bau", "amount": 24000},
+    {"name_contains": "bi", "amount": 26000},
+    {"name_contains": "dau bap", "amount": 15000},
+    {"name_contains": "khoai tay", "amount": 20000},
+    {"name_contains": "chanh", "amount": 20000},
+    {"name_contains": "tac", "amount": 18000},
+    {"name_contains": "mang vang bi nho", "amount": 30000},
+    {"name_contains": "gia", "amount": 10000},
+    {"name_contains": "ot do", "amount": 25000}
   ]
 }
