@@ -44,6 +44,9 @@ services:
   backend:
     build:
       context: ./backend
+      # Từ vựng hóa đơn dùng chung (ocr-service/data/shared_words.json) được nhúng vào backend lúc build (COPY --from=lexicon trong Dockerfile).
+      additional_contexts:
+        lexicon: ./ocr-service/data
     env_file:
       - ./backend/.env
     environment:
@@ -95,19 +98,21 @@ services:
     env_file:
       - ./ocr-service/.env
     environment:
-      # Dùng chung finmate_ai với ai-service (các bảng bill_*, do alembic 0006 của ai-service tạo). Không có DB riêng.
-      FINMATE_DATABASE_URL: "postgresql://finmate:finmate@postgres-ai:5432/finmate_ai"
+      # ocr-service KHÔNG kết nối DB: đọc/ghi dữ liệu dùng chung (thương hiệu, bộ nhớ cửa hàng, bill đã gắn nhãn, lịch sử huấn luyện) qua API nội bộ của ai-service.
+      # Khóa AI_SERVICE_API_KEY (giống INTERNAL_API_KEY của ai-service) đặt trong ocr-service/.env.
+      AI_SERVICE_URL: "http://ai-service:8000"
     depends_on:
-      # Chờ ai-service healthy: nó chạy alembic lúc khởi động, nên các bảng bill_* có sẵn khi ocr-service nạp kiến thức.
+      # Chờ ai-service healthy: nó chạy alembic lúc khởi động và phục vụ API lưu trữ khi ocr-service nạp kiến thức.
       ai-service:
         condition: service_healthy
 
   # Rasa NLU: hiểu ý định + cắt số tiền của câu chat, cho POST /api/v1/chat/parse. Không mở cổng ra máy chủ:
   # chỉ ai-service gọi (RASA_URL). Rasa tắt thì ai-service vẫn trả lời bằng luật. Model đặt ở ai-service/rasa/models/.
-  # Huấn luyện lại:  docker compose run --rm rasa train nlu --nlu data --config config.yml --domain domain.yml --out models --fixed-model-name finmate-nlu-v3
+  # Model đang chạy luôn là models/active.tar.gz; đổi model bằng `python scripts/nlu_model.py promote <phiên bản>` (từ ai-service), không sửa dòng `command`.
+  # Huấn luyện lại từ DB, đo, chặn bản tệ hơn: xem ai-service/rasa/README.md (scripts/nlu_model.py train|eval|promote).
   rasa:
     image: rasa/rasa:3.6.21
-    command: ["run", "--enable-api", "-m", "models/finmate-nlu-v8.tar.gz", "--port", "5005"]
+    command: ["run", "--enable-api", "-m", "models/active.tar.gz", "--port", "5005"]  # bản chép của model active trong bảng nlu_model_versions; các bản cũ còn trong models/ để quay lại
     restart: unless-stopped
     volumes:
       - ./ai-service/rasa/models:/app/models
@@ -119,6 +124,9 @@ services:
   ai-service:
     build:
       context: ./ai-service
+      # Bảng thương hiệu/từ khóa hóa đơn có MỘT nguồn: ocr-service/data. Image ai-service mang bản đó theo lúc build (COPY --from=lexicon trong Dockerfile).
+      additional_contexts:
+        lexicon: ./ocr-service/data
     env_file:
       - ./ai-service/.env
     environment:

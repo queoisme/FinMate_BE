@@ -6,11 +6,11 @@ Postgres 16, cong may chu 5434, tach hoan toan voi DB backend (finmate_main).
 1. SO DO QUAN HE (FOREIGN KEY)
 ======================================================================
 
-raw_samples
+ml_raw_samples
   |-- 1-1  (CASCADE)   --> labeled_samples (raw_sample_id, UNIQUE)
-  |                          |-- 1-1  (CASCADE) --> sample_splits (labeled_sample_id, UNIQUE)
+  |                          |-- 1-1  (CASCADE) --> ml_sample_splits (labeled_sample_id, UNIQUE)
   |                          '-- 1-N  (CASCADE) --> evaluation_predictions (labeled_sample_id)
-  '-- 1-N  (SET NULL)  --> pipeline_requests (raw_sample_id, nullable)
+  '-- 1-N  (SET NULL)  --> ops_analyze_log (raw_sample_id, nullable)
 
 training_jobs
   '-- 1-N  (SET NULL)  --> model_versions (training_job_id, nullable)
@@ -18,14 +18,14 @@ training_jobs
                                                      |-- 1-N (CASCADE) --> evaluation_category_metrics (evaluation_run_id)
                                                      '-- 1-N (CASCADE) --> evaluation_predictions (evaluation_run_id)
 
-feedback_batch_jobs
-  '-- 1-N  (SET NULL)  --> user_feedback (batch_job_id, nullable)
+ml_feedback_batches
+  '-- 1-N  (SET NULL)  --> ml_user_feedback (batch_id, nullable)
 
-provider_patterns            (dung rieng, khong co khoa ngoai)
+kb_provider_patterns            (dung rieng, khong co khoa ngoai)
 
 Lien ket MEM (khong co khoa ngoai, DB khong bat buoc ton tai):
-  - user_feedback.pipeline_request_id        -> pipeline_requests.id
-  - pipeline_requests.duplicate_of_request_id -> pipeline_requests.id
+  - ml_user_feedback.pipeline_request_id        -> ops_analyze_log.id
+  - ops_analyze_log.duplicate_of_request_id -> ops_analyze_log.id
 
 Tong: 8 khoa ngoai that + 2 lien ket mem.
 
@@ -35,7 +35,7 @@ Tong: 8 khoa ngoai that + 2 lien ket mem.
 
 --- NHOM 1: DU LIEU HUAN LUYEN ---
 
-raw_samples                      Thong bao tho da an danh
+ml_raw_samples                      Thong bao tho da an danh
   id                  uuid PK
   source              varchar(32)  not null
   package_name        text         not null
@@ -49,7 +49,7 @@ raw_samples                      Thong bao tho da an danh
 
 labeled_samples                  Nhan cua moi mau
   id                  uuid PK
-  raw_sample_id       uuid FK -> raw_samples.id (CASCADE), UNIQUE
+  raw_sample_id       uuid FK -> ml_raw_samples.id (CASCADE), UNIQUE
   is_financial        boolean not null
   transaction_type    varchar(16)
   amount_cents        bigint
@@ -60,7 +60,7 @@ labeled_samples                  Nhan cua moi mau
   is_gold             boolean
   Index: category_slug
 
-sample_splits                    Chia train / val / test
+ml_sample_splits                    Chia train / val / test
   id                  uuid PK
   labeled_sample_id   uuid FK -> labeled_samples.id (CASCADE), UNIQUE
   split               varchar(16) not null
@@ -129,7 +129,7 @@ evaluation_predictions           Du doan tung mau
 
 --- NHOM 4: VAN HANH (KHI CHAY THAT) ---
 
-pipeline_requests                Nhat ky moi lan phan tich
+ops_analyze_log                Nhat ky moi lan phan tich
   id                  uuid PK
   backend_request_id  uuid not null, UNIQUE (uq_pipeline_requests_backend_id)
   user_id_hash        varchar(64) not null
@@ -152,13 +152,13 @@ pipeline_requests                Nhat ky moi lan phan tich
   is_potential_duplicate boolean
   duplicate_of_request_id uuid          (lien ket mem, khong FK)
   classifier_version, extractor_version, categorizer_version  varchar(32)
-  raw_sample_id       uuid FK -> raw_samples.id (SET NULL), nullable
+  raw_sample_id       uuid FK -> ml_raw_samples.id (SET NULL), nullable
   processing_ms       integer
   error_message       text
   created_at          timestamptz
   Index: (user_id_hash, transacted_at); created_at
 
-provider_patterns                Regex theo tung ngan hang
+kb_provider_patterns                Regex theo tung ngan hang
   id                  uuid PK
   provider_key        text
   package_name        text
@@ -172,7 +172,7 @@ provider_patterns                Regex theo tung ngan hang
   created_at, updated_at timestamptz
   UNIQUE + index theo package_name (xem migration 0001)
 
-user_feedback                    Nguoi dung sua danh muc
+ml_user_feedback                    Nguoi dung sua danh muc
   id                  uuid PK
   backend_transaction_id_hash varchar(64) not null   (SHA-256)
   user_id_hash        varchar(64) not null
@@ -182,11 +182,11 @@ user_feedback                    Nguoi dung sua danh muc
   corrected_category  varchar(32)
   feedback_type       varchar(32) not null
   processed_at        timestamptz
-  batch_job_id        uuid FK -> feedback_batch_jobs.id (SET NULL), nullable
+  batch_id        uuid FK -> ml_feedback_batches.id (SET NULL), nullable
   created_at          timestamptz
   Index: pipeline_request_id (va mot index khac, xem migration 0004)
 
-feedback_batch_jobs              Moi lan gom feedback thanh nhan
+ml_feedback_batches              Moi lan gom feedback thanh nhan
   id                  uuid PK
   status              varchar(16) not null
   started_at          timestamptz
@@ -202,8 +202,45 @@ feedback_batch_jobs              Moi lan gom feedback thanh nhan
 - Khong co khoa ngoai sang DB backend. Lien ket chi qua gia tri bam SHA-256
   (user_id_hash, backend_transaction_id_hash). AI DB khong luu user_id that.
 - 3 bang ab_* duoc co y hoan lai, chua tao.
-- Xoa raw_samples keo theo labeled_samples -> sample_splits va
-  evaluation_predictions (CASCADE). pipeline_requests.raw_sample_id,
-  model_versions.training_job_id, user_feedback.batch_job_id chi bi dat ve NULL.
+- Xoa ml_raw_samples keo theo labeled_samples -> ml_sample_splits va
+  evaluation_predictions (CASCADE). ops_analyze_log.raw_sample_id,
+  model_versions.training_job_id, ml_user_feedback.batch_id chi bi dat ve NULL.
 - Day la schema suy ra tu code. So dong thuc te chua duoc kiem tra vi Docker
   Desktop dang tat luc doc.
+
+kb_categories                    So dang ky danh muc (giai doan 2, migration 0022)
+  slug                varchar(32) PK  (a-z va gach duoi)
+  label               text
+  taxonomy_version    int >= 1, is_active bool, synced_at, created_at
+  replaced_by         varchar(32) FK -> kb_categories.slug (SET NULL), nullable
+  - 11 slug backend la dong chinh; dining/groceries/utilities/healthcare la dong bi danh (is_active=false) tro ve food/food/bills/health.
+  - category_slug cua kb_brands, kb_keywords, kb_item_categories, user_merchant_memory, ops_analyze_log, ml_training_samples (predicted_slug, final_slug)
+    va ml_user_feedback (predicted_category, corrected_category) deu FK -> kb_categories.slug (UPDATE CASCADE, DELETE RESTRICT).
+
+ml_models                        Danh muc model (giai doan 3, migration 0023)
+  code UQ (= stage cu: classifier, categorizer, bill_slug, bill_category), kind sklearn|rasa|llm|rules, provider, notes
+  - ml_model_versions / ml_training_jobs co model_id FK -> ml_models.id (thay cot stage); moi model dung mot ban active.
+  - 6 bang bill_* da GOP: training_jobs/model_versions/evaluation_*/labeled_samples/ml_raw_samples gio chua ca du lieu hoa don
+    (mau tho cua hoa don: source='receipt', package_name='bill_scan' neu do ocr-service ghi; trang thai phien ban: candidate|active|retired|rejected; split danh gia them 'cv').
+  - Con lai rieng cua hoa don: bill_unknown_scans (hang doi duyet cua hang la; BANG DUY NHAT NGOAI ERD, giu co chu dich; migration 0029 them CHECK hex64,
+    scripts/purge_unknown_scans.py don bill qua 90 ngay). bill_user_merchant_category da GOP vao user_merchant_memory o migration 0029.
+
+ml_label_events                  Lich su nhan cua mau, chi ghi them (giai doan 4, migration 0024)
+  labeled_sample_id FK -> ml_labeled_samples.id (CASCADE), category_slug FK -> kb_categories.slug, is_financial, source (feedback|gold|import|user|system),
+  feedback_id FK -> ml_user_feedback.id (SET NULL), actor_hash hex64, created_at. Trigger chan UPDATE/DELETE truc tiep.
+
+ml_item_feedback                 Phieu cua nguoi dung cho danh muc cua mot mon: PK (item_key, user_id_hash), category_slug FK -> kb_categories.slug
+
+v_merchant_consensus / v_item_consensus   View dem so nguoi cung chon mot danh muc (users) va ty le phieu (agreement)
+
+kb_provider_formats              Dinh dang thong bao cua mot nha cung cap, co phien ban (giai doan 5, migration 0025)
+  provider_key, package_name, version (UQ voi package_name), status draft|active|archived, priority, notes, created_by hex64
+  - kb_provider_patterns.format_id FK -> kb_provider_formats.id (RESTRICT, NOT NULL); ten pattern duy nhat trong mot dinh dang. provider_key/package_name chi nam o dinh dang (0028).
+  - ops_analyze_log.pattern_id FK -> kb_provider_patterns.id (SET NULL, 0027). CHECK NOT (is_sensitive AND maps_to IS NULL) o kb_provider_format_fields (F1-04).
+  - Quan tri qua HTTP: /api/v1/admin/provider-formats (app/api/v1/provider_formats_admin.py).
+  - Bo khop chi dung pattern cua dinh dang active. draft -> active chi khi moi mau khop (scripts/provider_format.py activate).
+
+kb_provider_format_fields        Khai bao truong: field_key (UQ trong dinh dang), maps_to (6 truong hop dong hoac NULL = truong phu),
+                                 data_type, is_required, source_kind regex_group|literal, source_ref, normalizer, is_sensitive
+
+kb_provider_format_samples       Mau kiem tra: sample_text + expected_fields (jsonb object), FK format_id CASCADE

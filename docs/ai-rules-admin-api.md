@@ -26,25 +26,25 @@ Dành cho người dựng màn hình admin trên web. Backend chỉ giữ cổng
 ### `GET /meta`
 `{category_groups, backend_slugs, keyword_kinds, max_keyword_chars, max_instruction_chars}`. `category_groups` (9 nhóm: `dining, transport, shopping, groceries, housing, utilities, healthcare, entertainment, other`) là nhóm của **thương hiệu và từ khóa**; `backend_slugs` (10 nhóm, không có `income`) là nhóm của **bộ nhớ tên món**. `keyword_kinds` = `["merchant", "product"]`.
 
-### Thương hiệu (`bill_brands`: tên cửa hàng → nhóm)
+### Thương hiệu (`kb_brands`: tên cửa hàng → nhóm)
 - `GET /brands?q=&category_slug=&active=` → mỗi dòng `{brand_key, category_slug, display_name, whole_word, is_active, source, updated_at}`. `source` là `seed` (có sẵn) hoặc `admin` (do admin thêm/sửa).
 - `PUT /brands/{brandKey}` thân `{category_slug, display_name?, whole_word?, reason?}`: thêm mới hoặc sửa. `brandKey` được chuẩn hóa (bỏ dấu, chữ thường). Sửa **không** đổi trạng thái bật/tắt. `whole_word: true` = chỉ khớp nguyên từ.
 - `PATCH /brands/{brandKey}/active` thân `{is_active, reason?}`. Không có xóa cứng: tắt là cách gỡ.
 
-### Từ khóa (`bill_keywords`: từ trong tên cửa hàng hoặc tên món → nhóm)
+### Từ khóa (`kb_keywords`: từ trong tên cửa hàng hoặc tên món → nhóm)
 - `GET /keywords?kind=&category_slug=&q=&active=` → `{id, kind, category_slug, keyword, category_priority, is_active, source}`.
 - `POST /keywords` thân `{kind, category_slug, keyword, reason?}` → **201**, thêm trường `warnings: [{code, message, categories}]`. Từ khóa được chuẩn hóa (bỏ dấu, chữ thường). Trùng với từ khóa đang bật: 409 `duplicate`; trùng với từ khóa đã tắt: bật lại.
   - `warnings` **không chặn lưu**, chỉ để admin cân nhắc: `same_keyword_other_category` (đã có ở nhóm khác), `short_keyword` (dưới 4 ký tự, dễ khớp nhầm như "lau"/"lẩu").
 - `PATCH /keywords/{id}/active` thân `{is_active, reason?}`.
-- Từ khóa loại `product` cũng ảnh hưởng **chat và giọng nói** (bộ giải danh mục dùng chung với hóa đơn). Loại `chat` không sửa được ở đây.
+- Từ khóa loại `product` cũng ảnh hưởng **chat và giọng nói** (bộ giải danh mục dùng chung với hóa đơn). Từ điển phân loại câu chat không còn là một loại từ khóa ở đây: sửa nó ở tài liệu `chat_dictionary` (xem `docs/ai-config-admin-api.md`).
 
-### Bộ nhớ tên món (`bill_item_cache`)
+### Bộ nhớ tên món (`kb_item_categories`)
 Tên món → nhóm mà Gemini đã trả lời và được lưu dùng chung; **câu đầu tiên thắng và sai là sai cho mọi người**, nên đây là chỗ sửa lỗi quan trọng.
 - `GET /item-cache?q=` → `{item_key, category_slug, hits, updated_at}` (nhiều lượt dùng lên trước).
 - `PUT /item-cache` thân `{name, category_slug, reason?}` (`category_slug` thuộc `backend_slugs`). Tên được chuẩn hóa (bỏ số tiền, bỏ dấu). Tên giống mã hàng ("SP002993"), quá ngắn/dài: 422 `invalid_item`.
 - `DELETE /item-cache?name=` → 204; không có: 404.
 
-### Chỉ dẫn cho Gemini (`bill_ai_instructions`)
+### Chỉ dẫn cho Gemini (`kb_ai_instructions`)
 Phần luật phân nhóm món gửi cho Gemini. Phần nhiệm vụ, an toàn và schema kết quả do code giữ, nên sửa ở đây không làm lộ dữ liệu hay đổi định dạng trả về.
 - `GET /ai-instructions` → các phiên bản, mới nhất trước; đúng **một** phiên bản `is_active`.
 - `POST /ai-instructions` thân `{instruction_text, reason?}` → **201**, phiên bản mới được bật ngay, bản cũ giữ lại. Tối đa 20.000 ký tự, không để trống.

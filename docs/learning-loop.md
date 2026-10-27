@@ -6,7 +6,7 @@ Kế hoạch gốc: `docs/superpowers/plans/2026-10-13-learning-loop.md`. Mọi 
 ## Nguyên tắc (không đổi)
 
 - Mô hình **không bao giờ tự phục vụ**. `--train` chỉ tạo bản `candidate` (hoặc `rejected` kèm lý do); chỉ `--promote` mới bật.
-- Nhãn huấn luyện chỉ đến từ người dùng xác nhận hoặc sửa. Câu trả lời của Gemini và bảng `bill_item_cache` chỉ là dự đoán, không bao giờ là nhãn.
+- Nhãn huấn luyện chỉ đến từ người dùng xác nhận hoặc sửa. Câu trả lời của Gemini và bảng `kb_item_categories` chỉ là dự đoán, không bao giờ là nhãn.
 - Chỉ chữ hóa đơn đã lọc dữ liệu cá nhân được lưu. Không ảnh, không âm thanh. Người dùng rút đồng ý thì mẫu của họ bị xóa.
 - Mô hình chỉ trả lời ở `/bill/classify`, **khi luật không có câu trả lời** và xác suất ≥ 0,8; độ tin cậy trả về tối đa 0,8 như mọi kết quả hóa đơn.
   Hóa đơn thuốc, thương hiệu đã biết, cửa hàng người dùng đã chốt: luật/bộ nhớ quyết trước, mô hình không can thiệp.
@@ -14,7 +14,7 @@ Kế hoạch gốc: `docs/superpowers/plans/2026-10-13-learning-loop.md`. Mọi 
 ## 0. Điều kiện để có dữ liệu
 
 1. Người thử bật công tắc "Đóng góp dữ liệu huấn luyện" trong Hồ sơ của app (đồng ý riêng, mặc định tắt; tắt đi thì mẫu của họ bị xóa).
-2. Họ quét hóa đơn như bình thường. Mẫu chờ nhãn vào `bill_training_samples`; khi họ lưu hoặc sửa danh mục, mẫu có nhãn cuối. Mẫu không bao giờ được lưu bị xóa sau 7 ngày.
+2. Họ quét hóa đơn như bình thường. Mẫu chờ nhãn vào `ml_training_samples`; khi họ lưu hoặc sửa danh mục, mẫu có nhãn cuối. Mẫu không bao giờ được lưu bị xóa sau 7 ngày.
 
 ## 1. Nhịp hằng tuần
 

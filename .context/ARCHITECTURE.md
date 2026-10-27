@@ -815,12 +815,12 @@ ocr-service không gọi AI bên thứ ba nào (đường `use_ai`/`ai_refine.py
 - `parsing/privacy.py` — `sanitize_lines`: bỏ dòng nhãn cá nhân, che email/SĐT/số tài khoản.
 - `parsing/items.py` — tách từng món (tên + giá, giảm giá âm, phụ kiện `parent`) từ hộp chữ; `ok` chỉ khi cộng đúng tổng.
 - `parsing/merchant_name.py` — làm đẹp tên cửa hàng (IN HOA, dính chữ, ký tự rác).
-- `classification/brands.py`, `classification/chat_vocab.py` (và bảng từ khóa trong `parsing/extract.py`) — bảng thương hiệu/từ khóa mặc định khi DB trống. Dữ liệu nằm ở `ocr-service/data/*.json` (đọc qua `classification/data_files.py`), lý do từng mục ở `data/NOTES.md`; module giữ nguyên tên và kiểu bảng (dict/set sửa tại chỗ được) vì `knowledge_pg` cập nhật chúng từ DB.
+- `classification/brands.py`, `classification/chat_vocab.py` (và bảng từ khóa trong `parsing/extract.py`) — bảng thương hiệu/từ khóa mặc định khi DB trống. Dữ liệu nằm ở `ocr-service/data/*.json` (đọc qua `classification/data_files.py`), lý do từng mục ở `data/NOTES.md`; module giữ nguyên tên và kiểu bảng (dict/set sửa tại chỗ được) vì `knowledge_api` cập nhật chúng từ DB.
 - `parsing/app_screens.py` — ảnh chụp màn hình app (chuyến xe, thanh toán dịch vụ, danh sách đơn TMĐT).
 - `reading/text_clean.py` — sửa dấu lạ mà mô hình Latin gán nhầm cho tiếng Việt.
-- `storage/memory.py` / `storage/dataset.py` / `storage/storage_pg.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc PostgreSQL khi có `FINMATE_DATABASE_URL`.
-- `storage/knowledge_pg.py` — nạp `bill_brands`/`bill_keywords` từ DB lúc khởi động (DB trống thì giữ bản mặc định từ `data/*.json`), ghi `bill_unknown_scans`.
-- `classification/category_model.py`, `storage/training_pg.py`, `storage/promotion_pg.py`, `storage/datasets_pg.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge_to_pg.py`
+- `storage/memory.py` / `storage/dataset.py` / `storage/storage_api.py` — bộ nhớ cửa hàng và dataset: file cạnh code, hoặc qua API của ai-service (`storage/ai_api.py`, `/api/v1/ocr-store/*`) khi có `AI_SERVICE_URL` + `AI_SERVICE_API_KEY`. ocr-service KHÔNG kết nối DB (đã bỏ psycopg).
+- `storage/knowledge_api.py` — nạp thương hiệu/từ khóa từ ai-service lúc khởi động (không nối được hoặc trống thì giữ bản mặc định từ `data/*.json`), ghi bill lạ chờ duyệt qua API.
+- `classification/category_model.py`, `storage/training_api.py`, `storage/promotion_api.py`, `storage/datasets_api.py`, `storage/config_api.py` (trong service); `scripts/train_category_model.py`, `scripts/db_setup.py`, `scripts/seed_knowledge.py`
   (và các công cụ chạy tay khác trong `ocr-service/scripts/`) — huấn luyện/nạp dữ liệu (model TF-IDF + logistic chỉ dùng khi qua cổng chất lượng; gom phiếu bầu thành thương hiệu).
 
 **Khởi động.** `lifespan` chạy `warm_up()` trong một thread nền: nạp PaddleOCR và VietOCR trước, vì lần quét đầu nạp model mất
@@ -836,7 +836,18 @@ Không có `FINMATE_DATABASE_URL` (chạy ngoài docker) thì dùng file cạnh 
 **Hai đường đọc chữ (thêm 2026-10-26).** `reading/ocr.read_boxes` hỏi Google Cloud Vision (`reading/google_vision.py`, `DOCUMENT_TEXT_DETECTION`) trước khi có
 `GOOGLE_VISION_API_KEY`; Google lỗi hoặc không thấy chữ thì chạy OCR cục bộ (PaddleOCR + VietOCR). Dòng Google thành `OcrBox` qua cùng `_deskew`, nên bộ tách món, chọn tổng
 và nhận cửa hàng phía sau không đổi. **Ảnh rời hệ thống sang Google, chưa che dữ liệu cá nhân, luôn gửi** (quyết định chủ sản phẩm): cần cập nhật câu chữ màn đồng ý và tăng
-`ConsentVersions` cho khớp. Chất lượng Google so với OCR cục bộ chưa đo: đo bằng `FINMATE_OCR_ENGINE=local` và `auto` trên cùng bộ ảnh trước khi coi là mặc định.
+`ConsentVersions` cho khớp. **Google gộp cả hàng bảng thành một dòng** (số lượng, tên món, số tiền), còn bộ tách món làm việc theo ô như PaddleOCR phát hiện, nên
+`google_vision._cells` cắt dòng tại khoảng trống ngang rộng hơn `reading.google_vision._CELL_GAP_RATIO` (2,0) lần bề rộng một ký tự (đo theo ký tự, không theo chiều cao hộp vì ảnh
+nghiêng làm hộp phình ra). Đo ngày 2026-10-27 trên 58 ảnh, cùng bộ ảnh, hai chế độ (`FINMATE_OCR_ENGINE=local` và `auto`): tổng đúng 58 và 57, tên cửa hàng 54 và 53,
+danh mục 55 và 56, đúng cả ba 52 và 51, `items_ok` 40/49 và 39/49, 4,1 và 1,2 giây mỗi ảnh. Trước khi cắt ô Google chỉ đạt 56 tổng, 37/49 `items_ok`. Google đọc tên có dấu chuẩn hơn
+(tên món chứa nguyên đoạn nhãn 149/153 so với 152/161) nhưng chưa hơn OCR cục bộ ở tách món: coi là tương đương về độ chính xác, nhanh hơn khoảng 3,4 lần.
+**Hóa đơn mẫu in sẵn, người bán viết tay (thêm 2026-10-27, `parsing/prepare.py`).** Thiếu nhiều dấu hiệu mà bộ đọc quen dựa vào, nên có năm nguyên tắc chung: (1) ô nằm trọn trong ô khác là phát hiện trùng,
+bỏ (`ocr.drop_contained`); (2) số đứng một mình dưới cột tiền bằng đúng tổng các món là tổng, vì mẫu in sẵn không in chữ "Tổng" (`totals.choose_total`); (3) nhãn kết thúc bằng dấu hai chấm nhận giá trị
+viết tay cùng hàng thành một dòng "Nhãn: giá trị", để ô "Họ tên người mua hàng" (bên MUA) không thành tên cửa hàng, và bill không in tên người bán thì để trống để hỏi người dùng; (4) cột tiền toàn số nguyên
+nhỏ ("44") là viết tắt nghìn đồng, nhân thành 44.000, và ô gộp nuốt mất thành tiền được tách lại; (5) bill không in tổng nào thì dùng tổng các món, chỉ khi mọi món có tên đọc được. Mọi trường hợp (4) và (5)
+đều đặt `needs_review`. Đã thử và bỏ: sắp lại cả dòng theo hàng ngang, vì luật đọc tổng theo chữ (`extract._keyword_total`) dựa vào thứ tự dòng. Đo ngày 2026-10-27 trên 60 ảnh (gồm hai bill viết tay có nhãn "viết tay"):
+chế độ `local` 58 tổng đúng, 54 tên, 55 danh mục, 52 đúng cả ba, `items_ok` 40/51, 3,1 giây mỗi ảnh (hai bill viết tay bị từ chối vì PaddleOCR đọc quá kém); chế độ `auto` (Google) 59, 55, 57, 52, 41/51, 1,4 giây;
+58 bill cũ không đổi kết quả. Ngưỡng của phần này chỉ chỉnh trên hai bill viết tay, cần kiểm trên ảnh mới.
 
 ### 3.6 Chat và Rasa NLU (thêm 2026-10-11)
 
@@ -852,10 +863,16 @@ như một phần của stack với sự đồng ý của chủ dự án ngày 2
   lệnh huấn luyện lại nằm trong comment của service `rasa` ở `docker-compose.yml`.
 - **Cách ai-service gọi** (`app/services/nlu.py`): `POST {RASA_URL}/model/parse`, timeout 2 giây. Bất kỳ lỗi nào → trả `None` (dùng luật),
   cảnh báo tối đa mỗi 60 giây, và **cầu dao 30 giây** không gọi lại Rasa. `RASA_URL` trống → chỉ dùng luật.
-- **Gộp Rasa với luật** (`app/services/transaction_parser.py`): Rasa chắc dưới 0,6 → bỏ qua; câu có số tiền mà Rasa bảo `out_of_scope` dưới 0,75 →
-  theo luật; Rasa nói thu nhập/chuyển tiền nhưng luật thấy chi tiêu **và** câu có từ khóa chi tiêu rõ → theo luật (Rasa hay quá tự
-  tin với từ lạ); Rasa và luật bất đồng loại giao dịch → Rasa chỉ thắng khi chắc ≥ 0,97; câu hỏi (có "?", "… không", "có nên…") không
-  phải câu hỏi tổng → `out_of_scope`. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
+- **Gộp Rasa với luật** (`app/services/transaction_parser.py`; từ vựng, mẫu, ngưỡng và câu trả lời nằm ở `app/data/intent_cues.json`, nạp bởi
+  `app/services/intent_cues.py`, KHÔNG viết trong code): cơ chế là năm nguyên tắc, không phải danh sách ngoại lệ. Rasa chắc dưới 0,6 → bỏ qua.
+  (1) *Hình thức câu* quyết định câu không phải khoản ghi: hỏi giá thị trường, lệnh quản lý dữ liệu/tài khoản, câu hỏi có/không (có "?", kết
+  thúc bằng "không/chưa/nhỉ/hả", "có nên…"), chào/cảm ơn nguyên cụm. (2) Số tiền kèm bằng chứng giao dịch (tên món, cho tặng, trả) là khoản ghi
+  dù Rasa bảo `out_of_scope`; Rasa dưới 0,75 thì luôn thua. (3) Chỉ từ hỏi tổng mới làm câu hỏi chi tiêu. (4) *Chiều giao dịch*: dấu hiệu CỤ THỂ
+  (động từ/vai trò: nhận, được cho, người thân gửi mình, bán, trả nợ cho mình, phí, rút/nạp vào ví của mình) thắng Rasa dù Rasa chắc đến đâu,
+  vì độ chắc softmax chưa hiệu chỉnh (đo được sai ở 1,00); dấu hiệu chỉ nói tiền đi ra chỉ đủ bác bỏ "tiền vào". (5) Bằng chứng YẾU (tên một
+  thứ được mua, hay mặc định chi tiêu) chỉ thắng khi Rasa dưới 0,97, hoặc khi lời "thu nhập/chuyển tiền" không có dấu hiệu nâng đỡ **và câu có
+  dấu** (câu không dấu nhường Rasa vì "ban" là bạn/bán). Mỗi thay đổi ở lớp luật phải qua cổng `scripts/audit_overrides.py` (luật cứu ≥ phá,
+  không làm tụt bộ độc lập `tests/fixtures/eval/heldout_intent.jsonl` và `rasa/tests/nlu_test_fresh*.yml`); không vá theo từng câu lỗi. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
   "mua nước") trả `needs_amount` kể cả khi không có Rasa (có động từ chi tiêu hoặc từ danh mục; câu hỏi đã bị chặn trước). Các mô-đun
   `app/services/clauses.py` (tách khoản) và `app/services/dates.py` (ngày) thêm 2026-10-12.
 - **Số tiền và danh mục** luôn do luật: `amount.py` (Rasa chỉ giúp khi luật không thấy số), `vocab.py` (9 nhóm). Khi từ vựng chat
@@ -910,11 +927,20 @@ bảng DB `bill_brands`/`bill_keywords` (vẫn 9 nhóm), và bản sao bảng t�
   lựa chọn đã học không bao giờ khớp lần quét sau.
 - **Kiến thức trong DB cần seed tay** trên DB mới (xem §4.2).
 
+### 3.8 Chọn cách quản lý tài chính bằng AI (thêm 2026-10-27)
+
+`POST /api/v1/finance-methods/recommend` (`app/api/v1/finance_methods.py`; hợp đồng đầy đủ: `docs/ai-finance-method-recommend-api.md`). Backend gửi
+**signals ẩn danh** (≤ 60 khoá, trọng số 1–50) và **danh sách phương pháp được phép** (≤ 20, đã qua bộ lọc `excludes`); không gửi `user_id`, đáp án thô hay số tiền. ai-service
+nhờ Gemini chọn MỘT cách chính + tối đa MỘT cách bổ trợ, **tự kiểm tra** đầu ra (mã phải nằm trong danh sách, cách chính không phải `supporting`, lý do 1–240 ký tự)
+rồi trả `{primary, support, prompt_version}`. Chỉ dẫn nằm ở bảng `kb_method_prompts` (alembic `0030`, dòng `is_active`, cache 60 giây) nên sửa không cần build lại.
+Cầu dao riêng, dùng chung `GEMINI_API_KEY`. Hết cách Gemini thì thử **OpenRouter model `:free`** (`app/services/method_backup.py`, `METHOD_OPENROUTER_MODELS`; luôn gửi `provider.data_collection = "deny"`, trần cả route 24 giây). Backend (`MethodAiClient`, timeout 30 giây) chỉ gọi khi người dùng có `SurveyAiConsentGranted` (bản câu chữ hiện hành `ConsentVersions.SurveyAi = 2`, nêu cả Gemini và OpenRouter);
+lỗi, 502/503, quá hạn hoặc đầu ra backend kiểm lại không đạt → **rule** (`eligibility.weights`, `source = 'rule_fallback'`). Lý do tiếng Việt và `prompt_version` được lưu ở `method_recommendations`.
+
 ---
 
 ## 4. Database Architecture
 
-### 4.1 Backend DB — 25 bảng, 6 domain groups
+### 4.1 Backend DB — 33 bảng, 7 domain groups
 
 ```
 Auth & Identity:
@@ -938,7 +964,29 @@ Gamification:
 
 Receipt scan (thêm 2026-10-10):
   receipt_scans, receipt_scan_items, receipt_scan_links
+
+Quản lý tài chính (thêm 2026-10-26):
+  finance_methods, survey_questions, survey_options, goal_templates, method_goal_templates,
+  user_survey_answers, method_recommendations, user_methods
 ```
+
+**Cập nhật 2026-10-26 — quản lý tài chính (25 → 33 bảng, EF migration `AddFinanceMethodsAndOnboarding` và `RenameBudgetAlertFlagsAndAddSurveyAiConsent`).**
+Luồng: đăng ký → khảo sát 10 câu → backend suy ra *signals* → (AI nếu người dùng đồng ý riêng, không thì rule) gợi ý MỘT cách chính và tối đa MỘT
+cách bổ trợ **chỉ trong danh sách `finance_methods` đang bật** → người dùng chọn → cách đó mang ngưỡng cảnh báo T1/T2 (người dùng sửa được) và các mẫu mục tiêu.
+Báo cáo không thuộc luồng này. Dữ liệu cấu hình sửa trong DB qua API admin, **không cố định trong code**; Dữ liệu cá nhân là ngoại lệ có chủ đích của nguyên tắc local-first: câu trả lời khảo sát **lưu ở server** để gợi ý lại được.
+- `finance_methods` — danh mục cách quản lý (mã bất biến, `role` primary/supporting/both, `goal_mode`, `param_defs` = tham số + mặc định + min/max + có cho người dùng sửa không, `eligibility` = `{weights, excludes}`, `why_text`, `starter_steps`, `version` tăng mỗi lần sửa nội dung, `is_active`). Không xoá cứng.
+- `survey_questions`, `survey_options` — 10 câu khảo sát; mỗi đáp án mang `signals` (tên tín hiệu → trọng số); câu có `show_if` để ẩn theo đáp án trước. Mã câu/đáp án bất biến.
+- `goal_templates`, `method_goal_templates` — mẫu mục tiêu và bảng nối "cách nào gợi ý mẫu nào" (kèm `conditions` loại theo tín hiệu).
+- `user_survey_answers` — đáp án của từng người dùng (xoá được bất cứ lúc nào); `users.onboarding_status` = pending/completed/skipped.
+- `method_recommendations` — nhật ký mỗi lần gợi ý: `source` ai/rule_fallback, `prompt_version` (chỉ khi `ai`), `signals_snapshot`, `method_versions`, `reasons`, `outcome` shown/accepted/changed/skipped. Dùng để đo chất lượng gợi ý.
+- `user_methods` — cách người dùng đang dùng (một chính + tối đa một bổ trợ đang `active`; unique một phần), `method_version` đã chốt lúc chọn, `params` chỉ lưu phần người dùng **ghi đè** (còn lại theo mặc định hiện hành của cách).
+- Cột mới: `users.onboarding_status`, `users.survey_ai_consent_version/at` (đồng ý riêng: gửi *signals ẩn danh* cho AI, tách khỏi điều khoản chung); `saving_goals.goal_template_id` (mẫu mục tiêu đã dùng, nullable); `budget_periods.alert_t1_sent_at/alert_t2_sent_at/alert_over_sent_at` (đổi tên từ cờ 80%/100%). T1/T2 đọc qua `IAlertThresholdProvider` (1 ≤ T1 < T2 ≤ 99; mức vượt hạn mức cố định 100%).
+- Tiền khả dụng dùng chung một công thức (`GET /me/spendable`) và tính khả thi mục tiêu dùng `GoalFeasibilityCalculator` (khả dụng = thu nhập − tổng hạn mức ngân sách) cho cả `GET /saving-goals/{id}/progress` lẫn `POST /saving-goals/feasibility`.
+
+API người dùng (mới): `GET /survey`, `PUT /survey/answers`, `POST /survey/skip`, `DELETE /survey`; `GET /finance-methods`, `POST /finance-methods/recommendations`,
+`GET /finance-methods/recommendations/latest`, `POST /finance-methods/recommendations/{id}/skip`; `GET|POST /me/methods`, `PATCH /me/methods/{id}/params`, `DELETE /me/methods/{id}`;
+`GET /me/goal-suggestions`, `GET /me/spendable`; `POST /saving-goals/feasibility`; đồng ý `surveyAi` qua `POST|DELETE /users/me/consents`.
+API admin (mới, `AdminOnly`, có audit): `/admin/finance-methods` (+ `/activation`, `/{id}/goal-templates`), `/admin/survey-questions` (+ options, `/activation`), `/admin/goal-templates`.
 
 **Cập nhật 2026-10-10.** Tiêu đề cũ ghi "20 bảng" nhưng danh sách liệt kê 22 tên — con số cũ đếm sai; cộng 3 bảng
 mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptScanItemsAndLinks`):
@@ -984,6 +1032,7 @@ và 2 view mà mục này chưa liệt kê (bản 2026-10-10 chỉ ghi `bill_ai_
 | `bill_unknown_merchants` (view) | 0006 | Hàng đợi duyệt: cửa hàng lạ `status = 'new'` gom theo `merchant_key` (số bill, số lượt, số người) |
 | `bill_merchant_votes` (view) | 0006 | Phiếu bầu: bao nhiêu người xếp một cửa hàng vào một nhóm (từ `bill_user_merchant_category`) |
 | `bill_user_merchant_choice` | 0007 | Bộ nhớ cửa hàng **mới**: slug **backend** người dùng chọn khi lưu giao dịch (CHECK = 11 slug trừ `income`); UNIQUE `(user_id_hash, merchant_key)`. Ghi bởi `/bill/learn` |
+| `kb_method_prompts` | 0030 | Chỉ dẫn cho route chọn cách quản lý tài chính (§3.8): `prompt_version` UNIQUE (CHECK `^[A-Za-z0-9._-]+$`), nội dung, `is_active` (một dòng). Đổi chỉ dẫn = thêm dòng mới rồi chuyển `is_active`; dòng cũ giữ để truy ngược. Gieo sẵn `method-select-v1`. **Chưa tính vào tổng "25 bảng" ở trên** (số đó đếm tới `0009`) |
 | `bill_item_cache` | 0009 | Tên món (bỏ dấu, bỏ số tiền, tối đa 60 ký tự) → slug backend mà Gemini đã trả lời; `item_key` PK, `hits`; CHECK = 10 slug (trừ `income`). **Dùng chung, không có cột người dùng**; ghi bằng upsert, câu trả lời đầu tiên thắng |
 | `bill_ai_instructions` | 0008 | Chỉ dẫn Gemini sửa được trong DB; đúng một dòng `is_active` (xem dưới) |
 
@@ -996,7 +1045,7 @@ và chỉ dẫn Gemini (`bill_ai_instructions`) sửa trực tiếp trong DB, **
 trong `classifier.py`, `item_rules_seed.py`) chỉ là mặc định/seed và đường lui. ai-service: `DbBillKnowledge.refresh_if_stale` nạp lại
 `bill_brands`/`bill_keywords` khi đã quá **60 giây** (DB lỗi thì giữ bản đang dùng, ghi cảnh báo); chỉ dẫn Gemini cũng cache 60 giây.
 ocr-service: nạp lúc khởi động, nạp lại qua `POST /admin/reload-knowledge` (§3.5).
-**Seed của `bill_brands`/`bill_keywords`.** alembic `0006` chỉ tạo schema. ai-service tự thêm bản mặc định trong code (`app/bill/seed_defaults.py`) vào hai bảng mỗi lần khởi động (cờ `SEED_BILL_KNOWLEDGE`, mặc định bật): chỉ thêm, chạy lại không đổi gì, DB luôn thắng. Dòng đã sửa, đã tắt (`is_active = false`) hay từ khóa đã chuyển nhóm (migration `0008`/`0012`, người duyệt) không bị ghi đè hay thêm lại; muốn bỏ một mục thì tắt chứ đừng xóa dòng. Chuỗi mới thêm vào code đến mọi môi trường sau lần deploy kế tiếp. ai-service sở hữu hai loại `merchant`/`product`; loại `chat` chỉ ocr-service dùng nên vẫn do `ocr-service/scripts/seed_knowledge_to_pg.py` nạp (chạy tay, `--write`; xem trước liệt kê mục còn thiếu). ocr-service giữ bản dự phòng ở `ocr-service/data/*.json` (khi không có DB và cho test); `ai-service/tests/unit/test_bill_seed_defaults.py` bắt lệch giữa hai bản khi chạy với cả repo. Việc `0008` chuyển 4 từ khóa sang `shopping` chỉ có tác dụng khi các dòng đó đã được seed (nó `INSERT … SELECT` rồi `DELETE` trên chính `bill_keywords`).
+**Seed của `bill_brands`/`bill_keywords`.** alembic `0006` chỉ tạo schema. ai-service tự thêm bản mặc định trong code (`app/bill/seed_defaults.py`) vào hai bảng mỗi lần khởi động (cờ `SEED_BILL_KNOWLEDGE`, mặc định bật): chỉ thêm, chạy lại không đổi gì, DB luôn thắng. Dòng đã sửa, đã tắt (`is_active = false`) hay từ khóa đã chuyển nhóm (migration `0008`/`0012`, người duyệt) không bị ghi đè hay thêm lại; muốn bỏ một mục thì tắt chứ đừng xóa dòng. Chuỗi mới thêm vào code đến mọi môi trường sau lần deploy kế tiếp. ai-service sở hữu hai loại `merchant`/`product`; loại `chat` chỉ ocr-service dùng nên vẫn do `ocr-service/scripts/seed_knowledge.py` nạp (chạy tay, `--write`; xem trước liệt kê mục còn thiếu). ocr-service giữ bản dự phòng ở `ocr-service/data/*.json` (khi không có DB và cho test); `ai-service/tests/unit/test_bill_seed_defaults.py` bắt lệch giữa hai bản khi chạy với cả repo. Việc `0008` chuyển 4 từ khóa sang `shopping` chỉ có tác dụng khi các dòng đó đã được seed (nó `INSERT … SELECT` rồi `DELETE` trên chính `bill_keywords`).
 
 **Cập nhật 2026-10-10.** `bill_ai_instructions` (alembic `0008`): đoạn mô tả nhóm, luật chốt khi nhập nhằng và ví dụ mà
 `ai-service` đưa cho Gemini — **sửa trong DB, không cần build lại**; đúng một dòng `is_active` (chỉ mục duy nhất từng phần).

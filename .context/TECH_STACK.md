@@ -543,7 +543,7 @@ tests/
 ```
 ocr-service/tests/
 ├── conftest.py      # autouse: bộ nhớ cửa hàng + dataset ghi ra file tạm; bỏ kiểm khóa nội bộ (trừ test_internal_key.py)
-├── pg_fake.py       # giả PostgreSQL bằng SQLite cho các test *_pg (không thay được thử trên Postgres thật)
+├── fake_ai_api.py   # AI Service giả trong bộ nhớ cho các test *_api; test_ai_api.py giữ nó khớp với máy khách thật
 ├── fixtures/
 └── test_*.py        # theo module (test_extract, test_items, test_privacy, test_dates, test_api…) VÀ theo hành vi
                      # (test_header_rescue, test_receipt_detection, test_databill_regressions…); vài module như
