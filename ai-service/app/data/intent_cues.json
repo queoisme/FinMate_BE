@@ -1,0 +1,587 @@
+{
+  "_doc": "Từ vựng, mẫu nhận dạng, ngưỡng và câu trả lời của lớp hiểu câu chat (app/services/transaction_parser.py, clauses.py, goal_parser.py, category_resolver.py). Sửa tệp này rồi khởi động lại ai-service, hoặc sửa qua trang quản trị (config_documents) để có hiệu lực không cần khởi động lại; KHÔNG thêm từ khóa vào code. Mỗi mẫu là một LOẠI dấu hiệu (động từ/vai trò/hình thức câu), không phải một câu lỗi cụ thể: thêm mẫu cho một câu lẻ là vá cho qua test. Mọi thay đổi ở đây phải qua cổng scripts/audit_overrides.py (cứu >= phá, không làm tụt bộ độc lập). Cú pháp <<tên>> chèn một danh sách trong 'lists' (tự bỏ dấu khi mẫu có on=folded) hoặc một đoạn trong 'fragments'.",
+  "lists": {
+    "giver": [
+      "mẹ",
+      "bố",
+      "ba",
+      "cô",
+      "chú",
+      "dì",
+      "bác",
+      "chị",
+      "sếp",
+      "khách",
+      "ông nội",
+      "bà nội",
+      "ông ngoại",
+      "bà ngoại",
+      "anh trai",
+      "em trai",
+      "chị gái",
+      "em gái",
+      "anh hai",
+      "chị hai",
+      "bạn ở ghép",
+      "bạn cùng phòng",
+      "đồng nghiệp",
+      "cậu",
+      "mợ",
+      "thím",
+      "dượng"
+    ],
+    "people_in": [
+      "bạn",
+      "anh",
+      "chị",
+      "mẹ",
+      "bố",
+      "ba",
+      "cô",
+      "chú",
+      "dì",
+      "bác",
+      "sếp",
+      "khách",
+      "đồng nghiệp",
+      "hàng xóm"
+    ],
+    "debt_not_to": [
+      "bạn",
+      "anh",
+      "chị",
+      "em",
+      "mẹ",
+      "bố",
+      "ba",
+      "cô",
+      "chú",
+      "dì",
+      "bác"
+    ],
+    "recipients": [
+      "mẹ",
+      "bố",
+      "ba",
+      "ông",
+      "cô",
+      "chú",
+      "dì",
+      "bác",
+      "anh",
+      "chị",
+      "em",
+      "bạn",
+      "con",
+      "vợ",
+      "chồng"
+    ],
+    "fee_kinds": [
+      "rút",
+      "chuyển",
+      "nạp",
+      "atm",
+      "giao dịch",
+      "duy trì",
+      "dịch vụ",
+      "ngân hàng",
+      "sms"
+    ],
+    "own_wallet": [
+      "tiết kiệm",
+      "ví",
+      "momo",
+      "zalopay",
+      "vnpay",
+      "ngân hàng",
+      "atm",
+      "tiền mặt"
+    ],
+    "own_account": [
+      "tiết kiệm",
+      "ví",
+      "momo",
+      "zalopay",
+      "vnpay",
+      "ngân hàng",
+      "tài khoản",
+      "thẻ",
+      "atm",
+      "tiền mặt"
+    ],
+    "description_lead": [
+      "và",
+      "rồi",
+      "còn",
+      "vừa",
+      "mới",
+      "nay",
+      "hôm nay",
+      "hôm qua",
+      "tôi",
+      "mình",
+      "em",
+      "đã",
+      "hết",
+      "tốn",
+      "mất",
+      "chi",
+      "tiêu",
+      "khoảng"
+    ],
+    "description_trail": [
+      "hết",
+      "tốn",
+      "mất",
+      "khoảng",
+      "hết khoảng"
+    ],
+    "merchant_prepositions": [
+      "ở",
+      "tại",
+      "o",
+      "tai"
+    ],
+    "not_merchant": [
+      "nha"
+    ],
+    "question_starts": [
+      "có nên",
+      "nên",
+      "liệu",
+      "có phải"
+    ],
+    "clause_filler": [
+      "nhé",
+      "nha",
+      "nhá",
+      "luôn",
+      "nữa",
+      "giúp",
+      "với",
+      "đấy",
+      "ạ",
+      "nhỉ"
+    ],
+    "not_an_item": [
+      "về",
+      "với",
+      "cho",
+      "em",
+      "anh",
+      "chị",
+      "mẹ",
+      "bố",
+      "ba",
+      "má",
+      "con",
+      "bạn",
+      "mình",
+      "nhà",
+      "ở",
+      "tại",
+      "hết",
+      "xong",
+      "luôn",
+      "nữa"
+    ],
+    "goal_stopwords": [
+      "vao",
+      "toi",
+      "minh",
+      "se",
+      "muon",
+      "duoc",
+      "khoang",
+      "tam",
+      "co",
+      "la",
+      "het",
+      "trong",
+      "voi",
+      "tiet",
+      "kiem",
+      "de",
+      "cho",
+      "sau",
+      "nua",
+      "tiep",
+      "theo",
+      "dat",
+      "tao",
+      "lap",
+      "muc",
+      "tieu",
+      "danh",
+      "dum",
+      "can",
+      "phai",
+      "den",
+      "khoan",
+      "nhe",
+      "nha",
+      "a",
+      "truoc"
+    ],
+    "not_item_words": [
+      "khác"
+    ]
+  },
+  "fragments": {
+    "interest_in": "(?<!trả )(?<!đóng )tiền lãi(?! vay)",
+    "sell": "(?<!người )(?<!nhân viên )(?<!cửa hàng )(?<!quầy )(?<!chỗ )(?<!tiệm )(?<!quán )\\bbán\\b",
+    "income_specific_src": "nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:<<giver>>)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|khách trả|<<sell>>|<<interest_in>>",
+    "income_topic_src": "lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm",
+    "income_weak_src": "(?:anh|em)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)",
+    "income_specific_plain_src": "nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|khach tra|ban duoc|ban do|ban xe",
+    "income_topic_plain_src": "(?<!tra )tien luong|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|freelance",
+    "pay_debt": "tra(?: tien)? no"
+  },
+  "patterns": {
+    "income_specific": {
+      "on": "accented",
+      "regex": "<<income_specific_src>>",
+      "doc": "Tiền vào, bằng chứng CỤ THỂ: động từ/vai trò nói rõ tiền về tay mình. Thắng model dù model chắc đến đâu. Danh từ đi cả hai chiều (lương, thưởng) KHÔNG nằm ở đây."
+    },
+    "income_accented": {
+      "on": "accented",
+      "regex": "<<income_specific_src>>|<<income_topic_src>>|<<income_weak_src>>",
+      "doc": "Mọi dấu hiệu tiền vào trên câu có dấu: cụ thể + chủ đề + yếu (anh/em gửi: người dùng hay tự xưng anh/em)."
+    },
+    "income_specific_plain": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<income_specific_plain_src>>)(?![a-z])",
+      "doc": "Bản không dấu của dấu hiệu cụ thể. 'ban' vừa là bạn/bán/ban nên chỉ nhận các cụm cố định; phần còn lại để Rasa quyết (giới hạn đã biết)."
+    },
+    "income_plain": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<income_specific_plain_src>>|<<income_topic_plain_src>>)(?![a-z])",
+      "doc": "Mọi dấu hiệu tiền vào trên câu không dấu."
+    },
+    "received": {
+      "on": "folded",
+      "regex": "nhan (?:luong|tien|thuong)|duoc (?:cho|tang)",
+      "doc": "Chắc chắn là tiền vào dù câu có chữ 'chuyển'."
+    },
+    "not_income": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:tra|phat|ung) (?:luong|cong|thuong)(?![a-z])",
+      "doc": "'trả lương nhân viên' là tiền ra."
+    },
+    "fee": {
+      "on": "folded",
+      "regex": "(?<![a-z])phi (?:<<fee_kinds>>)(?![a-z])",
+      "doc": "Phí là chi tiêu dù câu có chữ rút/chuyển ('phí rút tiền')."
+    },
+    "withdraw": {
+      "on": "folded",
+      "regex": "(?<![a-z])rut(?![a-z])",
+      "doc": "Rút tiền: lấy tiền của mình ra."
+    },
+    "own_wallet": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<own_wallet>>)(?![a-z])",
+      "doc": "Nơi của chính mình. Cố ý không có 'thẻ'/'tài khoản': 'nạp thẻ game' là chi tiêu."
+    },
+    "own_account": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<own_account>>)(?![a-z])",
+      "doc": "Tài khoản/ví của mình (rộng hơn own_wallet) để phân biệt chuyển cho mình với chuyển cho người khác."
+    },
+    "transfer_cue": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:chuyen khoan|chuyen tien|chuyen|rut|nap(?: tien)?(?: \\S+){0,3} vao|gui tiet kiem|<<pay_debt>>|dao no)(?![a-z])",
+      "doc": "Dấu hiệu chuyển tiền; số tiền có thể nằm giữa ('nạp 300k vào momo')."
+    },
+    "to_others": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:cho|<<pay_debt>>|dao no|bieu|tang)(?![a-z])",
+      "doc": "Tiền đi cho người khác."
+    },
+    "debt_in": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<people_in>>)(?: [a-z]+){0,2} (?:tra|hoan)(?: (?:no|lai))+(?![a-z])(?! (?:cho )?(?:<<debt_not_to>>)(?![a-z]))|(?<![a-z])(?:tra|hoan)(?: (?:no|lai))* (?:cho )?(?:toi|minh)(?![a-z])|(?<![a-z])cho (?:toi|minh) (?:muon|vay)(?![a-z])|(?<![a-z])(?:<<people_in>>)(?: [a-z]+)? cho (?:(?:toi|minh) )?(?:muon|vay)(?![a-z])|(?<![a-z])(?:muon|vay) (?:<<people_in>>)(?![a-z])",
+      "doc": "Tiền VỀ tay mình từ nợ nần: người khác trả nợ/trả lại, trả cho mình, cho mình mượn/vay. 'em' cố ý không có trong people_in vì người dùng hay tự xưng em."
+    },
+    "lend_out": {
+      "on": "folded",
+      "regex": "(?<![a-z])cho(?: [a-z]+){0,2} (?:muon|vay)(?![a-z])",
+      "doc": "Tiền RA cho người khác mượn."
+    },
+    "giving_away": {
+      "on": "folded",
+      "regex": "(?<![a-z])cho\\s+(?:<<recipients>>)(?![a-z])",
+      "doc": "'cho mẹ 500k', 'tôi cho em 100k': tiền đi ra."
+    },
+    "paying": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:tra(?!\\s+(?:loi|cuu|ve|lai)(?![a-z]))|thanh\\s+toan)(?![a-z])",
+      "doc": "Động từ trả/thanh toán đi với số tiền là khoản chi ('trả lời 5 câu' không tính)."
+    },
+    "data_ops": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:xoa|huy|reset)(?: het| toan bo| tat ca)? (?:du lieu|tai khoan|lich su)(?![a-z])",
+      "doc": "Lệnh quản lý dữ liệu/tài khoản, không phải 'hủy khoản đang chờ'."
+    },
+    "price_q": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:gia|ty gia)(?![a-z])",
+      "doc": "Hỏi giá thị trường, không phải tổng chi tiêu của mình."
+    },
+    "money_word": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])",
+      "doc": "Câu hỏi chi tiêu phải nhắc tới tiền."
+    },
+    "query": {
+      "on": "folded",
+      "regex": "bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap",
+      "doc": "Từ hỏi tổng. 'bao nhiêu' + đơn vị không phải tiền là câu xã giao."
+    },
+    "balance_q": {
+      "on": "folded",
+      "regex": "con lai|tiet kiem duoc|thu chi|chenh lech|du bao nhieu|so du",
+      "doc": ""
+    },
+    "income_q": {
+      "on": "folded",
+      "regex": "thu nhap|nhan duoc|kiem duoc|thu duoc|luong",
+      "doc": ""
+    },
+    "spend_q": {
+      "on": "folded",
+      "regex": "tieu|chi tieu|da chi|tong chi",
+      "doc": ""
+    },
+    "ambiguous_send": {
+      "on": "folded",
+      "regex": "(?<![a-z])gui(?! xe)(?![a-z])",
+      "doc": "'gửi tiền': gửi đi hay được gửi cho; 'gửi xe' thì chắc chắn là chi."
+    },
+    "percent": {
+      "on": "folded",
+      "regex": "phan\\s+tram|%",
+      "doc": ""
+    },
+    "stray_amount": {
+      "on": "folded",
+      "regex": "\\d+(?:[.,]\\d+)?\\s*(?:k|nghin|ngan|canh|trieu|tr|cu)(?![a-z])",
+      "doc": "Số tiền còn sót trong mô tả. Không tính 'lít' vì 'mua 2 lít sữa 50k' là số lượng."
+    },
+    "expense_verb": {
+      "on": "folded",
+      "regex": "(?:an|uong|mua|di an|di uong|do xang|dong|tra|nap|thue)(?![a-z])",
+      "doc": "Cụm chi tiêu không kèm số tiền: hỏi số tiền thay vì bảo ngoài chủ đề."
+    },
+    "pay_debt": {
+      "on": "folded",
+      "regex": "(?<![a-z])<<pay_debt>>(?![a-z])",
+      "doc": "Trả nợ (kể cả 'trả tiền nợ'): khoản vay, không phải chi tiêu thường."
+    },
+    "description_leading": {
+      "on": "accented",
+      "regex": "(?i)^(?:<<description_lead>>)\\s+",
+      "doc": "Chữ đệm đứng đầu mô tả sau khi bỏ số tiền ('và', 'hôm nay', 'tôi', 'hết'...): bỏ đi để mô tả chỉ còn tên món. Khớp trên câu CÓ dấu, một lần ở đầu."
+    },
+    "description_trailing": {
+      "on": "accented",
+      "regex": "(?i)\\s+(?:<<description_trail>>)$",
+      "doc": "Chữ đệm ở cuối mô tả ('ăn bún chả hết 55 cành' -> 'ăn bún chả'). Khớp trên câu CÓ dấu."
+    },
+    "merchant_in": {
+      "on": "accented",
+      "regex": "(?i)\\b(?:<<merchant_prepositions>>)\\s+(?!(?:<<not_merchant>>)\\b)(.+)$",
+      "doc": "Nơi mua ('ăn phở ở Bà Tư'): nhóm 1 là tên nơi. Giữ cả dạng không dấu (o, tai) vì người dùng hay gõ không dấu; 'o nha' (ở nhà) không phải nơi mua."
+    },
+    "question_lead": {
+      "on": "folded",
+      "regex": "(?:<<question_starts>>) ",
+      "doc": "Câu mở đầu bằng từ hỏi ('có nên', 'liệu') là câu hỏi dù không có dấu hỏi cuối câu; khớp ở đầu câu."
+    },
+    "clause_separator": {
+      "on": "accented",
+      "regex": "(?i)(\\s*(?<!\\d),\\s*|\\s*,(?!\\d)\\s*|\\s*;\\s*|\\s+(?:và|va|rồi|roi|sau đó|sau do)\\s+|\\s*\\+\\s*)",
+      "doc": "Dấu/từ ngăn các khoản trong một câu: phẩy (trừ phẩy thập phân '1,5tr'), chấm phẩy, 'và', 'rồi', 'sau đó', dấu cộng. Có đúng MỘT nhóm bắt (dùng để giữ lại dấu ngăn khi tách)."
+    },
+    "cancel_clause": {
+      "on": "accented",
+      "regex": "(?i)^\\s*(?:(?:rồi|và|à|ờ|ơ)\\s+)*(?:thôi\\s+)?(?:hủy|huỷ|bỏ|khỏi|không\\s+mua\\s+nữa)(?:\\s+(?:đi|nhé|nha|luôn|rồi|khoản\\s+đó|cái\\s+đó))?\\s*$",
+      "doc": "Một vế chỉ gồm lời hủy ('hủy', 'thôi', 'không mua nữa'): bỏ khoản đứng ngay trước nó. Phải khớp cả vế nên 'không cần hủy' hay 'hủ tiếu' không khớp."
+    },
+    "cancel_word": {
+      "on": "accented",
+      "regex": "(?i)(?<!\\w)(?:hủy|huỷ|nhầm)(?!\\w)",
+      "doc": "Còn sót chữ hủy/nhầm ở đâu đó trong câu (không vế nào gồm riêng lời hủy): không được tự ghi, để người dùng xem lại."
+    },
+    "correction_clause": {
+      "on": "accented",
+      "regex": "(?i)^\\s*(?:à\\s+|ờ\\s+)?(?:nhầm|sai\\s+rồi|nhầm\\s+rồi)\\s*$",
+      "doc": "Một vế chỉ gồm lời sửa ('nhầm', 'sai rồi'): số tiền ở vế kế tiếp thay cho số tiền của khoản trước."
+    },
+    "total_label": {
+      "on": "accented",
+      "regex": "(?i)(?<!sếp\\s)(?<!\\w)(?:tổng\\s+cộng|tổng\\s+số|tổng|tất\\s+cả)(?:\\s*[:：]|\\s+là|\\s+hết)?\\s*",
+      "doc": "Nhãn tổng đứng riêng như một từ và liền ngay sau là số tiền ('tổng cộng 60k', 'tổng là 60k'); 'bộ tổng hợp đề 150k' và 'sếp tổng' không khớp."
+    },
+    "breakdown_keyword": {
+      "on": "accented",
+      "regex": "(?i)\\s*(?:bao gồm|gồm có|trong đó|gồm|có)\\s+",
+      "doc": "Từ báo phần sau là các khoản chi tiết của số đứng đầu câu: '100k gồm ăn cơm 20k và ...', 'trong 100k có 20k ăn cơm'."
+    },
+    "goal_strong": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:(?:dat|dat ra|tao|lap) (?:cho )?(?:muc tieu|ke hoach)|muc tieu tiet kiem)(?![a-z])",
+      "doc": "Từ đặt mục tiêu rõ ràng ('đặt mục tiêu', 'tạo kế hoạch', 'mục tiêu tiết kiệm'): đủ để hỏi lại số tiền nếu thiếu. Hẹp có chủ ý: 'mua xe máy 50 triệu' vẫn là khoản chi."
+    },
+    "goal_weak": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:muon tiet kiem|de danh|danh dum)(?![a-z])",
+      "doc": "Cách nói yếu hơn ('muốn tiết kiệm 20 triệu để mua xe'): chỉ tính là mục tiêu khi có số tiền, kẻo 'muốn tiết kiệm bớt tiền ăn' bị hỏi lại."
+    },
+    "goal_past": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:thang truoc|tuan truoc|nam truoc|hom qua|hom kia)(?![a-z])",
+      "doc": "Mốc thời gian đã qua ('tháng trước', 'hôm qua'): hạn mục tiêu phải ở tương lai nên bị từ chối. Khớp trên câu đã bỏ dấu."
+    }
+  },
+  "phrases": {
+    "greet": [
+      "chào",
+      "xin chào",
+      "hello",
+      "hi",
+      "alo",
+      "hey",
+      "chào mầm",
+      "chào bạn",
+      "chào em",
+      "chào anh",
+      "chào chị",
+      "xin chào bạn",
+      "hi bạn",
+      "hello bạn",
+      "chào buổi sáng",
+      "chào buổi tối",
+      "chào mầm ơi",
+      "chào bạn ơi"
+    ],
+    "thanks": [
+      "cảm ơn",
+      "cảm ơn nhé",
+      "thanks",
+      "thank you",
+      "thank",
+      "cảm ơn bạn",
+      "cảm ơn nhiều",
+      "cảm ơn rất nhiều",
+      "cảm ơn mầm",
+      "cảm ơn nha",
+      "cảm ơn bạn nhé"
+    ]
+  },
+  "forms": {
+    "question_particles": {
+      "words": [
+        "không",
+        "chưa",
+        "nhỉ",
+        "hả"
+      ],
+      "doc": "Cuối câu hỏi có/không kiểu nói chuyện: 'đi ăn không', 'ngủ chưa'."
+    },
+    "answer_starts": {
+      "words": [
+        "không",
+        "chưa",
+        "sai",
+        "nhầm"
+      ],
+      "doc": "Lời đáp thật mở đầu bằng từ đáp ('không đúng', 'chưa đúng'), không phải câu hỏi."
+    },
+    "period_labels": {
+      "pairs": [
+        [
+          "hom nay",
+          "hôm nay"
+        ],
+        [
+          "hom qua",
+          "hôm qua"
+        ],
+        [
+          "tuan nay",
+          "tuần này"
+        ],
+        [
+          "tuan truoc",
+          "tuần trước"
+        ],
+        [
+          "thang truoc",
+          "tháng trước"
+        ],
+        [
+          "thang nay",
+          "tháng này"
+        ]
+      ],
+      "doc": "Kỳ thống kê: [khóa đã bỏ dấu, nhãn hiển thị], thử khớp theo thứ tự. CHỈ sửa nhãn; khóa là định danh code dùng để tính khoảng ngày nên không được đổi/xóa."
+    },
+    "reply_intents": {
+      "words": [
+        "greet",
+        "goodbye",
+        "confirm",
+        "deny",
+        "cancel"
+      ],
+      "doc": "Tên ý định của Rasa mà code coi là lời đáp (chào, tạm biệt, đồng ý/từ chối/hủy), không phải một khoản ghi. Là tên ý định trong mô hình, không phải từ tiếng Việt."
+    },
+    "needs_accent": {
+      "map": {
+        "cho": "chợ",
+        "noi": "nồi",
+        "mua noi": "nồi",
+        "cho chi": "chị"
+      },
+      "doc": "Từ khóa phân loại (đã bỏ dấu) chỉ được nhận khi câu gốc chứa đúng dạng có dấu này: bỏ dấu thì 'chợ' trùng 'cho' (đưa), 'nồi' trùng 'nói/nơi'. Gõ không dấu thì phải có từ khóa không dấu riêng ('đi chợ') trong từ điển."
+    }
+  },
+  "thresholds": {
+    "min_nlu_confidence": {
+      "value": 0.6,
+      "doc": "Rasa chắc dưới mức này thì bỏ qua, dùng luật."
+    },
+    "out_of_scope_override": {
+      "value": 0.75,
+      "doc": "Câu có số tiền mà Rasa bảo 'ngoài chủ đề' chỉ bị từ chối khi Rasa chắc từ mức này."
+    },
+    "kind_trust": {
+      "value": 0.97,
+      "doc": "Rasa và luật bất đồng loại giao dịch mà luật chỉ có bằng chứng yếu: Rasa chỉ thắng khi chắc từ mức này. Dấu hiệu CỤ THỂ thắng bất kể độ chắc (softmax chưa hiệu chỉnh, đo được sai ở 1,00)."
+    },
+    "uncertain_below": {
+      "value": 0.85,
+      "doc": "Rasa hiểu nhưng chắc dưới mức này: tin nhắn đáng để xem lại."
+    },
+    "auto_confidence": {
+      "value": 0.9,
+      "doc": "Rasa chắc từ mức này (và là add_expense) mới cho ghi ngay."
+    }
+  },
+  "replies": {
+    "greet": "Chào bạn! Mình là Mầm, bạn cứ nhắn khoản chi tiêu, ví dụ \"ăn phở 45k\", hoặc hỏi \"tháng này tôi tiêu bao nhiêu?\".",
+    "goodbye": "Tạm biệt bạn! Cần ghi chi tiêu thì nhắn mình nhé.",
+    "thanks": "Không có gì! Cần ghi thêm khoản nào cứ nhắn mình nhé.",
+    "empty": "Bạn nhắn khoản chi tiêu nhé, ví dụ: ăn phở 45k.",
+    "needs_amount": "Mình chưa thấy số tiền. Bạn nhắn kèm số tiền nhé, ví dụ \"ăn phở 45k\".",
+    "cancelled": "Mình đã bỏ khoản đó, không ghi gì. Cần ghi khoản khác cứ nhắn mình nhé.",
+    "out_of_scope": "Mình chỉ giúp ghi chi tiêu, thu nhập và xem tổng thôi. Bạn thử \"ăn phở 45k\" hoặc \"tháng này tôi tiêu bao nhiêu?\" nhé.",
+    "pending_none": "Hiện chưa có khoản nào đang chờ xác nhận. Bạn nhắn khoản mới nhé, ví dụ \"ăn phở 45k\".",
+    "goal": "Mình hiểu mục tiêu của bạn như thế này. Bạn kiểm tra rồi bấm Tạo mục tiêu nhé.",
+    "goal_ask_amount": "Bạn muốn tiết kiệm bao nhiêu? Ví dụ: \"đặt mục tiêu tiết kiệm 20 triệu trong 2 tháng nữa\".",
+    "goal_needs_unit": "Bạn nhắn kèm đơn vị cho số tiền nhé, ví dụ \"20 triệu\".",
+    "goal_past_deadline": "Hạn phải ở tương lai nhé. Bạn thử lại, ví dụ \"trong 2 tháng nữa\" hoặc \"trước 30/12\".",
+    "goal_default_name": "Mục tiêu tiết kiệm"
+  }
+}

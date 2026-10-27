@@ -17,25 +17,24 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from app.bill import classifier
-from app.services import vocab
+from app.services import intent_cues, vocab
 from app.services.vi_text import fold
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.enums import CATEGORY_SLUGS
-from app.pipeline.stages.categorizer import load_lexicon
+from app.pipeline.stages.categorizer import load_lexicon, subscribe_lexicon
 
 # Khi hai từ khóa dài bằng nhau thì slug đứng trước thắng.
 _SPECIFIC_FIRST = ("family", "education", "health", "housing", "bills", "entertainment", "transport", "shopping", "food", "other")
 _PRIORITY = {slug: i for i, slug in enumerate(_SPECIFIC_FIRST)}
 _VALID = frozenset(CATEGORY_SLUGS) - {"income"}
 
-# "khác" trong từ vựng chat là TÊN danh mục "Khác", không phải tên một mặt hàng: "hàng khác" phải là chưa rõ.
-_NOT_ITEM_WORDS = frozenset({"khac"})
-
-# Từ khóa chỉ được nhận khi câu gốc viết ĐÚNG dấu: bỏ dấu thì "chợ" (đi chợ) trùng "cho" (đưa) và mọi câu có chữ "cho" thành Ăn uống
-# ("mẹ tôi cho ba triệu", "cho mẹ 500k"). Gõ không dấu thì vẫn có "đi cho"/"di cho" trong từ vựng.
-_NEEDS_ACCENT = {"cho": "chợ"}
+# Hai bảng dưới đây nằm trong app/data/intent_cues.json (bản admin kích hoạt thay được; ``invalidate`` chạy khi nó đổi):
+#   * ``lists.not_item_words``: "khác" trong từ vựng chat là TÊN danh mục "Khác", không phải tên một mặt hàng: "hàng khác" phải là chưa rõ.
+#   * ``forms.needs_accent``: từ khóa chỉ được nhận khi câu gốc viết ĐÚNG dấu: bỏ dấu thì "chợ" (đi chợ) trùng "cho" (đưa) và mọi câu có chữ "cho" thành
+#     Ăn uống ("mẹ tôi cho ba triệu", "cho mẹ 500k"); "noi" cũng là nói/nơi/nối nên chỉ "nồi" có dấu mới là đồ gia dụng.
 
 _TOKEN = re.compile(r"[a-z]+|\d+")  # "bo200g" -> bo, 200, g: chữ dính số vẫn khớp
+_DIEN_THOAI = re.compile(r"\bdien thoa\w?")  # kể cả OCR sai chữ cuối
 
 _FUZZY_MIN_KEYWORD = 7  # từ khóa ngắn hơn thì một chữ sai đã là một từ khác ("sua"/"sau")
 _FUZZY_CUTOFF = 0.85  # một chữ sai trong từ khóa 8 ký tự = 0,875
@@ -86,11 +85,12 @@ def _build() -> _State:
     index: dict[str, str] = {}
     from_product: set[str] = set()
     all_keys: set[str] = set()
+    not_item_words = {fold(word) for word in intent_cues.current().lists["not_item_words"]}
     for word, slug, is_product in _pairs():
         if slug is None:
             continue
-        key = " ".join(_tokens(fold(word)))
-        if len(key) < 2 or key in _NOT_ITEM_WORDS:
+        key = " ".join(_tokens(_DIEN_THOAI.sub("dienthoai", fold(word))))  # cùng phép gộp với _prepare, nếu không "mua dien thoai" không bao giờ khớp
+        if len(key) < 2 or key in not_item_words:
             continue
         all_keys.add(key)
         if is_product:
@@ -119,11 +119,17 @@ def invalidate() -> None:
     _state = None
 
 
+vocab.subscribe(invalidate)  # từ điển chat đổi (admin kích hoạt) thì chỉ mục dựng từ nó cũng phải xây lại
+subscribe_lexicon(invalidate)  # từ điển tên cửa hàng cũng vậy
+intent_cues.subscribe(lambda cues: invalidate())  # bảng "không phải tên món" nằm trong intent_cues và được dùng lúc dựng chỉ mục
+
+
 def _prepare(text: str) -> str:
     norm = " ".join(fold(unicodedata.normalize("NFC", text)).replace("'", "").split())  # OCR hay chèn dấu ' vào chữ
-    norm = norm.replace("thuoc la", "")  # thuốc lá không phải thuốc chữa bệnh
-    norm = re.sub(r"\bdien thoa\w?", "dienthoai", norm)  # "điện thoại" là một từ riêng, không phải "tiền điện" + "thoại"
-    if re.search(r"\b(?:pass|password|mat khau)\b", norm):  # "Pass Wifi: 1234" không phải cước internet
+    for phrase in classifier._NOT_MEDICINE:  # từ vựng chung với ocr-service: shared_words.json
+        norm = norm.replace(phrase, "")
+    norm = _DIEN_THOAI.sub("dienthoai", norm)  # "điện thoại" là một từ riêng, không phải "tiền điện" + "thoại"
+    if classifier._PASSWORD_LINE.search(norm):
         return ""
     if re.search(r"https?|www\.|\.(com|vn|net|org)\b", norm):  # địa chỉ web không phải tên sản phẩm
         return ""
@@ -171,17 +177,24 @@ def resolve(text: str, *, chat: bool = False) -> Resolution:
         return _NONE
     original = unicodedata.normalize("NFC", text).lower()
     index, max_words, chat_only = _get_state()  # MỘT bản chụp: invalidate() chạy xen giữa không làm max_words về mặc định
+    needs_accent = intent_cues.current().needs_accent
     words = _tokens(norm)
     best: tuple[int, int, str] | None = None  # (độ dài từ khóa, -ưu tiên, slug)
+    weak_best: tuple[int, int, str] | None = None  # từ khóa YẾU (``weak_keywords`` của từ điển: "cho con", "cho me"...): chỉ nói tiền đến tay ai, không nói mua gì
+    weak_keys = vocab.WEAK_KEYWORDS  # một bản chụp cho cả lượt; đọc qua module để thấy bản admin vừa kích hoạt
     for n in range(1, max_words + 1):
         for start in range(len(words) - n + 1):
             key = " ".join(words[start : start + n])
             slug = index.get(key)
-            accent = _NEEDS_ACCENT.get(key)
+            accent = needs_accent.get(key)
             if slug and (chat or key not in chat_only) and (accent is None or accent in original):
                 candidate = (len(key), -_PRIORITY[slug], slug)
-                if best is None or candidate > best:
+                if key in weak_keys:
+                    if weak_best is None or candidate > weak_best:
+                        weak_best = candidate
+                elif best is None or candidate > best:
                     best = candidate
+    best = best or weak_best  # có từ khóa thường ("mua keo cho con") thì nó quyết; chỉ có từ khóa yếu ("cho con 500k") thì từ yếu quyết
     # Khớp gần đúng thắng khi từ khóa của nó DÀI hơn từ khóa khớp chính xác: "kham uot" (OCR đọc nhầm n/m của "khan uot") phải ra khăn ướt,
     # không bị từ khóa ngắn "kham" (khám) kéo đi. Chính xác dài bằng hoặc dài hơn thì vẫn thắng.
     near = None if chat else _fuzzy(norm, index)

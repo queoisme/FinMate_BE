@@ -16,12 +16,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, verify_internal_api_key
-from app.core.enums import CATEGORY_SLUGS, FeedbackType, PipelineResult
+from app.core.enums import FeedbackType, PipelineResult
 from app.db.models.pipeline_request import PipelineRequest
 from app.db.models.user_feedback import UserFeedback
 from app.db.repositories import feedback_repo, pipeline_repo
 from app.schemas.request import FeedbackRequest
 from app.schemas.response import FeedbackResponse
+from app.services import category_registry
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
@@ -58,10 +59,10 @@ async def submit_feedback(
 
 
 async def _resolve_pipeline_request(session: AsyncSession, request: FeedbackRequest):
-    """Tìm dòng ``pipeline_requests`` mà phản hồi này nói về.
+    """Tìm dòng ``ops_analyze_log`` mà phản hồi này nói về.
 
     Backend gửi ``pipeline_request_id`` = id ``notification_log`` của nó, khớp với
-    ``pipeline_requests.backend_request_id``.
+    ``ops_analyze_log.backend_request_id``.
 
     **Hiện tại backend luôn gửi null** (``UpdateTransactionCommandHandler`` truyền thẳng
     ``null``) dù contract §3.3 đã có sẵn trường này. Không có id thì phải dò ngược bằng
@@ -104,7 +105,7 @@ def _known_slug(slug: str | None) -> str | None:
     """
     if slug is None:
         return None
-    if slug in CATEGORY_SLUGS:
+    if category_registry.is_known(slug):
         return slug
     logger.info("feedback_custom_category_dropped")
     return None

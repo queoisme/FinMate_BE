@@ -17,7 +17,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-URL = "http://localhost:8000/api/v1/chat/parse"
+URL = os.environ.get("CHAT_PARSE_URL", "http://localhost:8000/api/v1/chat/parse")  # đổi khi đo một ai-service thử (model Rasa khác) trên cổng khác
 CASES = Path("/tmp/nlu_cases.json")
 
 

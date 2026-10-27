@@ -153,3 +153,11 @@ async def test_feedback_becomes_a_training_label(
 
     request = (await session.execute(select(PipelineRequest))).scalar_one()
     assert label.raw_sample_id == request.raw_sample_id
+
+    # nhãn đổi nghĩa là thêm một sự kiện trỏ về phản hồi đã gây ra nó (lịch sử, không phải ghi đè)
+    from app.db.models.ml_label_event import MlLabelEvent
+
+    event = (await session.execute(select(MlLabelEvent))).scalar_one()
+    assert (event.labeled_sample_id, event.category_slug, event.source, event.feedback_id, event.actor_hash) == (
+        label.id, "entertainment", "feedback", feedback.id, user_hash,
+    )

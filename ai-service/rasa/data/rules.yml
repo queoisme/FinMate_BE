@@ -1,22 +1,4 @@
 version: "3.1"
 
-rules:
-- rule: Chào hỏi
-  steps:
-  - intent: greet
-  - action: utter_greet
-
-- rule: Tạm biệt
-  steps:
-  - intent: goodbye
-  - action: utter_goodbye
-
-- rule: Không hiểu
-  steps:
-  - intent: nlu_fallback
-  - action: utter_default
-
-- rule: Ngoài phạm vi
-  steps:
-  - intent: out_of_scope
-  - action: utter_out_of_scope
+# Rasa chỉ làm NLU (ai-service gọi /model/parse): câu trả lời nằm ở ai-service (app/data/intent_cues.json, sửa được từ trang quản trị), không có luật hội thoại ở đây.
+rules: []

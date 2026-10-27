@@ -15,6 +15,30 @@
       "not_with_context": ["xăng", "dầu", "nước", "sữa", "rượu", "bia", "nhớt", "cồn", "sơn", "đổ"]
     },
     {
+      "words": ["lốp"],
+      "vnd": 100000,
+      "not_followed_by": [],
+      "not_with_context": ["xe", "thay", "vá", "bơm", "xẹp", "mòn", "ô tô", "ôtô"]
+    },
+    {
+      "words": ["sọi"],
+      "vnd": 100000,
+      "not_followed_by": [],
+      "not_with_context": []
+    },
+    {
+      "words": ["chai"],
+      "vnd": 1000000,
+      "not_followed_by": [],
+      "not_with_context": ["nước", "nuoc", "bia", "rượu", "sữa", "dầu", "nhớt", "nhựa", "thủy tinh", "thuỷ tinh", "cồn", "tương", "xịt", "coca", "pepsi", "tiger", "heineken", "sting", "trà", "tra sua", "tra da", "tra xanh", "cà phê", "ca phe", "cafe"]
+    },
+    {
+      "words": ["tỏi"],
+      "vnd": 1000000000,
+      "not_followed_by": ["tây", "đen", "ớt", "băm", "phi"],
+      "not_with_context": ["củ tỏi", "tép tỏi", "nấu", "xào", "ướp", "gia vị", "nước mắm", "ớt"]
+    },
+    {
       "words": ["xị"],
       "vnd": 100000,
       "not_followed_by": ["rượu"],

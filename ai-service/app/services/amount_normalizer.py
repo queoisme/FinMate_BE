@@ -1,8 +1,12 @@
 """Đọc số tiền trong câu chat/giọng nói tiếng Việt: "200k", "45 cành", "3 củ 8", "1 lít 2", "3 lít rưỡi", "2 triệu rưỡi", "50.000đ", "một triệu"...
 
-Quy ước tiếng lóng: k/nghìn/ngàn/cành = 1.000; tr/triệu/củ = 1.000.000; lít = 100.000 ("1 lít 2" = 120.000, "3 lít rưỡi" = 350.000);
+Quy ước tiếng lóng: k/nghìn/ngàn/cành = 1.000; tr/triệu = 1.000.000; tỷ = 1.000.000.000. Từ lóng (củ, lít, chai, tỏi...) lấy từ
+``app/data/amount_slang.json``, dùng chung với bộ đọc voice ("1 lít 2" = 120.000, "3 lít rưỡi" = 350.000);
 chữ số ngay sau đơn vị là phần thập phân của đơn vị ("3 củ 8" = 3,8 triệu, "1tr2" = 1,2 triệu); "rưỡi" = +0,5 đơn vị.
 Nhiều số trong câu ("mua 2 lít sữa 50k") thì lấy số xuất hiện CUỐI: người ta thường nói giá ở cuối câu.
+
+Số đọc bằng CHỮ có dấu ("hai củ", "ba tỷ", "hai chục ngàn") giao cho ``app.utils.number_words`` — cùng một bộ đọc với voice. Chữ không dấu
+đi đường cũ ở ``vi_text`` (chịu được OCR hỏng), và từ lóng chỉ nhận khi viết đúng dấu: bỏ dấu thì "tỏi"/"tôi"/"tối" là một.
 """
 import functools
 import re
@@ -10,12 +14,25 @@ import unicodedata
 from typing import NamedTuple
 
 from app.services.vi_text import _DIGITS, _NUMBER_WORDS, _WORD_ALIAS, fold, words_to_amount
+from app.utils.amount_slang import SLANG, is_money
+from app.utils.number_words import find_number_words
 
-UNITS = {"k": 1_000, "nghin": 1_000, "ngan": 1_000, "canh": 1_000, "tr": 1_000_000, "trieu": 1_000_000, "cu": 1_000_000, "lit": 100_000}
+UNITS = {"k": 1_000, "nghin": 1_000, "ngan": 1_000, "canh": 1_000, "tr": 1_000_000, "trieu": 1_000_000, "ty": 1_000_000_000}
+# Khóa là chữ đã bỏ dấu vì câu chat được khớp sau khi bỏ dấu; _SLANG_WORD nhớ lại dạng có dấu để kiểm tra.
+_SLANG_WORD = {fold(word): word for word in SLANG}
+UNITS.update({fold(word): unit.vnd for word, unit in SLANG.items()})
+_UNACCENTED_OK = {"củ", "lít"}  # gõ không dấu vẫn quen ("2 cu", "3 lit"): giữ hành vi cũ cho hai từ này
 _NUM = r"\d+(?:[.,]\d+)?"
-_SLANG = re.compile(rf"(?<![\w.,])(?P<n>{_NUM})\s*(?P<u>nghin|ngan|canh|trieu|tr|cu|lit|k)(?![a-z])")
+_UNIT_ALTERNATION = "|".join(sorted(UNITS, key=len, reverse=True))  # dài trước ngắn để "tr" không nuốt "trieu"
+_MULTIPLIER = {"chuc": 10, "tram": 100}  # "2 chục ngàn" = 20 nghìn, "3 trăm k" = 300k: số, rồi chục/trăm, rồi đơn vị
+_SLANG = re.compile(rf"(?<![\w.,])(?P<n>{_NUM})(?:\s*(?P<m>chuc|tram)(?![a-z]))?\s*(?P<u>{_UNIT_ALTERNATION})(?![a-z])")
+_TENS_ONES = {"mot": 1, "hai": 2, "ba": 3, "bon": 4, "tu": 4, "nam": 5, "lam": 5, "sau": 6, "bay": 7, "tam": 8, "chin": 9}
+# STT hay chép "hai mươi lăm" thành "2 mươi lăm": chữ số đứng trước "mươi" là hàng chục. Chỉ "mươi" (hai mươi...), "mười" là 10 nên không đi đường này.
+_DIGIT_TENS = re.compile(rf"(?<![\w.,])(?P<d>[2-9])\s*muoi(?:\s+(?P<o>{'|'.join(_TENS_ONES)}))?\s*(?P<u>{_UNIT_ALTERNATION})(?![a-z])")
 _FRAC = re.compile(r"\s*(?P<f>\d{1,2}(?![\d.,])|ruoi(?![a-z]))")
-_PLAIN = re.compile(r"(?<![\w.,])(?P<n>\d{1,3}(?:[.,]\d{3})+|\d{4,})(?P<suffix>\s*(?:vnd|dong|d)(?![a-z]))?")
+_WEAK_UNIT = re.compile(r"\bchai\b")  # "2 chai" thường là số chai: chỉ tính là tiền khi câu không có số tiền nào khác
+_SPOKEN_MAGNITUDE = {"trăm", "mươi", "mười", "chục"}
+_PLAIN = re.compile(r"(?<![\w.,])(?P<n>\d{1,3}(?:[.,]\d{3})+|\d{1,3}(?:\s\d{3})+(?![\d.,])|\d{4,})(?P<suffix>\s*(?:vnd|dong|d)(?![a-z]))?")
 # từ chỉ số lượng đứng ngay sau chữ số: "1 triệu 2 ly cafe" thì 2 là số ly. KHÔNG gồm từ chỉ thời gian ("3 củ 8 tháng này": 8 là phần của số tiền).
 _COUNT_WORDS = {"ly", "cai", "nguoi", "lan", "chai", "phan", "to", "do", "bo", "chiec", "hop", "kg", "gam", "tieng", "phut", "qua", "goi"}
 # Bỏ dấu thì "từ"="tu", "ngân"="ngan", "sau" (sáu/sau): "rút tiền từ ngân hàng" không phải số tiền. Nên chữ "ngan" không dùng ở đường đọc bằng chữ,
@@ -32,12 +49,26 @@ class AmountMatch(NamedTuple):
     assumed: bool = False  # số nhỏ viết bằng chữ không đơn vị: đơn vị là nghìn do ĐOÁN, chưa được người dùng xác nhận
 
 
-def _slang(norm: str) -> list[AmountMatch]:
+def _slang_is_money(unit: str, nfc: str, start: int, end: int, number_start: int | None = None) -> bool:
+    """Từ lóng có dấu (tỏi, xị, lốp...) chỉ nhận khi viết đúng dấu, rồi qua cùng bộ lọc "2 củ cải"/"2 lít xăng" với voice."""
+    word = _SLANG_WORD.get(unit)
+    if word is None:
+        return True  # k, nghìn, triệu... không phải từ lóng
+    return (nfc[start:end] == word or word in _UNACCENTED_OK) and is_money(word, nfc, end, number_start)
+
+
+def _slang(norm: str, nfc: str) -> list[AmountMatch]:
     found = []
     for m in _SLANG.finditer(norm):
+        if not _slang_is_money(m.group("u"), nfc, m.start("u"), m.end("u"), m.start("n")):
+            continue
         unit = UNITS[m.group("u")]
-        value, end = float(m.group("n").replace(",", ".")) * unit, m.end()
-        frac = _FRAC.match(norm, end) if m.group("u") != "k" or norm[end:end + 1].isdigit() else None
+        value, end = float(m.group("n").replace(",", ".")) * _MULTIPLIER.get(m.group("m"), 1) * unit, m.end()
+        thousands = re.match(r"\d{3}(?![\d.,])", norm[end:]) if m.group("u") in ("tr", "trieu") else None
+        if thousands:  # "1tr350" = 1 triệu 350 nghìn; hai chữ số ("1tr35") là phần thập phân, đi đường _FRAC bên dưới
+            value += int(thousands.group()) * 1_000
+            end += 3
+        frac = _FRAC.match(norm, end) if not (m.group("m") or thousands) and (m.group("u") != "k" or norm[end:end + 1].isdigit()) else None
         if frac:
             nxt = re.match(r"\s*([a-z]+)", norm[frac.end():])
             token = frac.group("f")
@@ -45,6 +76,10 @@ def _slang(norm: str) -> list[AmountMatch]:
                 value += (0.5 if token == "ruoi" else int(token) / 10 ** len(token)) * unit
                 end = frac.end()
         found.append(AmountMatch(round(value), m.start(), end))
+    for m in _DIGIT_TENS.finditer(norm):
+        if _slang_is_money(m.group("u"), nfc, m.start("u"), m.end("u"), m.start("d")):
+            tens = int(m.group("d")) * 10 + _TENS_ONES.get(m.group("o"), 0)
+            found.append(AmountMatch(tens * UNITS[m.group("u")], m.start(), m.end()))
     for m in re.finditer(r"(?<![a-z])(?P<u>cu|lit|trieu|nghin)\s+ruoi(?![a-z])", norm):  # "củ rưỡi", "lít rưỡi" không có số đứng trước
         before = norm[:m.start()].split()
         if before and (before[-1] in _NUMBER_WORDS or before[-1].isdigit()):
@@ -58,6 +93,8 @@ def _plain(norm: str) -> list[AmountMatch]:
     found = []
     for m in _PLAIN.finditer(norm):
         digits = re.sub(r"\D", "", m.group("n"))
+        if re.search(r"\s", m.group("n")) and not (m.group("suffix") or digits.endswith("000")):
+            continue  # "45 000 đồng", "120 000đ", "45 000": dấu cách ngăn nghìn chỉ tin khi có đơn vị tiền hoặc tròn nghìn; "3 120" có thể là hai số khác nhau
         if not m.group("suffix") and len(digits) == 4 and 1900 <= int(digits) <= 2100 and not re.search(r"[.,]", m.group("n")):
             continue  # năm, không phải tiền
         if 1_000 <= int(digits) <= 999_999_999:
@@ -88,6 +125,19 @@ def _words(norm: str) -> list[AmountMatch]:
             end += half.end()
         found.append(AmountMatch(value, m.start(), end))
     return found
+
+
+def _spoken(norm: str, nfc: str) -> list[AmountMatch]:
+    """Số đọc bằng chữ. Câu có dấu đi qua bộ đọc dùng chung với voice (từ lóng, tỷ, chục, rưỡi...); không đọc được thì thử đường cũ."""
+    if nfc != norm:
+        found = [
+            AmountMatch(m.value, m.start, m.end)
+            for m in find_number_words(nfc)
+            if m.has_scale or _SPOKEN_MAGNITUDE.intersection(re.findall(r"[^\W\d_]+", nfc[m.start:m.end]))  # "ba ly cà phê": ba là số lượng
+        ]
+        if found:
+            return found
+    return _words(_thousand_marked(norm, nfc))
 
 
 _K_UNIT = re.compile(r"\s*(?P<u>ka|k|ca)(?![a-z])")
@@ -137,12 +187,13 @@ def find_amounts(text: str) -> list[AmountMatch]:
     """Mọi số tiền trong câu, theo thứ tự xuất hiện (``parse_amount`` chỉ lấy số cuối). start/end tính trên câu đã chuẩn hóa; xem normalize()."""
     norm = normalize(text)
     nfc = unicodedata.normalize("NFC", text).lower()
-    candidates = _slang(norm) + _plain(norm)  # số viết bằng chữ số được ưu tiên; chỉ khi không có mới đọc số viết bằng chữ
+    candidates = _slang(norm, nfc) + _plain(norm)  # số viết bằng chữ số được ưu tiên; chỉ khi không có mới đọc số viết bằng chữ
     if not candidates:
-        candidates = _words(_thousand_marked(norm, nfc))
+        candidates = _spoken(norm, nfc)
     # bỏ ứng viên nằm trọn trong ứng viên khác (số "1.5" trong "1.5tr" cũng khớp dạng thường)
     candidates = [c for c in candidates if not any(o is not c and o.start <= c.start and c.end <= o.end and (o.end - o.start) > (c.end - c.start) for o in candidates)]
-    return sorted(candidates, key=lambda c: c.start)
+    firm = [c for c in candidates if not _WEAK_UNIT.search(nfc[c.start:c.end])]
+    return sorted(firm or candidates, key=lambda c: c.start)
 
 
 def parse_amount(text: str) -> AmountMatch | None:

@@ -1,84 +1,59 @@
 version: "3.1"
 
-# Bộ thử VIẾT TAY, GIỮ RIÊNG (2026-10-18): món và cách nói chưa từng nằm trong dữ liệu huấn luyện hay bộ thử khác. KHÔNG được đưa câu nào vào data/.
-# Viết sau đợt mở rộng dữ liệu để biết model có thật sự tổng quát hóa hay chỉ nhớ lại những gì đã thấy.
+# Sinh bởi scripts/nlu_examples.py từ bảng nlu_examples (tập test, nhóm nlu_test_fresh). KHÔNG sửa tay: sửa trong DB.
+
 nlu:
 - intent: add_expense
   examples: |
-    - đóng tiền gửi xe tháng [150k](amount)
-    - thuê phòng karaoke [300k](amount)
-    - nạp thẻ vietnamobile [100k](amount)
-    - trả tiền bảo hiểm xe [480k](amount)
-    - mua ổ cắm điện [60k](amount)
-    - mua bàn phím [450k](amount)
     - ăn bánh cuốn [35k](amount)
-    - uống trà đá [5k](amount)
-    - trả tiền ship [25k](amount)
-    - thuê xe máy đi đà lạt [180k](amount)
-    - hôm qua đi cắt tóc [80k](amount) rồi mua dầu gội [95k](amount)
-    - tốn [40k](amount) cho cơm chiên
-    - mất [3 triệu](amount) tiền sửa laptop
-    - đổ xăng [60k](amount) với rửa xe [30k](amount)
-    - trả tiền mạng tháng 10 [220k](amount)
-    - mua thức ăn cho mèo [140k](amount)
-    - ghé [Highlands](merchant) uống nước [55k](amount)
-    - sáng nay ăn xôi [15k](amount)
-    - mua quà tặng đồng nghiệp [250k](amount)
-    - mua pin AA [30k](amount)
     - đi xe ôm [20k](amount)
-    - tiền học tiếng anh tháng này [1 triệu 2](amount)
-    - thuê trọ [2tr5](amount)
-    - tiền ship đồ ăn [18k](amount)
-    - nạp tiền điện thoại cho mẹ [100k](amount)
+    - đóng tiền gửi xe tháng [150k](amount)
+    - đổ xăng [60k](amount) với rửa xe [30k](amount)
+    - ghé [Highlands](merchant) uống nước [55k](amount)
+    - hôm qua đi cắt tóc [80k](amount) rồi mua dầu gội [95k](amount)
+    - mất [3 triệu](amount) tiền sửa laptop
     - mua bánh sinh nhật [320k](amount)
+    - mua bàn phím [450k](amount)
+    - mua ổ cắm điện [60k](amount)
+    - mua pin AA [30k](amount)
+    - mua quà tặng đồng nghiệp [250k](amount)
+    - mua thức ăn cho mèo [140k](amount)
     - nạp game [150k](amount)
+    - nạp thẻ vietnamobile [100k](amount)
+    - nạp tiền điện thoại cho mẹ [100k](amount)
+    - sáng nay ăn xôi [15k](amount)
+    - thuê phòng karaoke [300k](amount)
+    - thuê trọ [2tr5](amount)
+    - thuê xe máy đi đà lạt [180k](amount)
+    - tiền học tiếng anh tháng này [1 triệu 2](amount)
+    - tiền ship đồ ăn [18k](amount)
+    - tốn [40k](amount) cho cơm chiên
+    - trả tiền bảo hiểm xe [480k](amount)
     - trả tiền gas tháng này [380k](amount)
+    - trả tiền mạng tháng 10 [220k](amount)
+    - trả tiền ship [25k](amount)
+    - uống trà đá [5k](amount)
 
 - intent: add_income
   examples: |
-    - được mẹ cho [500k](amount)
-    - lương tháng 10 về [14 củ](amount)
-    - chị gửi về [2 triệu](amount)
-    - nhận tiền thưởng dự án [3 triệu](amount)
-    - khách thanh toán [1tr8](amount)
-    - bán laptop cũ [6 triệu](amount)
-    - tiền lãi tiết kiệm [85k](amount)
-    - được công ty thưởng [2 củ](amount)
-    - nhận hoàn tiền shopee [30k](amount)
     - ba cho [1 triệu](amount) đóng học
-
-- intent: transfer_money
-  examples: |
-    - chuyển [3 triệu](amount) sang tiết kiệm
-    - rút tiền mặt [1 triệu](amount)
-    - nạp [500k](amount) vào ví momo
-    - chuyển khoản cho bạn [200k](amount)
-    - trả nợ anh hai [1 triệu](amount)
-    - chuyển [2 củ](amount) từ ví sang thẻ
-    - nạp [300k](amount) vào shopeepay
-    - gửi tiết kiệm [5 triệu](amount)
+    - bán laptop cũ [6 triệu](amount)
+    - chị gửi về [2 triệu](amount)
+    - được công ty thưởng [2 củ](amount)
+    - khách thanh toán [1tr8](amount)
+    - lương tháng 10 về [14 củ](amount)
+    - nhận hoàn tiền shopee [30k](amount)
+    - nhận tiền thưởng dự án [3 triệu](amount)
+    - tiền lãi tiết kiệm [85k](amount)
 
 - intent: ask_spending
   examples: |
-    - tuần này mình tiêu bao nhiêu rồi
-    - tổng chi tiêu tháng 10
+    - còn lại bao nhiêu tiền
     - hôm qua đã xài hết bao nhiêu
     - tháng này thu chi ra sao
-    - còn lại bao nhiêu tiền
-    - tiền ăn tháng này hết bao nhiêu
     - tháng trước chi cho mua sắm bao nhiêu
-
-- intent: out_of_scope
-  examples: |
-    - hôm nay là thứ mấy
-    - nhạc nào hay vậy
-    - viết giúp mình email xin nghỉ
-    - tỷ giá đô la hôm nay
-    - mấy giờ rồi
-    - làm sao nấu cơm ngon
-    - giảm ba mươi phần trăm
-    - giá bitcoin bao nhiêu
-    - lương [15 triệu](amount) ở hà nội có đủ sống không
+    - tổng chi tiêu tháng 10
+    - tuần này mình tiêu bao nhiêu rồi
 
 - intent: cancel
   examples: |
@@ -88,14 +63,28 @@ nlu:
   examples: |
     - không phải đâu
 
-- intent: confirm
-  examples: |
-    - đúng rồi nhé
-
 - intent: greet
   examples: |
     - chào bạn
 
-- intent: goodbye
+- intent: out_of_scope
   examples: |
-    - tạm biệt nhé
+    - giá bitcoin bao nhiêu
+    - giảm ba mươi phần trăm
+    - hôm nay là thứ mấy
+    - làm sao nấu cơm ngon
+    - lương [15 triệu](amount) ở hà nội có đủ sống không
+    - nhạc nào hay vậy
+    - tỷ giá đô la hôm nay
+    - viết giúp mình email xin nghỉ
+
+- intent: transfer_money
+  examples: |
+    - chuyển [2 củ](amount) từ ví sang thẻ
+    - chuyển [3 triệu](amount) sang tiết kiệm
+    - chuyển khoản cho bạn [200k](amount)
+    - gửi tiết kiệm [5 triệu](amount)
+    - nạp [300k](amount) vào shopeepay
+    - rút tiền mặt [1 triệu](amount)
+    - trả nợ anh hai [1 triệu](amount)
+

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.core import confidence as table  # tên khác: các dataclass/hàm dưới có trường và biến `confidence`
 from app.core.enums import ClassifierLabel, ExtractionMethod, ModelStage
 from app.pipeline.models.model_registry import ModelRegistry
 from app.utils.text_utils import find_amount_candidates, normalize_for_model
@@ -122,9 +123,9 @@ def _classify_manual_entry(text: str) -> ClassificationOutcome:
     """Chỉ hỏi: có đọc được số tiền không. Không có thì chưa đủ để dựng giao dịch."""
     if any(c.has_marker for c in find_amount_candidates(text)):
         return ClassificationOutcome(
-            ClassifierLabel.FINANCIAL, 0.90, ExtractionMethod.RULE
+            ClassifierLabel.FINANCIAL, table.get("classifier.manual_entry_financial"), ExtractionMethod.RULE
         )
-    return ClassificationOutcome(ClassifierLabel.UNCERTAIN, 0.40, ExtractionMethod.RULE)
+    return ClassificationOutcome(ClassifierLabel.UNCERTAIN, table.get("classifier.manual_entry_uncertain"), ExtractionMethod.RULE)
 
 
 def classify_by_rules(text: str, package_name: str = "") -> ClassificationOutcome:
@@ -135,7 +136,7 @@ def classify_by_rules(text: str, package_name: str = "") -> ClassificationOutcom
 
     if any(marker in lowered for marker in _NEGATIVE_MARKERS):
         return ClassificationOutcome(
-            ClassifierLabel.NON_FINANCIAL, 0.95, ExtractionMethod.RULE
+            ClassifierLabel.NON_FINANCIAL, table.get("classifier.negative_marker"), ExtractionMethod.RULE
         )
 
     # "Có tiền" nghĩa là có con số MANG ĐƠN VỊ (75k, 250.000đ, 2,500,000 VND). Một dãy số
@@ -145,18 +146,18 @@ def classify_by_rules(text: str, package_name: str = "") -> ClassificationOutcom
 
     if has_amount and signals >= 2:
         return ClassificationOutcome(
-            ClassifierLabel.FINANCIAL, 0.92, ExtractionMethod.RULE
+            ClassifierLabel.FINANCIAL, table.get("classifier.financial_strong"), ExtractionMethod.RULE
         )
     if has_amount and signals == 1:
         return ClassificationOutcome(
-            ClassifierLabel.FINANCIAL, 0.75, ExtractionMethod.RULE
+            ClassifierLabel.FINANCIAL, table.get("classifier.financial_weak"), ExtractionMethod.RULE
         )
     if has_amount:
         # Có số tiền nhưng không có bối cảnh giao dịch nào: đẩy sang uncertain để backend
         # vẫn hỏi người dùng thay vì im lặng bỏ qua một giao dịch thật.
         return ClassificationOutcome(
-            ClassifierLabel.UNCERTAIN, 0.50, ExtractionMethod.RULE
+            ClassifierLabel.UNCERTAIN, table.get("classifier.uncertain"), ExtractionMethod.RULE
         )
     return ClassificationOutcome(
-        ClassifierLabel.NON_FINANCIAL, 0.80, ExtractionMethod.RULE
+        ClassifierLabel.NON_FINANCIAL, table.get("classifier.non_financial_no_amount"), ExtractionMethod.RULE
     )

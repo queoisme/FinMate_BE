@@ -8,17 +8,16 @@ from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
 from app.api.v1.bill import get_bill_knowledge
 from app.bill import brands, classifier
-from app.bill.knowledge import Remembered, apply_rows, merchant_key
+from app.bill.knowledge import apply_rows, merchant_key
 from app.main import app
 
 HASH = "a" * 64
 
 
 class FakeKnowledge:
-    """Không chạm DB. ``memory``: {(user_hash, khóa cửa hàng): nhóm trong 9 nhóm} (bảng cũ); ``choices``: {(user_hash, khóa): slug backend} (bảng mới)."""
+    """Không chạm DB. ``choices``: {(user_hash, khóa cửa hàng): slug backend người dùng đã chốt}."""
 
-    def __init__(self, memory=None, choices=None):
-        self.memory = memory or {}
+    def __init__(self, choices=None):
         self.choices = choices or {}
         self.refreshes = 0
 
@@ -26,10 +25,7 @@ class FakeKnowledge:
         self.refreshes += 1
 
     async def remembered(self, user_id_hash, merchant_name):
-        key = (user_id_hash, merchant_key(merchant_name or ""))
-        if key in self.choices:
-            return Remembered(self.choices[key], True)
-        return Remembered(self.memory[key], False) if key in self.memory else None
+        return self.choices.get((user_id_hash, merchant_key(merchant_name or "")))
 
     async def learn(self, user_id_hash, merchant_name, category_slug):
         key = merchant_key(merchant_name)
@@ -134,20 +130,14 @@ async def test_input_limits_and_required_hash():
     assert response.status_code == 422
 
 
-async def test_the_users_remembered_shop_beats_the_rules(knowledge):
-    knowledge.memory[(HASH, merchant_key("Highlands Coffee"))] = "entertainment"
-    body = (await post({"merchant_name": "Highlands Coffee"})).json()
-    assert (body["category_slug"], body["local_category"], body["source"]) == ("entertainment", "entertainment", "memory")
-
-
 async def test_memory_is_per_user(knowledge):
-    knowledge.memory[("b" * 64, merchant_key("Highlands Coffee"))] = "entertainment"
+    knowledge.choices[("b" * 64, merchant_key("Highlands Coffee"))] = "entertainment"
     body = (await post({"merchant_name": "Highlands Coffee"})).json()
     assert (body["local_category"], body["source"]) == ("dining", "brand")
 
 
 async def test_an_unknown_category_in_the_database_is_ignored(knowledge):
-    knowledge.memory[(HASH, merchant_key("Highlands Coffee"))] = "income"
+    knowledge.choices[(HASH, merchant_key("Highlands Coffee"))] = "nope"
     body = (await post({"merchant_name": "Highlands Coffee"})).json()
     assert (body["local_category"], body["source"]) == ("dining", "brand")
 
@@ -187,10 +177,8 @@ async def test_a_category_the_user_chose_when_saving_comes_back_as_the_same_back
     assert (body["category_slug"], body["local_category"], body["source"]) == ("entertainment", None, "memory")
 
 
-async def test_a_choice_beats_the_old_memory_and_the_rules(knowledge):
-    key = (HASH, merchant_key("Highlands Coffee"))
-    knowledge.memory[key] = "transport"
-    knowledge.choices[key] = "health"
+async def test_a_choice_beats_the_rules(knowledge):
+    knowledge.choices[(HASH, merchant_key("Highlands Coffee"))] = "health"
     assert (await post({"merchant_name": "Highlands Coffee"})).json()["category_slug"] == "health"
 
 

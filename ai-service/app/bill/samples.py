@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bill.knowledge import merchant_key
-from app.db.models.bill import BILL_CHOICE_SLUGS
+from app.services import category_registry
 
 logger = structlog.get_logger(__name__)
 
@@ -38,7 +38,6 @@ class PendingSample:
     user_id_hash: str
     lines: list[str]
     merchant_name: str | None = None
-    total_amount: int | None = None
     predicted_slug: str | None = None
     predicted_source: str | None = None
 
@@ -56,30 +55,29 @@ async def add_pending(session: AsyncSession, sample: PendingSample) -> bool:
     inserted = (
         await session.execute(
             text(
-                "INSERT INTO bill_training_samples (scan_id, user_id_hash, merchant_key, lines, total_amount, predicted_slug, predicted_source) "
-                "VALUES (:scan_id, :user, :key, :lines, :total, :slug, :source) ON CONFLICT (scan_id) DO NOTHING RETURNING scan_id"
+                "INSERT INTO ml_training_samples (scan_id, user_id_hash, merchant_key, lines, predicted_slug, predicted_source) "
+                "VALUES (:scan_id, :user, :key, :lines, :slug, :source) ON CONFLICT (scan_id) DO NOTHING RETURNING scan_id"
             ),
             {"scan_id": sample.scan_id, "user": sample.user_id_hash, "key": key or None, "lines": "\n".join(lines),
-             "total": sample.total_amount, "slug": sample.predicted_slug, "source": sample.predicted_source},
+             "slug": sample.predicted_slug, "source": sample.predicted_source},
         )
     ).first()
     if inserted:
         await session.commit()
         await purge_pending(session, days=PENDING_RETENTION_DAYS)  # không có scheduler: dọn mẫu chưa nhãn quá hạn mỗi khi có mẫu mới
         return True
-    owner = (await session.execute(text("SELECT user_id_hash FROM bill_training_samples WHERE scan_id = :scan_id"), {"scan_id": sample.scan_id})).scalar_one_or_none()
+    owner = (await session.execute(text("SELECT user_id_hash FROM ml_training_samples WHERE scan_id = :scan_id"), {"scan_id": sample.scan_id})).scalar_one_or_none()
     return owner == sample.user_id_hash
 
 
 async def label(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str, final_slug: str) -> bool:
-    """Gắn nhãn cuối do người dùng chọn (``confirmed`` nếu trùng dự đoán, ngược lại ``corrected``). False khi không có mẫu của người đó hoặc slug không hợp lệ."""
-    if final_slug not in BILL_CHOICE_SLUGS:
+    """Gắn nhãn cuối do người dùng chọn (trùng dự đoán thì là xác nhận, khác thì là sửa: suy từ ``predicted_slug`` và ``final_slug``). False khi không có mẫu của người đó hoặc slug không hợp lệ."""
+    if not category_registry.is_spend(final_slug):
         return False
     updated = (
         await session.execute(
             text(
-                "UPDATE bill_training_samples SET final_slug = CAST(:slug AS varchar), labeled_at = now(), "
-                "label_kind = CASE WHEN predicted_slug = CAST(:slug AS varchar) THEN 'confirmed' ELSE 'corrected' END "
+                "UPDATE ml_training_samples SET final_slug = CAST(:slug AS varchar), labeled_at = now() "
                 "WHERE scan_id = :scan_id AND user_id_hash = :user RETURNING scan_id"
             ),
             {"slug": final_slug, "scan_id": scan_id, "user": user_id_hash},
@@ -92,7 +90,7 @@ async def label(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str, fi
 async def discard(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str) -> bool:
     """Xóa mẫu của một lần quét (đã gắn nhãn hay chưa) khi người dùng chọn danh mục không phải hệ thống: không còn nhãn nào đáng học. False khi không có mẫu CỦA người đó."""
     result = await session.execute(
-        text("DELETE FROM bill_training_samples WHERE scan_id = :scan AND user_id_hash = :user"), {"scan": scan_id, "user": user_id_hash}
+        text("DELETE FROM ml_training_samples WHERE scan_id = :scan AND user_id_hash = :user"), {"scan": scan_id, "user": user_id_hash}
     )
     await session.commit()
     return bool(result.rowcount)
@@ -100,7 +98,7 @@ async def discard(session: AsyncSession, scan_id: uuid.UUID, user_id_hash: str) 
 
 async def delete_by_user_hash(session: AsyncSession, user_id_hash: str) -> int:
     """Xóa mọi mẫu của một người dùng (luồng xóa dữ liệu). Trả số hàng đã xóa."""
-    result = await session.execute(text("DELETE FROM bill_training_samples WHERE user_id_hash = :user"), {"user": user_id_hash})
+    result = await session.execute(text("DELETE FROM ml_training_samples WHERE user_id_hash = :user"), {"user": user_id_hash})
     await session.commit()
     return result.rowcount or 0
 
@@ -108,7 +106,7 @@ async def delete_by_user_hash(session: AsyncSession, user_id_hash: str) -> int:
 async def purge_pending(session: AsyncSession, days: int = 7) -> int:
     """Xóa mẫu CHƯA gắn nhãn cũ hơn ``days`` ngày (lần quét không bao giờ được lưu). Mẫu đã có nhãn được giữ."""
     result = await session.execute(
-        text("DELETE FROM bill_training_samples WHERE final_slug IS NULL AND created_at < now() - make_interval(days => :days)"), {"days": days}
+        text("DELETE FROM ml_training_samples WHERE final_slug IS NULL AND created_at < now() - make_interval(days => :days)"), {"days": days}
     )
     await session.commit()
     return result.rowcount or 0

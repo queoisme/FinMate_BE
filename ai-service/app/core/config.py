@@ -12,16 +12,16 @@ class Settings(BaseSettings):
     model_registry_path: str = "/models"
     log_level: str = "INFO"
 
-    # Ghi mọi thông báo đã xử lý (bản đã anonymize) vào raw_samples để làm dữ liệu train.
+    # Ghi mọi thông báo đã xử lý (bản đã anonymize) vào ml_raw_samples để làm dữ liệu train.
     # Tắt được vì đây là thu thập dữ liệu người dùng — production thật cần cờ này gắn với
     # đồng ý của người dùng, không bật mặc định cho mọi triển khai.
     collect_raw_samples: bool = True
 
-    # Nạp app/data/provider_patterns.json vào bảng provider_patterns lúc khởi động, bỏ qua
+    # Nạp app/data/provider_patterns.json vào bảng kb_provider_patterns lúc khởi động, bỏ qua
     # pattern đã có. Cùng cách backend chạy ProviderConfigSeeder sau Database.Migrate().
     seed_provider_patterns: bool = True
 
-    # Thêm thương hiệu/từ khóa mặc định trong code (app/bill/seed_defaults.py) vào bill_brands / bill_keywords lúc khởi động, chỉ thêm,
+    # Thêm thương hiệu/từ khóa mặc định trong code (app/bill/seed_defaults.py) vào kb_brands / kb_keywords lúc khởi động, chỉ thêm,
     # không đụng dòng đã có. Tắt thì chuỗi mới thêm vào code chỉ đến DB cũ qua script tay hoặc API quản trị.
     seed_bill_knowledge: bool = True
 
@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     rasa_url: str | None = None
     # Khoản chi chắc chắn dưới mức này (đồng) được đánh dấu auto_save_ok; 0 = không bao giờ.
     chat_auto_save_below: int = 2_000_000
+
+    # Dọn dữ liệu cá nhân quá hạn ngay trong tiến trình (app/services/retention.py): nhật ký phân tích, mẫu thô chưa nhãn, hàng đợi bill lạ.
+    # Mỗi bản chạy AI Service tự dọn; tắt khi đã có việc dọn ngoài (cron + scripts/purge_*.py) để không dọn hai lần.
+    retention_enabled: bool = True
+    retention_days: int = 90
+    retention_interval_hours: float = 24.0
 
     # Gemini phân loại tên món hóa đơn khi luật/ML không chắc. Để trống khóa thì không gọi Gemini.
     gemini_api_key: str | None = None
@@ -53,6 +59,19 @@ class Settings(BaseSettings):
     # Dự phòng khi mọi model Gemini đều lỗi (OpenRouter). Để trống khóa thì tắt. Đo 2026-10-13: nemotron-3-super:free 6-16s, đúng 5-6/6; gemma-4 :free bị 429
     openrouter_api_key: str | None = None
     openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+
+    # Chọn cách quản lý tài chính (POST /finance-methods/recommend): client Gemini riêng (cầu dao riêng), dùng chung GEMINI_API_KEY; hết cách Gemini thì mới tới OpenRouter
+    # (signals ẩn danh chỉ được gửi cho bên đã nêu trong câu chữ đồng ý; hết cả hai thì 503 và backend dùng rule). Người dùng đang chờ ở màn khảo sát nên trần chặt hơn hóa đơn.
+    method_gemini_model: str = "gemini-3-flash-preview"
+    method_gemini_fallback_models: str = "gemini-3.1-flash-lite"
+    method_gemini_timeout_seconds: float = 10.0  # trần cho TỪNG model (đo 2026-10-27: gemini-3-flash-preview mất 6,5-16 s với 9 phương pháp)
+    method_gemini_overall_seconds: float = 14.0  # trần cả chuỗi (gồm lần thử lại)
+    # Dự phòng thứ hai (người dùng duyệt 2026-10-27): OpenRouter, model :free, dùng chung OPENROUTER_API_KEY; để trống METHOD_OPENROUTER_MODELS thì tắt.
+    # Luôn gửi provider.data_collection = "deny" (xem app/services/method_backup.py): model :free không có bên nào đáp ứng thì bị bỏ qua (404).
+    # Đo 2026-10-27 với deny: dots-3-note-preview 4/4 đúng, 3-4 s khi tắt suy luận; nemotron-3.5-super-vl không có endpoint; gemma-4 và xing4.0 bị 429.
+    method_openrouter_models: str = "dots-studio/dots-3-note-preview:free"
+    method_openrouter_timeout_seconds: float = 10.0  # trần cho TỪNG model dự phòng
+    method_total_seconds: float = 24.0  # trần cả route (Gemini + dự phòng); backend chờ 30 giây
 
 
 settings = Settings()

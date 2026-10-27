@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Báo cáo mức dùng Gemini / bộ nhớ / luật của ``/bill/classify-items`` theo ngày (từ ``bill_classify_stats``). Chỉ đọc, chỉ số đếm.
+"""Báo cáo mức dùng Gemini / bộ nhớ / luật của ``/bill/classify-items`` theo ngày (từ ``ops_usage_daily``). Chỉ đọc, chỉ số đếm.
 
 Chạy:  ``python scripts/classify_stats.py [--days 14]``
 Cho biết: bao nhiêu món được bộ nhớ và luật trả lời (không tốn Gemini), bao nhiêu phải hỏi Gemini, bao nhiêu món cần AI mà vượt trần 20 món mỗi lần,
@@ -63,7 +63,7 @@ async def main(days: int) -> int:
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            text("SELECT day::text, metric, value FROM bill_classify_stats WHERE day >= current_date - make_interval(days => :days)"), {"days": days})
+            text("SELECT day::text, metric, value FROM ops_usage_daily WHERE day >= current_date - make_interval(days => :days)"), {"days": days})
         rows: dict[str, dict[str, int]] = {}
         for day, metric, value in result.all():
             rows.setdefault(day, {})[metric] = int(value)

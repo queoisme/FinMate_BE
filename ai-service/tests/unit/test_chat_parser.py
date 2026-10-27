@@ -29,16 +29,223 @@ def nlu(intent, confidence=0.99, **entities):
         ("cafe 50.000đ", 50_000),
         ("ăn trưa bốn mươi lăm nghìn", 45_000),
         ("mua áo 2 triệu rưỡi", 2_500_000),
+        # từ lóng, tỷ và chục: cùng bộ đọc và cùng amount_slang.json với voice
+        ("hai củ tiền trọ", 2_000_000),
+        ("mua điện thoại năm chai", 5_000_000),
+        ("tiền nhà 3 chai", 3_000_000),
+        ("đi ăn ba lít rưỡi", 350_000),
+        ("mua giày hai lốp", 200_000),
+        ("mua nhà ba tỏi hai", 3_200_000_000),
+        ("chốt căn hộ 5 tỏi", 5_000_000_000),
+        ("căn hộ 3 tỷ", 3_000_000_000),
+        ("bán nhà 2 tỷ 5", 2_500_000_000),
+        ("bán xe được một tỷ hai", 1_200_000_000),
+        ("ăn phở hai chục ngàn đồng", 20_000),
+        ("đổ xăng năm chục nghìn", 50_000),
+        ("ăn tối hai mươi nhăm nghìn", 25_000),
+        ("bốn lăm ngàn cà phê", 45_000),
+        ("mua laptop hai mươi ba triệu năm trăm", 23_500_000),
+        ("một triệu hai tiền điện thoại", 1_200_000),
+        ("tiền thuê nhà tám triệu rưỡi một tháng", 8_500_000),
     ],
 )
 def test_slang_and_written_amounts(text, amount):
     assert parse_amount(text).value == amount
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "mua hai củ cải",
+        "đổ hai lít xăng",
+        "hai chai bia",
+        "mua hai chai coca",
+        "ăn hai tối",  # bỏ dấu thì "tối" = "tỏi": từ lóng chỉ nhận khi viết đúng dấu
+        "ngủ 5 tối",
+        "mua hai lốp xe",
+    ],
+)
+def test_ordinary_word_that_sounds_like_slang_is_not_money(text):
+    assert parse_amount(text) is None
+
+
+@pytest.mark.parametrize(("text", "phrase"), [("mua hai củ cải", "hai củ"), ("đổ hai lít xăng", "hai lít"), ("mua hai chai bia", "hai chai")])
+def test_rasa_amount_entity_cannot_turn_an_ordinary_word_into_money(text, phrase):
+    """Rasa cắt "hai củ" ra khỏi "mua hai củ cải"; đọc riêng cụm đó thì mất chữ "cải" và ra 2 triệu."""
+    parsed = parse(text, nlu("add_expense", amount=phrase))
+    assert parsed.entries == () and parsed.intent == "needs_amount"
+
+
+def test_rasa_ask_spending_does_not_turn_a_spend_with_an_amount_into_a_summary():
+    """"cho con đi học một triệu" từng ra bảng "tóm tắt chi tiêu tháng này" của danh mục Gia đình."""
+    parsed = parse("cho con đi học một triệu", nlu("ask_spending"))
+    assert (parsed.intent, parsed.entry.kind, parsed.entry.amount, parsed.entry.category) == ("add_expense", "expense", 1_000_000, "family")
+
+
+@pytest.mark.parametrize("text", ["tháng này tôi tiêu bao nhiêu", "tháng này tôi tiêu bao nhiêu cho ăn uống"])
+def test_a_real_question_stays_a_question(text):
+    assert parse(text, nlu("ask_spending")).intent == "ask_spending"
+
+
+def test_the_same_unit_word_twice_is_judged_one_occurrence_at_a_time():
+    """"ba lít rượu" là số lượng, "hết một lít" là giá: một chữ "rượu" không được loại cả hai."""
+    parsed = parse("đi chợ mua ba lít rượu hết một lít")
+    assert (parsed.entry.amount, parsed.entry.category) == (100_000, "food")
+    assert parse("đi chợ mua ba lít rượu hết hai lít rưỡi").entry.amount == 250_000
+
+
+@pytest.mark.parametrize("text", ["sữa tươi hai lít", "đổ hai lít xăng", "mua ba lít sữa hai lít rượu"])
+def test_litres_of_liquid_are_still_not_money_when_there_is_no_price(text):
+    assert parse(text).entries == ()
+
+
+def test_asking_about_two_categories_returns_both():
+    query = parse("tháng này tôi đã tiêu bao nhiêu tiền cho giải trí và mua sắm").query
+    assert query.categories == ("entertainment", "shopping")
+
+
+def test_asking_about_one_category_is_unchanged():
+    query = parse("tháng này tôi tiêu bao nhiêu cho ăn uống").query
+    assert query.categories == () and query.category is not None
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["đặt mục tiêu vào tháng tiếp theo tôi sẽ tiết kiệm được hai mươi triệu", "đặt mục tiêu 2 tháng sau mua xe máy khoảng 50 triệu", "tạo mục tiêu tiết kiệm 10 triệu"],
+)
+def test_setting_a_goal_is_not_recorded_as_a_transaction_but_becomes_a_goal_draft(text):
+    parsed = parse(text, nlu("transfer_money", amount="hai mươi triệu"))
+    assert parsed.entries == () and parsed.intent == "create_goal"
+    assert parsed.goal is not None and parsed.goal.target > 0
+
+
+@pytest.mark.parametrize("text", ["chuyển hai triệu sang tiết kiệm", "gửi tiết kiệm năm triệu"])
+def test_moving_money_to_savings_is_still_a_transfer(text):
+    assert parse(text).entry.kind == "transfer"
+
+
+def test_chai_is_a_bottle_count_when_the_sentence_has_a_price():
+    assert parse_amount("uống 50k hai chai").value == 50_000
+
+
 def test_expense_with_a_known_category_is_auto_saveable():
     entry = parse("đi ăn 200k").entry
     assert (entry.kind, entry.amount, entry.category, entry.auto_save_ok) == ("expense", 200_000, "food", True)
     assert entry.description == "đi ăn"
+
+
+@pytest.mark.parametrize("text", ["đi chơi với bạn 200k", "đi chơi hết 500k", "chơi game 50k"])
+def test_going_out_is_entertainment(text):
+    assert parse(text).entry.category == "entertainment"
+
+
+def test_one_sentence_with_spend_income_spend_gives_one_entry_each():
+    """Mỗi khoản một dòng, kể cả hai khoản chi cùng danh mục (Giải trí): thẻ xác nhận cần thấy từng khoản để tính tổng ròng."""
+    entries = parse("xem phim một triệu mẹ cho mười triệu đi chơi với trai hai triệu").entries
+    assert [(e.kind, e.amount, e.category) for e in entries] == [
+        ("expense", 1_000_000, "entertainment"),
+        ("income", 10_000_000, None),
+        ("expense", 2_000_000, "entertainment"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "category"),
+    [
+        ("đi chợ mua nồi 100k", "shopping"),
+        ("mua nồi cơm điện 800k", "shopping"),
+        ("mua đồ gia dụng 500k", "shopping"),
+        ("đi siêu thị mua đồ gia dụng 500k", "shopping"),
+        ("đi chợ 200k", "food"),  # "đi chợ" một mình vẫn là Ăn uống
+        ("đi chợ mua áo 200k", "shopping"),
+    ],
+)
+def test_cookware_and_household_goods_are_shopping(text, category):
+    assert parse(text).entry.category == category
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["tôi cho mẹ hai củ", "cho mẹ 500k", "cho me 500k", "cho ba mẹ 500k", "cho bố 300k", "cho chị 200k", "cho anh 1 triệu", "cho em 200k", "cho vợ 1 triệu"],
+)
+def test_giving_money_to_family_is_the_family_category(text):
+    assert parse(text).entry.category == "family"
+
+
+@pytest.mark.parametrize("text", ["cho chi phí 500k", "cho chủ nhà 3 triệu", "cho bác sĩ 200k", "đặt bàn cho ba người 500k", "cho bạn 100k"])
+def test_cho_followed_by_a_word_that_is_not_a_relative_is_not_family(text):
+    assert parse(text).entry.category != "family"
+
+
+def test_money_received_from_a_parent_is_still_income():
+    assert parse("mẹ cho tôi hai củ").entry.kind == "income"
+    assert parse("mẹ cho em 500k").entry.kind == "income"
+
+
+def test_rasa_out_of_scope_does_not_reject_a_sentence_with_amount_and_a_clear_expense_word():
+    """Cùng một câu chỉ đổi "có" thành "còn" từng bị Rasa chấm "ngoài chủ đề" một lần và hiểu một lần: có số tiền và từ khóa chi tiêu thì luật giữ quyền."""
+    out_of_scope = nlu("out_of_scope", 0.95)
+    parsed = parse("tôi có đi mua một bộ quần áo hết hai triệu tôi cho mẹ hai củ mẹ cho tôi hai tỏi", out_of_scope)
+    assert [(e.kind, e.amount) for e in parsed.entries] == [("expense", 2_000_000), ("expense", 2_000_000), ("income", 2_000_000_000)]
+    assert parse("tôi có đi mua một bộ quần áo hết hai triệu", out_of_scope).intent == "add_expense"
+
+
+@pytest.mark.parametrize("text", ["tôi có 2 triệu trong ví", "hôm nay trời đẹp 2 triệu"])
+def test_rasa_out_of_scope_still_wins_when_there_is_no_expense_cue(text):
+    assert parse(text, nlu("out_of_scope", 0.95)).intent == "out_of_scope"
+
+
+@pytest.mark.parametrize(
+    ("text", "amount"),
+    [("sau đó trả năm chục nghìn", 50_000), ("trả góp xe máy một triệu tám", 1_800_000), ("thanh toán hai triệu", 2_000_000)],
+)
+def test_rasa_out_of_scope_does_not_reject_paying_an_amount(text, amount):
+    """Trả/thanh toán đi với số tiền là khoản chi dù chưa có từ khoá danh mục; Rasa chấm "ngoài chủ đề" thì luật giữ quyền."""
+    parsed = parse(text, nlu("out_of_scope", 0.95))
+    assert parsed.intent == "add_expense"
+    assert parsed.entry.amount == amount
+
+
+@pytest.mark.parametrize("text", ["trả lời 5 câu hỏi", "trả lại 2 triệu trong ví"])
+def test_rasa_out_of_scope_still_wins_for_tra_that_is_not_paying(text):
+    assert parse(text, nlu("out_of_scope", 0.95)).intent == "out_of_scope"
+
+
+@pytest.mark.parametrize(
+    ("text", "category"),
+    [("mua điện thoại năm chai", "shopping"), ("mua điện thoại 5 triệu", "shopping"), ("mua laptop 20 triệu", "shopping"), ("nạp tiền điện thoại 100k", "bills"), ("tiền điện thoại 200k", "bills")],
+)
+def test_buying_a_phone_or_laptop_is_shopping_but_phone_credit_is_bills(text, category):
+    assert parse(text).entry.category == category
+
+
+@pytest.mark.parametrize(
+    ("text", "amount"),
+    [
+        ("ăn phở 45 000 đồng", 45_000),
+        ("mua sách 120 000đ", 120_000),
+        ("ăn phở 2 chục ngàn đồng", 20_000),
+        ("ăn phở 3 chục ngàn", 30_000),
+        ("mua 3 trăm nghìn", 300_000),
+        ("ăn phở 2 mươi lăm nghìn", 25_000),
+        ("mua sách 1tr350", 1_350_000),
+        ("mua sách 1tr35", 1_350_000),
+        ("mua 2tr500", 2_500_000),
+    ],
+)
+def test_spaced_thousands_digit_tens_and_trailing_three_digits(text, amount):
+    assert parse_amount(text).value == amount
+
+
+@pytest.mark.parametrize("text", ["ăn lúc 3 120", "ăn 2 phần 100", "mua 2 mươi cái bánh"])
+def test_numbers_that_only_look_like_the_new_formats_are_not_money(text):
+    assert parse_amount(text) is None
+
+
+@pytest.mark.parametrize("text", ["nói chuyện với mẹ 50k", "nơi này đắt 200k", "nối mạng 100k"])
+def test_noi_without_the_accent_of_noi_pot_is_not_shopping(text):
+    """"nồi" khớp từ khoá chỉ khi viết đúng dấu: bỏ dấu thì trùng nói/nơi/nối."""
+    assert parse(text).entry.category != "shopping"
 
 
 def test_the_threshold_is_exclusive_and_configurable():
@@ -148,11 +355,11 @@ def test_unclear_reasons():
     assert parse("iphone 20 triệu có đáng mua không").unclear_reason is None  # câu hỏi, không phải tin khó hiểu
 
 
-def test_three_expenses_in_one_sentence_become_one_entry_per_category():
+def test_three_expenses_in_one_sentence_become_one_entry_each():
     parsed = parse("ăn cơm 20k, uống nước 10k, đổ xăng 50k")
-    assert [e.amount for e in parsed.entries] == [30_000, 50_000]  # hai khoản Ăn uống gộp một, Di chuyển riêng
-    assert [e.kind for e in parsed.entries] == ["expense"] * 2
-    assert parsed.entries[0].category == "food" and parsed.entries[1].category == "transport"
+    assert [e.amount for e in parsed.entries] == [20_000, 10_000, 50_000]  # hai khoản Ăn uống cũng không gộp
+    assert [e.kind for e in parsed.entries] == ["expense"] * 3
+    assert [e.category for e in parsed.entries] == ["food", "food", "transport"]
     assert parsed.entry == parsed.entries[0]
 
 
@@ -402,9 +609,57 @@ def test_money_given_to_the_user_is_income_when_rasa_agrees():
 
 @pytest.mark.parametrize("text", ["cho mẹ 500k", "cho bạn vay 200k", "tôi cho em 100k"])
 def test_giving_money_away_is_not_food(text):
-    entry = parse(text).entry
+    assert parse(text).entry.category != "food"  # "cho" bỏ dấu từng trùng "chợ": đi cho tiền không phải đi chợ
+
+
+def test_giving_money_to_a_friend_without_lending_is_unknown_so_the_user_picks():
+    entry = parse("cho bạn 100k").entry
     assert entry.category is None
     assert entry.auto_save_ok is False
+
+
+@pytest.mark.parametrize("text", ["cho mượn 500k", "cho vay 2 triệu", "tôi cho bạn mượn 500k", "cho bạn vay 200k", "cho em mượn 1 triệu", "cho mượn 2 lít"])
+def test_lending_money_out_is_a_loan_expense_that_is_never_saved_without_asking(text):
+    entry = parse(text).entry
+    assert (entry.kind, entry.category, entry.to_others) == ("expense", "loan", True)
+    assert entry.auto_save_ok is False  # kể cả khoản nhỏ, vì sau này người ta trả lại nên chưa chắc là chi tiêu thật
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["bạn trả nợ 500k", "bạn trả nợ tôi 500k", "bạn chuyển khoản trả nợ 300k", "anh Nam trả lại 1 triệu", "trả nợ cho tôi 200k", "bạn trả tôi 500k", "ban tra no 500k"],
+)
+def test_a_debt_paid_back_to_me_is_money_in_under_the_loan_category(text):
+    entry = parse(text).entry
+    assert (entry.kind, entry.category, entry.income_type, entry.to_others) == ("income", "loan", None, False)
+
+
+@pytest.mark.parametrize("text", ["bạn cho tôi mượn 300k", "mượn bạn 1 triệu", "vay bạn 2 triệu"])
+def test_borrowing_is_money_in_under_the_loan_category_too(text):
+    entry = parse(text).entry
+    assert (entry.kind, entry.category) == ("income", "loan")
+
+
+@pytest.mark.parametrize("text", ["trả nợ 500k", "trả nợ cho bạn 300k", "trả nợ bạn 300k", "tôi trả nợ 2 triệu"])
+def test_paying_my_own_debt_is_still_money_out_under_the_loan_category(text):
+    entry = parse(text).entry
+    assert (entry.kind, entry.category, entry.to_others, entry.auto_save_ok) == ("expense", "loan", True, False)
+
+
+def test_sending_money_to_a_person_is_still_an_other_expense_not_a_loan():
+    entry = parse("chuyển khoản cho mẹ 500k").entry
+    assert entry.category != "loan"
+
+
+def test_rasa_cannot_turn_a_friend_repaying_me_back_into_an_expense():
+    """Rasa học "trả nợ bạn" là chuyển tiền ra nên với "bạn trả nợ" nó cũng trả transfer_money rất chắc."""
+    parsed = parse("bạn trả nợ 500k", nlu("transfer_money", 0.99))
+    assert (parsed.intent, parsed.entry.kind) == ("add_income", "income")
+
+
+def test_lending_and_being_repaid_in_one_sentence_are_two_entries():
+    entries = parse("cho bạn mượn 500k, bạn trả nợ 300k").entries
+    assert [(e.kind, e.amount) for e in entries] == [("expense", 500_000), ("income", 300_000)]
 
 
 @pytest.mark.parametrize("text", ["đi chợ 150k", "chợ 150k", "ra chợ mua rau 80k", "di cho 150k"])
@@ -456,17 +711,22 @@ def test_a_breakdown_that_does_not_add_up_is_flagged():
     assert not any(e.auto_save_ok for e in parsed.entries)
 
 
-# ---- khác danh mục thì tách riêng, cùng danh mục thì gộp thành một khoản
-def test_items_of_the_same_category_are_merged_into_one_entry():
+# ---- mỗi khoản một dòng, cùng danh mục hay không
+def test_items_of_the_same_category_stay_separate_entries():
     parsed = parse("ăn cơm 25k uống nước 10k")
-    assert [(e.amount, e.category, e.description) for e in parsed.entries] == [(35_000, "food", "ăn cơm, uống nước")]
+    assert [(e.amount, e.category, e.description) for e in parsed.entries] == [(25_000, "food", "ăn cơm"), (10_000, "food", "uống nước")]
     assert parsed.entry is parsed.entries[0]
-    assert "gộp" in parsed.reply_text
-    assert not parsed.entry.auto_save_ok
+    assert parsed.reply_text is None  # không còn lời nhắn "Mình gộp..."
+    assert not any(e.auto_save_ok for e in parsed.entries)  # nhiều khoản không bao giờ ghi ngay
 
 
-def test_spoken_items_of_the_same_category_are_merged_too():
-    assert [e.amount for e in parse("ăn cơm hai lăm ngàn uống nước mười ngàn").entries] == [35_000]
+def test_spoken_items_of_the_same_category_stay_separate_too():
+    assert [e.amount for e in parse("ăn cơm hai lăm ngàn uống nước mười ngàn").entries] == [25_000, 10_000]
+
+
+def test_the_sentence_from_the_screenshot_keeps_snack_drink_and_market_apart():
+    parsed = parse("bánh tráng trộn hai mươi ngàn trà sữa năm mươi ngàn đi chợ hai trăm ngàn bánh tráng")
+    assert [(e.amount, e.category) for e in parsed.entries] == [(20_000, "food"), (50_000, "food"), (200_000, "food")]
 
 
 def test_items_of_different_categories_stay_separate():
@@ -475,22 +735,23 @@ def test_items_of_different_categories_stay_separate():
     assert parsed.reply_text is None
 
 
-def test_only_the_same_category_is_merged_inside_a_mixed_sentence():
-    parsed = parse("ăn cơm 20k, uống nước 10k và đổ xăng 50k")
-    assert [(e.amount, e.category) for e in parsed.entries] == [(30_000, "food"), (50_000, "transport")]
-
-
-def test_unknown_categories_are_never_merged():
+def test_unknown_categories_stay_separate():
     parsed = parse("zxqv gizmo 50k, qwrt plugh 30k")
     assert [(e.amount, e.category) for e in parsed.entries] == [(50_000, None), (30_000, None)]
 
 
-def test_items_on_different_days_are_not_merged():
+def test_items_on_different_days_stay_separate():
     parsed = parse("hôm qua ăn cơm 25k, hôm nay uống nước 10k")
     assert [e.amount for e in parsed.entries] == [25_000, 10_000]
 
 
-def test_a_stated_total_is_compared_with_the_merged_sum():
+def test_candy_bought_for_the_child_is_food_not_family():
+    """"cho con 10k mua kẹo" và "mua kẹo hết 10k cho con" từng ra Gia đình vì cụm người nhận "cho con" thắng; kẹo là món ăn."""
+    parsed = parse("mua bó rau mồng tơi 25k, mua một cái bút chì 10k, cho con 10k mua kẹo, mua kẹo hết 10k cho con")
+    assert [(e.amount, e.category) for e in parsed.entries] == [(25_000, "food"), (10_000, "education"), (10_000, "food"), (10_000, "food")]
+
+
+def test_a_stated_total_is_compared_with_the_sum_of_the_entries():
     parsed = parse("trong 30k có 20k ăn cơm và 10k uống nước")
-    assert [e.amount for e in parsed.entries] == [30_000]
+    assert [e.amount for e in parsed.entries] == [20_000, 10_000]
     assert (parsed.total_amount, parsed.total_mismatch) == (30_000, False)

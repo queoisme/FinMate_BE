@@ -29,9 +29,29 @@ from app.utils.number_words import find_number_words, parse_number_words
         # Chữ số lẻ ngay sau đơn vị là phần mười của đơn vị đó.
         ("một triệu hai", 1_200_000),
         ("hai triệu tám", 2_800_000),
+        # Nhóm trăm đứng sau triệu/tỷ là nghìn ngầm định.
+        ("hai mươi ba triệu năm trăm", 23_500_000),
+        ("hai tỷ năm trăm", 2_500_000_000),
+        # Nói tắt hàng chục: "bốn lăm" = 45.
+        ("bốn lăm ngàn", 45_000),
+        ("ba mốt nghìn", 31_000),
     ],
 )
 def test_spoken_amounts(spoken, expected):
+    assert parse_number_words(spoken) == expected
+
+
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        ("tiền thuê nhà tám triệu rưỡi một tháng", 8_500_000),
+        ("hai triệu rưỡi một tô", 2_500_000),
+        ("ba lít rưỡi một ngày", 350_000),
+        ("hai củ rưỡi hai người", 2_500_000),
+        ("hai trăm rưỡi nghìn một tháng", 250_000),  # "rưỡi nghìn" vẫn hợp lệ, chỉ chữ số SAU rưỡi mới bị cắt
+    ],
+)
+def test_half_closes_the_number_so_a_following_digit_word_is_not_a_tail(spoken, expected):
     assert parse_number_words(spoken) == expected
 
 
@@ -102,12 +122,55 @@ def test_returns_none_when_there_is_no_number_word(text):
         ("hai lít", 200_000),
         ("hai lít rưỡi", 250_000),
         ("một xị", 100_000),
+        ("năm chai", 5_000_000),
+        ("hai chai rưỡi", 2_500_000),
+        ("mua xe năm tỏi", 5_000_000_000),
+        ("một tỏi hai", 1_200_000_000),
     ],
 )
 def test_slang_units_come_from_the_data_file(spoken, expected):
     assert parse_number_words(spoken) == expected
 
 
-@pytest.mark.parametrize("spoken", ["mua hai củ cải", "đổ hai lít xăng", "hai xị rượu"])
+@pytest.mark.parametrize(
+    "spoken",
+    [
+        "mua hai củ cải",
+        "đổ hai lít xăng",
+        "hai xị rượu",
+        "mua hai chai nước",
+        "hai chai bia",
+        "hai chai coca",
+        "hai chai trà xanh",
+        "hai chai cà phê",
+        "hai chai nước ngọt",
+        "ba chai rượu",
+        "hai tỏi tây",
+        "mua hai củ tỏi",
+        "nấu ăn hết hai tỏi",
+    ],
+)
 def test_slang_word_that_is_an_ordinary_word_is_not_money(spoken):
     assert parse_number_words(spoken) is None
+
+
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        # Giọng nói không có dấu câu: đơn vị lặp lại hoặc lớn lên nghĩa là số trước đã kết thúc, KHÔNG được cộng dồn
+        # ("23,5 triệu" rồi "8,5 triệu" từng bị gộp thành 531.500.000).
+        ("hai mươi ba triệu năm trăm tám triệu rưỡi", [23_500_000, 8_500_000]),
+        ("hai triệu ba triệu", [2_000_000, 3_000_000]),
+        ("năm mươi nghìn tám mươi nghìn", [50_000, 80_000]),
+        ("mười lăm triệu hai triệu", [15_000_000, 2_000_000]),
+        ("hai mươi ba triệu năm trăm tám mươi triệu", [23_500_000, 80_000_000]),
+        # Đơn vị giảm dần vẫn là MỘT số.
+        ("hai triệu năm trăm nghìn", [2_500_000]),
+        ("một tỷ hai trăm triệu", [1_200_000_000]),
+        ("hai tỷ ba triệu", [2_003_000_000]),
+        ("một triệu hai", [1_200_000]),
+        ("ba lít rưỡi", [350_000]),
+    ],
+)
+def test_a_unit_that_does_not_shrink_starts_a_new_number(spoken, expected):
+    assert [m.value for m in find_number_words(spoken)] == expected

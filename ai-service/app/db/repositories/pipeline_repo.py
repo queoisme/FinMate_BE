@@ -1,4 +1,4 @@
-"""Truy cập ``pipeline_requests`` — nhật ký chạy thật và nguồn dò trùng."""
+"""Truy cập ``ops_analyze_log`` — nhật ký chạy thật và nguồn dò trùng."""
 
 import uuid
 from datetime import datetime, timedelta

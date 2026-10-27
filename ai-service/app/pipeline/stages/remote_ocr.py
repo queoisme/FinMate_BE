@@ -16,6 +16,7 @@ from datetime import datetime
 
 import httpx
 
+from app.core import confidence as table  # tên khác: hàm dưới có biến cục bộ `confidence`
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
@@ -24,9 +25,9 @@ from app.pipeline.stages.receipt_ocr import ReceiptReading, _confidence, _find_d
 SLUG_BY_OCR_CATEGORY = SLUG_BY_LOCAL_CATEGORY  # giữ tên cũ cho test và code đã import
 
 # Kết quả luôn cần người xem lại; trần này khớp trần của _confidence ở receipt_ocr.
-_MAX_CATEGORY_CONFIDENCE = 0.80
+_MAX_CATEGORY_CONFIDENCE = table.get("remote.max_category")
 # Bill OCR service tự đánh dấu cần xem lại (ảnh mờ, số không khớp nhau...) thì không được tỏ ra chắc chắn.
-_REVIEW_CONFIDENCE_CAP = 0.50
+_REVIEW_CONFIDENCE_CAP = table.get("remote.review_cap")
 
 _NOT_A_RECEIPT_CODE = "not_a_receipt"
 

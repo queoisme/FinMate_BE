@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.db.models.bill import BILL_CHOICE_SLUGS
+from app.services import category_registry
 
 
 class BillClassifyRequest(BaseModel):
@@ -42,8 +42,8 @@ class BillLearnRequest(BaseModel):
     @field_validator("category_slug")
     @classmethod
     def _expense_slug(cls, value: str) -> str:
-        if value not in BILL_CHOICE_SLUGS:
-            raise ValueError(f"category_slug phải là một trong {list(BILL_CHOICE_SLUGS)}")
+        if not category_registry.is_spend(value):
+            raise ValueError(f"category_slug phải là một trong {category_registry.spend_list()}")
         return value
 
 
@@ -59,15 +59,15 @@ class BillSampleRequest(BaseModel):
     user_id_hash: str = Field(min_length=64, max_length=64)
     merchant_name: str | None = Field(default=None, max_length=200)
     lines: list[str] = Field(min_length=1, max_length=200)
-    total_amount: int | None = Field(default=None, ge=0)
+    total_amount: int | None = Field(default=None, ge=0)  # backend vẫn gửi; không còn lưu (không nơi nào dùng)
     predicted_slug: str | None = None
     predicted_source: str | None = Field(default=None, max_length=16)
 
     @field_validator("predicted_slug")
     @classmethod
     def _known_slug(cls, value: str | None) -> str | None:
-        if value is not None and value not in BILL_CHOICE_SLUGS:
-            raise ValueError(f"predicted_slug phải là một trong {list(BILL_CHOICE_SLUGS)}")
+        if value is not None and not category_registry.is_spend(value):
+            raise ValueError(f"predicted_slug phải là một trong {category_registry.spend_list()}")
         return value
 
 
@@ -85,8 +85,8 @@ class BillSampleLabelRequest(BaseModel):
     @field_validator("final_slug")
     @classmethod
     def _expense_slug(cls, value: str) -> str:
-        if value not in BILL_CHOICE_SLUGS:
-            raise ValueError(f"final_slug phải là một trong {list(BILL_CHOICE_SLUGS)}")
+        if not category_registry.is_spend(value):
+            raise ValueError(f"final_slug phải là một trong {category_registry.spend_list()}")
         return value
 
 
@@ -104,14 +104,39 @@ class BillSampleDiscardResponse(BaseModel):
     discarded: bool
 
 
+class BillItemVote(BaseModel):
+    name: str = Field(min_length=1, max_length=200)  # tên món ĐÃ lọc (không giá, không dữ liệu cá nhân)
+    category_slug: str
+
+    @field_validator("category_slug")
+    @classmethod
+    def _expense_slug(cls, value: str) -> str:
+        if not category_registry.is_spend(value):
+            raise ValueError(f"category_slug phải là một trong {category_registry.spend_list()}")
+        return value
+
+
+class BillItemFeedbackRequest(BaseModel):
+    """``POST /api/v1/bill/items/feedback``: danh mục người dùng đã chọn cho từng món khi lưu hóa đơn. Gửi CHỈ khi người dùng đã đồng ý đóng góp dữ liệu (backend kiểm tra cờ)."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+    items: list[BillItemVote] = Field(min_length=1, max_length=50)
+
+
+class BillItemFeedbackResponse(BaseModel):
+    # Số phiếu đã ghi. Ít hơn số món gửi khi có món tên không dùng được (giống mã hàng, quá ngắn/dài, còn số dài); không phải lỗi.
+    recorded: int
+
+
 class BillSampleEraseRequest(BaseModel):
-    """``POST /api/v1/bill/samples/erase``: xóa MỌI mẫu huấn luyện của một người dùng (rút đồng ý đóng góp dữ liệu, hoặc xóa tài khoản)."""
+    """``POST /api/v1/bill/samples/erase``: xóa MỌI mẫu huấn luyện VÀ phiếu món của một người dùng (rút đồng ý đóng góp dữ liệu, hoặc xóa tài khoản)."""
 
     user_id_hash: str = Field(min_length=64, max_length=64)
 
 
 class BillSampleEraseResponse(BaseModel):
-    deleted: int
+    deleted: int  # số mẫu huấn luyện đã xóa
+    item_votes: int = 0  # số phiếu món đã xóa
 
 
 class ClassifyItemIn(BaseModel):

@@ -56,6 +56,9 @@ _DIGITS: dict[str, int] = {
     "chín": 9,
 }
 
+# Chữ số đứng sau một chữ số khác chỉ hợp lệ khi là biến thể hàng đơn vị: "bốn lăm" = 45.
+_SHORT_TENS_TAIL = {"lăm", "nhăm", "mốt"}
+
 # "mươi"/"chục" NHÂN chữ số đứng trước: "hai mươi" = 20.
 _TENS_MULTIPLIERS = {"mươi", "chục"}
 
@@ -91,6 +94,9 @@ _WORDS = (
     | {_HALF}
 )
 
+# Các từ nằm SAU chữ "trăm" hoặc sau một đơn vị trong cùng nhóm: chữ số, mươi/chục, mười, linh/lẻ.
+_GROUP_TAIL = frozenset(_DIGITS) | _TENS_MULTIPLIERS | {_TEN} | _ZERO_FILLERS
+
 # \w với re.UNICODE bắt được chữ cái có dấu; loại chữ số ra để không lẫn với đường chữ số.
 _WORD_SPAN = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -116,13 +122,23 @@ def _parse_tokens(tokens: list[str]) -> tuple[int, bool] | None:
     # đứng lẻ ở cuối câu, xem phần "một triệu hai" bên dưới.
     place_since_scale = False
     consumed = False
+    last_scale = 1
+    half_seen = False
 
     for token in tokens:
         if token in _DIGITS:
-            if digit is not None:
-                # Hai chữ số liền nhau không có hàng ở giữa ("hai ba") không phải một số
-                # đọc theo chuẩn — dừng lại thay vì đoán bừa.
+            if half_seen:
+                # "rưỡi" khép cụm số: "tám triệu rưỡi một tháng" là 8,5 triệu rồi mới tới "một tháng",
+                # không phải 8.500.001. Trả None để cụm dài nhất đọc được dừng lại ở "rưỡi".
                 return None
+            if digit is not None:
+                # "bốn lăm" = 45, "ba mốt" = 31: nói tắt hàng chục, chỉ nhận khi chữ sau là
+                # biến thể lăm/nhăm/mốt. Hai chữ số trần liền nhau ("hai ba") không phải một
+                # số đọc theo chuẩn — dừng lại thay vì đoán bừa.
+                if digit < 2 or token not in _SHORT_TENS_TAIL:
+                    return None
+                section += digit * 10
+                place_since_scale = True
             digit = _DIGITS[token]
             consumed = True
         elif token == _TEN:
@@ -152,6 +168,10 @@ def _parse_tokens(tokens: list[str]) -> tuple[int, bool] | None:
             continue
         elif token in _SCALES:
             scale = _SCALES[token]
+            if has_scale and scale >= last_scale:
+                # Đơn vị của MỘT số giảm dần: "hai triệu năm trăm nghìn" (triệu rồi nghìn). Đơn vị lặp lại hoặc lớn lên ("hai mươi ba triệu năm trăm tám triệu")
+                # là hai số khác nhau dính liền vì giọng nói không có dấu câu; gộp lại ra 531.500.000 thay vì 23,5 triệu và 8 triệu rưỡi.
+                return None
             section += digit or 0
             if section == 0:
                 return None
@@ -162,6 +182,7 @@ def _parse_tokens(tokens: list[str]) -> tuple[int, bool] | None:
             place_since_scale = False
             has_scale = True
             consumed = True
+            last_scale = scale
         elif token == _HALF:
             # "rưỡi" = một nửa của hàng vừa dùng: "hai triệu rưỡi" = 2.500.000,
             # "hai trăm rưỡi" = 250.
@@ -173,6 +194,7 @@ def _parse_tokens(tokens: list[str]) -> tuple[int, bool] | None:
                 return None
             section += last_place // 2
             consumed = True
+            half_seen = True
         else:
             return None
 
@@ -184,8 +206,28 @@ def _parse_tokens(tokens: list[str]) -> tuple[int, bool] | None:
         else:
             section += digit
 
+    if section >= 100 and last_scale >= 1_000_000 and place_since_scale:
+        # "hai mươi ba triệu năm trăm" = 23.500.000: nhóm trăm đứng sau triệu/tỷ mà không có
+        # đơn vị riêng là nghìn ngầm định. Khác với "hai trăm rưỡi" đứng một mình, ở đây đơn vị
+        # đã được câu nói ra, nên không phải đoán thêm một dấu nhân.
+        section *= last_scale // 1_000
+
     total += section
     return (total, has_scale) if consumed and total > 0 else None
+
+
+def _give_back_leading_digits(spans: list[tuple[int, int, str]], start: int, end: int) -> int:
+    """Cụm đọc được dừng ngay trước một đơn vị mà nó KHÔNG nuốt được: chữ số đứng cuối cụm thuộc về số kế tiếp.
+
+    "... triệu năm trăm tám | triệu rưỡi": đơn vị "triệu" thứ hai không nối được vào số trước (đơn vị phải giảm dần), nên "tám" là mở đầu của "tám triệu rưỡi",
+    không phải hàng đơn vị của "năm trăm tám". Lùi qua các chữ số/"mươi"/"chục"/"mười" đứng sau chỗ kết thúc gần nhất của một nhóm ("trăm" hoặc đơn vị).
+    """
+    if end >= len(spans) or spans[end][2] not in _SCALES:
+        return end
+    new_end = end
+    while new_end - 1 > start and spans[new_end - 1][2] in _GROUP_TAIL:
+        new_end -= 1
+    return new_end if new_end > start else end
 
 
 def find_number_words(text: str) -> list[NumberWordMatch]:
@@ -217,8 +259,12 @@ def find_number_words(text: str) -> list[NumberWordMatch]:
             continue
 
         value, has_scale, end_index = best
+        trimmed = _give_back_leading_digits(spans, index, end_index)
+        if trimmed != end_index:  # chữ số cuối cụm thuộc về số kế tiếp: giá trị phải tính lại trên phần còn lại
+            value, has_scale = _parse_tokens([span[2] for span in spans[index:trimmed]]) or (value, has_scale)
+            end_index = trimmed
         slang_used = [t[2] for t in spans[index:end_index] if t[2] in SLANG]
-        if any(not is_money(word, text, spans[end_index - 1][1]) for word in slang_used):
+        if any(not is_money(word, text, spans[end_index - 1][1], spans[index][0]) for word in slang_used):
             # "hai lít xăng" / "hai củ cải": từ lóng ở đây là từ thường.
             index = end_index
             continue

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Huấn luyện / bật / tắt mô hình nhóm hóa đơn học từ nhãn người dùng chốt (``bill_training_samples``).
+"""Huấn luyện / bật / tắt mô hình nhóm hóa đơn học từ nhãn người dùng chốt (``ml_training_samples``).
 
   python scripts/train_bill_model.py --train             huấn luyện; ra candidate hoặc bị loại kèm lý do. KHÔNG bao giờ tự bật.
   python scripts/train_bill_model.py --promote <version>  bật một bản candidate (bản active cũ nghỉ). Khởi động lại ai-service để nạp.
@@ -32,9 +32,9 @@ async def run_train(session, registry_path: str) -> tuple[str, TrainResult]:
 
 
 async def list_versions(session) -> list[str]:
-    from app.db.models.bill import BillModelVersion
+    from app.db.models.model_version import ModelVersion
 
-    rows = (await session.execute(select(BillModelVersion).where(BillModelVersion.stage == slug_model.STAGE).order_by(BillModelVersion.created_at.desc()))).scalars().all()
+    rows = (await session.execute(select(ModelVersion).where(ModelVersion.stage == slug_model.STAGE).order_by(ModelVersion.created_at.desc()))).scalars().all()
     return [f"{r.version}  {r.status:<9} {r.metrics.get('cv_accuracy') if r.metrics else '-'}  {r.notes or ''}" for r in rows]
 
 

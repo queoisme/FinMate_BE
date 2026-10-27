@@ -1,4 +1,4 @@
-"""``raw_samples`` — kho thông báo thô để train, đã qua anonymizer.
+"""``ml_raw_samples`` — kho thông báo thô để train, đã qua anonymizer.
 
 Chỉ ghi khi ``COLLECT_RAW_SAMPLES`` bật. ``notification_body`` ở đây KHÔNG phải bản gốc:
 ``app.core.anonymizer.anonymize_body`` đã che số tài khoản/thẻ/điện thoại trước khi lưu.
@@ -6,7 +6,7 @@ Bản gốc chỉ tồn tại ở backend (``notification_logs``) và bị xoá 
 ``DataCleanupJob`` — phía AI có ``scripts/purge_raw_samples.py`` làm việc tương đương.
 """
 
-from sqlalchemy import Index, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.enums import SampleSource
@@ -22,7 +22,7 @@ from app.db.base import (
 
 
 class RawSample(Base):
-    __tablename__ = "raw_samples"
+    __tablename__ = "ml_raw_samples"
 
     id: Mapped[uuid_pk]
     source: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -46,6 +46,8 @@ class RawSample(Base):
         Index("idx_raw_samples_package_name", "package_name"),
         Index("idx_raw_samples_created_at", "created_at"),
         enum_check("source", SampleSource, "chk_raw_samples_source"),
+        CheckConstraint("user_id_hash IS NULL OR user_id_hash ~ '^[0-9a-f]{64}$'", name="chk_ml_raw_samples_user_hash"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'", name="chk_ml_raw_samples_content_hash"),
     )
 
 

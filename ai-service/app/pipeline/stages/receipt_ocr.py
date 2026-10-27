@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from app.core import confidence as table  # tên khác: dataclass và hàm dưới có trường và biến `confidence`
 from app.core.enums import TransactionType
 from app.utils.text_utils import (
     find_amount_candidates,
@@ -321,12 +322,12 @@ def _confidence(
     if amount is None:
         return 0.0
 
-    score = 0.55 if marker else 0.35
+    score = table.get("receipt.base_with_marker" if marker else "receipt.base_without_marker")
     if merchant:
-        score += 0.15
+        score += table.get("receipt.merchant_bonus")
     if transacted_at:
-        score += 0.10
-    return round(min(score, 0.80), 2)
+        score += table.get("receipt.date_bonus")
+    return round(min(score, table.get("receipt.max")), 2)
 
 
 def guess_transaction_type() -> TransactionType:

@@ -4,7 +4,7 @@ Thứ tự và điều kiện dừng sớm theo đúng ARCHITECTURE.md §3.2:
 
     Classifier → (chỉ khi financial) Extractor → Categorizer → Duplicate Detector → log
 
-Mọi lần chạy đều ghi một dòng ``pipeline_requests``, kể cả khi dừng sớm hay lỗi — không có
+Mọi lần chạy đều ghi một dòng ``ops_analyze_log``, kể cả khi dừng sớm hay lỗi — không có
 dòng đó thì Duplicate Detector mù và không ai gỡ được lỗi phân loại ngoài production.
 """
 
@@ -27,7 +27,7 @@ from app.core.enums import (
 )
 from app.db.models.pipeline_request import PipelineRequest
 from app.db.models.raw_sample import RawSample
-from app.db.repositories import pattern_repo, pipeline_repo, sample_repo
+from app.db.repositories import pipeline_repo, sample_repo
 from app.pipeline.models.model_registry import ModelRegistry, registry
 from app.pipeline.stages import duplicate_detector
 from app.pipeline.stages.categorizer import Categorizer
@@ -42,12 +42,13 @@ from app.schemas.response import (
     ExtractionResult,
     ModelVersions,
 )
-from app.utils.provider_patterns import PatternMatcher, PatternSpec
+from app.services import provider_formats
+from app.utils.provider_patterns import PatternMatcher
 
 logger = structlog.get_logger(__name__)
 
 # Extractor chạy bằng luật nên "version" của nó là version của BỘ LUẬT, không phải của một
-# artifact. Bump tay khi thay đổi ngữ nghĩa bóc trường, để một dòng pipeline_requests cũ
+# artifact. Bump tay khi thay đổi ngữ nghĩa bóc trường, để một dòng ops_analyze_log cũ
 # vẫn giải thích được bằng đúng bộ luật đã sinh ra nó.
 EXTRACTOR_RULE_VERSION = "rule-1.0.0"
 
@@ -70,21 +71,8 @@ class Pipeline:
         now = time.monotonic()
         if force or now - self._patterns_checked_at >= PATTERN_RELOAD_INTERVAL_SECONDS:
             self._patterns_checked_at = now
-            rows = await pattern_repo.list_active(session)
-            self._matcher = PatternMatcher(
-                [
-                    PatternSpec(
-                        provider_key=row.provider_key,
-                        package_name=row.package_name,
-                        pattern_name=row.pattern_name,
-                        regex=row.regex,
-                        transaction_type=row.transaction_type,
-                        priority=row.priority,
-                        sample_text=row.sample_text,
-                    )
-                    for row in rows
-                ]
-            )
+            # Chỉ pattern của định dạng đang ``active`` (kb_provider_formats); draft và archived không bao giờ được dùng.
+            self._matcher = PatternMatcher(await provider_formats.load_specs(session))
         await self._registry.ensure_loaded(session, force=force)
 
     async def analyze(
@@ -146,7 +134,7 @@ class Pipeline:
 
         processing_ms = int((time.perf_counter() - started) * 1000)
 
-        # Thu thập mẫu TRƯỚC khi ghi pipeline_requests: dòng nhật ký cần mang theo id của
+        # Thu thập mẫu TRƯỚC khi ghi ops_analyze_log: dòng nhật ký cần mang theo id của
         # mẫu, nếu không phản hồi của người dùng về sau không lần ngược được về câu gốc.
         raw_sample_id = None
         if settings.collect_raw_samples:
@@ -214,6 +202,8 @@ class Pipeline:
             row.extraction_confidence = extraction.confidence
             row.extraction_method = extraction.method.value
             row.matched_pattern_name = extraction.matched_pattern_name
+            row.pattern_id = extraction.pattern_id
+            row.extra_fields = extraction.extra_fields
             row.extractor_version = EXTRACTOR_RULE_VERSION
         if categorization is not None:
             row.category_slug = categorization.category_slug

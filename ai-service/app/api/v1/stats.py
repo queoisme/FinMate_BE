@@ -52,7 +52,10 @@ async def _models(session: AsyncSession) -> list[ModelStatusResult]:
     thứ người xem cần biết: stage đó đang chạy bằng luật.
     """
     result = await session.execute(
-        select(ModelVersion).where(ModelVersion.status == ModelStatus.ACTIVE.value)
+        select(ModelVersion).where(
+            ModelVersion.status == ModelStatus.ACTIVE.value,
+            ModelVersion.stage.in_([stage.value for stage in ModelStage]),  # bảng chung với model hóa đơn: chỉ liệt kê model của pipeline thông báo
+        )
     )
     active = {ModelStage(row.stage): row for row in result.scalars().all()}
 
@@ -110,7 +113,10 @@ async def _split_counts(session: AsyncSession) -> dict[str, int]:
 async def _last_training_job(session: AsyncSession) -> TrainingJobResult | None:
     job = (
         await session.execute(
-            select(TrainingJob).order_by(TrainingJob.created_at.desc()).limit(1)
+            select(TrainingJob)
+            .where(TrainingJob.stage.in_([stage.value for stage in ModelStage]))
+            .order_by(TrainingJob.created_at.desc())
+            .limit(1)
         )
     ).scalar_one_or_none()
     if job is None:

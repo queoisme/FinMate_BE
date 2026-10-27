@@ -17,7 +17,10 @@ class FakeKnowledge:
     """Bảng nhớ tên món giả: đếm số lần được hỏi để biết route chỉ hỏi khi cần."""
 
     def __init__(self, cache=None, fail=False):
-        self.cache, self.fail, self.calls = dict(cache or {}), fail, []
+        self.cache, self.fail, self.calls, self.refreshes = dict(cache or {}), fail, [], 0
+
+    async def refresh_if_stale(self):
+        self.refreshes += 1
 
     async def cached_items(self, keys):
         self.calls.append(list(keys))
@@ -65,6 +68,37 @@ async def test_every_category_is_a_valid_backend_slug(text, slug):
 async def test_income_is_the_single_income_slug_with_its_type():
     entry = (await post("nhận lương 14 củ 5")).json()["entry"]
     assert (entry["kind"], entry["category_slug"], entry["income_type"], entry["auto_save_ok"]) == ("income", "income", "salary", False)
+
+
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [("cho bạn mượn 500k", "expense"), ("trả nợ cho bạn 300k", "expense"), ("bạn trả nợ 500k", "income"), ("bạn cho tôi mượn 300k", "income")],
+)
+async def test_lending_borrowing_and_repaying_all_use_the_loan_slug_in_both_directions(text, kind):
+    """"loan" là danh mục hệ thống của backend nhưng không thuộc CATEGORY_SLUGS (ràng buộc CHECK của DB AI): route vẫn phải trả nó."""
+    entry = (await post(text)).json()["entry"]
+    assert (entry["kind"], entry["category_slug"], entry["auto_save_ok"]) == (kind, "loan", False)
+    assert "loan" not in CATEGORY_SLUGS
+
+
+async def test_a_question_about_two_categories_lists_both_and_one_category_stays_as_before():
+    query = (await post("tháng này tôi đã tiêu bao nhiêu tiền cho giải trí và mua sắm")).json()["query"]
+    assert query["category_slugs"] == ["entertainment", "shopping"] and query["category_slug"] == "entertainment"
+    one = (await post("tháng này tôi tiêu bao nhiêu cho ăn uống")).json()["query"]
+    assert one["category_slug"] == "food" and one["category_slugs"] == []
+
+
+async def test_a_goal_sentence_returns_a_goal_draft_and_no_entry():
+    body = (await post("đặt mục tiêu vào 2 tháng sau tôi sẽ mua được xe máy khoảng 50 triệu")).json()
+    assert body["intent"] == "create_goal" and body["entry"] is None and body["entries"] == []
+    goal = body["goal"]
+    assert (goal["name"], goal["name_is_default"], goal["target_cents"], goal["deadline_text"]) == ("Mua xe máy", False, 50_000_000, "2 tháng sau")
+    assert goal["deadline"].endswith("23:59:59+07:00")
+
+
+async def test_a_goal_sentence_without_an_amount_asks_back_with_no_draft():
+    body = (await post("đặt mục tiêu tiết kiệm")).json()
+    assert body["intent"] == "create_goal" and body["goal"] is None and "bao nhiêu" in body["reply_text"]
 
 
 async def test_transfer_has_no_category():
@@ -208,6 +242,48 @@ async def test_income_and_transfers_never_consult_the_cache():
     await post("nhận lương 12 triệu")
     await post("chuyển khoản 200k")
     assert fake.calls == []
+
+
+async def test_every_chat_parse_refreshes_the_db_keywords_even_without_ai():
+    """Từ khóa/thương hiệu sửa trong DB phải đến được chat: trước đây chỉ các route hóa đơn nạp lại chúng."""
+    fake = use_cache()
+    await post("ăn phở bò 45k")  # allow_ai mặc định False
+    await post("nhận lương 12 triệu")
+    assert fake.refreshes == 2
+
+
+async def test_chat_uses_keywords_loaded_from_the_db():
+    """Qua DbBillKnowledge thật: hàng trong kb_keywords thay bảng trong image và chat phân loại theo nó."""
+    from app.bill import classifier
+    from app.bill.knowledge import DbBillKnowledge
+    from app.services import category_resolver
+
+    class Rows:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def all(self):
+            return self.rows
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def execute(self, statement):
+            return Rows([("product", "shopping", "zxqvgizmo")] if "kb_keywords" in str(statement) else [])
+
+    saved_product, saved_merchant = dict(classifier._PRODUCT_KEYWORDS), dict(classifier._CATEGORY_KEYWORDS)
+    app.dependency_overrides[get_bill_knowledge] = lambda: DbBillKnowledge(session_factory=Session)
+    try:
+        assert category_resolver.resolve("zxqvgizmo", chat=True).slug is None  # chưa nạp thì bảng trong image không biết từ này
+        assert (await post("zxqvgizmo 50k")).json()["entry"]["category_slug"] == "shopping"
+    finally:
+        classifier._PRODUCT_KEYWORDS.clear(), classifier._PRODUCT_KEYWORDS.update(saved_product)
+        classifier._CATEGORY_KEYWORDS.clear(), classifier._CATEGORY_KEYWORDS.update(saved_merchant)
+        category_resolver.invalidate()
 
 
 async def test_cache_failure_is_harmless():

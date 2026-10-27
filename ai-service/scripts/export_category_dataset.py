@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Xuất tập dữ liệu phân loại danh mục ra ``category-classifier/{train,validation,test}.csv``.
 
-Nguồn: ``bill_labeled_samples`` ghép ``bill_raw_samples`` (chữ hóa đơn ĐÃ lọc dữ liệu cá nhân + nhãn). Chia theo CỬA HÀNG: một cửa hàng chỉ
+Nguồn: ``ml_labeled_samples`` ghép ``ml_raw_samples`` (chỉ ``source = 'receipt'``: hóa đơn đã có nhãn) (chữ hóa đơn ĐÃ lọc dữ liệu cá nhân + nhãn). Chia theo CỬA HÀNG: một cửa hàng chỉ
 nằm ở một tập, nếu không việc đo độ chính xác trên tập kiểm tra chỉ đo việc học thuộc cửa hàng.
 
 Các tệp CSV chứa chữ hóa đơn nên KHÔNG đưa vào git (.gitignore); chỉ thư mục, README và script này nằm trong git.
@@ -55,13 +55,15 @@ async def load_rows() -> list[dict]:
 
     from app.bill.knowledge import merchant_key
     from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
-    from app.db.models.bill import BillLabeledSample, BillRawSample
+    from app.core.enums import SampleSource
+    from app.db.models.labeled_sample import LabeledSample
+    from app.db.models.raw_sample import RawSample
     from app.db.session import AsyncSessionLocal
 
     query = (
-        select(BillRawSample.notification_title, BillRawSample.notification_body, BillLabeledSample.category_slug, BillLabeledSample.labeled_by)
-        .join(BillLabeledSample, BillLabeledSample.raw_sample_id == BillRawSample.id)
-        .where(BillLabeledSample.category_slug.is_not(None))
+        select(RawSample.notification_title, RawSample.notification_body, LabeledSample.category_slug, LabeledSample.labeled_by)
+        .join(LabeledSample, LabeledSample.raw_sample_id == RawSample.id)
+        .where(LabeledSample.category_slug.is_not(None), RawSample.source == SampleSource.RECEIPT.value)
     )
     async with AsyncSessionLocal() as session:
         result = await session.execute(query)

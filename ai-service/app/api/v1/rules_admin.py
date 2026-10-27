@@ -17,7 +17,8 @@ from app.bill import rules_admin as rules
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
 from app.bill.rules_preview import preview
-from app.db.models.bill import BILL_CATEGORY_GROUPS, BILL_CHOICE_SLUGS, BillItemCache
+from app.db.models.bill import BILL_CATEGORY_GROUPS, BillItemCache
+from app.services import category_registry
 from app.schemas.rules_admin import (
     ActiveBody,
     BrandUpsert,
@@ -52,7 +53,7 @@ async def meta() -> dict:
     """Giá trị hợp lệ để dựng ô chọn trên giao diện quản trị."""
     return {
         "category_groups": list(BILL_CATEGORY_GROUPS),  # nhóm của thương hiệu và từ khóa hóa đơn
-        "backend_slugs": list(BILL_CHOICE_SLUGS),  # nhóm của bộ nhớ tên món
+        "backend_slugs": category_registry.spend_list(),  # nhóm của bộ nhớ tên món (gồm danh mục backend mới đồng bộ)
         "keyword_kinds": list(rules.RUNTIME_KEYWORD_KINDS),
         "max_keyword_chars": rules.MAX_KEYWORD_CHARS,
         "max_instruction_chars": rules.MAX_INSTRUCTION_CHARS,

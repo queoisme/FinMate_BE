@@ -27,14 +27,14 @@ async def test_first_answer_wins_and_hits_are_counted(factory, session):
     await knowledge.remember_items({"khan uot": "shopping"})
     await knowledge.remember_items({"khan uot": "food"})
     assert await knowledge.cached_items(["khan uot"]) == {"khan uot": "shopping"}
-    hits = (await session.execute(text("SELECT hits FROM bill_item_cache WHERE item_key = 'khan uot'"))).scalar_one()
+    hits = (await session.execute(text("SELECT hits FROM kb_item_categories WHERE item_key = 'khan uot'"))).scalar_one()
     assert hits == 2
 
 
 async def test_check_constraint_rejects_unknown_slug_and_income(session):
     for slug in ("income", "unknown", "nonsense"):
         with pytest.raises(IntegrityError):
-            await session.execute(text("INSERT INTO bill_item_cache (item_key, category_slug) VALUES ('x y z', :s)"), {"s": slug})
+            await session.execute(text("INSERT INTO kb_item_categories (item_key, category_slug) VALUES ('x y z', :s)"), {"s": slug})
         await session.rollback()
 
 

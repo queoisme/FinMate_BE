@@ -4,9 +4,46 @@ Hiểu ý định và cắt số tiền của câu chat ("đi ăn 200k", "nhận
 service `rasa` trong `docker-compose.yml`; `ai-service` gọi qua `RASA_URL` trong `POST /api/v1/chat/parse`.
 Rasa tắt thì `ai-service` vẫn trả lời bằng luật (cầu dao 30 giây trong `app/services/nlu.py`).
 
-- `config.yml`, `domain.yml`, `data/nlu.yml`: DIET 100 epoch, 10 ý định (add_expense, add_income, transfer_money, ask_spending,
+## Dữ liệu huấn luyện và đo nằm trong DB (cập nhật 2026-10-23)
+
+**Nguồn sự thật là bảng `nlu_examples` của DB ai-service** (một câu đúng một dòng nên không thể vừa ở train vừa ở test; chú thích thực thể `[45k](amount)` được giữ nguyên). Trong `rasa/` không còn câu mẫu viết tay hay do
+script sinh: `data/nlu_db.yml` và `tests/nlu_test*.yml` là tệp SINH RA từ DB (nằm trong `.gitignore`), không sửa tay.
+Câu cũ (3.168 câu train, 710 câu test; tên nhóm test = tên tệp cũ, vd. `nlu_test_fresh2`) đã nhập vào DB ngày 2026-10-23. Khi nhập, DB phát hiện 13 câu test trùng câu train ("xin chào", "hủy đi"...) và 1 câu mang hai nhãn (`chào buổi tối`: greet và out_of_scope; giữ greet): tệp YAML cũ đã âm thầm rò rỉ như vậy.
+
+Quy trình (từ `ai-service`, cần DB; từ máy chủ đặt `DATABASE_URL=postgresql+asyncpg://finmate:finmate@localhost:5434/finmate_ai`, hoặc chạy trong container sau khi build lại image):
+
+```
+python scripts/nlu_examples.py import <tệp>.jsonl --write                      # thêm câu mới (bỏ --write để xem trước); tệp YAML: thêm --split train|test
+python scripts/nlu_model.py train finmate-nlu-vN                               # xuất DB -> huấn luyện -> ghi "candidate" kèm mã băm bản dữ liệu (bảng nlu_model_versions)
+python scripts/nlu_model.py eval finmate-nlu-vN                                # đo trên tập test của DB: Rasa thô VÀ Rasa + luật (bật Rasa tạm, ~7 phút)
+python scripts/nlu_model.py promote finmate-nlu-vN                             # bị chặn nếu tụt so với bản đang chạy; qua thì chép thành models/active.tar.gz và khởi động lại Rasa
+python scripts/nlu_model.py list                                               # sổ model: trạng thái, bản dữ liệu, số đo
+```
+
+Cổng `promote` chặn khi: chưa đo; luật phá nhiều hơn cứu; độ đúng sau luật HOẶC Rasa thô tụt (luật không được gánh thay model); bộ độc lập `nlu_test_fresh`/`nlu_test_fresh2` tụt;
+tập test đã đổi so với lúc đo bản đang chạy (phải đo lại bản đó cho cùng tập). `docker-compose.yml` chạy `models/active.tar.gz`, không còn tên model cố định.
+Mốc đầu tiên (2026-10-24, tập test DB 710 câu): `finmate-nlu-v11` thô 94,65%, sau luật 98,17% (luật ghi đè 26: cứu 25, phá 0); chưa rõ bản dữ liệu đã học.
+
+**Học từ người dùng (2026-10-24, phía ai-service; backend C# chưa gọi):** `POST /api/v1/chat/unclear` nhận câu chat mà `/chat/parse` đánh dấu `unclear_reason` (kèm đoán của máy) vào bảng chờ `nlu_candidates`,
+CHỈ khi người dùng đã đồng ý chia sẻ. Câu có số điện thoại, email, số dài, đường dẫn, `[ ]` hoặc `unclear_reason = cancelled` bị từ chối; câu chưa duyệt/bị loại tự xóa sau 7 ngày;
+`POST /chat/unclear/erase` xóa theo người dùng. Câu KHÔNG vào dữ liệu huấn luyện cho tới khi người duyệt gán nhãn (đoán của máy không phải nhãn):
+
+```
+python scripts/nlu_candidates.py list                                          # câu đang chờ + máy đoán gì
+python scripts/nlu_candidates.py accept <id> --intent add_expense [--text ...]  # nhận (sửa --text để bỏ tên người); thành câu user_feedback trong nlu_examples, xóa khỏi bảng chờ
+python scripts/nlu_candidates.py reject <id>
+```
+
+Còn thiếu phía backend (xem kế hoạch): thêm `unclear_reason` vào hợp đồng `ChatParseApiResponse`, kiểm tra `TrainingConsentGranted` (nâng `ConsentVersions.Training` vì bản 1 chỉ nói về hóa đơn),
+gọi `/chat/unclear` ở `ChatCommandHandler`/`ChatAnalyzeCommandHandler`, và gọi `/chat/unclear/erase` khi rút đồng ý hoặc xóa tài khoản.
+
+`domain.yml` chỉ còn ý định, thực thể và cấu hình phiên: các câu `utter_*` và luật trong `rules.yml` đã bỏ vì ai-service chỉ gọi `/model/parse`, còn câu trả lời nằm ở `app/data/intent_cues.json` (sửa được từ trang quản trị).
+`tools/generate_nlu.py`, `generate_contrast.py`, `import_massive.py` chỉ còn là công cụ SINH ỨNG VIÊN: chúng ghi YAML vào `data/`/`tests/`, phải nhập vào DB (`import ... --split`) rồi xóa tệp đó; không huấn luyện từ tệp tĩnh
+(`tests/unit/test_rasa_data_in_db.py` canh việc này). Các mục bên dưới là lịch sử đo từ trước ngày này và nhắc tới các tệp YAML cũ.
+
+- `config.yml`, `domain.yml`, `data/nlu_db.yml`: DIET 100 epoch, 10 ý định (add_expense, add_income, transfer_money, ask_spending,
   greet, goodbye, confirm, deny, cancel, out_of_scope), thực thể `amount` và `merchant`. `rules.yml`/`stories.yml` chưa dùng.
-- `tests/nlu_test.yml`: 74 câu giữ riêng để đo. Model đang chạy `finmate-nlu-v8` (compose): 97,3% ý định trên bộ này (v3 từng 93,2%).
+- `tests/nlu_test.yml`: 74 câu giữ riêng để đo. Model đang chạy `finmate-nlu-v10` (compose, từ 2026-10-21; v8 giữ trong `models/` để quay lại): 97,3% ý định trên bộ này (v3 từng 93,2%).
 - `models/`: model đã huấn luyện, không nằm trong git.
 
 Đo lại sau khi sửa dữ liệu:
@@ -15,15 +52,25 @@ Rasa tắt thì `ai-service` vẫn trả lời bằng luật (cầu dao 30 giây
 docker compose run --rm rasa test nlu --nlu tests/nlu_test.yml -m models/finmate-nlu-v3.tar.gz --out results
 ```
 
-Rasa hay quá tự tin với từ lạ (từng đọc "cắt kính cận 800k" là thu nhập, độ chắc 1,0), nên `app/services/transaction_parser.py` không tin Rasa
-khi câu có từ khóa chi tiêu rõ mà không có dấu hiệu thu hay chuyển tiền.
+Rasa hay quá tự tin (đo được sai ở độ chắc 1,00: softmax chưa hiệu chỉnh), nên `app/services/transaction_parser.py` phân xử theo NGUYÊN TẮC chứ không
+theo từng câu: dấu hiệu cụ thể trong câu (động từ/vai trò) thắng Rasa, bằng chứng yếu chỉ thắng khi Rasa không chắc (xem `.context/ARCHITECTURE.md`,
+mục "Gộp Rasa với luật"). Từ vựng nằm ở `app/data/intent_cues.json`. Mỗi thay đổi ở lớp luật phải qua cổng `scripts/audit_overrides.py` (cứu ≥ phá,
+không tụt bộ độc lập); đo 2026-10-21 với Rasa v10: Rasa thô 94,2% → Rasa + luật 97,1% trên 795 câu, luật ghi đè 24 câu, cứu 23, phá 0; bộ độc lập
+`heldout_intent` (138 câu) 88,4% → 89,9%. Câu không dấu là giới hạn đã biết: "ban" có thể là bạn/bán nên luật nhường Rasa.
 
 ## Dữ liệu huấn luyện (cập nhật 2026-10-12)
 
 - `data/nlu.yml`: 267 câu viết tay.
 - `data/nlu_generated.yml` + `tests/nlu_test_v2.yml`: dữ liệu TỔNG HỢP do `tools/generate_nlu.py` sinh (train và test dùng mẫu câu/món/cửa hàng tách biệt).
+- `data/nlu_contrast.yml` (2026-10-21, đã huấn luyện thành v9 rồi v10; số đo ở dưới): 753 câu TỔNG HỢP "cặp đối lập" do `tools/generate_contrast.py` sinh (`PYTHONPATH=. python rasa/tools/generate_contrast.py`), dạy model nhìn chiều giao dịch: "mẹ gửi cho 20k" (thu) so với "gửi cho mẹ 20k" (chuyển), "phí rút tiền" (chi) so với "rút tiền" (chuyển), "tiền lãi về" (thu) so với "trả lãi vay" (chi), "nạp vào ví" (chuyển) so với "nạp thẻ cào" (chi), "xóa tài khoản" (ngoài chủ đề). Người "ba" cố ý bỏ ra: các câu "ba gửi cho ..." trong bộ thử viết tay dùng để kiểm xem model có học được cấu trúc hay chỉ thuộc câu. Từ v10 có thêm nhóm xã giao ("ăn cơm chưa", "đi ngủ không", "cảm ơn" dạy là out_of_scope vì Rasa không có ý định thanks, "giá ... bao nhiêu"). Đo bằng `rasa test nlu` (độ đúng ý định, Rasa thô; kết quả trong `results/cmp_v8|v9|v10_*`): fresh món lạ 92,5% / 95,5% / 97,0%, fresh2 khung lạ 93,1% / 97,2% / 98,6%, tổng hợp v2 91,7% / 93,0% / 93,0%, ngoài chủ đề 96,9% / 97,7% / 97,7%, viết tay 97,3% cả ba (v8 / v9 / v10). Đo đầu cuối (Rasa + luật mới, 18+8 câu xã giao và đảo chiều): v8 25/26, v10 26/26; chat chuẩn 65/66 và voice không đổi. Điểm yếu còn lại: bộ `results/_probe_direction.yml` (33 câu, người "ba" giữ riêng) v9 đúng 93,9% nhưng v10 chỉ 81,8% (v8 57,6%), tức độ học cấu trúc "ba gửi ..." không ổn định giữa các lần huấn luyện; "ba gửi cho 2 triệu" vẫn sai ở Rasa thô (độ chắc 1,00) và do luật trong `transaction_parser.py` chặn. `merchant` F1 trên v2 vẫn ~0,57.
 - `data/nlu_massive_oos.yml` + `tests/nlu_test_massive_oos.yml`: câu ngoài chủ đề lấy từ **MASSIVE 1.1 (Amazon Science, CC BY 4.0, https://github.com/alexa/massive)**, đã điều chỉnh bằng `tools/import_massive.py`. Cần ghi nguồn này khi phân phối.
 - Đo: `tools/summarize_report.py results/<thư mục>`; kết quả v3/v4/v5 ở `docs/evaluation.md`.
+- `data/nlu_db.yml` (2026-10-22, KHÔNG nằm trong git): câu của bảng `nlu_examples` trong DB (206 câu lạc đề ban đầu: so sánh AI, kiến thức chung, tư vấn đầu tư, câu có chữ tiền nhưng không phải lệnh...). Nguồn sự thật là DB, không sửa file; mỗi câu có đúng một dòng nên không thể vừa ở train vừa ở test. Quy trình, từ gốc repo:
+  `docker compose exec -T ai-service python scripts/nlu_examples.py import seed/<tệp>.jsonl --write` (nhập, xem trước nếu bỏ `--write`),
+  `cmd /c "docker compose exec -T ai-service python scripts/nlu_examples.py export --split train > ai-service\rasa\data\nlu_db.yml"` (xuất tập train; PowerShell `>` sẽ ghi sai mã hóa),
+  rồi huấn luyện như thường. Đo tập test giữ riêng (Rasa + luật, theo nhóm): `docker compose exec -T ai-service python scripts/nlu_examples.py eval --split test`; sau khi khởi động lại ai-service hãy đợi Rasa nóng lên, nếu không cầu dao 30 giây làm số đo là của riêng lớp luật (lệnh tự cảnh báo khi gần như không câu nào do Rasa quyết).
+  Đo một model thử mà không đổi model đang chạy: chạy một container Rasa tạm trên mạng compose, một tiến trình `uvicorn` thứ hai trong ai-service với `RASA_URL` trỏ vào nó, rồi đặt `CHAT_PARSE_URL` (các script `eval_*`/`nlu_examples.py eval`) và `RASA_PARSE_URL` (`tools/eval_live.py`).
+  **v11** (huấn luyện từ 137 câu train của DB, chưa bật): tập test DB 85,5% → 94,2% (rò rỉ 10 → 4); sau luật trên 657 câu cũ 98,5% → 98,5%, sai-mà-không-nhắc 3 → 1, tự lưu sai 0; Rasa thô có một ca từ chối nhầm lệnh hợp lệ ("mất 1tr2 tiền sửa máy giặt" → `out_of_scope`, độ chắc 1,00) và `nlu_test_fresh2` 98,6% → 94,4%.
 
 ## Giảm "sai mà tự tin" (2026-10-18)
 

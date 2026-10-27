@@ -1,6 +1,6 @@
 """Bộ đếm mức dùng của ``/bill/classify-items``: CHỈ số đếm theo ngày (món do bộ nhớ, luật, Gemini... trả lời), không tên món, cửa hàng hay người dùng.
 
-Ghi theo kiểu cộng dồn trong Postgres (``bill_classify_stats``). Việc ghi là phần phụ: lỗi hay chậm thì bỏ qua, không bao giờ làm hỏng việc phân loại.
+Ghi theo kiểu cộng dồn trong Postgres (``ops_usage_daily``). Việc ghi là phần phụ: lỗi hay chậm thì bỏ qua, không bao giờ làm hỏng việc phân loại.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ logger = structlog.get_logger(__name__)
 RECORD_TIMEOUT_SECONDS = 1.0
 
 _UPSERT = text(
-    "INSERT INTO bill_classify_stats (day, metric, value) VALUES (current_date, :metric, :value) "
-    "ON CONFLICT (day, metric) DO UPDATE SET value = bill_classify_stats.value + EXCLUDED.value"
+    "INSERT INTO ops_usage_daily (day, metric, value) VALUES (current_date, :metric, :value) "
+    "ON CONFLICT (day, metric) DO UPDATE SET value = ops_usage_daily.value + EXCLUDED.value"
 )
 
 

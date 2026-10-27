@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dạy bảng nhớ tên món (``bill_item_cache``) từ file nhãn đã được người kiểm: lần sau tên đó (kể cả dạng OCR đọc sai chữ) ra đúng nhóm ngay,
+"""Dạy bảng nhớ tên món (``kb_item_categories``) từ file nhãn đã được người kiểm: lần sau tên đó (kể cả dạng OCR đọc sai chữ) ra đúng nhóm ngay,
 không cần hỏi AI và không phụ thuộc luật từ khóa.
 
 Chạy trong container ai-service (có kết nối DB):

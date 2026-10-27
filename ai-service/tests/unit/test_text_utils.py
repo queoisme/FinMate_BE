@@ -175,6 +175,8 @@ def test_grouping_flag_survives_the_space():
         ("đi chợ 1 củ", 1_000_000),
         ("cho mượn 2 lít", 200_000),
         ("tiền nhà 2 củ rưỡi", 2_500_000),
+        ("tiền nhà 3 chai", 3_000_000),
+        ("chốt căn hộ 5 tỏi", 5_000_000_000),
         ("quần áo 2 triệu rưỡi", 2_500_000),
         ("mua quần áo 2tr", 2_000_000),
         ("cà phê 2k", 2_000),
@@ -187,8 +189,68 @@ def test_slang_and_half_units_in_digits(text, expected):
     assert max(c.value for c in find_amount_candidates(text)) == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("lương 14 củ 5", 14_500_000),
+        ("tiền nhà 3 củ 8", 3_800_000),
+        ("mua sạc 1 lít 2", 120_000),
+        ("bán nhà 2 tỷ 5", 2_500_000_000),
+        ("mua laptop 23 triệu 5", 23_500_000),
+        ("mua nhà 3 tỏi 2", 3_200_000_000),
+    ],
+)
+def test_loose_digit_after_a_unit_is_a_tenth_of_it(text, expected):
+    from app.utils.text_utils import find_amount_candidates
+
+    assert max(c.value for c in find_amount_candidates(text)) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("1 triệu 2 ly cà phê", 1_000_000),  # số lượng
+        ("45k 2 tô phở", 45_000),  # sau "k" chỉ nhận khi dính liền
+        ("chuyển 2 triệu 05/10", 2_000_000),  # ngày
+        ("thanh toán 500 nghìn 12:30", 500_000),  # giờ
+        ("nhận 2 triệu 14 giờ", 2_000_000),
+    ],
+)
+def test_loose_digit_that_is_not_a_fraction_is_left_alone(text, expected):
+    from app.utils.text_utils import find_amount_candidates
+
+    assert max(c.value for c in find_amount_candidates(text)) == expected
+
+
 def test_ordinary_word_after_a_number_is_not_money():
     from app.utils.text_utils import find_amount_candidates
 
     assert find_amount_candidates("mua 2 củ cải") == []
     assert find_amount_candidates("đổ 2 lít xăng") == []
+    assert find_amount_candidates("mua 2 chai nước") == []
+    assert find_amount_candidates("mua 2 chai bia") == []
+    assert find_amount_candidates("nấu ăn 2 tỏi tây") == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "COCA 2 CHAI 30.000",
+        "Pepsi 2 chai 30.000",
+        "Tiger 2 chai 30.000",
+        "Heineken 2 chai 30.000",
+        "Sting 2 chai 30.000",
+        "2 chai coca 30k",
+        "2 chai tra xanh 30k",
+        "2 chai trà 30k",
+        "2 chai cà phê 30k",
+        "2 chai ca phe 30k",
+        "2 chai nuoc ngot 30k",
+        "2 chai nước ngọt 30k",
+        "2 chai bia 30k",
+    ],
+)
+def test_chai_next_to_a_drink_is_a_bottle_not_a_million(line):
+    from app.utils.text_utils import find_amount_candidates
+
+    assert max(c.value for c in find_amount_candidates(line)) == 30_000

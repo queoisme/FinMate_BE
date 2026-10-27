@@ -1,119 +1,106 @@
 version: "3.1"
 
-# Bộ thử riêng cho NLU (KHÔNG dùng để huấn luyện): cách diễn đạt khác bộ học để đo công bằng.
+# Sinh bởi scripts/nlu_examples.py từ bảng nlu_examples (tập test, nhóm nlu_test). KHÔNG sửa tay: sửa trong DB.
+
 nlu:
 - intent: add_expense
   examples: |
-    - sáng nay uống cà phê hết [32k](amount)
-    - đổ bình xăng [70 cành](amount)
-    - chiều đi chợ mua rau [90k](amount)
-    - trưa ăn bún chả [55k](amount)
-    - đi ăn lẩu [450k](amount) với team
-    - mua cái áo [280k](amount)
-    - đóng tiền nhà [3 củ](amount)
-    - nay tiêu [120 nghìn](amount) ăn vặt
-    - mua sắm [2 triệu](amount) cuối tuần
-    - trả tiền wifi tháng này [210k](amount)
-    - đi taxi sân bay [180k](amount)
-    - mua thuốc ho [45k](amount)
-    - xem phim [95k](amount) tối qua
-    - tối nay nhậu [1 lít 5](amount)
-    - gửi xe máy [3k](amount)
-    - nạp game [200k](amount)
-    - đặt [Grab](merchant) đi làm [48k](amount)
     - ăn sáng ở [Highlands](merchant) [60k](amount)
+    - cắt kính cận [1 triệu 1](amount)
+    - chiều đi chợ mua rau [90k](amount)
+    - đặt [Grab](merchant) đi làm [48k](amount)
+    - đi ăn lẩu [450k](amount) với team
+    - đi taxi sân bay [180k](amount)
+    - đổ bình xăng [70 cành](amount)
+    - đóng tiền nhà [3 củ](amount)
     - đổ xăng ở [Petrolimex](merchant) [100k](amount)
+    - gửi xe máy [3k](amount)
+    - làm gọng kính [250k](amount)
+    - mua cái áo [280k](amount)
+    - mua kính râm [500k](amount)
+    - mua sắm [2 triệu](amount) cuối tuần
+    - mua thuốc ho [45k](amount)
+    - nạp game [200k](amount)
+    - nay tiêu [120 nghìn](amount) ăn vặt
+    - sáng nay uống cà phê hết [32k](amount)
+    - thay mắt kính [700k](amount)
     - tiền điện [750 nghìn](amount)
+    - tối nay nhậu [1 lít 5](amount)
+    - trả tiền wifi tháng này [210k](amount)
+    - trưa ăn bún chả [55k](amount)
+    - xem phim [95k](amount) tối qua
 
 - intent: add_income
   examples: |
-    - nhận lương [13 củ](amount)
-    - mẹ gửi cho [1 triệu](amount)
+    - ba gửi cho [2 triệu](amount)
+    - bán laptop cũ được [8 triệu](amount)
     - bán xe cũ được [5 củ](amount)
     - có thưởng tết [4 triệu](amount)
-
-- intent: transfer_money
-  examples: |
-    - chuyển [3 triệu](amount) sang tài khoản tiết kiệm
-    - rút [1 củ](amount) từ ví
-    - chuyển khoản trả nợ [2 triệu](amount)
+    - có tiền hoàn đơn hàng [70k](amount)
+    - nhận lương [13 củ](amount)
+    - tháng này sếp thưởng [5 củ](amount)
 
 - intent: ask_spending
   examples: |
-    - tháng này mình đã chi hết bao nhiêu
-    - hôm nay tiêu bao nhiêu rồi nhỉ
-    - tổng chi tuần này là bao nhiêu
-    - tháng trước tôi chi bao nhiêu cho ăn uống
-    - xem giúp mình chi tiêu hôm qua
-    - tháng này tiền xăng hết bao nhiêu
+    - cho mình biết thu chi tháng này
     - cho mình biết tổng chi tiêu tháng 9
+    - hôm nay tiêu bao nhiêu rồi nhỉ
+    - tháng này mình đã chi hết bao nhiêu
+    - tháng này mình dư bao nhiêu
+    - tháng này tiền xăng hết bao nhiêu
+    - tháng trước tôi chi bao nhiêu cho ăn uống
+    - thu nhập tuần này là bao nhiêu
+    - tổng chi tuần này là bao nhiêu
     - tuần này mua sắm hết bao nhiêu vậy
+    - xem giúp mình chi tiêu hôm qua
+
+- intent: cancel
+  examples: |
+    - bỏ khoản này đi
+    - hủy giúp mình
+    - không ghi nữa nhé
+    - thôi hủy đi
 
 - intent: confirm
   examples: |
-    - ừ đúng rồi đó
-    - ok lưu nhé
     - chính xác luôn
     - đúng vậy ghi giúp mình
+    - ok lưu nhé
+    - ừ đúng rồi đó
 
 - intent: deny
   examples: |
     - không đúng rồi
-    - sai danh mục rồi
     - không phải, tính vào ăn uống
     - nhầm rồi, là di chuyển
-
-- intent: cancel
-  examples: |
-    - thôi hủy đi
-    - bỏ khoản này đi
-    - không ghi nữa nhé
-    - hủy giúp mình
-
-- intent: greet
-  examples: |
-    - chào bạn nhé
-    - alo Mầm ơi
-    - hello
+    - sai danh mục rồi
 
 - intent: goodbye
   examples: |
-    - tạm biệt nhé
     - mình đi ngủ đây
+    - tạm biệt nhé
+
+- intent: greet
+  examples: |
+    - alo Mầm ơi
+    - chào bạn nhé
 
 - intent: out_of_scope
   examples: |
-    - iphone mới giá hơn 20 triệu có đáng mua không
-    - hôm nay trời mưa to quá
-    - bạn có người yêu chưa
     - dạy mình làm bánh với
-    - tỷ giá đô la hôm nay là bao nhiêu
+    - hôm nay trời mưa to quá
+    - iphone mới giá hơn 20 triệu có đáng mua không
     - kể cho mình nghe chuyện vui
-    - nên mua nhà hay thuê nhà
     - lương 20 triệu có đủ sống không
-
-- intent: add_income
-  examples: |
-    - tháng này sếp thưởng [5 củ](amount)
-    - ba gửi cho [2 triệu](amount)
-    - bán laptop cũ được [8 triệu](amount)
-    - có tiền hoàn đơn hàng [70k](amount)
+    - nên mua nhà hay thuê nhà
+    - tỷ giá đô la hôm nay là bao nhiêu
 
 - intent: transfer_money
   examples: |
-    - nạp [400k](amount) vào ví
+    - chuyển [3 triệu](amount) sang tài khoản tiết kiệm
     - chuyển [4 triệu](amount) vào tiết kiệm
+    - chuyển khoản trả nợ [2 triệu](amount)
+    - nạp [400k](amount) vào ví
+    - rút [1 củ](amount) từ ví
     - rút [2 triệu](amount) ở cây atm
 
-- intent: ask_spending
-  examples: |
-    - thu nhập tuần này là bao nhiêu
-    - tháng này mình dư bao nhiêu
-    - cho mình biết thu chi tháng này
-
-- intent: add_expense
-  examples: |
-    - cắt kính cận [1 triệu 1](amount)
-    - mua kính râm [500k](amount)
-    - thay mắt kính [700k](amount)
-    - làm gọng kính [250k](amount)

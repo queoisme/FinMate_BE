@@ -45,11 +45,21 @@ def _load() -> dict[str, SlangUnit]:
 SLANG: dict[str, SlangUnit] = _load()
 
 
-def is_money(word: str, text: str, end: int) -> bool:
-    """Từ lóng ``word`` kết thúc ở vị trí ``end`` của ``text`` có đang nghĩa là tiền không."""
+def is_money(word: str, text: str, end: int, number_start: int | None = None) -> bool:
+    """Từ lóng ``word`` kết thúc ở vị trí ``end`` của ``text`` có đang nghĩa là tiền không.
+
+    ``number_start`` là vị trí bắt đầu của con số đứng trước từ lóng ("ba" trong "ba lít"); có nó thì mới xét được chữ đứng ngay trước số.
+    """
     unit = SLANG[word.lower()]
     lowered = text.lower()
-    if any(context in lowered for context in unit.not_with_context):
+    if len(re.findall(rf"(?<![^\W\d_]){re.escape(word.lower())}(?![^\W\d_])", lowered)) > 1:
+        # Cùng một từ lặp lại ("đi chợ mua ba lít rượu hết một lít"): từ khoá "rượu" chỉ thuộc về lần đứng ngay trước nó, nên xét từng lần theo hai chữ
+        # đứng sau và một chữ đứng trước số, không xét cả câu. Chỉ một lần thì giữ cách cũ: "sữa tươi hai lít", "đổ xăng ... 2 lít" vẫn bị loại.
+        before = lowered[:number_start].split()[-1:] if number_start is not None else []
+        scope = " ".join(before + lowered[end:].split()[:2])
+    else:
+        scope = lowered
+    if any(context in scope for context in unit.not_with_context):
         return False
     if any(pattern.match(lowered[end:].lstrip()) for pattern in unit.not_followed_by_pattern):
         return False

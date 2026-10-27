@@ -1,7 +1,7 @@
 """Băm định danh và che dữ liệu nhạy cảm trước khi lưu vào AI DB.
 
 AGENTS.md §3.1: AI DB không bao giờ giữ ``user_id`` thật. §3.2: không log
-``notification_body`` gốc. Kho ``raw_samples`` tồn tại để train nên phải giữ được nội
+``notification_body`` gốc. Kho ``ml_raw_samples`` tồn tại để train nên phải giữ được nội
 dung, nhưng nội dung đó đã đi qua ``anonymize_body`` — số tài khoản, số thẻ, số điện
 thoại và email bị che, còn cấu trúc câu và số tiền giữ nguyên vì đó chính là thứ model
 cần học.
@@ -35,7 +35,7 @@ def hash_user_id(user_id: str) -> str:
 
 
 def content_hash(package_name: str, title: str | None, body: str) -> str:
-    """Khoá chống trùng của ``raw_samples``.
+    """Khoá chống trùng của ``ml_raw_samples``.
 
     Không đưa thời gian vào: cùng một nội dung nhận ở hai thời điểm vẫn là cùng một mẫu
     huấn luyện. (Khác với dedup của backend — bên đó có tính thời gian vì mục đích là

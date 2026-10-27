@@ -34,11 +34,6 @@ def test_brand_in_a_website_line_gives_family():
     assert classify_by_rules(None, ["Hoa don", "www.kidsplaza.vn"]).category_slug == "family"
 
 
-def test_what_the_user_remembered_for_the_store_still_wins():
-    result = classify_by_rules("KidsPlaza", LINES, remembered="shopping")
-    assert result.category_slug != "family"
-
-
 def test_other_brands_found_only_in_the_body_are_unchanged():
     result = classify_by_rules("Quan so 1", ["Quan so 1", "Hoa don", "Cam on Highlands Coffee"])
     assert result.category_slug != "family"

@@ -29,7 +29,9 @@ import structlog
 
 from app.bill.classifier import _norm
 from app.bill.knowledge import merchant_key
-from app.db.models.bill import BillModelVersion, BillTrainingJob
+from app.core.enums import JobStatus
+from app.db.models.model_version import ModelVersion, TrainingJob
+from app.db.repositories import model_repo
 
 logger = structlog.get_logger(__name__)
 
@@ -40,7 +42,7 @@ MIN_STRONG_SLUGS = 3  # số danh mục đủ MIN_PER_SLUG mẫu
 MIN_PER_SLUG = 20
 MIN_CV_ACCURACY = 0.85
 MIN_PROBABILITY = 0.8  # dưới ngưỡng này lúc phục vụ thì mô hình không trả lời
-STAGE = "bill_slug"  # cột ``stage`` của bill_model_versions / bill_training_jobs
+STAGE = "bill_slug"  # ``code`` của model trong ml_models (cũ: cột ``stage`` của bill_model_versions / bill_training_jobs)
 
 
 class Labeled(Protocol):
@@ -145,11 +147,11 @@ async def record_training(session: AsyncSession, result: TrainResult, *, sample_
         path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(result.pipeline, path)
         artifact = str(path)
-    job = BillTrainingJob(stage=STAGE, status="finished", params={"min_cv_accuracy": MIN_CV_ACCURACY}, sample_count=sample_count, started_at=now, finished_at=now)
+    job = TrainingJob(model_id=await model_repo.model_id_for(session, STAGE), status=JobStatus.SUCCEEDED.value, params={"min_cv_accuracy": MIN_CV_ACCURACY}, sample_count=sample_count, started_at=now, finished_at=now)
     session.add(job)
     await session.flush()
-    session.add(BillModelVersion(
-        stage=STAGE, version=version, artifact_path=artifact, status=result.status, metrics=result.metrics, training_job_id=job.id,
+    session.add(ModelVersion(
+        model_id=job.model_id, version=version, artifact_path=artifact, status=result.status, metrics=result.metrics, training_job_id=job.id,
         trained_at=now, notes=result.reason,
     ))
     await session.commit()
@@ -158,17 +160,17 @@ async def record_training(session: AsyncSession, result: TrainResult, *, sample_
 
 async def promote(session: AsyncSession, version: str) -> None:
     """Chỉ bản ``candidate`` được bật; bản đang ``active`` trước đó chuyển ``retired`` (một bản active duy nhất)."""
-    row = (await session.execute(select(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.version == version))).scalar_one_or_none()
+    row = (await session.execute(select(ModelVersion).where(ModelVersion.stage == STAGE, ModelVersion.version == version))).scalar_one_or_none()
     if row is None or row.status != "candidate":
         raise ValueError("Chỉ bản candidate mới được promote")
-    await session.execute(update(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.status == "active").values(status="retired"))
+    await session.execute(update(ModelVersion).where(ModelVersion.stage == STAGE, ModelVersion.status == "active").values(status="retired"))
     row.status = "active"
     await session.commit()
 
 
 async def retire(session: AsyncSession) -> int:
     """Quay lại luật: bản đang ``active`` (nếu có) chuyển ``retired``. Trả số bản đã nghỉ."""
-    result = await session.execute(update(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.status == "active").values(status="retired"))
+    result = await session.execute(update(ModelVersion).where(ModelVersion.stage == STAGE, ModelVersion.status == "active").values(status="retired"))
     await session.commit()
     return result.rowcount
 
@@ -213,7 +215,7 @@ async def load_active(session: AsyncSession) -> SlugModel | None:
     """Mô hình của bản ``active`` trong DB (None nếu không có bản nào hoặc tệp hỏng)."""
     row = (
         await session.execute(
-            select(BillModelVersion).where(BillModelVersion.stage == STAGE, BillModelVersion.status == "active").order_by(BillModelVersion.trained_at.desc()).limit(1)
+            select(ModelVersion).where(ModelVersion.stage == STAGE, ModelVersion.status == "active").order_by(ModelVersion.trained_at.desc()).limit(1)
         )
     ).scalar_one_or_none()
     return SlugModel.load_file(row.artifact_path) if row else None

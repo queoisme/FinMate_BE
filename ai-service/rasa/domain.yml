@@ -17,16 +17,6 @@ entities:
   - merchant
   - date
 
-responses:
-  utter_greet:
-  - text: "Chào bạn! Mình là Mầm, bạn cứ nhắn khoản chi tiêu nhé."
-  utter_goodbye:
-  - text: "Tạm biệt bạn!"
-  utter_out_of_scope:
-  - text: "Mình chỉ giúp ghi chép chi tiêu thôi, bạn thử nhập kiểu 'ăn phở 45k' nhé."
-  utter_default:
-  - text: "Mình chưa hiểu, bạn thử nhập kiểu 'ăn phở 45k' nhé."
-
 session_config:
   session_expiration_time: 60
   carry_over_slots_to_new_session: true

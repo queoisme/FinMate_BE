@@ -1,4 +1,4 @@
-"""Truy cập ``user_feedback`` / ``feedback_batch_jobs``."""
+"""Truy cập ``ml_user_feedback`` / ``ml_feedback_batches``."""
 
 import uuid
 from collections.abc import Sequence

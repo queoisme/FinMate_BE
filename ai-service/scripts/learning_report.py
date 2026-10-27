@@ -78,7 +78,7 @@ def summarize(rows: list[SampleRow], pending: int) -> LearningReport:
 async def load_labeled(session) -> list[SampleRow]:
     labeled = (
         await session.execute(
-            text("SELECT merchant_key, lines, final_slug, predicted_source, predicted_slug FROM bill_training_samples WHERE final_slug IS NOT NULL")
+            text("SELECT merchant_key, lines, final_slug, predicted_source, predicted_slug FROM ml_training_samples WHERE final_slug IS NOT NULL")
         )
     ).all()
     return [SampleRow(r.merchant_key, r.lines.split("\n"), r.final_slug, r.predicted_source, r.predicted_slug) for r in labeled]
@@ -86,7 +86,7 @@ async def load_labeled(session) -> list[SampleRow]:
 
 async def build_report(session) -> LearningReport:
     rows = await load_labeled(session)
-    pending = (await session.execute(text("SELECT count(*) FROM bill_training_samples WHERE final_slug IS NULL"))).scalar_one()
+    pending = (await session.execute(text("SELECT count(*) FROM ml_training_samples WHERE final_slug IS NULL"))).scalar_one()
     return summarize(rows, pending)
 
 

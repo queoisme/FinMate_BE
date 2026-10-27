@@ -12,8 +12,13 @@ from app.bill import slug_model
 from app.bill.rules_admin import RuleError
 from app.bill.seed_defaults import seed_bill_knowledge
 from app.bill.samples import purge_loop
+from app.api.v1.categories_admin import router as categories_admin_router
+from app.api.v1.ocr_store import router as ocr_store_router
+from app.api.v1.provider_formats_admin import router as provider_formats_admin_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.config_admin import router as config_admin_router
 from app.api.v1.feedback import router as feedback_router
+from app.api.v1.finance_methods import router as finance_methods_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ocr import router as ocr_router
 from app.api.v1.pipeline import router as pipeline_router
@@ -24,6 +29,7 @@ from app.core.logging import configure_logging
 from app.db.seed_patterns import seed
 from app.db.session import AsyncSessionLocal
 from app.pipeline.orchestrator import pipeline
+from app.services import category_registry, config_runtime, nlu_candidates, retention
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -56,9 +62,31 @@ async def lifespan(app: FastAPI):
         logger.info("slug_model_loaded", active=slug_model.active() is not None)
     except Exception as error:  # noqa: BLE001
         logger.error("slug_model_startup_failed", error_type=type(error).__name__)
+    try:  # tài liệu cấu hình admin đã kích hoạt (từ vựng hiểu câu chat...): có thì áp dụng, DB trống hoặc lỗi thì dùng bản mặc định trong image
+        logger.info("config_documents_loaded", applied=await config_runtime.refresh())
+    except Exception as error:  # noqa: BLE001
+        logger.error("config_documents_startup_failed", error_type=type(error).__name__)
+    try:  # danh mục backend đã đồng bộ (kb_categories): có thì dùng, DB trống hoặc lỗi thì dùng CATEGORY_SLUGS trong code
+        async with AsyncSessionLocal() as session:
+            await category_registry.refresh(session)
+    except Exception as error:  # noqa: BLE001
+        logger.error("category_registry_startup_failed", error_type=type(error).__name__)
+    categories_task = asyncio.create_task(category_registry.watch(AsyncSessionLocal))  # bản chạy khác nhận danh mục mới trong vòng REFRESH_SECONDS
     purge_task = asyncio.create_task(purge_loop(AsyncSessionLocal))  # mẫu huấn luyện chưa nhãn quá 7 ngày bị xóa định kỳ
+    config_task = asyncio.create_task(config_runtime.watch())  # instance khác thấy bản admin vừa kích hoạt trong vòng POLL_SECONDS
+    candidates_task = asyncio.create_task(nlu_candidates.purge_loop(AsyncSessionLocal))  # câu chat chưa duyệt hoặc bị loại quá hạn bị xóa định kỳ
+    retention_task = (  # nhật ký phân tích, mẫu thô chưa nhãn, bill lạ quá hạn bị xóa định kỳ (tắt bằng RETENTION_ENABLED=false)
+        asyncio.create_task(retention.retention_loop(AsyncSessionLocal, settings.retention_days, settings.retention_interval_hours * 3600))
+        if settings.retention_enabled
+        else None
+    )
     yield
+    categories_task.cancel()
     purge_task.cancel()
+    config_task.cancel()
+    candidates_task.cancel()
+    if retention_task:
+        retention_task.cancel()
 
 
 app = FastAPI(title="FinMate AI Service", lifespan=lifespan)
@@ -78,10 +106,16 @@ app.include_router(stats_router, prefix="/api/v1", tags=["stats"])
 app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(bill_router, prefix="/api/v1", tags=["bill"])
+app.include_router(finance_methods_router, prefix="/api/v1", tags=["finance-methods"])
 app.include_router(rules_admin_router, prefix="/api/v1")
+app.include_router(config_admin_router, prefix="/api/v1")
+app.include_router(categories_admin_router, prefix="/api/v1")
+app.include_router(provider_formats_admin_router, prefix="/api/v1")
+app.include_router(ocr_store_router, prefix="/api/v1")
 
 
 @app.exception_handler(RuleError)
 async def rule_error_handler(_request: Request, error: RuleError) -> JSONResponse:
     """Lỗi nghiệp vụ của API quản trị luật: JSON ``{"error": {"code", "message"}}`` cùng mã HTTP (404/409/422) để backend ánh xạ lại."""
-    return JSONResponse(status_code=error.status, content={"error": {"code": error.code, "message": error.message}})
+    body = {"code": error.code, "message": error.message, **({"details": error.details} if error.details else {})}
+    return JSONResponse(status_code=error.status, content={"error": body})

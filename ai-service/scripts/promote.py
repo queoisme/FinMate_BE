@@ -4,8 +4,8 @@
 Cổng chặn: từ chối promote model chưa có lần chấm nào trên split ``test``. Không có cổng
 này thì "train xong là dùng" và chẳng ai biết model mới tốt hơn hay tệ hơn model cũ.
 
-Version đang active của cùng stage tự chuyển sang ``archived`` (partial unique index
-``uq_model_versions_active`` không cho hai dòng cùng active).
+Version đang active của cùng stage tự chuyển sang ``retired`` (partial unique index
+``uq_ml_model_versions_active`` không cho hai dòng cùng model cùng active).
 
 Chạy: ``python scripts/promote.py --stage categorizer --version 1.0.1``
 """

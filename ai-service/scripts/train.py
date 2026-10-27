@@ -118,7 +118,7 @@ async def train(stage: ModelStage, version: str | None) -> None:
         job = await model_repo.add_training_job(
             session,
             TrainingJob(
-                stage=stage.value,
+                model_id=await model_repo.model_id_for(session, stage.value),
                 status=JobStatus.RUNNING.value,
                 params={"estimator": "tfidf-char_wb-2_5+logreg", "labels": distinct},
                 sample_count=len(pairs),
@@ -156,7 +156,7 @@ async def train(stage: ModelStage, version: str | None) -> None:
         await model_repo.add_version(
             session,
             ModelVersion(
-                stage=stage.value,
+                model_id=job.model_id,
                 version=resolved,
                 artifact_path=relative,
                 status=ModelStatus.CANDIDATE.value,

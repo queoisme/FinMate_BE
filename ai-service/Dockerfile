@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Bảng thương hiệu/từ khóa hóa đơn dùng chung với ocr-service (một nguồn: ocr-service/data). docker compose cấp context "lexicon" qua additional_contexts;
+# build thuần bằng docker cần thêm:  --build-context lexicon=../ocr-service/data   (xem app/bill/lexicon.py)
+COPY --from=lexicon . /lexicon
+ENV LEXICON_DIR=/lexicon
+
 ENV LOG_LEVEL=INFO
 EXPOSE 8000
 

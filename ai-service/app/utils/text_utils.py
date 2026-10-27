@@ -41,6 +41,13 @@ _SHORTHAND = re.compile(
     re.IGNORECASE,
 )
 
+# Từ đứng ngay sau một chữ số lẻ cho biết đó là số lượng/thời gian chứ không phải phần mười của đơn vị
+# tiền: "1 triệu 2 ly cà phê". Giống _COUNT_WORDS của chat, thêm "giờ" vì thông báo ngân hàng hay có giờ giao dịch.
+_COUNT_WORDS = "|".join(
+    "ly cái cai người nguoi lần lan chai phần phan tô to đồ độ do bộ bo chiếc chiec hộp hop "
+    "kg gam tiếng tieng phút phut quả qua gói goi giờ gio".split()
+)
+
 _CURRENCY_NOISE = re.compile(r"(?:vnđ|vnd|đ|d|₫)\.?$", re.IGNORECASE)
 
 # Một "ứng viên số tiền": cụm số, kèm hậu tố đơn vị (75k, 2tr5, 12 triệu) hoặc ký hiệu
@@ -55,7 +62,11 @@ _AMOUNT_CANDIDATE = re.compile(
     # thành 258.000, và "Ngay: 14, 09" thành một số tiền.
     r"(?P<number>\d+(?:[.,](?:[ ]\d{3}|\d+))*)"
     # "rưỡi" chỉ đi sau đơn vị và không kèm chữ số lẻ: "2 triệu rưỡi", "1 củ rưỡi".
-    rf"(?:\s*(?P<unit>{_UNIT_ALTERNATION})(?P<tail>\d*)(?P<half>\s+rưỡi(?!\w))?)?"
+    # Chữ số lẻ có dấu cách ("14 củ 5", "2 tỷ 5") là phần mười của đơn vị, trừ khi nó là số lượng
+    # ("2 triệu 3 cái") hoặc nằm trong ngày giờ ("50 nghìn 12:30", "2tr 05/10"); riêng "k" thì
+    # chỉ nhận khi dính liền ("75k5"), vì "45k 2 tô" là hai con số khác nhau — xem find_amount_candidates.
+    rf"(?:\s*(?P<unit>{_UNIT_ALTERNATION})(?P<tail>\d*)"
+    rf"(?:(?P<half>\s+rưỡi(?!\w))|(?P<frac>\s+\d{{1,2}}(?![\d.,:/\-])(?!\s*(?:{_COUNT_WORDS})\b)))?)?"
     # "d" là cách gõ "đ" không dấu, rất phổ biến. \b là bắt buộc: thiếu nó thì "ngay 15
     # de tranh" biến "15" thành một số tiền có ký hiệu tiền tệ.
     r"(?:\s*(?P<currency>vnđ|vnd|₫|đ|d)\b)?",
@@ -158,11 +169,19 @@ def find_amount_candidates(text: str) -> list[AmountCandidate]:
     candidates: list[AmountCandidate] = []
     for match in _AMOUNT_CANDIDATE.finditer(text):
         unit = (match.group("unit") or "").lower()
-        if unit in SLANG and not is_money(unit, text, match.end()):
+        if unit in SLANG and not is_money(unit, text, match.end("unit"), match.start("number")):
             continue
+        # Chữ số lẻ cách một dấu cách ("14 củ 5") là phần mười như "14củ5"; "45k 2 tô" thì không.
+        frac = match.group("frac")
+        if frac and (unit == "k" or match.group("tail")):
+            frac = None
         # Dựng lại chuỗi không có "rưỡi": parse_vnd_amount không đọc được nó.
         raw = "".join(
-            match.group(g) or "" for g in ("number", "unit", "tail", "currency")
+            [
+                *(match.group(g) or "" for g in ("number", "unit")),
+                match.group("tail") or (frac or "").strip(),
+                match.group("currency") or "",
+            ]
         )
         value = parse_vnd_amount(raw)
         if value is None or value <= 0:
@@ -171,8 +190,10 @@ def find_amount_candidates(text: str) -> list[AmountCandidate]:
             value += next(m for s, m in _MAGNITUDES if s == unit) // 2
         has_marker = bool(match.group("unit") or match.group("currency"))
         has_grouping = any(ch in match.group("number") for ch in ".,")
+        # Chữ số lẻ bị bỏ ("45k 2 xyz") thì không thuộc về số tiền: kết thúc trước nó.
+        end = match.start("frac") if match.group("frac") and not frac else match.end()
         candidates.append(
-            AmountCandidate(value, has_marker, has_grouping, match.start(), match.end())
+            AmountCandidate(value, has_marker, has_grouping, match.start(), end)
         )
 
     digit_spans = [(c.start, c.end) for c in candidates]

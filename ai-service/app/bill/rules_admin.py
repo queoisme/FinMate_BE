@@ -1,5 +1,5 @@
-"""Quản trị luật phân loại qua API: thương hiệu (``bill_brands``), từ khóa (``bill_keywords``), bộ nhớ tên món (``bill_item_cache``) và chỉ dẫn
-cho Gemini (``bill_ai_instructions``). Mọi thay đổi ghi một dòng ``bill_rule_audit`` (trước/sau) nên xem được lịch sử và hoàn tác được.
+"""Quản trị luật phân loại qua API: thương hiệu (``kb_brands``), từ khóa (``kb_keywords``), bộ nhớ tên món (``kb_item_categories``) và chỉ dẫn
+cho Gemini (``kb_ai_instructions``). Mọi thay đổi ghi một dòng ``kb_audit_log`` (trước/sau) nên xem được lịch sử và hoàn tác được.
 
 Chỉ động tới DỮ LIỆU: logic (đọc số tiền, ngày, chọn tên cửa hàng/tổng tiền trên OCR) vẫn nằm trong code. Từ khóa loại ``chat`` không được nạp lúc chạy
 (từ điển chat nằm trong code) nên không cho sửa ở đây. Người thực hiện luôn là ``actor`` = SHA-256 id admin, không bao giờ là id thật.
@@ -16,9 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bill.item_classifier import _rememberable, item_key
 from app.bill.knowledge import merchant_key
+from app.services import category_registry
 from app.db.models.bill import (
     BILL_CATEGORY_GROUPS,
-    BILL_CHOICE_SLUGS,
+    BILL_KEYWORD_KINDS,
     BillAiInstruction,
     BillBrand,
     BillItemCache,
@@ -26,7 +27,7 @@ from app.db.models.bill import (
     BillRuleAudit,
 )
 
-RUNTIME_KEYWORD_KINDS = ("merchant", "product")  # chỉ hai loại này được nạp vào bộ phân loại lúc chạy
+RUNTIME_KEYWORD_KINDS = BILL_KEYWORD_KINDS  # mọi loại trong bảng đều được nạp vào bộ phân loại lúc chạy
 MAX_KEYWORD_CHARS = 60
 MIN_SAFE_KEYWORD_CHARS = 4  # ngắn hơn: dễ trùng vào từ khác (đã từng có lỗi "lau" / "lẩu")
 MAX_DISPLAY_CHARS = 120
@@ -37,9 +38,9 @@ DEFAULT_KEYWORD_PRIORITY = 100
 class RuleError(Exception):
     """Lỗi nghiệp vụ của API quản trị; ``status`` là mã HTTP tương ứng (404 không có, 409 trùng, 422 dữ liệu sai)."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(self, status: int, code: str, message: str, details: list[str] | None = None) -> None:
         super().__init__(message)
-        self.status, self.code, self.message = status, code, message
+        self.status, self.code, self.message, self.details = status, code, message, details  # details: từng lý do riêng (vd. mọi chỗ sai khiến định dạng chưa kích hoạt được)
 
 
 def _invalid(code: str, message: str) -> RuleError:
@@ -113,7 +114,7 @@ def clean_brand(brand_key: str, category_slug: str, display_name: str = "") -> t
 def clean_keyword(kind: str, category_slug: str, keyword: str) -> tuple[str, str, str]:
     """(loại, nhóm, từ khóa đã chuẩn hóa) hoặc ``RuleError`` 422."""
     if kind not in RUNTIME_KEYWORD_KINDS:
-        raise _invalid("invalid_kind", f"Loại phải là một trong: {', '.join(RUNTIME_KEYWORD_KINDS)} (từ điển chat nằm trong code).")
+        raise _invalid("invalid_kind", f"Loại phải là một trong: {', '.join(RUNTIME_KEYWORD_KINDS)} (từ điển chat sửa ở tài liệu chat_dictionary, /admin/config).")
     if category_slug not in BILL_CATEGORY_GROUPS:
         raise _invalid("invalid_category", f"Nhóm phải là một trong: {', '.join(BILL_CATEGORY_GROUPS)}.")
     word = merchant_key(keyword)
@@ -259,17 +260,17 @@ def _cache_key(name: str) -> str:
 async def put_item_cache(session, name: str, category_slug: str, *, actor: str, reason: str | None = None) -> dict:
     """Ghi đè nhóm của một tên món cho MỌI người dùng (thắng câu trả lời Gemini đã lưu)."""
     key = _cache_key(name)
-    if category_slug not in BILL_CHOICE_SLUGS:
-        raise _invalid("invalid_category", f"Nhóm phải là một trong: {', '.join(BILL_CHOICE_SLUGS)}.")
+    if not category_registry.is_spend(category_slug):
+        raise _invalid("invalid_category", f"Nhóm phải là một trong: {', '.join(category_registry.spend_list())}.")
     row = (await session.execute(select(BillItemCache).where(BillItemCache.item_key == key))).scalar_one_or_none()
     before = _cache(row) if row else None
     if row is None:
-        row = BillItemCache(item_key=key, category_slug=category_slug)
+        row = BillItemCache(item_key=key, category_slug=category_slug, source="admin")
         session.add(row)
     elif row.category_slug == category_slug:
         return _cache(row)
     else:
-        row.category_slug, row.updated_at = category_slug, func.now()
+        row.category_slug, row.source, row.updated_at = category_slug, "admin", func.now()
     await session.flush()
     await session.refresh(row)
     _log(session, "item_cache", key, "update" if before else "create", before, _cache(row), actor, reason)
@@ -386,10 +387,10 @@ async def revert(session, audit_id: uuid.UUID, *, actor: str, reason: str | None
             state = None
         else:
             if row is None:
-                row = BillItemCache(item_key=entry.resource_key, category_slug=before["category_slug"], hits=before["hits"])
+                row = BillItemCache(item_key=entry.resource_key, category_slug=before["category_slug"], hits=before["hits"], source="admin")
                 session.add(row)
             else:
-                row.category_slug, row.updated_at = before["category_slug"], func.now()
+                row.category_slug, row.source, row.updated_at = before["category_slug"], "admin", func.now()
             await session.flush()
             await session.refresh(row)
             state = _cache(row)

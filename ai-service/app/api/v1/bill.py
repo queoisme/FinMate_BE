@@ -19,9 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.api.deps import verify_internal_api_key
 
 from app.bill.classify_stats import ClassifyStatsRecorder, build_counts
-from app.bill.classifier import CATEGORIES
 from app.bill.gemini import GeminiClient
 from app.bill.item_classifier import classify_items
+from app.bill import item_votes
 from app.bill import samples as bill_samples
 from app.bill import slug_model
 from app.bill.rules_classify import MAX_CONFIDENCE as _MAX_CONFIDENCE
@@ -32,8 +32,11 @@ from app.services.category_resolver import resolve
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.core.enums import CATEGORY_SLUGS
+from app.services import category_registry
 from app.schemas.bill import (
     BillClassifyItemsRequest,
+    BillItemFeedbackRequest,
+    BillItemFeedbackResponse,
     BillClassifyItemsResponse,
     BillClassifyRequest,
     BillClassifyResponse,
@@ -99,7 +102,7 @@ def get_gemini_client() -> GeminiClient:
     return _gemini
 
 
-_INSTRUCTION_SQL = text("SELECT instruction_text FROM bill_ai_instructions WHERE is_active LIMIT 1")
+_INSTRUCTION_SQL = text("SELECT instruction_text FROM kb_ai_instructions WHERE is_active LIMIT 1")
 _INSTRUCTION_TTL_SECONDS = 60.0  # cùng nhịp nạp lại với DbBillKnowledge
 _instruction: tuple[float, str] | None = None  # (lúc nạp, nội dung)
 
@@ -140,13 +143,12 @@ async def classify_bill(
 
     await knowledge.refresh_if_stale()
     memory = await knowledge.remembered(body.user_id_hash, merchant)
-    if memory and memory.backend_slug and memory.category in CATEGORY_SLUGS:
+    if memory and category_registry.is_known(memory):
         # Người dùng đã chọn đúng slug backend khi lưu giao dịch: trả nguyên, không đổi qua 9 nhóm (sẽ mất phân biệt food = Ăn uống / Siêu thị).
         return BillClassifyResponse(
-            category_slug=memory.category, local_category=None, confidence=_MAX_CONFIDENCE, source="memory",
+            category_slug=memory, local_category=None, confidence=_MAX_CONFIDENCE, source="memory",
             processing_ms=int((time.perf_counter() - started) * 1000))
-    remembered = memory.category if memory and not memory.backend_slug and memory.category in CATEGORIES else None  # nhóm lạ trong DB thì bỏ qua
-    result = classify_by_rules(merchant, lines, remembered)
+    result = classify_by_rules(merchant, lines)
     if result.source == "none" and (model := slug_model.active()):  # luật không biết: mô hình đã duyệt chỉ trả lời khi đủ tự tin
         guess, probability = model.predict(merchant, lines)
         if probability >= slug_model.MIN_PROBABILITY and guess in CATEGORY_SLUGS and guess != INCOME_SLUG:
@@ -189,7 +191,7 @@ async def store_bill_sample(
         async with factory() as session:
             stored = await bill_samples.add_pending(session, bill_samples.PendingSample(
                 scan_id=body.scan_id, user_id_hash=body.user_id_hash, lines=body.lines, merchant_name=body.merchant_name,
-                total_amount=body.total_amount, predicted_slug=body.predicted_slug, predicted_source=body.predicted_source))
+                predicted_slug=body.predicted_slug, predicted_source=body.predicted_source))
     except Exception as error:  # noqa: BLE001 - mẫu học là phần phụ, không được làm hỏng luồng quét
         logger.warning("bill_sample_store_failed", error=type(error).__name__)
         stored = False
@@ -231,11 +233,28 @@ async def discard_bill_sample(
 async def erase_bill_samples(
     body: BillSampleEraseRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
 ) -> BillSampleEraseResponse:
-    """Xóa mọi mẫu huấn luyện của người dùng này (cả mẫu đã có nhãn). Lỗi DB để lan ra (500): người gọi cần biết việc xóa chưa xong."""
+    """Xóa mọi mẫu huấn luyện VÀ phiếu món của người dùng này (cả mẫu đã có nhãn). Lỗi DB để lan ra (500): người gọi cần biết việc xóa chưa xong."""
     async with factory() as session:
         deleted = await bill_samples.delete_by_user_hash(session, body.user_id_hash)
-    logger.info("bill_samples_erased", deleted=deleted)
-    return BillSampleEraseResponse(deleted=deleted)
+        votes = await item_votes.delete_by_user_hash(session, body.user_id_hash)
+    logger.info("bill_samples_erased", deleted=deleted, item_votes=votes)
+    return BillSampleEraseResponse(deleted=deleted, item_votes=votes)
+
+
+@router.post("/bill/items/feedback", response_model=BillItemFeedbackResponse)
+async def record_item_feedback(
+    body: BillItemFeedbackRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillItemFeedbackResponse:
+    """Ghi phiếu danh mục cho từng món (mỗi người một phiếu cho mỗi món, phiếu sau thay phiếu trước). Backend chỉ gọi khi người dùng đã đồng ý đóng góp dữ liệu.
+    Best-effort như ``/bill/samples``: lỗi DB không bao giờ thành 500, vì phiếu là phần phụ của việc lưu hóa đơn."""
+    try:
+        async with factory() as session:
+            recorded = await item_votes.record_votes(session, body.user_id_hash, [(item.name, item.category_slug) for item in body.items])
+    except Exception as error:  # noqa: BLE001 - phiếu học là phần phụ, không được làm hỏng luồng lưu hóa đơn
+        logger.warning("bill_item_feedback_failed", error=type(error).__name__)
+        recorded = 0
+    logger.info("bill_item_feedback", recorded=recorded, items=len(body.items))  # không ghi tên món
+    return BillItemFeedbackResponse(recorded=recorded)
 
 
 @router.post("/bill/classify-items", response_model=BillClassifyItemsResponse)

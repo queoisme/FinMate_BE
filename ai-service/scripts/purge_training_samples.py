@@ -27,7 +27,7 @@ async def run(days: int, dry_run: bool) -> int:
         if dry_run:
             return (
                 await session.execute(
-                    text("SELECT count(*) FROM bill_training_samples WHERE final_slug IS NULL AND created_at < now() - make_interval(days => :days)"),
+                    text("SELECT count(*) FROM ml_training_samples WHERE final_slug IS NULL AND created_at < now() - make_interval(days => :days)"),
                     {"days": days},
                 )
             ).scalar_one()

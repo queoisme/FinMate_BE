@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from uuid import UUID
 
+from app.core import confidence as table  # tên khác: dataclass và hàm dưới có trường và biến `confidence`
 from app.core.enums import ExtractionMethod, TransactionType
 from app.utils.provider_patterns import PatternMatcher
 from app.utils.text_utils import (
@@ -106,6 +108,8 @@ class ExtractionOutcome:
     confidence: float
     method: ExtractionMethod
     matched_pattern_name: str | None
+    pattern_id: UUID | None = None  # dòng kb_provider_patterns đã khớp (None ở nhánh generic)
+    extra_fields: dict[str, str | int] | None = None  # trường phụ của định dạng (không có thì None)
 
 
 class Extractor:
@@ -140,7 +144,7 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         for value in (merchant, matched.balance_after_cents, matched.occurred_at_raw)
         if value
     )
-    confidence = (0.90, 0.93, 0.96, 0.98)[filled]
+    confidence = table.get("extractor.pattern_by_filled")[filled]
 
     return ExtractionOutcome(
         amount_cents=matched.amount_cents,
@@ -152,6 +156,8 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         confidence=confidence,
         method=ExtractionMethod.RULE,
         matched_pattern_name=matched.pattern_name,
+        pattern_id=matched.pattern_id,
+        extra_fields=matched.extra_fields or None,
     )
 
 
@@ -177,7 +183,7 @@ def extract_generic(
         balance_after_cents=selection.balance.value if selection.balance else None,
         # Thấp hơn hẳn nhánh pattern: đây là suy đoán, và ngưỡng 85% của Flow 1 nên đẩy
         # những ca này sang hộp thoại chọn danh mục thay vì xác nhận một chạm.
-        confidence=0.70 if merchant else 0.60,
+        confidence=table.get("extractor.generic_with_merchant" if merchant else "extractor.generic_without_merchant"),
         method=ExtractionMethod.RULE,
         matched_pattern_name=None,
     )

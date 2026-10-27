@@ -1,4 +1,6 @@
-"""SQL của hai view ``bill_*`` dùng chung cho migration 0006 và test (view không phải model ORM nên ``create_all`` không tạo chúng)."""
+"""SQL của view ``bill_*`` dùng chung cho migration và test (view không phải model ORM nên ``create_all`` không tạo chúng).
+
+``MERCHANT_VOTES_VIEW`` đọc từ bảng đã bị bỏ ở migration 0029: giữ lại CHỈ cho migration 0006 và bước lùi của 0029."""
 
 # Hàng đợi duyệt: cửa hàng lạ nào được quét nhiều nhất / bởi nhiều người nhất.
 UNKNOWN_MERCHANTS_VIEW = """

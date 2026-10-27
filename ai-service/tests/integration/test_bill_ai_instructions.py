@@ -1,4 +1,4 @@
-"""Migration 0008: bảng ``bill_ai_instructions`` (luật phân loại món cho Gemini) và việc chuyển 4 từ khóa đồ gia dụng sang shopping.
+"""Migration 0008: bảng ``kb_ai_instructions`` (luật phân loại món cho Gemini) và việc chuyển 4 từ khóa đồ gia dụng sang shopping.
 
 Khác các test tích hợp còn lại (dựng schema bằng create_all), ở đây phải CHẠY ALEMBIC thật vì thứ cần kiểm là chính migration:
 dòng seed và bước dữ liệu. Nên dùng một database riêng: nâng tới 0007, đặt dữ liệu cũ, rồi nâng tới head.
@@ -90,7 +90,7 @@ async def _scalars(url: str, sql: str, **params):
 
 
 async def test_migration_seeds_one_active_instruction(migrated):
-    rows = await _scalars(migrated, "SELECT instruction_text FROM bill_ai_instructions WHERE is_active")
+    rows = await _scalars(migrated, "SELECT instruction_text FROM kb_ai_instructions WHERE is_active")
     assert len(rows) == 1
     assert "food" in rows[0][0] and "unknown" in rows[0][0]
 
@@ -100,17 +100,17 @@ async def test_only_one_active_row_allowed(migrated):
     try:
         with pytest.raises(IntegrityError):
             async with engine.begin() as connection:
-                await connection.execute(text("INSERT INTO bill_ai_instructions (instruction_text) VALUES ('x')"))
+                await connection.execute(text("INSERT INTO kb_ai_instructions (instruction_text) VALUES ('x')"))
         async with engine.begin() as connection:  # dòng không active thì được thêm tùy ý
-            await connection.execute(text("INSERT INTO bill_ai_instructions (instruction_text, is_active) VALUES ('x', false)"))
-            await connection.execute(text("DELETE FROM bill_ai_instructions WHERE NOT is_active"))
+            await connection.execute(text("INSERT INTO kb_ai_instructions (instruction_text, is_active) VALUES ('x', false)"))
+            await connection.execute(text("DELETE FROM kb_ai_instructions WHERE NOT is_active"))
     finally:
         await engine.dispose()
 
 
 async def test_household_keywords_moved_to_shopping(migrated):
     rows = await _scalars(
-        migrated, "SELECT keyword, category_slug, category_priority FROM bill_keywords WHERE kind = 'product' AND keyword = ANY(:ks)",
+        migrated, "SELECT keyword, category_slug, category_priority FROM kb_keywords WHERE kind = 'product' AND keyword = ANY(:ks)",
         ks=list(HOUSEHOLD),
     )
     assert sorted(r[0] for r in rows) == sorted(HOUSEHOLD)  # mỗi từ đúng một dòng
@@ -120,7 +120,7 @@ async def test_household_keywords_moved_to_shopping(migrated):
 
 async def test_migration_data_step_idempotent_and_reversible(migrated):
     assert _alembic(migrated, "downgrade", "0007").returncode == 0
-    rows = await _scalars(migrated, "SELECT category_slug FROM bill_keywords WHERE keyword = ANY(:ks)", ks=list(HOUSEHOLD))
+    rows = await _scalars(migrated, "SELECT category_slug FROM bill_keywords WHERE keyword = ANY(:ks)", ks=list(HOUSEHOLD))  # hạ về 0007: tên bảng cũ
     assert {r[0] for r in rows} == {"groceries"}  # đảo chiều cả bốn, kể cả "bot giat" vốn có sẵn dòng shopping
     result = _alembic(migrated, "upgrade", "head")
     assert result.returncode == 0, result.stderr

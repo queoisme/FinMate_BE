@@ -1,0 +1,138 @@
+{"text": "chiều qua mua bó rau muống 15k", "intent": "add_expense"}
+{"text": "gội đầu cắt tóc hết 120 nghìn", "intent": "add_expense"}
+{"text": "đưa con đi khám răng 450k", "intent": "add_expense"}
+{"text": "tiền gửi xe cả tháng 150k", "intent": "add_expense"}
+{"text": "bảo hiểm xe máy năm nay 66k", "intent": "add_expense"}
+{"text": "mua cho mèo túi hạt 230k", "intent": "add_expense"}
+{"text": "ghé quán bún chả trả 85k", "intent": "add_expense"}
+{"text": "đổi tròng kính cận 700k", "intent": "add_expense"}
+{"text": "phí giữ xe ở trung tâm thương mại 10k", "intent": "add_expense"}
+{"text": "đóng tiền học thêm tiếng anh cho em 900k", "intent": "add_expense"}
+{"text": "tối qua nhậu với đồng nghiệp hết 600k", "intent": "add_expense"}
+{"text": "thuê xe máy hai ngày 300k", "intent": "add_expense"}
+{"text": "trả tiền gas tháng này 360k", "intent": "add_expense"}
+{"text": "phí ship đơn shopee 25k", "intent": "add_expense"}
+{"text": "ăn bún riêu 40k", "intent": "add_expense"}
+{"text": "sửa vòi nước trong bếp 200k", "intent": "add_expense"}
+{"text": "mừng cưới bạn 500k", "intent": "add_expense"}
+{"text": "tặng quà sinh nhật đồng nghiệp 250k", "intent": "add_expense"}
+{"text": "đổ đầy bình xăng 70k", "intent": "add_expense"}
+{"text": "trà đá với bánh mì 20k", "intent": "add_expense"}
+{"text": "nạp tiền vào game 100k", "intent": "add_expense"}
+{"text": "đăng ký khóa học online 1tr5", "intent": "add_expense"}
+{"text": "uống nước mía hai ly 24k", "intent": "add_expense"}
+{"text": "ăn tối cả nhà 560k", "intent": "add_expense"}
+{"text": "mua cho con hộp sữa 450k", "intent": "add_expense"}
+{"text": "đi chợ sáng nay hết 90 nghìn", "intent": "add_expense"}
+{"text": "phí cầu đường 40k", "intent": "add_expense"}
+{"text": "uống trà sữa", "intent": "add_expense"}
+{"text": "mua bánh mì", "intent": "add_expense"}
+{"text": "đổ xăng", "intent": "add_expense"}
+{"text": "bán chiếc xe đạp cũ được 1tr8", "intent": "add_income"}
+{"text": "bán lại cái bàn học 400k", "intent": "add_income"}
+{"text": "tiền lương tháng này về rồi 12 triệu", "intent": "add_income"}
+{"text": "nhận được tiền thưởng dự án 3 triệu", "intent": "add_income"}
+{"text": "cô gửi cho 500k tiền sinh nhật", "intent": "add_income"}
+{"text": "chú cho tiền mừng tuổi 200k", "intent": "add_income"}
+{"text": "được hoàn lại tiền vé máy bay 1tr5", "intent": "add_income"}
+{"text": "khách thanh toán tiền hàng 750k", "intent": "add_income"}
+{"text": "lãi suất tiết kiệm tháng này về 65k", "intent": "add_income"}
+{"text": "hoàn tiền đơn grab 12k", "intent": "add_income"}
+{"text": "làm thêm cuối tuần được 400k", "intent": "add_income"}
+{"text": "anh trai gửi tiền phụ giúp 1 triệu", "intent": "add_income"}
+{"text": "được lì xì 100k", "intent": "add_income"}
+{"text": "thu nhập từ dạy kèm 2 triệu", "intent": "add_income"}
+{"text": "bạn trả lại tiền mượn hôm trước 300k", "intent": "add_income"}
+{"text": "bán đồ cũ trên chợ tốt được 560k", "intent": "add_income"}
+{"text": "nhận tiền công chụp ảnh 1tr", "intent": "add_income"}
+{"text": "mẹ chuyển khoản cho mình 1 triệu", "intent": "add_income"}
+{"text": "cashback thẻ tín dụng 45k", "intent": "add_income"}
+{"text": "bán laptop cũ lấy 7 triệu", "intent": "add_income"}
+{"text": "chuyển 3 triệu từ thẻ sang ví momo", "intent": "transfer_money"}
+{"text": "rút 1 triệu ở cây atm gần nhà", "intent": "transfer_money"}
+{"text": "gửi tiết kiệm kỳ hạn 6 tháng 20 triệu", "intent": "transfer_money"}
+{"text": "nạp 200k vào tài khoản zalopay", "intent": "transfer_money"}
+{"text": "chuyển khoản cho em gái 1 triệu", "intent": "transfer_money"}
+{"text": "gửi mẹ 2 triệu", "intent": "transfer_money"}
+{"text": "trả nợ anh Nam 500k", "intent": "transfer_money"}
+{"text": "rút tiền mặt 700k", "intent": "transfer_money"}
+{"text": "chuyển tiền cho bố 3 triệu", "intent": "transfer_money"}
+{"text": "nạp 500k vào ví shopeepay", "intent": "transfer_money"}
+{"text": "chuyển 10 triệu sang tài khoản tiết kiệm", "intent": "transfer_money"}
+{"text": "tuần này mình xài hết bao nhiêu tiền rồi", "intent": "ask_spending"}
+{"text": "cho mình xem tổng chi tiêu tháng 9", "intent": "ask_spending"}
+{"text": "hôm qua tôi chi những gì", "intent": "ask_spending"}
+{"text": "tháng này tiêu nhiều nhất cho khoản nào", "intent": "ask_spending"}
+{"text": "thu nhập tháng này của tôi là bao nhiêu", "intent": "ask_spending"}
+{"text": "còn dư bao nhiêu tiền tháng này", "intent": "ask_spending"}
+{"text": "tiền ăn tuần trước hết bao nhiêu", "intent": "ask_spending"}
+{"text": "tính tổng chi cho đi lại tháng này", "intent": "ask_spending"}
+{"text": "báo cáo thu chi hôm nay", "intent": "ask_spending"}
+{"text": "mình đã chi bao nhiêu cho giải trí", "intent": "ask_spending"}
+{"text": "tháng trước tiết kiệm được bao nhiêu", "intent": "ask_spending"}
+{"text": "xem chi tiêu 3 ngày qua", "intent": "ask_spending"}
+{"text": "chào buổi trưa", "intent": "greet"}
+{"text": "mình đi đây nhé", "intent": "goodbye"}
+{"text": "hẹn mai gặp lại", "intent": "goodbye"}
+{"text": "bye bye", "intent": "goodbye"}
+{"text": "cảm ơn mầm nhiều nha", "intent": "thanks"}
+{"text": "thanks nhé", "intent": "thanks"}
+{"text": "cảm ơn bạn rất nhiều", "intent": "thanks"}
+{"text": "đúng vậy lưu đi", "intent": "confirm"}
+{"text": "ừ lưu giúp mình", "intent": "confirm"}
+{"text": "ok ghi nhé", "intent": "confirm"}
+{"text": "không phải khoản này", "intent": "deny"}
+{"text": "nhầm rồi bạn ơi", "intent": "deny"}
+{"text": "đổi sang ăn uống đi", "intent": "deny"}
+{"text": "thôi không ghi nữa", "intent": "cancel"}
+{"text": "bỏ khoản vừa rồi", "intent": "cancel"}
+{"text": "cuối tuần này đi đâu chơi nhỉ", "intent": "out_of_scope"}
+{"text": "thời tiết hà nội hôm nay thế nào", "intent": "out_of_scope"}
+{"text": "viết cho mình bài thơ về mùa thu", "intent": "out_of_scope"}
+{"text": "dịch câu này sang tiếng nhật giúp mình", "intent": "out_of_scope"}
+{"text": "giá vàng sjc hôm nay là bao nhiêu", "intent": "out_of_scope"}
+{"text": "nên mua iphone hay samsung", "intent": "out_of_scope"}
+{"text": "tỷ giá yên nhật hôm nay", "intent": "out_of_scope"}
+{"text": "kể mình nghe một chuyện cười", "intent": "out_of_scope"}
+{"text": "bạn bao nhiêu tuổi rồi", "intent": "out_of_scope"}
+{"text": "mầm có buồn không", "intent": "out_of_scope"}
+{"text": "bật nhạc lên đi", "intent": "out_of_scope"}
+{"text": "đặt báo thức 6 giờ sáng", "intent": "out_of_scope"}
+{"text": "hôm nay có trận nào đá không", "intent": "out_of_scope"}
+{"text": "công thức nấu canh chua cá", "intent": "out_of_scope"}
+{"text": "bitcoin đang tăng hay giảm", "intent": "out_of_scope"}
+{"text": "xóa toàn bộ lịch sử trò chuyện", "intent": "out_of_scope"}
+{"text": "đổi mật khẩu đăng nhập", "intent": "out_of_scope"}
+{"text": "mình mệt quá", "intent": "out_of_scope"}
+{"text": "đi uống cà phê không", "intent": "out_of_scope"}
+{"text": "ăn tối chưa vậy", "intent": "out_of_scope"}
+{"text": "cho mình hỏi đường ra sân bay", "intent": "out_of_scope"}
+{"text": "lãi suất vay mua nhà bây giờ bao nhiêu", "intent": "out_of_scope"}
+{"text": "ai là người giàu nhất thế giới", "intent": "out_of_scope"}
+{"text": "gợi ý quán ăn ngon quận 1", "intent": "out_of_scope"}
+{"text": "chứng khoán hôm nay thế nào", "intent": "out_of_scope"}
+{"text": "tại sao trời mưa", "intent": "out_of_scope"}
+{"text": "làm sao để tiết kiệm tiền hiệu quả", "intent": "out_of_scope"}
+{"text": "lam them cuoi tuan duoc 400k", "intent": "add_income"}
+{"text": "tai sao troi mua", "intent": "out_of_scope"}
+{"text": "do day binh xang 70k", "intent": "add_expense"}
+{"text": "ban laptop cu lay 7 trieu", "intent": "add_income"}
+{"text": "cam on ban rat nhieu", "intent": "thanks"}
+{"text": "ghe quan bun cha tra 85k", "intent": "add_expense"}
+{"text": "dong tien hoc them tieng anh cho em 900k", "intent": "add_expense"}
+{"text": "mam co buon khong", "intent": "out_of_scope"}
+{"text": "con du bao nhieu tien thang nay", "intent": "ask_spending"}
+{"text": "thue xe may hai ngay 300k", "intent": "add_expense"}
+{"text": "ban do cu tren cho tot duoc 560k", "intent": "add_income"}
+{"text": "xem chi tieu 3 ngay qua", "intent": "ask_spending"}
+{"text": "doi trong kinh can 700k", "intent": "add_expense"}
+{"text": "cho minh xem tong chi tieu thang 9", "intent": "ask_spending"}
+{"text": "phi cau duong 40k", "intent": "add_expense"}
+{"text": "bao hiem xe may nam nay 66k", "intent": "add_expense"}
+{"text": "chuyen khoan cho em gai 1 trieu", "intent": "transfer_money"}
+{"text": "gui tiet kiem ky han 6 thang 20 trieu", "intent": "transfer_money"}
+{"text": "phi giu xe o trung tam thuong mai 10k", "intent": "add_expense"}
+{"text": "do xang", "intent": "add_expense"}
+{"text": "dat bao thuc 6 gio sang", "intent": "out_of_scope"}
+{"text": "tinh tong chi cho di lai thang nay", "intent": "ask_spending"}
+{"text": "nap 200k vao tai khoan zalopay", "intent": "transfer_money"}

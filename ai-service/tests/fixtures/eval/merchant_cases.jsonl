@@ -1,0 +1,74 @@
+{"text": "THANH TOAN HIGHLANDS COFFEE NGUYEN HUE", "expect": "food"}
+{"text": "PHUC LONG COFFEE & TEA", "expect": "food"}
+{"text": "KFC VINCOM DONG KHOI", "expect": "food"}
+{"text": "STARBUCKS RESERVE", "expect": "food"}
+{"text": "LOTTERIA GO VAP", "expect": "food"}
+{"text": "JOLLIBEE LE VAN SY", "expect": "food"}
+{"text": "GONG CHA", "expect": "food"}
+{"text": "TOCOTOCO", "expect": "food"}
+{"text": "SHOPEEFOOD", "expect": "food"}
+{"text": "QUAN PHO 24", "expect": "food"}
+{"text": "COM TAM THUAN KIEU", "expect": "food"}
+{"text": "BANH MI HUYNH HOA", "expect": "food"}
+{"text": "NHA HANG HOA VIEN", "expect": "food"}
+{"text": "TRA SUA KOI THE", "expect": "food"}
+{"text": "GRAB*8XYZ HO CHI MINH", "expect": "transport"}
+{"text": "GOJEK VIETNAM", "expect": "transport"}
+{"text": "XANH SM TAXI", "expect": "transport"}
+{"text": "VINASUN TAXI", "expect": "transport"}
+{"text": "MAI LINH TAXI", "expect": "transport"}
+{"text": "VETC NAP TIEN THU PHI", "expect": "transport"}
+{"text": "PETROLIMEX CUA HANG SO 12", "expect": "transport"}
+{"text": "PVOIL BINH THANH", "expect": "transport"}
+{"text": "VIETJET AIR", "expect": "transport"}
+{"text": "BAMBOO AIRWAYS", "expect": "transport"}
+{"text": "VE TAU SG HA NOI", "expect": "transport"}
+{"text": "GUI XE BEN THANH", "expect": "transport"}
+{"text": "SHOPEE VIETNAM", "expect": "shopping"}
+{"text": "LAZADA", "expect": "shopping"}
+{"text": "TIKI.VN", "expect": "shopping"}
+{"text": "UNIQLO VINCOM", "expect": "shopping"}
+{"text": "ZARA VIETNAM", "expect": "shopping"}
+{"text": "H&M SAIGON CENTRE", "expect": "shopping"}
+{"text": "NGUYEN KIM TRADING", "expect": "shopping"}
+{"text": "THE GIOI DI DONG", "expect": "shopping"}
+{"text": "HOC PHI HOC KY 1", "expect": "education"}
+{"text": "COURSERA.ORG", "expect": "education"}
+{"text": "UDEMY ONLINE COURSE", "expect": "education"}
+{"text": "DAI HOC BACH KHOA TP HCM", "expect": "education"}
+{"text": "EDUMALL", "expect": "education"}
+{"text": "TIEN NHA THANG 10", "expect": "housing"}
+{"text": "TIEN TRO PHONG 302", "expect": "housing"}
+{"text": "PHI QUAN LY CHUNG CU", "expect": "housing"}
+{"text": "TIEN COC PHONG TRO", "expect": "housing"}
+{"text": "EVN HCMC", "expect": "bills"}
+{"text": "TIEN DIEN THANG 9", "expect": "bills"}
+{"text": "SAWACO TIEN NUOC", "expect": "bills"}
+{"text": "VIETTEL TELECOM", "expect": "bills"}
+{"text": "VNPT HCM", "expect": "bills"}
+{"text": "MOBIFONE", "expect": "bills"}
+{"text": "FPT TELECOM", "expect": "bills"}
+{"text": "NAP DIEN THOAI", "expect": "bills"}
+{"text": "CGV CINEMAS", "expect": "entertainment"}
+{"text": "LOTTE CINEMA", "expect": "entertainment"}
+{"text": "GALAXY CINEMA", "expect": "entertainment"}
+{"text": "NETFLIX.COM", "expect": "entertainment"}
+{"text": "SPOTIFY", "expect": "entertainment"}
+{"text": "YOUTUBE PREMIUM", "expect": "entertainment"}
+{"text": "KARAOKE NAM CHAU", "expect": "entertainment"}
+{"text": "PHARMACITY", "expect": "health"}
+{"text": "NHA THUOC LONG CHAU", "expect": "health"}
+{"text": "BENH VIEN CHO RAY", "expect": "health"}
+{"text": "VINMEC CENTRAL PARK", "expect": "health"}
+{"text": "NHA KHOA PARIS", "expect": "health"}
+{"text": "PHONG KHAM DA KHOA", "expect": "health"}
+{"text": "CHUYEN TIEN ME", "expect": "family"}
+{"text": "QUA SINH NHAT", "expect": "family"}
+{"text": "MUNG CUOI", "expect": "family"}
+{"text": "LUONG THANG 10", "expect": "income"}
+{"text": "TRA LUONG CONG TY", "expect": "income"}
+{"text": "THUONG TET", "expect": "income"}
+{"text": "HOAN TIEN DON HANG", "expect": "income"}
+{"text": "CONG TY TNHH ZZQ", "expect": "other"}
+{"text": "NGUYEN VAN QWERTY", "expect": "other"}
+{"text": "ZZ QWERTY 12345", "expect": "other"}

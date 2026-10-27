@@ -1,4 +1,8 @@
-"""``labeled_samples`` + ``sample_splits`` — tập dữ liệu đã gán nhãn và cách chia train/val/test."""
+"""``ml_labeled_samples`` + ``ml_sample_splits`` — tập dữ liệu đã gán nhãn và cách chia train/val/test.
+
+Gồm cả nhãn của thông báo ngân hàng lẫn nhãn của hóa đơn (trước đây ở ``bill_labeled_samples``). Mẫu hóa đơn có mẫu thô ``source = 'bill_scan'``
+và không có dòng ``ml_sample_splits`` (chúng đo bằng kiểm tra chéo theo cửa hàng, không chia train/val/test) nên ``sample_repo.load_split`` không bao giờ lấy chúng.
+"""
 
 from sqlalchemy import (
     BigInteger,
@@ -15,19 +19,21 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.enums import CATEGORY_SLUGS, LabelSource, SplitName, TransactionType
+from app.core.enums import LabelSource, SplitName, TransactionType
 from app.db.base import Base, created_at, enum_check, uuid_pk
+from app.db.models.category import category_fk
 
-_CATEGORY_LIST = ", ".join(f"'{slug}'" for slug in CATEGORY_SLUGS)
+# Người gắn nhãn: ba nguồn của pipeline thông báo + bốn nguồn của luồng hóa đơn (người dùng, nhập từ bộ có sẵn, soát tay, bill giả từ ảnh tổng hợp).
+LABELED_BY = (*(source.value for source in LabelSource), "user", "imported", "gold", "synthetic_ocr")
 
 
 class LabeledSample(Base):
-    __tablename__ = "labeled_samples"
+    __tablename__ = "ml_labeled_samples"
 
     id: Mapped[uuid_pk]
     raw_sample_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("raw_samples.id", ondelete="CASCADE"),
+        ForeignKey("ml_raw_samples.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -38,7 +44,7 @@ class LabeledSample(Base):
     transaction_type: Mapped[str | None] = mapped_column(String(16))
     amount_cents: Mapped[int | None] = mapped_column(BigInteger)
     merchant_name: Mapped[str | None] = mapped_column(Text)
-    category_slug: Mapped[str | None] = mapped_column(String(32))
+    category_slug: Mapped[str | None] = mapped_column(String(32), category_fk())
 
     labeled_by: Mapped[str] = mapped_column(String(32), nullable=False)
     labeled_at: Mapped[created_at]
@@ -54,16 +60,14 @@ class LabeledSample(Base):
         # vào tập train.
         UniqueConstraint("raw_sample_id", name="uq_labeled_samples_raw_sample"),
         Index("idx_labeled_samples_category", "category_slug"),
-        enum_check("labeled_by", LabelSource, "chk_labeled_samples_labeled_by"),
+        CheckConstraint(f"labeled_by IN ({', '.join(repr(v) for v in LABELED_BY)})", name="chk_ml_labeled_samples_labeled_by"),
+        # Nhãn do người soát tay là bộ chuẩn để đo model: truy vấn "lấy bộ chuẩn" không được quét cả bảng.
+        Index("idx_ml_labeled_samples_gold", "id", postgresql_where=text("is_gold")),
         enum_check(
             "transaction_type",
             TransactionType,
             "chk_labeled_samples_transaction_type",
             nullable=True,
-        ),
-        CheckConstraint(
-            f"category_slug IS NULL OR category_slug IN ({_CATEGORY_LIST})",
-            name="chk_labeled_samples_category_slug",
         ),
         # Mẫu không phải giao dịch thì không được mang số tiền/danh mục — nhãn âm bị gán
         # lẫn trường giao dịch là cách nhanh nhất để dạy model một quy luật sai.
@@ -76,12 +80,12 @@ class LabeledSample(Base):
 
 
 class SampleSplit(Base):
-    __tablename__ = "sample_splits"
+    __tablename__ = "ml_sample_splits"
 
     id: Mapped[uuid_pk]
     labeled_sample_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("labeled_samples.id", ondelete="CASCADE"),
+        ForeignKey("ml_labeled_samples.id", ondelete="CASCADE"),
         nullable=False,
     )
     split: Mapped[str] = mapped_column(String(16), nullable=False)

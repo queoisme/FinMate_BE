@@ -1,4 +1,4 @@
-"""Thêm thương hiệu và từ khóa mặc định (các bảng trong code) vào ``bill_brands`` / ``bill_keywords`` lúc khởi động.
+"""Thêm thương hiệu và từ khóa mặc định (các bảng trong code) vào ``kb_brands`` / ``kb_keywords`` lúc khởi động.
 
 Chỉ THÊM, DB luôn thắng: dòng đã có (đã sửa, đã tắt ``is_active = false``) không bị ghi đè hay bật lại, và một từ khóa đã có dòng ở
 BẤT KỲ nhóm nào của cùng loại (migration 0008/0012 hay người duyệt chuyển nhóm) thì không được thêm lại ở nhóm cũ. Nhờ vậy chuỗi mới
@@ -33,11 +33,11 @@ _KEYWORDS = tuple(
 )
 
 _INSERT_BRAND = text(
-    "INSERT INTO bill_brands (brand_key, category_slug, display_name, whole_word, is_active, source) "
+    "INSERT INTO kb_brands (brand_key, category_slug, display_name, whole_word, is_active, source) "
     "VALUES (:key, :category, :display, :whole, TRUE, 'seed') ON CONFLICT (brand_key) DO NOTHING"
 )
 _INSERT_KEYWORD = text(
-    "INSERT INTO bill_keywords (kind, category_slug, keyword, category_priority, is_active, source) "
+    "INSERT INTO kb_keywords (kind, category_slug, keyword, category_priority, is_active, source) "
     "VALUES (:kind, :category, :word, :priority, TRUE, 'seed') ON CONFLICT (kind, category_slug, keyword) DO NOTHING"
 )
 
@@ -54,9 +54,9 @@ def default_keywords() -> tuple[tuple[str, str, str, int], ...]:
 
 async def seed_bill_knowledge(session: AsyncSession) -> dict[str, int]:
     """Thêm mục còn thiếu, trả về số dòng mới. Chạy lại bao nhiêu lần cũng không đổi gì."""
-    known_brands = {row[0] for row in await session.execute(text("SELECT brand_key FROM bill_brands"))}
+    known_brands = {row[0] for row in await session.execute(text("SELECT brand_key FROM kb_brands"))}
     # Không xét nhóm: từ đã được chuyển sang nhóm khác thì không thêm lại ở nhóm cũ.
-    known_keywords = {(row[0], row[1]) for row in await session.execute(text("SELECT kind, keyword FROM bill_keywords"))}
+    known_keywords = {(row[0], row[1]) for row in await session.execute(text("SELECT kind, keyword FROM kb_keywords"))}
 
     new_brands = [
         {"key": key, "category": category, "display": display, "whole": whole}

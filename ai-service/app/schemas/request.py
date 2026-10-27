@@ -32,7 +32,7 @@ class FeedbackRequest(BaseModel):
     user_id_hash: str = Field(min_length=64, max_length=64)
 
     # Contract gọi là pipeline_request_id nhưng backend gửi id notification_log của nó,
-    # tức là khớp với pipeline_requests.backend_request_id. Hiện backend gửi null —
+    # tức là khớp với ops_analyze_log.backend_request_id. Hiện backend gửi null —
     # xem ghi chú "liên kết feedback" ở app/api/v1/feedback.py.
     pipeline_request_id: uuid.UUID | None = None
 

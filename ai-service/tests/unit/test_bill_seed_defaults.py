@@ -1,14 +1,11 @@
-"""Bản mặc định của thương hiệu/từ khóa hóa đơn (app/bill/seed_defaults.py): lấy từ code lúc nạp module, không bị DB làm trôi,
-và khớp với bản dự phòng của ocr-service (hai service cùng đọc bảng bill_* nên hai bản phải giống nhau)."""
+"""Bản mặc định của thương hiệu/từ khóa hóa đơn (app/bill/seed_defaults.py): lấy từ các bảng lúc nạp module, không bị DB làm trôi,
+và chính là các tệp dữ liệu dùng chung với ocr-service (một nguồn, không còn bản chép trong code)."""
 
 import json
-import pathlib
 
-import pytest
+from app.bill import brands, classifier, lexicon, seed_defaults
 
-from app.bill import brands, classifier, seed_defaults
-
-OCR_DATA = pathlib.Path(__file__).resolve().parents[3] / "ocr-service" / "data"
+OCR_DATA = lexicon.LEXICON_DIR
 
 
 def test_defaults_are_taken_from_the_code_tables_when_the_module_loads_not_when_seed_runs():
@@ -41,8 +38,7 @@ def test_category_priority_follows_the_order_of_the_tables():
         assert [ranks[(kind, c)] for c in table] == sorted(ranks[(kind, c)] for c in table)
 
 
-@pytest.mark.skipif(not OCR_DATA.is_dir(), reason="chạy riêng ai-service (không có thư mục ocr-service cạnh bên)")
-def test_the_ocr_service_fallback_data_matches_this_services_defaults():
+def test_the_defaults_are_exactly_the_shared_data_files():
     ocr = json.loads((OCR_DATA / "brands.json").read_text(encoding="utf-8"))
     assert {b["key"]: (b["category"], b["display"]) for b in ocr["brands"]} == {k: (c, d) for k, c, d, _ in seed_defaults.default_brands()}
     assert set(ocr["whole_word"]) == {k for k, _c, _d, whole in seed_defaults.default_brands() if whole}

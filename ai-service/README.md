@@ -10,12 +10,12 @@ analyze()
  ├ Classifier   ML (scikit-learn, có version)  → chưa promote thì rơi về luật
  ├ Extractor    LUẬT (regex theo provider)     ← không bao giờ dùng ML
  ├ Categorizer  ML (scikit-learn, có version)  → chưa promote thì rơi về từ điển
- └ Duplicate    SQL trên pipeline_requests, cửa sổ 5 phút
+ └ Duplicate    SQL trên ops_analyze_log, cửa sổ 5 phút
 ```
 
 **Extractor cố ý không dùng ML.** Thông báo ngân hàng là chuỗi template cố định, nên regex
 vừa chính xác hơn vừa giải thích được: số tiền ra sai thì `matched_pattern_name` chỉ thẳng
-vào dòng `provider_patterns` cần sửa. Một model sinh ra số tiền thì không truy vết được, mà
+vào dòng `kb_provider_patterns` cần sửa. Một model sinh ra số tiền thì không truy vết được, mà
 sai số tiền là loại lỗi đắt nhất trong ứng dụng này.
 
 ML đứng ở hai chỗ đầu vào mở: *có phải thông báo tài chính không* và *merchant này thuộc
@@ -56,7 +56,7 @@ uvicorn app.main:app --reload
 ```
 
 Trong `docker compose`, container tự chạy `alembic upgrade head` trước `uvicorn`, và tự seed
-`provider_patterns` từ `app/data/provider_patterns.json` lúc khởi động (idempotent, chỉ
+`kb_provider_patterns` từ `app/data/provider_patterns.json` lúc khởi động (idempotent, chỉ
 THÊM — pattern đã sửa tay trong DB không bị ghi đè).
 
 ## Vòng đời model
@@ -74,11 +74,17 @@ AI Service nhận model mới trong vòng 60 giây, không cần restart.
 Phản hồi người dùng quay về dataset:
 
 ```bash
-python scripts/feedback_batch.py   # user_feedback → labeled_samples
+python scripts/feedback_batch.py   # ml_user_feedback → labeled_samples
 ```
 
 `scripts/purge_raw_samples.py` dọn mẫu thô cũ chưa gán nhãn — chạy bằng cron ngoài, AI
 Service không có scheduler (`celery` bị cấm ở `TECH_STACK.md` §2.3).
+
+`scripts/purge_pipeline_requests.py` xóa nhật ký `ops_analyze_log` cũ hơn 90 ngày (theo lô, có `--days` và `--dry-run`),
+cũng chạy bằng cron ngoài: `0 4 * * * cd /app && python scripts/purge_pipeline_requests.py`.
+
+`scripts/provider_format.py` quản lý phiên bản định dạng thông báo của từng ngân hàng (`list`, `clone <package>`, `check <id>`, `activate <id>`, `archive <id>`):
+sửa regex bằng cách nhân bản bản mới nhất thành draft, sửa, `check` rồi `activate`; chỉ kích hoạt được khi mọi mẫu của định dạng khớp. Bản đang chạy không bị đụng tới.
 
 ## Corpus
 
@@ -89,7 +95,7 @@ nói lên độ chính xác ngoài đời.**
 
 Thay bằng mẫu thật: ghi đè file trong `data/corpus/`, sửa `app/data/provider_patterns.json`
 cho khớp template thật, rồi chạy lại `seed_dataset.py` + `train.py`. Không phải sửa code —
-regex sống trong bảng `provider_patterns`, đổi là UPDATE dữ liệu chứ không deploy lại.
+regex sống trong bảng `kb_provider_patterns`, đổi là UPDATE dữ liệu chứ không deploy lại.
 
 ## Test
 

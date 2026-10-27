@@ -14,14 +14,19 @@ Named group được hiểu:
 ``merchant``     tên đơn vị thụ hưởng
 ``occurred_at``  cụm ngày giờ, sẽ đưa qua ``text_utils.parse_datetime``
 ``description``  nội dung giao dịch
+
+Tên group trên là MẶC ĐỊNH. Một định dạng (``kb_provider_formats``) có thể ánh xạ trường hợp đồng sang group khác qua ``PatternSpec.groups``
+(ví dụ ``amount_cents`` lấy từ group ``tien``), và khai báo thêm trường phụ (``PatternSpec.extras``) để ghi vào ``ops_analyze_log.extra_fields``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from uuid import UUID
 
 import regex
 
+from app.core.anonymizer import anonymize_body
 from app.core.enums import TransactionType
 from app.utils.text_utils import normalize_whitespace, parse_vnd_amount
 
@@ -40,9 +45,32 @@ _SIGN_TO_TYPE: dict[str, TransactionType] = {
 }
 
 
+# Trường của hợp đồng với backend -> tên named group mặc định trong regex.
+CONTRACT_GROUP: dict[str, str] = {
+    "amount_cents": "amount",
+    "transaction_type": "sign",
+    "merchant_name": "merchant",
+    "description": "description",
+    "transacted_at": "occurred_at",
+    "balance_after_cents": "balance",
+}
+_MAX_EXTRA_CHARS = 255
+
+
+@dataclass(frozen=True)
+class ExtraField:
+    """Một trường ngoài hợp đồng mà định dạng muốn giữ lại (``maps_to`` rỗng). Trường nhạy cảm (``is_sensitive``) KHÔNG bao giờ thành ExtraField: CHECK ở DB buộc nó phải có ``maps_to``."""
+
+    key: str
+    source_kind: str  # regex_group | literal
+    source_ref: str  # tên group, hoặc giá trị cố định khi source_kind = literal
+    data_type: str = "text"  # text | amount | datetime
+    normalizer: str | None = None  # vnd_amount | clean_text
+
+
 @dataclass(frozen=True)
 class PatternSpec:
-    """Bản sao bất biến của một dòng ``provider_patterns`` — tách khỏi ORM để matcher
+    """Bản sao bất biến của một dòng ``kb_provider_patterns`` — tách khỏi ORM để matcher
     dùng được cả trong test lẫn script không có DB."""
 
     provider_key: str
@@ -52,6 +80,10 @@ class PatternSpec:
     transaction_type: str | None = None
     priority: int = 100
     sample_text: str | None = None
+    pattern_id: UUID | None = None
+    format_priority: int = 0  # định dạng ưu tiên thấp hơn được thử trước; cùng ưu tiên định dạng thì xét ``priority`` của pattern
+    groups: tuple[tuple[str, str], ...] = ()  # (trường hợp đồng, tên group) ghi đè mặc định ``CONTRACT_GROUP``
+    extras: tuple[ExtraField, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,6 +95,8 @@ class PatternMatch:
     merchant_name: str | None
     occurred_at_raw: str | None
     description: str | None
+    pattern_id: UUID | None = None
+    extra_fields: dict[str, str | int] = field(default_factory=dict)
 
 
 class PatternMatcher:
@@ -70,7 +104,7 @@ class PatternMatcher:
 
     def __init__(self, specs: list[PatternSpec]) -> None:
         self._by_package: dict[str, list[tuple[PatternSpec, regex.Pattern[str]]]] = {}
-        for spec in sorted(specs, key=lambda s: (s.priority, s.pattern_name)):
+        for spec in sorted(specs, key=lambda s: (s.format_priority, s.priority, s.pattern_name)):
             compiled = regex.compile(spec.regex, _FLAGS)
             self._by_package.setdefault(spec.package_name, []).append((spec, compiled))
 
@@ -95,7 +129,7 @@ class PatternMatcher:
 def _build_match(spec: PatternSpec, found: regex.Match[str]) -> PatternMatch | None:
     groups = found.groupdict()
 
-    amount = parse_vnd_amount(groups.get("amount"))
+    amount = parse_vnd_amount(groups.get(_group(spec, "amount_cents")))
     # Regex khớp nhưng số tiền không đọc được nghĩa là pattern sai chứ không phải thông báo
     # lạ — trả None để matcher thử tiếp pattern sau thay vì dựng giao dịch 0 đồng.
     if amount is None or amount <= 0:
@@ -103,13 +137,34 @@ def _build_match(spec: PatternSpec, found: regex.Match[str]) -> PatternMatch | N
 
     return PatternMatch(
         pattern_name=spec.pattern_name,
-        transaction_type=_resolve_type(spec, groups.get("sign")),
+        transaction_type=_resolve_type(spec, groups.get(_group(spec, "transaction_type"))),
         amount_cents=amount,
-        balance_after_cents=parse_vnd_amount(groups.get("balance")),
-        merchant_name=_clean(groups.get("merchant")),
-        occurred_at_raw=_clean(groups.get("occurred_at")),
-        description=_clean(groups.get("description")),
+        balance_after_cents=parse_vnd_amount(groups.get(_group(spec, "balance_after_cents"))),
+        merchant_name=_clean(groups.get(_group(spec, "merchant_name"))),
+        occurred_at_raw=_clean(groups.get(_group(spec, "transacted_at"))),
+        description=_clean(groups.get(_group(spec, "description"))),
+        pattern_id=spec.pattern_id,
+        extra_fields=_extra_fields(spec, groups),
     )
+
+
+def _group(spec: PatternSpec, contract_key: str) -> str:
+    return dict(spec.groups).get(contract_key, CONTRACT_GROUP[contract_key])
+
+
+def _extra_fields(spec: PatternSpec, groups: dict[str, str | None]) -> dict[str, str | int]:
+    """Trường phụ của định dạng. Chữ đi qua ``anonymize_body`` (che số tài khoản/thẻ/điện thoại) như một lớp bảo vệ thứ hai ngoài cờ ``is_sensitive``."""
+    extras: dict[str, str | int] = {}
+    for extra in spec.extras:
+        raw = extra.source_ref if extra.source_kind == "literal" else groups.get(extra.source_ref)
+        if extra.data_type == "amount" or extra.normalizer == "vnd_amount":
+            value: str | int | None = parse_vnd_amount(raw)
+        else:
+            cleaned = _clean(raw)
+            value = anonymize_body(cleaned)[:_MAX_EXTRA_CHARS] if cleaned else None
+        if value not in (None, ""):
+            extras[extra.key] = value
+    return extras
 
 
 def _resolve_type(spec: PatternSpec, sign: str | None) -> TransactionType | None:

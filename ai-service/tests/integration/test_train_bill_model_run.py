@@ -26,8 +26,8 @@ async def add_labeled(session, count_per_slug: int, merchants: int) -> None:
             words = [f"zq{chr(97 + s)}{chr(97 + rng.randrange(6))}" for _ in range(3)]
             await session.execute(
                 text(
-                    "INSERT INTO bill_training_samples (scan_id, user_id_hash, merchant_key, lines, final_slug, label_kind, labeled_at) "
-                    "VALUES (:id, :user, :key, :lines, :slug, 'confirmed', now())"
+                    "INSERT INTO ml_training_samples (scan_id, user_id_hash, merchant_key, lines, final_slug, labeled_at) "
+                    "VALUES (:id, :user, :key, :lines, :slug, now())"
                 ),
                 {"id": uuid.uuid4(), "user": "a" * 64, "key": shop(s * 12 + i % merchants), "lines": "\n".join(words), "slug": slug},
             )
@@ -35,7 +35,7 @@ async def add_labeled(session, count_per_slug: int, merchants: int) -> None:
 
 
 async def versions(session) -> list[tuple[str, str]]:
-    return [(r.status, r.notes) for r in (await session.execute(text("SELECT status, notes FROM bill_model_versions WHERE stage = 'bill_slug'"))).all()]
+    return [(r.status, r.notes) for r in (await session.execute(text("SELECT v.status, v.notes FROM ml_model_versions v JOIN ml_models m ON m.id = v.model_id WHERE m.code = 'bill_slug'"))).all()]
 
 
 async def test_run_train_records_a_candidate_and_never_activates(session, tmp_path):

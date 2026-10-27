@@ -1,107 +1,90 @@
 version: "3.1"
 
-# Bộ thử VIẾT TAY, GIỮ RIÊNG, lần 2 (2026-10-18). Viết TRƯỚC khi mở rộng dữ liệu đợt 3 và chưa từng được dùng để chỉnh gì: đây là bộ độc lập nhất.
-# Khác nlu_test_fresh ở chỗ chủ yếu thử KHUNG CÂU lạ (đảo trật tự, từ đệm, không dấu, tiền nằm giữa/đầu câu) chứ không chỉ món lạ.
-# KHÔNG được đưa câu nào vào data/ và không sửa nhãn để qua.
+# Sinh bởi scripts/nlu_examples.py từ bảng nlu_examples (tập test, nhóm nlu_test_fresh2). KHÔNG sửa tay: sửa trong DB.
+
 nlu:
 - intent: add_expense
   examples: |
-    - hết [85k](amount) tiền sơn móng
-    - mới mua cái ốp lưng hết [120k](amount)
-    - chiều nay uống ly matcha [65k](amount)
-    - tiền điện nước tháng này [540k](amount)
-    - đặt grab food [78k](amount)
-    - trả [350k](amount) tiền khám răng
-    - đưa xe đi bảo dưỡng [600k](amount)
+    - [70k](amount) mua bao cà phê
     - ăn buffet nướng [299k](amount)
-    - ship cod [35k](amount)
-    - mua tập vở cho con [140k](amount)
-    - mất [1tr2](amount) tiền sửa máy giặt
-    - ủng hộ quỹ từ thiện [200k](amount)
-    - đi chợ online hết [430k](amount)
-    - tui vừa mua cái gối [90k](amount)
+    - an com tam [45k](amount)
+    - ăn sáng bánh mì trứng [20k](amount)
     - bữa nay ăn tối ở quán nướng hết [380k](amount)
+    - chiều nay uống ly matcha [65k](amount)
+    - đặt grab food [78k](amount)
+    - đi bơi hết [40k](amount) nhé
+    - đi chợ online hết [430k](amount)
     - đóng học phí con [4 triệu rưỡi](amount)
-    - xăng xe tuần này [150k](amount)
-    - thẻ gym tháng [500k](amount)
+    - đưa xe đi bảo dưỡng [600k](amount)
+    - hết [85k](amount) tiền sơn móng
+    - mất [1tr2](amount) tiền sửa máy giặt
+    - mới mua cái ốp lưng hết [120k](amount)
+    - mua cây lau nhà [85k](amount)
+    - mua tập vở cho con [140k](amount)
     - mua vé xem phim 2 người [180k](amount)
-    - spotify tháng này [59k](amount)
+    - mừng tân gia [300k](amount)
+    - nay mình đổ xăng [50k](amount) luôn
     - netflix [260k](amount)
     - phí rút tiền atm [3k](amount)
+    - ship cod [35k](amount)
+    - spotify tháng này [59k](amount)
     - tặng quà cưới bạn [500k](amount)
-    - mừng tân gia [300k](amount)
-    - mua cây lau nhà [85k](amount)
+    - thẻ gym tháng [500k](amount)
     - thuê người cắt cỏ [200k](amount)
-    - ăn sáng bánh mì trứng [20k](amount)
-    - tiền bảo trì chung cư [250k](amount)
-    - an com tam [45k](amount)
-    - tra tien dien thang nay [620k](amount)
     - thuê sân cầu lông [150k](amount)
-    - [70k](amount) mua bao cà phê
-    - đi bơi hết [40k](amount) nhé
-    - nay mình đổ xăng [50k](amount) luôn
+    - tiền bảo trì chung cư [250k](amount)
+    - tiền điện nước tháng này [540k](amount)
+    - trả [350k](amount) tiền khám răng
+    - tra tien dien thang nay [620k](amount)
+    - tui vừa mua cái gối [90k](amount)
+    - ủng hộ quỹ từ thiện [200k](amount)
+    - xăng xe tuần này [150k](amount)
 
 - intent: add_income
   examples: |
-    - lương về [12 triệu rưỡi](amount)
-    - sếp thưởng nóng [1 củ](amount)
-    - cô hai gửi [700k](amount)
     - bán nick game [1tr5](amount)
-    - nhận tiền đền bù [3 triệu](amount)
-    - cổ tức về [450k](amount)
-    - khách tip [50k](amount)
     - bạn ở ghép gửi tiền trọ [1tr2](amount)
+    - cô hai gửi [700k](amount)
+    - cổ tức về [450k](amount)
     - được bà ngoại cho [300k](amount)
+    - khách tip [50k](amount)
+    - lương về [12 triệu rưỡi](amount)
     - nhận quà tết [500k](amount)
-
-- intent: transfer_money
-  examples: |
-    - chuyển [5 triệu](amount) qua thẻ tín dụng
-    - rút [2 củ](amount) tiền mặt
-    - nạp [400k](amount) vào ví grab
-    - gửi tiết kiệm online [2 triệu](amount)
-    - chuyển [1 triệu](amount) về tài khoản chính
-    - nạp [600k](amount) vào ví tiền mặt
-    - gởi mẹ [2 triệu](amount)
-    - chuyển khoản cho bạn thân [300k](amount)
+    - nhận tiền đền bù [3 triệu](amount)
+    - sếp thưởng nóng [1 củ](amount)
 
 - intent: ask_spending
   examples: |
-    - tuần rồi mình xài bao nhiêu
-    - cho xem tổng chi tháng 9
     - chi cho ăn uống tháng này nhiêu
-    - thu nhập tháng này được bao nhiêu
+    - cho xem tổng chi tháng 9
     - còn dư bao nhiêu
     - tháng này mình tiêu hết bao nhiêu tiền rồi
-
-- intent: out_of_scope
-  examples: |
-    - ai hát bài này vậy
-    - dự báo thời tiết ngày mai
-    - đổi giúp mình sang tiếng anh
-    - mua cổ phiếu nào bây giờ
-    - bật đèn phòng khách
-    - hôm nay ăn gì ngon
-    - bạn là ai
-    - cách làm bánh flan
-    - [100 đô](amount) bằng bao nhiêu tiền việt
-
-- intent: cancel
-  examples: |
-    - hủy đi
-
-- intent: deny
-  examples: |
-    - sai rồi
+    - thu nhập tháng này được bao nhiêu
+    - tuần rồi mình xài bao nhiêu
 
 - intent: confirm
   examples: |
     - ừ đúng
 
-- intent: greet
+- intent: out_of_scope
   examples: |
-    - xin chào
+    - [100 đô](amount) bằng bao nhiêu tiền việt
+    - ai hát bài này vậy
+    - bạn là ai
+    - bật đèn phòng khách
+    - cách làm bánh flan
+    - đổi giúp mình sang tiếng anh
+    - dự báo thời tiết ngày mai
+    - mua cổ phiếu nào bây giờ
 
-- intent: goodbye
+- intent: transfer_money
   examples: |
-    - hẹn gặp lại
+    - chuyển [1 triệu](amount) về tài khoản chính
+    - chuyển [5 triệu](amount) qua thẻ tín dụng
+    - chuyển khoản cho bạn thân [300k](amount)
+    - gởi mẹ [2 triệu](amount)
+    - gửi tiết kiệm online [2 triệu](amount)
+    - nạp [400k](amount) vào ví grab
+    - nạp [600k](amount) vào ví tiền mặt
+    - rút [2 củ](amount) tiền mặt
+

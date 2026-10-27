@@ -103,7 +103,7 @@ async def test_instruction_loader_returns_empty_and_caches_when_db_fails(monkeyp
 
     def broken_session():
         calls.append(1)
-        raise RuntimeError("relation bill_ai_instructions does not exist")
+        raise RuntimeError("relation kb_ai_instructions does not exist")
 
     monkeypatch.setattr(bill, "AsyncSessionLocal", broken_session)
     monkeypatch.setattr(bill, "_instruction", None)

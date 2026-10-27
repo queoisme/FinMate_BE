@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Biến ``user_feedback`` thành ``labeled_samples`` — khâu khép vòng của pipeline.
+"""Biến ``ml_user_feedback`` thành ``labeled_samples`` — khâu khép vòng của pipeline.
 
 Người dùng sửa danh mục một giao dịch trên app → backend gọi ``POST /api/v1/feedback`` →
 script này biến nó thành nhãn → lần ``train.py`` sau model học được đúng chỗ nó sai. Không
-có bước này thì bảng ``user_feedback`` chỉ là nơi dữ liệu đi vào rồi nằm đó.
+có bước này thì bảng ``ml_user_feedback`` chỉ là nơi dữ liệu đi vào rồi nằm đó.
 
 Chạy định kỳ (cron), rồi train + evaluate + promote như bình thường.
 
@@ -63,7 +63,7 @@ async def run(limit: int) -> None:
 
         for row in pending:
             row.processed_at = now
-            row.batch_job_id = job.id
+            row.batch_id = job.id
 
         job.status = JobStatus.SUCCEEDED.value
         job.finished_at = datetime.now(UTC)
@@ -76,7 +76,7 @@ async def run(limit: int) -> None:
     skipped = len(pending) - created
     if skipped:
         print(
-            f"bỏ qua {skipped} — không liên kết được về pipeline_requests, "
+            f"bỏ qua {skipped} — không liên kết được về ops_analyze_log, "
             "không phải category_correction, hoặc là bản sửa cũ của cùng giao dịch"
         )
 
@@ -97,6 +97,9 @@ async def _apply(session, feedback, now: datetime) -> bool:
         existing.labeled_by = LabelSource.USER_FEEDBACK.value
         existing.labeled_at = now
         existing.is_gold = True
+        await sample_repo.add_label_event(
+            session, existing, "feedback", feedback_id=feedback.id, actor_hash=feedback.user_id_hash
+        )
         return True
 
     label = await sample_repo.add_label(
@@ -112,6 +115,9 @@ async def _apply(session, feedback, now: datetime) -> bool:
             labeled_at=now,
             is_gold=True,
         ),
+    )
+    await sample_repo.add_label_event(
+        session, label, "feedback", feedback_id=feedback.id, actor_hash=feedback.user_id_hash
     )
     split, bucket = split_for(raw.content_hash)
     await sample_repo.add_split(

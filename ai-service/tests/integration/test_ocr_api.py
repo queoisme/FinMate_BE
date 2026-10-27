@@ -180,7 +180,7 @@ async def test_the_run_is_logged_and_the_text_is_kept_anonymised(
 
 
 async def test_two_users_do_not_share_a_sample_row(client, auth_headers, session):
-    """raw_samples chống trùng theo nội dung, nên hai người chụp cùng một mẫu hóa đơn dùng
+    """ml_raw_samples chống trùng theo nội dung, nên hai người chụp cùng một mẫu hóa đơn dùng
     chung một dòng. Điều đó ổn với dữ liệu huấn luyện, nhưng nhật ký chạy thì phải tách.
     """
     first = sha256_hex("nguoi-dung-1")

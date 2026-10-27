@@ -1,41 +1,16 @@
-"""Truy cập ``provider_patterns``."""
-
-from collections.abc import Sequence
+"""Truy cập ``kb_provider_patterns``."""
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.provider_format import ProviderFormat
 from app.db.models.provider_pattern import ProviderPattern
 
 
-async def list_active(
-    session: AsyncSession, package_name: str | None = None
-) -> Sequence[ProviderPattern]:
-    """Pattern đang bật, sắp theo ``priority`` tăng dần.
-
-    Thứ tự quan trọng: template hẹp phải được thử trước template rộng, nếu không template
-    rộng khớp trước và các named group chi tiết không bao giờ được bóc ra.
-    """
-    stmt = select(ProviderPattern).where(ProviderPattern.is_active.is_(True))
-    if package_name is not None:
-        stmt = stmt.where(ProviderPattern.package_name == package_name)
-    stmt = stmt.order_by(ProviderPattern.priority, ProviderPattern.pattern_name)
-    result = await session.execute(stmt)
-    return result.scalars().all()
-
-
-async def list_all(session: AsyncSession) -> Sequence[ProviderPattern]:
-    result = await session.execute(
-        select(ProviderPattern).order_by(
-            ProviderPattern.package_name, ProviderPattern.priority
-        )
-    )
-    return result.scalars().all()
-
-
 async def existing_names(session: AsyncSession) -> set[tuple[str, str]]:
+    """``(package_name, pattern_name)`` của mọi pattern, mọi phiên bản định dạng: ``seed_patterns`` không thêm lại thứ đã có."""
     result = await session.execute(
-        select(ProviderPattern.package_name, ProviderPattern.pattern_name)
+        select(ProviderFormat.package_name, ProviderPattern.pattern_name).join(ProviderFormat, ProviderFormat.id == ProviderPattern.format_id)
     )
     return {(row[0], row[1]) for row in result.all()}
 

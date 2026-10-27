@@ -1,4 +1,6 @@
-"""Nạp ``app/data/provider_patterns.json`` vào bảng ``provider_patterns``.
+"""Nạp ``app/data/provider_patterns.json`` vào bảng ``kb_provider_patterns``.
+
+Mỗi pattern mới được gắn vào một định dạng (``kb_provider_formats``; tạo v1 ``active`` nếu package chưa có), kèm khai báo trường và mẫu kiểm tra dựng từ ``sample_text``.
 
 Idempotent theo ``(package_name, pattern_name)`` và chỉ THÊM, không bao giờ ghi đè: pattern
 đã nằm trong DB có thể đã được người vận hành sửa để khớp template thật của ngân hàng, và
@@ -17,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.provider_pattern import ProviderPattern
 from app.db.repositories import pattern_repo
+from app.services import provider_formats
 
 logger = structlog.get_logger(__name__)
 
@@ -38,11 +41,11 @@ async def seed(session: AsyncSession) -> int:
         key = (row["package_name"], row["pattern_name"])
         if key in existing:
             continue
-        await pattern_repo.add(
+        fmt = await provider_formats.format_for_seed(session, row)
+        pattern = await pattern_repo.add(
             session,
             ProviderPattern(
-                provider_key=row["provider_key"],
-                package_name=row["package_name"],
+                format_id=fmt.id,
                 pattern_name=row["pattern_name"],
                 regex=row["regex"],
                 transaction_type=row.get("transaction_type"),
@@ -51,6 +54,7 @@ async def seed(session: AsyncSession) -> int:
                 notes=row.get("notes"),
             ),
         )
+        await provider_formats.sync_fields_and_sample(session, fmt, pattern)
         added += 1
 
     if added:

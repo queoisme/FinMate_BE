@@ -1,80 +1,89 @@
 version: "3.1"
 
-# NGUỒN: MASSIVE 1.1 (Amazon Science), giấy phép CC BY 4.0, https://github.com/alexa/massive. Đã điều chỉnh: chọn chủ đề không liên quan chi tiêu,
-# đổi nhãn ý định thành out_of_scope, giữ thực thể ngày. Sinh bởi rasa/tools/import_massive.py (seed cố định).
+# Sinh bởi scripts/nlu_examples.py từ bảng nlu_examples (tập test, nhóm nlu_test_massive_oos). KHÔNG sửa tay: sửa trong DB.
+
 nlu:
 - intent: out_of_scope
   examples: |
-    - [hôm nay](date) có ai theo dõi tôi trên twitter không
-    - [hôm nay](date) là một ngày nắng phải không
-    - [ngày mười ba tháng mười hai](date) là ngày nào
-    - [ngày mười lăm tháng ba](date) là thứ mấy
     - ai hát bài hát tôi đang nghe bây giờ
     - ai hát bài hát về người lái đò
     - ai là đạo diễn của bài hát này
     - alexa chỉnh đèn xuống mức bảy
-    - báo thức nào tôi đã cài đặt
     - báo cho tôi khi nào tôi có một sự kiện
     - báo cho tôi thời gian của sự kiện
-    - bây giờ là mấy giờ ở hà nội
-    - bây giờ là mấy giờ ở long an
+    - báo thức nào tôi đã cài đặt
+    - bắt đầu một thư điện tử tới tâm
+    - bắt đầu pandora
     - bất kỳ điều gì mới trên insta không
     - bật máy pha cà phê
     - bật tập kế tiếp của một podcast
-    - bắt đầu một thư điện tử tới tâm
-    - bắt đầu pandora
+    - bây giờ là mấy giờ ở hà nội
+    - bây giờ là mấy giờ ở long an
+    - các bài báo thịnh hành trên tờ tuổi trẻ
+    - các cài đặt báo thức
+    - cách làm món gà tây
+    - cài một báo thức vào [ngày mai](date) lúc sáu giờ sáng
+    - chơi tệp âm thanh đó mà tôi đang nghe hôm qua
     - cho tôi biết công thức cách chuẩn bị món nui
     - cho tôi biết thời tiết của hà nội vào tuần tới
     - cho tôi biết tin tức mới nhất về môi trường
     - cho tôi xem dự báo thời tiết tuần của las vegas
     - cho tôi xem thời tiết trong khu vực này [ngày mai](date)
-    - chơi tệp âm thanh đó mà tôi đang nghe hôm qua
-    - cài một báo thức vào [ngày mai](date) lúc sáu giờ sáng
-    - các bài báo thịnh hành trên tờ tuổi trẻ
-    - các cài đặt báo thức
-    - cách làm món gà tây
     - có gì hot xảy ra trên mạng xã hội không
     - có gì trong danh sách phát của tôi
-    - có phải nhiệt độ sẽ hạ xuống dưới mười độ ở paris không
     - công thức làm ơn
+    - có phải nhiệt độ sẽ hạ xuống dưới mười độ ở paris không
+    - đảm bảo không có sự kiện nào trong lịch của tôi
+    - đăng doanh nghiệp của tôi trên twitter
+    - đăng tin nhắn bây giờ
+    - đặt báo thức lúc bảy giờ sáng
+    - đặt báo thức lúc chín giờ sáng [chủ nhật tuần tới](date)
+    - đọc cho tôi bài đăng mới trên feed của tôi
+    - đưa bài hát đó vào danh sách yêu thích của tôi
     - dự báo của tuần là gì
     - dự báo thời tiết hiện tại
+    - đừng phát lại bài hát này lần nào nữa
+    - đừng tạo bất kỳ âm thanh nào cho đến báo thức buổi sáng
     - ghi nhớ email này
     - giảm hai mươi phần trăm
     - gửi một tweet khiếu nại
     - gửi thư điện tử tới vy
-    - huỷ cuộc hẹn của tôi với bác sĩ vào [thứ bảy](date)
     - hãy tweet một lời phàn nàn
+    - [hôm nay](date) có ai theo dõi tôi trên twitter không
+    - [hôm nay](date) là một ngày nắng phải không
+    - huỷ cuộc hẹn của tôi với bác sĩ vào [thứ bảy](date)
     - im lặng
     - im lặng từ giờ đi
     - khác nhau giữa nướng và hun nóng
     - không nói [hôm nay](date)
     - kính mát là một lựa chọn tốt cho [hôm nay](date) phải không
-    - làm sáng các đèn
+    - làm ơn đổ chuông báo thức dậy lúc tám giờ sáng [thứ bảy](date) tới
     - làm ơn tắt các bóng đèn ở sân trước
     - làm ơn tắt loa của tôi
-    - làm ơn đổ chuông báo thức dậy lúc tám giờ sáng [thứ bảy](date) tới
-    - lưu bài hát này vào danh sách phát
+    - làm sáng các đèn
     - lời bài hát hay
-    - my đã gửi bất kỳ thư điện tử nào cho tôi không
-    - mở các bài hát lãng mạn
+    - lưu bài hát này vào danh sách phát
     - mấy giờ báo thức của tôi reo
+    - mở các bài hát lãng mạn
     - mở danh bạ và gọi trần huy
     - mở nhiệt độ
+    - my đã gửi bất kỳ thư điện tử nào cho tôi không
+    - năm nào bài hát này được phát hành
+    - này olly mấy giờ rồi
+    - [ngày mười ba tháng mười hai](date) là ngày nào
+    - [ngày mười lăm tháng ba](date) là thứ mấy
     - người dùng thân thiện
     - nhắc tôi thay dầu
     - những công việc đang chờ xử lý của tôi là gì
     - những danh sách của tôi nào có sẵn
     - nói cho tôi biết dự báo thời tiết [của tuần này](date)
-    - này olly mấy giờ rồi
     - nói cho tôi công thức của
-    - năm nào bài hát này được phát hành
     - olly mở máy làm cà phê để làm cho tôi một chút cà phê
     - olly mở tin tức lên
+    - ô tô ở đâu rồi
+    - phát danh sách nhạc tết
     - phát mỹ tâm người hãy quên em đi
     - phát người hãy quên em đi
-    - phát danh sách nhạc tết
-    - phát người hãy quên em đi
     - phát nhạc reggae
     - phát nhạc techno
     - quy trình nấu gà tây lễ tạ ơn trong năm câu gì
@@ -82,55 +91,46 @@ nlu:
     - siri vui lòng tắt đèn phòng tắm
     - số điện thoại làm việc của hạnh là gì
     - sửa báo thức
+    - tạo một báo thức vào [hôm nay](date) lúc mười giờ sáng
+    - tạo một danh sách có sẵn
+    - tắt âm đi
+    - tắt báo thức lúc tám giờ sáng
+    - tắt đèn trong phòng khách
     - thay đổi tất cả các đèn trong nhà thành màu xanh dương
     - thêm bữa trưa với dương
+    - thêm đường vào danh sách tạp hóa của tôi
     - thêm một nhắc nhở về hội nghị [ngày mai](date) tại cần thơ
     - thêm thông tin về sự kiện này
-    - thêm đường vào danh sách tạp hóa của tôi
-    - thông tin thời tiết [tuần nay](date)
-    - thống kê tội phạm mới nhất trong khu vực tôi là gì
     - thời gian ở hà nội là gì
     - thời gian ở hà nội là mấy giờ
     - thời gian ở úc bây giờ là mấy giờ
+    - thống kê tội phạm mới nhất trong khu vực tôi là gì
+    - thông tin thời tiết [tuần nay](date)
     - tin tức mới nhất từ kênh v. t. v. ba
     - tin tức mới nhất về ngày quốc tế phụ nữ
     - tin tức về vụ đắm tàu
-    - tweet mcdonald điện biên phủ có dịch vụ cực tệ
-    - tweet mặt ghê tởm đến mcdonalds
-    - tôi có bất kỳ email mới nào không
     - tôi cần bao nhiêu quả trứng cho một món trứng tráng
     - tôi cần công thức làm cơm chiên dương châu
+    - tôi có bất kỳ email mới nào không
+    - tôi đã có một danh sách tạp hóa sẵn sàng chưa
+    - tôi đang có bao nhiêu danh sách
+    - tôi đã nhận được bất kỳ thư điện tử nào từ liên nguyễn chưa
     - tôi muốn một cái bánh mì kẹp thịt
     - tôi nên nấu món bít tết trong bao lâu để nó chín vừa
     - tôi thích bài hát này
     - tôi thích nhạc
-    - tôi đang có bao nhiêu danh sách
-    - tôi đã có một danh sách tạp hóa sẵn sàng chưa
-    - tôi đã nhận được bất kỳ thư điện tử nào từ liên nguyễn chưa
-    - tắt đèn trong phòng khách
-    - tạo một báo thức vào [hôm nay](date) lúc mười giờ sáng
-    - tạo một danh sách có sẵn
-    - tắt báo thức lúc tám giờ sáng
-    - tắt âm đi
+    - tweet mặt ghê tởm đến mcdonalds
+    - tweet mcdonald điện biên phủ có dịch vụ cực tệ
+    - vấn đề kinh tế
+    - vặn tắt phòng ngủ chính
     - vui lòng dừng nói
     - vui lòng nói cho tôi tin tức mới nhất
     - vui lòng pha cho tôi ly cà phê không đường
     - vui lòng thay đổi múi giờ sang giờ canada
     - vui lòng thêm cam vào danh sách tạp hóa của tôi
     - vy đã phản hồi lại chưa
-    - vặn tắt phòng ngủ chính
-    - vấn đề kinh tế
     - xóa danh sách
     - xóa danh sách google
     - xóa dữ liệu
     - xóa sự kiện thành công
-    - ô tô ở đâu rồi
-    - đăng doanh nghiệp của tôi trên twitter
-    - đăng tin nhắn bây giờ
-    - đưa bài hát đó vào danh sách yêu thích của tôi
-    - đảm bảo không có sự kiện nào trong lịch của tôi
-    - đặt báo thức lúc bảy giờ sáng
-    - đặt báo thức lúc chín giờ sáng [chủ nhật tuần tới](date)
-    - đọc cho tôi bài đăng mới trên feed của tôi
-    - đừng phát lại bài hát này lần nào nữa
-    - đừng tạo bất kỳ âm thanh nào cho đến báo thức buổi sáng
+

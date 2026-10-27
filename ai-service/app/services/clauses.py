@@ -8,13 +8,24 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from app.services import intent_cues
 from app.services.vi_text import fold
 from app.services.amount_normalizer import find_amounts, parse_amount, remove_amount
 
-# Dấu phẩy nằm giữa hai chữ số ("1,5tr") không phải dấu phân cách.
-_SEPARATOR = re.compile(
-    r"(\s*(?<!\d),\s*|\s*,(?!\d)\s*|\s*;\s*|\s+(?:và|va|rồi|roi|sau đó|sau do)\s+|\s*\+\s*)", re.IGNORECASE
-)
+
+def _bind(cues: intent_cues.Cues) -> None:
+    """Gắn các mẫu và danh sách của lớp tách khoản (app/data/intent_cues.json, hoặc bản admin kích hoạt trong DB) vào các tên dùng ở module này.
+    Các hàm bên dưới tra tên toàn cục lúc chạy nên có hiệu lực ngay, không cần khởi động lại. Chỉ gọi với bản đã qua intent_cues.build."""
+    global _SEPARATOR, _CANCEL, _CANCEL_WORD, _CORRECTION, _TOTAL_LABEL, _BREAKDOWN_KEYWORD, _FILLER, _NOT_AN_ITEM
+    p = cues.patterns
+    _SEPARATOR, _CANCEL, _CANCEL_WORD, _CORRECTION = p["clause_separator"], p["cancel_clause"], p["cancel_word"], p["correction_clause"]
+    _TOTAL_LABEL, _BREAKDOWN_KEYWORD = p["total_label"], p["breakdown_keyword"]
+    # Lời đệm cuối vế, và những từ mở đầu một vế là người/nơi/lời đệm đi kèm khoản trước ("... cho mẹ và em", "... rồi về nhà"), không phải một món thiếu tiền
+    _FILLER, _NOT_AN_ITEM = frozenset(cues.lists["clause_filler"]), frozenset(cues.lists["not_an_item"])
+
+
+_bind(intent_cues.current())
+intent_cues.subscribe(_bind)
 _WORD = re.compile(r"[^\W\d_]{2,}")
 
 
@@ -35,19 +46,9 @@ def split_clauses(text: str) -> list[str]:
     return [clause.strip() for clause in clauses] if len(clauses) > 1 else [text]
 
 
-# Một vế chỉ gồm lời hủy ("hủy", "thôi", "không mua nữa"): bỏ khoản đứng ngay trước nó. "không cần hủy" hay "hủ tiếu" không khớp vì
-# phải là cả vế.
-_CANCEL = re.compile(
-    r"^\s*(?:(?:rồi|và|à|ờ|ơ)\s+)*(?:thôi\s+)?(?:hủy|huỷ|bỏ|khỏi|không\s+mua\s+nữa)(?:\s+(?:đi|nhé|nha|luôn|rồi|khoản\s+đó|cái\s+đó))?\s*$",
-    re.IGNORECASE,
-)
-# Còn sót chữ hủy/nhầm ở đâu đó trong câu (không vế nào gồm riêng lời hủy): không được tự ghi, để người dùng xem lại
-_CANCEL_WORD = re.compile(r"(?<!\w)(?:hủy|huỷ|nhầm)(?!\w)", re.IGNORECASE)
-
-
 def has_unresolved_cancel(text: str) -> bool:
     return bool(_CANCEL_WORD.search(text))
-_CORRECTION = re.compile(r"^\s*(?:à\s+|ờ\s+)?(?:nhầm|sai\s+rồi|nhầm\s+rồi)\s*$", re.IGNORECASE)
+
 
 
 def apply_cancellations(text: str) -> tuple[str, bool]:
@@ -81,10 +82,6 @@ def apply_cancellations(text: str) -> tuple[str, bool]:
     return "".join((sep if i else "") + part for i, (sep, part) in enumerate(kept)).strip(), True
 
 
-# Nhãn tổng đứng riêng như một từ và liền ngay sau là số tiền ("tổng cộng 60k", "tổng là 60k"); "bộ tổng hợp đề 150k" không khớp.
-_TOTAL_LABEL = re.compile(r"(?<!sếp\s)(?<!\w)(?:tổng\s+cộng|tổng\s+số|tổng|tất\s+cả)(?:\s*[:：]|\s+là|\s+hết)?\s*", re.IGNORECASE)
-
-
 def extract_total(text: str) -> tuple[str, int | None]:
     """Tách số tiền tổng người dùng nói ra khỏi câu: trả (câu không còn phần tổng, số tiền tổng).
 
@@ -108,9 +105,6 @@ def extract_total(text: str) -> tuple[str, int | None]:
     return text, None
 
 
-_FILLER = {"nhé", "nha", "nhá", "luôn", "nữa", "giúp", "với", "đấy", "ạ", "nhỉ"}
-# Vế mở đầu bằng những từ này là người/nơi/lời đệm đi kèm khoản trước ("... cho mẹ và em", "... rồi về nhà"), không phải một món thiếu tiền
-_NOT_AN_ITEM = {"về", "với", "cho", "em", "anh", "chị", "mẹ", "bố", "ba", "má", "con", "bạn", "mình", "nhà", "ở", "tại", "hết", "xong", "luôn", "nữa"}
 _WITH_PEOPLE = re.compile(r"(?<!\w)(?:với|cho)(?!\w)", re.IGNORECASE)
 
 
@@ -142,6 +136,20 @@ def split_amountless(text: str) -> tuple[str, tuple[str, ...]]:
 _VOLUME = re.compile(r"(?<![a-z])lit(?![a-z])")
 
 
+def _is_volume(matched: str) -> bool:
+    """"2 lít" viết bằng CHỮ SỐ có thể là thể tích. Cụm viết bằng chữ ("một lít hai", "ba lít") đã qua bộ lọc ngữ cảnh của ``find_amounts`` (xăng, sữa, rượu...)
+    nên là tiền; loại nó ra ở đây làm "mua sạc một lít hai đi chợ ba lít" mất hai khoản và dồn cả câu vào một dòng."""
+    return any(c.isdigit() for c in matched) and bool(_VOLUME.search(fold(matched)))
+
+
+def _separates(text: str, prev, nxt) -> bool:
+    """Giữa hai số tiền có chữ mô tả. Hai số tiền viết bằng CHỮ đứng liền nhau không còn gì ở giữa ("hai mươi ba triệu năm trăm | tám triệu rưỡi") cũng là hai khoản:
+    giọng nói không có dấu câu, và đơn vị lặp lại cho thấy số trước đã kết thúc. Nuốt số trước thì khoản đó biến mất mà không báo. Số viết bằng chữ số ("ăn 20k 30k") thì không cắt."""
+    if _WORD.search(text[prev.end : nxt.start]):
+        return True
+    return not text[prev.end : nxt.start].strip(" ,;") and not any(c.isdigit() for c in text[prev.start : nxt.end])
+
+
 def split_on_amounts(text: str) -> list[str]:
     """Tách các khoản không có dấu phẩy/"và" ngăn cách (giọng nói không có dấu câu): "ăn cơm 25k uống nước 10k" -> hai khoản.
 
@@ -150,16 +158,13 @@ def split_on_amounts(text: str) -> list[str]:
     "mua 2 lít sữa 50k" và "mua sữa 50k hộp 2 lít" vẫn là một khoản.
     """
     nfc = unicodedata.normalize("NFC", text)
-    found = [m for m in find_amounts(text) if not _VOLUME.search(fold(nfc[m.start:m.end]))]
+    found = [m for m in find_amounts(text) if not _is_volume(nfc[m.start:m.end])]
     if len(found) < 2:
         return [text]
     amount_first = not _WORD.search(nfc[: found[0].start])
-    cuts = [nxt.start if amount_first else prev.end for prev, nxt in zip(found, found[1:]) if _WORD.search(nfc[prev.end : nxt.start])]
+    cuts = [nxt.start if amount_first else prev.end for prev, nxt in zip(found, found[1:]) if _separates(nfc, prev, nxt)]
     if not cuts:
         return [text]
     bounds = [0, *cuts, len(nfc)]
     pieces = (re.sub(r"\s+(?:và|va|rồi|roi)$", "", nfc[a:b].strip(" ,;"), flags=re.IGNORECASE) for a, b in zip(bounds, bounds[1:]))  # "... và" cuối vế là từ nối
     return [piece for piece in pieces if piece]
-
-
-_BREAKDOWN_KEYWORD = re.compile(r"\s*(?:bao gồm|gồm có|trong đó|gồm|có)\s+", re.IGNORECASE)

@@ -1,1 +1,4 @@
 results/
+# Sinh từ bảng nlu_examples bằng `python scripts/nlu_examples.py export-all`; nguồn sự thật là DB nên không đưa vào git.
+data/nlu_db.yml
+tests/nlu_test*.yml

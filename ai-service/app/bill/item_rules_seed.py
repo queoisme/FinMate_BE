@@ -1,6 +1,6 @@
 """Luật phân loại từng món trên hóa đơn (phần 1-3 của bản nháp đã duyệt): nhóm, luật chốt khi nhập nhằng, ví dụ.
 
-Đây là bản SEED cho bảng ``bill_ai_instructions`` (migration 0008). Sau đó nội dung sống trong DB và sửa ở đó, không build lại.
+Đây là bản SEED cho bảng ``kb_ai_instructions`` (migration 0008). Sau đó nội dung sống trong DB và sửa ở đó, không build lại.
 Phần 0 (nhiệm vụ, an toàn) và phần 4 (schema kết quả) do code giữ, KHÔNG nằm ở đây.
 """
 

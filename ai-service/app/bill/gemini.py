@@ -13,13 +13,11 @@ import httpx
 import structlog
 
 from app.bill.classifier import _norm
+from app.core.enums import CATEGORY_SLUGS
 
 logger = structlog.get_logger(__name__)
 
-CATEGORIES = [
-    "food", "transport", "shopping", "education", "housing", "bills",
-    "entertainment", "health", "family", "other", "unknown",
-]
+CATEGORIES = [slug for slug in CATEGORY_SLUGS if slug != "income"] + ["unknown"]  # hóa đơn là tiền ra; "unknown" để model được phép từ chối
 MAX_NAMES = 20
 MAX_NAME_LEN = 60
 CIRCUIT_SECONDS = 30.0
@@ -197,6 +195,19 @@ class GeminiClient:
             },
         }
         started = self._clock()
+        text = await self._generate(body, model, retry)
+        try:
+            categories = self._validate(json.loads(text), len(names))
+        except GeminiFailed:
+            raise
+        except (KeyError, IndexError, TypeError, ValueError) as error:
+            # ValueError gồm cả JSONDecodeError
+            raise GeminiFailed(type(error).__name__) from error
+        logger.info("gemini_ok", count=len(names), latency_ms=round((self._clock() - started) * 1000))
+        return categories
+
+    async def _generate(self, body: dict, model: str | None, retry: bool) -> str:
+        """Một lần gọi Gemini (``retry``: thử lại MỘT lần sau ``RETRY_DELAY`` khi 429/503) → chữ trong phản hồi. Lỗi mạng/HTTP/dạng phản hồi → ``GeminiFailed`` với mã cố định."""
         try:
             async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
                 url, headers = _URL.format(model=model or self._model), {"x-goog-api-key": self._key}
@@ -205,17 +216,34 @@ class GeminiClient:
                     await asyncio.sleep(RETRY_DELAY)
                     res = await client.post(url, headers=headers, json=body)
             res.raise_for_status()
-            text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-            categories = self._validate(json.loads(text), len(names))
-        except GeminiFailed:
-            raise
+            return res.json()["candidates"][0]["content"]["parts"][0]["text"]
         except httpx.HTTPStatusError as error:
             raise GeminiFailed(f"http_{error.response.status_code}") from error
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
-            # ValueError gồm cả JSONDecodeError
             raise GeminiFailed(type(error).__name__) from error
-        logger.info("gemini_ok", count=len(names), latency_ms=round((self._clock() - started) * 1000))
-        return categories
+
+    async def generate_text(self, prompt: str, schema: dict) -> str:
+        """Lời nhắc tự do → chữ JSON theo ``schema`` (người gọi tự phân tích và kiểm tra). Cùng chuỗi model, lần thử lại, trần thời gian và cầu dao như ``classify``;
+        không cache và KHÔNG đi nhà cung cấp dự phòng. Chỉ lỗi của bên cung cấp (mạng, 5xx, quá hạn) mới là ``GeminiFailed`` và mới mở cầu dao."""
+        if not self._key or not self.available:
+            raise GeminiFailed("unavailable")
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "responseSchema": schema},
+        }
+        last: GeminiFailed | None = None
+        try:
+            async with asyncio.timeout(self._overall_timeout):
+                for index, model in enumerate(self._models):  # như _call_models: chỉ model cuối được thử lại khi 429/503
+                    try:
+                        return await self._generate(body, model, retry=index == len(self._models) - 1)
+                    except GeminiFailed as error:
+                        last = error
+        except TimeoutError:
+            last = GeminiFailed("overall_timeout")
+        self._open_until = self._clock() + CIRCUIT_SECONDS
+        logger.warning("gemini_failed", error=last.args[0] if last and last.args else "unknown", count=1)  # args[0] luôn là mã cố định
+        raise last or GeminiFailed("no_model")
 
     async def _call_backup(self, names: list[str], instruction: str) -> list[str]:
         prompt = (

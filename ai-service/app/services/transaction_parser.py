@@ -16,57 +16,55 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from app.services import vocab
+from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
+from app.services.goal_parser import GoalDraft, parse_goal
+from app.services.vi_text import fold
+from app.utils.amount_slang import SLANG
 from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
 from app.services.dates import VN, parse_when, remove_when
-from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
+from app.core.category_map import LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 
-MIN_NLU_CONFIDENCE = 0.6  # Rasa chắc dưới mức này thì bỏ qua, dùng luật
-OUT_OF_SCOPE_OVERRIDE = 0.75  # câu có số tiền mà Rasa bảo "ngoài chủ đề" chỉ bị từ chối khi Rasa chắc từ mức này
-KIND_TRUST = 0.97  # Rasa và luật bất đồng loại giao dịch: Rasa chỉ thắng khi chắc từ mức này
-UNCERTAIN_BELOW = 0.85  # Rasa hiểu nhưng chắc dưới mức này: tin nhắn đáng để xem lại
-AUTO_CONFIDENCE = 0.9  # Rasa chắc từ mức này (và là add_expense) mới cho ghi ngay
+_SLANG_FOLDED = frozenset(fold(word) for word in SLANG)  # củ, lít, chai, tỏi... đã bỏ dấu
 
-CATEGORIES = tuple(vocab.CATEGORY_LABELS)
-INCOME_TYPES = tuple(vocab.INCOME_LABELS)
+_DEFAULT_PERIOD = "thang nay"  # kỳ mặc định của câu hỏi tổng khi câu không nói kỳ nào (cùng khóa với nhánh cuối của period_range)
 
-_GREET = {"chao", "xin chao", "hello", "hi", "alo", "hey", "chao mam"}
-_THANKS = {"cam on", "cam on nhe", "thanks", "thank you"}
-_PERIODS = (("hom nay", "hôm nay"), ("hom qua", "hôm qua"), ("tuan nay", "tuần này"), ("tuan truoc", "tuần trước"),
-            ("thang truoc", "tháng trước"), ("thang nay", "tháng này"))
 
-# Dấu hiệu loại giao dịch. Các từ dễ nhầm khi bỏ dấu ("thưởng" / "thường") được khớp trên câu CÓ dấu.
-_INCOME_ACCENTED = re.compile(r"nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:mẹ|bố|ba|cô|chú|dì|bác|anh|em|sếp|khách)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm|khách trả|bán (?:được|đồ|xe|điện thoại|hàng)")
-_INCOME_PLAIN = re.compile(r"(?<![a-z])(?:nhan luong|(?<!tra )tien luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|khach tra|ban duoc|ban do|ban xe|freelance)(?![a-z])")
-_RECEIVED = re.compile(r"nhan (?:luong|tien|thuong)|duoc (?:cho|tang)")  # chắc chắn là tiền vào dù câu có chữ "chuyển"
-_NOT_INCOME = re.compile(r"(?<![a-z])(?:tra|phat|ung) (?:luong|cong|thuong)(?![a-z])")  # "trả lương nhân viên" là tiền ra
-_TRANSFER_CUE = re.compile(r"(?<![a-z])(?:chuyen khoan|chuyen tien|chuyen|rut|nap(?: tien)?(?: \S+){0,3} vao|gui tiet kiem|tra no|dao no)(?![a-z])")  # "nạp 300k vào momo": số tiền nằm giữa
-_OWN_ACCOUNT = re.compile(r"(?<![a-z])(?:tiet kiem|vi|momo|zalopay|vnpay|ngan hang|tai khoan|the|atm|tien mat)(?![a-z])")
-_TO_OTHERS = re.compile(r"(?<![a-z])(?:cho|tra no|dao no|bieu|tang)(?![a-z])")
-_BALANCE_Q = re.compile(r"con lai|tiet kiem duoc|thu chi|chenh lech|du bao nhieu|so du")
-_INCOME_Q = re.compile(r"thu nhap|nhan duoc|kiem duoc|thu duoc|luong")
-_SPEND_Q = re.compile(r"tieu|chi tieu|da chi|tong chi")
-_AMBIGUOUS_SEND = re.compile(r"(?<![a-z])gui(?! xe)(?![a-z])")  # "gửi tiền": gửi đi hay được gửi cho ("bạn ở ghép gửi tiền trọ" là tiền vào); "gửi xe" thì chắc chắn là chi
-_MONEY_WORD = re.compile(r"(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])")  # câu hỏi chi tiêu phải nhắc tới tiền
-# "bao nhiêu" + đơn vị không phải tiền là câu xã giao ("bạn bao nhiêu tuổi", "cao bao nhiêu mét"), không phải hỏi tổng chi tiêu.
-_QUERY = re.compile(r"bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap")
+def _bind(cues: intent_cues.Cues) -> None:
+    """Gắn từ vựng, mẫu nhận dạng, ngưỡng và câu trả lời (app/data/intent_cues.json, hoặc bản admin kích hoạt trong DB) vào các tên dùng ở module này.
+    Gọi lại mỗi khi có bản mới: các hàm bên dưới tra tên toàn cục lúc chạy nên có hiệu lực ngay, không cần khởi động lại. Chỉ gọi với bản đã qua intent_cues.build."""
+    global MIN_NLU_CONFIDENCE, OUT_OF_SCOPE_OVERRIDE, KIND_TRUST, UNCERTAIN_BELOW, AUTO_CONFIDENCE
+    global _GREET, _THANKS, _INCOME_SPECIFIC, _INCOME_ACCENTED, _INCOME_SPECIFIC_PLAIN, _INCOME_PLAIN, _RECEIVED, _NOT_INCOME
+    global _DEBT_IN, _LEND_OUT, _FEE, _WITHDRAW, _OWN_WALLET, _OWN_ACCOUNT, _TRANSFER_CUE, _TO_OTHERS, _PAY_DEBT, _GIVING_AWAY, _PAYING
+    global _QUERY, _BALANCE_Q, _INCOME_Q, _SPEND_Q, _MONEY_WORD, _PRICE_Q, _DATA_OPS, _AMBIGUOUS_SEND
+    global _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB, _QUESTION_PARTICLES, _ANSWER_STARTS, _REPLIES
+    global _PERIODS, _REPLY_INTENTS, _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN, _QUESTION_LEAD
+    thresholds, p = cues.thresholds, cues.patterns
+    MIN_NLU_CONFIDENCE, OUT_OF_SCOPE_OVERRIDE, KIND_TRUST = thresholds["min_nlu_confidence"], thresholds["out_of_scope_override"], thresholds["kind_trust"]
+    UNCERTAIN_BELOW, AUTO_CONFIDENCE = thresholds["uncertain_below"], thresholds["auto_confidence"]
+    _GREET, _THANKS = cues.phrases["greet"], cues.phrases["thanks"]
+    # Tiền vào có ba mức bằng chứng (xem _direction): CỤ THỂ, CHỦ ĐỀ (lương, thưởng...: đi cả hai chiều) và YẾU (anh/em gửi: người dùng hay tự xưng anh/em).
+    _INCOME_SPECIFIC, _INCOME_ACCENTED = p["income_specific"], p["income_accented"]
+    _INCOME_SPECIFIC_PLAIN, _INCOME_PLAIN = p["income_specific_plain"], p["income_plain"]
+    _RECEIVED, _NOT_INCOME = p["received"], p["not_income"]
+    _DEBT_IN, _LEND_OUT = p["debt_in"], p["lend_out"]
+    _FEE, _WITHDRAW, _OWN_WALLET, _OWN_ACCOUNT = p["fee"], p["withdraw"], p["own_wallet"], p["own_account"]
+    _TRANSFER_CUE, _TO_OTHERS, _PAY_DEBT = p["transfer_cue"], p["to_others"], p["pay_debt"]
+    _GIVING_AWAY, _PAYING = p["giving_away"], p["paying"]
+    # Hình thức câu: hỏi tổng, hỏi giá, lệnh quản lý dữ liệu, tiểu từ hỏi có/không.
+    _QUERY, _BALANCE_Q, _INCOME_Q, _SPEND_Q = p["query"], p["balance_q"], p["income_q"], p["spend_q"]
+    _MONEY_WORD, _PRICE_Q, _DATA_OPS, _AMBIGUOUS_SEND = p["money_word"], p["price_q"], p["data_ops"], p["ambiguous_send"]
+    _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB = p["percent"], p["stray_amount"], p["expense_verb"]
+    _QUESTION_PARTICLES, _ANSWER_STARTS = cues.question_particles, cues.answer_starts
+    _QUESTION_LEAD, _REPLY_INTENTS, _PERIODS = p["question_lead"], cues.reply_intents, cues.period_labels
+    _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN = p["description_leading"], p["description_trailing"], p["merchant_in"]
+    _REPLIES = {key: text for key, text in cues.replies.items() if key != "pending_none"}
+    _REPLIES.update(dict.fromkeys(("confirm", "deny", "cancel"), cues.replies["pending_none"]))
 
-# Số tiền còn sót trong mô tả (kể cả dính dấu phẩy: "20k,30k"). Không tính "lít" vì "mua 2 lít sữa 50k" là số lượng.
-_PERCENT = re.compile(r"phan\s+tram|%")
-_STRAY_AMOUNT = re.compile(r"\d+(?:[.,]\d+)?\s*(?:k|nghin|ngan|canh|trieu|tr|cu)(?![a-z])")
-_EXPENSE_VERB = re.compile(r"(?:an|uong|mua|di an|di uong|do xang|dong|tra|nap|thue)(?![a-z])")
 
-_REPLIES = {
-    "greet": "Chào bạn! Mình là Mầm, bạn cứ nhắn khoản chi tiêu, ví dụ \"ăn phở 45k\", hoặc hỏi \"tháng này tôi tiêu bao nhiêu?\".",
-    "goodbye": "Tạm biệt bạn! Cần ghi chi tiêu thì nhắn mình nhé.",
-    "thanks": "Không có gì! Cần ghi thêm khoản nào cứ nhắn mình nhé.",
-    "empty": "Bạn nhắn khoản chi tiêu nhé, ví dụ: ăn phở 45k.",
-    "needs_amount": "Mình chưa thấy số tiền. Bạn nhắn kèm số tiền nhé, ví dụ \"ăn phở 45k\".",
-    "cancelled": "Mình đã bỏ khoản đó, không ghi gì. Cần ghi khoản khác cứ nhắn mình nhé.",
-    "out_of_scope": "Mình chỉ giúp ghi chi tiêu, thu nhập và xem tổng thôi. Bạn thử \"ăn phở 45k\" hoặc \"tháng này tôi tiêu bao nhiêu?\" nhé.",
-}
-_REPLIES["confirm"] = _REPLIES["deny"] = _REPLIES["cancel"] = "Hiện chưa có khoản nào đang chờ xác nhận. Bạn nhắn khoản mới nhé, ví dụ \"ăn phở 45k\"."
+_bind(intent_cues.current())
+intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.apply) thì gắn lại tên, có hiệu lực ngay trong tiến trình này
 
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
@@ -78,7 +76,7 @@ class Entry:
     amount: int  # đồng VND
     description: str
     merchant: str | None
-    category: str | None  # slug backend (cùng bộ phân loại với món trên bill); None khi chưa biết; thu nhập/chuyển tiền không có
+    category: str | None  # slug backend (cùng bộ phân loại với món trên bill); None khi chưa biết; thu nhập/chuyển tiền không có, trừ "loan" (cho vay/mượn/trả nợ, cả hai chiều)
     income_type: str | None  # salary | bonus | gift | side_income | refund | other_income (khi kind = income và đoán được)
     auto_save_ok: bool  # đủ chắc để ghi ngay không cần hỏi (chỉ với chi tiêu)
     to_others: bool  # "chuyển cho người khác / trả nợ": tiền rời khỏi người dùng nên tính là chi tiêu
@@ -95,6 +93,7 @@ class Query:
     end: datetime
     category: str | None
     income_type: str | None
+    categories: tuple[str, ...] = ()  # hỏi về HAI danh mục trở lên ("giải trí và mua sắm"): mọi danh mục được gọi tên; rỗng thì chỉ xét ``category``
 
 
 @dataclass(frozen=True)
@@ -111,6 +110,7 @@ class ChatParse:
     total_amount: int | None = None  # tổng người dùng nói ("tổng cộng 60k"): để đối chiếu, không phải một khoản chi
     total_mismatch: bool = False  # tổng đã nói khác tổng các khoản đọc được
     skipped: tuple[str, ...] = ()  # vế nối bằng "và/rồi" không có số tiền: không thành khoản, báo cho người dùng
+    goal: GoalDraft | None = None  # ý định create_goal: bản nháp mục tiêu tiết kiệm để người dùng xác nhận (None = đang hỏi lại, xem reply_text)
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -134,8 +134,16 @@ def _label_index(labels: dict[str, str]) -> dict[str, str]:
     return {re.sub(r"\s+", " ", normalize(v)): k for k, v in labels.items()}
 
 
-_SLUG_BY_LABEL = _label_index(vocab.CATEGORY_LABELS)
-_INCOME_BY_LABEL = _label_index(vocab.INCOME_LABELS)
+def _bind_vocab() -> None:
+    """Dựng các giá trị dẫn xuất từ từ vựng chat (dictionaries/*.json hoặc bản admin kích hoạt trong DB). Gọi lại mỗi khi từ vựng đổi (``vocab.subscribe``):
+    các hàm bên dưới tra tên toàn cục lúc chạy nên có hiệu lực ngay."""
+    global CATEGORIES, INCOME_TYPES, _SLUG_BY_LABEL, _INCOME_BY_LABEL
+    CATEGORIES, INCOME_TYPES = tuple(vocab.CATEGORY_LABELS), tuple(vocab.INCOME_LABELS)
+    _SLUG_BY_LABEL, _INCOME_BY_LABEL = _label_index(vocab.CATEGORY_LABELS), _label_index(vocab.INCOME_LABELS)
+
+
+_bind_vocab()
+vocab.subscribe(_bind_vocab)
 
 
 def category_from_text(norm: str, kind: str = "expense") -> str | None:
@@ -164,6 +172,21 @@ def _category_from_label(norm: str) -> str | None:
     return best[1] if best else None
 
 
+def categories_named(norm: str) -> tuple[str, ...]:
+    """Mọi danh mục được gọi TÊN trong câu ("giải trí và mua sắm"), theo thứ tự xuất hiện, bỏ trùng slug backend. Chỉ tên danh mục, không tính từ vựng chat:
+    từ vựng chat ("tiêu", "tiền") khớp ở khắp nơi nên không dùng để quyết định hỏi mấy danh mục."""
+    hits = []
+    for label_norm, key in _SLUG_BY_LABEL.items():
+        m = re.search(rf"(?<![a-z]){re.escape(label_norm)}(?![a-z])", norm)
+        if m:
+            hits.append((m.start(), SLUG_BY_LOCAL_CATEGORY.get(key, key)))
+    ordered: list[str] = []
+    for _, slug in sorted(hits):
+        if slug not in ordered:
+            ordered.append(slug)
+    return tuple(ordered)
+
+
 def expense_category(text: str) -> str | None:
     """Slug backend của khoản chi: tên danh mục gõ thẳng trong câu trước (người dùng nói rõ), rồi bộ phân loại chung với bill. None = chưa rõ.
 
@@ -175,19 +198,40 @@ def expense_category(text: str) -> str | None:
     return resolve(text, chat=True).slug
 
 
-def detect_kind(text: str) -> str:
-    """"expense" | "income" | "transfer" theo dấu hiệu trong câu (luật; Rasa có thể ghi đè khi rất chắc)."""
+def _direction(text: str) -> tuple[str, str | None]:
+    """(chiều giao dịch, phạm vi bằng chứng) theo dấu hiệu trong câu.
+
+    Phạm vi bằng chứng cho biết dấu hiệu mạnh đến đâu so với lời của model:
+      "any"  = dấu hiệu CỤ THỂ cho đúng chiều này (trả nợ cho mình, phí, người thân gửi mình, bán, rút / nạp vào ví của mình): thắng model dù model chắc đến đâu,
+               vì độ chắc của Rasa là softmax chưa hiệu chỉnh (đo được sai ở mức 1,00);
+      "flow" = chỉ nói tiền ĐI RA ("cho mẹ"): đủ để bác bỏ "tiền vào", không đủ để chọn giữa chi tiêu và chuyển tiền;
+      None   = chỉ là chủ đề (lương, thưởng...) hoặc mặc định chi tiêu: model được quyền quyết khi nó chắc.
+    """
     low = unicodedata.normalize("NFC", text).lower()
     norm = normalize(text)
-    income = bool(_INCOME_ACCENTED.search(low) or _INCOME_PLAIN.search(norm)) and not _NOT_INCOME.search(norm)
+    if _DEBT_IN.search(norm):
+        return "income", "any"  # bạn trả nợ / cho tôi mượn: tiền vào, kể cả khi câu có chữ "trả nợ" vốn là dấu hiệu chuyển tiền ra
+    if _FEE.search(norm):
+        return "expense", "any"
+    giving = bool(_GIVING_AWAY.search(norm))
+    not_income = bool(_NOT_INCOME.search(norm))
+    income = bool(_INCOME_ACCENTED.search(low) or _INCOME_PLAIN.search(norm)) and not not_income
     transfer = bool(_TRANSFER_CUE.search(norm))
     if income and (not transfer or _RECEIVED.search(norm) or _INCOME_ACCENTED.search(low)):
-        return "income"
-    return "transfer" if transfer else "expense"
+        specific = bool(_INCOME_SPECIFIC.search(low) or _INCOME_SPECIFIC_PLAIN.search(norm)) and not giving
+        return "income", "any" if specific else None
+    if transfer:
+        return "transfer", "any" if (_WITHDRAW.search(norm) or _OWN_WALLET.search(norm)) else None
+    return "expense", "flow" if giving else None
+
+
+def detect_kind(text: str) -> str:
+    """"expense" | "income" | "transfer" theo dấu hiệu trong câu (luật; Rasa có thể ghi đè khi rất chắc)."""
+    return _direction(text)[0]
 
 
 def _merchant_in(description: str) -> str | None:
-    m = re.search(r"\b(?:ở|tại|o|tai)\s+(?!nha\b)(.+)$", description, re.I)
+    m = _MERCHANT_IN.search(description)
     return m.group(1).strip() if m and len(m.group(1).strip()) >= 3 else None
 
 
@@ -196,12 +240,12 @@ def is_query(norm: str) -> bool:
 
 
 def is_question(text: str, norm: str) -> bool:
-    """Câu hỏi, không phải khoản ghi: "iphone 20 triệu có đáng mua không", "nên mua nhà hay thuê nhà"."""
-    return text.rstrip().endswith("?") or norm.endswith(" khong") or bool(re.match(r"(?:co nen|nen|lieu|co phai) ", norm))
+    """Câu hỏi, không phải khoản ghi: kết thúc bằng dấu hỏi hoặc tiểu từ hỏi, hoặc mở đầu bằng "có nên", "nên", "liệu", "có phải"."""
+    return text.rstrip().endswith("?") or norm.endswith(_QUESTION_PARTICLES) or bool(_QUESTION_LEAD.match(norm))
 
 
-# "cho mẹ 500k", "tôi cho em 100k": tiền đi ra. Rasa hay lẫn với "mẹ cho" (tiền vào) nên luật giữ quyền khi câu không có dấu hiệu tiền vào.
-_GIVING_AWAY = re.compile(r"(?<![a-z])cho\s+(?:me|bo|ba|ong|co|chu|di|bac|anh|chi|em|ban|con|vo|chong)(?![a-z])")
+
+
 
 
 def _rule_intent(text: str, norm: str) -> str:
@@ -217,26 +261,69 @@ def _rule_intent(text: str, norm: str) -> str:
     return "needs_amount" if _EXPENSE_VERB.match(norm) or expense_category(norm) else "out_of_scope"
 
 
+def _is_social_question(text: str, norm: str, nlu: dict | None) -> bool:
+    """Nguyên tắc 1 — HÌNH THỨC câu quyết định câu không phải khoản ghi cũng không phải hỏi tổng chi tiêu của mình:
+    hỏi giá thị trường, lệnh quản lý dữ liệu/tài khoản, và câu hỏi có/không kiểu nói chuyện."""
+    has_amount = bool(parse_amount(text))
+    if not has_amount and _PRICE_Q.search(norm) and not _MONEY_WORD.search(norm):
+        return True
+    if not has_amount and _DATA_OPS.search(norm):
+        return True
+    if not is_question(text, norm) or is_query(norm):
+        return False
+    if not (nlu and nlu["intent"] in _REPLY_INTENTS):
+        return True
+    # Model cho là lời đáp: lời đáp thật thì ngắn hoặc mở đầu bằng từ đáp; câu dài kết thúc bằng tiểu từ hỏi là một câu hỏi.
+    return norm.endswith(_QUESTION_PARTICLES) and len(norm.split()) >= 2 and not norm.startswith(_ANSWER_STARTS)
+
+
+def _purchase_evidence(norm: str) -> bool:
+    """Câu có tên một thứ được mua, hoặc cho tặng, hoặc trả/thanh toán: cùng số tiền thì đủ là bằng chứng của một khoản ghi."""
+    return bool(expense_category(norm) or _GIVING_AWAY.search(norm) or _PAYING.search(norm))
+
+
+def _has_diacritics(text: str) -> bool:
+    return fold(text) != text.lower()
+
+
+def _flow(intent: str) -> str:
+    return "in" if intent == "add_income" else "out"  # chi tiêu và chuyển tiền đều là tiền đi ra
+
+
+def _arbitrate(text: str, norm: str, rule: str, nlu: dict) -> str:
+    """Rasa và luật bất đồng thì ai thắng. Mỗi nguyên tắc viết một lần, không theo từng câu:
+      2. Số tiền kèm bằng chứng giao dịch là một khoản ghi, kể cả khi Rasa nói ngoài chủ đề.
+      3. Chỉ từ hỏi tổng (bao nhiêu, tổng chi...) mới làm câu hỏi chi tiêu; câu có số tiền mà không có từ hỏi là khoản ghi.
+      4. Chiều giao dịch: dấu hiệu CỤ THỂ trong câu thắng model (xem _direction); độ chắc của Rasa chưa hiệu chỉnh nên không dùng làm lý do ngược lại.
+      5. Bằng chứng YẾU (tên một thứ được mua, hay mặc định chi tiêu) chỉ thắng lời "thu nhập/chuyển tiền" của model khi model không chắc,
+         hoặc khi lời đó không có dấu hiệu nào trong câu nâng đỡ.
+    """
+    name, confidence = nlu["intent"], nlu["confidence"]
+    has_entry = rule in _ENTRY_INTENTS  # luật đã tìm thấy số tiền
+    if name == "out_of_scope" and has_entry and (confidence < OUT_OF_SCOPE_OVERRIDE or _purchase_evidence(norm)):
+        return rule
+    if name in _ENTRY_INTENTS and rule == "ask_spending":
+        return rule
+    if name == "ask_spending" and not is_query(norm) and (has_entry or not _MONEY_WORD.search(norm)):
+        return rule
+    if name in _ENTRY_INTENTS and has_entry and name != rule:
+        _, scope = _direction(text)
+        if scope == "any" or (scope == "flow" and _flow(name) != _flow(rule)):
+            return rule
+        if rule == "add_expense" and expense_category(norm) and _has_diacritics(text):
+            return rule  # câu không dấu: "ban" có thể là bạn/bán nên từ vựng kém tin cậy, nhường cho model
+        if confidence < KIND_TRUST:
+            return rule
+    return name
+
+
 def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
-    if is_question(text, norm) and not is_query(norm) and not (nlu and nlu["intent"] in ("greet", "goodbye", "confirm", "deny", "cancel")):
+    if _is_social_question(text, norm, nlu):
         return "out_of_scope"
     rule = _rule_intent(text, norm)
-    if not nlu:
-        return rule
-    name = nlu["intent"]
-    if name in _ENTRY_INTENTS and rule == "ask_spending":
-        return rule  # luật chỉ ra ask_spending khi câu KHÔNG có số tiền mà có từ hỏi tổng ("tính giúp tổng tiền tuần trước"); Rasa ép thành khoản chi thì chỉ hỏi lại số tiền
-    if name == "ask_spending" and not is_query(norm) and not _MONEY_WORD.search(norm):
-        return rule  # Rasa quá tự tin với câu xã giao ("bạn bao nhiêu tuổi", "ô tô ở đâu rồi"): không có từ hỏi lẫn từ về tiền thì không phải hỏi chi tiêu
-    if name == "out_of_scope" and rule in _ENTRY_INTENTS and nlu["confidence"] < OUT_OF_SCOPE_OVERRIDE:
-        return rule  # câu có số tiền mà Rasa chỉ hơi nghiêng về ngoài chủ đề: ưu tiên ghi, người dùng còn được xác nhận
-    if name == "add_income" and rule == "add_expense" and _GIVING_AWAY.search(norm):
-        return rule
-    if name in ("add_income", "transfer_money") and rule == "add_expense" and expense_category(norm):
-        return rule  # Rasa hay quá tự tin với từ lạ ("cắt kính cận 800k" -> thu nhập 1.0): không có dấu hiệu thu/chuyển mà có từ khóa chi tiêu rõ thì là chi tiêu
-    if name in _ENTRY_INTENTS and rule in _ENTRY_INTENTS and name != rule and nlu["confidence"] < KIND_TRUST:
-        return rule  # bất đồng loại giao dịch mà Rasa chưa thật chắc: tin dấu hiệu trong câu
-    return name
+    if not nlu or rule in ("greet", "thanks"):
+        return rule  # chào/cảm ơn khớp nguyên cụm: Rasa không có ý định "thanks" nên không có gì để cân nhắc
+    return _arbitrate(text, norm, rule, nlu)
 
 
 def _unclear_reason(text: str, norm: str, intent: str, nlu: dict | None) -> str | None:
@@ -286,18 +373,29 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
     else:  # luật không thấy số tiền nhưng Rasa cắt được một cụm số tiền: đọc cụm đó
         phrase = entities.get("amount")
         found = parse_amount(phrase) if phrase and not _PERCENT.search(normalize(text)) else None  # "giảm năm mươi phần trăm": Rasa cắt "năm mươi", mất chữ phần trăm
+        if found and _SLANG_FOLDED.intersection(fold(w) for w in re.findall(r"[^\W\d_]+", phrase)):
+            # Luật đã THẤY cụm này trong cả câu và loại nó ("hai củ" trong "mua hai củ cải", "hai lít" trong "đổ hai lít xăng"); đọc riêng cụm Rasa cắt ra
+            # thì mất ngữ cảnh đó và biến củ cải, lít xăng thành tiền. Từ lóng chỉ được đọc khi có cả câu.
+            found = None
         if not found:
             return None
         value, description = found.value, re.sub(r"\s+", " ", text.replace(phrase, " ")).strip()
         assumed = found.assumed
-    description = re.sub(r"^(?:và|rồi|còn|vừa|mới|nay|hôm nay|hôm qua|tôi|mình|em|đã|hết|tốn|mất|chi|tiêu|khoảng)\s+", "", description, flags=re.I).strip()
-    description = re.sub(r"\s+(?:hết|tốn|mất|khoảng|hết khoảng)$", "", description, flags=re.I).strip()  # "ăn bún chả hết 55 cành" -> "ăn bún chả"
+    description = _DESCRIPTION_LEADING.sub("", description).strip()
+    description = _DESCRIPTION_TRAILING.sub("", description).strip()  # "ăn bún chả hết 55 cành" -> "ăn bún chả"
     norm_text = normalize(text)
+    debt_in = bool(_DEBT_IN.search(norm_text))
+    if kind != "income" and not debt_in and _LEND_OUT.search(norm_text):
+        return Entry("expense", value, description, None, LOAN_SLUG, None, False, True, category_source="rule")  # cho mượn/cho vay: danh mục riêng, không tự ghi
     if kind == "transfer":
         if not _OWN_ACCOUNT.search(norm_text) and _TO_OTHERS.search(norm_text):
-            return Entry("expense", value, description, None, "other", None, False, True)  # chuyển cho người khác / trả nợ: tiền rời khỏi mình
+            # Trả nợ cũng là nợ nần (cùng danh mục "Cho vay / Mượn", báo cáo bỏ); chuyển tiền cho người khác thì là chi tiêu "Khác".
+            category = LOAN_SLUG if _PAY_DEBT.search(norm_text) else "other"
+            return Entry("expense", value, description, None, category, None, False, True)  # tiền rời khỏi mình
         return Entry("transfer", value, description, None, None, None, False, False)
     if kind == "income":
+        if debt_in:
+            return Entry("income", value, description, None, LOAN_SLUG, None, False, False)  # bạn trả nợ / mượn tiền: tiền vào nhưng không phải thu nhập
         income_type = category_from_text(normalize(description), "income") or category_from_text(norm_text, "income")
         return Entry("income", value, description, None, None, income_type, False, False)
     merchant = _merchant_in(description) or entities.get("merchant")
@@ -311,42 +409,20 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
 
 
 def _query(norm: str, now: datetime) -> Query:
-    key, label = next(((k, v) for k, v in _PERIODS if k in norm), ("thang nay", "tháng này"))
+    key, label = next(((k, v) for k, v in _PERIODS if k in norm), (_DEFAULT_PERIOD, dict(_PERIODS)[_DEFAULT_PERIOD]))
     start, end = period_range(key, now)
     if _BALANCE_Q.search(norm):
         return Query("balance", key, label, start, end, None, None)
     if _INCOME_Q.search(norm) and not _SPEND_Q.search(norm):
         return Query("income", key, label, start, end, None, category_from_text(norm, "income"))
+    named = categories_named(norm)
+    if len(named) > 1:
+        return Query("expense", key, label, start, end, named[0], None, named)  # "giải trí và mua sắm": cả hai, không chỉ danh mục dài nhất
     return Query("expense", key, label, start, end, category_from_text(norm), None)
-
-
-def _merge_same_category(entries: tuple[Entry, ...]) -> tuple[Entry, ...]:
-    """Các khoản CÙNG danh mục (cùng loại thu, cùng ngày, cùng cửa hàng) trong một câu thành MỘT khoản; khác danh mục thì giữ riêng.
-    Danh mục chưa biết (None) không bao giờ được gộp: chưa biết thì không khẳng định được là cùng loại."""
-    merged: dict[tuple, Entry] = {}
-    order: list[tuple] = []
-    for index, e in enumerate(entries):
-        label = e.category if e.kind == "expense" else e.income_type if e.kind == "income" else None
-        key = (e.kind, label, e.occurred_at, e.merchant, e.to_others) if label else ("alone", index)
-        if key in merged:
-            first = merged[key]
-            parts = [p for p in (first.description + ", " + e.description).split(", ") if p]
-            merged[key] = replace(first, amount=first.amount + e.amount, description=", ".join(dict.fromkeys(parts)), auto_save_ok=False)
-        else:
-            merged[key] = e
-            order.append(key)
-    return tuple(merged[k] for k in order)
 
 
 def _money(amount: int) -> str:
     return f"{amount:,}".replace(",", ".") + " ₫"
-
-
-def _merge_note(before: tuple[Entry, ...], after: tuple[Entry, ...]) -> str | None:
-    if len(after) == len(before):
-        return None
-    gone = len(before) - len(after)
-    return f"Mình gộp {gone + 1 if len(after) == 1 else 'các'} khoản cùng danh mục lại cho gọn, bạn kiểm tra giúp mình nhé."
 
 
 def _total_check(stated: int | None, entries: tuple[Entry, ...]) -> dict:
@@ -375,10 +451,12 @@ def parse_chat(
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
                          extra.get("unclear_reason"), extra.get("entries", ()),
-                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()))
+                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
+    if (goal := parse_goal(text, now)) is not None and not is_query(norm):
+        return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
     intent = _resolve_intent(text, norm, nlu)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
@@ -397,15 +475,14 @@ def parse_chat(
                 for c in clauses
                 if (e := _entry(c, detect_kind(c), None, auto_save_below, fallback_category, now, whole.value if whole else None))
             )
-            if len(many) > 1:
-                merged = _merge_same_category(many)  # cùng danh mục thì một khoản, khác danh mục thì tách riêng
-                return result(intent, entry=merged[0], entries=merged, unclear_reason=reason, skipped=skipped,
-                              reply_text=_merge_note(many, merged), **_total_check(stated_total, merged))
+            if len(many) > 1:  # mỗi khoản một dòng, kể cả cùng danh mục: gộp làm mất ý "ăn vặt" khác "đi chợ" khác "uống nước"
+                return result(intent, entry=many[0], entries=many, unclear_reason=reason, skipped=skipped,
+                              **_total_check(stated_total, many))
         entry = _entry(text, _KIND_BY_INTENT[intent], nlu, auto_save_below, fallback_category, now)
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
         if skipped or suspicious or reason == "disagree" or _AMBIGUOUS_SEND.search(norm) or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
-            entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng ("nạp 400k vào ví grab")
+            entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         return result(intent, query=_query(norm, now), unclear_reason=reason)

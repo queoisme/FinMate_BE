@@ -15,7 +15,7 @@ from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
-from app.core.enums import CATEGORY_SLUGS
+from app.services import category_registry
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
 
 # Số tiền kiểu 45,000 / 1.250.000 (kèm đ/d/vnd dính trước hoặc sau): ô tên đôi khi dính giá, không được gửi giá ra ngoài.
@@ -26,7 +26,6 @@ def _strip_money(name: str) -> str:
     return " ".join(_MONEY_RE.sub(" ", name).split())
 
 
-_REMEMBERABLE = frozenset(CATEGORY_SLUGS) - {"income"}  # đúng tập mà CHECK của bill_item_cache chấp nhận
 _MIN_KEY, _MAX_KEY = 3, 60
 
 
@@ -41,6 +40,12 @@ def _rememberable(name: str, key: str) -> bool:
     return _MIN_KEY <= len(key) <= _MAX_KEY and letters >= 3 and letters >= sum(c.isdigit() for c in key) and name.isprintable()
 
 
+def usable_item_key(name: str) -> str | None:
+    """Khóa của tên món, hoặc None khi tên không dùng được (giống mã hàng, quá ngắn/dài, ký tự điều khiển): bộ lọc chung cho mọi nơi GHI tên món vào bảng nhớ."""
+    key = item_key(name)
+    return key if key and _rememberable(name, key) else None
+
+
 def learnable_items(cases: Sequence[dict]) -> dict[str, str]:
     """Từ các nhãn đã được người kiểm ({"name", "expect"}) ra ``khóa -> slug`` để ghi vào bảng nhớ tên món.
 
@@ -48,14 +53,14 @@ def learnable_items(cases: Sequence[dict]) -> dict[str, str]:
     learned: dict[str, str] = {}
     for case in cases:
         name, slug = str(case.get("name", "")), case.get("expect")
-        key = item_key(name)
-        if slug in _REMEMBERABLE and key and _rememberable(name, key):
+        key = usable_item_key(name)
+        if key and category_registry.is_spend(slug):
             learned[key] = slug
     return learned
 
 
 def _merchant_default(merchant: str | None) -> str | None:
-    """Nhóm mặc định của THƯƠNG HIỆU (bảng bill_brands), đã đổi sang slug BE.
+    """Nhóm mặc định của THƯƠNG HIỆU (bảng kb_brands), đã đổi sang slug BE.
 
     Không dùng từ khóa chung trong tên cửa hàng ("mart", "nhà thuốc", "shop"): khớp nhầm ("Smartphone Center" → food) sẽ gắn nhóm
     nguồn ``merchant`` cho mọi món lạ và chặn luôn Gemini. Với lines=[] nguồn "brand" chỉ có thể đến từ tên cửa hàng khớp bảng thương hiệu.
@@ -105,7 +110,7 @@ async def classify_items(
     if open_:
         cached = await knowledge.cached_items(sorted({keys[i] for i in open_}))
         for i in open_:
-            if cached.get(keys[i]) in _REMEMBERABLE:
+            if category_registry.is_spend(cached.get(keys[i])):
                 results[i] = (cached[keys[i]], "cache")
 
     # Gemini cho tối đa 20 món chưa quyết đầu tiên, chỉ tên (đã bỏ số tiền; tên rỗng sau khi bỏ thì không gửi).
@@ -129,7 +134,7 @@ async def classify_items(
             for i, category in zip(pending, answers):
                 if category != "unknown":
                     results[i] = (category, "ai")
-                    if category in _REMEMBERABLE and _rememberable(items[i].name, keys[i]):
+                    if category_registry.is_spend(category) and _rememberable(items[i].name, keys[i]):
                         learned[keys[i]] = category
             if learned:
                 await knowledge.remember_items(learned)

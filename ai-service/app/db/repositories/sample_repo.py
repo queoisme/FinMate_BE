@@ -1,4 +1,4 @@
-"""Truy cập ``raw_samples`` / ``labeled_samples`` / ``sample_splits``."""
+"""Truy cập ``ml_raw_samples`` / ``labeled_samples`` / ``ml_sample_splits``."""
 
 import uuid
 from collections.abc import Sequence
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import SplitName
 from app.db.models.labeled_sample import LabeledSample, SampleSplit
+from app.db.models.ml_label_event import MlLabelEvent
 from app.db.models.raw_sample import RawSample
 
 
@@ -47,6 +48,28 @@ async def add_label(session: AsyncSession, label: LabeledSample) -> LabeledSampl
     session.add(label)
     await session.flush()
     return label
+
+
+async def add_label_event(
+    session: AsyncSession,
+    label: LabeledSample,
+    source: str,
+    *,
+    feedback_id: uuid.UUID | None = None,
+    actor_hash: str | None = None,
+) -> MlLabelEvent:
+    """Ghi sự kiện cho nhãn HIỆN TẠI của ``label`` (gọi sau mỗi lần đặt hoặc đổi nhãn). Bảng sự kiện chỉ ghi thêm, nên đổi nhãn là thêm dòng, không sửa dòng cũ."""
+    event = MlLabelEvent(
+        labeled_sample_id=label.id,
+        category_slug=label.category_slug,
+        is_financial=label.is_financial,
+        source=source,
+        feedback_id=feedback_id,
+        actor_hash=actor_hash,
+    )
+    session.add(event)
+    await session.flush()
+    return event
 
 
 async def get_split(

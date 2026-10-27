@@ -1,4 +1,4 @@
-"""Kiến thức nhận diện hóa đơn lấy từ DB (``bill_brands``, ``bill_keywords``) và cửa hàng người dùng đã chốt (``bill_user_merchant_category``).
+"""Kiến thức nhận diện hóa đơn lấy từ DB (``kb_brands``, ``kb_keywords``) và cửa hàng người dùng đã chốt (``user_merchant_memory``).
 
 Bản trong code (``app/bill/brands.py`` và các bảng trong ``classifier.py``) là mặc định và là đường lui. Có dữ liệu trong DB thì nó THAY các bảng
 đó tại chỗ, nên sửa thương hiệu / từ khóa trong DB là có hiệu lực (trong tối đa ``ttl`` giây) mà không phải build lại. Phần nào DB không có thì giữ
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import NamedTuple, Protocol
+from typing import Protocol
 
 import structlog
 from sqlalchemy import text
@@ -24,28 +24,27 @@ logger = structlog.get_logger(__name__)
 
 _DEFAULT_TTL_SECONDS = 60.0
 
-_BRANDS_SQL = text("SELECT brand_key, category_slug, display_name, whole_word FROM bill_brands WHERE is_active ORDER BY brand_key")
+_BRANDS_SQL = text("SELECT brand_key, category_slug, display_name, whole_word FROM kb_brands WHERE is_active ORDER BY brand_key")
 # Đã sắp theo category_priority: giữ đúng thứ tự ưu tiên giữa các nhóm như trong code.
 _KEYWORDS_SQL = text(
-    "SELECT kind, category_slug, keyword FROM bill_keywords WHERE is_active AND kind IN ('merchant', 'product') "
+    "SELECT kind, category_slug, keyword FROM kb_keywords WHERE is_active AND kind IN ('merchant', 'product') "
     "ORDER BY category_priority, category_slug, keyword"
 )
-# Hai nơi nhớ cửa hàng: bảng mới lưu slug backend người dùng đã chọn khi lưu giao dịch (xem bill_user_merchant_choice), bảng cũ lưu 9 nhóm của bộ luật.
-_CHOICE_SQL = text("SELECT category_slug FROM bill_user_merchant_choice WHERE user_id_hash = :user AND merchant_key = :key")
-_LEGACY_SQL = text("SELECT category_slug FROM bill_user_merchant_category WHERE user_id_hash = :user AND merchant_key = :key")
+# Cửa hàng người dùng đã chốt: slug backend họ chọn khi lưu giao dịch (user_merchant_memory). Bảng cũ theo 9 nhóm đã được gộp vào đây (migration 0029).
+_CHOICE_SQL = text("SELECT category_slug FROM user_merchant_memory WHERE user_id_hash = :user AND merchant_key = :key")
 _LEARN_SQL = text(
-    "INSERT INTO bill_user_merchant_choice (user_id_hash, merchant_key, display_name, category_slug) "
+    "INSERT INTO user_merchant_memory (user_id_hash, merchant_key, display_name, category_slug) "
     "VALUES (:user, :key, :name, :slug) "
     "ON CONFLICT (user_id_hash, merchant_key) DO UPDATE SET category_slug = EXCLUDED.category_slug, "
-    "display_name = COALESCE(EXCLUDED.display_name, bill_user_merchant_choice.display_name), updated_at = now()"
+    "display_name = COALESCE(EXCLUDED.display_name, user_merchant_memory.display_name), updated_at = now()"
 )
 
 
-_ITEM_CACHE_GET_SQL = text("SELECT item_key, category_slug FROM bill_item_cache WHERE item_key = ANY(:keys)")
+_ITEM_CACHE_GET_SQL = text("SELECT item_key, category_slug FROM kb_item_categories WHERE item_key = ANY(:keys)")
 # Câu trả lời ĐẦU TIÊN thắng: món đã có trong bảng thì không gọi Gemini nữa, chỉ hai request ghi cùng lúc mới vào nhánh này.
 _ITEM_CACHE_PUT_SQL = text(
-    "INSERT INTO bill_item_cache (item_key, category_slug) VALUES (:key, :slug) "
-    "ON CONFLICT (item_key) DO UPDATE SET hits = bill_item_cache.hits + 1, updated_at = now()"
+    "INSERT INTO kb_item_categories (item_key, category_slug) VALUES (:key, :slug) "
+    "ON CONFLICT (item_key) DO UPDATE SET hits = kb_item_categories.hits + 1, updated_at = now()"
 )
 
 
@@ -54,17 +53,11 @@ def merchant_key(name: str) -> str:
     return " ".join(classifier._norm(name).split())
 
 
-class Remembered(NamedTuple):
-    category: str
-    # True: slug backend người dùng đã chọn khi lưu giao dịch (bảng mới). False: nhóm trong 9 nhóm của bộ luật bill (bảng cũ).
-    backend_slug: bool
-
-
 class BillKnowledge(Protocol):
     async def refresh_if_stale(self) -> None: ...
 
-    async def remembered(self, user_id_hash: str, merchant_name: str | None) -> Remembered | None:
-        """Danh mục người dùng này đã chốt cho cửa hàng, hoặc None."""
+    async def remembered(self, user_id_hash: str, merchant_name: str | None) -> str | None:
+        """Slug backend người dùng này đã chốt cho cửa hàng, hoặc None."""
         ...
 
     async def learn(self, user_id_hash: str, merchant_name: str, category_slug: str) -> bool:
@@ -133,7 +126,7 @@ class DbBillKnowledge:
             return
         apply_rows([tuple(r) for r in brand_rows], [tuple(r) for r in keyword_rows])
 
-    async def remembered(self, user_id_hash: str, merchant_name: str | None) -> Remembered | None:
+    async def remembered(self, user_id_hash: str, merchant_name: str | None) -> str | None:
         key = merchant_key(merchant_name or "")
         if not key:
             return None
@@ -141,13 +134,10 @@ class DbBillKnowledge:
         try:
             async with self._session_factory() as session:
                 chosen = (await session.execute(_CHOICE_SQL, params)).first()
-                if chosen:
-                    return Remembered(chosen[0], True)
-                legacy = (await session.execute(_LEGACY_SQL, params)).first()
         except Exception as error:  # noqa: BLE001
             logger.warning("bill_memory_lookup_failed", error=type(error).__name__)
             return None
-        return Remembered(legacy[0], False) if legacy else None
+        return chosen[0] if chosen else None
 
     async def learn(self, user_id_hash: str, merchant_name: str, category_slug: str) -> bool:
         key = merchant_key(merchant_name)

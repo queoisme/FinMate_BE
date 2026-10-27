@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nạp ``data/corpus/*.jsonl`` vào ``raw_samples`` + ``labeled_samples`` + ``sample_splits``.
+"""Nạp ``data/corpus/*.jsonl`` vào ``ml_raw_samples`` + ``labeled_samples`` + ``ml_sample_splits``.
 
 Idempotent: chạy lại không nhân đôi mẫu (khoá là ``content_hash``) và không đổi tập
 train/val/test của mẫu cũ.
@@ -93,6 +93,7 @@ async def seed(corpus_dir: pathlib.Path) -> None:
                         labeled_by=LabelSource.SEED.value,
                     ),
                 )
+                await sample_repo.add_label_event(session, labeled, "import")  # nhãn seed: nguồn "import", không có người đặt
                 added_label += 1
 
                 split, bucket = split_for(digest)
@@ -108,7 +109,7 @@ async def seed(corpus_dir: pathlib.Path) -> None:
 
         await session.commit()
 
-    print(f"raw_samples mới: {added_raw}")
+    print(f"ml_raw_samples mới: {added_raw}")
     print(f"labeled_samples mới: {added_label}")
     for name in (SplitName.TRAIN, SplitName.VAL, SplitName.TEST):
         print(f"  {name.value}: {counts.get(name.value, 0)}")

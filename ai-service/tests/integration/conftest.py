@@ -23,8 +23,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.db.category_seed import seed_categories
+from app.db import audit_sql, category_guard, ml_sql
+from app.db.model_seed import seed_models
 from app.db.models.all_models import Base
-from app.db.models.provider_pattern import ProviderPattern
 from app.db.seed_patterns import SEED_PATH
 
 TEST_DB_NAME = f"finmate_ai_test_{uuid.uuid4().hex[:8]}"
@@ -60,6 +62,13 @@ async def _create_database(admin_url: str, test_url: str) -> None:
             # create_all thay vì chạy alembic: bước verify đã có `alembic check` bảo đảm
             # migration khớp model, nên ở đây chỉ cần schema đúng và dựng nhanh.
             await connection.run_sync(Base.metadata.create_all)
+            # kb_categories là bảng cha của mọi khóa ngoại category_slug; clean_tables không xóa nó nên chỉ cần seed một lần.
+            await seed_categories(connection)
+            # ml_models là bảng cha của phiên bản/lần huấn luyện; clean_tables không xóa nó nên cũng chỉ seed một lần.
+            await seed_models(connection)
+            # create_all không tạo view và trigger: dựng chúng như migration 0024 để mọi test chạy trên cùng schema với DB thật.
+            for statement in (*category_guard.OBJECTS, *ml_sql.OBJECTS, *audit_sql.OBJECTS):
+                await connection.execute(text(statement))
     finally:
         await engine.dispose()
 
@@ -116,12 +125,11 @@ async def clean_tables(engine):
     async with engine.begin() as connection:
         await connection.execute(
             text(
-                "TRUNCATE user_feedback, feedback_batch_jobs, evaluation_predictions,"
-                " evaluation_category_metrics, evaluation_runs, model_versions,"
-                " training_jobs, sample_splits, labeled_samples, pipeline_requests,"
-                " raw_samples, provider_patterns, bill_evaluation_category_metrics, bill_evaluation_runs,"
-                " bill_model_versions, bill_training_jobs, bill_labeled_samples, bill_raw_samples, bill_unknown_scans,"
-                " bill_user_merchant_category, bill_user_merchant_choice, bill_item_cache, bill_training_samples, bill_classify_stats, bill_rule_audit, bill_keywords, bill_brands RESTART IDENTITY CASCADE"
+                "TRUNCATE ml_user_feedback, ml_item_feedback, ml_feedback_batches, ml_evaluation_predictions,"
+                " ml_evaluation_category_metrics, ml_evaluation_runs, ml_model_versions,"
+                " ml_training_jobs, ml_sample_splits, ml_labeled_samples, ops_analyze_log,"
+                " ml_raw_samples, kb_provider_formats, kb_provider_patterns, bill_unknown_scans,"
+                " user_merchant_memory, kb_item_categories, ml_training_samples, ops_usage_daily, kb_audit_log, kb_keywords, kb_brands, nlu_model_versions, nlu_candidates, nlu_examples RESTART IDENTITY CASCADE"
             )
         )
     yield
@@ -136,20 +144,10 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture
 async def seeded_session(session: AsyncSession) -> AsyncSession:
-    """Session đã có sẵn provider_patterns — Extractor không có pattern thì vô dụng."""
-    for row in pattern_rows():
-        session.add(
-            ProviderPattern(
-                provider_key=row["provider_key"],
-                package_name=row["package_name"],
-                pattern_name=row["pattern_name"],
-                regex=row["regex"],
-                transaction_type=row.get("transaction_type"),
-                priority=row.get("priority", 100),
-                sample_text=row.get("sample_text"),
-            )
-        )
-    await session.commit()
+    """Session đã có sẵn pattern (qua đúng đường seed của ứng dụng: định dạng active + trường + mẫu) — Extractor không có pattern thì vô dụng."""
+    from app.db.seed_patterns import seed
+
+    await seed(session)
     return session
 
 

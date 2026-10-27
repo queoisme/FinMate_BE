@@ -7,7 +7,7 @@ from app.bill.classify_stats import ClassifyStatsRecorder
 
 
 async def values(session):
-    rows = (await session.execute(text("SELECT metric, value, day = current_date AS today FROM bill_classify_stats ORDER BY metric"))).all()
+    rows = (await session.execute(text("SELECT metric, value, day = current_date AS today FROM ops_usage_daily ORDER BY metric"))).all()
     return {r.metric: r.value for r in rows}, all(r.today for r in rows)
 
 
@@ -23,5 +23,5 @@ async def test_counts_accumulate_across_requests_for_the_same_day(session, engin
 
 
 async def test_the_table_has_only_day_metric_and_value_columns(session):
-    columns = (await session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'bill_classify_stats' ORDER BY 1"))).scalars().all()
+    columns = (await session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'ops_usage_daily' ORDER BY 1"))).scalars().all()
     assert columns == ["day", "metric", "value"]  # không có chỗ nào để lọt tên món, cửa hàng hay người dùng

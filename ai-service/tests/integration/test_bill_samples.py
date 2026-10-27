@@ -22,13 +22,13 @@ OTHER = "b" * 64
 
 def sample(**kw) -> PendingSample:
     base = dict(scan_id=uuid.uuid4(), user_id_hash=HASH, merchant_name="Tạp hóa Đức Cường", lines=["Gao thom 5kg", "Tong cong 125.000"],
-                total_amount=125000, predicted_slug="food", predicted_source="keyword")
+                predicted_slug="food", predicted_source="keyword")
     base.update(kw)
     return PendingSample(**base)
 
 
 async def rows(session):
-    return (await session.execute(text("SELECT scan_id, user_id_hash, merchant_key, lines, final_slug, label_kind FROM bill_training_samples"))).all()
+    return (await session.execute(text("SELECT scan_id, user_id_hash, merchant_key, lines, final_slug, CASE WHEN final_slug IS NULL THEN NULL WHEN predicted_slug = final_slug THEN 'confirmed' ELSE 'corrected' END AS label_kind FROM ml_training_samples"))).all()
 
 
 async def test_add_pending_stores_row(session):
@@ -127,7 +127,7 @@ async def test_check_constraint_rejects_a_bad_slug_directly(session):
     s = sample()
     await samples.add_pending(session, s)
     with pytest.raises(IntegrityError):
-        await session.execute(text("UPDATE bill_training_samples SET final_slug = 'income'"))
+        await session.execute(text("UPDATE ml_training_samples SET final_slug = 'income'"))
     await session.rollback()
 
 
@@ -144,7 +144,7 @@ async def test_purge_removes_old_pending(session):
     for s in (old_pending, old_labeled, fresh_pending):
         await samples.add_pending(session, s)
     await samples.label(session, old_labeled.scan_id, HASH, "food")
-    await session.execute(text("UPDATE bill_training_samples SET created_at = now() - interval '8 days' WHERE scan_id IN (:a, :b)"),
+    await session.execute(text("UPDATE ml_training_samples SET created_at = now() - interval '8 days' WHERE scan_id IN (:a, :b)"),
                           {"a": old_pending.scan_id, "b": old_labeled.scan_id})
     await session.commit()
     assert await samples.purge_pending(session, days=7) == 1  # chỉ hàng CHƯA nhãn và cũ hơn 7 ngày
@@ -201,12 +201,12 @@ async def test_erase_route_deletes_only_that_users_samples(client, session):
 
     res = await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})
 
-    assert res.json() == {"deleted": 1}
+    assert res.json() == {"deleted": 1, "item_votes": 0}
     assert [r.user_id_hash for r in await rows(session)] == [OTHER]
 
 
 async def test_erase_route_with_nothing_stored_deletes_zero(client):
-    assert (await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})).json() == {"deleted": 0}
+    assert (await client.post("/api/v1/bill/samples/erase", json={"user_id_hash": HASH})).json() == {"deleted": 0, "item_votes": 0}
 
 
 async def test_erase_route_validates_the_hash_and_the_key(client):
@@ -222,7 +222,7 @@ async def test_add_pending_also_purges_old_unlabeled_samples(session):
     await samples.add_pending(session, stale)
     await samples.add_pending(session, kept_old_label)
     await samples.label(session, kept_old_label.scan_id, HASH, "food")
-    await session.execute(text("UPDATE bill_training_samples SET created_at = now() - interval '8 days'"))
+    await session.execute(text("UPDATE ml_training_samples SET created_at = now() - interval '8 days'"))
     await session.commit()
 
     await samples.add_pending(session, fresh)
@@ -266,7 +266,7 @@ async def test_purge_loop_removes_stale_pending_without_any_new_insert(session):
     # lời hứa "xóa sau 7 ngày" không được phụ thuộc vào việc có người quét tiếp
     stale = sample()
     await samples.add_pending(session, stale)
-    await session.execute(text("UPDATE bill_training_samples SET created_at = now() - interval '8 days'"))
+    await session.execute(text("UPDATE ml_training_samples SET created_at = now() - interval '8 days'"))
     await session.commit()
     task = asyncio.create_task(samples.purge_loop(async_sessionmaker(session.bind, expire_on_commit=False), interval_seconds=0.05))
 

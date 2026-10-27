@@ -8,79 +8,33 @@ import re
 import unicodedata
 from collections.abc import Callable
 
+from app.bill import lexicon
+from app.core import confidence
 from app.bill.brands import BRAND_BACKEND_SLUG, BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 
-CATEGORIES = ("dining", "transport", "shopping", "groceries", "housing", "utilities", "healthcare", "entertainment", "other")
+CATEGORIES = tuple(lexicon.load("category_groups.json")["groups"])  # cùng tệp với ocr-service và ràng buộc CHECK của DB
 
-_GENERIC_STORE = ("bach hoa", "tap hoa")  # loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác
-_MIN_MODEL_PROB = 0.5
+# từ vựng phân loại dùng chung với ocr-service/parsing/extract.py: shared_words.json (generic_store: loại hình ghi trong tên cửa hàng, thắng tên thương hiệu trùng của ngành khác)
+_GENERIC_STORE = lexicon.shared_words("generic_store")
+_GROCERIES_NOT_FOR = lexicon.shared_words("groceries_not_for")  # "Siêu thị điện máy", "Siêu thị nội thất" bán đồ gia dụng/điện tử, không phải thực phẩm
+_NOT_MEDICINE = lexicon.shared_words("not_medicine")  # thuốc lá không phải thuốc chữa bệnh
+_PASSWORD_LINE = re.compile(rf"\b(?:{lexicon.shared_alternation('password_line')})\b")  # "Pass Wifi: 1234" cuối phiếu quán cà phê không phải cước internet
+_MIN_MODEL_PROB = confidence.get("bill.min_model_prob")
 
-_MAX_MODEL_CONFIDENCE = 0.69
+_MAX_MODEL_CONFIDENCE = confidence.get("bill.max_model")
+# độ tin cậy theo nguồn của luật (app/data/confidence.json): thương hiệu > từ khóa tên cửa hàng > thương hiệu/từ khóa chỉ thấy trong thân bill
+_BRAND_IN_MERCHANT = confidence.get("bill.brand_in_merchant")
+_KEYWORD_IN_MERCHANT = confidence.get("bill.keyword_in_merchant")
+_BRAND_IN_BODY = confidence.get("bill.brand_in_body")
+_KEYWORD_IN_BODY = confidence.get("bill.keyword_in_body")
+_PRODUCT_MAJORITY = confidence.get("bill.product_majority")
+_PRODUCT_PLURALITY = confidence.get("bill.product_plurality")
 
-# Thứ tự quan trọng: nhóm đứng trước được ưu tiên khi trùng từ khóa.
-_CATEGORY_KEYWORDS = {
-    "transport": ("xang", "petro", "grab", "taxi", "gojek", "nha xe", "bai giu xe", "bai do xe", "gui xe", "rua xe", "garage", "tram xe"),
-    "healthcare": ("pharmacy", "pharmacity", "nha thuoc", "nhathuoc", "benh vien", "phong kham", "nha khoa", "rang ham mat", "tham my vien", "da lieu", "mat kinh", "eyewear", "benhvien", "phongkham", "nhakhoa"),
-    "entertainment": ("cinema", "cgv", "karaoke", "rap chieu", "rap phim", "nha hat", "khu vui choi", "khu giai tri", "giai tri", "cong vien nuoc", "bowling"),
-    "groceries": ("sieu thi", "mart", "coop", "bach hoa xanh", "winmart", "tap hoa", "thuc pham", "cho dau moi", "dai ly sua", "nuoc tinh khiet", "dai ly nuoc"),  # đại lý nước uống: bán nước đóng chai/bình, không phải cước nước sinh hoạt (housing)
-    "housing": ("dien luc", "evn", "tien nuoc", "cap nuoc", "nuoc sach", "nha tro", "phong tro", "chung cu", "dai ly gas", "binh gas"),
-    "utilities": ("internet", "viettel", "vnpt", "fpt telecom", "truyen hinh", "vien thong", "wifi"),
-    "dining": ("cafe", "coffee", "pho", "banh mi", "com tam", "quan com", "tra sua", "restaurant",
-               "nha hang", "quan an", "pizza", "kfc", "highland", "quan bun", "bun bo", "bun cha", "quan nhau", "tiem banh"),
-    "shopping": ("shop", "store", "thoi trang", "quan ao", "vang bac da quy", "trang suc", "kim hoan", "tiem vang", "cua hang giay", "giay dep",
-                 "my pham", "phu kien", "dien may", "noi that"),
-}
+_CATEGORY_KEYWORDS = lexicon.keyword_table("merchant_keywords.json")
 
-# Bỏ dấu làm "phở" trùng "phố" (Thành phố...): từ khóa này chỉ tin khi nằm trong tên cửa hàng.
-_NAME_ONLY_KEYWORDS = {"pho", "nha tro", "phong tro", "chung cu"}
+_NAME_ONLY_KEYWORDS = set(lexicon.load("name_only_keywords.json"))
 
-# Từ vựng sản phẩm (đã bỏ dấu), khớp nguyên từ. ponytail: bảng nhỏ viết tay; mô hình học (giai đoạn B) sẽ thay dần khi đủ dữ liệu.
-_PRODUCT_KEYWORDS = {
-    # Bỏ các từ mơ hồ khi mất dấu: "duong" (đường ăn/đường phố), "lau" (lẩu/lầu), "chao" (cháo/chào), "muoi" (muối/mười).
-    "dining": ("bun", "bun bo", "banh mi", "com", "mi quang", "hu tieu", "xoi", "lau thai", "nuong",
-               "ca phe", "tra sua", "sinh to", "nuoc ep", "tra dao", "banh canh", "goi cuon",
-               "pizza", "spaghetti", "carbonara", "cha ca", "nem ca", "tra da",
-               "hong tra", "tra dai loan", "tra xanh", "tra den", "tra vai", "tra tac", "tra chanh", "olong", "matcha", "tran chau",
-               "thach dua", "thach suong sao", "thach tran chau", "soda chanh", "nuoc cam ep", "sua chua uong",
-               "khoai mi", "banh khoai",
-               # món quen thuộc ở quán ăn nhanh, quán cơm, quán phở
-               "burger", "ga ran", "khoai chien", "khoai tay chien", "pho bo", "pho ga", "com suon", "bun cha", "bun rieu", "ca phe sua", "bac xiu",
-               # học từ 12 bill ảnh 2026-10-14: "răng" (nha khoa) khớp nhầm "bắp rang", chặn luôn AI cho cả bill
-               "bap rang", "bap rang bo", "canh chua", "rau muong", "xao toi"),
-    "groceries": ("gao", "nuoc mam", "dau an", "duong cat", "sua tuoi", "trung ga", "thit heo", "thit bo",
-                  "thit ga", "bap bo", "bo vien", "suon heo", "rau", "mi goi", "banh keo", "snack",
-                  "nuoc ngot", "bia", "xuong ga", "sua bot", "ta quan", "ta dan", "dau hao", "tuong ot", "nuoc tuong", "hat nem", "gia vi",
-                  "bot ngot", "bot canh", "bot chien", "mayonnaise", "nuoc cham",
-                  # hàng tiêu dùng, thực phẩm tươi/đóng gói thường gặp ở tạp hóa, đại lý
-                  "nuoc suoi", "ca chua", "xuc xich", "ca basa",
-                  "banh mi sandwich", "banh mi gon", "mi ly", "hao hao"),
-    "healthcare": ("paracetamol", "vitamin", "augmentin", "voltaren", "khau trang", "gac y te", "kim luon",
-                   "natri clorid", "thuoc", "amoxicillin", "oresol",
-                   "nieng rang", "tram rang", "cao voi rang", "nho rang", "rang su",
-                   "kinh can", "trong kinh", "gong kinh",
-                   "ho so y te", "bang ca nhan", "nuoc muoi sinh ly", "muoi sinh ly", "xet nghiem", "phi kham", "kham noi"),
-    "transport": ("xang", "dau diesel", "ve xe", "gui xe", "do xe", "sua xe", "va lop", "thay nhot", "rua xe", "cau duong", "ve tau", "ve may bay", "cuoc taxi", "cuoc xe"),
-    # vé và dịch vụ vui chơi
-    "entertainment": ("ve xem phim", "vexem phim", "xem phim", "ve phim", "bap nuoc", "ve vao cong", "ve tham quan", "ve cong vien", "cong vien nuoc", "khu vui choi",
-                      "may choi game", "nap the game", "bowling", "karaoke", "ve ca nhac", "ve concert", "ve kich", "truot bang", "gio choi", "ve nguoi lon", "ve tre em", "the game"),
-    # dịch vụ làm đẹp/cá nhân (không có nhóm riêng nên là "other"): spa, salon, cắt tóc, nail, mi, triệt lông
-    "other": ("cat toc", "goi dau thu gian", "nhuom toc", "uon toc", "lam mong", "noi mi", "triet long", "tam trang", "xong hoi", "cao rau"),
-    # phiếu mua/bán vàng bạc thường không có logo: nhận qua tên hàng
-    "shopping": ("vang 9999", "vang 999", "vang 24k", "vang 18k", "nhan tron", "nhan cuoi", "nhan vang", "kim cuong", "vang mieng",
-                 # hóa đơn mỹ phẩm không logo (siêu thị/nhà thuốc nhiều dòng khác nên danh mục của họ vẫn thắng)
-                 "bot giat", "nuoc rua chen", "giay ve sinh", "nuoc xa vai",  # đồ dùng gia đình tiêu hao là shopping, không phải thực phẩm
-                 "khan uot", "khan giay", "kem danh rang", "ban chai danh rang", "dau goi", "sua tam", "sua tam trang",  # đồ vệ sinh cá nhân dùng một lần
-                 "sua rua mat", "tay trang", "kem chong nang", "son moi", "mat na", "nuoc hoa",
-                 # quần áo, giày dép, túi xách, đồ điện tử nhỏ
-                 "quan jean", "quan tay", "quan short", "ao thun", "ao khoac", "ao so mi", "ao polo", "dam cong so", "dam du tiec", "chan vay",
-                 "tui xach", "balo", "that lung", "kinh ram", "mu non", "giay the thao", "giay da nam", "giay da nu", "giay cao got", "giay sandal",
-                 "dep sandal", "dep quai", "dep tong", "tat nam", "tai nghe", "sac du phong", "cap sac", "op lung", "noi chien", "may say toc", "ban phim",
-                 # văn phòng phẩm ("bìa nút" không phải bia, "thước kẻ" không phải thuốc) và đồ vệ sinh nam
-                 "bia nut", "bia ho so", "kinh mat", "thuoc ke", "thuoc 20cm", "thuoc 30cm", "but bi", "so tay", "vo ke", "romano"),
-    "housing": ("tien dien", "tien nuoc", "tien nha", "tien thue nha", "tien thue phong", "tien rac", "phi rac", "tien gas", "binh gas", "phi quan ly chung cu", "phi quan ly", "phi chung cu"),
-    "utilities": ("cuoc internet", "cuoc dienthoai", "nap dienthoai", "tien dienthoai", "nap data", "truyen hinh cap", "wifi", "goi cuoc",
-                  "goi data", "cuoc di dong", "cap quang"),  # "tien dienthoai" (xem _category_from_products) không bị "tien dien" (nhà ở) khớp nhầm
-}
+_PRODUCT_KEYWORDS = lexicon.keyword_table("product_keywords.json")
 
 def _has_keyword(norm: str, keyword: str) -> bool:
     """Từ khóa <= 3 chữ phải là cả từ (tránh 'evn', 'kfc' khớp nhầm giữa từ khác)."""
@@ -146,9 +100,10 @@ def _category_from_products(lines: list[str], merchant: str | None = None) -> tu
         if merchant and line.strip() == merchant.strip():
             continue
         norm = " ".join(_norm(line).replace("'", "").split())  # OCR hay chèn dấu ' vào chữ ("nuo'ng")
-        norm = norm.replace("thuoc la", "")  # thuốc lá không phải thuốc chữa bệnh
+        for phrase in _NOT_MEDICINE:
+            norm = norm.replace(phrase, "")
         norm = re.sub(r"\bdien thoa\w?", "dienthoai", norm)  # "điện thoại" (kể cả OCR sai chữ cuối) là một từ riêng, không phải "tiền điện" + "thoại"
-        if re.search(r"\b(?:pass|password|mat khau)\b", norm):  # "Pass Wifi: 1234" cuối phiếu quán cà phê không phải cước internet
+        if _PASSWORD_LINE.search(norm):
             continue
         if re.search(r"https?|www\.|\.(com|vn|net|org)\b", norm):  # địa chỉ web không phải tên sản phẩm
             continue
@@ -167,7 +122,7 @@ def _category_from_products(lines: list[str], merchant: str | None = None) -> tu
     if len(ranked) > 1 and ranked[1][1] == n:
         return None
     runner_up = ranked[1][1] if len(ranked) > 1 else 0
-    return top, "product", 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
+    return top, "product", _PRODUCT_MAJORITY if n >= 2 and n >= 2 * runner_up else _PRODUCT_PLURALITY
 
 
 def brand_backend_slug(merchant: str | None) -> str | None:
@@ -180,34 +135,31 @@ def brand_backend_slug(merchant: str | None) -> str | None:
 def classify_category_detailed(
     merchant: str | None,
     lines: list[str],
-    remembered: str | None = None,
     predict: Callable[[str | None, list[str]], tuple[str, float]] | None = None,
 ) -> tuple[str, str, float]:
-    """(danh mục, nguồn, độ tin cậy). Ưu tiên: bộ nhớ > thương hiệu > từ khóa > mô hình học > other."""
-    if remembered:
-        return remembered, "memory", 1.0
+    """(danh mục, nguồn, độ tin cậy). Ưu tiên: thương hiệu > từ khóa > mô hình học > other. (Cửa hàng người dùng đã chốt do route ``/bill/classify`` tra trước, không ở đây.)"""
     merchant_norm = _norm(merchant or "")
-    body_norm = _norm(" ".join(l for l in lines if not re.search(chr(92) + "b(?:pass|password)" + chr(92) + "b", _norm(l))))  # dòng "Pass Wifi: ..." không phải cước internet
+    body_norm = _norm(" ".join(l for l in lines if not _PASSWORD_LINE.search(_norm(l))))
     matches = [b for b in BRAND_CATEGORIES if _brand_in(b, merchant_norm)]
     # "BÁCH HÓA MINI AN KHANG": tên cửa hàng ghi rõ loại hình bách hóa/tạp hóa thì đó là tạp hóa, dù đoạn sau trùng tên một chuỗi khác (nhà thuốc An Khang).
     if matches and any(g in merchant_norm for g in _GENERIC_STORE) and BRAND_CATEGORIES[best_brand(matches, merchant_norm)] != "groceries":
-        return "groceries", "keyword", 0.75
+        return "groceries", "keyword", _KEYWORD_IN_MERCHANT
     if matches:  # nhiều tên khớp (vd. "Supersports Aeon"): tên cụ thể hơn (dài hơn) thắng tên trung tâm thương mại
-        return BRAND_CATEGORIES[best_brand(matches, merchant_norm)], "brand", 0.8
+        return BRAND_CATEGORIES[best_brand(matches, merchant_norm)], "brand", _BRAND_IN_MERCHANT
     for category, keywords in _CATEGORY_KEYWORDS.items():
-        if category == "groceries" and ("dien may" in merchant_norm or "noi that" in merchant_norm):
-            continue  # "Siêu thị điện máy", "Siêu thị nội thất" bán đồ gia dụng/điện tử, không phải thực phẩm
+        if category == "groceries" and any(w in merchant_norm for w in _GROCERIES_NOT_FOR):
+            continue
         if any(_has_keyword(merchant_norm, k) for k in keywords):
-            return category, "keyword", 0.75
+            return category, "keyword", _KEYWORD_IN_MERCHANT
     for brand, category in BRAND_CATEGORIES.items():  # tên thương hiệu viết liền trong website/địa chỉ
         if _brand_in(brand, body_norm):
-            return category, "brand", 0.7
+            return category, "brand", _BRAND_IN_BODY
     product = _category_from_products(lines, merchant)
     if product:
         return product
     for category, keywords in _CATEGORY_KEYWORDS.items():
         if any(_has_keyword(body_norm, k) for k in keywords if k not in _NAME_ONLY_KEYWORDS):
-            return category, "keyword", 0.6
+            return category, "keyword", _KEYWORD_IN_BODY
     if predict:
         category, prob = predict(merchant, lines)
         if category != "other" and prob >= _MIN_MODEL_PROB:

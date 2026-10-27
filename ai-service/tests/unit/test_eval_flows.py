@@ -10,7 +10,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
 import eval_flows  # noqa: E402
 
 FIXTURES = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "eval"
-VALID = set(CATEGORY_SLUGS) | {"unknown", None}
+VALID = set(CATEGORY_SLUGS) | {"loan", "unknown", None}  # "loan": danh mục của chat (cho vay/mượn/trả nợ), không thuộc CATEGORY_SLUGS
 
 
 def lines(name):

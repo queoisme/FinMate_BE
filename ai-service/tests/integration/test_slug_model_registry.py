@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app.bill.slug_model import STAGE, TrainResult, _pipeline, load_active, promote, record_training, retire
-from app.db.models.bill import BillModelVersion, BillTrainingJob
+from app.db.models.model_version import ModelVersion, TrainingJob
 
 
 def candidate() -> TrainResult:
@@ -17,7 +17,7 @@ def rejected() -> TrainResult:
 
 
 async def statuses(session) -> dict[str, str]:
-    rows = (await session.execute(select(BillModelVersion).where(BillModelVersion.stage == STAGE))).scalars().all()
+    rows = (await session.execute(select(ModelVersion).where(ModelVersion.stage == STAGE))).scalars().all()
     return {r.version: r.status for r in rows}
 
 
@@ -25,12 +25,12 @@ async def test_train_never_activates(session, tmp_path):
     version = await record_training(session, candidate(), sample_count=4, registry_path=str(tmp_path))
     assert (await statuses(session)) == {version: "candidate"}
     assert (tmp_path / STAGE / f"{version}.joblib").exists()
-    assert (await session.execute(select(BillTrainingJob).where(BillTrainingJob.stage == STAGE))).scalars().one().sample_count == 4
+    assert (await session.execute(select(TrainingJob).where(TrainingJob.stage == STAGE))).scalars().one().sample_count == 4
 
 
 async def test_rejected_is_recorded_with_reason_and_no_artifact(session, tmp_path):
     version = await record_training(session, rejected(), sample_count=4, registry_path=str(tmp_path))
-    row = (await session.execute(select(BillModelVersion))).scalars().one()
+    row = (await session.execute(select(ModelVersion))).scalars().one()
     assert row.version == version and row.status == "rejected" and row.artifact_path == ""
     assert "296" in row.notes
     assert not list(tmp_path.rglob("*.joblib"))

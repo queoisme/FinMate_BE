@@ -1,0 +1,41 @@
+{
+  "_doc": "Độ tin cậy mà các luật của ai-service gắn cho kết quả của chúng. Backend dùng độ tin cậy để chọn nhánh: min(trích xuất, danh mục) >= backend.one_tap_threshold thì cho xác nhận một chạm, thấp hơn thì hỏi người dùng. Vì vậy các con số này KHÔNG phải tham số chỉnh tự do: tests/unit/test_confidence.py canh các ràng buộc giữa chúng và ngưỡng một chạm (vd. khớp từ điển phải >= ngưỡng, OCR hóa đơn luôn < ngưỡng vì luôn có bước người xem lại). Đổi một giá trị thì chạy lại test đó và đo lại trên bộ câu/ảnh có đáp án.",
+
+  "backend.one_tap_threshold": {"value": 0.85, "doc": "Bản sao ngưỡng xác nhận một chạm của backend (TransactionReviewPush.OneTapThreshold). Code ai-service KHÔNG đọc giá trị này; nó ở đây để test canh lệch với backend."},
+
+  "classifier.negative_marker": {"value": 0.95, "doc": "Thông báo có dấu hiệu không phải giao dịch (OTP, khuyến mãi...)."},
+  "classifier.financial_strong": {"value": 0.92, "doc": "Có số tiền mang đơn vị và từ 2 dấu hiệu giao dịch trở lên."},
+  "classifier.financial_weak": {"value": 0.75, "doc": "Có số tiền mang đơn vị và đúng 1 dấu hiệu giao dịch."},
+  "classifier.uncertain": {"value": 0.5, "doc": "Có số tiền nhưng không có bối cảnh giao dịch: đẩy sang 'không chắc' để backend vẫn hỏi người dùng thay vì bỏ qua một giao dịch thật."},
+  "classifier.non_financial_no_amount": {"value": 0.8, "doc": "Không có số tiền mang đơn vị nào."},
+  "classifier.manual_entry_financial": {"value": 0.9, "doc": "Câu người dùng tự gõ có số tiền đọc được."},
+  "classifier.manual_entry_uncertain": {"value": 0.4, "doc": "Câu người dùng tự gõ nhưng không đọc được số tiền."},
+
+  "extractor.pattern_by_filled": {"value": [0.9, 0.93, 0.96, 0.98], "doc": "Khớp mẫu của ngân hàng: bóc được càng nhiều trường (tên cửa hàng, số dư, giờ) thì càng chắc đúng mẫu. Chỉ số = số trường bóc được (0 đến 3). Mọi giá trị phải >= ngưỡng một chạm."},
+  "extractor.generic_with_merchant": {"value": 0.7, "doc": "Ngân hàng chưa có mẫu, nhưng đọc được tên cửa hàng sau giới từ. Suy đoán nên phải < ngưỡng một chạm."},
+  "extractor.generic_without_merchant": {"value": 0.6, "doc": "Ngân hàng chưa có mẫu và không đọc được tên cửa hàng."},
+
+  "categorizer.lexicon_hit": {"value": 0.9, "doc": "Trúng từ điển cửa hàng là khớp CHÍNH XÁC một tên đã biết nên đáng tin hơn phỏng đoán. Phải >= ngưỡng một chạm: ở 0,80 mọi khoản chi rớt xuống nhánh hộp thoại, kể cả ca Highlands Coffee mà tài liệu Flow 1 lấy làm ví dụ cho nhánh một chạm."},
+  "categorizer.credit_income": {"value": 0.95, "doc": "Tiền vào ví luôn là thu nhập trong taxonomy 11 danh mục, không có danh mục 'thu' nào khác để chọn nên không cần hỏi mô hình."},
+  "categorizer.empty_text": {"value": 0.3, "doc": "Không có tên cửa hàng lẫn mô tả để phân loại: trả 'other' với độ tin cậy rất thấp."},
+  "categorizer.fallback":{"value": 0.35, "doc": "Không khớp từ khóa nào: trả 'other' với độ tin cậy thấp để ngưỡng một chạm đẩy sang hộp thoại chọn danh mục."},
+
+  "receipt.base_with_marker": {"value": 0.55, "doc": "OCR hóa đơn: đọc được số tiền kèm nhãn tổng."},
+  "receipt.base_without_marker": {"value": 0.35, "doc": "OCR hóa đơn: có số tiền nhưng không có nhãn tổng."},
+  "receipt.merchant_bonus": {"value": 0.15, "doc": "Cộng thêm khi đọc được tên cửa hàng."},
+  "receipt.date_bonus": {"value": 0.1, "doc": "Cộng thêm khi đọc được ngày."},
+  "receipt.max": {"value": 0.8, "doc": "Trần của OCR hóa đơn: luôn < ngưỡng một chạm vì tài liệu Flow 1 yêu cầu người dùng rà soát ảnh trước khi lưu. Phải bằng remote.max_category và bill.max_result."},
+
+  "remote.max_category": {"value": 0.8, "doc": "Trần độ tin cậy danh mục nhận từ ocr-service. Bằng receipt.max."},
+  "remote.review_cap": {"value": 0.5, "doc": "Bill mà ocr-service tự đánh dấu cần xem lại (ảnh mờ, số không khớp nhau...) thì không được tỏ ra chắc chắn."},
+
+  "bill.max_result": {"value": 0.8, "doc": "Trần độ tin cậy kết quả luật của luồng hóa đơn (rules_classify). Bằng receipt.max."},
+  "bill.brand_in_merchant": {"value": 0.8, "doc": "Tên thương hiệu đã biết nằm trong tên cửa hàng."},
+  "bill.keyword_in_merchant": {"value": 0.75, "doc": "Từ khóa danh mục nằm trong tên cửa hàng; cũng dùng cho cửa hàng ghi rõ loại hình bách hóa/tạp hóa."},
+  "bill.brand_in_body": {"value": 0.7, "doc": "Tên thương hiệu chỉ thấy trong thân bill (website, địa chỉ) vì tên cửa hàng đọc sai."},
+  "bill.keyword_in_body": {"value": 0.6, "doc": "Từ khóa danh mục chỉ thấy trong thân bill."},
+  "bill.product_majority": {"value": 0.7, "doc": "Bỏ phiếu theo từ khóa sản phẩm: nhóm thắng có từ 2 món trở lên và gấp đôi nhóm đứng sau."},
+  "bill.product_plurality": {"value": 0.6, "doc": "Bỏ phiếu theo từ khóa sản phẩm: nhóm thắng nhưng không hơn hẳn."},
+  "bill.min_model_prob": {"value": 0.5, "doc": "Mô hình học chỉ được dùng khi xác suất >= mức này."},
+  "bill.max_model": {"value": 0.69, "doc": "Gợi ý của mô hình học luôn dưới mức bill.product_majority để app vẫn nhờ người dùng xác nhận."}
+}

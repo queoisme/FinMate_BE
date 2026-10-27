@@ -7,11 +7,15 @@ from collections import Counter
 from dataclasses import dataclass
 
 from app.bill.classifier import brand_backend_slug, classify_category_detailed
+from app.core import confidence as table  # tên khác: hàm dưới có biến cục bộ `confidence`
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 
 # Kết quả của luồng hóa đơn luôn cần người xem lại; trần này khớp trần của OCR (remote_ocr.py).
-MAX_CONFIDENCE = 0.80
+MAX_CONFIDENCE = table.get("bill.max_result")
+_BRAND_IN_MERCHANT = table.get("bill.brand_in_merchant")
+_PRODUCT_MAJORITY = table.get("bill.product_majority")
+_PRODUCT_PLURALITY = table.get("bill.product_plurality")
 _ITEM_VOTE_SLUGS = ("family", "education")  # hai nhóm backend mà bộ 9 nhóm của luật cả bill không biểu diễn được
 
 
@@ -36,18 +40,17 @@ def item_vote_slug(lines: list[str]) -> tuple[str, float] | None:
     runner_up = ranked[1][1] if len(ranked) > 1 else 0
     if n == runner_up:
         return None
-    return top, 0.7 if n >= 2 and n >= 2 * runner_up else 0.6
+    return top, _PRODUCT_MAJORITY if n >= 2 and n >= 2 * runner_up else _PRODUCT_PLURALITY
 
 
-def classify_by_rules(merchant: str | None, lines: list[str], remembered: str | None = None) -> RuleResult:
-    """``remembered``: nhóm (trong 9 nhóm) mà bảng nhớ cũ của người dùng đã có cho cửa hàng này."""
-    if not remembered and (brand_slug := brand_backend_slug(merchant)):  # thương hiệu có nhóm ngoài 9 nhóm bộ luật (Con Cưng → family): trả thẳng slug backend
-        return RuleResult(brand_slug, None, "brand", 0.8)
-    category, source, confidence = classify_category_detailed(merchant, lines, remembered=remembered)
-    if not remembered and source == "brand" and confidence < 0.8 and (slug := brand_backend_slug(" ".join(lines))):
+def classify_by_rules(merchant: str | None, lines: list[str]) -> RuleResult:
+    if brand_slug := brand_backend_slug(merchant):  # thương hiệu có nhóm ngoài 9 nhóm bộ luật (Con Cưng → family): trả thẳng slug backend
+        return RuleResult(brand_slug, None, "brand", _BRAND_IN_MERCHANT)
+    category, source, confidence = classify_category_detailed(merchant, lines)
+    if source == "brand" and confidence < _BRAND_IN_MERCHANT and (slug := brand_backend_slug(" ".join(lines))):
         # thương hiệu chỉ thấy ở thân bill ("App KidsPlaza" ở chân phiếu, website) vì tên cửa hàng đọc sai: cùng ngoại lệ nhóm backend như khi nó nằm ở tên cửa hàng
         return RuleResult(slug, None, "brand", min(confidence, MAX_CONFIDENCE))
-    if not remembered and (source in ("product", "none") or (source == "brand" and confidence < 0.8)) and (voted := item_vote_slug(lines)):
+    if (source in ("product", "none") or (source == "brand" and confidence < _BRAND_IN_MERCHANT)) and (voted := item_vote_slug(lines)):
         # nhóm cục bộ chỉ đến từ từ khóa sản phẩm / tên thương hiệu của món (bút Thiên Long), không phải từ cửa hàng: theo luật từng món
         return RuleResult(voted[0], None, "product", min(voted[1], MAX_CONFIDENCE))
     known = source != "none"

@@ -1,0 +1,118 @@
+{"text": "cà phê 45k", "amount": 45000, "group": "digits"}
+{"text": "ăn phở 45 nghìn", "amount": 45000, "group": "digits"}
+{"text": "ăn trưa 35 ngàn", "amount": 35000, "group": "digits"}
+{"text": "mua áo 150k", "amount": 150000, "group": "digits"}
+{"text": "tiền nhà 3 triệu", "amount": 3000000, "group": "digits"}
+{"text": "lương 15 triệu", "amount": 15000000, "group": "digits"}
+{"text": "mua laptop 23tr5", "amount": 23500000, "group": "digits"}
+{"text": "đi grab 1tr2", "amount": 1200000, "group": "digits"}
+{"text": "gửi xe 5k", "amount": 5000, "group": "digits"}
+{"text": "mua giày 1 triệu rưỡi", "amount": 1500000, "group": "digits"}
+{"text": "đóng học phí 12tr", "amount": 12000000, "group": "digits"}
+{"text": "mua xe máy 35 triệu", "amount": 35000000, "group": "digits"}
+{"text": "trà đá 3k", "amount": 3000, "group": "digits"}
+{"text": "bánh mì 12k5", "amount": 12500, "group": "digits"}
+{"text": "cà phê 45.000", "amount": 45000, "group": "grouping"}
+{"text": "ăn phở 45,000 đồng", "amount": 45000, "group": "grouping"}
+{"text": "ăn phở 45.000đ", "amount": 45000, "group": "grouping"}
+{"text": "mua áo 150.000 vnd", "amount": 150000, "group": "grouping"}
+{"text": "tiền điện 1.250.000", "amount": 1250000, "group": "grouping"}
+{"text": "mua tủ lạnh 8,500,000đ", "amount": 8500000, "group": "grouping"}
+{"text": "tiền nhà 3.500.000 đồng", "amount": 3500000, "group": "grouping"}
+{"text": "ăn phở 45 000 đồng", "amount": 45000, "group": "grouping"}
+{"text": "mua sách 120 000đ", "amount": 120000, "group": "grouping"}
+{"text": "lương 15,5 triệu", "amount": 15500000, "group": "grouping"}
+{"text": "mua laptop 23.5 triệu", "amount": 23500000, "group": "grouping"}
+{"text": "ăn phở 20 ngàn đồng", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 20 nghìn đồng", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 20 nghìn đ", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 20k vnd", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 20 ngàn tiền mặt", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở hai mươi ngàn đồng", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở hai chục ngàn đồng", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 2 chục ngàn đồng", "amount": 20000, "group": "currency_word"}
+{"text": "ăn phở 20 ngàn đồng một tô", "amount": 20000, "group": "currency_word"}
+{"text": "trả 20 ngàn đồng tiền gửi xe", "amount": 20000, "group": "currency_word"}
+{"text": "cà phê Highland bốn mươi lăm ngàn", "amount": 45000, "group": "words"}
+{"text": "ăn phở hai mươi lăm nghìn", "amount": 25000, "group": "words"}
+{"text": "mua áo một trăm năm mươi ngàn", "amount": 150000, "group": "words"}
+{"text": "đổ xăng năm chục nghìn", "amount": 50000, "group": "words"}
+{"text": "tiền điện một trăm lẻ năm nghìn", "amount": 105000, "group": "words"}
+{"text": "trả tiền nhà ba triệu", "amount": 3000000, "group": "words"}
+{"text": "nhận lương mười lăm triệu", "amount": 15000000, "group": "words"}
+{"text": "mua laptop hai mươi ba triệu năm trăm", "amount": 23500000, "group": "words"}
+{"text": "ăn sáng hai mươi tư nghìn", "amount": 24000, "group": "words"}
+{"text": "cà phê hai mươi mốt nghìn", "amount": 21000, "group": "words"}
+{"text": "hai triệu rưỡi tiền học", "amount": 2500000, "group": "words"}
+{"text": "một triệu hai tiền điện thoại", "amount": 1200000, "group": "words"}
+{"text": "ăn tối hai mươi nhăm nghìn", "amount": 25000, "group": "words"}
+{"text": "chín mươi chín nghìn mua sách", "amount": 99000, "group": "words"}
+{"text": "mười hai nghìn bánh mì", "amount": 12000, "group": "words"}
+{"text": "ba triệu tư tiền trọ", "amount": 3400000, "group": "words"}
+{"text": "hai nghìn rưỡi gửi xe", "amount": 2500, "group": "words"}
+{"text": "một nghìn rưỡi trà đá", "amount": 1500, "group": "words"}
+{"text": "sáu trăm nghìn tiền điện", "amount": 600000, "group": "words"}
+{"text": "tám mươi tám nghìn cắt tóc", "amount": 88000, "group": "words"}
+{"text": "một trăm hai mươi nghìn đi chợ", "amount": 120000, "group": "words"}
+{"text": "hai trăm năm chục nghìn đổ xăng", "amount": 250000, "group": "words"}
+{"text": "bốn lăm ngàn cà phê", "amount": 45000, "group": "stt_variant"}
+{"text": "ba lăm nghìn trà đá", "amount": 35000, "group": "stt_variant"}
+{"text": "ăn phở 2 mươi lăm nghìn", "amount": 25000, "group": "stt_variant"}
+{"text": "ăn phở 20 ngan dong", "amount": 20000, "group": "stt_variant"}
+{"text": "ăn phở bốn mươi lăm ngàn đồng nhé", "amount": 45000, "group": "stt_variant"}
+{"text": "bán xe được một tỷ hai", "amount": 1200000000, "group": "large"}
+{"text": "mua nhà hai tỷ rưỡi", "amount": 2500000000, "group": "large"}
+{"text": "căn hộ 3 tỷ", "amount": 3000000000, "group": "large"}
+{"text": "mua đất 1,2 tỷ", "amount": 1200000000, "group": "large"}
+{"text": "bán nhà 2 tỷ 5", "amount": 2500000000, "group": "large"}
+{"text": "tiền cọc mười triệu", "amount": 10000000, "group": "large"}
+{"text": "tiền trọ 1 củ", "amount": 1000000, "group": "slang"}
+{"text": "tiền nhà hai củ", "amount": 2000000, "group": "slang"}
+{"text": "lương 14 củ 5", "amount": 14500000, "group": "slang"}
+{"text": "tiền nhà 3 củ 8", "amount": 3800000, "group": "slang"}
+{"text": "tiền nhà 2 củ rưỡi", "amount": 2500000, "group": "slang"}
+{"text": "hai củ tiền trọ", "amount": 2000000, "group": "slang"}
+{"text": "một củ rưỡi tiền nhà", "amount": 1500000, "group": "slang"}
+{"text": "mười củ tiền xe", "amount": 10000000, "group": "slang"}
+{"text": "mua điện thoại năm chai", "amount": 5000000, "group": "slang"}
+{"text": "mua xe ba chai rưỡi", "amount": 3500000, "group": "slang"}
+{"text": "tiền trọ 2 chai", "amount": 2000000, "group": "slang"}
+{"text": "mua sạc 1 lít 2", "amount": 120000, "group": "slang"}
+{"text": "cho mượn 2 lít", "amount": 200000, "group": "slang"}
+{"text": "đưa mẹ năm lít", "amount": 500000, "group": "slang"}
+{"text": "đi ăn ba lít rưỡi", "amount": 350000, "group": "slang"}
+{"text": "mua giày hai lốp", "amount": 200000, "group": "slang"}
+{"text": "mua nón năm sọi", "amount": 500000, "group": "slang"}
+{"text": "chốt căn hộ 5 tỏi", "amount": 5000000000, "group": "slang"}
+{"text": "mua nhà ba tỏi hai", "amount": 3200000000, "group": "slang"}
+{"text": "2 ly cà phê 45k", "amount": 45000, "group": "distractor"}
+{"text": "ăn 2 tô phở hết 100 nghìn", "amount": 100000, "group": "distractor"}
+{"text": "ngày 15 tháng 9 ăn phở 40k", "amount": 40000, "group": "distractor"}
+{"text": "lúc 12 giờ trưa ăn cơm 35k", "amount": 35000, "group": "distractor"}
+{"text": "mua 2 lít sữa 50k", "amount": 50000, "group": "distractor"}
+{"text": "đổ 2 lít xăng 100k", "amount": 100000, "group": "distractor"}
+{"text": "mua 2 củ cải 20k", "amount": 20000, "group": "distractor"}
+{"text": "mua 2 chai bia 60k", "amount": 60000, "group": "distractor"}
+{"text": "3 chai nước 30k", "amount": 30000, "group": "distractor"}
+{"text": "2 chai coca 30k", "amount": 30000, "group": "distractor"}
+{"text": "tháng 10 tiền nhà ba triệu rưỡi", "amount": 3500000, "group": "distractor"}
+{"text": "năm 2026 nhận lương 15 triệu", "amount": 15000000, "group": "distractor"}
+{"text": "từ công ty nhận mười lăm triệu", "amount": 15000000, "group": "distractor"}
+{"text": "làm xong nhận hai trăm nghìn", "amount": 200000, "group": "distractor"}
+{"text": "sau đó trả năm chục nghìn", "amount": 50000, "group": "distractor"}
+{"text": "mua 3 cái áo tổng hai trăm bảy mươi nghìn", "amount": 270000, "group": "distractor"}
+{"text": "chuyển khoản cho mẹ hai triệu rưỡi", "amount": 2500000, "group": "distractor"}
+{"text": "rút tiền từ ngân hàng ba triệu", "amount": 3000000, "group": "distractor"}
+{"text": "ăn phở 5 xị", "amount": null, "group": "ambiguous", "note": "xị: 10.000 theo FPT Shop/35express, repo đang để 100.000"}
+{"text": "ăn phở 45 cành", "amount": null, "group": "ambiguous", "note": "cành: chat đọc 1.000, nguồn khác ghi 100.000"}
+{"text": "bán mèo 3 cá", "amount": null, "group": "ambiguous", "note": "cá = triệu theo một nguồn Gen Z"}
+{"text": "ăn tối 3 quả", "amount": null, "group": "ambiguous", "note": "quả = triệu theo một nguồn"}
+{"text": "đưa 2 vé", "amount": null, "group": "ambiguous", "note": "vé: 100 USD hay 100.000đ"}
+{"text": "mua một cọc", "amount": null, "group": "ambiguous", "note": "cọc: không có nguồn"}
+{"text": "năm trăm", "amount": null, "group": "ambiguous", "note": "500 hay 500.000"}
+{"text": "ba chục", "amount": null, "group": "ambiguous", "note": "30 hay 30.000"}
+{"text": "hai trăm rưỡi", "amount": null, "group": "ambiguous", "note": "250 hay 250.000"}
+{"text": "ăn phở năm lăm", "amount": null, "group": "ambiguous", "note": "55.000 là suy luận, không có nguồn"}
+{"text": "ba rưỡi", "amount": null, "group": "ambiguous", "note": "3.500 hay 3,5 triệu"}
+{"text": "ăn phở 45", "amount": null, "group": "ambiguous", "note": "thiếu đơn vị"}
+{"text": "ăn sáng năm mươi", "amount": null, "group": "ambiguous", "note": "thiếu đơn vị"}

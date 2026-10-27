@@ -122,6 +122,30 @@ def test_short_chat_words_still_work_in_chat():
     assert resolve("di cho", chat=True).slug == "food"
 
 
+@pytest.mark.parametrize("phrase", ["kẹo", "mua kẹo", "mua kẹo hết 10k"])
+def test_candy_is_food_in_chat(phrase):
+    assert resolve(phrase, chat=True) == Resolution("food", "keyword")
+
+
+@pytest.mark.parametrize("phrase", ["cho con", "cho mẹ", "cho con 10k", "cho ba mẹ"])
+def test_a_recipient_phrase_alone_is_still_family(phrase):
+    assert resolve(phrase, chat=True).slug == "family"
+
+
+@pytest.mark.parametrize(
+    ("phrase", "slug"),
+    [
+        ("cho con 10k mua kẹo", "food"),
+        ("mua kẹo hết 10k cho con", "food"),
+        ("cho vợ mua cà phê", "food"),
+        ("cho con đóng học phí", "education"),  # "hoc phi" và "cho con" cùng 7 ký tự: trước đây hòa thì Gia đình thắng
+        ("cho con mua sữa bột", "family"),  # món cũng là Gia đình: không đổi
+    ],
+)
+def test_an_item_keyword_beats_the_recipient_it_is_bought_for(phrase, slug):
+    assert resolve(phrase, chat=True).slug == slug
+
+
 def test_resolve_uses_one_snapshot_of_the_index(monkeypatch):
     monkeypatch.setattr(category_resolver, "_get_state", lambda: ({"sua bot": "family"}, 2, frozenset()))
     assert resolve("sua bot").slug == "family"  # số từ tối đa lấy cùng bản chụp với chỉ mục, kể cả khi invalidate() chạy xen giữa
