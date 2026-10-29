@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from app.bill.gemini import GeminiFailed
+from app.core.config import settings
 from app.core.enums import ExtractionMethod, TransactionType
 from app.pipeline.stages.ai_categorizer import AiDeps, categorize_with_ai
 from app.pipeline.stages.categorizer import CategorizationOutcome
@@ -118,3 +118,7 @@ async def test_a_cache_hit_still_categorizes_without_calling_gemini():
     knowledge = FakeKnowledge(cache={"mua quan ao": "shopping"})
     got = await categorize_with_ai(RULE_OTHER, extraction("mua quan ao"), True, AiDeps(gemini, knowledge, "LUAT"), timeout=1.0)
     assert (got.category_slug, got.confidence) == ("shopping", 0.70) and gemini.calls == []
+
+
+def test_notification_timeout_exceeds_the_gemini_chain_timeout_so_the_breaker_trips_first():
+    assert settings.notification_ai_timeout_seconds > settings.chat_gemini_overall_seconds

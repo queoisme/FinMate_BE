@@ -119,6 +119,7 @@ def test_pattern_description_is_flagged_narrative(matcher, now):
         now,
         "MB Bank",
     )
+    assert outcome.matched_pattern_name is not None
     assert outcome.description == "TT QR HIGHLANDS COFFEE"
     assert outcome.description_is_narrative is True
 
@@ -136,3 +137,39 @@ def test_pattern_with_description_field_keeps_it_and_flags_narrative(now):
     outcome = _from_pattern(matched, "so du 9,999,999 VND mua tra sua", now)
     assert outcome.description == "mua tra sua"
     assert outcome.description_is_narrative is True
+
+
+def _pattern_without_description():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        amount_cents=4_915_000, transaction_type=TransactionType.DEBIT, merchant_name=None,
+        description=None, occurred_at_raw=None, balance_after_cents=None,
+        pattern_name="p", pattern_id=None, extra_fields=None,
+    )
+
+
+def test_pattern_without_description_group_falls_back_to_the_nd_label(now):
+    from app.pipeline.stages.extractor import _from_pattern
+
+    outcome = _from_pattern(_pattern_without_description(), "TK 01|GD: -4,915,000VND|SD: 4,915,000VND. ND: mua quan ao", now)
+    assert outcome.description == "mua quan ao"
+    assert outcome.description_is_narrative is True
+
+
+async def test_pattern_without_label_is_not_narrative_and_never_reaches_gemini(now):
+    from app.core.enums import ExtractionMethod
+    from app.pipeline.stages.ai_categorizer import AiDeps, categorize_with_ai
+    from app.pipeline.stages.categorizer import CategorizationOutcome
+    from app.pipeline.stages.extractor import _from_pattern
+    from app.utils.text_utils import normalize_whitespace
+    from tests.unit.test_item_classifier import FakeGemini, FakeKnowledge
+
+    body = "TK 01|GD: -4,915,000VND  SD: 4,915,000VND tai cua hang"
+    outcome = _from_pattern(_pattern_without_description(), body, now)
+    assert outcome.description == normalize_whitespace(body)[:255]
+    assert outcome.description_is_narrative is False
+    gemini = FakeGemini(lambda n: "shopping")
+    rule = CategorizationOutcome("other", 0.3, ExtractionMethod.RULE)
+    got = await categorize_with_ai(rule, outcome, True, AiDeps(gemini, FakeKnowledge(), "LUAT"), timeout=1.0)
+    assert got == rule and gemini.calls == []

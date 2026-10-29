@@ -1,14 +1,20 @@
 """Tài liệu cấu hình sửa từ trang quản trị (app/services/config_documents.py): bản nháp sai bị chặn TRƯỚC khi chạm vào dịch vụ, và bản đúng thay nóng được hành vi thật."""
 
+import asyncio
 import copy
+import re
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
+from app import main as app_main
 from app.bill import lexicon
+from app.db.models.config_document import ConfigDocument
 from app.bill.rules_admin import RuleError
 from app.services import config_documents as docs
-from app.services import intent_cues
+from app.services import intent_cues, narrative
 from app.services.transaction_parser import VN, parse_chat
 
 NOW = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
@@ -236,16 +242,6 @@ def test_the_preview_flags_a_document_that_makes_chat_worse_and_restores_the_act
 
 
 # ---------------------------------------------------------------- seed_defaults (session giả: không cần Postgres)
-
-import asyncio
-import re
-from types import SimpleNamespace
-from unittest.mock import patch
-
-from app import main as app_main
-from app.db.models.config_document import ConfigDocument
-from app.services import narrative
-
 
 class FakeSession:
     """Chỉ ghi lại các lời gọi; ``existing`` là thứ ``scalar`` trả về (None = DB chưa có dòng nào cùng tên)."""
