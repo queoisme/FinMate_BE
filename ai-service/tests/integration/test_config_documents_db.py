@@ -217,3 +217,21 @@ async def test_the_admin_api_needs_the_internal_key_and_an_actor(client, auth_he
     no_actor = await client.post("/api/v1/admin/config/documents/intent_cues/drafts", json={"content": edited(), "note": "thử"}, headers=auth_headers)
     assert no_actor.status_code == 422  # thiếu X-Actor-Hash
     assert (await client.get("/api/v1/admin/config/documents/khong_co", headers=auth_headers)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_seed_defaults_adds_one_active_row_once_and_db_then_wins(session):
+    assert await docs.seed_defaults(session) == {"narrative_labels": 1}
+    assert await docs.seed_defaults(session) == {"narrative_labels": 0}
+    rows = (await session.execute(select(ConfigDocument).where(ConfigDocument.name == "narrative_labels"))).scalars().all()
+    assert [(r.version, r.status) for r in rows] == [(1, "active")]
+    assert (await docs.active_document(session, "narrative_labels"))["source"] == "db"
+
+
+@pytest.mark.asyncio
+async def test_seed_defaults_does_not_touch_a_document_an_admin_already_saved(session):
+    session.add(ConfigDocument(name="narrative_labels", version=3, status="archived", content={"labels": ["x"]}, created_by=ACTOR))
+    await session.commit()
+    assert await docs.seed_defaults(session) == {"narrative_labels": 0}
+    count = await session.scalar(select(func.count()).select_from(ConfigDocument).where(ConfigDocument.name == "narrative_labels"))
+    assert count == 1

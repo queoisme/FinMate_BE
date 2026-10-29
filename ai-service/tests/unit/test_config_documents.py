@@ -233,3 +233,86 @@ def test_the_preview_flags_a_document_that_makes_chat_worse_and_restores_the_act
     assert result["available"] and result["delta"] < 0 and result["changed_total"] >= 1
     assert result["changed"][0]["before"] != result["changed"][0]["after"]
     assert intent_cues.current() is active  # xem trước chỉ đổi tạm, không để lại dấu vết
+
+
+# ---------------------------------------------------------------- seed_defaults (session giả: không cần Postgres)
+
+import asyncio
+import re
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from app import main as app_main
+from app.db.models.config_document import ConfigDocument
+from app.services import narrative
+
+
+class FakeSession:
+    """Chỉ ghi lại các lời gọi; ``existing`` là thứ ``scalar`` trả về (None = DB chưa có dòng nào cùng tên)."""
+
+    def __init__(self, existing=None):
+        self.existing, self.added, self.commits, self.scalars = existing, [], 0, 0
+
+    async def scalar(self, _statement):
+        self.scalars += 1
+        return self.existing
+
+    def add(self, row):
+        self.added.append(row)
+        self.existing = row.id or "row"  # lần gọi sau trên cùng "DB" phải thấy dòng vừa thêm
+
+    async def commit(self):
+        self.commits += 1
+
+
+def test_spec_seed_flag_defaults_false_and_only_narrative_labels_sets_it():
+    assert [name for name, spec in docs.SPECS.items() if spec.seed] == ["narrative_labels"]
+    assert docs.Spec.__dataclass_fields__["seed"].default is False
+
+
+def test_seed_defaults_inserts_version_one_active_when_db_is_empty():
+    session = FakeSession()
+    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 1}
+    (row,) = session.added
+    assert isinstance(row, ConfigDocument)
+    assert (row.name, row.version, row.status) == ("narrative_labels", 1, "active")
+    assert row.content == narrative.default_data()
+    assert row.note == "seed từ bản mặc định"
+    assert re.fullmatch(r"[0-9a-f]{64}", row.created_by)  # chk_config_documents_created_by
+    assert session.commits == 1
+
+
+def test_seed_defaults_skips_when_a_row_already_exists_and_a_second_run_changes_nothing():
+    session = FakeSession(existing="admin-row")
+    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 0}
+    assert session.added == []
+
+    session = FakeSession()
+    asyncio.run(docs.seed_defaults(session))
+    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 0}
+    assert len(session.added) == 1
+
+
+def test_seed_defaults_touches_only_specs_with_seed_true():
+    plain = docs.SPECS["intent_cues"]
+    assert not plain.seed
+    session = FakeSession()
+    asyncio.run(docs.seed_defaults(session))
+    assert session.scalars == 1 and {row.name for row in session.added} == {"narrative_labels"}
+
+
+def test_startup_seed_failure_is_logged_not_raised_and_flag_off_skips_db():
+    class Boom:
+        async def __aenter__(self):
+            raise RuntimeError("db down")
+
+        async def __aexit__(self, *_):
+            return False
+
+    with patch.object(app_main, "AsyncSessionLocal", lambda: Boom()):
+        asyncio.run(app_main.seed_config_documents())  # không ném
+
+    with patch.object(app_main, "AsyncSessionLocal", side_effect=AssertionError("must not open a session")), patch.object(
+        app_main, "settings", SimpleNamespace(seed_config_documents=False)
+    ):
+        asyncio.run(app_main.seed_config_documents())

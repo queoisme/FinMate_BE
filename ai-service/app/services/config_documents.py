@@ -10,6 +10,7 @@ Ba lớp bảo vệ để một lần sửa sai không làm hỏng dịch vụ h
 Không có bản đang chạy trong DB thì dùng bản mặc định (tệp trong image). Không log nội dung tài liệu."""
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import re
@@ -439,6 +440,7 @@ class Spec:
     apply: Callable[[dict], None] | None  # áp dụng vào TIẾN TRÌNH NÀY (ai-service); dịch vụ khác tự nạp từ DB
     preview: Callable[[dict], dict] | None
     upgrade: Callable[[dict], dict] | None = None  # bổ sung khóa mà code thêm SAU khi tài liệu được lưu vào DB; chỉ dùng cho nội dung đọc từ DB, không dùng cho bản nháp vừa tải lên
+    seed: bool = False  # True: lúc khởi động, nếu DB chưa có dòng nào của tài liệu này thì ghi bản mặc định thành version 1 đang chạy (xem seed_defaults)
 
 
 def stored_content(spec: Spec, content: dict) -> dict:
@@ -453,7 +455,7 @@ SPECS: dict[str, Spec] = {
                             vocab.apply, _preview_chat_dictionary),
     "merchant_lexicon": Spec("merchant_lexicon", "Từ điển tên cửa hàng (thông báo ngân hàng và bộ phân loại chung)", ("ai-service",), categorizer.default_lexicon_data,
                              _validate_merchant_lexicon, categorizer.apply_lexicon, _preview_merchant_lexicon),
-    "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None),
+    "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None, seed=True),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
     "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),
     "thresholds": Spec("thresholds", "Ngưỡng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("thresholds.json"), _validate_thresholds, None, None),
@@ -489,6 +491,24 @@ def diff(old: object, new: object) -> dict:
 
 async def _active_row(session: AsyncSession, name: str) -> ConfigDocument | None:
     return await session.scalar(select(ConfigDocument).where(ConfigDocument.name == name, ConfigDocument.status == "active"))
+
+
+SEED_ACTOR = hashlib.sha256(b"system").hexdigest()  # created_by phải là 64 ký tự hex (chk_config_documents_created_by); đây là "danh tính" của lần seed khi khởi động
+
+
+async def seed_defaults(session: AsyncSession) -> dict[str, int]:
+    """Ghi bản mặc định của mỗi tài liệu ``seed=True`` thành version 1 đang chạy, CHỈ khi DB chưa có dòng nào cùng tên (DB luôn thắng).
+    Trả {tên: 1 nếu vừa thêm, 0 nếu bỏ qua}. Chạy lại bao nhiêu lần cũng không đổi gì; commit một lần."""
+    added: dict[str, int] = {}
+    for spec in SPECS.values():
+        if not spec.seed:
+            continue
+        exists = await session.scalar(select(ConfigDocument.id).where(ConfigDocument.name == spec.name).limit(1))
+        added[spec.name] = 0 if exists else 1
+        if not exists:
+            session.add(ConfigDocument(name=spec.name, version=1, status="active", content=spec.default(), note="seed từ bản mặc định", created_by=SEED_ACTOR))
+    await session.commit()
+    return added
 
 
 async def active_document(session: AsyncSession, name: str) -> dict:

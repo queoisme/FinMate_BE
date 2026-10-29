@@ -29,10 +29,20 @@ from app.core.logging import configure_logging
 from app.db.seed_patterns import seed
 from app.db.session import AsyncSessionLocal
 from app.pipeline.orchestrator import pipeline
-from app.services import category_registry, config_runtime, nlu_candidates, retention
+from app.services import category_registry, config_documents, config_runtime, nlu_candidates, retention
 
 configure_logging()
 logger = structlog.get_logger(__name__)
+
+
+async def seed_config_documents() -> None:
+    """Seed tài liệu cấu hình mặc định; lỗi chỉ được log (loại lỗi), không bao giờ làm sập khởi động."""
+    try:  # bản mặc định narrative_labels -> DB nếu chưa có phiên bản nào (DB thắng); lỗi thì tài liệu dùng bản trong image
+        if settings.seed_config_documents:
+            async with AsyncSessionLocal() as session:
+                logger.info("config_documents_seeded", **await config_documents.seed_defaults(session))
+    except Exception as error:  # noqa: BLE001
+        logger.error("config_documents_seed_failed", error_type=type(error).__name__)
 
 
 @asynccontextmanager
@@ -62,6 +72,7 @@ async def lifespan(app: FastAPI):
         logger.info("slug_model_loaded", active=slug_model.active() is not None)
     except Exception as error:  # noqa: BLE001
         logger.error("slug_model_startup_failed", error_type=type(error).__name__)
+    await seed_config_documents()
     try:  # tài liệu cấu hình admin đã kích hoạt (từ vựng hiểu câu chat...): có thì áp dụng, DB trống hoặc lỗi thì dùng bản mặc định trong image
         logger.info("config_documents_loaded", applied=await config_runtime.refresh())
     except Exception as error:  # noqa: BLE001

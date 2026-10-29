@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # không đụng dòng đã có. Tắt thì chuỗi mới thêm vào code chỉ đến DB cũ qua script tay hoặc API quản trị.
     seed_bill_knowledge: bool = True
 
+    # Ghi bản mặc định của các tài liệu cấu hình có seed=True (hiện là narrative_labels) vào config_documents lúc khởi động khi DB chưa có
+    # phiên bản nào; có rồi thì không đụng. Tắt thì tài liệu đó dùng bản trong image cho tới khi admin lưu bản đầu tiên.
+    seed_config_documents: bool = True
+
     # OCR service riêng (PaddleOCR + VietOCR). Đặt cả URL lẫn khóa thì /ocr dùng nó; để trống thì /ocr vẫn dùng
     # Tesseract trong tiến trình này.
     ocr_service_url: str | None = None
