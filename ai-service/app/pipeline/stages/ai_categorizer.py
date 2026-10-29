@@ -8,6 +8,7 @@ Không log nội dung, chỉ loại lỗi.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, replace
 
 import structlog
@@ -34,6 +35,21 @@ class AiDeps:
     instruction: str
 
 
+# Phần còn sót của anonymize_body ("xxxx5678", "xxxx xxxx xxxx 9012"), số gắn đơn vị tiền ("12345678VND", "50d"), rồi mọi dãy số có từ 4 chữ số trở lên
+# kể cả khi các nhóm cách nhau bằng dấu cách . , - / (số điện thoại, số tài khoản, ngày, số tiền, số dư). Số 1-3 chữ số ("2 ly trà sữa") được giữ vì mang nghĩa.
+# Giới hạn còn lại: TÊN NGƯỜI trong nội dung ("chuyen tien cho nguyen van a") không loại được ở đây; được che bởi sự đồng ý AI của người dùng.
+_MASKED_RE = re.compile(r"\bx{2,}(?:[\s.\-]*x+)*[\s.\-]*\d*", re.IGNORECASE)
+_MONEY_UNIT_RE = re.compile(r"\d[\d.,\s]*\s?(?:vnd|đ|d)(?!\w)", re.IGNORECASE)
+_NUMBER_RUN_RE = re.compile(r"\d+(?:[\s.,/\-]\d+)*")
+_MIN_ID_DIGITS = 4
+
+
+def _scrub(text: str) -> str:
+    text = _MONEY_UNIT_RE.sub(" ", _MASKED_RE.sub(" ", text))
+    text = _NUMBER_RUN_RE.sub(lambda m: " " if sum(c.isdigit() for c in m.group()) >= _MIN_ID_DIGITS else m.group(), text)
+    return " ".join(text.split())
+
+
 def _is_unmatched_rule_result(outcome: CategorizationOutcome) -> bool:
     # Từ điển (merchant_categories.json) không có khóa "other" nên "other" từ luật luôn là không khớp; "other" của mô hình học (method MODEL) là quyết định của mô hình: không đè.
     return outcome.category_slug == FALLBACK_CATEGORY_SLUG and outcome.method == ExtractionMethod.RULE
@@ -42,8 +58,8 @@ def _is_unmatched_rule_result(outcome: CategorizationOutcome) -> bool:
 def _phrase_to_send(extraction: ExtractionOutcome) -> str | None:
     if extraction.transaction_type != TransactionType.DEBIT or not extraction.description_is_narrative or not extraction.description:
         return None
-    phrase = anonymize_body(extraction.description)
-    if not _strip_money(phrase) or resolve(phrase).slug == "health":
+    phrase = _scrub(anonymize_body(extraction.description))
+    if not any(c.isalpha() for c in _strip_money(phrase)) or resolve(phrase).slug == "health":
         return None  # rỗng sau khi bỏ số tiền, hoặc đồ sức khỏe: không bao giờ gửi ra ngoài
     return phrase
 
@@ -58,7 +74,7 @@ async def categorize_with_ai(
         return outcome
     try:
         out, _ = await asyncio.wait_for(
-            classify_items([ClassifyItemIn(name=phrase, parent=None)], None, deps.knowledge, deps.gemini, deps.instruction, True), timeout,
+            classify_items([ClassifyItemIn(name=phrase, parent=None)], None, deps.knowledge, deps.gemini, deps.instruction, True, remember=False), timeout,  # không ghi nội dung thông báo vào bảng nhớ dùng chung
         )
     except Exception as error:  # noqa: BLE001 - AI lỗi/chậm: giữ kết quả của luật
         logger.warning("notification_ai_failed", error_type=type(error).__name__)

@@ -82,3 +82,39 @@ async def test_slow_gemini_past_the_timeout_keeps_the_rule_result():
             return ["shopping"]
 
     assert await run("mua quan ao", Slow(), timeout=0.01) == RULE_OTHER
+
+
+@pytest.mark.parametrize("description, sent", [
+    ("chuyen tien cho nguyen van a 0912 345 678", "chuyen tien cho nguyen van a"),
+    ("chuyen tien cho nguyen van a 0912.345.678", "chuyen tien cho nguyen van a"),
+    ("tra no 1234567 ban Hung", "tra no ban Hung"),
+    ("so du 12345678VND an trua", "so du an trua"),
+    ("an trua 30/10/2026", "an trua"),
+    ("mua quan ao 1,234,567", "mua quan ao"),
+    ("stk xxxx5678 an trua", "stk an trua"),
+    ("ck xxxx xxxx xxxx 9012 mua quan ao", "ck mua quan ao"),
+    ("2 ly tra sua", "2 ly tra sua"),
+])
+async def test_identifiers_are_scrubbed_before_sending(description, sent):
+    gemini = FakeGemini(lambda n: "shopping")
+    await run(description, gemini)
+    assert gemini.calls == [[sent]]
+
+
+async def test_a_phrase_without_letters_after_scrubbing_is_not_sent():
+    gemini = FakeGemini(lambda n: "shopping")
+    assert await run("0912 345 678 xxxx5678", gemini) == RULE_OTHER and gemini.calls == []
+
+
+async def test_the_narrative_is_never_remembered_in_the_shared_cache():
+    knowledge = FakeKnowledge()
+    gemini = FakeGemini(lambda n: "shopping")
+    got = await categorize_with_ai(RULE_OTHER, extraction("mua quan ao"), True, AiDeps(gemini, knowledge, "LUAT"), timeout=1.0)
+    assert got.category_slug == "shopping" and knowledge.remembered_items == {}
+
+
+async def test_a_cache_hit_still_categorizes_without_calling_gemini():
+    gemini = FakeGemini(lambda n: "food")
+    knowledge = FakeKnowledge(cache={"mua quan ao": "shopping"})
+    got = await categorize_with_ai(RULE_OTHER, extraction("mua quan ao"), True, AiDeps(gemini, knowledge, "LUAT"), timeout=1.0)
+    assert (got.category_slug, got.confidence) == ("shopping", 0.70) and gemini.calls == []

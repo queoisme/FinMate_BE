@@ -81,6 +81,7 @@ async def classify_items(
     instruction: str,
     allow_ai: bool,
     stats: dict[str, int] | None = None,
+    remember: bool = True,  # False: không ghi tên món vào bảng nhớ dùng chung (văn bản người dùng tự viết, vd. nội dung thông báo)
 ) -> tuple[list[ClassifyItemOut], bool]:
     """``stats`` (tuỳ chọn): được điền số đếm để đo mức dùng Gemini (``ai_candidates``, ``ai_sent``, ``ai_failed``)."""
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
@@ -136,7 +137,7 @@ async def classify_items(
                     results[i] = (category, "ai")
                     if category_registry.is_spend(category) and _rememberable(items[i].name, keys[i]):
                         learned[keys[i]] = category
-            if learned:
+            if learned and remember:
                 await knowledge.remember_items(learned)
 
     # Luật làm dự phòng cho món AI không quyết (lỗi, "không rõ", hoặc nằm ngoài 20 món đầu).
