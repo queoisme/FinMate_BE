@@ -192,7 +192,7 @@ async def test_removing_the_active_row_returns_the_process_to_the_default(sessio
 async def test_the_admin_api_walks_the_whole_flow(client, auth_headers):
     headers = {**auth_headers, "X-Actor-Hash": ACTOR}
     listing = (await client.get("/api/v1/admin/config/documents", headers=auth_headers)).json()["items"]
-    assert {d["name"] for d in listing} == {"intent_cues", "chat_dictionary", "merchant_lexicon", "parsing_vocab", "thresholds", "app_screens"}
+    assert {d["name"] for d in listing} == {"intent_cues", "chat_dictionary", "merchant_lexicon", "narrative_labels", "parsing_vocab", "thresholds", "app_screens"}
 
     current = (await client.get("/api/v1/admin/config/documents/intent_cues", headers=auth_headers)).json()
     assert current["version"] == 0 and current["source"] == "file"

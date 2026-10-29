@@ -27,7 +27,7 @@ from app.db.models.config_document import ConfigDocument
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.enums import CATEGORY_SLUGS
 from app.pipeline.stages import categorizer
-from app.services import intent_cues, vocab
+from app.services import intent_cues, narrative, vocab
 from app.services.vi_text import fold
 
 MAX_DOCUMENT_BYTES = 1_000_000
@@ -197,6 +197,7 @@ def _validate_thresholds(content: dict) -> None:
 
 MAX_KEYWORDS_PER_GROUP = 2000
 MAX_KEYWORD_CHARS = 60
+MAX_NARRATIVE_LABELS = 30
 
 
 def _validate_chat_dictionary(content: dict) -> None:
@@ -255,6 +256,21 @@ def _validate_merchant_lexicon(content: dict) -> None:
             if word in seen:
                 raise _invalid("duplicate_keyword", f"Từ '{word}' có ở cả '{seen[word]}' và '{slug}': một từ chỉ được thuộc một danh mục (khớp từ dài trước, trùng thì kết quả bất định).")
             seen[word] = slug
+
+
+def _validate_narrative_labels(content: dict) -> None:
+    if set(content) != {"labels"} or not isinstance(content["labels"], list):
+        raise _invalid("invalid_document", "Tài liệu phải đúng một khóa 'labels' là mảng chuỗi.")
+    labels = content["labels"]
+    if len(labels) > MAX_NARRATIVE_LABELS:
+        raise _invalid("too_many_labels", f"Tối đa {MAX_NARRATIVE_LABELS} nhãn.")
+    seen: set[str] = set()
+    for label in labels:
+        if not isinstance(label, str) or label != fold(label) or label != " ".join(label.split()) or not 2 <= len(label) <= 20:
+            raise _invalid("invalid_label", f"Nhãn '{str(label)[:20]}': phải viết thường, bỏ dấu, gọn khoảng trắng, dài 2-20 ký tự (thông báo được bỏ dấu trước khi so khớp).")
+        if label in seen:
+            raise _invalid("duplicate_label", f"Nhãn '{label}' bị trùng.")
+        seen.add(label)
 
 
 def _lexicon_cases() -> list[tuple[str, str, str]]:
@@ -437,6 +453,7 @@ SPECS: dict[str, Spec] = {
                             vocab.apply, _preview_chat_dictionary),
     "merchant_lexicon": Spec("merchant_lexicon", "Từ điển tên cửa hàng (thông báo ngân hàng và bộ phân loại chung)", ("ai-service",), categorizer.default_lexicon_data,
                              _validate_merchant_lexicon, categorizer.apply_lexicon, _preview_merchant_lexicon),
+    "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
     "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),
     "thresholds": Spec("thresholds", "Ngưỡng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("thresholds.json"), _validate_thresholds, None, None),
