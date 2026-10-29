@@ -88,6 +88,8 @@ def test_select_amounts_without_balance():
         # Năm 2 chữ số — MB viết "20/08/24".
         ("20/08/24 15:30", datetime(2024, 8, 20, 15, 30, tzinfo=VIETNAM_TZ)),
         ("09.09.2026 10:28", datetime(2026, 9, 9, 10, 28, tzinfo=VIETNAM_TZ)),
+        # TPBank ngăn ngày và giờ bằng dấu chấm phẩy.
+        ("24/12/25;22:07", datetime(2025, 12, 24, 22, 7, tzinfo=VIETNAM_TZ)),
     ],
 )
 def test_parse_datetime_formats(raw, expected):

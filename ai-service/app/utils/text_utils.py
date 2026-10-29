@@ -292,7 +292,7 @@ _DAY_MONTH = rf"(\d{{1,2}}){_SEP}(\d{{1,2}})"
 
 _DATETIME_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?"), "ymd"),
-    (re.compile(rf"\b{_DAY_MONTH}{_SEP}({_YEAR})\s+{_TIME}"), "dmy_time"),
+    (re.compile(rf"\b{_DAY_MONTH}{_SEP}({_YEAR})[\s;]+{_TIME}"), "dmy_time"),  # TPBank ngăn ngày và giờ bằng ';'
     (re.compile(rf"\b{_TIME}\s+{_DAY_MONTH}{_SEP}({_YEAR})"), "time_dmy"),
     (re.compile(rf"\b{_TIME}\s+{_DAY_MONTH}\b"), "time_dm"),
     (re.compile(rf"\b{_DAY_MONTH}\s+{_TIME}"), "dm_time"),

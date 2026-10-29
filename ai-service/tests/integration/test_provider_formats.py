@@ -41,12 +41,12 @@ async def rejected(session, sql: str, **params) -> bool:
 async def test_seed_builds_one_active_format_per_package_with_fields_and_samples(seeded_session):
     session = seeded_session
     formats = (await session.execute(select(ProviderFormat))).scalars().all()
-    assert len(formats) == 5 and {f.status for f in formats} == {"active"} and {f.version for f in formats} == {1} and {f.created_by for f in formats} == {SYSTEM_ACTOR}
+    assert len(formats) == 8 and {f.status for f in formats} == {"active"} and {f.version for f in formats} == {1} and {f.created_by for f in formats} == {SYSTEM_ACTOR}
 
     fields = {(f.field_key, f.maps_to, f.is_required) for f in (await session.execute(select(ProviderFormatField).where(ProviderFormatField.format_id == (await mb_format(session)).id))).scalars()}
     assert ("amount", "amount_cents", True) in fields and ("merchant", "merchant_name", False) in fields
 
-    assert len((await session.execute(select(ProviderFormatSample))).scalars().all()) == 8  # mỗi pattern mặc định mang mẫu của chính nó
+    assert len((await session.execute(select(ProviderFormatSample))).scalars().all()) == 12  # mỗi pattern mặc định mang mẫu của chính nó
     for fmt in formats:
         assert await provider_formats.check_format(session, fmt.id) == [], fmt.package_name  # mọi định dạng mặc định đều qua cổng
 
@@ -54,7 +54,7 @@ async def test_seed_builds_one_active_format_per_package_with_fields_and_samples
 async def test_seed_twice_changes_nothing(seeded_session):
     session = seeded_session
     assert await seed(session) == 0
-    assert len((await session.execute(select(ProviderFormat))).scalars().all()) == 5
+    assert len((await session.execute(select(ProviderFormat))).scalars().all()) == 8
 
 
 async def test_matcher_uses_only_active_formats_and_records_which_pattern_matched(seeded_session):

@@ -19,7 +19,7 @@ def test_every_active_pattern_still_matches_its_own_sample(pattern_specs, matche
         assert matched.amount_cents > 0
 
 
-def test_all_five_providers_are_covered(pattern_specs):
+def test_seeded_providers_are_covered(pattern_specs):
     packages = {spec.package_name for spec in pattern_specs}
     assert packages == {
         "com.mbmobile",
@@ -27,6 +27,9 @@ def test_all_five_providers_are_covered(pattern_specs):
         "com.mservice.momotransfer",
         "vn.com.vng.zalopay",
         "vn.vnpay.vnpayewallet",
+        "com.vnpay.bidv",
+        "com.tpb.mb.gprsandroid",
+        "com.vnpay.Agribank3g",
     }
 
 
