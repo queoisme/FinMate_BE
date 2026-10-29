@@ -18,6 +18,7 @@
   "categorizer.lexicon_hit": {"value": 0.9, "doc": "Trúng từ điển cửa hàng là khớp CHÍNH XÁC một tên đã biết nên đáng tin hơn phỏng đoán. Phải >= ngưỡng một chạm: ở 0,80 mọi khoản chi rớt xuống nhánh hộp thoại, kể cả ca Highlands Coffee mà tài liệu Flow 1 lấy làm ví dụ cho nhánh một chạm."},
   "categorizer.credit_income": {"value": 0.95, "doc": "Tiền vào ví luôn là thu nhập trong taxonomy 11 danh mục, không có danh mục 'thu' nào khác để chọn nên không cần hỏi mô hình."},
   "categorizer.empty_text": {"value": 0.3, "doc": "Không có tên cửa hàng lẫn mô tả để phân loại: trả 'other' với độ tin cậy rất thấp."},
+  "categorizer.ai": {"value": 0.70, "doc": "AI phân loại phần nội dung của thông báo khi từ điển không khớp: khác luật nên luôn phải qua hộp thoại cho người dùng xác nhận, tức phải < ngưỡng một chạm 0,85 (backend.one_tap_threshold); nhưng đáng tin hơn 'other' không biết gì (categorizer.fallback 0,35)."},
   "categorizer.fallback":{"value": 0.35, "doc": "Không khớp từ khóa nào: trả 'other' với độ tin cậy thấp để ngưỡng một chạm đẩy sang hộp thoại chọn danh mục."},
 
   "receipt.base_with_marker": {"value": 0.55, "doc": "OCR hóa đơn: đọc được số tiền kèm nhãn tổng."},

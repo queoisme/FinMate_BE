@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     chat_gemini_timeout_seconds: float = 3.5  # trần cho TỪNG model: model chậm bị bỏ để thử model kế
     chat_gemini_overall_seconds: float = 7.5  # trần cả chuỗi: quá thì chuỗi tự thất bại và cầu dao mở 30 giây (chat dùng luật, không ai phải chờ)
     chat_ai_timeout_seconds: float = 9.0  # trần ngoài cùng của bước AI trong chat, lớn hơn hai trần trên để chuỗi tự thất bại trước
+    notification_ai_timeout_seconds: float = 6.0  # trần của bước AI phân loại nội dung thông báo trong /analyze: quá hạn thì giữ kết quả luật ('other')
     # Dự phòng khi mọi model Gemini đều lỗi (OpenRouter). Để trống khóa thì tắt. Đo 2026-10-13: nemotron-3-super:free 6-16s, đúng 5-6/6; gemma-4 :free bị 429
     openrouter_api_key: str | None = None
     openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"

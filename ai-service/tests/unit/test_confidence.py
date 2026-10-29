@@ -48,6 +48,10 @@ def test_guesses_and_receipts_always_go_to_the_dialog():
     assert max(get("bill.max_result"), get("remote.max_category"), get("bill.max_model")) < ONE_TAP
 
 
+def test_ai_category_is_above_the_fallback_and_below_one_tap():
+    assert get("categorizer.fallback") < get("categorizer.ai") < ONE_TAP  # AI khác luật: luôn qua hộp thoại
+
+
 def test_the_receipt_caps_agree_with_each_other():
     assert get("receipt.max") == get("remote.max_category") == get("bill.max_result")
     assert get("remote.review_cap") < get("receipt.max")  # bill tự đánh dấu cần xem lại không được chắc bằng bill bình thường
