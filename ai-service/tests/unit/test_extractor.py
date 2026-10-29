@@ -93,3 +93,46 @@ def test_extractor_on_full_corpus(matcher, corpus):
         elif outcome.transaction_type.value != label["transaction_type"]:
             errors.append(("sai chiều tiền", row["body"], outcome.transaction_type))
     assert errors == []
+
+
+_ND = "TK 1234 GD: -1,000,000VND luc 29-10-2026 09:15. SD: 4,915,000VND. ND: "
+
+
+def test_generic_uses_only_the_narrative_after_the_label(now):
+    outcome = extract_generic(_ND + "mua quan ao", now)
+    assert outcome.amount_cents == 1_000_000
+    assert outcome.description == "mua quan ao"
+    assert outcome.description_is_narrative is True
+    assert extract_generic(_ND + "Thanh toan ca phe", now).description == "Thanh toan ca phe"
+
+
+def test_generic_without_label_keeps_whole_text_and_flag_false(now):
+    outcome = extract_generic("Ban da chi 250,000 VND tai Highlands", now)
+    assert outcome.description == "Ban da chi 250,000 VND tai Highlands"
+    assert outcome.description_is_narrative is False
+
+
+def test_pattern_description_is_flagged_narrative(matcher, now):
+    outcome = Extractor(matcher).extract(
+        "com.mbmobile",
+        "TK 0123456789|GD: -75,000VND 09/09/2026 10:28|SD: 2,500,000VND|ND: TT QR HIGHLANDS COFFEE",
+        now,
+        "MB Bank",
+    )
+    assert outcome.description == "TT QR HIGHLANDS COFFEE"
+    assert outcome.description_is_narrative is True
+
+
+def test_pattern_with_description_field_keeps_it_and_flags_narrative(now):
+    from types import SimpleNamespace
+
+    from app.pipeline.stages.extractor import _from_pattern
+
+    matched = SimpleNamespace(
+        amount_cents=5_000, transaction_type=TransactionType.DEBIT, merchant_name=None,
+        description="mua tra sua", occurred_at_raw=None, balance_after_cents=None,
+        pattern_name="p", pattern_id=None, extra_fields=None,
+    )
+    outcome = _from_pattern(matched, "so du 9,999,999 VND mua tra sua", now)
+    assert outcome.description == "mua tra sua"
+    assert outcome.description_is_narrative is True

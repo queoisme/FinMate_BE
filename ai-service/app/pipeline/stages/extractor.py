@@ -19,6 +19,7 @@ from uuid import UUID
 
 from app.core import confidence as table  # tên khác: dataclass và hàm dưới có trường và biến `confidence`
 from app.core.enums import ExtractionMethod, TransactionType
+from app.services.narrative import extract_description
 from app.utils.provider_patterns import PatternMatcher
 from app.utils.text_utils import (
     normalize_whitespace,
@@ -110,6 +111,8 @@ class ExtractionOutcome:
     matched_pattern_name: str | None
     pattern_id: UUID | None = None  # dòng kb_provider_patterns đã khớp (None ở nhánh generic)
     extra_fields: dict[str, str | int] | None = None  # trường phụ của định dạng (không có thì None)
+    # True: `description` đúng là phần nội dung (nhãn hoặc trường mô tả của định dạng tách ra) — an toàn để gửi AI.
+    description_is_narrative: bool = False
 
 
 class Extractor:
@@ -146,11 +149,18 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
     )
     confidence = table.get("extractor.pattern_by_filled")[filled]
 
+    if matched.description:
+        description, is_narrative = matched.description, True
+    else:
+        flat = normalize_whitespace(body)
+        narrative = extract_description(flat)
+        description, is_narrative = narrative or flat[:255], narrative is not None
+
     return ExtractionOutcome(
         amount_cents=matched.amount_cents,
         transaction_type=matched.transaction_type or _infer_type(body),
         merchant_name=merchant,
-        description=matched.description or normalize_whitespace(body)[:255],
+        description=description,
         transacted_at=transacted_at,
         balance_after_cents=matched.balance_after_cents,
         confidence=confidence,
@@ -158,6 +168,7 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         matched_pattern_name=matched.pattern_name,
         pattern_id=matched.pattern_id,
         extra_fields=matched.extra_fields or None,
+        description_is_narrative=is_narrative,
     )
 
 
@@ -173,12 +184,13 @@ def extract_generic(
 
     transacted_at = parse_datetime(normalized, received_at) or received_at
     merchant = _merchant_after_preposition(normalized, candidate.end)
+    narrative = extract_description(normalized)
 
     return ExtractionOutcome(
         amount_cents=candidate.value,
         transaction_type=_infer_type(f"{title or ''} {normalized}"),
         merchant_name=merchant,
-        description=normalized[:255],
+        description=narrative or normalized[:255],
         transacted_at=transacted_at,
         balance_after_cents=selection.balance.value if selection.balance else None,
         # Thấp hơn hẳn nhánh pattern: đây là suy đoán, và ngưỡng 85% của Flow 1 nên đẩy
@@ -186,6 +198,7 @@ def extract_generic(
         confidence=table.get("extractor.generic_with_merchant" if merchant else "extractor.generic_without_merchant"),
         method=ExtractionMethod.RULE,
         matched_pattern_name=None,
+        description_is_narrative=narrative is not None,
     )
 
 
