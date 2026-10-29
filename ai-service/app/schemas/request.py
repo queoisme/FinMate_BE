@@ -23,6 +23,7 @@ class AnalyzeRequest(BaseModel):
     notification_title: str | None = None
     notification_body: str = Field(min_length=1)
     received_at: datetime
+    allow_ai: bool = False  # người dùng đã đồng ý AI; backend cũ không gửi → false → không bao giờ gọi AI
 
 
 class FeedbackRequest(BaseModel):

@@ -30,6 +30,7 @@ from app.db.models.raw_sample import RawSample
 from app.db.repositories import pipeline_repo, sample_repo
 from app.pipeline.models.model_registry import ModelRegistry, registry
 from app.pipeline.stages import duplicate_detector
+from app.pipeline.stages.ai_categorizer import AiDeps, categorize_with_ai
 from app.pipeline.stages.categorizer import Categorizer
 from app.pipeline.stages.classifier import MANUAL_ENTRY_PACKAGE, Classifier
 from app.pipeline.stages.extractor import Extractor
@@ -76,7 +77,7 @@ class Pipeline:
         await self._registry.ensure_loaded(session, force=force)
 
     async def analyze(
-        self, session: AsyncSession, request: AnalyzeRequest
+        self, session: AsyncSession, request: AnalyzeRequest, ai: AiDeps | None = None
     ) -> AnalyzeResponse:
         started = time.perf_counter()
         await self.refresh(session)
@@ -121,6 +122,13 @@ class Pipeline:
                     extraction.merchant_name,
                     extraction.description,
                     extraction.transaction_type,
+                )
+                categorization = await categorize_with_ai(
+                    categorization,
+                    extraction,
+                    request.allow_ai,
+                    ai,
+                    timeout=settings.notification_ai_timeout_seconds,
                 )
                 duplicate = await duplicate_detector.detect(
                     session,

@@ -42,6 +42,7 @@ _MASKED_RE = re.compile(r"\bx{2,}(?:[\s.\-]*x+)*[\s.\-]*\d*", re.IGNORECASE)
 _MONEY_UNIT_RE = re.compile(r"\d[\d.,\s]*\s?(?:vnd|đ|d)(?!\w)", re.IGNORECASE)
 _NUMBER_RUN_RE = re.compile(r"\d+(?:[\s.,/\-]\d+)*")
 _MIN_ID_DIGITS = 4
+_MAX_PHRASE_CHARS = 300
 
 
 def _scrub(text: str) -> str:
@@ -58,7 +59,7 @@ def _is_unmatched_rule_result(outcome: CategorizationOutcome) -> bool:
 def _phrase_to_send(extraction: ExtractionOutcome) -> str | None:
     if extraction.transaction_type != TransactionType.DEBIT or not extraction.description_is_narrative or not extraction.description:
         return None
-    phrase = _scrub(anonymize_body(extraction.description))
+    phrase = _scrub(anonymize_body(extraction.description[:_MAX_PHRASE_CHARS]))  # cắt trước khi che: _MONEY_UNIT_RE bậc hai trên dãy số/dấu cách rất dài
     if not any(c.isalpha() for c in _strip_money(phrase)) or resolve(phrase).slug == "health":
         return None  # rỗng sau khi bỏ số tiền, hoặc đồ sức khỏe: không bao giờ gửi ra ngoài
     return phrase

@@ -297,3 +297,68 @@ async def test_transacted_at_is_returned_in_utc(client, auth_headers, user_hash,
     assert parsed.utcoffset() == timedelta(0)
     # Vẫn đúng thời điểm, chỉ khác cách biểu diễn.
     assert parsed.astimezone(now.tzinfo).hour == 10
+
+
+NARRATIVE = "TK 1234 GD: -1,000,000VND luc 29-10-2026 09:15. SD: 4,915,000VND. ND: mua quan ao"
+NARRATIVE_CREDIT = "TK 1234 GD: +1,000,000VND luc 29-10-2026 09:15. SD: 4,915,000VND. ND: nhan tien mua quan ao"
+UNKNOWN_BANK = "com.unknown.bank"
+
+
+@pytest.fixture
+def fake_ai():
+    from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client
+    from app.main import app
+    from tests.unit.test_item_classifier import FakeGemini, FakeKnowledge
+
+    gemini = FakeGemini(lambda n: "shopping")
+    knowledge = FakeKnowledge()
+
+    async def instruction():
+        return "LUAT"
+
+    app.dependency_overrides[get_chat_gemini_client] = lambda: gemini
+    app.dependency_overrides[get_bill_knowledge] = lambda: knowledge
+    app.dependency_overrides[get_ai_instruction] = instruction
+    yield gemini, knowledge  # conftest.client xóa toàn bộ override khi kết thúc
+
+
+async def post(client, auth_headers, user_hash, now, body=NARRATIVE, **extra):
+    return await client.post(
+        "/api/v1/analyze",
+        json=payload(user_hash, now, package=UNKNOWN_BANK, body=body) | extra,
+        headers=auth_headers,
+    )
+
+
+async def test_allow_ai_categorizes_the_narrative_of_an_unknown_provider(client, auth_headers, user_hash, now, fake_ai):
+    gemini, _ = fake_ai
+    body = (await post(client, auth_headers, user_hash, now, allow_ai=True)).json()
+    assert body["extraction"]["description"] == "mua quan ao"
+    assert body["categorization"] == {"category_slug": "shopping", "confidence": 0.70}
+    assert gemini.calls == [["mua quan ao"]]
+
+
+async def test_without_allow_ai_the_result_is_other_and_ai_is_not_called(client, auth_headers, user_hash, now, fake_ai):
+    gemini, _ = fake_ai
+    body = (await post(client, auth_headers, user_hash, now)).json()
+    assert body["categorization"]["category_slug"] == "other" and gemini.calls == []
+
+
+async def test_ai_error_still_answers_200_with_other(client, auth_headers, user_hash, now, fake_ai):
+    gemini, _ = fake_ai
+    gemini.fail = True
+    response = await post(client, auth_headers, user_hash, now, allow_ai=True)
+    assert response.status_code == 200 and response.json()["categorization"]["category_slug"] == "other"
+
+
+async def test_remembered_phrase_is_answered_without_calling_ai_again(client, auth_headers, user_hash, now, fake_ai):
+    gemini, knowledge = fake_ai
+    knowledge.cache["mua quan ao"] = "shopping"  # bản nhớ chung có sẵn; bước thông báo không tự ghi thêm
+    body = (await post(client, auth_headers, user_hash, now, allow_ai=True)).json()
+    assert body["categorization"]["category_slug"] == "shopping" and gemini.calls == []
+
+
+async def test_credit_with_allow_ai_is_income_and_ai_is_not_called(client, auth_headers, user_hash, now, fake_ai):
+    gemini, _ = fake_ai
+    body = (await post(client, auth_headers, user_hash, now, body=NARRATIVE_CREDIT, allow_ai=True)).json()
+    assert body["categorization"]["category_slug"] == "income" and gemini.calls == []
