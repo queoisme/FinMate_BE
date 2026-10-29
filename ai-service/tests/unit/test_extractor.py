@@ -173,3 +173,16 @@ async def test_pattern_without_label_is_not_narrative_and_never_reaches_gemini(n
     rule = CategorizationOutcome("other", 0.3, ExtractionMethod.RULE)
     got = await categorize_with_ai(rule, outcome, True, AiDeps(gemini, FakeKnowledge(), "LUAT"), timeout=1.0)
     assert got == rule and gemini.calls == []
+
+
+def test_generic_direction_follows_the_sign_stuck_to_the_amount(now):
+    """Ngân hàng chưa có pattern: dấu +/- sát số tiền quyết định chiều tiền, thắng cả động từ đoán được."""
+    credit = extract_generic("Thời gian giao dịch: 01:30 28/12/2025.\nSố tiền GD: +1 VND\nSố dư cuối: 1 VND", now)
+    debit = extract_generic("(TPBank): 25/12/25;08:15\nPS:-50,000VND\nSD: 930VND\nND: nhan hang", now)
+    assert credit.transaction_type is TransactionType.CREDIT
+    assert debit.transaction_type is TransactionType.DEBIT  # "nhan" trong nội dung không đảo được dấu trừ
+
+
+def test_generic_sign_ignores_a_hyphen_inside_a_date_or_code(now):
+    outcome = extract_generic("Ban da nhan 500.000d ngay 12-10-2026 ma A-5", now)
+    assert outcome.transaction_type is TransactionType.CREDIT  # không có dấu dính liền số tiền: rơi về động từ

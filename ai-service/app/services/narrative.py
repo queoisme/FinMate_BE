@@ -10,6 +10,8 @@ from app.services.vi_text import fold
 _PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "narrative_labels.json"
 MAX_DESCRIPTION_CHARS = 255
 _STRIP = " :.-|\t\r\n"
+# Nội dung kết thúc khi gặp trường kế tiếp: sau một ranh giới mệnh đề là cụm chữ ngắn rồi dấu hai chấm ("\nMã giao dịch:", ". Số dư cuối:"). Cụm phải mở đầu bằng chữ để "12:30" không bị cắt.
+_NEXT_FIELD = re.compile(r"[.|;\n]\s*[^\W\d_][^.|;\n:]{1,24}:")
 
 
 def default_data() -> dict[str, list[str]]:
@@ -43,7 +45,10 @@ def current_data() -> dict[str, list[str]]:
 
 
 def extract_description(text: str) -> str | None:
-    """Phần sau nhãn đứng đầu mệnh đề (lần xuất hiện đầu tiên); None nếu không có nhãn hợp lệ hoặc phần sau rỗng."""
+    """Phần sau nhãn đứng đầu mệnh đề (lần xuất hiện đầu tiên); None nếu không có nhãn hợp lệ hoặc phần sau rỗng.
+
+    Truyền thân GỐC chưa gộp khoảng trắng: nhiều ngân hàng đặt mỗi trường một dòng, và xuống dòng là ranh giới mệnh đề duy nhất ở đó.
+    """
     regex = _regex
     if regex is None:
         return None
@@ -57,4 +62,8 @@ def extract_description(text: str) -> str | None:
     if match is None:
         return None
     start = origin[match.end()] if match.end() < len(origin) else len(text)
-    return text[start:].strip(_STRIP)[:MAX_DESCRIPTION_CHARS].strip(_STRIP) or None
+    rest = text[start:]
+    if (next_field := _NEXT_FIELD.search(rest)) is not None:
+        rest = rest[: next_field.start()]
+    tail = " ".join(rest.split())  # thân gốc còn xuống dòng giữa các trường; nội dung dài cũng bị ngắt dòng
+    return tail.strip(_STRIP)[:MAX_DESCRIPTION_CHARS].strip(_STRIP) or None

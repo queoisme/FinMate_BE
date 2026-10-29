@@ -13,6 +13,7 @@ Hai đường đi:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -39,8 +40,7 @@ _CREDIT_VERBS: tuple[str, ...] = (
     "hoàn tiền",
     "duoc tra",
     "được trả",
-    "ban ",
-    "bán ",
+    "bán ",  # dạng không dấu "ban " bị bỏ: nó trùng "Bạn đã…" của thông báo ví và đọc nhầm thành thu
     "nap tien",
     "nạp tiền",
     "cong tien",
@@ -48,6 +48,8 @@ _CREDIT_VERBS: tuple[str, ...] = (
     "tra luong",
     "trả lương",
 )
+
+_SIGN_TYPE: dict[str, TransactionType] = {"+": TransactionType.CREDIT, "-": TransactionType.DEBIT, "−": TransactionType.DEBIT}
 
 _DEBIT_VERBS: tuple[str, ...] = (
     "chi ",
@@ -83,6 +85,10 @@ _DEBIT_VERBS: tuple[str, ...] = (
     "di ",
     "đi ",
 )
+
+# Động từ chỉ khớp ở ĐẦU từ và lấy cái xuất hiện sớm nhất: khớp giữa từ làm "an " (ăn) trúng "b[an] " và "nh[an] ", nên "Ban da nhan" bị đọc thành chi.
+_CREDIT_RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(v) for v in _CREDIT_VERBS) + ")")
+_DEBIT_RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(v) for v in _DEBIT_VERBS) + ")")
 
 # Giới từ dẫn tới tên đơn vị trong câu tự nhiên: "45k ở Phở Thìn", "500k từ Nguyễn Văn A".
 _MERCHANT_PREPOSITIONS: tuple[str, ...] = (
@@ -153,7 +159,7 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         description, is_narrative = matched.description, True
     else:
         flat = normalize_whitespace(body)
-        narrative = extract_description(flat)
+        narrative = extract_description(body)
         description, is_narrative = narrative or flat[:255], narrative is not None
 
     return ExtractionOutcome(
@@ -184,11 +190,11 @@ def extract_generic(
 
     transacted_at = parse_datetime(normalized, received_at) or received_at
     merchant = _merchant_after_preposition(normalized, candidate.end)
-    narrative = extract_description(normalized)
+    narrative = extract_description(text)
 
     return ExtractionOutcome(
         amount_cents=candidate.value,
-        transaction_type=_infer_type(f"{title or ''} {normalized}"),
+        transaction_type=_signed_type(normalized, candidate.start) or _infer_type(f"{title or ''} {normalized}"),
         merchant_name=merchant,
         description=narrative or normalized[:255],
         transacted_at=transacted_at,
@@ -202,10 +208,21 @@ def extract_generic(
     )
 
 
+def _signed_type(text: str, amount_start: int) -> TransactionType | None:
+    """Dấu +/- dính liền số tiền ("GD: -75,000", "PS:+7VND") là tín hiệu chiều tiền chung của gần mọi ngân hàng, đáng tin hơn đoán theo động từ.
+
+    Dấu phải đứng ngay sát chữ số và không dính vào chữ hay số đứng trước ("2025-12", "a-5"), để gạch nối trong ngày tháng hay mã không bị đọc thành dấu trừ.
+    """
+    for index in (amount_start, amount_start - 1):  # tùy phép khớp số tiền có gồm cả dấu hay không
+        if 0 <= index < len(text) and text[index] in _SIGN_TYPE and (index == 0 or not text[index - 1].isalnum()):
+            return _SIGN_TYPE[text[index]]
+    return None
+
+
 def _infer_type(text: str) -> TransactionType:
     lowered = f" {text.lower()} "
-    credit_hit = next((lowered.index(v) for v in _CREDIT_VERBS if v in lowered), None)
-    debit_hit = next((lowered.index(v) for v in _DEBIT_VERBS if v in lowered), None)
+    credit_hit = match.start() if (match := _CREDIT_RE.search(lowered)) else None
+    debit_hit = match.start() if (match := _DEBIT_RE.search(lowered)) else None
 
     if credit_hit is not None and debit_hit is not None:
         # Cả hai cùng xuất hiện ("nhận lương rồi trả tiền nhà") — động từ đứng trước là

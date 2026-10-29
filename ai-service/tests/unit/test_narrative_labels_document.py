@@ -25,7 +25,13 @@ def back_to_default_labels():
         ("TK 1 GD: -5,000VND ND:", None),
         ("TK 1 GD: -5,000VND SD: 10,000VND", None),
         ("TK 1. ND: " + "a" * 400, "a" * 255),
-        ("TK 1;\n  ND - cafe sang. ND: khac", "cafe sang. ND: khac"),
+        ("TK 1;\n  ND - cafe sang. ND: khac", "cafe sang"),  # ND thứ hai là trường kế tiếp, không thuộc nội dung đầu
+        # Mỗi trường một dòng; nội dung bị ngắt dòng vẫn nối lại, và dừng ở trường kế tiếp.
+        ("Thời gian giao dịch: 01:30 28/12/2025.\nTài khoản thanh toán: 1\nSố tiền GD: +1 VND\nNội dung giao dịch: Thanh toan lai thang\n12/2025\nMã giao dịch: 0001Lax", "Thanh toan lai thang 12/2025"),
+        ("(TPBank): 24/12/25;22:07\nTK: xxxx1\nPS:+7VND\nSD: 980VND\nND: TRA LAI TIEN GUI TK: 3650\nSO GD: 667", "TRA LAI TIEN GUI TK: 3650"),
+        # Một dòng: trường kế tiếp bắt đầu sau dấu chấm.
+        ("Agribank: 16:17 22/06/2026 Tài khoản 1 +5,000,000VND. Nội dung giao dịch: MB(6)(A B chuyen tien). Số dư cuối: 80,136,010VND", "MB(6)(A B chuyen tien)"),
+        ("TK 1. ND: an trua. 12:30 ok", "an trua. 12:30 ok"),  # giờ không phải nhãn trường
     ],
 )
 def test_extract_description(text, expected):
