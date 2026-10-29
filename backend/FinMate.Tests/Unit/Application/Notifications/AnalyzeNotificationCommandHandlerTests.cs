@@ -164,4 +164,78 @@ public class AnalyzeNotificationCommandHandlerTests
             p => p.NotifyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    private AnalyzeNotificationCommandHandler HandlerWith(IAiConsentReader? consent) => new(
+        _financialAccountRepository.Object, _notificationLogRepository.Object, _categoryRepository.Object,
+        _transactionRepository.Object, _aiServiceClient.Object, _pushNotificationService.Object,
+        new AnalyzeNotificationCommandValidator(), consent);
+
+    private static Mock<IAiConsentReader> Consent(bool granted)
+    {
+        var consent = new Mock<IAiConsentReader>();
+        consent.Setup(c => c.HasAiConsentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(granted);
+        return consent;
+    }
+
+    private List<AnalyzeRequest> MonitoredAccountCapturingAnalyze()
+    {
+        var sent = new List<AnalyzeRequest>();
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FinancialAccount { Id = Guid.NewGuid(), IsMonitored = true });
+        _aiServiceClient
+            .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AnalyzeRequest, CancellationToken>((r, _) => sent.Add(r))
+            .ReturnsAsync(new AnalyzeResponse(
+                "non_financial", new ClassifierResult("non_financial", 0.9), null, null, null, new ModelVersions("1", "1", "1"), 10));
+        return sent;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HandleAsync_SendsCurrentConsentAsAllowAi(bool granted)
+    {
+        var sent = MonitoredAccountCapturingAnalyze();
+
+        await HandlerWith(Consent(granted).Object).HandleAsync(Command());
+
+        sent.Should().ContainSingle().Which.AllowAi.Should().Be(granted);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithoutConsentReader_SendsAllowAiFalse()
+    {
+        var sent = MonitoredAccountCapturingAnalyze();
+
+        await HandlerWith(null).HandleAsync(Command());
+
+        sent.Should().ContainSingle().Which.AllowAi.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HandleAsync_IgnoredPackage_NeverReadsConsent()
+    {
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FinancialAccount?)null);
+        var consent = Consent(true);
+
+        await HandlerWith(consent.Object).HandleAsync(Command());
+
+        consent.Verify(c => c.HasAiConsentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DuplicateHash_NeverReadsConsent()
+    {
+        _notificationLogRepository
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NotificationLog { Id = Guid.NewGuid(), Status = NotificationLogStatus.Processed });
+        var consent = Consent(true);
+
+        await HandlerWith(consent.Object).HandleAsync(Command());
+
+        consent.Verify(c => c.HasAiConsentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

@@ -10,7 +10,8 @@ public record AnalyzeApiRequest(
     [property: JsonPropertyName("package_name")] string PackageName,
     [property: JsonPropertyName("notification_title")] string? NotificationTitle,
     [property: JsonPropertyName("notification_body")] string NotificationBody,
-    [property: JsonPropertyName("received_at")] DateTimeOffset ReceivedAt);
+    [property: JsonPropertyName("received_at")] DateTimeOffset ReceivedAt,
+    [property: JsonPropertyName("allow_ai")] bool AllowAi = false);
 
 public record ClassifierApiResult(
     [property: JsonPropertyName("label")] string Label,

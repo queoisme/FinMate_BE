@@ -21,7 +21,8 @@ public class AIServiceClient : IAIServiceClient
             request.PackageName,
             request.NotificationTitle,
             request.NotificationBody,
-            request.ReceivedAt);
+            request.ReceivedAt,
+            request.AllowAi);
 
         AnalyzeApiResponse response;
         try

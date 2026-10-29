@@ -25,6 +25,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly IValidator<AnalyzeNotificationCommand> _validator;
+    private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -33,7 +34,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         ITransactionRepository transactionRepository,
         IAIServiceClient aiServiceClient,
         IPushNotificationService pushNotificationService,
-        IValidator<AnalyzeNotificationCommand> validator)
+        IValidator<AnalyzeNotificationCommand> validator,
+        IAiConsentReader? consent = null)
     {
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
@@ -42,6 +44,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         _aiServiceClient = aiServiceClient;
         _pushNotificationService = pushNotificationService;
         _validator = validator;
+        _consent = consent;
     }
 
     public async Task<NotificationAnalysisResultDto> HandleAsync(AnalyzeNotificationCommand command, CancellationToken ct = default)
@@ -105,20 +108,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         };
         await _notificationLogRepository.AddAsync(log, ct);
 
-        AnalyzeResponse response;
-        try
-        {
-            response = await _aiServiceClient.AnalyzeAsync(
-                new AnalyzeRequest(log.Id, command.UserId, command.PackageName, command.NotificationTitle, command.NotificationBody, command.ReceivedAt),
-                ct);
-        }
-        catch (AIServiceUnavailableException ex)
-        {
-            log.Status = NotificationLogStatus.Failed;
-            log.ErrorMessage = ex.Message;
-            await _notificationLogRepository.UpdateAsync(log, ct);
-            throw;
-        }
+        var response = await AnalyzeOrMarkFailedAsync(command, log, ct);
 
         var pipelineResult = ParsePipelineResult(response.PipelineResult);
         var aiResult = new AiResult
@@ -195,6 +185,26 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         }
 
         return new NotificationAnalysisResultDto(log.Id, log.Status.ToString(), draftTransactionId);
+    }
+
+    // Chỉ đọc đồng ý AI ở đây (nhánh thật sự gọi ai-service), không đọc DB thừa cho nhánh Ignored/trùng.
+    private async Task<AnalyzeResponse> AnalyzeOrMarkFailedAsync(
+        AnalyzeNotificationCommand command, NotificationLog log, CancellationToken ct)
+    {
+        try
+        {
+            var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
+            return await _aiServiceClient.AnalyzeAsync(
+                new AnalyzeRequest(log.Id, command.UserId, command.PackageName, command.NotificationTitle, command.NotificationBody, command.ReceivedAt, allowAi),
+                ct);
+        }
+        catch (AIServiceUnavailableException ex)
+        {
+            log.Status = NotificationLogStatus.Failed;
+            log.ErrorMessage = ex.Message;
+            await _notificationLogRepository.UpdateAsync(log, ct);
+            throw;
+        }
     }
 
     private static string ComputeContentHash(AnalyzeNotificationCommand command)

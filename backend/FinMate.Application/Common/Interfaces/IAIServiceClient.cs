@@ -10,7 +10,8 @@ public record AnalyzeRequest(
     string PackageName,
     string? NotificationTitle,
     string NotificationBody,
-    DateTimeOffset ReceivedAt);
+    DateTimeOffset ReceivedAt,
+    bool AllowAi = false);
 
 public record ClassifierResult(string Label, double Confidence);
 
