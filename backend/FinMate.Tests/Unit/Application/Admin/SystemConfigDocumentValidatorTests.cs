@@ -88,4 +88,40 @@ public class SystemConfigDocumentValidatorTests
         _validator.Validate(new SystemConfigDocument { Maintenance = new MaintenanceSettings { Enabled = true, Message = "" } }).IsValid.Should().BeFalse();
         _validator.Validate(new SystemConfigDocument { Maintenance = new MaintenanceSettings { Message = new string('x', 501) } }).IsValid.Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(180, true)]
+    [InlineData(4, false)]
+    [InlineData(181, false)]
+    public void QrMatchWindow_MustBeBetween5And180Minutes(int minutes, bool valid)
+    {
+        _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { MatchWindowMinutes = minutes } }).IsValid.Should().Be(valid);
+    }
+
+    [Theory]
+    [InlineData("dl.vietqr.io", true)]
+    [InlineData("pay.example.com", true)]
+    [InlineData("https://dl.vietqr.io", false)]   // không kèm https://
+    [InlineData("dl.vietqr.io/pay", false)]       // không kèm đường dẫn
+    [InlineData("dl.vietqr.io:8443", false)]      // không kèm cổng
+    [InlineData("192.168.1.10", false)]           // không IP trần
+    [InlineData("localhost", false)]              // phải có tên miền đầy đủ
+    public void QrDeeplinkHost_MustBeABareDomainName(string host, bool valid)
+    {
+        _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { DeeplinkHost = host } }).IsValid.Should().Be(valid);
+    }
+
+    [Fact]
+    public void QrDefaultMessage_MustFitTheMaximumLength_AndHaveNoControlCharacters()
+    {
+        _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { MaxMessageLength = 20, DefaultMessage = new string('a', 21) } }).IsValid.Should().BeFalse();
+        _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { DefaultMessage = "a\nb" } }).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void QrReturnUrl_MustBeHttps()
+    {
+        _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { DeeplinkReturnUrl = "http://www.vietqr.io/deeplink" } }).IsValid.Should().BeFalse();
+    }
 }

@@ -68,4 +68,17 @@ public static class VietQrBankSeeder
 
         await context.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Các <c>provider_key</c> trong <c>vietqr_banks</c> mà <c>provider_configs</c> không có. Khớp thông báo đi qua hai bảng này bằng chuỗi (không có khóa ngoại), nên một khóa gõ sai hay bị xóa làm ngân hàng
+    /// đó âm thầm không bao giờ tự khớp. <c>provider_key</c> của provider là bất biến nên đổi tên không gây ra chuyện này; lỗi chỉ đến từ dữ liệu sửa tay, vì vậy được kiểm và báo lúc khởi động.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> FindDanglingProviderKeysAsync(FinMateDbContext context, CancellationToken ct = default)
+    {
+        var known = (await context.ProviderConfigs.Select(p => p.ProviderKey).ToListAsync(ct)).ToHashSet();
+        return (await context.VietQrBanks.Where(b => b.ProviderKey != null).Select(b => b.ProviderKey!).ToListAsync(ct))
+            .Where(key => !known.Contains(key))
+            .Distinct()
+            .ToList();
+    }
 }

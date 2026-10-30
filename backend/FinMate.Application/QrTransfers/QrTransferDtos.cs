@@ -3,7 +3,7 @@ namespace FinMate.Application.QrTransfers;
 /// <param name="CanMatchNotifications">FinMate đọc được thông báo của ngân hàng này. Chỉ khi chọn nó làm ngân hàng GỬI thì giao dịch sau này mới tự khớp với lần quét.</param>
 public record QrBankDto(string Bin, string Name, string AppCode, bool CanMatchNotifications);
 
-/// <param name="IsExpired">Đang chờ nhưng đã quá <see cref="QrTransferService.PendingLifetime"/> kể từ lúc quét: gần như chắc chắn không bao giờ khớp. Tính lúc đọc, không lưu.</param>
+/// <param name="IsExpired">Đang chờ nhưng đã quá thời gian hết hạn trong cấu hình hệ thống (<c>qrTransfer.pendingLifetimeHours</c>) kể từ lúc quét: gần như chắc chắn không bao giờ khớp. Tính lúc đọc, không lưu.</param>
 public record QrTransferDto(
     Guid Id,
     string ReceiverBankBin,

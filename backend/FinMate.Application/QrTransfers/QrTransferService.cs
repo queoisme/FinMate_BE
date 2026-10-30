@@ -1,8 +1,10 @@
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
+using FluentValidation.Results;
 
 namespace FinMate.Application.QrTransfers;
 
@@ -23,19 +25,21 @@ public interface IQrTransferService
 
 public class QrTransferService : IQrTransferService
 {
-    /// <summary>Quá thời gian này mà chưa khớp thì coi là hết hạn (chỉ để hiển thị). Dài hơn cửa sổ khớp của <see cref="QrTransferLinker"/> để người dùng còn thấy bản ghi vừa lỡ.</summary>
-    public static readonly TimeSpan PendingLifetime = TimeSpan.FromHours(24);
-
     private readonly IQrTransferRepository _repository;
     private readonly ICategoryRepository _categories;
     private readonly IValidator<CreateQrTransferCommand> _validator;
+    private readonly ISystemConfigProvider _config;
 
-    public QrTransferService(IQrTransferRepository repository, ICategoryRepository categories, IValidator<CreateQrTransferCommand> validator)
+    public QrTransferService(
+        IQrTransferRepository repository, ICategoryRepository categories, IValidator<CreateQrTransferCommand> validator, ISystemConfigProvider config)
     {
         _repository = repository;
         _categories = categories;
         _validator = validator;
+        _config = config;
     }
+
+    private async Task<QrTransferSettings> SettingsAsync(CancellationToken ct) => (await _config.GetAsync(ct)).Document.QrTransfer;
 
     public async Task<IReadOnlyList<QrBankDto>> ListBanksAsync(CancellationToken ct = default)
         => (await _repository.GetActiveBanksAsync(ct))
@@ -46,6 +50,18 @@ public class QrTransferService : IQrTransferService
     public async Task<QrTransferDto> CreateAsync(CreateQrTransferCommand command, CancellationToken ct = default)
     {
         await _validator.ValidateAndThrowAsync(command, ct);
+
+        // Trần số tiền và độ dài nội dung do admin cấu hình (cấu hình hệ thống), nên kiểm ở đây chứ không ở validator tĩnh.
+        var settings = await SettingsAsync(ct);
+        if (command.AmountCents > settings.MaxAmount)
+        {
+            throw new ValidationException([new ValidationFailure(nameof(command.AmountCents), "Số tiền vượt quá mức cho phép.")]);
+        }
+
+        if (command.Message is { } text && text.Trim().Length > settings.MaxMessageLength)
+        {
+            throw new ValidationException([new ValidationFailure(nameof(command.Message), $"Nội dung chuyển khoản tối đa {settings.MaxMessageLength} ký tự.")]);
+        }
 
         var banks = await BankNamesAsync(ct);
         foreach (var bin in new[] { command.ReceiverBankBin, command.SenderBankBin })
@@ -92,7 +108,7 @@ public class QrTransferService : IQrTransferService
             CreatedAt = now,
         };
         await _repository.AddIntentAsync(intent, ct);
-        return ToDto(intent, banks, category is null ? null : new Dictionary<Guid, string> { [category.Id] = category.Name }, now);
+        return ToDto(intent, banks, category is null ? null : new Dictionary<Guid, string> { [category.Id] = category.Name }, now, PendingLifetime(settings));
     }
 
     public async Task<IReadOnlyList<QrTransferDto>> ListAsync(Guid userId, QrTransferStatus? status, int limit, CancellationToken ct = default)
@@ -101,7 +117,8 @@ public class QrTransferService : IQrTransferService
         var banks = await BankNamesAsync(ct);
         var categories = (await _categories.GetListForUserAsync(userId, ct)).ToDictionary(c => c.Id, c => c.Name);
         var now = DateTimeOffset.UtcNow;
-        return intents.Select(i => ToDto(i, banks, categories, now)).ToList();
+        var lifetime = PendingLifetime(await SettingsAsync(ct));
+        return intents.Select(i => ToDto(i, banks, categories, now, lifetime)).ToList();
     }
 
     public async Task<QrTransferDto> CancelAsync(Guid userId, Guid id, CancellationToken ct = default)
@@ -119,7 +136,7 @@ public class QrTransferService : IQrTransferService
         }
 
         var categories = (await _categories.GetListForUserAsync(userId, ct)).ToDictionary(c => c.Id, c => c.Name);
-        return ToDto(intent, await BankNamesAsync(ct), categories, DateTimeOffset.UtcNow);
+        return ToDto(intent, await BankNamesAsync(ct), categories, DateTimeOffset.UtcNow, PendingLifetime(await SettingsAsync(ct)));
     }
 
     public async Task<CounterpartyOverrideDto?> LookupOverrideAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default)
@@ -198,8 +215,10 @@ public class QrTransferService : IQrTransferService
             m.Id, m.BankBin, banks.GetValueOrDefault(m.BankBin, m.BankBin), m.AccountNumber, m.DisplayName, m.CategoryId,
             categories.GetValueOrDefault(m.CategoryId, "(danh mục đã bị xóa)"), m.UpdatedAt);
 
+    private static TimeSpan PendingLifetime(QrTransferSettings settings) => TimeSpan.FromHours(settings.PendingLifetimeHours);
+
     private static QrTransferDto ToDto(
-        QrTransferIntent i, IReadOnlyDictionary<string, string> banks, IReadOnlyDictionary<Guid, string>? categories, DateTimeOffset now)
+        QrTransferIntent i, IReadOnlyDictionary<string, string> banks, IReadOnlyDictionary<Guid, string>? categories, DateTimeOffset now, TimeSpan lifetime)
         => new(
             i.Id,
             i.ReceiverBankBin, banks.GetValueOrDefault(i.ReceiverBankBin, i.ReceiverBankBin), i.ReceiverAccountNumber, i.ReceiverName,
@@ -207,6 +226,6 @@ public class QrTransferService : IQrTransferService
             i.AmountCents, i.Message,
             i.CategoryId, i.CategoryId is Guid cid && categories is not null ? categories.GetValueOrDefault(cid) : null,
             i.Status.ToString(),
-            i.Status == QrTransferStatus.Pending && now - i.ScannedAt > PendingLifetime,
+            i.Status == QrTransferStatus.Pending && now - i.ScannedAt > lifetime,
             i.ScannedAt, i.MatchedAt, i.MatchedTransactionId);
 }

@@ -19,6 +19,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Limits).NotNull().SetValidator(new LimitValidator());
         RuleFor(x => x.Sync).NotNull().SetValidator(new SyncValidator());
         RuleFor(x => x.Theme).NotNull().SetValidator(new ThemeValidator());
+        RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
     }
 
     private static bool IsHttps(string value)
@@ -67,6 +68,27 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.IntervalMinutes).InclusiveBetween(5, 1440).WithMessage("Chu kỳ đồng bộ phải từ 5 đến 1440 phút.");
             RuleFor(x => x.MaxRetries).InclusiveBetween(0, 20).WithMessage("Số lần thử lại phải từ 0 đến 20.");
             RuleFor(x => x.QueueRetentionDays).InclusiveBetween(1, 90).WithMessage("Thời gian giữ hàng đợi phải từ 1 đến 90 ngày.");
+        }
+    }
+
+    private sealed class QrTransferValidator : AbstractValidator<QrTransferSettings>
+    {
+        // Chỉ tên miền (có dấu chấm, không cổng, không đường dẫn, không IP trần): thứ này quyết định số tài khoản của người dùng được gửi tới đâu.
+        private static readonly Regex Host = new(@"^(?=.{4,100}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$", RegexOptions.Compiled);
+
+        public QrTransferValidator()
+        {
+            RuleFor(x => x.MatchWindowMinutes).InclusiveBetween(5, 180).WithMessage("Cửa sổ khớp phải từ 5 đến 180 phút.");
+            RuleFor(x => x.ClockSkewMinutes).InclusiveBetween(0, 10).WithMessage("Độ lệch đồng hồ cho phép phải từ 0 đến 10 phút.");
+            RuleFor(x => x.PendingLifetimeHours).InclusiveBetween(1, 168).WithMessage("Thời gian hết hạn phải từ 1 đến 168 giờ.");
+            RuleFor(x => x.MaxAmount).InclusiveBetween(1_000, 1_000_000_000_000).WithMessage("Trần số tiền phải từ 1.000 đến 1.000 tỷ đồng.");
+            RuleFor(x => x.MaxMessageLength).InclusiveBetween(20, 100).WithMessage("Độ dài nội dung chuyển khoản phải từ 20 đến 100 ký tự.");
+            RuleFor(x => x.DefaultMessage).NotEmpty().WithMessage("Nội dung chuyển khoản mặc định không được để trống.")
+                .Must(m => !m.Any(char.IsControl)).WithMessage("Nội dung chuyển khoản mặc định không được chứa ký tự điều khiển.");
+            RuleFor(x => x).Must(x => x.DefaultMessage.Length <= x.MaxMessageLength)
+                .WithName(nameof(QrTransferSettings.DefaultMessage)).WithMessage("Nội dung mặc định dài hơn độ dài tối đa cho phép.");
+            RuleFor(x => x.DeeplinkHost).Must(h => Host.IsMatch(h)).WithMessage("Máy chủ chuyển tiếp phải là tên miền (vd dl.vietqr.io), không kèm https://, cổng hay đường dẫn.");
+            RuleFor(x => x.DeeplinkReturnUrl).Must(url => url.Length <= 500 && IsHttps(url)).WithMessage("Liên kết quay về phải là địa chỉ https (tối đa 500 ký tự).");
         }
     }
 

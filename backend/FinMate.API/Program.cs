@@ -480,6 +480,11 @@ public class Program
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            var danglingProviderKeys = FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.FindDanglingProviderKeysAsync(db).GetAwaiter().GetResult();
+            if (danglingProviderKeys.Count > 0)
+            {
+                app.Logger.LogWarning("vietqr_banks points at provider_key values that do not exist in provider_configs ({Keys}); those banks will never auto-match notifications.", string.Join(", ", danglingProviderKeys));
+            }
             FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MascotItemSeeder.SeedAsync(db).GetAwaiter().GetResult();

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FinMate.API.Controllers;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Infrastructure.Persistence;
@@ -281,5 +282,73 @@ public class QrTransfersControllerTests : IClassFixture<AuthApiFactory>
         cancelled.Status.Should().Be("Cancelled");
         again.Status.Should().Be("Cancelled");
         (await SendAsync<List<TransferData>>(HttpMethod.Get, "/api/v1/qr/transfers", token)).Should().Contain(t => t.Id == intent.Id);
+    }
+
+    [Fact]
+    public async Task AnAmountAboveTheConfiguredCeiling_IsRejected_With400()
+    {
+        var token = await NewUserTokenAsync();
+
+        var response = await _client.SendAsync(Req(HttpMethod.Post, "/api/v1/qr/transfers", token, Intent(100_000_000_001)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task EverySeededBankProviderKey_ExistsInProviderConfigs()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+
+        var dangling = await FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.FindDanglingProviderKeysAsync(db);
+
+        dangling.Should().BeEmpty("khớp thông báo đi qua provider_key bằng chuỗi, một khóa lạc làm ngân hàng đó âm thầm không bao giờ khớp");
+    }
+
+    [Fact]
+    public async Task TheMatchWindow_ComesFromTheSystemConfig_NotFromTheCode()
+    {
+        var admin = await AdminTokenAsync();
+        var token = await NewUserTokenAsync();
+        await CreateBankAccountAsync(token, "mb_bank");
+        await SendAsync<TransferData>(HttpMethod.Post, "/api/v1/qr/transfers", token, Intent(666_001), HttpStatusCode.Created);
+
+        // Thông báo đến 8 phút sau lúc quét: khớp với cửa sổ mặc định 30 phút, nhưng KHÔNG khớp khi admin thu hẹp còn 5 phút.
+        var original = await SetMatchWindowAsync(admin, 5);
+        try
+        {
+            var narrow = await AnalyzeMbDebitAsync(token, 666_001, DateTimeOffset.UtcNow.AddMinutes(8));
+            narrow.DraftTransactionId.Should().NotBeNull();
+            (await SendAsync<List<TransferData>>(HttpMethod.Get, "/api/v1/qr/transfers?status=Pending", token)).Should().NotBeEmpty();
+        }
+        finally
+        {
+            await SetMatchWindowAsync(admin, original);
+        }
+
+        var wide = await AnalyzeMbDebitAsync(token, 666_001, DateTimeOffset.UtcNow.AddMinutes(8).AddSeconds(5));
+        wide.DraftTransactionId.Should().NotBeNull();
+        (await SendAsync<List<TransferData>>(HttpMethod.Get, "/api/v1/qr/transfers?status=Matched", token)).Should().NotBeEmpty();
+    }
+
+    private async Task<string> AdminTokenAsync()
+    {
+        var login = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword));
+        return (await login.Content.ReadFromJsonAsync<Wrapper<AuthData>>(JsonOptions))!.Data.AccessToken;
+    }
+
+    /// <summary>Đặt cửa sổ khớp (phút) qua API admin như người dùng thật, trả về giá trị cũ để khôi phục.</summary>
+    private async Task<int> SetMatchWindowAsync(string admin, int minutes)
+    {
+        var current = await _client.SendAsync(Req(HttpMethod.Get, "/api/v1/admin/system-config", admin));
+        var view = JsonNode.Parse(await current.Content.ReadAsStringAsync())!["data"]!;
+        var content = view["content"]!.DeepClone();
+        var old = content["qrTransfer"]!["matchWindowMinutes"]!.GetValue<int>();
+        content["qrTransfer"]!["matchWindowMinutes"] = minutes;
+
+        var put = await _client.SendAsync(Req(HttpMethod.Put, "/api/v1/admin/system-config", admin,
+            new { expectedVersion = view["version"]!.GetValue<int>(), content = JsonSerializer.Deserialize<JsonElement>(content.ToJsonString()), note = "thử cửa sổ khớp" }));
+        put.StatusCode.Should().Be(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
+        return old;
     }
 }

@@ -24,23 +24,13 @@ public interface IQrTransferLinker
 
 public class QrTransferLinker : IQrTransferLinker
 {
-    /// <summary>
-    /// Thông báo phải đến trong vòng này SAU lúc quét. Đủ rộng cho quét → mở app ngân hàng → nhập OTP → xác nhận, đủ hẹp để không khớp nhầm với giao dịch khác cùng số tiền. Chưa có yêu cầu nghiệp vụ ấn
-    /// định con số khác.
-    /// </summary>
-    public static readonly TimeSpan MatchWindow = TimeSpan.FromMinutes(30);
-
-    /// <summary>
-    /// Đồng hồ điện thoại (gắn vào thông báo) và đồng hồ máy chủ (gắn vào lúc quét) có thể lệch nhau. Cho phép lần quét "xảy ra sau" thông báo tối đa chừng này; hơn thế thì lần quét chắc chắn không phải
-    /// nguyên nhân (bản thử trước nhận cả lần quét sau thông báo tới 30 phút).
-    /// </summary>
-    public static readonly TimeSpan ClockSkew = TimeSpan.FromMinutes(2);
-
     private readonly IQrTransferRepository _repository;
+    private readonly ISystemConfigProvider _config;
 
-    public QrTransferLinker(IQrTransferRepository repository)
+    public QrTransferLinker(IQrTransferRepository repository, ISystemConfigProvider config)
     {
         _repository = repository;
+        _config = config;
     }
 
     public async Task<QrTransferIntent?> FindMatchAsync(Guid userId, string packageName, DateTimeOffset receivedAt, long amountCents, CancellationToken ct = default)
@@ -52,7 +42,12 @@ public class QrTransferLinker : IQrTransferLinker
             return null;
         }
 
-        return await _repository.FindPendingAsync(userId, senderBin, amountCents, receivedAt - MatchWindow, receivedAt + ClockSkew, ct);
+        // Cửa sổ khớp và độ lệch đồng hồ do admin cấu hình (cấu hình hệ thống), không viết cứng.
+        var settings = (await _config.GetAsync(ct)).Document.QrTransfer;
+        return await _repository.FindPendingAsync(
+            userId, senderBin, amountCents,
+            receivedAt - TimeSpan.FromMinutes(settings.MatchWindowMinutes),
+            receivedAt + TimeSpan.FromMinutes(settings.ClockSkewMinutes), ct);
     }
 
     public async Task LinkAsync(QrTransferIntent intent, Guid transactionId, CancellationToken ct = default)
