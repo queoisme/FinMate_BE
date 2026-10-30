@@ -22,6 +22,12 @@ public sealed record AiRulesRequest(
 
     /// <summary>Đồng bộ danh mục hệ thống sang AI Service (<c>PUT categories/sync</c>), xem <c>AiCategorySyncService</c>.</summary>
     public const string CategoriesArea = "categories";
+
+    /// <summary>Định dạng thông báo theo nhà cung cấp (regex, trường, mẫu kiểm tra): <c>/admin/provider-formats</c>.</summary>
+    public const string FormatsArea = "provider-formats";
+
+    /// <summary>Trạng thái và thử câu của Rasa (chỉ đọc): <c>/admin/rasa</c>.</summary>
+    public const string RasaArea = "rasa";
 }
 
 public interface IAiRulesAdminClient

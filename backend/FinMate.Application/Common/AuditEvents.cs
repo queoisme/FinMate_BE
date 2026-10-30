@@ -48,6 +48,8 @@ public static class AuditEvents
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
     /// <summary>Tài liệu cấu hình của AI/OCR (từ vựng chat, từ điển cửa hàng, ngưỡng...) được lưu bản nháp hoặc kích hoạt. Nội dung từng phiên bản do AI Service giữ (config_documents).</summary>
     public const string AdminAiConfigChanged = "Admin.AiConfig.Changed";
+    /// <summary>Định dạng thông báo của một ngân hàng/ví (tạo, nhân bản, sửa pattern/trường/mẫu, kích hoạt, lưu trữ). Nội dung nằm ở nhật ký của AI Service; ở đây không ghi thân yêu cầu vì mẫu có thể chứa chữ thông báo.</summary>
+    public const string AdminProviderFormatChanged = "Admin.ProviderFormat.Changed";
 
     // Danh mục cách quản lý tài chính, khảo sát đầu vào và mẫu mục tiêu. Chỉ ghi khi có thay đổi thật (gửi lại đúng nội dung cũ không để lại dòng nào).
     public const string AdminFinanceMethodCreated = "Admin.FinanceMethod.Created";

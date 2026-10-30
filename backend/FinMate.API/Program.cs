@@ -413,6 +413,8 @@ public class Program
         builder.Services.AddSingleton(new AiCategorySyncOptions(builder.Configuration.GetValue<bool?>("AI_CATEGORY_SYNC_ENABLED") ?? true));
         builder.Services.AddScoped<IAiCategorySyncService, AiCategorySyncService>();
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
+        builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
+        builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
         builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
         builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
         builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();

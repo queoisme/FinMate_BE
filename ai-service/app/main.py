@@ -15,6 +15,7 @@ from app.bill.samples import purge_loop
 from app.api.v1.categories_admin import router as categories_admin_router
 from app.api.v1.ocr_store import router as ocr_store_router
 from app.api.v1.provider_formats_admin import router as provider_formats_admin_router
+from app.api.v1.rasa_admin import router as rasa_admin_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.config_admin import router as config_admin_router
 from app.api.v1.feedback import router as feedback_router
@@ -122,6 +123,7 @@ app.include_router(rules_admin_router, prefix="/api/v1")
 app.include_router(config_admin_router, prefix="/api/v1")
 app.include_router(categories_admin_router, prefix="/api/v1")
 app.include_router(provider_formats_admin_router, prefix="/api/v1")
+app.include_router(rasa_admin_router, prefix="/api/v1")
 app.include_router(ocr_store_router, prefix="/api/v1")
 
 
