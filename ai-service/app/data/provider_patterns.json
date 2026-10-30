@@ -85,7 +85,7 @@
     "pattern_name": "bidv_v1",
     "transaction_type": null,
     "priority": 10,
-    "regex": "Th(?:ờ|o)i gian giao d(?:ị|i)ch:\\s*(?P<occurred_at>\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4})\\.?\\s*T(?:à|a)i kho(?:ả|a)n[^:]*:\\s*(?P<account>[\\dx*]+)\\s*S(?:ố|o) ti(?:ề|e)n GD:\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\s*S(?:ố|o) d(?:ư|u) cu(?:ố|o)i:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*N(?:ộ|o)i dung giao d(?:ị|i)ch:\\s*(?P<description>.+?)\\s*(?:M(?:ã|a) giao d(?:ị|i)ch:.*)?$",
+    "regex": "Thoi gian giao dich:\\s*(?P<occurred_at>\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4})\\.?\\s*Tai khoan[^:]*:\\s*(?P<account>[\\dx*]+)\\s*So tien GD:\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\s*So du cuoi:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*Noi dung giao dich:\\s*(?P<description>.+?)\\s*(?:Ma giao dich:.*)?$",
     "sample_text": "Thời gian giao dịch: 01:30 28/12/2025. Tài khoản thanh toán: 1234567890 Số tiền GD: +1 VND Số dư cuối: 1 VND Nội dung giao dịch: Thanh toan lai thang 12/2025 Mã giao dịch: 0001AbCdEf",
     "notes": "Dựng từ ảnh thông báo trên mạng, CHƯA đối chiếu với thông báo thật trên Android. Dấu +/- suy chiều tiền; nhánh tiền ra là phỏng đoán. Tiêu đề thông báo là 'Thông báo BIDV', không nằm trong thân."
   },
@@ -105,18 +105,8 @@
     "pattern_name": "agribank_v1",
     "transaction_type": null,
     "priority": 10,
-    "regex": "Agribank:\\s*(?P<occurred_at>\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4})\\s*T(?:à|a)i kho(?:ả|a)n\\s*(?P<account>[\\w*.]*)\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\.?\\s*N(?:ộ|o)i dung giao d(?:ị|i)ch:\\s*(?P<description>.+?)\\.?(?:\\s*S(?:ố|o) d(?:ư|u) cu(?:ố|o)i:\\s*(?P<balance>[\\d.,]+)\\s*VND)?\\s*$",
+    "regex": "Agribank:\\s*(?P<occurred_at>\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4})\\s*Tai khoan\\s*(?P<account>[\\w*.]*)\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\.?\\s*Noi dung giao dich:\\s*(?P<description>.+?)\\.?(?:\\s*So du cuoi:\\s*(?P<balance>[\\d.,]+)\\s*VND)?\\s*$",
     "sample_text": "Agribank: 16:17 22/06/2026 Tài khoản 1234xxxx5678 +5,000,000VND. Nội dung giao dịch: MB(641035)(NGUYEN VAN A chuyen tien). Số dư cuối: 80,136,010VND",
     "notes": "Dựng từ ảnh thông báo trên mạng, CHƯA đối chiếu với thông báo thật trên Android. Dấu +/- suy chiều tiền; nhánh tiền ra là phỏng đoán. Package com.vnpay.Agribank3g chưa kiểm chứng trên máy thật."
-  },
-  {
-    "provider_key": "vietcombank",
-    "package_name": "com.VCB",
-    "pattern_name": "vcb_accented_v1",
-    "transaction_type": null,
-    "priority": 20,
-    "regex": "S(?:ố|o) d(?:ư|u) TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\s*l(?:ú|u)c\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*S(?:ố|o) d(?:ư|u)\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*(?:Ref\\s*\\S+?\\.?)?\\s*(?:ND\\s*(?P<description>.+?))?\\s*$",
-    "sample_text": "Số dư TK VCB 0011001234567 +20,000,000 VND lúc 19-07-2024 10:19:38. Số dư 20,550,000 VND. Ref 213085.190724.101936.SW494931287",
-    "notes": "Dựng từ ảnh thông báo trên mạng, CHƯA đối chiếu với thông báo thật trên Android. Dấu +/- suy chiều tiền; nhánh tiền ra là phỏng đoán. Bản có dấu của vcb_v1 (thông báo thật ghi 'Số dư', 'lúc'); không có phần ND."
   }
 ]

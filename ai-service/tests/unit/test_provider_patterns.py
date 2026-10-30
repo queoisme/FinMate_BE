@@ -97,3 +97,39 @@ def test_wallet_patterns(matcher, package, body, amount, merchant):
     matched = matcher.match(package, body)
     assert matched.amount_cents == amount
     assert matched.merchant_name == merchant
+
+
+def _spec(regex_text: str, name: str = "p"):
+    from app.utils.provider_patterns import PatternSpec
+
+    return PatternSpec(provider_key="x", package_name="com.x", pattern_name=name, regex=regex_text)
+
+
+def test_unaccented_regex_matches_accented_text_and_keeps_the_accents_in_groups():
+    matcher = PatternMatcher([_spec(r"So du (?P<amount>[\d.,]+) VND\. Noi dung: (?P<description>.+?)\s*$")])
+    matched = matcher.match("com.x", "Số dư 50,000 VND. Nội dung: Chuyển tiền ăn trưa đồng nghiệp")
+    assert matched.amount_cents == 50_000
+    assert matched.description == "Chuyển tiền ăn trưa đồng nghiệp"  # chữ gốc, còn dấu, kể cả đ
+
+
+def test_accented_regex_still_matches_the_raw_text_first():
+    matcher = PatternMatcher([_spec(r"Số dư (?P<amount>[\d.,]+)")])
+    assert matcher.match("com.x", "Số dư 70,000").amount_cents == 70_000
+    assert matcher.match("com.x", "So du 70,000") is None  # regex có dấu không tự dung nạp chữ không dấu: chỉ chiều ngược lại
+
+
+def test_real_accented_vcb_notification_matches_the_unaccented_pattern(matcher: PatternMatcher):
+    matched = matcher.match(
+        "com.VCB", "Số dư TK VCB 1038646763 +20,000,000 VND lúc 19-07-2024 10:19:38. Số dư 20,550,000 VND. Ref 213085.190724.101936.SW494931287"
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == ("vcb_v1", 20_000_000, 20_550_000)
+    assert matched.transaction_type.value == "credit"
+
+
+def test_accented_bidv_narrative_keeps_its_accents(matcher: PatternMatcher):
+    matched = matcher.match(
+        "com.vnpay.bidv",
+        "Thời gian giao dịch: 09:05 29/12/2025.\nTài khoản thanh toán: 8863207475\nSố tiền GD: -50,000 VND\nSố dư cuối: 120,000 VND\nNội dung giao dịch: Chuyển tiền ăn trưa\nMã giao dịch: 0002AbCd",
+    )
+    assert (matched.pattern_name, matched.amount_cents) == ("bidv_v1", 50_000)
+    assert matched.description == "Chuyển tiền ăn trưa"

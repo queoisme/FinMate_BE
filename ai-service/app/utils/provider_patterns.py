@@ -15,6 +15,8 @@ Named group được hiểu:
 ``occurred_at``  cụm ngày giờ, sẽ đưa qua ``text_utils.parse_datetime``
 ``description``  nội dung giao dịch
 
+Regex có thể viết KHÔNG DẤU: nếu không khớp văn bản gốc, bộ khớp thử lại trên văn bản đã bỏ dấu và trả các group về CHỮ GỐC (còn dấu), nên một pattern phủ được cả "So du" lẫn "Số dư".
+
 Tên group trên là MẶC ĐỊNH. Một định dạng (``kb_provider_formats``) có thể ánh xạ trường hợp đồng sang group khác qua ``PatternSpec.groups``
 (ví dụ ``amount_cents`` lấy từ group ``tien``), và khai báo thêm trường phụ (``PatternSpec.extras``) để ghi vào ``ops_analyze_log.extra_fields``.
 """
@@ -28,6 +30,7 @@ import regex
 
 from app.core.anonymizer import anonymize_body
 from app.core.enums import TransactionType
+from app.services.vi_text import fold
 from app.utils.text_utils import normalize_whitespace, parse_vnd_amount
 
 _FLAGS = regex.IGNORECASE | regex.UNICODE | regex.DOTALL
@@ -116,19 +119,44 @@ class PatternMatcher:
         """Pattern đầu tiên khớp và bóc được số tiền. Không khớp gì thì trả None."""
         candidates = self._by_package.get(package_name, [])
         haystack = normalize_whitespace(text)
+        folded: tuple[str, list[int]] | None = None  # dựng khi cần: đa số thông báo khớp ngay văn bản gốc
         for spec, compiled in candidates:
             found = compiled.search(haystack)
-            if found is None:
+            groups = found.groupdict() if found else None
+            if groups is None:
+                folded = folded or _fold_with_origin(haystack)
+                groups = _original_groups(compiled.search(folded[0]), haystack, folded[1])
+            if groups is None:
                 continue
-            built = _build_match(spec, found)
+            built = _build_match(spec, groups)
             if built is not None:
                 return built
         return None
 
 
-def _build_match(spec: PatternSpec, found: regex.Match[str]) -> PatternMatch | None:
-    groups = found.groupdict()
+def _fold_with_origin(text: str) -> tuple[str, list[int]]:
+    """Văn bản bỏ dấu kèm vị trí gốc của từng ký tự. Fold TỪNG ký tự: fold cả chuỗi có thể đổi độ dài và làm vị trí lệch."""
+    pieces: list[str] = []
+    origin: list[int] = []
+    for index, char in enumerate(text):
+        piece = fold(char)
+        pieces.append(piece)
+        origin.extend([index] * len(piece))
+    return "".join(pieces), origin
 
+
+def _original_groups(found: regex.Match[str] | None, text: str, origin: list[int]) -> dict[str, str | None] | None:
+    """Group của một lần khớp trên văn bản đã bỏ dấu, lấy lại từ văn bản GỐC (không mất dấu ở nội dung, tên đơn vị)."""
+    if found is None:
+        return None
+    groups: dict[str, str | None] = {}
+    for name in found.re.groupindex:
+        start, end = found.span(name)
+        groups[name] = None if start == -1 else (text[origin[start] : origin[end - 1] + 1] if end > start else "")
+    return groups
+
+
+def _build_match(spec: PatternSpec, groups: dict[str, str | None]) -> PatternMatch | None:
     amount = parse_vnd_amount(groups.get(_group(spec, "amount_cents")))
     # Regex khớp nhưng số tiền không đọc được nghĩa là pattern sai chứ không phải thông báo
     # lạ — trả None để matcher thử tiếp pattern sau thay vì dựng giao dịch 0 đồng.
