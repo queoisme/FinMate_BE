@@ -252,10 +252,14 @@ def select_amounts(text: str) -> AmountSelection:
     lowered = text.lower()
     balances: list[AmountCandidate] = []
     others: list[AmountCandidate] = []
+    previous_end = 0
     for candidate in candidates:
+        # Nhãn thuộc về con số đứng NGAY SAU nó: đoạn xét bắt đầu từ cuối con số trước, nếu không
+        # "Số dư TK 1038646763 +200,000" gán nhãn số dư cho cả khoản tiền sau số tài khoản.
         prefix = lowered[
-            max(0, candidate.start - _BALANCE_CONTEXT_CHARS) : candidate.start
+            max(previous_end, candidate.start - _BALANCE_CONTEXT_CHARS) : candidate.start
         ]
+        previous_end = max(previous_end, candidate.end)
         if not notification_vocab.has_balance_marker(prefix):
             others.append(candidate)
         elif _looks_like_money(candidate):

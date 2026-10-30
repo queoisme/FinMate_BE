@@ -133,3 +133,12 @@ def test_validator_rejects_a_marker_that_points_both_ways():
     content = notification_vocab.default_data()
     content["non_financial_markers"].append("vnd")  # "vnd" đã là dấu hiệu giao dịch
     assert rejected(content).code == "ambiguous_marker"
+
+
+def test_balance_label_belongs_to_the_number_right_after_it():
+    from app.utils.text_utils import select_amounts
+
+    selection = select_amounts("Số dư TK 1038646763 +200,000 VND lúc 10:00 05/10/2026. Số dư 3,400,000 VND")
+    assert (selection.amount.value, selection.balance.value) == (200_000, 3_400_000)  # trước đây amount = 2026 (năm trong ngày)
+    both = select_amounts("SD: 980VND SD KHA DUNG: 980VND")
+    assert both.balance.value == 980 and both.amount is None
