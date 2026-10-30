@@ -37,8 +37,16 @@ async def _run(url: str, statement: str, params: dict | None = None):
         await engine.dispose()
 
 
+def _seed_rows() -> list[dict]:
+    return json.loads(SEED_PATH.read_text(encoding="utf-8"))
+
+
+def _seed_packages() -> set[str]:
+    return {row["package_name"] for row in _seed_rows()}
+
+
 def _legacy_rows() -> list[dict]:
-    rows = [{**row, "is_active": True} for row in json.loads(SEED_PATH.read_text(encoding="utf-8"))]
+    rows = [{**row, "is_active": True} for row in _seed_rows()]
     rows.append({"provider_key": "old_bank", "package_name": OLD_PACKAGE, "pattern_name": "old_v1", "regex": r"(?P<amount>\d+)d", "priority": 10,
                  "transaction_type": "debit", "sample_text": "khong khop mau nay", "is_active": False})
     return rows
@@ -70,7 +78,7 @@ def test_old_patterns_become_version_one_formats_with_fields_and_samples(databas
     assert result.returncode == 0, result.stderr
 
     formats = asyncio.run(_run(database, "SELECT package_name, version, status FROM kb_provider_formats ORDER BY package_name"))
-    assert len(formats) == 9 and {f[1] for f in formats} == {1}
+    assert len(formats) == len(_seed_packages()) + 1 and {f[1] for f in formats} == {1}
     assert {f[0]: f[2] for f in formats}[OLD_PACKAGE] == "archived"  # package mà mọi pattern đều đã tắt: không bật lại ngầm
     assert {f[2] for f in formats if f[0] != OLD_PACKAGE} == {"active"}
 
@@ -81,7 +89,7 @@ def test_old_patterns_become_version_one_formats_with_fields_and_samples(databas
     assert ("amount", "amount_cents", True) in {tuple(r) for r in fields}
 
     samples = asyncio.run(_run(database, "SELECT count(*) FROM kb_provider_format_samples"))[0][0]
-    assert samples == 12  # mười hai pattern mặc định mang mẫu khớp; mẫu "khong khop" của package cũ bị bỏ qua
+    assert samples == len(_seed_rows())  # mọi pattern mặc định mang mẫu khớp; mẫu "khong khop" của package cũ bị bỏ qua
     expected = asyncio.run(_run(database, "SELECT expected_fields FROM kb_provider_format_samples WHERE sample_text LIKE '%HIGHLANDS%' LIMIT 1"))[0][0]
     assert expected["amount_cents"] == 75_000 and expected["transaction_type"] == "debit"
 
@@ -92,9 +100,9 @@ def test_downgrade_removes_formats_and_upgrade_rebuilds_them(database):
     assert _alembic(database, "downgrade", "0024").returncode == 0
     gone = asyncio.run(_run(database, "SELECT to_regclass('kb_provider_formats'), to_regclass('kb_provider_format_fields'), to_regclass('kb_provider_format_samples')"))[0]
     assert tuple(gone) == (None, None, None)
-    assert asyncio.run(_run(database, "SELECT count(*) FROM kb_provider_patterns"))[0][0] == 13  # pattern cũ còn nguyên
+    assert asyncio.run(_run(database, "SELECT count(*) FROM kb_provider_patterns"))[0][0] == len(_seed_rows()) + 1  # pattern cũ còn nguyên
 
     result = _alembic(database, "upgrade", "head")
     assert result.returncode == 0, result.stderr
-    assert asyncio.run(_run(database, "SELECT count(*) FROM kb_provider_formats"))[0][0] == 9
+    assert asyncio.run(_run(database, "SELECT count(*) FROM kb_provider_formats"))[0][0] == len(_seed_packages()) + 1
     assert _alembic(database, "check").returncode == 0

@@ -21,7 +21,8 @@ def test_every_active_pattern_still_matches_its_own_sample(pattern_specs, matche
 
 def test_seeded_providers_are_covered(pattern_specs):
     packages = {spec.package_name for spec in pattern_specs}
-    assert packages == {
+    # Tập tối thiểu phải có: thêm ngân hàng mới vào seed không làm test này đỏ.
+    assert packages >= {
         "com.mbmobile",
         "com.VCB",
         "com.mservice.momotransfer",

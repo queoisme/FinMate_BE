@@ -14,10 +14,16 @@ from app.db.seed_patterns import seed
 from app.services import provider_formats
 from app.services.provider_formats import SYSTEM_ACTOR, FormatError
 from app.utils.provider_patterns import PatternMatcher
+from tests.conftest import pattern_rows
 
 MB = "com.mbmobile"
 MB_QR = "TK 0123456789|GD: -75,000VND 09/09/2026 10:28|SD: 2,500,000VND|ND: TT QR HIGHLANDS COFFEE"
 ADMIN = sha256_hex("admin-1")
+
+
+def _seed_packages() -> set[str]:
+    """Seed mỗi package một định dạng: số đếm theo file seed để thêm ngân hàng không làm test đỏ."""
+    return {row["package_name"] for row in pattern_rows()}
 
 
 async def one(session, stmt):
@@ -41,12 +47,12 @@ async def rejected(session, sql: str, **params) -> bool:
 async def test_seed_builds_one_active_format_per_package_with_fields_and_samples(seeded_session):
     session = seeded_session
     formats = (await session.execute(select(ProviderFormat))).scalars().all()
-    assert len(formats) == 8 and {f.status for f in formats} == {"active"} and {f.version for f in formats} == {1} and {f.created_by for f in formats} == {SYSTEM_ACTOR}
+    assert len(formats) == len(_seed_packages()) and {f.status for f in formats} == {"active"} and {f.version for f in formats} == {1} and {f.created_by for f in formats} == {SYSTEM_ACTOR}
 
     fields = {(f.field_key, f.maps_to, f.is_required) for f in (await session.execute(select(ProviderFormatField).where(ProviderFormatField.format_id == (await mb_format(session)).id))).scalars()}
     assert ("amount", "amount_cents", True) in fields and ("merchant", "merchant_name", False) in fields
 
-    assert len((await session.execute(select(ProviderFormatSample))).scalars().all()) == 12  # mỗi pattern mặc định mang mẫu của chính nó
+    assert len((await session.execute(select(ProviderFormatSample))).scalars().all()) == len(pattern_rows())  # mỗi pattern mặc định mang mẫu của chính nó
     for fmt in formats:
         assert await provider_formats.check_format(session, fmt.id) == [], fmt.package_name  # mọi định dạng mặc định đều qua cổng
 
@@ -54,7 +60,7 @@ async def test_seed_builds_one_active_format_per_package_with_fields_and_samples
 async def test_seed_twice_changes_nothing(seeded_session):
     session = seeded_session
     assert await seed(session) == 0
-    assert len((await session.execute(select(ProviderFormat))).scalars().all()) == 8
+    assert len((await session.execute(select(ProviderFormat))).scalars().all()) == len(_seed_packages())
 
 
 async def test_matcher_uses_only_active_formats_and_records_which_pattern_matched(seeded_session):

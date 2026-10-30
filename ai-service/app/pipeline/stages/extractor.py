@@ -21,7 +21,7 @@ from uuid import UUID
 from app.core import confidence as table  # tên khác: dataclass và hàm dưới có trường và biến `confidence`
 from app.core.enums import ExtractionMethod, TransactionType
 from app.services.narrative import extract_description
-from app.utils.provider_patterns import PatternMatcher
+from app.utils.provider_patterns import SIGN_TO_TYPE, PatternMatcher
 from app.utils.text_utils import (
     normalize_whitespace,
     parse_datetime,
@@ -48,8 +48,6 @@ _CREDIT_VERBS: tuple[str, ...] = (
     "tra luong",
     "trả lương",
 )
-
-_SIGN_TYPE: dict[str, TransactionType] = {"+": TransactionType.CREDIT, "-": TransactionType.DEBIT, "−": TransactionType.DEBIT}
 
 _DEBIT_VERBS: tuple[str, ...] = (
     "chi ",
@@ -214,8 +212,8 @@ def _signed_type(text: str, amount_start: int) -> TransactionType | None:
     Dấu phải đứng ngay sát chữ số và không dính vào chữ hay số đứng trước ("2025-12", "a-5"), để gạch nối trong ngày tháng hay mã không bị đọc thành dấu trừ.
     """
     for index in (amount_start, amount_start - 1):  # tùy phép khớp số tiền có gồm cả dấu hay không
-        if 0 <= index < len(text) and text[index] in _SIGN_TYPE and (index == 0 or not text[index - 1].isalnum()):
-            return _SIGN_TYPE[text[index]]
+        if 0 <= index < len(text) and text[index] in "+-−" and (index == 0 or not text[index - 1].isalnum()):
+            return SIGN_TO_TYPE[text[index]]
     return None
 
 

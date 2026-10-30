@@ -33,7 +33,7 @@ from app.utils.text_utils import normalize_whitespace, parse_vnd_amount
 _FLAGS = regex.IGNORECASE | regex.UNICODE | regex.DOTALL
 
 # Ký hiệu chiều tiền hay gặp trong named group ``sign``.
-_SIGN_TO_TYPE: dict[str, TransactionType] = {
+SIGN_TO_TYPE: dict[str, TransactionType] = {
     "-": TransactionType.DEBIT,
     "−": TransactionType.DEBIT,
     "gd": TransactionType.DEBIT,
@@ -172,7 +172,7 @@ def _resolve_type(spec: PatternSpec, sign: str | None) -> TransactionType | None
         return TransactionType(spec.transaction_type)
     if not sign:
         return None
-    return _SIGN_TO_TYPE.get(sign.strip().lower())
+    return SIGN_TO_TYPE.get(sign.strip().lower())
 
 
 def _clean(value: str | None) -> str | None:
