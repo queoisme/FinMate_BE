@@ -32,7 +32,7 @@ from app.services.category_resolver import resolve
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.core.enums import CATEGORY_SLUGS
-from app.services import category_registry
+from app.services import category_registry, secret_store
 from app.schemas.bill import (
     BillClassifyItemsRequest,
     BillItemFeedbackRequest,
@@ -64,11 +64,11 @@ def get_bill_knowledge() -> BillKnowledge:
 
 
 _gemini = GeminiClient(
-    settings.gemini_api_key,
+    secret_store.getter("gemini_api_key"),
     settings.gemini_model,
     settings.gemini_timeout_seconds,
     fallback_models=tuple(m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()),
-    backup_key=settings.openrouter_api_key,
+    backup_key=secret_store.getter("openrouter_api_key"),
     backup_model=settings.openrouter_model,
 )
 
@@ -84,7 +84,7 @@ def get_classify_stats() -> ClassifyStatsRecorder:
 # Chat có client riêng: chuỗi model nhanh hơn, trần thời gian chặt hơn, không đi nhà cung cấp dự phòng (OpenRouter), và cầu dao tách biệt với luồng hóa đơn
 # (hóa đơn tải nặng không làm chat mất AI, và ngược lại).
 _chat_gemini = GeminiClient(
-    settings.gemini_api_key,
+    secret_store.getter("gemini_api_key"),
     settings.chat_gemini_model,
     settings.chat_gemini_timeout_seconds,
     overall_timeout=settings.chat_gemini_overall_seconds,

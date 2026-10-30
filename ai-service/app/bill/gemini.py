@@ -75,23 +75,28 @@ class GeminiFailed(Exception):
     """Gemini lỗi, quá hạn, hoặc trả kết quả sai dạng: người gọi rơi về luật/ML."""
 
 
+def _resolve(source: str | Callable[[], str | None] | None) -> str | None:
+    """Key có thể là chuỗi cố định hoặc một hàm trả key hiện tại (để đổi key qua trang quản trị mà không phải khởi động lại)."""
+    return source() if callable(source) else source
+
+
 class GeminiClient:
     def __init__(
         self,
-        api_key: str | None,
+        api_key: str | Callable[[], str | None] | None,
         model: str,
         timeout: float,
         transport: httpx.AsyncBaseTransport | None = None,
         clock: Callable[[], float] = time.monotonic,
         overall_timeout: float = OVERALL_TIMEOUT,
         fallback_models: tuple[str, ...] = (),
-        backup_key: str | None = None,
+        backup_key: str | Callable[[], str | None] | None = None,
         backup_model: str = "",
     ) -> None:
         self._overall_timeout = overall_timeout
-        self._key = api_key
+        self._key_source = api_key
         self._model = model
-        self._backup_key = backup_key if backup_model else None  # thiếu tên model thì coi như chưa cấu hình
+        self._backup_key_source = backup_key
         self._backup_model = backup_model
         self._models = (model, *fallback_models)  # model chính quá tải (503, hết giờ) thì thử model kế
         self._timeout = timeout
@@ -99,6 +104,14 @@ class GeminiClient:
         self._clock = clock
         self._open_until = 0.0
         self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()  # khóa -> (nhóm, hạn)
+
+    @property
+    def _key(self) -> str | None:
+        return _resolve(self._key_source)
+
+    @property
+    def _backup_key(self) -> str | None:
+        return _resolve(self._backup_key_source) if self._backup_model else None  # thiếu tên model thì coi như chưa cấu hình
 
     @property
     def available(self) -> bool:

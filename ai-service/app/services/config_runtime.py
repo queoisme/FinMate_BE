@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.db.models.config_document import ConfigDocument
 from app.db.session import AsyncSessionLocal
 from app.services import config_documents as docs
+from app.services import secret_store
 
 logger = structlog.get_logger(__name__)
 POLL_SECONDS = 30
@@ -50,4 +51,8 @@ async def watch(interval: float = POLL_SECONDS) -> None:
             await refresh()
         except Exception as error:  # noqa: BLE001
             logger.warning("config_refresh_failed", error_type=type(error).__name__)
+        try:  # key bên thứ ba: bản chạy khác thấy key admin vừa đổi trong vòng POLL_SECONDS
+            await secret_store.reload()
+        except Exception as error:  # noqa: BLE001
+            logger.warning("secrets_refresh_failed", error_type=type(error).__name__)
         await asyncio.sleep(interval)

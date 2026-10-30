@@ -52,6 +52,8 @@ public static class AuditEvents
     public const string AdminProviderFormatChanged = "Admin.ProviderFormat.Changed";
     /// <summary>Cấu hình hệ thống (bảo trì, phiên bản app, tính năng, giao diện) được lưu hoặc hoàn tác. Metadata chỉ có tên các phần đã đổi; nội dung nằm ở chính phiên bản trong <c>system_config_versions</c>.</summary>
     public const string AdminSystemConfigChanged = "Admin.SystemConfig.Changed";
+    /// <summary>Key bên thứ ba được đặt hoặc xóa. Metadata chỉ có tên key, hành động và lý do: KHÔNG BAO GIỜ có giá trị key (AI Service cũng chỉ giữ 4 ký tự cuối).</summary>
+    public const string AdminSecretChanged = "Admin.Secret.Changed";
 
     // Danh mục cách quản lý tài chính, khảo sát đầu vào và mẫu mục tiêu. Chỉ ghi khi có thay đổi thật (gửi lại đúng nội dung cũ không để lại dòng nào).
     public const string AdminFinanceMethodCreated = "Admin.FinanceMethod.Created";

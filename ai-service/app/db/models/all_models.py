@@ -28,6 +28,7 @@ from app.db.models.ml_item_feedback import MlItemFeedback
 from app.db.models.ml_label_event import MlLabelEvent
 from app.db.models.method_prompt import MethodPrompt
 from app.db.models.ml_model import MlModel
+from app.db.models.secret import SecretRow
 from app.db.models.model_version import ModelVersion, TrainingJob
 from app.db.models.nlu_candidate import NluCandidate
 from app.db.models.nlu_example import NluExample

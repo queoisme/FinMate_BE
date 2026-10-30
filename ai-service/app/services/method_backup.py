@@ -30,18 +30,22 @@ class BackupFailed(Exception):
 class OpenRouterPicker:
     def __init__(
         self,
-        api_key: str | None,
+        api_key: str | Callable[[], str | None] | None,
         models: tuple[str, ...],
         timeout: float,
         transport: httpx.AsyncBaseTransport | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._key = api_key
+        self._key_source = api_key  # chuỗi cố định hoặc hàm trả key hiện tại (đổi key qua trang quản trị không cần khởi động lại)
         self._models = models
         self._timeout = timeout
         self._transport = transport
         self._clock = clock
         self._open_until = 0.0
+
+    @property
+    def _key(self) -> str | None:
+        return self._key_source() if callable(self._key_source) else self._key_source
 
     @property
     def enabled(self) -> bool:

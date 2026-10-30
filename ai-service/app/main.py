@@ -16,6 +16,7 @@ from app.api.v1.categories_admin import router as categories_admin_router
 from app.api.v1.ocr_store import router as ocr_store_router
 from app.api.v1.provider_formats_admin import router as provider_formats_admin_router
 from app.api.v1.rasa_admin import router as rasa_admin_router
+from app.api.v1.secrets_admin import router as secrets_admin_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.config_admin import router as config_admin_router
 from app.api.v1.feedback import router as feedback_router
@@ -30,7 +31,7 @@ from app.core.logging import configure_logging
 from app.db.seed_patterns import seed
 from app.db.session import AsyncSessionLocal
 from app.pipeline.orchestrator import pipeline
-from app.services import category_registry, config_documents, config_runtime, nlu_candidates, retention
+from app.services import category_registry, config_documents, config_runtime, nlu_candidates, retention, secret_store
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -78,6 +79,10 @@ async def lifespan(app: FastAPI):
         logger.info("config_documents_loaded", applied=await config_runtime.refresh())
     except Exception as error:  # noqa: BLE001
         logger.error("config_documents_startup_failed", error_type=type(error).__name__)
+    try:  # key bên thứ ba admin đã nhập (secret_store): có thì dùng thay cho biến môi trường; lỗi thì giữ biến môi trường
+        logger.info("secrets_loaded", count=await secret_store.reload())
+    except Exception as error:  # noqa: BLE001
+        logger.error("secrets_startup_failed", error_type=type(error).__name__)
     try:  # danh mục backend đã đồng bộ (kb_categories): có thì dùng, DB trống hoặc lỗi thì dùng CATEGORY_SLUGS trong code
         async with AsyncSessionLocal() as session:
             await category_registry.refresh(session)
@@ -124,6 +129,7 @@ app.include_router(config_admin_router, prefix="/api/v1")
 app.include_router(categories_admin_router, prefix="/api/v1")
 app.include_router(provider_formats_admin_router, prefix="/api/v1")
 app.include_router(rasa_admin_router, prefix="/api/v1")
+app.include_router(secrets_admin_router, prefix="/api/v1")
 app.include_router(ocr_store_router, prefix="/api/v1")
 
 

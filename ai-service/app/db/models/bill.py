@@ -48,7 +48,7 @@ BILL_KEYWORD_KINDS = ("merchant", "product")  # từ điển chat không nằm �
 # Danh mục người dùng chọn khi lưu một khoản chi từ hóa đơn: slug của backend, trừ "income" (hóa đơn là tiền ra).
 BILL_CHOICE_SLUGS = tuple(slug for slug in CATEGORY_SLUGS if slug != "income")
 # Giá trị thật mà rules_admin._log ghi vào nhật ký. ERD v5_1 ghi 'item', code đang ghi 'item_cache' (giữ theo code); 'provider_format' dành cho bộ định dạng sắp làm.
-AUDIT_RESOURCES = ("brand", "keyword", "item_cache", "instruction", "provider_format", "category")
+AUDIT_RESOURCES = ("brand", "keyword", "item_cache", "instruction", "provider_format", "category", "secret")  # secret: đổi key bên thứ ba (chỉ tên, 4 ký tự cuối, lý do)
 AUDIT_ACTIONS = ("create", "update", "activate", "deactivate", "delete", "revert")
 
 

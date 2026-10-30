@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     notification_ai_timeout_seconds: float = 8.0  # trần ngoài cùng của bước AI phân loại nội dung thông báo trong /analyze, phải lớn hơn chat_gemini_overall_seconds (7.5) để chuỗi Gemini tự thất bại và mở cầu dao trước khi wait_for hủy; quá hạn thì giữ kết quả luật ('other')
     # Dự phòng khi mọi model Gemini đều lỗi (OpenRouter). Để trống khóa thì tắt. Đo 2026-10-13: nemotron-3-super:free 6-16s, đúng 5-6/6; gemma-4 :free bị 429
     openrouter_api_key: str | None = None
+
+    # Khóa chủ AES-256 (32 byte, base64) mã hóa key của bên thứ ba lưu qua trang quản trị (secret_store). Để trống thì không lưu được key ở DB (key ở biến môi trường vẫn chạy).
+    # Sinh một khóa: python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())". Mất khóa này là mất mọi key đã lưu ở DB (nhập lại được).
+    secrets_master_key: str | None = None
     openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
 
     # Chọn cách quản lý tài chính (POST /finance-methods/recommend): client Gemini riêng (cầu dao riêng), dùng chung GEMINI_API_KEY; hết cách Gemini thì mới tới OpenRouter

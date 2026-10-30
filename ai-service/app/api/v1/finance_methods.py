@@ -17,7 +17,7 @@ from app.bill.gemini import GeminiClient, GeminiFailed
 from app.bill.rules_admin import RuleError
 from app.core.config import settings
 from app.schemas.finance_methods import RecommendRequest, RecommendResponse
-from app.services import method_picker
+from app.services import method_picker, secret_store
 from app.services.method_backup import BackupFailed, OpenRouterPicker
 from app.services.method_picker import InvalidOutput, MethodPromptRow
 
@@ -26,7 +26,7 @@ router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 
 # Client riêng (cầu dao tách khỏi hóa đơn và chat), dùng chung khóa Gemini. Dự phòng thứ hai (OpenRouter) ở ``_backup`` bên dưới, không nằm trong client này.
 _gemini = GeminiClient(
-    settings.gemini_api_key,
+    secret_store.getter("gemini_api_key"),
     settings.method_gemini_model,
     settings.method_gemini_timeout_seconds,
     overall_timeout=settings.method_gemini_overall_seconds,
@@ -41,7 +41,7 @@ def get_method_gemini_client() -> GeminiClient:
 
 # Dự phòng thứ hai: chỉ chạy khi Gemini hết cách; tắt nếu thiếu khóa hoặc METHOD_OPENROUTER_MODELS trống.
 _backup = OpenRouterPicker(
-    settings.openrouter_api_key,
+    secret_store.getter("openrouter_api_key"),
     tuple(m.strip() for m in settings.method_openrouter_models.split(",") if m.strip()),
     settings.method_openrouter_timeout_seconds,
 )
