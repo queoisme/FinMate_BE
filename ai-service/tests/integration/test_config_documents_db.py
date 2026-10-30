@@ -193,6 +193,7 @@ async def test_the_admin_api_walks_the_whole_flow(client, auth_headers):
     headers = {**auth_headers, "X-Actor-Hash": ACTOR}
     listing = (await client.get("/api/v1/admin/config/documents", headers=auth_headers)).json()["items"]
     assert {d["name"] for d in listing} == {"intent_cues", "chat_dictionary", "merchant_lexicon", "narrative_labels", "notification_vocab", "parsing_vocab", "thresholds", "app_screens"}
+    assert {d["group"] for d in listing} == set(docs.DOCUMENT_GROUPS)  # danh sách trả kèm nhóm để admin gom
 
     current = (await client.get("/api/v1/admin/config/documents/intent_cues", headers=auth_headers)).json()
     assert current["version"] == 0 and current["source"] == "file"

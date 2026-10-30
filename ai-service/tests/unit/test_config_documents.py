@@ -316,3 +316,9 @@ def test_startup_seed_failure_is_logged_not_raised_and_flag_off_skips_db():
         app_main, "settings", SimpleNamespace(seed_config_documents=False)
     ):
         asyncio.run(app_main.seed_config_documents())
+
+
+def test_every_document_belongs_to_a_known_admin_group():
+    """Trang admin gom tài liệu theo trường này; nhóm lạ sẽ không hiện ở trang nào."""
+    assert all(spec.group in docs.DOCUMENT_GROUPS for spec in docs.SPECS.values())
+    assert {name: spec.group for name, spec in docs.SPECS.items() if spec.group == "rule"} == {"app_screens": "rule", "thresholds": "rule"}

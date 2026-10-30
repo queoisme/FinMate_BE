@@ -459,6 +459,9 @@ def _preview_chat_dictionary(content: dict) -> dict:
 
 # ------------------------------------------------------------------ danh sách tài liệu được phép sửa
 
+DOCUMENT_GROUPS = ("dictionary", "rule")  # nhóm hiển thị ở trang admin: từ điển (từ vựng tra cứu) và luật (quy tắc, ngưỡng); admin gom theo trường này, không tự giữ bảng tên -> nhóm
+
+
 @dataclass(frozen=True)
 class Spec:
     name: str
@@ -469,6 +472,7 @@ class Spec:
     apply: Callable[[dict], None] | None  # áp dụng vào TIẾN TRÌNH NÀY (ai-service); dịch vụ khác tự nạp từ DB
     preview: Callable[[dict], dict] | None
     upgrade: Callable[[dict], dict] | None = None  # bổ sung khóa mà code thêm SAU khi tài liệu được lưu vào DB; chỉ dùng cho nội dung đọc từ DB, không dùng cho bản nháp vừa tải lên
+    group: str = "dictionary"  # một trong DOCUMENT_GROUPS
     seed: bool = False  # True: lúc khởi động, nếu DB chưa có dòng nào của tài liệu này thì ghi bản mặc định thành version 1 đang chạy (xem seed_defaults)
 
 
@@ -488,8 +492,8 @@ SPECS: dict[str, Spec] = {
     "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị, số dư, phân loại giao dịch)", ("ai-service",), notification_vocab.default_data,
                                _validate_notification_vocab, notification_vocab.apply, None, notification_vocab.with_defaults, seed=True),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
-    "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),
-    "thresholds": Spec("thresholds", "Ngưỡng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("thresholds.json"), _validate_thresholds, None, None),
+    "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None, group="rule"),
+    "thresholds": Spec("thresholds", "Ngưỡng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("thresholds.json"), _validate_thresholds, None, None, group="rule"),
 }
 
 
@@ -556,7 +560,7 @@ async def overview(session: AsyncSession) -> list[dict]:
     for spec in SPECS.values():
         row = await _active_row(session, spec.name)
         count = await session.scalar(select(func.count()).select_from(ConfigDocument).where(ConfigDocument.name == spec.name))
-        result.append({"name": spec.name, "title": spec.title, "consumers": list(spec.consumers), "active_version": row.version if row else 0,
+        result.append({"name": spec.name, "title": spec.title, "group": spec.group, "consumers": list(spec.consumers), "active_version": row.version if row else 0,
                        "source": "db" if row else "file", "versions": count or 0, "preview_available": spec.preview is not None})
     return result
 
