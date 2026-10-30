@@ -50,6 +50,8 @@ public static class AuditEvents
     public const string AdminAiConfigChanged = "Admin.AiConfig.Changed";
     /// <summary>Định dạng thông báo của một ngân hàng/ví (tạo, nhân bản, sửa pattern/trường/mẫu, kích hoạt, lưu trữ). Nội dung nằm ở nhật ký của AI Service; ở đây không ghi thân yêu cầu vì mẫu có thể chứa chữ thông báo.</summary>
     public const string AdminProviderFormatChanged = "Admin.ProviderFormat.Changed";
+    /// <summary>Cấu hình hệ thống (bảo trì, phiên bản app, tính năng, giao diện) được lưu hoặc hoàn tác. Metadata chỉ có tên các phần đã đổi; nội dung nằm ở chính phiên bản trong <c>system_config_versions</c>.</summary>
+    public const string AdminSystemConfigChanged = "Admin.SystemConfig.Changed";
 
     // Danh mục cách quản lý tài chính, khảo sát đầu vào và mẫu mục tiêu. Chỉ ghi khi có thay đổi thật (gửi lại đúng nội dung cũ không để lại dòng nào).
     public const string AdminFinanceMethodCreated = "Admin.FinanceMethod.Created";

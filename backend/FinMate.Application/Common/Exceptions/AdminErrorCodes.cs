@@ -34,4 +34,9 @@ public static class AdminErrorCodes
     public const string SurveyQuestionCodeDuplicate = "ADMIN_SURVEY_QUESTION_CODE_DUPLICATE";
     public const string SurveyOptionCodeDuplicate = "ADMIN_SURVEY_OPTION_CODE_DUPLICATE";
     public const string GoalTemplateCodeDuplicate = "ADMIN_GOAL_TEMPLATE_CODE_DUPLICATE";
+
+    /// <summary>Người sửa cấu hình hệ thống đang nhìn một phiên bản cũ: có người vừa lưu bản mới. Ghi đè lúc này là xóa im lặng thay đổi của họ.</summary>
+    public const string SystemConfigStale = "ADMIN_SYSTEM_CONFIG_STALE";
+
+    public const string SystemConfigNoteRequired = "ADMIN_SYSTEM_CONFIG_NOTE_REQUIRED";
 }

@@ -6,6 +6,7 @@ using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.FinanceCatalog;
 using FinMate.Application.Admin.Queries;
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Auth;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.GoogleOAuth;
@@ -415,6 +416,10 @@ public class Program
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
+        builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
+        builder.Services.AddMemoryCache();
+        builder.Services.AddSingleton<ISystemConfigProvider, SystemConfigProvider>();
         builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
         builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
         builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();
@@ -564,6 +569,8 @@ public class Program
         app.UseHttpsRedirection();
 
         app.UseAuthentication();
+        // SAU xác thực (cần biết người gọi có phải Admin không), TRƯỚC phân quyền: bảo trì chặn cả request chưa đăng nhập.
+        app.UseMiddleware<MaintenanceMiddleware>();
         app.UseAuthorization();
 
         // SAU UseAuthentication có chủ ý: rate limiter phân vùng theo user id khi đã đăng nhập
