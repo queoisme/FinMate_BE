@@ -15,7 +15,7 @@ class ConfigDocument(Base):
     __tablename__ = "config_documents"
 
     id: Mapped[uuid_pk]
-    name: Mapped[str] = mapped_column(String(48), nullable=False)  # intent_cues | chat_dictionary | merchant_lexicon | narrative_labels | parsing_vocab | thresholds | app_screens
+    name: Mapped[str] = mapped_column(String(48), nullable=False)  # intent_cues | chat_dictionary | merchant_lexicon | narrative_labels | notification_vocab | parsing_vocab | thresholds | app_screens
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False)  # draft | active | archived
     content: Mapped[dict] = mapped_column(JSONB, nullable=False)

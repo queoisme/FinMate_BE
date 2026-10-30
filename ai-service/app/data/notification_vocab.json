@@ -1,0 +1,6 @@
+{
+  "credit_verbs": ["nhan", "nhận", "thu", "luong", "lương", "thuong", "thưởng", "hoan tien", "hoàn tiền", "duoc tra", "được trả", "bán", "nap tien", "nạp tiền", "cong tien", "cộng tiền", "tra luong", "trả lương"],
+  "debit_verbs": ["chi", "tieu", "tiêu", "tra", "trả", "mua", "thanh toan", "thanh toán", "an", "ăn", "uong", "uống", "dong", "đóng", "nap", "nạp", "do xang", "đổ xăng", "gui", "gửi", "rut", "rút", "mung", "mừng", "dat", "đặt", "kham", "khám", "gia han", "gia hạn", "di", "đi"],
+  "merchant_prepositions": ["ở", "o", "tại", "tai", "cho", "từ", "tu", "cua", "của"],
+  "merchant_prefixes": ["tt qr", "thanh toan qr", "thanh toan", "thanh toán", "chuyen tien", "chuyen khoan", "tt", "ttoan"]
+}

@@ -192,7 +192,7 @@ async def test_removing_the_active_row_returns_the_process_to_the_default(sessio
 async def test_the_admin_api_walks_the_whole_flow(client, auth_headers):
     headers = {**auth_headers, "X-Actor-Hash": ACTOR}
     listing = (await client.get("/api/v1/admin/config/documents", headers=auth_headers)).json()["items"]
-    assert {d["name"] for d in listing} == {"intent_cues", "chat_dictionary", "merchant_lexicon", "narrative_labels", "parsing_vocab", "thresholds", "app_screens"}
+    assert {d["name"] for d in listing} == {"intent_cues", "chat_dictionary", "merchant_lexicon", "narrative_labels", "notification_vocab", "parsing_vocab", "thresholds", "app_screens"}
 
     current = (await client.get("/api/v1/admin/config/documents/intent_cues", headers=auth_headers)).json()
     assert current["version"] == 0 and current["source"] == "file"
@@ -221,8 +221,8 @@ async def test_the_admin_api_needs_the_internal_key_and_an_actor(client, auth_he
 
 @pytest.mark.asyncio
 async def test_seed_defaults_adds_one_active_row_once_and_db_then_wins(session):
-    assert await docs.seed_defaults(session) == {"narrative_labels": 1}
-    assert await docs.seed_defaults(session) == {"narrative_labels": 0}
+    assert await docs.seed_defaults(session) == {"narrative_labels": 1, "notification_vocab": 1}
+    assert await docs.seed_defaults(session) == {"narrative_labels": 0, "notification_vocab": 0}
     rows = (await session.execute(select(ConfigDocument).where(ConfigDocument.name == "narrative_labels"))).scalars().all()
     assert [(r.version, r.status) for r in rows] == [(1, "active")]
     assert (await docs.active_document(session, "narrative_labels"))["source"] == "db"
@@ -232,6 +232,6 @@ async def test_seed_defaults_adds_one_active_row_once_and_db_then_wins(session):
 async def test_seed_defaults_does_not_touch_a_document_an_admin_already_saved(session):
     session.add(ConfigDocument(name="narrative_labels", version=3, status="archived", content={"labels": ["x"]}, created_by=ACTOR))
     await session.commit()
-    assert await docs.seed_defaults(session) == {"narrative_labels": 0}
+    assert await docs.seed_defaults(session) == {"narrative_labels": 0, "notification_vocab": 1}
     count = await session.scalar(select(func.count()).select_from(ConfigDocument).where(ConfigDocument.name == "narrative_labels"))
     assert count == 1

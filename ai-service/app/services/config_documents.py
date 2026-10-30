@@ -28,7 +28,7 @@ from app.db.models.config_document import ConfigDocument
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.enums import CATEGORY_SLUGS
 from app.pipeline.stages import categorizer
-from app.services import intent_cues, narrative, vocab
+from app.services import intent_cues, narrative, notification_vocab, vocab
 from app.services.vi_text import fold
 
 MAX_DOCUMENT_BYTES = 1_000_000
@@ -199,6 +199,8 @@ def _validate_thresholds(content: dict) -> None:
 MAX_KEYWORDS_PER_GROUP = 2000
 MAX_KEYWORD_CHARS = 60
 MAX_NARRATIVE_LABELS = 30
+MAX_VOCAB_TERMS = 200
+MAX_VOCAB_TERM_CHARS = 30
 
 
 def _validate_chat_dictionary(content: dict) -> None:
@@ -272,6 +274,29 @@ def _validate_narrative_labels(content: dict) -> None:
         if label in seen:
             raise _invalid("duplicate_label", f"Nhãn '{label}' bị trùng.")
         seen.add(label)
+
+
+def _validate_notification_vocab(content: dict) -> None:
+    groups = notification_vocab.GROUPS
+    if set(content) != set(groups):
+        raise _invalid("invalid_document", f"Tài liệu phải có đúng các nhóm {list(groups)}, mỗi nhóm là mảng chuỗi.")
+    for group in groups:
+        terms = content[group]
+        if not isinstance(terms, list):
+            raise _invalid("invalid_document", f"Nhóm '{group}' phải là mảng chuỗi.")
+        if len(terms) > MAX_VOCAB_TERMS:
+            raise _invalid("too_many_terms", f"Nhóm '{group}': tối đa {MAX_VOCAB_TERMS} từ.")
+        seen: set[str] = set()
+        for term in terms:
+            if not isinstance(term, str) or term != term.lower() or term != " ".join(term.split()) or not 1 <= len(term) <= MAX_VOCAB_TERM_CHARS:
+                raise _invalid("invalid_term", f"Nhóm '{group}', từ '{str(term)[:MAX_VOCAB_TERM_CHARS]}': phải viết thường, gọn khoảng trắng, dài 1-{MAX_VOCAB_TERM_CHARS} ký tự "
+                                               "(khớp nguyên từ, nên có thể thêm cả dạng có dấu lẫn không dấu).")
+            if term in seen:
+                raise _invalid("duplicate_term", f"Nhóm '{group}': từ '{term}' bị trùng.")
+            seen.add(term)
+    both = set(content["credit_verbs"]) & set(content["debit_verbs"])
+    if both:
+        raise _invalid("ambiguous_verb", f"Từ {sorted(both)[:5]} có ở cả động từ thu và chi: một từ chỉ được thuộc một chiều tiền.")
 
 
 def _lexicon_cases() -> list[tuple[str, str, str]]:
@@ -456,6 +481,8 @@ SPECS: dict[str, Spec] = {
     "merchant_lexicon": Spec("merchant_lexicon", "Từ điển tên cửa hàng (thông báo ngân hàng và bộ phân loại chung)", ("ai-service",), categorizer.default_lexicon_data,
                              _validate_merchant_lexicon, categorizer.apply_lexicon, _preview_merchant_lexicon),
     "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None, seed=True),
+    "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị)", ("ai-service",), notification_vocab.default_data,
+                               _validate_notification_vocab, notification_vocab.apply, None, notification_vocab.with_defaults, seed=True),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
     "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),
     "thresholds": Spec("thresholds", "Ngưỡng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("thresholds.json"), _validate_thresholds, None, None),

@@ -249,44 +249,48 @@ class FakeSession:
     def __init__(self, existing=None):
         self.existing, self.added, self.commits, self.scalars = existing, [], 0, 0
 
-    async def scalar(self, _statement):
+    async def scalar(self, statement):
         self.scalars += 1
-        return self.existing
+        name = statement.compile().params["name_1"]  # tên tài liệu trong WHERE
+        return self.existing or ("row" if any(row.name == name for row in self.added) else None)  # lần gọi sau trên cùng "DB" phải thấy dòng vừa thêm
 
     def add(self, row):
         self.added.append(row)
-        self.existing = row.id or "row"  # lần gọi sau trên cùng "DB" phải thấy dòng vừa thêm
 
     async def commit(self):
         self.commits += 1
 
 
-def test_spec_seed_flag_defaults_false_and_only_narrative_labels_sets_it():
-    assert [name for name, spec in docs.SPECS.items() if spec.seed] == ["narrative_labels"]
+SEEDED = ["narrative_labels", "notification_vocab"]
+
+
+def test_spec_seed_flag_defaults_false_and_only_the_notification_documents_set_it():
+    assert [name for name, spec in docs.SPECS.items() if spec.seed] == SEEDED
     assert docs.Spec.__dataclass_fields__["seed"].default is False
 
 
 def test_seed_defaults_inserts_version_one_active_when_db_is_empty():
     session = FakeSession()
-    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 1}
-    (row,) = session.added
-    assert isinstance(row, ConfigDocument)
-    assert (row.name, row.version, row.status) == ("narrative_labels", 1, "active")
-    assert row.content == narrative.default_data()
-    assert row.note == "seed từ bản mặc định"
-    assert re.fullmatch(r"[0-9a-f]{64}", row.created_by)  # chk_config_documents_created_by
+    assert asyncio.run(docs.seed_defaults(session)) == {name: 1 for name in SEEDED}
+    assert [row.name for row in session.added] == SEEDED
+    for row in session.added:
+        assert isinstance(row, ConfigDocument)
+        assert (row.version, row.status) == (1, "active")
+        assert row.content == docs.SPECS[row.name].default()
+        assert row.note == "seed từ bản mặc định"
+        assert re.fullmatch(r"[0-9a-f]{64}", row.created_by)  # chk_config_documents_created_by
     assert session.commits == 1
 
 
 def test_seed_defaults_skips_when_a_row_already_exists_and_a_second_run_changes_nothing():
     session = FakeSession(existing="admin-row")
-    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 0}
+    assert asyncio.run(docs.seed_defaults(session)) == {name: 0 for name in SEEDED}
     assert session.added == []
 
     session = FakeSession()
     asyncio.run(docs.seed_defaults(session))
-    assert asyncio.run(docs.seed_defaults(session)) == {"narrative_labels": 0}
-    assert len(session.added) == 1
+    assert asyncio.run(docs.seed_defaults(session)) == {name: 0 for name in SEEDED}
+    assert len(session.added) == len(SEEDED)
 
 
 def test_seed_defaults_touches_only_specs_with_seed_true():
@@ -294,7 +298,7 @@ def test_seed_defaults_touches_only_specs_with_seed_true():
     assert not plain.seed
     session = FakeSession()
     asyncio.run(docs.seed_defaults(session))
-    assert session.scalars == 1 and {row.name for row in session.added} == {"narrative_labels"}
+    assert session.scalars == len(SEEDED) and {row.name for row in session.added} == set(SEEDED)
 
 
 def test_startup_seed_failure_is_logged_not_raised_and_flag_off_skips_db():

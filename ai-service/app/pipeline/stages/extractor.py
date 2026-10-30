@@ -13,92 +13,19 @@ Hai đường đi:
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
 from app.core import confidence as table  # tên khác: dataclass và hàm dưới có trường và biến `confidence`
 from app.core.enums import ExtractionMethod, TransactionType
+from app.services import notification_vocab
 from app.services.narrative import extract_description
 from app.utils.provider_patterns import SIGN_TO_TYPE, PatternMatcher
 from app.utils.text_utils import (
     normalize_whitespace,
     parse_datetime,
     select_amounts,
-)
-
-_CREDIT_VERBS: tuple[str, ...] = (
-    "nhan",
-    "nhận",
-    "thu ",
-    "luong",
-    "lương",
-    "thuong",
-    "thưởng",
-    "hoan tien",
-    "hoàn tiền",
-    "duoc tra",
-    "được trả",
-    "bán ",  # dạng không dấu "ban " bị bỏ: nó trùng "Bạn đã…" của thông báo ví và đọc nhầm thành thu
-    "nap tien",
-    "nạp tiền",
-    "cong tien",
-    "cộng tiền",
-    "tra luong",
-    "trả lương",
-)
-
-_DEBIT_VERBS: tuple[str, ...] = (
-    "chi ",
-    "tieu",
-    "tiêu",
-    "tra ",
-    "trả ",
-    "mua",
-    "thanh toan",
-    "thanh toán",
-    "an ",
-    "ăn ",
-    "uong",
-    "uống",
-    "dong ",
-    "đóng ",
-    "nap ",
-    "nạp ",
-    "do xang",
-    "đổ xăng",
-    "gui ",
-    "gửi ",
-    "rut ",
-    "rút ",
-    "mung ",
-    "mừng ",
-    "dat ",
-    "đặt ",
-    "kham",
-    "khám",
-    "gia han",
-    "gia hạn",
-    "di ",
-    "đi ",
-)
-
-# Động từ chỉ khớp ở ĐẦU từ và lấy cái xuất hiện sớm nhất: khớp giữa từ làm "an " (ăn) trúng "b[an] " và "nh[an] ", nên "Ban da nhan" bị đọc thành chi.
-_CREDIT_RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(v) for v in _CREDIT_VERBS) + ")")
-_DEBIT_RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(v) for v in _DEBIT_VERBS) + ")")
-
-# Giới từ dẫn tới tên đơn vị trong câu tự nhiên: "45k ở Phở Thìn", "500k từ Nguyễn Văn A".
-_MERCHANT_PREPOSITIONS: tuple[str, ...] = (
-    " ở ",
-    " o ",
-    " tại ",
-    " tai ",
-    " cho ",
-    " từ ",
-    " tu ",
-    " cua ",
-    " của ",
 )
 
 
@@ -219,8 +146,8 @@ def _signed_type(text: str, amount_start: int) -> TransactionType | None:
 
 def _infer_type(text: str) -> TransactionType:
     lowered = f" {text.lower()} "
-    credit_hit = match.start() if (match := _CREDIT_RE.search(lowered)) else None
-    debit_hit = match.start() if (match := _DEBIT_RE.search(lowered)) else None
+    credit_hit = notification_vocab.credit_position(lowered)
+    debit_hit = notification_vocab.debit_position(lowered)
 
     if credit_hit is not None and debit_hit is not None:
         # Cả hai cùng xuất hiện ("nhận lương rồi trả tiền nhà") — động từ đứng trước là
@@ -237,35 +164,12 @@ def _infer_type(text: str) -> TransactionType:
 
 
 def _merchant_after_preposition(text: str, from_index: int) -> str | None:
-    tail = text[from_index:]
-    lowered = f" {tail.lower()}"
-    for preposition in _MERCHANT_PREPOSITIONS:
-        position = lowered.find(preposition)
-        if position == -1:
-            continue
-        merchant = tail[position + len(preposition) - 1 :].strip(" .,;:")
-        if merchant:
-            return merchant[:120]
-    return None
+    return notification_vocab.merchant_after_preposition(text[from_index:])
 
 
 def _merchant_from_description(description: str | None) -> str | None:
     """VNPay/VCB chỉ có trường nội dung — gỡ các tiền tố nghiệp vụ để lộ tên đơn vị."""
     if not description:
         return None
-    cleaned = normalize_whitespace(description)
-    for prefix in (
-        "TT QR",
-        "THANH TOAN QR",
-        "THANH TOAN",
-        "Thanh toan",
-        "Thanh toán",
-        "CHUYEN TIEN",
-        "CHUYEN KHOAN",
-        "TT ",
-        "TTOAN",
-    ):
-        if cleaned.upper().startswith(prefix.upper()):
-            cleaned = cleaned[len(prefix) :].strip(" -:")
-            break
-    return cleaned[:120] or None
+    cleaned = notification_vocab.strip_merchant_prefix(normalize_whitespace(description))
+    return cleaned[: notification_vocab.MAX_MERCHANT_CHARS] or None

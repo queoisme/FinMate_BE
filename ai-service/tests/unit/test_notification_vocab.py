@@ -1,0 +1,97 @@
+"""Tài liệu ``notification_vocab``: từ vựng chiều tiền / tên đơn vị của thông báo ngân hàng sống trong DB, không nằm cứng trong code."""
+import pytest
+
+from app.bill.rules_admin import RuleError
+from app.core.enums import TransactionType
+from app.pipeline.stages.extractor import _infer_type, _merchant_after_preposition, _merchant_from_description
+from app.services import config_documents as docs
+from app.services import notification_vocab
+
+SPEC = docs.spec_of("notification_vocab")
+
+
+@pytest.fixture(autouse=True)
+def back_to_default_vocab():
+    yield
+    notification_vocab.apply(notification_vocab.default_data())
+
+
+def rejected(content):
+    with pytest.raises(RuleError) as info:
+        SPEC.validate(content)
+    return info.value
+
+
+def test_default_document_is_valid():
+    SPEC.validate(notification_vocab.default_data())
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Ban da nhan 500.000d tu A", TransactionType.CREDIT),  # "an" không trúng giữa "nhan"/"ban"
+        ("Ban da chi 120.000d tai B", TransactionType.DEBIT),  # "Ban" không dấu không phải động từ "bán"
+        ("nhận lương tháng 9 15tr", TransactionType.CREDIT),
+        ("trưa nay ăn phở 45k", TransactionType.DEBIT),
+        ("chi, 50k", TransactionType.DEBIT),  # dấu câu sau từ vẫn là ranh giới từ
+        ("nhận lương rồi trả tiền nhà", TransactionType.CREDIT),  # động từ đứng trước thắng
+        ("trả tiền nhà rồi nhận lương", TransactionType.DEBIT),
+        ("khong co dong tu nao 45k", TransactionType.DEBIT),  # mặc định là chi
+    ],
+)
+def test_direction_from_the_earliest_verb(text, expected):
+    assert _infer_type(text) is expected
+
+
+def test_apply_changes_direction_without_touching_code():
+    assert _infer_type("tien ve 500k") is TransactionType.DEBIT
+    notification_vocab.apply({**notification_vocab.default_data(), "credit_verbs": ["tien ve"]})
+    assert _infer_type("tien ve 500k") is TransactionType.CREDIT
+    assert notification_vocab.current_data()["credit_verbs"] == ["tien ve"]
+
+
+def test_merchant_after_the_first_declared_preposition():
+    text = "45k o Pho Thin, tu Nguyen Van A"
+    assert _merchant_after_preposition(text, 3) == "Pho Thin, tu Nguyen Van A"  # "o" khai báo trước "tu"
+    assert _merchant_after_preposition("45k nothing here", 3) is None
+    assert _merchant_after_preposition("45k cho ", 3) is None  # sau giới từ rỗng
+
+
+@pytest.mark.parametrize(
+    "description,expected",
+    [
+        ("TT QR HIGHLANDS COFFEE", "HIGHLANDS COFFEE"),
+        ("THANH TOAN QR CIRCLE K", "CIRCLE K"),  # tiền tố dài thắng tiền tố ngắn
+        ("Thanh toán - Grab", "Grab"),
+        ("TTOAN abc", "abc"),  # "tt" không cắt giữa từ "ttoan"
+        ("TTX store", "TTX store"),  # không phải tiền tố nguyên từ
+        ("HIGHLANDS", "HIGHLANDS"),
+    ],
+)
+def test_merchant_prefix_is_stripped_only_at_a_word_boundary(description, expected):
+    assert _merchant_from_description(description) == expected
+
+
+def test_stored_document_missing_a_new_group_is_filled_from_defaults():
+    old = {"credit_verbs": ["nhan"]}
+    filled = SPEC.upgrade(old)
+    assert filled["credit_verbs"] == ["nhan"]  # nhóm đã có không bị ghi đè
+    assert set(filled) == set(notification_vocab.GROUPS)
+
+
+@pytest.mark.parametrize(
+    "mutate,code",
+    [
+        (lambda c: c.pop("debit_verbs"), "invalid_document"),
+        (lambda c: c.update(credit_verbs="nhan"), "invalid_document"),
+        (lambda c: c["credit_verbs"].append("NHAN"), "invalid_term"),
+        (lambda c: c["credit_verbs"].append("nhan  tien"), "invalid_term"),
+        (lambda c: c["credit_verbs"].append("x" * 31), "invalid_term"),
+        (lambda c: c["credit_verbs"].append("luong"), "duplicate_term"),
+        (lambda c: c["debit_verbs"].append("nhan"), "ambiguous_verb"),
+    ],
+)
+def test_validator_rejects_bad_documents(mutate, code):
+    content = notification_vocab.default_data()
+    mutate(content)
+    assert rejected(content).code == code
