@@ -39,7 +39,7 @@ public static class ProviderConfigSeeder
         // Các ngân hàng / ví còn lại: package_name lấy từ nghiên cứu (Google Play + nguồn thứ hai,
         // 2026-10-30), CHƯA kiểm chứng trên máy thật nên để tắt. Bật bằng PATCH
         // /api/v1/admin/provider-configs/{id}/activation sau khi đối chiếu thông báo thật.
-        // Cùng danh sách với scripts/sql/provider_configs_vn_banks.sql (bản chạy tay).
+        // Đây là nguồn DUY NHẤT của danh sách (SeedAsync chạy mỗi lần BE khởi động, chỉ thêm dòng còn thiếu); không có bản SQL song song để khỏi lệch nhau.
         ("agribank", "Agribank", "com.vnpay.Agribank3g", AccountType.Bank, false),
         ("acb", "ACB", "mobile.acb.com.vn", AccountType.Bank, false),
         ("sacombank", "Sacombank", "com.sacombank.ewallet", AccountType.Bank, false),
