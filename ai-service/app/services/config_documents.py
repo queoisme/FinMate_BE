@@ -481,7 +481,7 @@ SPECS: dict[str, Spec] = {
     "merchant_lexicon": Spec("merchant_lexicon", "Từ điển tên cửa hàng (thông báo ngân hàng và bộ phân loại chung)", ("ai-service",), categorizer.default_lexicon_data,
                              _validate_merchant_lexicon, categorizer.apply_lexicon, _preview_merchant_lexicon),
     "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None, seed=True),
-    "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị)", ("ai-service",), notification_vocab.default_data,
+    "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị, số dư)", ("ai-service",), notification_vocab.default_data,
                                _validate_notification_vocab, notification_vocab.apply, None, notification_vocab.with_defaults, seed=True),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
     "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),

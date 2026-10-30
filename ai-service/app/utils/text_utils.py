@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from app.services import notification_vocab
 from app.utils.amount_slang import SLANG, is_money
 from app.utils.number_words import find_number_words
 
@@ -221,21 +222,6 @@ def find_amount_candidates(text: str) -> list[AmountCandidate]:
     return candidates
 
 
-# Cụm đứng ngay trước một con số để báo rằng đó là SỐ DƯ chứ không phải số tiền giao dịch.
-_BALANCE_MARKERS: tuple[str, ...] = (
-    "so du",
-    "số dư",
-    "sd:",
-    "sd ",
-    "so du vi",
-    "số dư ví",
-    "balance",
-    "con lai",
-    "còn lại",
-    "kha dung",
-    "khả dụng",
-)
-
 # Số dư hầu như luôn nằm sát ngay sau nhãn của nó; 24 ký tự đủ phủ "So du TK VCB ".
 _BALANCE_CONTEXT_CHARS = 24
 
@@ -244,6 +230,11 @@ _BALANCE_CONTEXT_CHARS = 24
 class AmountSelection:
     amount: AmountCandidate | None
     balance: AmountCandidate | None
+
+
+def _looks_like_money(candidate: AmountCandidate) -> bool:
+    """Số dư ngân hàng luôn có đơn vị hoặc dấu ngăn nhóm; một dãy từ bảy chữ số trở lên mà không có cả hai là mã định danh (số tài khoản, số điện thoại)."""
+    return candidate.has_marker or candidate.has_grouping or candidate.value < 1_000_000
 
 
 def select_amounts(text: str) -> AmountSelection:
@@ -265,9 +256,11 @@ def select_amounts(text: str) -> AmountSelection:
         prefix = lowered[
             max(0, candidate.start - _BALANCE_CONTEXT_CHARS) : candidate.start
         ]
-        (balances if any(m in prefix for m in _BALANCE_MARKERS) else others).append(
-            candidate
-        )
+        if not notification_vocab.has_balance_marker(prefix):
+            others.append(candidate)
+        elif _looks_like_money(candidate):
+            balances.append(candidate)
+        # còn lại: đứng sau nhãn số dư nhưng là một dãy số trần ("Số dư TK VCB 1038646763") — số tài khoản, không phải tiền: bỏ.
 
     marked = [c for c in others if c.has_marker]
     pool = marked or [c for c in others if c.value >= 1_000] or others

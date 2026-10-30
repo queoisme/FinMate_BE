@@ -95,3 +95,24 @@ def test_validator_rejects_bad_documents(mutate, code):
     content = notification_vocab.default_data()
     mutate(content)
     assert rejected(content).code == code
+
+
+VCB = "Số dư TK VCB 1038646763 +20,000,000 VND lúc 19-07-2024 10:19:38. Số dư 20,550,000 VND. Ref 213085.190724"
+
+
+def test_account_number_after_the_balance_label_is_not_the_balance():
+    from app.utils.text_utils import select_amounts
+
+    selection = select_amounts(VCB)
+    assert (selection.amount.value, selection.balance.value) == (20_000_000, 20_550_000)  # trước đây số dư = số tài khoản
+    assert select_amounts("So du TK 1038646763").balance is None  # dãy số trần dài là mã định danh
+    assert select_amounts("So du 500").balance.value == 500  # số nhỏ không dấu vẫn là tiền
+
+
+def test_balance_markers_come_from_the_document():
+    from app.utils.text_utils import select_amounts
+
+    text = "thanh toan 50.000d con du 1.000.000d"
+    assert select_amounts(text).balance is None
+    notification_vocab.apply({**notification_vocab.default_data(), "balance_markers": ["con du"]})
+    assert select_amounts(text).balance.value == 1_000_000
