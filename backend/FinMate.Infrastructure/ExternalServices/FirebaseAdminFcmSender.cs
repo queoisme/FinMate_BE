@@ -12,6 +12,13 @@ public partial class FirebaseAdminFcmSender : IFcmSender
     /// <summary>FCM nhận tối đa 500 token mỗi lần gọi.</summary>
     private const int BatchSize = 500;
 
+    private readonly FcmApp _app;
+
+    public FirebaseAdminFcmSender(FcmApp app)
+    {
+        _app = app;
+    }
+
     public async Task<IReadOnlyList<FcmSendOutcome>> SendAsync(
         IReadOnlyList<string> tokens,
         string title,
@@ -19,6 +26,12 @@ public partial class FirebaseAdminFcmSender : IFcmSender
         IReadOnlyDictionary<string, string>? data = null,
         CancellationToken ct = default)
     {
+        // Credentials có thể vừa đổi trên trang quản trị: dựng lại Firebase app nếu cần trước khi gửi.
+        if (!await _app.EnsureAsync(ct))
+        {
+            return [.. tokens.Select(t => new FcmSendOutcome(t, false, false, "NotConfigured"))];
+        }
+
         var outcomes = new List<FcmSendOutcome>(tokens.Count);
 
         foreach (var batch in tokens.Chunk(BatchSize))

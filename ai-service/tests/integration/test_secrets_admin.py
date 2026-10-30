@@ -21,6 +21,7 @@ async def clean(session, monkeypatch):
     monkeypatch.setattr(secret_store.settings, "secrets_master_key", base64.urlsafe_b64encode(os.urandom(32)).decode())
     monkeypatch.setattr(secret_store.settings, "gemini_api_key", None)
     monkeypatch.setattr(secret_store.settings, "openrouter_api_key", None)
+    monkeypatch.setattr(secret_store.settings, "google_vision_api_key", None)
     secret_store._values.clear()
     await session.execute(delete(SecretRow))
     await session.commit()  # kb_audit_log chỉ được thêm dòng (trigger chặn DELETE): các ca dưới đây đếm theo chênh lệch, không dọn nhật ký
@@ -42,7 +43,7 @@ async def test_saving_a_key_stores_only_ciphertext_and_the_api_never_returns_it(
 
     listing = await client.get(URL, headers=auth_headers)
     assert listing.json()["available"] is True and KEY not in listing.text
-    assert {item["name"]: item["source"] for item in listing.json()["items"]} == {"gemini_api_key": "db", "openrouter_api_key": "none"}
+    assert {item["name"]: item["source"] for item in listing.json()["items"]} == {"gemini_api_key": "db", "openrouter_api_key": "none", "google_vision_api_key": "none"}
 
     row = (await session.execute(select(SecretRow))).scalar_one()
     assert KEY.encode() not in row.ciphertext and len(row.nonce) == secret_store.NONCE_BYTES  # DB chỉ có bản mã
@@ -119,3 +120,18 @@ async def test_reload_reads_every_key_back_and_skips_one_it_cannot_decrypt(clien
     await session.commit()
     assert await secret_store.reload(factory) == 1  # dòng hỏng bị bỏ, dòng còn lại vẫn dùng được
     assert secret_store.current("gemini_api_key") == KEY
+
+
+async def test_only_a_shared_key_reaches_another_service_and_never_through_the_admin_route(client, auth_headers):
+    headers = {**auth_headers, "X-Actor-Hash": ACTOR}
+    await client.put(f"{URL}/google_vision_api_key", headers=headers, json={"value": KEY, "reason": "đặt key Vision"})
+    await client.put(f"{URL}/gemini_api_key", headers=headers, json={"value": KEY[:-4] + "ZZZZ", "reason": "đặt key Gemini"})
+    shared = "/api/v1/internal/secrets"
+
+    ok = await client.get(f"{shared}/google_vision_api_key", params={"consumer": "ocr"}, headers=auth_headers)
+    assert (ok.status_code, ok.json()["value"], ok.headers["cache-control"]) == (200, KEY, "no-store")  # OCR Service nhận được giá trị rõ
+
+    assert (await client.get(f"{shared}/gemini_api_key", params={"consumer": "ocr"}, headers=auth_headers)).status_code == 403  # key chỉ AI Service dùng thì không chia sẻ
+    assert (await client.get(f"{shared}/google_vision_api_key", params={"consumer": "backend"}, headers=auth_headers)).status_code == 403  # sai người dùng
+    assert (await client.get(f"{shared}/google_vision_api_key", params={"consumer": "ocr"})).status_code in (401, 403)  # thiếu khóa nội bộ
+    assert KEY not in (await client.get(URL, headers=auth_headers)).text  # trang quản trị vẫn không thấy giá trị

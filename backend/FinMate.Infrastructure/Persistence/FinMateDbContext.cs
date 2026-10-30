@@ -21,6 +21,7 @@ public class FinMateDbContext : DbContext
     public DbSet<DataDeletionRequest> DataDeletionRequests => Set<DataDeletionRequest>();
     public DbSet<ProviderConfig> ProviderConfigs => Set<ProviderConfig>();
     public DbSet<SystemConfigVersion> SystemConfigVersions => Set<SystemConfigVersion>();
+    public DbSet<SecretEntry> SecretEntries => Set<SecretEntry>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();

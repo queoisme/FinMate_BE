@@ -124,6 +124,11 @@ class AiApi:
     def finish_training(self, job_id: str, result: dict) -> str:
         return self._call("POST", f"/api/v1/ocr-store/training/jobs/{job_id}/finish", json=result)["model_version_id"]
 
+    # ------------------------------------------------------------------ key bên thứ ba (admin nhập ở AI Service)
+    def shared_secret(self, name: str, consumer: str) -> str | None:
+        """Giá trị rõ của một key AI Service chia sẻ cho ``consumer`` (ở đây: key Cloud Vision cho ``ocr``); None nếu chưa có key nào. Không log, không lưu ra đĩa."""
+        return self._call("GET", f"/api/v1/internal/secrets/{name}", params={"consumer": consumer}).get("value")
+
     # ------------------------------------------------------------------ tài liệu cấu hình (admin sửa ở AI Service)
     def config_document(self, name: str) -> tuple[int, dict | None]:
         """(phiên bản, nội dung) của tài liệu đang chạy; ``(0, None)`` khi chưa ai kích hoạt bản nào (dùng mặc định trong ``data/``)."""

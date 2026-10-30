@@ -1690,6 +1690,55 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.SecretEntry", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)")
+                        .HasColumnName("name");
+
+                    b.Property<byte[]>("Ciphertext")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ciphertext");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<short>("KeyVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)1)
+                        .HasColumnName("key_version");
+
+                    b.Property<string>("Last4")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("last4");
+
+                    b.Property<byte[]>("Nonce")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("nonce");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("secret_store", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_secret_store_nonce", "octet_length(nonce) = 12");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SpendingInsight", b =>
                 {
                     b.Property<Guid>("Id")

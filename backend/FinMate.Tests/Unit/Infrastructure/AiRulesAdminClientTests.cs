@@ -58,6 +58,16 @@ public class AiRulesAdminClientTests
     }
 
     [Fact]
+    public async Task EmptyPath_HitsTheAreaRoot_WithoutATrailingSlash()
+    {
+        var (client, handler) = ClientReturning(_ => Json(HttpStatusCode.OK, "{}"));
+
+        await client.SendAsync(new AiRulesRequest(HttpMethod.Get, string.Empty, Area: AiRulesRequest.SecretsArea));
+
+        handler.PathAndQuery.Should().Be("/api/v1/admin/secrets");  // có "/" cuối thì ai-service trả 307 và lần gọi lại mất header xác thực
+    }
+
+    [Fact]
     public async Task Write_ForwardsBodyVerbatim_AndTheHashedAdminId()
     {
         var (client, handler) = ClientReturning(_ => Json(HttpStatusCode.OK, """{"brand_key":"zeta mart"}"""));

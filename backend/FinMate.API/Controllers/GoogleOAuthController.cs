@@ -1,6 +1,7 @@
 using System.Web;
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Auth.GoogleOAuth;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
@@ -30,22 +31,30 @@ public class GoogleOAuthController : ControllerBase
     private readonly IGoogleOAuthStore _store;
     private readonly IGoogleCodeExchanger _codeExchanger;
     private readonly IGoogleLoginCommandHandler _loginHandler;
+    private readonly ISecretVault _vault;
 
     public GoogleOAuthController(
         GoogleOAuthOptions options,
         IGoogleOAuthStore store,
         IGoogleCodeExchanger codeExchanger,
-        IGoogleLoginCommandHandler loginHandler)
+        IGoogleLoginCommandHandler loginHandler,
+        ISecretVault vault)
     {
         _options = options;
         _store = store;
         _codeExchanger = codeExchanger;
         _loginHandler = loginHandler;
+        _vault = vault;
     }
 
-    private void EnsureEnabled()
+    /// <summary>
+    /// Bật khi lúc khởi động đã đủ cấu hình, HOẶC admin vừa nhập client secret trên trang quản trị (kèm redirect URI): không cần khởi động lại backend sau khi nhập.
+    /// </summary>
+    private async Task EnsureEnabledAsync(CancellationToken ct)
     {
-        if (!_options.Enabled)
+        var enabled = _options.Enabled
+            || (!string.IsNullOrWhiteSpace(_options.RedirectUri) && !string.IsNullOrWhiteSpace(await _vault.GetAsync(BackendSecrets.GoogleClientSecret, ct)));
+        if (!enabled)
         {
             throw new BusinessRuleException(
                 AuthErrorCodes.GoogleOAuthNotConfigured,
@@ -61,7 +70,7 @@ public class GoogleOAuthController : ControllerBase
     [HttpGet("start")]
     public async Task<IActionResult> Start(CancellationToken ct)
     {
-        EnsureEnabled();
+        await EnsureEnabledAsync(ct);
 
         var state = await _store.IssueStateAsync(ct);
 
@@ -88,7 +97,7 @@ public class GoogleOAuthController : ControllerBase
         [FromQuery] string? code, [FromQuery] string? state, [FromQuery] string? error,
         CancellationToken ct)
     {
-        EnsureEnabled();
+        await EnsureEnabledAsync(ct);
 
         if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code))
         {
@@ -129,7 +138,7 @@ public class GoogleOAuthController : ControllerBase
     public async Task<IActionResult> Exchange(
         [FromBody] GoogleHandoffRequest request, CancellationToken ct)
     {
-        EnsureEnabled();
+        await EnsureEnabledAsync(ct);
 
         var result = await _store.ConsumeHandoffAsync(request.Code, ct)
             ?? throw new AuthenticationException(

@@ -21,7 +21,10 @@ public class AiRulesAdminClient : IAiRulesAdminClient
 
     public async Task<JsonElement?> SendAsync(AiRulesRequest request, CancellationToken ct = default)
     {
-        using var message = new HttpRequestMessage(request.Method, $"{Prefix}{request.Area}/{request.Path.TrimStart('/')}{BuildQuery(request.Query)}");
+        // Đường dẫn rỗng là chính gốc của khu vực ("/admin/secrets"): thêm "/" cuối làm ai-service trả 307 và lần gọi lại mất header xác thực (401).
+        var path = request.Path.TrimStart('/');
+        var target = path.Length == 0 ? $"{Prefix}{request.Area}" : $"{Prefix}{request.Area}/{path}";
+        using var message = new HttpRequestMessage(request.Method, $"{target}{BuildQuery(request.Query)}");
         if (request.ActorId is { } actor)
         {
             message.Headers.Add(ActorHeader, UserIdHasher.Hash(actor));

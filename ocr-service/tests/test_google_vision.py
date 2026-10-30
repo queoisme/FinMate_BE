@@ -41,6 +41,9 @@ TWO_LINES = _response(
 @pytest.fixture(autouse=True)
 def clean_state(monkeypatch):
     monkeypatch.setattr(google_vision._COOLDOWN, "until", 0.0)
+    monkeypatch.setattr(google_vision._KEY, "fetched", float("-inf"))
+    monkeypatch.delenv("AI_SERVICE_URL", raising=False)
+    monkeypatch.delenv("AI_SERVICE_API_KEY", raising=False)
     monkeypatch.delenv("FINMATE_OCR_ENGINE", raising=False)
     monkeypatch.setenv("GOOGLE_VISION_API_KEY", "khoa-thu-nghiem")
 
@@ -124,3 +127,30 @@ def test_a_failure_is_logged_without_the_key_or_any_receipt_text(monkeypatch, ca
         assert google_vision.read_lines_or_none(_png()) is None
     dump = " ".join(r.getMessage() for r in caplog.records)
     assert "OSError" in dump and "khoa-thu-nghiem" not in dump
+
+
+def test_the_admin_key_wins_over_the_environment_and_ai_service_down_falls_back_to_it(monkeypatch):
+    monkeypatch.setenv("AI_SERVICE_URL", "http://ai-service:8000")
+    monkeypatch.setenv("AI_SERVICE_API_KEY", "internal")
+
+    class Fake:
+        answer = "khoa-tu-trang-quan-tri"
+
+        def shared_secret(self, name, consumer):
+            assert (name, consumer) == ("google_vision_api_key", "ocr")
+            if self.answer is None:
+                raise google_vision.ai_api.AiApiError(0, "unreachable", "x")
+            return self.answer
+
+    fake = Fake()
+    monkeypatch.setattr(google_vision._KEY, "api", fake)
+    assert google_vision.api_key() == "khoa-tu-trang-quan-tri"  # kho key thắng biến môi trường
+    assert google_vision.build_request(b"anh").get_header("X-goog-api-key") == "khoa-tu-trang-quan-tri"
+
+    fake.answer = None  # AI Service ngừng: không tắt OCR đám mây
+    monkeypatch.setattr(google_vision._KEY, "fetched", float("-inf"))
+    assert google_vision.api_key() == "khoa-thu-nghiem"
+
+    monkeypatch.setattr(google_vision._KEY, "fetched", float("-inf"))
+    monkeypatch.delenv("GOOGLE_VISION_API_KEY")
+    assert google_vision.api_key() is None and not google_vision.enabled()  # không có ở đâu cả thì tắt

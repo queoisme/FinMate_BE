@@ -1,4 +1,4 @@
-"""Kho key của bên thứ ba (Gemini, OpenRouter): admin nhập qua trang quản trị, lưu ĐÃ MÃ HÓA trong ``secret_store``, dịch vụ đọc theo lúc gọi nên đổi key không cần khởi động lại.
+"""Kho key của bên thứ ba (Gemini, OpenRouter, Google Cloud Vision): admin nhập qua trang quản trị, lưu ĐÃ MÃ HÓA trong ``secret_store``, dịch vụ đọc theo lúc gọi nên đổi key không cần khởi động lại.
 
 Quy tắc giữ an toàn (đừng nới):
 - AES-256-GCM, nonce 12 byte ngẫu nhiên MỖI lần lưu, tên key làm dữ liệu xác thực kèm (AAD): chép một dòng sang tên khác thì không giải mã được.
@@ -39,6 +39,7 @@ MASTER_KEY_BYTES = 32
 MIN_SECRET_CHARS = 8
 MAX_SECRET_CHARS = 512
 TEST_TIMEOUT_SECONDS = 5.0
+_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="  # PNG 1x1
 _PRINTABLE_NO_SPACE = re.compile(r"^[\x21-\x7e]+$")  # key của nhà cung cấp chỉ gồm ký tự in được, không khoảng trắng
 
 
@@ -49,6 +50,9 @@ class SecretSpec:
     env_attr: str  # trường trong settings giữ key từ biến môi trường: bản dự phòng khi DB chưa có
     test_url: str  # một lệnh gọi chỉ-đọc, không tốn token
     test_headers: Callable[[str], dict[str, str]]
+    test_method: str = "GET"
+    test_json: dict | None = None  # thân của lệnh thử khi nhà cung cấp không có endpoint GET nào chỉ-đọc (Vision)
+    shared_with: tuple[str, ...] = ()  # dịch vụ KHÁC được phép lấy giá trị rõ qua /internal/secrets (OCR Service dùng key Vision)
 
 
 SECRETS: dict[str, SecretSpec] = {
@@ -59,6 +63,13 @@ SECRETS: dict[str, SecretSpec] = {
     "openrouter_api_key": SecretSpec(
         "openrouter_api_key", "OpenRouter API key", "openrouter_api_key",
         "https://openrouter.ai/api/v1/auth/key", lambda key: {"Authorization": f"Bearer {key}"},
+    ),
+    # Vision không có endpoint GET chỉ-đọc: thử bằng một ảnh 1x1 (một lượt tính phí rất nhỏ, nằm trong hạn mức miễn phí hằng tháng).
+    "google_vision_api_key": SecretSpec(
+        "google_vision_api_key", "Google Cloud Vision API key (OCR hóa đơn)", "google_vision_api_key",
+        "https://vision.googleapis.com/v1/images:annotate", lambda key: {"X-Goog-Api-Key": key},
+        test_method="POST", test_json={"requests": [{"image": {"content": _PIXEL_PNG}, "features": [{"type": "TEXT_DETECTION"}]}]},
+        shared_with=("ocr",),
     ),
 }
 
@@ -112,6 +123,14 @@ def getter(name: str) -> Callable[[], str | None]:
     """Hàm không tham số trả key hiện tại: đưa cho client thay vì chuỗi key cố định để đổi key không cần khởi động lại."""
     _spec(name)
     return lambda: current(name)
+
+
+def shared_value(name: str, consumer: str) -> str | None:
+    """Giá trị rõ của một key cho dịch vụ KHÁC dùng. Chỉ key khai ``shared_with`` mới trả, và chỉ cho đúng dịch vụ đó: key chỉ AI Service dùng (Gemini, OpenRouter) không bao giờ ra khỏi tiến trình."""
+    spec = _spec(name)
+    if consumer not in spec.shared_with:
+        raise RuleError(403, "forbidden", f"Key '{name}' không chia sẻ cho dịch vụ '{consumer}'.")
+    return current(name)
 
 
 async def reload(session_factory=AsyncSessionLocal) -> int:
@@ -197,7 +216,7 @@ async def test(name: str) -> dict:
         return {"ok": False, "detail": "Chưa có key để thử."}
     try:
         async with _client() as client:
-            response = await client.get(spec.test_url, headers=spec.test_headers(key))
+            response = await client.request(spec.test_method, spec.test_url, headers=spec.test_headers(key), json=spec.test_json)
     except httpx.HTTPError:
         return {"ok": False, "detail": "Không kết nối được tới nhà cung cấp."}
     if response.status_code == 200:

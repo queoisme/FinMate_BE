@@ -38,10 +38,9 @@ using FinMate.Domain.Enums;
 using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
+using FinMate.Infrastructure.Security;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
@@ -118,13 +117,8 @@ public class Program
         var googleOAuthEnabled = !string.IsNullOrWhiteSpace(googleClientSecret)
             && !string.IsNullOrWhiteSpace(googleRedirectUri);
 
-        // Email là TUỲ CHỌN giống FCM: thiếu API key thì in mã ra log thay vì gửi đi, nên máy
-        // dev và bộ test vẫn lấy được mã để đi tiếp mà không cần tài khoản Brevo.
-        var brevoApiKey = builder.Configuration["BREVO_API_KEY"];
-        var brevoSenderEmail = builder.Configuration["BREVO_SENDER_EMAIL"];
-        var brevoSenderName = builder.Configuration["BREVO_SENDER_NAME"] ?? "FinMate";
-        var emailEnabled = !string.IsNullOrWhiteSpace(brevoApiKey)
-            && !string.IsNullOrWhiteSpace(brevoSenderEmail);
+        // Email, Google OAuth và FCM là TUỲ CHỌN: key của chúng đọc TẠI LÚC DÙNG qua ISecretVault (key admin nhập trên trang quản trị trước, biến môi trường sau),
+        // nên không còn chốt bật/tắt một lần lúc khởi động và đổi key không cần khởi động lại.
 
         // Mặc định BẬT. AuthApiFactory tắt đi — xem AuthOptions.
         var requireEmailVerification =
@@ -132,31 +126,6 @@ public class Program
 
         // Mặc định TRỐNG = không bật forwarded headers — xem TrustedProxies.
         var trustedProxies = builder.Configuration["TRUSTED_PROXIES"];
-
-        // Push thật là TUỲ CHỌN, không bắt buộc như các biến ở trên: không có credentials thì
-        // chạy log-only. Bắt buộc ở đây sẽ chặn mọi máy dev và mọi integration test không có
-        // Firebase project, đổi lại không bảo vệ được gì — thiếu credentials trên production
-        // đã lộ ra ngay ở dòng log khởi động dưới đây.
-        //
-        // Hai đường nạp: PATH cho file mount vào container, JSON cho secret dán thẳng biến
-        // môi trường (Render, Fly, Cloud Run… đều đưa secret xuống theo kiểu này).
-        var fcmCredentialsPath = builder.Configuration["FCM_CREDENTIALS_PATH"];
-        var fcmCredentialsJson = builder.Configuration["FCM_CREDENTIALS_JSON"];
-        var fcmEnabled = !string.IsNullOrWhiteSpace(fcmCredentialsPath)
-            || !string.IsNullOrWhiteSpace(fcmCredentialsJson);
-
-        if (fcmEnabled && FirebaseApp.DefaultInstance is null)
-        {
-            // CredentialFactory chứ không phải GoogleCredential.FromFile/FromJson — hai hàm
-            // kia đã deprecated. Chỉ định thẳng ServiceAccountCredential: file credentials
-            // của Firebase luôn là service account, nên sai loại phải hỏng ngay lúc khởi
-            // động chứ không phải lúc gửi thông báo đầu tiên.
-            var serviceAccount = string.IsNullOrWhiteSpace(fcmCredentialsPath)
-                ? CredentialFactory.FromJson<ServiceAccountCredential>(fcmCredentialsJson)
-                : CredentialFactory.FromFile<ServiceAccountCredential>(fcmCredentialsPath);
-
-            FirebaseApp.Create(new AppOptions { Credential = serviceAccount.ToGoogleCredential() });
-        }
 
         builder.Services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -305,39 +274,18 @@ public class Program
 
         builder.Services.AddScoped<IGoogleOAuthStore, GoogleOAuthStore>();
 
-        if (googleOAuthEnabled)
-        {
-            builder.Services.AddHttpClient<IGoogleCodeExchanger, GoogleCodeExchanger>()
-                .AddTypedClient<IGoogleCodeExchanger>((http, sp) => new GoogleCodeExchanger(
-                    http,
-                    builder.Configuration["GOOGLE_CLIENT_ID"]!,
-                    googleClientSecret!,
-                    googleRedirectUri!,
-                    sp.GetRequiredService<ILogger<GoogleCodeExchanger>>()));
-        }
-        else
-        {
-            // Không đăng ký gì thì controller sẽ ném lỗi DI khó hiểu; đăng ký một bản luôn trả
-            // null để lỗi rơi đúng vào chỗ EnsureEnabled() nói rõ nguyên nhân.
-            builder.Services.AddSingleton<IGoogleCodeExchanger>(new DisabledGoogleCodeExchanger());
-        }
+        // Key bên thứ ba của backend: khóa chủ ở SECRETS_MASTER_KEY (khác khóa chủ của AI Service). Không có khóa thì không lưu được key vào DB, key ở biến môi trường vẫn chạy.
+        builder.Services.AddSingleton(new SecretCipher(builder.Configuration["SECRETS_MASTER_KEY"]));
+        builder.Services.AddSingleton<ISecretVault, SecretVault>();
+        builder.Services.AddSingleton<FcmApp>();
+        builder.Services.AddScoped<ISecretTester, BackendSecretTester>();
+        builder.Services.AddHttpClient(SwitchingEmailSender.HttpClientName, client => client.BaseAddress = new Uri("https://api.brevo.com/"));
+        builder.Services.AddHttpClient("google-oauth");
+        builder.Services.AddScoped<IGoogleCodeExchanger, VaultGoogleCodeExchanger>();
         builder.Services.AddScoped<IOtpService, OtpService>();
 
-        if (emailEnabled)
-        {
-            builder.Services.AddHttpClient<IEmailSender, BrevoEmailSender>(client =>
-                {
-                    client.BaseAddress = new Uri("https://api.brevo.com/");
-                    client.DefaultRequestHeaders.Add("api-key", brevoApiKey);
-                })
-                .AddTypedClient<IEmailSender>((http, sp) => new BrevoEmailSender(
-                    http, brevoSenderEmail!, brevoSenderName,
-                    sp.GetRequiredService<ILogger<BrevoEmailSender>>()));
-        }
-        else
-        {
-            builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
-        }
+        builder.Services.AddScoped<LoggingEmailSender>();
+        builder.Services.AddScoped<IEmailSender, SwitchingEmailSender>();
 
         builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
         builder.Services.AddScoped<ITokenService, TokenService>();
@@ -380,15 +328,10 @@ public class Program
         builder.Services.AddScoped<IMissionRepository, MissionRepository>();
         builder.Services.AddScoped<IGamificationService, GamificationService>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
-        if (fcmEnabled)
-        {
-            builder.Services.AddSingleton<IFcmSender, FirebaseAdminFcmSender>();
-            builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
-        }
-        else
-        {
-            builder.Services.AddScoped<IPushNotificationService, LoggingPushNotificationService>();
-        }
+        builder.Services.AddSingleton<IFcmSender, FirebaseAdminFcmSender>();
+        builder.Services.AddScoped<FcmPushNotificationService>();
+        builder.Services.AddScoped<LoggingPushNotificationService>();
+        builder.Services.AddScoped<IPushNotificationService, SwitchingPushNotificationService>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         // Admin (Phase 8) — mọi controller ở đây nằm sau policy AdminOnly.
@@ -519,22 +462,10 @@ public class Program
 
         var app = builder.Build();
 
-        // Nói thẳng ở dòng khởi động. Thiếu credentials trên production thì triệu chứng duy
-        // nhất là "không ai nhận được thông báo" — một hiện tượng im lặng, rất khó truy.
         app.Logger.LogInformation(
-            googleOAuthEnabled
-                ? "Google OAuth (browser flow): enabled."
-                : "Google OAuth (browser flow): GOOGLE_CLIENT_SECRET/REDIRECT_URI absent, disabled.");
-
-        app.Logger.LogInformation(
-            emailEnabled
-                ? "Email: Brevo enabled."
-                : "Email: BREVO_API_KEY absent, OTP codes go to the log instead.");
-
-        app.Logger.LogInformation(
-            fcmEnabled
-                ? "Push notifications: FCM enabled."
-                : "Push notifications: FCM credentials absent, running log-only.");
+            app.Services.GetRequiredService<ISecretVault>().CanStore
+                ? "Third-party key storage: SECRETS_MASTER_KEY set, admins can store keys in the database."
+                : "Third-party key storage: SECRETS_MASTER_KEY absent, keys come from environment variables only.");
 
         using (var scope = app.Services.CreateScope())
         {

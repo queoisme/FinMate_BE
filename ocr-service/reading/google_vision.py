@@ -1,7 +1,7 @@
 """OCR bằng Google Cloud Vision (DOCUMENT_TEXT_DETECTION) làm đường chính; lỗi hoặc chưa cấu hình thì trả None để bên gọi dùng OCR cục bộ.
 
 Cấu hình bằng biến môi trường (không nằm trong code):
-  GOOGLE_VISION_API_KEY           khóa API của Cloud Vision; không đặt = tắt, luôn dùng OCR cục bộ
+  GOOGLE_VISION_API_KEY           khóa API của Cloud Vision, DỰ PHÒNG: khóa admin nhập trên trang quản trị (kho key của AI Service) được ưu tiên; cả hai trống = tắt, luôn dùng OCR cục bộ
   FINMATE_OCR_ENGINE              auto (mặc định: dùng Google khi có khóa) | local (ép OCR cục bộ, dùng khi đo so sánh)
   GOOGLE_VISION_TIMEOUT_SECONDS   thời gian chờ một lời gọi (mặc định 20)
   GOOGLE_VISION_COOLDOWN_SECONDS  sau một lần lỗi, tạm nghỉ Google chừng này giây để các lần quét sau không phải chờ lỗi lại (mặc định 60)
@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 
 from classification import data_files
+from storage import ai_api
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,39 @@ class _Cooldown:
 
 _COOLDOWN = _Cooldown()
 
+_SECRET_NAME = "google_vision_api_key"
+_KEY_TTL_SECONDS = 30.0  # đổi key trên trang quản trị có hiệu lực sau chừng này giây, và một lần AI Service chậm không làm chậm mọi lần quét
+_KEY_TIMEOUT_SECONDS = 3.0
+
+
+class _KeyCache:
+    """Key Vision đang hiệu lực và lúc lấy (time.monotonic()); ``fetched`` âm vô cực = chưa lấy lần nào."""
+    value: str | None = None
+    fetched = float("-inf")
+    api: ai_api.AiApi | None = None
+
+
+_KEY = _KeyCache()
+
+
+def api_key() -> str | None:
+    """Key Vision đang dùng: kho key của AI Service (admin nhập trên trang quản trị) trước, biến môi trường ``GOOGLE_VISION_API_KEY`` sau. AI Service không trả lời được thì rơi về biến môi trường,
+    nên một lần AI Service ngừng không tắt OCR đám mây. Kết quả giữ trong bộ nhớ vài chục giây; không bao giờ ghi ra đĩa hay log."""
+    now = time.monotonic()
+    if now - _KEY.fetched < _KEY_TTL_SECONDS:
+        return _KEY.value
+    value = None
+    url, token = os.environ.get("AI_SERVICE_URL"), os.environ.get("AI_SERVICE_API_KEY")
+    if url and token:
+        try:
+            _KEY.api = _KEY.api or ai_api.AiApi(url, token, timeout=_KEY_TIMEOUT_SECONDS)
+            value = _KEY.api.shared_secret(_SECRET_NAME, "ocr")
+        except ai_api.AiApiError as error:
+            logger.warning("Không lấy được key Vision từ AI Service (%s); dùng biến môi trường.", error.code)
+    _KEY.value = value or os.environ.get("GOOGLE_VISION_API_KEY") or None
+    _KEY.fetched = now
+    return _KEY.value
+
 Quad = list[tuple[float, float]]
 
 _CELL_GAP_RATIO = data_files.threshold("reading.google_vision._CELL_GAP_RATIO")
@@ -42,14 +76,14 @@ class GoogleVisionError(Exception):
 
 
 def enabled() -> bool:
-    return os.environ.get("FINMATE_OCR_ENGINE", "auto") != "local" and bool(os.environ.get("GOOGLE_VISION_API_KEY")) and time.monotonic() >= _COOLDOWN.until
+    return os.environ.get("FINMATE_OCR_ENGINE", "auto") != "local" and bool(api_key()) and time.monotonic() >= _COOLDOWN.until
 
 
 def build_request(image_bytes: bytes) -> urllib.request.Request:
     body = {"requests": [{"image": {"content": base64.b64encode(image_bytes).decode("ascii")},
                           "features": [{"type": "DOCUMENT_TEXT_DETECTION"}], "imageContext": {"languageHints": ["vi"]}}]}
     return urllib.request.Request(_URL, data=json.dumps(body).encode("utf-8"), method="POST",
-                                  headers={"Content-Type": "application/json", "X-Goog-Api-Key": os.environ["GOOGLE_VISION_API_KEY"]})
+                                  headers={"Content-Type": "application/json", "X-Goog-Api-Key": api_key() or ""})
 
 
 def _post(request: urllib.request.Request) -> dict:
