@@ -4,6 +4,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Notifications;
+using FinMate.Application.QrTransfers;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -26,6 +27,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IPushNotificationService _pushNotificationService;
     private readonly IValidator<AnalyzeNotificationCommand> _validator;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
+    private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -35,7 +37,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IAIServiceClient aiServiceClient,
         IPushNotificationService pushNotificationService,
         IValidator<AnalyzeNotificationCommand> validator,
-        IAiConsentReader? consent = null)
+        IAiConsentReader? consent = null,
+        IQrTransferLinker? qrLinker = null)
     {
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
@@ -45,6 +48,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         _pushNotificationService = pushNotificationService;
         _validator = validator;
         _consent = consent;
+        _qrLinker = qrLinker;
     }
 
     public async Task<NotificationAnalysisResultDto> HandleAsync(AnalyzeNotificationCommand command, CancellationToken ct = default)
@@ -150,6 +154,19 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 ? null
                 : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
 
+            // Chi tiền sau một lần quét QR: lấy người nhận + danh mục người dùng đã chọn thay vì để AI đoán từ nội dung chuyển khoản P2P (thường không có gì để đoán).
+            QrTransferIntent? qrIntent = null;
+            if (_qrLinker is not null && aiResult.TransactionType == TransactionType.Debit)
+            {
+                qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, aiResult.AmountCents.Value, ct);
+                if (qrIntent?.CategoryId is Guid qrCategoryId
+                    && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
+                    && (chosen.UserId is null || chosen.UserId == command.UserId))
+                {
+                    category = chosen;
+                }
+            }
+
             var transaction = new Transaction
             {
                 UserId = command.UserId,
@@ -160,7 +177,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 TransactionType = aiResult.TransactionType.Value,
                 Source = TransactionSource.Notification,
                 Status = TransactionStatus.Draft,
-                MerchantName = aiResult.MerchantName,
+                MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
                 Description = aiResult.Description,
                 TransactedAt = aiResult.TransactedAt ?? command.ReceivedAt,
                 BalanceAfterCents = aiResult.BalanceAfterCents,
@@ -170,6 +187,11 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             await _transactionRepository.AddAsync(transaction, ct);
             draftTransactionId = transaction.Id;
             transaction.Category = category;
+
+            if (qrIntent is not null)
+            {
+                await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
+            }
 
             // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách
             // khác nhau tuỳ mức tin cậy. Trước Phase 15 mọi nháp đều nhận đúng một dòng chữ

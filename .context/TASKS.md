@@ -1177,3 +1177,20 @@ Người dùng muốn admin web sửa được: định dạng thông báo ngân
 - [x] OCR Service lấy key Vision từ AI Service qua `GET /api/v1/internal/secrets/{name}?consumer=ocr` (chỉ key khai `shared_with`; Gemini/OpenRouter trả 403), giữ 30 giây trong bộ nhớ, rơi về `GOOGLE_VISION_API_KEY` khi AI Service ngừng hoặc kho trống.
 - [x] Sửa lỗi thật: `AiRulesAdminClient` gọi `/admin/secrets/` (dấu `/` thừa) làm ai-service trả 307 và lần gọi lại mất header xác thực (401 → "AI Service trả lỗi").
 - Kiểm chứng: backend 1238 test, ai-service 1842 test, admin build; Docker dựng lại, migration chạy, OCR lấy key qua kho (rơi về .env vì kho trống), Gemini qua OCR = 403. Chưa thử "Thử kết nối" với nhà cung cấp thật.
+
+## Phase 51 — Quét QR chuyển khoản rồi mở app ngân hàng, tích hợp từ bản thử `New/New` (2026-10-30)
+Nguồn: bản thử `Flow1.Api` + `test_flow1` (ngoài repo). Đã sửa các lỗi của bản thử khi chuyển vào dự án và làm lại theo quy ước FinMate (Postgres, Guid, `DateTimeOffset`, theo `userId`, dữ liệu trong DB thay vì viết cứng).
+
+**BẢNG MỚI TRONG DB BACKEND (`finmate_main`), migration `AddQrTransfers`, chỉ thêm bảng, không sửa bảng cũ:**
+| Bảng | Vai trò | Cột chính | Ràng buộc đáng chú ý |
+|---|---|---|---|
+| `vietqr_banks` | Danh mục ngân hàng VietQR dùng chung (seed 33 dòng, admin sửa sau) | `bin` (PK, 6 số), `display_name`, `deeplink_app_code`, `provider_key` (nối `provider_configs`), `is_active` | CHECK `bin ~ '^[0-9]{6}$'`; UNIQUE `deeplink_app_code` |
+| `qr_transfer_intents` | Mỗi lần quét: người nhận, ngân hàng gửi, số tiền, trạng thái | `user_id`, `receiver_bank_bin`, `receiver_account_number`, `receiver_name`, `sender_bank_bin`, `amount_cents`, `message`, `category_id`, `status`, `scanned_at`, `matched_transaction_id`, `matched_at` | CHECK status IN (pending, matched, cancelled), `amount_cents > 0`, BIN 6 số; FK `user_id` CASCADE, `category_id` SET NULL, `matched_transaction_id` SET NULL; index lọc `status='pending'` cho đường khớp |
+| `counterparty_category_overrides` | Nhớ "người nhận → danh mục" theo từng người dùng | `user_id`, `bank_bin`, `account_number`, `display_name`, `category_id` | UNIQUE `(user_id, bank_bin, account_number)`; FK `user_id`/`category_id` CASCADE |
+
+Không có cột nào thêm vào `transactions`: liên kết giao dịch ↔ lần quét nằm ở `qr_transfer_intents.matched_transaction_id`.
+- [x] BE: `QrTransfersController` (`/api/v1/qr/*`), `QrTransferService`, `QrTransferLinker`, `QrTransferRepository`, `VietQrBankSeeder`; nối vào `AnalyzeNotificationCommandHandler` (khớp thông báo Debit) và `UpdateTransactionCommandHandler` (ghi nhớ danh mục khi người dùng sửa tay). Hai tham số mới của hai handler đều tùy chọn nên test cũ không đổi.
+- [x] Lỗi bản thử đã sửa: so khớp theo ngân hàng GỬI chứ không phải NHẬN; lần quét sau thông báo không khớp; `DateTimeOffset`/SQLite không còn (đã dùng Postgres); package→BIN không còn viết cứng (đi qua `provider_configs` → `vietqr_banks`); hủy lần quét giữ lịch sử (`cancelled`) thay vì xóa; mã QR được kiểm CRC, mã chuyển vào SỐ THẺ bị từ chối, độ dài TLV chịu cả đếm theo byte; mở app thất bại thì hủy ý định vừa tạo; số tài khoản không đặt trên URL.
+- [x] FE: nút QUÉT QR ở GIỮA thanh nav (`AppBottomNav`, 2 tab mỗi bên; "Phân tích" vào từ lối tắt trên Trang chủ), màn quét (`/qr-scan`), màn xác nhận (`/qr-transfer`), lịch sử (`/qr-history`). Thêm hai gói theo chấp thuận của chủ dự án: `mobile_scanner`, `url_launcher`.
+- Kiểm chứng: backend 13 test mới (tách theo người dùng, khớp khác ngân hàng, lần quét sau thông báo, học danh mục...); FE 16 test mới, `flutter analyze` sạch. **Chưa kiểm chứng:** quét bằng camera thật và mở app ngân hàng thật bằng bản FE này (cần máy Android); 31 mã app `dl.vietqr.io` ngoài MB (`mb`) và VietinBank (`icb`) chỉ tra theo tài liệu.
+- [ ] **Chưa làm:** admin sửa danh mục `vietqr_banks` qua trang quản trị (hiện sửa bằng DB); job dọn ý định cũ; lưu lựa chọn ngân hàng gửi qua phiên (hiện chỉ nhớ trong phiên chạy).

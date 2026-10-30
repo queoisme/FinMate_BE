@@ -22,6 +22,9 @@ public class FinMateDbContext : DbContext
     public DbSet<ProviderConfig> ProviderConfigs => Set<ProviderConfig>();
     public DbSet<SystemConfigVersion> SystemConfigVersions => Set<SystemConfigVersion>();
     public DbSet<SecretEntry> SecretEntries => Set<SecretEntry>();
+    public DbSet<VietQrBank> VietQrBanks => Set<VietQrBank>();
+    public DbSet<QrTransferIntent> QrTransferIntents => Set<QrTransferIntent>();
+    public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();

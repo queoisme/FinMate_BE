@@ -366,6 +366,61 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("categories", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.CounterpartyCategoryOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("account_number");
+
+                    b.Property<string>("BankBin")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("bank_bin");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "BankBin", "AccountNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_counterparty_category_overrides_user_account");
+
+                    b.ToTable("counterparty_category_overrides", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_counterparty_category_overrides_bin", "bank_bin ~ '^[0-9]{6}$'");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.DailySummary", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1415,6 +1470,101 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("MatchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("matched_at");
+
+                    b.Property<Guid?>("MatchedTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("matched_transaction_id");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("ReceiverAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("receiver_account_number");
+
+                    b.Property<string>("ReceiverBankBin")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("receiver_bank_bin");
+
+                    b.Property<string>("ReceiverName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("receiver_name");
+
+                    b.Property<DateTimeOffset>("ScannedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scanned_at");
+
+                    b.Property<string>("SenderBankBin")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("sender_bank_bin");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("MatchedTransactionId")
+                        .HasDatabaseName("ix_qr_transfer_intents_matched_transaction");
+
+                    b.HasIndex("UserId", "ScannedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_qr_transfer_intents_user_scanned");
+
+                    b.HasIndex("UserId", "SenderBankBin", "AmountCents")
+                        .HasDatabaseName("ix_qr_transfer_intents_pending_match")
+                        .HasFilter("status = 'pending'");
+
+                    b.ToTable("qr_transfer_intents", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_qr_transfer_intents_amount", "amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_qr_transfer_intents_bins", "receiver_bank_bin ~ '^[0-9]{6}$' AND sender_bank_bin ~ '^[0-9]{6}$'");
+
+                            t.HasCheckConstraint("chk_qr_transfer_intents_status", "status IN ('pending','matched','cancelled')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.ReceiptScan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2402,6 +2552,59 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("user_survey_answers", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.VietQrBank", b =>
+                {
+                    b.Property<string>("Bin")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("bin");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeeplinkAppCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("deeplink_app_code");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("display_name");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("ProviderKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Bin");
+
+                    b.HasIndex("DeeplinkAppCode")
+                        .IsUnique()
+                        .HasDatabaseName("uq_vietqr_banks_app_code");
+
+                    b.HasIndex("ProviderKey")
+                        .HasDatabaseName("ix_vietqr_banks_provider_key");
+
+                    b.ToTable("vietqr_banks", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_vietqr_banks_bin", "bin ~ '^[0-9]{6}$'");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.AiResult", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.NotificationLog", "NotificationLog")
@@ -2448,6 +2651,25 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.CounterpartyCategoryOverride", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
 
                     b.Navigation("User");
                 });
@@ -2592,6 +2814,27 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("FinancialAccount");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.Transaction", null)
+                        .WithMany()
+                        .HasForeignKey("MatchedTransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

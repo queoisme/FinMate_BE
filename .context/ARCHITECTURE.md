@@ -319,6 +319,21 @@ lite 85% (46/54), model chính 86% (44/51), mẫu nhỏ nên coi là ngang nhau.
 
 ---
 
+### 2.5 Quét QR chuyển khoản rồi mở app ngân hàng (thêm 2026-10-30)
+
+Người dùng quét mã VietQR của người nhận trong app, nhập số tiền, chọn app ngân hàng của mình để chuyển, rồi app mở ngân hàng qua liên kết `dl.vietqr.io`. **FinMate không chạm vào tiền**: backend chỉ ghi một "ý định chuyển tiền" (`qr_transfer_intents`) và, khi thông báo ngân hàng thật về, khớp nó với giao dịch nháp để gắn sẵn người nhận + danh mục thay vì để AI đoán từ nội dung chuyển khoản P2P.
+
+**Bảng mới (migration `AddQrTransfers`, không sửa bảng cũ nào):**
+- `vietqr_banks` — danh mục ngân hàng dùng chung (BIN, tên, mã app `dl.vietqr.io`, `provider_key` nối tới `provider_configs`). Seeder `VietQrBankSeeder` nạp 33 ngân hàng; admin sửa sau. Dùng chung cho cả ngân hàng nhận và gửi.
+- `qr_transfer_intents` — mỗi lần quét: người nhận (BIN + số tài khoản + tên), **ngân hàng gửi**, số tiền, nội dung, danh mục đã chọn, `status` (`pending|matched|cancelled`), `matched_transaction_id`. Theo từng người dùng.
+- `counterparty_category_overrides` — "người nhận → danh mục" theo từng người dùng, duy nhất theo `(user_id, bank_bin, account_number)`. Chỉ ghi khi người dùng CHỦ ĐỘNG chọn (lúc quét hoặc sửa danh mục giao dịch đã khớp), không ghi khi chỉ chấp nhận gợi ý AI.
+
+**API** (`/api/v1/qr`, JWT, mọi thứ lọc theo người dùng; số tài khoản chỉ đi trong body): `GET banks`, `POST transfers` (201), `GET transfers?status=&limit=`, `POST transfers/{id}/cancel`, `POST counterparties/lookup`, `GET counterparties`, `PATCH|DELETE counterparties/{id}`.
+
+**Khớp thông báo** (`QrTransferLinker`, gọi từ `AnalyzeNotificationCommandHandler`, chỉ với giao dịch **Debit**): package của thông báo → `provider_configs.package_name` → `vietqr_banks.provider_key` → BIN ngân hàng **gửi**; tìm ý định `pending` của người dùng cùng BIN gửi, cùng số tiền, quét trong 30 phút TRƯỚC lúc thông báo (cho lệch đồng hồ tối đa 2 phút). Hai lỗi của bản thử đã sửa: so ngân hàng NHẬN với app gửi (nên chuyển khác ngân hàng không bao giờ khớp), và nhận cả lần quét xảy ra SAU thông báo. Khớp được thì giao dịch nháp lấy danh mục người dùng đã chọn (thắng gợi ý AI) và tên người nhận; ý định chuyển sang `matched`. Sửa tay danh mục của giao dịch đã khớp thì `UpdateTransactionCommandHandler` ghi nhớ danh mục cho người nhận.
+
+**Giới hạn đã biết:** chỉ ngân hàng có `provider_key` (FinMate đọc được thông báo) mới tự khớp; liên kết `dl.vietqr.io` đưa số tài khoản/số tiền/nội dung qua một bên thứ ba; app không biết người dùng có hoàn tất chuyển tiền trong app ngân hàng hay không (ý định quá 24 giờ được đánh dấu `isExpired` khi đọc); hai lần quét cùng số tiền cùng ngân hàng gửi trong 30 phút thì khớp lần quét gần nhất.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service

@@ -26,6 +26,7 @@ using FinMate.Application.Gamification;
 using FinMate.Application.Gamification.Commands;
 using FinMate.Application.Gamification.Queries;
 using FinMate.Application.Notifications.Commands;
+using FinMate.Application.QrTransfers;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
@@ -318,6 +319,9 @@ public class Program
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        builder.Services.AddScoped<IQrTransferRepository, QrTransferRepository>();
+        builder.Services.AddScoped<IQrTransferService, QrTransferService>();
+        builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
         builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
@@ -475,6 +479,7 @@ public class Program
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.MascotItemSeeder.SeedAsync(db).GetAwaiter().GetResult();

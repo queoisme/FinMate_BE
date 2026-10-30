@@ -2,6 +2,7 @@ using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.QrTransfers;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -21,6 +22,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ILogger<UpdateTransactionCommandHandler> _logger;
     private readonly IValidator<UpdateTransactionCommand> _validator;
+    private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì sửa danh mục không ghi nhớ người nhận
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     public UpdateTransactionCommandHandler(
@@ -34,7 +36,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IReceiptScanRepository receiptScanRepository,
         ILogger<UpdateTransactionCommandHandler> logger,
         IValidator<UpdateTransactionCommand> validator,
-        ITrainingSampleService? trainingSamples = null)
+        ITrainingSampleService? trainingSamples = null,
+        IQrTransferLinker? qrLinker = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -46,6 +49,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _receiptScanRepository = receiptScanRepository;
         _logger = logger;
         _validator = validator;
+        _qrLinker = qrLinker;
         _trainingSamples = trainingSamples;
     }
 
@@ -163,6 +167,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             // SAU khi UpdateAsync đã lưu. Sửa giao dịch cũng có thể đẩy một danh mục qua
             // ngưỡng — đổi 50k thành 500k thì cảnh báo phải bắn ngay như lúc tạo.
             await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        }
+
+        // Người dùng vừa tự sửa danh mục: nếu giao dịch này đến từ một lần quét QR thì nhớ danh mục cho người nhận, lần sau tự gắn.
+        if (categoryChanged && newCategory is not null && _qrLinker is not null)
+        {
+            await _qrLinker.LearnCategoryAsync(command.UserId, transaction.Id, newCategory.Id, ct);
         }
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
