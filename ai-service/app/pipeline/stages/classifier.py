@@ -12,78 +12,8 @@ from dataclasses import dataclass
 from app.core import confidence as table  # tên khác: các dataclass/hàm dưới có trường và biến `confidence`
 from app.core.enums import ClassifierLabel, ExtractionMethod, ModelStage
 from app.pipeline.models.model_registry import ModelRegistry
+from app.services import notification_vocab
 from app.utils.text_utils import find_amount_candidates, normalize_for_model
-
-# Có mặt là gần như chắc chắn KHÔNG phải giao dịch, kể cả khi trong câu có con số.
-_NEGATIVE_MARKERS: tuple[str, ...] = (
-    "otp",
-    "ma xac thuc",
-    "mã xác thực",
-    "mat khau",
-    "mật khẩu",
-    "khuyen mai",
-    "khuyến mãi",
-    "uu dai",
-    "ưu đãi",
-    "giam gia",
-    "giảm giá",
-    "chuc mung nam moi",
-    "chúc mừng năm mới",
-    "chuc tet",
-    "chúc tết",
-    "bao tri",
-    "bảo trì",
-    "cap nhat ung dung",
-    "cập nhật ứng dụng",
-    "dang nhap",
-    "đăng nhập",
-    "tich diem",
-    "tích điểm",
-    "nhac no",
-    "nhắc nợ",
-    "the le",
-    "thể lệ",
-    "trung thuong",
-    "trúng thưởng",
-    "khong chia se",
-    "không chia sẻ",
-    "hotline",
-    "the nang cap",
-)
-
-# Dấu hiệu của một biến động số dư thật.
-_POSITIVE_MARKERS: tuple[str, ...] = (
-    "gd:",
-    "sd:",
-    "so du",
-    "số dư",
-    "bien dong so du",
-    "biến động số dư",
-    "giao dich thanh cong",
-    "giao dịch thành công",
-    "thanh toan thanh cong",
-    "thanh toán thành công",
-    "thanh toan",
-    "thanh toán",
-    "chuyen khoan",
-    "chuyển khoản",
-    "chuyen tien",
-    "chuyển tiền",
-    "nap tien",
-    "nạp tiền",
-    "rut tien",
-    "rút tiền",
-    "ban da nhan",
-    "bạn đã nhận",
-    "ban da thanh toan",
-    "bạn đã thanh toán",
-    "tra luong",
-    "trả lương",
-    "vnd",
-    "noi dung",
-    "nội dung",
-)
-
 
 # Câu do người dùng tự gõ/đọc trong luồng "thêm giao dịch" — ý định đã rõ từ trước khi
 # gửi lên, nên không áp cổng phân loại tài chính/không-tài chính lên nó. Giữ nguyên giá trị
@@ -134,7 +64,7 @@ def classify_by_rules(text: str, package_name: str = "") -> ClassificationOutcom
 
     lowered = text.lower()
 
-    if any(marker in lowered for marker in _NEGATIVE_MARKERS):
+    if notification_vocab.has_non_financial_marker(lowered):
         return ClassificationOutcome(
             ClassifierLabel.NON_FINANCIAL, table.get("classifier.negative_marker"), ExtractionMethod.RULE
         )
@@ -142,7 +72,7 @@ def classify_by_rules(text: str, package_name: str = "") -> ClassificationOutcom
     # "Có tiền" nghĩa là có con số MANG ĐƠN VỊ (75k, 250.000đ, 2,500,000 VND). Một dãy số
     # trần thì thường là mã OTP, số tài khoản hay ngày tháng.
     has_amount = any(c.has_marker for c in find_amount_candidates(text))
-    signals = sum(1 for marker in _POSITIVE_MARKERS if marker in lowered)
+    signals = notification_vocab.financial_signals(lowered)
 
     if has_amount and signals >= 2:
         return ClassificationOutcome(

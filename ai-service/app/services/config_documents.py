@@ -294,9 +294,13 @@ def _validate_notification_vocab(content: dict) -> None:
             if term in seen:
                 raise _invalid("duplicate_term", f"Nhóm '{group}': từ '{term}' bị trùng.")
             seen.add(term)
-    both = set(content["credit_verbs"]) & set(content["debit_verbs"])
-    if both:
-        raise _invalid("ambiguous_verb", f"Từ {sorted(both)[:5]} có ở cả động từ thu và chi: một từ chỉ được thuộc một chiều tiền.")
+    for first, second, code, meaning in (
+        ("credit_verbs", "debit_verbs", "ambiguous_verb", "động từ thu và chi: một từ chỉ được thuộc một chiều tiền"),
+        ("financial_markers", "non_financial_markers", "ambiguous_marker", "dấu hiệu giao dịch và không-giao-dịch: một cụm chỉ được báo một hướng"),
+    ):
+        both = set(content[first]) & set(content[second])
+        if both:
+            raise _invalid(code, f"Từ {sorted(both)[:5]} có ở cả hai nhóm {meaning}.")
 
 
 def _lexicon_cases() -> list[tuple[str, str, str]]:
@@ -481,7 +485,7 @@ SPECS: dict[str, Spec] = {
     "merchant_lexicon": Spec("merchant_lexicon", "Từ điển tên cửa hàng (thông báo ngân hàng và bộ phân loại chung)", ("ai-service",), categorizer.default_lexicon_data,
                              _validate_merchant_lexicon, categorizer.apply_lexicon, _preview_merchant_lexicon),
     "narrative_labels": Spec("narrative_labels", "Nhãn 'nội dung' trong thông báo ngân hàng", ("ai-service",), narrative.default_data, _validate_narrative_labels, narrative.apply, None, seed=True),
-    "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị, số dư)", ("ai-service",), notification_vocab.default_data,
+    "notification_vocab": Spec("notification_vocab", "Từ vựng đọc thông báo ngân hàng (chiều tiền, tên đơn vị, số dư, phân loại giao dịch)", ("ai-service",), notification_vocab.default_data,
                                _validate_notification_vocab, notification_vocab.apply, None, notification_vocab.with_defaults, seed=True),
     "parsing_vocab": Spec("parsing_vocab", "Từ vựng đọc hóa đơn (OCR)", ("ocr-service",), lambda: lexicon.load("parsing_vocab.json"), _validate_parsing_vocab, None, None),
     "app_screens": Spec("app_screens", "Chữ nhận dạng màn hình app (OCR)", ("ocr-service",), lambda: lexicon.load("app_screens.json"), _validate_app_screens, None, None),

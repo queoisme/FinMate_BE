@@ -1,6 +1,6 @@
-"""Từ vựng đọc thông báo ngân hàng: động từ thu/chi, giới từ dẫn tên đơn vị, tiền tố bỏ đi khỏi tên đơn vị, cụm báo một con số là SỐ DƯ. Sống trong DB (tài liệu ``notification_vocab``), tệp JSON chỉ là seed.
+"""Từ vựng đọc thông báo ngân hàng: động từ thu/chi, giới từ dẫn tên đơn vị, tiền tố bỏ đi khỏi tên đơn vị, cụm báo một con số là SỐ DƯ, dấu hiệu thông báo có / không phải giao dịch. Sống trong DB (tài liệu ``notification_vocab``), tệp JSON chỉ là seed.
 
-Mọi từ khớp ở ĐẦU và CUỐI từ (không khớp giữa từ: "an" không trúng "nhan"), không phân biệt hoa thường. Nhóm có ý nghĩa thứ tự (giới từ) giữ nguyên thứ tự khai báo.
+Mọi nhóm khớp NGUYÊN TỪ (không khớp giữa từ: "an" không trúng "nhan"), không phân biệt hoa thường, TRỪ hai nhóm marker phân loại (``financial_markers``, ``non_financial_markers``): chúng khớp chuỗi con trên văn bản viết thường vì có cả đơn vị dính sát số ("75,000VND") và ký hiệu ("gd:"). Nhóm có ý nghĩa thứ tự (giới từ) giữ nguyên thứ tự khai báo.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 
 _PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "notification_vocab.json"
-GROUPS = ("credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "balance_markers")
+GROUPS = ("credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "balance_markers", "non_financial_markers", "financial_markers")
 MAX_MERCHANT_CHARS = 120
 _STRIP_PREFIX = " -:"
 _STRIP_MERCHANT = " .,;:"
@@ -40,6 +40,8 @@ class _Vocab:
     prepositions: tuple[re.Pattern[str], ...]
     prefix: re.Pattern[str] | None
     balance: re.Pattern[str] | None
+    non_financial: tuple[str, ...]
+    financial: tuple[str, ...]
 
 
 def build(content: dict) -> _Vocab:
@@ -50,6 +52,8 @@ def build(content: dict) -> _Vocab:
         prepositions=tuple(re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.IGNORECASE) for term in content["merchant_prepositions"]),
         prefix=re.compile(r"^" + prefix.pattern, re.IGNORECASE) if prefix else None,
         balance=_any_word(content["balance_markers"]),
+        non_financial=tuple(content["non_financial_markers"]),
+        financial=tuple(content["financial_markers"]),
     )
 
 
@@ -100,3 +104,13 @@ def strip_merchant_prefix(description: str) -> str:
 def has_balance_marker(prefix: str) -> bool:
     """``prefix`` (đoạn chữ ngay trước một con số) có cụm báo con số đó là số dư không."""
     return _vocab.balance is not None and _vocab.balance.search(prefix) is not None
+
+
+def has_non_financial_marker(lowered: str) -> bool:
+    """Văn bản (đã viết thường) có dấu hiệu gần như chắc chắn KHÔNG phải giao dịch: OTP, khuyến mãi, đăng nhập..."""
+    return any(marker in lowered for marker in _vocab.non_financial)
+
+
+def financial_signals(lowered: str) -> int:
+    """Số dấu hiệu của một biến động số dư thật có trong văn bản (đã viết thường); mỗi dấu hiệu tính một lần dù chồng lên nhau."""
+    return sum(1 for marker in _vocab.financial if marker in lowered)

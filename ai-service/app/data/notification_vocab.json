@@ -3,5 +3,7 @@
   "debit_verbs": ["chi", "tieu", "tiêu", "tra", "trả", "mua", "thanh toan", "thanh toán", "an", "ăn", "uong", "uống", "dong", "đóng", "nap", "nạp", "do xang", "đổ xăng", "gui", "gửi", "rut", "rút", "mung", "mừng", "dat", "đặt", "kham", "khám", "gia han", "gia hạn", "di", "đi"],
   "merchant_prepositions": ["ở", "o", "tại", "tai", "cho", "từ", "tu", "cua", "của"],
   "merchant_prefixes": ["tt qr", "thanh toan qr", "thanh toan", "thanh toán", "chuyen tien", "chuyen khoan", "tt", "ttoan"],
-  "balance_markers": ["so du", "số dư", "sd", "balance", "con lai", "còn lại", "kha dung", "khả dụng"]
+  "balance_markers": ["so du", "số dư", "sd", "balance", "con lai", "còn lại", "kha dung", "khả dụng"],
+  "non_financial_markers": ["otp", "ma xac thuc", "mã xác thực", "mat khau", "mật khẩu", "khuyen mai", "khuyến mãi", "uu dai", "ưu đãi", "giam gia", "giảm giá", "chuc mung nam moi", "chúc mừng năm mới", "chuc tet", "chúc tết", "bao tri", "bảo trì", "cap nhat ung dung", "cập nhật ứng dụng", "dang nhap", "đăng nhập", "tich diem", "tích điểm", "nhac no", "nhắc nợ", "the le", "thể lệ", "trung thuong", "trúng thưởng", "khong chia se", "không chia sẻ", "hotline", "the nang cap"],
+  "financial_markers": ["gd:", "sd:", "so du", "số dư", "bien dong so du", "biến động số dư", "giao dich thanh cong", "giao dịch thành công", "thanh toan thanh cong", "thanh toán thành công", "thanh toan", "thanh toán", "chuyen khoan", "chuyển khoản", "chuyen tien", "chuyển tiền", "nap tien", "nạp tiền", "rut tien", "rút tiền", "ban da nhan", "bạn đã nhận", "ban da thanh toan", "bạn đã thanh toán", "tra luong", "trả lương", "vnd", "noi dung", "nội dung"]
 }

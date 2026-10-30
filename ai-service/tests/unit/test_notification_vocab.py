@@ -116,3 +116,20 @@ def test_balance_markers_come_from_the_document():
     assert select_amounts(text).balance is None
     notification_vocab.apply({**notification_vocab.default_data(), "balance_markers": ["con du"]})
     assert select_amounts(text).balance.value == 1_000_000
+
+
+def test_classifier_markers_come_from_the_document():
+    from app.core.enums import ClassifierLabel
+    from app.pipeline.stages.classifier import classify_by_rules
+
+    promo = "Ưu đãi hoàn tiền 50.000đ cho giao dịch hôm nay"
+    assert classify_by_rules(promo, "com.some.bank").label == ClassifierLabel.NON_FINANCIAL
+    default = notification_vocab.default_data()
+    notification_vocab.apply({**default, "non_financial_markers": [m for m in default["non_financial_markers"] if m not in ("uu dai", "ưu đãi")]})
+    assert classify_by_rules(promo, "com.some.bank").label != ClassifierLabel.NON_FINANCIAL  # bỏ marker khỏi tài liệu là đổi hành vi, không cần sửa code
+
+
+def test_validator_rejects_a_marker_that_points_both_ways():
+    content = notification_vocab.default_data()
+    content["non_financial_markers"].append("vnd")  # "vnd" đã là dấu hiệu giao dịch
+    assert rejected(content).code == "ambiguous_marker"
