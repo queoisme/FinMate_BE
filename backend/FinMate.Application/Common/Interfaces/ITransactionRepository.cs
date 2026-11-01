@@ -12,7 +12,8 @@ public record TransactionListFilter(
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,
-    int Limit);
+    int Limit,
+    bool ExcludeLoans = false);  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
 
 public record TransactionListResult(IReadOnlyList<Transaction> Items, string? NextCursor);
 

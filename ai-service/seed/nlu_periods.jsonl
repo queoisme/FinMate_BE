@@ -1,0 +1,263 @@
+{"text": "tháng 9 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 9 toi tieu bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 12 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 3 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 07 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 10 năm 2025 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 10 nam 2025 toi tieu bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 5/2024 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2025 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2024 tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm nay tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "nam nay toi tieu bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm ngoái tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm trước tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cả năm nay tôi tiêu bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 9 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 12 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 3 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 07 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 07 toi da chi bao nhieu tien", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 10 năm 2025 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 5/2024 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2025 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2024 tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "nam 2024 toi da chi bao nhieu tien", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm nay tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm ngoái tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm trước tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cả năm nay tôi đã chi bao nhiêu tiền", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "ca nam nay toi da chi bao nhieu tien", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 9 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 12 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 3 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tong chi tieu thang 3 la bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 07 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 10 năm 2025 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu tháng 5/2024 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu năm 2025 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tong chi tieu nam 2025 la bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu năm 2024 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu năm nay là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu năm ngoái là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu năm trước là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tong chi tieu nam truoc la bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tổng chi tiêu cả năm nay là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 9 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 12 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 12 minh tieu het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 3 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 07 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 10 năm 2025 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 5/2024 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 5/2024 minh tieu het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2025 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2024 mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm nay mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm ngoái mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "nam ngoai minh tieu het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm trước mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cả năm nay mình tiêu hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 9", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho minh xem chi tieu thang 9", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 12", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 3", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 07", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 10 năm 2025", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho minh xem chi tieu thang 10 nam 2025", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu tháng 5/2024", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu năm 2025", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu năm 2024", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu năm nay", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho minh xem chi tieu nam nay", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu năm ngoái", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu năm trước", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cho mình xem chi tiêu cả năm nay", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 9 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 12 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 3 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 07 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 07 an uong het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 10 năm 2025 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 5/2024 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2025 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2024 ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "nam 2024 an uong het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm nay ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm ngoái ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm trước ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cả năm nay ăn uống hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "ca nam nay an uong het bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 9 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 12 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 3 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tien an thang 3 bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 07 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 10 năm 2025 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn tháng 5/2024 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn năm 2025 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tien an nam 2025 bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn năm 2024 bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn năm nay bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn năm ngoái bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn năm trước bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tien an nam truoc bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tiền ăn cả năm nay bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 9", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 12", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thong ke chi tieu thang 12", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 3", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 07", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 10 năm 2025", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu tháng 5/2024", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thong ke chi tieu thang 5/2024", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu năm 2025", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu năm 2024", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu năm nay", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu năm ngoái", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thong ke chi tieu nam ngoai", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu năm trước", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thống kê chi tiêu cả năm nay", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 9 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 9 toi thu duoc bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 12 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 3 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 07 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 10 năm 2025 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "thang 10 nam 2025 toi thu duoc bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 5/2024 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2025 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm 2024 tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm nay tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "nam nay toi thu duoc bao nhieu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm ngoái tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "năm trước tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "cả năm nay tôi thu được bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "train"}
+{"text": "tháng 4 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 11 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 1 năm 2025 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 8/2025 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm 2023 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm 2026 tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm ngoái tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm nay tôi đã tốn bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi tháng 4 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi tháng 11 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi tháng 1 năm 2025 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi tháng 8/2025 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi năm 2023 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi năm 2026 là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi năm ngoái là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "chi tiêu của tôi năm nay là bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết tháng 4 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết tháng 11 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết tháng 1 năm 2025 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết tháng 8/2025 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết năm 2023 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết năm 2026 tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết năm ngoái tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "cho tôi biết năm nay tôi xài hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 4 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 11 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 1 năm 2025 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tháng 8/2025 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm 2023 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm 2026 mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm ngoái mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "năm nay mình mua sắm hết bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu tháng 4", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu tháng 11", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu tháng 1 năm 2025", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu tháng 8/2025", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu năm 2023", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu năm 2026", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu năm ngoái", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "tính giúp tổng tiền tiêu năm nay", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập tháng 4 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập tháng 11 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập tháng 1 năm 2025 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập tháng 8/2025 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập năm 2023 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập năm 2026 của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập năm ngoái của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "thu nhập năm nay của mình bao nhiêu", "intent": "ask_spending", "tag": "periods", "split": "test"}
+{"text": "dân số việt nam tháng 9 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dan so viet nam thang 9 la bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dân số việt nam tháng 2 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dân số việt nam năm 2025 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dân số việt nam năm 2024 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dân số việt nam năm nay là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dan so viet nam nam nay la bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "dân số việt nam năm ngoái là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng tháng 9 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng tháng 2 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng năm 2025 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng năm 2024 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gia vang nam 2024 bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng năm nay bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá vàng năm ngoái bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 9 có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 2 có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2025 có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "nam 2025 co bao nhieu ngay", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2024 có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm nay có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm ngoái có bao nhiêu ngày", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng tháng 9 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng tháng 2 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lai suat ngan hang thang 2 bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng năm 2025 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng năm 2024 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng năm nay bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lãi suất ngân hàng năm ngoái bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lai suat ngan hang nam ngoai bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam tháng 9 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp viet nam thang 9 la bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam tháng 2 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam năm 2025 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam năm 2024 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam năm nay là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp viet nam nam nay la bao nhieu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gdp việt nam năm ngoái là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng tháng 9 bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng tháng 2 bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng năm 2025 bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng năm 2024 bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "gia xang nam 2024 bao nhieu mot lit", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng năm nay bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "giá xăng năm ngoái bao nhiêu một lít", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 9 thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 2 thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2025 thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "nam 2025 thoi tiet ha noi the nao", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2024 thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm nay thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm ngoái thời tiết hà nội thế nào", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 9 có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "tháng 2 có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "thang 2 co nhung su kien gi", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2025 có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm 2024 có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm nay có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "năm ngoái có những sự kiện gì", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "nam ngoai co nhung su kien gi", "intent": "out_of_scope", "tag": "periods", "split": "train"}
+{"text": "lương trung bình tháng 6 ở việt nam bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "lương trung bình tháng 3 năm 2025 ở việt nam bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "lương trung bình năm 2023 ở việt nam bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "lương trung bình năm nay ở việt nam bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "bao nhiêu người thất nghiệp tháng 6", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "bao nhiêu người thất nghiệp tháng 3 năm 2025", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "bao nhiêu người thất nghiệp năm 2023", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "bao nhiêu người thất nghiệp năm nay", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tỷ giá đô la tháng 6 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tỷ giá đô la tháng 3 năm 2025 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tỷ giá đô la năm 2023 là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tỷ giá đô la năm nay là bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "giá bitcoin tháng 6 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "giá bitcoin tháng 3 năm 2025 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "giá bitcoin năm 2023 bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "giá bitcoin năm nay bao nhiêu", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tháng 6 có bao nhiêu tuần", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "tháng 3 năm 2025 có bao nhiêu tuần", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "năm 2023 có bao nhiêu tuần", "intent": "out_of_scope", "tag": "periods", "split": "test"}
+{"text": "năm nay có bao nhiêu tuần", "intent": "out_of_scope", "tag": "periods", "split": "test"}

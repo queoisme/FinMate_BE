@@ -38,6 +38,7 @@ from app.db.models.nlu_example import NluExample, plain_text  # noqa: E402
 from app.db.models.nlu_model_version import NluModelVersion  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.services.nlu import RasaNlu  # noqa: E402
+from app.services.nlu_models import INDEPENDENT_TAGS, decide_promotion  # noqa: E402,F401 - cổng đo dùng chung với API trang admin (app/services/nlu_models.py)
 
 RASA_DIR = ROOT / "rasa"
 COMPOSE_DIR = ROOT.parent  # docker-compose.yml nằm ở gốc repo
@@ -45,7 +46,6 @@ ACTIVE_FILE = "models/active.tar.gz"  # docker-compose.yml chạy `-m models/act
 RASA_IMAGE = os.environ.get("RASA_IMAGE", "rasa/rasa:3.6.21")
 EVAL_PORT = int(os.environ.get("NLU_EVAL_PORT", "5006"))
 WRONG_CONFIDENT, WRONG_SATURATED = 0.8, 0.97  # cùng ngưỡng với rasa/tools/eval_live.py: "sai mà chắc" và "sai mà bão hòa"
-INDEPENDENT_TAGS = ("nlu_test_fresh", "nlu_test_fresh2")  # bộ chưa từng dùng để viết luật (xem audit_overrides.py): model mới không được tụt ở đây
 
 
 # ------------------------------------------------------------------ logic thuần (test không cần DB/Rasa)
@@ -87,32 +87,6 @@ def summarize(results: list[dict], test_hash: str) -> tuple[dict, dict]:
     final["fixed"] = sum(r["final"] == r["label"] for r in over)  # cứu: Rasa sai, luật đúng
     final["broke"] = sum(r["raw"] == r["label"] and r["final"] != r["label"] for r in over)  # phá: Rasa đúng, luật sai
     return raw, final
-
-
-def decide_promotion(candidate: dict, active: dict | None) -> list[str]:
-    """Lý do CHẶN promote (rỗng = được). candidate/active: dict có ``eval_raw`` và ``eval_final``."""
-    cand_raw, cand_final = candidate.get("eval_raw"), candidate.get("eval_final")
-    if not cand_raw or not cand_final:
-        return ["model chưa có số đo: chạy `eval` trước"]
-    reasons = []
-    if cand_final["broke"] > cand_final["fixed"]:
-        reasons.append(f"luật phá ({cand_final['broke']}) nhiều hơn cứu ({cand_final['fixed']}) trên model này")
-    if active is None:
-        return reasons
-    act_raw, act_final = active.get("eval_raw"), active.get("eval_final")
-    if not act_raw or not act_final:
-        return [*reasons, "bản đang chạy chưa có số đo nên không so được: chạy `eval` cho nó trước"]
-    if act_raw["test_hash"] != cand_raw["test_hash"]:
-        return [*reasons, "tập test đã đổi từ lúc đo bản đang chạy: chạy lại `eval` cho nó để hai số đo cùng tập"]
-    if cand_final["acc"] < act_final["acc"]:
-        reasons.append(f"độ đúng sau luật tụt: {act_final['acc']:.2%} -> {cand_final['acc']:.2%}")
-    if cand_raw["acc"] < act_raw["acc"]:
-        reasons.append(f"độ đúng Rasa thô tụt: {act_raw['acc']:.2%} -> {cand_raw['acc']:.2%}")
-    for tag in INDEPENDENT_TAGS:
-        before, after = act_final["by_tag"].get(tag), cand_final["by_tag"].get(tag)
-        if before and after and after["acc"] < before["acc"]:
-            reasons.append(f"bộ độc lập {tag} tụt: {before['acc']:.2%} -> {after['acc']:.2%}")
-    return reasons
 
 
 # ------------------------------------------------------------------ đo

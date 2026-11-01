@@ -125,7 +125,8 @@ public record ChatParseQuery(
     DateTimeOffset To,
     string? CategorySlug,
     string? IncomeType,
-    IReadOnlyList<string>? CategorySlugs = null);
+    IReadOnlyList<string>? CategorySlugs = null,
+    bool Detail = false);
 
 /// <summary>Bản nháp mục tiêu tiết kiệm AI hiểu từ câu chat (intent create_goal). Chưa phải mục tiêu: người dùng xác nhận rồi app mới tạo.</summary>
 /// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>

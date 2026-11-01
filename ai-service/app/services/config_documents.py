@@ -16,7 +16,7 @@ import pathlib
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +35,7 @@ MAX_DOCUMENT_BYTES = 1_000_000
 MAX_DIFF_ITEMS = 50
 MAX_PREVIEW_CHANGES = 30
 EVAL_DIR = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "eval"
-_SAME = {"needs_amount": "add_expense"}  # luật hỏi lại số tiền vẫn là một khoản chi (cùng cách scripts/audit_overrides.py)
+_SAME = {"needs_amount": "add_expense", "needs_period": "ask_spending"}  # luật hỏi lại số tiền vẫn là một khoản chi (cùng cách scripts/audit_overrides.py)
 APPLIED: dict[str, int] = {}  # tài liệu -> phiên bản đã áp dụng trong TIẾN TRÌNH NÀY (0 hoặc vắng = bản mặc định); activate và config_runtime cùng cập nhật
 
 
@@ -372,7 +372,18 @@ def _eval_cases() -> list[tuple[str, str]]:
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip() and "intent" in (row := json.loads(line)):
                     cases.append((row["text"], row["intent"]))
+    periods = EVAL_DIR / "period_cases.jsonl"  # kỳ thời gian câu hỏi tổng đọc ra: đáp án dạng "nhãn|ngày đầu|ngày cuối" ("none" = phải hỏi lại), tính theo đồng hồ cố định của _run_cases
+    if periods.is_file():
+        cases += [(row["text"], PERIOD_PREFIX + row["period"]) for line in periods.read_text(encoding="utf-8").splitlines() if line.strip() and (row := json.loads(line))]
     return cases
+
+
+PERIOD_PREFIX = "period:"
+
+
+def _period_answer(parsed) -> str:
+    query = parsed.query
+    return PERIOD_PREFIX + ("none" if query is None else f"{query.period_label}|{query.start.date()}|{(query.end - timedelta(days=1)).date()}")
 
 
 def _run_cases(cases: list[tuple[str, str]]) -> dict[str, str]:
@@ -380,9 +391,9 @@ def _run_cases(cases: list[tuple[str, str]]) -> dict[str, str]:
 
     now = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
     out = {}
-    for text, _ in cases:
-        got = parse_chat(text, None, now=now).intent
-        out[text] = _SAME.get(got, got)
+    for text, expected in cases:
+        parsed = parse_chat(text, None, now=now)
+        out[text] = _period_answer(parsed) if expected.startswith(PERIOD_PREFIX) else _SAME.get(parsed.intent, parsed.intent)
     return out
 
 

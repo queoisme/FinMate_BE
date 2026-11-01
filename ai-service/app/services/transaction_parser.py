@@ -9,17 +9,18 @@ trừ khi Rasa rất chắc. Nhóm danh mục ở đây là 9 nhóm của bộ l
 """
 from __future__ import annotations
 
+import calendar
 import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
-from app.services.vi_text import fold
+from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
 from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
 from app.services.dates import VN, parse_when, remove_when
@@ -39,11 +40,15 @@ def _bind(cues: intent_cues.Cues) -> None:
     global _DEBT_IN, _LEND_OUT, _FEE, _WITHDRAW, _OWN_WALLET, _OWN_ACCOUNT, _TRANSFER_CUE, _TO_OTHERS, _PAY_DEBT, _GIVING_AWAY, _PAYING
     global _QUERY, _BALANCE_Q, _INCOME_Q, _SPEND_Q, _MONEY_WORD, _PRICE_Q, _DATA_OPS, _AMBIGUOUS_SEND
     global _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB, _QUESTION_PARTICLES, _ANSWER_STARTS, _REPLIES
-    global _PERIODS, _REPLY_INTENTS, _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN, _QUESTION_LEAD
+    global _THANKS_LEAD, _REPLY_CUES
+    global _PERIOD_DAY, _PERIOD_DAY_ONLY, _PERIOD_RANGE, _PERIOD_LAST, _PERIOD_QUARTER, _PERIOD_DAY_BEFORE, _PERIOD_DAY_PART, _PERIOD_HINT
+    global _PERIODS, _PERIOD_MONTH, _PERIOD_YEAR, _SELF_REFERENCE, _DETAIL_Q, _DETAIL_NOT, _REPLY_INTENTS, _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN, _QUESTION_LEAD
     thresholds, p = cues.thresholds, cues.patterns
     MIN_NLU_CONFIDENCE, OUT_OF_SCOPE_OVERRIDE, KIND_TRUST = thresholds["min_nlu_confidence"], thresholds["out_of_scope_override"], thresholds["kind_trust"]
     UNCERTAIN_BELOW, AUTO_CONFIDENCE = thresholds["uncertain_below"], thresholds["auto_confidence"]
     _GREET, _THANKS = cues.phrases["greet"], cues.phrases["thanks"]
+    _THANKS_LEAD = p["thanks_lead"]
+    _REPLY_CUES = {name: p[f"reply_cue_{name}"] for name in ("confirm", "deny", "cancel")}  # tên ý định của Rasa -> mẫu từ của lời đáp loại đó
     # Tiền vào có ba mức bằng chứng (xem _direction): CỤ THỂ, CHỦ ĐỀ (lương, thưởng...: đi cả hai chiều) và YẾU (anh/em gửi: người dùng hay tự xưng anh/em).
     _INCOME_SPECIFIC, _INCOME_ACCENTED = p["income_specific"], p["income_accented"]
     _INCOME_SPECIFIC_PLAIN, _INCOME_PLAIN = p["income_specific_plain"], p["income_plain"]
@@ -58,6 +63,10 @@ def _bind(cues: intent_cues.Cues) -> None:
     _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB = p["percent"], p["stray_amount"], p["expense_verb"]
     _QUESTION_PARTICLES, _ANSWER_STARTS = cues.question_particles, cues.answer_starts
     _QUESTION_LEAD, _REPLY_INTENTS, _PERIODS = p["question_lead"], cues.reply_intents, cues.period_labels
+    _PERIOD_MONTH, _PERIOD_YEAR, _SELF_REFERENCE = p["period_month"], p["period_year"], p["self_reference"]
+    _PERIOD_DAY, _PERIOD_DAY_ONLY, _PERIOD_RANGE, _PERIOD_LAST = p["period_day"], p["period_day_only"], p["period_range"], p["period_last"]
+    _PERIOD_QUARTER, _PERIOD_DAY_BEFORE, _PERIOD_DAY_PART, _PERIOD_HINT = p["period_quarter"], p["period_day_before_yesterday"], p["period_day_part"], p["period_hint"]
+    _DETAIL_Q, _DETAIL_NOT = p["detail_q"], p["detail_not"]
     _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN = p["description_leading"], p["description_trailing"], p["merchant_in"]
     _REPLIES = {key: text for key, text in cues.replies.items() if key != "pending_none"}
     _REPLIES.update(dict.fromkeys(("confirm", "deny", "cancel"), cues.replies["pending_none"]))
@@ -94,6 +103,7 @@ class Query:
     category: str | None
     income_type: str | None
     categories: tuple[str, ...] = ()  # hỏi về HAI danh mục trở lên ("giải trí và mua sắm"): mọi danh mục được gọi tên; rỗng thì chỉ xét ``category``
+    detail: bool = False  # xin xem CHI TIẾT ("chi tiết hôm nay", "liệt kê các khoản chi tháng này"): backend trả danh sách từng khoản của kỳ, không chỉ tổng
 
 
 @dataclass(frozen=True)
@@ -124,10 +134,176 @@ def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
         return week, week + timedelta(days=7)
     if key == "tuan truoc":
         return week - timedelta(days=7), week
+    if key in ("nam nay", "nam ngoai", "nam truoc"):
+        year = today.year - (0 if key == "nam nay" else 1)
+        return today.replace(year=year, month=1, day=1), today.replace(year=year + 1, month=1, day=1)
+    if named := _SPAN_KEY.fullmatch(key):  # "tu 2025-03-01 den 2025-03-10": khoảng ngày (gồm cả hai đầu) do _span_period dựng
+        first, last = date.fromisoformat(named[1]), date.fromisoformat(named[2])
+        return today.replace(year=first.year, month=first.month, day=first.day), today.replace(year=last.year, month=last.month, day=last.day) + timedelta(days=1)
+    if named := _YEAR_KEY.fullmatch(key):  # "nam 2025"
+        year = int(named[1])
+        return today.replace(year=year, month=1, day=1), today.replace(year=year + 1, month=1, day=1)
+    if named := _MONTH_KEY.fullmatch(key):  # "thang 9/2025": khóa do _month_period dựng, luôn kèm năm đã quy đổi
+        year, month_number = int(named[2]), int(named[1])
+        start = today.replace(year=year, month=month_number, day=1)
+        return start, (start.replace(year=year + 1, month=1) if month_number == 12 else start.replace(month=month_number + 1))
     month = today.replace(day=1)
     if key == "thang truoc":
         return (month - timedelta(days=1)).replace(day=1), month
     return month, (month + timedelta(days=32)).replace(day=1)  # "thang nay" (mặc định)
+
+
+_MONTH_KEY = re.compile(r"thang (\d{1,2})/(\d{4})")  # khóa kỳ "tháng N năm Y" do chính _month_period dựng (định danh trong code, không phải từ vựng)
+_YEAR_KEY = re.compile(r"nam (\d{4})")  # khóa kỳ "năm Y" do _year_period dựng
+_SPAN_KEY = re.compile(r"tu (\d{4}-\d{2}-\d{2}) den (\d{4}-\d{2}-\d{2})")  # khóa kỳ "từ ngày A đến ngày B" do _span_period dựng: mọi kỳ theo ngày (một ngày, khoảng ngày, N ngày qua, quý) quy về dạng này
+
+
+def _month_period(norm: str, now: datetime) -> tuple[str, str] | None:
+    """Kỳ "tháng 9" / "tháng 9/2025" trong câu hỏi tổng: (khóa kèm năm, nhãn) hoặc None khi câu không nói tháng cụ thể.
+    Không nói năm thì lấy năm gần nhất không ở tương lai ("tháng 12" hỏi lúc đang tháng 10 là tháng 12 năm ngoái). "ngày 5 tháng 10" là hỏi một NGÀY nên không
+    phải kỳ tháng; tháng ngoài 1-12 cũng không phải ("tháng 13")."""
+    found = _PERIOD_MONTH.search(norm)
+    if found is None or found["day"]:
+        return None
+    month_number = int(found["month"])
+    if not 1 <= month_number <= 12:
+        return None
+    year = int(found["year"]) if found["year"] else (now.year if month_number <= now.month else now.year - 1)
+    label = _REPLIES["period_month" if year == now.year else "period_month_year"].format(month=month_number, year=year)
+    return f"thang {month_number}/{year}", label
+
+
+def _year_period(norm: str) -> tuple[str, str] | None:
+    """Kỳ "năm 2025" đứng riêng (không kèm tháng): (khóa, nhãn) hoặc None."""
+    found = _PERIOD_YEAR.search(norm)
+    return (f"nam {found['year']}", _REPLIES["period_year"].format(year=found["year"])) if found else None
+
+
+def _safe_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:  # 31/2, 0/5...
+        return None
+
+
+def _latest_past(month: int, day: int, today: date) -> date | None:
+    """Ngày D/M gần nhất không ở tương lai ("ngày 15/12" hỏi lúc đang tháng 10 là 15/12 năm ngoái)."""
+    found = _safe_date(today.year, month, day)
+    return found if found is None or found <= today else _safe_date(today.year - 1, month, day)
+
+
+def _add_months(day: date, months: int) -> date:
+    year, month0 = divmod(day.year * 12 + day.month - 1 + months, 12)
+    return date(year, month0 + 1, min(day.day, calendar.monthrange(year, month0 + 1)[1]))
+
+
+def _day_text(day: date, today: date) -> str:
+    return f"{day.day}/{day.month}" + (f"/{day.year}" if day.year != today.year else "")
+
+
+def _span(first: date, last: date, label: str) -> tuple[str, str]:
+    return f"tu {first.isoformat()} den {last.isoformat()}", label
+
+
+def _range_dates(found: re.Match, today: date) -> tuple[date | None, date | None]:
+    """Hai đầu của "từ ngày 1 đến ngày 10" / "từ 25/9 đến 5/10". Thiếu tháng thì lấy tháng còn lại; không nói tháng nào thì tháng hiện tại (tháng trước nếu ngày đầu chưa tới)."""
+    d1, d2 = int(found["d1"]), int(found["d2"])
+    if found["m1"] or found["m2"]:
+        m1, m2 = int(found["m1"] or found["m2"]), int(found["m2"] or found["m1"])
+        year = int(found["year"]) if found["year"] else today.year
+    else:
+        base = today if d1 <= today.day else _add_months(today.replace(day=1), -1)
+        m1 = m2 = base.month
+        year = int(found["year"]) if found["year"] else base.year
+
+    def build(y: int) -> tuple[date | None, date | None]:
+        return _safe_date(y, m1, d1), _safe_date(y + (m2 < m1), m2, d2)  # "từ 25/12 đến 5/1" sang năm sau
+
+    first, last = build(year)
+    if first and not found["year"] and first > today:
+        first, last = build(year - 1)
+    return first, last
+
+
+def _span_period(norm: str, now: datetime) -> tuple[str, str] | None:
+    """Kỳ theo ngày: khoảng ngày, một ngày cụ thể, hôm kia, N ngày/tuần/tháng qua, quý. Mọi kỳ quy về khóa "tu A den B" (A, B gồm cả hai đầu); (khóa, nhãn) hoặc None."""
+    today = now.astimezone(VN).date()
+    amount = parse_amount(norm)  # bộ đọc số tiền chung: "từ 3 đến 5 triệu" có số cuối là tiền, không phải ngày
+    if (found := _PERIOD_RANGE.search(norm)) and not (amount and amount.start < found.end("d2") and amount.end > found.start("d2")):
+        first, last = _range_dates(found, today)
+        if first and last and first <= last:
+            return _span(first, last, _REPLIES["period_range"].format(start=_day_text(first, today), end=_day_text(last, today)))
+    if found := _PERIOD_DAY.search(norm):
+        day, month = int(found["day"]), int(found["month"])
+        target = _safe_date(int(found["year"]), month, day) if found["year"] else _latest_past(month, day, today)
+        if target:
+            return _span(target, target, _REPLIES["period_day_year" if target.year != today.year else "period_day"].format(day=day, month=month, year=target.year))
+    if found := _PERIOD_LAST.search(norm):
+        if found["days"] and int(found["days"]) >= 1:
+            n = int(found["days"])
+            return _span(today - timedelta(days=n - 1), today, _REPLIES["period_last_days"].format(n=n))
+        if found["weeks"] and int(found["weeks"]) >= 1:
+            n = int(found["weeks"])
+            return _span(today - timedelta(days=7 * n - 1), today, _REPLIES["period_last_weeks"].format(n=n))
+        if found["months"] and int(found["months"]) >= 1:
+            n = int(found["months"])
+            return _span(_add_months(today, -n) + timedelta(days=1), today, _REPLIES["period_last_months"].format(n=n))
+    if found := _PERIOD_QUARTER.search(norm):
+        year = int(found["year"]) if found["year"] else today.year
+        if found["previous"] or found["current"]:
+            quarter = (today.month - 1) // 3 + 1 - bool(found["previous"])
+            if quarter == 0:
+                quarter, year = 4, year - 1
+        else:
+            quarter = int(found["quarter"])
+            if not found["year"] and date(year, quarter * 3 - 2, 1) > today:
+                year -= 1
+        last_month = quarter * 3
+        label = _REPLIES["period_quarter_year" if year != today.year else "period_quarter"].format(quarter=quarter, year=year)
+        return _span(date(year, last_month - 2, 1), date(year, last_month, calendar.monthrange(year, last_month)[1]), label)
+    if _PERIOD_DAY_BEFORE.search(norm):
+        target = today - timedelta(days=2)
+        return _span(target, target, _REPLIES["period_day_before_yesterday"])
+    return None
+
+
+def _day_of_month_period(norm: str, now: datetime) -> tuple[str, str] | None:
+    """"ngày 15" không nói tháng: tháng hiện tại, hoặc tháng trước nếu ngày đó chưa tới."""
+    found = _PERIOD_DAY_ONLY.search(norm)
+    if found is None:
+        return None
+    today = now.astimezone(VN).date()
+    day = int(found["day"])
+    base = today if day <= today.day else _add_months(today.replace(day=1), -1)
+    target = _safe_date(base.year, base.month, day)
+    if target is None:
+        return None
+    return _span(target, target, _REPLIES["period_day_year" if target.year != today.year else "period_day"].format(day=day, month=target.month, year=target.year))
+
+
+def _day_part_period(norm: str) -> tuple[str, str] | None:
+    """"sáng/chiều/tối nay" là hôm nay, "đêm qua" là hôm qua: kỳ có sẵn, tính cả ngày."""
+    found = _PERIOD_DAY_PART.search(norm)
+    if found is None:
+        return None
+    key = "hom nay" if found["today"] else "hom qua"
+    return key, dict(_PERIODS)[key]
+
+
+def _resolve_period(norm: str, now: datetime) -> tuple[str, str] | None:
+    """(khóa kỳ, nhãn) của kỳ câu hỏi nói tới, hoặc None khi câu không nói kỳ nào đọc được. Thứ tự: theo ngày, tháng, năm, kỳ có sẵn (hôm nay, tuần trước...), buổi trong ngày, "ngày N" trần."""
+    return (_span_period(norm, now) or _month_period(norm, now) or _year_period(norm)
+            or next(((key, label) for key, label in _PERIODS if key in norm), None) or _day_part_period(norm) or _day_of_month_period(norm, now))
+
+
+def _unresolved_period(norm: str, now: datetime) -> bool:
+    """Câu hỏi tổng có từ nghe như nói về thời gian mà không kỳ nào đọc được ("cuối tuần rồi", "ngày 31/2"): hỏi lại, đừng đoán "tháng này"."""
+    return bool(_PERIOD_HINT.search(norm)) and _resolve_period(norm, now) is None
+
+
+def _names_a_period(norm: str, now: datetime) -> bool:
+    """Câu có nói một kỳ cụ thể (hôm nay, tuần trước, tháng 9, ngày 15/3, 7 ngày qua, năm 2025...)? Dùng làm bằng chứng cho câu hỏi tổng khi phân xử với Rasa."""
+    return _resolve_period(norm, now) is not None  # (cùng ý với _mentions_period nhưng loại kỳ không hợp lệ như "tháng 13", "ngày 31/2")
 
 
 def _label_index(labels: dict[str, str]) -> dict[str, str]:
@@ -236,7 +412,18 @@ def _merchant_in(description: str) -> str | None:
 
 
 def is_query(norm: str) -> bool:
-    return bool(_QUERY.search(norm))
+    return bool(_QUERY.search(norm)) or _is_detail(norm)
+
+
+def _mentions_period(norm: str) -> bool:
+    return bool(any(p.search(norm) for p in (_PERIOD_MONTH, _PERIOD_YEAR, _PERIOD_DAY, _PERIOD_DAY_ONLY, _PERIOD_RANGE, _PERIOD_LAST, _PERIOD_QUARTER, _PERIOD_DAY_BEFORE, _PERIOD_DAY_PART))
+                or any(key in norm for key, _ in _PERIODS))
+
+
+def _is_detail(norm: str) -> bool:
+    """Xin xem CHI TIẾT các khoản ("chi tiết hôm nay", "liệt kê các khoản chi tháng này", "hôm nay tôi mua gì"): có cách nói xin danh sách, KHÔNG phải lời khuyên/ý định
+    ("nên mua gì"), và có ngữ cảnh tiền (nêu một kỳ, có từ chi tiêu, hoặc chữ "khoản") để "chi tiết" đứng một mình không bị coi là câu hỏi chi tiêu."""
+    return bool(_DETAIL_Q.search(norm) and not _DETAIL_NOT.search(norm) and (_mentions_period(norm) or _SPEND_Q.search(norm) or "khoan" in norm))
 
 
 def is_question(text: str, norm: str) -> bool:
@@ -255,7 +442,7 @@ def _rule_intent(text: str, norm: str) -> str:
         return "ask_spending"
     if norm in _GREET:
         return "greet"
-    if norm in _THANKS:
+    if norm in _THANKS or (len(norm.split()) <= 6 and _THANKS_LEAD.search(norm)):  # câu ngắn mở đầu bằng lời cảm ơn; câu có số tiền đã rẽ nhánh ở trên
         return "thanks"
     # Cụm chi tiêu không kèm số tiền ("ăn cơm", "mua nước", "đi ăn"): hỏi số tiền thay vì bảo ngoài chủ đề. Câu hỏi đã bị chặn trước đó.
     return "needs_amount" if _EXPENSE_VERB.match(norm) or expense_category(norm) else "out_of_scope"
@@ -271,6 +458,8 @@ def _is_social_question(text: str, norm: str, nlu: dict | None) -> bool:
         return True
     if not is_question(text, norm) or is_query(norm):
         return False
+    if _SPEND_Q.search(norm) and _mentions_period(norm):
+        return False  # hỏi về chi tiêu của một kỳ ("tháng này tiêu nhiều nhất cho khoản nào"): từ để hỏi cuối câu không làm nó thành câu hỏi lạc đề
     if not (nlu and nlu["intent"] in _REPLY_INTENTS):
         return True
     # Model cho là lời đáp: lời đáp thật thì ngắn hoặc mở đầu bằng từ đáp; câu dài kết thúc bằng tiểu từ hỏi là một câu hỏi.
@@ -282,6 +471,12 @@ def _purchase_evidence(norm: str) -> bool:
     return bool(expense_category(norm) or _GIVING_AWAY.search(norm) or _PAYING.search(norm))
 
 
+def _income_evidence(text: str, rule: str) -> bool:
+    """Số tiền kèm dấu hiệu tiền vào CỤ THỂ ("được thưởng", "bán được", "hoàn lại", "cho thuê") là một khoản thu, cùng sức nặng với bằng chứng mua hàng của chi tiêu:
+    Rasa nói ngoài chủ đề (có khi ở 1,00) cũng không đủ để từ chối."""
+    return rule == "add_income" and _direction(text)[1] == "any"
+
+
 def _has_diacritics(text: str) -> bool:
     return fold(text) != text.lower()
 
@@ -290,17 +485,26 @@ def _flow(intent: str) -> str:
     return "in" if intent == "add_income" else "out"  # chi tiêu và chuyển tiền đều là tiền đi ra
 
 
-def _arbitrate(text: str, norm: str, rule: str, nlu: dict) -> str:
+def _arbitrate(text: str, norm: str, rule: str, nlu: dict, now: datetime) -> str:
     """Rasa và luật bất đồng thì ai thắng. Mỗi nguyên tắc viết một lần, không theo từng câu:
       2. Số tiền kèm bằng chứng giao dịch là một khoản ghi, kể cả khi Rasa nói ngoài chủ đề.
+      2b. Câu hỏi tổng NÊU MỘT KỲ cụ thể ("tháng 9", "năm 2025", "tuần trước") và nói về CHÍNH NGƯỜI DÙNG (đại từ "tôi/mình/tui" hoặc từ hỏi chi tiêu "tiêu", "đã chi")
+          là câu hỏi chi tiêu, kể cả khi Rasa nói ngoài chủ đề: mô hình chưa thấy đủ cách nói kỳ (câu có số năm từng bị đoán out_of_scope với độ chắc 0,98).
+          Câu về chủ thể khác ("thưởng tết năm nay các công ty bao nhiêu") là kiến thức chung nên vẫn theo Rasa.
       3. Chỉ từ hỏi tổng (bao nhiêu, tổng chi...) mới làm câu hỏi chi tiêu; câu có số tiền mà không có từ hỏi là khoản ghi.
       4. Chiều giao dịch: dấu hiệu CỤ THỂ trong câu thắng model (xem _direction); độ chắc của Rasa chưa hiệu chỉnh nên không dùng làm lý do ngược lại.
       5. Bằng chứng YẾU (tên một thứ được mua, hay mặc định chi tiêu) chỉ thắng lời "thu nhập/chuyển tiền" của model khi model không chắc,
          hoặc khi lời đó không có dấu hiệu nào trong câu nâng đỡ.
     """
     name, confidence = nlu["intent"], nlu["confidence"]
+    if name in _REPLY_CUES and not _REPLY_CUES[name].search(norm):
+        return rule  # Rasa gán xác nhận/từ chối/hủy mà câu không có từ nào của loại đó: chuỗi vô nghĩa hay emoji (độ chắc 0,88-1,00 vẫn sai), để luật quyết
     has_entry = rule in _ENTRY_INTENTS  # luật đã tìm thấy số tiền
-    if name == "out_of_scope" and has_entry and (confidence < OUT_OF_SCOPE_OVERRIDE or _purchase_evidence(norm)):
+    if name == "out_of_scope" and has_entry and (confidence < OUT_OF_SCOPE_OVERRIDE or _purchase_evidence(norm) or _income_evidence(text, rule)):
+        return rule
+    if name == "out_of_scope" and rule == "ask_spending" and (
+            confidence < OUT_OF_SCOPE_OVERRIDE or (_names_a_period(norm, now) and (_SPEND_Q.search(norm) or _SELF_REFERENCE.search(norm) or _is_detail(norm)))
+            or (_BALANCE_Q.search(norm) and _SELF_REFERENCE.search(norm))):
         return rule
     if name in _ENTRY_INTENTS and rule == "ask_spending":
         return rule
@@ -317,13 +521,13 @@ def _arbitrate(text: str, norm: str, rule: str, nlu: dict) -> str:
     return name
 
 
-def _resolve_intent(text: str, norm: str, nlu: dict | None) -> str:
+def _resolve_intent(text: str, norm: str, nlu: dict | None, now: datetime) -> str:
     if _is_social_question(text, norm, nlu):
         return "out_of_scope"
     rule = _rule_intent(text, norm)
     if not nlu or rule in ("greet", "thanks"):
         return rule  # chào/cảm ơn khớp nguyên cụm: Rasa không có ý định "thanks" nên không có gì để cân nhắc
-    return _arbitrate(text, norm, rule, nlu)
+    return _arbitrate(text, norm, rule, nlu, now)
 
 
 def _unclear_reason(text: str, norm: str, intent: str, nlu: dict | None) -> str | None:
@@ -409,16 +613,17 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
 
 
 def _query(norm: str, now: datetime) -> Query:
-    key, label = next(((k, v) for k, v in _PERIODS if k in norm), (_DEFAULT_PERIOD, dict(_PERIODS)[_DEFAULT_PERIOD]))
+    key, label = _resolve_period(norm, now) or (_DEFAULT_PERIOD, dict(_PERIODS)[_DEFAULT_PERIOD])
     start, end = period_range(key, now)
     if _BALANCE_Q.search(norm):
         return Query("balance", key, label, start, end, None, None)
+    detail = _is_detail(norm)
     if _INCOME_Q.search(norm) and not _SPEND_Q.search(norm):
-        return Query("income", key, label, start, end, None, category_from_text(norm, "income"))
+        return Query("income", key, label, start, end, None, category_from_text(norm, "income"), detail=detail)
     named = categories_named(norm)
     if len(named) > 1:
-        return Query("expense", key, label, start, end, named[0], None, named)  # "giải trí và mua sắm": cả hai, không chỉ danh mục dài nhất
-    return Query("expense", key, label, start, end, category_from_text(norm), None)
+        return Query("expense", key, label, start, end, named[0], None, named, detail)  # "giải trí và mua sắm": cả hai, không chỉ danh mục dài nhất
+    return Query("expense", key, label, start, end, category_from_text(norm), None, detail=detail)
 
 
 def _money(amount: int) -> str:
@@ -440,7 +645,7 @@ def parse_chat(
     fallback_category: Callable[[str | None, str], str | None] | None = None,
 ) -> ChatParse:
     """nlu: kết quả Rasa {"intent", "confidence", "entities"} hoặc None. fallback_category(merchant, mô tả) -> nhóm 9 nhóm hoặc None."""
-    text = (text or "").strip()
+    text = clean_text(text or "").strip()
     now = now or datetime.now(VN)
     norm = re.sub(r"\s+", " ", normalize(text)).strip(" .!?,")
     if nlu is not None and nlu["confidence"] < MIN_NLU_CONFIDENCE:
@@ -457,7 +662,7 @@ def parse_chat(
         return result("empty", reply_text=_REPLIES["empty"])
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
-    intent = _resolve_intent(text, norm, nlu)
+    intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
         text, cancelled = apply_cancellations(text)  # "rồi hủy", "nhầm, là 35k": áp trước khi tách khoản
@@ -485,5 +690,7 @@ def parse_chat(
             entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
+        if _unresolved_period(norm, now):  # nói về thời gian mà không đọc được: hỏi lại, không trả số của "tháng này" như thể đó là điều được hỏi
+            return result("needs_period", reply_text=_REPLIES["needs_period"], unclear_reason=reason)
         return result(intent, query=_query(norm, now), unclear_reason=reason)
     return result(intent, reply_text=_REPLIES.get(intent, _REPLIES["out_of_scope"]), unclear_reason=reason)

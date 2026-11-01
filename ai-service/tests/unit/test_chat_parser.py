@@ -1,6 +1,6 @@
 """Hiểu câu chat: loại giao dịch, số tiền lóng, danh mục, câu hỏi tổng, và khi nào đủ chắc để ghi ngay."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -333,6 +333,200 @@ def test_period_ranges():
     assert period_range("tuan nay", NOW)[0] == datetime(2026, 10, 12, tzinfo=VN)  # thứ Hai
     assert period_range("tuan truoc", NOW) == (datetime(2026, 10, 5, tzinfo=VN), datetime(2026, 10, 12, tzinfo=VN))
     assert period_range("thang truoc", NOW) == (datetime(2026, 9, 1, tzinfo=VN), datetime(2026, 10, 1, tzinfo=VN))
+
+
+def test_year_and_numbered_month_ranges():
+    assert period_range("nam nay", NOW) == (datetime(2026, 1, 1, tzinfo=VN), datetime(2027, 1, 1, tzinfo=VN))
+    assert period_range("nam ngoai", NOW) == period_range("nam truoc", NOW) == (datetime(2025, 1, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN))
+    assert period_range("thang 9/2026", NOW) == (datetime(2026, 9, 1, tzinfo=VN), datetime(2026, 10, 1, tzinfo=VN))
+    assert period_range("thang 12/2025", NOW) == (datetime(2025, 12, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN))  # tháng 12 sang năm sau
+    assert period_range("thang 2/2024", NOW) == (datetime(2024, 2, 1, tzinfo=VN), datetime(2024, 3, 1, tzinfo=VN))
+
+
+@pytest.mark.parametrize(
+    ("text", "key", "label", "start", "end"),
+    [
+        ("tháng 9 tôi tiêu bao nhiêu", "thang 9/2026", "tháng 9", datetime(2026, 9, 1, tzinfo=VN), datetime(2026, 10, 1, tzinfo=VN)),
+        ("thang 09 toi tieu bao nhieu", "thang 9/2026", "tháng 9", datetime(2026, 9, 1, tzinfo=VN), datetime(2026, 10, 1, tzinfo=VN)),
+        ("tháng 10 tôi tiêu bao nhiêu", "thang 10/2026", "tháng 10", datetime(2026, 10, 1, tzinfo=VN), datetime(2026, 11, 1, tzinfo=VN)),  # đang là tháng 10
+        ("tháng 12 tôi tiêu bao nhiêu", "thang 12/2025", "tháng 12/2025", datetime(2025, 12, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN)),  # chưa tới: là năm ngoái
+        ("tháng 9 năm 2025 tôi chi bao nhiêu", "thang 9/2025", "tháng 9/2025", datetime(2025, 9, 1, tzinfo=VN), datetime(2025, 10, 1, tzinfo=VN)),
+        ("chi tiêu tháng 9/2025 là bao nhiêu", "thang 9/2025", "tháng 9/2025", datetime(2025, 9, 1, tzinfo=VN), datetime(2025, 10, 1, tzinfo=VN)),
+        ("năm nay tôi tiêu bao nhiêu", "nam nay", "năm nay", datetime(2026, 1, 1, tzinfo=VN), datetime(2027, 1, 1, tzinfo=VN)),
+        ("năm ngoái tôi tiêu bao nhiêu", "nam ngoai", "năm ngoái", datetime(2025, 1, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN)),
+        ("năm trước tôi chi bao nhiêu", "nam truoc", "năm trước", datetime(2025, 1, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN)),
+    ],
+)
+def test_a_question_about_a_named_month_or_year_gets_that_period_not_this_month(text, key, label, start, end):
+    query = parse(text).query
+    assert (query.period_key, query.period_label, query.start, query.end) == (key, label, start, end)
+
+
+def _span(first, last):
+    """(đầu, cuối không gồm) của khoảng ngày tính cả hai đầu."""
+    return datetime(*first, tzinfo=VN), datetime(*last, tzinfo=VN) + timedelta(days=1)
+
+
+@pytest.mark.parametrize(
+    ("text", "label", "first", "last"),
+    [
+        ("ngày 5 tháng 10 tôi tiêu bao nhiêu", "ngày 5/10", (2026, 10, 5), (2026, 10, 5)),
+        ("ngày 15 tháng 3 tôi tiêu bao nhiêu", "ngày 15/3", (2026, 3, 15), (2026, 3, 15)),
+        ("ngày 15/3 tôi chi bao nhiêu", "ngày 15/3", (2026, 3, 15), (2026, 3, 15)),
+        ("15/12 tôi chi bao nhiêu", "ngày 15/12/2025", (2025, 12, 15), (2025, 12, 15)),  # chưa tới năm nay: là năm ngoái
+        ("ngày 5/10/2025 tôi tiêu bao nhiêu", "ngày 5/10/2025", (2025, 10, 5), (2025, 10, 5)),
+        ("ngày 15 tháng 3 năm 2025 tôi chi bao nhiêu", "ngày 15/3/2025", (2025, 3, 15), (2025, 3, 15)),
+        ("ngày 10 tôi chi bao nhiêu", "ngày 10/10", (2026, 10, 10), (2026, 10, 10)),
+        ("ngày 20 tôi chi bao nhiêu", "ngày 20/9", (2026, 9, 20), (2026, 9, 20)),  # ngày 20 tháng này chưa tới: tháng trước
+        ("hôm kia tôi chi bao nhiêu", "hôm kia", (2026, 10, 12), (2026, 10, 12)),
+        ("3 ngày qua tôi tiêu bao nhiêu", "3 ngày qua", (2026, 10, 12), (2026, 10, 14)),  # gồm cả hôm nay
+        ("7 ngày gần đây tôi chi bao nhiêu", "7 ngày qua", (2026, 10, 8), (2026, 10, 14)),
+        ("2 tuần qua tôi chi bao nhiêu", "2 tuần qua", (2026, 10, 1), (2026, 10, 14)),
+        ("3 tháng qua tôi tiêu bao nhiêu", "3 tháng qua", (2026, 7, 15), (2026, 10, 14)),
+        ("quý 1 tôi tiêu bao nhiêu", "quý 1", (2026, 1, 1), (2026, 3, 31)),
+        ("quý 4 tôi tiêu bao nhiêu", "quý 4", (2026, 10, 1), (2026, 12, 31)),
+        ("quý 4 năm 2025 tôi chi bao nhiêu", "quý 4/2025", (2025, 10, 1), (2025, 12, 31)),
+        ("quý này tôi tiêu bao nhiêu", "quý 4", (2026, 10, 1), (2026, 12, 31)),
+        ("quý trước tôi tiêu bao nhiêu", "quý 3", (2026, 7, 1), (2026, 9, 30)),
+        ("từ ngày 1 đến ngày 10 tôi chi bao nhiêu", "từ 1/10 đến 10/10", (2026, 10, 1), (2026, 10, 10)),
+        ("từ ngày 20 đến ngày 25 tôi chi bao nhiêu", "từ 20/9 đến 25/9", (2026, 9, 20), (2026, 9, 25)),  # ngày 20 tháng này chưa tới
+        ("từ 25/9 đến 5/10 tôi chi bao nhiêu", "từ 25/9 đến 5/10", (2026, 9, 25), (2026, 10, 5)),
+        ("từ 5/10 đến 15/10 tôi tiêu bao nhiêu", "từ 5/10 đến 15/10", (2026, 10, 5), (2026, 10, 15)),
+    ],
+)
+def test_a_question_about_a_day_or_a_span_of_days_gets_exactly_those_days(text, label, first, last):
+    query = parse(text).query
+    assert query.period_label == label
+    assert (query.start, query.end) == _span(first, last)
+
+
+def test_a_span_key_is_a_range_that_includes_both_ends():
+    assert period_range("tu 2025-03-01 den 2025-03-10", NOW) == (datetime(2025, 3, 1, tzinfo=VN), datetime(2025, 3, 11, tzinfo=VN))
+    assert period_range("tu 2025-12-31 den 2025-12-31", NOW) == (datetime(2025, 12, 31, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["tháng 13 tôi tiêu bao nhiêu", "tháng 0 tôi tiêu bao nhiêu", "ngày 31/2 tôi chi bao nhiêu", "cuối tuần rồi tôi tiêu bao nhiêu", "đầu tháng tôi tiêu bao nhiêu"],
+)
+def test_a_time_phrase_that_cannot_be_read_is_asked_back_not_answered_as_this_month(text):
+    parsed = parse(text)
+    assert parsed.intent == "needs_period" and parsed.query is None and parsed.reply_text and "hôm nay" in parsed.reply_text
+
+
+@pytest.mark.parametrize("text", ["tôi tiêu bao nhiêu", "tiêu bao nhiêu cho quần áo nam", "tháng này tôi tiêu bao nhiêu"])
+def test_a_question_without_any_time_word_still_defaults_to_this_month(text):
+    assert parse(text).query.period_key == "thang nay"
+
+
+@pytest.mark.parametrize(
+    ("text", "key"),
+    [("sáng nay tôi tiêu bao nhiêu", "hom nay"), ("chiều nay tôi chi bao nhiêu", "hom nay"), ("tối nay tôi chi bao nhiêu", "hom nay"), ("đêm qua tôi tiêu bao nhiêu", "hom qua")],
+)
+def test_a_part_of_the_day_is_that_whole_day(text, key):
+    assert parse(text).query.period_key == key
+
+
+def test_an_amount_range_is_not_a_range_of_days():
+    parsed = parse("từ 3 đến 5 triệu tôi đã chi bao nhiêu")
+    assert parsed.query is None or "đến" not in parsed.query.period_label
+
+
+@pytest.mark.parametrize("text", ["7 ngày qua tôi tiêu bao nhiêu", "từ ngày 1 đến ngày 10 tôi chi bao nhiêu", "ngày 15/3 tôi chi bao nhiêu", "quý 1 tôi tiêu bao nhiêu"])
+def test_a_day_span_question_beats_rasa_saying_out_of_scope(text):
+    assert parse(text, {"intent": "out_of_scope", "confidence": 0.99, "entities": {}}).intent == "ask_spending"
+
+
+def test_the_detail_flag_works_for_a_day_or_a_span():
+    assert parse("chi tiết ngày 15/3").query.detail is True
+    assert parse("liệt kê các khoản chi 7 ngày qua").query.detail is True
+
+
+def test_a_bare_year_is_a_year_period():
+    query = parse("năm 2025 tôi tiêu bao nhiêu").query
+    assert (query.period_key, query.period_label, query.start, query.end) == (
+        "nam 2025", "năm 2025", datetime(2025, 1, 1, tzinfo=VN), datetime(2026, 1, 1, tzinfo=VN))
+    assert period_range("nam 2024", NOW) == (datetime(2024, 1, 1, tzinfo=VN), datetime(2025, 1, 1, tzinfo=VN))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["năm 2025 tôi tiêu bao nhiêu", "tháng 9 năm 2025 tôi chi bao nhiêu", "tháng 9 tôi chi bao nhiêu", "năm ngoái tôi tiêu bao nhiêu", "tuần trước tôi tiêu bao nhiêu"],
+)
+def test_a_total_question_naming_a_period_beats_rasa_saying_out_of_scope(text):
+    # Rasa từng đoán các câu có số năm là out_of_scope với độ chắc 0,86-0,98 vì dữ liệu huấn luyện chưa có cách nói kỳ này
+    assert parse(text, nlu("out_of_scope", 0.98)).intent == "ask_spending"
+    assert parse(text, nlu("out_of_scope", 0.98)).query is not None
+
+
+def test_rasa_out_of_scope_still_wins_when_the_rules_see_no_period_or_no_total_question():
+    assert parse("bạn có bao nhiêu tiền", nlu("out_of_scope", 0.98)).intent == "out_of_scope"  # câu xã giao hỏi bot
+    assert parse("tháng 9 trời đẹp quá", nlu("out_of_scope", 0.98)).intent == "out_of_scope"  # có kỳ nhưng không phải câu hỏi tổng
+    assert parse("iphone 20 triệu có đáng mua không", nlu("out_of_scope", 0.98)).intent == "out_of_scope"
+    # kỳ cụ thể nhưng câu hỏi về chủ thể khác (không có "tôi", không có từ hỏi chi tiêu): kiến thức chung, vẫn theo Rasa
+    assert parse("thưởng tết năm nay các công ty bao nhiêu", nlu("out_of_scope", 0.98)).intent == "out_of_scope"
+
+
+def test_a_spend_question_without_a_pronoun_but_with_a_spend_word_still_beats_rasa():
+    assert parse("năm 2025 tiêu bao nhiêu", nlu("out_of_scope", 0.98)).intent == "ask_spending"
+    assert parse("tháng 9 mình thu được bao nhiêu", nlu("out_of_scope", 0.98)).intent == "ask_spending"
+
+
+def test_a_low_confidence_out_of_scope_yields_to_the_rules_for_a_total_question():
+    assert parse("tôi tiêu bao nhiêu", nlu("out_of_scope", 0.5)).intent == "ask_spending"
+
+
+@pytest.mark.parametrize(
+    ("text", "metric", "period_key"),
+    [
+        ("chi tiết chi tiêu hôm nay", "expense", "hom nay"),
+        ("cho tôi xem chi tiết hôm nay tôi tiêu những gì", "expense", "hom nay"),
+        ("liệt kê các khoản chi tháng này", "expense", "thang nay"),
+        ("hôm nay tôi mua gì", "expense", "hom nay"),
+        ("hôm qua tôi đã chi những gì", "expense", "hom qua"),
+        ("tháng này tôi tiêu vào những khoản nào", "expense", "thang nay"),
+        ("danh sách chi tiêu tuần này", "expense", "tuan nay"),
+        ("chi tiết tháng 9", "expense", "thang 9/2026"),
+        ("liệt kê các khoản thu tháng này", "income", "thang nay"),
+        ("chi tiết thu nhập năm nay", "income", "nam nay"),
+    ],
+)
+def test_asking_for_the_details_of_a_period_sets_the_detail_flag(text, metric, period_key):
+    parsed = parse(text)
+    assert parsed.intent == "ask_spending" and parsed.query.detail is True
+    assert (parsed.query.metric, parsed.query.period_key) == (metric, period_key)
+
+
+@pytest.mark.parametrize("text", ["tháng này tôi tiêu bao nhiêu", "tổng chi tiêu hôm nay là bao nhiêu", "năm nay tôi thu được bao nhiêu"])
+def test_a_plain_total_question_is_not_a_detail_request(text):
+    assert parse(text).query.detail is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["hôm nay tôi nên mua gì", "tháng này mình muốn mua gì", "chi tiết", "danh sách việc cần làm", "chi tiết hóa đơn này"],
+)
+def test_advice_and_context_free_words_are_not_a_detail_request(text):
+    parsed = parse(text)
+    assert parsed.query is None or parsed.query.detail is False
+    assert parsed.intent != "ask_spending" or parsed.query.detail is False
+
+
+@pytest.mark.parametrize("text", ["liệt kê các khoản chi tháng này", "hôm nay tôi mua gì", "chi tiết chi tiêu hôm nay"])
+def test_a_detail_request_beats_rasa_saying_out_of_scope(text):
+    parsed = parse(text, nlu("out_of_scope", 0.98))
+    assert parsed.intent == "ask_spending" and parsed.query.detail is True
+
+
+def test_the_detail_flag_keeps_the_category_and_the_period():
+    parsed = parse("chi tiết ăn uống tháng 9")
+    assert (parsed.query.detail, parsed.query.category, parsed.query.period_key) == (True, "dining", "thang 9/2026")
+
+
+def test_the_named_month_keeps_the_metric_and_the_category():
+    parsed = parse("tháng 9 tôi chi cho ăn uống bao nhiêu")
+    assert (parsed.query.metric, parsed.query.category, parsed.query.period_key) == ("expense", "dining", "thang 9/2026")
+    assert parse("tháng 9 tôi thu được bao nhiêu").query.metric == "income"
 
 
 @pytest.mark.parametrize("text", ["iphone 20 triệu có đáng mua không", "nên mua nhà hay thuê nhà", "lương 20 triệu có đủ sống không?"])
@@ -755,3 +949,61 @@ def test_a_stated_total_is_compared_with_the_sum_of_the_entries():
     parsed = parse("trong 30k có 20k ăn cơm và 10k uống nước")
     assert [e.amount for e in parsed.entries] == [20_000, 10_000]
     assert (parsed.total_amount, parsed.total_mismatch) == (30_000, False)
+
+
+# ---- hợp đồng giữa mẫu kỳ trong config và code: admin sửa hỏng phải bị chặn, không được làm chat sập
+
+def _doc_with(pattern, old, new):
+    import copy
+
+    from app.services import intent_cues
+
+    doc = copy.deepcopy(intent_cues.default_data())
+    assert old in doc["patterns"][pattern]["regex"]
+    doc["patterns"][pattern]["regex"] = doc["patterns"][pattern]["regex"].replace(old, new)
+    return doc
+
+
+@pytest.mark.parametrize(
+    ("pattern", "group"),
+    [("period_day", "month"), ("period_range", "d2"), ("period_last", "weeks"), ("period_quarter", "previous"), ("period_day_part", "today"), ("period_month", "month"), ("period_year", "year")],
+)
+def test_a_period_pattern_missing_a_group_the_code_reads_is_rejected(pattern, group):
+    from app.bill.rules_admin import RuleError
+    from app.services import config_documents, intent_cues
+
+    doc = _doc_with(pattern, f"(?P<{group}>", "(?P<renamed>")
+    with pytest.raises(ValueError, match=group):
+        intent_cues.build(doc, "thu")
+    with pytest.raises(RuleError) as caught:  # cổng của admin: bản nháp bị từ chối trước khi kích hoạt
+        config_documents._validate_intent_cues(doc)
+    assert caught.value.code == "invalid_document"
+
+
+def test_the_period_cases_fixture_passes_with_the_default_config():
+    from app.services import config_documents
+
+    cases = [(text, expected) for text, expected in config_documents._eval_cases() if expected.startswith(config_documents.PERIOD_PREFIX)]
+    assert len(cases) >= 20
+    got = config_documents._run_cases(cases)
+    assert [(text, expected, got[text]) for text, expected in cases if got[text] != expected] == []
+
+
+def test_the_activation_gate_sees_a_period_pattern_that_was_broken():
+    from app.services import config_documents, intent_cues
+
+    doc = _doc_with("period_day", "(?P<day>", "(?P<day>9999")  # vẫn biên dịch được, đủ nhóm, nhưng không còn khớp ngày nào
+    result = config_documents._preview_intent_cues(doc)
+    assert result["available"] and result["delta"] < 0
+    assert intent_cues.current() is not None and parse("ngày 15/3 tôi chi bao nhiêu").query.period_label == "ngày 15/3"  # xem trước không để lại bản thử
+
+
+def test_changing_the_words_inside_a_group_changes_the_meaning_without_touching_code():
+    from app.services import intent_cues
+
+    doc = _doc_with("period_quarter", "(?P<previous>truoc)", "(?P<previous>truoc|vua roi)")
+    intent_cues.apply(intent_cues.build(doc, "thu"))
+    try:
+        assert parse("quý vừa rồi tôi tiêu bao nhiêu").query.period_label == "quý 3"
+    finally:
+        intent_cues.apply(intent_cues.CUES)

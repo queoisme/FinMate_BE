@@ -232,6 +232,126 @@ public class ChatCommandHandlerTests
         result.Summary.Items.Should().ContainSingle().Which.CategorySlug.Should().Be("food");
     }
 
+    // ------------------------------------------------------------ chi tiết (danh sách từng khoản)
+
+    private static ChatParseResponse DetailQuery(string metric = "expense", string? category = null, IReadOnlyList<string>? categories = null)
+        => new("ask_spending", null, null, new ChatParseQuery(metric, "tháng này", From, To, category, null, categories, Detail: true), 5);
+
+    private Transaction Spent(long amount, int day, string? merchant = null, string? description = null, Category? category = null, TransactionType type = TransactionType.Debit)
+        => new()
+        {
+            Id = Guid.NewGuid(), UserId = _userId, AmountCents = amount, TransactionType = type, MerchantName = merchant, Description = description,
+            TransactedAt = new DateTimeOffset(2026, 10, day, 12, 0, 0, TimeSpan.FromHours(7)), Category = category, CategoryId = category?.Id,
+        };
+
+    private void ListReturns(IReadOnlyList<Transaction> items, string? nextCursor = null)
+        => _transactions
+            .Setup(t => t.GetListAsync(It.IsAny<TransactionListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionListResult(items, nextCursor));
+
+    [Fact]
+    public async Task ATotalQuestionDoesNotFetchTheList()
+    {
+        MonthHas(600_000, 0);
+        AiReturns(Query("expense"));
+
+        var result = await _handler.HandleAsync(Command("tháng này tôi tiêu bao nhiêu"));
+
+        result.Summary!.Transactions.Should().BeNull();
+        _transactions.Verify(t => t.GetListAsync(It.IsAny<TransactionListFilter>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ADetailRequestListsTheConfirmedSpendOfThePeriodNewestFirst_WithTheSameConventionsAsTheTotal()
+    {
+        MonthHas(95_000, 0, new CategorySpend(null, "Ăn uống", "food", 95_000));
+        ListReturns(new[] { Spent(45_000, 9, "Highlands", "cà phê", _food), Spent(50_000, 7, null, "ăn phở", _food) });
+        AiReturns(DetailQuery());
+
+        var result = await _handler.HandleAsync(Command("liệt kê các khoản chi tháng này"));
+
+        result.Action.Should().Be(ChatActions.Summary);
+        result.Summary!.TotalCents.Should().Be(95_000);  // tổng và phân tích theo danh mục vẫn có
+        var list = result.Summary.Transactions!;
+        list.Select(t => t.AmountCents).Should().Equal(45_000, 50_000);
+        list[0].Should().Match<ChatTransactionDto>(t => t.Type == "expense" && t.MerchantName == "Highlands" && t.CategorySlug == "food");
+        result.Summary.TransactionsHasMore.Should().BeFalse();
+        _transactions.Verify(t => t.GetListAsync(
+            It.Is<TransactionListFilter>(f =>
+                f.UserId == _userId && f.TransactionType == TransactionType.Debit && f.Status == TransactionStatus.Confirmed && f.ExcludeLoans
+                && f.FromDate == From && f.ToDate == To.AddTicks(-1) && f.Limit == 20 && f.CategoryId == null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TheListIsCappedAndSaysWhenThereIsMore()
+    {
+        MonthHas(0, 0);
+        ListReturns(Enumerable.Range(1, 20).Select(i => Spent(1_000 * i, 1 + i % 28)).ToList(), nextCursor: "con-nua");
+        AiReturns(DetailQuery());
+
+        var summary = (await _handler.HandleAsync(Command("chi tiết tháng này"))).Summary!;
+
+        summary.Transactions.Should().HaveCount(20);
+        summary.TransactionsHasMore.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnIncomeDetailRequestListsCreditTransactions()
+    {
+        MonthHas(0, 15_000_000);
+        ListReturns(new[] { Spent(15_000_000, 5, "Công ty", "lương", type: TransactionType.Credit) });
+        AiReturns(DetailQuery("income"));
+
+        var summary = (await _handler.HandleAsync(Command("liệt kê các khoản thu tháng này"))).Summary!;
+
+        summary.Transactions!.Should().ContainSingle().Which.Type.Should().Be("income");
+        _transactions.Verify(t => t.GetListAsync(It.Is<TransactionListFilter>(f => f.TransactionType == TransactionType.Credit), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ADetailRequestForOneCategoryOnlyListsThatCategory()
+    {
+        MonthHas(0, 0);
+        ListReturns(new[] { Spent(45_000, 9, "Highlands", "cà phê", _food) });
+        AiReturns(DetailQuery(category: "food"));
+
+        var summary = (await _handler.HandleAsync(Command("chi tiết ăn uống tháng này"))).Summary!;
+
+        summary.Transactions.Should().ContainSingle();
+        _transactions.Verify(t => t.GetListAsync(It.Is<TransactionListFilter>(f => f.CategoryId == _food.Id), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ADetailRequestForSeveralCategoriesMergesThemNewestFirst()
+    {
+        var shopping = new Category { Id = Guid.NewGuid(), Slug = "shopping" };
+        _categories.Setup(c => c.GetSystemBySlugAsync("shopping", It.IsAny<CancellationToken>())).ReturnsAsync(shopping);
+        MonthHas(0, 0);
+        _transactions
+            .Setup(t => t.GetListAsync(It.Is<TransactionListFilter>(f => f.CategoryId == _food.Id), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionListResult(new[] { Spent(45_000, 3, null, "phở", _food) }, null));
+        _transactions
+            .Setup(t => t.GetListAsync(It.Is<TransactionListFilter>(f => f.CategoryId == shopping.Id), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionListResult(new[] { Spent(300_000, 8, null, "áo", shopping) }, null));
+        AiReturns(DetailQuery(category: "food", categories: new[] { "food", "shopping" }));
+
+        var list = (await _handler.HandleAsync(Command("chi tiết ăn uống và mua sắm tháng này"))).Summary!.Transactions!;
+
+        list.Select(t => t.CategorySlug).Should().Equal("shopping", "food");  // áo (ngày 8) trước phở (ngày 3)
+    }
+
+    [Fact]
+    public async Task ABalanceQuestionNeverListsTransactions_EvenIfDetailWasSet()
+    {
+        MonthHas(600_000, 1_000_000);
+        AiReturns(DetailQuery("balance"));
+
+        var summary = (await _handler.HandleAsync(Command("chi tiết còn lại tháng này"))).Summary!;
+
+        summary.Transactions.Should().BeNull();
+    }
+
     // ------------------------------------------------------------ đặt mục tiêu
 
     [Fact]

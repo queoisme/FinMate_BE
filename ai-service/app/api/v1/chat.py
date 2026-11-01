@@ -25,6 +25,7 @@ from app.bill.knowledge import BillKnowledge
 from app.services.chat_ai import apply_ai_categories
 from app.services.nlu import RasaNlu, open_nlu
 from app.services.transaction_parser import VN, ChatParse, parse_chat
+from app.services.vi_text import clean_text
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
@@ -112,6 +113,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
             category_slug=_slug(q.category) if q.metric == "expense" else None,
             category_slugs=[s for c in q.categories if (s := _slug(c))] if q.metric == "expense" else [],
             income_type=q.income_type,
+            detail=q.detail,
         )
     return ChatParseResponse(
         intent=parsed.intent,
@@ -146,9 +148,10 @@ async def chat_parse(
 ) -> ChatParseResponse:
     started = time.perf_counter()
     await knowledge.refresh_if_stale()  # từ khóa/thương hiệu trong DB: parse_chat tra chúng qua category_resolver, không có bước này thì chat dùng bản trong image
-    nlu = await _nlu.parse(body.text) if _nlu else None
+    text = clean_text(body.text)  # Rasa cũng phải đọc câu đã bỏ ký tự vô hình, không thì nó cắt từ sai
+    nlu = await _nlu.parse(text) if _nlu else None
     parsed = parse_chat(
-        body.text,
+        text,
         nlu,
         now=datetime.now(VN),
         auto_save_below=settings.chat_auto_save_below,

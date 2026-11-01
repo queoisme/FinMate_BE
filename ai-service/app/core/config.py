@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     # Rasa (hiểu ý định câu chat). Để trống thì /chat/parse chỉ dùng luật.
     rasa_url: str | None = None
+    # Thư mục model của Rasa (ai-service/rasa/models) mount vào ai-service, để trang admin chọn được phiên bản đang chạy: chép bản chọn thành active.tar.gz
+    # (khởi động lại Rasa vẫn nạp đúng bản) rồi bảo Rasa nạp nóng. Để trống thì trang admin chỉ liệt kê, không kích hoạt được.
+    rasa_models_dir: str | None = None
     # Khoản chi chắc chắn dưới mức này (đồng) được đánh dấu auto_save_ok; 0 = không bao giờ.
     chat_auto_save_below: int = 2_000_000
 

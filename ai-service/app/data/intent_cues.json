@@ -149,7 +149,12 @@
       "có nên",
       "nên",
       "liệu",
-      "có phải"
+      "có phải",
+      "làm sao",
+      "làm thế nào",
+      "bằng cách nào",
+      "tại sao",
+      "vì sao"
     ],
     "clause_filler": [
       "nhé",
@@ -230,10 +235,12 @@
   "fragments": {
     "interest_in": "(?<!trả )(?<!đóng )tiền lãi(?! vay)",
     "sell": "(?<!người )(?<!nhân viên )(?<!cửa hàng )(?<!quầy )(?<!chỗ )(?<!tiệm )(?<!quán )\\bbán\\b",
-    "income_specific_src": "nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:<<giver>>)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|khách trả|<<sell>>|<<interest_in>>",
+    "income_specific_src": "nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:<<giver>>)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|khách trả|<<sell>>|<<interest_in>>|hoàn (?:lại|trả)|(?:công ty|bảo hiểm|nhà nước|nhà trường)(?: (?:tôi|mình))? (?:hỗ trợ|trả|chi trả|bồi thường|chuyển|cấp)|bồi thường|trợ cấp|phụ cấp|cho thuê|thu tiền",
     "income_topic_src": "lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm",
     "income_weak_src": "(?:anh|em)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)",
-    "income_specific_plain_src": "nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|khach tra|ban duoc|ban do|ban xe",
+    "income_specific_plain_src": "nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|khach tra|ban duoc|ban do|ban xe|hoan lai|hoan tra|cong ty ho tro|cong ty tra|boi thuong|tro cap|phu cap|cho thue|thu tien",
+    "balance_ask_src": "con lai|thu chi|so du|(?:co|con) bao nhieu tien|(?:vi|tai khoan|the)(?: cua)?(?: toi| minh)? (?:hien )?(?:co|con) bao nhieu",
+    "balance_src": "<<balance_ask_src>>|tiet kiem duoc|chenh lech|du bao nhieu",
     "income_topic_plain_src": "(?<!tra )tien luong|li xi|hoan tien|tien hoan|thu nhap|tien cong|lam them|freelance",
     "pay_debt": "tra(?: tien)? no"
   },
@@ -333,19 +340,104 @@
       "regex": "(?<![a-z])(?:tien|tieu|chi|thu|luong|xai|tong|ngan sach|tiet kiem|so du|thong ke)(?![a-z])",
       "doc": "Câu hỏi chi tiêu phải nhắc tới tiền."
     },
+    "period_month": {
+      "on": "folded",
+      "regex": "(?:(?P<day>ngay\\s*\\d{1,2})\\s*)?(?<![a-z\\d/])thang\\s*(?P<month>\\d{1,2})(?:\\s*(?:/|nam\\s*)(?P<year>\\d{4}))?(?![\\d/])",
+      "doc": "Kỳ 'tháng N' trong câu hỏi tổng: 'tháng 9', 'tháng 09', 'tháng 9 năm 2025', 'tháng 9/2025'. Nhóm month (1-12) và year (tùy chọn). Có nhóm day ('ngày 5 tháng 10') nghĩa là người dùng hỏi một NGÀY, không phải cả tháng nên code bỏ qua. Không nói năm thì lấy năm gần nhất không ở tương lai (hỏi 'tháng 12' lúc đang tháng 10 là tháng 12 năm ngoái)."
+    },
+    "detail_q": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:chi tiet|liet ke|danh sach|tung khoan|cac khoan|nhung khoan|(?:da )?(?:mua|chi|tieu|xai) (?:nhung |cai )?(?:gi|khoan nao)|(?:mua|chi|tieu|xai) vao (?:nhung )?(?:gi|khoan nao|nhung gi))(?![a-z])",
+      "doc": "Xin xem CHI TIẾT các khoản (danh sách từng khoản) thay vì tổng: 'chi tiết hôm nay', 'liệt kê các khoản chi tháng này', 'hôm nay tôi mua gì', 'tháng này tôi tiêu vào những khoản nào'. Chỉ tính là câu hỏi khi câu có ngữ cảnh tiền: nêu một kỳ (hôm nay, tháng 9...), hoặc có từ chi tiêu, hoặc chữ 'khoản'. Kết quả là Query.detail = true; backend trả danh sách giao dịch của kỳ đó."
+    },
+    "detail_not": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:nen|se|muon|dinh|can)(?![a-z])",
+      "doc": "Từ ý định/lời khuyên làm câu không còn là hỏi về khoản ĐÃ chi: 'hôm nay tôi nên mua gì', 'tháng này mình muốn mua gì'. Câu có từ này không phải yêu cầu xem chi tiết."
+    },
+    "self_reference": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:toi|minh|tui)(?![a-z])",
+      "doc": "Đại từ ngôi thứ nhất: câu hỏi tổng nói về chính người dùng. Dùng khi phân xử với Rasa (nguyên tắc 2b): câu hỏi tổng nêu kỳ cụ thể chỉ thắng lời 'ngoài chủ đề' của Rasa khi nói về chính người dùng (đại từ này, hoặc từ hỏi chi tiêu như 'tiêu', 'đã chi'); 'thưởng tết năm nay các công ty bao nhiêu' là kiến thức chung nên vẫn theo Rasa."
+    },
+    "period_year": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d/])nam\\s*(?P<year>\\d{4})(?![\\d/])",
+      "doc": "Kỳ 'năm 2025' đứng riêng trong câu hỏi tổng (không kèm tháng; 'tháng 9 năm 2025' đã được patterns.period_month bắt trước). Nhóm year gồm 4 chữ số."
+    },
+    "period_day": {
+      "on": "folded",
+      "regex": "(?P<lead>(?<![a-z])(?:ngay|hom)\\s*)?(?<![\\d/])(?P<day>\\d{1,2})\\s*(?(lead)(?:/|-|thang\\s*)|/)\\s*(?P<month>\\d{1,2})(?:\\s*(?:/|-|nam\\s*)\\s*(?P<year>\\d{4}))?(?![\\d/])",
+      "doc": "Một NGÀY cụ thể trong câu hỏi tổng: 'ngày 15 tháng 3', 'ngày 15/3', 'ngày 5/10/2025', 'ngày 15 tháng 3 năm 2025', và dạng trần '15/3' (chỉ khi viết bằng dấu gạch chéo, để '3-5 triệu' không bị đọc là ngày). Nhóm day, month, year (tùy chọn). Không nói năm thì lấy lần gần nhất không ở tương lai."
+    },
+    "period_day_only": {
+      "on": "folded",
+      "regex": "(?<![a-z])ngay\\s*(?P<day>\\d{1,2})(?![\\d/]|\\s*(?:/|-|thang))",
+      "doc": "Chỉ nói ngày trong tháng: 'ngày 15 tôi chi bao nhiêu'. Lấy tháng hiện tại, hoặc tháng trước nếu ngày đó chưa tới. Chỉ thử sau mọi kỳ khác."
+    },
+    "period_range": {
+      "on": "folded",
+      "regex": "(?<![a-z])tu\\s*(?:ngay\\s*)?(?P<d1>\\d{1,2})(?:\\s*(?:/|thang\\s*)\\s*(?P<m1>\\d{1,2}))?\\s*(?:den|toi|-)\\s*(?:ngay\\s*)?(?P<d2>\\d{1,2})(?:\\s*(?:/|thang\\s*)\\s*(?P<m2>\\d{1,2}))?(?:\\s*(?:/|nam\\s*)\\s*(?P<year>\\d{4}))?(?![\\d/])",
+      "doc": "Khoảng ngày tự chọn: 'từ ngày 1 đến ngày 10', 'từ 5/10 đến 15/10', 'từ ngày 25/9 đến 5/10'. Nhóm d1, d2 (bắt buộc), m1, m2, year (tùy chọn). Thiếu tháng thì dùng tháng còn lại, hoặc tháng hiện tại (tháng trước nếu chưa tới). Số cuối là SỐ TIỀN ('từ 3 đến 5 triệu') thì không phải khoảng ngày: code hỏi bộ đọc số tiền chung (amount_normalizer) nên đơn vị tiền chỉ định nghĩa ở một nơi."
+    },
+    "period_last": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d])(?:(?P<days>\\d{1,3})\\s*ngay|(?P<weeks>\\d{1,2})\\s*tuan|(?P<months>\\d{1,2})\\s*thang)\\s*(?:qua|vua qua|gan day|gan nhat|vua roi|tro lai day|nay)(?![a-z])",
+      "doc": "N ngày/tuần/tháng gần nhất: '3 ngày qua', '7 ngày gần đây', '2 tuần qua', '3 tháng qua'. Nhóm days, weeks hoặc months (đúng một nhóm có giá trị). Tính cả hôm nay: '3 ngày qua' = hôm nay và hai ngày trước. Số chữ số trong regex là giới hạn: sửa ở đây nếu muốn cho phép lùi xa hơn."
+    },
+    "period_quarter": {
+      "on": "folded",
+      "regex": "(?<![a-z])quy\\s*(?:(?P<quarter>[1-4])(?:\\s*(?:/|nam\\s*)\\s*(?P<year>\\d{4}))?|(?P<previous>truoc)|(?P<current>nay))(?![a-z\\d])",
+      "doc": "Quý: 'quý 1', 'quý 3/2025', 'quý 1 năm 2025', 'quý này', 'quý trước'. Mỗi nghĩa là một nhóm đặt tên: quarter (1-4, kèm year tùy chọn), previous (quý trước), current (quý này). Code chỉ xem nhóm nào có mặt, không so chữ, nên đổi/thêm cách nói trong từng nhóm là được. Không nói năm thì lấy quý gần nhất không ở tương lai."
+    },
+    "period_day_before_yesterday": {
+      "on": "folded",
+      "regex": "(?<![a-z])hom kia(?![a-z])",
+      "doc": "'Hôm kia' = hai ngày trước, một ngày."
+    },
+    "period_day_part": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:sang|trua|chieu|toi|dem)\\s*(?:(?P<today>nay)|(?P<yesterday>qua))(?![a-z])",
+      "doc": "Buổi trong ngày: 'sáng nay', 'chiều nay', 'tối nay', 'đêm qua'. Nhóm today = kỳ 'hôm nay', nhóm yesterday = kỳ 'hôm qua' (tính cả ngày, không cắt theo giờ). Code chỉ xem nhóm nào có mặt."
+    },
+    "period_hint": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:ngay|hom|tuan|thang|quy|cuoi tuan|dau thang|giua thang|cuoi thang|cuoi nam|dau nam|gan day|vua roi|ky)(?![a-z])",
+      "doc": "Từ nghe như nói về thời gian. Câu hỏi tổng có từ này mà KHÔNG kỳ nào ở trên đọc được thì app hỏi lại (replies.needs_period) thay vì lặng lẽ trả số liệu 'tháng này'. Không có từ nào như vậy thì vẫn dùng kỳ mặc định 'tháng này'."
+    },
     "query": {
       "on": "folded",
-      "regex": "bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|con lai|thu chi|thu nhap",
-      "doc": "Từ hỏi tổng. 'bao nhiêu' + đơn vị không phải tiền là câu xã giao."
+      "regex": "bao nhieu(?! (?:tuoi|met|cm|kg|km|gio|phut|giay|nguoi|tang|do)(?![a-z]))|tong chi|tong tien|tong tieu|thong ke|da chi|da tieu|tieu het|chi het|thu nhap|<<balance_ask_src>>",
+      "doc": "Từ hỏi tổng. 'bao nhiêu' + đơn vị không phải tiền là câu xã giao. Gồm cách hỏi số dư RÕ RÀNG (fragments.balance_ask_src), để 'số dư của tôi' là câu hỏi dù không có 'bao nhiêu'. KHÔNG đưa 'tiết kiệm được' vào đây: 'tôi sẽ tiết kiệm được 20 triệu' là đặt mục tiêu, không phải câu hỏi."
     },
     "balance_q": {
       "on": "folded",
-      "regex": "con lai|tiet kiem duoc|thu chi|chenh lech|du bao nhieu|so du",
-      "doc": ""
+      "regex": "<<balance_src>>",
+      "doc": "Hỏi SỐ DƯ / phần còn lại thay vì tổng chi hay thu: dùng chung nguồn với patterns.query (fragments.balance_src). Câu hỏi số dư nói về chính người dùng thắng lời 'ngoài chủ đề' của Rasa."
+    },
+    "reply_cue_confirm": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:ok|oke|okay|okie|yes|dung|chuan|vang|uh|duoc|dong y|xac nhan|luu|ghi|chinh xac|phai|chot|ung)(?![a-z])",
+      "doc": "Từ cho thấy một câu thật sự là lời XÁC NHẬN. Rasa gán 'confirm' cho chuỗi vô nghĩa/emoji ('asdfgh', '😀😀😀') với độ chắc 0,88-1,00; câu mà Rasa cho là xác nhận nhưng không có từ nào ở đây thì coi là rác (ngoài chủ đề). Chỉ là bộ lọc: không có từ nào ở đây thì chỉ mất lời đáp, không mất việc gì khác."
+    },
+    "reply_cue_deny": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:khong|ko|k|sai|nham|chua|no|nope|dung|khoan|thoi|khac|phai|dau|doi|sua|chon lai)(?![a-z])",
+      "doc": "Từ cho thấy một câu thật sự là lời TỪ CHỐI hoặc SỬA lại bản nháp ('không phải', 'nhầm rồi', 'đổi sang ăn uống đi'; xem reply_cue_confirm)."
+    },
+    "reply_cue_cancel": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:huy|bo|thoi|dung|xoa|stop|cancel|khoan|thoat|(?:khong|ko) (?:ghi|luu|them))(?![a-z])",
+      "doc": "Từ cho thấy một câu thật sự là lời HỦY (xem reply_cue_confirm)."
+    },
+    "thanks_lead": {
+      "on": "folded",
+      "regex": "^(?:cam on|camon|thanks|thank you|thank|tks|cam ta)(?![a-z])",
+      "doc": "Câu mở đầu bằng lời cảm ơn ('cảm ơn bạn nhiều', 'thanks nha'): là câu cảm ơn khi ngắn (không quá 6 từ) và không có số tiền. Ngoài ra còn danh sách cả câu nguyên văn ở phrases.thanks."
     },
     "income_q": {
       "on": "folded",
-      "regex": "thu nhap|nhan duoc|kiem duoc|thu duoc|luong",
+      "regex": "thu nhap|nhan duoc|kiem duoc|thu duoc|luong|khoan thu",
       "doc": ""
     },
     "spend_q": {
@@ -485,9 +577,12 @@
         "không",
         "chưa",
         "nhỉ",
-        "hả"
+        "hả",
+        "nào",
+        "gì",
+        "sao"
       ],
-      "doc": "Cuối câu hỏi có/không kiểu nói chuyện: 'đi ăn không', 'ngủ chưa'."
+      "doc": "Cuối câu hỏi có/không kiểu nói chuyện: 'đi ăn không', 'ngủ chưa'; và từ để hỏi đứng cuối ('mua được laptop nào', 'ăn món gì'): câu kết thúc bằng từ để hỏi là câu hỏi dù có số tiền. Câu hỏi TỔNG chi tiêu ('hôm nay tôi mua gì') đã có nhánh riêng nên không bị chặn bởi đây."
     },
     "answer_starts": {
       "words": [
@@ -523,9 +618,21 @@
         [
           "thang nay",
           "tháng này"
+        ],
+        [
+          "nam nay",
+          "năm nay"
+        ],
+        [
+          "nam ngoai",
+          "năm ngoái"
+        ],
+        [
+          "nam truoc",
+          "năm trước"
         ]
       ],
-      "doc": "Kỳ thống kê: [khóa đã bỏ dấu, nhãn hiển thị], thử khớp theo thứ tự. CHỈ sửa nhãn; khóa là định danh code dùng để tính khoảng ngày nên không được đổi/xóa."
+      "doc": "Kỳ thống kê: [khóa đã bỏ dấu, nhãn hiển thị], thử khớp theo thứ tự. CHỈ sửa nhãn; khóa là định danh code dùng để tính khoảng ngày nên không được đổi/xóa. Kỳ 'tháng N' (có hoặc không kèm năm) không nằm ở đây vì có con số: mẫu nhận dạng là patterns.period_month, nhãn là replies.period_month và replies.period_month_year."
     },
     "reply_intents": {
       "words": [
@@ -570,6 +677,19 @@
     }
   },
   "replies": {
+    "period_month": "tháng {month}",
+    "period_month_year": "tháng {month}/{year}",
+    "period_year": "năm {year}",
+    "period_day": "ngày {day}/{month}",
+    "period_day_year": "ngày {day}/{month}/{year}",
+    "period_day_before_yesterday": "hôm kia",
+    "period_range": "từ {start} đến {end}",
+    "period_last_days": "{n} ngày qua",
+    "period_last_weeks": "{n} tuần qua",
+    "period_last_months": "{n} tháng qua",
+    "period_quarter": "quý {quarter}",
+    "period_quarter_year": "quý {quarter}/{year}",
+    "needs_period": "Mình chưa hiểu khoảng thời gian bạn hỏi. Bạn thử \"hôm nay\", \"tháng 3\", \"ngày 15/3\", \"7 ngày qua\" hoặc \"từ ngày 1 đến ngày 10\" nhé.",
     "greet": "Chào bạn! Mình là Mầm, bạn cứ nhắn khoản chi tiêu, ví dụ \"ăn phở 45k\", hoặc hỏi \"tháng này tôi tiêu bao nhiêu?\".",
     "goodbye": "Tạm biệt bạn! Cần ghi chi tiêu thì nhắn mình nhé.",
     "thanks": "Không có gì! Cần ghi thêm khoản nào cứ nhắn mình nhé.",

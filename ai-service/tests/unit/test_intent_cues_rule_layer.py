@@ -68,7 +68,7 @@ def test_period_labels_are_editable_but_their_keys_are_fixed():
     assert (label().period_key, label().period_label) == ("thang nay", "tháng này")
 
     def relabel(doc):
-        doc["forms"]["period_labels"]["pairs"][-1][1] = "tháng hiện tại"
+        next(pair for pair in doc["forms"]["period_labels"]["pairs"] if pair[0] == "thang nay")[1] = "tháng hiện tại"
 
     with edited(relabel):
         assert (label().period_key, label().period_label) == ("thang nay", "tháng hiện tại")
@@ -175,7 +175,7 @@ def test_words_that_name_a_category_not_an_item_come_from_the_vocabulary_and_the
 def test_the_shipped_defaults_for_the_moved_vocabulary():
     cues = intent_cues.CUES
     assert cues.reply_intents == ("greet", "goodbye", "confirm", "deny", "cancel")
-    assert [key for key, _ in cues.period_labels] == ["hom nay", "hom qua", "tuan nay", "tuan truoc", "thang truoc", "thang nay"]
+    assert [key for key, _ in cues.period_labels] == ["hom nay", "hom qua", "tuan nay", "tuan truoc", "thang truoc", "thang nay", "nam nay", "nam ngoai", "nam truoc"]
     assert cues.needs_accent == {"cho": "chợ", "noi": "nồi", "mua noi": "nồi", "cho chi": "chị"}
     assert cues.lists["not_item_words"] == ("khác",) and "nhé" in cues.lists["clause_filler"]
     assert cues.replies["goal_default_name"] == "Mục tiêu tiết kiệm"

@@ -112,7 +112,8 @@ public record ChatQueryApiResult(
     [property: JsonPropertyName("end")] DateTimeOffset End,
     [property: JsonPropertyName("category_slug")] string? CategorySlug,
     [property: JsonPropertyName("income_type")] string? IncomeType,
-    [property: JsonPropertyName("category_slugs")] IReadOnlyList<string>? CategorySlugs = null);
+    [property: JsonPropertyName("category_slugs")] IReadOnlyList<string>? CategorySlugs = null,
+    [property: JsonPropertyName("detail")] bool Detail = false);
 
 public record ChatGoalApiResult(
     [property: JsonPropertyName("name")] string Name,

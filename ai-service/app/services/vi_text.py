@@ -3,6 +3,13 @@ import re
 import unicodedata
 
 
+def clean_text(text: str) -> str:
+    """Bỏ ký tự vô hình (nhóm Unicode Cf: khoảng trắng độ rộng 0, dấu điều khiển chiều chữ...) mà văn bản dán từ Zalo/Word hay mang theo.
+    Mắt không thấy nhưng chúng cắt đôi từ khóa ("nhận" + U+200B + " lương") nên cả Rasa lẫn luật đọc sai, có khi đổi cả chiều giao dịch.
+    Gọi MỘT lần ở cửa vào (route chat, parse_chat) trước mọi bước khác để vị trí trong câu vẫn khớp nhau ở các bước sau."""
+    return "".join(c for c in text if unicodedata.category(c) != "Cf")
+
+
 def fold(text: str) -> str:
     """Chữ thường, bỏ dấu tiếng Việt (đ -> d)."""
     text = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))

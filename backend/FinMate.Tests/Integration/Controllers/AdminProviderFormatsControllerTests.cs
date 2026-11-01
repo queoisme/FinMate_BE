@@ -110,6 +110,8 @@ public class AdminProviderFormatsControllerTests : IClassFixture<AuthApiFactory>
                      (HttpMethod.Post, "/api/v1/admin/provider-formats/clone", "{\"package_name\":\"com.x\"}"),
                      (HttpMethod.Get, "/api/v1/admin/rasa/status", null),
                      (HttpMethod.Post, "/api/v1/admin/rasa/parse", "{\"text\":\"abc\"}"),
+                     (HttpMethod.Get, "/api/v1/admin/rasa/models", null),
+                     (HttpMethod.Post, "/api/v1/admin/rasa/models/finmate-nlu-v16-s2/activate", "{}"),
                  })
         {
             (await _client.SendAsync(Request(method, url, null, json))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -213,5 +215,61 @@ public class AdminProviderFormatsControllerTests : IClassFixture<AuthApiFactory>
             (AiRulesRequest.RasaArea, HttpMethod.Get, "status"),
             (AiRulesRequest.RasaArea, HttpMethod.Post, "parse"));
         _ai.Calls.Should().OnlyContain(c => c.ActorId == null);
+    }
+
+    private async Task<List<AuditLogData>> ModelAuditLogsAsync(string adminToken)
+    {
+        var response = await _client.SendAsync(Request(HttpMethod.Get, $"/api/v1/admin/audit-logs?eventType={AuditEvents.AdminRasaModelActivationRequested}&limit=100", adminToken));
+        return (await response.Content.ReadFromJsonAsync<AuditLogListBody>(JsonOptions))!.Data;
+    }
+
+    [Fact]
+    public async Task ListingRasaModels_GoesToTheRasaArea_AndLeavesNoAuditRow()
+    {
+        var admin = await AdminTokenAsync();
+        var before = (await ModelAuditLogsAsync(admin)).Count;
+        _ai.Calls.Clear();
+
+        var response = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/rasa/models", admin));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _ai.Calls.Single().Should().Match<AiRulesRequest>(c => c.Area == AiRulesRequest.RasaArea && c.Method == HttpMethod.Get && c.Path == "models" && c.ActorId == null);
+        (await ModelAuditLogsAsync(admin)).Count.Should().Be(before);
+    }
+
+    [Fact]
+    public async Task ActivatingAModel_IsForwardedWithTheAdminAsActor_AndWritesExactlyOneAuditRowWithoutTheModelNumbers()
+    {
+        var admin = await AdminTokenAsync();
+        var before = (await ModelAuditLogsAsync(admin)).Count;
+        _ai.Calls.Clear();
+        _ai.Respond = _ => Parse("""{"version":"finmate-nlu-v16-s2","previous_version":"finmate-nlu-v11","forced":true,"gate_reasons":["độ đúng sau luật tụt"],"restart_needed":false}""");
+
+        var response = await _client.SendAsync(Request(HttpMethod.Post, "/api/v1/admin/rasa/models/finmate-nlu-v16-s2/activate", admin,
+            """{"force":true,"reason":"thử bản mới trên nội bộ","expected_active":"finmate-nlu-v11"}"""));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);  // nạp mất vài phút nên trả 202, kết quả ở activation của GET models
+        var call = _ai.Calls.Single();
+        (call.Area, call.Method, call.Path).Should().Be((AiRulesRequest.RasaArea, HttpMethod.Post, "models/finmate-nlu-v16-s2/activate"));
+        call.ActorId.Should().NotBeNull();
+        var logs = await ModelAuditLogsAsync(admin);
+        logs.Count.Should().Be(before + 1);
+        var metadata = logs.Select(l => l.Metadata).Should().Contain(m => m != null && m.Contains("finmate-nlu-v16-s2")).Subject!;
+        metadata.Should().Contain("finmate-nlu-v11").And.Contain("thử bản mới trên nội bộ");
+        _ai.Respond = _ => Parse("""{"ok":true}""");
+    }
+
+    [Fact]
+    public async Task ARefusedActivation_KeepsTheAiServiceStatus_AndWritesNoAuditRow()
+    {
+        var admin = await AdminTokenAsync();
+        var before = (await ModelAuditLogsAsync(admin)).Count;
+        _ai.Respond = _ => throw new AiRuleException(422, "blocked_by_gate", "finmate-nlu-v13 không qua cổng đo.");
+
+        var response = await _client.SendAsync(Request(HttpMethod.Post, "/api/v1/admin/rasa/models/finmate-nlu-v13/activate", admin, "{}"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ModelAuditLogsAsync(admin)).Count.Should().Be(before);
+        _ai.Respond = _ => Parse("""{"ok":true}""");
     }
 }

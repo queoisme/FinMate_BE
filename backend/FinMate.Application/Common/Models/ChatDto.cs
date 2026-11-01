@@ -54,8 +54,22 @@ public record ChatDraftDto(
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 
+/// <summary>Một khoản trong danh sách chi tiết của kỳ (khi người dùng hỏi "chi tiết hôm nay", "liệt kê các khoản chi tháng này").</summary>
+/// <param name="Type">"expense" | "income".</param>
+public record ChatTransactionDto(
+    Guid Id,
+    DateTimeOffset TransactedAt,
+    long AmountCents,
+    string Type,
+    string? MerchantName,
+    string? Description,
+    string? CategorySlug,
+    string? CategoryName);
+
 /// <param name="Metric">"expense" | "income" | "balance".</param>
 /// <param name="Items">Theo danh mục khi Metric = expense; rỗng với income và balance.</param>
+/// <param name="Transactions">Danh sách từng khoản của kỳ, mới nhất trước, CHỈ khi người dùng xin chi tiết (null = không xin). Có giới hạn số dòng: xem <paramref name="TransactionsHasMore"/>.</param>
+/// <param name="TransactionsHasMore">Còn khoản cũ hơn chưa hiện (vượt giới hạn): app mời xem tiếp ở màn hình giao dịch.</param>
 public record ChatSummaryDto(
     string Metric,
     string PeriodLabel,
@@ -65,7 +79,9 @@ public record ChatSummaryDto(
     long IncomeCents,
     long ExpenseCents,
     long LeftCents,
-    IReadOnlyList<ChatSummaryItemDto> Items);
+    IReadOnlyList<ChatSummaryItemDto> Items,
+    IReadOnlyList<ChatTransactionDto>? Transactions = null,
+    bool TransactionsHasMore = false);
 
 /// <param name="Intent">Ý định AI Service hiểu được (add_expense, ask_spending, greet...).</param>
 public record ChatResultDto(

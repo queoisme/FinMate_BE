@@ -19,6 +19,19 @@ from app.services.vi_text import fold
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "intent_cues.json"
 _REF = re.compile(r"<<([a-z_]+)>>")
 
+# Nhóm đặt tên mà CODE đọc từ từng mẫu kỳ (transaction_parser): thiếu một nhóm thì chat sẽ văng IndexError lúc gặp câu đó, nên ``build`` từ chối ngay (cả bản mặc định lẫn bản admin).
+# Đây là hợp đồng cấu trúc giữa regex và code, không phải từ vựng: từ ngữ vẫn tự do sửa trong từng nhóm.
+PATTERN_GROUPS = {
+    "period_month": {"day", "month", "year"},
+    "period_year": {"year"},
+    "period_day": {"day", "month", "year"},
+    "period_day_only": {"day"},
+    "period_range": {"d1", "m1", "d2", "m2", "year"},
+    "period_last": {"days", "weeks", "months"},
+    "period_quarter": {"quarter", "year", "previous", "current"},
+    "period_day_part": {"today", "yesterday"},
+}
+
 
 @dataclass(frozen=True)
 class Cues:
@@ -68,6 +81,8 @@ def build(data: dict, source: str = "intent_cues") -> Cues:
             if spec["on"] not in ("folded", "accented"):
                 raise ValueError(f"mẫu {name}: 'on' phải là folded hoặc accented")
             patterns[name] = re.compile(_expand(spec["regex"], lists, fragments, spec["on"] == "folded"))
+            if missing := PATTERN_GROUPS.get(name, set()) - set(patterns[name].groupindex):
+                raise ValueError(f"mẫu {name}: thiếu nhóm đặt tên {sorted(missing)} mà code đọc (giữ nguyên tên nhóm, chỉ sửa chữ bên trong)")
         forms = data["forms"]
         return Cues(
             patterns=patterns,

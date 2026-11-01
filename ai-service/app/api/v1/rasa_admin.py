@@ -6,11 +6,13 @@ Rasa tắt hoặc chưa cấu hình thì trả ``available: false`` (200), khôn
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import verify_internal_api_key
+from app.api.deps import get_db, verify_internal_api_key
 from app.core.config import settings
+from app.services import nlu_models
 
 router = APIRouter(prefix="/admin/rasa", tags=["rasa-admin"], dependencies=[Depends(verify_internal_api_key)])
 
@@ -20,6 +22,18 @@ MAX_RANKING = 5
 
 class ParseBody(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=500)]
+
+
+class ActivateModelBody(BaseModel):
+    """``expected_active``: bản đang chạy mà người dùng trang admin nhìn thấy (None = không kiểm). ``force`` bỏ qua cổng đo, bắt buộc kèm ``reason``."""
+
+    force: bool = False
+    expected_active: Annotated[str | None, Field(max_length=64)] = None
+    reason: Annotated[str | None, Field(max_length=300)] = None
+
+
+Session = Annotated[AsyncSession, Depends(get_db)]
+Actor = Annotated[str, Header(alias="X-Actor-Hash", min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")]
 
 
 def _client() -> httpx.AsyncClient:
@@ -45,6 +59,19 @@ async def status() -> dict:
         "model_id": state.get("model_id"),
         "num_active_training_jobs": state.get("num_active_training_jobs"),
     }
+
+
+@router.get("/models")
+async def list_models(session: Session) -> dict:
+    """Mọi phiên bản model đã đăng ký (sổ ``nlu_model_versions``) kèm số đo, bản đang chạy theo sổ và theo Rasa, và từng bản có qua cổng đo để thay bản đang chạy không."""
+    return await nlu_models.overview(session)
+
+
+@router.post("/models/{version}/activate", status_code=202)
+async def activate_model(version: str, body: ActivateModelBody, session: Session, actor: Actor) -> dict:
+    """Bắt đầu đưa một phiên bản thành model đang chạy (kể cả quay về bản cũ): 202 ngay, Rasa nạp nóng ở nền (vài phút, không khởi động lại, chat chạy bằng luật trong lúc nạp).
+    Tiến trình và lỗi nằm ở ``activation`` của ``GET /models``. Không qua cổng đo thì 422 ``blocked_by_gate``; ``force: true`` kèm ``reason`` để ép."""
+    return await nlu_models.activate(session, version, actor=actor, expected_active=body.expected_active, force=body.force, reason=body.reason)
 
 
 @router.post("/parse")

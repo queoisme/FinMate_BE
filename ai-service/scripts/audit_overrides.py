@@ -31,7 +31,7 @@ from app.services.transaction_parser import VN, parse_chat  # noqa: E402
 
 NOW = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
 INDEPENDENT = ("heldout_intent", "nlu_test_fresh", "nlu_test_fresh2")  # chưa dùng để viết luật
-SAME = {"needs_amount": "add_expense"}  # luật hỏi lại số tiền = vẫn là khoản chi
+SAME = {"needs_amount": "add_expense", "needs_period": "ask_spending"}  # luật hỏi lại số tiền = vẫn là khoản chi
 
 
 def load_yaml_intents(path: pathlib.Path) -> list[tuple[str, str]]:

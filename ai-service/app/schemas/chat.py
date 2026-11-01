@@ -74,6 +74,8 @@ class ChatQuery(BaseModel):
     # Hỏi về HAI danh mục trở lên ("giải trí và mua sắm"): mọi slug được gọi tên (phần tử đầu = ``category_slug``). Rỗng = chỉ xét ``category_slug``.
     category_slugs: list[str] = Field(default_factory=list)
     income_type: str | None = None
+    # Xin xem CHI TIẾT ("chi tiết hôm nay", "liệt kê các khoản chi tháng này"): backend trả thêm danh sách từng khoản của kỳ (có giới hạn số dòng), không chỉ tổng và phân tích theo danh mục.
+    detail: bool = False
 
 
 class ChatGoal(BaseModel):
@@ -97,7 +99,7 @@ class ChatNlu(BaseModel):
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | create_goal | empty   (create_goal không có ``goal`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | needs_period | create_goal | empty  (create_goal không có ``goal`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None

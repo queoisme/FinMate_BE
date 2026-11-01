@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
 
@@ -23,6 +24,9 @@ public class ChatCommandHandler : IChatCommandHandler
     private const string ExpenseMetric = "expense";
     private const string IncomeMetric = "income";
     private const string UncategorizedName = "Chưa phân loại";
+
+    /// <summary>Số khoản tối đa trả về trong danh sách chi tiết: chat không phải màn hình danh sách; còn nữa thì <c>TransactionsHasMore</c> mời xem ở màn hình giao dịch.</summary>
+    private const int DetailLimit = 20;
 
     // Gửi lại cùng một câu do mạng chập chờn hay bấm hai lần: hẹp để hai ly cà phê thật cách nhau lâu hơn không bị cảnh báo.
     private static readonly TimeSpan DuplicateWindow = TimeSpan.FromMinutes(10);
@@ -244,8 +248,66 @@ public class ChatCommandHandler : IChatCommandHandler
             total = items.Sum(i => i.AmountCents);  // lọc theo danh mục thì tổng là của danh mục đó
         }
 
+        IReadOnlyList<ChatTransactionDto>? transactions = null;
+        var hasMore = false;
+        if (query.Detail && (query.Metric == ExpenseMetric || query.Metric == IncomeMetric))
+        {
+            (transactions, hasMore) = await ListTransactionsAsync(userId, query, ct);
+        }
+
         return new ChatSummaryDto(
-            query.Metric, query.PeriodLabel, query.From, query.To, total, income, expense, income - expense, items);
+            query.Metric, query.PeriodLabel, query.From, query.To, total, income, expense, income - expense, items, transactions, hasMore);
+    }
+
+    /// <summary>
+    /// Danh sách từng khoản của kỳ cho câu "chi tiết hôm nay" / "liệt kê các khoản chi tháng này": mới nhất trước, tối đa <see cref="DetailLimit"/> dòng, cùng quy ước với tổng
+    /// (chỉ khoản đã xác nhận, bỏ chuyển tiền giữa ví và cho vay/mượn, đúng giờ Việt Nam). Hỏi theo danh mục thì chỉ các khoản của danh mục đó.
+    /// </summary>
+    private async Task<(IReadOnlyList<ChatTransactionDto> Items, bool HasMore)> ListTransactionsAsync(Guid userId, ChatParseQuery query, CancellationToken ct)
+    {
+        var isExpense = query.Metric == ExpenseMetric;
+        var type = isExpense ? TransactionType.Debit : TransactionType.Credit;
+        var to = query.To.AddTicks(-1);  // kỳ là nửa mở [From, To) còn bộ lọc của repository thì gồm cả mốc cuối
+
+        var slugs = !isExpense ? null
+            : query.CategorySlugs is { Count: > 0 } many ? many
+            : query.CategorySlug is null ? null : new[] { query.CategorySlug };
+
+        var found = new List<Transaction>();
+        var hasMore = false;
+        if (slugs is null)
+        {
+            var page = await _transactionRepository.GetListAsync(
+                new TransactionListFilter(userId, null, null, type, TransactionStatus.Confirmed, query.From, to, null, DetailLimit, ExcludeLoans: true), ct);
+            found.AddRange(page.Items);
+            hasMore = page.NextCursor is not null;
+        }
+        else
+        {
+            foreach (var slug in slugs.Distinct())
+            {
+                var category = await _categoryRepository.GetSystemBySlugAsync(slug, ct);
+                if (category is null)
+                {
+                    continue;
+                }
+
+                var page = await _transactionRepository.GetListAsync(
+                    new TransactionListFilter(userId, null, category.Id, type, TransactionStatus.Confirmed, query.From, to, null, DetailLimit, ExcludeLoans: true), ct);
+                found.AddRange(page.Items);
+                hasMore |= page.NextCursor is not null;
+            }
+
+            found = found.OrderByDescending(t => t.TransactedAt).ThenByDescending(t => t.CreatedAt).ToList();
+            hasMore |= found.Count > DetailLimit;
+        }
+
+        var items = found
+            .Take(DetailLimit)
+            .Select(t => new ChatTransactionDto(
+                t.Id, t.TransactedAt, t.AmountCents, isExpense ? ExpenseKind : IncomeKind, t.MerchantName, t.Description, t.Category?.Slug, t.Category?.Name))
+            .ToList();
+        return (items, hasMore);
     }
 
     private async Task<List<ChatSummaryItemDto>> CategoryItemsAsync(

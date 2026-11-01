@@ -138,10 +138,12 @@ services:
       OCR_SERVICE_URL: "http://ocr-service:8000"
       # Rasa hiểu ý định câu chat; bỏ dòng này thì /api/v1/chat/parse chỉ dùng luật.
       RASA_URL: "http://rasa:5005"
+      RASA_MODELS_DIR: "/rasa_models"  # trang admin chọn phiên bản Rasa: chép bản chọn thành active.tar.gz rồi bảo Rasa nạp nóng
     volumes:
       # Artifact model do scripts/train.py sinh ra. Mount thay vì COPY vào image: model
       # được promote mà không phải build lại, và model đã train không mất khi rebuild.
       - ./ai-service/models:/models
+      - ./ai-service/rasa/models:/rasa_models  # cùng thư mục với volume models của Rasa
     ports:
       - "8000:8000"
     healthcheck:

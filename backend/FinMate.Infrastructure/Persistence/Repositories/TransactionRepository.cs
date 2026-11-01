@@ -77,6 +77,11 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.Status == filter.Status);
         }
 
+        if (filter.ExcludeLoans)
+        {
+            query = query.Where(t => t.Category == null || t.Category.Slug != Category.LoanSlug);
+        }
+
         if (filter.FromDate is not null)
         {
             query = query.Where(t => t.TransactedAt >= filter.FromDate);

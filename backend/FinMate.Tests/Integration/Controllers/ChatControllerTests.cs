@@ -252,6 +252,91 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
             .Which.GetProperty("categorySlug").GetString().Should().Be("food");
     }
 
+    private async Task<Guid> SystemCategoryIdAsync(string token, string slug)
+    {
+        var response = await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/categories", token));
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("data").EnumerateArray()
+            .First(c => c.GetProperty("isSystem").GetBoolean() && c.GetProperty("slug").GetString() == slug).GetProperty("id").GetGuid();
+    }
+
+    private async Task PostTransactionAsync(string token, Guid accountId, Guid categoryId, long amount, string merchant, DateTimeOffset at, string type = "Debit")
+    {
+        var response = await _client.SendAsync(Authed(HttpMethod.Post, "/api/v1/transactions", token, new
+        {
+            financialAccountId = accountId, categoryId, amountCents = amount, transactionType = type, transactedAt = at, merchantName = merchant,
+        }));
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
+    }
+
+    private static ChatParseResponse DetailQuery(string metric = "expense")
+    {
+        var (monthStart, nextMonth) = VietnamTime.MonthRange(DateTimeOffset.UtcNow);
+        return new ChatParseResponse(
+            "ask_spending", null, null,
+            new ChatParseQuery(metric, "tháng này", monthStart.ToOffset(VietnamTime.Offset), nextMonth.ToOffset(VietnamTime.Offset), null, null, Detail: true), 5);
+    }
+
+    [Fact]
+    public async Task ADetailRequestListsMyOwnTransactionsOfThePeriodNewestFirst_AndLeavesOutLoans()
+    {
+        const string ask = "chat-test: chi tiết tháng này";
+        FakeAIServiceClient.SetChat(ask, DetailQuery());
+        var token = await RegisterAndLoginAsync();
+        var account = await CreateCashAccountAsync(token);
+        var food = await SystemCategoryIdAsync(token, "food");
+        var loan = await SystemCategoryIdAsync(token, "loan");
+        var now = DateTimeOffset.UtcNow;
+        await PostTransactionAsync(token, account, food, 45_000, "Highlands", now.AddMinutes(-30));
+        await PostTransactionAsync(token, account, food, 60_000, "Quán phở", now.AddMinutes(-90));
+        await PostTransactionAsync(token, account, loan, 5_000_000, "Cho bạn mượn", now.AddMinutes(-10));  // không phải chi tiêu: không được có trong danh sách
+
+        var summary = (await ChatAsync(token, ask)).GetProperty("summary");
+
+        summary.GetProperty("totalCents").GetInt64().Should().Be(105_000);
+        var list = summary.GetProperty("transactions").EnumerateArray().ToList();
+        list.Select(t => t.GetProperty("merchantName").GetString()).Should().Equal("Highlands", "Quán phở");  // mới nhất trước, không có khoản cho vay
+        list.Select(t => t.GetProperty("amountCents").GetInt64()).Sum().Should().Be(105_000);  // danh sách cộng lại đúng bằng tổng
+        list.Should().OnlyContain(t => t.GetProperty("type").GetString() == "expense" && t.GetProperty("categorySlug").GetString() == "food");
+        summary.GetProperty("transactionsHasMore").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ADetailRequestNeverShowsSomeoneElsesTransactions()
+    {
+        const string ask = "chat-test: liệt kê các khoản chi tháng này (người khác)";
+        FakeAIServiceClient.SetChat(ask, DetailQuery());
+        var other = await RegisterAndLoginAsync();
+        var account = await CreateCashAccountAsync(other);
+        await PostTransactionAsync(other, account, await SystemCategoryIdAsync(other, "food"), 80_000, "Của người khác", DateTimeOffset.UtcNow.AddMinutes(-5));
+        var me = await RegisterAndLoginAsync();
+
+        var summary = (await ChatAsync(me, ask)).GetProperty("summary");
+
+        summary.GetProperty("transactions").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ADetailRequestIsCappedAt20AndSaysThereIsMore()
+    {
+        const string ask = "chat-test: chi tiết tháng này (nhiều khoản)";
+        FakeAIServiceClient.SetChat(ask, DetailQuery());
+        var token = await RegisterAndLoginAsync();
+        var account = await CreateCashAccountAsync(token, 10_000_000);
+        var food = await SystemCategoryIdAsync(token, "food");
+        var now = DateTimeOffset.UtcNow;
+        for (var i = 1; i <= 22; i++)
+        {
+            await PostTransactionAsync(token, account, food, 1_000 * i, $"Khoản {i}", now.AddMinutes(-i));
+        }
+
+        var summary = (await ChatAsync(token, ask)).GetProperty("summary");
+
+        summary.GetProperty("transactions").GetArrayLength().Should().Be(20);
+        summary.GetProperty("transactionsHasMore").GetBoolean().Should().BeTrue();
+        summary.GetProperty("transactions")[0].GetProperty("merchantName").GetString().Should().Be("Khoản 1");  // mới nhất
+    }
+
     [Fact]
     public async Task SomeoneElsesTransactionsNeverShowUpInMyTotals()
     {
