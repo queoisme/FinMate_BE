@@ -8,7 +8,7 @@ public record AiMethodPick(string PrimaryCode, string PrimaryReason, string? Sup
 
 /// <summary>
 /// Gọi <c>POST /api/v1/finance-methods/recommend</c> của ai-service (docs/ai-finance-method-recommend-api.md).
-/// Chỉ được gọi khi người dùng có <c>SurveyAiConsentGranted</c> — ai-service không biết người dùng là ai nên không kiểm được điều đó.
+/// Không có bước đồng ý riêng (gợi ý chỉ là gợi ý, người dùng không bị buộc áp dụng). Chỉ gửi signals ẩn danh và danh sách phương pháp: không id người dùng, không số tiền.
 /// </summary>
 public interface IMethodAiClient
 {

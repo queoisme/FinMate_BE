@@ -137,6 +137,12 @@ _PROMPT_TTL_SECONDS = 60.0  # cùng nhịp nạp lại với kb_ai_instructions
 _prompt: tuple[float, MethodPromptRow | None] | None = None  # (lúc nạp, dòng đang dùng)
 
 
+def reset_method_prompt_cache() -> None:
+    """Admin vừa chuyển bản chỉ dẫn: bỏ cache để bản mới có hiệu lực ngay trong tiến trình này (tiến trình khác tự nạp lại trong tối đa 60 giây)."""
+    global _prompt
+    _prompt = None
+
+
 async def get_method_prompt() -> MethodPromptRow | None:
     """Chỉ dẫn đang dùng (phiên bản và nội dung đọc CÙNG một dòng), có cache 60 giây. Không có dòng active → None. DB lỗi → giữ bản đang có (hoặc None)."""
     global _prompt

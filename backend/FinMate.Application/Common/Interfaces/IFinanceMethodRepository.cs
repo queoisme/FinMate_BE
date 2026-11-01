@@ -15,6 +15,12 @@ public interface IFinanceMethodRepository
     Task AddMethodAsync(FinanceMethod method, CancellationToken ct = default);
     Task UpdateMethodAsync(FinanceMethod method, CancellationToken ct = default);
 
+    /// <summary>
+    /// Số người đang dùng (đang hoạt động) từng phương pháp, theo id phương pháp; phương pháp không ai dùng thì không có trong kết quả.
+    /// Cho admin biết trước ai bị ảnh hưởng khi tắt một phương pháp: người đang dùng vẫn dùng được như cũ nhưng được báo và mời chọn cách khác.
+    /// </summary>
+    Task<Dictionary<Guid, int>> CountActiveUsersAsync(CancellationToken ct = default);
+
     Task<List<GoalTemplate>> GetTemplatesAsync(bool includeInactive, CancellationToken ct = default);
     Task<GoalTemplate?> GetTemplateByIdAsync(Guid id, CancellationToken ct = default);
     Task<GoalTemplate?> GetTemplateByCodeAsync(string code, CancellationToken ct = default);

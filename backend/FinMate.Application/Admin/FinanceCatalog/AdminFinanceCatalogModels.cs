@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Admin.FinanceCatalog;
@@ -16,11 +17,13 @@ public record AdminFinanceMethodDto(
     JsonElement? Eligibility,
     string WhyText,
     JsonElement? StarterSteps,
+    JsonElement? HomeLayout,
     int SortOrder,
     bool IsActive,
     int Version,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    int ActiveUserCount = 0);
 
 public record AdminSurveyOptionDto(Guid Id, string Code, string Text, JsonElement? Signals, int SortOrder, bool IsActive);
 
@@ -51,6 +54,7 @@ public record AdminMethodTemplateLinkDto(string TemplateCode, JsonElement? Condi
 /// <param name="ParamDefs">Mảng [{key, label, type, default, min, max, userEditable}].</param>
 /// <param name="Eligibility">{"weights":{signal:trọng số},"excludes":[signal]}.</param>
 /// <param name="StarterSteps">Mảng 1–5 chuỗi.</param>
+/// <param name="HomeLayout">Mảng 1–8 khối trang chủ [{type, title?, keys?, display?}]; null = bố cục mặc định. Danh sách loại khối: <c>GET home-blocks</c>.</param>
 public record CreateFinanceMethodRequest(
     string Code,
     string Name,
@@ -61,7 +65,27 @@ public record CreateFinanceMethodRequest(
     JsonElement Eligibility,
     string WhyText,
     JsonElement StarterSteps,
-    int SortOrder);
+    int SortOrder,
+    JsonElement? HomeLayout = null);
+
+/// <summary>Một loại khối giao diện trang chủ mà app biết vẽ, để màn admin liệt kê lựa chọn mà không giữ bản sao danh sách.</summary>
+/// <param name="AcceptsKeys">Có nhận <c>keys</c> (lọc theo khóa tham số) hay không.</param>
+/// <param name="AcceptsDisplay">Có nhận <c>display</c> (<c>list</c> hoặc <c>allocation</c>) hay không.</param>
+/// <param name="Repeatable">Có được xuất hiện nhiều lần trong một bố cục hay không.</param>
+/// <param name="AcceptsJars">Có nhận danh sách <c>jars</c> (hũ: tham số % + danh mục) hay không.</param>
+public record HomeBlockTypeDto(string Type, string Name, string Description, bool AcceptsKeys, bool AcceptsDisplay, bool Repeatable, bool AcceptsJars = false);
+
+public static class FinanceHomeBlockCatalog
+{
+    public static readonly IReadOnlyList<HomeBlockTypeDto> All =
+    [
+        new(FinanceHomeBlocks.Spendable, "Tiền khả dụng", "Thu nhập, đã chi, đã dành cho mục tiêu và số còn được chi trong tháng.", false, false, false),
+        new(FinanceHomeBlocks.Params, "Tham số", "Giá trị đang có hiệu lực của các tham số. Chọn tham số cần hiện; dạng chia phần trăm vẽ thanh theo % thu nhập (chỉ dùng cho tham số kiểu %).", true, true, true),
+        new(FinanceHomeBlocks.Jars, "Các hũ", "Chia thu nhập thành các hũ: mỗi hũ là một tham số kiểu % của cách này kèm các danh mục thuộc hũ. App so chi tiêu tháng này của các danh mục đó với số tiền được chia và báo theo ngưỡng cảnh báo của người dùng.", false, false, false, true),
+        new(FinanceHomeBlocks.Goals, "Mục tiêu", "Mục tiêu đang dành tiền và mẫu mục tiêu gợi ý.", false, false, false),
+        new(FinanceHomeBlocks.StarterSteps, "Bước bắt đầu", "Các bước bắt đầu của cách quản lý này.", false, false, false),
+    ];
+}
 
 /// <summary>Trường nào null thì giữ nguyên. <c>Code</c> chỉ để báo lỗi rõ khi ai đó cố đổi nó — mã bất biến.</summary>
 public record UpdateFinanceMethodRequest(
@@ -74,7 +98,8 @@ public record UpdateFinanceMethodRequest(
     JsonElement? Eligibility,
     string? WhyText,
     JsonElement? StarterSteps,
-    int? SortOrder);
+    int? SortOrder,
+    JsonElement? HomeLayout = null);
 
 /// <param name="Signals">Object {signal: trọng số nguyên 1–10}.</param>
 public record CreateSurveyOptionRequest(string Code, string Text, JsonElement Signals, int SortOrder);

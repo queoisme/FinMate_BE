@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.FinanceMethods;
@@ -16,11 +17,15 @@ public class MyFinanceController : ControllerBase
 {
     private readonly IUserMethodService _userMethods;
     private readonly IGoalPlanningService _planning;
+    private readonly IAlertThresholdSettingsService _thresholds;
+    private readonly IJarService _jars;
 
-    public MyFinanceController(IUserMethodService userMethods, IGoalPlanningService planning)
+    public MyFinanceController(IUserMethodService userMethods, IGoalPlanningService planning, IAlertThresholdSettingsService thresholds, IJarService jars)
     {
         _userMethods = userMethods;
         _planning = planning;
+        _thresholds = thresholds;
+        _jars = jars;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -57,6 +62,32 @@ public class MyFinanceController : ControllerBase
     public async Task<IActionResult> GetGoalSuggestions(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<GoalSuggestionDto>>.Ok(await _planning.GetSuggestionsAsync(CurrentUserId, ct)));
 
+    /// <summary>
+    /// Ngưỡng cảnh báo ngân sách đang áp dụng cho tôi và nguồn của nó: <c>method</c> (theo cách quản lý, chỉnh ở <c>PATCH methods/{id}/params</c>), <c>personal</c> (ngưỡng cá nhân)
+    /// hoặc <c>system</c> (mặc định hệ thống do admin đặt). Kèm ngưỡng cá nhân đã lưu và mặc định hệ thống.
+    /// </summary>
+    [HttpGet("alert-thresholds")]
+    public async Task<IActionResult> GetAlertThresholds(CancellationToken ct)
+        => Ok(ApiResponse<AlertThresholdSettingsDto>.Ok(await _thresholds.GetAsync(CurrentUserId, ct)));
+
+    /// <summary>Đặt ngưỡng cá nhân (1 ≤ T1 &lt; T2 ≤ 99). Chỉ có hiệu lực khi không có cách quản lý nào định nghĩa T1/T2.</summary>
+    [HttpPut("alert-thresholds")]
+    public async Task<IActionResult> SetAlertThresholds([FromBody] SetAlertThresholdsRequest request, CancellationToken ct)
+        => Ok(ApiResponse<AlertThresholdSettingsDto>.Ok(await _thresholds.SetPersonalAsync(CurrentUserId, request.T1Pct, request.T2Pct, ct)));
+
+    /// <summary>Xóa ngưỡng cá nhân, quay về mặc định hệ thống. Trả lại trạng thái mới.</summary>
+    [HttpDelete("alert-thresholds")]
+    public async Task<IActionResult> ClearAlertThresholds(CancellationToken ct)
+        => Ok(ApiResponse<AlertThresholdSettingsDto>.Ok(await _thresholds.ClearPersonalAsync(CurrentUserId, ct)));
+
+    /// <summary>
+    /// Các hũ của những cách quản lý tôi đang dùng có khối "hũ" (cách chính trước; rỗng nếu không có): mỗi hũ có số được chia (thu nhập × %), đã chi tháng này
+    /// (theo danh mục thuộc hũ, cùng nguồn báo cáo chi theo danh mục), còn lại và mức so với ngưỡng cảnh báo của tôi. Kèm chi tiêu nằm ngoài mọi hũ.
+    /// </summary>
+    [HttpGet("jars")]
+    public async Task<IActionResult> GetJars(CancellationToken ct)
+        => Ok(ApiResponse<IReadOnlyList<JarSetDto>>.Ok(await _jars.GetMineAsync(CurrentUserId, ct)));
+
     /// <summary>Tiền khả dụng của tháng này, tính một chỗ theo cách mục tiêu đi vào dòng tiền của cách chính.</summary>
     [HttpGet("spendable")]
     public async Task<IActionResult> GetSpendable(CancellationToken ct)
@@ -68,3 +99,5 @@ public class MyFinanceController : ControllerBase
 public record ChooseMethodRequest(string MethodCode, UserMethodRole? Role, Guid? RecommendationId);
 
 public record UpdateMethodParamsRequest(Dictionary<string, long?>? Params);
+
+public record SetAlertThresholdsRequest(int T1Pct, int T2Pct);

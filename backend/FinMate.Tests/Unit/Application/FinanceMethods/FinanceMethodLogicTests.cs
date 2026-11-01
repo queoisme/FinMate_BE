@@ -142,6 +142,21 @@ public class FinanceMethodLogicTests
         MethodSelector.SelectByRule(withGoodTool, Signals(("x", 3)))!.Support!.Code.Should().Be("good_tool");
     }
 
+    [Theory]
+    [InlineData(40, "weak_tool")]    // 12/30 = 40% đủ
+    [InlineData(41, null)]           // 12/30 < 41%
+    [InlineData(100, null)]          // chỉ cách bằng điểm cách chính mới đủ
+    public void SelectByRule_TheSupportShareComesFromTheArgument_NotAFixedHalf(int percent, string? expectedSupport)
+    {
+        var shortlist = new[]
+        {
+            Method("main", weights: new() { ["x"] = 10 }),
+            Method("weak_tool", FinanceMethodRole.Supporting, new() { ["x"] = 4 }),
+        };
+
+        MethodSelector.SelectByRule(shortlist, Signals(("x", 3)), percent)!.Support?.Code.Should().Be(expectedSupport);
+    }
+
     [Fact]
     public void SelectByRule_ABothRoleMethodCanBeSupportButNeverTheSameAsThePrimary()
     {

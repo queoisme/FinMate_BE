@@ -33,6 +33,9 @@ public class FinanceMethod
     /// <summary>JSON array các bước bắt đầu (3 bước).</summary>
     public string StarterSteps { get; set; } = "[]";
 
+    /// <summary>JSON array khối giao diện trang chủ khi người dùng đang dùng cách này: [{type, title?, keys?, display?}]. Loại khối: <see cref="FinanceHomeBlocks"/>.</summary>
+    public string HomeLayout { get; set; } = FinanceHomeBlocks.DefaultLayout;
+
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 

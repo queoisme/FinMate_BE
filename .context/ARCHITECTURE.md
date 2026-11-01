@@ -279,6 +279,10 @@ ngân sách) nằm ở backend. Route liên quan (đều dưới `[Route("api/v1
 - **Cảnh báo trùng** (chỉ chi tiêu): có khoản Debit cùng số tiền của chính người dùng trong ±10 phút (chat) thì KHÔNG ghi ngay mà hỏi lại,
   bản nháp mang `possibleDuplicateTransactionId`. Gửi lại cùng `clientRequestId` vẫn nhận lại giao dịch cũ (không bị coi là trùng).
 - `query` → `action = "summary"`: backend tự cộng từ giao dịch của chính người dùng (ai-service không thấy số liệu).
+  Khi người dùng xin **chi tiết** ("chi tiết hôm nay", "liệt kê các khoản chi tháng này", "hôm nay tôi mua gì"), ai-service đặt `query.detail = true`
+  và `summary` có thêm `transactions` (tối đa 20 khoản đã xác nhận của kỳ, mới nhất trước, loại cho vay/mượn và chuyển tiền; mỗi dòng gồm
+  `id, transactedAt, amountCents, type, merchantName, description, categorySlug, categoryName`) cùng `transactionsHasMore` (còn khoản cũ hơn → app mời
+  xem tiếp ở màn hình giao dịch). Không xin chi tiết thì `transactions = null`. Chỉ áp dụng cho metric `expense`/`income`, không cho `balance`.
 - Còn lại → `action = "reply"` (chào, ngoài chủ đề, thiếu số tiền…).
 
 **Ghi nhớ cửa hàng khi lưu/sửa.** `ReceiptMemory.ShouldLearn` chỉ đúng khi: giao dịch `source = Receipt`, có tên cửa hàng,
@@ -664,7 +668,11 @@ Authorization: Bearer {INTERNAL_API_KEY}
 ```
 - `text` tối đa 500 ký tự; `user_id_hash` phải là SHA-256 hex đúng 64 ký tự (ví dụ trên chỉ là chỗ giữ chỗ). **Không lưu gì, không giữ trạng thái**, không ghi nội dung câu hay số tiền vào log.
 - `intent` ∈ `add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-  out_of_scope | needs_amount | empty`. Có `entry` với ba intent ghi giao dịch, có `query` với `ask_spending`, còn lại chỉ `reply_text`.
+  out_of_scope | needs_amount | needs_period | empty`. Có `entry` với ba intent ghi giao dịch, có `query` với `ask_spending` (kèm `detail: bool` — người dùng xin danh sách từng khoản, không chỉ tổng), còn lại chỉ `reply_text`.
+  `query` đọc được các kỳ: hôm nay/qua/kia, buổi trong ngày (sáng nay = hôm nay), tuần này/trước, tháng này/trước, `tháng N[/năm]`, năm nay/ngoái/`năm Y`, quý (`quý 1`, `quý 3/2025`, quý này/trước),
+  ngày cụ thể (`ngày 15/3`, `ngày 15 tháng 3`, `5/10/2025`, `ngày 15`), khoảng ngày (`từ ngày 1 đến ngày 10`, `từ 25/9 đến 5/10`), và `N ngày/tuần/tháng qua` (tính cả hôm nay). Không nói năm thì lấy lần gần nhất không ở tương lai.
+  Câu có từ nghe như thời gian mà không đọc được ("cuối tuần rồi", "ngày 31/2", "tháng 13") trả `intent = needs_period` + `reply_text` hỏi lại, KHÔNG trả số liệu "tháng này". Câu không có từ thời gian nào thì vẫn mặc định "tháng này".
+  Mẫu nhận dạng các kỳ này nằm ở `intent_cues.json` (`patterns.period_*`, nhãn ở `replies.period_*`), sửa được qua `/admin/ai-config` như các từ vựng khác.
 - `entry.kind` ∈ `expense | income | transfer`. Chi tiêu: `category_slug` là slug backend hoặc `null` (backend hỏi người dùng);
   thu nhập: luôn `"income"` + `income_type` (`salary | bonus | gift | side_income | refund | other_income`); chuyển tiền: `null`.
   "Chuyển cho người khác / trả nợ" trả về `kind = "expense"`, `category_slug = "other"`, `to_others = true`.
@@ -986,7 +994,7 @@ Quản lý tài chính (thêm 2026-10-26):
 ```
 
 **Cập nhật 2026-10-26 — quản lý tài chính (25 → 33 bảng, EF migration `AddFinanceMethodsAndOnboarding` và `RenameBudgetAlertFlagsAndAddSurveyAiConsent`).**
-Luồng: đăng ký → khảo sát 10 câu → backend suy ra *signals* → (AI nếu người dùng đồng ý riêng, không thì rule) gợi ý MỘT cách chính và tối đa MỘT
+Luồng: đăng ký → khảo sát 10 câu → backend suy ra *signals* → (AI chọn, rule là dự phòng khi AI lỗi; không còn bước đồng ý riêng từ 2026-11-01) gợi ý MỘT cách chính và tối đa MỘT
 cách bổ trợ **chỉ trong danh sách `finance_methods` đang bật** → người dùng chọn → cách đó mang ngưỡng cảnh báo T1/T2 (người dùng sửa được) và các mẫu mục tiêu.
 Báo cáo không thuộc luồng này. Dữ liệu cấu hình sửa trong DB qua API admin, **không cố định trong code**; Dữ liệu cá nhân là ngoại lệ có chủ đích của nguyên tắc local-first: câu trả lời khảo sát **lưu ở server** để gợi ý lại được.
 - `finance_methods` — danh mục cách quản lý (mã bất biến, `role` primary/supporting/both, `goal_mode`, `param_defs` = tham số + mặc định + min/max + có cho người dùng sửa không, `eligibility` = `{weights, excludes}`, `why_text`, `starter_steps`, `version` tăng mỗi lần sửa nội dung, `is_active`). Không xoá cứng.
@@ -995,13 +1003,17 @@ Báo cáo không thuộc luồng này. Dữ liệu cấu hình sửa trong DB qu
 - `user_survey_answers` — đáp án của từng người dùng (xoá được bất cứ lúc nào); `users.onboarding_status` = pending/completed/skipped.
 - `method_recommendations` — nhật ký mỗi lần gợi ý: `source` ai/rule_fallback, `prompt_version` (chỉ khi `ai`), `signals_snapshot`, `method_versions`, `reasons`, `outcome` shown/accepted/changed/skipped. Dùng để đo chất lượng gợi ý.
 - `user_methods` — cách người dùng đang dùng (một chính + tối đa một bổ trợ đang `active`; unique một phần), `method_version` đã chốt lúc chọn, `params` chỉ lưu phần người dùng **ghi đè** (còn lại theo mặc định hiện hành của cách).
-- Cột mới: `users.onboarding_status`, `users.survey_ai_consent_version/at` (đồng ý riêng: gửi *signals ẩn danh* cho AI, tách khỏi điều khoản chung); `saving_goals.goal_template_id` (mẫu mục tiêu đã dùng, nullable); `budget_periods.alert_t1_sent_at/alert_t2_sent_at/alert_over_sent_at` (đổi tên từ cờ 80%/100%). T1/T2 đọc qua `IAlertThresholdProvider` (1 ≤ T1 < T2 ≤ 99; mức vượt hạn mức cố định 100%).
+- Cột mới: `users.onboarding_status`, `users.survey_ai_consent_version/at` (từ 2026-11-01 không còn được kiểm khi gợi ý: signals ẩn danh luôn được gửi cho AI); `saving_goals.goal_template_id` (mẫu mục tiêu đã dùng, nullable); `budget_periods.alert_t1_sent_at/alert_t2_sent_at/alert_over_sent_at` (đổi tên từ cờ 80%/100%). T1/T2 đọc qua `IAlertThresholdProvider` (1 ≤ T1 < T2 ≤ 99; mức vượt hạn mức cố định 100%).
 - Tiền khả dụng dùng chung một công thức (`GET /me/spendable`) và tính khả thi mục tiêu dùng `GoalFeasibilityCalculator` (khả dụng = thu nhập − tổng hạn mức ngân sách) cho cả `GET /saving-goals/{id}/progress` lẫn `POST /saving-goals/feasibility`.
 
 API người dùng (mới): `GET /survey`, `PUT /survey/answers`, `POST /survey/skip`, `DELETE /survey`; `GET /finance-methods`, `POST /finance-methods/recommendations`,
 `GET /finance-methods/recommendations/latest`, `POST /finance-methods/recommendations/{id}/skip`; `GET|POST /me/methods`, `PATCH /me/methods/{id}/params`, `DELETE /me/methods/{id}`;
-`GET /me/goal-suggestions`, `GET /me/spendable`; `POST /saving-goals/feasibility`; đồng ý `surveyAi` qua `POST|DELETE /users/me/consents`.
-API admin (mới, `AdminOnly`, có audit): `/admin/finance-methods` (+ `/activation`, `/{id}/goal-templates`), `/admin/survey-questions` (+ options, `/activation`), `/admin/goal-templates`.
+`GET /me/goal-suggestions`, `GET /me/spendable`; `POST /saving-goals/feasibility`; (`POST|DELETE /users/me/consents` loại `surveyAi` còn nhưng không còn tác dụng với gợi ý).
+API admin (mới, `AdminOnly`, có audit): `/admin/finance-methods` (+ `/activation`, `/{id}/goal-templates`), `/admin/survey-questions` (+ options, `/activation`), `/admin/goal-templates`, `/admin/finance-method-prompts` (list, thêm phiên bản, `/{version}/activate`; chuyển tiếp tới ai-service). Hai hằng số của bộ chọn nằm ở cấu hình hệ thống `financeMethods` (`recommendationReuseMinutes` mặc định 10, `supportMinSharePercent` mặc định 50), sửa qua `/admin/system-config`.
+**Ngưỡng cảnh báo ngân sách T1/T2** (mức "vượt hạn mức" luôn 100%, không cấu hình) lấy theo thứ tự: (1) cách quản lý đang dùng có `t1_pct`/`t2_pct` (người dùng ghi đè nếu có, không thì mặc định của cách đó; cách chính trước bổ trợ), (2) ngưỡng cá nhân `users.alert_t1_pct/alert_t2_pct` (cả hai cùng NULL hoặc cùng có, `1 ≤ T1 < T2 ≤ 99`), (3) mặc định hệ thống `limits.alertT1Percent/alertT2Percent` (70/90) do admin đặt ở `/admin/system-config`. Ngưỡng cá nhân chỉ có hiệu lực khi không có cách nào định nghĩa T1/T2 (vẫn được giữ khi bị che). API: `GET|PUT|DELETE /me/alert-thresholds` (GET trả ngưỡng hiệu lực, `source` = `method|personal|system`, ngưỡng cá nhân và mặc định hệ thống); sai thì 422 `ALERT_THRESHOLD_INVALID`. Số 70/90 chỉ còn một nơi giữ (`LimitSettings`); `AlertThresholds.Default` là phao cứu sinh lấy từ đó.
+**Admin tắt một phương thức đang có người dùng** (`PATCH /admin/finance-methods/{id}/activation`): người dùng KHÔNG bị gỡ và không mất dữ liệu hay ngưỡng; `GET /me/methods` vẫn trả cách đó với `method.available = false`, app báo "đã ngừng cung cấp" và mời chọn cách khác (`/finance-recommendation`); người mới không chọn được (422 `FINANCE_METHOD_INACTIVE`), danh mục và AI chỉ gồm cách đang bật. Admin thấy `activeUserCount` (người đang dùng) trong danh sách và trong hộp xác nhận trước khi tắt; audit ghi `ActiveUsers`.
+**Khối "hũ" trên trang chủ** (`home_layout` loại `jars`, tối đa 8 hũ): mỗi hũ = một tham số kiểu % của cách đó (không phải `t1_pct`/`t2_pct` — đó là ngưỡng, backend từ chối) + danh sách slug danh mục HỆ THỐNG; một danh mục chỉ thuộc một hũ, tổng % mặc định ≤ 100. `GET /me/jars` (mỗi cách người dùng đang dùng có khối `jars` một `JarSetDto`): số được chia = thu nhập tháng × %, đã chi lấy từ `IReportRepository.GetCategorySpendAsync` (cùng nguồn báo cáo theo danh mục, khoản vay không tính), khớp danh mục theo id chứ không theo slug, `level` = `none|ok|t1|t2|over` so với ngưỡng hiệu lực của người dùng (cùng thứ tự method → cá nhân → hệ thống); chi ngoài các hũ nằm ở `unassignedSpentCents`; chưa khai thu nhập thì số được chia/còn lại/% dùng là null. Admin gán hũ ở bộ chỉnh bố cục trang chủ (danh mục đã thuộc hũ khác bị khóa).
+**Danh mục phương pháp ban đầu (2026-11-02, 13 cách)**: chín cách theo file khảo sát (đổi sang tên quen thuộc: `category_budget` = Quy tắc 50/30/20, `envelope_budget` = Phong bì, `goal_fund` = Trả cho mình trước, `emergency_buffer` = Quỹ khẩn cấp, `cash_flow_budget`, `available_to_spend` = Safe-to-spend…; mã bất biến) cộng `six_jars` (khối `jars`, 55/10/10/10/10/5), `rule_70_20_10`, `rule_80_20`, `zero_based_budget`. `FinanceMethodSeeder` chỉ thêm cách CHƯA có theo `code` và không ghi đè gì admin đã sửa, nên DB đã có dữ liệu thì tên mới phải đổi qua `PATCH /admin/finance-methods/{id}`; liên kết mẫu mục tiêu của cách mới cũng chỉ tự có trên DB mới (DB cũ dùng `PUT /admin/finance-methods/{id}/goal-templates`).
 
 **Cập nhật 2026-10-10.** Tiêu đề cũ ghi "20 bảng" nhưng danh sách liệt kê 22 tên — con số cũ đếm sai; cộng 3 bảng
 mới thành 25. Ba bảng mới (EF migration `AddReceiptScans`, `AddReceiptScanItemsAndLinks`):

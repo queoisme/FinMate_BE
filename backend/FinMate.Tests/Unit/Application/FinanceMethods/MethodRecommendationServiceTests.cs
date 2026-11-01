@@ -1,3 +1,4 @@
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.FinanceMethods;
@@ -19,12 +20,11 @@ public class MethodRecommendationServiceTests
     private readonly Mock<ISurveyRepository> _surveys = new();
     private readonly Mock<IFinanceMethodRepository> _methods = new();
     private readonly Mock<IUserMethodRepository> _userMethods = new();
-    private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<IMethodAiClient> _ai = new();
+    private readonly Mock<ISystemConfigProvider> _config = new();
     private readonly MethodRecommendationService _service;
 
     private readonly Guid _userId = Guid.NewGuid();
-    private readonly User _user;
     private readonly FinanceMethod _main = Method("main", FinanceMethodRole.Primary, new() { ["x"] = 2 }, sortOrder: 1);
     private readonly FinanceMethod _other = Method("other", FinanceMethodRole.Primary, new() { ["x"] = 1 }, sortOrder: 2);
     private readonly FinanceMethod _tool = Method("tool", FinanceMethodRole.Supporting, new() { ["x"] = 2 }, sortOrder: 3);
@@ -34,7 +34,6 @@ public class MethodRecommendationServiceTests
 
     public MethodRecommendationServiceTests()
     {
-        _user = new User { Id = _userId };
         _catalog = [_blocked, _main, _other, _tool];
 
         var questionId = Guid.NewGuid();
@@ -45,7 +44,6 @@ public class MethodRecommendationServiceTests
         _surveys.Setup(s => s.GetOptionsAsync(true, It.IsAny<CancellationToken>()))
             .ReturnsAsync([new SurveyOption { QuestionId = questionId, Code = "A", Signals = """{"x":3}""" }]);
 
-        _users.Setup(u => u.GetByIdAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
         _methods.Setup(m => m.GetMethodsAsync(false, It.IsAny<CancellationToken>())).ReturnsAsync(_catalog);
         _methods.Setup(m => m.GetMethodsByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<Guid> ids, CancellationToken _) => _catalog.Where(m => ids.Contains(m.Id)).ToList());
@@ -53,14 +51,13 @@ public class MethodRecommendationServiceTests
             .Callback<MethodRecommendation, CancellationToken>((r, _) => _saved = r)
             .Returns(Task.CompletedTask);
 
-        _service = new MethodRecommendationService(_surveys.Object, _methods.Object, _userMethods.Object, _users.Object, _ai.Object);
+        _config.Setup(c => c.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new SystemConfigSnapshot(1, new SystemConfigDocument { FinanceMethods = _settings }, null));
+
+        _service = new MethodRecommendationService(_surveys.Object, _methods.Object, _userMethods.Object, _ai.Object, _config.Object);
     }
 
-    private void Consent()
-    {
-        _user.SurveyAiConsentVersion = ConsentVersions.SurveyAi;
-        _user.SurveyAiConsentAt = DateTimeOffset.UtcNow;
-    }
+    private FinanceMethodSettings _settings = new();
 
     private void AiReturns(AiMethodPick? pick)
         => _ai.Setup(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()))
@@ -77,11 +74,11 @@ public class MethodRecommendationServiceTests
     }
 
     [Fact]
-    public async Task WithoutTheSurveyAiConsent_NeverCallsTheAi_AndUsesTheRule()
+    public async Task TheAiIsAlwaysAsked_AndWithoutAUsableAnswerTheRuleIsUsed_WithNoPromptVersion()
     {
         var result = await _service.GenerateAsync(_userId);
 
-        _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Once);
         result.Source.Should().Be("rule_fallback");
         result.Primary.Method.Code.Should().Be("main");
         result.Support!.Method.Code.Should().Be("tool");
@@ -92,21 +89,8 @@ public class MethodRecommendationServiceTests
     }
 
     [Fact]
-    public async Task AConsentToAnOlderWording_IsNotEnough_UntilTheUserAcceptsTheCurrentOne()
+    public async Task WithAValidAiPick_UsesTheAi_AndStoresThePromptVersionAndReasons()
     {
-        _user.SurveyAiConsentVersion = ConsentVersions.SurveyAi - 1;   // đã đồng ý bản chỉ nêu Gemini, chưa đồng ý bản nêu thêm OpenRouter
-        _user.SurveyAiConsentAt = DateTimeOffset.UtcNow;
-
-        var result = await _service.GenerateAsync(_userId);
-
-        _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Never);
-        result.Source.Should().Be("rule_fallback");
-    }
-
-    [Fact]
-    public async Task WithConsentAndAValidAiPick_UsesTheAi_AndStoresThePromptVersionAndReasons()
-    {
-        Consent();
         AiReturns(new AiMethodPick("other", "AI chọn other", "tool", "AI chọn tool", "method-select-v1"));
 
         var result = await _service.GenerateAsync(_userId);
@@ -122,7 +106,6 @@ public class MethodRecommendationServiceTests
     [Fact]
     public async Task TheAiIsOnlyGivenMethodsThatPassedTheExcludesFilter_AndNoUserIdentity()
     {
-        Consent();
         IReadOnlyList<AiMethodCandidate>? sent = null;
         IReadOnlyDictionary<string, int>? sentSignals = null;
         _ai.Setup(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()))
@@ -140,7 +123,6 @@ public class MethodRecommendationServiceTests
     [Fact]
     public async Task AnAiPickOutsideTheShortlist_IsRejected_AndTheRuleTakesOver()
     {
-        Consent();
         AiReturns(new AiMethodPick("blocked", "AI cố chọn cái bị loại", null, null, "v1"));
 
         var result = await _service.GenerateAsync(_userId);
@@ -156,7 +138,6 @@ public class MethodRecommendationServiceTests
     [InlineData("main", "", null, null)]              // lý do rỗng
     public async Task AnAiPickThatBreaksARule_FallsBackToTheRule(string primary, string reason, string? support, string? supportReason)
     {
-        Consent();
         AiReturns(new AiMethodPick(primary, reason, support, supportReason, "v1"));
 
         (await _service.GenerateAsync(_userId)).Source.Should().Be("rule_fallback");
@@ -165,7 +146,6 @@ public class MethodRecommendationServiceTests
     [Fact]
     public async Task WhenTheAiGivesNothing_TheRuleTakesOver()
     {
-        Consent();
         AiReturns(null);
 
         var result = await _service.GenerateAsync(_userId);
@@ -177,7 +157,6 @@ public class MethodRecommendationServiceTests
     [Fact]
     public async Task LongMethodTextIsTruncatedToTheAiContractLimits()
     {
-        Consent();
         _main.Name = new string('n', 150);
         _main.Summary = new string('s', 500);
         IReadOnlyList<AiMethodCandidate>? sent = null;
@@ -195,7 +174,6 @@ public class MethodRecommendationServiceTests
     [Fact]
     public async Task AskingAgainWithTheSameSignalsWithinTenMinutes_ReturnsTheLatestWithoutCallingTheAiOrSavingAgain()
     {
-        Consent();
         _userMethods.Setup(r => r.GetLatestRecommendationAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync(new MethodRecommendation
         {
             Id = Guid.NewGuid(),
@@ -212,6 +190,42 @@ public class MethodRecommendationServiceTests
         result.Primary.Reason.Should().Be("Lý do đã lưu");
         _saved.Should().BeNull();
         _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(1, -3, false)]     // admin thu cửa sổ còn 1 phút: 3 phút trước đã quá hạn
+    [InlineData(60, -30, true)]    // admin nới ra 60 phút: 30 phút trước vẫn dùng lại
+    [InlineData(0, 0, false)]      // 0 = luôn tạo mới
+    public async Task TheReuseWindowComesFromTheSystemConfig(int reuseMinutes, int minutesAgo, bool reused)
+    {
+        _settings = new FinanceMethodSettings { RecommendationReuseMinutes = reuseMinutes };
+        _userMethods.Setup(r => r.GetLatestRecommendationAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync(new MethodRecommendation
+        {
+            Id = Guid.NewGuid(),
+            UserId = _userId,
+            PrimaryMethodId = _main.Id,
+            Reasons = "[]",
+            SignalsSnapshot = """{"x":3}""",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(minutesAgo),
+        });
+
+        await _service.GenerateAsync(_userId);
+
+        (_saved is null).Should().Be(reused);
+    }
+
+    [Fact]
+    public async Task TheSupportShareOfTheRuleFallbackComesFromTheSystemConfig()
+    {
+        // main = 2×3 = 6; half_tool = 1×3 = 3 (đúng 50%): đủ ở ngưỡng mặc định, bị loại khi admin nâng lên 100%.
+        _catalog.Remove(_tool);
+        _catalog.Add(Method("half_tool", FinanceMethodRole.Supporting, new() { ["x"] = 1 }, sortOrder: 4));
+
+        (await _service.GenerateAsync(_userId)).Support!.Method.Code.Should().Be("half_tool");
+
+        _settings = new FinanceMethodSettings { SupportMinSharePercent = 100 };
+        _saved = null;
+        (await _service.GenerateAsync(_userId)).Support.Should().BeNull();
     }
 
     [Theory]

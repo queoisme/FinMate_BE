@@ -25,6 +25,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             t.HasCheckConstraint(
                 "chk_users_survey_ai_consent",
                 "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
+
+            // Ngưỡng cảnh báo cá nhân: cả hai cùng trống (dùng mặc định hệ thống) hoặc cùng có và đúng 1 ≤ T1 < T2 ≤ 99 (mức 100% là "vượt hạn mức" cố định).
+            t.HasCheckConstraint(
+                "chk_users_alert_thresholds",
+                "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
         });
 
         builder.HasKey(u => u.Id);
@@ -85,6 +90,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             prefs.Property(p => p.PushEnabled).HasColumnName("push_enabled");
             prefs.Property(p => p.BudgetAlertsEnabled).HasColumnName("budget_alerts_enabled");
             prefs.Property(p => p.MissionRemindersEnabled).HasColumnName("mission_reminders_enabled");
+            prefs.Property(p => p.AlertT1Pct).HasColumnName("alert_t1_pct");
+            prefs.Property(p => p.AlertT2Pct).HasColumnName("alert_t2_pct");
         });
         builder.Navigation(u => u.NotificationPrefs).IsRequired();
 

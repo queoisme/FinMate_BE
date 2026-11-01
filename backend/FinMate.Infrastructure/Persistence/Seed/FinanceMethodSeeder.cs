@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FinMate.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Chín cách quản lý ban đầu (nguồn: finmate_khao_sat_insight_va_goi_y_quan_ly_tai_chinh.md, mục 3 — mỗi dòng bảng ánh xạ
-/// một phương pháp). Idempotent theo <c>code</c>: chạy lại chỉ thêm phương pháp CHƯA có, không ghi đè nội dung, tham số hay
+/// Các cách quản lý ban đầu: chín cách theo finmate_khao_sat_insight_va_goi_y_quan_ly_tai_chinh.md (mục 3 — mỗi dòng bảng ánh xạ
+/// một phương pháp), đặt tên theo tên quen thuộc, cộng bốn phương pháp phổ biến thêm sau (6 hũ, 70/20/10, 80/20, Zero-Based). Idempotent theo <c>code</c>: chạy lại chỉ thêm phương pháp CHƯA có, không ghi đè nội dung, tham số hay
 /// trạng thái <c>is_active</c> mà admin đã sửa.
 ///
 /// <c>eligibility</c> = <c>{"weights":{signal:trọng số},"excludes":[signal]}</c>. <c>weights</c> là dấu hiệu CỘNG ĐIỂM cho phương
@@ -30,14 +30,49 @@ public static class FinanceMethodSeeder
         (string Signal, int Weight)[] Weights,
         string[] Excludes,
         string WhyText,
-        string[] StarterSteps);
+        string[] StarterSteps,
+        string? HomeLayout = null);
+
+    /// <summary>Cách chỉ theo dõi (chưa có hạn mức) thì không có "tiền khả dụng" để khoe: bắt đầu bằng tham số và các bước.</summary>
+    private const string TrackOnlyLayout = """[{"type":"params"},{"type":"starter_steps"}]""";
+
+    private const string CategoryBudgetLayout =
+        """
+        [{"type":"spendable"},
+         {"type":"params","title":"Chia thu nhập","keys":["needs_pct","wants_pct","goals_pct"],"display":"allocation"},
+         {"type":"params","title":"Ngưỡng cảnh báo","keys":["t1_pct","t2_pct"]},
+         {"type":"goals"}]
+        """;
+
+    /// <summary>Hũ → danh mục hệ thống (slug). Hũ tự do tài chính, tiết kiệm dài hạn và cho đi chưa gán danh mục chi nào nên luôn 0 đã chi. Admin sửa được ở trang chủ của phương pháp.</summary>
+    private const string SixJarsLayout =
+        """
+        [{"type":"spendable"},
+         {"type":"jars","title":"6 chiếc hũ","jars":[
+           {"key":"necessities_pct","label":"Thiết yếu","categories":["food","housing","bills","transport","health","family"]},
+           {"key":"education_pct","label":"Giáo dục","categories":["education"]},
+           {"key":"play_pct","label":"Hưởng thụ","categories":["entertainment","shopping"]},
+           {"key":"financial_freedom_pct","label":"Tự do tài chính","categories":[]},
+           {"key":"long_term_pct","label":"Tiết kiệm dài hạn","categories":[]},
+           {"key":"give_pct","label":"Cho đi","categories":[]}]},
+         {"type":"params","title":"Ngưỡng cảnh báo","keys":["t1_pct","t2_pct"]},
+         {"type":"goals"}]
+        """;
+
+    private const string Rule702010Layout =
+        """
+        [{"type":"spendable"},
+         {"type":"params","title":"Chia thu nhập","keys":["living_pct","saving_pct","debt_goal_pct"],"display":"allocation"},
+         {"type":"params","title":"Ngưỡng cảnh báo","keys":["t1_pct","t2_pct"]},
+         {"type":"goals"}]
+        """;
 
     /// <summary>Ngưỡng cảnh báo T1/T2 và giờ nhắc dự báo — chung cho mọi phương pháp có hạn mức. Mặc định 70%, 90%, 22:00.</summary>
     private static readonly Param[] AlertParams =
     [
         new(FinanceParamKeys.T1Pct, "Ngưỡng nhắc nhẹ (% hạn mức đã dùng)", FinanceParamTypes.Percent, 70, 1, 99),
         new(FinanceParamKeys.T2Pct, "Ngưỡng cảnh báo mạnh (% hạn mức đã dùng)", FinanceParamTypes.Percent, 90, 2, 99),   // 100% là mức "vượt hạn mức" cố định
-        new(FinanceParamKeys.ForecastMinute, "Giờ nhắc dự báo hằng ngày (số phút từ 00:00)", FinanceParamTypes.Minutes, 1320, 0, 1439),
+        new(FinanceParamKeys.ForecastMinute, "Giờ nhắc dự báo hằng ngày", FinanceParamTypes.Minutes, 1320, 0, 1439),
     ];
 
     private const long MaxCents = 1_000_000_000;
@@ -64,11 +99,12 @@ public static class FinanceMethodSeeder
                 "Chọn 3–5 nhóm chi bạn muốn theo dõi.",
                 "Để FinMate ghi nhận giao dịch tự động và chỉ sửa nhóm khi cần.",
                 "Xem tổng kết tuần; sau 2–4 tuần hãy thử đặt hạn mức.",
-            ]),
+            ],
+            TrackOnlyLayout),
 
         new(FinanceMethodCodes.CategoryBudget,
-            "Ngân sách theo nhóm",
-            "Đặt tỷ lệ cho nhu cầu, mong muốn và mục tiêu, rồi đặt hạn mức cho các nhóm chi chính. Tỷ lệ 50/30/20 chỉ là mẫu tham khảo.",
+            "Quy tắc 50/30/20",
+            "Chia thu nhập: 50% cho nhu cầu thiết yếu, 30% cho mong muốn, 20% cho tiết kiệm và trả nợ. Tỷ lệ chỉnh được theo hoàn cảnh của bạn.",
             FinanceMethodRole.Primary, GoalMode.ReserveFirst,
             [
                 .. AlertParams,
@@ -83,15 +119,16 @@ public static class FinanceMethodSeeder
             ],
             [FinanceSignals.CashShortfall, FinanceSignals.OverdueObligations, FinanceSignals.AbandonsTracking, FinanceSignals.LowCommitment],
             "Thu nhập của bạn khá ổn định, thường còn dư và bạn thích có hạn mức rõ ràng cho từng nhóm chi. "
-            + "Tỷ lệ 50/30/20 chỉ là mẫu tham khảo, bạn tự chọn tỷ lệ phù hợp với mình.",
+            + "50/30/20 là điểm xuất phát dễ nhớ, bạn tự chỉnh tỷ lệ cho phù hợp với mình.",
             [
-                "Chọn tỷ lệ giữa nhu cầu, mong muốn và mục tiêu.",
+                "Chọn tỷ lệ giữa nhu cầu, mong muốn và mục tiêu (mặc định 50/30/20).",
                 "Đặt hạn mức cho vài nhóm chi chính.",
                 "Xem chi thực tế mỗi tuần và chỉnh hạn mức nếu liên tục thiếu thực tế.",
-            ]),
+            ],
+            CategoryBudgetLayout),
 
         new(FinanceMethodCodes.AvailableToSpend,
-            "Số tiền còn được chi",
+            "Số tiền an toàn để chi (Safe-to-spend)",
             "FinMate trừ hóa đơn và khoản để dành khỏi tiền sẵn có, rồi chỉ cho bạn một con số: còn bao nhiêu được chi.",
             FinanceMethodRole.Primary, GoalMode.AvailableToSpend,
             [
@@ -112,7 +149,7 @@ public static class FinanceMethodSeeder
             ]),
 
         new(FinanceMethodCodes.CashFlowBudget,
-            "Ngân sách theo dòng tiền",
+            "Ngân sách theo dòng tiền (Cash Flow)",
             "Lập kế hoạch từ số tiền đã nhận và lịch hóa đơn đến hạn, để biết số tiền an toàn có thể chi đến lần nhận tiền tiếp theo.",
             FinanceMethodRole.Primary, GoalMode.AvailableToSpend,
             [
@@ -136,8 +173,8 @@ public static class FinanceMethodSeeder
             ]),
 
         new(FinanceMethodCodes.EnvelopeBudget,
-            "Phong bì cho vài nhóm chi",
-            "Chỉ đặt hạn mức riêng cho vài nhóm chi dễ vượt, không cần chia mọi khoản.",
+            "Phương pháp phong bì (Envelope)",
+            "Chia tiền thành các \"phong bì\" cho vài nhóm chi dễ vượt; hết phong bì nào thì dừng chi nhóm đó, không cần chia mọi khoản.",
             FinanceMethodRole.Both, GoalMode.Envelope,
             [
                 .. AlertParams,
@@ -156,7 +193,7 @@ public static class FinanceMethodSeeder
             ]),
 
         new(FinanceMethodCodes.GoalFund,
-            "Quỹ mục tiêu và trả cho mình trước",
+            "Trả cho mình trước (Pay Yourself First)",
             "Tách khoản dành cho mục tiêu ngay khi có tiền vào, rồi theo dõi tiến độ.",
             FinanceMethodRole.Supporting, GoalMode.ReserveFirst,
             [
@@ -177,7 +214,7 @@ public static class FinanceMethodSeeder
             ]),
 
         new(FinanceMethodCodes.EmergencyBuffer,
-            "Quỹ dự phòng và quỹ chi phí không đều",
+            "Quỹ khẩn cấp (Emergency Fund)",
             "Tích lũy nhỏ và đều cho khoản dự phòng khẩn cấp, và để dành riêng cho các chi phí đã biết nhưng không hằng tháng.",
             FinanceMethodRole.Supporting, GoalMode.ReserveFirst,   // công cụ BỔ TRỢ (file .md: "quỹ dự phòng nhỏ" đi kèm cách chính), không tự đứng làm cách chính
             [
@@ -217,10 +254,11 @@ public static class FinanceMethodSeeder
                 "Liệt kê từng khoản nợ: dư nợ, lãi, số tiền tối thiểu, ngày đến hạn.",
                 "Trả đủ số tối thiểu đúng hạn.",
                 "So sánh thứ tự trả và chọn cách bạn duy trì được.",
-            ]),
+            ],
+            TrackOnlyLayout),
 
         new(FinanceMethodCodes.LowEffortAutomation,
-            "Tự động hóa và kiểm tra định kỳ",
+            "Tự động hóa tài chính",
             "Ít nhóm chi, nhắc ngắn và tổng kết định kỳ để bạn duy trì được với rất ít thao tác.",
             FinanceMethodRole.Both, GoalMode.ReserveFirst,
             [
@@ -237,6 +275,99 @@ public static class FinanceMethodSeeder
                 "Chỉ theo dõi vài nhóm chi lớn nhất.",
                 "Nhận nhắc ngắn và thông báo quan trọng.",
                 "Xem tổng kết tuần hoặc tháng; giảm tần suất nếu thông báo gây phiền.",
+            ]),
+
+        new(FinanceMethodCodes.SixJars,
+            "6 chiếc hũ (6 Jars)",
+            "Chia thu nhập vào 6 hũ: thiết yếu, giáo dục, hưởng thụ, tự do tài chính, tiết kiệm dài hạn và cho đi. Mỗi hũ có phần trăm riêng và theo dõi chi tiêu của riêng nó.",
+            FinanceMethodRole.Primary, GoalMode.ReserveFirst,
+            [
+                .. AlertParams,
+                new("necessities_pct", "Hũ thiết yếu (%)", FinanceParamTypes.Percent, 55, 0, 100),
+                new("education_pct", "Hũ giáo dục (%)", FinanceParamTypes.Percent, 10, 0, 100),
+                new("play_pct", "Hũ hưởng thụ (%)", FinanceParamTypes.Percent, 10, 0, 100),
+                new("financial_freedom_pct", "Hũ tự do tài chính (%)", FinanceParamTypes.Percent, 10, 0, 100),
+                new("long_term_pct", "Hũ tiết kiệm dài hạn (%)", FinanceParamTypes.Percent, 10, 0, 100),
+                new("give_pct", "Hũ cho đi (%)", FinanceParamTypes.Percent, 5, 0, 100),
+            ],
+            [
+                (FinanceSignals.LikesLimits, 2), (FinanceSignals.WantsCategoryLimits, 2), (FinanceSignals.TracksClosely, 2),
+                (FinanceSignals.SurplusRegular, 2), (FinanceSignals.IncomeStable, 2), (FinanceSignals.SavesPercentOfIncome, 2),
+                (FinanceSignals.GoalSpecificTarget, 1), (FinanceSignals.TimeWeekly, 1), (FinanceSignals.TimeDaily, 1),
+            ],
+            [FinanceSignals.CashShortfall, FinanceSignals.OverdueObligations, FinanceSignals.AbandonsTracking, FinanceSignals.LowCommitment],
+            "Thu nhập của bạn khá ổn định và bạn muốn quản lý toàn diện: vừa chi tiêu, vừa học tập, vừa tích lũy và cho đi. "
+            + "Mỗi hũ có phần trăm riêng nên bạn thấy ngay hũ nào sắp cạn.",
+            [
+                "Chia thu nhập vào 6 hũ (mặc định 55/10/10/10/10/5, bạn chỉnh được).",
+                "Mỗi khi chi tiêu, FinMate tính vào hũ tương ứng với nhóm chi.",
+                "Xem các hũ mỗi tuần và chỉnh phần trăm nếu một hũ liên tục thiếu hoặc dư.",
+            ],
+            SixJarsLayout),
+
+        new(FinanceMethodCodes.Rule702010,
+            "Quy tắc 70/20/10",
+            "Chia thu nhập: 70% cho sinh hoạt, 20% cho tiết kiệm, 10% cho trả nợ hoặc mục tiêu khác. Đơn giản hơn 50/30/20.",
+            FinanceMethodRole.Primary, GoalMode.ReserveFirst,
+            [
+                .. AlertParams,
+                new("living_pct", "Sinh hoạt (%)", FinanceParamTypes.Percent, 70, 0, 100),
+                new("saving_pct", "Tiết kiệm (%)", FinanceParamTypes.Percent, 20, 0, 100),
+                new("debt_goal_pct", "Trả nợ hoặc mục tiêu khác (%)", FinanceParamTypes.Percent, 10, 0, 100),
+            ],
+            [
+                (FinanceSignals.SavesPercentOfIncome, 3), (FinanceSignals.IncomeStable, 2), (FinanceSignals.SurplusRegular, 2),
+                (FinanceSignals.DebtPressure, 2), (FinanceSignals.GoalDebtReduction, 1), (FinanceSignals.TimeWeekly, 1),
+                (FinanceSignals.LowVisibility, 1),
+            ],
+            [FinanceSignals.CashShortfall, FinanceSignals.OverdueObligations, FinanceSignals.CannotSaveNow],
+            "Bạn thích một công thức đơn giản chỉ có ba phần. Phần 10% giúp bạn vừa trả nợ vừa có mục tiêu khác mà không phải chia quá nhiều.",
+            [
+                "Chọn tỷ lệ giữa sinh hoạt, tiết kiệm và trả nợ hoặc mục tiêu khác (mặc định 70/20/10).",
+                "Chuyển phần tiết kiệm và phần trả nợ ngay khi nhận thu nhập.",
+                "Xem phần sinh hoạt mỗi tuần; chỉnh tỷ lệ nếu liên tục thiếu thực tế.",
+            ],
+            Rule702010Layout),
+
+        new(FinanceMethodCodes.Rule8020,
+            "Quy tắc 80/20 (tiết kiệm trước)",
+            "Tiết kiệm 20% thu nhập ngay khi nhận, phần 80% còn lại chi tiêu thoải mái mà không cần theo dõi chi tiết từng khoản.",
+            FinanceMethodRole.Primary, GoalMode.ReserveFirst,
+            [
+                .. AlertParams,
+                new("saving_pct", "Tỷ lệ tiết kiệm trước (%)", FinanceParamTypes.Percent, 20, 1, 50),
+            ],
+            [
+                (FinanceSignals.DislikesLimits, 3), (FinanceSignals.LowCommitment, 2), (FinanceSignals.SavesAutomatically, 3),
+                (FinanceSignals.SavesPercentOfIncome, 2), (FinanceSignals.TimeMonthly, 2), (FinanceSignals.LowVisibility, 1),
+                (FinanceSignals.IncomeStable, 1),
+            ],
+            [FinanceSignals.CashShortfall, FinanceSignals.OverdueObligations, FinanceSignals.CannotSaveNow],
+            "Bạn không thích theo dõi chi tiết. Chỉ cần tiết kiệm phần của mình trước, phần còn lại bạn chi tự do.",
+            [
+                "Chọn tỷ lệ tiết kiệm (mặc định 20%).",
+                "Chuyển khoản tiết kiệm ngay khi nhận thu nhập.",
+                "Phần còn lại là tiền được chi; chỉ cần xem tổng kết mỗi tháng.",
+            ]),
+
+        new(FinanceMethodCodes.ZeroBased,
+            "Ngân sách từ con số 0 (Zero-Based)",
+            "Mỗi đồng thu nhập đều được gán một mục đích cụ thể (chi tiêu, tiết kiệm, trả nợ) cho đến khi phần còn lại bằng 0.",
+            FinanceMethodRole.Primary, GoalMode.ReserveFirst,
+            [
+                .. AlertParams,
+                new("plan_review_days", "Chu kỳ rà soát kế hoạch (ngày)", FinanceParamTypes.Int, 7, 1, 31),
+            ],
+            [
+                (FinanceSignals.TracksClosely, 3), (FinanceSignals.LikesLimits, 3), (FinanceSignals.WantsCategoryLimits, 3),
+                (FinanceSignals.TimeDaily, 3), (FinanceSignals.IncomeStable, 2), (FinanceSignals.SurplusRegular, 1),
+            ],
+            [FinanceSignals.CashShortfall, FinanceSignals.OverdueObligations, FinanceSignals.AbandonsTracking, FinanceSignals.LowCommitment],
+            "Bạn muốn kiểm soát chặt và sẵn sàng dành thời gian mỗi ngày. Gán mục đích cho từng đồng giúp bạn biết tiền đi đâu và không còn khoản \"mất dấu\".",
+            [
+                "Liệt kê mọi khoản thu và mọi khoản chi dự kiến của kỳ này.",
+                "Gán mục đích cho đến khi thu nhập trừ đi kế hoạch bằng 0.",
+                "Rà soát kế hoạch theo chu kỳ và chuyển tiền giữa các khoản khi cần.",
             ]),
     ];
 
@@ -272,6 +403,7 @@ public static class FinanceMethodSeeder
                     Json),
                 WhyText = seed.WhyText,
                 StarterSteps = JsonSerializer.Serialize(seed.StarterSteps, Json),
+                HomeLayout = seed.HomeLayout ?? FinanceHomeBlocks.DefaultLayout,
                 SortOrder = i + 1,
                 IsActive = true,
                 Version = 1,

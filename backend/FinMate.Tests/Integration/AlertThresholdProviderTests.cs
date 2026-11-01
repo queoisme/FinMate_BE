@@ -1,4 +1,6 @@
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Budgets;
+using FinMate.Application.Common.Interfaces;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
 using FinMate.Infrastructure.Persistence.Seed;
@@ -56,7 +58,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         await using var db = await NewSeededDbAsync();
         var user = await SeedUserAsync(db);
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
+        (await Provider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
     }
 
     [Fact]
@@ -66,7 +68,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = await SeedUserAsync(db);
         await UseMethodAsync(db, user, "category_budget", "primary", "active", "{}");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(new AlertThresholds(70, 90));
+        (await Provider(db).GetAsync(user)).Should().Be(new AlertThresholds(70, 90));
     }
 
     [Fact]
@@ -76,7 +78,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = await SeedUserAsync(db);
         await UseMethodAsync(db, user, "category_budget", "primary", "active", """{"t1_pct":55,"t2_pct":85}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(new AlertThresholds(55, 85));
+        (await Provider(db).GetAsync(user)).Should().Be(new AlertThresholds(55, 85));
     }
 
     [Fact]
@@ -86,7 +88,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = await SeedUserAsync(db);
         await UseMethodAsync(db, user, "category_budget", "primary", "active", """{"t1_pct":95,"t2_pct":50}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(new AlertThresholds(70, 90));
+        (await Provider(db).GetAsync(user)).Should().Be(new AlertThresholds(70, 90));
     }
 
     [Fact]
@@ -96,7 +98,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = await SeedUserAsync(db);
         await UseMethodAsync(db, user, "category_budget", "primary", "ended", """{"t1_pct":10,"t2_pct":20}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
+        (await Provider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
     }
 
     [Fact]
@@ -107,7 +109,7 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         await UseMethodAsync(db, user, "envelope_budget", "supporting", "active", """{"t1_pct":30,"t2_pct":50}""");
         await UseMethodAsync(db, user, "available_to_spend", "primary", "active", """{"t1_pct":60,"t2_pct":80}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(new AlertThresholds(60, 80));
+        (await Provider(db).GetAsync(user)).Should().Be(new AlertThresholds(60, 80));
     }
 
     [Fact]
@@ -117,11 +119,11 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = await SeedUserAsync(db);
         await UseMethodAsync(db, user, "minimal_tracking", "primary", "active", "{}");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
+        (await Provider(db).GetAsync(user)).Should().Be(AlertThresholds.Default);
 
         await UseMethodAsync(db, user, "envelope_budget", "supporting", "active", """{"t1_pct":40,"t2_pct":75}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(user)).Should().Be(new AlertThresholds(40, 75));
+        (await Provider(db).GetAsync(user)).Should().Be(new AlertThresholds(40, 75));
     }
 
     [Fact]
@@ -132,6 +134,108 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var someoneElse = await SeedUserAsync(db);
         await UseMethodAsync(db, someoneElse, "category_budget", "primary", "active", """{"t1_pct":20,"t2_pct":30}""");
 
-        (await new AlertThresholdProvider(db).GetAsync(me)).Should().Be(AlertThresholds.Default);
+        (await Provider(db).GetAsync(me)).Should().Be(AlertThresholds.Default);
+    }
+
+    // ---- mặc định hệ thống (admin đặt) và ngưỡng cá nhân ----
+
+    private sealed class FakeSystemConfig(int t1, int t2) : ISystemConfigProvider
+    {
+        public Task<SystemConfigSnapshot> GetAsync(CancellationToken ct = default)
+            => Task.FromResult(new SystemConfigSnapshot(1, new SystemConfigDocument { Limits = new LimitSettings { AlertT1Percent = t1, AlertT2Percent = t2 } }, null));
+
+        public void Invalidate() { }
+    }
+
+    private static AlertThresholdProvider Provider(FinMateDbContext db) => new(db, new FakeSystemConfig(70, 90));
+
+    private static async Task SetPersonalAsync(FinMateDbContext db, Guid user, int t1, int t2)
+        => await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE users SET alert_t1_pct = {t1}, alert_t2_pct = {t2} WHERE id = {user}");
+
+    [Fact]
+    public async Task WithNoMethodAndNoPersonalSetting_TheAdminConfiguredSystemDefaultIsUsed()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+
+        var resolution = await new AlertThresholdProvider(db, new FakeSystemConfig(60, 85)).ResolveAsync(user);
+
+        resolution.Thresholds.Should().Be(new AlertThresholds(60, 85));
+        resolution.Source.Should().Be(AlertThresholdSource.System);
+    }
+
+    [Fact]
+    public async Task APersonalSetting_IsUsedWhenNoMethodDefinesThresholds()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+        await SetPersonalAsync(db, user, 50, 80);
+
+        var resolution = await Provider(db).ResolveAsync(user);
+
+        resolution.Thresholds.Should().Be(new AlertThresholds(50, 80));
+        resolution.Source.Should().Be(AlertThresholdSource.Personal);
+    }
+
+    [Fact]
+    public async Task AMethodWithThresholds_BeatsThePersonalSetting_AndReportsWhichMethod()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+        await SetPersonalAsync(db, user, 50, 80);
+        await UseMethodAsync(db, user, "category_budget", "primary", "active", "{}");
+
+        var resolution = await Provider(db).ResolveAsync(user);
+
+        resolution.Thresholds.Should().Be(new AlertThresholds(70, 90));   // mặc định của chính cách đó, không phải 50/80 cá nhân
+        resolution.Source.Should().Be(AlertThresholdSource.Method);
+        resolution.MethodCode.Should().Be("category_budget");
+        resolution.MethodName.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task AMethodWithoutThresholds_DoesNotHideThePersonalSetting()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+        await SetPersonalAsync(db, user, 50, 80);
+        await UseMethodAsync(db, user, "goal_fund", "supporting", "active", "{}");   // quỹ mục tiêu không có T1/T2
+
+        (await Provider(db).ResolveAsync(user)).Source.Should().Be(AlertThresholdSource.Personal);
+    }
+
+    [Fact]
+    public async Task AnEndedMethod_NoLongerHidesThePersonalSetting()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+        await SetPersonalAsync(db, user, 50, 80);
+        await UseMethodAsync(db, user, "category_budget", "primary", "ended", "{}");
+
+        (await Provider(db).ResolveAsync(user)).Thresholds.Should().Be(new AlertThresholds(50, 80));
+    }
+
+    [Fact]
+    public async Task ABrokenSystemConfig_FallsBackToTheLifeBuoy_NeverThrows()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+
+        (await new AlertThresholdProvider(db, new FakeSystemConfig(95, 40)).GetAsync(user)).Should().Be(AlertThresholds.Default);
+    }
+
+    [Fact]
+    public async Task TheDatabaseRefusesHalfOrDisorderedPersonalThresholds()
+    {
+        await using var db = await NewSeededDbAsync();
+        var user = await SeedUserAsync(db);
+
+        var halfSet = async () => await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE users SET alert_t1_pct = 50 WHERE id = {user}");
+        var disordered = async () => await SetPersonalAsync(db, user, 90, 60);
+        var tooHigh = async () => await SetPersonalAsync(db, user, 50, 100);
+
+        await halfSet.Should().ThrowAsync<Exception>();
+        await disordered.Should().ThrowAsync<Exception>();
+        await tooHigh.Should().ThrowAsync<Exception>();
     }
 }

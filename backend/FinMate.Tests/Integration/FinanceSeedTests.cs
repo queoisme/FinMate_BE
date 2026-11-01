@@ -18,9 +18,9 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
 {
     private const int QuestionCount = 10;
     private const int OptionsPerQuestion = 5;
-    private const int MethodCount = 9;
+    private const int MethodCount = 13;
     private const int TemplateCount = 4;
-    private const int LinkCount = 15;
+    private const int LinkCount = 23;
 
     private readonly ReceiptScanDbFixture _fixture;
 
@@ -60,7 +60,7 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
     // ---- số lượng và idempotency ----
 
     [Fact]
-    public async Task Seeds_TenQuestionsWithFiveOptions_NineMethods_FourTemplates_AndTheirLinks()
+    public async Task Seeds_TenQuestionsWithFiveOptions_ThirteenMethods_FourTemplates_AndTheirLinks()
     {
         await using var db = await NewSeededDbAsync();
 

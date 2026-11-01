@@ -19,6 +19,11 @@ public class AdminFinanceMethodsController : AdminControllerBase
     public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<AdminFinanceMethodDto>>.Ok(await _catalog.ListMethodsAsync(includeInactive, ct)));
 
+    /// <summary>Các loại khối giao diện trang chủ mà app biết vẽ (để chọn khi sửa <c>homeLayout</c>). Thêm loại mới cần code ở app.</summary>
+    [HttpGet("home-blocks")]
+    public IActionResult GetHomeBlockTypes()
+        => Ok(ApiResponse<IReadOnlyList<HomeBlockTypeDto>>.Ok(FinanceHomeBlockCatalog.All));
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateFinanceMethodRequest request, CancellationToken ct)
         => StatusCode(

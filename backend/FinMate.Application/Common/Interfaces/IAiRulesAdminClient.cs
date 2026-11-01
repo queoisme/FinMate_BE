@@ -31,6 +31,9 @@ public sealed record AiRulesRequest(
 
     /// <summary>Key của bên thứ ba (Gemini, OpenRouter) lưu mã hóa ở AI Service: <c>/admin/secrets</c>. Thân yêu cầu CÓ giá trị key nên không được log ở bất kỳ đâu.</summary>
     public const string SecretsArea = "secrets";
+
+    /// <summary>Phiên bản chỉ dẫn (prompt) của AI khi gợi ý cách quản lý tài chính: <c>/admin/finance-method-prompts</c>.</summary>
+    public const string MethodPromptsArea = "finance-method-prompts";
 }
 
 public interface IAiRulesAdminClient

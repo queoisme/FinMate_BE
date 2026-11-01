@@ -307,6 +307,7 @@ public class Program
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
         builder.Services.AddScoped<IAlertThresholdProvider, AlertThresholdProvider>();
+        builder.Services.AddScoped<IAlertThresholdSettingsService, AlertThresholdSettingsService>();
 
         // Cách quản lý tài chính, khảo sát đầu vào, mục tiêu theo phương pháp.
         builder.Services.AddScoped<IFinanceMethodRepository, FinanceMethodRepository>();
@@ -317,6 +318,7 @@ public class Program
         builder.Services.AddScoped<IMethodRecommendationService, MethodRecommendationService>();
         builder.Services.AddScoped<IUserMethodService, UserMethodService>();
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
+        builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IQrTransferRepository, QrTransferRepository>();
@@ -363,6 +365,7 @@ public class Program
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();
         builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();

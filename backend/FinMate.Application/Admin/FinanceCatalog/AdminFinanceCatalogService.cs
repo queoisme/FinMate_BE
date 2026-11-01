@@ -15,18 +15,45 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
     private readonly IFinanceMethodRepository _methods;
     private readonly ISurveyRepository _surveys;
     private readonly IAuditLogService _audit;
+    private readonly ICategoryRepository _categories;
 
-    public AdminFinanceCatalogService(IFinanceMethodRepository methods, ISurveyRepository surveys, IAuditLogService audit)
+    public AdminFinanceCatalogService(IFinanceMethodRepository methods, ISurveyRepository surveys, IAuditLogService audit, ICategoryRepository categories)
     {
         _methods = methods;
         _surveys = surveys;
         _audit = audit;
+        _categories = categories;
+    }
+
+    /// <summary>Mọi danh mục mà các khối "hũ" của bố cục nhắc tới phải là danh mục HỆ THỐNG có thật (danh mục riêng của người dùng không thuộc hũ nào).</summary>
+    private async Task ValidateJarCategoriesAsync(FinanceCatalogValidation v, JsonElement layout, CancellationToken ct)
+    {
+        var slugs = FinanceCatalogValidation.JarCategorySlugs(layout).Distinct().ToList();
+        if (slugs.Count == 0)
+        {
+            return;
+        }
+
+        var known = (await _categories.GetSystemListAsync(includeInactive: true, ct)).Select(c => c.Slug).ToHashSet();
+        foreach (var slug in slugs.Where(s => !known.Contains(s)))
+        {
+            v.Add("homeLayout", $"Danh mục '{slug}' không tồn tại (chỉ dùng được mã của danh mục hệ thống).");
+        }
     }
 
     // ================= cách quản lý =================
 
     public async Task<IReadOnlyList<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, CancellationToken ct = default)
-        => (await _methods.GetMethodsAsync(includeInactive, ct)).OrderBy(m => m.SortOrder).Select(ToDto).ToList();
+    {
+        var activeUsers = await _methods.CountActiveUsersAsync(ct);
+        return (await _methods.GetMethodsAsync(includeInactive, ct))
+            .OrderBy(m => m.SortOrder)
+            .Select(m => ToDto(m, activeUsers.GetValueOrDefault(m.Id)))
+            .ToList();
+    }
+
+    private async Task<int> ActiveUsersOfAsync(Guid methodId, CancellationToken ct)
+        => (await _methods.CountActiveUsersAsync(ct)).GetValueOrDefault(methodId);
 
     public async Task<AdminFinanceMethodDto> CreateMethodAsync(
         Guid adminId, string? ip, CreateFinanceMethodRequest request, CancellationToken ct = default)
@@ -42,6 +69,12 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         v.ParamDefs("paramDefs", request.ParamDefs);
         v.Eligibility("eligibility", request.Eligibility);
         v.StringArray("starterSteps", request.StarterSteps, 1, 5, 200);
+        if (request.HomeLayout is { } homeLayout)
+        {
+            v.HomeLayout("homeLayout", homeLayout, request.ParamDefs);
+            await ValidateJarCategoriesAsync(v, homeLayout, ct);
+        }
+
         v.ThrowIfInvalid();
 
         if (await _methods.GetMethodByCodeAsync(request.Code, ct) is not null)
@@ -62,6 +95,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             Eligibility = request.Eligibility.GetRawText(),
             WhyText = request.WhyText.Trim(),
             StarterSteps = request.StarterSteps.GetRawText(),
+            HomeLayout = request.HomeLayout?.GetRawText() ?? FinanceHomeBlocks.DefaultLayout,
             SortOrder = request.SortOrder,
             IsActive = true,
             Version = 1,
@@ -90,6 +124,18 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         if (request.ParamDefs is { } paramDefs) { v.ParamDefs("paramDefs", paramDefs); }
         if (request.Eligibility is { } eligibility) { v.Eligibility("eligibility", eligibility); }
         if (request.StarterSteps is { } steps) { v.StringArray("starterSteps", steps, 1, 5, 200); }
+        if (request.HomeLayout is not null || request.ParamDefs is not null)
+        {
+            // Đổi paramDefs có thể làm khối đang lưu trỏ tới khóa không còn nữa: luôn kiểm bố cục HIỆU LỰC với paramDefs HIỆU LỰC.
+            var layout = request.HomeLayout ?? FinanceJson.ToElement(method.HomeLayout);
+            var defs = request.ParamDefs ?? FinanceJson.ToElement(method.ParamDefs);
+            if (layout is { } effectiveLayout && defs is { } effectiveDefs)
+            {
+                v.HomeLayout("homeLayout", effectiveLayout, effectiveDefs);
+                await ValidateJarCategoriesAsync(v, effectiveLayout, ct);
+            }
+        }
+
         v.ThrowIfInvalid();
 
         var changed = new List<string>();
@@ -102,6 +148,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         ApplyJson(changed, "paramDefs", request.ParamDefs, method.ParamDefs, x => method.ParamDefs = x);
         ApplyJson(changed, "eligibility", request.Eligibility, method.Eligibility, x => method.Eligibility = x);
         ApplyJson(changed, "starterSteps", request.StarterSteps, method.StarterSteps, x => method.StarterSteps = x);
+        ApplyJson(changed, "homeLayout", request.HomeLayout, method.HomeLayout, x => method.HomeLayout = x);
 
         if (changed.Count > 0)
         {
@@ -112,7 +159,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             await _audit.LogAsync(AuditEvents.AdminFinanceMethodUpdated, adminId, ip, new { method.Id, method.Code, method.Version, changed }, ct);
         }
 
-        return ToDto(method);
+        return ToDto(method, await ActiveUsersOfAsync(method.Id, ct));
     }
 
     public async Task<AdminFinanceMethodDto> SetMethodActiveAsync(
@@ -124,10 +171,12 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             method.IsActive = isActive;
             method.UpdatedAt = DateTimeOffset.UtcNow;
             await _methods.UpdateMethodAsync(method, ct);
-            await _audit.LogAsync(AuditEvents.AdminFinanceMethodActivationChanged, adminId, ip, new { method.Id, method.Code, isActive }, ct);
+            // Tắt một cách đang có người dùng: họ vẫn dùng như cũ, app báo và mời chọn cách khác. Ghi số người bị ảnh hưởng để truy vết.
+            var affected = await ActiveUsersOfAsync(method.Id, ct);
+            await _audit.LogAsync(AuditEvents.AdminFinanceMethodActivationChanged, adminId, ip, new { method.Id, method.Code, isActive, ActiveUsers = affected }, ct);
         }
 
-        return ToDto(method);
+        return ToDto(method, await ActiveUsersOfAsync(method.Id, ct));
     }
 
     public async Task<IReadOnlyList<AdminMethodTemplateLinkDto>> GetMethodTemplatesAsync(Guid methodId, CancellationToken ct = default)
@@ -566,7 +615,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         }
     }
 
-    private static AdminFinanceMethodDto ToDto(FinanceMethod m) => new(
+    private static AdminFinanceMethodDto ToDto(FinanceMethod m, int activeUsers = 0) => new(
         m.Id,
         m.Code,
         m.Name,
@@ -577,11 +626,13 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         FinanceJson.ToElement(m.Eligibility),
         m.WhyText,
         FinanceJson.ToElement(m.StarterSteps),
+        FinanceJson.ToElement(m.HomeLayout),
         m.SortOrder,
         m.IsActive,
         m.Version,
         m.CreatedAt,
-        m.UpdatedAt);
+        m.UpdatedAt,
+        activeUsers);
 
     private static AdminSurveyQuestionDto ToDto(SurveyQuestion q, IEnumerable<SurveyOption> options) => new(
         q.Id,

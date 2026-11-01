@@ -155,6 +155,8 @@ public class SystemConfigService : ISystemConfigService
         Compare("limits", before.Limits, after.Limits);
         Compare("sync", before.Sync, after.Sync);
         Compare("theme", before.Theme, after.Theme);
+        Compare("qrTransfer", before.QrTransfer, after.QrTransfer);
+        Compare("financeMethods", before.FinanceMethods, after.FinanceMethods);
         return sections;
     }
 }

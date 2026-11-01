@@ -148,6 +148,280 @@ internal sealed class FinanceCatalogValidation
         }
     }
 
+    /// <summary>
+    /// Mảng 1–8 khối [{type, title?, keys?, display?}] (loại khối: <see cref="FinanceHomeBlocks"/>). Khối sai hình dạng sẽ làm trang chủ của MỌI người đang dùng cách này vẽ hỏng,
+    /// nên <c>keys</c> phải là khóa có trong <paramref name="paramDefs"/> và <c>allocation</c> chỉ cho tham số kiểu percent.
+    /// </summary>
+    public void HomeLayout(string field, JsonElement value, JsonElement paramDefs)
+    {
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            Add(field, "Phải là một mảng khối.");
+            return;
+        }
+
+        var paramTypes = ParamTypeByKey(paramDefs);
+        var blocks = value.EnumerateArray().ToList();
+        if (blocks.Count < 1 || blocks.Count > FinanceHomeBlocks.MaxBlocks)
+        {
+            Add(field, $"Phải có từ 1 đến {FinanceHomeBlocks.MaxBlocks} khối.");
+        }
+
+        var seenTypes = new HashSet<string>();
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var block = blocks[index];
+            var where = $"{field}[{index}]";
+            if (block.ValueKind != JsonValueKind.Object)
+            {
+                Add(where, "Mỗi khối phải là một object.");
+                continue;
+            }
+
+            foreach (var property in block.EnumerateObject().Where(p => p.Name is not ("type" or "title" or "keys" or "display" or "jars")))
+            {
+                Add(where, $"Trường '{property.Name}' không được hỗ trợ (chỉ có type, title, keys, display, jars).");
+            }
+
+            var type = StringProp(block, "type");
+            if (type is null || !FinanceHomeBlocks.Types.Contains(type))
+            {
+                Add($"{where}.type", $"Loại khối phải là một trong: {string.Join(", ", FinanceHomeBlocks.Types)}.");
+                continue;
+            }
+
+            if (type != FinanceHomeBlocks.Params && !seenTypes.Add(type))
+            {
+                Add($"{where}.type", $"Khối '{type}' chỉ được xuất hiện một lần.");
+            }
+
+            if (block.TryGetProperty("title", out var title)
+                && (title.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(title.GetString()) || title.GetString()!.Length > FinanceHomeBlocks.MaxTitleLength))
+            {
+                Add($"{where}.title", $"Tiêu đề là chuỗi không trống, tối đa {FinanceHomeBlocks.MaxTitleLength} ký tự.");
+            }
+
+            var hasKeys = block.TryGetProperty("keys", out var keys);
+            var hasDisplay = block.TryGetProperty("display", out var display);
+            if (type == FinanceHomeBlocks.Jars)
+            {
+                if (hasKeys || hasDisplay)
+                {
+                    Add(where, "keys và display không dùng cho khối 'jars'.");
+                }
+
+                JarsBlock(where, block, paramDefs, paramTypes);
+                continue;
+            }
+
+            if (block.TryGetProperty("jars", out _))
+            {
+                Add(where, $"jars chỉ dùng cho khối '{FinanceHomeBlocks.Jars}'.");
+            }
+
+            if (type != FinanceHomeBlocks.Params)
+            {
+                if (hasKeys || hasDisplay)
+                {
+                    Add(where, $"keys và display chỉ dùng cho khối '{FinanceHomeBlocks.Params}'.");
+                }
+
+                continue;
+            }
+
+            var chosen = new List<string>();
+            if (hasKeys)
+            {
+                if (keys.ValueKind != JsonValueKind.Array || keys.GetArrayLength() == 0 || keys.GetArrayLength() > 12
+                    || keys.EnumerateArray().Any(k => k.ValueKind != JsonValueKind.String))
+                {
+                    Add($"{where}.keys", "Phải là mảng 1–12 khóa tham số.");
+                }
+                else
+                {
+                    chosen = keys.EnumerateArray().Select(k => k.GetString()!).ToList();
+                    if (chosen.Distinct().Count() != chosen.Count)
+                    {
+                        Add($"{where}.keys", "Khóa tham số bị trùng.");
+                    }
+
+                    foreach (var key in chosen.Where(k => !paramTypes.ContainsKey(k)))
+                    {
+                        Add($"{where}.keys", $"Tham số '{key}' không có trong paramDefs của cách quản lý này.");
+                    }
+                }
+            }
+
+            if (!hasDisplay)
+            {
+                continue;
+            }
+
+            var mode = display.ValueKind == JsonValueKind.String ? display.GetString() : null;
+            if (mode is not (FinanceHomeBlocks.DisplayList or FinanceHomeBlocks.DisplayAllocation))
+            {
+                Add($"{where}.display", $"Phải là '{FinanceHomeBlocks.DisplayList}' hoặc '{FinanceHomeBlocks.DisplayAllocation}'.");
+            }
+            else if (mode == FinanceHomeBlocks.DisplayAllocation)
+            {
+                var targets = hasKeys ? chosen : paramTypes.Keys.ToList();
+                var percentTargets = targets.Where(k => paramTypes.GetValueOrDefault(k) == FinanceParamTypes.Percent).ToList();
+                if (percentTargets.Count == 0 || (hasKeys && percentTargets.Count != targets.Count))
+                {
+                    Add($"{where}.display", "Dạng 'allocation' chỉ dùng cho tham số kiểu percent và phải có ít nhất một tham số như vậy.");
+                }
+            }
+        }
+    }
+
+    private static readonly Regex CategorySlugFormat = new("^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Khối "hũ": mỗi hũ gắn với MỘT tham số kiểu % của cách quản lý (phần trăm thu nhập chia cho hũ) và một danh sách danh mục. Một tham số chỉ thuộc một hũ, một danh mục chỉ thuộc
+    /// một hũ (nếu không chi tiêu sẽ bị tính hai lần), và tổng tỷ lệ MẶC ĐỊNH của các hũ không quá 100%. Danh mục có thật hay không do service kiểm (cần đọc DB).
+    /// </summary>
+    private void JarsBlock(string where, JsonElement block, JsonElement paramDefs, Dictionary<string, string> paramTypes)
+    {
+        if (!block.TryGetProperty("jars", out var jars) || jars.ValueKind != JsonValueKind.Array
+            || jars.GetArrayLength() < 1 || jars.GetArrayLength() > FinanceHomeBlocks.MaxJars)
+        {
+            Add($"{where}.jars", $"Phải là mảng từ 1 đến {FinanceHomeBlocks.MaxJars} hũ.");
+            return;
+        }
+
+        var defaults = ParamDefaultByKey(paramDefs);
+        var usedKeys = new HashSet<string>();
+        var usedSlugs = new HashSet<string>();
+        long defaultSum = 0;
+        var index = 0;
+        foreach (var jar in jars.EnumerateArray())
+        {
+            var path = $"{where}.jars[{index++}]";
+            if (jar.ValueKind != JsonValueKind.Object)
+            {
+                Add(path, "Mỗi hũ phải là một object.");
+                continue;
+            }
+
+            foreach (var property in jar.EnumerateObject().Where(p => p.Name is not ("key" or "label" or "categories")))
+            {
+                Add(path, $"Trường '{property.Name}' không được hỗ trợ (chỉ có key, label, categories).");
+            }
+
+            var key = StringProp(jar, "key");
+            if (key is null || paramTypes.GetValueOrDefault(key) != FinanceParamTypes.Percent)
+            {
+                Add($"{path}.key", "Hũ phải gắn với một tham số kiểu % có trong paramDefs của cách quản lý này.");
+            }
+            else if (key is FinanceParamKeys.T1Pct or FinanceParamKeys.T2Pct)
+            {
+                // T1/T2 cũng là tham số kiểu %, nhưng là ngưỡng cảnh báo chứ không phải phần chia thu nhập.
+                Add($"{path}.key", "Ngưỡng cảnh báo (T1/T2) không dùng làm phần chia của hũ.");
+            }
+            else if (!usedKeys.Add(key))
+            {
+                Add($"{path}.key", $"Tham số '{key}' đã dùng cho hũ khác.");
+            }
+            else
+            {
+                defaultSum += defaults.GetValueOrDefault(key);
+            }
+
+            if (jar.TryGetProperty("label", out var label)
+                && (label.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(label.GetString()) || label.GetString()!.Length > FinanceHomeBlocks.MaxJarLabelLength))
+            {
+                Add($"{path}.label", $"Tên hũ là chuỗi không trống, tối đa {FinanceHomeBlocks.MaxJarLabelLength} ký tự.");
+            }
+
+            if (!jar.TryGetProperty("categories", out var categories) || categories.ValueKind != JsonValueKind.Array
+                || categories.GetArrayLength() > FinanceHomeBlocks.MaxCategoriesPerJar
+                || categories.EnumerateArray().Any(c => c.ValueKind != JsonValueKind.String || !CategorySlugFormat.IsMatch(c.GetString()!)))
+            {
+                Add($"{path}.categories", $"Phải là mảng tối đa {FinanceHomeBlocks.MaxCategoriesPerJar} mã danh mục (chữ thường, số, dấu gạch nối).");
+                continue;
+            }
+
+            foreach (var slug in categories.EnumerateArray().Select(c => c.GetString()!))
+            {
+                if (!usedSlugs.Add(slug))
+                {
+                    Add($"{path}.categories", $"Danh mục '{slug}' đã thuộc một hũ (hoặc bị lặp); mỗi danh mục chỉ thuộc một hũ.");
+                }
+            }
+        }
+
+        if (defaultSum > 100)
+        {
+            Add($"{where}.jars", $"Tổng tỷ lệ mặc định của các hũ là {defaultSum}%, vượt 100%.");
+        }
+    }
+
+    /// <summary>Mọi mã danh mục được các khối "hũ" của một bố cục nhắc tới (để service kiểm chúng có thật).</summary>
+    public static IReadOnlyList<string> JarCategorySlugs(JsonElement layout)
+    {
+        var slugs = new List<string>();
+        if (layout.ValueKind != JsonValueKind.Array)
+        {
+            return slugs;
+        }
+
+        foreach (var block in layout.EnumerateArray().Where(b => b.ValueKind == JsonValueKind.Object && StringProp(b, "type") == FinanceHomeBlocks.Jars))
+        {
+            if (!block.TryGetProperty("jars", out var jars) || jars.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var jar in jars.EnumerateArray().Where(j => j.ValueKind == JsonValueKind.Object))
+            {
+                if (jar.TryGetProperty("categories", out var categories) && categories.ValueKind == JsonValueKind.Array)
+                {
+                    slugs.AddRange(categories.EnumerateArray().Where(c => c.ValueKind == JsonValueKind.String).Select(c => c.GetString()!));
+                }
+            }
+        }
+
+        return slugs;
+    }
+
+    private static Dictionary<string, long> ParamDefaultByKey(JsonElement paramDefs)
+    {
+        var defaults = new Dictionary<string, long>();
+        if (paramDefs.ValueKind != JsonValueKind.Array)
+        {
+            return defaults;
+        }
+
+        foreach (var def in paramDefs.EnumerateArray().Where(d => d.ValueKind == JsonValueKind.Object))
+        {
+            if (StringProp(def, "key") is { } key && IntProp(def, "default", out var value))
+            {
+                defaults[key] = value;
+            }
+        }
+
+        return defaults;
+    }
+
+    private static Dictionary<string, string> ParamTypeByKey(JsonElement paramDefs)
+    {
+        var types = new Dictionary<string, string>();
+        if (paramDefs.ValueKind != JsonValueKind.Array)
+        {
+            return types;
+        }
+
+        foreach (var def in paramDefs.EnumerateArray().Where(d => d.ValueKind == JsonValueKind.Object))
+        {
+            if (StringProp(def, "key") is { } key)
+            {
+                types[key] = StringProp(def, "type") ?? string.Empty;
+            }
+        }
+
+        return types;
+    }
+
     /// <summary>{"weights":{signal:trọng số nguyên 1–10},"excludes":[signal]} — cả hai trường đều tùy chọn nhưng đúng kiểu khi có.</summary>
     public void Eligibility(string field, JsonElement value)
     {

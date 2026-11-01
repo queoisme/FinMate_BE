@@ -20,6 +20,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Sync).NotNull().SetValidator(new SyncValidator());
         RuleFor(x => x.Theme).NotNull().SetValidator(new ThemeValidator());
         RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
+        RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
     }
 
     private static bool IsHttps(string value)
@@ -54,10 +55,10 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
     {
         public LimitValidator()
         {
-            RuleFor(x => x.BudgetNearPercent).InclusiveBetween(1, 100).WithMessage("Ngưỡng sắp chạm phải từ 1 đến 100%.");
-            RuleFor(x => x.BudgetOverPercent).InclusiveBetween(50, 200).WithMessage("Ngưỡng vượt phải từ 50 đến 200%.");
-            RuleFor(x => x).Must(x => x.BudgetNearPercent < x.BudgetOverPercent)
-                .WithName(nameof(LimitSettings.BudgetNearPercent)).WithMessage("Ngưỡng sắp chạm phải nhỏ hơn ngưỡng vượt.");
+            RuleFor(x => x.AlertT1Percent).InclusiveBetween(1, 98).WithMessage("Ngưỡng nhắc nhẹ (T1) phải từ 1 đến 98%.");
+            RuleFor(x => x.AlertT2Percent).InclusiveBetween(2, 99).WithMessage("Ngưỡng cảnh báo mạnh (T2) phải từ 2 đến 99%; mức vượt hạn mức luôn là 100%.");
+            RuleFor(x => x).Must(x => x.AlertT1Percent < x.AlertT2Percent)
+                .WithName(nameof(LimitSettings.AlertT1Percent)).WithMessage("Ngưỡng nhắc nhẹ (T1) phải nhỏ hơn ngưỡng cảnh báo mạnh (T2).");
         }
     }
 
@@ -68,6 +69,15 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.IntervalMinutes).InclusiveBetween(5, 1440).WithMessage("Chu kỳ đồng bộ phải từ 5 đến 1440 phút.");
             RuleFor(x => x.MaxRetries).InclusiveBetween(0, 20).WithMessage("Số lần thử lại phải từ 0 đến 20.");
             RuleFor(x => x.QueueRetentionDays).InclusiveBetween(1, 90).WithMessage("Thời gian giữ hàng đợi phải từ 1 đến 90 ngày.");
+        }
+    }
+
+    private sealed class FinanceMethodValidator : AbstractValidator<FinanceMethodSettings>
+    {
+        public FinanceMethodValidator()
+        {
+            RuleFor(x => x.RecommendationReuseMinutes).InclusiveBetween(0, 1440).WithMessage("Thời gian dùng lại gợi ý phải từ 0 đến 1440 phút (0 = luôn tạo mới).");
+            RuleFor(x => x.SupportMinSharePercent).InclusiveBetween(1, 100).WithMessage("Tỷ lệ điểm tối thiểu của cách bổ trợ phải từ 1 đến 100%.");
         }
     }
 

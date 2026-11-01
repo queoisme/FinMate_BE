@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -25,6 +26,14 @@ public class FinanceMethodRepository : IFinanceMethodRepository
         var idList = ids.ToList();
         return _context.FinanceMethods.AsNoTracking().Where(m => idList.Contains(m.Id)).ToListAsync(ct);
     }
+
+    public Task<Dictionary<Guid, int>> CountActiveUsersAsync(CancellationToken ct = default)
+        => _context.UserMethods
+            .AsNoTracking()
+            .Where(m => m.Status == UserMethodStatus.Active)
+            .GroupBy(m => m.MethodId)
+            .Select(g => new { MethodId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.MethodId, x => x.Count, ct);
 
     public Task<FinanceMethod?> GetMethodByIdAsync(Guid id, CancellationToken ct = default)
         => _context.FinanceMethods.FirstOrDefaultAsync(m => m.Id == id, ct);

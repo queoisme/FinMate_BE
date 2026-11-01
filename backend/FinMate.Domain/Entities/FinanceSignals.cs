@@ -90,6 +90,10 @@ public static class FinanceMethodCodes
     public const string EmergencyBuffer = "emergency_buffer";
     public const string DebtRepayment = "debt_repayment";
     public const string LowEffortAutomation = "low_effort_automation";
+    public const string SixJars = "six_jars";
+    public const string Rule702010 = "rule_70_20_10";
+    public const string Rule8020 = "rule_80_20";
+    public const string ZeroBased = "zero_based_budget";
 }
 
 /// <summary>Mã của các mẫu mục tiêu ban đầu (<c>goal_templates.code</c>, bất biến).</summary>
@@ -112,6 +116,46 @@ public static class FinanceParamTypes
 
     /// <summary>Số phút kể từ 00:00 (22:00 = 1320).</summary>
     public const string Minutes = "minutes";
+}
+
+/// <summary>
+/// Từ vựng KHỐI GIAO DIỆN của trang chủ một cách quản lý (<c>finance_methods.home_layout</c>). App có sẵn code vẽ từng loại khối; admin chỉ chọn khối nào, thứ tự nào,
+/// nên thêm một cách quản lý mới không cần phát hành lại app. Thêm LOẠI khối mới thì cần code ở app, nên danh sách này là hằng.
+/// </summary>
+public static class FinanceHomeBlocks
+{
+    /// <summary>Tiền khả dụng của tháng (thu nhập, đã chi, đã dành cho mục tiêu). Nguồn: <c>GET /me/spendable</c>.</summary>
+    public const string Spendable = "spendable";
+
+    /// <summary>Tham số của cách đang dùng (giá trị đang có hiệu lực). Có thể lọc theo <c>keys</c> và vẽ dạng <c>list</c> hoặc <c>allocation</c> (chia phần trăm thu nhập).</summary>
+    public const string Params = "params";
+
+    /// <summary>
+    /// Các "hũ": mỗi hũ là MỘT tham số kiểu % của cách quản lý (phần trăm thu nhập được chia cho hũ) cộng danh sách danh mục hệ thống thuộc hũ đó.
+    /// App so chi tiêu tháng này của các danh mục trong hũ với số tiền được chia. Nguồn: <c>GET /me/jars</c>. Cấu hình ở chính khối: <c>jars: [{key, label?, categories: [slug]}]</c>.
+    /// </summary>
+    public const string Jars = "jars";
+
+    /// <summary>Mục tiêu đang dành tiền và mẫu mục tiêu gợi ý. Nguồn: <c>GET /me/spendable</c>, <c>GET /me/goal-suggestions</c>.</summary>
+    public const string Goals = "goals";
+
+    /// <summary>Các bước bắt đầu của cách quản lý (<c>starter_steps</c>).</summary>
+    public const string StarterSteps = "starter_steps";
+
+    public const string DisplayList = "list";
+    public const string DisplayAllocation = "allocation";
+
+    public const int MaxBlocks = 8;
+    public const int MaxTitleLength = 60;
+
+    public const int MaxJars = 8;
+    public const int MaxJarLabelLength = 40;
+    public const int MaxCategoriesPerJar = 30;
+
+    public static readonly IReadOnlyList<string> Types = [Spendable, Params, Jars, Goals, StarterSteps];
+
+    /// <summary>Bố cục dùng khi admin chưa chọn gì.</summary>
+    public const string DefaultLayout = """[{"type":"spendable"},{"type":"params"},{"type":"goals"},{"type":"starter_steps"}]""";
 }
 
 /// <summary>Khóa tham số mà code đọc trực tiếp (đánh giá cảnh báo, lịch nhắc). Tham số khác chỉ là cấu hình của riêng phương pháp.</summary>

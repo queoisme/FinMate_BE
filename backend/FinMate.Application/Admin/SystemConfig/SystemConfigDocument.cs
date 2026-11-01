@@ -35,9 +35,13 @@ public sealed record FeatureSettings
 
 public sealed record LimitSettings
 {
-    /// <summary>Phần trăm ngân sách đã dùng để báo "sắp chạm".</summary>
-    public int BudgetNearPercent { get; init; } = 80;
-    public int BudgetOverPercent { get; init; } = 100;
+    /// <summary>
+    /// Ngưỡng cảnh báo ngân sách MẶC ĐỊNH của hệ thống, tính theo % hạn mức đã dùng: T1 (nhắc nhẹ) và T2 (cảnh báo mạnh). Chỉ dùng cho người dùng KHÔNG có
+    /// ngưỡng cá nhân và không đang dùng cách quản lý nào định nghĩa T1/T2; mỗi cách quản lý có T1/T2 riêng và người dùng có thể đặt ngưỡng cá nhân.
+    /// Mức "vượt hạn mức" luôn là 100% nên không cấu hình ở đây. Đây là NƠI DUY NHẤT giữ hai con số mặc định (70, 90).
+    /// </summary>
+    public int AlertT1Percent { get; init; } = 70;
+    public int AlertT2Percent { get; init; } = 90;
 }
 
 public sealed record SyncSettings
@@ -93,6 +97,19 @@ public sealed record QrTransferSettings
     public string DeeplinkReturnUrl { get; init; } = "https://www.vietqr.io/deeplink";
 }
 
+/// <summary>
+/// Gợi ý cách quản lý tài chính. Hai hằng số từng nằm cứng trong code; mặc định là giá trị đã dùng nên thêm nhóm này không đổi hành vi của bản cũ.
+/// Chỉ dẫn gửi cho AI nằm ở chỗ khác (<c>/admin/finance-method-prompts</c>) vì có phiên bản riêng để truy ngược từng gợi ý.
+/// </summary>
+public sealed record FinanceMethodSettings
+{
+    /// <summary>Trong khoảng này, xin gợi ý lại với CÙNG câu trả lời khảo sát thì trả bản vừa tạo, không gọi AI lại. 0 = luôn tạo mới.</summary>
+    public int RecommendationReuseMinutes { get; init; } = 10;
+
+    /// <summary>Khi chọn bằng luật (AI lỗi hoặc không dùng được), cách bổ trợ chỉ được chọn nếu điểm của nó ít nhất bằng chừng này phần trăm điểm của cách chính.</summary>
+    public int SupportMinSharePercent { get; init; } = 50;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -103,6 +120,7 @@ public sealed record SystemConfigDocument
     public SyncSettings Sync { get; init; } = new();
     public ThemeSettings Theme { get; init; } = new();
     public QrTransferSettings QrTransfer { get; init; } = new();
+    public FinanceMethodSettings FinanceMethods { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

@@ -131,7 +131,7 @@ public sealed record MethodSelection(FinanceMethod Primary, string PrimaryReason
 public static class MethodSelector
 {
     /// <summary>Cách bổ trợ chỉ được chọn khi điểm của nó ít nhất bằng chừng này điểm của cách chính — để "bổ trợ" không phải một cái gợi ý vớ vẩn cho đủ cặp.</summary>
-    private const double SupportMinShareOfPrimary = 0.5;
+    public const int DefaultSupportMinSharePercent = 50;
 
     public const int MaxReasonLength = 240;
 
@@ -154,7 +154,8 @@ public static class MethodSelector
     }
 
     /// <summary>null khi shortlist không có cách nào làm được vai trò chính.</summary>
-    public static MethodSelection? SelectByRule(IReadOnlyList<FinanceMethod> shortlist, IReadOnlyDictionary<string, int> signals)
+    public static MethodSelection? SelectByRule(
+        IReadOnlyList<FinanceMethod> shortlist, IReadOnlyDictionary<string, int> signals, int supportMinSharePercent = DefaultSupportMinSharePercent)
     {
         var scored = shortlist.Select(m => (Method: m, Score: Score(m, signals))).ToList();
 
@@ -174,7 +175,7 @@ public static class MethodSelector
             .Where(x => CanBeSupport(x.Method.Role)
                 && x.Method.Id != primary.Value.Method.Id
                 && x.Score > 0
-                && x.Score >= primary.Value.Score * SupportMinShareOfPrimary)
+                && x.Score * 100L >= primary.Value.Score * (long)supportMinSharePercent)
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Method.SortOrder)
             .Cast<(FinanceMethod Method, int Score)?>()

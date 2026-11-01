@@ -65,6 +65,14 @@ public static class GoalTemplateSeeder
         (FinanceMethodCodes.EnvelopeBudget, GoalTemplateCodes.SpecificTargetGoal, 2),
         (FinanceMethodCodes.LowEffortAutomation, GoalTemplateCodes.SpecificTargetGoal, 1),
         (FinanceMethodCodes.LowEffortAutomation, GoalTemplateCodes.StarterEmergencyBuffer, 2),
+        (FinanceMethodCodes.SixJars, GoalTemplateCodes.SpecificTargetGoal, 1),
+        (FinanceMethodCodes.SixJars, GoalTemplateCodes.StarterEmergencyBuffer, 2),
+        (FinanceMethodCodes.Rule702010, GoalTemplateCodes.SpecificTargetGoal, 1),
+        (FinanceMethodCodes.Rule702010, GoalTemplateCodes.StarterEmergencyBuffer, 2),
+        (FinanceMethodCodes.Rule8020, GoalTemplateCodes.SpecificTargetGoal, 1),
+        (FinanceMethodCodes.Rule8020, GoalTemplateCodes.StarterEmergencyBuffer, 2),
+        (FinanceMethodCodes.ZeroBased, GoalTemplateCodes.SpecificTargetGoal, 1),
+        (FinanceMethodCodes.ZeroBased, GoalTemplateCodes.StarterEmergencyBuffer, 2),
     ];
 
     public static async Task SeedAsync(FinMateDbContext context, CancellationToken ct = default)

@@ -8,9 +8,6 @@ namespace FinMate.Application.FinanceMethods;
 
 public class MethodRecommendationService : IMethodRecommendationService
 {
-    /// <summary>Trong khoảng này, xin gợi ý lại với CÙNG signals thì trả bản vừa tạo — bấm liên tục không gọi AI liên tục.</summary>
-    private static readonly TimeSpan ReuseWindow = TimeSpan.FromMinutes(10);
-
     // Giới hạn của hợp đồng với ai-service (docs/ai-finance-method-recommend-api.md).
     private const int AiNameMax = 100;
     private const int AiSummaryMax = 400;
@@ -19,27 +16,25 @@ public class MethodRecommendationService : IMethodRecommendationService
     private readonly ISurveyRepository _surveys;
     private readonly IFinanceMethodRepository _methods;
     private readonly IUserMethodRepository _userMethods;
-    private readonly IUserRepository _users;
     private readonly IMethodAiClient _ai;
+    private readonly ISystemConfigProvider _config;
 
     public MethodRecommendationService(
         ISurveyRepository surveys,
         IFinanceMethodRepository methods,
         IUserMethodRepository userMethods,
-        IUserRepository users,
-        IMethodAiClient ai)
+        IMethodAiClient ai,
+        ISystemConfigProvider config)
     {
         _surveys = surveys;
         _methods = methods;
         _userMethods = userMethods;
-        _users = users;
         _ai = ai;
+        _config = config;
     }
 
     public async Task<RecommendationDto> GenerateAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await _users.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);
-
         var answers = await _surveys.GetAnswersAsync(userId, ct);
         var signals = SurveySignals.FromAnswers(
             answers,
@@ -51,9 +46,11 @@ public class MethodRecommendationService : IMethodRecommendationService
                 FinanceErrorCodes.SurveyNotAnswered, "Chưa có câu trả lời khảo sát nào để gợi ý. Hãy làm khảo sát trước.");
         }
 
+        var settings = (await _config.GetAsync(ct)).Document.FinanceMethods;
         var now = DateTimeOffset.UtcNow;
         var latest = await _userMethods.GetLatestRecommendationAsync(userId, ct);
-        if (latest is not null && now - latest.CreatedAt < ReuseWindow && SameSignals(FinanceJson.ReadIntMap(latest.SignalsSnapshot), signals))
+        // Trong khoảng này, xin gợi ý lại với CÙNG signals thì trả bản vừa tạo: bấm liên tục không gọi AI liên tục.
+        if (latest is not null && now - latest.CreatedAt < TimeSpan.FromMinutes(settings.RecommendationReuseMinutes) && SameSignals(FinanceJson.ReadIntMap(latest.SignalsSnapshot), signals))
         {
             return await ToDtoAsync(latest, ct);
         }
@@ -65,7 +62,7 @@ public class MethodRecommendationService : IMethodRecommendationService
                 FinanceErrorCodes.NoMethodAvailable, "Hiện chưa có cách quản lý nào phù hợp để gợi ý cho bạn.");
         }
 
-        var (selection, source, promptVersion) = await SelectAsync(user, signals, shortlist, ct);
+        var (selection, source, promptVersion) = await SelectAsync(signals, shortlist, settings.SupportMinSharePercent, ct);
 
         var recommendation = new MethodRecommendation
         {
@@ -109,32 +106,29 @@ public class MethodRecommendationService : IMethodRecommendationService
     }
 
     /// <summary>
-    /// Chỉ gọi AI khi người dùng đã đồng ý riêng cho khảo sát; mọi cách AI không cho ra kết quả dùng được (không có, lỗi, bị backend kiểm lại thấy sai)
-    /// đều rơi về rule — đường lui duy nhất, và cũng là đường chính khi không có đồng ý.
+    /// Luôn nhờ AI chọn (không có bước đồng ý riêng: khảo sát ở đầu hành trình, gợi ý chỉ là gợi ý và người dùng không bị buộc áp dụng; chỉ gửi signals ẩn danh).
+    /// Mọi cách AI không cho ra kết quả dùng được (không cấu hình, lỗi, quá hạn, bị backend kiểm lại thấy sai) đều rơi về rule — đường lui duy nhất.
     /// </summary>
     private async Task<(MethodSelection Selection, RecommendationSource Source, string? PromptVersion)> SelectAsync(
-        User user,
         IReadOnlyDictionary<string, int> signals,
         IReadOnlyList<FinanceMethod> shortlist,
+        int supportMinSharePercent,
         CancellationToken ct)
     {
-        if (user.SurveyAiConsentGranted)
-        {
-            var candidates = shortlist
-                .Select(m => new AiMethodCandidate(
-                    m.Code, Truncate(m.Name, AiNameMax), Truncate(m.Summary, AiSummaryMax), FinanceMapper.RoleText(m.Role)))
-                .ToList();
+        var candidates = shortlist
+            .Select(m => new AiMethodCandidate(
+                m.Code, Truncate(m.Name, AiNameMax), Truncate(m.Summary, AiSummaryMax), FinanceMapper.RoleText(m.Role)))
+            .ToList();
 
-            var pick = await _ai.RecommendAsync(signals, candidates, ct);
-            if (pick is not null
-                && MethodSelector.FromAiPick(pick.PrimaryCode, pick.PrimaryReason, pick.SupportCode, pick.SupportReason, shortlist) is { } fromAi)
-            {
-                return (fromAi, RecommendationSource.Ai, Truncate(pick.PromptVersion, PromptVersionMax));
-            }
+        var pick = await _ai.RecommendAsync(signals, candidates, ct);
+        if (pick is not null
+            && MethodSelector.FromAiPick(pick.PrimaryCode, pick.PrimaryReason, pick.SupportCode, pick.SupportReason, shortlist) is { } fromAi)
+        {
+            return (fromAi, RecommendationSource.Ai, Truncate(pick.PromptVersion, PromptVersionMax));
         }
 
         // Có ít nhất một cách làm được vai trò chính (đã kiểm ở GenerateAsync) nên SelectByRule không trả null.
-        return (MethodSelector.SelectByRule(shortlist, signals)!, RecommendationSource.RuleFallback, null);
+        return (MethodSelector.SelectByRule(shortlist, signals, supportMinSharePercent)!, RecommendationSource.RuleFallback, null);
     }
 
     private async Task<RecommendationDto> ToDtoAsync(MethodRecommendation recommendation, CancellationToken ct)

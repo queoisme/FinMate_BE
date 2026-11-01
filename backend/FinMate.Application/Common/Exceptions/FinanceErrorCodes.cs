@@ -27,6 +27,9 @@ public static class FinanceErrorCodes
     /// <summary>Tham số không tồn tại, không cho người dùng sửa, ngoài khoảng [min, max], hoặc làm T1/T2 sai thứ tự.</summary>
     public const string MethodParamInvalid = "FINANCE_METHOD_PARAM_INVALID";
 
+    /// <summary>Ngưỡng cảnh báo cá nhân không thỏa 1 ≤ T1 &lt; T2 ≤ 99.</summary>
+    public const string AlertThresholdInvalid = "ALERT_THRESHOLD_INVALID";
+
     public const string RecommendationAlreadyDecided = "FINANCE_RECOMMENDATION_ALREADY_DECIDED";
     public const string GoalTemplateInactive = "FINANCE_GOAL_TEMPLATE_INACTIVE";
 }

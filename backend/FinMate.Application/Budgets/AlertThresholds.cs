@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Budgets;
@@ -16,7 +17,11 @@ public sealed record AlertThresholds(int T1Pct, int T2Pct)
     /// <summary>Mốc T1 thấp nhất có thể (cận dưới của tham số) — truy vấn của job lưới vét dùng nó làm điều kiện lọc thô.</summary>
     public const int MinT1Pct = 1;
 
-    public static AlertThresholds Default { get; } = new(70, 90);
+    /// <summary>
+    /// Phao cứu sinh khi KHÔNG đọc được cấu hình hệ thống (lỗi tạm hoặc cấu hình hỏng). Lấy từ giá trị mặc định của <c>LimitSettings</c> chứ không viết lại số,
+    /// nên chỉ có một nơi giữ 70/90; ngưỡng mặc định thật do admin đặt ở cấu hình hệ thống và được <c>IAlertThresholdProvider</c> đọc.
+    /// </summary>
+    public static AlertThresholds Default { get; } = new(new LimitSettings().AlertT1Percent, new LimitSettings().AlertT2Percent);
 
     public static bool IsValid(AlertThresholds thresholds)
         => thresholds.T1Pct >= MinT1Pct && thresholds.T1Pct < thresholds.T2Pct && thresholds.T2Pct <= 99;

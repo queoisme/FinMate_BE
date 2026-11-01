@@ -1,4 +1,5 @@
 using FinMate.Application.Admin.SystemConfig;
+using FinMate.Application.FinanceMethods;
 using FluentAssertions;
 using Xunit;
 
@@ -75,11 +76,36 @@ public class SystemConfigDocumentValidatorTests
         _validator.Validate(new SystemConfigDocument { AppVersion = new AppVersionSettings { MinVersion = version } }).IsValid.Should().BeFalse();
     }
 
-    [Fact]
-    public void TheNearThreshold_MustBeBelowTheOverThreshold()
+    [Theory]
+    [InlineData(70, 90, true)]
+    [InlineData(1, 2, true)]
+    [InlineData(98, 99, true)]
+    [InlineData(90, 70, false)]    // T1 phải nhỏ hơn T2
+    [InlineData(80, 80, false)]
+    [InlineData(0, 50, false)]     // T1 từ 1%
+    [InlineData(50, 100, false)]   // 100% là mức "vượt hạn mức" cố định, không cấu hình
+    public void TheDefaultAlertThresholds_MustBeOrdered_AndStayBelow100(int t1, int t2, bool valid)
     {
-        _validator.Validate(new SystemConfigDocument { Limits = new LimitSettings { BudgetNearPercent = 100, BudgetOverPercent = 90 } }).IsValid.Should().BeFalse();
-        _validator.Validate(new SystemConfigDocument { Limits = new LimitSettings { BudgetNearPercent = 80, BudgetOverPercent = 100 } }).IsValid.Should().BeTrue();
+        _validator.Validate(new SystemConfigDocument { Limits = new LimitSettings { AlertT1Percent = t1, AlertT2Percent = t2 } }).IsValid.Should().Be(valid);
+    }
+
+    [Fact]
+    public void TheLifeBuoyDefault_ComesFromTheConfigDefaults_NotFromASecondCopyOfTheNumbers()
+    {
+        var defaults = new LimitSettings();
+
+        (defaults.AlertT1Percent, defaults.AlertT2Percent).Should().Be((70, 90));
+        FinMate.Application.Budgets.AlertThresholds.Default.Should().Be(new FinMate.Application.Budgets.AlertThresholds(defaults.AlertT1Percent, defaults.AlertT2Percent));
+    }
+
+    [Fact]
+    public void AnOldStoredConfig_WithTheRetiredLimitFields_StillLoads_WithTheNewDefaults()
+    {
+        var old = System.Text.Json.JsonSerializer.Deserialize<SystemConfigDocument>(
+            """{"limits":{"budgetNearPercent":80,"budgetOverPercent":100}}""", new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+
+        (old.Limits.AlertT1Percent, old.Limits.AlertT2Percent).Should().Be((70, 90));
+        _validator.Validate(old).IsValid.Should().BeTrue();
     }
 
     [Fact]
@@ -117,6 +143,27 @@ public class SystemConfigDocumentValidatorTests
     {
         _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { MaxMessageLength = 20, DefaultMessage = new string('a', 21) } }).IsValid.Should().BeFalse();
         _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { DefaultMessage = "a\nb" } }).IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(0, 50, true)]        // 0 phút = luôn tạo mới
+    [InlineData(1440, 100, true)]
+    [InlineData(-1, 50, false)]
+    [InlineData(1441, 50, false)]
+    [InlineData(10, 0, false)]       // 0% sẽ cho mọi cách bổ trợ điểm dương lọt qua
+    [InlineData(10, 101, false)]
+    public void FinanceMethods_ReuseMinutesAndSupportShare_AreBounded(int reuseMinutes, int supportPercent, bool valid)
+    {
+        var settings = new FinanceMethodSettings { RecommendationReuseMinutes = reuseMinutes, SupportMinSharePercent = supportPercent };
+        _validator.Validate(new SystemConfigDocument { FinanceMethods = settings }).IsValid.Should().Be(valid);
+    }
+
+    [Fact]
+    public void FinanceMethods_DefaultsKeepTheValuesThatUsedToBeHardCoded()
+    {
+        var defaults = new SystemConfigDocument().FinanceMethods;
+        defaults.RecommendationReuseMinutes.Should().Be(10);
+        defaults.SupportMinSharePercent.Should().Be(MethodSelector.DefaultSupportMinSharePercent).And.Be(50);
     }
 
     [Fact]

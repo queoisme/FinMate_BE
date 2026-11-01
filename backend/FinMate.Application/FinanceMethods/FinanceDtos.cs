@@ -14,7 +14,9 @@ public record MethodDto(
     string GoalMode,
     string WhyText,
     IReadOnlyList<string> StarterSteps,
-    IReadOnlyList<ParamDto> Params);
+    IReadOnlyList<ParamDto> Params,
+    JsonElement? HomeLayout = null,
+    bool Available = true);
 
 public record RecommendedMethodDto(MethodDto Method, string Reason);
 
@@ -93,7 +95,11 @@ internal static class FinanceMapper
         FinanceJson.ReadStringList(method.StarterSteps),
         MethodParams.ParseDefs(method.ParamDefs)
             .Select(d => new ParamDto(d.Key, d.Label, d.Type, d.Default, d.Min, d.Max, d.UserEditable))
-            .ToList());
+            .ToList(),
+        // Admin luôn lưu ít nhất một khối (kiểm ở FinanceCatalogValidation.HomeLayout); "[]" chỉ là giá trị mặc định của cột chưa ai cấu hình.
+        FinanceJson.ToElement(method.HomeLayout is "[]" or "" ? FinanceHomeBlocks.DefaultLayout : method.HomeLayout),
+        // false = admin đã tắt cách này: người đang dùng vẫn dùng như cũ nhưng app báo và mời chọn cách khác (danh mục cho người mới chỉ gồm cách đang bật).
+        method.IsActive);
 
     public static UserMethodDto ToDto(UserMethod userMethod, FinanceMethod method)
     {

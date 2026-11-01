@@ -604,6 +604,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("goal_mode");
 
+                    b.Property<string>("HomeLayout")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("home_layout")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -678,6 +685,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_finance_methods_eligibility", "jsonb_typeof(eligibility) = 'object'");
 
                             t.HasCheckConstraint("chk_finance_methods_goal_mode", "goal_mode IN ('reserve_first','envelope','available_to_spend','track_only')");
+
+                            t.HasCheckConstraint("chk_finance_methods_home_layout", "jsonb_typeof(home_layout) = 'array'");
 
                             t.HasCheckConstraint("chk_finance_methods_param_defs", "jsonb_typeof(param_defs) = 'array'");
 
@@ -2402,6 +2411,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("users", null, t =>
                         {
+                            t.HasCheckConstraint("chk_users_alert_thresholds", "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
+
                             t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
 
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
@@ -2991,6 +3002,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             b1.Property<Guid>("UserId")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("uuid");
+
+                            b1.Property<int?>("AlertT1Pct")
+                                .HasColumnType("integer")
+                                .HasColumnName("alert_t1_pct");
+
+                            b1.Property<int?>("AlertT2Pct")
+                                .HasColumnType("integer")
+                                .HasColumnName("alert_t2_pct");
 
                             b1.Property<bool>("BudgetAlertsEnabled")
                                 .HasColumnType("boolean")
