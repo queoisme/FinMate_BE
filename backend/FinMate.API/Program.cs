@@ -329,6 +329,10 @@ public class Program
         builder.Services.AddScoped<IForecastAlertService, ForecastAlertService>();
         builder.Services.AddScoped<IBudgetForecastService, BudgetForecastService>();
         builder.Services.AddScoped<IIncomeForecastService, IncomeForecastService>();
+        builder.Services.AddScoped<IAnomalyRepository, AnomalyRepository>();
+        builder.Services.AddScoped<IAnomalyService, AnomalyService>();
+        builder.Services.AddScoped<ICategoryForecastService, CategoryForecastService>();
+        builder.Services.AddScoped<IGoalForecastService, GoalForecastService>();
         builder.Services.AddScoped<IForecastAlertTrigger, HangfireForecastAlertTrigger>();
         builder.Services.AddScoped<ITransferBudgetLimitCommandHandler, TransferBudgetLimitCommandHandler>();
         builder.Services.AddScoped<IJarService, JarService>();
