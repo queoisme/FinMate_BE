@@ -360,6 +360,18 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 - **Giới hạn đã biết**: ngày gốc trong tháng suy từ ngày đến hạn (đến hạn đúng ngày cuối tháng thì giữ "cuối tháng"), nên khoản ngày 28 hằng tháng nhảy sang 31/3
   sau tháng 2; sửa triệt để cần cột `anchor_day`. Chu kỳ năm chỉ thêm tay (cần hơn một năm dữ liệu để phát hiện).
 
+**Đợt 2 — cảnh báo (thêm 2026-11-02).** Mọi cảnh báo dự báo đi qua **một hộp thư** `forecast_alerts` (`ForecastAlertDispatcher`):
+- Chống lặp bằng `UNIQUE (user_id, kind, dedup_key)` — vd mỗi ngân sách mỗi tháng, mỗi hóa đơn mỗi lần đến hạn; hai lượt chạy song song thì lượt sau
+  gặp lỗi trùng khóa và bị bỏ qua, không phải lỗi.
+- Lưu TRƯỚC rồi mới push: không có bản ghi thì không chống lặp được; có bản ghi mà push hỏng thì user vẫn thấy cảnh báo trong app (`GET /forecast/alerts`).
+- Công tắc: `budget_risk` theo `BudgetAlertsEnabled`, các loại khác theo `ForecastAlertsEnabled`; `PushEnabled` vẫn do `FcmPushNotificationService` chặn.
+- Giờ yên lặng **chỉ** cho `low_balance` (đúng sơ đồ): trong giờ thì ghi `pending` với `scheduled_for` = hết giờ, `ForecastAlertDispatchJob` (15 phút) gửi sau.
+  Cảnh báo do job đêm tạo (đổi giá) hẹn tới 08:00.
+- Kích hoạt: `ForecastDailyAlertJob` 08:00 VN (số dư thấp, vượt ngân sách sớm, nhắc/tạm ngừng hóa đơn, thu nhập trễ) và `ForecastUserCheckJob` xếp hàng sau
+  mỗi giao dịch tạo/xác nhận/sửa/xóa (số dư thấp + vượt ngân sách sớm) qua `IForecastAlertTrigger` — tham số constructor tùy chọn của 5 handler, lỗi xếp hàng chỉ log.
+- `data` của cảnh báo (JSON, mang số tiền) không bao giờ được log, cùng luật với payload push.
+- Thu nhập quá hạn chưa nhận không còn được đặt vào hôm nay (thận trọng); thanh toán cùng người nhận nhưng lệch giá vẫn là "đã trả" (tránh trừ hóa đơn hai lần).
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1011,8 +1023,10 @@ Quản lý tài chính (thêm 2026-10-26):
   user_survey_answers, method_recommendations, user_methods
 
 Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
-  recurring_items   + cột transactions.exclude_from_forecast / forecast_exclusion_reason,
-                      financial_accounts.include_in_forecast, users.forecast_reserve_cents
+  recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`)
+                    + cột transactions.exclude_from_forecast / forecast_exclusion_reason,
+                      financial_accounts.include_in_forecast, users.forecast_reserve_cents,
+                      users.low_balance_threshold_cents / quiet_hours_start_minute / quiet_hours_end_minute / forecast_alerts_enabled
 ```
 
 **Cập nhật 2026-10-26 — quản lý tài chính (25 → 33 bảng, EF migration `AddFinanceMethodsAndOnboarding` và `RenameBudgetAlertFlagsAndAddSurveyAiConsent`).**
@@ -1143,6 +1157,8 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
 | `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
 | `RecurringDetectionJob` | 01:30 mỗi ngày | Cập nhật khoản định kỳ đã có (thấy thanh toán thì đẩy ngày đến hạn) và đề xuất khoản mới (§2.6). Thay phần `RecurringDetected` của `InsightGeneratorJob` |
+| `ForecastDailyAlertJob` | 08:00 mỗi ngày | Cảnh báo dự báo hằng ngày (§2.6 đợt 2) |
+| `ForecastAlertDispatchJob` | Mỗi 15 phút | Gửi cảnh báo đã hẹn giờ (hết giờ yên lặng, đổi giá chờ tới sáng) |
 
 **Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (chưa có job nào xóa `notification_body` sau 90 ngày — xem `TASKS.md` Phase 52). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
 
