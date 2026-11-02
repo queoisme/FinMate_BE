@@ -189,6 +189,50 @@ public sealed record ForecastSettings
     /// <summary>Giờ yên lặng mặc định (phút trong ngày, giờ VN) cho cảnh báo số dư thấp, khi user chưa đặt riêng.</summary>
     public int QuietHoursStartMinute { get; init; } = 22 * 60;
     public int QuietHoursEndMinute { get; init; } = 7 * 60;
+
+    // ---- Đợt 3: bất thường, chi theo danh mục, mục tiêu (duyệt 2026-11-02) ----
+
+    /// <summary>Bất thường: so với các khoản chi trong chừng này ngày gần nhất.</summary>
+    public int AnomalyLookbackDays { get; init; } = 90;
+
+    /// <summary>BR-11.1: cần ít nhất chừng này khoản chi cùng danh mục để so.</summary>
+    public int AnomalyMinCategorySamples { get; init; } = 5;
+
+    /// <summary>So theo người nhận cần ít nhất chừng này lần trả trước đó.</summary>
+    public int AnomalyMinMerchantSamples { get; init; } = 3;
+
+    /// <summary>BR-11.2: gấp ít nhất chừng này phần trăm mức thông thường (trung vị) mới là bất thường.</summary>
+    public int AnomalyRatioPercent { get; init; } = 300;
+
+    /// <summary>BR-11.3: gấp ít nhất chừng này phần trăm thì là mức cao (gửi thông báo).</summary>
+    public int AnomalyHighRatioPercent { get; init; } = 500;
+
+    /// <summary>Khoản dưới số tiền này không bao giờ bị coi là bất thường (tránh nhiễu với khoản nhỏ).</summary>
+    public long AnomalyMinAmountCents { get; init; } = 200_000;
+
+    /// <summary>Hai khoản cùng ví, cùng số tiền, cùng nơi nhận trong chừng này phút → nghi trùng.</summary>
+    public int DuplicateWindowMinutes { get; init; } = 10;
+
+    /// <summary>BR-11.4: đã xác nhận bình thường một khoản thì khoản tương tự có số tiền tới (khoản đó × chừng này %) không bị báo nữa.</summary>
+    public int NormalFeedbackTolerancePercent { get; init; } = 125;
+
+    /// <summary>Quét bất thường các khoản chi trong chừng này ngày gần nhất.</summary>
+    public int AnomalyScanDays { get; init; } = 3;
+
+    /// <summary>Dự báo theo danh mục dùng chừng này tháng trọn vẹn gần nhất.</summary>
+    public int CategoryForecastMonths { get; init; } = 3;
+
+    /// <summary>BR-06.1: cần dữ liệu ở ít nhất chừng này tháng trọn vẹn, ít hơn → độ tin cậy thấp.</summary>
+    public int CategoryForecastMinMonths { get; init; } = 2;
+
+    /// <summary>Danh mục "thay đổi nhiều" khi dự kiến lệch ít nhất chừng này phần trăm so với tháng trước.</summary>
+    public int CategoryChangePercent { get; init; } = 20;
+
+    /// <summary>Hạn mức đề xuất làm tròn lên bội số này (đồng).</summary>
+    public long BudgetSuggestionRoundingCents { get; init; } = 10_000;
+
+    /// <summary>BR-08.1: tốc độ góp mục tiêu tính từ tối đa chừng này tháng gần nhất.</summary>
+    public int GoalRateMonths { get; init; } = 6;
 }
 
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>

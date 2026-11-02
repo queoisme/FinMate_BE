@@ -17,14 +17,26 @@ public class ForecastController : ControllerBase
     private readonly IForecastAlertService _alerts;
     private readonly IBudgetForecastService _budgets;
     private readonly IIncomeForecastService _income;
+    private readonly IAnomalyService _anomalies;
+    private readonly ICategoryForecastService _categories;
+    private readonly IGoalForecastService _goals;
 
     public ForecastController(
-        IForecastService forecast, IForecastAlertService alerts, IBudgetForecastService budgets, IIncomeForecastService income)
+        IForecastService forecast,
+        IForecastAlertService alerts,
+        IBudgetForecastService budgets,
+        IIncomeForecastService income,
+        IAnomalyService anomalies,
+        ICategoryForecastService categories,
+        IGoalForecastService goals)
     {
         _forecast = forecast;
         _alerts = alerts;
         _budgets = budgets;
         _income = income;
+        _anomalies = anomalies;
+        _categories = categories;
+        _goals = goals;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -67,7 +79,46 @@ public class ForecastController : ControllerBase
     [HttpPost("alerts/{id:guid}/feedback")]
     public async Task<IActionResult> Feedback(Guid id, [FromBody] AlertFeedbackRequest request, CancellationToken ct)
         => Ok(ApiResponse<ForecastAlertDto>.Ok(await _alerts.SetFeedbackAsync(CurrentUserId, id, request.Feedback, ct)));
+
+    /// <summary>Khoản chi bị đánh dấu bất thường, mới nhất trước. <paramref name="status"/>: <c>open</c> (mặc định, chưa phản hồi) hoặc <c>all</c>.</summary>
+    [HttpGet("anomalies")]
+    public async Task<IActionResult> Anomalies([FromQuery] string? status = null, [FromQuery] int limit = 20, CancellationToken ct = default)
+    {
+        var openOnly = !string.Equals(status, AllAnomalies, StringComparison.OrdinalIgnoreCase);
+        return Ok(ApiResponse<IReadOnlyList<AnomalyDto>>.Ok(await _anomalies.ListAsync(CurrentUserId, openOnly, limit, ct)));
+    }
+
+    /// <summary>Phản hồi một khoản bất thường: <c>normal</c> | <c>one_off</c> | <c>wrong_entry</c> | <c>suspicious</c>.</summary>
+    [HttpPost("anomalies/{id:guid}/feedback")]
+    public async Task<IActionResult> AnomalyFeedback(Guid id, [FromBody] AnomalyFeedbackRequest request, CancellationToken ct)
+        => Ok(ApiResponse<AnomalyFeedbackResultDto>.Ok(await _anomalies.SetFeedbackAsync(CurrentUserId, id, request.Resolution, ct)));
+
+    /// <summary>Chi tiêu dự kiến theo danh mục cho một tháng tới (<c>yyyy-MM</c>, mặc định tháng tới), kèm hạn mức đề xuất.</summary>
+    [HttpGet("categories")]
+    public async Task<IActionResult> Categories([FromQuery] string? month, CancellationToken ct)
+        => Ok(ApiResponse<CategoryForecastDto>.Ok(await _categories.GetAsync(CurrentUserId, month, ct)));
+
+    /// <summary>Lưu hạn mức (đã xem, chỉnh) làm ngân sách kỳ tới. Danh mục đã có ngân sách: áp từ tháng sau; chưa có: tạo mới, áp ngay.</summary>
+    [HttpPost("categories/apply")]
+    public async Task<IActionResult> ApplyCategories([FromBody] ApplyCategoryBudgetsRequest request, CancellationToken ct)
+    {
+        var items = (request.Items ?? []).Select(i => new CategoryBudgetItem(i.CategoryId, i.LimitCents)).ToList();
+        return Ok(ApiResponse<IReadOnlyList<AppliedCategoryBudgetDto>>.Ok(await _categories.ApplyAsync(CurrentUserId, items, ct)));
+    }
+
+    /// <summary>Ngày dự kiến đạt mục tiêu tiết kiệm (trung bình và thận trọng), kịp hạn chưa, cần góp bao nhiêu. Thử mức góp khác qua query, không lưu.</summary>
+    [HttpGet("goals/{goalId:guid}")]
+    public async Task<IActionResult> Goal(Guid goalId, [FromQuery] long? monthlyContributionCents, CancellationToken ct)
+        => Ok(ApiResponse<GoalForecastDto>.Ok(await _goals.GetAsync(CurrentUserId, goalId, monthlyContributionCents, ct)));
+
+    private const string AllAnomalies = "all";
 }
+
+public record AnomalyFeedbackRequest(string? Resolution);
+
+public record CategoryBudgetItemRequest(Guid CategoryId, long LimitCents);
+
+public record ApplyCategoryBudgetsRequest(IReadOnlyList<CategoryBudgetItemRequest>? Items);
 
 public record AlertFeedbackRequest(string? Feedback);
 

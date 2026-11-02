@@ -9,4 +9,7 @@ public enum ForecastAlertKind
     BillStatusCheck,
     IncomeLate,
     PriceChange,
+
+    /// <summary>Khoản chi bất thường mức cao (đợt 3).</summary>
+    Anomaly,
 }

@@ -125,40 +125,13 @@ public class InsightGeneratorJobTests
     }
 
     [Fact]
-    public async Task UnusualSpending_OneChargeFarAboveTheCategoryNorm_IsFlagged()
+    public async Task UnusualSpending_FarAboveTheCategoryNorm_NoLongerProducesAnInsight()
     {
+        // Phase 56: bất thường chuyển sang transaction_anomalies (có phản hồi); insight trùng lặp sẽ báo một khoản hai lần.
         var categoryId = Guid.NewGuid();
         var normal = Enumerable.Range(1, 8)
             .Select(i => Debit(Today.AddDays(-i), 50_000, $"Quán {i}", categoryId));
         SetupDebits(normal.Append(Debit(Today, 5_000_000, "Nhà hàng sang", categoryId)).ToArray());
-
-        await _job.GenerateAsync(Today);
-
-        var insight = _written.Single(i => i.InsightType == InsightType.UnusualSpending);
-        insight.CategoryId.Should().Be(categoryId);
-        insight.AmountCents.Should().Be(5_000_000);
-    }
-
-    [Fact]
-    public async Task UnusualSpending_SteadySpending_HasNoOutlierToReport()
-    {
-        var categoryId = Guid.NewGuid();
-        SetupDebits(Enumerable.Range(1, 8)
-            .Select(i => Debit(Today.AddDays(-i), 50_000, $"Quán {i}", categoryId))
-            .ToArray());
-
-        await _job.GenerateAsync(Today);
-
-        _written.Should().NotContain(i => i.InsightType == InsightType.UnusualSpending);
-    }
-
-    [Fact]
-    public async Task UnusualSpending_TooFewSamples_DoesNotGuess()
-    {
-        var categoryId = Guid.NewGuid();
-        SetupDebits(
-            Debit(Today.AddDays(-2), 20_000, "A", categoryId),
-            Debit(Today, 9_000_000, "B", categoryId));
 
         await _job.GenerateAsync(Today);
 

@@ -121,19 +121,7 @@ public static class SpendingBaselineCalculator
     }
 
     /// <summary>Phân vị theo nội suy tuyến tính giữa hai điểm kề nhau.</summary>
-    internal static double Quantile(IReadOnlyList<double> values, double q)
-    {
-        if (values.Count == 0)
-        {
-            return 0;
-        }
-
-        var sorted = values.OrderBy(v => v).ToArray();
-        var position = (sorted.Length - 1) * q;
-        var lower = (int)Math.Floor(position);
-        var upper = (int)Math.Ceiling(position);
-        return sorted[lower] + ((sorted[upper] - sorted[lower]) * (position - lower));
-    }
+    internal static double Quantile(IReadOnlyList<double> values, double q) => Statistics.Quantile(values, q);
 
     private static long Round(double value) => (long)Math.Round(value, MidpointRounding.AwayFromZero);
 }

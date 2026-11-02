@@ -30,6 +30,7 @@ internal static class ForecastAlertKindColumn
         [ForecastAlertKind.BillStatusCheck] = "bill_status_check",
         [ForecastAlertKind.IncomeLate] = "income_late",
         [ForecastAlertKind.PriceChange] = "price_change",
+        [ForecastAlertKind.Anomaly] = "anomaly",
     };
 
     private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
@@ -37,4 +38,37 @@ internal static class ForecastAlertKindColumn
     public static string ToColumn(ForecastAlertKind value) => ToText[value];
 
     public static ForecastAlertKind FromColumn(string value) => FromText[value];
+}
+
+internal static class AnomalyKindColumn
+{
+    private static readonly Dictionary<AnomalyKind, string> ToText = new()
+    {
+        [AnomalyKind.CategorySpike] = "category_spike",
+        [AnomalyKind.MerchantSpike] = "merchant_spike",
+        [AnomalyKind.Duplicate] = "duplicate",
+    };
+
+    private static readonly Dictionary<string, AnomalyKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
+
+    public static string ToColumn(AnomalyKind value) => ToText[value];
+
+    public static AnomalyKind FromColumn(string value) => FromText[value];
+}
+
+internal static class AnomalyResolutionColumn
+{
+    private static readonly Dictionary<AnomalyResolution, string> ToText = new()
+    {
+        [AnomalyResolution.Normal] = "normal",
+        [AnomalyResolution.OneOff] = "one_off",
+        [AnomalyResolution.WrongEntry] = "wrong_entry",
+        [AnomalyResolution.Suspicious] = "suspicious",
+    };
+
+    private static readonly Dictionary<string, AnomalyResolution> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
+
+    public static string ToColumn(AnomalyResolution value) => ToText[value];
+
+    public static AnomalyResolution FromColumn(string value) => FromText[value];
 }
