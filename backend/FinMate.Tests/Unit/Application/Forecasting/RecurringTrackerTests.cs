@@ -47,6 +47,19 @@ public class RecurringTrackerTests
     }
 
     [Fact]
+    public void PaymentWithANewPrice_AdvancesAndReportsThePriceChange()
+    {
+        var item = Entity(RecurringStatus.Active, Today, source: RecurringSource.Manual);
+        var changes = new List<PriceChange>();
+
+        RecurringTracker.Advance(item, [Debit(Today, 330_000, "Netflix")], Rules, DateTimeOffset.UtcNow, changes);
+
+        changes.Should().ContainSingle(c => c.OldAmountCents == 260_000 && c.NewAmountCents == 330_000);
+        item.AmountCents.Should().Be(330_000, "giá đổi thật thì theo giá mới, cả với khoản user tự thêm");
+        item.NextDueDate.Should().Be(Today.AddMonths(1));
+    }
+
+    [Fact]
     public void ManualItem_KeepsTheAmountTheUserEntered()
     {
         var item = Entity(RecurringStatus.Active, Today, source: RecurringSource.Manual);

@@ -93,6 +93,17 @@ public class CashflowEngineTests
     }
 
     [Fact]
+    public void RecurringEvents_OverdueIncome_IsNotCountedOnToday()
+        => CashflowEngine.RecurringEvents(
+                [Item("Lương", 15_000_000, Today.AddDays(-2), RecurringDirection.Inflow)], [], Today, Today.AddDays(20), Rules)
+            .Should().BeEmpty("trông vào tiền chưa về là lạc quan; lần kế tiếp ở tháng sau nằm ngoài kỳ");
+
+    [Fact]
+    public void RecurringEvents_BillPaidAtANewPrice_IsStillTreatedAsPaid()
+        => CashflowEngine.RecurringEvents([Item("Netflix", 260_000, Today.AddDays(1))], [Debit(Today, 330_000, "Netflix")], Today, Today.AddDays(10), Rules)
+            .Should().BeEmpty();
+
+    [Fact]
     public void RecurringEvents_Income_IsPositive()
         => CashflowEngine.RecurringEvents(
                 [Item("Lương", 15_000_000, Today.AddDays(3), RecurringDirection.Inflow)], [], Today, Today.AddDays(5), Rules)
