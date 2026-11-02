@@ -110,6 +110,57 @@ public sealed record FinanceMethodSettings
     public int SupportMinSharePercent { get; init; } = 50;
 }
 
+/// <summary>Một khoảng ngày lễ/Tết mà chi tiêu linh hoạt thường tăng (hoặc giảm). Tết đổi ngày theo âm lịch nên admin nhập theo từng năm.</summary>
+public sealed record ForecastHoliday
+{
+    public string Name { get; init; } = string.Empty;
+    public DateOnly Start { get; init; }
+    public DateOnly End { get; init; }
+
+    /// <summary>Hệ số chi tiêu linh hoạt trong khoảng này, theo phần trăm (140 = chi nhiều hơn 40%).</summary>
+    public int MultiplierPercent { get; init; } = 100;
+}
+
+/// <summary>
+/// Dự báo tài chính (Flow 6). Các số ở đây thay cho những mã BR mà sơ đồ nhắc tới nhưng chưa có định nghĩa; mặc định do chủ dự án duyệt ngày 2026-11-02.
+/// </summary>
+public sealed record ForecastSettings
+{
+    /// <summary>Cửa sổ lịch sử dùng để học thói quen chi tiêu.</summary>
+    public int HistoryWindowDays { get; init; } = 90;
+
+    /// <summary>Đủ dữ liệu (BR-01.2, BR-06.1): ít nhất chừng này ngày có giao dịch trong cửa sổ lịch sử; ít hơn thì dự báo mang cờ tin cậy thấp.</summary>
+    public int MinHistoryDays { get; init; } = 30;
+
+    /// <summary>Dự phòng mặc định (BR-03.3) theo % thu nhập dự kiến tháng, khi user chưa tự đặt.</summary>
+    public int ReservePercentOfIncome { get; init; } = 5;
+
+    /// <summary>Dự báo dòng tiền xa nhất bao nhiêu ngày.</summary>
+    public int MaxHorizonDays { get; init; } = 90;
+
+    /// <summary>Số tiền các lần của cùng một khoản định kỳ được lệch nhau tối đa bao nhiêu %.</summary>
+    public int AmountTolerancePercent { get; init; } = 10;
+
+    public int MonthlyMinIntervalDays { get; init; } = 25;
+    public int MonthlyMaxIntervalDays { get; init; } = 35;
+    public int WeeklyMinIntervalDays { get; init; } = 6;
+    public int WeeklyMaxIntervalDays { get; init; } = 8;
+
+    /// <summary>Thấy chừng này lần lặp thì đề xuất khoản định kỳ chờ user xác nhận.</summary>
+    public int SuggestMinOccurrences { get; init; } = 2;
+
+    /// <summary>Thấy chừng này lần lặp thì tự ghi nhận (vẫn sửa/hủy được).</summary>
+    public int AutoActivateOccurrences { get; init; } = 3;
+
+    /// <summary>Khoản chi định kỳ quá hạn mà chưa thấy thanh toán vẫn được coi là sắp trả trong chừng này ngày; quá đó thì không tính nữa.</summary>
+    public int OverdueGraceDays { get; init; } = 7;
+
+    /// <summary>Số khoản giả định tối đa trong một lần thử kịch bản.</summary>
+    public int MaxScenarioItems { get; init; } = 20;
+
+    public IReadOnlyList<ForecastHoliday> Holidays { get; init; } = [];
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -121,6 +172,7 @@ public sealed record SystemConfigDocument
     public ThemeSettings Theme { get; init; } = new();
     public QrTransferSettings QrTransfer { get; init; } = new();
     public FinanceMethodSettings FinanceMethods { get; init; } = new();
+    public ForecastSettings Forecast { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

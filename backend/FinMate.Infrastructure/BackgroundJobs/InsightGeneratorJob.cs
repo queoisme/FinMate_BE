@@ -16,12 +16,6 @@ public class InsightGeneratorJob
     /// <summary>Dưới mức này thì chênh lệch tháng chỉ là dao động thường ngày, không đáng báo.</summary>
     private const double VsLastMonthThresholdPercent = 15;
 
-    private const int RecurringLookbackDays = 90;
-    private const int RecurringMinOccurrences = 3;
-    private const double RecurringAmountTolerance = 0.10;
-    private const int RecurringMinIntervalDays = 25;
-    private const int RecurringMaxIntervalDays = 35;
-
     private const int UnusualLookbackDays = 90;
     private const int UnusualMinSamples = 5;
 
@@ -37,7 +31,7 @@ public class InsightGeneratorJob
 
     public async Task GenerateAsync(DateOnly today, CancellationToken ct = default)
     {
-        var lookbackStart = today.AddDays(-RecurringLookbackDays);
+        var lookbackStart = today.AddDays(-UnusualLookbackDays);
         var userIds = await _reportRepository.GetUserIdsWithRecentActivityAsync(lookbackStart, today, ct);
 
         foreach (var userId in userIds)
@@ -45,7 +39,7 @@ public class InsightGeneratorJob
             await GenerateVsLastMonthAsync(userId, today, ct);
 
             var transactions = await _reportRepository.GetConfirmedDebitsAsync(userId, lookbackStart, today, ct);
-            await GenerateRecurringAsync(userId, today, transactions, ct);
+            // Khoản chi định kỳ không còn sinh insight từ 2026-11-02: RecurringDetectionJob tạo đề xuất recurring_items thay thế (Phase 54).
             await GenerateUnusualSpendingAsync(userId, today, transactions, ct);
         }
     }
@@ -99,70 +93,6 @@ public class InsightGeneratorJob
         }, ct);
     }
 
-    private async Task GenerateRecurringAsync(
-        Guid userId, DateOnly today, IReadOnlyList<Transaction> transactions, CancellationToken ct)
-    {
-        var periodStart = today.AddDays(-RecurringLookbackDays);
-
-        var groups = transactions
-            .Where(t => !string.IsNullOrWhiteSpace(t.MerchantName))
-            .GroupBy(t => t.MerchantName!.Trim(), StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in groups)
-        {
-            var ordered = group.OrderBy(t => t.TransactedAt).ToList();
-            if (ordered.Count < RecurringMinOccurrences)
-            {
-                continue;
-            }
-
-            var median = (long)Statistics.Median(ordered.Select(t => (double)t.AmountCents).ToArray());
-            if (median <= 0)
-            {
-                continue;
-            }
-
-            // Số tiền phải ổn định — cùng merchant nhưng mỗi lần một giá thì là mua sắm
-            // thường ngày, không phải thuê bao.
-            var amountsStable = ordered.All(t =>
-                Math.Abs(t.AmountCents - median) <= median * RecurringAmountTolerance);
-            if (!amountsStable)
-            {
-                continue;
-            }
-
-            var intervals = ordered
-                .Zip(ordered.Skip(1), (a, b) => (VietnamTime.DateOf(b.TransactedAt).DayNumber
-                                                 - VietnamTime.DateOf(a.TransactedAt).DayNumber))
-                .ToList();
-
-            var monthlyCadence = intervals.All(d => d is >= RecurringMinIntervalDays and <= RecurringMaxIntervalDays);
-            if (!monthlyCadence)
-            {
-                continue;
-            }
-
-            var categoryId = ordered[^1].CategoryId;
-            if (await _reportRepository.InsightExistsAsync(userId, InsightType.RecurringDetected, categoryId, periodStart, ct))
-            {
-                continue;
-            }
-
-            await AddAsync(new SpendingInsight
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                InsightType = InsightType.RecurringDetected,
-                Title = "Có vẻ đây là khoản chi định kỳ",
-                Body = $"Bạn đã chi cho \"{group.Key}\" {ordered.Count} lần trong 3 tháng qua, "
-                     + "mỗi lần cách nhau khoảng một tháng với số tiền gần như nhau.",
-                CategoryId = categoryId,
-                AmountCents = median,
-                PeriodStart = periodStart,
-                PeriodEnd = today,
-            }, ct);
-        }
-    }
 
     private async Task GenerateUnusualSpendingAsync(
         Guid userId, DateOnly today, IReadOnlyList<Transaction> transactions, CancellationToken ct)
