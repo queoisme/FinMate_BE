@@ -19,3 +19,22 @@ internal static class ForecastExclusionReasonColumn
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
     };
 }
+
+internal static class ForecastAlertKindColumn
+{
+    private static readonly Dictionary<ForecastAlertKind, string> ToText = new()
+    {
+        [ForecastAlertKind.LowBalance] = "low_balance",
+        [ForecastAlertKind.BudgetRisk] = "budget_risk",
+        [ForecastAlertKind.BillDue] = "bill_due",
+        [ForecastAlertKind.BillStatusCheck] = "bill_status_check",
+        [ForecastAlertKind.IncomeLate] = "income_late",
+        [ForecastAlertKind.PriceChange] = "price_change",
+    };
+
+    private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
+
+    public static string ToColumn(ForecastAlertKind value) => ToText[value];
+
+    public static ForecastAlertKind FromColumn(string value) => FromText[value];
+}

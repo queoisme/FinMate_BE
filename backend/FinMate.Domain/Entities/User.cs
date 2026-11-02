@@ -24,6 +24,13 @@ public class User
     /// <summary>Khoản dự phòng user tự đặt (đồng) cho "số tiền có thể chi". Null = dùng mặc định hệ thống (% thu nhập dự kiến).</summary>
     public long? ForecastReserveCents { get; set; }
 
+    /// <summary>Báo khi số dư dự kiến xuống dưới mức này (đồng). Null = tắt cảnh báo số dư thấp.</summary>
+    public long? LowBalanceThresholdCents { get; set; }
+
+    /// <summary>Giờ yên lặng theo phút trong ngày (giờ VN, 0–1439), có thể qua nửa đêm. Cả hai null = dùng mặc định hệ thống.</summary>
+    public short? QuietHoursStartMinute { get; set; }
+    public short? QuietHoursEndMinute { get; set; }
+
     /// <summary>
     /// Lúc người dùng chứng minh họ thật sự sở hữu email này. NULL = chưa xác minh.
     ///

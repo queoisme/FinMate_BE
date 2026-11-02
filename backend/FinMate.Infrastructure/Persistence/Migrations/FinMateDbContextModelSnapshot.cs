@@ -779,6 +779,100 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastAlert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("data");
+
+                    b.Property<string>("DedupKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("dedup_key");
+
+                    b.Property<DateTimeOffset?>("FeedbackAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("feedback_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("MarkedInaccurate")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("feedback");
+
+                    b.Property<DateTimeOffset>("ScheduledFor")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_for");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScheduledFor")
+                        .HasDatabaseName("ix_forecast_alerts_pending_due")
+                        .HasFilter("status = 'pending'");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_forecast_alerts_user_created");
+
+                    b.HasIndex("UserId", "Kind", "DedupKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_forecast_alerts_user_kind_dedup");
+
+                    b.ToTable("forecast_alerts", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
+
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change')");
+
+                            t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_alerts_status", "status IN ('pending','sent')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.GoalContribution", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2159,6 +2253,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_locked");
 
+                    b.Property<long?>("LowBalanceThresholdCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("low_balance_threshold_cents");
+
                     b.Property<long?>("MonthlyIncomeCents")
                         .HasColumnType("bigint")
                         .HasColumnName("monthly_income_cents");
@@ -2178,6 +2276,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
+
+                    b.Property<short?>("QuietHoursEndMinute")
+                        .HasColumnType("smallint")
+                        .HasColumnName("quiet_hours_end_minute");
+
+                    b.Property<short?>("QuietHoursStartMinute")
+                        .HasColumnType("smallint")
+                        .HasColumnName("quiet_hours_start_minute");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -2230,9 +2336,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
 
+                            t.HasCheckConstraint("chk_users_low_balance_threshold", "low_balance_threshold_cents IS NULL OR low_balance_threshold_cents >= 0");
+
                             t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
 
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
+
+                            t.HasCheckConstraint("chk_users_quiet_hours", "(quiet_hours_start_minute IS NULL AND quiet_hours_end_minute IS NULL) OR (quiet_hours_start_minute BETWEEN 0 AND 1439 AND quiet_hours_end_minute BETWEEN 0 AND 1439)");
 
                             t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
 
@@ -2549,6 +2659,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastAlert", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.GoalContribution", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.SavingGoal", "SavingGoal")
@@ -2823,6 +2944,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             b1.Property<bool>("BudgetAlertsEnabled")
                                 .HasColumnType("boolean")
                                 .HasColumnName("budget_alerts_enabled");
+
+                            b1.Property<bool>("ForecastAlertsEnabled")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(true)
+                                .HasColumnName("forecast_alerts_enabled");
 
                             b1.Property<bool>("PushEnabled")
                                 .HasColumnType("boolean")
