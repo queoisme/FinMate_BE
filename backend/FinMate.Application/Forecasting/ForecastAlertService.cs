@@ -47,6 +47,7 @@ public class ForecastAlertService : IForecastAlertService
     private readonly IForecastAlertRepository _alerts;
     private readonly ISystemConfigProvider _config;
     private readonly ICacheService _cache;
+    private readonly IAnomalyService? _anomalies;
 
     public ForecastAlertService(
         IForecastService forecast,
@@ -57,7 +58,8 @@ public class ForecastAlertService : IForecastAlertService
         IForecastAlertDispatcher dispatcher,
         IForecastAlertRepository alerts,
         ISystemConfigProvider config,
-        ICacheService cache)
+        ICacheService cache,
+        IAnomalyService? anomalies = null)
     {
         _forecast = forecast;
         _budgetForecast = budgetForecast;
@@ -68,6 +70,7 @@ public class ForecastAlertService : IForecastAlertService
         _alerts = alerts;
         _config = config;
         _cache = cache;
+        _anomalies = anomalies;
     }
 
     public async Task CheckUserAsync(Guid userId, CancellationToken ct = default)
@@ -75,6 +78,7 @@ public class ForecastAlertService : IForecastAlertService
         var settings = (await _config.GetAsync(ct)).Document.Forecast;
         await CheckLowBalanceAsync(userId, settings, ct);
         await CheckBudgetsAsync(userId, settings, ct);
+        await CheckAnomaliesAsync(userId, ct);
     }
 
     public async Task RunDailyAsync(Guid userId, CancellationToken ct = default)
@@ -147,6 +151,46 @@ public class ForecastAlertService : IForecastAlertService
                 ["maxDailySpendCents"] = warning.MaxDailySpendCents.ToString(),
             },
             HonorQuietHours: true), ct);
+    }
+
+    /// <summary>
+    /// Trang 9: đánh dấu khoản chi bất thường; chỉ mức cao (BR-11.3) mới gửi thông báo, mỗi giao dịch tối đa một lần (chống trùng theo giao dịch).
+    /// Khoản mở đã đánh dấu từ lượt trước cũng được đưa qua đây: nếu lượt trước hỏng trước khi kịp ghi cảnh báo thì lượt này bù.
+    /// </summary>
+    private async Task CheckAnomaliesAsync(Guid userId, CancellationToken ct)
+    {
+        if (_anomalies is null)
+        {
+            return;
+        }
+
+        foreach (var detected in await _anomalies.ScanAsync(userId, ct))
+        {
+            var anomaly = detected.Anomaly;
+            if (anomaly.Severity != AnomalySeverity.High)
+            {
+                continue;
+            }
+
+            var where = detected.MerchantName is { Length: > 0 } merchant ? $" tại {merchant}" : string.Empty;
+            var body = anomaly.Kind == AnomalyKind.Duplicate
+                ? $"Khoản {ForecastText.Money(anomaly.AmountCents)}{where} ngày {ForecastText.Day(detected.Date)} có vẻ bị ghi hai lần. Kiểm tra giúp bạn nhé."
+                : $"Khoản {ForecastText.Money(anomaly.AmountCents)}{where} ngày {ForecastText.Day(detected.Date)} cao gấp "
+                  + $"{ForecastText.Times(anomaly.RatioPercent)} lần mức bạn thường chi ({ForecastText.Money(anomaly.TypicalCents)}).";
+            await _dispatcher.RaiseAsync(new ForecastAlertRequest(
+                userId,
+                ForecastAlertKind.Anomaly,
+                $"anomaly:{anomaly.TransactionId}",
+                "Có một khoản chi bất thường",
+                body,
+                new Dictionary<string, string>
+                {
+                    ["anomalyId"] = anomaly.Id.ToString(),
+                    ["transactionId"] = anomaly.TransactionId.ToString(),
+                    ["anomalyKind"] = AnomalyService.KindText(anomaly.Kind),
+                    ["amountCents"] = anomaly.AmountCents.ToString(),
+                }), ct);
+        }
     }
 
     private async Task CheckBudgetsAsync(Guid userId, Admin.SystemConfig.ForecastSettings settings, CancellationToken ct)

@@ -9,6 +9,9 @@ internal static class ForecastText
 
     public static string Money(long amount) => amount.ToString("N0", VietnamMoney) + "đ";
 
+    /// <summary>Phần trăm → "bao nhiêu lần", một chữ số thập phân, dấu phẩy kiểu Việt: 350 → "3,5".</summary>
+    public static string Times(int percent) => (percent / 100.0).ToString("0.#", VietnamMoney);
+
     public static string Day(DateOnly date) => date.ToString("dd/MM", CultureInfo.InvariantCulture);
 
     public static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
