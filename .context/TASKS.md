@@ -782,10 +782,10 @@
 | Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 9 / 10 *(còn: báo nhóm Flutter; Phase 7 giữ nguyên để làm lịch sử)* |
 | Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
 | Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
-| Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 0 / 3 *(kế hoạch)* |
-| **Total** (không tính Backlog) | | **417 / 444** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
+| **Total** (không tính Backlog) | | **424 / 450** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại (2026-11-02):** 25 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 3 ở Phase 56), 2 task
+**Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
 nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
@@ -1276,7 +1276,16 @@ Kế hoạch đã duyệt ngày 2026-11-02 (schema, outbox, giờ yên lặng ch
 - [ ] Thu theo mùa (BR-07.3) — cần hơn một năm dữ liệu.
 - Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1404/1405 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch.
 
-## Phase 56 — Dự báo tài chính, đợt 3: hoàn thiện (kế hoạch)
-- [ ] Phát hiện bất thường có phản hồi (trang 9); "chi một lần" đặt `exclude_from_forecast`.
-- [ ] Dự báo chi theo danh mục → ngân sách kỳ tới (trang 2).
-- [ ] Ngày đạt mục tiêu tiết kiệm: hai tốc độ trung bình/thận trọng, mức cần góp để kịp hạn (trang 4).
+## Phase 56 — Dự báo tài chính, đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu (2026-11-02)
+Kế hoạch đã duyệt ngày 2026-11-02 (bảng đánh dấu riêng, ngưỡng mặc định thay BR-06/08/11, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu).
+Nhánh `feat/forecast-complete` (xếp chồng trên `feat/forecast-alerts`). Thiết kế: `ARCHITECTURE.md` §2.6 "Đợt 3"; yêu cầu FR-FCST-14…16.
+- [x] Schema — migration `AddTransactionAnomalies`: bảng `transaction_anomalies` (CHECK kind/severity/resolution, `resolved_at` đi cùng `resolution`, số tiền > 0, UNIQUE `transaction_id`, index tra phản hồi "bình thường"); thêm `anomaly` vào CHECK `forecast_alerts.kind` (Down xóa các dòng `anomaly` trước khi đặt lại CHECK cũ).
+- [x] Bất thường (trang 9): `AnomalyDetector` thuần (trùng, theo nơi nhận, theo danh mục; BR-11.1…11.4), `AnomalyService` (quét, danh sách, phản hồi), quét trong `ForecastAlertService.CheckUserAsync` — sau mỗi giao dịch và lúc 08:00; mức cao → cảnh báo `anomaly` qua hộp thư. `InsightGeneratorJob` thôi sinh `UnusualSpending`.
+- [x] Chi theo danh mục (trang 2): `CategoryForecastCalculator` thuần (trọng số 3:2:1, BR-06.1 lùi về ngân sách / trung bình, làm tròn lên 10.000đ), `CategoryForecastService` (xem + áp làm ngân sách kỳ tới: chốt snapshot tháng này rồi mới đổi hạn mức; danh mục chưa có ngân sách thì tạo qua `CreateBudgetCommandHandler`).
+- [x] Ngày đạt mục tiêu (trang 4): `GoalForecastCalculator` thuần (tốc độ trung bình / phân vị 25, hai ngày, kịp hạn theo ngày thận trọng, mức cần góp), `GoalForecastService` (+ `ISavingGoalRepository.GetContributionsSinceAsync`).
+- [x] API: `GET /forecast/anomalies`, `POST /forecast/anomalies/{id}/feedback`, `GET /forecast/categories`, `POST /forecast/categories/apply`, `GET /forecast/goals/{goalId}`; cấu hình `forecast` thêm 14 số (+ validator).
+- [x] Test: unit cho 3 bộ tính toán và `AnomalyService` (gồm trả lại khoản đã đánh dấu còn mở, đổi ý khỏi "chi một lần"); 4 test tích hợp (bất thường → cảnh báo đúng một lần + phản hồi + 400/404 chéo user, "chi một lần" đặt cờ trong DB, ngân sách kỳ tới không đụng tháng này, ngày đạt mục tiêu + kịch bản + 400/404).
+- [x] Tài liệu: REQUIREMENTS §6.5/§13.1/§13.6 (FR-RPT-05 còn một loại insight), ARCHITECTURE §2.6/§4.1, CLAUDE.md.
+- [ ] Báo nhóm Flutter: 5 endpoint mới, push `kind = anomaly` (+ `anomalyId`, `transactionId`, `anomalyKind`, `amountCents`), insight `unusual_spending` không còn sinh mới.
+- [ ] Mùa vụ cho dự báo theo danh mục (trang 2, nhánh "Điều chỉnh theo mùa vụ") — cùng điều kiện với BR-07.3: cần hơn một năm dữ liệu.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1442/1443 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test tích hợp: job Hangfire sau giao dịch và lượt kiểm tra khác chạy song song, bên thua cuộc đua UNIQUE không gửi cảnh báo — và nếu bên thắng hỏng sau khi đánh dấu thì cảnh báo mất hẳn vì giao dịch không bao giờ được quét lại. Nay mỗi lượt quét trả cả khoản đã đánh dấu còn mở trong cửa sổ quét; hộp thư chống trùng.

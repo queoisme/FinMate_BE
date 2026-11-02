@@ -372,6 +372,19 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 - `data` của cảnh báo (JSON, mang số tiền) không bao giờ được log, cùng luật với payload push.
 - Thu nhập quá hạn chưa nhận không còn được đặt vào hôm nay (thận trọng); thanh toán cùng người nhận nhưng lệch giá vẫn là "đã trả" (tránh trừ hóa đơn hai lần).
 
+**Đợt 3 — bất thường, chi theo danh mục, ngày đạt mục tiêu (thêm 2026-11-02).** Vẫn là thống kê thuần, không gọi AI.
+- **Bất thường (trang 9):** `AnomalyDetector` (hàm thuần) xét từng khoản chi theo thứ tự trùng lặp → nơi nhận → danh mục, rồi bỏ nếu user đã xác nhận "bình thường"
+  khoản tương tự (BR-11.4). Kết quả lưu ở `transaction_anomalies`, UNIQUE theo giao dịch nên mỗi giao dịch chỉ xét một lần. Quét chạy trong
+  `ForecastAlertService.CheckUserAsync`, tức là theo đúng hai đường kích hoạt của đợt 2 (sau giao dịch, 08:00) — không sửa thêm handler nào. Mỗi lượt quét trả
+  **mọi** khoản còn mở trong cửa sổ quét chứ không chỉ khoản mới, để lượt sau bù được cảnh báo nếu lượt trước hỏng giữa chừng; hộp thư chống trùng theo
+  `anomaly:{transactionId}`. Chỉ mức cao mới push (kind `anomaly`, không theo giờ yên lặng). Phản hồi "chi một lần" dùng lại cờ `exclude_from_forecast`.
+  Insight `UnusualSpending` của `InsightGeneratorJob` đã thôi sinh.
+- **Chi theo danh mục (trang 2):** `CategoryForecastCalculator` không dùng đường số dư — nó là trung bình trọng số theo tháng của từng danh mục, bỏ khoản chi một lần
+  và khoản bất thường chưa được xác nhận bình thường. "Lưu ngân sách kỳ tới" không đổi schema: kỳ ngân sách được tạo lười từ `budgets.limit_cents`, nên chốt
+  snapshot `budget_periods` của tháng này **trước** rồi mới đổi hạn mức — tháng này giữ hạn mức cũ, tháng sau nhận hạn mức mới.
+- **Ngày đạt mục tiêu (trang 4):** tốc độ góp theo tháng từ `goal_contributions` của chính mục tiêu; hai kịch bản (trung bình, phân vị 25) thay cho "mô phỏng nhiều
+  kịch bản"; kịp hạn được quyết theo kịch bản thận trọng. Mức góp thử là tham số truy vấn, không lưu.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1023,7 +1036,7 @@ Quản lý tài chính (thêm 2026-10-26):
   user_survey_answers, method_recommendations, user_methods
 
 Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
-  recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`)
+  recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`), transaction_anomalies (đợt 3, `AddTransactionAnomalies`)
                     + cột transactions.exclude_from_forecast / forecast_exclusion_reason,
                       financial_accounts.include_in_forecast, users.forecast_reserve_cents,
                       users.low_balance_threshold_cents / quiet_hours_start_minute / quiet_hours_end_minute / forecast_alerts_enabled
@@ -1150,14 +1163,14 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | Job | Schedule | Mô tả |
 |---|---|---|
 | `BudgetAlertJob` | Mỗi giờ | **Lưới vét** cho threshold 70%/90%/100%. Đường chính là TỨC THÌ sau mỗi giao dịch (`BudgetPeriodService.ApplyDeltaAsync`, docx Flow 2 mục 2a). Job vẫn cần vì hạ hạn mức và backfill lúc tạo budget đều làm vượt ngưỡng mà không có giao dịch nào |
-| `InsightGeneratorJob` | 02:00 mỗi ngày | Generate spending insights từ transaction data |
+| `InsightGeneratorJob` | 02:00 mỗi ngày | Insight so với tháng trước. Khoản định kỳ chuyển sang `RecurringDetectionJob`, chi tiêu bất thường sang quét bất thường của §2.6 đợt 3 |
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
 | `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
 | `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
 | `RecurringDetectionJob` | 01:30 mỗi ngày | Cập nhật khoản định kỳ đã có (thấy thanh toán thì đẩy ngày đến hạn) và đề xuất khoản mới (§2.6). Thay phần `RecurringDetected` của `InsightGeneratorJob` |
-| `ForecastDailyAlertJob` | 08:00 mỗi ngày | Cảnh báo dự báo hằng ngày (§2.6 đợt 2) |
+| `ForecastDailyAlertJob` | 08:00 mỗi ngày | Cảnh báo dự báo hằng ngày (§2.6 đợt 2) và quét chi tiêu bất thường (đợt 3) |
 | `ForecastAlertDispatchJob` | Mỗi 15 phút | Gửi cảnh báo đã hẹn giờ (hết giờ yên lặng, đổi giá chờ tới sáng) |
 
 **Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (chưa có job nào xóa `notification_body` sau 90 ngày — xem `TASKS.md` Phase 52). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
