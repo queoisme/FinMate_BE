@@ -11,18 +11,35 @@ public sealed record ForecastAccountDto(Guid Id, string Name, bool IncludeInFore
 
 /// <param name="ReserveCents">Dự phòng user tự đặt; null = dùng mặc định hệ thống.</param>
 /// <param name="EffectiveReserveCents">Dự phòng đang được trừ khi tính số tiền có thể chi.</param>
+/// <param name="LowBalanceThresholdCents">Ngưỡng cảnh báo số dư thấp; null = tắt.</param>
+/// <param name="QuietHoursStart">Giờ yên lặng riêng "HH:mm"; null = dùng mặc định hệ thống (<paramref name="DefaultQuietHoursStart"/>).</param>
 public sealed record ForecastSettingsDto(
     long? ReserveCents,
     int DefaultReservePercentOfIncome,
     long EffectiveReserveCents,
+    long? LowBalanceThresholdCents,
+    string? QuietHoursStart,
+    string? QuietHoursEnd,
+    string DefaultQuietHoursStart,
+    string DefaultQuietHoursEnd,
+    bool ForecastAlertsEnabled,
     IReadOnlyList<ForecastAccountDto> Accounts);
+
+/// <summary>Thay TOÀN BỘ cài đặt dự báo. Giờ yên lặng: cả hai trống = mặc định hệ thống, cả hai "HH:mm" = giờ riêng.</summary>
+public sealed record UpdateForecastSettingsCommand(
+    Guid UserId,
+    long? ReserveCents,
+    long? LowBalanceThresholdCents,
+    string? QuietHoursStart,
+    string? QuietHoursEnd,
+    bool ForecastAlertsEnabled);
 
 public sealed record TransactionForecastExclusionDto(Guid TransactionId, bool ExcludeFromForecast, string? Reason);
 
 public interface IForecastSettingsService
 {
     Task<ForecastSettingsDto> GetAsync(Guid userId, CancellationToken ct = default);
-    Task<ForecastSettingsDto> SetReserveAsync(Guid userId, long? reserveCents, CancellationToken ct = default);
+    Task<ForecastSettingsDto> SetAsync(UpdateForecastSettingsCommand command, CancellationToken ct = default);
     Task<ForecastAccountDto> SetAccountInclusionAsync(Guid userId, Guid accountId, bool included, CancellationToken ct = default);
 
     /// <summary>Loại (hoặc đưa lại) một giao dịch khỏi dữ liệu dự báo. Số dư không đổi: giao dịch vẫn có thật.</summary>
@@ -32,7 +49,7 @@ public interface IForecastSettingsService
 
 public class ForecastSettingsService : IForecastSettingsService
 {
-    private const long MaxReserveCents = 100_000_000_000;
+    private const long MaxAmountCents = 100_000_000_000;
 
     private readonly IUserRepository _users;
     private readonly IFinancialAccountRepository _accounts;
@@ -61,22 +78,54 @@ public class ForecastSettingsService : IForecastSettingsService
         var accounts = (await _accounts.GetListByUserAsync(userId, ct))
             .Select(a => new ForecastAccountDto(a.Id, a.AccountName, a.IncludeInForecast))
             .ToList();
-        return new ForecastSettingsDto(user.ForecastReserveCents, settings.ReservePercentOfIncome, ForecastService.Reserve(user, settings), accounts);
+        return new ForecastSettingsDto(
+            user.ForecastReserveCents,
+            settings.ReservePercentOfIncome,
+            ForecastService.Reserve(user, settings),
+            user.LowBalanceThresholdCents,
+            user.QuietHoursStartMinute is { } start ? QuietHours.Format(start) : null,
+            user.QuietHoursEndMinute is { } end ? QuietHours.Format(end) : null,
+            QuietHours.Format(settings.QuietHoursStartMinute),
+            QuietHours.Format(settings.QuietHoursEndMinute),
+            user.NotificationPrefs.ForecastAlertsEnabled,
+            accounts);
     }
 
-    public async Task<ForecastSettingsDto> SetReserveAsync(Guid userId, long? reserveCents, CancellationToken ct = default)
+    public async Task<ForecastSettingsDto> SetAsync(UpdateForecastSettingsCommand command, CancellationToken ct = default)
     {
-        if (reserveCents is < 0 or > MaxReserveCents)
+        var failures = new List<ValidationFailure>();
+        if (command.ReserveCents is < 0 or > MaxAmountCents)
         {
-            throw new ValidationException([new ValidationFailure(nameof(reserveCents), "Khoản dự phòng phải từ 0 trở lên.")]);
+            failures.Add(new ValidationFailure(nameof(command.ReserveCents), "Khoản dự phòng phải từ 0 trở lên."));
         }
 
-        var user = await _users.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);
-        user.ForecastReserveCents = reserveCents;
+        if (command.LowBalanceThresholdCents is < 0 or > MaxAmountCents)
+        {
+            failures.Add(new ValidationFailure(nameof(command.LowBalanceThresholdCents), "Ngưỡng số dư thấp phải từ 0 trở lên."));
+        }
+
+        var (start, end) = (QuietHours.Parse(command.QuietHoursStart), QuietHours.Parse(command.QuietHoursEnd));
+        var bothEmpty = string.IsNullOrWhiteSpace(command.QuietHoursStart) && string.IsNullOrWhiteSpace(command.QuietHoursEnd);
+        if (!bothEmpty && (start is null || end is null))
+        {
+            failures.Add(new ValidationFailure(nameof(command.QuietHoursStart), "Giờ yên lặng cần cả giờ bắt đầu và kết thúc dạng HH:mm, hoặc để trống cả hai."));
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new ValidationException(failures);
+        }
+
+        var user = await _users.GetByIdAsync(command.UserId, ct) ?? throw new NotFoundException("User", command.UserId);
+        user.ForecastReserveCents = command.ReserveCents;
+        user.LowBalanceThresholdCents = command.LowBalanceThresholdCents;
+        user.QuietHoursStartMinute = bothEmpty ? null : (short)start!.Value;
+        user.QuietHoursEndMinute = bothEmpty ? null : (short)end!.Value;
+        user.NotificationPrefs.ForecastAlertsEnabled = command.ForecastAlertsEnabled;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _users.UpdateAsync(user, ct);
-        await _cache.RemoveAsync(CacheKeys.UserProfile(userId), ct);
-        return await GetAsync(userId, ct);
+        await _cache.RemoveAsync(CacheKeys.UserProfile(command.UserId), ct);
+        return await GetAsync(command.UserId, ct);
     }
 
     public async Task<ForecastAccountDto> SetAccountInclusionAsync(Guid userId, Guid accountId, bool included, CancellationToken ct = default)

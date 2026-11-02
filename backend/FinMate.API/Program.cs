@@ -324,6 +324,13 @@ public class Program
         builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
+        builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
+        builder.Services.AddScoped<IForecastAlertDispatcher, ForecastAlertDispatcher>();
+        builder.Services.AddScoped<IForecastAlertService, ForecastAlertService>();
+        builder.Services.AddScoped<IBudgetForecastService, BudgetForecastService>();
+        builder.Services.AddScoped<IIncomeForecastService, IncomeForecastService>();
+        builder.Services.AddScoped<IForecastAlertTrigger, HangfireForecastAlertTrigger>();
+        builder.Services.AddScoped<ITransferBudgetLimitCommandHandler, TransferBudgetLimitCommandHandler>();
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
@@ -451,6 +458,9 @@ public class Program
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
         builder.Services.AddScoped<RecurringDetectionJob>();
+        builder.Services.AddScoped<ForecastDailyAlertJob>();
+        builder.Services.AddScoped<ForecastAlertDispatchJob>();
+        builder.Services.AddScoped<ForecastUserCheckJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
 
         builder.Services.AddFinMateRateLimiting(builder.Configuration);
@@ -559,6 +569,17 @@ public class Program
             "recurring-detection",
             job => job.RunAsync(CancellationToken.None),
             "30 18 * * *");
+
+        // 01:00 UTC = 08:00 VN: cảnh báo dự báo hằng ngày, sau RecurringDetectionJob và không push giữa đêm.
+        RecurringJob.AddOrUpdate<ForecastDailyAlertJob>(
+            "forecast-daily-alerts",
+            job => job.RunAsync(CancellationToken.None),
+            "0 1 * * *");
+
+        RecurringJob.AddOrUpdate<ForecastAlertDispatchJob>(
+            "forecast-alert-dispatch",
+            job => job.RunAsync(CancellationToken.None),
+            "*/15 * * * *");
 
         RecurringJob.AddOrUpdate<InsightGeneratorJob>(
             "insight-generator",

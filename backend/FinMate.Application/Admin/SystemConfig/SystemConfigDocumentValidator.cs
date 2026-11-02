@@ -102,6 +102,16 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
                 .WithName(nameof(ForecastSettings.SuggestMinOccurrences)).WithMessage("Số lần lặp để đề xuất phải ≥ 2 và không lớn hơn số lần để tự ghi nhận (tối đa 12).");
             RuleFor(x => x.OverdueGraceDays).InclusiveBetween(0, 31).WithMessage("Số ngày ân hạn của khoản định kỳ phải từ 0 đến 31.");
             RuleFor(x => x.MaxScenarioItems).InclusiveBetween(1, 50).WithMessage("Số khoản giả định tối đa phải từ 1 đến 50.");
+            RuleFor(x => x.LowBalanceHorizonDays).InclusiveBetween(3, 60).WithMessage("Tầm nhìn cảnh báo số dư thấp phải từ 3 đến 60 ngày.");
+            RuleFor(x => x.LowBalanceCooldownDays).InclusiveBetween(1, 30).WithMessage("Khoảng cách giữa hai cảnh báo số dư thấp phải từ 1 đến 30 ngày.");
+            RuleFor(x => x.InaccurateSuppressDays).InclusiveBetween(1, 60).WithMessage("Thời gian tắt cảnh báo sau phản hồi 'không chính xác' phải từ 1 đến 60 ngày.");
+            RuleFor(x => x.BudgetRiskMinElapsedDays).InclusiveBetween(1, 28).WithMessage("Số ngày tối thiểu để dùng nhịp chi tháng này phải từ 1 đến 28.");
+            RuleFor(x => x.BudgetRiskMinDaysRemaining).InclusiveBetween(1, 28).WithMessage("Số ngày còn lại tối thiểu để báo vượt ngân sách sớm phải từ 1 đến 28.");
+            RuleFor(x => x.BillReminderDaysBefore).InclusiveBetween(0, 14).WithMessage("Nhắc hóa đơn trước hạn phải từ 0 đến 14 ngày.");
+            RuleFor(x => x.IncomeLateDays).InclusiveBetween(1, 15).WithMessage("Số ngày trễ trước khi báo thu nhập trễ phải từ 1 đến 15.");
+            RuleFor(x => x.IrregularIncomeMonths).InclusiveBetween(2, 12).WithMessage("Số tháng ước tính thu nhập không đều phải từ 2 đến 12.");
+            RuleFor(x => x.QuietHoursStartMinute).InclusiveBetween(0, 1439).WithMessage("Giờ bắt đầu yên lặng không hợp lệ.");
+            RuleFor(x => x.QuietHoursEndMinute).InclusiveBetween(0, 1439).WithMessage("Giờ kết thúc yên lặng không hợp lệ.");
             RuleFor(x => x.Holidays).NotNull().Must(h => h.Count <= MaxHolidays).WithMessage($"Tối đa {MaxHolidays} khoảng ngày lễ.");
             RuleForEach(x => x.Holidays).ChildRules(h =>
             {

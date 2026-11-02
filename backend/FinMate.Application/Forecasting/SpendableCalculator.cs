@@ -16,7 +16,8 @@ public sealed record SpendableInput(
     long GoalSetAsideCents,
     IReadOnlyList<SpendableGoalDto> Goals,
     long ReserveCents,
-    ForecastRules Rules);
+    ForecastRules Rules,
+    long IrregularIncomeCents = 0);
 
 public static class SpendablePeriodBasis
 {
@@ -51,11 +52,19 @@ public static class SpendableCalculator
     /// <summary>Lương kế tiếp xa hơn chừng này thì kỳ tính dừng ở cuối tháng, để con số "mỗi ngày" không bị chia cho một kỳ quá dài.</summary>
     private const int MaxIncomePeriodDays = 45;
 
+    public const string IrregularIncomeLabel = "Thu nhập dự kiến (mức thận trọng)";
+
     public static SafeToSpendDto Compute(SpendableInput input)
     {
         var (end, basis) = Period(input);
         var events = CashflowEngine.RecurringEvents(input.ActiveItems, input.RecentTransactions, input.Today, end, input.Rules);
         var incomes = events.Where(e => e.AmountCents > 0).ToList();
+        if (input.IrregularIncomeCents > 0)
+        {
+            // Không có khoản thu định kỳ: cộng thu nhập không đều ở mức thận trọng (sơ đồ trang 10), đã trừ phần nhận trong tháng.
+            incomes.Add(new CashflowEvent(input.Today, input.IrregularIncomeCents, IrregularIncomeLabel, CashflowEventKinds.RecurringInflow, null));
+        }
+
         var bills = events.Where(e => e.AmountCents < 0).ToList();
 
         var balance = input.Accounts.Sum(a => a.BalanceCents);

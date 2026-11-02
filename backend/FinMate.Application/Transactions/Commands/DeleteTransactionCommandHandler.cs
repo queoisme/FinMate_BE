@@ -10,17 +10,20 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly ICacheService _cache;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
-        ICacheService cache)
+        ICacheService cache,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
         _cache = cache;
+        _forecastAlerts = forecastAlerts;
     }
 
     public async Task HandleAsync(DeleteTransactionCommand command, CancellationToken ct = default)
@@ -70,5 +73,10 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         {
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

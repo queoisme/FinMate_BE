@@ -5,6 +5,9 @@ public class NotificationPreferences
     public bool PushEnabled { get; set; } = true;
     public bool BudgetAlertsEnabled { get; set; } = true;
 
+    /// <summary>Cảnh báo dự báo: số dư thấp, nhắc hóa đơn, thu nhập trễ, đổi giá. Cảnh báo vượt ngân sách sớm theo <see cref="BudgetAlertsEnabled"/>.</summary>
+    public bool ForecastAlertsEnabled { get; set; } = true;
+
     /// <summary>
     /// Ngưỡng cảnh báo ngân sách CÁ NHÂN (T1 nhắc nhẹ, T2 cảnh báo mạnh, % hạn mức đã dùng). Cả hai cùng null = dùng mặc định hệ thống. Chỉ có tác dụng khi người dùng
     /// không đang dùng cách quản lý nào định nghĩa T1/T2 (cách quản lý có ngưỡng riêng thì theo cách đó). Ràng buộc 1 ≤ T1 &lt; T2 ≤ 99 do DB và service cùng kiểm.

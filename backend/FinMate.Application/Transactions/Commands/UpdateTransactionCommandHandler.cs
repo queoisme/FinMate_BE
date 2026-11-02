@@ -22,6 +22,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ILogger<UpdateTransactionCommandHandler> _logger;
     private readonly IValidator<UpdateTransactionCommand> _validator;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì sửa danh mục không ghi nhớ người nhận
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
@@ -37,7 +38,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ILogger<UpdateTransactionCommandHandler> logger,
         IValidator<UpdateTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
-        IQrTransferLinker? qrLinker = null)
+        IQrTransferLinker? qrLinker = null,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -49,6 +51,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _receiptScanRepository = receiptScanRepository;
         _logger = logger;
         _validator = validator;
+        _forecastAlerts = forecastAlerts;
         _qrLinker = qrLinker;
         _trainingSamples = trainingSamples;
     }
@@ -202,6 +205,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         {
             await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return TransactionMapper.ToDto(transaction);
     }
@@ -274,4 +278,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         account.BalanceCents += deltaCents;
         account.UpdatedAt = now;
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

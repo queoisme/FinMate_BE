@@ -48,6 +48,18 @@ public class SpendableCalculatorTests
     }
 
     [Fact]
+    public void IrregularIncome_IsAddedAtTheConservativeLevel()
+    {
+        var input = Input(1_000_000) with { IrregularIncomeCents = 2_000_000 };
+
+        var result = SpendableCalculator.Compute(input);
+
+        result.ExpectedIncomeCents.Should().Be(2_000_000);
+        result.Incomes.Should().ContainSingle(i => i.Label == SpendableCalculator.IrregularIncomeLabel);
+        result.SpendableCents.Should().Be(3_000_000);
+    }
+
+    [Fact]
     public void Shortfall_ShowsZeroAndHowMuchIsMissing()
     {
         var rent = Item("Tiền nhà", 4_000_000, Today.AddDays(8));

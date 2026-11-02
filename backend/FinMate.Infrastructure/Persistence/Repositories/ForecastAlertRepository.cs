@@ -1,0 +1,66 @@
+using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace FinMate.Infrastructure.Persistence.Repositories;
+
+public class ForecastAlertRepository : IForecastAlertRepository
+{
+    private readonly FinMateDbContext _context;
+
+    public ForecastAlertRepository(FinMateDbContext context)
+    {
+        _context = context;
+    }
+
+    public Task<bool> ExistsAsync(Guid userId, ForecastAlertKind kind, string dedupKey, CancellationToken ct = default)
+        => _context.ForecastAlerts.AnyAsync(a => a.UserId == userId && a.Kind == kind && a.DedupKey == dedupKey, ct);
+
+    public Task<bool> AnyCreatedSinceAsync(Guid userId, ForecastAlertKind kind, DateTimeOffset since, CancellationToken ct = default)
+        => _context.ForecastAlerts.AnyAsync(a => a.UserId == userId && a.Kind == kind && a.CreatedAt >= since, ct);
+
+    public Task<bool> AnyMarkedInaccurateSinceAsync(Guid userId, ForecastAlertKind kind, DateTimeOffset since, CancellationToken ct = default)
+        => _context.ForecastAlerts.AnyAsync(
+            a => a.UserId == userId && a.Kind == kind && a.MarkedInaccurate == true && a.FeedbackAt >= since, ct);
+
+    public async Task<bool> TryAddAsync(ForecastAlert alert, CancellationToken ct = default)
+    {
+        _context.ForecastAlerts.Add(alert);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Một lượt kiểm tra khác vừa ghi cùng (user, kind, dedup_key): cảnh báo đã có, không phải lỗi.
+            _context.Entry(alert).State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    public async Task<IReadOnlyList<ForecastAlert>> ListDuePendingAsync(DateTimeOffset now, int limit, CancellationToken ct = default)
+        => await _context.ForecastAlerts
+            .Where(a => a.Status == ForecastAlertStatus.Pending && a.ScheduledFor <= now)
+            .OrderBy(a => a.ScheduledFor)
+            .Take(limit)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<ForecastAlert>> ListForUserAsync(Guid userId, int limit, CancellationToken ct = default)
+        => await _context.ForecastAlerts.AsNoTracking()
+            .Where(a => a.UserId == userId)
+            .OrderByDescending(a => a.CreatedAt)
+            .Take(limit)
+            .ToListAsync(ct);
+
+    public Task<ForecastAlert?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
+        => _context.ForecastAlerts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
+
+    public async Task UpdateAsync(ForecastAlert alert, CancellationToken ct = default)
+    {
+        _context.ForecastAlerts.Update(alert);
+        await _context.SaveChangesAsync(ct);
+    }
+}

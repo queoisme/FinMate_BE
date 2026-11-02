@@ -20,6 +20,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ICacheService _cache;
     private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     public CreateManualTransactionCommandHandler(
@@ -33,7 +34,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ICacheService cache,
         ILogger<CreateManualTransactionCommandHandler> logger,
         IValidator<CreateManualTransactionCommand> validator,
-        ITrainingSampleService? trainingSamples = null)
+        ITrainingSampleService? trainingSamples = null,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -45,6 +47,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _cache = cache;
         _logger = logger;
         _validator = validator;
+        _forecastAlerts = forecastAlerts;
         _trainingSamples = trainingSamples;
     }
 
@@ -168,7 +171,12 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             await _aiServiceClient.LearnMerchantAsync(
                 new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug), ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

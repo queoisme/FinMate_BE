@@ -27,6 +27,7 @@ public class ForecastService : IForecastService
 {
     private const int MinDefaultHorizonDays = 7;
     private const int ScenarioLabelMaxLength = 60;
+    private const int DaysPerMonthUpperBound = 31;
 
     private readonly IFinancialAccountRepository _accounts;
     private readonly IRecurringItemRepository _items;
@@ -104,6 +105,7 @@ public class ForecastService : IForecastService
         var items = ActiveItemsFor(await _items.ListAsync(userId, RecurringStatus.Active, ct), included.Select(a => a.Id).ToHashSet(), accountId: null);
         var recent = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
         var goals = await _goals.GetSpendableAsync(userId, ct);
+        var irregular = await IrregularIncomeAsync(userId, items, today, settings, rules, ct);
 
         return SpendableCalculator.Compute(new SpendableInput(
             today,
@@ -113,7 +115,26 @@ public class ForecastService : IForecastService
             goals.GoalSetAsideCents,
             goals.Goals,
             Reserve(user, settings),
-            rules));
+            rules,
+            irregular));
+    }
+
+    /// <summary>
+    /// Không có khoản thu định kỳ nào: thu nhập không đều mức thận trọng còn chờ trong tháng (sơ đồ trang 10: "Cộng khoản thu dự kiến ở mức
+    /// thận trọng"), đã trừ phần nhận trong tháng — phần đó đã nằm trong số dư.
+    /// </summary>
+    private async Task<long> IrregularIncomeAsync(
+        Guid userId, IReadOnlyList<RecurringItemView> items, DateOnly today, ForecastSettings settings, ForecastRules rules, CancellationToken ct)
+    {
+        if (items.Any(i => i.Direction == RecurringDirection.Inflow))
+        {
+            return 0;
+        }
+
+        var lookback = (settings.IrregularIncomeMonths + 1) * DaysPerMonthUpperBound;
+        var history = await _data.GetTransactionsAsync(userId, today.AddDays(-lookback), today, ct);
+        var estimate = IncomeEstimator.Irregular(history, items, today, settings.IrregularIncomeMonths, rules);
+        return estimate is null ? 0 : Math.Max(0, estimate.ConservativeMonthlyCents - estimate.ReceivedThisMonthCents);
     }
 
     /// <summary>Dự phòng (BR-03.3): số user tự đặt, không thì % thu nhập dự kiến; chưa khai thu nhập thì 0.</summary>
@@ -189,7 +210,7 @@ public class ForecastService : IForecastService
     /// <summary>
     /// Khoản định kỳ thuộc phạm vi đang xem: xem một ví thì chỉ khoản gắn với ví đó; xem tổng thì khoản không gắn ví hoặc gắn với ví đang được tính.
     /// </summary>
-    private static IReadOnlyList<RecurringItemView> ActiveItemsFor(IReadOnlyList<RecurringItem> active, IReadOnlySet<Guid> accountIds, Guid? accountId)
+    internal static IReadOnlyList<RecurringItemView> ActiveItemsFor(IReadOnlyList<RecurringItem> active, IReadOnlySet<Guid> accountIds, Guid? accountId)
         => active
             .Where(i => accountId is { } id
                 ? i.FinancialAccountId == id

@@ -29,10 +29,17 @@ public class ForecastSettingsController : ControllerBase
     public async Task<IActionResult> Get(CancellationToken ct)
         => Ok(ApiResponse<ForecastSettingsDto>.Ok(await _settings.GetAsync(CurrentUserId, ct)));
 
-    /// <summary><c>reserveCents: null</c> = dùng mặc định hệ thống (% thu nhập dự kiến).</summary>
+    /// <summary>
+    /// Thay toàn bộ cài đặt dự báo. <c>reserveCents: null</c> = dự phòng mặc định; <c>lowBalanceThresholdCents: null</c> = tắt cảnh báo số dư thấp;
+    /// <c>quietHoursStart/End</c> "HH:mm" hoặc cùng null = giờ yên lặng mặc định.
+    /// </summary>
     [HttpPut("me/forecast-settings")]
     public async Task<IActionResult> Put([FromBody] ForecastSettingsRequest request, CancellationToken ct)
-        => Ok(ApiResponse<ForecastSettingsDto>.Ok(await _settings.SetReserveAsync(CurrentUserId, request.ReserveCents, ct)));
+        => Ok(ApiResponse<ForecastSettingsDto>.Ok(await _settings.SetAsync(
+            new UpdateForecastSettingsCommand(
+                CurrentUserId, request.ReserveCents, request.LowBalanceThresholdCents, request.QuietHoursStart, request.QuietHoursEnd,
+                request.ForecastAlertsEnabled ?? true),
+            ct)));
 
     [HttpPatch("financial-accounts/{id:guid}/forecast-inclusion")]
     public async Task<IActionResult> SetAccountInclusion(Guid id, [FromBody] ForecastInclusionRequest request, CancellationToken ct)
@@ -45,7 +52,8 @@ public class ForecastSettingsController : ControllerBase
             await _settings.SetTransactionExclusionAsync(CurrentUserId, id, request.Excluded, request.Reason, ct)));
 }
 
-public record ForecastSettingsRequest(long? ReserveCents);
+public record ForecastSettingsRequest(
+    long? ReserveCents, long? LowBalanceThresholdCents, string? QuietHoursStart, string? QuietHoursEnd, bool? ForecastAlertsEnabled);
 
 public record ForecastInclusionRequest(bool Included);
 

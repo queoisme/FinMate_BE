@@ -781,11 +781,11 @@
 | Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 5 / 12 *(xem phase bên dưới)* |
 | Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 9 / 10 *(còn: báo nhóm Flutter; Phase 7 giữ nguyên để làm lịch sử)* |
 | Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
-| Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 0 / 5 *(kế hoạch)* |
+| Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
 | Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 0 / 3 *(kế hoạch)* |
-| **Total** (không tính Backlog) | | **408 / 438** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| **Total** (không tính Backlog) | | **417 / 444** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại (2026-11-02):** 28 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 8 ở Phase 55–56), 2 task
+**Còn lại (2026-11-02):** 25 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 3 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
 nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
@@ -1260,12 +1260,21 @@ Thiết kế: `ARCHITECTURE.md` §2.6; yêu cầu: `docs/REQUIREMENTS.md` §6.5 
 - [ ] Giới hạn đã biết: khoản đến hạn ngày 28 hằng tháng nhảy sang 31/3 sau tháng 2 — cần cột `anchor_day` (đổi schema, phải duyệt) nếu muốn sửa.
 - Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1352/1353 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test: ngày gốc của khoản định kỳ từng lấy theo ngày THANH TOÁN, nên trả sớm hai ngày làm lịch trôi (2/11 → 31/12); nay suy từ ngày đến hạn.
 
-## Phase 55 — Dự báo tài chính, đợt 2: cảnh báo (kế hoạch)
-- [ ] Bộ phát cảnh báo dùng chung trên `FcmPushNotificationService`: chống lặp; giờ yên lặng chỉ cho luồng số dư thấp (đúng sơ đồ).
-- [ ] Cảnh báo số dư thấp (trang 1): ngưỡng của user, ngày thiếu tiền, nguyên nhân, mức chi tối đa/ngày; phản hồi "không chính xác".
-- [ ] Dự báo vượt ngân sách sớm theo số dự kiến (trang 6) + chuyển hạn mức giữa danh mục.
-- [ ] Nhắc hạn hóa đơn, tạm ngừng theo dõi khi quá hạn lâu và hỏi trạng thái (trang 7); thông báo đổi giá khoản định kỳ (trang 8).
-- [ ] Dự báo thu nhập: khai báo nguồn thu, thu không đều (mức thận trọng/trung bình), báo thu nhập trễ (trang 5).
+## Phase 55 — Dự báo tài chính, đợt 2: cảnh báo (2026-11-02)
+Kế hoạch đã duyệt ngày 2026-11-02 (schema, outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi). Nhánh `feat/forecast-alerts`
+(xếp chồng trên `feat/forecast-foundation`). Thiết kế: `ARCHITECTURE.md` §2.6 "Đợt 2"; yêu cầu FR-FCST-10…13.
+- [x] Schema — migration `AddForecastAlerts`: bảng `forecast_alerts` (CHECK kind/status/feedback, `sent_at` đi cùng `status = sent`, UNIQUE `(user_id, kind, dedup_key)`, index hàng đợi pending), cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute` (CHECK đi cặp, 0–1439), `forecast_alerts_enabled`.
+- [x] Hộp thư `ForecastAlertDispatcher`: chống lặp, công tắc theo loại, cooldown + phản hồi "không chính xác" cho số dư thấp, giờ yên lặng, hẹn giờ; `ForecastAlertDispatchJob` 15 phút.
+- [x] Bộ tính toán thuần: `QuietHours`, `LowBalanceRule`, `BudgetRiskCalculator`, `BillReminderRule`, `IncomeEstimator`; tracker nhận ra đổi giá; engine không cộng thu quá hạn; số tiền có thể chi cộng thu không đều mức thận trọng.
+- [x] `ForecastAlertService` (số dư thấp, vượt ngân sách sớm, nhắc/tạm ngừng hóa đơn, thu nhập trễ), `BudgetForecastService`, `IncomeForecastService`; `RecurringDetectionService` báo đổi giá (hẹn 08:00).
+- [x] Kích hoạt: `ForecastDailyAlertJob` 08:00 VN; `IForecastAlertTrigger` → `ForecastUserCheckJob` sau mỗi giao dịch (tham số tùy chọn của 5 handler giao dịch, lỗi chỉ log).
+- [x] `TransferBudgetLimitCommandHandler` + `POST /budgets/transfer` (chỉ phần chưa chi, chỉ ngân sách danh mục).
+- [x] API: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /forecast/alerts/{id}/feedback`; `PUT /me/forecast-settings` thay toàn bộ (ngưỡng, giờ yên lặng, công tắc).
+- [x] Test: unit cho từng quy tắc, dispatcher (trùng, công tắc, cooldown, phản hồi, giờ yên lặng, hẹn giờ), chuyển hạn mức; 4 test tích hợp (cài đặt, số dư thấp vào hộp thư đúng một lần + phản hồi + 404 chéo user, chuyển hạn mức + 422/404, lịch thu nhập).
+- [x] Tài liệu: REQUIREMENTS §6.5/§13.6, ARCHITECTURE §2.6/§4.1/§5, CLAUDE.md.
+- [ ] Báo nhóm Flutter: payload push `data.action = "forecast_alert"` (+ `kind`, `alertId`, trường riêng từng loại), các endpoint mới, `PUT /me/forecast-settings` đổi thành thay toàn bộ.
+- [ ] Thu theo mùa (BR-07.3) — cần hơn một năm dữ liệu.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1404/1405 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch.
 
 ## Phase 56 — Dự báo tài chính, đợt 3: hoàn thiện (kế hoạch)
 - [ ] Phát hiện bất thường có phản hồi (trang 9); "chi một lần" đặt `exclude_from_forecast`.
