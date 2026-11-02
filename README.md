@@ -2,7 +2,7 @@
 
 Ứng dụng theo dõi chi tiêu cá nhân, tự động ghi nhận giao dịch từ **thông báo ngân hàng/ví
 điện tử** bằng AI, cộng thêm ba kênh nhập tay (gõ câu tự nhiên, giọng nói, chụp hoá đơn). Có
-ngân sách theo danh mục, mục tiêu tiết kiệm, báo cáo, dự báo chi tiêu và gamification.
+ngân sách theo danh mục, mục tiêu tiết kiệm, báo cáo, dự báo chi tiêu và gợi ý phương pháp quản lý tài chính.
 
 Repo này chứa **backend + AI service**. Giao diện làm bằng Flutter và nằm ở repo riêng.
 

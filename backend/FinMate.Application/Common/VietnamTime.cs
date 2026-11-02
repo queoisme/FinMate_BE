@@ -2,7 +2,7 @@ namespace FinMate.Application.Common;
 
 /// <summary>
 /// Lịch theo giờ Việt Nam (UTC+7 cố định) — dùng cho chu kỳ budget, biên ngày của
-/// daily_summaries, streak và chu kỳ mission.
+/// daily_summaries.
 ///
 /// Dùng offset cố định thay vì <c>TimeZoneInfo.FindSystemTimeZoneById</c>:
 /// <c>InvariantGlobalization=true</c> bật solution-wide trong <c>Directory.Build.props</c> nên

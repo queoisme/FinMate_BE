@@ -241,7 +241,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
     /// <summary>
     /// Ghi lại kết quả BÓC TÁCH của lần quét (không ảnh, không chữ OCR) và trả về chính nó kèm mã bản ghi. Bản ghi không động tới số dư,
-    /// ngân sách hay gamification: lần quét chưa phải giao dịch, giao dịch chỉ ra đời khi người dùng bấm Lưu.
+    /// hay ngân sách: lần quét chưa phải giao dịch, giao dịch chỉ ra đời khi người dùng bấm Lưu.
     /// </summary>
     private async Task<ScannedReceiptDto> RecordAsync(
         Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)

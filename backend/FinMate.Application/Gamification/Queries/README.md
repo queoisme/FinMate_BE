@@ -1,1 +1,0 @@
-GetGamificationProfileQuery, GetActiveMissionsQuery, GetMascotInventoryQuery.

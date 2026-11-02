@@ -22,9 +22,6 @@ using FinMate.Application.Devices.Commands;
 using FinMate.Application.FinanceMethods;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
-using FinMate.Application.Gamification;
-using FinMate.Application.Gamification.Commands;
-using FinMate.Application.Gamification.Queries;
 using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Reports;
@@ -330,9 +327,6 @@ public class Program
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
-        builder.Services.AddScoped<IGamificationRepository, GamificationRepository>();
-        builder.Services.AddScoped<IMissionRepository, MissionRepository>();
-        builder.Services.AddScoped<IGamificationService, GamificationService>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
         builder.Services.AddSingleton<IFcmSender, FirebaseAdminFcmSender>();
         builder.Services.AddScoped<FcmPushNotificationService>();
@@ -356,8 +350,6 @@ public class Program
         builder.Services.AddScoped<ICreateSystemCategoryCommandHandler, CreateSystemCategoryCommandHandler>();
         builder.Services.AddScoped<IUpdateSystemCategoryCommandHandler, UpdateSystemCategoryCommandHandler>();
         builder.Services.AddScoped<ISetSystemCategoryActivationCommandHandler, SetSystemCategoryActivationCommandHandler>();
-        builder.Services.AddScoped<IGetMissionListQueryHandler, GetMissionListQueryHandler>();
-        builder.Services.AddScoped<ICreateMissionCommandHandler, CreateMissionCommandHandler>();
         builder.Services.AddScoped<IAdminAiRulesService, AdminAiRulesService>();
         // Đẩy danh mục hệ thống sang AI Service; AI_CATEGORY_SYNC_ENABLED=false để tắt hẳn (ví dụ bộ test tích hợp không có AI Service).
         builder.Services.AddSingleton(new AiCategorySyncOptions(builder.Configuration.GetValue<bool?>("AI_CATEGORY_SYNC_ENABLED") ?? true));
@@ -371,8 +363,6 @@ public class Program
         builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
         builder.Services.AddMemoryCache();
         builder.Services.AddSingleton<ISystemConfigProvider, SystemConfigProvider>();
-        builder.Services.AddScoped<IUpdateMissionCommandHandler, UpdateMissionCommandHandler>();
-        builder.Services.AddScoped<ISetMissionActivationCommandHandler, SetMissionActivationCommandHandler>();
         builder.Services.AddScoped<IGetAiStatsQueryHandler, GetAiStatsQueryHandler>();
 
         builder.Services.AddScoped<IRegisterCommandHandler, RegisterCommandHandler>();
@@ -445,19 +435,11 @@ public class Program
         builder.Services.AddScoped<IGetSpendingInsightsQueryHandler, GetSpendingInsightsQueryHandler>();
         builder.Services.AddScoped<IMarkInsightReadCommandHandler, MarkInsightReadCommandHandler>();
 
-        builder.Services.AddScoped<IGetGamificationProfileQueryHandler, GetGamificationProfileQueryHandler>();
-        builder.Services.AddScoped<IGetActiveMissionsQueryHandler, GetActiveMissionsQueryHandler>();
-        builder.Services.AddScoped<IGetMissionHistoryQueryHandler, GetMissionHistoryQueryHandler>();
-        builder.Services.AddScoped<IGetMascotInventoryQueryHandler, GetMascotInventoryQueryHandler>();
-        builder.Services.AddScoped<IUpdateMascotOutfitCommandHandler, UpdateMascotOutfitCommandHandler>();
-
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
         builder.Services.AddScoped<InsightGeneratorJob>();
-        builder.Services.AddScoped<StreakCheckJob>();
-        builder.Services.AddScoped<MissionResetJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
 
@@ -489,8 +471,6 @@ public class Program
                 app.Logger.LogWarning("vietqr_banks points at provider_key values that do not exist in provider_configs ({Keys}); those banks will never auto-match notifications.", string.Join(", ", danglingProviderKeys));
             }
             FinMate.Infrastructure.Persistence.Seed.CategorySeeder.SeedAsync(db).GetAwaiter().GetResult();
-            FinMate.Infrastructure.Persistence.Seed.MissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
-            FinMate.Infrastructure.Persistence.Seed.MascotItemSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.SurveySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.FinanceMethodSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.GoalTemplateSeeder.SeedAsync(db).GetAwaiter().GetResult();   // SAU FinanceMethodSeeder: bảng nối tham chiếu phương pháp
@@ -569,16 +549,10 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 19 * * *");
 
-        // 16:55 UTC = 23:55 VN, 17:01 UTC = 00:01 VN — xem ghi chú quy đổi ở trên.
-        RecurringJob.AddOrUpdate<StreakCheckJob>(
-            "streak-check",
-            job => job.RunAsync(CancellationToken.None),
-            "55 16 * * *");
-
-        RecurringJob.AddOrUpdate<MissionResetJob>(
-            "mission-reset",
-            job => job.RunAsync(CancellationToken.None),
-            "1 17 * * *");
+        // Gamification đã gỡ (2026-11-02). Hangfire lưu lịch trong Postgres, nên DB đã từng chạy bản cũ vẫn giữ
+        // hai job này và sẽ cố gọi class không còn tồn tại; xóa chúng ở mỗi lần khởi động (không có thì bỏ qua).
+        RecurringJob.RemoveIfExists("streak-check");
+        RecurringJob.RemoveIfExists("mission-reset");
 
         // Bù cho mọi lần đồng bộ hụt (AI Service khởi động sau backend, được dựng lại với DB trống): mỗi giờ, và một lần ngay lúc khởi động.
         // Lần khởi động đi qua Hangfire nên AI Service chưa lên thì được thử lại thay vì làm hỏng việc khởi động của backend.

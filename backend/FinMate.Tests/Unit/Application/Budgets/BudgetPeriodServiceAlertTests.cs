@@ -10,7 +10,7 @@ namespace FinMate.Tests.Unit.Application.Budgets;
 /// <summary>
 /// Cảnh báo ngưỡng phải bắn NGAY khi giao dịch phát sinh (docx Flow 2 mục 2a, Flow 3 mục 1),
 /// không phải chờ job theo giờ. Trước Phase 10 người dùng vượt 90% hạn mức có thể chờ tới 59
-/// phút mới thấy Mascot phản ứng.
+/// phút mới nhận được cảnh báo.
 /// </summary>
 public class BudgetPeriodServiceAlertTests
 {

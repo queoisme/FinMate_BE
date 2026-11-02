@@ -89,7 +89,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         {
             prefs.Property(p => p.PushEnabled).HasColumnName("push_enabled");
             prefs.Property(p => p.BudgetAlertsEnabled).HasColumnName("budget_alerts_enabled");
-            prefs.Property(p => p.MissionRemindersEnabled).HasColumnName("mission_reminders_enabled");
             prefs.Property(p => p.AlertT1Pct).HasColumnName("alert_t1_pct");
             prefs.Property(p => p.AlertT2Pct).HasColumnName("alert_t2_pct");
         });

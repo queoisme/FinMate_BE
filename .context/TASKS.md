@@ -778,11 +778,11 @@
 | Phase 50 — Quản trị mọi key bên thứ ba | `[x]` | 5 / 5 |
 | Phase 51 — Quét QR chuyển khoản | `[ ]` | 3 / 4 *(admin sửa `vietqr_banks`, job dọn ý định cũ, nhớ ngân hàng gửi qua phiên)* |
 | Phase 51b — Dọn giá trị viết cứng của QR | `[x]` | 4 / 4 |
-| Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 4 / 12 *(xem phase bên dưới)* |
-| Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 0 / 10 *(quyết định 2026-11-02; Phase 7 giữ nguyên để làm lịch sử)* |
-| **Total** (không tính Backlog) | | **391 / 420** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 5 / 12 *(xem phase bên dưới)* |
+| Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 9 / 10 *(còn: báo nhóm Flutter; Phase 7 giữ nguyên để làm lịch sử)* |
+| **Total** (không tính Backlog) | | **401 / 420** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại (2026-11-02):** 27 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 8 ở Phase 52, 10 ở Phase 53), 2 task
+**Còn lại (2026-11-02):** 17 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
 nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
@@ -1223,20 +1223,21 @@ trong REQUIREMENTS được kiểm lại trên code tại commit `b2e97b4` (khô
 - [ ] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27).
 - [x] Quyết định Mascot items (FR-GAME-06) — *2026-11-02: bỏ TOÀN BỘ gamification, giữ trạng thái cảnh báo ngân sách. Gỡ code ở Phase 53.*
 - [ ] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment.
-- [ ] Sửa bảng job ARCHITECTURE.md §5: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
+- [x] Sửa bảng job ARCHITECTURE.md §5 *(làm cùng Phase 53)*: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
 - [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06).
 
 ## Phase 53 — Gỡ toàn bộ gamification (quyết định 2026-11-02)
 Quyết định chủ sản phẩm: bỏ EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge và quản trị nhiệm vụ (`docs/REQUIREMENTS.md` §13.6). **Giữ** trạng thái
 cảnh báo ngân sách `ok/t1/t2/over` (FR-BUD-07) — đó là cảnh báo chi tiêu, không phải trò chơi. Làm ở nhánh riêng, không phải `docs/rescope-requirements`.
 Đổi hợp đồng với app: `/gamification/*` biến mất và response của `POST /saving-goals/{id}/contribute` mất phần item mở khóa / lên level — phải báo nhóm Flutter trước khi merge.
-- [ ] Gỡ lời gọi `IGamificationService` khỏi `ConfirmTransaction`, `CreateManualTransaction`, `CreateTransfer`, `DeleteTransaction`, `ContributeToGoal` (kèm `GamificationCache.InvalidateAsync` và phần "Mascot ăn mừng" trong response contribute). Giữ nguyên thứ tự lưu và push còn lại.
-- [ ] Gỡ `GamificationController` và `FinMate.Application/Gamification/*`; bỏ đăng ký DI trong `Program.cs`.
-- [ ] Gỡ `AdminMissionsController`, các command quản trị nhiệm vụ và hằng `AuditEvents.AdminMission*` (giữ bản ghi audit cũ trong DB, chỉ bỏ hằng nếu không còn chỗ ghi).
-- [ ] Gỡ `StreakCheckJob`, `MissionResetJob` và đăng ký Hangfire; gọi `RecurringJob.RemoveIfExists` cho hai id cũ, vì Hangfire lưu lịch trong Postgres và sẽ cố chạy job không còn class.
-- [ ] Gỡ `MissionSeeder`, `MascotItemSeeder`.
-- [ ] Gỡ entity, cấu hình EF, repository; migration xóa 5 bảng `user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items` (kiểm `UserHardDeleter` và mọi FK trỏ tới chúng).
-- [ ] Gỡ `CacheKeys.Gamification*`, `CacheKeys.ActiveMissions*`; sửa câu push "Chọn danh mục giúp Mascot nhé" trong `TransactionReviewPush`.
-- [ ] Sửa/xóa test liên quan (~20 file trong `FinMate.Tests`); `dotnet build` 0 warning, `dotnet test` xanh trừ test đỏ có sẵn của Phase 52.
-- [ ] Cập nhật `ARCHITECTURE.md` (§1, §4.1 bảng Gamification, §5 job, §6 cache), xóa `REQUIREMENTS.md` §7.2 và các dòng FR-GAME, cập nhật `CLAUDE.md`.
-- [ ] Báo nhóm Flutter (`FinMate_FE`) danh sách endpoint/field bị gỡ.
+- [x] Gỡ lời gọi `IGamificationService` khỏi `ConfirmTransaction`, `CreateManualTransaction`, `CreateTransfer`, `DeleteTransaction`, `ContributeToGoal` (kèm `GamificationCache.InvalidateAsync` và phần "Mascot ăn mừng" trong response contribute). Giữ nguyên thứ tự lưu và push còn lại.
+- [x] Gỡ `GamificationController` và `FinMate.Application/Gamification/*`; bỏ đăng ký DI trong `Program.cs`.
+- [x] Gỡ `AdminMissionsController`, các command quản trị nhiệm vụ và hằng `AuditEvents.AdminMission*` (giữ bản ghi audit cũ trong DB, chỉ bỏ hằng nếu không còn chỗ ghi).
+- [x] Gỡ `StreakCheckJob`, `MissionResetJob` và đăng ký Hangfire; gọi `RecurringJob.RemoveIfExists` cho hai id cũ, vì Hangfire lưu lịch trong Postgres và sẽ cố chạy job không còn class.
+- [x] Gỡ `MissionSeeder`, `MascotItemSeeder`.
+- [x] Gỡ entity, cấu hình EF, repository; migration xóa 5 bảng `user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items` (kiểm `UserHardDeleter` và mọi FK trỏ tới chúng).
+- [x] Gỡ `CacheKeys.Gamification*`, `CacheKeys.ActiveMissions*`; sửa câu push "Chọn danh mục giúp Mascot nhé" trong `TransactionReviewPush`.
+- [x] Sửa/xóa test liên quan (~20 file trong `FinMate.Tests`); `dotnet build` 0 warning, `dotnet test` xanh trừ test đỏ có sẵn của Phase 52.
+- [x] Cập nhật `ARCHITECTURE.md` (§1, §4.1 bảng Gamification, §5 job, §6 cache), xóa `REQUIREMENTS.md` §7.2 và các dòng FR-GAME, cập nhật `CLAUDE.md`.
+- [ ] Báo nhóm Flutter (`FinMate_FE`) danh sách endpoint/field bị gỡ. Ngoài hai thay đổi đã nêu ở trên: `missionRemindersEnabled` biến mất khỏi `GET /users/me` và khỏi body `PATCH /users/me/notification-prefs` (gửi thừa trường thì server bỏ qua).
+- Kiểm chứng (2026-11-02, nhánh `refactor/remove-gamification`): `dotnet build` 0 warning; `dotnet test` 1276/1277 (test đỏ duy nhất là FR-FIN-07 có sẵn); `dotnet ef migrations has-pending-model-changes` sạch. Ba test migration chèn user bằng SQL thô ở migration CŨ nên dùng chung `RawUserSeed` (chọn câu INSERT theo việc cột `mission_reminders_enabled` còn hay không).
