@@ -45,6 +45,10 @@ public class FinancialAccountConfiguration : IEntityTypeConfiguration<FinancialA
             .HasColumnName("balance_cents")
             .HasDefaultValue(0L);
 
+        builder.Property(a => a.IncludeInForecast)
+            .HasColumnName("include_in_forecast")
+            .HasDefaultValue(true);
+
         builder.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(a => a.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(a => a.DeletedAt).HasColumnName("deleted_at");

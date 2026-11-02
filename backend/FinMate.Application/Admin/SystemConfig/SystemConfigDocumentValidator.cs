@@ -21,6 +21,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Theme).NotNull().SetValidator(new ThemeValidator());
         RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
         RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
+        RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
     }
 
     private static bool IsHttps(string value)
@@ -78,6 +79,37 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         {
             RuleFor(x => x.RecommendationReuseMinutes).InclusiveBetween(0, 1440).WithMessage("Thời gian dùng lại gợi ý phải từ 0 đến 1440 phút (0 = luôn tạo mới).");
             RuleFor(x => x.SupportMinSharePercent).InclusiveBetween(1, 100).WithMessage("Tỷ lệ điểm tối thiểu của cách bổ trợ phải từ 1 đến 100%.");
+        }
+    }
+
+    private sealed class ForecastValidator : AbstractValidator<ForecastSettings>
+    {
+        private const int MaxHolidays = 30;
+
+        public ForecastValidator()
+        {
+            RuleFor(x => x.HistoryWindowDays).InclusiveBetween(30, 365).WithMessage("Cửa sổ lịch sử phải từ 30 đến 365 ngày.");
+            RuleFor(x => x).Must(x => x.MinHistoryDays >= 1 && x.MinHistoryDays <= x.HistoryWindowDays)
+                .WithName(nameof(ForecastSettings.MinHistoryDays)).WithMessage("Số ngày dữ liệu tối thiểu phải từ 1 đến độ dài cửa sổ lịch sử.");
+            RuleFor(x => x.ReservePercentOfIncome).InclusiveBetween(0, 50).WithMessage("Dự phòng mặc định phải từ 0 đến 50% thu nhập.");
+            RuleFor(x => x.MaxHorizonDays).InclusiveBetween(7, 365).WithMessage("Kỳ dự báo tối đa phải từ 7 đến 365 ngày.");
+            RuleFor(x => x.AmountTolerancePercent).InclusiveBetween(0, 50).WithMessage("Độ lệch số tiền của khoản định kỳ phải từ 0 đến 50%.");
+            RuleFor(x => x).Must(x => x.MonthlyMinIntervalDays >= 20 && x.MonthlyMinIntervalDays <= x.MonthlyMaxIntervalDays && x.MonthlyMaxIntervalDays <= 40)
+                .WithName(nameof(ForecastSettings.MonthlyMinIntervalDays)).WithMessage("Khoảng cách chu kỳ tháng phải nằm trong 20–40 ngày và tối thiểu không lớn hơn tối đa.");
+            RuleFor(x => x).Must(x => x.WeeklyMinIntervalDays >= 5 && x.WeeklyMinIntervalDays <= x.WeeklyMaxIntervalDays && x.WeeklyMaxIntervalDays <= 9)
+                .WithName(nameof(ForecastSettings.WeeklyMinIntervalDays)).WithMessage("Khoảng cách chu kỳ tuần phải nằm trong 5–9 ngày và tối thiểu không lớn hơn tối đa.");
+            RuleFor(x => x).Must(x => x.SuggestMinOccurrences >= 2 && x.SuggestMinOccurrences <= x.AutoActivateOccurrences && x.AutoActivateOccurrences <= 12)
+                .WithName(nameof(ForecastSettings.SuggestMinOccurrences)).WithMessage("Số lần lặp để đề xuất phải ≥ 2 và không lớn hơn số lần để tự ghi nhận (tối đa 12).");
+            RuleFor(x => x.OverdueGraceDays).InclusiveBetween(0, 31).WithMessage("Số ngày ân hạn của khoản định kỳ phải từ 0 đến 31.");
+            RuleFor(x => x.MaxScenarioItems).InclusiveBetween(1, 50).WithMessage("Số khoản giả định tối đa phải từ 1 đến 50.");
+            RuleFor(x => x.Holidays).NotNull().Must(h => h.Count <= MaxHolidays).WithMessage($"Tối đa {MaxHolidays} khoảng ngày lễ.");
+            RuleForEach(x => x.Holidays).ChildRules(h =>
+            {
+                h.RuleFor(x => x.Name).NotEmpty().MaximumLength(60).WithMessage("Tên ngày lễ không được trống và tối đa 60 ký tự.");
+                h.RuleFor(x => x).Must(x => x.Start <= x.End && x.End.DayNumber - x.Start.DayNumber <= 31)
+                    .WithName(nameof(ForecastHoliday.Start)).WithMessage("Ngày lễ phải có ngày bắt đầu không sau ngày kết thúc và dài tối đa 32 ngày.");
+                h.RuleFor(x => x.MultiplierPercent).InclusiveBetween(50, 300).WithMessage("Hệ số chi tiêu ngày lễ phải từ 50 đến 300%.");
+            });
         }
     }
 

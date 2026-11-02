@@ -18,6 +18,26 @@ public class SystemConfigDocumentValidatorTests
         _validator.Validate(new SystemConfigDocument()).IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public void Forecast_SuggestThresholdAboveAutoActivate_IsRejected()
+    {
+        var doc = new SystemConfigDocument { Forecast = new ForecastSettings { SuggestMinOccurrences = 4, AutoActivateOccurrences = 3 } };
+
+        _validator.Validate(doc).IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(140, 3, true)]
+    [InlineData(40, 3, false)]
+    [InlineData(140, 40, false)]
+    public void Forecast_Holidays_HaveASaneMultiplierAndLength(int multiplier, int lengthDays, bool valid)
+    {
+        var start = new DateOnly(2027, 2, 5);
+        var tet = new ForecastHoliday { Name = "Tết Đinh Mùi", Start = start, End = start.AddDays(lengthDays), MultiplierPercent = multiplier };
+
+        _validator.Validate(new SystemConfigDocument { Forecast = new ForecastSettings { Holidays = [tet] } }).IsValid.Should().Be(valid);
+    }
+
     [Theory]
     [InlineData("#2E7D6B", true)]
     [InlineData("#fff", false)]

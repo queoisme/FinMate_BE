@@ -732,6 +732,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<bool>("IncludeInForecast")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("include_in_forecast");
+
                     b.Property<bool>("IsMonitored")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1390,6 +1396,125 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_scan_links", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<string>("Cadence")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cadence");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CounterpartyKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("counterparty_key");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<Guid?>("FinancialAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_account_id");
+
+                    b.Property<long?>("LastSeenAmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_seen_amount_cents");
+
+                    b.Property<DateTimeOffset?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateOnly>("NextDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("next_due_date");
+
+                    b.Property<int>("Occurrences")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("occurrences");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("FinancialAccountId");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("ix_recurring_items_user_status");
+
+                    b.HasIndex("UserId", "Direction", "CounterpartyKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_items_user_direction_counterparty")
+                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL");
+
+                    b.ToTable("recurring_items", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_recurring_items_amount", "amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_cadence", "cadence IN ('weekly','monthly','yearly')");
+
+                            t.HasCheckConstraint("chk_recurring_items_direction", "direction IN ('inflow','outflow')");
+
+                            t.HasCheckConstraint("chk_recurring_items_occurrences", "occurrences >= 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_source", "source IN ('detected','manual')");
+
+                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1883,9 +2008,20 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
+                    b.Property<bool>("ExcludeFromForecast")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("exclude_from_forecast");
+
                     b.Property<Guid>("FinancialAccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("financial_account_id");
+
+                    b.Property<string>("ForecastExclusionReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("forecast_exclusion_reason");
 
                     b.Property<string>("MerchantName")
                         .HasMaxLength(200)
@@ -1956,6 +2092,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("transactions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_transactions_forecast_exclusion", "(exclude_from_forecast = false AND forecast_exclusion_reason IS NULL) OR (exclude_from_forecast = true AND forecast_exclusion_reason IN ('one_off','user_marked'))");
+
                             t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt')");
 
                             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
@@ -2005,6 +2143,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("EmailVerifiedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("email_verified_at");
+
+                    b.Property<long?>("ForecastReserveCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("forecast_reserve_cents");
 
                     b.Property<string>("GoogleId")
                         .HasMaxLength(255)
@@ -2085,6 +2227,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("users", null, t =>
                         {
                             t.HasCheckConstraint("chk_users_alert_thresholds", "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
+
+                            t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
 
                             t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
 
@@ -2527,6 +2671,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Scan");
 
                     b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.FinancialAccount", "FinancialAccount")
+                        .WithMany()
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("FinancialAccount");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>

@@ -18,7 +18,7 @@ Tài liệu này liệt kê các yêu cầu chức năng (FR) và phi chức nă
 
 Client là app **Flutter** ở repo riêng `FinMate_FE` (tài liệu cũ ghi `android/` Kotlin — đã đổi). Client nằm ngoài phạm vi; các yêu cầu đặc tả giao cho app được gom ở mục 2.3 để truy vết.
 
-**Quy ước mã.** `FR-<NHÓM>-<số>` cho chức năng, `NFR-<NHÓM>-<số>` cho phi chức năng. Nhóm: AUTH, CONS, ACC, CAT, TXN, SCAN, CHAT, QR, BUD, GOAL, FIN, RPT, NOTI, AI, ADM, CFG (GAME đã gỡ, xem 13.6); SEC, DATA, REL, PERF, OPS, MNT, USE. Mã của bản 2026-09-24 được giữ nguyên.
+**Quy ước mã.** `FR-<NHÓM>-<số>` cho chức năng, `NFR-<NHÓM>-<số>` cho phi chức năng. Nhóm: AUTH, CONS, ACC, CAT, TXN, SCAN, CHAT, QR, BUD, GOAL, FIN, RPT, FCST, NOTI, AI, ADM, CFG (GAME đã gỡ, xem 13.6); SEC, DATA, REL, PERF, OPS, MNT, USE. Mã của bản 2026-09-24 được giữ nguyên.
 
 **Nhãn đối chiếu với đặc tả.** Yêu cầu không mang nhãn là hệ thống đã đáp ứng (đã kiểm trên code).
 
@@ -68,6 +68,7 @@ Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 | Flow 2 — Ghi nhận chi tiêu tiền mặt đa kênh | User chạm "Thêm giao dịch" | 5.2, 5.4, 5.5 |
 | Flow 3 — Quản lý & phân tích tài chính cùng AI | Lưu cấu hình ngân sách / ngưỡng, giao dịch chi mới, nạp mục tiêu, mở tab Báo cáo, lịch dự báo | 6 |
 | Onboarding phương pháp tài chính **[Ngoài đặc tả]** | Sau đăng ký, hoặc user mở lại từ Hồ sơ | 6.4 |
+| Flow 6 — Dự báo tài chính (swimlane `Swimlane_Activity_Diagram_Flow6.json`, 10 luồng) | Mở màn hình dự báo, có giao dịch mới, lịch hằng ngày | 6.5 |
 | QR chuyển khoản **[Ngoài đặc tả]** | User quét mã VietQR của người nhận | 5.6 |
 | Admin Flow (hỗ trợ) | Quản trị viên thao tác | 9 |
 
@@ -288,10 +289,10 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | FR-RPT-01 | **[Một phần]** Tóm tắt kỳ | Must | Có so với tháng trước, theo giờ VN. Chưa so với tuần trước |
 | FR-RPT-02 | Cơ cấu chi theo danh mục | Must | Chỉ `Confirmed`, `Debit`; "Chưa phân loại" dòng riêng; loại khoản vay/mượn và chuyển khoản |
 | FR-RPT-03 | Dòng tiền theo ngày | Must | Từ `daily_summaries` (`DailySummaryJob` 00:05) |
-| FR-RPT-04 | **[Một phần]** Dự phóng số dư cuối tháng | Should | Có dự báo tổng chi (run-rate, rơi về lịch sử) và `ProjectedBalanceCents` = thu nhập − dự báo chi. Chưa cộng hoá đơn định kỳ, chưa tính trên số dư ví |
+| FR-RPT-04 | Dự phóng số dư cuối kỳ | Should | Thay bằng FR-FCST-01 (đường số dư theo ngày, có khoản định kỳ). `/reports/forecast` (dự báo tổng chi tháng) vẫn chạy cho app cũ |
 | FR-RPT-05 | **[Một phần]** Insight hành vi | Should | `InsightGeneratorJob` 02:00 có 3 loại (`VsLastMonth`, `RecurringDetected`, `UnusualSpending`). Chưa có cuối tuần/ngày thường, tỉ trọng nhóm con |
-| FR-RPT-06 | **[Mới]** Lịch dự báo theo user, chạy lại khi chi đột biến | Should | Chưa có. Phương pháp tài chính đã khai báo tham số `forecast_minute` ("Giờ nhắc dự báo hằng ngày", mặc định 1320 = 22:00) nhưng không có code nào đọc nó |
-| FR-RPT-07 | **[Mới]** Cảnh báo bội chi kèm khuyến nghị định lượng | Should | Chưa có |
+| FR-RPT-06 | **[Mới]** Lịch dự báo theo user, chạy lại khi chi đột biến | Should | Chuyển sang đợt 2 của FR-FCST (cảnh báo). Tham số `forecast_minute` của phương pháp tài chính vẫn chưa có code nào đọc |
+| FR-RPT-07 | **[Mới]** Cảnh báo bội chi kèm khuyến nghị định lượng | Should | Chuyển thành FR-FCST-10/11 (đợt 2) |
 
 ### 6.4 Phương pháp quản lý tài chính và onboarding **[Ngoài đặc tả]**
 
@@ -306,6 +307,32 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | FR-FIN-05 | Khối hũ (`GET /me/jars`) | Should | Tối đa 8 hũ; số được chia = thu nhập tháng × %; đã chi cùng nguồn báo cáo theo danh mục, ghép theo **ID** danh mục hệ thống; chưa khai thu nhập → số được chia `null` (không phải 0); chi ngoài hũ ở `unassignedSpentCents` |
 | FR-FIN-06 | Tiền khả dụng và gợi ý mục tiêu (`GET /me/spendable`, `GET /me/goal-suggestions`) | Should | Một công thức khả dụng dùng chung với thẩm định mục tiêu |
 | FR-FIN-07 | **[Sai lệch]** Gợi ý theo luật phải khớp hồ sơ mẫu | Should | Test `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…` **đang đỏ** từ commit `b6f1c42`: hồ sơ "thu nhập biến động, đôi khi thiếu cuối tháng" được luật gợi ý `rule_80_20` thay vì `cash_flow_budget`. Cần chỉnh trọng số hoặc chốt lại kỳ vọng |
+
+### 6.5 Dự báo tài chính (Flow 6) **[Mới so với đặc tả Core Flows]**
+
+Nguồn: swimlane `Swimlane_Activity_Diagram_Flow6.json` (10 luồng). Một lõi chung — **đường số dư dự kiến theo ngày** — mọi luồng là cách nhìn
+hoặc quy tắc trên lõi đó. Thống kê thuần trong backend (không gọi AI): giải thích được "nguyên nhân" và "cách tính" như sơ đồ yêu cầu.
+Các mã BR của sơ đồ chưa có định nghĩa; số mặc định thay thế nằm trong cấu hình hệ thống nhóm `forecast` (admin sửa được, 13.4).
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-FCST-01 | Dòng tiền / số dư cuối kỳ (`GET /forecast/cashflow?accountId=&to=`) | Must | Số dư hiện tại của các ví được tính (hoặc một ví) → số dư dự kiến từng ngày tới `to` (mặc định cuối tháng, còn < 7 ngày thì cuối tháng sau, tối đa `forecast.maxHorizonDays`) kèm khoảng thận trọng/lạc quan (phân vị 75/25 của chi linh hoạt), số dư cuối kỳ, ngày thấp nhất, tối đa 3 nguyên nhân chính. Phần đã chi hôm nay không bị trừ lại |
+| FR-FCST-02 | Thử kịch bản (`POST /forecast/cashflow/scenario`) | Should | 1–`forecast.maxScenarioItems` khoản giả định trong kỳ; tính lại, **không lưu** gì |
+| FR-FCST-03 | Thói quen chi tiêu linh hoạt | Must | Trung vị theo thứ trong tuần trên `forecast.historyWindowDays` ngày gần nhất (không gồm hôm nay), đã cắt ngoại lai; loại chuyển khoản, cho vay/mượn, giao dịch user loại khỏi dự báo và giao dịch khớp khoản định kỳ đang theo dõi (tránh trừ hai lần). Dưới `forecast.minHistoryDays` ngày có giao dịch → hạn mức tổng (nếu có, không thì tổng hạn mức danh mục) / số ngày trong tháng → trung bình dữ liệu đang có → 0; cờ `confidence = low` |
+| FR-FCST-04 | Ngày lễ/Tết | Could | Hệ số % trong `forecast.holidays` nhân vào chi linh hoạt các ngày trong khoảng; mặc định rỗng |
+| FR-FCST-05 | Số tiền có thể chi (`GET /forecast/spendable`) | Must | Kỳ tính: hôm nay → trước lần thu nhập định kỳ kế tiếp (≤ 45 ngày), không thì cuối tháng. Kết quả = số dư ví được tính + thu định kỳ trong kỳ − chi định kỳ chưa trả trong kỳ − để dành mục tiêu (cùng công thức `/me/spendable`) − dự phòng. ≤ 0 → 0 + `shortfallCents`; > 0 → chia số ngày còn lại. Trả kèm bảng cách tính. `/me/spendable` (công thức cũ) giữ nguyên cho app hiện tại |
+| FR-FCST-06 | Dự phòng | Must | `users.forecast_reserve_cents` nếu user đặt (`PUT /me/forecast-settings`), không thì `forecast.reservePercentOfIncome`% thu nhập dự kiến; chưa khai thu nhập → 0 |
+| FR-FCST-07 | Ví được tính (`PATCH /financial-accounts/{id}/forecast-inclusion`) | Must | Mặc định mọi ví được tính; ví tắt không vào tổng nhưng vẫn xem riêng được |
+| FR-FCST-08 | Loại giao dịch khỏi dự báo (`PATCH /transactions/{id}/forecast-exclusion`) | Must | Lý do `one_off`/`user_marked`; số dư không đổi; CHECK ở DB bảo đảm có lý do khi bị loại |
+| FR-FCST-09 | Khoản định kỳ (`/recurring-items`): xem, thêm tay, sửa, xác nhận, từ chối, tạm dừng, tiếp tục, hủy | Must | Gộp hóa đơn định kỳ và thu nhập đều đặn (chiều `inflow`/`outflow`). Duy nhất theo (user, chiều, người nhận đã chuẩn hóa) → trùng 409; người nhận từng bị từ chối/hủy thì dùng lại dòng cũ. Hủy giữ dòng để không bị đề xuất lại. Khoản quá hạn chưa thấy trả vẫn tính trong `forecast.overdueGraceDays` ngày |
+| FR-FCST-09a | Nhận diện khoản định kỳ (`RecurringDetectionJob`, 01:30 VN) | Must | Cùng người nhận, cùng chiều, số tiền lệch ≤ `amountTolerancePercent`%, cách nhau đúng chu kỳ tuần/tháng: ≥ `suggestMinOccurrences` lần → đề xuất, ≥ `autoActivateOccurrences` → tự ghi nhận; thấy thanh toán thì đẩy ngày đến hạn. Thay insight `RecurringDetected` (không còn sinh) |
+| FR-FCST-10 | **[Mới]** Cảnh báo số dư thấp (trang 1 sơ đồ) | Should | Đợt 2: ngưỡng của user, chống lặp, giờ yên lặng chỉ cho luồng này |
+| FR-FCST-11 | **[Mới]** Dự báo vượt ngân sách sớm + chuyển hạn mức (trang 6) | Should | Đợt 2 |
+| FR-FCST-12 | **[Mới]** Nhắc hạn, tạm ngừng hóa đơn; thông báo đổi giá (trang 7, phần còn lại của trang 8) | Should | Đợt 2 |
+| FR-FCST-13 | **[Mới]** Dự báo thu nhập, khai báo nguồn thu, báo thu nhập trễ (trang 5) | Should | Đợt 2. Hiện thu nhập định kỳ chỉ đến từ khoản `inflow` (tự phát hiện hoặc thêm tay); `monthly_income_cents` không có ngày nên không cộng vào đường số dư |
+| FR-FCST-14 | **[Mới]** Phát hiện bất thường có phản hồi (trang 9) | Should | Đợt 3: phản hồi "chi một lần" đặt FR-FCST-08 |
+| FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | Đợt 3 |
+| FR-FCST-16 | **[Mới]** Ngày đạt mục tiêu tiết kiệm (trang 4) | Could | Đợt 3: hai tốc độ (trung bình/thận trọng) |
 
 ## 7. FR — Thông báo đẩy
 
@@ -367,7 +394,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-CFG-01 | Cấu hình hệ thống có phiên bản (`/admin/system-config`) | Must | Một tài liệu JSON đã kiểm hợp lệ: bảo trì, phiên bản app tối thiểu / bắt buộc cập nhật, cờ tính năng (`chatAi`, `voice`, `billScan`, `notificationReading`), ngưỡng T1/T2 mặc định, retry thông báo, QR, phương pháp tài chính. Hằng số nghiệp vụ không viết cứng trong code |
+| FR-CFG-01 | Cấu hình hệ thống có phiên bản (`/admin/system-config`) | Must | Một tài liệu JSON đã kiểm hợp lệ: bảo trì, phiên bản app tối thiểu / bắt buộc cập nhật, cờ tính năng (`chatAi`, `voice`, `billScan`, `notificationReading`), ngưỡng T1/T2 mặc định, retry thông báo, QR, phương pháp tài chính, dự báo (`forecast`, FR-FCST). Hằng số nghiệp vụ không viết cứng trong code |
 | FR-CFG-02 | Chế độ bảo trì và cấu hình công khai | Must | `MaintenanceMiddleware` chặn API khi bật; `GET /app-config` (ẩn danh) cho app biết bảo trì, phiên bản tối thiểu, cờ tính năng |
 | FR-CFG-03 | Kho key bên thứ ba (`/admin/secrets`) | Must | Mọi key (Gemini, OpenRouter, Google Vision, Brevo, Google OAuth, FCM) sửa trên trang admin, đọc lúc gọi (không cần khởi động lại). Mã hoá AES-256-GCM, khoá chủ `SECRETS_MASTER_KEY`, tên key làm AAD; key không bao giờ trả về nguyên văn. Thiếu khoá chủ thì kho tắt và chỉ dùng biến môi trường |
 
@@ -442,7 +469,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Rasa tắt, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
 | NFR-REL-03 | FCM, Brevo, `/bill/learn` lỗi không làm hỏng thao tác gốc | Client giả ném lỗi |
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
-| NFR-REL-05 | Job nền bền qua khởi động lại; 7 job: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob` | Restart giữa lúc job chạy |
+| NFR-REL-05 | Job nền bền qua khởi động lại; 8 job: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob`, `RecurringDetectionJob` | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
 | NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Uptime monitor |
 | NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
@@ -518,7 +545,8 @@ Kiểm trên code ngày 2026-11-02.
 | FR-BUD-07 | Một phần | `level` chỉ có ở hũ | Thêm `level` vào tóm tắt ngân sách | Nhỏ |
 | FR-GOAL-06 | Một phần | Có endpoint xem trước, không chặn | Chặn khi tạo/sửa | Nhỏ |
 | FR-RPT-01 | Một phần | Chỉ so tháng trước | So tuần trước | Nhỏ |
-| FR-RPT-04, 06, 07 | Một phần / Mới | Dự báo chi + `ProjectedBalanceCents` | Hoá đơn định kỳ, lịch theo user, cảnh báo bội chi | Lớn |
+| FR-FCST-10…16 | Mới | Đợt 1 (FR-FCST-01…09a) xong | Đợt 2 cảnh báo, đợt 3 bất thường/danh mục/mục tiêu | Lớn |
+| FR-FCST-09 | Giới hạn | Ngày gốc trong tháng suy từ ngày đến hạn | Khoản đến hạn ngày 28 hằng tháng bị coi là "cuối tháng" sau tháng 2 (nhảy sang 31/3); sửa triệt để cần cột `anchor_day` | Nhỏ |
 | FR-RPT-05 | Một phần | 3 loại insight | Cuối tuần / ngày thường, tỉ trọng nhóm con | Trung bình |
 | FR-CONS-06 | Một phần | Đồng ý khảo sát-AI không còn tác dụng | Gỡ hoặc sửa comment `ConsentVersions.SurveyAi` | Nhỏ |
 
@@ -546,7 +574,8 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] **Tách hoá đơn theo món (FR-SCAN-05).** Đang tắt mặc định; có bật cho production không.
 - [ ] SMS OTP: đặc tả ghi "Email / Số điện thoại", quyết định 2026-09-11 chỉ làm email.
 - [ ] Thống nhất với nhóm app: giao dịch tiền mặt vẫn phải đồng bộ lên server (qua `clientRequestId`).
-- [ ] Định nghĩa "giao dịch chi đột biến" (FR-RPT-06) và nguồn "hoá đơn định kỳ" (FR-RPT-04).
+- [ ] **Định nghĩa các mã BR của sơ đồ Flow 6** (BR-01.2, 03.1, 03.3, 04.2, 04.3, 06.1, 07.1–07.4, 08.1–08.3, 11.1–11.4). Đợt 1 dùng mặc định ở `forecast.*` trong cấu hình hệ thống; cần đối chiếu khi có tài liệu.
+- [ ] Định nghĩa "giao dịch chi đột biến" (FR-RPT-06).
 - [ ] Chốt chỉ tiêu hiệu năng và khả dụng, đo bằng load test.
 - [ ] Kiểm `package_name` của các provider đang tắt trên thông báo thật rồi bật lên.
 - [ ] Gói trả phí cho Gemini/OpenRouter trước khi phát hành.
@@ -566,6 +595,7 @@ Kiểm trên code ngày 2026-11-02.
 | FR-BUD | Flow 3 phân luồng 3.1 | 5, 11, 46 |
 | FR-GOAL | Flow 3 phân luồng 3.2 | 5, 46 |
 | FR-FIN | Quyết định chủ sản phẩm (file khảo sát) | 42–47 |
+| FR-FCST | Swimlane Flow 6 (dự báo tài chính) | 54 |
 | FR-RPT | Flow 3 phân luồng 3.3 | 6 |
 | FR-NOTI | Flow 1 giai đoạn E; Flow 3 | 12, 15 |
 | FR-AI | Flow 1 giai đoạn D; Flow 2; `ARCHITECTURE.md` §3 | 9, 10, 28, 29, 32–39, 45, 48 |
@@ -579,3 +609,4 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-09-24 | Bỏ vật phẩm và trang phục Mascot | — | FR-GAME-06 Won't; code gỡ cùng đợt 2026-11-02 |
 | 2026-11-02 | **Bỏ toàn bộ gamification**: EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge, quản trị nhiệm vụ | Quyết định chủ sản phẩm. Lệch có chủ ý so với đặc tả (Flow 1 bước 6.2, Flow 2 bước 11, Flow 3 Honor Badge) | Xóa FR-GAME-01…06 (EXP/level, thu hồi EXP, streak, nhiệm vụ, xem hồ sơ, vật phẩm Mascot) và FR-ADM-06 (quản trị nhiệm vụ); FR-TXN-07, FR-GOAL-03, FR-NOTI-01 bỏ phần EXP/level. **Code đã gỡ** (`TASKS.md` Phase 53): `/gamification/*`, `/admin/missions`, `StreakCheckJob`, `MissionResetJob`, `MissionSeeder`, `MascotItemSeeder`, `users.mission_reminders_enabled`; migration `RemoveGamification` xóa 5 bảng (`user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items`) |
 | 2026-11-02 | **Giữ** trạng thái cảnh báo ngân sách (`ok/t1/t2/over`) mà đặc tả gọi là "trạng thái Mascot" | Đây là cảnh báo chi tiêu, không phải trò chơi | FR-BUD-07 giữ nguyên, đổi tên khỏi "Mascot" |
+| 2026-11-02 | **Thêm dự báo tài chính (Flow 6)**, làm theo đợt; đợt 1 = lõi + dòng tiền + số tiền có thể chi + khoản định kỳ | Chủ sản phẩm duyệt kế hoạch; swimlane giữ nguyên | Nhóm FR-FCST (6.5). FR-RPT-04/06/07 chuyển vào đây. Migration `AddForecastFoundation`: bảng `recurring_items`, cột `transactions.exclude_from_forecast`/`forecast_exclusion_reason`, `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents` |

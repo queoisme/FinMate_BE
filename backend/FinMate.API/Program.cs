@@ -24,6 +24,7 @@ using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
+using FinMate.Application.Forecasting;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
@@ -315,6 +316,14 @@ public class Program
         builder.Services.AddScoped<IMethodRecommendationService, MethodRecommendationService>();
         builder.Services.AddScoped<IUserMethodService, UserMethodService>();
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
+
+        // Dự báo tài chính (Flow 6, đợt 1).
+        builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
+        builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
+        builder.Services.AddScoped<IForecastService, ForecastService>();
+        builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
+        builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
+        builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
@@ -441,6 +450,7 @@ public class Program
         builder.Services.AddScoped<DailySummaryJob>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
+        builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
 
         builder.Services.AddFinMateRateLimiting(builder.Configuration);
@@ -543,6 +553,12 @@ public class Program
             "daily-summary",
             job => job.RunAsync(CancellationToken.None),
             "5 17 * * *");
+
+        // 18:30 UTC = 01:30 VN: sau DailySummaryJob, trước InsightGeneratorJob.
+        RecurringJob.AddOrUpdate<RecurringDetectionJob>(
+            "recurring-detection",
+            job => job.RunAsync(CancellationToken.None),
+            "30 18 * * *");
 
         RecurringJob.AddOrUpdate<InsightGeneratorJob>(
             "insight-generator",

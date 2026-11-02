@@ -780,9 +780,12 @@
 | Phase 51b — Dọn giá trị viết cứng của QR | `[x]` | 4 / 4 |
 | Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 5 / 12 *(xem phase bên dưới)* |
 | Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 9 / 10 *(còn: báo nhóm Flutter; Phase 7 giữ nguyên để làm lịch sử)* |
-| **Total** (không tính Backlog) | | **401 / 420** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
+| Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 0 / 5 *(kế hoạch)* |
+| Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 0 / 3 *(kế hoạch)* |
+| **Total** (không tính Backlog) | | **408 / 438** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại (2026-11-02):** 17 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53), 2 task
+**Còn lại (2026-11-02):** 28 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 8 ở Phase 55–56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
 nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
@@ -1241,3 +1244,30 @@ cảnh báo ngân sách `ok/t1/t2/over` (FR-BUD-07) — đó là cảnh báo chi
 - [x] Cập nhật `ARCHITECTURE.md` (§1, §4.1 bảng Gamification, §5 job, §6 cache), xóa `REQUIREMENTS.md` §7.2 và các dòng FR-GAME, cập nhật `CLAUDE.md`.
 - [ ] Báo nhóm Flutter (`FinMate_FE`) danh sách endpoint/field bị gỡ. Ngoài hai thay đổi đã nêu ở trên: `missionRemindersEnabled` biến mất khỏi `GET /users/me` và khỏi body `PATCH /users/me/notification-prefs` (gửi thừa trường thì server bỏ qua).
 - Kiểm chứng (2026-11-02, nhánh `refactor/remove-gamification`): `dotnet build` 0 warning; `dotnet test` 1276/1277 (test đỏ duy nhất là FR-FIN-07 có sẵn); `dotnet ef migrations has-pending-model-changes` sạch. Ba test migration chèn user bằng SQL thô ở migration CŨ nên dùng chung `RawUserSeed` (chọn câu INSERT theo việc cột `mission_reminders_enabled` còn hay không).
+
+## Phase 54 — Dự báo tài chính (Flow 6), đợt 1: lõi + dòng tiền + số tiền có thể chi + khoản định kỳ (2026-11-02)
+Nguồn: swimlane `Swimlane_Activity_Diagram_Flow6.json`; kế hoạch đã duyệt ngày 2026-11-02 (gồm schema và các số mặc định thay cho mã BR chưa định nghĩa).
+Thiết kế: `ARCHITECTURE.md` §2.6; yêu cầu: `docs/REQUIREMENTS.md` §6.5 (FR-FCST). Nhánh `feat/forecast-foundation` (xếp chồng trên `refactor/remove-gamification`).
+- [x] Schema — migration `AddForecastFoundation`: bảng `recurring_items` (CHECK cho chiều/chu kỳ/trạng thái/nguồn/số tiền; duy nhất theo user + chiều + người nhận), `transactions.exclude_from_forecast` + `forecast_exclusion_reason` (CHECK đi cặp), `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents`.
+- [x] Bộ tính toán thuần trong `Application/Forecasting`: `CounterpartyKey`, `RecurringSchedule`, `RecurringMatcher`, `RecurringDetector`, `RecurringTracker`, `SpendingBaselineCalculator`, `CashflowEngine`, `SpendableCalculator`.
+- [x] Service: `ForecastService` (dòng tiền, kịch bản, có thể chi), `RecurringItemService`, `ForecastSettingsService`, `RecurringDetectionService`; cấu hình hệ thống nhóm `forecast` + validator.
+- [x] `RecurringDetectionJob` 01:30 VN (`30 18 * * *` UTC); `InsightGeneratorJob` thôi sinh `RecurringDetected` (bản ghi cũ giữ nguyên).
+- [x] API: `/forecast/cashflow`, `/forecast/cashflow/scenario`, `/forecast/spendable`, `/recurring-items` (8 route), `/me/forecast-settings`, `PATCH /financial-accounts/{id}/forecast-inclusion`, `PATCH /transactions/{id}/forecast-exclusion`. `/me/spendable` không đổi.
+- [x] Test: unit cho từng bộ tính toán và service (gồm chống trừ hai lần, quá hạn trong/ngoài ân hạn, ngân sách tổng không cộng trùng danh mục, kịch bản không ghi dữ liệu), 7 test tích hợp qua API thật (401, 404 chéo user, 409 trùng người nhận, job tìm ra thuê bao trong DB).
+- [x] Tài liệu: REQUIREMENTS §6.5 + §13.6, ARCHITECTURE §2.6/§4.1/§5/§6, CLAUDE.md.
+- [ ] Báo nhóm Flutter (`FinMate_FE`) các endpoint mới; app chuyển màn "có thể chi" sang `/forecast/spendable` khi sẵn sàng.
+- [ ] Chạy thử `docker compose up` + curl toàn luồng (test tích hợp đã dùng Postgres thật, nhưng chưa dựng cả stack).
+- [ ] Giới hạn đã biết: khoản đến hạn ngày 28 hằng tháng nhảy sang 31/3 sau tháng 2 — cần cột `anchor_day` (đổi schema, phải duyệt) nếu muốn sửa.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1352/1353 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test: ngày gốc của khoản định kỳ từng lấy theo ngày THANH TOÁN, nên trả sớm hai ngày làm lịch trôi (2/11 → 31/12); nay suy từ ngày đến hạn.
+
+## Phase 55 — Dự báo tài chính, đợt 2: cảnh báo (kế hoạch)
+- [ ] Bộ phát cảnh báo dùng chung trên `FcmPushNotificationService`: chống lặp; giờ yên lặng chỉ cho luồng số dư thấp (đúng sơ đồ).
+- [ ] Cảnh báo số dư thấp (trang 1): ngưỡng của user, ngày thiếu tiền, nguyên nhân, mức chi tối đa/ngày; phản hồi "không chính xác".
+- [ ] Dự báo vượt ngân sách sớm theo số dự kiến (trang 6) + chuyển hạn mức giữa danh mục.
+- [ ] Nhắc hạn hóa đơn, tạm ngừng theo dõi khi quá hạn lâu và hỏi trạng thái (trang 7); thông báo đổi giá khoản định kỳ (trang 8).
+- [ ] Dự báo thu nhập: khai báo nguồn thu, thu không đều (mức thận trọng/trung bình), báo thu nhập trễ (trang 5).
+
+## Phase 56 — Dự báo tài chính, đợt 3: hoàn thiện (kế hoạch)
+- [ ] Phát hiện bất thường có phản hồi (trang 9); "chi một lần" đặt `exclude_from_forecast`.
+- [ ] Dự báo chi theo danh mục → ngân sách kỳ tới (trang 2).
+- [ ] Ngày đạt mục tiêu tiết kiệm: hai tốc độ trung bình/thận trọng, mức cần góp để kịp hạn (trang 4).

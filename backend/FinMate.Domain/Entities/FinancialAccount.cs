@@ -12,6 +12,9 @@ public class FinancialAccount
     public string? PackageName { get; set; }
     public bool IsMonitored { get; set; } = true;
     public long BalanceCents { get; set; }
+
+    /// <summary>Có cộng số dư ví này vào dự báo dòng tiền và số tiền có thể chi không (ví tiết kiệm dài hạn thường tắt).</summary>
+    public bool IncludeInForecast { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

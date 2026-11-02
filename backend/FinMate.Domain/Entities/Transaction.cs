@@ -41,6 +41,10 @@ public class Transaction
     public DateTimeOffset TransactedAt { get; set; }
     public long? BalanceAfterCents { get; set; }
 
+    /// <summary>Không dùng giao dịch này làm dữ liệu thói quen chi tiêu cho dự báo (chi một lần, user tự loại). Số dư vẫn bị ảnh hưởng bình thường.</summary>
+    public bool ExcludeFromForecast { get; set; }
+    public ForecastExclusionReason? ForecastExclusionReason { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
