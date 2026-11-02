@@ -767,26 +767,32 @@
 | Phase 17 — OTP qua email | `[x]` | 9 / 9 |
 | Phase 18 — Google login qua trình duyệt | `[x]` | 8 / 8 |
 | Phase 19 — OCR qua ocr-service | `[ ]` | 7 / 8 *(chờ duyệt gỡ Tesseract)* |
-| Phase 20 — Chat qua Rasa | `[ ]` | 7 / 8 *(contract `/chat/parse` + Rasa đã ghi vào ARCHITECTURE/TECH_STACK với sự đồng ý của chủ dự án 2026-10-11; còn: chưa chuyển kho tin nhắn chưa rõ)* |
+| Phase 20 — Chat qua Rasa | `[ ]` | 6 / 8 *(còn: kho tin nhắn chưa rõ, bộ nhớ cửa hàng theo người dùng cho chat)* |
 | Phase 21 — Tách phân loại hóa đơn sang AI Service | `[x]` | 4 / 4 |
 | Phase 22 — Dạy lại bộ nhớ cửa hàng | `[ ]` | 4 / 5 *(chưa có cách quên một cửa hàng đã dạy, giới hạn số cửa hàng, phiếu bầu từ bảng mới)* |
-| Phase 23 — Nối bản ghi quét với giao dịch | `[ ]` | 5 / 6 *(còn báo cáo độ chính xác, dọn bản ghi cũ, thử trên máy Android thật)* |
-| **Total** | | **326 / 328** |
+| Phase 23 — Nối bản ghi quét với giao dịch | `[ ]` | 6 / 7 *(còn báo cáo độ chính xác, dọn bản ghi cũ, thử trên máy Android thật)* |
+| Phase 24 — Tách hóa đơn theo từng món | `[ ]` | 10 / 11 |
+| Phase 25 — Bám luồng chat và quét bill theo prompt | `[ ]` | 8 / 9 |
+| Phase 26 — Gộp phân loại chat và món trên bill | `[ ]` | 4 / 5 |
+| Phase 27–49 | — | *viết dạng văn xuôi, không có checkbox: không đếm được bằng grep. Giới hạn còn lại ghi ngay trong từng phase* |
+| Phase 50 — Quản trị mọi key bên thứ ba | `[x]` | 5 / 5 |
+| Phase 51 — Quét QR chuyển khoản | `[ ]` | 3 / 4 *(admin sửa `vietqr_banks`, job dọn ý định cũ, nhớ ngân hàng gửi qua phiên)* |
+| Phase 51b — Dọn giá trị viết cứng của QR | `[x]` | 4 / 4 |
+| Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 3 / 12 *(xem phase bên dưới)* |
+| **Total** (không tính Backlog) | | **390 / 410** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
-chủ ý (OTP, 3 bảng `ab_*`).
+**Còn lại (2026-11-02):** 18 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 9 ở Phase 52), 2 task
+`[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
+nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
-**Vẫn lệch docx, đã biết, chưa làm:** nhánh confidence 85% (Flow 1 bước 5.2/5.3 — AI đã trả
-confidence đầy đủ nhưng backend chưa dùng nó để chọn giữa push một chạm và hộp thoại chọn
-danh mục; **hết bị FCM chặn từ Phase 12**, giờ chỉ còn thiếu phần `data` payload và contract
-với client); `ForecastJob` (ARCHITECTURE.md §5 ghi
-06:00, docx Flow 3 mục 4 ghi 22:00, hiện **không có job nào** — forecast chỉ tính khi client
-gọi); trạng thái cảm xúc Mascot xanh/vàng/đỏ (Flow 3 mục 1, chưa có contract).
+**Vẫn lệch đặc tả, đã biết, chưa làm:** auto-commit khi extraction ≥ 85% (Phase 15 chọn xác nhận
+một chạm; đặc tả mới muốn tự ghi nhận); không có job dự báo nào (`ForecastJob` của ARCHITECTURE.md §5
+không tồn tại — forecast chỉ tính khi client gọi; tham số `forecast_minute` của phương pháp tài chính
+khai báo nhưng không ai đọc); trạng thái Mascot chỉ có ở hũ, chưa có ở tóm tắt ngân sách.
 
-**Chưa đối chiếu docx lần nào:** Core Flow 3 và Core Flow 4. Phase 11 chỉ đọc trọn vẹn Flow 1
-và Flow 2; ba điểm Flow 3 ghi ở trên là nhặt được TÌNH CỜ khi sửa Flow 1–2, không phải rà
-soát. Con số 275/277 không chứng minh được gì cho hai flow đó — đúng loại sai lệch mà Phase
-11 đã cho thấy một bảng checkbox không tự phát hiện nổi.
+**Đối chiếu đặc tả:** bản đặc tả hiện hành có 3 Core Flow + Admin Flow (không còn Flow 4).
+`docs/REQUIREMENTS.md` bản 2026-09-24 đã đối chiếu đủ ba flow; bản 2026-11-02 kiểm lại từng mục
+trên code (Phase 52).
 
 ---
 
@@ -1202,3 +1208,19 @@ Không có cột nào thêm vào `transactions`: liên kết giao dịch ↔ l�
 - [x] **Đọc độ dài TLV:** chọn cách đếm (ký tự hay byte) theo KẾT QUẢ CẤU TRÚC (tag 63 phải đọc ra đúng CRC và đủ thông tin thụ hưởng) thay vì "thử rồi nuốt lỗi". Chuẩn công khai không nói rõ đếm theo gì nên cả hai được thử; **chưa kiểm với mã thật của ngân hàng có tên có dấu.**
 - [x] **`provider_key` mồ côi:** `provider_key` của provider là BẤT BIẾN nên đổi tên không gây hỏng; lỗi chỉ đến từ dữ liệu sửa tay. `VietQrBankSeeder.FindDanglingProviderKeysAsync` kiểm lúc khởi động (log cảnh báo) và có test bảo đảm dữ liệu seed không có khóa lạc.
 - Kiểm chứng: test cửa sổ khớp đổi qua API admin (thu còn 5 phút thì thông báo đến sau 8 phút không khớp), validator cấu hình, `QrTransferConfig` của FE.
+
+## Phase 52 — Đối chiếu yêu cầu với code sau Phase 19–51 (2026-11-02)
+Nguồn: `docs/REQUIREMENTS.md` dừng ở 2026-09-24 (Phase 1–18), `CLAUDE.md` dừng ở Phase 18, bảng Progress Summary dừng ở Phase 23. Mỗi mục có nhãn
+trong REQUIREMENTS được kiểm lại trên code tại commit `b2e97b4` (không chỉ đọc `.context/`). Chạy test cùng lúc: backend 1352/1353 (1 đỏ), ai-service 1562 qua / 423 bỏ qua.
+- [x] Kiểm từng mục [Mới]/[Đổi]/[Một phần] của REQUIREMENTS trên code; đóng FR-BUD-03/06 (ngưỡng ba tầng), FR-TXN-24 (chuyển khoản qua `/transactions/chat`), FR-ADM-11 (giao diện quản trị AI).
+- [x] Viết lại `docs/REQUIREMENTS.md`: thêm nhóm CONS, SCAN, CHAT, QR, FIN, CFG cho Phase 19–51; thêm nhãn **[Ngoài đặc tả]** và **[Sai lệch]**; cập nhật NFR theo 5 dịch vụ.
+- [x] Cập nhật `CLAUDE.md` (Current state, repo layout) và bảng Progress Summary (đếm lại: 390 / 410).
+- [ ] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có.
+- [ ] **Google Vision và đồng ý** (FR-CONS-05): ảnh gốc chưa che gửi Google khi có key, Điều khoản bản 3 không nhắc. Chờ chủ sản phẩm: sửa câu chữ + tăng `ConsentVersions.Terms`, hay tắt Vision.
+- [ ] **Test đỏ `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`** (FR-FIN-07): từ `b6f1c42`, luật gợi ý `rule_80_20` thay `cash_flow_budget`. Chờ chốt: chỉnh trọng số hay đổi kỳ vọng.
+- [ ] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`).
+- [ ] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27).
+- [ ] Quyết định Mascot items (FR-GAME-06): gỡ code `/gamification/mascot/*`, `mascot_items`, `user_mascot_items`, `MascotItemSeeder` hay đưa lại vào yêu cầu.
+- [ ] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment.
+- [ ] Sửa bảng job ARCHITECTURE.md §5: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
+- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06).
