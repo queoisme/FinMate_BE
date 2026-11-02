@@ -1,7 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
-using FinMate.Application.Gamification;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -18,21 +17,15 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
 {
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
-    private readonly IGamificationService _gamificationService;
-    private readonly ICacheService _cache;
     private readonly IValidator<CreateTransferCommand> _validator;
 
     public CreateTransferCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
-        IGamificationService gamificationService,
-        ICacheService cache,
         IValidator<CreateTransferCommand> validator)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
-        _gamificationService = gamificationService;
-        _cache = cache;
         _validator = validator;
     }
 
@@ -93,19 +86,9 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
             UpdatedAt = now,
         };
 
-        await _gamificationService.RecordActivityAsync(
-            new GamificationActivity(
-                command.UserId,
-                MissionConditionType.CreateManualTransaction,
-                TransactionExpRewards.CreateManualTransaction,
-                now),
-            ct);
-
-        // 2 account và gamification đã tracked cùng DbContext — AddAsync flush atomically,
+        // 2 account đã tracked cùng DbContext — AddAsync flush atomically,
         // xem ghi chú trong ConfirmTransactionCommandHandler.
         await _transactionRepository.AddAsync(transaction, ct);
-
-        await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }

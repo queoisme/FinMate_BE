@@ -10,7 +10,7 @@
 **FinMate** là ứng dụng Android-first theo dõi tài chính cá nhân tự động bằng AI.
 - Android app đọc notification từ ngân hàng/ví điện tử
 - AI pipeline phân loại, trích xuất, phân danh mục giao dịch
-- User xác nhận qua Mascot — gamification để duy trì thói quen
+- User xác nhận giao dịch trong app (gamification đã bỏ khỏi phạm vi ngày 2026-11-02)
 
 **Repo structure:**
 ```

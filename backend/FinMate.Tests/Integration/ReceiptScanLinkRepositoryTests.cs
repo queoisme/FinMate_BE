@@ -61,10 +61,7 @@ public class ReceiptScanLinkRepositoryTests : IClassFixture<ReceiptScanDbFixture
         var user = Guid.NewGuid();
         var account = Guid.NewGuid();
         var email = $"{user:N}@finmate.local";
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO users (id, email, display_name, role, push_enabled, budget_alerts_enabled, mission_reminders_enabled, created_at, updated_at)
-            VALUES ({user}, {email}, 'Link Repo Test', 'user', true, true, true, now(), now())
-            """);
+        await RawUserSeed.InsertAsync(db, user, email, "Link Repo Test");
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO financial_accounts (id, user_id, account_name, account_type, created_at, updated_at)
             VALUES ({account}, {user}, 'Ví', 'cash', now(), now())

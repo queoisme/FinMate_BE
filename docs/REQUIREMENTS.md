@@ -18,7 +18,7 @@ Tài liệu này liệt kê các yêu cầu chức năng (FR) và phi chức nă
 
 Client là app **Flutter** ở repo riêng `FinMate_FE` (tài liệu cũ ghi `android/` Kotlin — đã đổi). Client nằm ngoài phạm vi; các yêu cầu đặc tả giao cho app được gom ở mục 2.3 để truy vết.
 
-**Quy ước mã.** `FR-<NHÓM>-<số>` cho chức năng, `NFR-<NHÓM>-<số>` cho phi chức năng. Nhóm: AUTH, CONS, ACC, CAT, TXN, SCAN, CHAT, QR, BUD, GOAL, FIN, RPT, NOTI, GAME, AI, ADM, CFG; SEC, DATA, REL, PERF, OPS, MNT, USE. Mã của bản 2026-09-24 được giữ nguyên.
+**Quy ước mã.** `FR-<NHÓM>-<số>` cho chức năng, `NFR-<NHÓM>-<số>` cho phi chức năng. Nhóm: AUTH, CONS, ACC, CAT, TXN, SCAN, CHAT, QR, BUD, GOAL, FIN, RPT, NOTI, AI, ADM, CFG (GAME đã gỡ, xem 13.6); SEC, DATA, REL, PERF, OPS, MNT, USE. Mã của bản 2026-09-24 được giữ nguyên.
 
 **Nhãn đối chiếu với đặc tả.** Yêu cầu không mang nhãn là hệ thống đã đáp ứng (đã kiểm trên code).
 
@@ -32,7 +32,7 @@ Client là app **Flutter** ở repo riêng `FinMate_FE` (tài liệu cũ ghi `an
 
 Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 
-**Thay đổi phạm vi.** Các quyết định cắt/thêm phạm vi so với đặc tả được ghi ở mục 13.6, kèm ngày quyết định. Yêu cầu bị cắt vẫn giữ mã (ưu tiên **Won't**) để truy vết, cho tới khi code tương ứng được gỡ.
+**Thay đổi phạm vi.** Các quyết định cắt/thêm phạm vi so với đặc tả được ghi ở mục 13.6, kèm ngày quyết định. Yêu cầu bị cắt giữ mã (ưu tiên **Won't**) cho tới khi code tương ứng được gỡ; sau đó chỉ còn lại dòng nhật ký ở 13.6.
 
 **Mức ưu tiên** (MoSCoW):
 
@@ -93,7 +93,7 @@ Chuyển khoản nội bộ đi qua `POST /transactions/transfer`. Form nhập t
 | Flow 1, bước 5.3 | Draft không được phản hồi trước timeout → hàng đợi Chờ duyệt | Draft giữ nguyên trạng thái (FR-TXN-09) |
 | Flow 1, bước 6.1 · Flow 2, bước 10 | Lưu vào hàng đợi cục bộ khi mất mạng, đồng bộ khi có mạng | Chống trùng khi đồng bộ (FR-TXN-02, FR-TXN-12, NFR-REL-04) |
 | Flow 2, bước 4 | Mất mạng → chuyển sang form (graceful fallback) | Không có |
-| Flow 3 | Biểu cảm theo trạng thái ngân sách, biểu đồ Donut / Line, thẻ Insight, màn ăn mừng | Server cung cấp dữ liệu và trạng thái (mục 6). Mascot như nhân vật có vật phẩm, EXP, level đã bỏ (mục 13.6); app vẫn có thể hiển thị biểu cảm theo `level` của ngân sách |
+| Flow 3 | Biểu cảm theo trạng thái ngân sách, biểu đồ Donut / Line, thẻ Insight, màn ăn mừng | Server cung cấp dữ liệu và trạng thái (mục 6). Gamification (EXP, level, vật phẩm Mascot) đã gỡ (mục 13.6); app vẫn có thể hiển thị biểu cảm theo `level` của ngân sách |
 | Điều khoản / đồng ý | Hiển thị Điều khoản và chặn dùng app khi `termsAccepted = false` | Server lưu phiên bản đồng ý (mục 3.1) nhưng **không** chặn đăng ký (FR-AUTH-00) |
 
 ## 3. FR — Xác thực, tài khoản người dùng và đồng ý
@@ -307,7 +307,7 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | FR-FIN-06 | Tiền khả dụng và gợi ý mục tiêu (`GET /me/spendable`, `GET /me/goal-suggestions`) | Should | Một công thức khả dụng dùng chung với thẩm định mục tiêu |
 | FR-FIN-07 | **[Sai lệch]** Gợi ý theo luật phải khớp hồ sơ mẫu | Should | Test `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…` **đang đỏ** từ commit `b6f1c42`: hồ sơ "thu nhập biến động, đôi khi thiếu cuối tháng" được luật gợi ý `rule_80_20` thay vì `cash_flow_budget`. Cần chỉnh trọng số hoặc chốt lại kỳ vọng |
 
-## 7. FR — Thông báo đẩy (gamification đã bỏ)
+## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
 
@@ -320,18 +320,6 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | FR-NOTI-05 | Dự phòng khi thiếu thông tin FCM | Should | Ghi log thay vì gửi; log khởi động nêu chế độ |
 | FR-NOTI-06 | Email OTP qua Brevo | Must | Key lấy từ kho key (FR-CFG-03) hoặc biến môi trường; thiếu → ghi mã ra log (chỉ dev/test) |
 
-### 7.2 Gamification — **đã bỏ khỏi phạm vi (2026-11-02)**
-
-Toàn bộ gamification bị cắt (mục 13.6). Các mã dưới đây giữ lại để truy vết; **code vẫn còn** cho tới khi được gỡ ở nhánh riêng (`TASKS.md` Phase 53). Khi gỡ xong, xoá cả mục này.
-
-| Mã | Yêu cầu cũ | Ưu tiên | Code cần gỡ |
-| --- | --- | --- | --- |
-| FR-GAME-01 | Cộng EXP, level theo đường cong bậc hai | Won't | `GamificationService`, lời gọi trong `ConfirmTransaction`, `CreateManualTransaction`, `CreateTransfer`, `ContributeToGoal`; bảng `user_gamification` |
-| FR-GAME-02 | Thu hồi EXP khi xoá giao dịch | Won't | Lời gọi trong `DeleteTransactionCommandHandler` |
-| FR-GAME-03 | Chuỗi ngày (streak) | Won't | `StreakCheckJob` |
-| FR-GAME-04 | Nhiệm vụ `Daily`, `Weekly`, `OneTime` | Won't | `MissionResetJob`, `MissionSeeder`, bảng `missions`, `user_missions`, `/admin/missions` |
-| FR-GAME-05 | Xem hồ sơ, nhiệm vụ, lịch sử | Won't | `GamificationController` (`/gamification/*`) |
-| FR-GAME-06 | Vật phẩm và trang phục Mascot | Won't | `/gamification/mascot/*`, `MascotItemSeeder`, bảng `mascot_items`, `user_mascot_items` |
 
 ## 8. FR — AI Service
 
@@ -366,7 +354,6 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-ADM-03 | Đổi vai trò | Must | Không đổi vai trò chính mình; không hạ admin đang hoạt động cuối cùng; không nâng tài khoản chờ xoá; hạ cấp → thu hồi token |
 | FR-ADM-04 | Cấu hình provider | Must | `provider_key` bất biến |
 | FR-ADM-05 | Danh mục hệ thống | Must | `slug` bất biến; đồng bộ sang AI Service (FR-CAT-06) |
-| FR-ADM-06 | Nhiệm vụ | Won't | Bỏ cùng gamification (13.6); `/admin/missions` sẽ được gỡ |
 | FR-ADM-07 | Hàng đợi xoá dữ liệu và huỷ yêu cầu | Must | Huỷ xoá `user.DeletedAt`; không có endpoint xoá ngay |
 | FR-ADM-08 | Audit log (chỉ đọc) | Must | Mọi thao tác ghi của admin |
 | FR-ADM-09 | Thống kê chất lượng AI (`/admin/ai-stats`) | Should | AI Service chết vẫn trả 200 với phần của backend |
@@ -455,7 +442,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Rasa tắt, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
 | NFR-REL-03 | FCM, Brevo, `/bill/learn` lỗi không làm hỏng thao tác gốc | Client giả ném lỗi |
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
-| NFR-REL-05 | Job nền bền qua khởi động lại; 7 job sau khi bỏ gamification: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob` (code hiện còn thêm `StreakCheckJob`, `MissionResetJob`, sẽ gỡ) | Restart giữa lúc job chạy |
+| NFR-REL-05 | Job nền bền qua khởi động lại; 7 job: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob` | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
 | NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Uptime monitor |
 | NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
@@ -524,7 +511,6 @@ Kiểm trên code ngày 2026-11-02.
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
 | NFR-PERF-07 | Một phần | Client Refit chính timeout 100 s | Đặt timeout tường minh | Nhỏ |
 | NFR-SEC-27 | Một phần | Thiếu 2 key trong guard | Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` | Nhỏ |
-| FR-GAME-01…06, FR-ADM-06 | Won't nhưng còn code | Gamification đã cắt (13.6), code còn nguyên | Gỡ code, test, job, seeder; migration xoá 5 bảng | Lớn — chạm handler giao dịch và mục tiêu |
 | FR-TXN-05, 05a, 06 | Đổi | Luôn Draft + một chạm | Auto-commit theo trường cốt lõi và extraction | Lớn — đảo Phase 15, đổi hợp đồng push |
 | FR-TXN-17, FR-AI-04 | Đổi / Một phần | Bỏ bản trùng, không liên kết | Lưu bản trùng kèm liên kết; mở rộng khoá so khớp | Trung bình |
 | FR-TXN-18 | Mới | Không có | Sự kiện liên quan (hoàn tiền, đảo giao dịch…) | Lớn |
@@ -555,7 +541,6 @@ Kiểm trên code ngày 2026-11-02.
 
 - [ ] **Google Vision và đồng ý.** Sửa Điều khoản để nêu rõ ảnh hoá đơn gửi Google (tăng `ConsentVersions.Terms` → mọi người đồng ý lại), hay tắt Vision và chỉ dùng OCR cục bộ (chậm hơn ~2,2 lần, độ chính xác tương đương).
 - [ ] **Auto-commit (FR-TXN-05).** Làm theo đặc tả hay giữ xác nhận một chạm của Phase 15.
-- [x] ~~**Mascot items (FR-GAME-06).**~~ — bỏ toàn bộ gamification (13.6).
 - [ ] **Gợi ý phương pháp theo luật (FR-FIN-07).** Hồ sơ mẫu nên ra `cash_flow_budget` hay `rule_80_20`.
 - [ ] **Đồng ý khảo sát-AI (FR-CONS-06).** Gỡ hẳn loại đồng ý này hay khôi phục việc kiểm.
 - [ ] **Tách hoá đơn theo món (FR-SCAN-05).** Đang tắt mặc định; có bật cho production không.
@@ -582,7 +567,6 @@ Kiểm trên code ngày 2026-11-02.
 | FR-GOAL | Flow 3 phân luồng 3.2 | 5, 46 |
 | FR-FIN | Quyết định chủ sản phẩm (file khảo sát) | 42–47 |
 | FR-RPT | Flow 3 phân luồng 3.3 | 6 |
-| FR-GAME | Flow 1 bước 6.2, Flow 2 bước 11; Flow 3 — **đã bỏ** (13.6) | 7; gỡ ở 53 |
 | FR-NOTI | Flow 1 giai đoạn E; Flow 3 | 12, 15 |
 | FR-AI | Flow 1 giai đoạn D; Flow 2; `ARCHITECTURE.md` §3 | 9, 10, 28, 29, 32–39, 45, 48 |
 | FR-ADM, FR-CFG | Admin Flow | 8, 13, 29, 46, 49, 50 |
@@ -592,6 +576,6 @@ Kiểm trên code ngày 2026-11-02.
 | Ngày | Quyết định | Lý do / ghi chú | Ảnh hưởng |
 | --- | --- | --- | --- |
 | 2026-09-11 | Không làm SMS OTP; chỉ email OTP | Không cần nhà mạng | FR-AUTH-15 Won't |
-| 2026-09-24 | Bỏ vật phẩm và trang phục Mascot | — | FR-GAME-06 Won't (code chưa gỡ) |
-| 2026-11-02 | **Bỏ toàn bộ gamification**: EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge, quản trị nhiệm vụ | Quyết định chủ sản phẩm. Lệch có chủ ý so với đặc tả (Flow 1 bước 6.2, Flow 2 bước 11, Flow 3 Honor Badge) | FR-GAME-01…06, FR-ADM-06 → Won't; FR-TXN-07, FR-GOAL-03, FR-NOTI-01 bỏ phần EXP/level. Code gỡ ở nhánh riêng (`TASKS.md` Phase 53): 2 job, 2 seeder, `GamificationController`, `AdminMissionsController`, 5 bảng (`user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items`) |
+| 2026-09-24 | Bỏ vật phẩm và trang phục Mascot | — | FR-GAME-06 Won't; code gỡ cùng đợt 2026-11-02 |
+| 2026-11-02 | **Bỏ toàn bộ gamification**: EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge, quản trị nhiệm vụ | Quyết định chủ sản phẩm. Lệch có chủ ý so với đặc tả (Flow 1 bước 6.2, Flow 2 bước 11, Flow 3 Honor Badge) | Xóa FR-GAME-01…06 (EXP/level, thu hồi EXP, streak, nhiệm vụ, xem hồ sơ, vật phẩm Mascot) và FR-ADM-06 (quản trị nhiệm vụ); FR-TXN-07, FR-GOAL-03, FR-NOTI-01 bỏ phần EXP/level. **Code đã gỡ** (`TASKS.md` Phase 53): `/gamification/*`, `/admin/missions`, `StreakCheckJob`, `MissionResetJob`, `MissionSeeder`, `MascotItemSeeder`, `users.mission_reminders_enabled`; migration `RemoveGamification` xóa 5 bảng (`user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items`) |
 | 2026-11-02 | **Giữ** trạng thái cảnh báo ngân sách (`ok/t1/t2/over`) mà đặc tả gọi là "trạng thái Mascot" | Đây là cảnh báo chi tiêu, không phải trò chơi | FR-BUD-07 giữ nguyên, đổi tên khỏi "Mascot" |

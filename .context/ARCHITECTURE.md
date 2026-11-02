@@ -42,7 +42,7 @@ thì hỏi user, đừng tự chọn.
 │                 Backend — ASP.NET Core 9 Web API                │
 │                                                                 │
 │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌───────────────────┐ │
-│  │   Auth   │ │Transaction│ │  Budget  │ │  Gamification     │ │
+│  │   Auth   │ │Transaction│ │  Budget  │ │  Finance Method   │ │
 │  │  Module  │ │  Module   │ │  Module  │ │  Module           │ │
 │  └──────────┘ └───────────┘ └──────────┘ └───────────────────┘ │
 │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌───────────────────┐ │
@@ -105,13 +105,11 @@ backend/
 │   │   ├── CategoriesController.cs
 │   │   ├── NotificationsController.cs
 │   │   ├── ReportsController.cs
-│   │   ├── GamificationController.cs
 │   │   ├── DevicesController.cs      # đăng ký/gỡ thiết bị nhận push (FCM)
 │   │   └── Admin/
 │   │       ├── AdminUsersController.cs
 │   │       ├── AdminDataDeletionController.cs   # giám sát hàng đợi xoá cứng
-│   │       ├── AdminProviderConfigsController.cs
-│   │       └── AdminMissionsController.cs
+│   │       └── AdminProviderConfigsController.cs
 │   ├── Middleware/
 │   │   ├── ExceptionHandlingMiddleware.cs
 │   │   ├── RequestLoggingMiddleware.cs
@@ -148,7 +146,6 @@ backend/
 │   │   └── Commands/
 │   │       └── AnalyzeNotificationCommand.cs
 │   ├── Reports/
-│   ├── Gamification/
 │   └── Common/
 │       ├── Interfaces/           # IRepository, IAIService, ICacheService...
 │       ├── Exceptions/           # Domain exceptions
@@ -165,16 +162,11 @@ backend/
 │   │   ├── FinancialAccount.cs
 │   │   ├── NotificationLog.cs
 │   │   ├── AiResult.cs
-│   │   ├── ReceiptScan.cs, ReceiptScanItem.cs, ReceiptScanLink.cs   # §4.1
-│   │   └── Gamification/
-│   │       ├── UserGamification.cs
-│   │       ├── Mission.cs
-│   │       └── UserMission.cs
+│   │   └── ReceiptScan.cs, ReceiptScanItem.cs, ReceiptScanLink.cs   # §4.1
 │   ├── Enums/
 │   │   ├── TransactionType.cs
 │   │   ├── TransactionSource.cs
-│   │   ├── AccountType.cs
-│   │   └── MissionPeriodType.cs
+│   │   └── AccountType.cs
 │   └── ValueObjects/
 │       └── Money.cs              # Wrapper cho BIGINT amount
 │
@@ -201,9 +193,9 @@ backend/
 │   │   └── RedisCacheService.cs
 │   └── BackgroundJobs/
 │       ├── BudgetAlertJob.cs
-│       ├── StreakCheckJob.cs
-│       ├── ForecastJob.cs
-│       └── DataCleanupJob.cs
+│       ├── DailySummaryJob.cs
+│       ├── InsightGeneratorJob.cs
+│       └── …               # đủ 7 job ở §5
 │
 └── FinMate.Tests/
     ├── Unit/
@@ -963,7 +955,7 @@ lỗi, 502/503, quá hạn hoặc đầu ra backend kiểm lại không đạt �
 
 ## 4. Database Architecture
 
-### 4.1 Backend DB — 33 bảng, 7 domain groups
+### 4.1 Backend DB — các nhóm bảng (gamification đã gỡ 2026-11-02, migration `RemoveGamification` xóa 5 bảng)
 
 ```
 Auth & Identity:
@@ -980,10 +972,6 @@ Budget & Goals:
 
 Reports:
   daily_summaries, spending_insights
-
-Gamification:
-  user_gamification, missions, user_missions,
-  mascot_items, user_mascot_items
 
 Receipt scan (thêm 2026-10-10):
   receipt_scans, receipt_scan_items, receipt_scan_links
@@ -1114,13 +1102,14 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | Job | Schedule | Mô tả |
 |---|---|---|
 | `BudgetAlertJob` | Mỗi giờ | **Lưới vét** cho threshold 70%/90%/100%. Đường chính là TỨC THÌ sau mỗi giao dịch (`BudgetPeriodService.ApplyDeltaAsync`, docx Flow 2 mục 2a). Job vẫn cần vì hạ hạn mức và backfill lúc tạo budget đều làm vượt ngưỡng mà không có giao dịch nào |
-| `StreakCheckJob` | 23:55 mỗi ngày | Reset streak nếu user không có transaction hôm nay |
-| `ForecastJob` | 06:00 mỗi ngày | Gọi AI Service tính spending forecast tháng |
 | `InsightGeneratorJob` | 02:00 mỗi ngày | Generate spending insights từ transaction data |
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
-| `MissionResetJob` | 00:01 mỗi ngày/tuần | Reset daily/weekly missions |
-| `DataCleanupJob` | 03:00 mỗi ngày | Xóa raw notification body > 90 ngày, process deletion requests |
-| `RetryFailedNotifJob` | Mỗi 15 phút | Retry notification_logs với status='failed', retry_count < 3 |
+| `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
+| `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
+| `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
+| `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
+
+**Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (chưa có job nào xóa `notification_body` sau 90 ngày — xem `TASKS.md` Phase 52). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
 
 ---
 
@@ -1130,13 +1119,11 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 |---|---|---|
 | `user:{id}:profile` | 15 phút | User profile (refresh khi update) |
 | `user:{id}:budget_summary:{year}:{month}` | 5 phút | Budget summary tháng hiện tại |
-| `user:{id}:active_missions` | 30 phút | Danh sách missions đang active |
 | `categories:system` | 60 phút | System categories (ít thay đổi) |
 | `provider_configs:active` | 60 phút | Provider configs (admin managed) |
-| `user:{id}:gamification` | 10 phút | Level, EXP, streak |
 
 **Cache invalidation:**
-- Khi user confirm transaction → invalidate `budget_summary` và `gamification`
+- Khi user confirm transaction → invalidate `budget_summary`
 - Khi admin cập nhật provider_configs → invalidate `provider_configs:active`
 - Khi user update profile → invalidate `user:{id}:profile`
 

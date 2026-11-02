@@ -22,7 +22,6 @@ public class UpdateNotificationPrefsCommandHandler : IUpdateNotificationPrefsCom
 
         user.NotificationPrefs.PushEnabled = command.PushEnabled;
         user.NotificationPrefs.BudgetAlertsEnabled = command.BudgetAlertsEnabled;
-        user.NotificationPrefs.MissionRemindersEnabled = command.MissionRemindersEnabled;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 

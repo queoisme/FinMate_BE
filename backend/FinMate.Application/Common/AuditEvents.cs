@@ -40,10 +40,6 @@ public static class AuditEvents
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
     public const string AdminCategoryActivationChanged = "Admin.Category.ActivationChanged";
 
-    public const string AdminMissionCreated = "Admin.Mission.Created";
-    public const string AdminMissionUpdated = "Admin.Mission.Updated";
-    public const string AdminMissionActivationChanged = "Admin.Mission.ActivationChanged";
-
     // Luật phân loại của AI (thương hiệu, từ khóa, bộ nhớ tên món, chỉ dẫn Gemini). Chỉ thay đổi THÀNH CÔNG mới ghi; nội dung trước/sau nằm ở nhật ký của AI Service.
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
     /// <summary>Tài liệu cấu hình của AI/OCR (từ vựng chat, từ điển cửa hàng, ngưỡng...) được lưu bản nháp hoặc kích hoạt. Nội dung từng phiên bản do AI Service giữ (config_documents).</summary>

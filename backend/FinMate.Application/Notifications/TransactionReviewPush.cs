@@ -112,7 +112,7 @@ public static class TransactionReviewPushBuilder
         // mục lên như thể đã chốt sẽ khiến người dùng gật theo thay vì chọn lại.
         return new TransactionReviewPush(
             "Giao dịch mới cần phân loại",
-            $"Bạn vừa {verb} {amount}{at}. Chọn danh mục giúp Mascot nhé.",
+            $"Bạn vừa {verb} {amount}{at}. Chạm để chọn danh mục.",
             data);
     }
 }

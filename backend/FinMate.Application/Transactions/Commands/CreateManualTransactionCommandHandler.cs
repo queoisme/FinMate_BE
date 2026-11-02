@@ -2,7 +2,6 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
-using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -16,7 +15,6 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ICategoryRepository _categoryRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
-    private readonly IGamificationService _gamificationService;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ICacheService _cache;
@@ -30,7 +28,6 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ICategoryRepository categoryRepository,
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
-        IGamificationService gamificationService,
         IAIServiceClient aiServiceClient,
         IReceiptScanRepository receiptScanRepository,
         ICacheService cache,
@@ -43,7 +40,6 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _categoryRepository = categoryRepository;
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
-        _gamificationService = gamificationService;
         _aiServiceClient = aiServiceClient;
         _receiptScanRepository = receiptScanRepository;
         _cache = cache;
@@ -114,21 +110,12 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             command.TransactedAt,
             ct);
 
-        await _gamificationService.RecordActivityAsync(
-            new GamificationActivity(
-                command.UserId,
-                MissionConditionType.CreateManualTransaction,
-                TransactionExpRewards.CreateManualTransaction,
-                now),
-            ct);
-
-        // account, budget period và gamification đã tracked (cùng DbContext) — AddAsync flush
+        // account và budget period đã tracked (cùng DbContext) — AddAsync flush
         // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
         await _transactionRepository.AddAsync(transaction, ct);
         transaction.Category = category;
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
-        await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
         // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);

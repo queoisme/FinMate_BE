@@ -37,7 +37,7 @@ public class ReceiptScanLinkTests
         _scans.Setup(r => r.IsSplitAsync(_scanId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _handler = new CreateManualTransactionCommandHandler(
             _transactions.Object, accounts.Object, categories.Object, budget.Object, new Mock<IBudgetAlertNotifier>().Object,
-            new Mock<IGamificationService>().Object, new Mock<IAIServiceClient>().Object, _scans.Object, new Mock<ICacheService>().Object,
+            new Mock<IAIServiceClient>().Object, _scans.Object, new Mock<ICacheService>().Object,
             NullLogger<CreateManualTransactionCommandHandler>.Instance, new CreateManualTransactionCommandValidator());
     }
 
