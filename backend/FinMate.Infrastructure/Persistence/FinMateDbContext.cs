@@ -25,6 +25,7 @@ public class FinMateDbContext : DbContext
     public DbSet<QrTransferIntent> QrTransferIntents => Set<QrTransferIntent>();
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
+    public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
