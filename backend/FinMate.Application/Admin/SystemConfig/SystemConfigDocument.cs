@@ -159,6 +159,36 @@ public sealed record ForecastSettings
     public int MaxScenarioItems { get; init; } = 20;
 
     public IReadOnlyList<ForecastHoliday> Holidays { get; init; } = [];
+
+    // ---- Đợt 2: cảnh báo (duyệt 2026-11-02) ----
+
+    /// <summary>Cảnh báo số dư thấp nhìn trước chừng này ngày.</summary>
+    public int LowBalanceHorizonDays { get; init; } = 14;
+
+    /// <summary>Đã gửi cảnh báo số dư thấp thì chừng này ngày sau mới gửi lại ("Đã gửi cảnh báo tương tự gần đây?").</summary>
+    public int LowBalanceCooldownDays { get; init; } = 3;
+
+    /// <summary>User báo một cảnh báo số dư thấp "không chính xác" thì tắt loại cảnh báo này chừng này ngày.</summary>
+    public int InaccurateSuppressDays { get; init; } = 7;
+
+    /// <summary>Vượt ngân sách sớm (BR-04.2): đã qua ít nhất chừng này ngày trong tháng thì dùng nhịp chi tháng này, ít hơn thì dùng thói quen 90 ngày.</summary>
+    public int BudgetRiskMinElapsedDays { get; init; } = 7;
+
+    /// <summary>Vượt ngân sách sớm chỉ báo khi còn ít nhất chừng này ngày để kịp điều chỉnh.</summary>
+    public int BudgetRiskMinDaysRemaining { get; init; } = 3;
+
+    /// <summary>Nhắc hóa đơn trước hạn chừng này ngày.</summary>
+    public int BillReminderDaysBefore { get; init; } = 3;
+
+    /// <summary>Thu nhập trễ (BR-07.4): quá ngày dự kiến chừng này ngày mà chưa thấy thì báo.</summary>
+    public int IncomeLateDays { get; init; } = 3;
+
+    /// <summary>Thu nhập không đều (BR-07.2) ước tính từ chừng này tháng gần nhất.</summary>
+    public int IrregularIncomeMonths { get; init; } = 6;
+
+    /// <summary>Giờ yên lặng mặc định (phút trong ngày, giờ VN) cho cảnh báo số dư thấp, khi user chưa đặt riêng.</summary>
+    public int QuietHoursStartMinute { get; init; } = 22 * 60;
+    public int QuietHoursEndMinute { get; init; } = 7 * 60;
 }
 
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>

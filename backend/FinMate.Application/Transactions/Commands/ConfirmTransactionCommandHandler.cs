@@ -14,6 +14,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ICacheService _cache;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -22,7 +23,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IBudgetAlertNotifier budgetAlertNotifier,
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
-        ICacheService cache)
+        ICacheService cache,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -31,6 +33,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         _categoryRepository = categoryRepository;
         _aiServiceClient = aiServiceClient;
         _cache = cache;
+        _forecastAlerts = forecastAlerts;
     }
 
     public async Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
@@ -111,7 +114,12 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
                     "category_correction"),
                 ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return TransactionMapper.ToDto(transaction);
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

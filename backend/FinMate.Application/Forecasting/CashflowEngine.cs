@@ -100,7 +100,8 @@ public static class CashflowEngine
 
     /// <summary>
     /// Đặt các lần đến hạn của khoản định kỳ lên trục ngày. Lần hiện tại đã thấy thanh toán thì bỏ (tiền đã ra khỏi số dư). Lần đã quá hạn
-    /// mà chưa thấy trả: còn trong ân hạn thì coi như sẽ trả hôm nay, quá ân hạn thì không tính nữa.
+    /// mà chưa thấy: khoản CHI còn trong ân hạn thì coi như sẽ trả hôm nay (thận trọng), quá ân hạn thì không tính nữa; khoản THU quá hạn
+    /// thì không tính (sơ đồ trang 5: "Cập nhật dự báo theo kịch bản chưa nhận thu nhập") — trông vào tiền chưa về là lạc quan.
     /// </summary>
     public static IReadOnlyList<CashflowEvent> RecurringEvents(
         IReadOnlyList<RecurringItemView> items,
@@ -116,7 +117,8 @@ public static class CashflowEngine
             var signed = item.Direction == RecurringDirection.Inflow ? item.AmountCents : -item.AmountCents;
             foreach (var due in DueDates(item, today, end, rules))
             {
-                if (RecurringMatcher.FindPayment(item, due, recentTransactions, rules) is not null)
+                if (RecurringMatcher.FindPayment(item, due, recentTransactions, rules) is not null
+                    || (due < today && item.Direction == RecurringDirection.Inflow))
                 {
                     continue;
                 }

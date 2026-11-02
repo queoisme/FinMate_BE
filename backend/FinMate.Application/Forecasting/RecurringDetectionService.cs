@@ -17,20 +17,28 @@ public class RecurringDetectionService : IRecurringDetectionService
     private readonly IForecastDataRepository _data;
     private readonly ISystemConfigProvider _config;
     private readonly ICacheService _cache;
+    private readonly IForecastAlertDispatcher _alerts;
     private readonly Func<DateTimeOffset> _now;
 
-    public RecurringDetectionService(IRecurringItemRepository items, IForecastDataRepository data, ISystemConfigProvider config, ICacheService cache)
-        : this(items, data, config, cache, () => DateTimeOffset.UtcNow)
+    public RecurringDetectionService(
+        IRecurringItemRepository items, IForecastDataRepository data, ISystemConfigProvider config, ICacheService cache, IForecastAlertDispatcher alerts)
+        : this(items, data, config, cache, alerts, () => DateTimeOffset.UtcNow)
     {
     }
 
     internal RecurringDetectionService(
-        IRecurringItemRepository items, IForecastDataRepository data, ISystemConfigProvider config, ICacheService cache, Func<DateTimeOffset> now)
+        IRecurringItemRepository items,
+        IForecastDataRepository data,
+        ISystemConfigProvider config,
+        ICacheService cache,
+        IForecastAlertDispatcher alerts,
+        Func<DateTimeOffset> now)
     {
         _items = items;
         _data = data;
         _config = config;
         _cache = cache;
+        _alerts = alerts;
         _now = now;
     }
 
@@ -43,9 +51,10 @@ public class RecurringDetectionService : IRecurringDetectionService
         var existing = await _items.ListAllTrackedAsync(userId, ct);
 
         var changed = false;
+        var priceChanges = new List<PriceChange>();
         foreach (var item in existing)
         {
-            changed |= RecurringTracker.Advance(item, history, rules, now);
+            changed |= RecurringTracker.Advance(item, history, rules, now, priceChanges);
         }
 
         var known = existing
@@ -64,7 +73,29 @@ public class RecurringDetectionService : IRecurringDetectionService
             await _cache.RemoveAsync(CacheKeys.ForecastBaseline(userId, today), ct);
         }
 
+        await AnnouncePriceChangesAsync(userId, priceChanges, now, ct);
         return detected.Count;
+    }
+
+    /// <summary>Sơ đồ 5a: "Tạo thông báo thay đổi giá". Job chạy ban đêm nên hẹn tới 08:00 mới gửi.</summary>
+    private async Task AnnouncePriceChangesAsync(Guid userId, IReadOnlyList<PriceChange> changes, DateTimeOffset now, CancellationToken ct)
+    {
+        foreach (var change in changes)
+        {
+            await _alerts.RaiseAsync(new ForecastAlertRequest(
+                userId,
+                ForecastAlertKind.PriceChange,
+                $"price_change:{change.RecurringItemId}:{ForecastText.Iso(change.PaidOn)}",
+                $"{change.Name} đổi giá",
+                $"Từ {ForecastText.Money(change.OldAmountCents)} thành {ForecastText.Money(change.NewAmountCents)}. Dự báo đã theo giá mới.",
+                new Dictionary<string, string>
+                {
+                    ["recurringItemId"] = change.RecurringItemId.ToString(),
+                    ["oldAmountCents"] = change.OldAmountCents.ToString(),
+                    ["newAmountCents"] = change.NewAmountCents.ToString(),
+                },
+                NotBefore: ForecastAlertKinds.NextMorning(now)), ct);
+        }
     }
 
     private static RecurringItem ToEntity(Guid userId, DetectedRecurring d, DateTimeOffset now) => new()
