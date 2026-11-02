@@ -21,6 +21,9 @@ public class User
     /// </summary>
     public long? MonthlyIncomeCents { get; set; }
 
+    /// <summary>Khoản dự phòng user tự đặt (đồng) cho "số tiền có thể chi". Null = dùng mặc định hệ thống (% thu nhập dự kiến).</summary>
+    public long? ForecastReserveCents { get; set; }
+
     /// <summary>
     /// Lúc người dùng chứng minh họ thật sự sở hữu email này. NULL = chưa xác minh.
     ///

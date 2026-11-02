@@ -30,6 +30,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             t.HasCheckConstraint(
                 "chk_users_alert_thresholds",
                 "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
+
+            t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
         });
 
         builder.HasKey(u => u.Id);
@@ -63,6 +65,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+        builder.Property(u => u.ForecastReserveCents).HasColumnName("forecast_reserve_cents");
         builder.Property(u => u.TermsVersion).HasColumnName("terms_version");
         builder.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
         builder.Property(u => u.AiConsentVersion).HasColumnName("ai_consent_version");
