@@ -6,7 +6,7 @@ namespace FinMate.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Bộ 10 câu khảo sát đầu vào (nguồn: finmate_khao_sat_insight_va_goi_y_quan_ly_tai_chinh.md, mục 2) và ánh xạ
-/// "đáp án → signals" ở mục 3. Idempotent theo <c>code</c> như MissionSeeder: chạy lại mỗi lần khởi động chỉ thêm câu
+/// "đáp án → signals" ở mục 3. Idempotent theo <c>code</c>: chạy lại mỗi lần khởi động chỉ thêm câu
 /// hỏi/đáp án CHƯA có, không đụng bản admin đã sửa hay tắt.
 ///
 /// Trọng số 1–3: 3 = dấu hiệu rõ, 1 = dấu hiệu nhẹ. Đáp án "bỏ qua" không có dòng nào — câu bỏ qua không được tính điểm.

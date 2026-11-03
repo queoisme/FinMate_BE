@@ -767,26 +767,36 @@
 | Phase 17 — OTP qua email | `[x]` | 9 / 9 |
 | Phase 18 — Google login qua trình duyệt | `[x]` | 8 / 8 |
 | Phase 19 — OCR qua ocr-service | `[ ]` | 7 / 8 *(chờ duyệt gỡ Tesseract)* |
-| Phase 20 — Chat qua Rasa | `[ ]` | 7 / 8 *(contract `/chat/parse` + Rasa đã ghi vào ARCHITECTURE/TECH_STACK với sự đồng ý của chủ dự án 2026-10-11; còn: chưa chuyển kho tin nhắn chưa rõ)* |
+| Phase 20 — Chat qua Rasa | `[ ]` | 6 / 8 *(còn: kho tin nhắn chưa rõ, bộ nhớ cửa hàng theo người dùng cho chat)* |
 | Phase 21 — Tách phân loại hóa đơn sang AI Service | `[x]` | 4 / 4 |
 | Phase 22 — Dạy lại bộ nhớ cửa hàng | `[ ]` | 4 / 5 *(chưa có cách quên một cửa hàng đã dạy, giới hạn số cửa hàng, phiếu bầu từ bảng mới)* |
-| Phase 23 — Nối bản ghi quét với giao dịch | `[ ]` | 5 / 6 *(còn báo cáo độ chính xác, dọn bản ghi cũ, thử trên máy Android thật)* |
-| **Total** | | **326 / 328** |
+| Phase 23 — Nối bản ghi quét với giao dịch | `[ ]` | 6 / 7 *(còn báo cáo độ chính xác, dọn bản ghi cũ, thử trên máy Android thật)* |
+| Phase 24 — Tách hóa đơn theo từng món | `[ ]` | 10 / 11 |
+| Phase 25 — Bám luồng chat và quét bill theo prompt | `[ ]` | 8 / 9 |
+| Phase 26 — Gộp phân loại chat và món trên bill | `[ ]` | 4 / 5 |
+| Phase 27–49 | — | *viết dạng văn xuôi, không có checkbox: không đếm được bằng grep. Giới hạn còn lại ghi ngay trong từng phase* |
+| Phase 50 — Quản trị mọi key bên thứ ba | `[x]` | 5 / 5 |
+| Phase 51 — Quét QR chuyển khoản | `[ ]` | 3 / 4 *(admin sửa `vietqr_banks`, job dọn ý định cũ, nhớ ngân hàng gửi qua phiên)* |
+| Phase 51b — Dọn giá trị viết cứng của QR | `[x]` | 4 / 4 |
+| Phase 52 — Đối chiếu yêu cầu với code | `[ ]` | 5 / 12 *(xem phase bên dưới)* |
+| Phase 53 — Gỡ toàn bộ gamification | `[ ]` | 9 / 10 *(còn: báo nhóm Flutter; Phase 7 giữ nguyên để làm lịch sử)* |
+| Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
+| Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
+| Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
+| **Total** (không tính Backlog) | | **424 / 450** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
-**Còn lại:** 0 task chưa làm trong MVP scope, 0 task `[!]` chờ duyệt. Còn 2 task `[-]` bỏ có
-chủ ý (OTP, 3 bảng `ab_*`).
+**Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
+`[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
+nằm ở `docs/REQUIREMENTS.md` §13.1; vấn đề cần chủ sản phẩm quyết ở §13.4.
 
-**Vẫn lệch docx, đã biết, chưa làm:** nhánh confidence 85% (Flow 1 bước 5.2/5.3 — AI đã trả
-confidence đầy đủ nhưng backend chưa dùng nó để chọn giữa push một chạm và hộp thoại chọn
-danh mục; **hết bị FCM chặn từ Phase 12**, giờ chỉ còn thiếu phần `data` payload và contract
-với client); `ForecastJob` (ARCHITECTURE.md §5 ghi
-06:00, docx Flow 3 mục 4 ghi 22:00, hiện **không có job nào** — forecast chỉ tính khi client
-gọi); trạng thái cảm xúc Mascot xanh/vàng/đỏ (Flow 3 mục 1, chưa có contract).
+**Vẫn lệch đặc tả, đã biết, chưa làm:** auto-commit khi extraction ≥ 85% (Phase 15 chọn xác nhận
+một chạm; đặc tả mới muốn tự ghi nhận); không có job dự báo nào (`ForecastJob` của ARCHITECTURE.md §5
+không tồn tại — forecast chỉ tính khi client gọi; tham số `forecast_minute` của phương pháp tài chính
+khai báo nhưng không ai đọc); trạng thái Mascot chỉ có ở hũ, chưa có ở tóm tắt ngân sách.
 
-**Chưa đối chiếu docx lần nào:** Core Flow 3 và Core Flow 4. Phase 11 chỉ đọc trọn vẹn Flow 1
-và Flow 2; ba điểm Flow 3 ghi ở trên là nhặt được TÌNH CỜ khi sửa Flow 1–2, không phải rà
-soát. Con số 275/277 không chứng minh được gì cho hai flow đó — đúng loại sai lệch mà Phase
-11 đã cho thấy một bảng checkbox không tự phát hiện nổi.
+**Đối chiếu đặc tả:** bản đặc tả hiện hành có 3 Core Flow + Admin Flow (không còn Flow 4).
+`docs/REQUIREMENTS.md` bản 2026-09-24 đã đối chiếu đủ ba flow; bản 2026-11-02 kiểm lại từng mục
+trên code (Phase 52).
 
 ---
 
@@ -1202,3 +1212,80 @@ Không có cột nào thêm vào `transactions`: liên kết giao dịch ↔ l�
 - [x] **Đọc độ dài TLV:** chọn cách đếm (ký tự hay byte) theo KẾT QUẢ CẤU TRÚC (tag 63 phải đọc ra đúng CRC và đủ thông tin thụ hưởng) thay vì "thử rồi nuốt lỗi". Chuẩn công khai không nói rõ đếm theo gì nên cả hai được thử; **chưa kiểm với mã thật của ngân hàng có tên có dấu.**
 - [x] **`provider_key` mồ côi:** `provider_key` của provider là BẤT BIẾN nên đổi tên không gây hỏng; lỗi chỉ đến từ dữ liệu sửa tay. `VietQrBankSeeder.FindDanglingProviderKeysAsync` kiểm lúc khởi động (log cảnh báo) và có test bảo đảm dữ liệu seed không có khóa lạc.
 - Kiểm chứng: test cửa sổ khớp đổi qua API admin (thu còn 5 phút thì thông báo đến sau 8 phút không khớp), validator cấu hình, `QrTransferConfig` của FE.
+
+## Phase 52 — Đối chiếu yêu cầu với code sau Phase 19–51 (2026-11-02)
+Nguồn: `docs/REQUIREMENTS.md` dừng ở 2026-09-24 (Phase 1–18), `CLAUDE.md` dừng ở Phase 18, bảng Progress Summary dừng ở Phase 23. Mỗi mục có nhãn
+trong REQUIREMENTS được kiểm lại trên code tại commit `b2e97b4` (không chỉ đọc `.context/`). Chạy test cùng lúc: backend 1352/1353 (1 đỏ), ai-service 1562 qua / 423 bỏ qua.
+- [x] Kiểm từng mục [Mới]/[Đổi]/[Một phần] của REQUIREMENTS trên code; đóng FR-BUD-03/06 (ngưỡng ba tầng), FR-TXN-24 (chuyển khoản qua `/transactions/chat`), FR-ADM-11 (giao diện quản trị AI).
+- [x] Viết lại `docs/REQUIREMENTS.md`: thêm nhóm CONS, SCAN, CHAT, QR, FIN, CFG cho Phase 19–51; thêm nhãn **[Ngoài đặc tả]** và **[Sai lệch]**; cập nhật NFR theo 5 dịch vụ.
+- [x] Cập nhật `CLAUDE.md` (Current state, repo layout) và bảng Progress Summary (đếm lại: 390 / 410).
+- [ ] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có.
+- [ ] **Google Vision và đồng ý** (FR-CONS-05): ảnh gốc chưa che gửi Google khi có key, Điều khoản bản 3 không nhắc. Chờ chủ sản phẩm: sửa câu chữ + tăng `ConsentVersions.Terms`, hay tắt Vision.
+- [ ] **Test đỏ `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`** (FR-FIN-07): từ `b6f1c42`, luật gợi ý `rule_80_20` thay `cash_flow_budget`. Chờ chốt: chỉnh trọng số hay đổi kỳ vọng.
+- [ ] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`).
+- [ ] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27).
+- [x] Quyết định Mascot items (FR-GAME-06) — *2026-11-02: bỏ TOÀN BỘ gamification, giữ trạng thái cảnh báo ngân sách. Gỡ code ở Phase 53.*
+- [ ] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment.
+- [x] Sửa bảng job ARCHITECTURE.md §5 *(làm cùng Phase 53)*: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
+- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06).
+
+## Phase 53 — Gỡ toàn bộ gamification (quyết định 2026-11-02)
+Quyết định chủ sản phẩm: bỏ EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge và quản trị nhiệm vụ (`docs/REQUIREMENTS.md` §13.6). **Giữ** trạng thái
+cảnh báo ngân sách `ok/t1/t2/over` (FR-BUD-07) — đó là cảnh báo chi tiêu, không phải trò chơi. Làm ở nhánh riêng, không phải `docs/rescope-requirements`.
+Đổi hợp đồng với app: `/gamification/*` biến mất và response của `POST /saving-goals/{id}/contribute` mất phần item mở khóa / lên level — phải báo nhóm Flutter trước khi merge.
+- [x] Gỡ lời gọi `IGamificationService` khỏi `ConfirmTransaction`, `CreateManualTransaction`, `CreateTransfer`, `DeleteTransaction`, `ContributeToGoal` (kèm `GamificationCache.InvalidateAsync` và phần "Mascot ăn mừng" trong response contribute). Giữ nguyên thứ tự lưu và push còn lại.
+- [x] Gỡ `GamificationController` và `FinMate.Application/Gamification/*`; bỏ đăng ký DI trong `Program.cs`.
+- [x] Gỡ `AdminMissionsController`, các command quản trị nhiệm vụ và hằng `AuditEvents.AdminMission*` (giữ bản ghi audit cũ trong DB, chỉ bỏ hằng nếu không còn chỗ ghi).
+- [x] Gỡ `StreakCheckJob`, `MissionResetJob` và đăng ký Hangfire; gọi `RecurringJob.RemoveIfExists` cho hai id cũ, vì Hangfire lưu lịch trong Postgres và sẽ cố chạy job không còn class.
+- [x] Gỡ `MissionSeeder`, `MascotItemSeeder`.
+- [x] Gỡ entity, cấu hình EF, repository; migration xóa 5 bảng `user_gamification`, `missions`, `user_missions`, `mascot_items`, `user_mascot_items` (kiểm `UserHardDeleter` và mọi FK trỏ tới chúng).
+- [x] Gỡ `CacheKeys.Gamification*`, `CacheKeys.ActiveMissions*`; sửa câu push "Chọn danh mục giúp Mascot nhé" trong `TransactionReviewPush`.
+- [x] Sửa/xóa test liên quan (~20 file trong `FinMate.Tests`); `dotnet build` 0 warning, `dotnet test` xanh trừ test đỏ có sẵn của Phase 52.
+- [x] Cập nhật `ARCHITECTURE.md` (§1, §4.1 bảng Gamification, §5 job, §6 cache), xóa `REQUIREMENTS.md` §7.2 và các dòng FR-GAME, cập nhật `CLAUDE.md`.
+- [ ] Báo nhóm Flutter (`FinMate_FE`) danh sách endpoint/field bị gỡ. Ngoài hai thay đổi đã nêu ở trên: `missionRemindersEnabled` biến mất khỏi `GET /users/me` và khỏi body `PATCH /users/me/notification-prefs` (gửi thừa trường thì server bỏ qua).
+- Kiểm chứng (2026-11-02, nhánh `refactor/remove-gamification`): `dotnet build` 0 warning; `dotnet test` 1276/1277 (test đỏ duy nhất là FR-FIN-07 có sẵn); `dotnet ef migrations has-pending-model-changes` sạch. Ba test migration chèn user bằng SQL thô ở migration CŨ nên dùng chung `RawUserSeed` (chọn câu INSERT theo việc cột `mission_reminders_enabled` còn hay không).
+
+## Phase 54 — Dự báo tài chính (Flow 6), đợt 1: lõi + dòng tiền + số tiền có thể chi + khoản định kỳ (2026-11-02)
+Nguồn: swimlane `Swimlane_Activity_Diagram_Flow6.json`; kế hoạch đã duyệt ngày 2026-11-02 (gồm schema và các số mặc định thay cho mã BR chưa định nghĩa).
+Thiết kế: `ARCHITECTURE.md` §2.6; yêu cầu: `docs/REQUIREMENTS.md` §6.5 (FR-FCST). Nhánh `feat/forecast-foundation` (xếp chồng trên `refactor/remove-gamification`).
+- [x] Schema — migration `AddForecastFoundation`: bảng `recurring_items` (CHECK cho chiều/chu kỳ/trạng thái/nguồn/số tiền; duy nhất theo user + chiều + người nhận), `transactions.exclude_from_forecast` + `forecast_exclusion_reason` (CHECK đi cặp), `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents`.
+- [x] Bộ tính toán thuần trong `Application/Forecasting`: `CounterpartyKey`, `RecurringSchedule`, `RecurringMatcher`, `RecurringDetector`, `RecurringTracker`, `SpendingBaselineCalculator`, `CashflowEngine`, `SpendableCalculator`.
+- [x] Service: `ForecastService` (dòng tiền, kịch bản, có thể chi), `RecurringItemService`, `ForecastSettingsService`, `RecurringDetectionService`; cấu hình hệ thống nhóm `forecast` + validator.
+- [x] `RecurringDetectionJob` 01:30 VN (`30 18 * * *` UTC); `InsightGeneratorJob` thôi sinh `RecurringDetected` (bản ghi cũ giữ nguyên).
+- [x] API: `/forecast/cashflow`, `/forecast/cashflow/scenario`, `/forecast/spendable`, `/recurring-items` (8 route), `/me/forecast-settings`, `PATCH /financial-accounts/{id}/forecast-inclusion`, `PATCH /transactions/{id}/forecast-exclusion`. `/me/spendable` không đổi.
+- [x] Test: unit cho từng bộ tính toán và service (gồm chống trừ hai lần, quá hạn trong/ngoài ân hạn, ngân sách tổng không cộng trùng danh mục, kịch bản không ghi dữ liệu), 7 test tích hợp qua API thật (401, 404 chéo user, 409 trùng người nhận, job tìm ra thuê bao trong DB).
+- [x] Tài liệu: REQUIREMENTS §6.5 + §13.6, ARCHITECTURE §2.6/§4.1/§5/§6, CLAUDE.md.
+- [ ] Báo nhóm Flutter (`FinMate_FE`) các endpoint mới; app chuyển màn "có thể chi" sang `/forecast/spendable` khi sẵn sàng.
+- [ ] Chạy thử `docker compose up` + curl toàn luồng (test tích hợp đã dùng Postgres thật, nhưng chưa dựng cả stack).
+- [ ] Giới hạn đã biết: khoản đến hạn ngày 28 hằng tháng nhảy sang 31/3 sau tháng 2 — cần cột `anchor_day` (đổi schema, phải duyệt) nếu muốn sửa.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1352/1353 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test: ngày gốc của khoản định kỳ từng lấy theo ngày THANH TOÁN, nên trả sớm hai ngày làm lịch trôi (2/11 → 31/12); nay suy từ ngày đến hạn.
+
+## Phase 55 — Dự báo tài chính, đợt 2: cảnh báo (2026-11-02)
+Kế hoạch đã duyệt ngày 2026-11-02 (schema, outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi). Nhánh `feat/forecast-alerts`
+(xếp chồng trên `feat/forecast-foundation`). Thiết kế: `ARCHITECTURE.md` §2.6 "Đợt 2"; yêu cầu FR-FCST-10…13.
+- [x] Schema — migration `AddForecastAlerts`: bảng `forecast_alerts` (CHECK kind/status/feedback, `sent_at` đi cùng `status = sent`, UNIQUE `(user_id, kind, dedup_key)`, index hàng đợi pending), cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute` (CHECK đi cặp, 0–1439), `forecast_alerts_enabled`.
+- [x] Hộp thư `ForecastAlertDispatcher`: chống lặp, công tắc theo loại, cooldown + phản hồi "không chính xác" cho số dư thấp, giờ yên lặng, hẹn giờ; `ForecastAlertDispatchJob` 15 phút.
+- [x] Bộ tính toán thuần: `QuietHours`, `LowBalanceRule`, `BudgetRiskCalculator`, `BillReminderRule`, `IncomeEstimator`; tracker nhận ra đổi giá; engine không cộng thu quá hạn; số tiền có thể chi cộng thu không đều mức thận trọng.
+- [x] `ForecastAlertService` (số dư thấp, vượt ngân sách sớm, nhắc/tạm ngừng hóa đơn, thu nhập trễ), `BudgetForecastService`, `IncomeForecastService`; `RecurringDetectionService` báo đổi giá (hẹn 08:00).
+- [x] Kích hoạt: `ForecastDailyAlertJob` 08:00 VN; `IForecastAlertTrigger` → `ForecastUserCheckJob` sau mỗi giao dịch (tham số tùy chọn của 5 handler giao dịch, lỗi chỉ log).
+- [x] `TransferBudgetLimitCommandHandler` + `POST /budgets/transfer` (chỉ phần chưa chi, chỉ ngân sách danh mục).
+- [x] API: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /forecast/alerts/{id}/feedback`; `PUT /me/forecast-settings` thay toàn bộ (ngưỡng, giờ yên lặng, công tắc).
+- [x] Test: unit cho từng quy tắc, dispatcher (trùng, công tắc, cooldown, phản hồi, giờ yên lặng, hẹn giờ), chuyển hạn mức; 4 test tích hợp (cài đặt, số dư thấp vào hộp thư đúng một lần + phản hồi + 404 chéo user, chuyển hạn mức + 422/404, lịch thu nhập).
+- [x] Tài liệu: REQUIREMENTS §6.5/§13.6, ARCHITECTURE §2.6/§4.1/§5, CLAUDE.md.
+- [ ] Báo nhóm Flutter: payload push `data.action = "forecast_alert"` (+ `kind`, `alertId`, trường riêng từng loại), các endpoint mới, `PUT /me/forecast-settings` đổi thành thay toàn bộ.
+- [ ] Thu theo mùa (BR-07.3) — cần hơn một năm dữ liệu.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1404/1405 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch.
+
+## Phase 56 — Dự báo tài chính, đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu (2026-11-02)
+Kế hoạch đã duyệt ngày 2026-11-02 (bảng đánh dấu riêng, ngưỡng mặc định thay BR-06/08/11, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu).
+Nhánh `feat/forecast-complete` (xếp chồng trên `feat/forecast-alerts`). Thiết kế: `ARCHITECTURE.md` §2.6 "Đợt 3"; yêu cầu FR-FCST-14…16.
+- [x] Schema — migration `AddTransactionAnomalies`: bảng `transaction_anomalies` (CHECK kind/severity/resolution, `resolved_at` đi cùng `resolution`, số tiền > 0, UNIQUE `transaction_id`, index tra phản hồi "bình thường"); thêm `anomaly` vào CHECK `forecast_alerts.kind` (Down xóa các dòng `anomaly` trước khi đặt lại CHECK cũ).
+- [x] Bất thường (trang 9): `AnomalyDetector` thuần (trùng, theo nơi nhận, theo danh mục; BR-11.1…11.4), `AnomalyService` (quét, danh sách, phản hồi), quét trong `ForecastAlertService.CheckUserAsync` — sau mỗi giao dịch và lúc 08:00; mức cao → cảnh báo `anomaly` qua hộp thư. `InsightGeneratorJob` thôi sinh `UnusualSpending`.
+- [x] Chi theo danh mục (trang 2): `CategoryForecastCalculator` thuần (trọng số 3:2:1, BR-06.1 lùi về ngân sách / trung bình, làm tròn lên 10.000đ), `CategoryForecastService` (xem + áp làm ngân sách kỳ tới: chốt snapshot tháng này rồi mới đổi hạn mức; danh mục chưa có ngân sách thì tạo qua `CreateBudgetCommandHandler`).
+- [x] Ngày đạt mục tiêu (trang 4): `GoalForecastCalculator` thuần (tốc độ trung bình / phân vị 25, hai ngày, kịp hạn theo ngày thận trọng, mức cần góp), `GoalForecastService` (+ `ISavingGoalRepository.GetContributionsSinceAsync`).
+- [x] API: `GET /forecast/anomalies`, `POST /forecast/anomalies/{id}/feedback`, `GET /forecast/categories`, `POST /forecast/categories/apply`, `GET /forecast/goals/{goalId}`; cấu hình `forecast` thêm 14 số (+ validator).
+- [x] Test: unit cho 3 bộ tính toán và `AnomalyService` (gồm trả lại khoản đã đánh dấu còn mở, đổi ý khỏi "chi một lần"); 4 test tích hợp (bất thường → cảnh báo đúng một lần + phản hồi + 400/404 chéo user, "chi một lần" đặt cờ trong DB, ngân sách kỳ tới không đụng tháng này, ngày đạt mục tiêu + kịch bản + 400/404).
+- [x] Tài liệu: REQUIREMENTS §6.5/§13.1/§13.6 (FR-RPT-05 còn một loại insight), ARCHITECTURE §2.6/§4.1, CLAUDE.md.
+- [ ] Báo nhóm Flutter: 5 endpoint mới, push `kind = anomaly` (+ `anomalyId`, `transactionId`, `anomalyKind`, `amountCents`), insight `unusual_spending` không còn sinh mới.
+- [ ] Mùa vụ cho dự báo theo danh mục (trang 2, nhánh "Điều chỉnh theo mùa vụ") — cùng điều kiện với BR-07.3: cần hơn một năm dữ liệu.
+- Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1442/1443 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test tích hợp: job Hangfire sau giao dịch và lượt kiểm tra khác chạy song song, bên thua cuộc đua UNIQUE không gửi cảnh báo — và nếu bên thắng hỏng sau khi đánh dấu thì cảnh báo mất hẳn vì giao dịch không bao giờ được quét lại. Nay mỗi lượt quét trả cả khoản đã đánh dấu còn mở trong cửa sổ quét; hộp thư chống trùng.

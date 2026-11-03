@@ -19,7 +19,7 @@ public static class ReceiptScanResults
 /// riêng về dữ liệu cá nhân, không phải hệ quả phụ của việc ghi nhật ký quét.
 ///
 /// Khác với <see cref="Transaction"/>: bản ghi này ra đời ngay khi quét, TRƯỚC khi người dùng xem và bấm Lưu, và một lần quét có
-/// thể không bao giờ thành giao dịch. Vì vậy nó không động tới số dư, ngân sách hay gamification.
+/// thể không bao giờ thành giao dịch. Vì vậy nó không động tới số dư hay ngân sách.
 /// </summary>
 public class ReceiptScan
 {

@@ -30,6 +30,15 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             t.HasCheckConstraint(
                 "chk_users_alert_thresholds",
                 "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
+
+            t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
+            t.HasCheckConstraint("chk_users_low_balance_threshold", "low_balance_threshold_cents IS NULL OR low_balance_threshold_cents >= 0");
+
+            // Giờ yên lặng: cả hai cùng trống (mặc định hệ thống) hoặc cùng có và là phút hợp lệ trong ngày.
+            t.HasCheckConstraint(
+                "chk_users_quiet_hours",
+                "(quiet_hours_start_minute IS NULL AND quiet_hours_end_minute IS NULL) OR "
+                + "(quiet_hours_start_minute BETWEEN 0 AND 1439 AND quiet_hours_end_minute BETWEEN 0 AND 1439)");
         });
 
         builder.HasKey(u => u.Id);
@@ -63,6 +72,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+        builder.Property(u => u.ForecastReserveCents).HasColumnName("forecast_reserve_cents");
+        builder.Property(u => u.LowBalanceThresholdCents).HasColumnName("low_balance_threshold_cents");
+        builder.Property(u => u.QuietHoursStartMinute).HasColumnName("quiet_hours_start_minute");
+        builder.Property(u => u.QuietHoursEndMinute).HasColumnName("quiet_hours_end_minute");
         builder.Property(u => u.TermsVersion).HasColumnName("terms_version");
         builder.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
         builder.Property(u => u.AiConsentVersion).HasColumnName("ai_consent_version");
@@ -89,7 +102,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         {
             prefs.Property(p => p.PushEnabled).HasColumnName("push_enabled");
             prefs.Property(p => p.BudgetAlertsEnabled).HasColumnName("budget_alerts_enabled");
-            prefs.Property(p => p.MissionRemindersEnabled).HasColumnName("mission_reminders_enabled");
+            prefs.Property(p => p.ForecastAlertsEnabled).HasColumnName("forecast_alerts_enabled").HasDefaultValue(true);
             prefs.Property(p => p.AlertT1Pct).HasColumnName("alert_t1_pct");
             prefs.Property(p => p.AlertT2Pct).HasColumnName("alert_t2_pct");
         });

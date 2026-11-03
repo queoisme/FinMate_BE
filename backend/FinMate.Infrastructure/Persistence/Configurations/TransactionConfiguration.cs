@@ -26,6 +26,12 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
                 "chk_transactions_source",
                 "source IN ('notification','manual','voice','receipt')");
             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
+
+            // Lý do chỉ có khi đang bị loại khỏi dự báo, và bị loại thì phải có lý do.
+            t.HasCheckConstraint(
+                "chk_transactions_forecast_exclusion",
+                "(exclude_from_forecast = false AND forecast_exclusion_reason IS NULL) "
+                + "OR (exclude_from_forecast = true AND forecast_exclusion_reason IN ('one_off','user_marked'))");
         });
 
         builder.HasKey(t => t.Id);
@@ -64,6 +70,13 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.Description).HasColumnName("description").HasMaxLength(500);
         builder.Property(t => t.TransactedAt).HasColumnName("transacted_at").IsRequired();
         builder.Property(t => t.BalanceAfterCents).HasColumnName("balance_after_cents");
+        builder.Property(t => t.ExcludeFromForecast).HasColumnName("exclude_from_forecast").HasDefaultValue(false);
+        builder.Property(t => t.ForecastExclusionReason)
+            .HasColumnName("forecast_exclusion_reason")
+            .HasConversion(
+                v => v == null ? null : ForecastExclusionReasonColumn.ToColumn(v.Value),
+                v => v == null ? null : ForecastExclusionReasonColumn.FromColumn(v))
+            .HasMaxLength(20);
 
         builder.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();

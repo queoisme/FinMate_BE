@@ -1,6 +1,5 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
-using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -10,21 +9,21 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
-    private readonly IGamificationService _gamificationService;
     private readonly ICacheService _cache;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
-        IGamificationService gamificationService,
-        ICacheService cache)
+        ICacheService cache,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
-        _gamificationService = gamificationService;
         _cache = cache;
+        _forecastAlerts = forecastAlerts;
     }
 
     public async Task HandleAsync(DeleteTransactionCommand command, CancellationToken ct = default)
@@ -61,16 +60,6 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
                 transaction.TransactedAt,
                 ct);
-
-            // Trừ lại đúng số EXP đã cộng. Việc này CÓ THỂ làm tụt level, và đó là đánh đổi
-            // có chủ ý: không hoàn EXP thì user farm được bằng cách thêm rồi xóa giao dịch
-            // liên tục. Tiến độ mission không hoàn lại — mission đã hoàn thành là việc đã
-            // xảy ra trong chu kỳ đó.
-            //
-            // Số hoàn phải tra theo Source vì 2 đường tạo thưởng 2 mức khác nhau: giao dịch
-            // từ thông báo được +10 lúc confirm, giao dịch tự nhập (kể cả transfer) chỉ +5.
-            await _gamificationService.RevertExpAsync(
-                command.UserId, ExpAwardedFor(transaction.Source), ct);
         }
 
         transaction.DeletedAt = now;
@@ -83,13 +72,11 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         if (wasConfirmed)
         {
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
-            await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
     }
 
-    private static int ExpAwardedFor(TransactionSource source) => source switch
-    {
-        TransactionSource.Notification => TransactionExpRewards.ConfirmTransaction,
-        _ => TransactionExpRewards.CreateManualTransaction,
-    };
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

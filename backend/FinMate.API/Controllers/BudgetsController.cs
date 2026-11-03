@@ -16,17 +16,20 @@ public class BudgetsController : ControllerBase
     private readonly IUpdateBudgetLimitCommandHandler _updateHandler;
     private readonly IDeleteBudgetCommandHandler _deleteHandler;
     private readonly IGetBudgetSummaryQueryHandler _summaryHandler;
+    private readonly ITransferBudgetLimitCommandHandler _transferHandler;
 
     public BudgetsController(
         ICreateBudgetCommandHandler createHandler,
         IUpdateBudgetLimitCommandHandler updateHandler,
         IDeleteBudgetCommandHandler deleteHandler,
-        IGetBudgetSummaryQueryHandler summaryHandler)
+        IGetBudgetSummaryQueryHandler summaryHandler,
+        ITransferBudgetLimitCommandHandler transferHandler)
     {
         _createHandler = createHandler;
         _updateHandler = updateHandler;
         _deleteHandler = deleteHandler;
         _summaryHandler = summaryHandler;
+        _transferHandler = transferHandler;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -55,6 +58,12 @@ public class BudgetsController : ControllerBase
         return Ok(ApiResponse<BudgetDto>.Ok(budget));
     }
 
+    /// <summary>Chuyển phần hạn mức chưa chi từ ngân sách danh mục này sang ngân sách danh mục khác (sơ đồ Flow 6 trang 6).</summary>
+    [HttpPost("transfer")]
+    public async Task<IActionResult> Transfer([FromBody] TransferBudgetLimitRequest request, CancellationToken ct)
+        => Ok(ApiResponse<BudgetTransferResultDto>.Ok(await _transferHandler.HandleAsync(
+            new TransferBudgetLimitCommand(CurrentUserId, request.FromBudgetId, request.ToBudgetId, request.AmountCents), ct)));
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
@@ -66,3 +75,4 @@ public class BudgetsController : ControllerBase
 /// <summary>CategoryId null = hạn mức tổng cho toàn bộ chi tiêu.</summary>
 public record CreateBudgetRequest(Guid? CategoryId, long LimitCents);
 public record UpdateBudgetLimitRequest(long LimitCents);
+public record TransferBudgetLimitRequest(Guid FromBudgetId, Guid ToBudgetId, long AmountCents);

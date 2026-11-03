@@ -1,1 +1,1 @@
-TransactionType, TransactionSource, AccountType, MissionPeriodType.
+TransactionType, TransactionSource, AccountType.

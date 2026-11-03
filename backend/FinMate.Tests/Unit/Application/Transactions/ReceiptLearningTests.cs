@@ -60,7 +60,7 @@ public class ReceiptLearningTests
             .ReturnsAsync([]);
         return new CreateManualTransactionCommandHandler(
             new Mock<ITransactionRepository>().Object, accounts.Object, categories.Object, budget.Object,
-            new Mock<IBudgetAlertNotifier>().Object, new Mock<IGamificationService>().Object, _ai.Object,
+            new Mock<IBudgetAlertNotifier>().Object, _ai.Object,
             _scans.Object, new Mock<ICacheService>().Object, NullLogger<CreateManualTransactionCommandHandler>.Instance,
             new CreateManualTransactionCommandValidator());
     }

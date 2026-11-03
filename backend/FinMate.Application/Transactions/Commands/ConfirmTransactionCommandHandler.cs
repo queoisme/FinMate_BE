@@ -1,7 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
-using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -12,29 +11,29 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
-    private readonly IGamificationService _gamificationService;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ICacheService _cache;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
-        IGamificationService gamificationService,
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
-        ICacheService cache)
+        ICacheService cache,
+        IForecastAlertTrigger? forecastAlerts = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
-        _gamificationService = gamificationService;
         _categoryRepository = categoryRepository;
         _aiServiceClient = aiServiceClient;
         _cache = cache;
+        _forecastAlerts = forecastAlerts;
     }
 
     public async Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
@@ -87,22 +86,13 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             transaction.TransactedAt,
             ct);
 
-        await _gamificationService.RecordActivityAsync(
-            new GamificationActivity(
-                command.UserId,
-                MissionConditionType.ConfirmTransaction,
-                TransactionExpRewards.ConfirmTransaction,
-                now),
-            ct);
-
-        // account, budget period và gamification đều đã được EF Core track (cùng DbContext
+        // account và budget period đều đã được EF Core track (cùng DbContext
         // scoped với ITransactionRepository) — UpdateAsync bên dưới gọi SaveChangesAsync 1 lần
         // duy nhất, flush tất cả trong cùng 1 DB transaction ngầm định của EF Core. Đây là
         // cách đạt atomicity mà không cần thêm abstraction Unit-of-Work mới.
         await _transactionRepository.UpdateAsync(transaction, ct);
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
-        await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
         // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
         // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
@@ -124,7 +114,12 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
                     "category_correction"),
                 ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return TransactionMapper.ToDto(transaction);
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

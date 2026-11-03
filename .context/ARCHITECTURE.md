@@ -42,7 +42,7 @@ thì hỏi user, đừng tự chọn.
 │                 Backend — ASP.NET Core 9 Web API                │
 │                                                                 │
 │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌───────────────────┐ │
-│  │   Auth   │ │Transaction│ │  Budget  │ │  Gamification     │ │
+│  │   Auth   │ │Transaction│ │  Budget  │ │  Finance Method   │ │
 │  │  Module  │ │  Module   │ │  Module  │ │  Module           │ │
 │  └──────────┘ └───────────┘ └──────────┘ └───────────────────┘ │
 │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌───────────────────┐ │
@@ -105,13 +105,11 @@ backend/
 │   │   ├── CategoriesController.cs
 │   │   ├── NotificationsController.cs
 │   │   ├── ReportsController.cs
-│   │   ├── GamificationController.cs
 │   │   ├── DevicesController.cs      # đăng ký/gỡ thiết bị nhận push (FCM)
 │   │   └── Admin/
 │   │       ├── AdminUsersController.cs
 │   │       ├── AdminDataDeletionController.cs   # giám sát hàng đợi xoá cứng
-│   │       ├── AdminProviderConfigsController.cs
-│   │       └── AdminMissionsController.cs
+│   │       └── AdminProviderConfigsController.cs
 │   ├── Middleware/
 │   │   ├── ExceptionHandlingMiddleware.cs
 │   │   ├── RequestLoggingMiddleware.cs
@@ -148,7 +146,6 @@ backend/
 │   │   └── Commands/
 │   │       └── AnalyzeNotificationCommand.cs
 │   ├── Reports/
-│   ├── Gamification/
 │   └── Common/
 │       ├── Interfaces/           # IRepository, IAIService, ICacheService...
 │       ├── Exceptions/           # Domain exceptions
@@ -165,16 +162,11 @@ backend/
 │   │   ├── FinancialAccount.cs
 │   │   ├── NotificationLog.cs
 │   │   ├── AiResult.cs
-│   │   ├── ReceiptScan.cs, ReceiptScanItem.cs, ReceiptScanLink.cs   # §4.1
-│   │   └── Gamification/
-│   │       ├── UserGamification.cs
-│   │       ├── Mission.cs
-│   │       └── UserMission.cs
+│   │   └── ReceiptScan.cs, ReceiptScanItem.cs, ReceiptScanLink.cs   # §4.1
 │   ├── Enums/
 │   │   ├── TransactionType.cs
 │   │   ├── TransactionSource.cs
-│   │   ├── AccountType.cs
-│   │   └── MissionPeriodType.cs
+│   │   └── AccountType.cs
 │   └── ValueObjects/
 │       └── Money.cs              # Wrapper cho BIGINT amount
 │
@@ -201,9 +193,9 @@ backend/
 │   │   └── RedisCacheService.cs
 │   └── BackgroundJobs/
 │       ├── BudgetAlertJob.cs
-│       ├── StreakCheckJob.cs
-│       ├── ForecastJob.cs
-│       └── DataCleanupJob.cs
+│       ├── DailySummaryJob.cs
+│       ├── InsightGeneratorJob.cs
+│       └── …               # đủ 7 job ở §5
 │
 └── FinMate.Tests/
     ├── Unit/
@@ -337,6 +329,61 @@ Người dùng quét mã VietQR của người nhận trong app, nhập số ti�
 **Khớp thông báo** (`QrTransferLinker`, gọi từ `AnalyzeNotificationCommandHandler`, chỉ với giao dịch **Debit**): package của thông báo → `provider_configs.package_name` → `vietqr_banks.provider_key` → BIN ngân hàng **gửi**; tìm ý định `pending` của người dùng cùng BIN gửi, cùng số tiền, quét trong 30 phút TRƯỚC lúc thông báo (cho lệch đồng hồ tối đa 2 phút). Hai lỗi của bản thử đã sửa: so ngân hàng NHẬN với app gửi (nên chuyển khác ngân hàng không bao giờ khớp), và nhận cả lần quét xảy ra SAU thông báo. Khớp được thì giao dịch nháp lấy danh mục người dùng đã chọn (thắng gợi ý AI) và tên người nhận; ý định chuyển sang `matched`. Sửa tay danh mục của giao dịch đã khớp thì `UpdateTransactionCommandHandler` ghi nhớ danh mục cho người nhận.
 
 **Giới hạn đã biết:** chỉ ngân hàng có `provider_key` (FinMate đọc được thông báo) mới tự khớp; liên kết `dl.vietqr.io` đưa số tài khoản/số tiền/nội dung qua một bên thứ ba; app không biết người dùng có hoàn tất chuyển tiền trong app ngân hàng hay không (ý định quá 24 giờ được đánh dấu `isExpired` khi đọc); hai lần quét cùng số tiền cùng ngân hàng gửi trong 30 phút thì khớp lần quét gần nhất.
+
+### 2.6 Dự báo tài chính — Flow 6 (thêm 2026-11-02, đợt 1)
+
+Nguồn: swimlane `Swimlane_Activity_Diagram_Flow6.json` (10 luồng). Swimlane giữ nguyên; bên trong làn "Hệ thống" là **một lõi chung**: đường số dư
+dự kiến theo ngày. Mọi luồng là cách nhìn/quy tắc trên lõi đó, nên dòng tiền, số tiền có thể chi và (đợt 2) cảnh báo luôn ra cùng một con số.
+
+```
+recurring_items (active)      lịch sử 90 ngày (đã loại chuyển khoản, vay/mượn,      số dư ví được tính
+  │ RecurringSchedule           giao dịch exclude_from_forecast, giao dịch khớp        (financial_accounts.balance_cents)
+  │ + RecurringMatcher          khoản định kỳ)                                          │
+  ▼                               ▼ SpendingBaselineCalculator (cache Redis)           │
+CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄────────────────────────────┘
+                                   ├─► GET /forecast/cashflow, POST /forecast/cashflow/scenario
+                                   └─► SpendableCalculator ─► GET /forecast/spendable
+```
+
+- **Code**: `FinMate.Application/Forecasting/` — phần tính toán là hàm thuần (`CounterpartyKey`, `RecurringSchedule`, `RecurringMatcher`, `RecurringDetector`,
+  `RecurringTracker`, `SpendingBaselineCalculator`, `CashflowEngine`, `SpendableCalculator`); `ForecastService`, `RecurringItemService`,
+  `ForecastSettingsService`, `RecurringDetectionService` nạp dữ liệu và điều phối. Không gọi AI Service: thống kê thuần, giải thích được.
+- **Tính khi gọi**, không có bảng snapshot. Số dư lấy từ cột tính sẵn; lịch sử là truy vấn bị chặn (90 ngày của một user). Chỉ thói quen chi tiêu
+  của góc nhìn tổng được đệm (`user:{id}:forecast_baseline:{yyyy-MM-dd}`, 24 giờ): nó không gồm hôm nay nên giao dịch mới không làm nó cũ; xóa khi user đổi
+  cờ loại-khỏi-dự-báo, ví được tính hoặc khoản định kỳ, và khi job đêm cập nhật khoản định kỳ.
+- **Tránh trừ hai lần**: giao dịch khớp một khoản định kỳ đang theo dõi bị loại khỏi thói quen chi tiêu, vì engine đã đặt khoản đó vào đúng ngày đến hạn.
+  Lần đến hạn đã thấy thanh toán (trong cửa sổ trả sớm nửa chu kỳ → hết ân hạn) không bị đặt lại.
+- **Khớp người nhận**: `CounterpartyKey.From(merchant_name)` — chữ thường, gấp dấu tiếng Việt bằng bảng ký tự (solution bật `InvariantGlobalization`).
+- **Số mặc định cho các mã BR chưa định nghĩa** nằm ở cấu hình hệ thống nhóm `forecast` (`ForecastSettings`); xem `docs/REQUIREMENTS.md` §6.5.
+- **`/me/spendable` không đổi** (app đang gọi); số tiền có thể chi theo sơ đồ là `/forecast/spendable`. Để dành mục tiêu lấy từ `IGoalPlanningService.GetSpendableAsync`
+  nên hai endpoint dùng cùng công thức mục tiêu.
+- **Giới hạn đã biết**: ngày gốc trong tháng suy từ ngày đến hạn (đến hạn đúng ngày cuối tháng thì giữ "cuối tháng"), nên khoản ngày 28 hằng tháng nhảy sang 31/3
+  sau tháng 2; sửa triệt để cần cột `anchor_day`. Chu kỳ năm chỉ thêm tay (cần hơn một năm dữ liệu để phát hiện).
+
+**Đợt 2 — cảnh báo (thêm 2026-11-02).** Mọi cảnh báo dự báo đi qua **một hộp thư** `forecast_alerts` (`ForecastAlertDispatcher`):
+- Chống lặp bằng `UNIQUE (user_id, kind, dedup_key)` — vd mỗi ngân sách mỗi tháng, mỗi hóa đơn mỗi lần đến hạn; hai lượt chạy song song thì lượt sau
+  gặp lỗi trùng khóa và bị bỏ qua, không phải lỗi.
+- Lưu TRƯỚC rồi mới push: không có bản ghi thì không chống lặp được; có bản ghi mà push hỏng thì user vẫn thấy cảnh báo trong app (`GET /forecast/alerts`).
+- Công tắc: `budget_risk` theo `BudgetAlertsEnabled`, các loại khác theo `ForecastAlertsEnabled`; `PushEnabled` vẫn do `FcmPushNotificationService` chặn.
+- Giờ yên lặng **chỉ** cho `low_balance` (đúng sơ đồ): trong giờ thì ghi `pending` với `scheduled_for` = hết giờ, `ForecastAlertDispatchJob` (15 phút) gửi sau.
+  Cảnh báo do job đêm tạo (đổi giá) hẹn tới 08:00.
+- Kích hoạt: `ForecastDailyAlertJob` 08:00 VN (số dư thấp, vượt ngân sách sớm, nhắc/tạm ngừng hóa đơn, thu nhập trễ) và `ForecastUserCheckJob` xếp hàng sau
+  mỗi giao dịch tạo/xác nhận/sửa/xóa (số dư thấp + vượt ngân sách sớm) qua `IForecastAlertTrigger` — tham số constructor tùy chọn của 5 handler, lỗi xếp hàng chỉ log.
+- `data` của cảnh báo (JSON, mang số tiền) không bao giờ được log, cùng luật với payload push.
+- Thu nhập quá hạn chưa nhận không còn được đặt vào hôm nay (thận trọng); thanh toán cùng người nhận nhưng lệch giá vẫn là "đã trả" (tránh trừ hóa đơn hai lần).
+
+**Đợt 3 — bất thường, chi theo danh mục, ngày đạt mục tiêu (thêm 2026-11-02).** Vẫn là thống kê thuần, không gọi AI.
+- **Bất thường (trang 9):** `AnomalyDetector` (hàm thuần) xét từng khoản chi theo thứ tự trùng lặp → nơi nhận → danh mục, rồi bỏ nếu user đã xác nhận "bình thường"
+  khoản tương tự (BR-11.4). Kết quả lưu ở `transaction_anomalies`, UNIQUE theo giao dịch nên mỗi giao dịch chỉ xét một lần. Quét chạy trong
+  `ForecastAlertService.CheckUserAsync`, tức là theo đúng hai đường kích hoạt của đợt 2 (sau giao dịch, 08:00) — không sửa thêm handler nào. Mỗi lượt quét trả
+  **mọi** khoản còn mở trong cửa sổ quét chứ không chỉ khoản mới, để lượt sau bù được cảnh báo nếu lượt trước hỏng giữa chừng; hộp thư chống trùng theo
+  `anomaly:{transactionId}`. Chỉ mức cao mới push (kind `anomaly`, không theo giờ yên lặng). Phản hồi "chi một lần" dùng lại cờ `exclude_from_forecast`.
+  Insight `UnusualSpending` của `InsightGeneratorJob` đã thôi sinh.
+- **Chi theo danh mục (trang 2):** `CategoryForecastCalculator` không dùng đường số dư — nó là trung bình trọng số theo tháng của từng danh mục, bỏ khoản chi một lần
+  và khoản bất thường chưa được xác nhận bình thường. "Lưu ngân sách kỳ tới" không đổi schema: kỳ ngân sách được tạo lười từ `budgets.limit_cents`, nên chốt
+  snapshot `budget_periods` của tháng này **trước** rồi mới đổi hạn mức — tháng này giữ hạn mức cũ, tháng sau nhận hạn mức mới.
+- **Ngày đạt mục tiêu (trang 4):** tốc độ góp theo tháng từ `goal_contributions` của chính mục tiêu; hai kịch bản (trung bình, phân vị 25) thay cho "mô phỏng nhiều
+  kịch bản"; kịp hạn được quyết theo kịch bản thận trọng. Mức góp thử là tham số truy vấn, không lưu.
 
 ## 3. AI Service — Pipeline Architecture
 
@@ -963,7 +1010,7 @@ lỗi, 502/503, quá hạn hoặc đầu ra backend kiểm lại không đạt �
 
 ## 4. Database Architecture
 
-### 4.1 Backend DB — 33 bảng, 7 domain groups
+### 4.1 Backend DB — các nhóm bảng (gamification đã gỡ 2026-11-02, migration `RemoveGamification` xóa 5 bảng)
 
 ```
 Auth & Identity:
@@ -981,16 +1028,18 @@ Budget & Goals:
 Reports:
   daily_summaries, spending_insights
 
-Gamification:
-  user_gamification, missions, user_missions,
-  mascot_items, user_mascot_items
-
 Receipt scan (thêm 2026-10-10):
   receipt_scans, receipt_scan_items, receipt_scan_links
 
 Quản lý tài chính (thêm 2026-10-26):
   finance_methods, survey_questions, survey_options, goal_templates, method_goal_templates,
   user_survey_answers, method_recommendations, user_methods
+
+Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
+  recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`), transaction_anomalies (đợt 3, `AddTransactionAnomalies`)
+                    + cột transactions.exclude_from_forecast / forecast_exclusion_reason,
+                      financial_accounts.include_in_forecast, users.forecast_reserve_cents,
+                      users.low_balance_threshold_cents / quiet_hours_start_minute / quiet_hours_end_minute / forecast_alerts_enabled
 ```
 
 **Cập nhật 2026-10-26 — quản lý tài chính (25 → 33 bảng, EF migration `AddFinanceMethodsAndOnboarding` và `RenameBudgetAlertFlagsAndAddSurveyAiConsent`).**
@@ -1114,13 +1163,17 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | Job | Schedule | Mô tả |
 |---|---|---|
 | `BudgetAlertJob` | Mỗi giờ | **Lưới vét** cho threshold 70%/90%/100%. Đường chính là TỨC THÌ sau mỗi giao dịch (`BudgetPeriodService.ApplyDeltaAsync`, docx Flow 2 mục 2a). Job vẫn cần vì hạ hạn mức và backfill lúc tạo budget đều làm vượt ngưỡng mà không có giao dịch nào |
-| `StreakCheckJob` | 23:55 mỗi ngày | Reset streak nếu user không có transaction hôm nay |
-| `ForecastJob` | 06:00 mỗi ngày | Gọi AI Service tính spending forecast tháng |
-| `InsightGeneratorJob` | 02:00 mỗi ngày | Generate spending insights từ transaction data |
+| `InsightGeneratorJob` | 02:00 mỗi ngày | Insight so với tháng trước. Khoản định kỳ chuyển sang `RecurringDetectionJob`, chi tiêu bất thường sang quét bất thường của §2.6 đợt 3 |
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
-| `MissionResetJob` | 00:01 mỗi ngày/tuần | Reset daily/weekly missions |
-| `DataCleanupJob` | 03:00 mỗi ngày | Xóa raw notification body > 90 ngày, process deletion requests |
-| `RetryFailedNotifJob` | Mỗi 15 phút | Retry notification_logs với status='failed', retry_count < 3 |
+| `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
+| `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
+| `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
+| `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
+| `RecurringDetectionJob` | 01:30 mỗi ngày | Cập nhật khoản định kỳ đã có (thấy thanh toán thì đẩy ngày đến hạn) và đề xuất khoản mới (§2.6). Thay phần `RecurringDetected` của `InsightGeneratorJob` |
+| `ForecastDailyAlertJob` | 08:00 mỗi ngày | Cảnh báo dự báo hằng ngày (§2.6 đợt 2) và quét chi tiêu bất thường (đợt 3) |
+| `ForecastAlertDispatchJob` | Mỗi 15 phút | Gửi cảnh báo đã hẹn giờ (hết giờ yên lặng, đổi giá chờ tới sáng) |
+
+**Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (chưa có job nào xóa `notification_body` sau 90 ngày — xem `TASKS.md` Phase 52). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
 
 ---
 
@@ -1130,13 +1183,12 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 |---|---|---|
 | `user:{id}:profile` | 15 phút | User profile (refresh khi update) |
 | `user:{id}:budget_summary:{year}:{month}` | 5 phút | Budget summary tháng hiện tại |
-| `user:{id}:active_missions` | 30 phút | Danh sách missions đang active |
 | `categories:system` | 60 phút | System categories (ít thay đổi) |
 | `provider_configs:active` | 60 phút | Provider configs (admin managed) |
-| `user:{id}:gamification` | 10 phút | Level, EXP, streak |
+| `user:{id}:forecast_baseline:{yyyy-MM-dd}` | 24 giờ | Thói quen chi tiêu cho dự báo, góc nhìn tổng (§2.6) |
 
 **Cache invalidation:**
-- Khi user confirm transaction → invalidate `budget_summary` và `gamification`
+- Khi user confirm transaction → invalidate `budget_summary`
 - Khi admin cập nhật provider_configs → invalidate `provider_configs:active`
 - Khi user update profile → invalidate `user:{id}:profile`
 

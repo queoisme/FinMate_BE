@@ -14,7 +14,6 @@ public class DeleteTransactionCommandHandlerTests
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
-    private readonly Mock<IGamificationService> _gamificationService = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly DeleteTransactionCommandHandler _handler;
 
@@ -24,7 +23,6 @@ public class DeleteTransactionCommandHandlerTests
             _transactionRepository.Object,
             _financialAccountRepository.Object,
             _budgetPeriodService.Object,
-            _gamificationService.Object,
             _cache.Object);
     }
 
@@ -124,56 +122,6 @@ public class DeleteTransactionCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_ConfirmedTransaction_TakesBackTheExpItAwarded()
-    {
-        var userId = Guid.NewGuid();
-        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 500_000 };
-        var transaction = new FinMate.Domain.Entities.Transaction
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FinancialAccountId = account.Id,
-            AmountCents = 120_000,
-            TransactionType = TransactionType.Debit,
-            Status = TransactionStatus.Confirmed,
-            TransactedAt = DateTimeOffset.UtcNow,
-        };
-
-        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction);
-        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(account);
-
-        await _handler.HandleAsync(new DeleteTransactionCommand(userId, transaction.Id));
-
-        // Đúng bằng số EXP đã cộng lúc confirm, nếu không user farm được bằng thêm/xóa.
-        _gamificationService.Verify(
-            s => s.RevertExpAsync(userId, 10, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task HandleAsync_DraftTransaction_HasNoExpToTakeBack()
-    {
-        var userId = Guid.NewGuid();
-        var transaction = new FinMate.Domain.Entities.Transaction
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FinancialAccountId = Guid.NewGuid(),
-            AmountCents = 100_000,
-            TransactionType = TransactionType.Debit,
-            Status = TransactionStatus.Draft,
-        };
-
-        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction);
-
-        await _handler.HandleAsync(new DeleteTransactionCommand(userId, transaction.Id));
-
-        _gamificationService.VerifyNoOtherCalls();
-    }
-
-    [Fact]
     public async Task HandleAsync_ConfirmedTransfer_RevertsBothAccounts()
     {
         var userId = Guid.NewGuid();
@@ -239,61 +187,5 @@ public class DeleteTransactionCommandHandlerTests
         _budgetPeriodService.Verify(s => s.ApplyDeltaAsync(
             userId, It.IsAny<Guid?>(), 0, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
             Times.Once);
-    }
-
-    [Fact]
-    public async Task HandleAsync_ManualTransaction_RefundsOnlyTheExpItGranted()
-    {
-        var userId = Guid.NewGuid();
-        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
-        var transaction = new FinMate.Domain.Entities.Transaction
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FinancialAccountId = account.Id,
-            AmountCents = 100_000,
-            TransactionType = TransactionType.Debit,
-            Source = TransactionSource.Manual,
-            Status = TransactionStatus.Confirmed,
-            TransactedAt = DateTimeOffset.UtcNow,
-        };
-
-        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction);
-        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(account);
-
-        await _handler.HandleAsync(new DeleteTransactionCommand(userId, transaction.Id));
-
-        // Giao dịch tự nhập chỉ được +5 lúc tạo, nên xóa chỉ được trừ lại 5. Trừ 10 (mức của
-        // giao dịch từ thông báo) sẽ ăn mất 5 EXP mà user chưa từng được cộng.
-        _gamificationService.Verify(g => g.RevertExpAsync(userId, 5, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task HandleAsync_NotificationTransaction_RefundsTheConfirmReward()
-    {
-        var userId = Guid.NewGuid();
-        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 1_000_000 };
-        var transaction = new FinMate.Domain.Entities.Transaction
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FinancialAccountId = account.Id,
-            AmountCents = 100_000,
-            TransactionType = TransactionType.Debit,
-            Source = TransactionSource.Notification,
-            Status = TransactionStatus.Confirmed,
-            TransactedAt = DateTimeOffset.UtcNow,
-        };
-
-        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction);
-        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(account);
-
-        await _handler.HandleAsync(new DeleteTransactionCommand(userId, transaction.Id));
-
-        _gamificationService.Verify(g => g.RevertExpAsync(userId, 10, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

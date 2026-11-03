@@ -17,7 +17,6 @@ public class CreateManualTransactionCommandHandlerTests
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
     private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
     private readonly Mock<IBudgetAlertNotifier> _budgetAlertNotifier = new();
-    private readonly Mock<IGamificationService> _gamificationService = new();
     private readonly Mock<IAIServiceClient> _aiServiceClient = new();
     private readonly Mock<IReceiptScanRepository> _receiptScanRepository = new();
     private readonly Mock<ICacheService> _cache = new();
@@ -31,7 +30,6 @@ public class CreateManualTransactionCommandHandlerTests
             _categoryRepository.Object,
             _budgetPeriodService.Object,
             _budgetAlertNotifier.Object,
-            _gamificationService.Object,
             _aiServiceClient.Object,
             _receiptScanRepository.Object,
             _cache.Object,

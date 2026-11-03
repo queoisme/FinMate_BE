@@ -732,6 +732,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<bool>("IncludeInForecast")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("include_in_forecast");
+
                     b.Property<bool>("IsMonitored")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -773,7 +779,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.MascotItem", b =>
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastAlert", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -781,323 +787,90 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsPremium")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_premium");
-
-                    b.Property<string>("ItemType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("item_type");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("name");
-
-                    b.Property<int?>("UnlockLevel")
-                        .HasColumnType("integer")
-                        .HasColumnName("unlock_level");
-
-                    b.Property<string>("UnlockMissionCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("unlock_mission_code");
-
-                    b.Property<string>("UnlockType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("unlock_type");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("uq_mascot_items_code");
-
-                    b.ToTable("mascot_items", null, t =>
-                        {
-                            t.HasCheckConstraint("chk_mascot_items_item_type", "item_type IN ('hat','outfit','accessory','background')");
-
-                            t.HasCheckConstraint("chk_mascot_items_unlock_payload", "(unlock_type = 'default' AND unlock_level IS NULL AND unlock_mission_code IS NULL) OR (unlock_type = 'level' AND unlock_level IS NOT NULL) OR (unlock_type = 'mission' AND unlock_mission_code IS NOT NULL)");
-
-                            t.HasCheckConstraint("chk_mascot_items_unlock_type", "unlock_type IN ('default','level','mission')");
-                        });
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.Mission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("code");
-
-                    b.Property<int>("ConditionTarget")
-                        .HasColumnType("integer")
-                        .HasColumnName("condition_target");
-
-                    b.Property<string>("ConditionType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("condition_type");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Description")
+                    b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
-                        .HasColumnName("description");
+                        .HasColumnName("body");
 
-                    b.Property<int>("ExpReward")
-                        .HasColumnType("integer")
-                        .HasColumnName("exp_reward");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
 
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("data");
 
-                    b.Property<string>("PeriodType")
+                    b.Property<string>("DedupKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("dedup_key");
+
+                    b.Property<DateTimeOffset?>("FeedbackAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("feedback_at");
+
+                    b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasColumnName("period_type");
+                        .HasColumnName("kind");
+
+                    b.Property<string>("MarkedInaccurate")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("feedback");
+
+                    b.Property<DateTimeOffset>("ScheduledFor")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_for");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
                         .HasColumnName("title");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("uq_missions_code");
-
-                    b.ToTable("missions", null, t =>
-                        {
-                            t.HasCheckConstraint("chk_missions_condition_target", "condition_target > 0");
-
-                            t.HasCheckConstraint("chk_missions_exp_reward", "exp_reward >= 0");
-
-                            t.HasCheckConstraint("chk_missions_period_type", "period_type IN ('daily','weekly','one_time')");
-                        });
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserGamification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("CurrentStreakDays")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("current_streak_days");
-
-                    b.Property<int>("ExpPoints")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("exp_points");
-
-                    b.Property<DateOnly?>("LastActivityDate")
-                        .HasColumnType("date")
-                        .HasColumnName("last_activity_date");
-
-                    b.Property<int>("Level")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasColumnName("level");
-
-                    b.Property<int>("LongestStreakDays")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("longest_streak_days");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LastActivityDate")
-                        .HasDatabaseName("idx_user_gamification_last_activity");
+                    b.HasIndex("ScheduledFor")
+                        .HasDatabaseName("ix_forecast_alerts_pending_due")
+                        .HasFilter("status = 'pending'");
 
-                    b.HasIndex("UserId")
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_forecast_alerts_user_created");
+
+                    b.HasIndex("UserId", "Kind", "DedupKey")
                         .IsUnique()
-                        .HasDatabaseName("uq_user_gamification_user_id");
+                        .HasDatabaseName("uq_forecast_alerts_user_kind_dedup");
 
-                    b.ToTable("user_gamification", null, t =>
+                    b.ToTable("forecast_alerts", null, t =>
                         {
-                            t.HasCheckConstraint("chk_user_gamification_exp", "exp_points >= 0");
+                            t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_user_gamification_level", "level >= 1");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly')");
+
+                            t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_alerts_status", "status IN ('pending','sent')");
                         });
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserMascotItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<bool>("IsEquipped")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_equipped");
-
-                    b.Property<string>("ItemType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("item_type");
-
-                    b.Property<Guid>("MascotItemId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("mascot_item_id");
-
-                    b.Property<DateTimeOffset>("UnlockedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("unlocked_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MascotItemId");
-
-                    b.HasIndex("UserId", "ItemType")
-                        .IsUnique()
-                        .HasDatabaseName("uq_user_mascot_items_equipped_per_type")
-                        .HasFilter("is_equipped");
-
-                    b.HasIndex("UserId", "MascotItemId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_user_mascot_items_user_item");
-
-                    b.ToTable("user_mascot_items", null, t =>
-                        {
-                            t.HasCheckConstraint("chk_user_mascot_items_item_type", "item_type IN ('hat','outfit','accessory','background')");
-                        });
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserMission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("ExpAwarded")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("exp_awarded");
-
-                    b.Property<bool>("IsCompleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_completed");
-
-                    b.Property<Guid>("MissionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("mission_id");
-
-                    b.Property<DateOnly>("PeriodEnd")
-                        .HasColumnType("date")
-                        .HasColumnName("period_end");
-
-                    b.Property<DateOnly>("PeriodStart")
-                        .HasColumnType("date")
-                        .HasColumnName("period_start");
-
-                    b.Property<int>("Progress")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("progress");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MissionId");
-
-                    b.HasIndex("UserId", "PeriodEnd")
-                        .HasDatabaseName("idx_user_missions_user_period_end");
-
-                    b.HasIndex("UserId", "MissionId", "PeriodStart")
-                        .IsUnique()
-                        .HasDatabaseName("uq_user_missions_user_mission_period");
-
-                    b.ToTable("user_missions", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.GoalContribution", b =>
@@ -1717,6 +1490,125 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_scan_links", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<string>("Cadence")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cadence");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CounterpartyKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("counterparty_key");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<Guid?>("FinancialAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_account_id");
+
+                    b.Property<long?>("LastSeenAmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_seen_amount_cents");
+
+                    b.Property<DateTimeOffset?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateOnly>("NextDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("next_due_date");
+
+                    b.Property<int>("Occurrences")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("occurrences");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("FinancialAccountId");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("ix_recurring_items_user_status");
+
+                    b.HasIndex("UserId", "Direction", "CounterpartyKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_items_user_direction_counterparty")
+                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL");
+
+                    b.ToTable("recurring_items", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_recurring_items_amount", "amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_cadence", "cadence IN ('weekly','monthly','yearly')");
+
+                            t.HasCheckConstraint("chk_recurring_items_direction", "direction IN ('inflow','outflow')");
+
+                            t.HasCheckConstraint("chk_recurring_items_occurrences", "occurrences >= 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_source", "source IN ('detected','manual')");
+
+                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2210,9 +2102,20 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
+                    b.Property<bool>("ExcludeFromForecast")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("exclude_from_forecast");
+
                     b.Property<Guid>("FinancialAccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("financial_account_id");
+
+                    b.Property<string>("ForecastExclusionReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("forecast_exclusion_reason");
 
                     b.Property<string>("MerchantName")
                         .HasMaxLength(200)
@@ -2283,6 +2186,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("transactions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_transactions_forecast_exclusion", "(exclude_from_forecast = false AND forecast_exclusion_reason IS NULL) OR (exclude_from_forecast = true AND forecast_exclusion_reason IN ('one_off','user_marked'))");
+
                             t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt')");
 
                             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
@@ -2290,6 +2195,96 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_transactions_transaction_type", "transaction_type IN ('debit','credit','transfer')");
 
                             t.HasCheckConstraint("chk_transactions_transfer_shape", "(transaction_type = 'transfer' AND counter_account_id IS NOT NULL AND counter_account_id <> financial_account_id AND category_id IS NULL) OR (transaction_type <> 'transfer' AND counter_account_id IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.TransactionAnomaly", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("CounterpartyKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("counterparty_key");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("RatioPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("ratio_percent");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("resolution");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("severity");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<long>("TypicalCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("typical_cents");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_transaction_anomalies_transaction");
+
+                    b.HasIndex("UserId", "CategoryId")
+                        .HasDatabaseName("ix_transaction_anomalies_user_normal")
+                        .HasFilter("resolution = 'normal'");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_transaction_anomalies_user_created");
+
+                    b.ToTable("transaction_anomalies", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_transaction_anomalies_amounts", "amount_cents > 0 AND typical_cents > 0 AND ratio_percent > 0");
+
+                            t.HasCheckConstraint("chk_transaction_anomalies_kind", "kind IN ('category_spike','merchant_spike','duplicate')");
+
+                            t.HasCheckConstraint("chk_transaction_anomalies_resolution", "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious')");
+
+                            t.HasCheckConstraint("chk_transaction_anomalies_resolved_at", "(resolution IS NULL) = (resolved_at IS NULL)");
+
+                            t.HasCheckConstraint("chk_transaction_anomalies_severity", "severity IN ('normal','high')");
                         });
                 });
 
@@ -2333,6 +2328,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("email_verified_at");
 
+                    b.Property<long?>("ForecastReserveCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("forecast_reserve_cents");
+
                     b.Property<string>("GoogleId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -2343,6 +2342,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_locked");
+
+                    b.Property<long?>("LowBalanceThresholdCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("low_balance_threshold_cents");
 
                     b.Property<long?>("MonthlyIncomeCents")
                         .HasColumnType("bigint")
@@ -2363,6 +2366,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
+
+                    b.Property<short?>("QuietHoursEndMinute")
+                        .HasColumnType("smallint")
+                        .HasColumnName("quiet_hours_end_minute");
+
+                    b.Property<short?>("QuietHoursStartMinute")
+                        .HasColumnType("smallint")
+                        .HasColumnName("quiet_hours_start_minute");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -2413,9 +2424,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_users_alert_thresholds", "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
 
+                            t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
+
+                            t.HasCheckConstraint("chk_users_low_balance_threshold", "low_balance_threshold_cents IS NULL OR low_balance_threshold_cents >= 0");
+
                             t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
 
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
+
+                            t.HasCheckConstraint("chk_users_quiet_hours", "(quiet_hours_start_minute IS NULL AND quiet_hours_end_minute IS NULL) OR (quiet_hours_start_minute BETWEEN 0 AND 1439 AND quiet_hours_end_minute BETWEEN 0 AND 1439)");
 
                             t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
 
@@ -2732,7 +2749,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserGamification", b =>
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastAlert", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
@@ -2741,28 +2758,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserMascotItem", b =>
-                {
-                    b.HasOne("FinMate.Domain.Entities.Gamification.MascotItem", "MascotItem")
-                        .WithMany()
-                        .HasForeignKey("MascotItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("MascotItem");
-                });
-
-            modelBuilder.Entity("FinMate.Domain.Entities.Gamification.UserMission", b =>
-                {
-                    b.HasOne("FinMate.Domain.Entities.Gamification.Mission", "Mission")
-                        .WithMany()
-                        .HasForeignKey("MissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Mission");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.GoalContribution", b =>
@@ -2889,6 +2884,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Transaction");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.FinancialAccount", "FinancialAccount")
+                        .WithMany()
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("FinancialAccount");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", "User")
@@ -2995,6 +3015,25 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.TransactionAnomaly", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Transaction");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.User", b =>
                 {
                     b.OwnsOne("FinMate.Domain.ValueObjects.NotificationPreferences", "NotificationPrefs", b1 =>
@@ -3015,9 +3054,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                                 .HasColumnType("boolean")
                                 .HasColumnName("budget_alerts_enabled");
 
-                            b1.Property<bool>("MissionRemindersEnabled")
+                            b1.Property<bool>("ForecastAlertsEnabled")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("boolean")
-                                .HasColumnName("mission_reminders_enabled");
+                                .HasDefaultValue(true)
+                                .HasColumnName("forecast_alerts_enabled");
 
                             b1.Property<bool>("PushEnabled")
                                 .HasColumnType("boolean")

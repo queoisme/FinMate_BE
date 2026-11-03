@@ -11,11 +11,8 @@ public static class CacheKeys
 
     public static readonly TimeSpan BudgetSummaryTtl = TimeSpan.FromMinutes(5);
 
-    public static string Gamification(Guid userId) => $"user:{userId}:gamification";
+    /// <summary>Thói quen chi tiêu dùng cho dự báo, tính từ lịch sử KHÔNG gồm hôm nay nên chỉ đổi khi sang ngày mới hoặc khi user sửa dữ liệu dự báo.</summary>
+    public static string ForecastBaseline(Guid userId, DateOnly date) => $"user:{userId}:forecast_baseline:{date:yyyy-MM-dd}";
 
-    public static readonly TimeSpan GamificationTtl = TimeSpan.FromMinutes(10);
-
-    public static string ActiveMissions(Guid userId) => $"user:{userId}:active_missions";
-
-    public static readonly TimeSpan ActiveMissionsTtl = TimeSpan.FromMinutes(30);
+    public static readonly TimeSpan ForecastBaselineTtl = TimeSpan.FromHours(24);
 }

@@ -1,6 +1,5 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
-using FinMate.Application.Gamification;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -15,8 +14,6 @@ public class CreateTransferCommandHandlerTests
 {
     private readonly Mock<ITransactionRepository> _transactionRepository = new();
     private readonly Mock<IFinancialAccountRepository> _financialAccountRepository = new();
-    private readonly Mock<IGamificationService> _gamificationService = new();
-    private readonly Mock<ICacheService> _cache = new();
     private readonly CreateTransferCommandHandler _handler;
 
     public CreateTransferCommandHandlerTests()
@@ -24,8 +21,6 @@ public class CreateTransferCommandHandlerTests
         _handler = new CreateTransferCommandHandler(
             _transactionRepository.Object,
             _financialAccountRepository.Object,
-            _gamificationService.Object,
-            _cache.Object,
             new CreateTransferCommandValidator());
     }
 
@@ -112,22 +107,5 @@ public class CreateTransferCommandHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
         from.BalanceCents.Should().Be(5_000_000);
-    }
-
-    [Fact]
-    public async Task HandleAsync_AwardsExpForRecordingTheTransfer()
-    {
-        var (userId, from, to) = Arrange();
-
-        await _handler.HandleAsync(new CreateTransferCommand(
-            userId, from.Id, to.Id, 300_000, DateTimeOffset.UtcNow, null));
-
-        _gamificationService.Verify(g => g.RecordActivityAsync(
-            It.Is<GamificationActivity>(a => a.UserId == userId), It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        // Không assert "không tiêu ngân sách" ở đây được vì handler không hề nhận
-        // IBudgetPeriodService — việc transfer không đụng budget do kiểu dữ liệu bảo đảm,
-        // không phải do một nhánh if nào. Nhánh có thể sai thì nằm ở update/delete, test ở đó.
     }
 }

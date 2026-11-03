@@ -18,6 +18,9 @@ public interface ISavingGoalRepository
 
     Task<List<GoalContribution>> GetContributionsAsync(Guid goalId, Guid userId, int limit, CancellationToken ct = default);
 
+    /// <summary>Mọi khoản góp của mục tiêu từ <paramref name="since"/> trở đi (để tính tốc độ góp hằng tháng).</summary>
+    Task<List<GoalContribution>> GetContributionsSinceAsync(Guid goalId, Guid userId, DateTimeOffset since, CancellationToken ct = default);
+
     /// <summary>Goal còn Active, đã quá deadline và chưa được nhắc lần nào.</summary>
     Task<List<SavingGoal>> GetOverdueUnnotifiedGoalsAsync(DateTimeOffset now, CancellationToken ct = default);
 }
