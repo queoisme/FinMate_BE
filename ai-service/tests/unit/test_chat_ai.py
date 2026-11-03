@@ -16,7 +16,7 @@ from app.api.v1.chat import _with_cached_categories
 from app.core.config import settings
 from app.main import app
 from app.services.chat_ai import apply_ai_categories
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 from app.services.transaction_parser import parse_chat
 from tests.unit.test_item_classifier import FakeGemini, FakeKnowledge
 
@@ -177,7 +177,7 @@ async def test_a_slow_chat_chain_fails_by_itself_and_opens_the_breaker():
         await asyncio.sleep(1)
         return httpx.Response(200, json={})
 
-    client = GeminiClient("key", "m1", 3.5, transport=httpx.MockTransport(slow), overall_timeout=0.05, fallback_models=("m2",))
+    client = LlmClient("key", "m1", 3.5, transport=httpx.MockTransport(slow), overall_timeout=0.05, fallback_models=("m2",))
     with pytest.raises(GeminiFailed):
         await client.classify(["ổ cắm điện"], "LUAT")
     assert client.available is False  # cầu dao mở: tin nhắn kế dùng luật ngay, không ai phải chờ lại
@@ -189,6 +189,6 @@ async def test_a_chat_model_that_fails_hands_over_to_the_next_one():
     def handler(request):
         return httpx.Response(503) if "/m1:" in str(request.url) else httpx.Response(200, json=answer)
 
-    client = GeminiClient("key", "m1", 3.5, transport=httpx.MockTransport(handler), fallback_models=("m2",))
+    client = LlmClient("key", "m1", 3.5, transport=httpx.MockTransport(handler), fallback_models=("m2",))
     assert await client.classify(["ổ cắm điện"], "LUAT") == ["shopping"]
 

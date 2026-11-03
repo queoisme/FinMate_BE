@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.api.deps import verify_internal_api_key
 from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client, get_classify_stats, get_session_factory
 from app.bill.classify_stats import ClassifyStatsRecorder
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
 from app.services.chat_ai import apply_ai_categories
@@ -142,7 +142,7 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
 async def chat_parse(
     body: ChatParseRequest,
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
-    gemini: Annotated[GeminiClient, Depends(get_chat_gemini_client)],
+    gemini: Annotated[LlmClient, Depends(get_chat_gemini_client)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
     recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
 ) -> ChatParseResponse:

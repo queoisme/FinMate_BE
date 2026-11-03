@@ -372,7 +372,7 @@ ai-service/
 │   │
 │   ├── bill/                     # Phân loại hóa đơn (thêm 2026-10-10 cho tách từng món)
 │   │   ├── item_classifier.py    # classify_items: thừa kế → luật DB → nhóm thương hiệu → Gemini → unknown
-│   │   ├── gemini.py             # GeminiClient: chỉ gửi tên món, kiểm kết quả theo schema, cache, khóa mạch 30s
+│   │   ├── gemini.py             # LlmClient: chỉ gửi tên món, kiểm kết quả theo schema, cache, khóa mạch 30s
 │   │   ├── classifier.py         # cả bill → 1 trong 9 nhóm: bộ nhớ > thương hiệu trong tên > từ khóa tên > thương hiệu trong toàn văn > mặt hàng > từ khóa toàn văn
 │   │   ├── knowledge.py          # DbBillKnowledge: nạp bill_brands/bill_keywords (TTL 60s), tra/ghi bộ nhớ cửa hàng theo user_id_hash
 │   │   ├── brands.py             # thương hiệu → nhóm (bản trong code = mặc định, DB thay tại chỗ)

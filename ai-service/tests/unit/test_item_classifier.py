@@ -4,7 +4,7 @@ import asyncio
 
 import httpx
 
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 from app.bill.item_classifier import classify_items
 from app.schemas.bill import ClassifyItemIn
 
@@ -157,7 +157,7 @@ async def test_gemini_hanging_past_hard_limit_leaves_unknown():
     async def hang(req):
         await asyncio.Event().wait()
 
-    gemini = GeminiClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
+    gemini = LlmClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
     out, used = await run(items("Qwerty"), gemini=gemini)
     assert out == [(0, None, "unknown")] and used is False and not gemini.available
 
