@@ -406,6 +406,7 @@ Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn 
 
 - API vận hành nằm dưới `/api/v1/ops/*`, kế thừa `OpsControllerBase` (policy `StaffOrAbove`). `AdminControllerBase` giữ nguyên `AdminOnly`, nên thêm vai trò không làm rộng quyền `/admin/*`.
 - Policy đọc role trong JWT, chỉ để chặn sớm. Thao tác nhạy cảm phải qua `IOpsAccessService`, đọc DB mỗi request, vì token còn hiệu lực tới 15 phút sau khi bị hạ quyền.
+- Ticket: bảng `support_tickets`, `support_ticket_messages`, `support_ticket_attachments`; khách đi qua `ISupportTicketService` (lọc theo `userId`), đội vận hành qua `IOpsTicketService` (kiểm tra người phụ trách). Cả hai dùng chung `ISupportRepository`; DTO của khách tách riêng để ghi chú nội bộ không có đường lộ ra. `SupportRetentionJob` (03:30) tự đóng ca đã giải quyết lâu và xóa ảnh hết hạn.
 - `OpsManager` khác vai `manager` của nhóm tài chính (§2.7). So sánh thứ bậc dùng `UserRoleExtensions.Rank()`, không dùng thứ tự enum vì `Admin` đứng trước `Staff`.
 
 ## 3. AI Service — Pipeline Architecture

@@ -158,6 +158,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("qrTransfer", before.QrTransfer, after.QrTransfer);
         Compare("financeMethods", before.FinanceMethods, after.FinanceMethods);
         Compare("groups", before.Groups, after.Groups);
+        Compare("support", before.Support, after.Support);
         return sections;
     }
 }

@@ -83,4 +83,12 @@ public static class AuditEvents
     public const string GroupOwnershipTransferred = "Group.Ownership.Transferred";
     public const string GroupInvitationCreated = "Group.Invitation.Created";
     public const string GroupInvitationRevoked = "Group.Invitation.Revoked";
+
+    // Vận hành. Chỉ ghi id và trạng thái, không ghi nội dung ticket.
+    public const string OpsTicketClaimed = "Ops.Ticket.Claimed";
+    public const string OpsTicketAssigned = "Ops.Ticket.Assigned";
+    public const string OpsTicketStatusChanged = "Ops.Ticket.StatusChanged";
+    public const string OpsTicketPriorityChanged = "Ops.Ticket.PriorityChanged";
+    public const string OpsTicketEscalated = "Ops.Ticket.Escalated";
+    public const string OpsTicketAttachmentViewed = "Ops.Ticket.AttachmentViewed";
 }

@@ -52,6 +52,9 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
+    public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
