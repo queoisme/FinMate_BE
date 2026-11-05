@@ -7,6 +7,8 @@ public sealed record IncidentFilter(IncidentStatus? Status, IncidentSeverity? Se
 
 public sealed record AlertRecipient(Guid UserId, string Email);
 
+public sealed record ErrorGroup(string Fingerprint, string Service, int Count, string? ExceptionType, string? SourceContext, string? RequestPath);
+
 public interface IMonitoringRepository
 {
     Task<List<OpsServiceStatus>> ListStatusesAsync(CancellationToken ct = default);
@@ -30,6 +32,12 @@ public interface IMonitoringRepository
     /// <summary>Tài khoản đang hoạt động có email. <paramref name="includeManagers"/> false thì chỉ Admin.</summary>
     Task<List<AlertRecipient>> ListAlertRecipientsAsync(bool includeManagers, CancellationToken ct = default);
 
+    Task<List<ErrorGroup>> GroupRecentErrorsAsync(IncidentSource source, DateTimeOffset since, CancellationToken ct = default);
+    Task<int> CountErrorsSinceAsync(string fingerprint, DateTimeOffset since, CancellationToken ct = default);
+
+    /// <summary>Sự cố chưa đóng của nguồn này mà không có lỗi nào từ <paramref name="quietSince"/>.</summary>
+    Task<List<string>> ListQuietIncidentFingerprintsAsync(IncidentSource source, DateTimeOffset quietSince, CancellationToken ct = default);
+    Task<(List<OpsErrorEvent> Items, int Total)> ListErrorEventsAsync(string? service, string? exceptionType, DateTimeOffset? from, DateTimeOffset? to, int offset, int limit, CancellationToken ct = default);
     Task<int> DeleteErrorEventsBeforeAsync(DateTimeOffset before, CancellationToken ct = default);
 
     /// <summary>Bỏ các thay đổi đang theo dõi, để lỗi ở một nguồn không kéo theo nguồn kế tiếp.</summary>

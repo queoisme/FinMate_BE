@@ -53,6 +53,7 @@ using Microsoft.IdentityModel.Tokens;
 using Refit;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
+using FinMate.API.Monitoring;
 using FinMate.Infrastructure.Monitoring;
 using FinMate.Application.Support;
 using Serilog;
@@ -68,9 +69,15 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Host.UseSerilog((context, _, configuration) =>
+        builder.Services.AddSingleton<OpsErrorQueue>();
+        builder.Services.AddSingleton<OpsErrorSink>();
+        builder.Services.AddSingleton(new OpsMonitoringOptions(
+            !bool.TryParse(builder.Configuration["MONITORING_ENABLED"], out var monitoringEnabled) || monitoringEnabled));
+
+        builder.Host.UseSerilog((context, services, configuration) =>
         {
             configuration
+                .WriteTo.Sink(services.GetRequiredService<OpsErrorSink>())
                 .MinimumLevel.Is(context.HostingEnvironment.IsDevelopment()
                     ? Serilog.Events.LogEventLevel.Debug
                     : Serilog.Events.LogEventLevel.Information)
@@ -180,6 +187,9 @@ public class Program
         builder.Services.AddHangfire(config => config
             .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(databaseUrl)));
         builder.Services.AddHangfireServer();
+        builder.Services.AddHostedService<OpsErrorWriter>();
+        builder.Services.AddSingleton<IRecurringJobReader, HangfireRecurringJobReader>();
+        builder.Services.AddSingleton<OpsJobFailureFilter>();
 
         // OCR service riêng (PaddleOCR + VietOCR): có URL thì backend gọi nó rồi mới gọi AI Service phân loại; không có thì quét qua
         // POST /api/v1/ocr của AI Service như trước. Khóa nội bộ bắt buộc đi kèm URL.
@@ -357,6 +367,9 @@ public class Program
         builder.Services.AddScoped<ServiceStatusTracker>();
         builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, ErrorMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, JobMonitorSource>();
+        builder.Services.AddScoped<IAdminErrorEventService, AdminErrorEventService>();
         builder.Services.AddHttpClient(HttpServiceProbe.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
         builder.Services.AddScoped<IServiceProbe, RedisProbe>();
         builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.AiService, $"{aiServiceUrl.TrimEnd('/')}/api/v1/health", sp.GetRequiredService<IHttpClientFactory>()));
@@ -631,8 +644,13 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "30 3 * * *");
 
+        if (monitoringEnabled)
+        {
+            GlobalJobFilters.Filters.Add(app.Services.GetRequiredService<OpsJobFailureFilter>());
+        }
+
         // Mặc định bật. AuthApiFactory tắt để job không chạy nền trong bộ test.
-        if (!bool.TryParse(builder.Configuration["MONITORING_ENABLED"], out var monitoringEnabled) || monitoringEnabled)
+        if (monitoringEnabled)
         {
             RecurringJob.AddOrUpdate<SystemMonitorJob>("system-monitor", job => job.RunAsync(CancellationToken.None), "* * * * *");
             RecurringJob.AddOrUpdate<MonitoringDigestJob>("monitoring-digest", job => job.RunAsync(CancellationToken.None), "0 1 * * *");

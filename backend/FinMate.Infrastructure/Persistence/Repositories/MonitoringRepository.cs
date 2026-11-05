@@ -90,6 +90,59 @@ public class MonitoringRepository : IMonitoringRepository
             .Select(u => new AlertRecipient(u.Id, u.Email))
             .ToListAsync(ct);
 
+    public async Task<List<ErrorGroup>> GroupRecentErrorsAsync(IncidentSource source, DateTimeOffset since, CancellationToken ct = default)
+    {
+        var recent = _context.OpsErrorEvents.AsNoTracking().Where(e => e.Source == source && e.CreatedAt >= since);
+        var counts = await recent.GroupBy(e => e.Fingerprint).Select(g => new { Fingerprint = g.Key, Count = g.Count() }).ToListAsync(ct);
+
+        var groups = new List<ErrorGroup>(counts.Count);
+        foreach (var count in counts)
+        {
+            var sample = await recent.Where(e => e.Fingerprint == count.Fingerprint).OrderByDescending(e => e.CreatedAt).FirstAsync(ct);
+            groups.Add(new ErrorGroup(count.Fingerprint, sample.Service, count.Count, sample.ExceptionType, sample.SourceContext, sample.RequestPath));
+        }
+
+        return groups;
+    }
+
+    public Task<int> CountErrorsSinceAsync(string fingerprint, DateTimeOffset since, CancellationToken ct = default)
+        => _context.OpsErrorEvents.CountAsync(e => e.Fingerprint == fingerprint && e.CreatedAt > since, ct);
+
+    public Task<List<string>> ListQuietIncidentFingerprintsAsync(IncidentSource source, DateTimeOffset quietSince, CancellationToken ct = default)
+        => _context.OpsIncidents.AsNoTracking()
+            .Where(i => i.Source == source && i.Status != IncidentStatus.Resolved)
+            .Where(i => !_context.OpsErrorEvents.Any(e => e.Fingerprint == i.Fingerprint && e.CreatedAt >= quietSince))
+            .Select(i => i.Fingerprint)
+            .ToListAsync(ct);
+
+    public async Task<(List<OpsErrorEvent> Items, int Total)> ListErrorEventsAsync(string? service, string? exceptionType, DateTimeOffset? from, DateTimeOffset? to, int offset, int limit, CancellationToken ct = default)
+    {
+        var query = _context.OpsErrorEvents.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(service))
+        {
+            query = query.Where(e => e.Service == service);
+        }
+
+        if (!string.IsNullOrWhiteSpace(exceptionType))
+        {
+            query = query.Where(e => e.ExceptionType == exceptionType);
+        }
+
+        if (from is { } start)
+        {
+            query = query.Where(e => e.CreatedAt >= start);
+        }
+
+        if (to is { } end)
+        {
+            query = query.Where(e => e.CreatedAt <= end);
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(e => e.CreatedAt).ThenBy(e => e.Id).Skip(offset).Take(limit).ToListAsync(ct);
+        return (items, total);
+    }
+
     public Task<int> DeleteErrorEventsBeforeAsync(DateTimeOffset before, CancellationToken ct = default)
         => _context.OpsErrorEvents.Where(e => e.CreatedAt < before).ExecuteDeleteAsync(ct);
 
