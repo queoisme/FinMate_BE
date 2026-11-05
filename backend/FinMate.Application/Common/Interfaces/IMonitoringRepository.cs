@@ -31,10 +31,15 @@ public interface IMonitoringRepository
     /// <summary>Sự cố đã đóng, đã từng báo, chưa báo đóng.</summary>
     Task<List<OpsIncident>> ListResolvedUnnotifiedAsync(CancellationToken ct = default);
 
+    /// <summary>Ghi thẳng từng sự cố, không qua change tracker: người nhận xử lý đúng lúc đang gửi email không được làm mất dấu các sự cố đã báo, nếu không lượt sau sẽ gửi lại hết.</summary>
+    Task MarkNotifiedAsync(Guid incidentId, DateTimeOffset at, CancellationToken ct = default);
+    Task MarkResolvedNotifiedAsync(Guid incidentId, DateTimeOffset at, CancellationToken ct = default);
+
     /// <summary>Tài khoản đang hoạt động có email. <paramref name="includeManagers"/> false thì chỉ Admin.</summary>
     Task<List<AlertRecipient>> ListAlertRecipientsAsync(bool includeManagers, CancellationToken ct = default);
 
     /// <summary>Chỉ đếm, không có gì về từng người dùng.</summary>
+    Task<List<string>> ListActiveFingerprintsAsync(IncidentSource source, CancellationToken ct = default);
     Task<List<ReceiptScanCount>> CountReceiptScansAsync(DateTimeOffset since, CancellationToken ct = default);
     Task<List<ErrorGroup>> GroupRecentErrorsAsync(IncidentSource source, DateTimeOffset since, CancellationToken ct = default);
     Task<int> CountErrorsSinceAsync(string fingerprint, DateTimeOffset since, CancellationToken ct = default);

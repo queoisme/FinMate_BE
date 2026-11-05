@@ -3,6 +3,7 @@ using FinMate.Application.Common.Models;
 using FinMate.Application.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace FinMate.API.Controllers;
 
@@ -27,8 +28,8 @@ public class SupportAccessController : ControllerBase
 
     /// <summary>Yêu cầu có phạm vi <c>Draft</c> thì phải chọn ví nhận giao dịch nháp.</summary>
     [HttpPost("tickets/{id:guid}/access-requests/{requestId:guid}/approve")]
-    public async Task<IActionResult> Approve(Guid id, Guid requestId, [FromBody] ApproveSupportAccessRequest request, CancellationToken ct)
-        => Ok(ApiResponse<SupportAccessRequestDto>.Ok(await _access.ApproveAsync(CurrentUserId, id, requestId, request.FinancialAccountId, ct)));
+    public async Task<IActionResult> Approve(Guid id, Guid requestId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ApproveSupportAccessRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<SupportAccessRequestDto>.Ok(await _access.ApproveAsync(CurrentUserId, id, requestId, request?.FinancialAccountId, ct)));
 
     [HttpPost("tickets/{id:guid}/access-requests/{requestId:guid}/deny")]
     public async Task<IActionResult> Deny(Guid id, Guid requestId, CancellationToken ct)

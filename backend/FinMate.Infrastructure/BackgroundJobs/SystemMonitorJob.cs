@@ -37,13 +37,22 @@ public class MonitoringDigestJob
         _logger = logger;
     }
 
+    /// <summary>Không retry: thử lại sau khi đã gửi email sẽ gửi trùng, còn bỏ lỡ một ngày thì hôm sau email vẫn liệt kê các sự cố đang mở. Dọn lỗi trước và tách riêng, để lỗi ở đó không chặn email.</summary>
+    [AutomaticRetry(Attempts = 0)]
     public async Task RunAsync(CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        await _notifier.SendDigestAsync(now, ct);
+        try
+        {
+            var settings = (await _config.GetAsync(ct)).Document.Monitoring;
+            var deleted = await _repository.DeleteErrorEventsBeforeAsync(now.AddDays(-settings.ErrorRetentionDays), ct);
+            _logger.LogInformation("Dọn lỗi quá hạn: xóa {Deleted} bản ghi", deleted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Không dọn được lỗi quá hạn");
+        }
 
-        var settings = (await _config.GetAsync(ct)).Document.Monitoring;
-        var deleted = await _repository.DeleteErrorEventsBeforeAsync(now.AddDays(-settings.ErrorRetentionDays), ct);
-        _logger.LogInformation("Dọn lỗi quá hạn: xóa {Deleted} bản ghi", deleted);
+        await _notifier.SendDigestAsync(now, ct);
     }
 }

@@ -266,6 +266,20 @@ public class MonitoringErrorsTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task AnIncidentForAJobRemovedFromTheScheduleCloses()
+    {
+        var id = "thu-" + Guid.NewGuid().ToString("N");
+        _jobs.Jobs.Add(new RecurringJobInfo(id, FailedState.StateName, _now.AddMinutes(5)));
+        await RunAsync(_now);
+        (await IncidentAsync($"job:failed:{id}"))!.Status.Should().Be(IncidentStatus.Open);
+
+        _jobs.Jobs.Clear();
+        await RunAsync(_now.AddMinutes(1));
+
+        (await IncidentAsync($"job:failed:{id}"))!.Status.Should().Be(IncidentStatus.Resolved);
+    }
+
+    [Fact]
     public async Task TheMonitorJobDoesNotWatchItself()
     {
         _jobs.Jobs.Add(new RecurringJobInfo("system-monitor", FailedState.StateName, _now.AddHours(-1)));

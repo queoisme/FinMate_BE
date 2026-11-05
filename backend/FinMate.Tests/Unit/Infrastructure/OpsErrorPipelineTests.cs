@@ -55,6 +55,16 @@ public class OpsErrorPipelineTests
         other.Fingerprint.Should().NotBe(first.Fingerprint);
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("  ", true)]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    [InlineData("False", false)]
+    public void MonitoringIsOnUnlessExplicitlyOff(string? configured, bool expected)
+        => OpsMonitoringOptions.IsEnabled(configured).Should().Be(expected);
+
     [Fact]
     public void TheSinkTakesErrorsAndAbove()
     {

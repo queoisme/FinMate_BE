@@ -86,7 +86,8 @@ public class MonitoringProvidersTests : IClassFixture<AuthApiFactory>
         return await scope.ServiceProvider.GetRequiredService<FinMateDbContext>().OpsServiceStatuses.AsNoTracking().FirstOrDefaultAsync(s => s.Service == service);
     }
 
-    private static ProviderHealthBody Enabled(int failures = 0, string? code = null) => new("enabled", failures, code);
+    private static ProviderHealthBody Enabled(int failures = 0, string? code = null, bool succeeded = true)
+        => new("enabled", failures, code, succeeded ? DateTimeOffset.UtcNow : null);
 
     [Fact]
     public async Task AVisionQuotaProblemOpensAHighIncidentWithTheCodeForAdmins()
@@ -117,6 +118,45 @@ public class MonitoringProvidersTests : IClassFixture<AuthApiFactory>
         await RunAsync(_start.AddMinutes(1));
 
         (await IncidentAsync("google_vision"))!.Status.Should().Be(IncidentStatus.Resolved);
+    }
+
+    [Fact]
+    public async Task ARestartedServiceWithZeroFailuresDoesNotCloseAnIncident()
+    {
+        await ResetAsync();
+        _status.Ocr = new OcrStatusBody(Enabled(5, "429"));
+        await RunAsync(_start);
+
+        _status.Ocr = new OcrStatusBody(Enabled(0, null, succeeded: false));
+        await RunAsync(_start.AddMinutes(1));
+
+        (await IncidentAsync("google_vision"))!.Status.Should().Be(IncidentStatus.Open);
+        (await StatusAsync("google_vision"))!.State.Should().Be(MonitoredServiceState.Unknown);
+    }
+
+    [Fact]
+    public async Task AFailedKeyLookupDoesNotCloseAnIncident()
+    {
+        await ResetAsync();
+        _status.Ocr = new OcrStatusBody(Enabled(5, "429"));
+        await RunAsync(_start);
+
+        _status.Ocr = new OcrStatusBody(new ProviderHealthBody("unknown", 5, "429"));
+        await RunAsync(_start.AddMinutes(1));
+
+        (await IncidentAsync("google_vision"))!.Status.Should().Be(IncidentStatus.Open);
+    }
+
+    [Fact]
+    public async Task BackendRestartLeavesBrevoUnknown_AndUnconfiguredBrevoIsDisabled()
+    {
+        await ResetAsync();
+        await RunAsync(_start);
+        (await StatusAsync("brevo"))!.State.Should().Be(MonitoredServiceState.Unknown);
+
+        _tracker.RecordNotConfigured("brevo");
+        await RunAsync(_start.AddMinutes(1));
+        (await StatusAsync("brevo"))!.State.Should().Be(MonitoredServiceState.Disabled);
     }
 
     [Fact]

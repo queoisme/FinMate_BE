@@ -34,7 +34,8 @@ public class MonitoringTests : IClassFixture<AuthApiFactory>
 
     public MonitoringTests(AuthApiFactory factory)
     {
-        _service = new MonitoredService("svc_" + Guid.NewGuid().ToString("N"), "Dịch vụ thử", "Khách bị ảnh hưởng.", IncidentSeverity.High);
+        var key = "svc_" + Guid.NewGuid().ToString("N");
+        _service = new MonitoredService(key, "Dịch vụ thử " + key, "Khách bị ảnh hưởng.", IncidentSeverity.High);
         _probe = new FakeProbe(_service);
         _factory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -304,7 +305,7 @@ public class MonitoringTests : IClassFixture<AuthApiFactory>
         var admin = await AccountAsync(UserRole.Admin);
         var manager = await AccountAsync(UserRole.OpsManager);
         var incident = await OpenIncidentAsync();
-        int CountToAdmin() => _email.Sent.Count(e => e.To == admin.Email);
+        int CountToAdmin() => _email.Sent.Count(e => e.To == admin.Email && e.Subject.Contains(_service.Key));
         CountToAdmin().Should().Be(1);
 
         await RunAsync(_start.AddMinutes(10));
@@ -355,7 +356,7 @@ public class MonitoringTests : IClassFixture<AuthApiFactory>
             await RunAsync(_start.AddMinutes(i));
         }
 
-        _email.Sent.Where(e => e.To == admin.Email && e.Subject.Contains("Đã khắc phục")).Should().ContainSingle();
+        _email.Sent.Where(e => e.To == admin.Email && e.Subject.Contains("Đã khắc phục") && e.Subject.Contains(_service.Key)).Should().ContainSingle();
     }
 
     [Fact]
@@ -387,7 +388,7 @@ public class MonitoringTests : IClassFixture<AuthApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<IIncidentService>().RaiseAsync(
-                new IncidentSignal(fingerprint, IncidentSource.Job, normal.Key, IncidentSeverity.Normal, "Sự cố nhỏ", null), 1, _start);
+                new IncidentSignal(fingerprint, IncidentSource.Provider, normal.Key, IncidentSeverity.Normal, "Sự cố nhỏ", null), 1, _start);
         }
 
         Heal();
@@ -451,6 +452,40 @@ public class MonitoringTests : IClassFixture<AuthApiFactory>
 
         var list = await (await SendAsync(HttpMethod.Get, $"{Api}/incidents?limit=100", manager.Token)).Content.ReadAsStringAsync();
         list.Should().Contain(incident.Id.ToString()).And.NotContain("HTTP 503");
+    }
+
+    [Fact]
+    public async Task ResolvingWorksWithoutABody()
+    {
+        var manager = await AccountAsync(UserRole.OpsManager);
+        var incident = await OpenIncidentAsync();
+
+        (await DataAsync(await SendAsync(HttpMethod.Post, $"{Api}/incidents/{incident.Id}/resolve", manager.Token))).GetProperty("status").GetString().Should().Be("Resolved");
+    }
+
+    [Fact]
+    public async Task AcknowledgingDuringASendDoesNotCauseDuplicateEmails()
+    {
+        var admin = await AccountAsync(UserRole.Admin);
+        var incident = await OpenIncidentAsync();
+        var sent = _email.Sent.Count(e => e.To == admin.Email && e.Subject.Contains(_service.Key));
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IMonitoringRepository>();
+            var loaded = await repository.ListOpenUrgentAsync();
+            await InDbAsync(db => db.OpsIncidents.Where(i => i.Id == incident.Id).ExecuteUpdateAsync(s => s.SetProperty(i => i.TechnicalDetail, "doi")));
+
+            // Bản đã đọc từ trước không còn khớp xmin, nhưng ghi dấu đã báo vẫn phải thành công.
+            await repository.MarkNotifiedAsync(loaded.Single(i => i.Id == incident.Id).Id, _start.AddMinutes(30));
+        }
+
+        var row = (await IncidentsAsync()).Single();
+        row.LastNotifiedAt.Should().Be(_start.AddMinutes(30));
+        row.NotificationCount.Should().Be(2);
+
+        await RunAsync(_start.AddMinutes(31));
+        _email.Sent.Count(e => e.To == admin.Email && e.Subject.Contains(_service.Key)).Should().Be(sent);
     }
 
     [Fact]

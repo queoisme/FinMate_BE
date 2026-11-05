@@ -70,6 +70,7 @@ class _KeyCache:
     value: str | None = None
     fetched = float("-inf")
     api: ai_api.AiApi | None = None
+    lookup_failed = False
 
 
 _KEY = _KeyCache()
@@ -82,12 +83,14 @@ def api_key() -> str | None:
     if now - _KEY.fetched < _KEY_TTL_SECONDS:
         return _KEY.value
     value = None
+    _KEY.lookup_failed = False
     url, token = os.environ.get("AI_SERVICE_URL"), os.environ.get("AI_SERVICE_API_KEY")
     if url and token:
         try:
             _KEY.api = _KEY.api or ai_api.AiApi(url, token, timeout=_KEY_TIMEOUT_SECONDS)
             value = _KEY.api.shared_secret(_SECRET_NAME, "ocr")
         except ai_api.AiApiError as error:
+            _KEY.lookup_failed = True
             logger.warning("Không lấy được key Vision từ AI Service (%s); dùng biến môi trường.", error.code)
     _KEY.value = value or os.environ.get("GOOGLE_VISION_API_KEY") or None
     _KEY.fetched = now
@@ -115,10 +118,13 @@ def enabled() -> bool:
 
 
 def status() -> dict:
-    """Trạng thái cho backend giám sát. ``state`` chỉ nói có cấu hình hay không; tạm nghỉ sau lỗi không phải là tắt."""
+    """Trạng thái cho backend giám sát. ``disabled``: chưa cấu hình. ``unknown``: không biết có key hay không vì AI Service không trả lời, không được coi là đã tắt, nếu không sự cố đang mở sẽ tự đóng.
+    Tạm nghỉ sau lỗi không phải là tắt. Đọc key TRƯỚC khi giữ khóa: lần đọc có thể gọi mạng, không được làm chậm các lượt quét đang ghi kết quả."""
+    configured = _configured()
+    state = "enabled" if configured else "unknown" if _KEY.lookup_failed and os.environ.get("FINMATE_OCR_ENGINE", "auto") != "local" else "disabled"
     with _HEALTH.lock:
         return {
-            "state": "enabled" if _configured() else "disabled",
+            "state": state,
             "consecutive_failures": _HEALTH.consecutive_failures,
             "last_error_code": _HEALTH.last_error_code,
             "last_error_at": _HEALTH.last_error_at,

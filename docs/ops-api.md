@@ -244,7 +244,9 @@ Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom l�
 
 Nhà cung cấp chỉ được đếm khi có lần gọi thật. Không có khách quét hóa đơn thì không có gì để đếm, nên sự cố Vision chỉ tự đóng sau lần quét thành công kế tiếp. Đổi key xong mà muốn đóng ngay thì đóng tay.
 
-Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Dịch vụ Python bản cũ chưa có API trạng thái thì nhà cung cấp có trạng thái `Unknown`, không mở sự cố và không đóng sự cố đang mở.
+Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Nhà cung cấp có trạng thái `Unknown` khi chưa đủ căn cứ: dịch vụ Python bản cũ chưa có API trạng thái, dịch vụ vừa khởi động lại chưa có lần gọi nào, hoặc không đọc được key. `Unknown` không mở sự cố và không đóng sự cố đang mở, nên khởi động lại dịch vụ không làm một sự cố thật tự đóng.
+
+Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ được ghi vào log, nên hệ thống không báo được cho ai. Hãy kiểm tra trạng thái này sau khi deploy.
 
 ### Mức độ và người nhận
 

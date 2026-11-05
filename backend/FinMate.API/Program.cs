@@ -71,8 +71,8 @@ public class Program
 
         builder.Services.AddSingleton<OpsErrorQueue>();
         builder.Services.AddSingleton<OpsErrorSink>();
-        builder.Services.AddSingleton(new OpsMonitoringOptions(
-            !bool.TryParse(builder.Configuration["MONITORING_ENABLED"], out var monitoringEnabled) || monitoringEnabled));
+        var monitoringEnabled = OpsMonitoringOptions.IsEnabled(builder.Configuration["MONITORING_ENABLED"]);
+        builder.Services.AddSingleton(new OpsMonitoringOptions(monitoringEnabled));
 
         builder.Host.UseSerilog((context, services, configuration) =>
         {

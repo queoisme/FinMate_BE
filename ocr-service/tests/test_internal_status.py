@@ -93,6 +93,32 @@ def test_disabled_without_a_key_or_in_local_mode(monkeypatch):
     assert google_vision.status()["state"] == "disabled"
 
 
+def test_a_failed_key_lookup_is_unknown_not_disabled(monkeypatch):
+    def lookup_failed():
+        google_vision._KEY.lookup_failed = True
+        return None
+
+    monkeypatch.setattr(google_vision, "api_key", lookup_failed)
+    assert google_vision.status()["state"] == "unknown"
+
+    monkeypatch.setenv("FINMATE_OCR_ENGINE", "local")
+    assert google_vision.status()["state"] == "disabled"
+    google_vision._KEY.lookup_failed = False
+
+
+def test_status_does_not_hold_the_lock_while_reading_the_key(monkeypatch):
+    held = []
+
+    def api_key():
+        held.append(google_vision._HEALTH.lock.locked())
+        return SECRET
+
+    monkeypatch.setattr(google_vision, "api_key", api_key)
+    google_vision.status()
+
+    assert held == [False]
+
+
 def test_status_stays_enabled_during_cooldown(monkeypatch):
     _fail_with(monkeypatch, TimeoutError())
     _read()
