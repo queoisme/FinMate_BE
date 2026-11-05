@@ -25,4 +25,15 @@ public static class OtpMessages
         Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này — mật khẩu hiện tại
         của bạn vẫn còn nguyên.
         """);
+
+    public static (string Subject, string Body) OpsLogin(string code) => (
+        "FinMate — Mã đăng nhập trang vận hành",
+        $"""
+        Chào bạn,
+
+        Mã đăng nhập trang vận hành FinMate của bạn là: {code}
+
+        Mã có hiệu lực trong 10 phút và chỉ dùng được một lần.
+        Nếu không phải bạn đang đăng nhập, mật khẩu của bạn có thể đã bị lộ: hãy đổi mật khẩu và báo Admin ngay.
+        """);
 }

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -23,14 +24,21 @@ public class TokenService : ITokenService
         _refreshTtlDays = int.Parse(configuration["JWT_REFRESH_TTL_DAYS"] ?? "30");
     }
 
-    public string GenerateAccessToken(User user)
+    public string GenerateAccessToken(User user) => GenerateAccessToken(user, opsVerified: false);
+
+    public string GenerateAccessToken(User user, bool opsVerified)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Role, user.Role.ToString()),
         };
+
+        if (opsVerified)
+        {
+            claims.Add(new Claim(OpsClaims.Verified, OpsClaims.VerifiedValue));
+        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -1,4 +1,5 @@
 using FinMate.API.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using FinMate.API.Configuration;
 using FinMate.API.HealthChecks;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -264,13 +265,16 @@ public class Program
             // xem ghi chú về cửa sổ 15 phút ở AuthorizationPolicies.
             options.AddPolicy(
                 AuthorizationPolicies.AdminOnly,
-                policy => policy.RequireRole(nameof(UserRole.Admin)));
+                policy => policy.RequireRole(nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
             options.AddPolicy(
                 AuthorizationPolicies.StaffOrAbove,
-                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
+                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
             options.AddPolicy(
                 AuthorizationPolicies.ManagerOrAbove,
-                policy => policy.RequireRole(nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
+                policy => policy.RequireRole(nameof(UserRole.OpsManager), nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
+            options.AddPolicy(
+                AuthorizationPolicies.InternalAccount,
+                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
         });
 
         // Không khai báo domain nào thì policy rỗng, trình duyệt không được phép gọi. Xác thực bằng header Bearer nên không bật AllowCredentials.
@@ -280,6 +284,13 @@ public class Program
             policy => policy.WithOrigins(opsWebOrigins.ToArray()).AllowAnyMethod().WithHeaders("Authorization", "Content-Type")));
 
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
+
+        // Mặc định bật ngoài Development. Đặt false chỉ khi email đang hỏng và cần vào được hệ thống để sửa.
+        var requireOpsTwoFactor = bool.TryParse(builder.Configuration["OPS_REQUIRE_2FA"], out var parsedOpsTwoFactor)
+            ? parsedOpsTwoFactor
+            : !builder.Environment.IsDevelopment();
+        builder.Services.AddSingleton(new OpsAuthOptions(requireOpsTwoFactor));
+        builder.Services.AddSingleton<IAuthorizationHandler, OpsVerifiedHandler>();
 
         builder.Services.AddSingleton(new GoogleOAuthOptions(
             googleOAuthEnabled,
@@ -337,6 +348,7 @@ public class Program
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<IOpsTwoFactorService, OpsTwoFactorService>();
         builder.Services.AddScoped<IOpsRepository, OpsRepository>();
         builder.Services.AddScoped<IOpsApprovalService, OpsApprovalService>();
         builder.Services.AddScoped<IOpsUserService, OpsUserService>();

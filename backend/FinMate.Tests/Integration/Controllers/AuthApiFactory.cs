@@ -47,6 +47,9 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         // có ngăn riêng, và RateLimitingControllerTests dựa vào đúng điều đó để kiểm 429 thật.
         Environment.SetEnvironmentVariable("RATE_LIMIT_AUTH_PER_MINUTE", "100000");
 
+        // Hàng chục test gọi API admin bằng token đăng nhập thường. OpsTwoFactorTests bật lại riêng.
+        Environment.SetEnvironmentVariable("OPS_REQUIRE_2FA", "false");
+
         // 23 file test gọi auth/register rồi đăng nhập ngay; bắt tất cả diễn lại màn OTP chỉ
         // tạo nhiễu trong khi chúng đang kiểm thứ khác. EmailVerificationGateTests bật lại cờ
         // này ở phạm vi của riêng nó để phần chặn vẫn được kiểm thật.

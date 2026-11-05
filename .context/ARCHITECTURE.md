@@ -410,6 +410,7 @@ Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn 
 - Dữ liệu khách chỉ đi qua `IOpsCustomerDataService`: `userId` lấy từ ticket, phải là người phụ trách và có `support_access_grants` còn hiệu lực đúng phạm vi. Mọi đường kết thúc ca (`SupportTicketClosing`) hoặc đổi người phụ trách đều chấm dứt quyền. Mỗi lần đọc ghi `support_data_access_logs` (khách xem được) và `audit_logs`. Không thêm nhánh "hoặc là nhân viên" vào repository theo `userId`.
 - Giao dịch nháp từ hỗ trợ dùng `TransactionSource.Support` và đi tiếp qua `ConfirmTransactionCommandHandler` có sẵn; không có API vận hành nào xác nhận, sửa hay xóa giao dịch.
 - Việc nhạy cảm đi qua `IOpsApprovalService`: lưu trạng thái `Approved` trước khi thực hiện, khóa `xmin` bảo đảm chỉ một người đi tiếp; thực hiện bằng chính các handler của admin. Quy trình cho con người ở `docs/ops-runbook.md`.
+- Xác thực 2 lớp: claim `ops_verified` trong access token, yêu cầu bởi `OpsVerifiedRequirement` trên `AdminOnly`, `StaffOrAbove`, `ManagerOrAbove`. Chỉ `InternalAccount` không yêu cầu, dùng cho chính bước nhập OTP. Mốc `refresh_tokens.ops_verified_at` được giữ khi đổi token, nên 12 giờ tính từ lần nhập mã thật. Thêm policy nội bộ mới thì phải gắn requirement này.
 - `OpsManager` khác vai `manager` của nhóm tài chính (§2.7). So sánh thứ bậc dùng `UserRoleExtensions.Rank()`, không dùng thứ tự enum vì `Admin` đứng trước `Staff`.
 
 ## 3. AI Service — Pipeline Architecture
