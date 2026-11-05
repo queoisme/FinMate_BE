@@ -12,7 +12,8 @@ public sealed record GroupShareTarget(Guid GroupId, Guid? GroupCategoryId);
 /// <summary>
 /// Cộng và hoàn phần giao dịch đã chia sẻ vào ngân sách nhóm. Theo đúng khuôn của <c>BudgetPeriodService</c>: chỉ đổi dữ liệu đang được theo
 /// dõi và KHÔNG lưu, để handler lưu tiền cá nhân và tiền nhóm trong cùng một <c>SaveChanges</c>; cảnh báo trả về và chỉ gửi sau khi lưu.
-/// Bất biến: <c>spent_cents</c> của kỳ = tổng khoản chi đã xác nhận, đã chia sẻ, khớp ngân sách. Vẫn áp dụng khi chủ giao dịch đã rời nhóm.
+/// Bất biến: <c>spent_cents</c> của kỳ = tổng khoản chi đã xác nhận, đã chia sẻ, khớp ngân sách. Vẫn áp dụng khi chủ giao dịch đã rời nhóm, và cả khi cờ <c>features.groups</c>
+/// đang tắt: tắt cờ chỉ chặn chia sẻ mới và cảnh báo, không được làm số của nhóm lệch khi người dùng sửa hay xóa giao dịch đã chia sẻ.
 /// </summary>
 public interface IGroupLedger
 {
@@ -34,9 +35,11 @@ public class GroupLedger : IGroupLedger
     private readonly IBudgetRepository _budgets;
     private readonly IGroupAccessService _access;
     private readonly IGroupAlertNotifier _alerts;
+    private readonly ISystemConfigProvider _config;
 
-    public GroupLedger(IGroupFinanceRepository finance, IGroupRepository groups, IBudgetRepository budgets, IGroupAccessService access, IGroupAlertNotifier alerts)
+    public GroupLedger(IGroupFinanceRepository finance, IGroupRepository groups, IBudgetRepository budgets, IGroupAccessService access, IGroupAlertNotifier alerts, ISystemConfigProvider config)
     {
+        _config = config;
         _finance = finance;
         _groups = groups;
         _budgets = budgets;
@@ -44,8 +47,18 @@ public class GroupLedger : IGroupLedger
         _alerts = alerts;
     }
 
+    private async Task<bool> IsEnabledAsync(CancellationToken ct) => (await _config.GetAsync(ct)).Document.Features.Groups;
+
     public async Task<GroupShareTarget?> ResolveAsync(Guid userId, Guid? groupId, Guid? groupCategoryId, Transaction transaction, Category? category, CancellationToken ct = default)
     {
+        if (!await IsEnabledAsync(ct))
+        {
+            // Chủ động xin chia sẻ thì báo rõ. Không xin thì giao dịch cá nhân vẫn lưu bình thường, chỉ bỏ qua quy tắc tự chia sẻ.
+            return groupId is null && groupCategoryId is null
+                ? null
+                : throw new BusinessRuleException(GroupErrorCodes.Disabled, "Tính năng nhóm hiện chưa được bật.");
+        }
+
         if (groupId is { } requested)
         {
             EnsureShareable(transaction, category);
@@ -89,13 +102,16 @@ public class GroupLedger : IGroupLedger
         var now = DateTimeOffset.UtcNow;
         var alerts = new List<GroupBudgetAlert>();
 
+        // Đang tắt thì không đóng ngưỡng cảnh báo: đóng mà không gửi là mất hẳn ngưỡng đó. BudgetAlertJob quét lại khi cờ bật.
+        var alertsEnabled = sign > 0 && await IsEnabledAsync(ct);
+
         foreach (var budget in budgets)
         {
             var period = await _budgets.GetPeriodAsync(budget.Id, periodStart, ct) ?? AddPeriod(budget, periodStart, periodEnd, now);
             period.SpentCents = Math.Max(0, period.SpentCents + (sign * spend));
             period.UpdatedAt = now;
 
-            if (sign > 0 && await _alerts.EvaluateAndMarkAsync(budget, period, now, ct) is { } alert)
+            if (alertsEnabled && await _alerts.EvaluateAndMarkAsync(budget, period, now, ct) is { } alert)
             {
                 alerts.Add(alert);
             }

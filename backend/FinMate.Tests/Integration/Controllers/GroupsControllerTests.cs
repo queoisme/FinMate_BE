@@ -17,7 +17,7 @@ namespace FinMate.Tests.Integration.Controllers;
 
 /// <summary>Nhóm, thành viên, lời mời và phân quyền qua API thật trên Postgres thật.</summary>
 [Collection("Integration")]
-public class GroupsControllerTests : IClassFixture<AuthApiFactory>
+public class GroupsControllerTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
@@ -25,8 +25,15 @@ public class GroupsControllerTests : IClassFixture<AuthApiFactory>
     private readonly CapturingEmailSender _email = new();
     private readonly HttpClient _client;
 
+    public Task InitializeAsync() => _flagFactory.SetGroupsEnabledAsync(true);
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private readonly AuthApiFactory _flagFactory;
+
     public GroupsControllerTests(AuthApiFactory factory)
     {
+        _flagFactory = factory;
         _factory = factory;
         _client = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {

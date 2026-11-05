@@ -17,15 +17,22 @@ namespace FinMate.Tests.Integration.Controllers;
 
 /// <summary>Báo cáo nhóm và các quyết định về dữ liệu khi rời nhóm, yêu cầu xóa tài khoản, xóa cứng.</summary>
 [Collection("Integration")]
-public class GroupPrivacyTests : IClassFixture<AuthApiFactory>
+public class GroupPrivacyTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     private readonly AuthApiFactory _factory;
     private readonly HttpClient _client;
 
+    public Task InitializeAsync() => _flagFactory.SetGroupsEnabledAsync(true);
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private readonly AuthApiFactory _flagFactory;
+
     public GroupPrivacyTests(AuthApiFactory factory)
     {
+        _flagFactory = factory;
         _factory = factory;
         _client = factory.CreateClient();
     }

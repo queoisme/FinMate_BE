@@ -1,3 +1,7 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using FinMate.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -59,6 +63,33 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
     public new async Task DisposeAsync()
     {
         await _postgres.DisposeAsync();
+    }
+
+    /// <summary>Đổi cờ <c>features.groups</c> qua API admin, như cách vận hành thật. Mặc định tắt, nên test nhóm phải bật trước.</summary>
+    public async Task SetGroupsEnabledAsync(bool enabled)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMate.Infrastructure.Persistence.FinMateDbContext>();
+        var admin = await db.Users.AsNoTracking().SingleAsync(u => u.Email == AdminEmail);
+        var token = scope.ServiceProvider.GetRequiredService<ITokenService>().GenerateAccessToken(admin);
+
+        using var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        const string url = "/api/v1/admin/system-config";
+
+        var current = JsonDocument.Parse(await client.GetStringAsync(url)).RootElement.GetProperty("data");
+        if (current.GetProperty("content").GetProperty("features").GetProperty("groups").GetBoolean() == enabled)
+        {
+            return;
+        }
+
+        var saved = await client.PutAsJsonAsync(url, new
+        {
+            expectedVersion = current.GetProperty("version").GetInt32(),
+            content = new { features = new { groups = enabled } },
+            note = "kiem thu",
+        });
+        saved.EnsureSuccessStatusCode();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

@@ -156,7 +156,7 @@ Khi có yêu cầu mới, khách nhận push với `data = { action: "support_ac
 
 ### Điều khoản
 
-Việc lưu ảnh trong ticket và cho nhân viên xem dữ liệu khi khách đồng ý phải có trong Điều khoản. Bản 4 chưa phát hành nên nội dung này gộp vào bản 4, để người dùng chỉ đồng ý lại một lần. Nếu bản 4 đã lên production trước khi tính năng này phát hành thì phải tăng `ConsentVersions.Terms` lên 5.
+Việc lưu ảnh trong ticket và cho nhân viên xem dữ liệu khi khách đồng ý phải có trong Điều khoản. Bản 4 chưa phát hành nên nội dung này gộp vào bản 4, cùng với việc ảnh hóa đơn được gửi tới Google Cloud Vision, để người dùng chỉ đồng ý lại một lần.
 
 ## Duyệt việc nhạy cảm
 

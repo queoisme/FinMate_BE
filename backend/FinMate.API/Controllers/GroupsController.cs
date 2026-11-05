@@ -1,3 +1,4 @@
+using FinMate.API.Authorization;
 using System.Security.Claims;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Groups;
@@ -11,6 +12,7 @@ namespace FinMate.API.Controllers;
 [ApiController]
 [Route("api/v1/groups")]
 [Authorize]
+[RequireGroupsEnabled]
 public class GroupsController : ControllerBase
 {
     private const int DefaultActivityLimit = 50;

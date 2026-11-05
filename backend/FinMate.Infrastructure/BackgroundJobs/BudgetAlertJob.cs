@@ -23,23 +23,29 @@ public class BudgetAlertJob
     private readonly IBudgetAlertNotifier _notifier;
     private readonly IAlertThresholdProvider _thresholdProvider;
     private readonly IGroupAlertNotifier? _groupAlerts;
+    private readonly ISystemConfigProvider? _config;
 
     public BudgetAlertJob(
         IBudgetRepository budgetRepository,
         IBudgetAlertNotifier notifier,
         IAlertThresholdProvider thresholdProvider,
-        IGroupAlertNotifier? groupAlerts = null)
+        IGroupAlertNotifier? groupAlerts = null,
+        ISystemConfigProvider? config = null)
     {
         _budgetRepository = budgetRepository;
         _notifier = notifier;
         _thresholdProvider = thresholdProvider;
         _groupAlerts = groupAlerts;
+        _config = config;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var candidates = await _budgetRepository.GetPeriodsForAlertAsync(now, ct);
+
+        // Đang tắt thì bỏ qua, không đóng ngưỡng: lượt quét sau khi bật lại sẽ gửi.
+        var groupsEnabled = _config is not null && (await _config.GetAsync(ct)).Document.Features.Groups;
         var alerts = new List<BudgetAlert>();
         var thresholdsByUser = new Dictionary<Guid, AlertThresholds>();   // một người có thể có nhiều ngân sách trong cùng lượt quét
 
@@ -47,7 +53,11 @@ public class BudgetAlertJob
         {
             if (budget.UserId is not { } userId)
             {
-                await SweepGroupBudgetAsync(budget, period, now, ct);
+                if (groupsEnabled)
+                {
+                    await SweepGroupBudgetAsync(budget, period, now, ct);
+                }
+
                 continue;
             }
 
