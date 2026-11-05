@@ -65,8 +65,8 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         await _postgres.DisposeAsync();
     }
 
-    /// <summary>Đổi cờ <c>features.groups</c> qua API admin, như cách vận hành thật. Mặc định tắt, nên test nhóm phải bật trước.</summary>
-    public async Task SetGroupsEnabledAsync(bool enabled)
+    /// <summary>Đổi cờ qua API admin, như cách vận hành thật. Cờ không truyền thì giữ nguyên.</summary>
+    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMate.Infrastructure.Persistence.FinMateDbContext>();
@@ -78,7 +78,10 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         const string url = "/api/v1/admin/system-config";
 
         var current = JsonDocument.Parse(await client.GetStringAsync(url)).RootElement.GetProperty("data");
-        if (current.GetProperty("content").GetProperty("features").GetProperty("groups").GetBoolean() == enabled)
+        var features = current.GetProperty("content").GetProperty("features");
+        var (oldGroups, oldSupport) = (features.GetProperty("groups").GetBoolean(), features.GetProperty("support").GetBoolean());
+        var (newGroups, newSupport) = (groups ?? oldGroups, support ?? oldSupport);
+        if (newGroups == oldGroups && newSupport == oldSupport)
         {
             return;
         }
@@ -86,11 +89,13 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         var saved = await client.PutAsJsonAsync(url, new
         {
             expectedVersion = current.GetProperty("version").GetInt32(),
-            content = new { features = new { groups = enabled } },
+            content = new { features = new { groups = newGroups, support = newSupport } },
             note = "kiem thu",
         });
         saved.EnsureSuccessStatusCode();
     }
+
+    public Task SetGroupsEnabledAsync(bool enabled) => SetFeaturesAsync(groups: enabled);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

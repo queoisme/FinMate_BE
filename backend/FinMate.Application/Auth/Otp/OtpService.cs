@@ -71,6 +71,9 @@ public class OtpService : IOtpService
         return new OtpIssueResult(Issued: true, Code: code);
     }
 
+    public Task ClearCooldownAsync(string email, OtpPurpose purpose, CancellationToken ct = default)
+        => _cache.RemoveAsync(CooldownKey(email, purpose), ct);
+
     public async Task<OtpVerifyResult> VerifyAsync(
         string email, OtpPurpose purpose, string code, CancellationToken ct = default)
     {

@@ -18,6 +18,9 @@ public interface IOtpService
     /// </summary>
     Task<OtpVerifyResult> VerifyAsync(
         string email, OtpPurpose purpose, string code, CancellationToken ct = default);
+
+    /// <summary>Bỏ thời gian chờ gửi lại, khi mã vừa phát hành không gửi được và người dùng không nhận được gì.</summary>
+    Task ClearCooldownAsync(string email, OtpPurpose purpose, CancellationToken ct = default);
 }
 
 public enum OtpVerifyResult

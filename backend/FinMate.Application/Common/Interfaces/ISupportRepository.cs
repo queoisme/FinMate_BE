@@ -59,9 +59,13 @@ public interface ISupportRepository
 
     /// <summary>Chấm dứt mọi quyền còn hiệu lực và yêu cầu đang chờ của ca.</summary>
     Task EndGrantsAsync(Guid ticketId, DateTimeOffset now, CancellationToken ct = default);
+
+    /// <summary>Chấm dứt quyền trên mọi ca của một khách, khi họ bị khóa hoặc yêu cầu xóa tài khoản và không còn tự thu hồi được.</summary>
+    Task EndGrantsForRequesterAsync(Guid requesterUserId, DateTimeOffset now, CancellationToken ct = default);
     Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default);
 
-    Task SetAttachmentExpiryAsync(Guid ticketId, DateTimeOffset deleteAfter, CancellationToken ct = default);
+    /// <summary>Đóng ca, đặt hạn xóa ảnh và chấm dứt quyền xem dữ liệu trong cùng một DB transaction: lỗi giữa chừng không được để lại ảnh không bao giờ bị xóa.</summary>
+    Task CloseTicketAsync(SupportTicket ticket, DateTimeOffset now, DateTimeOffset attachmentsDeleteAfter, CancellationToken ct = default);
     Task<List<SupportTicket>> ListResolvedBeforeAsync(DateTimeOffset before, int limit, CancellationToken ct = default);
     Task<int> DeleteExpiredAttachmentsAsync(DateTimeOffset now, CancellationToken ct = default);
 

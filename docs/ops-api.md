@@ -54,13 +54,14 @@ Vai trò và quyền hiện tại. Web dựng menu từ đây, không tự đoá
 
 ## Ticket hỗ trợ
 
-Tính năng nằm sau cờ `features.support`, mặc định tắt. Khi tắt, API của khách trả 422 `SUPPORT_DISABLED`; API vận hành vẫn dùng được để xử lý nốt các ca đang mở.
+Tính năng nằm sau cờ `features.support`, mặc định tắt. Khi tắt, khách không tạo hay xem được ticket và không đồng ý cấp quyền mới (422 `SUPPORT_DISABLED`), nhưng vẫn xem được yêu cầu xem dữ liệu, từ chối, thu hồi và xem lịch sử, để luôn rút lại được quyền đã cho. API vận hành vẫn xử lý nốt các ca đang mở, trừ gửi yêu cầu xem dữ liệu mới.
 
 ### Vòng đời
 
 `New → InProgress → WaitingCustomer → Resolved → Closed`, cộng `Escalated` khi chuyển cấp.
 
 - Nhân viên trả lời khách: sang `WaitingCustomer`, ghi nhận lần phản hồi đầu tiên. Ghi chú nội bộ không đổi gì.
+- Ca `Escalated` giữ nguyên trạng thái khi trả lời khách, và chỉ Manager trở lên đổi được, để ca không rời hàng đợi rà soát.
 - Khách trả lời khi đang `WaitingCustomer` hoặc `Resolved`: quay về `InProgress`, hoặc `New` nếu chưa ai nhận.
 - `Closed` là trạng thái cuối, không trả lời được nữa; khách phải tạo ca mới.
 - Ca `Resolved` mà khách không phản hồi sau `support.autoCloseResolvedDays` (mặc định 7 ngày) thì tự đóng.
@@ -121,6 +122,7 @@ Không ai trong đội vận hành xem được dữ liệu tài chính của kh
 2. Chính khách đã đồng ý trong app, cho đúng phần dữ liệu đó.
 3. Quyền còn hạn: tối đa 24 giờ, không cấu hình được.
 4. Ca chưa đóng và chưa đổi người phụ trách. Đổi người phụ trách là kết thúc quyền, kể cả khi ca được giao lại cho người cũ.
+5. Khách còn hoạt động. Khách bị khóa hoặc yêu cầu xóa tài khoản thì mọi quyền đã cấp chấm dứt và không tự có lại, kể cả khi sau đó được mở khóa hoặc hủy yêu cầu xóa.
 
 | Phạm vi (`scopes`) | Cho phép |
 |---|---|
@@ -175,7 +177,7 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 | `POST /ops/approvals/{id}/approve` | Duyệt và thực hiện ngay, `note?`. Kiểm tra lại đối tượng lúc duyệt; không còn phù hợp thì trạng thái thành `Failed` kèm `failureCode`, trả 422 `OPS_APPROVAL_FAILED` | Manager trở lên |
 | `POST /ops/approvals/{id}/reject` | Từ chối, `note?` | Manager trở lên |
 
-Đề xuất hết hạn sau 7 ngày. Hai người duyệt cùng lúc thì chỉ một người thành công, người còn lại nhận 409.
+Đề xuất hết hạn sau 7 ngày; đề xuất mới cho cùng đối tượng sẽ tự giải phóng đề xuất quá hạn, chuyển nó sang `Failed` với `failureCode = OPS_APPROVAL_EXPIRED`. Lỗi hệ thống lúc thực hiện cũng chuyển sang `Failed` với `OPS_APPROVAL_EXECUTION_ERROR`; khi đó phải kiểm tra lại đối tượng rồi đề xuất lại nếu cần. Nếu có `ticketId` với `UnlockUser` hoặc `CancelDeletion`, ca đó phải là của đúng tài khoản được đề xuất. `TransferGroupOwner` cần `features.groups` đang bật. Hai người duyệt cùng lúc thì chỉ một người thành công, người còn lại nhận 409.
 
 `/admin/users/{id}/lock` và `/admin/data-deletion-requests/{id}/cancel` vẫn còn làm đường khẩn cấp cho Admin, có ghi audit nhưng không qua bước duyệt.
 
@@ -184,8 +186,8 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 | API | Việc | Ai |
 |---|---|---|
 | `GET /ops/users/{id}` | Tên, email đã che, vai trò, trạng thái khóa, có yêu cầu xóa không. Không có dữ liệu tài chính | Manager trở lên, hoặc người đang phụ trách ca của khách đó |
-| `POST /ops/users/{id}/emergency-lock` | Khóa ngay: `ticketId`, `reason`. Chỉ khóa được khách là người tạo ca đó, không khóa được tài khoản nội bộ. Ca chuyển sang `Escalated` để Manager rà soát | Người phụ trách ca, Manager trở lên |
-| `GET /ops/groups/{id}?ticketId=` | Tên nhóm, thành viên, vai trò, loại hoạt động. Không có giao dịch hay số tiền. Người tạo ca phải là thành viên hoặc từng là thành viên nhóm | Người phụ trách ca, Manager trở lên |
+| `POST /ops/users/{id}/emergency-lock` | Khóa ngay: `ticketId`, `reason`. Ca phải chưa đóng. Chỉ khóa được khách là người tạo ca đó, không khóa được tài khoản nội bộ. Ca chuyển sang `Escalated` để Manager rà soát | Người phụ trách ca, Manager trở lên |
+| `GET /ops/groups/{id}?ticketId=` | Tên nhóm, thành viên, vai trò, loại hoạt động. Không có giao dịch hay số tiền. Ca phải chưa đóng; người tạo ca phải là thành viên hoặc từng là thành viên nhóm. Cần `features.groups` đang bật | Người phụ trách ca, Manager trở lên |
 
 ## Chức năng của Manager
 
@@ -207,7 +209,7 @@ Luồng trên web:
 
 1. `POST /auth/login` như bình thường, nhận `accessToken` và `refreshToken`.
 2. `GET /ops/auth/status`: `{ required, verified }`.
-3. `POST /ops/auth/otp/send`: gửi mã 6 số qua email, trả 204. Đang trong thời gian chờ thì không gửi thêm; mã đã gửi nếu chưa dùng thì vẫn nhập được.
+3. `POST /ops/auth/otp/send`: gửi mã 6 số qua email, trả 204. Email không gửi được thì trả 422 `OPS_OTP_EMAIL_FAILED` và có thể thử lại ngay. Đang trong thời gian chờ thì không gửi thêm; mã đã gửi nếu chưa dùng thì vẫn nhập được.
 4. `POST /ops/auth/otp/verify` với `{ code, refreshToken }`: trả `accessToken` mới; `refreshToken` giữ nguyên.
 
 Gia hạn bằng `POST /auth/refresh` không phải nhập lại mã trong 12 giờ kể từ lần nhập gần nhất. Quá 12 giờ, token mới không còn trạng thái đã xác thực nên web phải quay lại bước 3.

@@ -102,11 +102,8 @@ public sealed class OpsUserService : IOpsUserService
             Body = $"Đã khóa khẩn cấp tài khoản. Lý do: {cleanReason}",
             CreatedAt = now,
         });
-        if (ticket.Status != SupportTicketStatus.Closed)
-        {
-            ticket.Status = SupportTicketStatus.Escalated;
-        }
-
+        ticket.Status = SupportTicketStatus.Escalated;
+        ticket.ResolvedAt = null;
         ticket.UpdatedAt = now;
         await _support.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.OpsUserEmergencyLocked, actor.Id, ip, new { targetUserId = userId, ticketId }, ct);
@@ -152,6 +149,8 @@ public sealed class OpsUserService : IOpsUserService
             throw new ForbiddenException("Bạn không phụ trách yêu cầu này.");
         }
 
+        // Ca đã đóng không còn là căn cứ để khóa tài khoản hay xem nhóm.
+        SupportTicketRules.EnsureNotClosed(ticket);
         return ticket;
     }
 

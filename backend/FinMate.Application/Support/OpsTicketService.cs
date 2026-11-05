@@ -167,8 +167,7 @@ public sealed class OpsTicketService : IOpsTicketService
         if (!internalNote)
         {
             ticket.FirstRespondedAt ??= now;
-            ticket.Status = SupportTicketStatus.WaitingCustomer;
-            ticket.ResolvedAt = null;
+            ApplyReplyStatus(ticket);
         }
 
         await _support.SaveChangesAsync(ct);
@@ -197,6 +196,12 @@ public sealed class OpsTicketService : IOpsTicketService
         if (status is not (SupportTicketStatus.InProgress or SupportTicketStatus.WaitingCustomer or SupportTicketStatus.Resolved or SupportTicketStatus.Closed))
         {
             throw new BusinessRuleException(SupportErrorCodes.InvalidStatusChange, "Không đổi được sang trạng thái này.");
+        }
+
+        // Ca đã chuyển cấp đang chờ Manager rà soát; người xử lý không tự đưa nó ra khỏi hàng đợi đó được.
+        if (ticket.Status == SupportTicketStatus.Escalated && !OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets))
+        {
+            throw new ForbiddenException("Yêu cầu đã chuyển cấp chỉ Manager mới đổi được trạng thái.");
         }
 
         var previous = ticket.Status;
@@ -242,6 +247,7 @@ public sealed class OpsTicketService : IOpsTicketService
             CreatedAt = now,
         });
         ticket.Status = SupportTicketStatus.Escalated;
+        ticket.ResolvedAt = null;
         ticket.UpdatedAt = now;
         await _support.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.OpsTicketEscalated, actor.Id, ip, new { ticketId }, ct);
@@ -400,8 +406,16 @@ public sealed class OpsTicketService : IOpsTicketService
                 CreatedAt = now,
             });
             ticket.FirstRespondedAt ??= now;
-            ticket.Status = resolve ? SupportTicketStatus.Resolved : SupportTicketStatus.WaitingCustomer;
-            ticket.ResolvedAt = resolve ? now : null;
+            if (resolve)
+            {
+                ticket.Status = SupportTicketStatus.Resolved;
+                ticket.ResolvedAt = now;
+            }
+            else
+            {
+                ApplyReplyStatus(ticket);
+            }
+
             ticket.UpdatedAt = now;
         }
 
@@ -419,6 +433,17 @@ public sealed class OpsTicketService : IOpsTicketService
         }
 
         return targets.Count;
+    }
+
+    /// <summary>Trả lời khách thì chờ khách, trừ ca đã chuyển cấp: nó phải nằm lại hàng đợi của Manager cho tới khi được rà soát.</summary>
+    private static void ApplyReplyStatus(SupportTicket ticket)
+    {
+        if (ticket.Status != SupportTicketStatus.Escalated)
+        {
+            ticket.Status = SupportTicketStatus.WaitingCustomer;
+        }
+
+        ticket.ResolvedAt = null;
     }
 
     private static void EnsureNotOwnTicket(User actor, SupportTicket ticket)

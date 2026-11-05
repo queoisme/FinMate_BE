@@ -12,13 +12,16 @@ public class SetUserLockCommandHandler : ISetUserLockCommandHandler
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<SetUserLockCommand> _validator;
+    private readonly ISupportRepository? _support;
 
     public SetUserLockCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IAuditLogService auditLogService,
-        IValidator<SetUserLockCommand> validator)
+        IValidator<SetUserLockCommand> validator,
+        ISupportRepository? support = null)
     {
+        _support = support;
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _auditLogService = auditLogService;
@@ -59,6 +62,12 @@ public class SetUserLockCommandHandler : ISetUserLockCommandHandler
             // hết TTL (15 phút). Thu hồi refresh token là thứ chặn họ gia hạn thêm; đó là biên
             // trên của cửa sổ, và là đánh đổi có sẵn của thiết kế JWT hiện tại.
             await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
+
+            // Có thể chính kẻ chiếm tài khoản đã bấm đồng ý, nên mở khóa sau đó không được làm quyền cũ sống lại.
+            if (_support is not null)
+            {
+                await _support.EndGrantsForRequesterAsync(user.Id, user.UpdatedAt, ct);
+            }
         }
 
         await _auditLogService.LogAsync(

@@ -1,3 +1,4 @@
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -98,9 +99,11 @@ public sealed class SupportAccessService : ISupportAccessService
 {
     private readonly ISupportRepository _support;
     private readonly IFinancialAccountRepository _accounts;
+    private readonly ISystemConfigProvider _config;
 
-    public SupportAccessService(ISupportRepository support, IFinancialAccountRepository accounts)
+    public SupportAccessService(ISupportRepository support, IFinancialAccountRepository accounts, ISystemConfigProvider config)
     {
+        _config = config;
         _support = support;
         _accounts = accounts;
     }
@@ -119,6 +122,12 @@ public sealed class SupportAccessService : ISupportAccessService
 
     public async Task<SupportAccessRequestDto> ApproveAsync(Guid userId, Guid ticketId, Guid requestId, Guid? financialAccountId, CancellationToken ct = default)
     {
+        // Chỉ chặn cấp quyền mới. Xem, từ chối, thu hồi và xem lịch sử vẫn mở khi tắt cờ: khách luôn phải rút lại được quyền đã cho.
+        if (!(await _config.GetAsync(ct)).Document.Features.Support)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.Disabled, "Tính năng hỗ trợ chưa được bật.");
+        }
+
         var ticket = await RequireTicketAsync(userId, ticketId, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
         var grant = await RequireGrantAsync(ticketId, requestId, ct);
@@ -195,6 +204,8 @@ public sealed class OpsCustomerDataService : IOpsCustomerDataService
     private readonly ICategoryRepository _categories;
     private readonly IPushNotificationService _push;
     private readonly IAuditLogService _audit;
+    private readonly IUserRepository _users;
+    private readonly ISystemConfigProvider _config;
 
     public OpsCustomerDataService(
         ISupportRepository support,
@@ -204,8 +215,12 @@ public sealed class OpsCustomerDataService : IOpsCustomerDataService
         IBudgetRepository budgets,
         ICategoryRepository categories,
         IPushNotificationService push,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        IUserRepository users,
+        ISystemConfigProvider config)
     {
+        _users = users;
+        _config = config;
         _support = support;
         _access = access;
         _accounts = accounts;
@@ -229,12 +244,22 @@ public sealed class OpsCustomerDataService : IOpsCustomerDataService
         return ticket;
     }
 
+    /// <summary>Khách đã bị khóa hoặc đã yêu cầu xóa tài khoản không tự thu hồi quyền được nữa, nên đồng ý trước đó không còn được tính.</summary>
+    private async Task EnsureCustomerActiveAsync(SupportTicket ticket, CancellationToken ct)
+    {
+        if (await _users.GetByIdAsync(ticket.RequesterUserId, ct) is not { IsLocked: false })
+        {
+            throw new ForbiddenException("Tài khoản khách không còn hoạt động, không xem được dữ liệu.");
+        }
+    }
+
     /// <summary>Quyền còn hiệu lực cho đúng người, đúng ca, đúng phần dữ liệu. Thiếu một điều kiện là 403.</summary>
     private async Task<(SupportTicket Ticket, SupportAccessGrant Grant)> RequireGrantAsync(
         Guid actorId, Guid ticketId, OpsCapability capability, SupportAccessScope scope, CancellationToken ct)
     {
         var ticket = await RequireAssignedTicketAsync(actorId, ticketId, capability, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
+        await EnsureCustomerActiveAsync(ticket, ct);
         var now = DateTimeOffset.UtcNow;
         var grant = (await _support.ListGrantsAsync(ticketId, ct)).FirstOrDefault(g =>
             g.Status == SupportAccessStatus.Approved
@@ -270,6 +295,13 @@ public sealed class OpsCustomerDataService : IOpsCustomerDataService
     {
         var ticket = await RequireAssignedTicketAsync(actorId, ticketId, OpsCapability.AccessCustomerData, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
+        await EnsureCustomerActiveAsync(ticket, ct);
+
+        // Khách không mở được màn hình hỗ trợ khi tắt cờ, nên không gửi yêu cầu họ không trả lời được.
+        if (!(await _config.GetAsync(ct)).Document.Features.Support)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.Disabled, "Tính năng hỗ trợ chưa được bật.");
+        }
 
         var all = SupportAccessScope.Accounts | SupportAccessScope.Transactions | SupportAccessScope.Budgets | SupportAccessScope.Draft;
         if (scopes == SupportAccessScope.None || (scopes & ~all) != 0)

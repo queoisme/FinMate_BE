@@ -36,6 +36,15 @@ public class OpsRepository : IOpsRepository
     public Task<OpsApprovalRequest?> GetApprovalAsync(Guid id, CancellationToken ct = default)
         => _context.OpsApprovalRequests.FirstOrDefaultAsync(a => a.Id == id, ct);
 
+    public Task<OpsApprovalRequest?> GetPendingApprovalAsync(OpsApprovalType type, Guid targetId, CancellationToken ct = default)
+        => _context.OpsApprovalRequests.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Type == type && a.TargetId == targetId && a.Status == OpsApprovalStatus.Pending, ct);
+
+    public Task MarkApprovalFailedAsync(Guid id, string failureCode, CancellationToken ct = default)
+        => _context.OpsApprovalRequests
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, OpsApprovalStatus.Failed).SetProperty(a => a.FailureCode, failureCode), ct);
+
     public Task<List<OpsApprovalRequest>> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, int limit, CancellationToken ct = default)
     {
         var query = _context.OpsApprovalRequests.AsNoTracking();

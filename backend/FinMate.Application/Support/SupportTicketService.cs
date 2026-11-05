@@ -246,13 +246,6 @@ public sealed class SupportTicketService : ISupportTicketService
 /// <summary>Đóng ca từ bất kỳ đường nào cũng phải đặt hạn xóa ảnh và chấm dứt quyền xem dữ liệu, nên gom về một chỗ.</summary>
 internal static class SupportTicketClosing
 {
-    public static async Task CloseAsync(ISupportRepository support, SupportTicket ticket, SupportSettings settings, DateTimeOffset now, CancellationToken ct)
-    {
-        ticket.Status = SupportTicketStatus.Closed;
-        ticket.ClosedAt = now;
-        ticket.UpdatedAt = now;
-        await support.SaveChangesAsync(ct);
-        await support.SetAttachmentExpiryAsync(ticket.Id, now.AddDays(settings.AttachmentRetentionDays), ct);
-        await support.EndGrantsAsync(ticket.Id, now, ct);
-    }
+    public static Task CloseAsync(ISupportRepository support, SupportTicket ticket, SupportSettings settings, DateTimeOffset now, CancellationToken ct)
+        => support.CloseTicketAsync(ticket, now, now.AddDays(settings.AttachmentRetentionDays), ct);
 }
