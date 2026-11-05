@@ -28,6 +28,10 @@ public interface IOpsRepository
     /// <summary>Lưu đề xuất mới. Đã có đề xuất đang chờ cho cùng đối tượng thì 409, kể cả khi hai người gửi cùng lúc.</summary>
     Task AddApprovalAsync(OpsApprovalRequest approval, CancellationToken ct = default);
     Task<OpsApprovalRequest?> GetApprovalAsync(Guid id, CancellationToken ct = default);
+    Task<OpsApprovalRequest?> GetPendingApprovalAsync(OpsApprovalType type, Guid targetId, CancellationToken ct = default);
+
+    /// <summary>Ghi thẳng xuống DB, không qua change tracker: lúc này tracker có thể còn giữ thay đổi hỏng của bước thực hiện.</summary>
+    Task MarkApprovalFailedAsync(Guid id, string failureCode, CancellationToken ct = default);
     Task<List<OpsApprovalRequest>> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, int limit, CancellationToken ct = default);
 
     Task<List<CannedReply>> ListCannedRepliesAsync(bool includeInactive, CancellationToken ct = default);

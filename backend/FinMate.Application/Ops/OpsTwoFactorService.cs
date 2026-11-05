@@ -69,7 +69,12 @@ public sealed class OpsTwoFactorService : IOpsTwoFactorService
         if (issued.Issued)
         {
             var (subject, body) = OtpMessages.OpsLogin(issued.Code!);
-            await _email.SendAsync(user.Email, subject, body, ct);
+            if (!await _email.SendAsync(user.Email, subject, body, ct))
+            {
+                // Báo thẳng: mọi API nội bộ cần bước này, nên im lặng là cả đội bị khóa ngoài mà không biết vì sao.
+                await _otp.ClearCooldownAsync(user.Email, OtpPurpose.OpsLogin, ct);
+                throw new BusinessRuleException(OpsErrorCodes.OtpEmailFailed, "Không gửi được email chứa mã. Vui lòng thử lại hoặc báo Admin.");
+            }
         }
     }
 

@@ -158,6 +158,12 @@ public class SupportRepository : ISupportRepository
             .Where(g => g.TicketId == ticketId && (g.Status == SupportAccessStatus.Pending || g.Status == SupportAccessStatus.Approved))
             .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, SupportAccessStatus.Revoked).SetProperty(g => g.RevokedAt, now), ct);
 
+    public Task EndGrantsForRequesterAsync(Guid requesterUserId, DateTimeOffset now, CancellationToken ct = default)
+        => _context.SupportAccessGrants
+            .Where(g => (g.Status == SupportAccessStatus.Pending || g.Status == SupportAccessStatus.Approved)
+                && _context.SupportTickets.Any(t => t.Id == g.TicketId && t.RequesterUserId == requesterUserId))
+            .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, SupportAccessStatus.Revoked).SetProperty(g => g.RevokedAt, now), ct);
+
     public Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default)
         => _context.SupportDataAccessLogs.AsNoTracking()
             .Where(l => l.CustomerUserId == customerUserId)
@@ -165,10 +171,22 @@ public class SupportRepository : ISupportRepository
             .Take(200)
             .ToListAsync(ct);
 
-    public Task SetAttachmentExpiryAsync(Guid ticketId, DateTimeOffset deleteAfter, CancellationToken ct = default)
-        => _context.SupportTicketAttachments
-            .Where(a => a.TicketId == ticketId && a.DeleteAfter == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.DeleteAfter, deleteAfter), ct);
+    public async Task CloseTicketAsync(SupportTicket ticket, DateTimeOffset now, DateTimeOffset attachmentsDeleteAfter, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
+        ticket.Status = SupportTicketStatus.Closed;
+        ticket.ClosedAt = now;
+        ticket.UpdatedAt = now;
+        await _context.SaveChangesAsync(ct);
+
+        await _context.SupportTicketAttachments
+            .Where(a => a.TicketId == ticket.Id && a.DeleteAfter == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.DeleteAfter, attachmentsDeleteAfter), ct);
+        await EndGrantsAsync(ticket.Id, now, ct);
+
+        await transaction.CommitAsync(ct);
+    }
 
     public Task<List<SupportTicket>> ListResolvedBeforeAsync(DateTimeOffset before, int limit, CancellationToken ct = default)
         => _context.SupportTickets

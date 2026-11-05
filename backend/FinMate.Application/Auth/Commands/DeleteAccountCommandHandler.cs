@@ -16,6 +16,7 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
     private readonly IDataDeletionRequestRepository _dataDeletionRequestRepository;
     private readonly IAuditLogService _auditLogService;
     private readonly IGroupOwnershipHandover? _groupHandover;
+    private readonly ISupportRepository? _support;
 
     public DeleteAccountCommandHandler(
         IUserRepository userRepository,
@@ -23,8 +24,10 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         IRefreshTokenRepository refreshTokenRepository,
         IDataDeletionRequestRepository dataDeletionRequestRepository,
         IAuditLogService auditLogService,
-        IGroupOwnershipHandover? groupHandover = null)
+        IGroupOwnershipHandover? groupHandover = null,
+        ISupportRepository? support = null)
     {
+        _support = support;
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _refreshTokenRepository = refreshTokenRepository;
@@ -69,6 +72,12 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         await _userRepository.UpdateAsync(user, ct);
 
         await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
+
+        // Họ không đăng nhập được nữa nên không tự thu hồi được; hủy yêu cầu xóa sau đó cũng không làm quyền cũ sống lại.
+        if (_support is not null)
+        {
+            await _support.EndGrantsForRequesterAsync(user.Id, now, ct);
+        }
 
         await _auditLogService.LogAsync(AuditEvents.AccountDeletionRequested, user.Id, ct: ct);
     }

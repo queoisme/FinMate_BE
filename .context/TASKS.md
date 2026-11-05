@@ -793,7 +793,8 @@
 | Phase 64 — Vận hành, đợt 4: duyệt và chức năng Manager | `[x]` | 5 / 5 |
 | Phase 65 — Vận hành, đợt 5: xác thực 2 lớp | `[ ]` | 4 / 5 *(còn: báo người làm web admin)* |
 | Phase 66 — Nhóm: chặn `features.groups` ở server, chốt Google Vision | `[x]` | 3 / 3 |
-| **Total** (không tính Backlog) | | **473 / 502** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 67 — Vận hành: sửa theo rà soát | `[x]` | 2 / 2 |
+| **Total** (không tính Backlog) | | **475 / 504** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1373,3 +1374,7 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] `RequireGroupsEnabled` trên API nhóm và `PUT|DELETE /transactions/{id}/group`; `GroupLedger` từ chối `groupId` và bỏ qua quy tắc tự chia sẻ khi tắt, nhưng vẫn cập nhật số khi sửa hoặc xóa giao dịch đã chia sẻ.
 - [x] Cảnh báo nhóm tạm dừng khi tắt mà không đóng ngưỡng: `GroupLedger`, `BudgetAlertJob`, `GoalDeadlineCheckJob`. Test: `GroupsFeatureFlagTests`.
 - [x] Chốt: giữ Google Vision và nêu trong Điều khoản bản 4 (FR-CONS-05).
+
+## Phase 67 — Vận hành nội bộ: sửa theo rà soát (2026-11-05)
+- [x] Đề xuất quá hạn không còn chặn đề xuất mới; lỗi lúc thực hiện không để lại hồ sơ `Approved`; ca chuyển cấp không tự rời hàng đợi; ca đã đóng không dùng để khóa tài khoản hay xem nhóm; đóng ca trong một DB transaction; khách bị khóa hoặc yêu cầu xóa thì hết quyền xem dữ liệu; lỗi gửi email OTP được báo rõ; `features.groups` và `features.support` áp dụng đủ trên đường vận hành và đồng ý.
+- [x] Test: `OpsReviewFixesTests`, `OpsApprovalServiceTests`.

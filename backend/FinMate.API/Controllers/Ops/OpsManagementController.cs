@@ -59,6 +59,7 @@ public class OpsDirectoryController : OpsControllerBase
         => Ok(ApiResponse<OpsUserDto>.Ok(await _users.EmergencyLockAsync(CurrentActorId, id, request.TicketId, request.Reason, CurrentIpAddress, ct)));
 
     [HttpGet("groups/{id:guid}")]
+    [RequireGroupsEnabled]
     public async Task<IActionResult> GetGroup(Guid id, [FromQuery] Guid ticketId, CancellationToken ct)
         => Ok(ApiResponse<OpsGroupDto>.Ok(await _users.GetGroupAsync(CurrentActorId, id, ticketId, CurrentIpAddress, ct)));
 }

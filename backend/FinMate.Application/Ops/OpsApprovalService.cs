@@ -18,6 +18,10 @@ public static class OpsErrorCodes
     public const string OwnApproval = "OPS_OWN_APPROVAL";
     public const string InvalidTarget = "OPS_INVALID_TARGET";
     public const string ApprovalFailed = "OPS_APPROVAL_FAILED";
+
+    /// <summary>Đã duyệt nhưng bước thực hiện gặp lỗi hệ thống. Người duyệt phải kiểm tra lại đối tượng rồi đề xuất lại nếu cần.</summary>
+    public const string ApprovalExecutionError = "OPS_APPROVAL_EXECUTION_ERROR";
+    public const string OtpEmailFailed = "OPS_OTP_EMAIL_FAILED";
 }
 
 public sealed record ProposeApprovalCommand(OpsApprovalType Type, Guid TargetId, Guid? NewOwnerUserId, Guid? TicketId, string? Reason);
@@ -65,6 +69,7 @@ public sealed class OpsApprovalService : IOpsApprovalService
     private readonly ICancelDataDeletionRequestCommandHandler _cancelDeletionHandler;
     private readonly IGroupSupportTransfer _groupTransfer;
     private readonly IAuditLogService _audit;
+    private readonly ISystemConfigProvider _config;
 
     public OpsApprovalService(
         IOpsRepository ops,
@@ -76,8 +81,10 @@ public sealed class OpsApprovalService : IOpsApprovalService
         ISetUserLockCommandHandler lockHandler,
         ICancelDataDeletionRequestCommandHandler cancelDeletionHandler,
         IGroupSupportTransfer groupTransfer,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        ISystemConfigProvider config)
     {
+        _config = config;
         _ops = ops;
         _access = access;
         _users = users;
@@ -103,6 +110,12 @@ public sealed class OpsApprovalService : IOpsApprovalService
             {
                 throw new ForbiddenException("Bạn không phụ trách yêu cầu này.");
             }
+
+            // Ca dẫn chứng phải đúng là của khách được đề xuất, để người duyệt không bị dẫn tới một căn cứ không liên quan.
+            if (command.Type != OpsApprovalType.TransferGroupOwner && ticket.RequesterUserId != command.TargetId)
+            {
+                throw new BusinessRuleException(OpsErrorCodes.InvalidTarget, "Yêu cầu hỗ trợ này không phải của tài khoản được đề xuất.");
+            }
         }
 
         // Không ai đề xuất việc có lợi cho chính mình.
@@ -114,6 +127,13 @@ public sealed class OpsApprovalService : IOpsApprovalService
         await EnsureTargetValidAsync(command.Type, command.TargetId, command.NewOwnerUserId, ct);
 
         var now = DateTimeOffset.UtcNow;
+
+        // Đề xuất quá hạn không duyệt được nữa, nên phải giải phóng để không chặn đề xuất mới cho cùng đối tượng mãi mãi.
+        if (await _ops.GetPendingApprovalAsync(command.Type, command.TargetId, ct) is { } stale && stale.ExpiresAt <= now)
+        {
+            await _ops.MarkApprovalFailedAsync(stale.Id, OpsErrorCodes.ApprovalExpired, ct);
+        }
+
         var approval = new OpsApprovalRequest
         {
             Id = Guid.NewGuid(),
@@ -158,21 +178,27 @@ public sealed class OpsApprovalService : IOpsApprovalService
         // Lưu trước khi thực hiện: khóa xmin bảo đảm hai người duyệt cùng lúc thì chỉ một người đi tiếp, nên việc không chạy hai lần.
         await _ops.SaveChangesAsync(ct);
 
+        // Đã qua bước chốt thì làm cho xong: người duyệt đóng tab giữa chừng không được bỏ dở một thay đổi trên tài khoản khách.
         try
         {
-            await EnsureTargetValidAsync(approval.Type, approval.TargetId, approval.NewOwnerUserId, ct);
-            await ExecuteAsync(actor.Id, approval, ip, ct);
+            await EnsureTargetValidAsync(approval.Type, approval.TargetId, approval.NewOwnerUserId, CancellationToken.None);
+            await ExecuteAsync(actor.Id, approval, ip, CancellationToken.None);
         }
         catch (FinMateException ex)
         {
-            approval.Status = OpsApprovalStatus.Failed;
-            approval.FailureCode = ex.ErrorCode;
-            await _ops.SaveChangesAsync(ct);
-            await _audit.LogAsync(AuditEvents.OpsApprovalFailed, actor.Id, ip, new { approvalId, code = ex.ErrorCode }, ct);
+            await _ops.MarkApprovalFailedAsync(approvalId, ex.ErrorCode, CancellationToken.None);
+            await _audit.LogAsync(AuditEvents.OpsApprovalFailed, actor.Id, ip, new { approvalId, code = ex.ErrorCode }, CancellationToken.None);
             throw new BusinessRuleException(OpsErrorCodes.ApprovalFailed, "Đã duyệt nhưng không thực hiện được: đối tượng không còn ở trạng thái phù hợp.");
         }
+        catch (Exception)
+        {
+            // Không để hồ sơ ghi "đã duyệt" cho một việc có thể chưa xảy ra.
+            await _ops.MarkApprovalFailedAsync(approvalId, OpsErrorCodes.ApprovalExecutionError, CancellationToken.None);
+            await _audit.LogAsync(AuditEvents.OpsApprovalFailed, actor.Id, ip, new { approvalId, code = OpsErrorCodes.ApprovalExecutionError }, CancellationToken.None);
+            throw;
+        }
 
-        await _audit.LogAsync(AuditEvents.OpsApprovalApproved, actor.Id, ip, new { approvalId, type = approval.Type.ToString(), targetId = approval.TargetId }, ct);
+        await _audit.LogAsync(AuditEvents.OpsApprovalApproved, actor.Id, ip, new { approvalId, type = approval.Type.ToString(), targetId = approval.TargetId }, CancellationToken.None);
         return ToDto(approval, now);
     }
 
@@ -235,6 +261,11 @@ public sealed class OpsApprovalService : IOpsApprovalService
                 break;
 
             case OpsApprovalType.TransferGroupOwner:
+                if (!(await _config.GetAsync(ct)).Document.Features.Groups)
+                {
+                    throw new BusinessRuleException(GroupErrorCodes.Disabled, "Tính năng nhóm hiện chưa được bật.");
+                }
+
                 if (newOwnerUserId is not { } newOwner
                     || await _groups.GetByIdAsync(targetId, ct) is null
                     || await _groups.GetActiveMemberAsync(targetId, newOwner, ct) is not { Role: not GroupRole.Owner })

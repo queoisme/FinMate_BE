@@ -52,7 +52,7 @@ public class OpsApprovalsAndManagerTests : IClassFixture<AuthApiFactory>, IAsync
         var token = scope.ServiceProvider.GetRequiredService<ITokenService>().GenerateAccessToken(admin);
         const string config = "/api/v1/admin/system-config";
         var version = (await DataAsync(await SendAsync(HttpMethod.Get, config, token))).GetProperty("version").GetInt32();
-        await DataAsync(await SendAsync(HttpMethod.Put, config, token, new { expectedVersion = version, content = new { features = new { support = true } }, note = "kiem thu" }));
+        await DataAsync(await SendAsync(HttpMethod.Put, config, token, new { expectedVersion = version, content = new { features = new { support = true, groups = true } }, note = "kiem thu" }));
         _supportEnabled = true;
     }
 
