@@ -413,6 +413,16 @@ Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn 
 - Xác thực 2 lớp: claim `ops_verified` trong access token, yêu cầu bởi `OpsVerifiedRequirement` trên `AdminOnly`, `StaffOrAbove`, `ManagerOrAbove`. Chỉ `InternalAccount` không yêu cầu, dùng cho chính bước nhập OTP. Mốc `refresh_tokens.ops_verified_at` được giữ khi đổi token, nên 12 giờ tính từ lần nhập mã thật. Thêm policy nội bộ mới thì phải gắn requirement này.
 - `OpsManager` khác vai `manager` của nhóm tài chính (§2.7). So sánh thứ bậc dùng `UserRoleExtensions.Rank()`, không dùng thứ tự enum vì `Admin` đứng trước `Staff`.
 
+### 2.9 Giám sát hệ thống (thêm 2026-11-05)
+
+`SystemMonitorJob` chạy mỗi phút, gọi các `IMonitorSource` độc lập nhau rồi `IIncidentNotifier`. API và ngưỡng ở `docs/ops-api.md`, giới hạn ở `docs/ops-runbook.md`.
+
+- **Nguồn:** `HealthMonitorSource` (các `IServiceProbe`), `ErrorMonitorSource` (`ops_error_events`), `JobMonitorSource` (trạng thái cuối của recurring job), `ProviderMonitorSource` (`GET /internal/status` của `ocr-service`, `GET /api/v1/internal/status` của `ai-service`, cộng `IProviderFailureTracker` cho Brevo và Firebase).
+- **Sự cố:** `ops_incidents`, unique theo `fingerprint` khi chưa đóng. `IIncidentService` là đường của hệ thống; `IOpsMonitoringService` là đường của con người, có kiểm quyền.
+- **Lỗi ứng dụng:** `OpsErrorSink` (Serilog) đưa vào `OpsErrorQueue` có giới hạn, `OpsErrorWriter` ghi theo lô. `OpsErrorFactory` là chỗ duy nhất dựng bản ghi và cố ý không đọc `Exception.Message`. Log của đường ghi được đánh dấu để sink bỏ qua, nếu không DB hỏng sẽ thành vòng lặp.
+- **Không đưa AI, OCR, STT vào `/health/ready`:** AI lỗi không được làm mất traffic của backend. Giám sát là đường riêng.
+- Trạng thái lưu ở Postgres, không ở Redis, vì Redis có thể chính là thứ đang hỏng.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service

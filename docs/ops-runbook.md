@@ -31,15 +31,24 @@ Tài liệu cho đội vận hành. API và ma trận quyền ở `docs/ops-api.
 3. Đọc ảnh và tạo giao dịch nháp. Khách xác nhận trong app.
 4. Nếu lỗi lặp lại ở nhiều khách, báo Manager.
 
+## Giám sát hệ thống: việc phải làm một lần
+
+Hệ thống **không tự báo được** trong hai trường hợp, nên cần chuẩn bị trước:
+
+| Trường hợp | Vì sao | Cần làm |
+|---|---|---|
+| Backend hoặc Postgres sập | Job giám sát chạy trong backend và lịch Hangfire nằm trong Postgres | Đăng ký dịch vụ theo dõi bên ngoài (ví dụ UptimeRobot), gọi `https://<domain>/health/ready` mỗi phút, báo về email khác hoặc điện thoại |
+| Brevo hỏng | Email là kênh cảnh báo duy nhất | Mở trang trạng thái khi nghi ngờ; log có dòng mức Error. Đặt thêm cảnh báo của chính Brevo nếu có |
+
+Admin và OpsManager phải dùng email thật, vì cảnh báo gửi về địa chỉ tài khoản.
+
 ## Lỗi diện rộng
 
-Hiện chưa có cảnh báo tự động, nên lỗi được phát hiện qua việc nhiều ca cùng loại đổ về. Phần cảnh báo sẽ làm cùng đợt giám sát hệ thống.
-
-1. **Xác nhận:** Manager thấy nhiều ca cùng loại trên bảng điều hành, chọn một ca làm ca cha và gom các ca còn lại vào.
-2. **Báo kỹ thuật:** Manager báo Admin kèm thời điểm bắt đầu và mức ảnh hưởng.
-3. **Khách hàng:** Manager trả lời hàng loạt, Staff ngừng xử lý từng ca riêng lẻ.
-4. **Khắc phục:** Admin tìm nguyên nhân. Với lỗi key, đổi ở `/admin/secrets` và kiểm tra bằng `/test`. Admin báo lại khi xong.
-5. **Kết thúc:** Manager trả lời hàng loạt với `resolve = true`. Trong 2 ngày, Manager và Admin viết báo cáo nguyên nhân và cách phòng lặp lại.
+1. **Phát hiện:** hệ thống tự mở sự cố và email cho Admin, OpsManager. Với OCR, sự cố `Google Vision đang lỗi` thường là key hết hạn mức hoặc không còn hiệu lực. Manager cũng có thể tự thấy qua nhiều ca cùng loại trên bảng điều hành.
+2. **Nhận xử lý:** Manager bấm nhận để hệ thống ngừng nhắc, và báo Admin nếu Admin chưa nhận.
+3. **Khách hàng:** nếu có khách bị ảnh hưởng, Manager chọn một ca làm ca cha, gom các ca còn lại, trả lời hàng loạt. Staff ngừng xử lý từng ca riêng lẻ.
+4. **Khắc phục:** Admin xem `technicalDetail` của sự cố và danh sách lỗi. Với lỗi key, đổi ở `/admin/secrets` và kiểm tra bằng `/test`. Cần chi tiết hơn thì dùng `traceId` tra `docker logs`.
+5. **Kết thúc:** sự cố tự đóng khi dịch vụ tốt lại, hoặc đóng tay kèm ghi chú. Manager trả lời hàng loạt với `resolve = true`. Trong 2 ngày, Manager và Admin viết báo cáo nguyên nhân và cách phòng lặp lại.
 
 Trong suốt sự cố, Manager là người duy nhất điều phối và phát ngôn, còn Admin tập trung sửa lỗi.
 
@@ -69,6 +78,6 @@ Khách bị khóa hoặc đã yêu cầu xóa thì không đăng nhập được
 ## Nhịp vận hành
 
 - **Mỗi ca:** bàn giao ca đang mở, ca sắp trễ hạn, sự cố đang diễn ra.
-- **Mỗi ngày:** Manager xem ca tồn và ca trễ.
+- **Mỗi ngày:** Manager xem ca tồn, ca trễ và trạng thái hệ thống. Admin đọc email gom sự cố mức thường lúc 08:00.
 - **Mỗi tuần:** chấm mẫu vài ca của mỗi Staff, xem lỗi lặp lại, họp ngắn với Admin.
 - **Mỗi tháng:** Admin rà quyền truy cập, hạn key, hạn mức; Manager rà nhật ký xem dữ liệu khách.

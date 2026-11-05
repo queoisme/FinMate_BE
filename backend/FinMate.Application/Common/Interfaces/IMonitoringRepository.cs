@@ -7,6 +7,8 @@ public sealed record IncidentFilter(IncidentStatus? Status, IncidentSeverity? Se
 
 public sealed record AlertRecipient(Guid UserId, string Email);
 
+public sealed record ReceiptScanCount(string OcrResult, string? OcrEngine, int Count);
+
 public sealed record ErrorGroup(string Fingerprint, string Service, int Count, string? ExceptionType, string? SourceContext, string? RequestPath);
 
 public interface IMonitoringRepository
@@ -32,6 +34,8 @@ public interface IMonitoringRepository
     /// <summary>Tài khoản đang hoạt động có email. <paramref name="includeManagers"/> false thì chỉ Admin.</summary>
     Task<List<AlertRecipient>> ListAlertRecipientsAsync(bool includeManagers, CancellationToken ct = default);
 
+    /// <summary>Chỉ đếm, không có gì về từng người dùng.</summary>
+    Task<List<ReceiptScanCount>> CountReceiptScansAsync(DateTimeOffset since, CancellationToken ct = default);
     Task<List<ErrorGroup>> GroupRecentErrorsAsync(IncidentSource source, DateTimeOffset since, CancellationToken ct = default);
     Task<int> CountErrorsSinceAsync(string fingerprint, DateTimeOffset since, CancellationToken ct = default);
 

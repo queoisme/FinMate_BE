@@ -107,6 +107,9 @@ public sealed class ServiceStatusTracker
                 status.ConsecutiveSuccesses = 0;
                 status.ConsecutiveFailures++;
                 break;
+            case MonitoredServiceState.Unknown:
+                // Chưa biết thì giữ nguyên số đếm và sự cố đang mở: mất tín hiệu không có nghĩa là đã khỏi.
+                break;
             default:
                 status.ConsecutiveFailures = 0;
                 status.ConsecutiveSuccesses = 0;

@@ -90,6 +90,16 @@ public class MonitoringRepository : IMonitoringRepository
             .Select(u => new AlertRecipient(u.Id, u.Email))
             .ToListAsync(ct);
 
+    public async Task<List<ReceiptScanCount>> CountReceiptScansAsync(DateTimeOffset since, CancellationToken ct = default)
+    {
+        var rows = await _context.ReceiptScans.AsNoTracking()
+            .Where(s => s.CreatedAt >= since)
+            .GroupBy(s => new { s.OcrResult, s.OcrEngine })
+            .Select(g => new { g.Key.OcrResult, g.Key.OcrEngine, Count = g.Count() })
+            .ToListAsync(ct);
+        return rows.Select(r => new ReceiptScanCount(r.OcrResult, r.OcrEngine, r.Count)).ToList();
+    }
+
     public async Task<List<ErrorGroup>> GroupRecentErrorsAsync(IncidentSource source, DateTimeOffset since, CancellationToken ct = default)
     {
         var recent = _context.OpsErrorEvents.AsNoTracking().Where(e => e.Source == source && e.CreatedAt >= since);

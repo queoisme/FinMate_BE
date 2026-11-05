@@ -186,7 +186,7 @@ public class ScanReceiptViaOcrServiceControllerTests : IClassFixture<AuthApiFact
             .ToListAsync();
 
         columns.Should().BeEquivalentTo(
-            "id", "user_id", "ocr_result", "amount_cents", "merchant_name", "transacted_at", "category_slug", "category_source",
+            "id", "user_id", "ocr_result", "ocr_engine", "amount_cents", "merchant_name", "transacted_at", "category_slug", "category_source",
             "confidence", "needs_review", "created_at");
 
         // Bảng món cũng không có cột chữ OCR.

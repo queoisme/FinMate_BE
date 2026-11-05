@@ -127,7 +127,12 @@ public sealed class IncidentNotifier : IIncidentNotifier
             }
         }
 
-        if (delivered < recipients.Count)
+        // Không ai nhận được thì log mức Error: đây là dấu vết duy nhất khi Brevo hỏng, vì email là kênh báo duy nhất.
+        if (delivered == 0)
+        {
+            _logger.LogError("Không gửi được cảnh báo sự cố cho ai trong {Total} người nhận", recipients.Count);
+        }
+        else if (delivered < recipients.Count)
         {
             _logger.LogWarning("Không gửi được cảnh báo sự cố cho {Failed}/{Total} người nhận", recipients.Count - delivered, recipients.Count);
         }

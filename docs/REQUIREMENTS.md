@@ -382,6 +382,22 @@ Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
 | FR-OPS-17 | Bảng điều hành, gom ca và trả lời hàng loạt, câu trả lời mẫu, nhật ký vận hành | Should | Staff nhận 403, trừ đọc câu trả lời mẫu; nhật ký chỉ có sự kiện `Ops.*` |
 | FR-OPS-18 | Xác thực 2 lớp bằng email cho tài khoản nội bộ | Must | Chưa qua OTP thì 403 ở mọi `/ops/*`, `/admin/*`; giữ 12 giờ qua các lần refresh; khách không bị ảnh hưởng; tắt được bằng `OPS_REQUIRE_2FA` |
 
+### 6.8 Giám sát hệ thống **[Ngoài đặc tả]**
+
+Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không tự báo được khi chính backend, Postgres hoặc Brevo hỏng (`docs/ops-runbook.md`).
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-MON-01 | Kiểm tra Redis, AI, OCR, STT mỗi phút | Must | Lỗi 3 lần liên tiếp mới mở sự cố; tốt 3 lần liên tiếp thì tự đóng; dịch vụ chưa cấu hình không tính là lỗi |
+| FR-MON-02 | Gom lỗi giống nhau thành một sự cố đang mở | Must | Unique theo `fingerprint`, kể cả khi chạy đồng thời; lỗi quay lại sau khi đóng thì mở sự cố mới |
+| FR-MON-03 | Báo qua email cho Admin và OpsManager | Must | Bỏ qua người bị khóa hoặc chờ xóa; nhắc lại tới khi có người nhận; gửi lỗi thì lượt sau thử lại; email không có chi tiết kỹ thuật |
+| FR-MON-04 | Mức thường chỉ gom một email cho Admin lúc 08:00 giờ VN | Should | OpsManager không nhận |
+| FR-MON-05 | Theo dõi lỗi ứng dụng | Must | Từ mức Error; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh, `traceId`; không làm chậm request; giữ 30 ngày |
+| FR-MON-06 | Theo dõi job Hangfire | Should | Thất bại sau mọi lần thử mở sự cố `High`; quá giờ 10 phút mở sự cố `Normal` |
+| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase, Rasa | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
+| FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
+| FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -520,7 +536,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
 | NFR-REL-05 | Job nền bền qua khởi động lại; 10 job định kỳ: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob`, `RecurringDetectionJob`, `ForecastDailyAlertJob`, `ForecastAlertDispatchJob` (thêm `ForecastUserCheckJob` xếp hàng sau mỗi giao dịch) | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
-| NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Uptime monitor |
+| NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Cần đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready` (`docs/ops-runbook.md`); chưa đăng ký |
 | NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
 
 ### 11.3 Hiệu năng (đề xuất, chưa đo)
@@ -546,6 +562,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-OPS-03 | Cấu hình qua biến môi trường và cấu hình hệ thống trong DB; key bên thứ ba qua kho key | Grep repo |
 | NFR-OPS-04 | Log Serilog ra stdout | `docker logs` |
 | NFR-OPS-05 | Log khởi động nêu chế độ thật/dự phòng của push, email, OCR, STT | Log lúc boot |
+| NFR-OPS-10 | Có giám sát và cảnh báo tự động (FR-MON). Backend hoặc Postgres sập phải được theo dõi từ bên ngoài | Runbook; `/health/ready` |
 | NFR-OPS-06 | Hangfire dashboard có mật khẩu riêng | Không mật khẩu → 401 |
 | NFR-OPS-07 | Migration: EF Core (30) và Alembic (32); không sửa migration đã phát hành | Review |
 | NFR-OPS-08 | Model không nằm trong git, phải tải riêng: Rasa (`ai-service/rasa/models/active.tar.gz`), GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
