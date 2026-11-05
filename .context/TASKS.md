@@ -784,7 +784,8 @@
 | Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
 | Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
 | Phase 57 — Nhóm, đợt 0: cộng tiền đồng thời | `[x]` | 6 / 6 |
-| **Total** (không tính Backlog) | | **430 / 456** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 58 — Nhóm, đợt 1: nhóm, thành viên, phân quyền | `[x]` | 6 / 6 |
+| **Total** (không tính Backlog) | | **436 / 462** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1299,3 +1300,12 @@ Tiền đề của tính năng nhóm, nhưng là lỗi có sẵn với cá nhân
 - [x] Đường ghi khác (sửa ví, sửa hạn mức…) không chạy lại: `ExceptionHandlingMiddleware` trả 409 thay vì 500.
 - [x] `BudgetAlertJob`: kỳ vừa bị đổi thì không báo, lượt sau xét lại. `DataDeletionJob`: lỗi của một người không chặn người sau.
 - [x] Test: `MoneyConcurrencyTests` (Postgres thật, chạy song song, đỏ trước khi sửa), `DataDeletionJobTests`, `BudgetAlertJobTests`.
+
+## Phase 58 — Tính năng nhóm, đợt 1: nhóm, thành viên, phân quyền (2026-11-05)
+Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.md` §6.6.
+- [x] Entity, cấu hình EF, migration `AddGroups` (4 bảng, chỉ thêm, không đụng bảng cũ).
+- [x] `GroupPermissions` (hàm thuần) và `IGroupAccessService`: 404 cho người ngoài, 403 cho thiếu quyền, đọc DB mỗi request.
+- [x] API nhóm, thành viên, chuyển chủ, rời nhóm, lịch sử hoạt động; audit cho mọi thay đổi.
+- [x] Lời mời email/link: mã 32 byte, chỉ lưu SHA-256, dùng một lần; lỗi không phân biệt lý do; `xmin` chặn hai người cùng nhận.
+- [x] Công tắc `features.groups` (mặc định tắt, app đọc qua `/app-config`, giống các công tắc khác) và cấu hình `groups.*`.
+- [x] Test: `GroupPermissionsTests`, `GroupsControllerTests` (ma trận quyền, 404/403, mất quyền ngay, tranh lời mời, email khớp, không lộ email).

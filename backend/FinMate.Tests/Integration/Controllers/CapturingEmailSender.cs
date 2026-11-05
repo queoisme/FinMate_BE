@@ -21,6 +21,8 @@ public class CapturingEmailSender : IEmailSender
 
     public bool WasSentTo(string email) => _bodyByEmail.ContainsKey(email.ToLowerInvariant());
 
+    public string? BodyFor(string email) => _bodyByEmail.GetValueOrDefault(email.ToLowerInvariant());
+
     /// <summary>Mã 6 chữ số trong email gửi tới địa chỉ này, hoặc null nếu chưa gửi gì.</summary>
     public string? CodeFor(string email)
     {
