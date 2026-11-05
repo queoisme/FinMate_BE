@@ -66,6 +66,22 @@ public sealed record SupportSettings
     public int AttachmentRetentionDays { get; init; } = 30;
 }
 
+/// <summary>Ngưỡng giám sát hệ thống. Mức độ của từng dịch vụ nằm trong code, xem <c>MonitoredServices</c>.</summary>
+public sealed record MonitoringSettings
+{
+    /// <summary>Số lần kiểm tra lỗi liên tiếp mới tính là sự cố, để một lần chập chờn không thành cảnh báo.</summary>
+    public int ProbeFailureThreshold { get; init; } = 3;
+    public int ProbeRecoveryThreshold { get; init; } = 3;
+    public int ErrorCountThreshold { get; init; } = 10;
+    public int ErrorWindowMinutes { get; init; } = 5;
+
+    /// <summary>Lỗi không lặp lại trong chừng này phút thì sự cố tự đóng.</summary>
+    public int ErrorQuietMinutes { get; init; } = 30;
+    public int ProviderFailureThreshold { get; init; } = 3;
+    public int ReminderMinutes { get; init; } = 15;
+    public int ErrorRetentionDays { get; init; } = 30;
+}
+
 public sealed record LimitSettings
 {
     /// <summary>
@@ -282,6 +298,7 @@ public sealed record SystemConfigDocument
     public ForecastSettings Forecast { get; init; } = new();
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
+    public MonitoringSettings Monitoring { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

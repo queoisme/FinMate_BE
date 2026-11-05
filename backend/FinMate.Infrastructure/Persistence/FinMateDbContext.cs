@@ -59,6 +59,9 @@ public class FinMateDbContext : DbContext
     public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
     public DbSet<OpsApprovalRequest> OpsApprovalRequests => Set<OpsApprovalRequest>();
     public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
+    public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
+    public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -32,6 +32,11 @@ public class OpsPermissionsTests
     [InlineData(UserRole.Admin, OpsCapability.DecideApprovals, true)]
     [InlineData(UserRole.Admin, OpsCapability.ManageSystem, true)]
     [InlineData(UserRole.User, OpsCapability.HandleTickets, false)]
+    [InlineData(UserRole.Staff, OpsCapability.ViewMonitoring, false)]
+    [InlineData(UserRole.Staff, OpsCapability.ManageIncidents, false)]
+    [InlineData(UserRole.OpsManager, OpsCapability.ViewMonitoring, true)]
+    [InlineData(UserRole.OpsManager, OpsCapability.ManageIncidents, true)]
+    [InlineData(UserRole.Admin, OpsCapability.ViewMonitoring, true)]
     public void MatrixMatchesTheOperatingModel(UserRole role, OpsCapability capability, bool expected)
         => OpsPermissions.For(role).HasFlag(capability).Should().Be(expected);
 

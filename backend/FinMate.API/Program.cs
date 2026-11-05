@@ -51,7 +51,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
+using FinMate.Infrastructure.Monitoring;
 using FinMate.Application.Support;
 using Serilog;
 using System.Net.Http.Headers;
@@ -348,6 +350,18 @@ public class Program
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+        builder.Services.AddScoped<IIncidentService, IncidentService>();
+        builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
+        builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
+        builder.Services.AddScoped<ServiceStatusTracker>();
+        builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
+        builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
+        builder.Services.AddHttpClient(HttpServiceProbe.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
+        builder.Services.AddScoped<IServiceProbe, RedisProbe>();
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.AiService, $"{aiServiceUrl.TrimEnd('/')}/api/v1/health", sp.GetRequiredService<IHttpClientFactory>()));
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.OcrService, string.IsNullOrWhiteSpace(ocrServiceUrl) ? null : $"{ocrServiceUrl.TrimEnd('/')}/health", sp.GetRequiredService<IHttpClientFactory>()));
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.SttService, string.IsNullOrWhiteSpace(sttServiceUrl) ? null : $"{sttServiceUrl.TrimEnd('/')}/health", sp.GetRequiredService<IHttpClientFactory>()));
         builder.Services.AddScoped<IOpsTwoFactorService, OpsTwoFactorService>();
         builder.Services.AddScoped<IOpsRepository, OpsRepository>();
         builder.Services.AddScoped<IOpsApprovalService, OpsApprovalService>();
@@ -518,6 +532,8 @@ public class Program
         builder.Services.AddScoped<IMarkInsightReadCommandHandler, MarkInsightReadCommandHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
+        builder.Services.AddScoped<SystemMonitorJob>();
+        builder.Services.AddScoped<MonitoringDigestJob>();
         builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
@@ -614,6 +630,18 @@ public class Program
             "support-retention",
             job => job.RunAsync(CancellationToken.None),
             "30 3 * * *");
+
+        // Mặc định bật. AuthApiFactory tắt để job không chạy nền trong bộ test.
+        if (!bool.TryParse(builder.Configuration["MONITORING_ENABLED"], out var monitoringEnabled) || monitoringEnabled)
+        {
+            RecurringJob.AddOrUpdate<SystemMonitorJob>("system-monitor", job => job.RunAsync(CancellationToken.None), "* * * * *");
+            RecurringJob.AddOrUpdate<MonitoringDigestJob>("monitoring-digest", job => job.RunAsync(CancellationToken.None), "0 1 * * *");
+        }
+        else
+        {
+            RecurringJob.RemoveIfExists("system-monitor");
+            RecurringJob.RemoveIfExists("monitoring-digest");
+        }
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",

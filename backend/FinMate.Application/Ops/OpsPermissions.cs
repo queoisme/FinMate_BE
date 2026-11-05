@@ -21,6 +21,8 @@ public enum OpsCapability
     ViewOpsAudit = 1 << 9,
     ViewAiStats = 1 << 10,
     ManageSystem = 1 << 11,
+    ViewMonitoring = 1 << 12,
+    ManageIncidents = 1 << 13,
 }
 
 public static class OpsPermissions
@@ -39,7 +41,9 @@ public static class OpsPermissions
         | OpsCapability.ViewDashboard
         | OpsCapability.ManageCannedReplies
         | OpsCapability.ViewOpsAudit
-        | OpsCapability.ViewAiStats;
+        | OpsCapability.ViewAiStats
+        | OpsCapability.ViewMonitoring
+        | OpsCapability.ManageIncidents;
 
     public static OpsCapability For(UserRole role) => role switch
     {
