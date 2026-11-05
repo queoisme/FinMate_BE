@@ -21,4 +21,7 @@ public enum TransactionSource
 
     /// <summary>Người dùng chụp hóa đơn giấy (docx phương thức 3).</summary>
     Receipt,
+
+    /// <summary>Nhân viên hỗ trợ tạo nháp hộ theo ticket. Luôn ở trạng thái nháp tới khi khách xác nhận; client không được tự khai.</summary>
+    Support,
 }

@@ -55,6 +55,8 @@ public class FinMateDbContext : DbContext
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
     public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();
+    public DbSet<SupportAccessGrant> SupportAccessGrants => Set<SupportAccessGrant>();
+    public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -36,3 +36,24 @@ public enum SupportMessageKind
     /// <summary>Chỉ đội vận hành thấy. Không bao giờ trả về cho khách.</summary>
     InternalNote,
 }
+
+/// <summary>Phần dữ liệu nhân viên xin xem. Lưu dạng số trong <c>support_access_grants.scopes</c>.</summary>
+[Flags]
+public enum SupportAccessScope
+{
+    None = 0,
+    Accounts = 1 << 0,
+    Transactions = 1 << 1,
+    Budgets = 1 << 2,
+
+    /// <summary>Tạo giao dịch nháp vào ví khách chọn. Khách vẫn phải xác nhận từng giao dịch.</summary>
+    Draft = 1 << 3,
+}
+
+public enum SupportAccessStatus
+{
+    Pending,
+    Approved,
+    Denied,
+    Revoked,
+}

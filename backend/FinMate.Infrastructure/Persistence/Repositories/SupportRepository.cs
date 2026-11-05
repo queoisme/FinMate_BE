@@ -126,6 +126,28 @@ public class SupportRepository : ISupportRepository
     public Task<SupportTicketAttachment?> GetAttachmentAsync(Guid ticketId, Guid attachmentId, CancellationToken ct = default)
         => _context.SupportTicketAttachments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attachmentId && a.TicketId == ticketId, ct);
 
+    public void AddGrant(SupportAccessGrant grant) => _context.SupportAccessGrants.Add(grant);
+
+    public void AddAccessLog(SupportDataAccessLog log) => _context.SupportDataAccessLogs.Add(log);
+
+    public Task<SupportAccessGrant?> GetGrantAsync(Guid ticketId, Guid grantId, CancellationToken ct = default)
+        => _context.SupportAccessGrants.FirstOrDefaultAsync(g => g.Id == grantId && g.TicketId == ticketId, ct);
+
+    public Task<List<SupportAccessGrant>> ListGrantsAsync(Guid ticketId, CancellationToken ct = default)
+        => _context.SupportAccessGrants.Where(g => g.TicketId == ticketId).OrderByDescending(g => g.CreatedAt).ToListAsync(ct);
+
+    public Task EndGrantsAsync(Guid ticketId, DateTimeOffset now, CancellationToken ct = default)
+        => _context.SupportAccessGrants
+            .Where(g => g.TicketId == ticketId && (g.Status == SupportAccessStatus.Pending || g.Status == SupportAccessStatus.Approved))
+            .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, SupportAccessStatus.Revoked).SetProperty(g => g.RevokedAt, now), ct);
+
+    public Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default)
+        => _context.SupportDataAccessLogs.AsNoTracking()
+            .Where(l => l.CustomerUserId == customerUserId)
+            .OrderByDescending(l => l.CreatedAt)
+            .Take(200)
+            .ToListAsync(ct);
+
     public Task SetAttachmentExpiryAsync(Guid ticketId, DateTimeOffset deleteAfter, CancellationToken ct = default)
         => _context.SupportTicketAttachments
             .Where(a => a.TicketId == ticketId && a.DeleteAfter == null)

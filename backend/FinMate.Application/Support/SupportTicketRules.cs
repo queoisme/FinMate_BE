@@ -19,6 +19,9 @@ public static class SupportErrorCodes
     public const string AttachmentsUnavailable = "SUPPORT_ATTACHMENTS_UNAVAILABLE";
     public const string AttachmentInvalid = "SUPPORT_ATTACHMENT_INVALID";
     public const string TooManyAttachments = "SUPPORT_TOO_MANY_ATTACHMENTS";
+    public const string AccessRequestPending = "SUPPORT_ACCESS_REQUEST_PENDING";
+    public const string AccessRequestNotPending = "SUPPORT_ACCESS_REQUEST_NOT_PENDING";
+    public const string DraftAccountRequired = "SUPPORT_DRAFT_ACCOUNT_REQUIRED";
 }
 
 /// <summary>Quy tắc chung của ticket, không phụ thuộc người gọi là khách hay đội vận hành.</summary>

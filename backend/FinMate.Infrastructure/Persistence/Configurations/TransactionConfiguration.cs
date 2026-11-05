@@ -24,7 +24,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
                 + "OR (transaction_type <> 'transfer' AND counter_account_id IS NULL)");
             t.HasCheckConstraint(
                 "chk_transactions_source",
-                "source IN ('notification','manual','voice','receipt')");
+                "source IN ('notification','manual','voice','receipt','support')");
             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
 
             // Chuyển khoản nội bộ không phải chi tiêu nên không có gì để chia sẻ.
@@ -100,6 +100,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.GroupId).HasColumnName("group_id");
         builder.Property(t => t.GroupCategoryId).HasColumnName("group_category_id");
         builder.Property(t => t.SharedAt).HasColumnName("shared_at");
+        builder.Property(t => t.SupportTicketId).HasColumnName("support_ticket_id");
 
         builder.HasQueryFilter(t => t.DeletedAt == null);
 
@@ -108,6 +109,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .HasDatabaseName("ix_transactions_group_transacted_at");
         builder.HasOne<Group>().WithMany().HasForeignKey(t => t.GroupId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(t => t.GroupCategory).WithMany().HasForeignKey(t => t.GroupCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(t => t.SupportTicketId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(t => new { t.UserId, t.TransactedAt, t.Id })
             .HasDatabaseName("idx_transactions_user_transacted_at");

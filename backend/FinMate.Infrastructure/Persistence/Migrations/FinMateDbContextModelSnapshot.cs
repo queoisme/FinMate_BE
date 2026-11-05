@@ -2301,6 +2301,134 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.SupportAccessGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid?>("FinancialAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_account_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RequestExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("request_expires_at");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<int>("Scopes")
+                        .HasColumnType("integer")
+                        .HasColumnName("scopes");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FinancialAccountId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex(new[] { "TicketId" }, "ix_support_access_grants_ticket");
+
+                    b.HasIndex(new[] { "TicketId" }, "uq_support_access_grants_one_pending")
+                        .IsUnique()
+                        .HasFilter("status = 'pending'");
+
+                    b.ToTable("support_access_grants", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_support_access_grants_scopes", "scopes > 0");
+
+                            t.HasCheckConstraint("chk_support_access_grants_status", "status IN ('pending','approved','denied','revoked')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SupportDataAccessLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<Guid>("GrantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("grant_id");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("integer")
+                        .HasColumnName("scope");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("GrantId");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("CustomerUserId", "CreatedAt")
+                        .HasDatabaseName("ix_support_data_access_logs_customer");
+
+                    b.ToTable("support_data_access_logs", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SupportTicket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2785,6 +2913,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("SupportTicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("support_ticket_id");
+
                     b.Property<DateTimeOffset>("TransactedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("transacted_at");
@@ -2821,6 +2953,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SavingGoalId");
 
+                    b.HasIndex("SupportTicketId");
+
                     b.HasIndex("GroupId", "TransactedAt")
                         .HasDatabaseName("ix_transactions_group_transacted_at")
                         .HasFilter("group_id IS NOT NULL");
@@ -2841,7 +2975,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
 
-                            t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt')");
+                            t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt','support')");
 
                             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
 
@@ -3730,6 +3864,51 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.SupportAccessGrant", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SupportDataAccessLog", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.SupportAccessGrant", null)
+                        .WithMany()
+                        .HasForeignKey("GrantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SupportTicket", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -3818,6 +3997,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasOne("FinMate.Domain.Entities.SavingGoal", "SavingGoal")
                         .WithMany()
                         .HasForeignKey("SavingGoalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("SupportTicketId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("FinMate.Domain.Entities.User", "User")

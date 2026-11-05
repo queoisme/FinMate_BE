@@ -789,7 +789,8 @@
 | Phase 60 — Nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý | `[ ]` | 4 / 5 *(còn: báo Flutter, gồm Điều khoản bản 4)* |
 | Phase 61 — Vận hành, đợt 1: role và nền tảng | `[x]` | 5 / 5 |
 | Phase 62 — Vận hành, đợt 2: ticket | `[x]` | 5 / 5 |
-| **Total** (không tính Backlog) | | **457 / 484** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 63 — Vận hành, đợt 3: xem dữ liệu theo ca, giao dịch nháp | `[ ]` | 4 / 5 *(còn: báo Flutter và cập nhật Điều khoản)* |
+| **Total** (không tính Backlog) | | **461 / 489** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1343,3 +1344,10 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Ảnh đính kèm mã hóa bằng `SECRETS_MASTER_KEY`, nhận dạng theo nội dung file; xem ảnh có ghi audit.
 - [x] `SupportRetentionJob`: tự đóng ca đã giải quyết sau 7 ngày, xóa ảnh sau khi đóng 30 ngày.
 - [x] Test: `SupportTicketsControllerTests`.
+
+## Phase 63 — Vận hành nội bộ, đợt 3: xem dữ liệu theo ca, giao dịch nháp (2026-11-05)
+- [x] Migration `AddSupportConsentedAccess`: `support_access_grants`, `support_data_access_logs`, `transactions.support_ticket_id`, nguồn `support`.
+- [x] Khách đồng ý, từ chối, thu hồi; nhân viên xem theo phạm vi; quyền hết khi quá 24 giờ, đóng ca hoặc đổi người phụ trách.
+- [x] `POST /ops/tickets/{id}/draft-transactions`: nháp vào ví khách chọn, khách xác nhận mới đổi số dư.
+- [x] Test: `SupportConsentedAccessTests`.
+- [ ] Báo nhóm Flutter: `docs/ops-api.md`, thêm nội dung hỗ trợ vào Điều khoản bản 4 trước khi phát hành.
