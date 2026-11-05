@@ -54,6 +54,12 @@ public class GroupRepository : IGroupRepository
         return rows.OrderBy(r => r.Member.Role).Select(r => new GroupMemberView(r.Member, r.DisplayName, r.DeletedAt is null)).ToList();
     }
 
+    public Task<List<Guid>> ListOwnedGroupIdsAsync(Guid userId, CancellationToken ct = default)
+        => (from m in _context.GroupMembers
+            join g in _context.Groups on m.GroupId equals g.Id
+            where m.UserId == userId && m.LeftAt == null && m.Role == Domain.Enums.GroupRole.Owner
+            select g.Id).ToListAsync(ct);
+
     public Task<int> CountActiveMembersAsync(Guid groupId, CancellationToken ct = default)
         => _context.GroupMembers.CountAsync(m => m.GroupId == groupId && m.LeftAt == null, ct);
 

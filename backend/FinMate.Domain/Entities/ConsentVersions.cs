@@ -10,8 +10,9 @@ public static class ConsentVersions
     /// Điều khoản sử dụng + Chính sách quyền riêng tư. Bản 2: nêu rõ việc gửi tên món / cụm sản phẩm cho dịch vụ AI bên thứ ba, nên đồng ý bản này
     /// cũng bật phân loại bằng AI (người dùng không bị hỏi thêm; có thể tắt trong Hồ sơ). Đồng ý đóng góp dữ liệu huấn luyện thì KHÔNG đi kèm.
     /// Bản 3: thêm đọc thông báo từ app ngân hàng/ví và đăng nhập Google, để một lần đồng ý bao trùm toàn bộ.
+    /// Bản 4: thêm chia sẻ với nhóm: giao dịch người dùng chủ động chia sẻ (số tiền, nơi chi, ghi chú, tên họ) hiện với thành viên nhóm và còn đó khi họ rời nhóm.
     /// </summary>
-    public const int Terms = 3;
+    public const int Terms = 4;
 
     /// <summary>
     /// Giá trị của <c>AiConsentVersion</c> khi người dùng CHỦ ĐỘNG tắt AI trong Hồ sơ. Khác với <c>null</c> (chưa bao giờ quyết định): đồng ý điều khoản mới

@@ -397,6 +397,7 @@ Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần đư�
 - **Giao dịch vẫn của người tạo**, chỉ thêm `group_id`, `group_category_id`. `IGroupLedger` cộng hoặc hoàn phần của nhóm theo khuôn `BudgetPeriodService`: chỉ đổi dữ liệu đang theo dõi, handler lưu một lần, cảnh báo gửi sau khi lưu. Thêm handler mới sửa giao dịch thì phải gọi nó, kẻo `spent_cents` của nhóm lệch.
 - **Danh mục nhóm là bảng riêng `group_categories`**: ở `categories`, `user_id IS NULL` nghĩa là danh mục hệ thống hiện cho mọi người.
 - **Cảnh báo nhóm** đi qua hộp thư `forecast_alerts`, mỗi thành viên một dòng; `IGroupAlertNotifier` không ném sau khi tiền đã lưu.
+- **Xóa tài khoản:** yêu cầu xóa chuyển chủ nhóm ngay (`IGroupOwnershipHandover`), vì người đó không đăng nhập được nữa. Xóa cứng (`UserHardDeleter`) dùng một DB transaction: khóa ngoại xóa giao dịch và tư cách thành viên, code xóa khoản góp (bảng này không có khóa ngoại theo người góp), rồi tính lại `spent_cents`, `saved_cents`. `ExecuteDelete` bỏ qua handler, nên thêm số tính sẵn mới cho nhóm thì phải tính lại ở đây.
 - **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
 
 ## 3. AI Service — Pipeline Architecture

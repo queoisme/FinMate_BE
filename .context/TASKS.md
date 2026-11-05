@@ -786,7 +786,8 @@
 | Phase 57 — Nhóm, đợt 0: cộng tiền đồng thời | `[x]` | 6 / 6 |
 | Phase 58 — Nhóm, đợt 1: nhóm, thành viên, phân quyền | `[x]` | 6 / 6 |
 | Phase 59 — Nhóm, đợt 2: giao dịch, ngân sách, mục tiêu | `[x]` | 7 / 7 |
-| **Total** (không tính Backlog) | | **443 / 469** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 60 — Nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý | `[ ]` | 4 / 5 *(còn: báo Flutter, gồm Điều khoản bản 4)* |
+| **Total** (không tính Backlog) | | **447 / 474** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1319,3 +1320,10 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] `FinanceSnapshotRepository`: phần góp vào mục tiêu nhóm không tính vào số liệu cá nhân.
 - [x] Sửa lỗi có sẵn: sửa giao dịch của tháng chưa có kỳ ngân sách từng tạo hai kỳ trùng khóa (`BudgetRepository.GetPeriodAsync` nay xem cả kỳ chưa lưu).
 - [x] Test: `GroupFinanceControllerTests` (bất biến `spent_cents`, chi đồng thời, không lộ dữ liệu, cảnh báo, job).
+
+## Phase 60 — Tính năng nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý (2026-11-05)
+- [x] `GET /groups/{id}/reports/monthly`: tổng, theo danh mục, theo thành viên.
+- [x] Yêu cầu xóa tài khoản tự chuyển chủ nhóm (`IGroupOwnershipHandover`); tên người đó không còn hiện trong nhóm.
+- [x] Xóa cứng tính lại số của nhóm trong một DB transaction; nhóm không còn ai thì xóa mềm, nhóm còn người mà mất chủ thì nâng người có vai trò cao nhất.
+- [x] `ConsentVersions.Terms` lên 4. Test: `GroupPrivacyTests`.
+- [ ] Báo nhóm Flutter: `docs/group-api.md`, hiển thị Điều khoản bản 4 **trước hoặc cùng lúc** backend lên production, rồi mới bật `features.groups`.
