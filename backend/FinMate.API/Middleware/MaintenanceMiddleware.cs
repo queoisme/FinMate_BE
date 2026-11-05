@@ -6,7 +6,7 @@ using FinMate.Domain.Enums;
 namespace FinMate.API.Middleware;
 
 /// <summary>
-/// Khi bật chế độ bảo trì, mọi API trả 503 trừ: cấu hình công khai (để app biết đang bảo trì), đăng nhập, kiểm tra sống và tài liệu. ADMIN vẫn dùng được toàn bộ để kiểm tra và tắt bảo trì.
+/// Khi bật chế độ bảo trì, mọi API trả 503 trừ: cấu hình công khai (để app biết đang bảo trì), đăng nhập, kiểm tra sống và tài liệu. ADMIN vẫn dùng được toàn bộ để kiểm tra và tắt bảo trì; Staff và OpsManager chỉ dùng được API vận hành để còn trả lời khách.
 /// Phía app đã chặn bằng popup; chặn ở máy chủ là để bản app cũ không biết popup và hàng đợi đồng bộ không dồn vào hệ thống đang được sửa.
 /// Đứng SAU xác thực vì cần biết người gọi có phải Admin không.
 /// </summary>
@@ -24,10 +24,15 @@ public class MaintenanceMiddleware
         _next = next;
     }
 
+    private static bool IsInternalAllowed(HttpContext context)
+        => context.User.IsInRole(nameof(UserRole.Admin))
+            || (context.Request.Path.StartsWithSegments("/api/v1/ops")
+                && (context.User.IsInRole(nameof(UserRole.Staff)) || context.User.IsInRole(nameof(UserRole.OpsManager))));
+
     public async Task InvokeAsync(HttpContext context, ISystemConfigProvider provider)
     {
         var maintenance = (await provider.GetAsync(context.RequestAborted)).Document.Maintenance;
-        if (!maintenance.Enabled || IsAlwaysAllowed(context.Request.Path) || context.User.IsInRole(nameof(UserRole.Admin)))
+        if (!maintenance.Enabled || IsAlwaysAllowed(context.Request.Path) || IsInternalAllowed(context))
         {
             await _next(context);
             return;

@@ -787,7 +787,8 @@
 | Phase 58 — Nhóm, đợt 1: nhóm, thành viên, phân quyền | `[x]` | 6 / 6 |
 | Phase 59 — Nhóm, đợt 2: giao dịch, ngân sách, mục tiêu | `[x]` | 7 / 7 |
 | Phase 60 — Nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý | `[ ]` | 4 / 5 *(còn: báo Flutter, gồm Điều khoản bản 4)* |
-| **Total** (không tính Backlog) | | **447 / 474** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 61 — Vận hành, đợt 1: role và nền tảng | `[x]` | 5 / 5 |
+| **Total** (không tính Backlog) | | **452 / 479** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1327,3 +1328,10 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Xóa cứng tính lại số của nhóm trong một DB transaction; nhóm không còn ai thì xóa mềm, nhóm còn người mà mất chủ thì nâng người có vai trò cao nhất.
 - [x] `ConsentVersions.Terms` lên 4. Test: `GroupPrivacyTests`.
 - [ ] Báo nhóm Flutter: `docs/group-api.md`, hiển thị Điều khoản bản 4 **trước hoặc cùng lúc** backend lên production, rồi mới bật `features.groups`.
+
+## Phase 61 — Vận hành nội bộ, đợt 1: role và nền tảng (2026-11-05)
+- [x] Thêm `UserRole.Staff`, `UserRole.OpsManager`; migration `AddOpsRoles` đổi `chk_users_role`.
+- [x] Policy `StaffOrAbove`, `ManagerOrAbove`; `OpsControllerBase`; `IOpsAccessService` đọc DB mỗi request; `GET /ops/me`.
+- [x] `SetUserRoleCommandHandler`: không hạ admin cuối xuống bất kỳ vai trò nào, mọi lần giảm quyền thu hồi token, không cấp vai trò nội bộ cho tài khoản chờ xóa.
+- [x] CORS qua `OPS_WEB_ORIGINS`; khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*`.
+- [x] Test: `OpsRolesControllerTests`, `OpsPermissionsTests`, `OpsWebOriginsTests`, `SetUserRoleCommandHandlerTests`.

@@ -173,4 +173,58 @@ public class SetUserRoleCommandHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    [Theory]
+    [InlineData(UserRole.OpsManager)]
+    [InlineData(UserRole.Staff)]
+    [InlineData(UserRole.User)]
+    public async Task TheLastAdminCannotBeMovedToAnyLowerRole(UserRole target)
+    {
+        _userRepository.Setup(r => r.CountActiveAdminsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var user = Setup(UserRole.Admin);
+
+        var act = () => ActAsync(user.Id, target);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(AdminErrorCodes.CannotDemoteLastAdmin);
+        user.Role.Should().Be(UserRole.Admin);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin, UserRole.OpsManager)]
+    [InlineData(UserRole.OpsManager, UserRole.Staff)]
+    [InlineData(UserRole.Staff, UserRole.User)]
+    public async Task AnyReductionRevokesRefreshTokens(UserRole from, UserRole to)
+    {
+        var user = Setup(from);
+
+        await ActAsync(user.Id, to);
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(UserRole.User, UserRole.Staff)]
+    [InlineData(UserRole.Staff, UserRole.OpsManager)]
+    [InlineData(UserRole.OpsManager, UserRole.Admin)]
+    public async Task PromotionKeepsTheSession(UserRole from, UserRole to)
+    {
+        var user = Setup(from);
+
+        await ActAsync(user.Id, to);
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Staff)]
+    [InlineData(UserRole.OpsManager)]
+    [InlineData(UserRole.Admin)]
+    public async Task AnAccountAwaitingDeletionCannotGetAnyInternalRole(UserRole target)
+    {
+        var user = Setup(deletedAt: DateTimeOffset.UtcNow);
+
+        var act = () => ActAsync(user.Id, target);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
 }

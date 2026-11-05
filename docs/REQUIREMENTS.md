@@ -357,6 +357,18 @@ Ví, số dư và dự báo vẫn là của từng người. Nhóm chỉ nhìn t
 | FR-GRP-15 | Yêu cầu xóa tài khoản không bị nhóm chặn | Must | Chủ nhóm được tự chuyển quyền cho quản lý lâu năm nhất, rồi đến thành viên, rồi người chỉ xem. Tên người đó không còn hiện trong nhóm. Admin hủy yêu cầu thì tư cách thành viên còn nguyên nhưng không được trả lại quyền chủ |
 | FR-GRP-16 | Xóa cứng tài khoản xóa cả dữ liệu đã chia sẻ | Must | Giao dịch và khoản góp của người đó bị xóa; `spent_cents`, `saved_cents` được tính lại trong cùng DB transaction. Mục tiêu đã hoàn thành giữ trạng thái. Nhóm không còn ai thì xóa mềm |
 
+### 6.7 Vận hành nội bộ: Staff, OpsManager, Admin **[Ngoài đặc tả]**
+
+Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-OPS-01 | Vai trò `Staff`, `OpsManager` và API riêng `/api/v1/ops/*` | Must | Hai vai trò này nhận 403 ở mọi nhóm `/admin/*`; người dùng thường nhận 403 ở `/ops/*` |
+| FR-OPS-02 | Thao tác nhạy cảm đọc vai trò từ DB (`IOpsAccessService`) | Must | Bị hạ quyền hoặc khóa thì mất quyền ngay dù token còn hạn |
+| FR-OPS-03 | `GET /ops/me` trả vai trò và quyền hiện tại | Must | Đọc từ DB |
+| FR-OPS-04 | CORS cho web vận hành qua `OPS_WEB_ORIGINS` | Must | Trống thì không trình duyệt nào gọi được; `*` hoặc sai định dạng thì không khởi động |
+| FR-OPS-05 | Khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*` | Should | Các API khác vẫn 503 với họ |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -401,7 +413,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | --- | --- | --- | --- |
 | FR-ADM-01 | Danh sách và chi tiết người dùng | Must | Không trả số tiền hay mô tả giao dịch |
 | FR-ADM-02 | Khoá / mở khoá | Must | Không tự khoá mình; khoá thì thu hồi refresh token |
-| FR-ADM-03 | Đổi vai trò | Must | Không đổi vai trò chính mình; không hạ admin đang hoạt động cuối cùng; không nâng tài khoản chờ xoá; hạ cấp → thu hồi token |
+| FR-ADM-03 | Đổi vai trò (`User`, `Staff`, `OpsManager`, `Admin`) | Must | Không đổi vai trò chính mình; không hạ admin đang hoạt động cuối cùng xuống bất kỳ vai trò nào; không cấp vai trò nội bộ cho tài khoản chờ xoá; mọi lần giảm quyền → thu hồi token |
 | FR-ADM-04 | Cấu hình provider | Must | `provider_key` bất biến |
 | FR-ADM-05 | Danh mục hệ thống | Must | `slug` bất biến; đồng bộ sang AI Service (FR-CAT-06) |
 | FR-ADM-07 | Hàng đợi xoá dữ liệu và huỷ yêu cầu | Must | Huỷ xoá `user.DeletedAt`; không có endpoint xoá ngay |

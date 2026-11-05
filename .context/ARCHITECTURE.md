@@ -400,6 +400,14 @@ Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần đư�
 - **Xóa tài khoản:** yêu cầu xóa chuyển chủ nhóm ngay (`IGroupOwnershipHandover`), vì người đó không đăng nhập được nữa. Xóa cứng (`UserHardDeleter`) dùng một DB transaction: khóa ngoại xóa giao dịch và tư cách thành viên, code xóa khoản góp (bảng này không có khóa ngoại theo người góp), rồi tính lại `spent_cents`, `saved_cents`. `ExecuteDelete` bỏ qua handler, nên thêm số tính sẵn mới cho nhóm thì phải tính lại ở đây.
 - **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
 
+### 2.8 Vận hành nội bộ (thêm 2026-11-05)
+
+Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn dùng app Flutter. API và ma trận quyền ở `docs/ops-api.md`.
+
+- API vận hành nằm dưới `/api/v1/ops/*`, kế thừa `OpsControllerBase` (policy `StaffOrAbove`). `AdminControllerBase` giữ nguyên `AdminOnly`, nên thêm vai trò không làm rộng quyền `/admin/*`.
+- Policy đọc role trong JWT, chỉ để chặn sớm. Thao tác nhạy cảm phải qua `IOpsAccessService`, đọc DB mỗi request, vì token còn hiệu lực tới 15 phút sau khi bị hạ quyền.
+- `OpsManager` khác vai `manager` của nhóm tài chính (§2.7). So sánh thứ bậc dùng `UserRoleExtensions.Rank()`, không dùng thứ tự enum vì `Admin` đứng trước `Staff`.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
