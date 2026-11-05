@@ -71,4 +71,16 @@ public static class AuditEvents
     public const string AdminGoalTemplateUpdated = "Admin.GoalTemplate.Updated";
     public const string AdminGoalTemplateActivationChanged = "Admin.GoalTemplate.ActivationChanged";
     public const string AdminMethodGoalTemplatesReplaced = "Admin.MethodGoalTemplates.Replaced";
+
+    // Nhóm — metadata chỉ có id và vai trò, không có số tiền, email hay mã mời.
+    public const string GroupCreated = "Group.Created";
+    public const string GroupUpdated = "Group.Updated";
+    public const string GroupDeleted = "Group.Deleted";
+    public const string GroupMemberJoined = "Group.Member.Joined";
+    public const string GroupMemberLeft = "Group.Member.Left";
+    public const string GroupMemberRemoved = "Group.Member.Removed";
+    public const string GroupMemberUpdated = "Group.Member.Updated";
+    public const string GroupOwnershipTransferred = "Group.Ownership.Transferred";
+    public const string GroupInvitationCreated = "Group.Invitation.Created";
+    public const string GroupInvitationRevoked = "Group.Invitation.Revoked";
 }

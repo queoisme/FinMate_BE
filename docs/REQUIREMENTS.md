@@ -334,6 +334,19 @@ Các mã BR của sơ đồ chưa có định nghĩa; số mặc định thay th
 | FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | `GET /forecast/categories?month=yyyy-MM` (tháng tới hoặc tháng sau nữa; trả `availableMonths`): từng danh mục có mức dự kiến, tháng trước, hạn mức hiện tại, % thay đổi, cờ "thay đổi nhiều" (≥ 20%), hạn mức đề xuất (làm tròn lên 10.000đ). Xu hướng = trung bình trọng số 3:2:1 của 3 tháng trọn vẹn, chỉ tính từ tháng đầu tiên có dữ liệu. Loại khoản chi một lần và khoản bất thường chưa xác nhận bình thường. BR-06.1: < 2 tháng có dữ liệu → hạn mức ngân sách, không có thì trung bình theo ngày quy ra tháng, `confidence = low`. `POST /forecast/categories/apply`: danh mục đã có ngân sách → hạn mức mới áp **từ tháng sau** (tháng này giữ snapshot cũ); chưa có → tạo ngân sách, áp ngay. **Chưa làm**: điều chỉnh mùa vụ (`seasonalAdjusted` luôn false) |
 | FR-FCST-16 | **[Mới]** Ngày đạt mục tiêu tiết kiệm (trang 4) | Could | `GET /forecast/goals/{goalId}?monthlyContributionCents=`: BR-08.1 tốc độ góp theo tháng từ khoản góp vào chính mục tiêu (tối đa `goalRateMonths` = 6 tháng trọn vẹn từ tháng tạo; chưa có tháng trọn vẹn thì dùng tháng này, độ tin cậy thấp) — trung bình và thận trọng (phân vị 25). BR-08.2 hai ngày dự kiến. BR-08.3 kịp hạn = ngày thận trọng ≤ hạn chót; không kịp → mức cần góp/tháng. Trạng thái `reached\|unreachable\|no_deadline\|on_track\|behind`. Tham số `monthlyContributionCents` là thử kịch bản, không lưu; đổi số tiền / hạn chót dùng `PATCH /saving-goals/{id}` |
 
+### 6.6 Tài chính nhóm / gia đình **[Mới so với đặc tả Core Flows]**
+
+Ví, số dư và dự báo vẫn là của từng người. Nhóm chỉ nhìn thấy những gì thành viên chủ động chia sẻ.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-GRP-01 | Tạo, xem, sửa, xóa mềm nhóm | Must | Người tạo là chủ nhóm. Mỗi người tối đa `groups.maxGroupsPerUser` nhóm (mặc định 5). Công tắc `features.groups` mặc định tắt |
+| FR-GRP-02 | Vai trò chủ nhóm / quản lý / thành viên / chỉ xem | Must | Ma trận quyền ở `docs/group-api.md`. Mỗi nhóm đúng một chủ, ràng buộc ở CSDL |
+| FR-GRP-03 | Cấp hoặc thu hồi quyền cho từng người | Must | Chỉ chủ nhóm; thu hồi thắng cấp; đổi vai trò thì xóa ghi đè. Việc chỉ chủ nhóm được làm không cấp được cho ai |
+| FR-GRP-04 | Mời bằng email hoặc link | Must | Mã dùng một lần, hết hạn sau `groups.invitationTtlDays` ngày (mặc định 7), chỉ lưu SHA-256. Lời mời theo email chỉ nhận được bằng tài khoản đã xác minh đúng email đó. Phản hồi không để lộ email đã có tài khoản hay chưa; mọi mã không dùng được đều trả cùng một lỗi |
+| FR-GRP-05 | Rời nhóm, xóa thành viên, chuyển chủ nhóm | Must | Chủ nhóm phải chuyển chủ hoặc xóa nhóm trước khi rời. Quản lý chỉ tác động lên vai trò thấp hơn. Không ai tự đổi vai trò của mình. Mất quyền ngay ở request kế tiếp |
+| FR-GRP-06 | Lịch sử hoạt động của nhóm | Should | Thay đổi về nhóm và thành viên có trong `group_activities` và `audit_logs`, không có số tiền, email hay mã mời |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -411,7 +424,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-03 | Refresh token lưu SHA-256 | Kiểm bảng |
 | NFR-SEC-04 | Mọi endpoint `[Authorize]` trừ `/auth/*`, `/app-config` và health | Test không token → 401 |
 | NFR-SEC-05 | Admin controller kế thừa `AdminControllerBase` | User thường → 403 |
-| NFR-SEC-06 | Repository lọc theo `userId` từ JWT | Test cross-user → 404 |
+| NFR-SEC-06 | Repository lọc theo `userId` từ JWT. Dữ liệu nhóm đi qua `IGroupAccessService`: không phải thành viên → 404, thiếu quyền → 403, quyền đọc từ DB mỗi request | Test cross-user và cross-group → 404 |
 | NFR-SEC-07 | AI Service, `ocr-service`, `stt-service`, `rasa` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
 | NFR-SEC-08 | Client ↔ server qua TLS | TLS ở reverse proxy |
 
@@ -612,4 +625,5 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-02 | **Giữ** trạng thái cảnh báo ngân sách (`ok/t1/t2/over`) mà đặc tả gọi là "trạng thái Mascot" | Đây là cảnh báo chi tiêu, không phải trò chơi | FR-BUD-07 giữ nguyên, đổi tên khỏi "Mascot" |
 | 2026-11-02 | **Thêm dự báo tài chính (Flow 6)**, làm theo đợt; đợt 1 = lõi + dòng tiền + số tiền có thể chi + khoản định kỳ | Chủ sản phẩm duyệt kế hoạch; swimlane giữ nguyên | Nhóm FR-FCST (6.5). FR-RPT-04/06/07 chuyển vào đây. Migration `AddForecastFoundation`: bảng `recurring_items`, cột `transactions.exclude_from_forecast`/`forecast_exclusion_reason`, `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents` |
 | 2026-11-02 | **Dự báo tài chính đợt 2: cảnh báo** | Chủ sản phẩm duyệt kế hoạch (outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi) | FR-FCST-10…13 xong. Migration `AddForecastAlerts`: bảng `forecast_alerts`, cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute`, `forecast_alerts_enabled`. API mới: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /budgets/transfer`; `PUT /me/forecast-settings` nay thay toàn bộ cài đặt |
+| 2026-11-05 | **Thêm tài chính nhóm / gia đình**, làm theo đợt | Chủ sản phẩm duyệt: một mô hình ưu tiên gia đình; giao dịch chia sẻ vẫn tính vào ngân sách cá nhân; mặc định thấy chi tiết giao dịch đã chia sẻ; rời nhóm giữ lịch sử, xóa tài khoản xóa hẳn rồi tính lại | Nhóm FR-GRP (6.6). Đợt 1: migration `AddGroups`: bảng `groups`, `group_members`, `group_invitations`, `group_activities`. Chưa làm: ví chung, chia tiền và công nợ |
 | 2026-11-02 | **Dự báo tài chính đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu** | Chủ sản phẩm duyệt kế hoạch (bảng đánh dấu riêng, quét trong lượt kiểm tra sau giao dịch, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu) | FR-FCST-14…16 xong. Migration `AddTransactionAnomalies`: bảng `transaction_anomalies`, thêm `anomaly` vào CHECK `forecast_alerts.kind`. API mới: `/forecast/anomalies`, `/forecast/categories`, `/forecast/categories/apply`, `/forecast/goals/{id}`. Insight `UnusualSpending` ngừng sinh. Ngưỡng outlier dùng trung vị + 3·MAD có sẵn (`Statistics`) thay vì Q3 + 1,5·IQR ghi trong kế hoạch |

@@ -22,6 +22,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
         RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
         RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
+        RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
     }
 
     private static bool IsHttps(string value)
@@ -70,6 +71,17 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.IntervalMinutes).InclusiveBetween(5, 1440).WithMessage("Chu kỳ đồng bộ phải từ 5 đến 1440 phút.");
             RuleFor(x => x.MaxRetries).InclusiveBetween(0, 20).WithMessage("Số lần thử lại phải từ 0 đến 20.");
             RuleFor(x => x.QueueRetentionDays).InclusiveBetween(1, 90).WithMessage("Thời gian giữ hàng đợi phải từ 1 đến 90 ngày.");
+        }
+    }
+
+    private sealed class GroupValidator : AbstractValidator<GroupSettings>
+    {
+        public GroupValidator()
+        {
+            RuleFor(x => x.MaxMembers).InclusiveBetween(2, 100).WithMessage("Số thành viên tối đa của nhóm phải từ 2 đến 100.");
+            RuleFor(x => x.MaxGroupsPerUser).InclusiveBetween(1, 50).WithMessage("Số nhóm tối đa của mỗi người phải từ 1 đến 50.");
+            RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
+            RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
         }
     }
 

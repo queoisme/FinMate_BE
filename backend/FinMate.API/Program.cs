@@ -26,6 +26,7 @@ using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Groups;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
@@ -320,6 +321,11 @@ public class Program
 
         // Dự báo tài chính (Flow 6, đợt 1).
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
+        builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+        builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
+        builder.Services.AddScoped<IGroupService, GroupService>();
+        builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
+        builder.Services.AddScoped<IGroupInvitationService, GroupInvitationService>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
         builder.Services.AddScoped<IForecastService, ForecastService>();

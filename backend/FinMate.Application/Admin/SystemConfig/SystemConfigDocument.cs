@@ -31,6 +31,17 @@ public sealed record FeatureSettings
     public bool Voice { get; init; } = true;
     public bool BillScan { get; init; } = true;
     public bool NotificationReading { get; init; } = true;
+
+    /// <summary>Tài chính nhóm. Mặc định tắt: chỉ bật sau khi app đã có màn hình và người dùng đã đồng ý Điều khoản mới.</summary>
+    public bool Groups { get; init; }
+}
+
+public sealed record GroupSettings
+{
+    public int MaxMembers { get; init; } = 20;
+    public int MaxGroupsPerUser { get; init; } = 5;
+    public int MaxPendingInvitations { get; init; } = 20;
+    public int InvitationTtlDays { get; init; } = 7;
 }
 
 public sealed record LimitSettings
@@ -247,6 +258,7 @@ public sealed record SystemConfigDocument
     public QrTransferSettings QrTransfer { get; init; } = new();
     public FinanceMethodSettings FinanceMethods { get; init; } = new();
     public ForecastSettings Forecast { get; init; } = new();
+    public GroupSettings Groups { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

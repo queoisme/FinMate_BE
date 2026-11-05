@@ -385,6 +385,16 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 - **Ngày đạt mục tiêu (trang 4):** tốc độ góp theo tháng từ `goal_contributions` của chính mục tiêu; hai kịch bản (trung bình, phân vị 25) thay cho "mô phỏng nhiều
   kịch bản"; kịp hạn được quyết theo kịch bản thận trọng. Mức góp thử là tham số truy vấn, không lưu.
 
+### 2.7 Tài chính nhóm / gia đình (thêm 2026-11-05)
+
+Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ. Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
+
+- **Cổng quyền duy nhất:** `IGroupAccessService`, gọi trong service và đọc DB mỗi request (không để trong JWT). Không phải thành viên → 404, thiếu quyền → 403. **Không** thêm điều kiện "hoặc cùng nhóm" vào repository theo `userId`: truy cập nhóm đi qua `IGroupRepository`, nên các truy vấn cá nhân không thể thấy dữ liệu nhóm.
+- **Quyền:** `GroupPermissions.Effective = (mặc định theo vai trò | cấp thêm) & ~thu hồi`, hàm thuần. Việc chỉ chủ nhóm làm được (đổi vai trò, chỉnh quyền, đổi cài đặt, chuyển chủ, xóa nhóm) cố ý không có trong enum `GroupPermission`, nên không cấp được cho ai.
+- **Chủ nhóm** nằm ở `group_members.role`, ràng buộc đúng một bằng unique index một phần. Index này không chờ hết transaction, nên chuyển chủ phải hạ chủ cũ rồi mới nâng chủ mới (`GroupRepository.TransferOwnershipAsync`).
+- **Rời nhóm** chỉ đặt `left_at`; vào lại dùng đúng dòng cũ và xóa quyền ghi đè.
+- **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1034,6 +1044,9 @@ Receipt scan (thêm 2026-10-10):
 Quản lý tài chính (thêm 2026-10-26):
   finance_methods, survey_questions, survey_options, goal_templates, method_goal_templates,
   user_survey_answers, method_recommendations, user_methods
+
+Nhóm (thêm 2026-11-05, migration `AddGroups`):
+  groups, group_members, group_invitations, group_activities
 
 Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
   recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`), transaction_anomalies (đợt 3, `AddTransactionAnomalies`)
