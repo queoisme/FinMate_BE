@@ -1,8 +1,8 @@
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Budgets;
 using FinMate.Application.Forecasting;
 using FinMate.Application.MarketData;
 using FinMate.Domain.Entities;
-using FinMate.Domain.Enums;
 using FluentAssertions;
 using Xunit;
 
@@ -28,15 +28,76 @@ public class MarketAlertRulesTests
         MarketAlertRules.ExtraCostCents(656_000, 60, 20_000, 21_000).Should().Be(16_000);
     }
 
+    private static MarketCostType Type(string key) => new MarketDataSettings().CostTypes.Single(t => t.Key == key);
+
+    private static Transaction Spend(string? merchant, string? description = null, string? categoryName = null, string? slug = null, long amount = 100_000, int daysAgo = 3) => new()
+    {
+        MerchantName = merchant,
+        Description = description,
+        AmountCents = amount,
+        TransactedAt = DateTimeOffset.UtcNow.AddDays(-daysAgo),
+        CategoryId = categoryName is null ? null : Guid.Parse("11111111-1111-1111-1111-111111111111"),
+        Category = categoryName is null ? null : new Category { Name = categoryName, Slug = slug ?? "tu-tao" },
+    };
+
     [Theory]
     [InlineData("Petrolimex CHXD 12", null, true)]
     [InlineData("PVOIL", null, true)]
     [InlineData(null, "đổ xăng xe máy", true)]
     [InlineData("ĐỔ XĂNG", null, true)]
+    [InlineData("DO XANG QUAN 7", null, true)]
     [InlineData("Grab", "đi làm", false)]
     [InlineData("Xe buýt", null, false)]
     public void RecognisesFuelPurchases(string? merchant, string? description, bool expected)
-        => MarketAlertRules.IsFuelPurchase(new Transaction { MerchantName = merchant, Description = description }).Should().Be(expected);
+        => MarketSpendProfile.Matches(Spend(merchant, description), Type("fuel")).Should().Be(expected);
+
+    [Theory]
+    [InlineData("Viettel Internet", "electricity", false)]
+    [InlineData("EVN HCMC", "electricity", true)]
+    [InlineData("Seven Coffee", "electricity", false)]
+    [InlineData("THANH TOAN TIEN DIEN", "electricity", true)]
+    [InlineData("SAWACO", "water", true)]
+    public void RecognisesOtherCosts(string merchant, string key, bool expected)
+        => MarketSpendProfile.Matches(Spend(merchant), Type(key)).Should().Be(expected);
+
+    [Fact]
+    public void ACustomCategoryNameCountsAndFoodMatchesItsSystemCategory()
+    {
+        MarketSpendProfile.Matches(Spend("Cửa hàng A", categoryName: "Tiền điện"), Type("electricity")).Should().BeTrue();
+        MarketSpendProfile.Matches(Spend("Quán B", categoryName: "Ăn uống", slug: "food"), Type("food_price")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TheProfileDescribesTheHabit()
+    {
+        var debits = new[]
+        {
+            Spend("Petrolimex", amount: 300_000, categoryName: "Đi lại", daysAgo: 2),
+            Spend("Petrolimex", amount: 300_000, categoryName: "Đi lại", daysAgo: 20),
+            Spend("Quán ăn", amount: 1_400_000),
+        };
+
+        var profile = MarketSpendProfile.Build(debits, Type("fuel"), 60)!;
+
+        profile.Count.Should().Be(2);
+        profile.MonthlyCents.Should().Be(300_000);
+        profile.TimesPerMonth.Should().Be(1);
+        profile.SharePercent.Should().Be(30);
+        profile.MainCategoryId.Should().NotBeNull();
+        profile.IsRelevant(new MarketDataSettings(), DateTimeOffset.UtcNow).Should().BeTrue();
+    }
+
+    [Fact]
+    public void SomeoneWhoStoppedOrBarelySpendsIsNotRelevant()
+    {
+        var settings = new MarketDataSettings();
+        var old = new[] { Spend("Petrolimex", daysAgo: 50), Spend("Petrolimex", daysAgo: 55) };
+        var tiny = new[] { Spend("Petrolimex", amount: 1_000), Spend("Petrolimex", amount: 1_000), Spend("Thuê nhà", amount: 8_000_000) };
+
+        MarketSpendProfile.Build(old, Type("fuel"), 60)!.IsRelevant(settings, DateTimeOffset.UtcNow).Should().BeFalse("đã lâu không đổ xăng");
+        MarketSpendProfile.Build(tiny, Type("fuel"), 60)!.IsRelevant(settings, DateTimeOffset.UtcNow).Should().BeFalse("khoản này không đáng kể");
+        MarketSpendProfile.Build([Spend("Xe buýt")], Type("fuel"), 60).Should().BeNull();
+    }
 
     private static BudgetForecastDto Budget(long spent, string status)
         => new(Guid.NewGuid(), Guid.NewGuid(), "Di chuyển", 1_000_000, spent, spent, 0, status, 0, 10, BudgetRiskBasis.Pace);
@@ -86,11 +147,9 @@ public class MarketAlertRulesTests
         => MarketAlertRules.FuelBody(FuelKeys.E5Ron92Level2, 100, 90, 0, "Di chuyển", null).Should().NotContain("tốn thêm").And.Contain("mức giá trước đó");
 
     [Fact]
-    public void OnlyMappedTopicsHaveATemplate()
+    public void WordingComesFromTheConfiguredLabel()
     {
-        MarketAlertRules.NewsTemplate(MarketTopic.Electricity).Should().NotBeNull();
-        MarketAlertRules.NewsTemplate(MarketTopic.Other).Should().BeNull();
-        MarketAlertRules.CategorySlug(MarketTopic.Water).Should().Be("bills");
-        MarketAlertRules.CategorySlug(MarketTopic.Other).Should().BeNull();
+        MarketAlertRules.Title(Type("electricity")).Should().Be("Giá điện đang tăng");
+        MarketAlertRules.NewsBody(Type("water"), 85, "Sinh hoạt", "Báo Mẫu").Should().Be("Có tin giá nước tăng. Ngân sách Sinh hoạt của bạn đã dùng 85%, bạn nên để dư thêm cho kỳ tới. Nguồn: Báo Mẫu.");
     }
 }

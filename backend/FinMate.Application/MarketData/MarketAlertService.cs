@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Budgets;
 using FinMate.Application.Common;
@@ -22,7 +21,7 @@ public interface IMarketAlertService
 }
 
 /// <summary>
-/// Quy tắc chọn người nhận cảnh báo giá tăng, tách khỏi I/O. Cần có đủ: có chi cho danh mục đó, có ngân sách danh mục đó, và ngân sách đang căng.
+/// Quy tắc của cảnh báo giá tăng, tách khỏi I/O. Thói quen chi nằm ở <see cref="MarketSpendProfile"/>.
 /// Nội dung là mẫu cố định: không chữ nào đến từ trang web hay từ AI, ngoài tên nguồn do admin đặt.
 /// </summary>
 public static class MarketAlertRules
@@ -31,14 +30,6 @@ public static class MarketAlertRules
     private const int DaysPerMonth = 30;
     private const int MorningHour = 8;
     private const int EveningHour = 21;
-
-    private static readonly string[] FuelKeywords = ["xăng", "petrolimex", "pvoil", "mipec", "petro", "cửa hàng xăng dầu", "chxd"];
-
-    public static bool IsFuelPurchase(Transaction transaction)
-    {
-        var text = $"{transaction.MerchantName} {transaction.Description}".ToLowerInvariant().Normalize(NormalizationForm.FormC);
-        return FuelKeywords.Any(keyword => text.Contains(keyword, StringComparison.Ordinal));
-    }
 
     /// <summary>Giá tăng từ ngưỡng trở lên. Làm tính bằng số nguyên để không lệch ở đúng mức ngưỡng.</summary>
     public static bool RoseEnough(long reference, long latest, int thresholdPercent)
@@ -86,24 +77,10 @@ public static class MarketAlertRules
         return body + " Gộp các chuyến đi gần nhau sẽ giúp bạn giữ trong hạn mức.";
     }
 
-    public static (string Title, string Subject)? NewsTemplate(MarketTopic topic) => topic switch
-    {
-        MarketTopic.Electricity => ("Giá điện đang tăng", "giá điện"),
-        MarketTopic.Water => ("Giá nước đang tăng", "giá nước"),
-        MarketTopic.FoodPrice => ("Giá thực phẩm đang tăng", "giá thực phẩm"),
-        _ => null,
-    };
+    public static string Title(MarketCostType type) => $"Giá {type.Label} đang tăng";
 
-    public static string? CategorySlug(MarketTopic topic) => topic switch
-    {
-        MarketTopic.Fuel => "transport",
-        MarketTopic.Electricity or MarketTopic.Water => "bills",
-        MarketTopic.FoodPrice => "food",
-        _ => null,
-    };
-
-    public static string NewsBody(string subject, int usedPercent, string categoryName, string sourceName)
-        => $"Có tin {subject} tăng. Ngân sách {categoryName} của bạn đã dùng {usedPercent}%, bạn nên để dư thêm cho kỳ tới. Nguồn: {sourceName}.";
+    public static string NewsBody(MarketCostType type, int usedPercent, string budgetName, string sourceName)
+        => $"Có tin giá {type.Label} tăng. Ngân sách {budgetName} của bạn đã dùng {usedPercent}%, bạn nên để dư thêm cho kỳ tới. Nguồn: {sourceName}.";
 }
 
 public sealed class MarketAlertService : IMarketAlertService
@@ -147,9 +124,10 @@ public sealed class MarketAlertService : IMarketAlertService
         await ProcessFuelAsync(settings, enabled, now, ct);
         foreach (var marketEvent in await _market.ListEventsAwaitingAlertsAsync(ct))
         {
-            if (enabled && marketEvent.Direction == MarketDirection.Up)
+            var type = settings.CostTypes.FirstOrDefault(t => t.Key == MarketEventText.Topic(marketEvent.Topic) && t.Enabled);
+            if (enabled && type is not null && marketEvent.Direction == MarketDirection.Up)
             {
-                await SendNewsAlertsAsync(marketEvent, settings, now, ct);
+                await SendNewsAlertsAsync(marketEvent, type, settings, now, ct);
             }
 
             // Cờ tắt vẫn đánh dấu đã xét: bật cờ không được gửi bù hàng loạt tin đã cũ.
@@ -166,6 +144,8 @@ public sealed class MarketAlertService : IMarketAlertService
             return;
         }
 
+        var type = settings.CostTypes.FirstOrDefault(t => t.HasPriceTable && t.Enabled);
+        enabled &= type is not null;
         var latest = waiting[^1];
         var reference = await _market.GetFuelPriceAsOfAsync(settings.ReferenceFuelKey, now.AddDays(-settings.CompareWindowDays), ct);
 
@@ -175,7 +155,7 @@ public sealed class MarketAlertService : IMarketAlertService
             && previous is not null && latest.Region1PriceCents > previous.Region1PriceCents
             && MarketAlertRules.RoseEnough(reference.Region1PriceCents, latest.Region1PriceCents, settings.RiseThresholdPercent))
         {
-            await ForEachActiveUserAsync(settings, now, (userId, today) => SendFuelAlertAsync(userId, today, latest, reference, settings, now, ct), ct);
+            await ForEachActiveUserAsync(settings, now, (userId, today) => SendFuelAlertAsync(userId, today, type!, latest, reference, settings, now, ct), ct);
         }
 
         foreach (var price in waiting)
@@ -202,57 +182,45 @@ public sealed class MarketAlertService : IMarketAlertService
         }
     }
 
-    private async Task SendFuelAlertAsync(Guid userId, DateOnly today, FuelPrice latest, FuelPrice reference, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
+    private async Task SendFuelAlertAsync(Guid userId, DateOnly today, MarketCostType type, FuelPrice latest, FuelPrice reference, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
     {
-        var prefix = KeyPrefix(MarketTopic.Fuel);
+        var prefix = KeyPrefix(type);
         if (await InCooldownAsync(userId, prefix, settings, now, ct))
         {
             return;
         }
 
-        var fuelSpend = (await _reports.GetConfirmedDebitsAsync(userId, today.AddDays(-settings.SpendLookbackDays), today, ct))
-            .Where(t => t.Category?.Slug == "transport" && MarketAlertRules.IsFuelPurchase(t))
-            .ToList();
-        if (fuelSpend.Count < settings.MinCategoryTransactions)
+        var target = await FindTargetAsync(userId, today, type, settings, now, ct);
+        if (target is null)
         {
             return;
         }
 
-        var budget = await TightBudgetAsync(userId, fuelSpend[0].CategoryId, ct);
-        if (budget is null)
-        {
-            return;
-        }
-
+        var (profile, budget) = target.Value;
         var increase = latest.Region1PriceCents - reference.Region1PriceCents;
-        var extra = MarketAlertRules.ExtraCostCents(fuelSpend.Sum(t => t.AmountCents), settings.SpendLookbackDays, reference.Region1PriceCents, latest.Region1PriceCents);
+        var extra = MarketAlertRules.ExtraCostCents(profile.TotalCents, settings.SpendLookbackDays, reference.Region1PriceCents, latest.Region1PriceCents);
+        if (extra < settings.MinExtraCostCents)
+        {
+            return;
+        }
+
         await _dispatcher.RaiseAsync(
             new ForecastAlertRequest(
                 userId,
                 ForecastAlertKind.MarketChange,
                 $"{prefix}{latest.Id}",
-                "Giá xăng đang tăng",
-                MarketAlertRules.FuelBody(latest.FuelKey, increase, MarketAlertRules.UsedPercent(budget), extra, budget.CategoryName ?? "Di chuyển", reference.FirstSeenAt <= now.AddDays(-settings.CompareWindowDays) ? settings.CompareWindowDays : null),
-                new Dictionary<string, string>
-                {
-                    ["topic"] = MarketEventText.Topic(MarketTopic.Fuel),
-                    ["budgetId"] = budget.BudgetId.ToString(),
-                    ["extraCostCents"] = extra.ToString(CultureInfo.InvariantCulture),
-                },
+                MarketAlertRules.Title(type),
+                MarketAlertRules.FuelBody(latest.FuelKey, increase, MarketAlertRules.UsedPercent(budget), extra, BudgetName(budget), reference.FirstSeenAt <= now.AddDays(-settings.CompareWindowDays) ? settings.CompareWindowDays : null),
+                Payload(type, budget, profile, extra),
                 NotBefore: MarketAlertRules.NotBefore(now)),
             ct);
     }
 
-    private async Task SendNewsAlertsAsync(MarketEvent marketEvent, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
+    private async Task SendNewsAlertsAsync(MarketEvent marketEvent, MarketCostType type, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
     {
-        if (MarketAlertRules.NewsTemplate(marketEvent.Topic) is not { } template || MarketAlertRules.CategorySlug(marketEvent.Topic) is not { } slug)
-        {
-            return;
-        }
-
         var sources = await _market.ListEventSignalsAsync(marketEvent.Topic, marketEvent.Direction, marketEvent.FirstSeenAt.AddDays(-1), ct);
         var sourceName = sources.Count == 0 ? "tin tức" : sources[0].SourceName;
-        var prefix = KeyPrefix(marketEvent.Topic);
+        var prefix = KeyPrefix(type);
         await ForEachActiveUserAsync(
             settings,
             now,
@@ -263,41 +231,47 @@ public sealed class MarketAlertService : IMarketAlertService
                     return;
                 }
 
-                var spend = (await _reports.GetConfirmedDebitsAsync(userId, today.AddDays(-settings.SpendLookbackDays), today, ct))
-                    .Where(t => t.Category?.Slug == slug)
-                    .ToList();
-                if (spend.Count < settings.MinCategoryTransactions)
+                var target = await FindTargetAsync(userId, today, type, settings, now, ct);
+                if (target is null)
                 {
                     return;
                 }
 
-                var budget = await TightBudgetAsync(userId, spend[0].CategoryId, ct);
-                if (budget is null)
-                {
-                    return;
-                }
-
+                var (profile, budget) = target.Value;
                 await _dispatcher.RaiseAsync(
                     new ForecastAlertRequest(
                         userId,
                         ForecastAlertKind.MarketChange,
                         $"{prefix}{marketEvent.Id}",
-                        template.Title,
-                        MarketAlertRules.NewsBody(template.Subject, MarketAlertRules.UsedPercent(budget), budget.CategoryName ?? slug, sourceName),
-                        new Dictionary<string, string>
-                        {
-                            ["topic"] = MarketEventText.Topic(marketEvent.Topic),
-                            ["budgetId"] = budget.BudgetId.ToString(),
-                        },
+                        MarketAlertRules.Title(type),
+                        MarketAlertRules.NewsBody(type, MarketAlertRules.UsedPercent(budget), BudgetName(budget), sourceName),
+                        Payload(type, budget, profile, null),
                         NotBefore: MarketAlertRules.NotBefore(now)),
                     ct);
             },
             ct);
     }
 
+    /// <summary>Người này có thật sự chi cho khoản đó không, và ngân sách chứa khoản đó có đang căng không. Xét theo giao dịch nên danh mục đặt tên gì cũng được.</summary>
+    private async Task<(MarketSpendProfile Profile, BudgetForecastDto Budget)?> FindTargetAsync(Guid userId, DateOnly today, MarketCostType type, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
+    {
+        var debits = await _reports.GetConfirmedDebitsAsync(userId, today.AddDays(-settings.SpendLookbackDays), today, ct);
+        var profile = MarketSpendProfile.Build(debits, type, settings.SpendLookbackDays);
+        if (profile is null || !profile.IsRelevant(settings, now))
+        {
+            return null;
+        }
+
+        var budget = await TightBudgetAsync(userId, profile.MainCategoryId, ct);
+        return budget is null ? null : (profile, budget);
+    }
+
+    /// <summary>Ngân sách của danh mục chứa khoản chi, không có thì ngân sách tổng. Danh mục đã có ngân sách còn dư thì không xét ngân sách tổng.</summary>
     private async Task<BudgetForecastDto?> TightBudgetAsync(Guid userId, Guid? categoryId, CancellationToken ct)
     {
-        var budget = (await _budgets.GetAsync(userId, ct)).FirstOrDefault(b => b.CategoryId == categoryId);
+        var budgets = await _budgets.GetAsync(userId, ct);
+        var budget = budgets.FirstOrDefault(b => categoryId is not null && b.CategoryId == categoryId)
+            ?? budgets.FirstOrDefault(b => b.CategoryId is null);
         if (budget is null)
         {
             return null;
@@ -307,8 +281,28 @@ public sealed class MarketAlertService : IMarketAlertService
         return MarketAlertRules.BudgetIsTight(budget, thresholds) ? budget : null;
     }
 
+    private static string BudgetName(BudgetForecastDto budget) => budget.CategoryName ?? "tổng chi tiêu";
+
+    /// <summary>Số tiền nằm trong payload gửi app, không bao giờ ghi vào log.</summary>
+    private static Dictionary<string, string> Payload(MarketCostType type, BudgetForecastDto budget, MarketSpendProfile profile, long? extra)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["topic"] = type.Key,
+            ["budgetId"] = budget.BudgetId.ToString(),
+            ["monthlySpendCents"] = profile.MonthlyCents.ToString(CultureInfo.InvariantCulture),
+            ["timesPerMonth"] = profile.TimesPerMonth.ToString(CultureInfo.InvariantCulture),
+        };
+        if (extra is { } amount)
+        {
+            data["extraCostCents"] = amount.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return data;
+    }
+
     private Task<bool> InCooldownAsync(Guid userId, string prefix, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
         => _alerts.AnyWithKeyPrefixSinceAsync(userId, ForecastAlertKind.MarketChange, prefix, now.AddDays(-settings.AlertCooldownDays), ct);
 
-    private static string KeyPrefix(MarketTopic topic) => $"market:{MarketEventText.Topic(topic)}:";
+    private static string KeyPrefix(MarketCostType type) => $"market:{type.Key}:";
 }

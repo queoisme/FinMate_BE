@@ -117,6 +117,9 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.AlertCooldownDays).InclusiveBetween(0, 365).WithMessage("Thời gian giãn cảnh báo phải từ 0 đến 365 ngày.");
             RuleFor(x => x.SpendLookbackDays).InclusiveBetween(7, 365).WithMessage("Số ngày xét chi tiêu phải từ 7 đến 365.");
             RuleFor(x => x.MinCategoryTransactions).InclusiveBetween(1, 100).WithMessage("Số giao dịch tối thiểu phải từ 1 đến 100.");
+            RuleFor(x => x.LastSpendMaxDays).InclusiveBetween(1, 365).WithMessage("Số ngày chi gần nhất phải từ 1 đến 365.");
+            RuleFor(x => x.MinSpendSharePercent).InclusiveBetween(0, 100).WithMessage("Tỉ trọng chi tối thiểu phải từ 0 đến 100%.");
+            RuleFor(x => x.MinExtraCostCents).GreaterThanOrEqualTo(0).WithMessage("Mức tốn thêm tối thiểu không được âm.");
             RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
             RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");
         }

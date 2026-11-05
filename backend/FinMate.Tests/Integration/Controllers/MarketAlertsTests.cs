@@ -86,7 +86,7 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         => InDbAsync(db => db.ForecastAlerts.AsNoTracking().Where(a => a.Kind == ForecastAlertKind.MarketChange && (userId == null || a.UserId == userId)).ToListAsync());
 
     /// <summary>Một người có giao dịch và ngân sách trong danh mục. Đặt <paramref name="merchant"/> khác xăng để thành người không đổ xăng.</summary>
-    private async Task<Guid> CustomerAsync(string slug = "transport", string merchant = "Petrolimex", int transactions = 2, long amount = 300_000, long budgetLimit = 1_000_000, long spent = 820_000, bool budget = true, bool alertsOn = true)
+    private async Task<Guid> CustomerAsync(string slug = "transport", string merchant = "Petrolimex", int transactions = 2, long amount = 300_000, long budgetLimit = 1_000_000, long spent = 820_000, bool budget = true, bool alertsOn = true, string? customCategory = null, bool totalBudget = false, int lastDaysAgo = 1, long? alsoTotalBudgetSpent = null)
     {
         var userId = Guid.NewGuid();
         await InDbAsync(async db =>
@@ -96,6 +96,12 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             var user = new User { Id = userId, Email = $"{userId:N}@finmate.local", DisplayName = "Khách", Role = UserRole.User, CreatedAt = now, UpdatedAt = now };
             user.NotificationPrefs.ForecastAlertsEnabled = alertsOn;
             db.Users.Add(user);
+            if (customCategory is not null)
+            {
+                category = new Category { Id = Guid.NewGuid(), UserId = userId, Name = customCategory, Slug = $"tu-tao-{userId:N}", CreatedAt = now, UpdatedAt = now };
+                db.Categories.Add(category);
+            }
+
             var walletId = Guid.NewGuid();
             db.FinancialAccounts.Add(new FinancialAccount { Id = walletId, UserId = userId, AccountType = AccountType.Cash, AccountName = "Ví", BalanceCents = 5_000_000, CreatedAt = now, UpdatedAt = now });
             for (var i = 0; i < transactions; i++)
@@ -111,7 +117,7 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
                     Source = TransactionSource.Manual,
                     Status = TransactionStatus.Confirmed,
                     MerchantName = merchant,
-                    TransactedAt = now.AddDays(-(i + 1)),
+                    TransactedAt = now.AddDays(-(i + lastDaysAgo)),
                     CreatedAt = now,
                     UpdatedAt = now,
                 });
@@ -120,9 +126,15 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             if (budget)
             {
                 var budgetId = Guid.NewGuid();
-                db.Budgets.Add(new Budget { Id = budgetId, UserId = userId, CategoryId = category.Id, LimitCents = budgetLimit, CreatedAt = now, UpdatedAt = now });
+                db.Budgets.Add(new Budget { Id = budgetId, UserId = userId, CategoryId = totalBudget ? null : category.Id, LimitCents = budgetLimit, CreatedAt = now, UpdatedAt = now });
                 var (start, end) = FinMate.Application.Common.VietnamTime.MonthRange(now);
                 db.BudgetPeriods.Add(new BudgetPeriod { Id = Guid.NewGuid(), BudgetId = budgetId, PeriodStart = start, PeriodEnd = end, LimitCents = budgetLimit, SpentCents = spent, CreatedAt = now, UpdatedAt = now });
+                if (alsoTotalBudgetSpent is { } totalSpent)
+                {
+                    var totalId = Guid.NewGuid();
+                    db.Budgets.Add(new Budget { Id = totalId, UserId = userId, CategoryId = null, LimitCents = budgetLimit, CreatedAt = now, UpdatedAt = now });
+                    db.BudgetPeriods.Add(new BudgetPeriod { Id = Guid.NewGuid(), BudgetId = totalId, PeriodStart = start, PeriodEnd = end, LimitCents = budgetLimit, SpentCents = totalSpent, CreatedAt = now, UpdatedAt = now });
+                }
             }
 
             return await db.SaveChangesAsync();
@@ -151,6 +163,63 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         var alert = (await AlertsAsync(driver)).Single();
         alert.Title.Should().Be("Giá xăng đang tăng");
         alert.Body.Should().Contain("1.000đ/lít").And.Contain("14 ngày trước").And.Contain("82%").And.Contain("15.000đ");
+    }
+
+    [Theory]
+    [InlineData("Đi lại")]
+    [InlineData("Sinh hoạt")]
+    public async Task AFuelBuyerWithTheirOwnCategoryStillGetsIt_WithTheirOwnName(string categoryName)
+    {
+        var driver = await CustomerAsync(customCategory: categoryName);
+        await RiseAsync();
+
+        await ProcessAsync();
+
+        (await AlertsAsync(driver)).Single().Body.Should().Contain($"Ngân sách {categoryName} của bạn đã dùng 82%");
+    }
+
+    [Fact]
+    public async Task OnlyAnOverallBudgetIsEnough()
+    {
+        var driver = await CustomerAsync(totalBudget: true);
+        await RiseAsync();
+
+        await ProcessAsync();
+
+        (await AlertsAsync(driver)).Single().Body.Should().Contain("Ngân sách tổng chi tiêu");
+    }
+
+    [Fact]
+    public async Task ARoomyCategoryBudgetIsNotOverriddenByATightOverallBudget()
+    {
+        var user = await CustomerAsync(budgetLimit: 100_000_000, spent: 100_000, alsoTotalBudgetSpent: 99_000_000);
+        await RiseAsync();
+
+        await ProcessAsync();
+
+        (await AlertsAsync(user)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SomeoneWhoStoppedBuyingFuelGetsNothing()
+    {
+        var user = await CustomerAsync(lastDaysAgo: 50);
+        await RiseAsync();
+
+        await ProcessAsync();
+
+        (await AlertsAsync(user)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AnEstimateTooSmallToMatterSendsNothing()
+    {
+        var user = await CustomerAsync(amount: 20_000, budgetLimit: 50_000, spent: 45_000);
+        await RiseAsync();
+
+        await ProcessAsync();
+
+        (await AlertsAsync(user)).Should().BeEmpty();
     }
 
     [Fact]
@@ -308,6 +377,7 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     public async Task AnApprovedEventReachesPeopleWithThatTightBudget_InAFixedWording()
     {
         var payer = await CustomerAsync(slug: "bills", merchant: "EVN");
+        var internetOnly = await CustomerAsync(slug: "bills", merchant: "Viettel Internet");
         var other = await CustomerAsync();
         await EventAsync(MarketTopic.Electricity, MarketEventStatus.Approved);
 
@@ -318,6 +388,20 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         alert.Body.Should().Contain("82%").And.Contain("Nguồn: Báo Mẫu");
         alert.Body.Should().NotContain("Bỏ qua").And.NotContain("chuyển tiền").And.NotContain("Tiêu đề từ trang web");
         (await AlertsAsync(other)).Should().BeEmpty();
+        (await AlertsAsync(internetOnly)).Should().BeEmpty("chỉ trả internet thì giá điện không liên quan");
+    }
+
+    [Fact]
+    public async Task ATypeThatWasTurnedOffSendsNothing()
+    {
+        var payer = await CustomerAsync(slug: "bills", merchant: "EVN");
+        var market = new MarketDataSettings();
+        await SetConfigAsync(true, market with { CostTypes = market.CostTypes.Select(t => t.Key == "electricity" ? t with { Enabled = false } : t).ToList() });
+        await EventAsync(MarketTopic.Electricity, MarketEventStatus.Approved);
+
+        await ProcessAsync();
+
+        (await AlertsAsync(payer)).Should().BeEmpty();
     }
 
     [Fact]
@@ -346,7 +430,7 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     [Fact]
     public async Task EachTopicHasItsOwnCooldown()
     {
-        var user = await CustomerAsync(slug: "bills", merchant: "EVN");
+        var user = await CustomerAsync(slug: "bills", merchant: "EVN cấp nước");
         await EventAsync(MarketTopic.Electricity, MarketEventStatus.Approved);
         await EventAsync(MarketTopic.Water, MarketEventStatus.Approved);
 

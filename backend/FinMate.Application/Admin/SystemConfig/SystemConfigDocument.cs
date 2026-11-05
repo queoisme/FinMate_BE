@@ -85,6 +85,25 @@ public sealed record MonitoringSettings
     public int ErrorRetentionDays { get; init; } = 30;
 }
 
+/// <summary>Một loại chi phí hệ thống theo dõi giá. Từ khóa so khớp theo cả từ và không phân biệt dấu, vì thông báo ngân hàng thường viết không dấu.</summary>
+public sealed record MarketCostType
+{
+    public string Key { get; init; } = string.Empty;
+
+    /// <summary>Tên trong câu cảnh báo: "Giá {Label} đang tăng". Do admin đặt, không bao giờ lấy từ trang web hay AI.</summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>Tìm trong tên cửa hàng, mô tả và tên danh mục của giao dịch, ở mọi danh mục.</summary>
+    public IReadOnlyList<string> TransactionKeywords { get; init; } = [];
+
+    /// <summary>Mọi giao dịch trong các danh mục hệ thống này đều tính, dùng khi khoản chi quá đa dạng để liệt kê từ khóa.</summary>
+    public IReadOnlyList<string> CategorySlugs { get; init; } = [];
+
+    /// <summary>Có giá thật ở <c>fuel_prices</c>: cảnh báo theo giá và ước tính được số tiền, không qua sự kiện từ tin bài.</summary>
+    public bool HasPriceTable { get; init; }
+    public bool Enabled { get; init; } = true;
+}
+
 public sealed record MarketDataSettings
 {
     /// <summary>Số nguồn phải cho cùng một giá thì giá mới được xác nhận. Hạ xuống 1 khi một nguồn ngừng hoạt động.</summary>
@@ -114,6 +133,45 @@ public sealed record MarketDataSettings
     public int AlertCooldownDays { get; init; } = 14;
     public int SpendLookbackDays { get; init; } = 60;
     public int MinCategoryTransactions { get; init; } = 2;
+
+    /// <summary>Lần chi gần nhất phải trong chừng này ngày: người đã bán xe không cần nghe về giá xăng nữa.</summary>
+    public int LastSpendMaxDays { get; init; } = 45;
+
+    /// <summary>Khoản này phải chiếm ít nhất chừng này phần trăm tổng chi trong kỳ xét.</summary>
+    public int MinSpendSharePercent { get; init; } = 2;
+
+    /// <summary>Ước tính tốn thêm dưới mức này thì không làm phiền người dùng.</summary>
+    public long MinExtraCostCents { get; init; } = 5_000;
+
+    public IReadOnlyList<MarketCostType> CostTypes { get; init; } =
+    [
+        new()
+        {
+            Key = "fuel",
+            Label = "xăng",
+            TransactionKeywords = ["xăng", "petrolimex", "pvoil", "mipec", "chxd"],
+            HasPriceTable = true,
+        },
+        new()
+        {
+            Key = "electricity",
+            Label = "điện",
+            TransactionKeywords = ["evn", "tiền điện", "điện lực", "hóa đơn điện"],
+        },
+        new()
+        {
+            Key = "water",
+            Label = "nước",
+            TransactionKeywords = ["tiền nước", "cấp nước", "sawaco", "hóa đơn nước"],
+        },
+        new()
+        {
+            Key = "food_price",
+            Label = "thực phẩm",
+            TransactionKeywords = ["bách hóa xanh", "winmart", "co.opmart", "coopmart", "đi chợ", "siêu thị"],
+            CategorySlugs = ["food"],
+        },
+    ];
 }
 
 public sealed record LimitSettings
