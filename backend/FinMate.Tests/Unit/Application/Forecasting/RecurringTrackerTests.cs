@@ -46,6 +46,80 @@ public class RecurringTrackerTests
         item.NextDueDate.Should().Be(new DateOnly(2027, 3, 31));
     }
 
+    private static RecurringItem Rent(long amount = 5_000_000)
+    {
+        var item = Entity(RecurringStatus.Active, Today);
+        item.AmountCents = amount;
+        return item;
+    }
+
+    [Fact]
+    public void AFixedPriceThatRisesWithinTheTolerance_IsStillReported()
+    {
+        var item = Rent();
+        var changes = new List<PriceChange>();
+        var history = new[]
+        {
+            Debit(Today.AddMonths(-2), 5_000_000, "Netflix"),
+            Debit(Today.AddMonths(-1), 5_000_000, "Netflix"),
+            Debit(Today, 5_400_000, "Netflix"),
+        };
+
+        RecurringTracker.Advance(item, history, Rules, DateTimeOffset.UtcNow, changes);
+
+        changes.Should().ContainSingle(c => c.OldAmountCents == 5_000_000 && c.NewAmountCents == 5_400_000);
+    }
+
+    [Fact]
+    public void ABillThatVariesWithinTheTolerance_IsNotReported()
+    {
+        var item = Rent(480_000);
+        var changes = new List<PriceChange>();
+        var history = new[]
+        {
+            Debit(Today.AddMonths(-2), 450_000, "Netflix"),
+            Debit(Today.AddMonths(-1), 480_000, "Netflix"),
+            Debit(Today, 510_000, "Netflix"),
+        };
+
+        RecurringTracker.Advance(item, history, Rules, DateTimeOffset.UtcNow, changes);
+
+        changes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AFixedPriceThatFallsWithinTheTolerance_IsNotReported()
+    {
+        var item = Rent();
+        var changes = new List<PriceChange>();
+        var history = new[]
+        {
+            Debit(Today.AddMonths(-2), 5_000_000, "Netflix"),
+            Debit(Today.AddMonths(-1), 5_000_000, "Netflix"),
+            Debit(Today, 4_800_000, "Netflix"),
+        };
+
+        RecurringTracker.Advance(item, history, Rules, DateTimeOffset.UtcNow, changes);
+
+        changes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void OnePriorPaymentIsNotEnoughToCallItFixed()
+    {
+        var item = Rent();
+        var changes = new List<PriceChange>();
+        var history = new[]
+        {
+            Debit(Today.AddMonths(-1), 5_000_000, "Netflix"),
+            Debit(Today, 5_400_000, "Netflix"),
+        };
+
+        RecurringTracker.Advance(item, history, Rules, DateTimeOffset.UtcNow, changes);
+
+        changes.Should().BeEmpty();
+    }
+
     [Fact]
     public void PaymentWithANewPrice_AdvancesAndReportsThePriceChange()
     {

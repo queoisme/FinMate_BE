@@ -62,15 +62,15 @@ Một giá chỉ được xác nhận khi đủ `minAgreeingSources` nguồn thu
 
 Mỗi bài được gửi cho `POST /api/v1/market-data/extract` của `ai-service`, cần khóa nội bộ. Chỉ gửi nội dung trang công khai, tối đa 20.000 ký tự.
 
-Yêu cầu: `{ "title", "text", "published_at" }`. Trả lời: `{ "status": "ok" | "not_configured" | "failed", "signals": [{ "topic", "direction", "fact_status", "change_percent", "effective_date", "evidence" }] }`.
+Yêu cầu: `{ "title", "text", "published_at", "topics": [{ "key", "description" }] }`, 1 đến 20 chủ đề. Trả lời: `{ "status": "ok" | "not_configured" | "failed", "signals": [{ "topic", "direction", "fact_status", "change_percent", "effective_date", "evidence" }] }`.
 
-`topic`: `fuel`, `electricity`, `water`, `food_price`, `other`. `direction`: `up`, `down`, `stable`. `fact_status`: `actual` hoặc `forecast`.
+`topic`: một mã trong `topics`, hoặc `other`. Chủ đề ngoài danh sách bị loại. `direction`: `up`, `down`, `stable`. `fact_status`: `actual` hoặc `forecast`.
 
 Backend chỉ lưu một mục khi `evidence` có nguyên văn trong bài và `change_percent`, nếu có, nằm trong `evidence`. Việc này cho thấy thông tin đến từ bài, không chứng minh bài đúng. Mỗi ngày gửi tối đa `maxAiDocumentsPerDay` bài, tính cả bài lỗi, mỗi bài tính một lần trong ngày. AI lỗi 3 lần với cùng một bài thì bài chuyển `failed` với mã `AI_FAILED`, để không chặn các bài khác. Vì không phân biệt được lỗi do bài hay do nhà cung cấp, khi Gemini hỏng lâu, cứ 3 lượt đọc sẽ có một bài bị bỏ.
 
 ## Sự kiện
 
-Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về `electricity`, `water`, `food_price`, có ngày đăng rõ ràng trong 7 ngày, từ nguồn thuộc ít nhất `minEventDomains` tên miền. Tên miền con tính chung, và đếm theo nguồn admin đã thêm, không theo link trong bài. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
+Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về loại chi phí đang bật và không có bảng giá, có ngày đăng rõ ràng trong 7 ngày, từ nguồn thuộc ít nhất `minEventDomains` tên miền. Tên miền con tính chung, và đếm theo nguồn admin đã thêm, không theo link trong bài. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
 
 | API | Việc |
 |---|---|
@@ -86,18 +86,39 @@ Bật bằng `features.marketAlerts`, mặc định tắt. Việc đọc dữ li
 
 Người dùng nhận cảnh báo khi có đủ:
 
-1. **Xăng:** giá `referenceFuelKey` vùng 1 cao hơn giá ngay trước đó, và tăng từ `riseThresholdPercent` so với mốc `compareWindowDays` ngày trước, hoặc so với giá cũ nhất nếu chưa có đủ lịch sử. **Điện, nước, thực phẩm:** có sự kiện tăng giá đã duyệt. Tin về xăng không kích hoạt cảnh báo xăng.
-2. Có từ `minCategoryTransactions` giao dịch đã xác nhận trong `spendLookbackDays` ngày ở danh mục tương ứng: xăng là `transport` và tên cửa hàng hoặc mô tả có từ khóa xăng, điện và nước là `bills`, thực phẩm là `food`.
-3. Có ngân sách danh mục đó, và dự báo `at_risk`, `over`, hoặc đã dùng từ ngưỡng T1 của người đó.
-4. Chưa nhận cảnh báo cùng chủ đề trong `alertCooldownDays` ngày.
+1. **Giá tăng.** Loại có bảng giá (xăng): giá `referenceFuelKey` vùng 1 cao hơn giá ngay trước đó, và tăng từ `riseThresholdPercent` so với mốc `compareWindowDays` ngày trước, hoặc so với giá cũ nhất nếu chưa có đủ lịch sử. Loại khác: có sự kiện tăng giá đã duyệt. Tin về xăng không kích hoạt cảnh báo xăng.
+2. **Thật sự chi cho khoản đó.** Tính từ giao dịch đã xác nhận trong `spendLookbackDays` ngày, ở mọi danh mục: từ `minCategoryTransactions` lần trở lên, lần gần nhất trong `lastSpendMaxDays` ngày, chiếm từ `minSpendSharePercent`% tổng chi.
+3. **Ngân sách đang căng.** Xét ngân sách của danh mục chứa nhiều tiền nhất của khoản đó, không có thì ngân sách tổng. Căng nghĩa là dự báo `at_risk`, `over`, hoặc đã dùng từ ngưỡng T1 của người đó. Danh mục có ngân sách còn dư thì không xét ngân sách tổng.
+4. **Đủ đáng kể.** Riêng loại có bảng giá: ước tính tốn thêm từ `minExtraCostCents`.
+5. Chưa nhận cảnh báo cùng chủ đề trong `alertCooldownDays` ngày.
 
-Nội dung là mẫu cố định trong code. Không chữ nào đến từ trang web hay AI, ngoài tên nguồn do admin đặt. Số tiền thêm chỉ ước tính cho xăng: chi xăng trung bình mỗi tháng nhân % tăng, làm tròn tới 1.000đ. App cần xử lý `kind` mới này.
+Một giao dịch thuộc một loại chi phí khi tên cửa hàng, mô tả hoặc tên danh mục chứa `transactionKeywords`, so theo cả từ, không phân biệt hoa thường và dấu, hoặc khi danh mục thuộc `categorySlugs`. Vì vậy danh mục đặt tên `Đi lại` hay `Sinh hoạt` đều được xét. Giao dịch không ghi rõ nội dung hoặc tiền mặt không ghi lại thì không nhận ra được. Hồ sơ này tính lại mỗi lần, không lưu và không gửi đi đâu.
+
+Nội dung là mẫu cố định trong code, dùng `label` của loại chi phí và tên ngân sách của người dùng. Không chữ nào đến từ trang web hay AI, ngoài tên nguồn do admin đặt. Số tiền thêm chỉ ước tính cho loại có bảng giá: chi trung bình mỗi tháng nhân % tăng, làm tròn tới 1.000đ. `data` của cảnh báo có `topic`, `budgetId`, `monthlySpendCents`, `timesPerMonth`, và `extraCostCents` nếu có. App cần xử lý `kind` mới này.
+
+## Loại chi phí
+
+Nhóm `marketData.costTypes` trong `/admin/system-config`. Thêm loại mới không cần sửa code. Tối đa 20 loại, mã không trùng và không được là `other`.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `key` | Mã chủ đề, chữ thường và dấu gạch dưới |
+| `label` | Tên trong câu cảnh báo: "Giá {label} đang tăng" |
+| `aiDescription` | Mô tả gửi cho AI để nhận ra chủ đề trong bài |
+| `newsKeywords` | Lọc bài trước khi gửi AI |
+| `transactionKeywords`, `categorySlugs` | Nhận diện giao dịch. Phải có ít nhất một trong hai |
+| `hasPriceTable` | Có giá thật ở `fuel_prices`. Hiện chỉ một loại, vì bộ đọc bảng chỉ đọc giá xăng |
+| `enabled` | Tắt loại này |
+
+Mặc định có `fuel`, `electricity`, `water`, `food_price`, `cooking_gas`. Danh sách từ khóa là điểm xuất phát, chưa đo trên giao dịch thật.
+
+Tiền nhà, internet, gói đăng ký không thuộc phần này, vì tin báo không nói được giá riêng của từng người. Chúng dùng cảnh báo `price_change` của khoản định kỳ: khoản trả đúng một số tiền ở 2 lần trước đó thì tăng bao nhiêu cũng báo, khoản dao động thì chỉ báo khi lệch quá `amountTolerancePercent`.
 
 Nhiều lượt liền không xác nhận được giá xăng thì mở sự cố `market_data` mức thường. Một nguồn lỗi riêng lẻ chỉ hiện ở `lastErrorCode`.
 
 ## Cấu hình
 
-Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100), `referenceFuelKey` (`e10_ron95_3`), `riseThresholdPercent` (3), `compareWindowDays` (14), `alertCooldownDays` (14), `spendLookbackDays` (60), `minCategoryTransactions` (2).
+Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100), `referenceFuelKey` (`e10_ron95_3`), `riseThresholdPercent` (3), `compareWindowDays` (14), `alertCooldownDays` (14), `spendLookbackDays` (60), `minCategoryTransactions` (2), `lastSpendMaxDays` (45), `minSpendSharePercent` (2), `minExtraCostCents` (5.000), `costTypes`.
 
 ## An toàn
 

@@ -800,6 +800,7 @@
 | Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
 | Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
 | Phase 73 — Thị trường, đợt 3: cảnh báo, giám sát | `[ ]` | 3 / 4 *(còn: báo người làm Flutter về `market_change`, kiểm tra điều khoản các nguồn trước khi phát hành)* |
+| Phase 74 — Thị trường: theo thói quen từng người, loại chi phí bằng cấu hình | `[ ]` | 3 / 4 *(còn: đo từ khóa trên giao dịch thật)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1426,3 +1427,8 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 
 **Rà soát Phase 71–73 (2026-11-06):** `code-review` mức cao có 10 phát hiện, tất cả có thật và đã sửa: trần 15 giây không tính lúc đọc nội dung; một dòng lỗi hoặc một kết quả AI lỗi làm hỏng cả job; bài luôn lỗi chặn hàng đợi (`ai_failures`, tối đa 3 lần); trang chứa bài cấm AI vẫn bị gửi qua RSS tổng hợp; nguồn ghi đè giá admin sửa; báo "đang tăng" ngay sau khi giá giảm; `4,80%` không khớp `4.8`; bài không rõ ngày tính là tin mới; tên miền con tính là nguồn khác. `security-review` không có lỗ hổng đạt ngưỡng; thêm `UseProxy = false`, và đếm sự kiện theo nguồn admin đã thêm thay vì link trong bài. **Chỗ còn để lại:** khi Gemini hỏng lâu, cứ 3 lượt đọc sẽ có một bài bị bỏ vì không phân biệt được lỗi do bài hay do nhà cung cấp; hai trang cùng chép một nguồn sai vẫn khớp nhau; `/hangfire` trả 401 cả với tài khoản đúng, có từ trước đợt này và chưa sửa.
 
+## Phase 74 — Thông tin thị trường: theo thói quen từng người, loại chi phí bằng cấu hình (2026-11-06)
+- [x] `MarketSpendProfile`, `MarketKeywords`: nhận diện theo nội dung giao dịch ở mọi danh mục, bỏ qua người đã ngừng chi hoặc chi không đáng kể; xét ngân sách danh mục rồi ngân sách tổng.
+- [x] `marketData.costTypes`, thêm `cooking_gas`; migration `MakeMarketTopicsConfigurable`; `topics` trong `/market-data/extract`.
+- [x] `RecurringTracker`: khoản giá cố định tăng trong ngưỡng 10% cũng báo. Test đỏ trước khi sửa: `AFixedPriceThatRisesWithinTheTolerance_IsStillReported`.
+- [ ] Đo độ khớp từ khóa trên giao dịch thật: danh sách hiện chỉ là điểm xuất phát.

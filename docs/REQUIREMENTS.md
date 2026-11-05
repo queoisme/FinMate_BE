@@ -409,7 +409,8 @@ Chi tiết ở `docs/market-data-api.md`.
 | FR-MKT-03 | Giá xăng tự động | Must | Cần đủ nguồn khớp đúng cùng số. Đổi quá mức cho phép thì không nhận. Admin sửa được, bắt buộc ghi chú |
 | FR-MKT-04 | AI đọc tin bài | Should | Đoạn trích phải có nguyên văn trong bài. Dự báo không thành sự kiện. Không có key thì bài chờ. Không lưu toàn văn |
 | FR-MKT-05 | Admin duyệt sự kiện | Should | Sự kiện cần ít nhất 2 tên miền, mặc định chờ duyệt |
-| FR-MKT-06 | Cảnh báo theo ngân sách | Should | Chỉ gửi cho người có chi tiêu và ngân sách đang căng ở danh mục đó. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
+| FR-MKT-06 | Cảnh báo theo ngân sách | Should | Nhận diện khoản chi từ nội dung giao dịch, ở mọi danh mục. Bỏ qua người đã ngừng chi hoặc chi không đáng kể. Xét ngân sách của danh mục chứa khoản đó, không có thì ngân sách tổng. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
+| FR-MKT-07 | Loại chi phí bằng cấu hình | Should | Thêm loại không cần sửa code. AI chỉ được trả chủ đề trong danh sách |
 
 ## 7. FR — Thông báo đẩy
 

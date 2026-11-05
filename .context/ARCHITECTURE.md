@@ -431,6 +431,8 @@ Admin gửi link, `MarketDataRefreshJob` đọc mỗi 3 giờ. API, ngưỡng v�
 - **Tải trang:** `SafeWebFetcher` là nơi duy nhất mở kết nối tới URL không cố định, chặn địa chỉ nội bộ trong `ConnectCallback`. Không vượt `robots.txt`, 401, 403, 429.
 - **Tin cậy dữ liệu:** giá cần đủ nguồn khớp đúng cùng số. Kết quả AI phải có đoạn trích nguyên văn trong bài (`MarketSignalValidator`). Sự kiện từ tin bài chờ admin duyệt.
 - **Cảnh báo:** `MarketAlertService` đi qua `forecast_alerts`. Nội dung là mẫu cố định, để nội dung trang web không tới được thông báo của người dùng.
+- **Chọn người nhận:** `MarketSpendProfile` tính thói quen chi từ giao dịch mỗi lần, không lưu. Nhận diện theo nội dung giao dịch chứ không theo mã danh mục, vì người dùng tự đặt danh mục.
+- **Loại chi phí:** `marketData.costTypes` trong cấu hình hệ thống, nên `market_signals.topic` và `market_events.topic` là chuỗi tự do, không có CHECK. Danh sách AI được phép trả do backend gửi trong từng lần gọi.
 - **Không lưu toàn văn bài báo.**
 
 ## 3. AI Service — Pipeline Architecture

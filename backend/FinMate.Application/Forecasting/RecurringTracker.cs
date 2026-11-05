@@ -12,6 +12,27 @@ public sealed record PriceChange(Guid RecurringItemId, string Name, long OldAmou
 /// </summary>
 public static class RecurringTracker
 {
+    private const int MinFixedPricePayments = 2;
+
+    /// <summary>
+    /// Ngưỡng dung sai dành cho hóa đơn dao động như tiền điện. Tiền nhà, internet, gói đăng ký trả đúng một số mỗi kỳ, nên tăng bao nhiêu cũng là tăng giá thật.
+    /// Cần 2 lần trả giống hệt nhau trước đó mới coi là giá cố định. Chỉ xét khi tăng.
+    /// </summary>
+    private static bool FixedPriceRose(RecurringItem item, ForecastTransaction payment, IReadOnlyList<ForecastTransaction> history)
+    {
+        if (payment.AmountCents <= item.AmountCents)
+        {
+            return false;
+        }
+
+        var earlier = history
+            .Where(t => t.CounterpartyKey == item.CounterpartyKey && t.Type == payment.Type && t.TransactedAt < payment.TransactedAt)
+            .OrderByDescending(t => t.TransactedAt)
+            .Take(MinFixedPricePayments)
+            .ToList();
+        return earlier.Count == MinFixedPricePayments && earlier.All(t => t.AmountCents == item.AmountCents);
+    }
+
     /// <summary>Trần số vòng đuổi kịp trong một lần chạy, chặn vòng lặp vô hạn nếu dữ liệu bất thường.</summary>
     private const int MaxCatchUpSteps = 60;
 
@@ -40,7 +61,7 @@ public static class RecurringTracker
             item.Occurrences++;
             item.LastSeenAt = payment.TransactedAt;
             item.LastSeenAmountCents = payment.AmountCents;
-            if (!rules.AmountWithinTolerance(item.AmountCents, payment.AmountCents))
+            if (!rules.AmountWithinTolerance(item.AmountCents, payment.AmountCents) || FixedPriceRose(item, payment, history))
             {
                 // Giá đổi thật: theo giá mới cho cả khoản user tự thêm, nếu không dự báo sẽ trừ sai số tiền mãi.
                 priceChanges.Add(new PriceChange(item.Id, item.Name, item.AmountCents, payment.AmountCents, payment.Date));
