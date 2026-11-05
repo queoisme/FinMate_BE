@@ -8,7 +8,8 @@ public record AuditLogListFilter(
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,
-    int Limit);
+    int Limit,
+    string? EventTypePrefix = null);
 
 public record AuditLogListResult(IReadOnlyList<AuditLog> Items, string? NextCursor);
 

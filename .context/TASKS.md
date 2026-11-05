@@ -790,7 +790,8 @@
 | Phase 61 — Vận hành, đợt 1: role và nền tảng | `[x]` | 5 / 5 |
 | Phase 62 — Vận hành, đợt 2: ticket | `[x]` | 5 / 5 |
 | Phase 63 — Vận hành, đợt 3: xem dữ liệu theo ca, giao dịch nháp | `[ ]` | 4 / 5 *(còn: báo Flutter và cập nhật Điều khoản)* |
-| **Total** (không tính Backlog) | | **461 / 489** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 64 — Vận hành, đợt 4: duyệt và chức năng Manager | `[x]` | 5 / 5 |
+| **Total** (không tính Backlog) | | **466 / 494** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1351,3 +1352,10 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] `POST /ops/tickets/{id}/draft-transactions`: nháp vào ví khách chọn, khách xác nhận mới đổi số dư.
 - [x] Test: `SupportConsentedAccessTests`.
 - [ ] Báo nhóm Flutter: `docs/ops-api.md`, thêm nội dung hỗ trợ vào Điều khoản bản 4 trước khi phát hành.
+
+## Phase 64 — Vận hành nội bộ, đợt 4: duyệt và chức năng Manager (2026-11-05)
+- [x] Migration `AddOpsApprovalsAndManagerTools`: `ops_approval_requests`, `canned_replies`, `support_tickets.parent_ticket_id`.
+- [x] Đề xuất và duyệt: `UnlockUser`, `CancelDeletion`, `TransferGroupOwner`.
+- [x] Khóa khẩn cấp theo ca; xem thông tin tối thiểu của khách và nhóm.
+- [x] Bảng điều hành, gom ca, trả lời hàng loạt, câu trả lời mẫu, nhật ký `Ops.*`, thống kê AI.
+- [x] Test: `OpsApprovalsAndManagerTests`. Quy trình: `docs/ops-runbook.md`.

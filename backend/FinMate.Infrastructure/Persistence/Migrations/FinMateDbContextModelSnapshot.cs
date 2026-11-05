@@ -339,6 +339,43 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("budget_periods", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.CannedReply", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("canned_replies", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1596,6 +1633,106 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.OpsApprovalRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by_user_id");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<Guid?>("NewOwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("new_owner_user_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_id");
+
+                    b.Property<Guid?>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_ops_approval_requests_status");
+
+                    b.HasIndex("Type", "TargetId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_ops_approval_requests_one_pending")
+                        .HasFilter("status = 'pending'");
+
+                    b.ToTable("ops_approval_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_ops_approval_requests_status", "status IN ('pending','approved','rejected','failed')");
+
+                            t.HasCheckConstraint("chk_ops_approval_requests_two_people", "decided_by_user_id IS NULL OR requested_by_user_id IS NULL OR decided_by_user_id <> requested_by_user_id");
+
+                            t.HasCheckConstraint("chk_ops_approval_requests_type", "type IN ('unlock_user','cancel_deletion','transfer_group_owner')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.ProviderConfig", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2463,6 +2600,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("first_response_due_at");
 
+                    b.Property<Guid?>("ParentTicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_ticket_id");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(5)
@@ -2508,6 +2649,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentTicketId")
+                        .HasDatabaseName("ix_support_tickets_parent")
+                        .HasFilter("parent_ticket_id IS NOT NULL");
 
                     b.HasIndex("AssigneeUserId", "Status")
                         .HasDatabaseName("ix_support_tickets_assignee");
@@ -3720,6 +3865,24 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.OpsApprovalRequest", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.Category", null)
@@ -3914,6 +4077,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasOne("FinMate.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("AssigneeUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("ParentTicketId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("FinMate.Domain.Entities.User", null)

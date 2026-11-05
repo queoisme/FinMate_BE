@@ -164,7 +164,7 @@ public class GroupService : IGroupService
         return activities.Select(a => new GroupActivityDto(a.Id, a.Type, a.ActorUserId, a.SubjectId, a.CreatedAt)).ToList();
     }
 
-    internal static GroupActivity NewActivity(Guid groupId, Guid actorUserId, GroupActivityType type, Guid? subjectId, DateTimeOffset now)
+    internal static GroupActivity NewActivity(Guid groupId, Guid? actorUserId, GroupActivityType type, Guid? subjectId, DateTimeOffset now)
         => new()
         {
             Id = Guid.NewGuid(),

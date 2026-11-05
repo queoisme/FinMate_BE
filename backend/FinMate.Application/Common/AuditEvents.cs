@@ -94,4 +94,14 @@ public static class AuditEvents
     public const string OpsCustomerDataRequested = "Ops.CustomerData.Requested";
     public const string OpsCustomerDataViewed = "Ops.CustomerData.Viewed";
     public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
+    public const string OpsTicketsLinked = "Ops.Ticket.Linked";
+    public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
+    public const string OpsApprovalProposed = "Ops.Approval.Proposed";
+    public const string OpsApprovalApproved = "Ops.Approval.Approved";
+    public const string OpsApprovalRejected = "Ops.Approval.Rejected";
+    public const string OpsApprovalFailed = "Ops.Approval.Failed";
+    public const string OpsUserEmergencyLocked = "Ops.User.EmergencyLocked";
+    public const string OpsGroupViewed = "Ops.Group.Viewed";
+    public const string OpsGroupOwnerTransferred = "Ops.Group.OwnerTransferred";
+    public const string OpsCannedReplyChanged = "Ops.CannedReply.Changed";
 }

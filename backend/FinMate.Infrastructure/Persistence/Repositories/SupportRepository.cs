@@ -72,6 +72,11 @@ public class SupportRepository : ISupportRepository
             query = query.Where(t => t.AssigneeUserId == assignee);
         }
 
+        if (filter.ParentTicketId is { } parent)
+        {
+            query = query.Where(t => t.ParentTicketId == parent);
+        }
+
         if (filter.OverdueOnly)
         {
             var now = filter.Now;
@@ -93,6 +98,18 @@ public class SupportRepository : ISupportRepository
            join a in _context.Users.IgnoreQueryFilters() on t.AssigneeUserId equals (Guid?)a.Id into assignees
            from a in assignees.DefaultIfEmpty()
            select new OpsTicketRow(t, r.DisplayName, a == null ? null : a.DisplayName);
+
+    public Task<bool> IsHandlingRequesterAsync(Guid actorId, Guid requesterUserId, CancellationToken ct = default)
+        => _context.SupportTickets.AnyAsync(t => t.AssigneeUserId == actorId && t.RequesterUserId == requesterUserId && t.Status != SupportTicketStatus.Closed, ct);
+
+    public Task<List<SupportTicket>> GetManyAsync(IReadOnlyCollection<Guid> ticketIds, CancellationToken ct = default)
+        => _context.SupportTickets.Where(t => ticketIds.Contains(t.Id)).ToListAsync(ct);
+
+    public Task<List<SupportTicket>> ListOpenChildrenAsync(Guid parentTicketId, CancellationToken ct = default)
+        => _context.SupportTickets.Where(t => t.ParentTicketId == parentTicketId && t.Status != SupportTicketStatus.Closed).ToListAsync(ct);
+
+    public Task<bool> HasChildrenAsync(Guid ticketId, CancellationToken ct = default)
+        => _context.SupportTickets.AnyAsync(t => t.ParentTicketId == ticketId, ct);
 
     public async Task<List<SupportMessageRow>> ListMessagesAsync(Guid ticketId, bool includeInternal, CancellationToken ct = default)
     {

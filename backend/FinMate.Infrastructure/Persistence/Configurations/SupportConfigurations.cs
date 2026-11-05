@@ -21,6 +21,7 @@ public class SupportTicketConfiguration : IEntityTypeConfiguration<SupportTicket
         builder.Property(t => t.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(t => t.RequesterUserId).HasColumnName("requester_user_id").IsRequired();
         builder.Property(t => t.AssigneeUserId).HasColumnName("assignee_user_id");
+        builder.Property(t => t.ParentTicketId).HasColumnName("parent_ticket_id");
         builder.Property(t => t.Category).HasColumnName("category").HasConversion(GroupColumns.Converter<SupportTicketCategory>()).HasMaxLength(20).IsRequired();
         builder.Property(t => t.Priority).HasColumnName("priority").HasConversion(GroupColumns.Converter<SupportTicketPriority>()).HasMaxLength(5).IsRequired();
         builder.Property(t => t.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<SupportTicketStatus>()).HasMaxLength(20).IsRequired();
@@ -40,9 +41,11 @@ public class SupportTicketConfiguration : IEntityTypeConfiguration<SupportTicket
         builder.HasIndex(t => new { t.Status, t.ResolveDueAt }).HasDatabaseName("ix_support_tickets_queue");
         builder.HasIndex(t => new { t.AssigneeUserId, t.Status }).HasDatabaseName("ix_support_tickets_assignee");
         builder.HasIndex(t => new { t.RequesterUserId, t.CreatedAt }).HasDatabaseName("ix_support_tickets_requester");
+        builder.HasIndex(t => t.ParentTicketId).HasDatabaseName("ix_support_tickets_parent").HasFilter("parent_ticket_id IS NOT NULL");
 
         builder.HasOne<User>().WithMany().HasForeignKey(t => t.RequesterUserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(t => t.AssigneeUserId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(t => t.ParentTicketId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 
@@ -150,5 +153,62 @@ public class SupportDataAccessLogConfiguration : IEntityTypeConfiguration<Suppor
         builder.HasOne<SupportAccessGrant>().WithMany().HasForeignKey(l => l.GrantId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(l => l.CustomerUserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(l => l.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class OpsApprovalRequestConfiguration : IEntityTypeConfiguration<OpsApprovalRequest>
+{
+    public void Configure(EntityTypeBuilder<OpsApprovalRequest> builder)
+    {
+        builder.ToTable("ops_approval_requests", t =>
+        {
+            t.HasCheckConstraint("chk_ops_approval_requests_type", GroupColumns.CheckIn<OpsApprovalType>("type"));
+            t.HasCheckConstraint("chk_ops_approval_requests_status", GroupColumns.CheckIn<OpsApprovalStatus>("status"));
+            t.HasCheckConstraint("chk_ops_approval_requests_two_people", "decided_by_user_id IS NULL OR requested_by_user_id IS NULL OR decided_by_user_id <> requested_by_user_id");
+        });
+
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(a => a.Type).HasColumnName("type").HasConversion(GroupColumns.Converter<OpsApprovalType>()).HasMaxLength(30).IsRequired();
+        builder.Property(a => a.TargetId).HasColumnName("target_id").IsRequired();
+        builder.Property(a => a.NewOwnerUserId).HasColumnName("new_owner_user_id");
+        builder.Property(a => a.TicketId).HasColumnName("ticket_id");
+        builder.Property(a => a.Reason).HasColumnName("reason").HasMaxLength(1000).IsRequired();
+        builder.Property(a => a.RequestedByUserId).HasColumnName("requested_by_user_id");
+        builder.Property(a => a.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<OpsApprovalStatus>()).HasMaxLength(20).IsRequired();
+        builder.Property(a => a.DecidedByUserId).HasColumnName("decided_by_user_id");
+        builder.Property(a => a.DecidedAt).HasColumnName("decided_at");
+        builder.Property(a => a.DecisionNote).HasColumnName("decision_note").HasMaxLength(1000);
+        builder.Property(a => a.FailureCode).HasColumnName("failure_code").HasMaxLength(100);
+        builder.Property(a => a.ExpiresAt).HasColumnName("expires_at").IsRequired();
+        builder.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
+
+        // Hai người duyệt cùng lúc: chỉ một người thành công, nên việc chỉ chạy một lần.
+        builder.Property<uint>("xmin").IsRowVersion();
+
+        builder.HasIndex(a => new { a.Status, a.CreatedAt }).HasDatabaseName("ix_ops_approval_requests_status");
+        builder.HasIndex(a => new { a.Type, a.TargetId })
+            .IsUnique()
+            .HasFilter("status = 'pending'")
+            .HasDatabaseName("uq_ops_approval_requests_one_pending");
+
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(a => a.TicketId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<User>().WithMany().HasForeignKey(a => a.RequestedByUserId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<User>().WithMany().HasForeignKey(a => a.DecidedByUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class CannedReplyConfiguration : IEntityTypeConfiguration<CannedReply>
+{
+    public void Configure(EntityTypeBuilder<CannedReply> builder)
+    {
+        builder.ToTable("canned_replies");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(c => c.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+        builder.Property(c => c.Body).HasColumnName("body").HasMaxLength(4000).IsRequired();
+        builder.Property(c => c.IsActive).HasColumnName("is_active").IsRequired();
+        builder.Property(c => c.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
     }
 }

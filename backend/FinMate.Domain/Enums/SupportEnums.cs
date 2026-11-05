@@ -57,3 +57,20 @@ public enum SupportAccessStatus
     Denied,
     Revoked,
 }
+
+public enum OpsApprovalType
+{
+    UnlockUser,
+    CancelDeletion,
+    TransferGroupOwner,
+}
+
+public enum OpsApprovalStatus
+{
+    Pending,
+    Approved,
+    Rejected,
+
+    /// <summary>Đã duyệt nhưng không thực hiện được; xem <c>FailureCode</c>.</summary>
+    Failed,
+}

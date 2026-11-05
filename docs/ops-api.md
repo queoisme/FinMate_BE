@@ -157,3 +157,44 @@ Khi có yêu cầu mới, khách nhận push với `data = { action: "support_ac
 ### Điều khoản
 
 Việc lưu ảnh trong ticket và cho nhân viên xem dữ liệu khi khách đồng ý phải có trong Điều khoản. Bản 4 chưa phát hành nên nội dung này gộp vào bản 4, để người dùng chỉ đồng ý lại một lần. Nếu bản 4 đã lên production trước khi tính năng này phát hành thì phải tăng `ConsentVersions.Terms` lên 5.
+
+## Duyệt việc nhạy cảm
+
+Việc nhạy cảm cần hai người: một người đề xuất, người khác duyệt. Admin cũng không tự duyệt được đề xuất của mình, nên cần tối thiểu 2 người trong đội. Không ai đề xuất hay duyệt việc liên quan đến chính mình.
+
+| Loại (`type`) | `targetId` | Khi duyệt |
+|---|---|---|
+| `UnlockUser` | Tài khoản khách đang bị khóa | Mở khóa. Tài khoản nội bộ phải dùng `/admin/users/{id}/lock` |
+| `CancelDeletion` | Tài khoản có yêu cầu xóa đang chờ | Hủy yêu cầu và khôi phục tài khoản |
+| `TransferGroupOwner` | Nhóm, kèm `newOwnerUserId` là thành viên đang hoạt động | Chuyển chủ và báo cho mọi thành viên. Lịch sử nhóm không ghi tên nhân viên |
+
+| API | Việc | Ai |
+|---|---|---|
+| `POST /ops/approvals` | Đề xuất: `type`, `targetId`, `newOwnerUserId?`, `ticketId?`, `reason`. Trùng đối tượng đang chờ thì 409 | Mọi vai trò nội bộ |
+| `GET /ops/approvals?status=` | Staff chỉ thấy đề xuất của mình; Manager trở lên thấy tất cả | Mọi vai trò nội bộ |
+| `POST /ops/approvals/{id}/approve` | Duyệt và thực hiện ngay, `note?`. Kiểm tra lại đối tượng lúc duyệt; không còn phù hợp thì trạng thái thành `Failed` kèm `failureCode`, trả 422 `OPS_APPROVAL_FAILED` | Manager trở lên |
+| `POST /ops/approvals/{id}/reject` | Từ chối, `note?` | Manager trở lên |
+
+Đề xuất hết hạn sau 7 ngày. Hai người duyệt cùng lúc thì chỉ một người thành công, người còn lại nhận 409.
+
+`/admin/users/{id}/lock` và `/admin/data-deletion-requests/{id}/cancel` vẫn còn làm đường khẩn cấp cho Admin, có ghi audit nhưng không qua bước duyệt.
+
+## Khách hàng và nhóm
+
+| API | Việc | Ai |
+|---|---|---|
+| `GET /ops/users/{id}` | Tên, email đã che, vai trò, trạng thái khóa, có yêu cầu xóa không. Không có dữ liệu tài chính | Manager trở lên, hoặc người đang phụ trách ca của khách đó |
+| `POST /ops/users/{id}/emergency-lock` | Khóa ngay: `ticketId`, `reason`. Chỉ khóa được khách là người tạo ca đó, không khóa được tài khoản nội bộ. Ca chuyển sang `Escalated` để Manager rà soát | Người phụ trách ca, Manager trở lên |
+| `GET /ops/groups/{id}?ticketId=` | Tên nhóm, thành viên, vai trò, loại hoạt động. Không có giao dịch hay số tiền. Người tạo ca phải là thành viên hoặc từng là thành viên nhóm | Người phụ trách ca, Manager trở lên |
+
+## Chức năng của Manager
+
+| API | Việc |
+|---|---|
+| `GET /ops/dashboard` | Ca đang mở theo trạng thái và mức ưu tiên, chưa phân công, trễ hạn, tải theo từng người; 30 ngày gần nhất: số ca, theo loại, tỉ lệ đúng hạn, điểm hài lòng; số đề xuất chờ duyệt |
+| `POST /ops/tickets/{id}/children` | Gom ca cùng lỗi: `ticketIds`. Chỉ một tầng, không gom ca đã đóng |
+| `DELETE /ops/tickets/{id}/parent` | Gỡ ca khỏi ca cha |
+| `POST /ops/tickets/{id}/broadcast` | Trả lời ca cha và mọi ca con chưa đóng: `body`, `resolve` |
+| `GET /ops/canned-replies` (mọi vai trò), `POST`, `PATCH /{id}` | Câu trả lời mẫu; tắt bằng `isActive = false`, không xóa |
+| `GET /ops/audit-logs` | Chỉ sự kiện `Ops.*`; lọc sự kiện khác thì 403 |
+| `GET /ops/ai-stats` | Như `/admin/ai-stats`, chỉ đọc |

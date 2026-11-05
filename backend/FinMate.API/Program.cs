@@ -337,6 +337,11 @@ public class Program
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<IOpsRepository, OpsRepository>();
+        builder.Services.AddScoped<IOpsApprovalService, OpsApprovalService>();
+        builder.Services.AddScoped<IOpsUserService, OpsUserService>();
+        builder.Services.AddScoped<IOpsManagerService, OpsManagerService>();
+        builder.Services.AddScoped<IGroupSupportTransfer, GroupSupportTransfer>();
         builder.Services.AddScoped<ISupportRepository, SupportRepository>();
         builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
         builder.Services.AddScoped<IOpsTicketService, OpsTicketService>();

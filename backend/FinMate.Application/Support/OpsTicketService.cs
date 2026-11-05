@@ -14,6 +14,7 @@ public sealed record OpsTicketQuery(
     SupportTicketCategory? Category,
     string? Assignee,
     bool Overdue,
+    Guid? ParentTicketId,
     int Offset,
     int Limit);
 
@@ -32,11 +33,19 @@ public interface IOpsTicketService
     Task<OpsTicketDetailDto> AssignAsync(Guid actorId, Guid ticketId, Guid assigneeUserId, string? ip, CancellationToken ct = default);
     Task<OpsTicketDetailDto> SetPriorityAsync(Guid actorId, Guid ticketId, SupportTicketPriority priority, string? ip, CancellationToken ct = default);
     Task<SupportAttachmentContent> GetAttachmentAsync(Guid actorId, Guid ticketId, Guid attachmentId, string? ip, CancellationToken ct = default);
+
+    /// <summary>Gom các ca cùng lỗi vào một ca cha.</summary>
+    Task<OpsTicketDetailDto> LinkChildrenAsync(Guid actorId, Guid parentTicketId, IReadOnlyCollection<Guid> childTicketIds, string? ip, CancellationToken ct = default);
+    Task<OpsTicketDetailDto> UnlinkParentAsync(Guid actorId, Guid ticketId, string? ip, CancellationToken ct = default);
+
+    /// <summary>Trả lời cùng một nội dung cho ca cha và mọi ca con chưa đóng. Trả về số ca đã trả lời.</summary>
+    Task<int> BroadcastAsync(Guid actorId, Guid parentTicketId, string? body, bool resolve, string? ip, CancellationToken ct = default);
 }
 
 public sealed class OpsTicketService : IOpsTicketService
 {
     private const int MaxPageSize = 100;
+    private const int MaxLinkedTickets = 500;
 
     private readonly ISupportRepository _support;
     private readonly IOpsAccessService _access;
@@ -94,7 +103,7 @@ public sealed class OpsTicketService : IOpsTicketService
 
         var now = DateTimeOffset.UtcNow;
         var (items, total) = await _support.QueueAsync(
-            new OpsTicketFilter(actor.Id, now, query.Status, query.Priority, query.Category, assignee, unassigned, query.Overdue, offset, limit), ct);
+            new OpsTicketFilter(actor.Id, now, query.Status, query.Priority, query.Category, assignee, unassigned, query.Overdue, query.ParentTicketId, offset, limit), ct);
         return new OpsTicketPageDto(items.Select(r => SupportMapper.ToOpsDto(r, now)).ToList(), total, offset, limit);
     }
 
@@ -311,6 +320,105 @@ public sealed class OpsTicketService : IOpsTicketService
 
         await _audit.LogAsync(AuditEvents.OpsTicketAttachmentViewed, actor.Id, ip, new { ticketId, attachmentId }, ct);
         return new SupportAttachmentContent(data, attachment.ContentType);
+    }
+
+    public async Task<OpsTicketDetailDto> LinkChildrenAsync(Guid actorId, Guid parentTicketId, IReadOnlyCollection<Guid> childTicketIds, string? ip, CancellationToken ct = default)
+    {
+        var actor = await _access.RequireAsync(actorId, OpsCapability.ManageTickets, ct);
+        var parent = await _support.GetByIdAsync(parentTicketId, ct) ?? throw new NotFoundException("SupportTicket", parentTicketId);
+        EnsureNotOwnTicket(actor, parent);
+        SupportTicketRules.EnsureNotClosed(parent);
+
+        var ids = childTicketIds.Distinct().ToList();
+        if (ids.Count == 0 || ids.Count > MaxLinkedTickets || ids.Contains(parentTicketId) || parent.ParentTicketId is not null)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.InvalidLink, "Danh sách yêu cầu cần gom không hợp lệ.");
+        }
+
+        var children = await _support.GetManyAsync(ids, ct);
+        if (children.Count != ids.Count)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.InvalidLink, "Có yêu cầu không tồn tại.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var child in children)
+        {
+            EnsureNotOwnTicket(actor, child);
+
+            // Chỉ một tầng: trả lời hàng loạt không phải đi theo cây.
+            if (child.Status == SupportTicketStatus.Closed || await _support.HasChildrenAsync(child.Id, ct))
+            {
+                throw new BusinessRuleException(SupportErrorCodes.InvalidLink, "Không gom được yêu cầu đã đóng hoặc đang là yêu cầu cha.");
+            }
+
+            child.ParentTicketId = parentTicketId;
+            child.UpdatedAt = now;
+        }
+
+        await _support.SaveChangesAsync(ct);
+        await _audit.LogAsync(AuditEvents.OpsTicketsLinked, actor.Id, ip, new { parentTicketId, childTicketIds = ids }, ct);
+        return await DetailAsync(parentTicketId, ct);
+    }
+
+    public async Task<OpsTicketDetailDto> UnlinkParentAsync(Guid actorId, Guid ticketId, string? ip, CancellationToken ct = default)
+    {
+        var actor = await _access.RequireAsync(actorId, OpsCapability.ManageTickets, ct);
+        var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
+        EnsureNotOwnTicket(actor, ticket);
+        if (ticket.ParentTicketId is { } previous)
+        {
+            ticket.ParentTicketId = null;
+            ticket.UpdatedAt = DateTimeOffset.UtcNow;
+            await _support.SaveChangesAsync(ct);
+            await _audit.LogAsync(AuditEvents.OpsTicketsLinked, actor.Id, ip, new { removedFromParent = previous, ticketId }, ct);
+        }
+
+        return await DetailAsync(ticketId, ct);
+    }
+
+    public async Task<int> BroadcastAsync(Guid actorId, Guid parentTicketId, string? body, bool resolve, string? ip, CancellationToken ct = default)
+    {
+        var actor = await _access.RequireAsync(actorId, OpsCapability.ManageTickets, ct);
+        var parent = await _support.GetByIdAsync(parentTicketId, ct) ?? throw new NotFoundException("SupportTicket", parentTicketId);
+        EnsureNotOwnTicket(actor, parent);
+        SupportTicketRules.EnsureNotClosed(parent);
+        var cleanBody = SupportTicketRules.RequireText(body, SupportTicketRules.MaxBodyLength, "nội dung");
+
+        // Bỏ qua ca của chính người gửi thay vì từ chối cả lô: đang có sự cố thì lô trả lời này phải đi được.
+        var targets = (await _support.ListOpenChildrenAsync(parentTicketId, ct)).Prepend(parent).Where(t => t.RequesterUserId != actor.Id).ToList();
+        var now = DateTimeOffset.UtcNow;
+        foreach (var ticket in targets)
+        {
+            _support.AddMessage(new SupportTicketMessage
+            {
+                Id = Guid.NewGuid(),
+                TicketId = ticket.Id,
+                AuthorUserId = actor.Id,
+                Kind = SupportMessageKind.Staff,
+                Body = cleanBody,
+                CreatedAt = now,
+            });
+            ticket.FirstRespondedAt ??= now;
+            ticket.Status = resolve ? SupportTicketStatus.Resolved : SupportTicketStatus.WaitingCustomer;
+            ticket.ResolvedAt = resolve ? now : null;
+            ticket.UpdatedAt = now;
+        }
+
+        await _support.SaveChangesAsync(ct);
+        await _audit.LogAsync(AuditEvents.OpsTicketsBroadcast, actor.Id, ip, new { parentTicketId, count = targets.Count, resolve }, ct);
+
+        foreach (var ticket in targets)
+        {
+            await _push.NotifyAsync(
+                ticket.RequesterUserId,
+                "FinMate hỗ trợ",
+                "Có phản hồi mới cho yêu cầu của bạn.",
+                new Dictionary<string, string> { ["action"] = "support_ticket", ["ticketId"] = ticket.Id.ToString() },
+                ct);
+        }
+
+        return targets.Count;
     }
 
     private static void EnsureNotOwnTicket(User actor, SupportTicket ticket)
