@@ -62,6 +62,9 @@ public class FinMateDbContext : DbContext
     public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
     public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
     public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
+    public DbSet<MarketSource> MarketSources => Set<MarketSource>();
+    public DbSet<MarketDocument> MarketDocuments => Set<MarketDocument>();
+    public DbSet<FuelPrice> FuelPrices => Set<FuelPrice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -51,9 +51,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.MarketData;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
 using FinMate.API.Monitoring;
+using FinMate.Infrastructure.MarketData;
 using FinMate.Infrastructure.Monitoring;
 using FinMate.Application.Support;
 using Serilog;
@@ -361,6 +363,11 @@ public class Program
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+        builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
+        builder.Services.AddScoped<IMarketDataService, MarketDataService>();
+        builder.Services.AddHttpClient(SafeWebFetcher.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(SafeWebFetcher.CreateHandler);
+        builder.Services.AddSingleton<IWebPageFetcher, SafeWebFetcher>();
         builder.Services.AddScoped<IIncidentService, IncidentService>();
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
@@ -551,6 +558,7 @@ public class Program
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<SystemMonitorJob>();
         builder.Services.AddScoped<MonitoringDigestJob>();
+        builder.Services.AddScoped<MarketDataRefreshJob>();
         builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
@@ -666,6 +674,12 @@ public class Program
             RecurringJob.RemoveIfExists("system-monitor");
             RecurringJob.RemoveIfExists("monitoring-digest");
         }
+
+        // Mỗi 3 giờ, lệch phút 5 để không dồn vào đầu giờ của các trang nguồn.
+        RecurringJob.AddOrUpdate<MarketDataRefreshJob>(
+            "market-data-refresh",
+            job => job.RunAsync(CancellationToken.None),
+            "5 */3 * * *");
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",

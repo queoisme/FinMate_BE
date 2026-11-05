@@ -1,0 +1,113 @@
+using System.Net;
+using System.Text.RegularExpressions;
+
+namespace FinMate.Application.MarketData;
+
+public sealed record PageLink(string Url, string Text);
+
+/// <summary>
+/// Lấy text và link từ HTML bằng thư viện chuẩn. Mọi biểu thức dùng <c>NonBacktracking</c>: HTML đến từ trang lạ, không được để một trang
+/// viết khéo làm treo job. Đây không phải bộ phân tích HTML đầy đủ, nhưng đủ cho việc rút nội dung để đọc.
+/// </summary>
+public static class HtmlTextExtractor
+{
+    private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking;
+
+    /// <summary>Ngắn hơn mức này thì coi như không có nội dung: thường là trang cần JavaScript.</summary>
+    public const int MinArticleLength = 200;
+
+    private static readonly Regex[] Removed = new[] { "script", "style", "noscript", "svg", "template", "nav", "header", "footer", "aside" }
+        .Select(tag => new Regex($@"<{tag}\b[\s\S]*?</{tag}\s*>", Options))
+        .Append(new Regex(@"<!--[\s\S]*?-->", Options))
+        .ToArray();
+
+    private static readonly Regex Article = new(@"<article\b[^>]*>([\s\S]*?)</article\s*>", Options);
+    private static readonly Regex Main = new(@"<main\b[^>]*>([\s\S]*?)</main\s*>", Options);
+    private static readonly Regex Body = new(@"<body\b[^>]*>([\s\S]*)</body\s*>", Options);
+    private static readonly Regex BlockEnd = new(@"</?(?:p|div|li|ul|ol|br|h[1-6]|tr|table|section|article|blockquote)\b[^>]*>", Options);
+    private static readonly Regex Tag = new(@"<[^>]*>", Options);
+    private static readonly Regex Spaces = new(@"[ \t\r\f\v ]+", Options);
+    private static readonly Regex BlankLines = new(@"\n(?:[ ]*\n)+", Options);
+    private static readonly Regex Anchor = new(@"<a\b[^>]*?\bhref\s*=\s*[""']([^""']+)[""'][^>]*>([\s\S]*?)</a\s*>", Options);
+    private static readonly Regex TitleTag = new(@"<title\b[^>]*>([\s\S]*?)</title\s*>", Options);
+
+    /// <summary>Text của toàn trang, dùng để đọc bảng giá.</summary>
+    public static string PageText(string html) => ToText(Clean(FirstGroup(Body, html) ?? html));
+
+    /// <summary>Phần nội dung chính của một bài báo.</summary>
+    public static string ArticleText(string html)
+    {
+        var cleanable = RemoveNoise(html);
+        foreach (var part in new[] { Article, Main })
+        {
+            var inner = FirstGroup(part, cleanable);
+            if (inner is not null)
+            {
+                var text = ToText(inner);
+                if (text.Length >= MinArticleLength)
+                {
+                    return text;
+                }
+            }
+        }
+
+        return ToText(FirstGroup(Body, cleanable) ?? cleanable);
+    }
+
+    public static string? Title(string html)
+    {
+        var title = FirstGroup(TitleTag, html);
+        return title is null ? null : ToText(title);
+    }
+
+    /// <summary>Link trong trang, đã đổi thành URL tuyệt đối, chỉ giữ <c>https</c>.</summary>
+    public static IReadOnlyList<PageLink> Links(string html, Uri baseUri)
+    {
+        var links = new List<PageLink>();
+        foreach (Match match in Anchor.Matches(RemoveScripts(html)))
+        {
+            if (Uri.TryCreate(baseUri, WebUtility.HtmlDecode(match.Groups[1].Value).Trim(), out var target)
+                && target.Scheme == Uri.UriSchemeHttps)
+            {
+                links.Add(new PageLink(new UriBuilder(target) { Fragment = string.Empty }.Uri.AbsoluteUri, ToText(match.Groups[2].Value)));
+            }
+        }
+
+        return links;
+    }
+
+    private static string Clean(string html) => RemoveNoise(html);
+
+    private static string RemoveScripts(string html)
+    {
+        foreach (var pattern in Removed.Take(2))
+        {
+            html = pattern.Replace(html, " ");
+        }
+
+        return html;
+    }
+
+    private static string RemoveNoise(string html)
+    {
+        foreach (var pattern in Removed)
+        {
+            html = pattern.Replace(html, " ");
+        }
+
+        return html;
+    }
+
+    private static string ToText(string html)
+    {
+        var withBreaks = BlockEnd.Replace(html, "\n");
+        var decoded = WebUtility.HtmlDecode(Tag.Replace(withBreaks, " "));
+        return BlankLines.Replace(Spaces.Replace(decoded, " "), "\n").Trim();
+    }
+
+    private static string? FirstGroup(Regex pattern, string input)
+    {
+        var match = pattern.Match(input);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+}

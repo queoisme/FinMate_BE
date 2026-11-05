@@ -82,6 +82,18 @@ public sealed record MonitoringSettings
     public int ErrorRetentionDays { get; init; } = 30;
 }
 
+public sealed record MarketDataSettings
+{
+    /// <summary>Số nguồn phải cho cùng một giá thì giá mới được xác nhận. Hạ xuống 1 khi một nguồn ngừng hoạt động.</summary>
+    public int MinAgreeingSources { get; init; } = 2;
+    public int MaxDocumentsPerRun { get; init; } = 20;
+    public long MinPriceCents { get; init; } = 10_000;
+    public long MaxPriceCents { get; init; } = 60_000;
+
+    /// <summary>Đổi hơn mức này so với giá đang lưu thì không nhận: nhiều khả năng đọc sai hơn là giá thật.</summary>
+    public int MaxChangePercent { get; init; } = 20;
+}
+
 public sealed record LimitSettings
 {
     /// <summary>
@@ -299,6 +311,7 @@ public sealed record SystemConfigDocument
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
+    public MarketDataSettings MarketData { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

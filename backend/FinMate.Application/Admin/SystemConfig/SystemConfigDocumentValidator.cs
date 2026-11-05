@@ -25,6 +25,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
+        RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
     }
 
     private static bool IsHttps(string value)
@@ -99,6 +100,17 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.ProviderFailureThreshold).InclusiveBetween(1, 1000).WithMessage("Ngưỡng lỗi nhà cung cấp phải từ 1 đến 1000.");
             RuleFor(x => x.ReminderMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian nhắc lại phải từ 1 đến 1440 phút.");
             RuleFor(x => x.ErrorRetentionDays).InclusiveBetween(1, 365).WithMessage("Thời gian giữ lỗi phải từ 1 đến 365 ngày.");
+        }
+    }
+
+    private sealed class MarketDataValidator : AbstractValidator<MarketDataSettings>
+    {
+        public MarketDataValidator()
+        {
+            RuleFor(x => x.MinAgreeingSources).InclusiveBetween(1, 10).WithMessage("Số nguồn phải khớp phải từ 1 đến 10.");
+            RuleFor(x => x.MaxDocumentsPerRun).InclusiveBetween(1, 200).WithMessage("Số bài mỗi lượt phải từ 1 đến 200.");
+            RuleFor(x => x.MinPriceCents).GreaterThan(0).LessThan(x => x.MaxPriceCents).WithMessage("Giá tối thiểu phải lớn hơn 0 và nhỏ hơn giá tối đa.");
+            RuleFor(x => x.MaxChangePercent).InclusiveBetween(1, 100).WithMessage("Mức đổi giá tối đa phải từ 1 đến 100%.");
         }
     }
 
