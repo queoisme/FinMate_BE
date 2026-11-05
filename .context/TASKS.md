@@ -788,7 +788,8 @@
 | Phase 59 — Nhóm, đợt 2: giao dịch, ngân sách, mục tiêu | `[x]` | 7 / 7 |
 | Phase 60 — Nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý | `[ ]` | 4 / 5 *(còn: báo Flutter, gồm Điều khoản bản 4)* |
 | Phase 61 — Vận hành, đợt 1: role và nền tảng | `[x]` | 5 / 5 |
-| **Total** (không tính Backlog) | | **452 / 479** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 62 — Vận hành, đợt 2: ticket | `[x]` | 5 / 5 |
+| **Total** (không tính Backlog) | | **457 / 484** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1335,3 +1336,10 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] `SetUserRoleCommandHandler`: không hạ admin cuối xuống bất kỳ vai trò nào, mọi lần giảm quyền thu hồi token, không cấp vai trò nội bộ cho tài khoản chờ xóa.
 - [x] CORS qua `OPS_WEB_ORIGINS`; khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*`.
 - [x] Test: `OpsRolesControllerTests`, `OpsPermissionsTests`, `OpsWebOriginsTests`, `SetUserRoleCommandHandlerTests`.
+
+## Phase 62 — Vận hành nội bộ, đợt 2: ticket (2026-11-05)
+- [x] Migration `AddSupportTickets`; cờ `features.support`, nhóm cấu hình `support`.
+- [x] API khách `/support/tickets` và API vận hành `/ops/tickets`; khóa lạc quan `xmin` để hai người không nhận trùng ca.
+- [x] Ảnh đính kèm mã hóa bằng `SECRETS_MASTER_KEY`, nhận dạng theo nội dung file; xem ảnh có ghi audit.
+- [x] `SupportRetentionJob`: tự đóng ca đã giải quyết sau 7 ngày, xóa ảnh sau khi đóng 30 ngày.
+- [x] Test: `SupportTicketsControllerTests`.

@@ -23,6 +23,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
         RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
         RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
+        RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
     }
 
     private static bool IsHttps(string value)
@@ -82,6 +83,25 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxGroupsPerUser).InclusiveBetween(1, 50).WithMessage("Số nhóm tối đa của mỗi người phải từ 1 đến 50.");
             RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
             RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
+        }
+    }
+
+    private sealed class SupportValidator : AbstractValidator<SupportSettings>
+    {
+        private const int MaxMinutes = 60 * 24 * 30;
+
+        public SupportValidator()
+        {
+            RuleFor(x => x.P1FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P1ResolveMinutes).WithMessage("Hạn của P1 không hợp lệ.");
+            RuleFor(x => x.P2FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P2ResolveMinutes).WithMessage("Hạn của P2 không hợp lệ.");
+            RuleFor(x => x.P3FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P3ResolveMinutes).WithMessage("Hạn của P3 không hợp lệ.");
+            RuleFor(x => x.P1ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P1 không hợp lệ.");
+            RuleFor(x => x.P2ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P2 không hợp lệ.");
+            RuleFor(x => x.P3ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P3 không hợp lệ.");
+            RuleFor(x => x.MaxOpenTicketsPerUser).InclusiveBetween(1, 100).WithMessage("Số yêu cầu đang mở tối đa phải từ 1 đến 100.");
+            RuleFor(x => x.MaxAttachmentsPerMessage).InclusiveBetween(1, 10).WithMessage("Số ảnh mỗi tin nhắn phải từ 1 đến 10.");
+            RuleFor(x => x.AutoCloseResolvedDays).InclusiveBetween(1, 90).WithMessage("Số ngày tự đóng phải từ 1 đến 90.");
+            RuleFor(x => x.AttachmentRetentionDays).InclusiveBetween(1, 90).WithMessage("Số ngày giữ ảnh phải từ 1 đến 90.");
         }
     }
 

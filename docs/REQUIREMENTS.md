@@ -368,6 +368,11 @@ Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
 | FR-OPS-03 | `GET /ops/me` trả vai trò và quyền hiện tại | Must | Đọc từ DB |
 | FR-OPS-04 | CORS cho web vận hành qua `OPS_WEB_ORIGINS` | Must | Trống thì không trình duyệt nào gọi được; `*` hoặc sai định dạng thì không khởi động |
 | FR-OPS-05 | Khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*` | Should | Các API khác vẫn 503 với họ |
+| FR-OPS-06 | Khách tạo và theo dõi ticket trong app (`/support/tickets`), sau cờ `features.support` | Must | Ca của người khác trả 404; không thấy ghi chú nội bộ, người phụ trách, hạn SLA |
+| FR-OPS-07 | Hàng đợi vận hành: nhận ca, trả lời, ghi chú nội bộ, chuyển cấp, đổi trạng thái | Must | Hai người nhận cùng ca thì người sau nhận 409; chưa nhận thì chưa trả lời được; không xử lý ca của chính mình |
+| FR-OPS-08 | Manager phân công và đổi mức ưu tiên | Must | Staff nhận 403; không giao được cho người ngoài đội hoặc chính người tạo ca |
+| FR-OPS-09 | Tính hạn SLA theo mức ưu tiên, cấu hình ở nhóm `support` | Should | Chỉ tính và hiển thị, chưa có cảnh báo tự động |
+| FR-OPS-10 | Khách gửi ảnh vào ticket | Should | Mã hóa khi lưu; thiếu khóa thì từ chối; nhận dạng theo nội dung file; xem ảnh có ghi audit; tự xóa sau khi ca đóng (NFR-SEC-24) |
 
 ## 7. FR — Thông báo đẩy
 
@@ -469,7 +474,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-21 | CSDL AI chỉ lưu `SHA-256(user_id)` (cùng hàm `UserIdHasher` cho AI Service và `ocr-service`), không FK sang backend | Kiểm schema |
 | NFR-SEC-22 | Nội dung thông báo vào tập huấn luyện đã che số tài khoản, thẻ, SĐT, email; chữ hoá đơn đã lọc dữ liệu cá nhân trước khi rời `ocr-service`; chuỗi ≥ 9 chữ số liền bị từ chối | Unit test `anonymizer`, `privacy.sanitize_lines` |
 | NFR-SEC-23 | **[Sai lệch]** `notification_body` gốc bị xoá sau 90 ngày | Tài liệu cũ ghi `DataCleanupJob` đáp ứng, nhưng **job này chưa từng có trong code** (chỉ có trong skeleton ban đầu); không có job nào xoá `notification_logs.notification_body` |
-| NFR-SEC-24 | **[Đổi]** Ảnh hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
+| NFR-SEC-24 | **[Đổi]** Ảnh quét hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB. Ngoại lệ duy nhất: ảnh khách chủ động gửi vào ticket hỗ trợ, được mã hóa và tự xóa sau khi ca đóng (FR-OPS-10) | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
 | NFR-SEC-25 | Quyền được xoá: xoá cứng sau 30 ngày, kèm mẫu huấn luyện ở AI Service | Test `DataDeletionJob`; lỗi xoá ở AI Service → giữ user lại thử đêm sau |
 | NFR-SEC-26 | Production không trả stack trace | Middleware + test |
 | NFR-SEC-27 | **[Một phần]** Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Chưa có `STT_SERVICE_API_KEY` và `SECRETS_MASTER_KEY` (thiếu khoá chủ thì kho key tắt âm thầm) |

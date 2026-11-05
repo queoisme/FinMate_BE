@@ -51,6 +51,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
 using FinMate.Application.Ops;
+using FinMate.Application.Support;
 using Serilog;
 using System.Net.Http.Headers;
 using System.Text;
@@ -336,6 +337,11 @@ public class Program
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<ISupportRepository, SupportRepository>();
+        builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
+        builder.Services.AddScoped<IOpsTicketService, OpsTicketService>();
+        builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
+        builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -493,6 +499,7 @@ public class Program
         builder.Services.AddScoped<IMarkInsightReadCommandHandler, MarkInsightReadCommandHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
+        builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
@@ -583,6 +590,11 @@ public class Program
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
             "0 3 * * *");
+
+        RecurringJob.AddOrUpdate<SupportRetentionJob>(
+            "support-retention",
+            job => job.RunAsync(CancellationToken.None),
+            "30 3 * * *");
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",
