@@ -380,6 +380,7 @@ Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
 | FR-OPS-15 | Khóa khẩn cấp theo ca | Must | Chỉ khóa người tạo ca đang xử lý; không khóa tài khoản nội bộ; ca chuyển cấp để Manager rà soát |
 | FR-OPS-16 | Xem thông tin tối thiểu của khách và nhóm theo ca | Should | Không có dữ liệu tài chính; email đã che |
 | FR-OPS-17 | Bảng điều hành, gom ca và trả lời hàng loạt, câu trả lời mẫu, nhật ký vận hành | Should | Staff nhận 403, trừ đọc câu trả lời mẫu; nhật ký chỉ có sự kiện `Ops.*` |
+| FR-OPS-18 | Xác thực 2 lớp bằng email cho tài khoản nội bộ | Must | Chưa qua OTP thì 403 ở mọi `/ops/*`, `/admin/*`; giữ 12 giờ qua các lần refresh; khách không bị ảnh hưởng; tắt được bằng `OPS_REQUIRE_2FA` |
 
 ## 7. FR — Thông báo đẩy
 

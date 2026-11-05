@@ -20,4 +20,7 @@ public static class AuthorizationPolicies
 
     /// <summary>OpsManager hoặc Admin. Cùng lưu ý với <see cref="StaffOrAbove"/>.</summary>
     public const string ManagerOrAbove = "ManagerOrAbove";
+
+    /// <summary>Có vai trò nội bộ nhưng chưa cần qua OTP. Chỉ dùng cho chính bước nhập OTP; mọi policy khác đều yêu cầu đã qua bước này.</summary>
+    public const string InternalAccount = "InternalAccount";
 }

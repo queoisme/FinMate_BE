@@ -104,4 +104,6 @@ public static class AuditEvents
     public const string OpsGroupViewed = "Ops.Group.Viewed";
     public const string OpsGroupOwnerTransferred = "Ops.Group.OwnerTransferred";
     public const string OpsCannedReplyChanged = "Ops.CannedReply.Changed";
+    public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";
+    public const string OpsTwoFactorFailed = "Ops.TwoFactor.Failed";
 }

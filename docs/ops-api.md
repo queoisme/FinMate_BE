@@ -198,3 +198,20 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 | `GET /ops/canned-replies` (mọi vai trò), `POST`, `PATCH /{id}` | Câu trả lời mẫu; tắt bằng `isActive = false`, không xóa |
 | `GET /ops/audit-logs` | Chỉ sự kiện `Ops.*`; lọc sự kiện khác thì 403 |
 | `GET /ops/ai-stats` | Như `/admin/ai-stats`, chỉ đọc |
+
+## Xác thực 2 lớp
+
+Áp dụng cho `Staff`, `OpsManager`, `Admin`. Khi bật, token chưa qua OTP nhận 403 ở mọi API `/ops/*` và `/admin/*`, trừ các API dưới đây. API dành cho khách không đổi, kể cả khi tài khoản nội bộ dùng app cá nhân.
+
+Luồng trên web:
+
+1. `POST /auth/login` như bình thường, nhận `accessToken` và `refreshToken`.
+2. `GET /ops/auth/status`: `{ required, verified }`.
+3. `POST /ops/auth/otp/send`: gửi mã 6 số qua email, trả 204. Đang trong thời gian chờ thì không gửi thêm; mã đã gửi nếu chưa dùng thì vẫn nhập được.
+4. `POST /ops/auth/otp/verify` với `{ code, refreshToken }`: trả `accessToken` mới; `refreshToken` giữ nguyên.
+
+Gia hạn bằng `POST /auth/refresh` không phải nhập lại mã trong 12 giờ kể từ lần nhập gần nhất. Quá 12 giờ, token mới không còn trạng thái đã xác thực nên web phải quay lại bước 3.
+
+`OPS_REQUIRE_2FA`: để trống là bật ngoài Development. Cơ chế này cần gửi được email, nên nếu Brevo hỏng thì không ai vào được trang vận hành và admin. Khi đó đặt `false` rồi khởi động lại để vào sửa, sau đó bật lại ngay.
+
+**Thay đổi phá vỡ:** web admin hiện có phải thêm luồng trên trước khi deploy backend có bật cờ này.

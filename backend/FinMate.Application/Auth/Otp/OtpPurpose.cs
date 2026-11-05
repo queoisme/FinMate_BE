@@ -10,4 +10,7 @@ public enum OtpPurpose
 {
     VerifyEmail,
     ResetPassword,
+
+    /// <summary>Bước thứ hai khi tài khoản nội bộ đăng nhập.</summary>
+    OpsLogin,
 }

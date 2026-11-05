@@ -2168,6 +2168,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
+                    b.Property<DateTimeOffset?>("OpsVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ops_verified_at");
+
                     b.Property<string>("ReplacedByTokenHash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
