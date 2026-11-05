@@ -2,7 +2,9 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Auth.Commands;
 
@@ -52,7 +54,10 @@ public class RefreshTokenCommandHandler : IRefreshTokenCommandHandler
         var user = await _userRepository.GetByIdAsync(existing.UserId, ct)
             ?? throw new AuthenticationException(AuthErrorCodes.TokenInvalid, "Refresh token không hợp lệ.");
 
-        var accessToken = _tokenService.GenerateAccessToken(user);
+        // Gia hạn không phải nhập lại mã, nhưng không vượt quá thời hạn tính từ lần nhập thật.
+        var now = DateTimeOffset.UtcNow;
+        var opsVerified = user.Role.IsInternal() && OpsTwoFactorRules.IsStillVerified(existing.OpsVerifiedAt, now);
+        var accessToken = opsVerified ? _tokenService.GenerateAccessToken(user, opsVerified: true) : _tokenService.GenerateAccessToken(user);
         var newRefresh = _tokenService.GenerateRefreshToken();
 
         var newToken = new RefreshToken
@@ -60,7 +65,8 @@ public class RefreshTokenCommandHandler : IRefreshTokenCommandHandler
             UserId = user.Id,
             TokenHash = newRefresh.TokenHash,
             ExpiresAt = newRefresh.ExpiresAt,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
+            OpsVerifiedAt = opsVerified ? existing.OpsVerifiedAt : null,
         };
 
         await _refreshTokenRepository.RotateAsync(existing, newToken, ct);

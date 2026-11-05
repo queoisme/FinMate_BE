@@ -130,9 +130,12 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
     }
 
     /// <summary>Cảnh báo vượt ngân sách sớm theo công tắc cảnh báo ngân sách; mọi loại còn lại theo công tắc cảnh báo dự báo.</summary>
-    private static bool Wants(User user, ForecastAlertKind kind) => kind == ForecastAlertKind.BudgetRisk
-        ? user.NotificationPrefs.BudgetAlertsEnabled
-        : user.NotificationPrefs.ForecastAlertsEnabled;
+    private static bool Wants(User user, ForecastAlertKind kind) => kind switch
+    {
+        ForecastAlertKind.BudgetRisk or ForecastAlertKind.GroupBudget => user.NotificationPrefs.BudgetAlertsEnabled,
+        ForecastAlertKind.GroupGoal => true,   // nhắc mục tiêu cá nhân cũng chỉ theo công tắc push; IPushNotificationService tự chặn
+        _ => user.NotificationPrefs.ForecastAlertsEnabled,
+    };
 
     /// <summary>"Đã gửi cảnh báo tương tự gần đây?" và phản hồi "không chính xác" gần đây.</summary>
     private async Task<bool> IsLowBalanceBlockedAsync(Guid userId, Admin.SystemConfig.ForecastSettings settings, DateTimeOffset now, CancellationToken ct)
@@ -179,6 +182,8 @@ public static class ForecastAlertKinds
         ForecastAlertKind.IncomeLate => "income_late",
         ForecastAlertKind.PriceChange => "price_change",
         ForecastAlertKind.Anomaly => "anomaly",
+        ForecastAlertKind.GroupBudget => "group_budget",
+        ForecastAlertKind.GroupGoal => "group_goal",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

@@ -101,7 +101,7 @@ Chuyển khoản nội bộ đi qua `POST /transactions/transfer`. Form nhập t
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-AUTH-00 | **[Một phần]** Ghi nhận chấp thuận Điều khoản + Chính sách quyền riêng tư (Flow 1 bước 1.0) | Must | Đã có: `POST /users/me/consents` loại `terms` lưu `terms_version` + `terms_accepted_at`; `GET /users/me` trả `termsAccepted`; đổi `ConsentVersions.Terms` (hiện **3**) thì mọi đồng ý cũ hết hiệu lực. Còn thiếu: đăng ký **không** đòi đồng ý (không trả 400), việc chặn hoàn toàn do app |
+| FR-AUTH-00 | **[Một phần]** Ghi nhận chấp thuận Điều khoản + Chính sách quyền riêng tư (Flow 1 bước 1.0) | Must | Đã có: `POST /users/me/consents` loại `terms` lưu `terms_version` + `terms_accepted_at`; `GET /users/me` trả `termsAccepted`; đổi `ConsentVersions.Terms` (hiện **4**) thì mọi đồng ý cũ hết hiệu lực. Còn thiếu: đăng ký **không** đòi đồng ý (không trả 400), việc chặn hoàn toàn do app |
 | FR-AUTH-01 | Đăng ký bằng email, mật khẩu, tên hiển thị | Must | Email đúng định dạng, ≤ 320 ký tự, chưa tồn tại; mật khẩu ≥ 8 ký tự; tên ≤ 200 ký tự. Gửi OTP xác minh sau khi tạo |
 | FR-AUTH-02 | Xác minh email bằng OTP 6 chữ số (`verify-email`, `resend-verification`) | Must | Mã hết hạn sau 10 phút, dùng một lần, huỷ sau 5 lần sai; gửi lại cách nhau ≥ 60 giây. `REQUIRE_EMAIL_VERIFICATION` bật thì chưa xác minh không đăng nhập được |
 | FR-AUTH-03 | Đăng nhập email/mật khẩu | Must | Access token JWT (15 phút) + refresh token opaque (30 ngày). Tài khoản bị khoá hoặc đã yêu cầu xoá thì từ chối |
@@ -128,7 +128,7 @@ Bốn loại đồng ý, mỗi loại có phiên bản câu chữ trong `Consent
 | FR-CONS-02 | Tắt/bật AI trong Hồ sơ | Must | Tắt AI thì chat, giọng nói, quét bill vẫn chạy, chỉ phân loại bằng luật; server đọc đồng ý **từ DB mỗi lần**, không tin client |
 | FR-CONS-03 | Đồng ý đóng góp dữ liệu huấn luyện (`training`, bản 1) là lựa chọn riêng, không bao giờ đi kèm Điều khoản | Must | Chỉ khi đang đồng ý mới gửi chữ hoá đơn **đã lọc** sang AI Service; nhãn chỉ từ user, không từ Gemini; mẫu chưa nhãn bị xoá sau 7 ngày |
 | FR-CONS-04 | Rút đồng ý huấn luyện xoá dữ liệu đã đóng góp | Must | `DELETE /users/me/consents/training` gọi `POST /bill/samples/erase`; lỗi xoá → 503 (bấm lại), **không** nuốt lỗi |
-| FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Cần sửa câu chữ + tăng `ConsentVersions.Terms`, hoặc tắt Vision (mục 13.4) |
+| FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Đã chốt 2026-11-05: giữ Vision và nêu rõ trong bản 4; app phải có câu chữ này trước khi phát hành |
 | FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment của `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ |
 
 ## 4. FR — Tài khoản tài chính và danh mục
@@ -334,6 +334,70 @@ Các mã BR của sơ đồ chưa có định nghĩa; số mặc định thay th
 | FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | `GET /forecast/categories?month=yyyy-MM` (tháng tới hoặc tháng sau nữa; trả `availableMonths`): từng danh mục có mức dự kiến, tháng trước, hạn mức hiện tại, % thay đổi, cờ "thay đổi nhiều" (≥ 20%), hạn mức đề xuất (làm tròn lên 10.000đ). Xu hướng = trung bình trọng số 3:2:1 của 3 tháng trọn vẹn, chỉ tính từ tháng đầu tiên có dữ liệu. Loại khoản chi một lần và khoản bất thường chưa xác nhận bình thường. BR-06.1: < 2 tháng có dữ liệu → hạn mức ngân sách, không có thì trung bình theo ngày quy ra tháng, `confidence = low`. `POST /forecast/categories/apply`: danh mục đã có ngân sách → hạn mức mới áp **từ tháng sau** (tháng này giữ snapshot cũ); chưa có → tạo ngân sách, áp ngay. **Chưa làm**: điều chỉnh mùa vụ (`seasonalAdjusted` luôn false) |
 | FR-FCST-16 | **[Mới]** Ngày đạt mục tiêu tiết kiệm (trang 4) | Could | `GET /forecast/goals/{goalId}?monthlyContributionCents=`: BR-08.1 tốc độ góp theo tháng từ khoản góp vào chính mục tiêu (tối đa `goalRateMonths` = 6 tháng trọn vẹn từ tháng tạo; chưa có tháng trọn vẹn thì dùng tháng này, độ tin cậy thấp) — trung bình và thận trọng (phân vị 25). BR-08.2 hai ngày dự kiến. BR-08.3 kịp hạn = ngày thận trọng ≤ hạn chót; không kịp → mức cần góp/tháng. Trạng thái `reached\|unreachable\|no_deadline\|on_track\|behind`. Tham số `monthlyContributionCents` là thử kịch bản, không lưu; đổi số tiền / hạn chót dùng `PATCH /saving-goals/{id}` |
 
+### 6.6 Tài chính nhóm / gia đình **[Mới so với đặc tả Core Flows]**
+
+Ví, số dư và dự báo vẫn là của từng người. Nhóm chỉ nhìn thấy những gì thành viên chủ động chia sẻ.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-GRP-01 | Tạo, xem, sửa, xóa mềm nhóm | Must | Người tạo là chủ nhóm. Mỗi người tối đa `groups.maxGroupsPerUser` nhóm (mặc định 5). Công tắc `features.groups` mặc định tắt và được chặn ở server: tắt thì API nhóm trả 422 `GROUPS_DISABLED`, giao dịch cá nhân vẫn chạy, số của nhóm không lệch |
+| FR-GRP-02 | Vai trò chủ nhóm / quản lý / thành viên / chỉ xem | Must | Ma trận quyền ở `docs/group-api.md`. Mỗi nhóm đúng một chủ, ràng buộc ở CSDL |
+| FR-GRP-03 | Cấp hoặc thu hồi quyền cho từng người | Must | Chỉ chủ nhóm; thu hồi thắng cấp; đổi vai trò thì xóa ghi đè. Việc chỉ chủ nhóm được làm không cấp được cho ai |
+| FR-GRP-04 | Mời bằng email hoặc link | Must | Mã dùng một lần, hết hạn sau `groups.invitationTtlDays` ngày (mặc định 7), chỉ lưu SHA-256. Lời mời theo email chỉ nhận được bằng tài khoản đã xác minh đúng email đó. Phản hồi không để lộ email đã có tài khoản hay chưa; mọi mã không dùng được đều trả cùng một lỗi |
+| FR-GRP-05 | Rời nhóm, xóa thành viên, chuyển chủ nhóm | Must | Chủ nhóm phải chuyển chủ hoặc xóa nhóm trước khi rời. Quản lý chỉ tác động lên vai trò thấp hơn. Không ai tự đổi vai trò của mình. Mất quyền ngay ở request kế tiếp |
+| FR-GRP-06 | Lịch sử hoạt động của nhóm | Should | Thay đổi về nhóm và thành viên có trong `group_activities` và `audit_logs`, không có số tiền, email hay mã mời |
+| FR-GRP-07 | Chia sẻ giao dịch vào nhóm: lúc tạo, lúc xác nhận, hoặc sau đó | Must | Chỉ chủ giao dịch; chỉ khoản đã xác nhận, không gồm chuyển khoản nội bộ và cho vay/mượn. Ví và số dư không đổi; khoản đó vẫn tính vào ngân sách cá nhân |
+| FR-GRP-08 | Quy tắc tự chia sẻ theo ví, danh mục | Should | Mỗi người tự đặt cho mình; rời nhóm thì quy tắc tắt; quy tắc không bao giờ làm hỏng việc lưu giao dịch |
+| FR-GRP-09 | Xem giao dịch đã chia sẻ | Must | Không có ví, số dư, nhật ký thông báo. Danh mục tự tạo của cá nhân hiện là "Chưa phân loại". Chế độ `Summary`: thành viên và người xem chỉ thấy chi tiết khoản của mình |
+| FR-GRP-10 | Quản lý phân loại lại hoặc gỡ giao dịch khỏi nhóm | Should | Không đổi dữ liệu cá nhân; không ai sửa số tiền hoặc xóa giao dịch của người khác |
+| FR-GRP-11 | Ngân sách nhóm: tổng, theo danh mục hệ thống, theo danh mục nhóm | Must | `spent_cents` = tổng khoản chi đã xác nhận, đã chia sẻ, khớp ngân sách; đúng cả khi sửa, xóa, đổi nhóm, khi chủ giao dịch đã rời nhóm và khi chi đồng thời. Tạo giữa tháng thì tính lại từ đầu kỳ |
+| FR-GRP-12 | Cảnh báo ngân sách nhóm | Should | Ngưỡng hệ thống. Gửi riêng từng thành viên qua `forecast_alerts`; tôn trọng công tắc của nhóm và của người dùng; nội dung không có số tiền |
+| FR-GRP-13 | Mục tiêu nhóm | Should | Góp chỉ là ghi sổ, không trừ ví. Hoàn thành hoặc quá hạn thì báo từng thành viên |
+| FR-GRP-14 | Báo cáo tháng của nhóm: tổng, theo danh mục, theo thành viên | Should | Chỉ khoản đã xác nhận, đã chia sẻ; loại cho vay/mượn. Chế độ `Summary` vẫn hiện tổng |
+| FR-GRP-15 | Yêu cầu xóa tài khoản không bị nhóm chặn | Must | Chủ nhóm được tự chuyển quyền cho quản lý lâu năm nhất, rồi đến thành viên, rồi người chỉ xem. Tên người đó không còn hiện trong nhóm. Admin hủy yêu cầu thì tư cách thành viên còn nguyên nhưng không được trả lại quyền chủ |
+| FR-GRP-16 | Xóa cứng tài khoản xóa cả dữ liệu đã chia sẻ | Must | Giao dịch và khoản góp của người đó bị xóa; `spent_cents`, `saved_cents` được tính lại trong cùng DB transaction. Mục tiêu đã hoàn thành giữ trạng thái. Nhóm không còn ai thì xóa mềm |
+
+### 6.7 Vận hành nội bộ: Staff, OpsManager, Admin **[Ngoài đặc tả]**
+
+Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-OPS-01 | Vai trò `Staff`, `OpsManager` và API riêng `/api/v1/ops/*` | Must | Hai vai trò này nhận 403 ở mọi nhóm `/admin/*`; người dùng thường nhận 403 ở `/ops/*` |
+| FR-OPS-02 | Thao tác nhạy cảm đọc vai trò từ DB (`IOpsAccessService`) | Must | Bị hạ quyền hoặc khóa thì mất quyền ngay dù token còn hạn |
+| FR-OPS-03 | `GET /ops/me` trả vai trò và quyền hiện tại | Must | Đọc từ DB |
+| FR-OPS-04 | CORS cho web vận hành qua `OPS_WEB_ORIGINS` | Must | Trống thì không trình duyệt nào gọi được; `*` hoặc sai định dạng thì không khởi động |
+| FR-OPS-05 | Khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*` | Should | Các API khác vẫn 503 với họ |
+| FR-OPS-06 | Khách tạo và theo dõi ticket trong app (`/support/tickets`), sau cờ `features.support` | Must | Ca của người khác trả 404; không thấy ghi chú nội bộ, người phụ trách, hạn SLA |
+| FR-OPS-07 | Hàng đợi vận hành: nhận ca, trả lời, ghi chú nội bộ, chuyển cấp, đổi trạng thái | Must | Hai người nhận cùng ca thì người sau nhận 409; chưa nhận thì chưa trả lời được; không xử lý ca của chính mình |
+| FR-OPS-08 | Manager phân công và đổi mức ưu tiên | Must | Staff nhận 403; không giao được cho người ngoài đội hoặc chính người tạo ca |
+| FR-OPS-09 | Tính hạn SLA theo mức ưu tiên, cấu hình ở nhóm `support` | Should | Chỉ tính và hiển thị, chưa có cảnh báo tự động |
+| FR-OPS-10 | Khách gửi ảnh vào ticket | Should | Mã hóa khi lưu; thiếu khóa thì từ chối; nhận dạng theo nội dung file; xem ảnh có ghi audit; tự xóa sau khi ca đóng (NFR-SEC-24) |
+| FR-OPS-11 | Xem dữ liệu khách chỉ khi khách đồng ý theo từng ca | Must | Phải là người phụ trách, đúng phần dữ liệu, tối đa 24 giờ; hết hiệu lực khi đóng ca, đổi người phụ trách hoặc khách thu hồi; Admin không có ngoại lệ |
+| FR-OPS-12 | Khách xem được lịch sử ai đã xem dữ liệu của mình (`/support/access-log`) | Must | Mỗi lần đọc đều ghi; audit không có số tiền |
+| FR-OPS-13 | Nhân viên tạo giao dịch nháp theo ca (`source = Support`) | Should | Cần scope `Draft` và ví khách chọn; không đổi số dư tới khi khách xác nhận; client không tự khai được nguồn này |
+| FR-OPS-14 | Đề xuất và duyệt: mở khóa, hủy yêu cầu xóa, chuyển chủ nhóm | Must | Không tự duyệt, kể cả Admin; hai người duyệt cùng lúc chỉ một người thành công; kiểm tra lại đối tượng lúc duyệt; hết hạn sau 7 ngày |
+| FR-OPS-15 | Khóa khẩn cấp theo ca | Must | Chỉ khóa người tạo ca đang xử lý; không khóa tài khoản nội bộ; ca chuyển cấp để Manager rà soát |
+| FR-OPS-16 | Xem thông tin tối thiểu của khách và nhóm theo ca | Should | Không có dữ liệu tài chính; email đã che |
+| FR-OPS-17 | Bảng điều hành, gom ca và trả lời hàng loạt, câu trả lời mẫu, nhật ký vận hành | Should | Staff nhận 403, trừ đọc câu trả lời mẫu; nhật ký chỉ có sự kiện `Ops.*` |
+| FR-OPS-18 | Xác thực 2 lớp bằng email cho tài khoản nội bộ | Must | Chưa qua OTP thì 403 ở mọi `/ops/*`, `/admin/*`; giữ 12 giờ qua các lần refresh; khách không bị ảnh hưởng; tắt được bằng `OPS_REQUIRE_2FA` |
+
+### 6.8 Giám sát hệ thống **[Ngoài đặc tả]**
+
+Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không tự báo được khi chính backend, Postgres hoặc Brevo hỏng (`docs/ops-runbook.md`).
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-MON-01 | Kiểm tra Redis, AI, OCR, STT mỗi phút | Must | Lỗi 3 lần liên tiếp mới mở sự cố; tốt 3 lần liên tiếp thì tự đóng; dịch vụ chưa cấu hình không tính là lỗi |
+| FR-MON-02 | Gom lỗi giống nhau thành một sự cố đang mở | Must | Unique theo `fingerprint`, kể cả khi chạy đồng thời; lỗi quay lại sau khi đóng thì mở sự cố mới |
+| FR-MON-03 | Báo qua email cho Admin và OpsManager | Must | Bỏ qua người bị khóa hoặc chờ xóa; nhắc lại tới khi có người nhận; gửi lỗi thì lượt sau thử lại; email không có chi tiết kỹ thuật |
+| FR-MON-04 | Mức thường chỉ gom một email cho Admin lúc 08:00 giờ VN | Should | OpsManager không nhận |
+| FR-MON-05 | Theo dõi lỗi ứng dụng | Must | Từ mức Error; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh, `traceId`; không làm chậm request; giữ 30 ngày |
+| FR-MON-06 | Theo dõi job Hangfire | Should | Thất bại sau mọi lần thử mở sự cố `High`; quá giờ 10 phút mở sự cố `Normal` |
+| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase, Rasa | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
+| FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
+| FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -378,13 +442,13 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | --- | --- | --- | --- |
 | FR-ADM-01 | Danh sách và chi tiết người dùng | Must | Không trả số tiền hay mô tả giao dịch |
 | FR-ADM-02 | Khoá / mở khoá | Must | Không tự khoá mình; khoá thì thu hồi refresh token |
-| FR-ADM-03 | Đổi vai trò | Must | Không đổi vai trò chính mình; không hạ admin đang hoạt động cuối cùng; không nâng tài khoản chờ xoá; hạ cấp → thu hồi token |
+| FR-ADM-03 | Đổi vai trò (`User`, `Staff`, `OpsManager`, `Admin`) | Must | Không đổi vai trò chính mình; không hạ admin đang hoạt động cuối cùng xuống bất kỳ vai trò nào; không cấp vai trò nội bộ cho tài khoản chờ xoá; mọi lần giảm quyền → thu hồi token |
 | FR-ADM-04 | Cấu hình provider | Must | `provider_key` bất biến |
 | FR-ADM-05 | Danh mục hệ thống | Must | `slug` bất biến; đồng bộ sang AI Service (FR-CAT-06) |
 | FR-ADM-07 | Hàng đợi xoá dữ liệu và huỷ yêu cầu | Must | Huỷ xoá `user.DeletedAt`; không có endpoint xoá ngay |
 | FR-ADM-08 | Audit log (chỉ đọc) | Must | Mọi thao tác ghi của admin |
 | FR-ADM-09 | Thống kê chất lượng AI (`/admin/ai-stats`) | Should | AI Service chết vẫn trả 200 với phần của backend |
-| FR-ADM-10 | Tài khoản admin hạt giống | Must | Sửa vai trò, khoá, xoá mềm mỗi lần khởi động — không đổi mật khẩu |
+| FR-ADM-10 | Tài khoản admin hạt giống | Must | Sửa vai trò, khoá, xoá mềm, trạng thái xác minh email mỗi lần khởi động — không đổi mật khẩu |
 | FR-ADM-11 | Quản trị định dạng thông báo (`/admin/provider-formats`, 17 route) | Should | Tạo/sửa/clone/archive/activate định dạng, trường, mẫu regex, mẫu thử; `try`/`check` chạy thử trước khi bật |
 | FR-ADM-12 | **[Ngoài đặc tả]** Quản trị kiến thức AI (`/admin/ai-rules`, `/admin/ai-config`) | Should | Thương hiệu, từ khoá, bộ nhớ cửa hàng, cache món, chỉ dẫn Gemini, mẫu đã nhãn, mô hình; tài liệu cấu hình có phiên bản, bản nháp, xem trước, kích hoạt, lịch sử và hoàn tác |
 | FR-ADM-13 | **[Ngoài đặc tả]** Quản trị phương pháp tài chính | Should | `/admin/finance-methods` (kèm `activeUserCount` trước khi tắt), `/admin/survey-questions`, `/admin/goal-templates`, `/admin/finance-method-prompts`; bố cục trang chủ và hũ |
@@ -411,7 +475,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-03 | Refresh token lưu SHA-256 | Kiểm bảng |
 | NFR-SEC-04 | Mọi endpoint `[Authorize]` trừ `/auth/*`, `/app-config` và health | Test không token → 401 |
 | NFR-SEC-05 | Admin controller kế thừa `AdminControllerBase` | User thường → 403 |
-| NFR-SEC-06 | Repository lọc theo `userId` từ JWT | Test cross-user → 404 |
+| NFR-SEC-06 | Repository lọc theo `userId` từ JWT. Dữ liệu nhóm đi qua `IGroupAccessService`: không phải thành viên → 404, thiếu quyền → 403, quyền đọc từ DB mỗi request | Test cross-user và cross-group → 404 |
 | NFR-SEC-07 | AI Service, `ocr-service`, `stt-service`, `rasa` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
 | NFR-SEC-08 | Client ↔ server qua TLS | TLS ở reverse proxy |
 
@@ -434,7 +498,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-21 | CSDL AI chỉ lưu `SHA-256(user_id)` (cùng hàm `UserIdHasher` cho AI Service và `ocr-service`), không FK sang backend | Kiểm schema |
 | NFR-SEC-22 | Nội dung thông báo vào tập huấn luyện đã che số tài khoản, thẻ, SĐT, email; chữ hoá đơn đã lọc dữ liệu cá nhân trước khi rời `ocr-service`; chuỗi ≥ 9 chữ số liền bị từ chối | Unit test `anonymizer`, `privacy.sanitize_lines` |
 | NFR-SEC-23 | **[Sai lệch]** `notification_body` gốc bị xoá sau 90 ngày | Tài liệu cũ ghi `DataCleanupJob` đáp ứng, nhưng **job này chưa từng có trong code** (chỉ có trong skeleton ban đầu); không có job nào xoá `notification_logs.notification_body` |
-| NFR-SEC-24 | **[Đổi]** Ảnh hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
+| NFR-SEC-24 | **[Đổi]** Ảnh quét hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB. Ngoại lệ duy nhất: ảnh khách chủ động gửi vào ticket hỗ trợ, được mã hóa và tự xóa sau khi ca đóng (FR-OPS-10) | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
 | NFR-SEC-25 | Quyền được xoá: xoá cứng sau 30 ngày, kèm mẫu huấn luyện ở AI Service | Test `DataDeletionJob`; lỗi xoá ở AI Service → giữ user lại thử đêm sau |
 | NFR-SEC-26 | Production không trả stack trace | Middleware + test |
 | NFR-SEC-27 | **[Một phần]** Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Chưa có `STT_SERVICE_API_KEY` và `SECRETS_MASTER_KEY` (thiếu khoá chủ thì kho key tắt âm thầm) |
@@ -460,6 +524,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-DATA-09 | Không tác dụng phụ ra ngoài trước khi lưu | Review handler |
 | NFR-DATA-10 | Không ghi sai tiền: giao dịch tự lưu chỉ khi số tiền do luật trích ra; OCR luôn cần rà soát | Test |
 | NFR-DATA-11 | Danh mục: hai bộ song song (11 slug backend, 9 nhóm bill/chat) quy đổi qua `SLUG_BY_LOCAL_CATEGORY`, có mất thông tin (`dining`, `groceries` → `food`) | Mọi đầu ra về backend lọc theo 11 slug |
+| NFR-DATA-12 | Ghi đồng thời không làm mất tiền: số dư, `spent_cents`, `saved_cents` có khóa lạc quan; thua xung đột thì tự chạy lại, hết lượt trả 409 `CONCURRENT_UPDATE`, không có gì được lưu | Test song song trên Postgres thật |
 
 ### 11.2 Độ tin cậy và khả dụng
 
@@ -471,7 +536,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
 | NFR-REL-05 | Job nền bền qua khởi động lại; 10 job định kỳ: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob`, `RecurringDetectionJob`, `ForecastDailyAlertJob`, `ForecastAlertDispatchJob` (thêm `ForecastUserCheckJob` xếp hàng sau mỗi giao dịch) | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
-| NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Uptime monitor |
+| NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Cần đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready` (`docs/ops-runbook.md`); chưa đăng ký |
 | NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
 
 ### 11.3 Hiệu năng (đề xuất, chưa đo)
@@ -497,6 +562,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-OPS-03 | Cấu hình qua biến môi trường và cấu hình hệ thống trong DB; key bên thứ ba qua kho key | Grep repo |
 | NFR-OPS-04 | Log Serilog ra stdout | `docker logs` |
 | NFR-OPS-05 | Log khởi động nêu chế độ thật/dự phòng của push, email, OCR, STT | Log lúc boot |
+| NFR-OPS-10 | Có giám sát và cảnh báo tự động (FR-MON). Backend hoặc Postgres sập phải được theo dõi từ bên ngoài | Runbook; `/health/ready` |
 | NFR-OPS-06 | Hangfire dashboard có mật khẩu riêng | Không mật khẩu → 401 |
 | NFR-OPS-07 | Migration: EF Core (30) và Alembic (32); không sửa migration đã phát hành | Review |
 | NFR-OPS-08 | Model không nằm trong git, phải tải riêng: Rasa (`ai-service/rasa/models/active.tar.gz`), GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
@@ -534,7 +600,7 @@ Kiểm trên code ngày 2026-11-02.
 | Mã | Nhãn | Hiện trạng | Việc cần làm | Ảnh hưởng |
 | --- | --- | --- | --- | --- |
 | NFR-SEC-23 | Sai lệch | Không có job xoá `notification_body` | Viết job (hoặc thêm vào `DataDeletionJob`) xoá nội dung > 90 ngày | Trung bình — quyền riêng tư |
-| FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản không nhắc | Sửa câu chữ + tăng `ConsentVersions.Terms`, hoặc tắt Vision | Lớn — pháp lý |
+| FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản bản 3 không nhắc | Đã chốt: nêu trong bản 4, chưa phát hành | Lớn — pháp lý |
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
 | NFR-PERF-07 | Một phần | Client Refit chính timeout 100 s | Đặt timeout tường minh | Nhỏ |
 | NFR-SEC-27 | Một phần | Thiếu 2 key trong guard | Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` | Nhỏ |
@@ -567,12 +633,13 @@ Kiểm trên code ngày 2026-11-02.
 
 ### 13.4 Vấn đề mở (cần chủ sản phẩm quyết)
 
-- [ ] **Google Vision và đồng ý.** Sửa Điều khoản để nêu rõ ảnh hoá đơn gửi Google (tăng `ConsentVersions.Terms` → mọi người đồng ý lại), hay tắt Vision và chỉ dùng OCR cục bộ (chậm hơn ~2,2 lần, độ chính xác tương đương).
+- [x] **Google Vision và đồng ý.** Đã chốt 2026-11-05: giữ Vision, nêu rõ trong Điều khoản bản 4 rằng ảnh hoá đơn được gửi nguyên bản tới Google. Câu chữ cuối nên có người phụ trách pháp lý xem qua.
 - [ ] **Auto-commit (FR-TXN-05).** Làm theo đặc tả hay giữ xác nhận một chạm của Phase 15.
 - [ ] **Gợi ý phương pháp theo luật (FR-FIN-07).** Hồ sơ mẫu nên ra `cash_flow_budget` hay `rule_80_20`.
 - [ ] **Đồng ý khảo sát-AI (FR-CONS-06).** Gỡ hẳn loại đồng ý này hay khôi phục việc kiểm.
 - [ ] **Tách hoá đơn theo món (FR-SCAN-05).** Đang tắt mặc định; có bật cho production không.
 - [ ] SMS OTP: đặc tả ghi "Email / Số điện thoại", quyết định 2026-09-11 chỉ làm email.
+- [ ] **Điều khoản bản 4 (FR-GRP).** App phải hiển thị câu chữ mới về chia sẻ với nhóm và gửi `version = 4` trước hoặc cùng lúc backend lên production; nếu không, đồng ý gửi bản 3 sẽ bị từ chối (409). Bản 4 chưa phát hành và gộp cả nội dung về Google Vision (FR-CONS-05) lẫn hỗ trợ (FR-OPS-10, FR-OPS-11), để người dùng chỉ đồng ý lại một lần.
 - [ ] Thống nhất với nhóm app: giao dịch tiền mặt vẫn phải đồng bộ lên server (qua `clientRequestId`).
 - [ ] **Định nghĩa các mã BR của sơ đồ Flow 6** (BR-01.2, 03.1, 03.3, 04.2, 04.3, 06.1, 07.1–07.4, 08.1–08.3, 11.1–11.4). Đợt 1 dùng mặc định ở `forecast.*` trong cấu hình hệ thống; cần đối chiếu khi có tài liệu.
 - [ ] Định nghĩa "giao dịch chi đột biến" (FR-RPT-06).
@@ -611,4 +678,5 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-02 | **Giữ** trạng thái cảnh báo ngân sách (`ok/t1/t2/over`) mà đặc tả gọi là "trạng thái Mascot" | Đây là cảnh báo chi tiêu, không phải trò chơi | FR-BUD-07 giữ nguyên, đổi tên khỏi "Mascot" |
 | 2026-11-02 | **Thêm dự báo tài chính (Flow 6)**, làm theo đợt; đợt 1 = lõi + dòng tiền + số tiền có thể chi + khoản định kỳ | Chủ sản phẩm duyệt kế hoạch; swimlane giữ nguyên | Nhóm FR-FCST (6.5). FR-RPT-04/06/07 chuyển vào đây. Migration `AddForecastFoundation`: bảng `recurring_items`, cột `transactions.exclude_from_forecast`/`forecast_exclusion_reason`, `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents` |
 | 2026-11-02 | **Dự báo tài chính đợt 2: cảnh báo** | Chủ sản phẩm duyệt kế hoạch (outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi) | FR-FCST-10…13 xong. Migration `AddForecastAlerts`: bảng `forecast_alerts`, cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute`, `forecast_alerts_enabled`. API mới: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /budgets/transfer`; `PUT /me/forecast-settings` nay thay toàn bộ cài đặt |
+| 2026-11-05 | **Thêm tài chính nhóm / gia đình**, làm theo đợt | Chủ sản phẩm duyệt: một mô hình ưu tiên gia đình; giao dịch chia sẻ vẫn tính vào ngân sách cá nhân; mặc định thấy chi tiết giao dịch đã chia sẻ; rời nhóm giữ lịch sử, xóa tài khoản xóa hẳn rồi tính lại | Nhóm FR-GRP (6.6). Migration `AddGroups`: `groups`, `group_members`, `group_invitations`, `group_activities`. `AddGroupSharedFinance`: `group_categories`, `group_share_rules`; `transactions.group_id`, `group_category_id`, `shared_at`; `budgets`, `saving_goals`: `user_id` thành nullable, thêm `group_id`, CHECK một chủ. `ConsentVersions.Terms` lên 4. Chưa làm: ví chung, chia tiền và công nợ, dự báo cấp nhóm |
 | 2026-11-02 | **Dự báo tài chính đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu** | Chủ sản phẩm duyệt kế hoạch (bảng đánh dấu riêng, quét trong lượt kiểm tra sau giao dịch, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu) | FR-FCST-14…16 xong. Migration `AddTransactionAnomalies`: bảng `transaction_anomalies`, thêm `anomaly` vào CHECK `forecast_alerts.kind`. API mới: `/forecast/anomalies`, `/forecast/categories`, `/forecast/categories/apply`, `/forecast/goals/{id}`. Insight `UnusualSpending` ngừng sinh. Ngưỡng outlier dùng trung vị + 3·MAD có sẵn (`Statistics`) thay vì Q3 + 1,5·IQR ghi trong kế hoạch |

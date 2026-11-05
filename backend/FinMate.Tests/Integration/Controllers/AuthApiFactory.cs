@@ -1,3 +1,7 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using FinMate.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -47,6 +51,12 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         // có ngăn riêng, và RateLimitingControllerTests dựa vào đúng điều đó để kiểm 429 thật.
         Environment.SetEnvironmentVariable("RATE_LIMIT_AUTH_PER_MINUTE", "100000");
 
+        // Hàng chục test gọi API admin bằng token đăng nhập thường. OpsTwoFactorTests bật lại riêng.
+        Environment.SetEnvironmentVariable("OPS_REQUIRE_2FA", "false");
+
+        // Job mỗi phút gọi tới các dịch vụ không có trong bộ test. MonitoringTests chạy thẳng ISystemMonitor.
+        Environment.SetEnvironmentVariable("MONITORING_ENABLED", "false");
+
         // 23 file test gọi auth/register rồi đăng nhập ngay; bắt tất cả diễn lại màn OTP chỉ
         // tạo nhiễu trong khi chúng đang kiểm thứ khác. EmailVerificationGateTests bật lại cờ
         // này ở phạm vi của riêng nó để phần chặn vẫn được kiểm thật.
@@ -57,6 +67,38 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
     {
         await _postgres.DisposeAsync();
     }
+
+    /// <summary>Đổi cờ qua API admin, như cách vận hành thật. Cờ không truyền thì giữ nguyên.</summary>
+    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMate.Infrastructure.Persistence.FinMateDbContext>();
+        var admin = await db.Users.AsNoTracking().SingleAsync(u => u.Email == AdminEmail);
+        var token = scope.ServiceProvider.GetRequiredService<ITokenService>().GenerateAccessToken(admin);
+
+        using var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        const string url = "/api/v1/admin/system-config";
+
+        var current = JsonDocument.Parse(await client.GetStringAsync(url)).RootElement.GetProperty("data");
+        var features = current.GetProperty("content").GetProperty("features");
+        var (oldGroups, oldSupport) = (features.GetProperty("groups").GetBoolean(), features.GetProperty("support").GetBoolean());
+        var (newGroups, newSupport) = (groups ?? oldGroups, support ?? oldSupport);
+        if (newGroups == oldGroups && newSupport == oldSupport)
+        {
+            return;
+        }
+
+        var saved = await client.PutAsJsonAsync(url, new
+        {
+            expectedVersion = current.GetProperty("version").GetInt32(),
+            content = new { features = new { groups = newGroups, support = newSupport } },
+            note = "kiem thu",
+        });
+        saved.EnsureSuccessStatusCode();
+    }
+
+    public Task SetGroupsEnabledAsync(bool enabled) => SetFeaturesAsync(groups: enabled);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

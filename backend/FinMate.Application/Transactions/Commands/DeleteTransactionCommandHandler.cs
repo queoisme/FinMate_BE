@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Enums;
@@ -12,13 +13,17 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly ICacheService _cache;
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
+    private readonly IGroupLedger? _groupLedger;
+
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IBudgetPeriodService budgetPeriodService,
         ICacheService cache,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
@@ -60,6 +65,12 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
                 -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
                 transaction.TransactedAt,
                 ct);
+        }
+
+        // Hoàn phần của nhóm, kể cả khi chủ giao dịch đã rời nhóm: số của nhóm phải luôn khớp với các khoản còn lại.
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.ApplyAsync(transaction, transaction.Category, -1, ct);
         }
 
         transaction.DeletedAt = now;

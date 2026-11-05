@@ -39,6 +39,12 @@ public class RefreshTokenRepository : IRefreshTokenRepository
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
 
+    public async Task MarkOpsVerifiedAsync(RefreshToken token, DateTimeOffset verifiedAt, CancellationToken ct = default)
+    {
+        token.OpsVerifiedAt = verifiedAt;
+        await _context.SaveChangesAsync(ct);
+    }
+
     public async Task RotateAsync(RefreshToken oldToken, RefreshToken newToken, CancellationToken ct = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(ct);

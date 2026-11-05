@@ -1,4 +1,5 @@
 using FinMate.API.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using FinMate.API.Configuration;
 using FinMate.API.HealthChecks;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -17,6 +18,7 @@ using FinMate.Application.Budgets.Commands;
 using FinMate.Application.Budgets.Queries;
 using FinMate.Application.Categories.Commands;
 using FinMate.Application.Categories.Queries;
+using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Devices.Commands;
 using FinMate.Application.FinanceMethods;
@@ -25,6 +27,7 @@ using FinMate.Application.FinancialAccounts.Queries;
 using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Groups;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
@@ -48,6 +51,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.Monitoring;
+using FinMate.Application.Ops;
+using FinMate.API.Monitoring;
+using FinMate.Infrastructure.Monitoring;
+using FinMate.Application.Support;
 using Serilog;
 using System.Net.Http.Headers;
 using System.Text;
@@ -61,9 +69,15 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Host.UseSerilog((context, _, configuration) =>
+        builder.Services.AddSingleton<OpsErrorQueue>();
+        builder.Services.AddSingleton<OpsErrorSink>();
+        var monitoringEnabled = OpsMonitoringOptions.IsEnabled(builder.Configuration["MONITORING_ENABLED"]);
+        builder.Services.AddSingleton(new OpsMonitoringOptions(monitoringEnabled));
+
+        builder.Host.UseSerilog((context, services, configuration) =>
         {
             configuration
+                .WriteTo.Sink(services.GetRequiredService<OpsErrorSink>())
                 .MinimumLevel.Is(context.HostingEnvironment.IsDevelopment()
                     ? Serilog.Events.LogEventLevel.Debug
                     : Serilog.Events.LogEventLevel.Information)
@@ -173,6 +187,9 @@ public class Program
         builder.Services.AddHangfire(config => config
             .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(databaseUrl)));
         builder.Services.AddHangfireServer();
+        builder.Services.AddHostedService<OpsErrorWriter>();
+        builder.Services.AddSingleton<IRecurringJobReader, HangfireRecurringJobReader>();
+        builder.Services.AddSingleton<OpsJobFailureFilter>();
 
         // OCR service riêng (PaddleOCR + VietOCR): có URL thì backend gọi nó rồi mới gọi AI Service phân loại; không có thì quét qua
         // POST /api/v1/ocr của AI Service như trước. Khóa nội bộ bắt buộc đi kèm URL.
@@ -260,10 +277,32 @@ public class Program
             // xem ghi chú về cửa sổ 15 phút ở AuthorizationPolicies.
             options.AddPolicy(
                 AuthorizationPolicies.AdminOnly,
-                policy => policy.RequireRole(nameof(UserRole.Admin)));
+                policy => policy.RequireRole(nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
+            options.AddPolicy(
+                AuthorizationPolicies.StaffOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
+            options.AddPolicy(
+                AuthorizationPolicies.ManagerOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.OpsManager), nameof(UserRole.Admin)).AddRequirements(new OpsVerifiedRequirement()));
+            options.AddPolicy(
+                AuthorizationPolicies.InternalAccount,
+                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
         });
 
+        // Không khai báo domain nào thì policy rỗng, trình duyệt không được phép gọi. Xác thực bằng header Bearer nên không bật AllowCredentials.
+        var opsWebOrigins = OpsWebOrigins.Parse(builder.Configuration["OPS_WEB_ORIGINS"]);
+        builder.Services.AddCors(options => options.AddPolicy(
+            OpsWebOrigins.PolicyName,
+            policy => policy.WithOrigins(opsWebOrigins.ToArray()).AllowAnyMethod().WithHeaders("Authorization", "Content-Type")));
+
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
+
+        // Mặc định bật ngoài Development. Đặt false chỉ khi email đang hỏng và cần vào được hệ thống để sửa.
+        var requireOpsTwoFactor = bool.TryParse(builder.Configuration["OPS_REQUIRE_2FA"], out var parsedOpsTwoFactor)
+            ? parsedOpsTwoFactor
+            : !builder.Environment.IsDevelopment();
+        builder.Services.AddSingleton(new OpsAuthOptions(requireOpsTwoFactor));
+        builder.Services.AddSingleton<IAuthorizationHandler, OpsVerifiedHandler>();
 
         builder.Services.AddSingleton(new GoogleOAuthOptions(
             googleOAuthEnabled,
@@ -318,6 +357,54 @@ public class Program
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
 
         // Dự báo tài chính (Flow 6, đợt 1).
+        builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
+        builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+        builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+        builder.Services.AddScoped<IIncidentService, IncidentService>();
+        builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
+        builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
+        builder.Services.AddScoped<ServiceStatusTracker>();
+        builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
+        builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, ErrorMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, JobMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, ProviderMonitorSource>();
+        builder.Services.AddSingleton<IProviderFailureTracker, ProviderFailureTracker>();
+        builder.Services.AddSingleton(new ProviderStatusEndpoints(ocrServiceUrl, builder.Configuration["OCR_SERVICE_API_KEY"], aiServiceUrl, aiServiceApiKey));
+        builder.Services.AddScoped<IProviderStatusClient, ProviderStatusClient>();
+        builder.Services.AddScoped<IAdminErrorEventService, AdminErrorEventService>();
+        builder.Services.AddHttpClient(HttpServiceProbe.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
+        builder.Services.AddScoped<IServiceProbe, RedisProbe>();
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.AiService, $"{aiServiceUrl.TrimEnd('/')}/api/v1/health", sp.GetRequiredService<IHttpClientFactory>()));
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.OcrService, string.IsNullOrWhiteSpace(ocrServiceUrl) ? null : $"{ocrServiceUrl.TrimEnd('/')}/health", sp.GetRequiredService<IHttpClientFactory>()));
+        builder.Services.AddScoped<IServiceProbe>(sp => new HttpServiceProbe(MonitoredServices.SttService, string.IsNullOrWhiteSpace(sttServiceUrl) ? null : $"{sttServiceUrl.TrimEnd('/')}/health", sp.GetRequiredService<IHttpClientFactory>()));
+        builder.Services.AddScoped<IOpsTwoFactorService, OpsTwoFactorService>();
+        builder.Services.AddScoped<IOpsRepository, OpsRepository>();
+        builder.Services.AddScoped<IOpsApprovalService, OpsApprovalService>();
+        builder.Services.AddScoped<IOpsUserService, OpsUserService>();
+        builder.Services.AddScoped<IOpsManagerService, OpsManagerService>();
+        builder.Services.AddScoped<IGroupSupportTransfer, GroupSupportTransfer>();
+        builder.Services.AddScoped<ISupportRepository, SupportRepository>();
+        builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
+        builder.Services.AddScoped<IOpsTicketService, OpsTicketService>();
+        builder.Services.AddScoped<ISupportAccessService, SupportAccessService>();
+        builder.Services.AddScoped<IOpsCustomerDataService, OpsCustomerDataService>();
+        builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
+        builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
+        builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
+        builder.Services.AddScoped<IGroupService, GroupService>();
+        builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
+        builder.Services.AddScoped<IGroupInvitationService, GroupInvitationService>();
+        builder.Services.AddScoped<IGroupFinanceRepository, GroupFinanceRepository>();
+        builder.Services.AddScoped<IGroupAlertNotifier, GroupAlertNotifier>();
+        builder.Services.AddScoped<IGroupLedger, GroupLedger>();
+        builder.Services.AddScoped<IGroupTransactionService, GroupTransactionService>();
+        builder.Services.AddScoped<IGroupBudgetService, GroupBudgetService>();
+        builder.Services.AddScoped<IGroupGoalService, GroupGoalService>();
+        builder.Services.AddScoped<IGroupCategoryService, GroupCategoryService>();
+        builder.Services.AddScoped<IGroupReportService, GroupReportService>();
+        builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
         builder.Services.AddScoped<IForecastService, ForecastService>();
@@ -420,11 +507,16 @@ public class Program
 
         builder.Services.AddScoped<IAnalyzeNotificationCommandHandler, AnalyzeNotificationCommandHandler>();
 
-        builder.Services.AddScoped<IConfirmTransactionCommandHandler, ConfirmTransactionCommandHandler>();
-        builder.Services.AddScoped<ICreateManualTransactionCommandHandler, CreateManualTransactionCommandHandler>();
-        builder.Services.AddScoped<ICreateTransferCommandHandler, CreateTransferCommandHandler>();
-        builder.Services.AddScoped<IUpdateTransactionCommandHandler, UpdateTransactionCommandHandler>();
-        builder.Services.AddScoped<IDeleteTransactionCommandHandler, DeleteTransactionCommandHandler>();
+        builder.Services.AddScoped<ConfirmTransactionCommandHandler>();
+        builder.Services.AddScoped<IConfirmTransactionCommandHandler>(sp => new RetryingConfirmTransactionCommandHandler(sp.GetRequiredService<ConfirmTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<CreateManualTransactionCommandHandler>();
+        builder.Services.AddScoped<ICreateManualTransactionCommandHandler>(sp => new RetryingCreateManualTransactionCommandHandler(sp.GetRequiredService<CreateManualTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<CreateTransferCommandHandler>();
+        builder.Services.AddScoped<ICreateTransferCommandHandler>(sp => new RetryingCreateTransferCommandHandler(sp.GetRequiredService<CreateTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<UpdateTransactionCommandHandler>();
+        builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<DeleteTransactionCommandHandler>();
+        builder.Services.AddScoped<IDeleteTransactionCommandHandler>(sp => new RetryingDeleteTransactionCommandHandler(sp.GetRequiredService<DeleteTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
         // Tách bill theo món: mặc định TẮT, giá trị sai cũng coi là tắt (Receipt__SplitByItemsEnabled khi đặt qua biến môi trường).
         builder.Services.AddSingleton(new FinMate.Application.Transactions.ReceiptOptions(
@@ -443,7 +535,8 @@ public class Program
 
         builder.Services.AddScoped<ICreateSavingGoalCommandHandler, CreateSavingGoalCommandHandler>();
         builder.Services.AddScoped<IUpdateSavingGoalCommandHandler, UpdateSavingGoalCommandHandler>();
-        builder.Services.AddScoped<IContributeToGoalCommandHandler, ContributeToGoalCommandHandler>();
+        builder.Services.AddScoped<ContributeToGoalCommandHandler>();
+        builder.Services.AddScoped<IContributeToGoalCommandHandler>(sp => new RetryingContributeToGoalCommandHandler(sp.GetRequiredService<ContributeToGoalCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<ICancelSavingGoalCommandHandler, CancelSavingGoalCommandHandler>();
         builder.Services.AddScoped<IGetSavingGoalListQueryHandler, GetSavingGoalListQueryHandler>();
         builder.Services.AddScoped<IGetGoalProgressQueryHandler, GetGoalProgressQueryHandler>();
@@ -456,6 +549,9 @@ public class Program
         builder.Services.AddScoped<IMarkInsightReadCommandHandler, MarkInsightReadCommandHandler>();
 
         builder.Services.AddScoped<DataDeletionJob>();
+        builder.Services.AddScoped<SystemMonitorJob>();
+        builder.Services.AddScoped<MonitoringDigestJob>();
+        builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
@@ -515,6 +611,9 @@ public class Program
             app.UseSwaggerUI();
         }
 
+        // TRƯỚC chuyển hướng HTTPS và bảo trì: trình duyệt không gửi token khi preflight và không chấp nhận preflight bị chuyển hướng hay 503.
+        app.UseCors(OpsWebOrigins.PolicyName);
+
         app.UseHttpsRedirection();
 
         app.UseAuthentication();
@@ -539,10 +638,34 @@ public class Program
             },
         });
 
+        // 03:00 giờ VN. Hangfire đọc cron theo UTC.
         RecurringJob.AddOrUpdate<DataDeletionJob>(
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
-            "0 3 * * *");
+            "0 20 * * *");
+
+        // 03:30 giờ VN, sau data-deletion.
+        RecurringJob.AddOrUpdate<SupportRetentionJob>(
+            "support-retention",
+            job => job.RunAsync(CancellationToken.None),
+            "30 20 * * *");
+
+        if (monitoringEnabled)
+        {
+            GlobalJobFilters.Filters.Add(app.Services.GetRequiredService<OpsJobFailureFilter>());
+        }
+
+        // Mặc định bật. AuthApiFactory tắt để job không chạy nền trong bộ test.
+        if (monitoringEnabled)
+        {
+            RecurringJob.AddOrUpdate<SystemMonitorJob>("system-monitor", job => job.RunAsync(CancellationToken.None), "* * * * *");
+            RecurringJob.AddOrUpdate<MonitoringDigestJob>("monitoring-digest", job => job.RunAsync(CancellationToken.None), "0 1 * * *");
+        }
+        else
+        {
+            RecurringJob.RemoveIfExists("system-monitor");
+            RecurringJob.RemoveIfExists("monitoring-digest");
+        }
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",
@@ -554,12 +677,11 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 * * * *");
 
-        // ARCHITECTURE.md §5 không quy định giờ cho job này — 08:00 là khung giờ hợp lý để
-        // gửi nhắc nhở, không trùng với các job nặng chạy đêm.
+        // 08:00 giờ VN là khung giờ hợp lý để gửi nhắc nhở. Hangfire đọc cron theo UTC.
         RecurringJob.AddOrUpdate<GoalDeadlineCheckJob>(
             "goal-deadline-check",
             job => job.RunAsync(CancellationToken.None),
-            "0 8 * * *");
+            "0 1 * * *");
 
         // Hangfire đọc cron theo UTC. ARCHITECTURE.md §5 ghi giờ theo ý định vận hành (giờ VN)
         // nên hai job dưới phải trừ 7 tiếng: 17:05 UTC = 00:05 VN, 19:00 UTC = 02:00 VN.

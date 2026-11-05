@@ -25,6 +25,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.Property(r => r.ExpiresAt).HasColumnName("expires_at").IsRequired();
         builder.Property(r => r.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(r => r.RevokedAt).HasColumnName("revoked_at");
+        builder.Property(r => r.OpsVerifiedAt).HasColumnName("ops_verified_at");
         builder.Property(r => r.ReplacedByTokenHash).HasColumnName("replaced_by_token_hash").HasMaxLength(64);
 
         builder.HasIndex(r => r.TokenHash)

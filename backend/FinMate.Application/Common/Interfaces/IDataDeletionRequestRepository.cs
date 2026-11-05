@@ -25,6 +25,7 @@ public interface IDataDeletionRequestRepository
     Task MarkProcessedAsync(DataDeletionRequest request, CancellationToken ct = default);
 
     Task<DataDeletionRequest?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<DataDeletionRequest?> GetPendingForUserAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Hàng đợi cho màn hình giám sát. Trả kèm email/tên vì nếu không, danh sách chỉ là một

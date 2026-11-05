@@ -1,3 +1,7 @@
+using System.Net;
+using System.Net.Http.Json;
+using FinMate.API.Controllers;
+using FinMate.Application.Auth;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -7,6 +11,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace FinMate.Tests.Integration.Controllers;
@@ -62,6 +67,46 @@ public class AdminSeederRecoveryTests : IClassFixture<AuthApiFactory>
         var admin = await BreakThenReseedAsync(u => u.Role = UserRole.User);
 
         admin.Role.Should().Be(UserRole.Admin);
+    }
+
+    [Fact]
+    public async Task MarksTheEmailVerifiedOnAnExistingUnverifiedAccount()
+    {
+        var admin = await BreakThenReseedAsync(u => u.EmailVerifiedAt = null);
+
+        admin.EmailVerifiedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AFreshlySeededAccountIsVerified()
+    {
+        const string email = "seed-moi@finmate.local";
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ADMIN_SEED_EMAIL"] = email,
+            ["ADMIN_SEED_PASSWORD"] = AuthApiFactory.AdminPassword,
+        }).Build();
+
+        await AdminUserSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordHasher>(), config);
+
+        (await db.Users.AsNoTracking().SingleAsync(u => u.Email == email)).EmailVerifiedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task TheSeedAccountCanSignInWhileEmailVerificationIsRequired()
+    {
+        await BreakThenReseedAsync(u => u.EmailVerifiedAt = null);
+        var client = _factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<AuthOptions>();
+            services.AddSingleton(new AuthOptions(true));
+        })).CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

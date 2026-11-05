@@ -44,10 +44,12 @@ public sealed class SecretCipher
 
     /// <summary>Trả (bản mã + thẻ xác thực, nonce). Ném <see cref="InvalidOperationException"/> nếu chưa có khóa chủ.</summary>
     public (byte[] Ciphertext, byte[] Nonce) Encrypt(string name, string plaintext)
+        => EncryptBytes(name, Encoding.UTF8.GetBytes(plaintext));
+
+    public (byte[] Ciphertext, byte[] Nonce) EncryptBytes(string name, byte[] data)
     {
         var key = _key ?? throw new InvalidOperationException("SECRETS_MASTER_KEY chưa được cấu hình.");
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var data = Encoding.UTF8.GetBytes(plaintext);
         var cipher = new byte[data.Length];
         var tag = new byte[TagSize];
 
@@ -58,6 +60,9 @@ public sealed class SecretCipher
 
     /// <summary>Giải mã; trả null nếu sai khóa, bị sửa hoặc bị chép sang tên khác (không phân biệt, không ném).</summary>
     public string? Decrypt(string name, byte[] ciphertext, byte[] nonce)
+        => DecryptBytes(name, ciphertext, nonce) is { } plain ? Encoding.UTF8.GetString(plain) : null;
+
+    public byte[]? DecryptBytes(string name, byte[] ciphertext, byte[] nonce)
     {
         if (_key is null || ciphertext.Length < TagSize || nonce.Length != NonceSize)
         {
@@ -70,7 +75,7 @@ public sealed class SecretCipher
         {
             using var aes = new AesGcm(_key, TagSize);
             aes.Decrypt(nonce, ciphertext.AsSpan(0, split), ciphertext.AsSpan(split), plain, Encoding.UTF8.GetBytes(name));
-            return Encoding.UTF8.GetString(plain);
+            return plain;
         }
         catch (CryptographicException)
         {

@@ -31,6 +31,55 @@ public sealed record FeatureSettings
     public bool Voice { get; init; } = true;
     public bool BillScan { get; init; } = true;
     public bool NotificationReading { get; init; } = true;
+
+    /// <summary>Tài chính nhóm. Mặc định tắt: chỉ bật sau khi app đã có màn hình và người dùng đã đồng ý Điều khoản mới.</summary>
+    public bool Groups { get; init; }
+
+    /// <summary>Ticket hỗ trợ cho khách. Mặc định tắt: chỉ bật sau khi app có màn hình và web vận hành đã có xác thực 2 lớp.</summary>
+    public bool Support { get; init; }
+}
+
+public sealed record GroupSettings
+{
+    public int MaxMembers { get; init; } = 20;
+    public int MaxGroupsPerUser { get; init; } = 5;
+    public int MaxPendingInvitations { get; init; } = 20;
+    public int InvitationTtlDays { get; init; } = 7;
+}
+
+/// <summary>Hạn SLA tính bằng phút kể từ lúc tạo ticket, và các giới hạn của ticket.</summary>
+public sealed record SupportSettings
+{
+    public int P1FirstResponseMinutes { get; init; } = 15;
+    public int P1ResolveMinutes { get; init; } = 240;
+    public int P2FirstResponseMinutes { get; init; } = 60;
+    public int P2ResolveMinutes { get; init; } = 1440;
+    public int P3FirstResponseMinutes { get; init; } = 240;
+    public int P3ResolveMinutes { get; init; } = 4320;
+    public int MaxOpenTicketsPerUser { get; init; } = 10;
+    public int MaxAttachmentsPerMessage { get; init; } = 3;
+
+    /// <summary>Ca đã giải quyết mà khách không phản hồi sau chừng này ngày thì tự đóng.</summary>
+    public int AutoCloseResolvedDays { get; init; } = 7;
+
+    /// <summary>Ảnh trong ticket bị xóa sau khi ca đóng chừng này ngày.</summary>
+    public int AttachmentRetentionDays { get; init; } = 30;
+}
+
+/// <summary>Ngưỡng giám sát hệ thống. Mức độ của từng dịch vụ nằm trong code, xem <c>MonitoredServices</c>.</summary>
+public sealed record MonitoringSettings
+{
+    /// <summary>Số lần kiểm tra lỗi liên tiếp mới tính là sự cố, để một lần chập chờn không thành cảnh báo.</summary>
+    public int ProbeFailureThreshold { get; init; } = 3;
+    public int ProbeRecoveryThreshold { get; init; } = 3;
+    public int ErrorCountThreshold { get; init; } = 10;
+    public int ErrorWindowMinutes { get; init; } = 5;
+
+    /// <summary>Lỗi không lặp lại trong chừng này phút thì sự cố tự đóng.</summary>
+    public int ErrorQuietMinutes { get; init; } = 30;
+    public int ProviderFailureThreshold { get; init; } = 3;
+    public int ReminderMinutes { get; init; } = 15;
+    public int ErrorRetentionDays { get; init; } = 30;
 }
 
 public sealed record LimitSettings
@@ -247,6 +296,9 @@ public sealed record SystemConfigDocument
     public QrTransferSettings QrTransfer { get; init; } = new();
     public FinanceMethodSettings FinanceMethods { get; init; } = new();
     public ForecastSettings Forecast { get; init; } = new();
+    public GroupSettings Groups { get; init; } = new();
+    public SupportSettings Support { get; init; } = new();
+    public MonitoringSettings Monitoring { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

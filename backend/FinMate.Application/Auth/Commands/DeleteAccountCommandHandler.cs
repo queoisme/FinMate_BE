@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
@@ -14,19 +15,25 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IDataDeletionRequestRepository _dataDeletionRequestRepository;
     private readonly IAuditLogService _auditLogService;
+    private readonly IGroupOwnershipHandover? _groupHandover;
+    private readonly ISupportRepository? _support;
 
     public DeleteAccountCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         IRefreshTokenRepository refreshTokenRepository,
         IDataDeletionRequestRepository dataDeletionRequestRepository,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IGroupOwnershipHandover? groupHandover = null,
+        ISupportRepository? support = null)
     {
+        _support = support;
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _refreshTokenRepository = refreshTokenRepository;
         _dataDeletionRequestRepository = dataDeletionRequestRepository;
         _auditLogService = auditLogService;
+        _groupHandover = groupHandover;
     }
 
     public async Task HandleAsync(DeleteAccountCommand command, CancellationToken ct = default)
@@ -45,6 +52,12 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
             throw new AuthenticationException(AuthErrorCodes.InvalidCredentials, "Mật khẩu không đúng.");
         }
 
+        // Trước khi khóa tài khoản: hỏng ở đây thì chưa có gì thay đổi và người dùng thử lại được.
+        if (_groupHandover is not null)
+        {
+            await _groupHandover.HandOverAsync(user.Id, ct);
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         await _dataDeletionRequestRepository.AddAsync(new DataDeletionRequest
@@ -59,6 +72,12 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         await _userRepository.UpdateAsync(user, ct);
 
         await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
+
+        // Họ không đăng nhập được nữa nên không tự thu hồi được; hủy yêu cầu xóa sau đó cũng không làm quyền cũ sống lại.
+        if (_support is not null)
+        {
+            await _support.EndGrantsForRequesterAsync(user.Id, now, ct);
+        }
 
         await _auditLogService.LogAsync(AuditEvents.AccountDeletionRequested, user.Id, ct: ct);
     }

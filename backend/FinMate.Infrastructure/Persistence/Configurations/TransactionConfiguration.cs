@@ -24,8 +24,12 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
                 + "OR (transaction_type <> 'transfer' AND counter_account_id IS NULL)");
             t.HasCheckConstraint(
                 "chk_transactions_source",
-                "source IN ('notification','manual','voice','receipt')");
+                "source IN ('notification','manual','voice','receipt','support')");
             t.HasCheckConstraint("chk_transactions_status", "status IN ('draft','confirmed')");
+
+            // Chuyển khoản nội bộ không phải chi tiêu nên không có gì để chia sẻ.
+            t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
+            t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
 
             // Lý do chỉ có khi đang bị loại khỏi dự báo, và bị loại thì phải có lý do.
             t.HasCheckConstraint(
@@ -93,7 +97,19 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .HasDatabaseName("uq_transactions_user_client_request_id");
         builder.Property(t => t.DeletedAt).HasColumnName("deleted_at");
 
+        builder.Property(t => t.GroupId).HasColumnName("group_id");
+        builder.Property(t => t.GroupCategoryId).HasColumnName("group_category_id");
+        builder.Property(t => t.SharedAt).HasColumnName("shared_at");
+        builder.Property(t => t.SupportTicketId).HasColumnName("support_ticket_id");
+
         builder.HasQueryFilter(t => t.DeletedAt == null);
+
+        builder.HasIndex(t => new { t.GroupId, t.TransactedAt })
+            .HasFilter("group_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_group_transacted_at");
+        builder.HasOne<Group>().WithMany().HasForeignKey(t => t.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(t => t.GroupCategory).WithMany().HasForeignKey(t => t.GroupCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(t => t.SupportTicketId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(t => new { t.UserId, t.TransactedAt, t.Id })
             .HasDatabaseName("idx_transactions_user_transacted_at");

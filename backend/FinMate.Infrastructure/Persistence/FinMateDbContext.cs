@@ -46,6 +46,22 @@ public class FinMateDbContext : DbContext
     public DbSet<UserSurveyAnswer> UserSurveyAnswers => Set<UserSurveyAnswer>();
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
+    public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
+    public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
+    public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
+    public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();
+    public DbSet<SupportAccessGrant> SupportAccessGrants => Set<SupportAccessGrant>();
+    public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
+    public DbSet<OpsApprovalRequest> OpsApprovalRequests => Set<OpsApprovalRequest>();
+    public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
+    public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
+    public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -783,7 +783,21 @@
 | Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
 | Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
 | Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
-| **Total** (không tính Backlog) | | **424 / 450** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 57 — Nhóm, đợt 0: cộng tiền đồng thời | `[x]` | 6 / 6 |
+| Phase 58 — Nhóm, đợt 1: nhóm, thành viên, phân quyền | `[x]` | 6 / 6 |
+| Phase 59 — Nhóm, đợt 2: giao dịch, ngân sách, mục tiêu | `[x]` | 7 / 7 |
+| Phase 60 — Nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý | `[ ]` | 4 / 5 *(còn: báo Flutter, gồm Điều khoản bản 4)* |
+| Phase 61 — Vận hành, đợt 1: role và nền tảng | `[x]` | 5 / 5 |
+| Phase 62 — Vận hành, đợt 2: ticket | `[x]` | 5 / 5 |
+| Phase 63 — Vận hành, đợt 3: xem dữ liệu theo ca, giao dịch nháp | `[ ]` | 4 / 5 *(còn: báo Flutter và cập nhật Điều khoản)* |
+| Phase 64 — Vận hành, đợt 4: duyệt và chức năng Manager | `[x]` | 5 / 5 |
+| Phase 65 — Vận hành, đợt 5: xác thực 2 lớp | `[ ]` | 4 / 5 *(còn: báo người làm web admin)* |
+| Phase 66 — Nhóm: chặn `features.groups` ở server, chốt Google Vision | `[x]` | 3 / 3 |
+| Phase 67 — Vận hành: sửa theo rà soát | `[x]` | 2 / 2 |
+| Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
+| Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
+| Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
+| **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1289,3 +1303,98 @@ Nhánh `feat/forecast-complete` (xếp chồng trên `feat/forecast-alerts`). Th
 - [ ] Báo nhóm Flutter: 5 endpoint mới, push `kind = anomaly` (+ `anomalyId`, `transactionId`, `anomalyKind`, `amountCents`), insight `unusual_spending` không còn sinh mới.
 - [ ] Mùa vụ cho dự báo theo danh mục (trang 2, nhánh "Điều chỉnh theo mùa vụ") — cùng điều kiện với BR-07.3: cần hơn một năm dữ liệu.
 - Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1442/1443 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test tích hợp: job Hangfire sau giao dịch và lượt kiểm tra khác chạy song song, bên thua cuộc đua UNIQUE không gửi cảnh báo — và nếu bên thắng hỏng sau khi đánh dấu thì cảnh báo mất hẳn vì giao dịch không bao giờ được quét lại. Nay mỗi lượt quét trả cả khoản đã đánh dấu còn mở trong cửa sổ quét; hộp thư chống trùng.
+
+## Phase 57 — Tính năng nhóm, đợt 0: không mất tiền khi ghi đồng thời (2026-11-05)
+Tiền đề của tính năng nhóm, nhưng là lỗi có sẵn với cá nhân. Đo trên `main` (`bb2fb9f`): 12 `POST /transactions` song song vào một ví đều trả 201, số dư chỉ bị trừ **một** lần.
+- [x] Khóa lạc quan `xmin` cho `financial_accounts`, `budget_periods`, `saving_goals`. Migration `AddMoneyConcurrencyTokens` không sinh SQL đổi schema (cột hệ thống).
+- [x] `IConcurrencyRetry` / `EfConcurrencyRetry`: thua xung đột trên dòng tiền hoặc trùng `uq_budget_periods_budget_start` thì xóa tracker, chạy lại tối đa 3 lần, hết lượt trả 409 `CONCURRENT_UPDATE`. Chỉ nhận xung đột trên ba loại entity này: xung đột khác có thể đến sau khi tiền đã lưu, chạy lại sẽ tính hai lần.
+- [x] Lớp bọc `Retrying*` đăng ký ở `Program.cs` cho tạo, xác nhận, sửa, xóa, chuyển khoản, góp mục tiêu; chat được bảo vệ vì gọi qua interface. Đã đối chiếu: các handler này không có tác dụng phụ ngoài trước lần lưu tiền.
+- [x] Đường ghi khác (sửa ví, sửa hạn mức…) không chạy lại: `ExceptionHandlingMiddleware` trả 409 thay vì 500.
+- [x] `BudgetAlertJob`: kỳ vừa bị đổi thì không báo, lượt sau xét lại. `DataDeletionJob`: lỗi của một người không chặn người sau.
+- [x] Test: `MoneyConcurrencyTests` (Postgres thật, chạy song song, đỏ trước khi sửa), `DataDeletionJobTests`, `BudgetAlertJobTests`.
+
+## Phase 58 — Tính năng nhóm, đợt 1: nhóm, thành viên, phân quyền (2026-11-05)
+Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.md` §6.6.
+- [x] Entity, cấu hình EF, migration `AddGroups` (4 bảng, chỉ thêm, không đụng bảng cũ).
+- [x] `GroupPermissions` (hàm thuần) và `IGroupAccessService`: 404 cho người ngoài, 403 cho thiếu quyền, đọc DB mỗi request.
+- [x] API nhóm, thành viên, chuyển chủ, rời nhóm, lịch sử hoạt động; audit cho mọi thay đổi.
+- [x] Lời mời email/link: mã 32 byte, chỉ lưu SHA-256, dùng một lần; lỗi không phân biệt lý do; `xmin` chặn hai người cùng nhận.
+- [x] Công tắc `features.groups` (mặc định tắt, app đọc qua `/app-config`; server chặn từ Phase 66) và cấu hình `groups.*`.
+- [x] Test: `GroupPermissionsTests`, `GroupsControllerTests` (ma trận quyền, 404/403, mất quyền ngay, tranh lời mời, email khớp, không lộ email).
+
+## Phase 59 — Tính năng nhóm, đợt 2: giao dịch, ngân sách, mục tiêu (2026-11-05)
+- [x] Migration `AddGroupSharedFinance`; `budgets.user_id`, `saving_goals.user_id` thành nullable, CHECK một chủ.
+- [x] `IGroupLedger` nối vào 4 handler (tạo, xác nhận, sửa, xóa) bằng tham số tùy chọn; `PUT|DELETE /transactions/{id}/group`.
+- [x] API `/groups/{id}/transactions`, `categories`, `share-rules`, `budgets`, `goals`; rời nhóm thì tắt quy tắc tự chia sẻ.
+- [x] `IGroupAlertNotifier` gửi riêng từng thành viên qua `forecast_alerts`; `BudgetAlertJob`, `GoalDeadlineCheckJob` tách nhánh nhóm.
+- [x] `FinanceSnapshotRepository`: phần góp vào mục tiêu nhóm không tính vào số liệu cá nhân.
+- [x] Sửa lỗi có sẵn: sửa giao dịch của tháng chưa có kỳ ngân sách từng tạo hai kỳ trùng khóa (`BudgetRepository.GetPeriodAsync` nay xem cả kỳ chưa lưu).
+- [x] Test: `GroupFinanceControllerTests` (bất biến `spent_cents`, chi đồng thời, không lộ dữ liệu, cảnh báo, job).
+
+## Phase 60 — Tính năng nhóm, đợt 3: báo cáo, xóa tài khoản, pháp lý (2026-11-05)
+- [x] `GET /groups/{id}/reports/monthly`: tổng, theo danh mục, theo thành viên.
+- [x] Yêu cầu xóa tài khoản tự chuyển chủ nhóm (`IGroupOwnershipHandover`); tên người đó không còn hiện trong nhóm.
+- [x] Xóa cứng tính lại số của nhóm trong một DB transaction; nhóm không còn ai thì xóa mềm, nhóm còn người mà mất chủ thì nâng người có vai trò cao nhất.
+- [x] `ConsentVersions.Terms` lên 4. Test: `GroupPrivacyTests`.
+- [ ] Báo nhóm Flutter: `docs/group-api.md`, hiển thị Điều khoản bản 4 **trước hoặc cùng lúc** backend lên production, rồi mới bật `features.groups`.
+
+## Phase 61 — Vận hành nội bộ, đợt 1: role và nền tảng (2026-11-05)
+- [x] Thêm `UserRole.Staff`, `UserRole.OpsManager`; migration `AddOpsRoles` đổi `chk_users_role`.
+- [x] Policy `StaffOrAbove`, `ManagerOrAbove`; `OpsControllerBase`; `IOpsAccessService` đọc DB mỗi request; `GET /ops/me`.
+- [x] `SetUserRoleCommandHandler`: không hạ admin cuối xuống bất kỳ vai trò nào, mọi lần giảm quyền thu hồi token, không cấp vai trò nội bộ cho tài khoản chờ xóa.
+- [x] CORS qua `OPS_WEB_ORIGINS`; khi bảo trì, Staff và OpsManager vẫn dùng được `/ops/*`.
+- [x] Test: `OpsRolesControllerTests`, `OpsPermissionsTests`, `OpsWebOriginsTests`, `SetUserRoleCommandHandlerTests`.
+
+## Phase 62 — Vận hành nội bộ, đợt 2: ticket (2026-11-05)
+- [x] Migration `AddSupportTickets`; cờ `features.support`, nhóm cấu hình `support`.
+- [x] API khách `/support/tickets` và API vận hành `/ops/tickets`; khóa lạc quan `xmin` để hai người không nhận trùng ca.
+- [x] Ảnh đính kèm mã hóa bằng `SECRETS_MASTER_KEY`, nhận dạng theo nội dung file; xem ảnh có ghi audit.
+- [x] `SupportRetentionJob`: tự đóng ca đã giải quyết sau 7 ngày, xóa ảnh sau khi đóng 30 ngày.
+- [x] Test: `SupportTicketsControllerTests`.
+
+## Phase 63 — Vận hành nội bộ, đợt 3: xem dữ liệu theo ca, giao dịch nháp (2026-11-05)
+- [x] Migration `AddSupportConsentedAccess`: `support_access_grants`, `support_data_access_logs`, `transactions.support_ticket_id`, nguồn `support`.
+- [x] Khách đồng ý, từ chối, thu hồi; nhân viên xem theo phạm vi; quyền hết khi quá 24 giờ, đóng ca hoặc đổi người phụ trách.
+- [x] `POST /ops/tickets/{id}/draft-transactions`: nháp vào ví khách chọn, khách xác nhận mới đổi số dư.
+- [x] Test: `SupportConsentedAccessTests`.
+- [ ] Báo nhóm Flutter: `docs/ops-api.md`, thêm nội dung hỗ trợ vào Điều khoản bản 4 trước khi phát hành.
+
+## Phase 64 — Vận hành nội bộ, đợt 4: duyệt và chức năng Manager (2026-11-05)
+- [x] Migration `AddOpsApprovalsAndManagerTools`: `ops_approval_requests`, `canned_replies`, `support_tickets.parent_ticket_id`.
+- [x] Đề xuất và duyệt: `UnlockUser`, `CancelDeletion`, `TransferGroupOwner`.
+- [x] Khóa khẩn cấp theo ca; xem thông tin tối thiểu của khách và nhóm.
+- [x] Bảng điều hành, gom ca, trả lời hàng loạt, câu trả lời mẫu, nhật ký `Ops.*`, thống kê AI.
+- [x] Test: `OpsApprovalsAndManagerTests`. Quy trình: `docs/ops-runbook.md`.
+
+## Phase 65 — Vận hành nội bộ, đợt 5: xác thực 2 lớp (2026-11-05)
+- [x] Migration `AddOpsTwoFactor`: `refresh_tokens.ops_verified_at`; `OtpPurpose.OpsLogin`.
+- [x] `/ops/auth/status`, `/ops/auth/otp/send`, `/ops/auth/otp/verify`; claim `ops_verified`.
+- [x] `OpsVerifiedRequirement` trên mọi policy nội bộ và `AdminOnly`; cờ `OPS_REQUIRE_2FA`.
+- [x] Test: `OpsTwoFactorTests`.
+- [ ] Báo người làm web admin: luồng đăng nhập đổi, phải làm xong trước khi deploy.
+
+## Phase 66 — Nhóm: chặn `features.groups` ở server, chốt Google Vision (2026-11-05)
+- [x] `RequireGroupsEnabled` trên API nhóm và `PUT|DELETE /transactions/{id}/group`; `GroupLedger` từ chối `groupId` và bỏ qua quy tắc tự chia sẻ khi tắt, nhưng vẫn cập nhật số khi sửa hoặc xóa giao dịch đã chia sẻ.
+- [x] Cảnh báo nhóm tạm dừng khi tắt mà không đóng ngưỡng: `GroupLedger`, `BudgetAlertJob`, `GoalDeadlineCheckJob`. Test: `GroupsFeatureFlagTests`.
+- [x] Chốt: giữ Google Vision và nêu trong Điều khoản bản 4 (FR-CONS-05).
+
+## Phase 67 — Vận hành nội bộ: sửa theo rà soát (2026-11-05)
+- [x] Đề xuất quá hạn không còn chặn đề xuất mới; lỗi lúc thực hiện không để lại hồ sơ `Approved`; ca chuyển cấp không tự rời hàng đợi; ca đã đóng không dùng để khóa tài khoản hay xem nhóm; đóng ca trong một DB transaction; khách bị khóa hoặc yêu cầu xóa thì hết quyền xem dữ liệu; lỗi gửi email OTP được báo rõ; `features.groups` và `features.support` áp dụng đủ trên đường vận hành và đồng ý.
+- [x] Test: `OpsReviewFixesTests`, `OpsApprovalServiceTests`.
+
+## Phase 68 — Giám sát hệ thống, đợt 1: sự cố, health probe, email (2026-11-05)
+- [x] Migration `AddOpsMonitoring`: `ops_incidents`, `ops_service_status`, `ops_error_events`; nhóm cấu hình `monitoring`; cờ `MONITORING_ENABLED`.
+- [x] `SystemMonitorJob` mỗi phút, `MonitoringDigestJob` 08:00 giờ VN; probe Redis, AI, OCR, STT.
+- [x] Email cho Admin và OpsManager: nhắc lại tới khi có người nhận, thử lại khi gửi lỗi, báo khi đã khắc phục.
+- [x] API `/ops/monitoring`. Test: `MonitoringTests`.
+
+## Phase 69 — Giám sát hệ thống, đợt 2: lỗi ứng dụng, job (2026-11-05)
+- [x] `OpsErrorSink`, `OpsErrorQueue`, `OpsErrorWriter`; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh.
+- [x] `JobMonitorSource`, `OpsJobFailureFilter`, `ErrorMonitorSource`.
+- [x] `GET /admin/monitoring/error-events`. Test: `MonitoringErrorsTests`, `OpsErrorPipelineTests`.
+
+## Phase 70 — Giám sát hệ thống, đợt 3: nhà cung cấp, chỉ số OCR (2026-11-05)
+- [x] `GET /internal/status` ở `ocr-service`, `GET /api/v1/internal/status` ở `ai-service`; `ProviderMonitorSource`, `IProviderFailureTracker`.
+- [x] Migration `AddReceiptScanOcrEngine`; `/analyze-bill` trả thêm `engine`; `GET /ops/monitoring/ocr`.
+- [x] Test: `MonitoringProvidersTests`, `tests/test_internal_status.py` của `ocr-service`, `tests/unit/test_internal_status.py` của `ai-service`.
+- [ ] Đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready`: backend hoặc Postgres sập thì hệ thống không tự báo được.

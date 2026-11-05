@@ -53,6 +53,9 @@ public class FinancialAccountConfiguration : IEntityTypeConfiguration<FinancialA
         builder.Property(a => a.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(a => a.DeletedAt).HasColumnName("deleted_at");
 
+        // Khóa lạc quan theo cột hệ thống xmin của PostgreSQL: số tiền ở bảng này được đọc rồi cộng trong tiến trình, thiếu khóa thì hai request đồng thời làm mất một khoản.
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.HasQueryFilter(a => a.DeletedAt == null);
 
         builder.HasIndex(a => a.UserId)

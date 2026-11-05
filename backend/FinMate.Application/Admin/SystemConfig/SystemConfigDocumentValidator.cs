@@ -22,6 +22,9 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
         RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
         RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
+        RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
+        RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
+        RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
     }
 
     private static bool IsHttps(string value)
@@ -70,6 +73,51 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.IntervalMinutes).InclusiveBetween(5, 1440).WithMessage("Chu kỳ đồng bộ phải từ 5 đến 1440 phút.");
             RuleFor(x => x.MaxRetries).InclusiveBetween(0, 20).WithMessage("Số lần thử lại phải từ 0 đến 20.");
             RuleFor(x => x.QueueRetentionDays).InclusiveBetween(1, 90).WithMessage("Thời gian giữ hàng đợi phải từ 1 đến 90 ngày.");
+        }
+    }
+
+    private sealed class GroupValidator : AbstractValidator<GroupSettings>
+    {
+        public GroupValidator()
+        {
+            RuleFor(x => x.MaxMembers).InclusiveBetween(2, 100).WithMessage("Số thành viên tối đa của nhóm phải từ 2 đến 100.");
+            RuleFor(x => x.MaxGroupsPerUser).InclusiveBetween(1, 50).WithMessage("Số nhóm tối đa của mỗi người phải từ 1 đến 50.");
+            RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
+            RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
+        }
+    }
+
+    private sealed class MonitoringValidator : AbstractValidator<MonitoringSettings>
+    {
+        public MonitoringValidator()
+        {
+            RuleFor(x => x.ProbeFailureThreshold).InclusiveBetween(1, 60).WithMessage("Số lần kiểm tra lỗi liên tiếp phải từ 1 đến 60.");
+            RuleFor(x => x.ProbeRecoveryThreshold).InclusiveBetween(1, 60).WithMessage("Số lần kiểm tra tốt liên tiếp phải từ 1 đến 60.");
+            RuleFor(x => x.ErrorCountThreshold).InclusiveBetween(1, 10000).WithMessage("Ngưỡng số lỗi phải từ 1 đến 10000.");
+            RuleFor(x => x.ErrorWindowMinutes).InclusiveBetween(1, 1440).WithMessage("Cửa sổ đếm lỗi phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ErrorQuietMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian tự đóng phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ProviderFailureThreshold).InclusiveBetween(1, 1000).WithMessage("Ngưỡng lỗi nhà cung cấp phải từ 1 đến 1000.");
+            RuleFor(x => x.ReminderMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian nhắc lại phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ErrorRetentionDays).InclusiveBetween(1, 365).WithMessage("Thời gian giữ lỗi phải từ 1 đến 365 ngày.");
+        }
+    }
+
+    private sealed class SupportValidator : AbstractValidator<SupportSettings>
+    {
+        private const int MaxMinutes = 60 * 24 * 30;
+
+        public SupportValidator()
+        {
+            RuleFor(x => x.P1FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P1ResolveMinutes).WithMessage("Hạn của P1 không hợp lệ.");
+            RuleFor(x => x.P2FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P2ResolveMinutes).WithMessage("Hạn của P2 không hợp lệ.");
+            RuleFor(x => x.P3FirstResponseMinutes).InclusiveBetween(1, MaxMinutes).LessThanOrEqualTo(x => x.P3ResolveMinutes).WithMessage("Hạn của P3 không hợp lệ.");
+            RuleFor(x => x.P1ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P1 không hợp lệ.");
+            RuleFor(x => x.P2ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P2 không hợp lệ.");
+            RuleFor(x => x.P3ResolveMinutes).InclusiveBetween(1, MaxMinutes).WithMessage("Hạn của P3 không hợp lệ.");
+            RuleFor(x => x.MaxOpenTicketsPerUser).InclusiveBetween(1, 100).WithMessage("Số yêu cầu đang mở tối đa phải từ 1 đến 100.");
+            RuleFor(x => x.MaxAttachmentsPerMessage).InclusiveBetween(1, 10).WithMessage("Số ảnh mỗi tin nhắn phải từ 1 đến 10.");
+            RuleFor(x => x.AutoCloseResolvedDays).InclusiveBetween(1, 90).WithMessage("Số ngày tự đóng phải từ 1 đến 90.");
+            RuleFor(x => x.AttachmentRetentionDays).InclusiveBetween(1, 90).WithMessage("Số ngày giữ ảnh phải từ 1 đến 90.");
         }
     }
 

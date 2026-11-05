@@ -31,6 +31,8 @@ internal static class ForecastAlertKindColumn
         [ForecastAlertKind.IncomeLate] = "income_late",
         [ForecastAlertKind.PriceChange] = "price_change",
         [ForecastAlertKind.Anomaly] = "anomaly",
+        [ForecastAlertKind.GroupBudget] = "group_budget",
+        [ForecastAlertKind.GroupGoal] = "group_goal",
     };
 
     private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);

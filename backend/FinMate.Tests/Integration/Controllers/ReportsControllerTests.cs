@@ -1,3 +1,4 @@
+using FinMate.Application.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -222,11 +223,13 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
     {
         var token = await RegisterAndLoginAsync();
         var accountId = await CashAccountAsync(token);
-        var now = DateTimeOffset.UtcNow;
 
-        await SpendAsync(token, accountId, null, 100_000, now);
-        await SpendAsync(token, accountId, null, 50_000, now.AddMinutes(-5));
-        await SpendAsync(token, accountId, null, 70_000, now.AddDays(-3));
+        // Giữa trưa hôm qua giờ VN: dùng giờ hiện tại thì chạy quanh nửa đêm, hai giao dịch cách 5 phút sẽ rơi vào hai ngày.
+        var noon = new DateTimeOffset(VietnamTime.Today().AddDays(-1).ToDateTime(new TimeOnly(12, 0)), VietnamTime.Offset);
+
+        await SpendAsync(token, accountId, null, 100_000, noon);
+        await SpendAsync(token, accountId, null, 50_000, noon.AddMinutes(-5));
+        await SpendAsync(token, accountId, null, 70_000, noon.AddDays(-3));
 
         var response = await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/timeline?limit=50", token));
         response.StatusCode.Should().Be(HttpStatusCode.OK);

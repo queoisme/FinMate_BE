@@ -200,13 +200,28 @@ public class ScanReceiptViaOcrServiceTests
         scan.NeedsReview.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("google_vision", "google_vision")]
+    [InlineData("local", "local")]
+    [InlineData(null, null)]
+    [InlineData("gia_tri_la", null)]
+    public async Task TheEngineIsRecordedWhenItIsAKnownValue(string? reported, string? stored)
+    {
+        OcrReturns(Highlands() with { Engine = reported });
+        AiClassifiesAs(new BillClassifyResponse("food", "dining", 0.8, "brand"));
+
+        await _handler.HandleAsync(Command());
+
+        _saved.Should().ContainSingle().Which.OcrEngine.Should().Be(stored);
+    }
+
     [Fact]
     public void TheRecordHasNoPlaceForTheImageOrTheText()
     {
         // Chỉ các trường bóc tách. Thêm một cột chữ vào đây là một quyết định về dữ liệu cá nhân, phải đi qua duyệt, nên test này chặn
         // việc thêm nó vô tình.
         typeof(ReceiptScan).GetProperties().Select(p => p.Name).Should().BeEquivalentTo(
-            nameof(ReceiptScan.Id), nameof(ReceiptScan.UserId), nameof(ReceiptScan.OcrResult), nameof(ReceiptScan.AmountCents),
+            nameof(ReceiptScan.Id), nameof(ReceiptScan.UserId), nameof(ReceiptScan.OcrResult), nameof(ReceiptScan.OcrEngine), nameof(ReceiptScan.AmountCents),
             nameof(ReceiptScan.MerchantName), nameof(ReceiptScan.TransactedAt), nameof(ReceiptScan.CategorySlug),
             nameof(ReceiptScan.CategorySource), nameof(ReceiptScan.Confidence), nameof(ReceiptScan.NeedsReview),
             nameof(ReceiptScan.CreatedAt), nameof(ReceiptScan.User));

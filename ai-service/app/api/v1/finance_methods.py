@@ -31,6 +31,7 @@ _gemini = LlmClient(
     settings.method_gemini_timeout_seconds,
     overall_timeout=settings.method_gemini_overall_seconds,
     fallback_models=tuple(m.strip() for m in settings.method_gemini_fallback_models.split(",") if m.strip()),
+    health_channel="finance_methods",
 )
 
 

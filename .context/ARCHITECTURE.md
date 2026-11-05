@@ -385,6 +385,44 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 - **Ngày đạt mục tiêu (trang 4):** tốc độ góp theo tháng từ `goal_contributions` của chính mục tiêu; hai kịch bản (trung bình, phân vị 25) thay cho "mô phỏng nhiều
   kịch bản"; kịp hạn được quyết theo kịch bản thận trọng. Mức góp thử là tham số truy vấn, không lưu.
 
+### 2.7 Tài chính nhóm / gia đình (thêm 2026-11-05)
+
+Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ. Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
+
+- **Cổng quyền duy nhất:** `IGroupAccessService`, gọi trong service và đọc DB mỗi request (không để trong JWT). Không phải thành viên → 404, thiếu quyền → 403. **Không** thêm điều kiện "hoặc cùng nhóm" vào repository theo `userId`: truy cập nhóm đi qua `IGroupRepository`, nên các truy vấn cá nhân không thể thấy dữ liệu nhóm.
+- **Quyền:** `GroupPermissions.Effective = (mặc định theo vai trò | cấp thêm) & ~thu hồi`, hàm thuần. Việc chỉ chủ nhóm làm được (đổi vai trò, chỉnh quyền, đổi cài đặt, chuyển chủ, xóa nhóm) cố ý không có trong enum `GroupPermission`, nên không cấp được cho ai.
+- **Chủ nhóm** nằm ở `group_members.role`, ràng buộc đúng một bằng unique index một phần. Index này không chờ hết transaction, nên chuyển chủ phải hạ chủ cũ rồi mới nâng chủ mới (`GroupRepository.TransferOwnershipAsync`).
+- **Rời nhóm** chỉ đặt `left_at`; vào lại dùng đúng dòng cũ và xóa quyền ghi đè.
+- **Ngân sách và mục tiêu nhóm** dùng chung bảng với cá nhân, `CHECK ((user_id IS NULL) <> (group_id IS NULL))`: nhờ đó mọi truy vấn `user_id = x` có sẵn tự động không thấy dữ liệu nhóm. Đọc `budget.UserId` hay `goal.UserId` thì phải xử lý nhánh null (job đang làm vậy).
+- **Giao dịch vẫn của người tạo**, chỉ thêm `group_id`, `group_category_id`. `IGroupLedger` cộng hoặc hoàn phần của nhóm theo khuôn `BudgetPeriodService`: chỉ đổi dữ liệu đang theo dõi, handler lưu một lần, cảnh báo gửi sau khi lưu. Thêm handler mới sửa giao dịch thì phải gọi nó, kẻo `spent_cents` của nhóm lệch.
+- **Danh mục nhóm là bảng riêng `group_categories`**: ở `categories`, `user_id IS NULL` nghĩa là danh mục hệ thống hiện cho mọi người.
+- **Cảnh báo nhóm** đi qua hộp thư `forecast_alerts`, mỗi thành viên một dòng; `IGroupAlertNotifier` không ném sau khi tiền đã lưu.
+- **Xóa tài khoản:** yêu cầu xóa chuyển chủ nhóm ngay (`IGroupOwnershipHandover`), vì người đó không đăng nhập được nữa. Xóa cứng (`UserHardDeleter`) dùng một DB transaction: khóa ngoại xóa giao dịch và tư cách thành viên, code xóa khoản góp (bảng này không có khóa ngoại theo người góp), rồi tính lại `spent_cents`, `saved_cents`. `ExecuteDelete` bỏ qua handler, nên thêm số tính sẵn mới cho nhóm thì phải tính lại ở đây.
+- **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
+
+### 2.8 Vận hành nội bộ (thêm 2026-11-05)
+
+Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn dùng app Flutter. API và ma trận quyền ở `docs/ops-api.md`.
+
+- API vận hành nằm dưới `/api/v1/ops/*`, kế thừa `OpsControllerBase` (policy `StaffOrAbove`). `AdminControllerBase` giữ nguyên `AdminOnly`, nên thêm vai trò không làm rộng quyền `/admin/*`.
+- Policy đọc role trong JWT, chỉ để chặn sớm. Thao tác nhạy cảm phải qua `IOpsAccessService`, đọc DB mỗi request, vì token còn hiệu lực tới 15 phút sau khi bị hạ quyền.
+- Ticket: bảng `support_tickets`, `support_ticket_messages`, `support_ticket_attachments`; khách đi qua `ISupportTicketService` (lọc theo `userId`), đội vận hành qua `IOpsTicketService` (kiểm tra người phụ trách). Cả hai dùng chung `ISupportRepository`; DTO của khách tách riêng để ghi chú nội bộ không có đường lộ ra. `SupportRetentionJob` (03:30) tự đóng ca đã giải quyết lâu và xóa ảnh hết hạn.
+- Dữ liệu khách chỉ đi qua `IOpsCustomerDataService`: `userId` lấy từ ticket, phải là người phụ trách và có `support_access_grants` còn hiệu lực đúng phạm vi. Mọi đường kết thúc ca (`SupportTicketClosing`) hoặc đổi người phụ trách đều chấm dứt quyền. Mỗi lần đọc ghi `support_data_access_logs` (khách xem được) và `audit_logs`. Không thêm nhánh "hoặc là nhân viên" vào repository theo `userId`.
+- Giao dịch nháp từ hỗ trợ dùng `TransactionSource.Support` và đi tiếp qua `ConfirmTransactionCommandHandler` có sẵn; không có API vận hành nào xác nhận, sửa hay xóa giao dịch.
+- Việc nhạy cảm đi qua `IOpsApprovalService`: lưu trạng thái `Approved` trước khi thực hiện, khóa `xmin` bảo đảm chỉ một người đi tiếp; thực hiện bằng chính các handler của admin. Quy trình cho con người ở `docs/ops-runbook.md`.
+- Xác thực 2 lớp: claim `ops_verified` trong access token, yêu cầu bởi `OpsVerifiedRequirement` trên `AdminOnly`, `StaffOrAbove`, `ManagerOrAbove`. Chỉ `InternalAccount` không yêu cầu, dùng cho chính bước nhập OTP. Mốc `refresh_tokens.ops_verified_at` được giữ khi đổi token, nên 12 giờ tính từ lần nhập mã thật. Thêm policy nội bộ mới thì phải gắn requirement này.
+- `OpsManager` khác vai `manager` của nhóm tài chính (§2.7). So sánh thứ bậc dùng `UserRoleExtensions.Rank()`, không dùng thứ tự enum vì `Admin` đứng trước `Staff`.
+
+### 2.9 Giám sát hệ thống (thêm 2026-11-05)
+
+`SystemMonitorJob` chạy mỗi phút, gọi các `IMonitorSource` độc lập nhau rồi `IIncidentNotifier`. API và ngưỡng ở `docs/ops-api.md`, giới hạn ở `docs/ops-runbook.md`.
+
+- **Nguồn:** `HealthMonitorSource` (các `IServiceProbe`), `ErrorMonitorSource` (`ops_error_events`), `JobMonitorSource` (trạng thái cuối của recurring job), `ProviderMonitorSource` (`GET /internal/status` của `ocr-service`, `GET /api/v1/internal/status` của `ai-service`, cộng `IProviderFailureTracker` cho Brevo và Firebase).
+- **Sự cố:** `ops_incidents`, unique theo `fingerprint` khi chưa đóng. `IIncidentService` là đường của hệ thống; `IOpsMonitoringService` là đường của con người, có kiểm quyền.
+- **Lỗi ứng dụng:** `OpsErrorSink` (Serilog) đưa vào `OpsErrorQueue` có giới hạn, `OpsErrorWriter` ghi theo lô. `OpsErrorFactory` là chỗ duy nhất dựng bản ghi và cố ý không đọc `Exception.Message`. Log của đường ghi được đánh dấu để sink bỏ qua, nếu không DB hỏng sẽ thành vòng lặp.
+- **Không đưa AI, OCR, STT vào `/health/ready`:** AI lỗi không được làm mất traffic của backend. Giám sát là đường riêng.
+- Trạng thái lưu ở Postgres, không ở Redis, vì Redis có thể chính là thứ đang hỏng.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1035,6 +1073,10 @@ Quản lý tài chính (thêm 2026-10-26):
   finance_methods, survey_questions, survey_options, goal_templates, method_goal_templates,
   user_survey_answers, method_recommendations, user_methods
 
+Nhóm (thêm 2026-11-05, migration `AddGroups`):
+  groups, group_members, group_invitations, group_activities, group_categories, group_share_rules (`AddGroupSharedFinance`)
+                    + cột transactions.group_id / group_category_id / shared_at, budgets.group_id / group_category_id, saving_goals.group_id
+
 Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
   recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`), transaction_anomalies (đợt 3, `AddTransactionAnomalies`)
                     + cột transactions.exclude_from_forecast / forecast_exclusion_reason,
@@ -1155,6 +1197,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 - Enum → **TEXT + CHECK constraint**, không dùng PostgreSQL ENUM type
 - AI DB → **KHÔNG FK** sang Backend DB, dùng `_hash` fields để reference
 - `transaction_type='transfer'` → **luôn loại khỏi mọi phép cộng dồn chi tiêu/thu nhập** (budget, report, forecast, daily summary). Xem §0 quyết định #1
+- `financial_accounts`, `budget_periods`, `saving_goals` có khóa lạc quan `xmin` (thêm 2026-11-05). Handler mới ghi tiền vào ba bảng này phải đọc, tính rồi lưu một lần **trước** mọi tác dụng phụ bên ngoài và đăng ký lớp bọc `Retrying*` (`Application/Common/RetryingMoneyHandlers.cs`); thiếu lớp bọc thì xung đột trả 409 thay vì tự chạy lại
 
 ---
 

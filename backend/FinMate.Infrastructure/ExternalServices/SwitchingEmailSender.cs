@@ -1,5 +1,6 @@
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Monitoring;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -19,9 +20,13 @@ public class SwitchingEmailSender : IEmailSender
     private readonly ILoggerFactory _loggers;
     private readonly LoggingEmailSender _fallback;
 
+    private readonly IProviderFailureTracker? _failures;
+
     public SwitchingEmailSender(
-        ISecretVault vault, IHttpClientFactory http, IConfiguration configuration, ILoggerFactory loggers, LoggingEmailSender fallback)
+        ISecretVault vault, IHttpClientFactory http, IConfiguration configuration, ILoggerFactory loggers, LoggingEmailSender fallback,
+        IProviderFailureTracker? failures = null)
     {
+        _failures = failures;
         _vault = vault;
         _http = http;
         _configuration = configuration;
@@ -35,6 +40,7 @@ public class SwitchingEmailSender : IEmailSender
         var senderEmail = _configuration["BREVO_SENDER_EMAIL"];
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(senderEmail))
         {
+            _failures?.RecordNotConfigured(MonitoredServices.Brevo.Key);
             return await _fallback.SendAsync(toEmail, subject, body, ct);
         }
 
@@ -42,6 +48,16 @@ public class SwitchingEmailSender : IEmailSender
         var client = _http.CreateClient(HttpClientName);
         client.DefaultRequestHeaders.Add("api-key", key);
         var sender = new BrevoEmailSender(client, senderEmail, _configuration["BREVO_SENDER_NAME"] ?? "FinMate", _loggers.CreateLogger<BrevoEmailSender>());
-        return await sender.SendAsync(toEmail, subject, body, ct);
+        var sent = await sender.SendAsync(toEmail, subject, body, ct);
+        if (sent)
+        {
+            _failures?.RecordSuccess(MonitoredServices.Brevo.Key);
+        }
+        else
+        {
+            _failures?.RecordFailure(MonitoredServices.Brevo.Key, "send_failed");
+        }
+
+        return sent;
     }
 }

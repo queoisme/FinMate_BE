@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
@@ -23,6 +24,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly IForecastAlertTrigger? _forecastAlerts;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
+    private readonly IGroupLedger? _groupLedger;
+
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -35,8 +38,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ILogger<CreateManualTransactionCommandHandler> logger,
         IValidator<CreateManualTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
@@ -115,6 +120,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // account và budget period đã tracked (cùng DbContext) — AddAsync flush
         // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
+        var groupAlerts = await ShareIfRequestedAsync(command, transaction, category, now, ct);
+
         await _transactionRepository.AddAsync(transaction, ct);
         transaction.Category = category;
 
@@ -122,6 +129,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+        }
 
         // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
         var scanWasSplit = false;
@@ -177,6 +188,24 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     }
 
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private async Task<IReadOnlyList<GroupBudgetAlert>> ShareIfRequestedAsync(
+        CreateManualTransactionCommand command, Transaction transaction, Category? category, DateTimeOffset now, CancellationToken ct)
+    {
+        if (_groupLedger is null)
+        {
+            return [];
+        }
+
+        var target = await _groupLedger.ResolveAsync(command.UserId, command.GroupId, command.GroupCategoryId, transaction, category, ct);
+        if (target is null)
+        {
+            return [];
+        }
+
+        _groupLedger.MarkShared(transaction, target, command.UserId, now);
+        return await _groupLedger.ApplyAsync(transaction, category, +1, ct);
+    }
+
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

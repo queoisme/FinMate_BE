@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -26,6 +27,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì sửa danh mục không ghi nhớ người nhận
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
+    private readonly IGroupLedger? _groupLedger;
+
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -39,8 +42,10 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IValidator<UpdateTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
         IQrTransferLinker? qrLinker = null,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
@@ -143,6 +148,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             transaction.BalanceAfterCents = accounts[command.FinancialAccountId].BalanceCents;
         }
 
+        // Hoàn phần của nhóm theo giá trị CŨ, trước khi ghi đè entity. Vẫn chạy khi chủ giao dịch đã rời nhóm để số của nhóm luôn đúng.
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.ApplyAsync(transaction, transaction.Category, -1, ct);
+        }
+
         var categoryChanged = transaction.CategoryId != (newCategory?.Id);
         var oldCategorySlug = transaction.Category?.Slug;
 
@@ -158,8 +169,15 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         // account(s) và budget period(s) ở trên (nếu có) đã tracked cùng DbContext —
         // UpdateAsync flush atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
+        IReadOnlyList<GroupBudgetAlert> groupAlerts = _groupLedger is null ? [] : await _groupLedger.ApplyAsync(transaction, newCategory, +1, ct);
+
         await _transactionRepository.UpdateAsync(transaction, ct);
         transaction.Category = newCategory;
+
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+        }
 
         if (wasConfirmed)
         {

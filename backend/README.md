@@ -13,87 +13,48 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 | `FinMate.Infrastructure` | EF Core, Repositories, External services, Caching, Background jobs |
 | `FinMate.Tests` | Unit + Integration tests |
 
-## Trạng thái
+## Nhóm API
 
-Đã hoàn thành **Phase 0–7** (141/176 task, xem `../.context/TASKS.md`):
+Danh sách đầy đủ xem ở Swagger (`http://localhost:8080/swagger`). Quyền được đặt ở lớp cơ sở, nên
+không gắn lại trên từng controller.
 
-- **Phase 0** — scaffold solution, Serilog, Hangfire, Swagger, Rate Limiting, EF Core + PostgreSQL.
-- **Phase 1** — Auth & User Profile: register/login/refresh-rotation/logout/change-password/delete-account, **Google Sign-In login** (`POST /auth/google`, auto-link tài khoản trùng email), profile + notification preferences.
-- **Phase 2** — Financial Accounts: CRUD tài khoản ngân hàng/ví điện tử/tiền mặt, seed 5 provider (MB Bank, Vietcombank, MoMo, ZaloPay, VNPay).
-- **Phase 3** — Categories: system categories (seed 11, slug khớp AI Service taxonomy) + custom category của user.
-- **Phase 4** — Notifications & Transactions: `POST /notifications/analyze` (gọi AI Service qua `IAIServiceClient`/Refit, dedup theo hash, tạo transaction draft), transaction CRUD + confirm + cursor pagination. Cascade balance tài khoản đã làm đầy đủ; cascade budget và EXP/streak/mission được gỡ block lần lượt ở Phase 5 và Phase 7.
-- **Phase 5** — Budget & Saving Goals: hạn mức chi tiêu theo category **và** hạn mức tổng (`category_id` NULL), cộng dồn/hoàn lại `budget_periods.spent_cents` tự động khi giao dịch được tạo/confirm/sửa/xóa, cảnh báo 80%/100% (`BudgetAlertJob`, mỗi giờ); mục tiêu tiết kiệm + đóng góp + tiến độ on-track + nhắc quá hạn (`GoalDeadlineCheckJob`, 08:00 hàng ngày). Cascade budget đã gỡ toàn bộ TODO `[!] Blocked by Phase 5` của Phase 4.
-- **Phase 6** — Reports & Analytics: tổng quan tháng, phân tích theo danh mục, timeline gom theo ngày, dự báo chi tiêu (tính bằng thống kê trong backend, **không** gọi AI Service), spending insight sinh tự động mỗi đêm.
-- **Phase 7** — Gamification: EXP/level, chuỗi ngày, mission, mascot item. **Đã gỡ toàn bộ ngày 2026-11-02** (quyết định chủ sản phẩm, `TASKS.md` Phase 53; migration `RemoveGamification`). Gỡ nốt 4 TODO `[!] Blocked by Phase 7` — **backend không còn TODO nào bị block bởi phase khác**.
+| Đường dẫn | Dành cho | Tài liệu |
+|---|---|---|
+| `/api/v1/*` | Khách hàng trên app Flutter | Swagger; nhóm ở `../docs/group-api.md` |
+| `/api/v1/admin/*` | `Admin`, kế thừa `AdminControllerBase` | `FinMate.API/Controllers/Admin/README.md` |
+| `/api/v1/ops/*` | `Staff`, `OpsManager`, `Admin`, kế thừa `OpsControllerBase` | `../docs/ops-api.md` |
+| `/health/live`, `/health/ready` | Hạ tầng. `live` chỉ báo tiến trình còn sống, `ready` kiểm tra Postgres và Redis | |
+| `/hangfire` | Dashboard job, basic auth `HANGFIRE_DASHBOARD_USER/PASS` | |
 
-Phase 8 (Admin) và Phase 9 (AI Service) chưa bắt đầu. AI Service (`ai-service/`) vẫn chỉ là FastAPI scaffold trống — `/api/v1/analyze` thật chưa tồn tại, backend xử lý việc đó bằng `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` thay vì crash.
+## Job định kỳ
 
-**Bốn điểm cần biết khi làm tiếp:**
-- Lịch theo **giờ VN (UTC+7) cố định** (`Application/Common/VietnamTime.cs` — dùng chung cho chu kỳ budget, biên ngày của `daily_summaries`), không dùng `TimeZoneInfo.FindSystemTimeZoneById` vì `InvariantGlobalization=true` bật solution-wide. Mốc chu kỳ luôn trả về ở **offset 0** — Npgsql từ chối ghi `DateTimeOffset` có offset khác 0 vào cột `timestamptz`, kể cả khi chỉ dùng làm tham số truy vấn. Cần năm/tháng để dựng cache key thì dùng `VietnamTime.YearMonthOf`, cần ngày thì dùng `VietnamTime.DateOf` — đừng đọc `.Year`/`.Month`/`.Day` của giá trị UTC.
-- Push notification (budget alert, hoàn thành mục tiêu, nhắc quá hạn) vẫn đi qua `LoggingPushNotificationService` — chỉ ghi log. Chưa có push provider (FCM) được duyệt trong `TECH_STACK.md`; phần chọn-ai-để-gửi (tôn trọng `NotificationPreferences`) đã xong, chỉ thiếu kênh gửi thật.
-- **Hangfire đọc cron theo UTC**, còn `ARCHITECTURE.md` §5 ghi giờ vận hành theo giờ VN — các job chạy theo giờ VN phải quy đổi tường minh: `daily-summary` `5 17 * * *` (00:05 VN), `insight-generator` `0 19 * * *` (02:00 VN).
-- **Dự báo chi tiêu tính trong backend** (`StatisticalSpendingForecaster`), không gọi AI Service — `ISpendingForecaster` là chỗ Phase 9 cắm model AI vào mà không phải đổi controller hay DTO.
+Hangfire đọc cron theo **UTC**, nên job chạy theo giờ Việt Nam phải tự quy đổi (trừ 7 giờ). Ví dụ
+`daily-summary` `5 17 * * *` là 00:05 giờ Việt Nam.
 
-## API endpoints hiện có
+| Job | Cron (UTC) | Việc |
+|---|---|---|
+| `system-monitor` | `* * * * *` | Kiểm tra dịch vụ, mở và đóng sự cố, gửi email. Tắt bằng `MONITORING_ENABLED=false` |
+| `monitoring-digest` | `0 1 * * *` | Gom sự cố mức thường, xoá lỗi quá hạn. Tắt cùng job trên |
+| `retry-failed-notifications` | `*/15 * * * *` | Thử lại thông báo phân tích lỗi |
+| `forecast-alert-dispatch` | `*/15 * * * *` | Gửi cảnh báo dự báo đang chờ |
+| `budget-alerts` | `0 * * * *` | Lưới an toàn cho cảnh báo ngân sách |
+| `ai-category-sync` | `30 * * * *` | Đồng bộ danh mục sang ai-service |
+| `forecast-daily-alerts` | `0 1 * * *` | Kiểm tra dự báo hằng ngày |
+| `goal-deadline-check` | `0 1 * * *` | Nhắc mục tiêu quá hạn, 08:00 giờ Việt Nam |
+| `daily-summary` | `5 17 * * *` | Tổng hợp ngày |
+| `recurring-detection` | `30 18 * * *` | Nhận diện khoản định kỳ |
+| `insight-generator` | `0 19 * * *` | Sinh gợi ý chi tiêu |
+| `data-deletion` | `0 20 * * *` | Xoá hẳn tài khoản đã yêu cầu xoá, 03:00 giờ Việt Nam |
+| `support-retention` | `30 20 * * *` | Đóng ca đã giải quyết sau 7 ngày, xoá ảnh sau khi đóng 30 ngày, 03:30 giờ Việt Nam |
 
-```
-POST   /api/v1/auth/register
-POST   /api/v1/auth/login
-POST   /api/v1/auth/google              # Google Sign-In (Android ID token)
-POST   /api/v1/auth/refresh
-POST   /api/v1/auth/logout
-POST   /api/v1/auth/logout-all
-POST   /api/v1/auth/change-password
-DELETE /api/v1/auth/account
+## Điểm cần biết khi làm tiếp
 
-GET    /api/v1/users/me
-PATCH  /api/v1/users/me
-PATCH  /api/v1/users/me/notification-prefs
-
-GET    /api/v1/financial-accounts
-POST   /api/v1/financial-accounts
-PATCH  /api/v1/financial-accounts/{id}
-PATCH  /api/v1/financial-accounts/{id}/monitoring
-GET    /api/v1/financial-accounts/{id}/balance
-DELETE /api/v1/financial-accounts/{id}
-
-GET    /api/v1/categories
-POST   /api/v1/categories
-PATCH  /api/v1/categories/{id}
-DELETE /api/v1/categories/{id}
-
-POST   /api/v1/notifications/analyze    # Android gửi notification đọc được, AI phân tích, tạo transaction draft nếu financial
-
-GET    /api/v1/transactions             # Filter theo accountId/categoryId/type/fromDate/toDate, cursor pagination
-GET    /api/v1/transactions/{id}
-POST   /api/v1/transactions             # Tạo manual transaction (Status=Confirmed ngay)
-PATCH  /api/v1/transactions/{id}
-DELETE /api/v1/transactions/{id}
-POST   /api/v1/transactions/{id}/confirm  # Xác nhận transaction draft (từ notification)
-POST   /api/v1/transactions/parse       # Parse câu tiếng Việt tự nhiên qua AI Service, không persist
-
-GET    /api/v1/budgets                  # Tổng quan hạn mức tháng hiện tại (?year=&month= để xem tháng khác)
-POST   /api/v1/budgets                  # categoryId=null → hạn mức tổng cho toàn bộ chi tiêu
-PATCH  /api/v1/budgets/{id}             # Chỉ đổi limitCents
-DELETE /api/v1/budgets/{id}
-
-GET    /api/v1/saving-goals             # ?status=Active|Completed|Cancelled
-POST   /api/v1/saving-goals
-PATCH  /api/v1/saving-goals/{id}
-GET    /api/v1/saving-goals/{id}/progress    # % hoàn thành, on-track, lịch sử đóng góp gần đây
-POST   /api/v1/saving-goals/{id}/contribute  # Bookkeeping thuần — không trừ số dư tài khoản
-POST   /api/v1/saving-goals/{id}/cancel
-
-GET    /api/v1/reports/monthly-summary  # ?year=&month= — mặc định tháng hiện tại (giờ VN)
-GET    /api/v1/reports/category-breakdown
-GET    /api/v1/reports/timeline         # Gom giao dịch theo ngày, cursor pagination
-GET    /api/v1/reports/forecast         # Dự báo chi tiêu tháng + mức độ tin cậy
-GET    /api/v1/reports/insights         # ?unreadOnly=
-PATCH  /api/v1/reports/insights/{id}/read
-
-GET    /health                          # AllowAnonymous, dùng cho healthcheck
-GET    /hangfire                        # Dashboard, basic auth (HANGFIRE_DASHBOARD_USER/PASS)
-```
+- Lịch theo **giờ Việt Nam (UTC+7) cố định** qua `Application/Common/VietnamTime.cs`. Không dùng
+  `TimeZoneInfo.FindSystemTimeZoneById`, vì `InvariantGlobalization=true` bật cho cả solution. Mốc chu
+  kỳ trả về ở **offset 0**, vì Npgsql từ chối ghi `DateTimeOffset` có offset khác 0 vào `timestamptz`.
+- Vận hành chỉ xem dữ liệu khách qua `IOpsCustomerDataService`, xem `../docs/ops-api.md`. Repository theo `userId`
+  không được thêm nhánh "hoặc nhân viên", kể cả với Admin.
+- Các luật dễ vi phạm khác của từng mảng nằm trong `../CLAUDE.md`.
 
 ## Setup local
 
@@ -101,21 +62,25 @@ GET    /hangfire                        # Dashboard, basic auth (HANGFIRE_DASHBO
 cp .env.example .env
 ```
 
-Sửa `.env`:
-- `JWT_SECRET` — chuỗi ngẫu nhiên ≥ 64 ký tự (bắt buộc, app từ chối khởi động nếu ngắn hơn).
-- `GOOGLE_CLIENT_ID` — **Web OAuth Client ID** (không phải Android Client ID, không phải API Key) tạo trên Google Cloud Console → APIs & Services → Credentials. Bắt buộc để app khởi động (dù chưa dùng tính năng Google login).
-- `AI_SERVICE_URL`/`AI_SERVICE_API_KEY` — bắt buộc để app khởi động. AI Service (`ai-service/`) hiện chỉ là scaffold trống (Phase 9 chưa code) nên request thật tới `/notifications/analyze` sẽ trả `503 NOTIFICATION_AI_SERVICE_UNAVAILABLE` cho tới khi Phase 9 xong — đây là hành vi đã thiết kế, không phải lỗi.
-- `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` — tài khoản admin mặc định, seed tự động khi migrate.
+Giá trị mẫu đủ để chạy trong môi trường `Development`. Ngoài `Development`, ứng dụng từ chối khởi
+động nếu các biến bí mật còn giá trị mẫu (`Configuration/StartupSecretGuard.cs`). Các biến cần chú ý:
 
-Chạy toàn bộ hạ tầng (từ thư mục gốc repo):
+- `JWT_SECRET`: chuỗi ngẫu nhiên từ 64 ký tự. Nên đổi ngay cả khi chạy local, vì giá trị mẫu công khai.
+- `GOOGLE_CLIENT_ID`: **Web OAuth Client ID**, không phải Android Client ID hay API Key. Bắt buộc có
+  giá trị để app khởi động, dù chưa dùng đăng nhập Google.
+- `AI_SERVICE_URL`, `AI_SERVICE_API_KEY`: bắt buộc để app khởi động.
+- `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD`: tài khoản admin được tạo khi khởi động, email đã xác minh sẵn.
+
+Chạy cả hệ thống theo [README gốc](../README.md). Chỉ cần backend và hạ tầng thì chạy từ thư mục gốc repo:
 
 ```bash
-docker compose up -d postgres-main postgres-ai redis
-docker compose up -d backend
-curl http://localhost:8080/health
+docker compose up -d --no-deps postgres-main redis
+docker compose up -d --no-deps backend
+curl http://localhost:8080/health/ready
 ```
 
-Backend tự chạy `Database.Migrate()` + seed admin user + seed provider configs khi khởi động — không cần chạy migration thủ công cho local dev.
+Backend tự chạy migration và seed khi khởi động, không cần chạy migration thủ công cho local dev.
+Với `--no-deps`, các tính năng cần AI, OCR, giọng nói sẽ báo lỗi cho tới khi bật các service đó.
 
 ## Commands
 
@@ -126,6 +91,34 @@ dotnet test --filter FullyQualifiedName~ClassName.MethodName   # 1 test cụ th�
 dotnet ef migrations add <PascalCaseDescriptiveName> --project FinMate.Infrastructure --startup-project FinMate.API
 ```
 
-**Lưu ý môi trường dev hiện tại:** host chỉ có .NET 10 runtime, không cài được .NET 9 runtime hệ thống (không có sudo) — mọi lệnh `dotnet build/test/ef` phải chạy qua container `mcr.microsoft.com/dotnet/sdk:9.0` (mount `backend/` + Docker socket cho Testcontainers). Xem lịch sử commit để biết câu lệnh `docker run` cụ thể.
+**Máy không có .NET 9 SDK:** chạy trong container `mcr.microsoft.com/dotnet/sdk:9.0`, và phải mount
+**thư mục gốc repo**, vì `FinMate.Application` nhúng `../../ocr-service/data/shared_words.json`. Chạy từ
+thư mục gốc repo:
 
-`dotnet test` cần Docker chạy được (Testcontainers.PostgreSql dựng DB thật cho integration test). Tests Google login dùng `FakeGoogleTokenVerifier`, tests Notification/Transaction dùng `FakeAIServiceClient` (cả hai swap qua DI trong `AuthApiFactory`) thay vì gọi Google/AI Service thật.
+```bash
+docker run --rm -v "$PWD":/repo -w /repo/backend mcr.microsoft.com/dotnet/sdk:9.0 dotnet build
+
+docker run --rm -v "$PWD":/repo -w /repo/backend \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --network host -e TESTCONTAINERS_HOST_OVERRIDE=localhost \
+  mcr.microsoft.com/dotnet/sdk:9.0 dotnet test
+```
+
+**Docker daemon tắt, dùng rootless podman thay thế:**
+
+```bash
+systemctl --user start podman.socket
+podman run --rm --security-opt label=disable --network host \
+  -v "$PWD":/repo -w /repo/backend \
+  -v /run/user/1000/podman/podman.sock:/var/run/docker.sock \
+  -e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=localhost \
+  mcr.microsoft.com/dotnet/sdk:9.0 dotnet test
+```
+
+Toàn bộ test mất khoảng 9 phút. `dotnet test` cần Docker hoặc podman vì Testcontainers dựng PostgreSQL
+thật cho integration test. Test thay Google và AI Service bằng `FakeGoogleTokenVerifier`,
+`FakeAIServiceClient`, đăng ký trong `AuthApiFactory`.
+
+## Trạng thái
+
+Tiến độ theo phase ở `../.context/TASKS.md`. Phần còn thiếu so với đặc tả ở `../docs/REQUIREMENTS.md` §13.1.
