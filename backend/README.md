@@ -40,12 +40,12 @@ Hangfire đọc cron theo **UTC**, nên job chạy theo giờ Việt Nam phải 
 | `budget-alerts` | `0 * * * *` | Lưới an toàn cho cảnh báo ngân sách |
 | `ai-category-sync` | `30 * * * *` | Đồng bộ danh mục sang ai-service |
 | `forecast-daily-alerts` | `0 1 * * *` | Kiểm tra dự báo hằng ngày |
-| `data-deletion` | `0 3 * * *` | Xoá hẳn tài khoản đã yêu cầu xoá |
-| `support-retention` | `30 3 * * *` | Xoá ảnh của ca hỗ trợ đã đóng quá thời hạn |
-| `goal-deadline-check` | `0 8 * * *` | Nhắc mục tiêu quá hạn |
+| `goal-deadline-check` | `0 1 * * *` | Nhắc mục tiêu quá hạn, 08:00 giờ Việt Nam |
 | `daily-summary` | `5 17 * * *` | Tổng hợp ngày |
 | `recurring-detection` | `30 18 * * *` | Nhận diện khoản định kỳ |
 | `insight-generator` | `0 19 * * *` | Sinh gợi ý chi tiêu |
+| `data-deletion` | `0 20 * * *` | Xoá hẳn tài khoản đã yêu cầu xoá, 03:00 giờ Việt Nam |
+| `support-retention` | `30 20 * * *` | Đóng ca đã giải quyết sau 7 ngày, xoá ảnh sau khi đóng 30 ngày, 03:30 giờ Việt Nam |
 
 ## Điểm cần biết khi làm tiếp
 

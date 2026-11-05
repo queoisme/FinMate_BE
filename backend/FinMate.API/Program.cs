@@ -638,15 +638,17 @@ public class Program
             },
         });
 
+        // 03:00 giờ VN. Hangfire đọc cron theo UTC.
         RecurringJob.AddOrUpdate<DataDeletionJob>(
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
-            "0 3 * * *");
+            "0 20 * * *");
 
+        // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(
             "support-retention",
             job => job.RunAsync(CancellationToken.None),
-            "30 3 * * *");
+            "30 20 * * *");
 
         if (monitoringEnabled)
         {
@@ -675,12 +677,11 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 * * * *");
 
-        // ARCHITECTURE.md §5 không quy định giờ cho job này — 08:00 là khung giờ hợp lý để
-        // gửi nhắc nhở, không trùng với các job nặng chạy đêm.
+        // 08:00 giờ VN là khung giờ hợp lý để gửi nhắc nhở. Hangfire đọc cron theo UTC.
         RecurringJob.AddOrUpdate<GoalDeadlineCheckJob>(
             "goal-deadline-check",
             job => job.RunAsync(CancellationToken.None),
-            "0 8 * * *");
+            "0 1 * * *");
 
         // Hangfire đọc cron theo UTC. ARCHITECTURE.md §5 ghi giờ theo ý định vận hành (giờ VN)
         // nên hai job dưới phải trừ 7 tiếng: 17:05 UTC = 00:05 VN, 19:00 UTC = 02:00 VN.
