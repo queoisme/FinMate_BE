@@ -50,6 +50,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.Ops;
 using Serilog;
 using System.Net.Http.Headers;
 using System.Text;
@@ -263,7 +264,19 @@ public class Program
             options.AddPolicy(
                 AuthorizationPolicies.AdminOnly,
                 policy => policy.RequireRole(nameof(UserRole.Admin)));
+            options.AddPolicy(
+                AuthorizationPolicies.StaffOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
+            options.AddPolicy(
+                AuthorizationPolicies.ManagerOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
         });
+
+        // Không khai báo domain nào thì policy rỗng, trình duyệt không được phép gọi. Xác thực bằng header Bearer nên không bật AllowCredentials.
+        var opsWebOrigins = OpsWebOrigins.Parse(builder.Configuration["OPS_WEB_ORIGINS"]);
+        builder.Services.AddCors(options => options.AddPolicy(
+            OpsWebOrigins.PolicyName,
+            policy => policy.WithOrigins(opsWebOrigins.ToArray()).AllowAnyMethod().WithHeaders("Authorization", "Content-Type")));
 
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
 
@@ -322,6 +335,7 @@ public class Program
         // Dự báo tài chính (Flow 6, đợt 1).
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+        builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -537,6 +551,9 @@ public class Program
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+
+        // TRƯỚC chuyển hướng HTTPS và bảo trì: trình duyệt không gửi token khi preflight và không chấp nhận preflight bị chuyển hướng hay 503.
+        app.UseCors(OpsWebOrigins.PolicyName);
 
         app.UseHttpsRedirection();
 
