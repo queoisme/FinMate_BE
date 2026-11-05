@@ -284,7 +284,7 @@ public sealed class MarketDataService : IMarketDataService
             return new MarketSourceTestDto(MarketText.Kind(source.Kind), rules.AiAllowed, readings.Select(ToDto).ToList(), error, [], []);
         }
 
-        var candidates = Candidates(source, content, fetched.FinalUri ?? uri).ToList();
+        var candidates = Candidates(source, content, fetched.FinalUri ?? uri, settings).ToList();
         var previews = new List<ArticlePreviewDto>();
         foreach (var candidate in candidates.Take(PreviewArticles))
         {
@@ -590,7 +590,7 @@ public sealed class MarketDataService : IMarketDataService
             return new SourceOutcome(null);
         }
 
-        var candidates = Candidates(source, content, fetched.FinalUri ?? uri).ToList();
+        var candidates = Candidates(source, content, fetched.FinalUri ?? uri, settings).ToList();
         var known = await _repository.FindExistingDocumentUrlsAsync(candidates.Select(c => c.Url).ToList(), ct);
         var added = 0;
         var unread = candidates.Where(c => !known.Contains(c.Url)).ToList();
@@ -636,18 +636,18 @@ public sealed class MarketDataService : IMarketDataService
 
     private sealed record ArticleCandidate(string Url, string Title, DateTimeOffset? PublishedAt);
 
-    private static IEnumerable<ArticleCandidate> Candidates(MarketSource source, string content, Uri baseUri)
+    private static IEnumerable<ArticleCandidate> Candidates(MarketSource source, string content, Uri baseUri, MarketDataSettings settings)
     {
         if (source.Kind == MarketSourceKind.Feed)
         {
             return FeedReader.Read(content)
-                .Where(item => item.Url.Length <= MaxUrlLength && MarketTopics.IsRelevant(item.Title, item.Summary))
+                .Where(item => item.Url.Length <= MaxUrlLength && MarketTopics.IsRelevant(settings, item.Title, item.Summary))
                 .Select(item => new ArticleCandidate(item.Url, item.Title, item.PublishedAt))
                 .DistinctBy(c => c.Url);
         }
 
         return HtmlTextExtractor.Links(content, baseUri)
-            .Where(link => link.Url.Length <= MaxUrlLength && SameSite(link.Url, baseUri) && MarketTopics.IsRelevant(link.Text))
+            .Where(link => link.Url.Length <= MaxUrlLength && SameSite(link.Url, baseUri) && MarketTopics.IsRelevant(settings, link.Text))
             .Select(link => new ArticleCandidate(link.Url, link.Text, null))
             .DistinctBy(c => c.Url);
     }
@@ -737,7 +737,7 @@ public sealed class MarketDataService : IMarketDataService
             {
                 warnings.Add(MarketErrorCodes.NoContent);
             }
-            else if (!links.Any(l => MarketTopics.IsRelevant(l.Text)))
+            else if (!links.Any(l => MarketTopics.IsRelevant(settings, l.Text)))
             {
                 warnings.Add(MarketErrorCodes.NoRelevantLinks);
             }

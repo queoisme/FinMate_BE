@@ -49,7 +49,7 @@ public class MarketSignal
 {
     public Guid Id { get; set; }
     public Guid DocumentId { get; set; }
-    public MarketTopic Topic { get; set; }
+    public string Topic { get; set; } = string.Empty;
     public MarketDirection Direction { get; set; }
     public MarketFactStatus FactStatus { get; set; }
     public decimal? ChangePercent { get; set; }
@@ -62,7 +62,7 @@ public class MarketSignal
 public class MarketEvent
 {
     public Guid Id { get; set; }
-    public MarketTopic Topic { get; set; }
+    public string Topic { get; set; } = string.Empty;
     public MarketDirection Direction { get; set; }
     public DateTimeOffset FirstSeenAt { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }

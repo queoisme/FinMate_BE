@@ -173,7 +173,7 @@ public class MarketDataRepository : IMarketDataRepository
             ?? await query.OrderBy(p => p.FirstSeenAt).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+    public async Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
     {
         var rows = await SignalRows(topic, direction, since)
             .Join(_context.MarketSources.AsNoTracking(), row => row.Document.SourceId, source => source.Id, (row, source) => new { source.Url, row.Document.PublishedAt })
@@ -181,7 +181,7 @@ public class MarketDataRepository : IMarketDataRepository
         return rows.Select(r => (r.Url, r.PublishedAt!.Value)).ToList();
     }
 
-    public Task<MarketEvent?> GetLatestEventAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+    public Task<MarketEvent?> GetLatestEventAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
         => _context.MarketEvents
             .Where(e => e.Topic == topic && e.Direction == direction && e.LastSeenAt >= since && e.Status != MarketEventStatus.Expired)
             .OrderByDescending(e => e.LastSeenAt)
@@ -220,7 +220,7 @@ public class MarketDataRepository : IMarketDataRepository
         return (items, total);
     }
 
-    public Task<List<MarketSignalSource>> ListEventSignalsAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+    public Task<List<MarketSignalSource>> ListEventSignalsAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
         => SignalRows(topic, direction, since)
             .OrderByDescending(row => row.Signal.CreatedAt)
             .Select(row => new MarketSignalSource(
@@ -253,7 +253,7 @@ public class MarketDataRepository : IMarketDataRepository
         public MarketDocument Document { get; init; } = null!;
     }
 
-    private IQueryable<SignalRow> SignalRows(MarketTopic topic, MarketDirection direction, DateTimeOffset since)
+    private IQueryable<SignalRow> SignalRows(string topic, MarketDirection direction, DateTimeOffset since)
         => _context.MarketSignals.AsNoTracking()
             .Where(s => s.Topic == topic && s.Direction == direction && s.FactStatus == MarketFactStatus.Actual)
             .Join(_context.MarketDocuments.AsNoTracking(), s => s.DocumentId, d => d.Id, (s, d) => new SignalRow { Signal = s, Document = d })

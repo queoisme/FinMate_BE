@@ -31,10 +31,16 @@ def get_market_gemini_client() -> GeminiClient:
     return _market_gemini
 
 
+class MarketTopicIn(BaseModel):
+    key: str = Field(pattern=r"^[a-z][a-z_]{1,28}[a-z]$")
+    description: str = Field(min_length=1, max_length=200)
+
+
 class MarketExtractRequest(BaseModel):
     title: str = Field(default="", max_length=MAX_TITLE_CHARS)
     text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
     published_at: str | None = Field(default=None, max_length=40)
+    topics: list[MarketTopicIn] = Field(min_length=1, max_length=20)
 
 
 class MarketSignalOut(BaseModel):
@@ -60,7 +66,7 @@ async def extract(
     if not client.primary_configured:
         return MarketExtractResponse(status="not_configured")
     try:
-        signals = await extract_signals(client, body.title, body.text, body.published_at)
+        signals = await extract_signals(client, body.title, body.text, body.published_at, {t.key: t.description for t in body.topics})
     except (GeminiFailed, MarketExtractionFailed) as error:
         logger.warning("market_extract_failed", error=error.args[0] if error.args else "unknown")
         return MarketExtractResponse(status="failed")

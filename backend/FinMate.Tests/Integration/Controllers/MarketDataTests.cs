@@ -78,10 +78,12 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     {
         public Func<string, string, MarketAiResult> Respond { get; set; } = (_, _) => new MarketAiResult(MarketAiStatus.Ok, []);
         public List<string> Titles { get; } = [];
+        public IReadOnlyList<MarketAiTopic> Topics { get; private set; } = [];
 
-        public Task<MarketAiResult> ExtractAsync(string title, string text, DateTimeOffset? publishedAt, CancellationToken ct = default)
+        public Task<MarketAiResult> ExtractAsync(string title, string text, DateTimeOffset? publishedAt, IReadOnlyList<MarketAiTopic> topics, CancellationToken ct = default)
         {
             Titles.Add(title);
+            Topics = topics;
             return Task.FromResult(Respond(title, text));
         }
     }
@@ -536,6 +538,16 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task ThePublicConfigDoesNotRevealCostTypes()
+    {
+        await AddCostTypeAsync(new MarketCostType { Key = "bi_mat", Label = "bí mật", AiDescription = "x", TransactionKeywords = ["x"] });
+
+        var body = await (await _client.GetAsync("/api/v1/app-config")).Content.ReadAsStringAsync();
+
+        body.Should().NotContain("bi_mat");
+    }
+
+    [Fact]
     public async Task ThePublicConfigDoesNotRevealOperatingSettings()
     {
         var adminId = await InDbAsync(db => db.Users.Where(u => u.Role == UserRole.Admin).Select(u => u.Id).FirstAsync());
@@ -597,7 +609,8 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         (await RefreshAsync()).AiProcessed.Should().Be(1);
 
         var signal = await InDbAsync(db => db.MarketSignals.AsNoTracking().SingleAsync());
-        signal.Topic.Should().Be(MarketTopic.Electricity);
+        signal.Topic.Should().Be("electricity");
+        _ai.Topics.Select(t => t.Key).Should().Contain(["fuel", "electricity", "cooking_gas"]);
         signal.ChangePercent.Should().Be(4.8m);
         signal.EffectiveDate.Should().Be(new DateOnly(2026, 11, 10));
         signal.Evidence.Should().Be(PowerEvidence);
@@ -792,6 +805,67 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         var marketEvent = (await EventsAsync()).Single();
         marketEvent.Status.Should().Be(MarketEventStatus.Pending);
         marketEvent.SourceCount.Should().Be(2);
+    }
+
+    private async Task AddCostTypeAsync(MarketCostType type)
+    {
+        var adminId = await InDbAsync(db => db.Users.Where(u => u.Role == UserRole.Admin).Select(u => u.Id).FirstAsync());
+        using var scope = _factory.Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<ISystemConfigService>();
+        var current = await config.GetActiveAsync();
+        var market = current.Content.MarketData;
+        await config.SaveAsync(adminId, null, current.Version, current.Content with { MarketData = market with { CostTypes = [.. market.CostTypes.Where(t => t.Key != type.Key), type] } }, "thêm loại chi phí");
+        scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>().Invalidate();
+    }
+
+    [Fact]
+    public async Task ANewCostTypeWorksFromConfigurationAlone()
+    {
+        await AddCostTypeAsync(new MarketCostType { Key = "tuition", Label = "học phí", AiDescription = "học phí", NewsKeywords = ["học phí"], TransactionKeywords = ["học phí"] });
+        _ai.Respond = (_, _) => PowerUp(topic: "tuition");
+        await AddNewsAsync("a.vn", "Học phí đại học tăng");
+        await AddNewsAsync("b.vn", "Học phí đại học tăng");
+
+        await RefreshAsync();
+
+        _ai.Topics.Select(t => t.Key).Should().Contain("tuition");
+        (await EventsAsync()).Should().ContainSingle().Which.Topic.Should().Be("tuition");
+    }
+
+    [Fact]
+    public async Task AnOtherTopicIsKeptButNeverBecomesAnEvent()
+    {
+        _ai.Respond = (_, _) => PowerUp(topic: "other");
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync(s => s.Topic == "other"))).Should().Be(2);
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("other", "học phí", "đặt trùng chủ đề dành riêng")]
+    [InlineData("fuel", "xăng", "mã đã có")]
+    [InlineData("Có Dấu", "học phí", "mã sai dạng")]
+    public void BadCostTypesAreRefused(string key, string label, string because)
+    {
+        var market = new MarketDataSettings();
+        var extra = new MarketCostType { Key = key, Label = label, AiDescription = "x", TransactionKeywords = ["x"] };
+        var document = new SystemConfigDocument { MarketData = market with { CostTypes = [.. market.CostTypes, extra] } };
+
+        new SystemConfigDocumentValidator().Validate(document).IsValid.Should().BeFalse(because);
+    }
+
+    [Fact]
+    public void TheDefaultCostTypesAreValidAndATypeNeedsAWayToMatch()
+    {
+        new SystemConfigDocumentValidator().Validate(new SystemConfigDocument()).IsValid.Should().BeTrue();
+
+        var market = new MarketDataSettings();
+        var noMatch = new MarketCostType { Key = "tuition", Label = "học phí", AiDescription = "x" };
+        new SystemConfigDocumentValidator().Validate(new SystemConfigDocument { MarketData = market with { CostTypes = [noMatch] } }).IsValid.Should().BeFalse();
     }
 
     [Fact]

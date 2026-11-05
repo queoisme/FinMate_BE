@@ -37,15 +37,6 @@ public enum FuelPriceOrigin
     Manual,
 }
 
-public enum MarketTopic
-{
-    Fuel,
-    Electricity,
-    Water,
-    FoodPrice,
-    Other,
-}
-
 public enum MarketDirection
 {
     Up,

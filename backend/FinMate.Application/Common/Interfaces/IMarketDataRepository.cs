@@ -42,14 +42,14 @@ public interface IMarketDataRepository
     Task<FuelPrice?> GetFuelPriceAsOfAsync(string fuelKey, DateTimeOffset at, CancellationToken ct = default);
 
     /// <summary>Nguồn và ngày đăng của các tín hiệu đã xảy ra. Bài không rõ ngày đăng không được tính, vì có thể là tin cũ.</summary>
-    Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
-    Task<MarketEvent?> GetLatestEventAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
+    Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
+    Task<MarketEvent?> GetLatestEventAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
 
     /// <summary>False nếu tiến trình khác vừa tạo sự kiện đang mở cùng chủ đề và hướng.</summary>
     Task<bool> TryAddEventAsync(MarketEvent marketEvent, CancellationToken ct = default);
     Task<int> ExpireEventsAsync(DateTimeOffset lastSeenBefore, CancellationToken ct = default);
     Task<(List<MarketEvent> Items, int Total)> ListEventsAsync(MarketEventStatus? status, int offset, int limit, CancellationToken ct = default);
-    Task<List<MarketSignalSource>> ListEventSignalsAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
+    Task<List<MarketSignalSource>> ListEventSignalsAsync(string topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
 
     /// <summary>Chỉ đổi khi sự kiện còn chờ duyệt, nên hai admin cùng bấm thì một người nhận false.</summary>
     Task<bool> TryReviewEventAsync(Guid id, MarketEventStatus status, Guid adminId, string? note, DateTimeOffset now, CancellationToken ct = default);

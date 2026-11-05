@@ -22,9 +22,15 @@ public sealed class MarketAiClient : IMarketAiClient
         _logger = logger;
     }
 
-    public async Task<MarketAiResult> ExtractAsync(string title, string text, DateTimeOffset? publishedAt, CancellationToken ct = default)
+    public async Task<MarketAiResult> ExtractAsync(string title, string text, DateTimeOffset? publishedAt, IReadOnlyList<MarketAiTopic> topics, CancellationToken ct = default)
     {
-        var request = new { title, text, published_at = publishedAt?.ToString("O", CultureInfo.InvariantCulture) };
+        var request = new
+        {
+            title,
+            text,
+            published_at = publishedAt?.ToString("O", CultureInfo.InvariantCulture),
+            topics = topics.Select(t => new { key = t.Key, description = t.Description }).ToList(),
+        };
         try
         {
             using var response = await _http.PostAsJsonAsync(Route, request, ct);

@@ -124,7 +124,7 @@ public sealed class MarketAlertService : IMarketAlertService
         await ProcessFuelAsync(settings, enabled, now, ct);
         foreach (var marketEvent in await _market.ListEventsAwaitingAlertsAsync(ct))
         {
-            var type = settings.CostTypes.FirstOrDefault(t => t.Key == MarketEventText.Topic(marketEvent.Topic) && t.Enabled);
+            var type = settings.CostTypes.FirstOrDefault(t => t.Key == marketEvent.Topic && t.Enabled);
             if (enabled && type is not null && marketEvent.Direction == MarketDirection.Up)
             {
                 await SendNewsAlertsAsync(marketEvent, type, settings, now, ct);

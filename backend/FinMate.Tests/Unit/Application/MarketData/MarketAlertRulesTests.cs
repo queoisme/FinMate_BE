@@ -57,6 +57,8 @@ public class MarketAlertRulesTests
     [InlineData("Seven Coffee", "electricity", false)]
     [InlineData("THANH TOAN TIEN DIEN", "electricity", true)]
     [InlineData("SAWACO", "water", true)]
+    [InlineData("Đổi bình gas", "cooking_gas", true)]
+    [InlineData("Pegasus Tour", "cooking_gas", false)]
     public void RecognisesOtherCosts(string merchant, string key, bool expected)
         => MarketSpendProfile.Matches(Spend(merchant), Type(key)).Should().Be(expected);
 

@@ -129,7 +129,7 @@ public class WebContentTests
     [InlineData("Lạm phát tháng 10", true)]
     [InlineData("Đội tuyển bóng đá thắng đậm", false)]
     public void TopicFilterKeepsOnlyPriceNews(string title, bool expected)
-        => MarketTopics.IsRelevant(title).Should().Be(expected);
+        => MarketTopics.IsRelevant(new FinMate.Application.Admin.SystemConfig.MarketDataSettings(), title).Should().Be(expected);
 
     [Fact]
     public void RobotsLongestMatchWinsAndUnknownAgentsFallBackToStar()

@@ -93,7 +93,6 @@ public class MarketSignalConfiguration : IEntityTypeConfiguration<MarketSignal>
     {
         builder.ToTable("market_signals", t =>
         {
-            t.HasCheckConstraint("chk_market_signals_topic", GroupColumns.CheckIn<MarketTopic>("topic"));
             t.HasCheckConstraint("chk_market_signals_direction", GroupColumns.CheckIn<MarketDirection>("direction"));
             t.HasCheckConstraint("chk_market_signals_fact_status", GroupColumns.CheckIn<MarketFactStatus>("fact_status"));
         });
@@ -101,7 +100,7 @@ public class MarketSignalConfiguration : IEntityTypeConfiguration<MarketSignal>
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(s => s.DocumentId).HasColumnName("document_id").IsRequired();
-        builder.Property(s => s.Topic).HasColumnName("topic").HasConversion(GroupColumns.Converter<MarketTopic>()).HasMaxLength(20).IsRequired();
+        builder.Property(s => s.Topic).HasColumnName("topic").HasMaxLength(30).IsRequired();
         builder.Property(s => s.Direction).HasColumnName("direction").HasConversion(GroupColumns.Converter<MarketDirection>()).HasMaxLength(20).IsRequired();
         builder.Property(s => s.FactStatus).HasColumnName("fact_status").HasConversion(GroupColumns.Converter<MarketFactStatus>()).HasMaxLength(20).IsRequired();
         builder.Property(s => s.ChangePercent).HasColumnName("change_percent").HasPrecision(7, 2);
@@ -121,14 +120,13 @@ public class MarketEventConfiguration : IEntityTypeConfiguration<MarketEvent>
     {
         builder.ToTable("market_events", t =>
         {
-            t.HasCheckConstraint("chk_market_events_topic", GroupColumns.CheckIn<MarketTopic>("topic"));
             t.HasCheckConstraint("chk_market_events_direction", GroupColumns.CheckIn<MarketDirection>("direction"));
             t.HasCheckConstraint("chk_market_events_status", GroupColumns.CheckIn<MarketEventStatus>("status"));
         });
 
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
-        builder.Property(e => e.Topic).HasColumnName("topic").HasConversion(GroupColumns.Converter<MarketTopic>()).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.Topic).HasColumnName("topic").HasMaxLength(30).IsRequired();
         builder.Property(e => e.Direction).HasColumnName("direction").HasConversion(GroupColumns.Converter<MarketDirection>()).HasMaxLength(20).IsRequired();
         builder.Property(e => e.FirstSeenAt).HasColumnName("first_seen_at").IsRequired();
         builder.Property(e => e.LastSeenAt).HasColumnName("last_seen_at").IsRequired();

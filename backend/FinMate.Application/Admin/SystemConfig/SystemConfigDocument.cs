@@ -85,13 +85,19 @@ public sealed record MonitoringSettings
     public int ErrorRetentionDays { get; init; } = 30;
 }
 
-/// <summary>Một loại chi phí hệ thống theo dõi giá. Từ khóa so khớp theo cả từ và không phân biệt dấu, vì thông báo ngân hàng thường viết không dấu.</summary>
+/// <summary>Một loại chi phí hệ thống theo dõi giá. Thêm loại mới bằng cấu hình, không phải sửa code. Từ khóa so khớp theo cả từ và không phân biệt dấu, vì thông báo ngân hàng thường viết không dấu.</summary>
 public sealed record MarketCostType
 {
     public string Key { get; init; } = string.Empty;
 
     /// <summary>Tên trong câu cảnh báo: "Giá {Label} đang tăng". Do admin đặt, không bao giờ lấy từ trang web hay AI.</summary>
     public string Label { get; init; } = string.Empty;
+
+    /// <summary>Mô tả gửi cho AI để nhận ra chủ đề này trong bài báo.</summary>
+    public string AiDescription { get; init; } = string.Empty;
+
+    /// <summary>Lọc bài trước khi gửi AI.</summary>
+    public IReadOnlyList<string> NewsKeywords { get; init; } = [];
 
     /// <summary>Tìm trong tên cửa hàng, mô tả và tên danh mục của giao dịch, ở mọi danh mục.</summary>
     public IReadOnlyList<string> TransactionKeywords { get; init; } = [];
@@ -149,27 +155,43 @@ public sealed record MarketDataSettings
         {
             Key = "fuel",
             Label = "xăng",
+            AiDescription = "xăng dầu bán lẻ",
             TransactionKeywords = ["xăng", "petrolimex", "pvoil", "mipec", "chxd"],
+            NewsKeywords = ["giá xăng", "xăng dầu", "ron 95", "ron95", "ron 92", "e5 ron", "e10"],
             HasPriceTable = true,
         },
         new()
         {
             Key = "electricity",
             Label = "điện",
+            AiDescription = "giá điện sinh hoạt",
             TransactionKeywords = ["evn", "tiền điện", "điện lực", "hóa đơn điện"],
+            NewsKeywords = ["giá điện", "tiền điện", "biểu giá điện"],
         },
         new()
         {
             Key = "water",
             Label = "nước",
+            AiDescription = "giá nước sinh hoạt",
             TransactionKeywords = ["tiền nước", "cấp nước", "sawaco", "hóa đơn nước"],
+            NewsKeywords = ["giá nước", "tiền nước"],
         },
         new()
         {
             Key = "food_price",
             Label = "thực phẩm",
+            AiDescription = "giá thực phẩm: thịt, rau, gạo, trứng",
             TransactionKeywords = ["bách hóa xanh", "winmart", "co.opmart", "coopmart", "đi chợ", "siêu thị"],
+            NewsKeywords = ["giá thực phẩm", "giá thịt", "giá heo", "giá lợn", "giá rau", "giá gạo", "giá trứng"],
             CategorySlugs = ["food"],
+        },
+        new()
+        {
+            Key = "cooking_gas",
+            Label = "gas nấu ăn",
+            AiDescription = "giá gas nấu ăn, khí hóa lỏng bán lẻ",
+            TransactionKeywords = ["gas", "bình gas", "đổi gas", "tiền gas"],
+            NewsKeywords = ["giá gas", "giá khí hóa lỏng", "gas bán lẻ"],
         },
     ];
 }

@@ -1610,8 +1610,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Topic")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
                         .HasColumnName("topic");
 
                     b.HasKey("Id");
@@ -1631,8 +1631,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_market_events_direction", "direction IN ('up','down','stable')");
 
                             t.HasCheckConstraint("chk_market_events_status", "status IN ('pending','approved','rejected','expired')");
-
-                            t.HasCheckConstraint("chk_market_events_topic", "topic IN ('fuel','electricity','water','food_price','other')");
                         });
                 });
 
@@ -1681,8 +1679,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Topic")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
                         .HasColumnName("topic");
 
                     b.HasKey("Id");
@@ -1698,8 +1696,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_market_signals_direction", "direction IN ('up','down','stable')");
 
                             t.HasCheckConstraint("chk_market_signals_fact_status", "fact_status IN ('actual','forecast')");
-
-                            t.HasCheckConstraint("chk_market_signals_topic", "topic IN ('fuel','electricity','water','food_price','other')");
                         });
                 });
 

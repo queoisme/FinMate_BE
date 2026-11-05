@@ -12,16 +12,6 @@ namespace FinMate.Application.MarketData;
 
 public static class MarketEventText
 {
-    public static string Topic(MarketTopic topic) => topic switch
-    {
-        MarketTopic.Fuel => "fuel",
-        MarketTopic.Electricity => "electricity",
-        MarketTopic.Water => "water",
-        MarketTopic.FoodPrice => "food_price",
-        MarketTopic.Other => "other",
-        _ => throw new ArgumentOutOfRangeException(nameof(topic), topic, null),
-    };
-
     public static string Direction(MarketDirection direction) => direction.ToString().ToLowerInvariant();
 
     public static string Status(MarketEventStatus status) => status.ToString().ToLowerInvariant();
@@ -49,13 +39,14 @@ public static class MarketSignalValidator
 
     private static readonly Regex PercentInText = new(@"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:%|phần trăm)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
-    public sealed record Valid(MarketTopic Topic, MarketDirection Direction, MarketFactStatus FactStatus, decimal? ChangePercent, DateOnly? EffectiveDate, string Evidence);
+    public sealed record Valid(string Topic, MarketDirection Direction, MarketFactStatus FactStatus, decimal? ChangePercent, DateOnly? EffectiveDate, string Evidence);
 
-    public static Valid? Validate(MarketAiSignal signal, string articleText)
+    public static Valid? Validate(MarketAiSignal signal, string articleText, IReadOnlyCollection<string> allowedTopics)
     {
         var evidence = signal.Evidence?.Trim();
         if (string.IsNullOrEmpty(evidence) || evidence.Length > MaxEvidenceLength
-            || ParseTopic(signal.Topic) is not { } topic
+            || signal.Topic is not { } topic
+            || !allowedTopics.Contains(topic)
             || ParseDirection(signal.Direction) is not { } direction
             || ParseFact(signal.FactStatus) is not { } fact
             || !Normalize(articleText).Contains(Normalize(evidence), StringComparison.Ordinal))
@@ -79,16 +70,6 @@ public static class MarketSignalValidator
     private static bool PercentAppearsIn(decimal percent, string evidence)
         => PercentInText.Matches(evidence.Normalize(NormalizationForm.FormC))
             .Any(match => decimal.TryParse(match.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value == Math.Abs(percent));
-
-    private static MarketTopic? ParseTopic(string? text) => text switch
-    {
-        "fuel" => MarketTopic.Fuel,
-        "electricity" => MarketTopic.Electricity,
-        "water" => MarketTopic.Water,
-        "food_price" => MarketTopic.FoodPrice,
-        "other" => MarketTopic.Other,
-        _ => null,
-    };
 
     private static MarketDirection? ParseDirection(string? text) => text switch
     {
@@ -138,7 +119,8 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
         document.AiAttemptedAt = DateTimeOffset.UtcNow;
         await _repository.SaveChangesAsync(ct);
 
-        var result = await _ai.ExtractAsync(title, limited, document.PublishedAt, ct);
+        var enabled = settings.CostTypes.Where(type => type.Enabled).ToList();
+        var result = await _ai.ExtractAsync(title, limited, document.PublishedAt, enabled.Select(type => new MarketAiTopic(type.Key, type.AiDescription)).ToList(), ct);
         if (result.Status == MarketAiStatus.NotConfigured)
         {
             // Không có lượt gọi nào thật, không được tính vào trần mỗi ngày.
@@ -154,7 +136,8 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
         }
 
         var now = DateTimeOffset.UtcNow;
-        var valid = result.Signals.Select(s => MarketSignalValidator.Validate(s, limited)).OfType<MarketSignalValidator.Valid>().ToList();
+        var allowedTopics = enabled.Select(type => type.Key).Append(MarketTopics.Other).ToHashSet();
+        var valid = result.Signals.Select(s => MarketSignalValidator.Validate(s, limited, allowedTopics)).OfType<MarketSignalValidator.Valid>().ToList();
         foreach (var signal in valid)
         {
             _repository.AddSignal(new MarketSignal
@@ -174,7 +157,7 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
         document.Status = MarketDocumentStatus.Processed;
         await _repository.SaveChangesAsync(ct);
 
-        foreach (var key in valid.Where(IsEventCandidate).Select(s => (s.Topic, s.Direction)).Distinct())
+        foreach (var key in valid.Where(signal => IsEventCandidate(signal, enabled)).Select(s => (s.Topic, s.Direction)).Distinct())
         {
             await RefreshEventAsync(key.Topic, key.Direction, settings, now, ct);
         }
@@ -198,13 +181,13 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
     public Task ExpireOldEventsAsync(CancellationToken ct = default)
         => _repository.ExpireEventsAsync(DateTimeOffset.UtcNow.AddDays(-EventWindowDays), ct);
 
-    /// <summary>Tin về xăng không thành sự kiện vì đã có giá thật ở <c>fuel_prices</c>. Dự báo không thành sự kiện. "Không đổi" thì không có gì để báo.</summary>
-    private static bool IsEventCandidate(MarketSignalValidator.Valid signal)
+    /// <summary>Loại có bảng giá không thành sự kiện vì đã có giá thật. Dự báo không thành sự kiện. "Không đổi" thì không có gì để báo.</summary>
+    private static bool IsEventCandidate(MarketSignalValidator.Valid signal, IReadOnlyList<MarketCostType> enabled)
         => signal.FactStatus == MarketFactStatus.Actual
             && signal.Direction != MarketDirection.Stable
-            && signal.Topic is MarketTopic.Electricity or MarketTopic.Water or MarketTopic.FoodPrice;
+            && enabled.Any(type => type.Key == signal.Topic && !type.HasPriceTable);
 
-    private async Task RefreshEventAsync(MarketTopic topic, MarketDirection direction, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
+    private async Task RefreshEventAsync(string topic, MarketDirection direction, MarketDataSettings settings, DateTimeOffset now, CancellationToken ct)
     {
         var since = now.AddDays(-EventWindowDays);
         var sources = await _repository.ListActualSignalSourcesAsync(topic, direction, since, ct);
@@ -312,7 +295,7 @@ public sealed class MarketEventService : IMarketEventService
         var signals = await _repository.ListEventSignalsAsync(item.Topic, item.Direction, item.FirstSeenAt.AddDays(-1), ct);
         return new MarketEventDto(
             item.Id,
-            MarketEventText.Topic(item.Topic),
+            item.Topic,
             MarketEventText.Direction(item.Direction),
             item.FirstSeenAt,
             item.LastSeenAt,
