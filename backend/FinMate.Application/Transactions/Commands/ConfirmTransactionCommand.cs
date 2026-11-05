@@ -7,4 +7,4 @@ namespace FinMate.Application.Transactions.Commands;
 /// <c>PUT /transactions/{id}</c> rồi mới <c>confirm</c> — hai lần gọi mạng cho một thao tác,
 /// và có khoảng giữa hai lần đó mà trạng thái lỡ dở.
 /// </param>
-public record ConfirmTransactionCommand(Guid UserId, Guid TransactionId, Guid? CategoryId = null);
+public record ConfirmTransactionCommand(Guid UserId, Guid TransactionId, Guid? CategoryId = null, Guid? GroupId = null, Guid? GroupCategoryId = null);

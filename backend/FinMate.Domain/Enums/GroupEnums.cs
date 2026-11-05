@@ -54,4 +54,11 @@ public enum GroupActivityType
     OwnershipTransferred,
     InvitationCreated,
     InvitationRevoked,
+    TransactionShared,
+    TransactionUnshared,
+    TransactionReclassified,
+    BudgetChanged,
+    GoalChanged,
+    GoalContributed,
+    CategoryChanged,
 }

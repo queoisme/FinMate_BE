@@ -48,10 +48,10 @@ public class GroupRepository : IGroupRepository
         var rows = await (from m in _context.GroupMembers
                           join u in _context.Users.IgnoreQueryFilters() on m.UserId equals u.Id
                           where m.GroupId == groupId && m.LeftAt == null
-                          orderby m.Role, m.JoinedAt
+                          orderby m.JoinedAt
                           select new { Member = m, u.DisplayName, u.DeletedAt })
             .ToListAsync(ct);
-        return rows.Select(r => new GroupMemberView(r.Member, r.DisplayName, r.DeletedAt is null)).ToList();
+        return rows.OrderBy(r => r.Member.Role).Select(r => new GroupMemberView(r.Member, r.DisplayName, r.DeletedAt is null)).ToList();
     }
 
     public Task<int> CountActiveMembersAsync(Guid groupId, CancellationToken ct = default)

@@ -785,7 +785,8 @@
 | Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
 | Phase 57 — Nhóm, đợt 0: cộng tiền đồng thời | `[x]` | 6 / 6 |
 | Phase 58 — Nhóm, đợt 1: nhóm, thành viên, phân quyền | `[x]` | 6 / 6 |
-| **Total** (không tính Backlog) | | **436 / 462** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 59 — Nhóm, đợt 2: giao dịch, ngân sách, mục tiêu | `[x]` | 7 / 7 |
+| **Total** (không tính Backlog) | | **443 / 469** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1309,3 +1310,12 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Lời mời email/link: mã 32 byte, chỉ lưu SHA-256, dùng một lần; lỗi không phân biệt lý do; `xmin` chặn hai người cùng nhận.
 - [x] Công tắc `features.groups` (mặc định tắt, app đọc qua `/app-config`, giống các công tắc khác) và cấu hình `groups.*`.
 - [x] Test: `GroupPermissionsTests`, `GroupsControllerTests` (ma trận quyền, 404/403, mất quyền ngay, tranh lời mời, email khớp, không lộ email).
+
+## Phase 59 — Tính năng nhóm, đợt 2: giao dịch, ngân sách, mục tiêu (2026-11-05)
+- [x] Migration `AddGroupSharedFinance`; `budgets.user_id`, `saving_goals.user_id` thành nullable, CHECK một chủ.
+- [x] `IGroupLedger` nối vào 4 handler (tạo, xác nhận, sửa, xóa) bằng tham số tùy chọn; `PUT|DELETE /transactions/{id}/group`.
+- [x] API `/groups/{id}/transactions`, `categories`, `share-rules`, `budgets`, `goals`; rời nhóm thì tắt quy tắc tự chia sẻ.
+- [x] `IGroupAlertNotifier` gửi riêng từng thành viên qua `forecast_alerts`; `BudgetAlertJob`, `GoalDeadlineCheckJob` tách nhánh nhóm.
+- [x] `FinanceSnapshotRepository`: phần góp vào mục tiêu nhóm không tính vào số liệu cá nhân.
+- [x] Sửa lỗi có sẵn: sửa giao dịch của tháng chưa có kỳ ngân sách từng tạo hai kỳ trùng khóa (`BudgetRepository.GetPeriodAsync` nay xem cả kỳ chưa lưu).
+- [x] Test: `GroupFinanceControllerTests` (bất biến `spent_cents`, chi đồng thời, không lộ dữ liệu, cảnh báo, job).

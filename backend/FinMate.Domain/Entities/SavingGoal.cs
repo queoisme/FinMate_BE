@@ -5,7 +5,10 @@ namespace FinMate.Domain.Entities;
 public class SavingGoal
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    /// <summary>Chủ cá nhân. Đúng một trong <see cref="UserId"/> và <see cref="GroupId"/> có giá trị (ràng buộc ở CSDL), nên truy vấn theo user không thể thấy mục tiêu nhóm.</summary>
+    public Guid? UserId { get; set; }
+    public Guid? GroupId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public long TargetCents { get; set; }
     public long SavedCents { get; set; }

@@ -13,6 +13,7 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
         {
             t.HasCheckConstraint("chk_saving_goals_status", "status IN ('active','completed','cancelled')");
             t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
+            t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
         });
 
         builder.HasKey(g => g.Id);
@@ -20,7 +21,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
             .HasColumnName("id")
             .HasDefaultValueSql("gen_random_uuid()");
 
-        builder.Property(g => g.UserId).HasColumnName("user_id").IsRequired();
+        builder.Property(g => g.UserId).HasColumnName("user_id");
+        builder.Property(g => g.GroupId).HasColumnName("group_id");
+        builder.Property(g => g.CreatedByUserId).HasColumnName("created_by_user_id");
 
         builder.Property(g => g.Name)
             .HasColumnName("name")
@@ -54,6 +57,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
         builder.HasQueryFilter(g => g.DeletedAt == null);
 
         builder.HasIndex(g => g.UserId).HasDatabaseName("idx_saving_goals_user_id");
+        builder.HasIndex(g => g.GroupId).HasFilter("group_id IS NOT NULL").HasDatabaseName("ix_saving_goals_group_id");
+        builder.HasOne<Group>().WithMany().HasForeignKey(g => g.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<User>().WithMany().HasForeignKey(g => g.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(g => g.User)
             .WithMany()

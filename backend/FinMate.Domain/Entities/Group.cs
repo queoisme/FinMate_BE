@@ -57,6 +57,33 @@ public class GroupInvitation
     public bool IsPending(DateTimeOffset now) => AcceptedAt is null && RevokedAt is null && ExpiresAt > now;
 }
 
+/// <summary>Danh mục riêng của nhóm. Bảng riêng, không dùng <c>categories</c>: ở đó <c>user_id IS NULL</c> nghĩa là danh mục hệ thống hiện cho mọi người.</summary>
+public class GroupCategory
+{
+    public Guid Id { get; set; }
+    public Guid GroupId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
+    public string? IconName { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+}
+
+/// <summary>Quy tắc tự chia sẻ của MỘT người: giao dịch khớp ví và danh mục sẽ tự vào nhóm. Bỏ trống cả hai là chia sẻ mọi khoản của người đó.</summary>
+public class GroupShareRule
+{
+    public Guid Id { get; set; }
+    public Guid GroupId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid? FinancialAccountId { get; set; }
+    public Guid? CategoryId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 /// <summary>Lịch sử cho thành viên xem trong app. Khác <c>audit_logs</c> (cho vận hành): dòng này thuộc về nhóm.</summary>
 public class GroupActivity
 {

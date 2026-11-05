@@ -3,7 +3,7 @@ using FinMate.Domain.Enums;
 using FluentAssertions;
 using Xunit;
 
-namespace FinMate.Tests.Unit.Application;
+namespace FinMate.Tests.Unit.Application.Groups;
 
 public class GroupPermissionsTests
 {

@@ -45,6 +45,13 @@ public class Transaction
     public bool ExcludeFromForecast { get; set; }
     public ForecastExclusionReason? ForecastExclusionReason { get; set; }
 
+    /// <summary>Nhóm mà chủ giao dịch đã chia sẻ khoản này. Ví và số dư vẫn của riêng họ; nhóm chỉ nhìn thấy và tính vào ngân sách nhóm.</summary>
+    public Guid? GroupId { get; set; }
+
+    /// <summary>Phân loại trong nhóm, tách khỏi <see cref="CategoryId"/> để quản lý nhóm phân loại lại mà không đụng dữ liệu cá nhân.</summary>
+    public Guid? GroupCategoryId { get; set; }
+
+    public DateTimeOffset? SharedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -55,4 +62,5 @@ public class Transaction
     public Category? Category { get; set; }
     public NotificationLog? NotificationLog { get; set; }
     public SavingGoal? SavingGoal { get; set; }
+    public GroupCategory? GroupCategory { get; set; }
 }
