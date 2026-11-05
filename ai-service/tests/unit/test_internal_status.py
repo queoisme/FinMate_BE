@@ -84,6 +84,29 @@ def test_a_healthy_backup_does_not_hide_a_failing_primary(fresh_health):
     assert primary.consecutive_failures >= 1
 
 
+def test_one_clients_success_does_not_hide_anothers_failures():
+    health = ProviderHealth()
+    for _ in range(3):
+        health.failure("http_404", "bill")
+        health.success("chat")
+
+    assert health.consecutive_failures == 3
+
+    health.success("bill")
+    assert health.consecutive_failures == 0
+
+
+def test_generate_text_failures_and_successes_are_counted(fresh_health):
+    primary, _ = fresh_health
+    with pytest.raises(GeminiFailed):
+        asyncio.run(_client(lambda _r: httpx.Response(500)).generate_text("loi nhac", {"type": "OBJECT"}))
+    assert primary.consecutive_failures == 1
+
+    ok = httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "{}"}]}}]})
+    asyncio.run(_client(lambda _r: ok).generate_text("loi nhac", {"type": "OBJECT"}))
+    assert primary.consecutive_failures == 0
+
+
 def test_snapshot_never_contains_a_key_and_reports_disabled():
     health = ProviderHealth()
     health.failure("http_429")

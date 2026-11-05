@@ -7,7 +7,7 @@ namespace FinMate.Infrastructure.Monitoring;
 /// <summary>
 /// Nhà cung cấp bên ngoài. Đây là nguồn duy nhất phát hiện được key Vision hết hạn mức: khi đó OCR tự đọc cục bộ, health check vẫn xanh.
 /// Bên gọi đã đếm lỗi liên tiếp, và số đếm chỉ về 0 khi có một lần gọi thành công thật, nên ở đây không cần đếm lại theo từng phút.
-/// Chưa ai dùng thì không có gì để đếm, nên sự cố chỉ tự đóng sau lần gọi thành công kế tiếp.
+/// Chỉ coi là tốt khi đã thấy một lần gọi thành công. Dịch vụ vừa khởi động lại có số đếm bằng 0 nhưng chưa chứng minh gì, nên là chưa biết, và sự cố đang mở giữ nguyên.
 /// </summary>
 public sealed class ProviderMonitorSource : IMonitorSource
 {
@@ -41,7 +41,7 @@ public sealed class ProviderMonitorSource : IMonitorSource
 
     internal static ProbeResult Map(ProviderHealthBody? body, int threshold)
     {
-        if (body is null)
+        if (body is null || body.State == "unknown")
         {
             return new ProbeResult(MonitoredServiceState.Unknown);
         }
@@ -51,9 +51,14 @@ public sealed class ProviderMonitorSource : IMonitorSource
             return new ProbeResult(MonitoredServiceState.Disabled);
         }
 
-        return body.ConsecutiveFailures >= threshold
-            ? new ProbeResult(MonitoredServiceState.Unhealthy, Detail(body.LastErrorCode, body.ConsecutiveFailures))
-            : new ProbeResult(MonitoredServiceState.Healthy);
+        if (body.ConsecutiveFailures >= threshold)
+        {
+            return new ProbeResult(MonitoredServiceState.Unhealthy, Detail(body.LastErrorCode, body.ConsecutiveFailures));
+        }
+
+        return body.ConsecutiveFailures == 0 && body.LastSuccessAt is not null
+            ? new ProbeResult(MonitoredServiceState.Healthy)
+            : new ProbeResult(MonitoredServiceState.Unknown);
     }
 
     internal static ProbeResult MapRasa(RasaStatusBody? rasa)
@@ -74,9 +79,19 @@ public sealed class ProviderMonitorSource : IMonitorSource
     private ProbeResult MapLocal(string provider, int threshold)
     {
         var state = _tracker.Get(provider);
-        return state.ConsecutiveFailures >= threshold
-            ? new ProbeResult(MonitoredServiceState.Unhealthy, Detail(state.LastErrorCode, state.ConsecutiveFailures))
-            : new ProbeResult(MonitoredServiceState.Healthy);
+        if (state.NotConfigured)
+        {
+            return new ProbeResult(MonitoredServiceState.Disabled);
+        }
+
+        if (state.ConsecutiveFailures >= threshold)
+        {
+            return new ProbeResult(MonitoredServiceState.Unhealthy, Detail(state.LastErrorCode, state.ConsecutiveFailures));
+        }
+
+        return state.ConsecutiveFailures == 0 && state.HasSucceeded
+            ? new ProbeResult(MonitoredServiceState.Healthy)
+            : new ProbeResult(MonitoredServiceState.Unknown);
     }
 
     private static string Detail(string? code, int failures)

@@ -53,8 +53,7 @@ public sealed class IncidentNotifier : IIncidentNotifier
             var subject = $"[FinMate] {SeverityLabel(incident.Severity)}: {incident.Title}" + (isReminder ? " (chưa có người nhận)" : string.Empty);
             if (await SendAsync(recipients, subject, Body(incident), ct))
             {
-                incident.LastNotifiedAt = now;
-                incident.NotificationCount++;
+                await _repository.MarkNotifiedAsync(incident.Id, now, ct);
             }
         }
 
@@ -62,11 +61,9 @@ public sealed class IncidentNotifier : IIncidentNotifier
         {
             if (await SendAsync(recipients, $"[FinMate] Đã khắc phục: {incident.Title}", ResolvedBody(incident), ct))
             {
-                incident.ResolvedNotifiedAt = now;
+                await _repository.MarkResolvedNotifiedAsync(incident.Id, now, ct);
             }
         }
-
-        await _repository.SaveChangesAsync(ct);
     }
 
     public async Task SendDigestAsync(DateTimeOffset now, CancellationToken ct = default)
@@ -89,11 +86,8 @@ public sealed class IncidentNotifier : IIncidentNotifier
         {
             foreach (var incident in incidents)
             {
-                incident.LastNotifiedAt = now;
-                incident.NotificationCount++;
+                await _repository.MarkNotifiedAsync(incident.Id, now, ct);
             }
-
-            await _repository.SaveChangesAsync(ct);
         }
     }
 

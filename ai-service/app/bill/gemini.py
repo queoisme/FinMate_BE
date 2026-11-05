@@ -93,7 +93,9 @@ class GeminiClient:
         fallback_models: tuple[str, ...] = (),
         backup_key: str | Callable[[], str | None] | None = None,
         backup_model: str = "",
+        health_channel: str = "default",
     ) -> None:
+        self._health_channel = health_channel
         self._overall_timeout = overall_timeout
         self._key_source = api_key
         self._model = model
@@ -181,14 +183,14 @@ class GeminiClient:
             try:
                 async with asyncio.timeout(self._overall_timeout):
                     result = await self._call_models(names, instruction)
-                gemini_health.success()
+                gemini_health.success(self._health_channel)
                 return result
             except TimeoutError:  # quá trần cả chặng: như mọi lỗi khác
                 last = GeminiFailed("overall_timeout")
-                gemini_health.failure("overall_timeout")
+                gemini_health.failure("overall_timeout", self._health_channel)
             except GeminiFailed as error:
                 last = error
-                gemini_health.failure(error.args[0] if error.args else "unknown")
+                gemini_health.failure(error.args[0] if error.args else "unknown", self._health_channel)
         if self._backup_key:
             try:
                 async with asyncio.timeout(self._overall_timeout):
@@ -266,12 +268,15 @@ class GeminiClient:
             async with asyncio.timeout(self._overall_timeout):
                 for index, model in enumerate(self._models):  # như _call_models: chỉ model cuối được thử lại khi 429/503
                     try:
-                        return await self._generate(body, model, retry=index == len(self._models) - 1)
+                        text = await self._generate(body, model, retry=index == len(self._models) - 1)
+                        gemini_health.success(self._health_channel)
+                        return text
                     except GeminiFailed as error:
                         last = error
         except TimeoutError:
             last = GeminiFailed("overall_timeout")
         self._open_until = self._clock() + CIRCUIT_SECONDS
+        gemini_health.failure(last.args[0] if last and last.args else "unknown", self._health_channel)
         logger.warning("gemini_failed", error=last.args[0] if last and last.args else "unknown", count=1)  # args[0] luôn là mã cố định
         raise last or GeminiFailed("no_model")
 

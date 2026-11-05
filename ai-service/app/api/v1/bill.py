@@ -70,6 +70,7 @@ _gemini = GeminiClient(
     fallback_models=tuple(m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()),
     backup_key=secret_store.getter("openrouter_api_key"),
     backup_model=settings.openrouter_model,
+    health_channel="bill",
 )
 
 
@@ -89,6 +90,7 @@ _chat_gemini = GeminiClient(
     settings.chat_gemini_timeout_seconds,
     overall_timeout=settings.chat_gemini_overall_seconds,
     fallback_models=tuple(m.strip() for m in settings.chat_gemini_fallback_models.split(",") if m.strip()),
+    health_channel="chat",
 )
 
 

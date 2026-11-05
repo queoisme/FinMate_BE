@@ -126,6 +126,21 @@ public class OpsApprovalsAndManagerTests : IClassFixture<AuthApiFactory>, IAsync
     }
 
     [Fact]
+    public async Task DecisionsWorkWithoutABody_BecauseTheNoteIsOptional()
+    {
+        var staff = await AccountAsync(UserRole.Staff);
+        var manager = await AccountAsync(UserRole.OpsManager);
+        var first = await AccountAsync(UserRole.User, u => u.IsLocked = true);
+        var second = await AccountAsync(UserRole.User, u => u.IsLocked = true);
+
+        var approve = await ProposeUnlockAsync(staff, first.Id);
+        (await DataAsync(await SendAsync(HttpMethod.Post, $"{Approvals}/{approve}/approve", manager.Token))).GetProperty("status").GetString().Should().Be("Approved");
+
+        var reject = await ProposeUnlockAsync(staff, second.Id);
+        (await DataAsync(await SendAsync(HttpMethod.Post, $"{Approvals}/{reject}/reject", manager.Token))).GetProperty("status").GetString().Should().Be("Rejected");
+    }
+
+    [Fact]
     public async Task NobodyApprovesTheirOwnProposal_EvenAnAdmin()
     {
         var admin = await AccountAsync(UserRole.Admin);

@@ -69,19 +69,32 @@ public class MonitoringRepository : IMonitoringRepository
     }
 
     public Task<List<OpsIncident>> ListOpenUrgentAsync(CancellationToken ct = default)
-        => _context.OpsIncidents
+        => _context.OpsIncidents.AsNoTracking()
             .Where(i => i.Status == IncidentStatus.Open && i.Severity != IncidentSeverity.Normal)
             .ToListAsync(ct);
 
     public Task<List<OpsIncident>> ListOpenNormalAsync(CancellationToken ct = default)
-        => _context.OpsIncidents
+        => _context.OpsIncidents.AsNoTracking()
             .Where(i => i.Status == IncidentStatus.Open && i.Severity == IncidentSeverity.Normal)
             .OrderBy(i => i.FirstSeenAt)
             .ToListAsync(ct);
 
     public Task<List<OpsIncident>> ListResolvedUnnotifiedAsync(CancellationToken ct = default)
-        => _context.OpsIncidents
+        => _context.OpsIncidents.AsNoTracking()
             .Where(i => i.Status == IncidentStatus.Resolved && i.Severity != IncidentSeverity.Normal && i.NotificationCount > 0 && i.ResolvedNotifiedAt == null)
+            .ToListAsync(ct);
+
+    public Task MarkNotifiedAsync(Guid incidentId, DateTimeOffset at, CancellationToken ct = default)
+        => _context.OpsIncidents.Where(i => i.Id == incidentId).ExecuteUpdateAsync(
+            s => s.SetProperty(i => i.LastNotifiedAt, at).SetProperty(i => i.NotificationCount, i => i.NotificationCount + 1), ct);
+
+    public Task MarkResolvedNotifiedAsync(Guid incidentId, DateTimeOffset at, CancellationToken ct = default)
+        => _context.OpsIncidents.Where(i => i.Id == incidentId).ExecuteUpdateAsync(s => s.SetProperty(i => i.ResolvedNotifiedAt, at), ct);
+
+    public Task<List<string>> ListActiveFingerprintsAsync(IncidentSource source, CancellationToken ct = default)
+        => _context.OpsIncidents.AsNoTracking()
+            .Where(i => i.Source == source && i.Status != IncidentStatus.Resolved)
+            .Select(i => i.Fingerprint)
             .ToListAsync(ct);
 
     public Task<List<AlertRecipient>> ListAlertRecipientsAsync(bool includeManagers, CancellationToken ct = default)

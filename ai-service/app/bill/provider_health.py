@@ -6,18 +6,24 @@ from datetime import UTC, datetime
 
 
 class ProviderHealth:
+    """Đếm riêng theo từng client: chat chạy tốt không được xóa số lỗi của hóa đơn, vì chúng dùng các model khác nhau. Số báo ra là kênh tệ nhất."""
+
     def __init__(self) -> None:
-        self.consecutive_failures = 0
+        self._failures: dict[str, int] = {}
         self.last_error_code: str | None = None
         self.last_error_at: datetime | None = None
         self.last_success_at: datetime | None = None
 
-    def success(self) -> None:
-        self.consecutive_failures = 0
+    @property
+    def consecutive_failures(self) -> int:
+        return max(self._failures.values(), default=0)
+
+    def success(self, channel: str = "default") -> None:
+        self._failures[channel] = 0
         self.last_success_at = datetime.now(UTC)
 
-    def failure(self, code: str) -> None:
-        self.consecutive_failures += 1
+    def failure(self, code: str, channel: str = "default") -> None:
+        self._failures[channel] = self._failures.get(channel, 0) + 1
         self.last_error_code = code
         self.last_error_at = datetime.now(UTC)
 

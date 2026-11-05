@@ -40,6 +40,7 @@ public class SwitchingEmailSender : IEmailSender
         var senderEmail = _configuration["BREVO_SENDER_EMAIL"];
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(senderEmail))
         {
+            _failures?.RecordNotConfigured(MonitoredServices.Brevo.Key);
             return await _fallback.SendAsync(toEmail, subject, body, ct);
         }
 

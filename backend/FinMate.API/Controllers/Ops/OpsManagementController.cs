@@ -4,6 +4,7 @@ using FinMate.Application.Ops;
 using FinMate.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace FinMate.API.Controllers.Ops;
 
@@ -31,13 +32,13 @@ public class OpsApprovalsController : OpsControllerBase
 
     [HttpPost("{id:guid}/approve")]
     [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
-    public async Task<IActionResult> Approve(Guid id, [FromBody] OpsApprovalDecisionRequest request, CancellationToken ct)
-        => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.ApproveAsync(CurrentActorId, id, request.Note, CurrentIpAddress, ct)));
+    public async Task<IActionResult> Approve(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] OpsApprovalDecisionRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.ApproveAsync(CurrentActorId, id, request?.Note, CurrentIpAddress, ct)));
 
     [HttpPost("{id:guid}/reject")]
     [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
-    public async Task<IActionResult> Reject(Guid id, [FromBody] OpsApprovalDecisionRequest request, CancellationToken ct)
-        => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.RejectAsync(CurrentActorId, id, request.Note, CurrentIpAddress, ct)));
+    public async Task<IActionResult> Reject(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] OpsApprovalDecisionRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.RejectAsync(CurrentActorId, id, request?.Note, CurrentIpAddress, ct)));
 }
 
 [Route("api/v1/ops")]

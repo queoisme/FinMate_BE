@@ -1,4 +1,5 @@
 using FinMate.Application.Admin.SystemConfig;
+using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Monitoring;
 using FinMate.Domain.Enums;
 using Hangfire;
@@ -36,16 +37,30 @@ public sealed class JobMonitorSource : IMonitorSource
 
     private readonly IRecurringJobReader _jobs;
     private readonly IIncidentService _incidents;
+    private readonly IMonitoringRepository _repository;
 
-    public JobMonitorSource(IRecurringJobReader jobs, IIncidentService incidents)
+    public JobMonitorSource(IRecurringJobReader jobs, IIncidentService incidents, IMonitoringRepository repository)
     {
+        _repository = repository;
         _jobs = jobs;
         _incidents = incidents;
     }
 
     public async Task RunAsync(MonitoringSettings settings, DateTimeOffset now, CancellationToken ct = default)
     {
-        foreach (var job in _jobs.ReadAll().Where(j => j.Id != MonitorJobId))
+        var jobs = _jobs.ReadAll().Where(j => j.Id != MonitorJobId).ToList();
+
+        // Job đã bị gỡ khỏi lịch thì không còn lần chạy nào để tự đóng, và sẽ nhắc mãi nếu không đóng ở đây.
+        var currentKeys = jobs.SelectMany(j => new[] { $"job:failed:{j.Id}", $"job:overdue:{j.Id}" }).ToHashSet();
+        foreach (var fingerprint in await _repository.ListActiveFingerprintsAsync(IncidentSource.Job, ct))
+        {
+            if (!currentKeys.Contains(fingerprint))
+            {
+                await _incidents.ResolveAsync(fingerprint, now, ct);
+            }
+        }
+
+        foreach (var job in jobs)
         {
             var failedKey = $"job:failed:{job.Id}";
             if (job.LastJobState == FailedState.StateName)

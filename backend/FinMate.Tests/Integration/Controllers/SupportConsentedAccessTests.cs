@@ -346,6 +346,17 @@ public class SupportConsentedAccessTests : IClassFixture<AuthApiFactory>, IAsync
     }
 
     [Fact]
+    public async Task ApprovingWithoutADraftScopeNeedsNoBody()
+    {
+        var c = await CaseAsync();
+        var requestId = await RequestAsync(c, SupportAccessScope.Accounts);
+
+        await DataAsync(await SendAsync(HttpMethod.Post, $"{Tickets}/{c.TicketId}/access-requests/{requestId}/approve", c.Customer.Token));
+
+        (await ReadAsync(c, "accounts")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task AnotherCustomerCannotApproveARequest()
     {
         var c = await CaseAsync();

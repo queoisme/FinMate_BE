@@ -4,6 +4,7 @@ using FinMate.Application.Monitoring;
 using FinMate.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace FinMate.API.Controllers.Ops;
 
@@ -45,8 +46,8 @@ public class OpsMonitoringController : OpsControllerBase
         => Ok(ApiResponse<OpsIncidentDto>.Ok(await _monitoring.AcknowledgeAsync(CurrentActorId, id, CurrentIpAddress, ct)));
 
     [HttpPost("incidents/{id:guid}/resolve")]
-    public async Task<IActionResult> Resolve(Guid id, [FromBody] ResolveIncidentRequest request, CancellationToken ct)
-        => Ok(ApiResponse<OpsIncidentDto>.Ok(await _monitoring.ResolveAsync(CurrentActorId, id, request.Note, CurrentIpAddress, ct)));
+    public async Task<IActionResult> Resolve(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ResolveIncidentRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<OpsIncidentDto>.Ok(await _monitoring.ResolveAsync(CurrentActorId, id, request?.Note, CurrentIpAddress, ct)));
 }
 
 public record ResolveIncidentRequest(string? Note);

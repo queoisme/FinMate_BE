@@ -8,7 +8,8 @@ namespace FinMate.Infrastructure.Monitoring;
 public sealed record ProviderHealthBody(
     [property: JsonPropertyName("state")] string? State,
     [property: JsonPropertyName("consecutive_failures")] int ConsecutiveFailures,
-    [property: JsonPropertyName("last_error_code")] string? LastErrorCode);
+    [property: JsonPropertyName("last_error_code")] string? LastErrorCode,
+    [property: JsonPropertyName("last_success_at")] DateTimeOffset? LastSuccessAt = null);
 
 public sealed record OcrStatusBody([property: JsonPropertyName("vision")] ProviderHealthBody? Vision);
 
