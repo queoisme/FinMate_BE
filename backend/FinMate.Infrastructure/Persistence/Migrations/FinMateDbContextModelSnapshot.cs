@@ -192,9 +192,21 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("GroupCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_category_id");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
 
                     b.Property<long>("LimitCents")
                         .HasColumnType("bigint")
@@ -210,7 +222,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
@@ -218,10 +230,29 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("GroupCategoryId");
+
+                    b.HasIndex("GroupId", "PeriodType")
+                        .IsUnique()
+                        .HasDatabaseName("uq_budgets_group_total")
+                        .HasFilter("group_id IS NOT NULL AND category_id IS NULL AND group_category_id IS NULL AND deleted_at IS NULL");
+
                     b.HasIndex("UserId", "PeriodType")
                         .IsUnique()
                         .HasDatabaseName("uq_budgets_user_total")
                         .HasFilter("category_id IS NULL AND deleted_at IS NULL");
+
+                    b.HasIndex("GroupId", "CategoryId", "PeriodType")
+                        .IsUnique()
+                        .HasDatabaseName("uq_budgets_group_category")
+                        .HasFilter("group_id IS NOT NULL AND category_id IS NOT NULL AND deleted_at IS NULL");
+
+                    b.HasIndex("GroupId", "GroupCategoryId", "PeriodType")
+                        .IsUnique()
+                        .HasDatabaseName("uq_budgets_group_group_category")
+                        .HasFilter("group_id IS NOT NULL AND group_category_id IS NOT NULL AND deleted_at IS NULL");
 
                     b.HasIndex("UserId", "CategoryId", "PeriodType")
                         .IsUnique()
@@ -230,7 +261,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("budgets", null, t =>
                         {
+                            t.HasCheckConstraint("chk_budgets_group_category", "group_category_id IS NULL OR (group_id IS NOT NULL AND category_id IS NULL)");
+
                             t.HasCheckConstraint("chk_budgets_limit_cents", "limit_cents > 0");
+
+                            t.HasCheckConstraint("chk_budgets_owner", "(user_id IS NULL) <> (group_id IS NULL)");
 
                             t.HasCheckConstraint("chk_budgets_period_type", "period_type IN ('monthly')");
                         });
@@ -877,7 +912,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly')");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal')");
 
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
@@ -1082,8 +1117,65 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("group_activities", null, t =>
                         {
-                            t.HasCheckConstraint("chk_group_activities_type", "type IN ('group_created','group_updated','member_joined','member_left','member_removed','member_updated','ownership_transferred','invitation_created','invitation_revoked')");
+                            t.HasCheckConstraint("chk_group_activities_type", "type IN ('group_created','group_updated','member_joined','member_left','member_removed','member_updated','ownership_transferred','invitation_created','invitation_revoked','transaction_shared','transaction_unshared','transaction_reclassified','budget_changed','goal_changed','goal_contributed','category_changed')");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.GroupCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<string>("IconName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("icon_name");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId", "Slug")
+                        .IsUnique()
+                        .HasDatabaseName("uq_group_categories_group_slug")
+                        .HasFilter("deleted_at IS NULL");
+
+                    b.ToTable("group_categories", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.GroupInvitation", b =>
@@ -1236,6 +1328,58 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_group_members_role", "role IN ('owner','manager','member','viewer')");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.GroupShareRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("FinancialAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_account_id");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("FinancialAccountId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("UserId", "IsActive")
+                        .HasDatabaseName("ix_group_share_rules_user_active");
+
+                    b.ToTable("group_share_rules", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
@@ -1934,6 +2078,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<DateTimeOffset?>("Deadline")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deadline");
@@ -1949,6 +2097,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("GoalTemplateId")
                         .HasColumnType("uuid")
                         .HasColumnName("goal_template_id");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1978,7 +2130,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
@@ -1994,7 +2146,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByUserId");
+
                     b.HasIndex("GoalTemplateId");
+
+                    b.HasIndex("GroupId")
+                        .HasDatabaseName("ix_saving_goals_group_id")
+                        .HasFilter("group_id IS NOT NULL");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("idx_saving_goals_user_id");
@@ -2003,6 +2161,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("saving_goals", null, t =>
                         {
+                            t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
+
                             t.HasCheckConstraint("chk_saving_goals_status", "status IN ('active','completed','cancelled')");
 
                             t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
@@ -2385,6 +2545,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("forecast_exclusion_reason");
 
+                    b.Property<Guid?>("GroupCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_category_id");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
                     b.Property<string>("MerchantName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -2397,6 +2565,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SavingGoalId")
                         .HasColumnType("uuid")
                         .HasColumnName("saving_goal_id");
+
+                    b.Property<DateTimeOffset?>("SharedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("shared_at");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -2439,10 +2611,16 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasIndex("FinancialAccountId")
                         .HasDatabaseName("idx_transactions_financial_account_id");
 
+                    b.HasIndex("GroupCategoryId");
+
                     b.HasIndex("NotificationLogId")
                         .IsUnique();
 
                     b.HasIndex("SavingGoalId");
+
+                    b.HasIndex("GroupId", "TransactedAt")
+                        .HasDatabaseName("ix_transactions_group_transacted_at")
+                        .HasFilter("group_id IS NOT NULL");
 
                     b.HasIndex("UserId", "ClientRequestId")
                         .IsUnique()
@@ -2455,6 +2633,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("transactions", null, t =>
                         {
                             t.HasCheckConstraint("chk_transactions_forecast_exclusion", "(exclude_from_forecast = false AND forecast_exclusion_reason IS NULL) OR (exclude_from_forecast = true AND forecast_exclusion_reason IN ('one_off','user_marked'))");
+
+                            t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
 
                             t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt')");
 
@@ -2919,13 +3101,29 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.GroupCategory", "GroupCategory")
+                        .WithMany()
+                        .HasForeignKey("GroupCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FinMate.Domain.Entities.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Category");
+
+                    b.Navigation("GroupCategory");
 
                     b.Navigation("User");
                 });
@@ -3061,6 +3259,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.GroupCategory", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.GroupInvitation", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -3096,6 +3303,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Group");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.GroupShareRule", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("FinMate.Domain.Entities.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FinancialAccountId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("FinMate.Domain.Entities.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
@@ -3249,16 +3481,25 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FinMate.Domain.Entities.GoalTemplate", null)
                         .WithMany()
                         .HasForeignKey("GoalTemplateId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("FinMate.Domain.Entities.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("FinMate.Domain.Entities.UserMethod", null)
                         .WithMany()
@@ -3313,6 +3554,16 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("FinMate.Domain.Entities.GroupCategory", "GroupCategory")
+                        .WithMany()
+                        .HasForeignKey("GroupCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FinMate.Domain.Entities.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("FinMate.Domain.Entities.NotificationLog", "NotificationLog")
                         .WithOne()
                         .HasForeignKey("FinMate.Domain.Entities.Transaction", "NotificationLogId")
@@ -3334,6 +3585,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("CounterAccount");
 
                     b.Navigation("FinancialAccount");
+
+                    b.Navigation("GroupCategory");
 
                     b.Navigation("NotificationLog");
 

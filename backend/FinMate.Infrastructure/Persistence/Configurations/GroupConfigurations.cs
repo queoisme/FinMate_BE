@@ -129,3 +129,53 @@ public class GroupActivityConfiguration : IEntityTypeConfiguration<GroupActivity
         builder.HasOne<User>().WithMany().HasForeignKey(a => a.ActorUserId).OnDelete(DeleteBehavior.SetNull);
     }
 }
+
+public class GroupCategoryConfiguration : IEntityTypeConfiguration<GroupCategory>
+{
+    public void Configure(EntityTypeBuilder<GroupCategory> builder)
+    {
+        builder.ToTable("group_categories");
+
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(c => c.GroupId).HasColumnName("group_id").IsRequired();
+        builder.Property(c => c.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+        builder.Property(c => c.Slug).HasColumnName("slug").HasMaxLength(120).IsRequired();
+        builder.Property(c => c.IconName).HasColumnName("icon_name").HasMaxLength(50);
+        builder.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true).IsRequired();
+        builder.Property(c => c.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        builder.Property(c => c.DeletedAt).HasColumnName("deleted_at");
+
+        builder.HasQueryFilter(c => c.DeletedAt == null);
+
+        builder.HasIndex(c => new { c.GroupId, c.Slug }).IsUnique().HasFilter("deleted_at IS NULL").HasDatabaseName("uq_group_categories_group_slug");
+
+        builder.HasOne<Group>().WithMany().HasForeignKey(c => c.GroupId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class GroupShareRuleConfiguration : IEntityTypeConfiguration<GroupShareRule>
+{
+    public void Configure(EntityTypeBuilder<GroupShareRule> builder)
+    {
+        builder.ToTable("group_share_rules");
+
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(r => r.GroupId).HasColumnName("group_id").IsRequired();
+        builder.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
+        builder.Property(r => r.FinancialAccountId).HasColumnName("financial_account_id");
+        builder.Property(r => r.CategoryId).HasColumnName("category_id");
+        builder.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true).IsRequired();
+        builder.Property(r => r.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(r => r.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+        builder.HasIndex(r => new { r.UserId, r.IsActive }).HasDatabaseName("ix_group_share_rules_user_active");
+
+        builder.HasOne<Group>().WithMany().HasForeignKey(r => r.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<User>().WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(r => r.FinancialAccountId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Category>().WithMany().HasForeignKey(r => r.CategoryId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

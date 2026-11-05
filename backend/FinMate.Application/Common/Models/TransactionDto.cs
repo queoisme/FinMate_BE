@@ -16,7 +16,8 @@ public record TransactionDto(
     string? Description,
     DateTimeOffset TransactedAt,
     long? BalanceAfterCents,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    Guid? GroupId = null);
 
 public record TransactionListDto(IReadOnlyList<TransactionDto> Items, string? NextCursor);
 

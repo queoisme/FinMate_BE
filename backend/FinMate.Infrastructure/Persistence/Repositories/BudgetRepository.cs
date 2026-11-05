@@ -53,9 +53,11 @@ public class BudgetRepository : IBudgetRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public Task<BudgetPeriod?> GetPeriodAsync(Guid budgetId, DateTimeOffset periodStart, CancellationToken ct = default)
-        => _context.BudgetPeriods
-            .FirstOrDefaultAsync(p => p.BudgetId == budgetId && p.PeriodStart == periodStart, ct);
+    // Xem cả kỳ vừa thêm mà chưa lưu: sửa giao dịch hoàn số cũ rồi áp số mới trong cùng một lần lưu, truy vấn DB sẽ không thấy
+    // kỳ do bước hoàn tạo ra và thêm một kỳ thứ hai, đụng uq_budget_periods_budget_start.
+    public async Task<BudgetPeriod?> GetPeriodAsync(Guid budgetId, DateTimeOffset periodStart, CancellationToken ct = default)
+        => _context.BudgetPeriods.Local.FirstOrDefault(p => p.BudgetId == budgetId && p.PeriodStart == periodStart)
+            ?? await _context.BudgetPeriods.FirstOrDefaultAsync(p => p.BudgetId == budgetId && p.PeriodStart == periodStart, ct);
 
     public Task<List<BudgetPeriod>> GetPeriodsForUserAsync(Guid userId, DateTimeOffset periodStart, CancellationToken ct = default)
         => _context.BudgetPeriods

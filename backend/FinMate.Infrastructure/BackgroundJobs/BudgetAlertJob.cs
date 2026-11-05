@@ -1,3 +1,5 @@
+using FinMate.Application.Groups;
+using FinMate.Domain.Entities;
 using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 
@@ -20,15 +22,18 @@ public class BudgetAlertJob
     private readonly IBudgetRepository _budgetRepository;
     private readonly IBudgetAlertNotifier _notifier;
     private readonly IAlertThresholdProvider _thresholdProvider;
+    private readonly IGroupAlertNotifier? _groupAlerts;
 
     public BudgetAlertJob(
         IBudgetRepository budgetRepository,
         IBudgetAlertNotifier notifier,
-        IAlertThresholdProvider thresholdProvider)
+        IAlertThresholdProvider thresholdProvider,
+        IGroupAlertNotifier? groupAlerts = null)
     {
         _budgetRepository = budgetRepository;
         _notifier = notifier;
         _thresholdProvider = thresholdProvider;
+        _groupAlerts = groupAlerts;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -40,15 +45,21 @@ public class BudgetAlertJob
 
         foreach (var (period, budget) in candidates)
         {
-            var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
-            if (!thresholdsByUser.TryGetValue(budget.UserId, out var thresholds))
+            if (budget.UserId is not { } userId)
             {
-                thresholds = await _thresholdProvider.GetAsync(budget.UserId, ct);
-                thresholdsByUser[budget.UserId] = thresholds;
+                await SweepGroupBudgetAsync(budget, period, now, ct);
+                continue;
             }
 
-            var alert = BudgetAlertEvaluator.Evaluate(period, budget.UserId, scope, thresholds);
-            if (alert is null || !await _notifier.IsEnabledAsync(budget.UserId, ct))
+            var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
+            if (!thresholdsByUser.TryGetValue(userId, out var thresholds))
+            {
+                thresholds = await _thresholdProvider.GetAsync(userId, ct);
+                thresholdsByUser[userId] = thresholds;
+            }
+
+            var alert = BudgetAlertEvaluator.Evaluate(period, userId, scope, thresholds);
+            if (alert is null || !await _notifier.IsEnabledAsync(userId, ct))
             {
                 continue;
             }
@@ -64,5 +75,19 @@ public class BudgetAlertJob
 
         // Gửi sau khi đã lưu cờ, cùng thứ tự với đường tức thì.
         await _notifier.SendAsync(alerts, ct);
+    }
+
+    private async Task SweepGroupBudgetAsync(Budget budget, BudgetPeriod period, DateTimeOffset now, CancellationToken ct)
+    {
+        if (_groupAlerts is null)
+        {
+            return;
+        }
+
+        var alert = await _groupAlerts.EvaluateAndMarkAsync(budget, period, now, ct);
+        if (alert is not null && await _budgetRepository.UpdatePeriodAsync(period, ct))
+        {
+            await _groupAlerts.SendBudgetAlertsAsync([alert], ct);
+        }
     }
 }

@@ -74,6 +74,13 @@ public class GroupsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{id:guid}/alerts")]
+    public async Task<IActionResult> SetAlerts(Guid id, [FromBody] SetGroupAlertsRequest request, CancellationToken ct)
+    {
+        await _members.SetAlertsAsync(id, CurrentUserId, request.Enabled, ct);
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/leave")]
     public async Task<IActionResult> Leave(Guid id, CancellationToken ct)
     {
@@ -111,4 +118,5 @@ public record CreateGroupRequest(string? Name, GroupType? Type);
 public record UpdateGroupRequest(string? Name, GroupTransactionVisibility? TransactionVisibility);
 public record UpdateGroupMemberRequest(GroupRole? Role, IReadOnlyList<GroupPermission>? GrantedPermissions, IReadOnlyList<GroupPermission>? RevokedPermissions);
 public record TransferGroupOwnershipRequest(Guid NewOwnerUserId);
+public record SetGroupAlertsRequest(bool Enabled);
 public record CreateGroupInvitationRequest(string? Email, GroupRole? Role);

@@ -24,7 +24,7 @@ public class FinanceSnapshotRepository : IFinanceSnapshotRepository
 
     public Task<Dictionary<Guid, long>> GetGoalDepositsAsync(Guid userId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
         => _context.GoalContributions
-            .Where(c => c.UserId == userId && c.ContributedAt >= start && c.ContributedAt < end)
+            .Where(c => c.UserId == userId && c.SavingGoal!.GroupId == null && c.ContributedAt >= start && c.ContributedAt < end)
             .GroupBy(c => c.SavingGoalId)
             .Select(g => new { GoalId = g.Key, Total = g.Sum(c => c.AmountCents) })
             .ToDictionaryAsync(x => x.GoalId, x => x.Total, ct);

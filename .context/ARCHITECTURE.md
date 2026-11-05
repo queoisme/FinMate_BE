@@ -393,6 +393,10 @@ Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần đư�
 - **Quyền:** `GroupPermissions.Effective = (mặc định theo vai trò | cấp thêm) & ~thu hồi`, hàm thuần. Việc chỉ chủ nhóm làm được (đổi vai trò, chỉnh quyền, đổi cài đặt, chuyển chủ, xóa nhóm) cố ý không có trong enum `GroupPermission`, nên không cấp được cho ai.
 - **Chủ nhóm** nằm ở `group_members.role`, ràng buộc đúng một bằng unique index một phần. Index này không chờ hết transaction, nên chuyển chủ phải hạ chủ cũ rồi mới nâng chủ mới (`GroupRepository.TransferOwnershipAsync`).
 - **Rời nhóm** chỉ đặt `left_at`; vào lại dùng đúng dòng cũ và xóa quyền ghi đè.
+- **Ngân sách và mục tiêu nhóm** dùng chung bảng với cá nhân, `CHECK ((user_id IS NULL) <> (group_id IS NULL))`: nhờ đó mọi truy vấn `user_id = x` có sẵn tự động không thấy dữ liệu nhóm. Đọc `budget.UserId` hay `goal.UserId` thì phải xử lý nhánh null (job đang làm vậy).
+- **Giao dịch vẫn của người tạo**, chỉ thêm `group_id`, `group_category_id`. `IGroupLedger` cộng hoặc hoàn phần của nhóm theo khuôn `BudgetPeriodService`: chỉ đổi dữ liệu đang theo dõi, handler lưu một lần, cảnh báo gửi sau khi lưu. Thêm handler mới sửa giao dịch thì phải gọi nó, kẻo `spent_cents` của nhóm lệch.
+- **Danh mục nhóm là bảng riêng `group_categories`**: ở `categories`, `user_id IS NULL` nghĩa là danh mục hệ thống hiện cho mọi người.
+- **Cảnh báo nhóm** đi qua hộp thư `forecast_alerts`, mỗi thành viên một dòng; `IGroupAlertNotifier` không ném sau khi tiền đã lưu.
 - **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
 
 ## 3. AI Service — Pipeline Architecture
@@ -1046,7 +1050,8 @@ Quản lý tài chính (thêm 2026-10-26):
   user_survey_answers, method_recommendations, user_methods
 
 Nhóm (thêm 2026-11-05, migration `AddGroups`):
-  groups, group_members, group_invitations, group_activities
+  groups, group_members, group_invitations, group_activities, group_categories, group_share_rules (`AddGroupSharedFinance`)
+                    + cột transactions.group_id / group_category_id / shared_at, budgets.group_id / group_category_id, saving_goals.group_id
 
 Dự báo tài chính (thêm 2026-11-02, migration `AddForecastFoundation`):
   recurring_items, forecast_alerts (đợt 2, `AddForecastAlerts`), transaction_anomalies (đợt 3, `AddTransactionAnomalies`)

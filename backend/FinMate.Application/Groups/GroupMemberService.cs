@@ -33,6 +33,9 @@ public interface IGroupMemberService
     Task RemoveAsync(Guid groupId, Guid userId, Guid targetUserId, CancellationToken ct = default);
     Task LeaveAsync(Guid groupId, Guid userId, CancellationToken ct = default);
     Task TransferOwnershipAsync(Guid groupId, Guid userId, Guid newOwnerUserId, CancellationToken ct = default);
+
+    /// <summary>Tự bật hoặc tắt cảnh báo của nhóm này cho riêng mình; chủ nhóm không quyết thay được.</summary>
+    Task SetAlertsAsync(Guid groupId, Guid userId, bool enabled, CancellationToken ct = default);
 }
 
 public class GroupMemberService : IGroupMemberService
@@ -41,12 +44,14 @@ public class GroupMemberService : IGroupMemberService
     internal const string InactiveMemberName = "Thành viên không còn hoạt động";
 
     private readonly IGroupRepository _groups;
+    private readonly IGroupFinanceRepository _finance;
     private readonly IGroupAccessService _access;
     private readonly IAuditLogService _audit;
 
-    public GroupMemberService(IGroupRepository groups, IGroupAccessService access, IAuditLogService audit)
+    public GroupMemberService(IGroupRepository groups, IGroupFinanceRepository finance, IGroupAccessService access, IAuditLogService audit)
     {
         _groups = groups;
+        _finance = finance;
         _access = access;
         _audit = audit;
     }
@@ -101,6 +106,7 @@ public class GroupMemberService : IGroupMemberService
         var now = DateTimeOffset.UtcNow;
         target.LeftAt = now;
         target.UpdatedAt = now;
+        await StopAutoSharingAsync(groupId, targetUserId, now, ct);
         _groups.AddActivity(GroupService.NewActivity(groupId, userId, GroupActivityType.MemberRemoved, targetUserId, now));
         await _groups.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.GroupMemberRemoved, userId, metadata: new { GroupId = groupId, TargetUserId = targetUserId }, ct: ct);
@@ -117,6 +123,7 @@ public class GroupMemberService : IGroupMemberService
         var now = DateTimeOffset.UtcNow;
         access.Member.LeftAt = now;
         access.Member.UpdatedAt = now;
+        await StopAutoSharingAsync(groupId, userId, now, ct);
         _groups.AddActivity(GroupService.NewActivity(groupId, userId, GroupActivityType.MemberLeft, userId, now));
         await _groups.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.GroupMemberLeft, userId, metadata: new { GroupId = groupId }, ct: ct);
@@ -134,6 +141,24 @@ public class GroupMemberService : IGroupMemberService
         _groups.AddActivity(GroupService.NewActivity(groupId, userId, GroupActivityType.OwnershipTransferred, newOwnerUserId, DateTimeOffset.UtcNow));
         await _groups.TransferOwnershipAsync(access.Member, newOwner, ct);
         await _audit.LogAsync(AuditEvents.GroupOwnershipTransferred, userId, metadata: new { GroupId = groupId, NewOwnerUserId = newOwnerUserId }, ct: ct);
+    }
+
+    public async Task SetAlertsAsync(Guid groupId, Guid userId, bool enabled, CancellationToken ct = default)
+    {
+        var access = await _access.RequireMemberAsync(groupId, userId, ct);
+        access.Member.AlertsEnabled = enabled;
+        access.Member.UpdatedAt = DateTimeOffset.UtcNow;
+        await _groups.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Vào lại nhóm không được âm thầm chia sẻ tiếp: họ phải tự đặt lại quy tắc.</summary>
+    private async Task StopAutoSharingAsync(Guid groupId, Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
+        foreach (var rule in await _finance.ListRulesAsync(groupId, userId, ct))
+        {
+            rule.IsActive = false;
+            rule.UpdatedAt = now;
+        }
     }
 
     private static void ApplyChanges(GroupMember target, UpdateGroupMemberCommand command)

@@ -50,6 +50,8 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
+    public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

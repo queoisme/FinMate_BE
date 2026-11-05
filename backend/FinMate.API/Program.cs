@@ -326,6 +326,13 @@ public class Program
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
         builder.Services.AddScoped<IGroupInvitationService, GroupInvitationService>();
+        builder.Services.AddScoped<IGroupFinanceRepository, GroupFinanceRepository>();
+        builder.Services.AddScoped<IGroupAlertNotifier, GroupAlertNotifier>();
+        builder.Services.AddScoped<IGroupLedger, GroupLedger>();
+        builder.Services.AddScoped<IGroupTransactionService, GroupTransactionService>();
+        builder.Services.AddScoped<IGroupBudgetService, GroupBudgetService>();
+        builder.Services.AddScoped<IGroupGoalService, GroupGoalService>();
+        builder.Services.AddScoped<IGroupCategoryService, GroupCategoryService>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
         builder.Services.AddScoped<IForecastService, ForecastService>();

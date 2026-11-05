@@ -14,6 +14,15 @@ public static class GroupErrorCodes
     public const string CannotChangeSelf = "GROUP_CANNOT_CHANGE_SELF";
     public const string InvalidOwnerAssignment = "GROUP_INVALID_OWNER_ASSIGNMENT";
 
+    /// <summary>Giao dịch nháp, chuyển khoản nội bộ và khoản cho vay/mượn không chia sẻ được vào nhóm.</summary>
+    public const string TransactionNotShareable = "GROUP_TRANSACTION_NOT_SHAREABLE";
+
+    public const string BudgetAlreadyExists = "GROUP_BUDGET_ALREADY_EXISTS";
+    public const string BudgetInvalidCategory = "GROUP_BUDGET_INVALID_CATEGORY";
+    public const string CategoryDuplicate = "GROUP_CATEGORY_DUPLICATE";
+    public const string CategoryInUse = "GROUP_CATEGORY_IN_USE";
+    public const string GoalNotActive = "GROUP_GOAL_NOT_ACTIVE";
+
     /// <summary>Mã mời sai, hết hạn, đã dùng hoặc không dành cho tài khoản này. Cố ý chỉ một mã: không tiết lộ lý do cho người cầm mã đoán.</summary>
     public const string InvitationInvalid = "GROUP_INVITATION_INVALID";
 }

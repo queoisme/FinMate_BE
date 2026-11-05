@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
@@ -16,6 +17,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly ICacheService _cache;
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
+    private readonly IGroupLedger? _groupLedger;
+
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -24,8 +27,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
         ICacheService cache,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
@@ -90,6 +95,14 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         // scoped với ITransactionRepository) — UpdateAsync bên dưới gọi SaveChangesAsync 1 lần
         // duy nhất, flush tất cả trong cùng 1 DB transaction ngầm định của EF Core. Đây là
         // cách đạt atomicity mà không cần thêm abstraction Unit-of-Work mới.
+        IReadOnlyList<GroupBudgetAlert> groupAlerts = [];
+        if (_groupLedger is not null
+            && await _groupLedger.ResolveAsync(command.UserId, command.GroupId, command.GroupCategoryId, transaction, transaction.Category, ct) is { } target)
+        {
+            _groupLedger.MarkShared(transaction, target, command.UserId, now);
+            groupAlerts = await _groupLedger.ApplyAsync(transaction, transaction.Category, +1, ct);
+        }
+
         await _transactionRepository.UpdateAsync(transaction, ct);
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
@@ -97,6 +110,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
         // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+        }
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
         {
