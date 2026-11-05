@@ -19,6 +19,7 @@ public static class SupportErrorCodes
     public const string AttachmentsUnavailable = "SUPPORT_ATTACHMENTS_UNAVAILABLE";
     public const string AttachmentInvalid = "SUPPORT_ATTACHMENT_INVALID";
     public const string TooManyAttachments = "SUPPORT_TOO_MANY_ATTACHMENTS";
+    public const string InvalidLink = "SUPPORT_INVALID_LINK";
     public const string AccessRequestPending = "SUPPORT_ACCESS_REQUEST_PENDING";
     public const string AccessRequestNotPending = "SUPPORT_ACCESS_REQUEST_NOT_PENDING";
     public const string DraftAccountRequired = "SUPPORT_DRAFT_ACCOUNT_REQUIRED";

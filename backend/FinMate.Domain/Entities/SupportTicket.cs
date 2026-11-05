@@ -8,6 +8,9 @@ public class SupportTicket
     public Guid Id { get; set; }
     public Guid RequesterUserId { get; set; }
     public Guid? AssigneeUserId { get; set; }
+
+    /// <summary>Ticket cha khi nhiều khách gặp cùng một lỗi, để Manager trả lời một lần cho tất cả.</summary>
+    public Guid? ParentTicketId { get; set; }
     public SupportTicketCategory Category { get; set; }
     public SupportTicketPriority Priority { get; set; }
     public SupportTicketStatus Status { get; set; }

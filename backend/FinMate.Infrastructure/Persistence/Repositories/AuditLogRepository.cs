@@ -28,6 +28,11 @@ public class AuditLogRepository : IAuditLogRepository
             query = query.Where(a => a.EventType == filter.EventType);
         }
 
+        if (!string.IsNullOrEmpty(filter.EventTypePrefix))
+        {
+            query = query.Where(a => a.EventType.StartsWith(filter.EventTypePrefix));
+        }
+
         if (filter.FromDate is { } from)
         {
             query = query.Where(a => a.CreatedAt >= from);

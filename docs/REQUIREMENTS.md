@@ -376,6 +376,10 @@ Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
 | FR-OPS-11 | Xem dữ liệu khách chỉ khi khách đồng ý theo từng ca | Must | Phải là người phụ trách, đúng phần dữ liệu, tối đa 24 giờ; hết hiệu lực khi đóng ca, đổi người phụ trách hoặc khách thu hồi; Admin không có ngoại lệ |
 | FR-OPS-12 | Khách xem được lịch sử ai đã xem dữ liệu của mình (`/support/access-log`) | Must | Mỗi lần đọc đều ghi; audit không có số tiền |
 | FR-OPS-13 | Nhân viên tạo giao dịch nháp theo ca (`source = Support`) | Should | Cần scope `Draft` và ví khách chọn; không đổi số dư tới khi khách xác nhận; client không tự khai được nguồn này |
+| FR-OPS-14 | Đề xuất và duyệt: mở khóa, hủy yêu cầu xóa, chuyển chủ nhóm | Must | Không tự duyệt, kể cả Admin; hai người duyệt cùng lúc chỉ một người thành công; kiểm tra lại đối tượng lúc duyệt; hết hạn sau 7 ngày |
+| FR-OPS-15 | Khóa khẩn cấp theo ca | Must | Chỉ khóa người tạo ca đang xử lý; không khóa tài khoản nội bộ; ca chuyển cấp để Manager rà soát |
+| FR-OPS-16 | Xem thông tin tối thiểu của khách và nhóm theo ca | Should | Không có dữ liệu tài chính; email đã che |
+| FR-OPS-17 | Bảng điều hành, gom ca và trả lời hàng loạt, câu trả lời mẫu, nhật ký vận hành | Should | Staff nhận 403, trừ đọc câu trả lời mẫu; nhật ký chỉ có sự kiện `Ops.*` |
 
 ## 7. FR — Thông báo đẩy
 

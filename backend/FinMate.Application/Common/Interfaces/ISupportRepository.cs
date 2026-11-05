@@ -12,6 +12,7 @@ public sealed record OpsTicketFilter(
     Guid? AssigneeUserId,
     bool UnassignedOnly,
     bool OverdueOnly,
+    Guid? ParentTicketId,
     int Offset,
     int Limit);
 
@@ -36,6 +37,12 @@ public interface ISupportRepository
     Task<SupportTicket?> GetByIdAsync(Guid ticketId, CancellationToken ct = default);
     Task<OpsTicketRow?> GetRowAsync(Guid ticketId, CancellationToken ct = default);
     Task<(List<OpsTicketRow> Items, int Total)> QueueAsync(OpsTicketFilter filter, CancellationToken ct = default);
+
+    /// <summary>Người này có đang phụ trách một ca chưa đóng của khách đó không.</summary>
+    Task<bool> IsHandlingRequesterAsync(Guid actorId, Guid requesterUserId, CancellationToken ct = default);
+    Task<List<SupportTicket>> GetManyAsync(IReadOnlyCollection<Guid> ticketIds, CancellationToken ct = default);
+    Task<List<SupportTicket>> ListOpenChildrenAsync(Guid parentTicketId, CancellationToken ct = default);
+    Task<bool> HasChildrenAsync(Guid ticketId, CancellationToken ct = default);
 
     Task<List<SupportMessageRow>> ListMessagesAsync(Guid ticketId, bool includeInternal, CancellationToken ct = default);
     Task<SupportTicketMessage?> GetMessageAsync(Guid ticketId, Guid messageId, CancellationToken ct = default);
