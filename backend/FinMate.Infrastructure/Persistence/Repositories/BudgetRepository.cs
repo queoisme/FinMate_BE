@@ -79,9 +79,19 @@ public class BudgetRepository : IBudgetRepository
                   select new BudgetAlertCandidate(p, b))
             .ToListAsync(ct);
 
-    public async Task UpdatePeriodAsync(BudgetPeriod period, CancellationToken ct = default)
+    public async Task<bool> UpdatePeriodAsync(BudgetPeriod period, CancellationToken ct = default)
     {
         _context.BudgetPeriods.Update(period);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Bỏ theo dõi dòng này: giữ lại thì lần lưu sau của cùng lượt job lại đụng đúng xung đột cũ.
+            _context.Entry(period).State = EntityState.Detached;
+            return false;
+        }
     }
 }

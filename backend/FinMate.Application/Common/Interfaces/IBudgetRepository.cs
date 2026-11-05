@@ -32,5 +32,6 @@ public interface IBudgetRepository
     void AddPeriod(BudgetPeriod period);
 
     Task<List<BudgetAlertCandidate>> GetPeriodsForAlertAsync(DateTimeOffset now, CancellationToken ct = default);
-    Task UpdatePeriodAsync(BudgetPeriod period, CancellationToken ct = default);
+    /// <summary>False khi kỳ vừa bị một request khác đổi: không có gì được lưu, lượt job sau sẽ xét lại.</summary>
+    Task<bool> UpdatePeriodAsync(BudgetPeriod period, CancellationToken ct = default);
 }

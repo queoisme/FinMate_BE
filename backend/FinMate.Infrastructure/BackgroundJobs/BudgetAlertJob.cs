@@ -54,8 +54,12 @@ public class BudgetAlertJob
             }
 
             BudgetAlertEvaluator.MarkSent(period, alert, now);
-            alerts.Add(alert);
-            await _budgetRepository.UpdatePeriodAsync(period, ct);
+
+            // Chỉ báo khi cờ đã lưu được. Kỳ vừa bị giao dịch khác đổi thì để lượt sau xét lại, tránh báo trùng với đường tức thì.
+            if (await _budgetRepository.UpdatePeriodAsync(period, ct))
+            {
+                alerts.Add(alert);
+            }
         }
 
         // Gửi sau khi đã lưu cờ, cùng thứ tự với đường tức thì.
