@@ -2,6 +2,7 @@ namespace FinMate.Application.Common.Exceptions;
 
 public static class GroupErrorCodes
 {
+    public const string Disabled = "GROUPS_DISABLED";
     public const string TooManyGroups = "GROUP_TOO_MANY_GROUPS";
     public const string TooManyMembers = "GROUP_TOO_MANY_MEMBERS";
     public const string TooManyInvitations = "GROUP_TOO_MANY_INVITATIONS";

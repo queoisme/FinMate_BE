@@ -1,3 +1,4 @@
+using FinMate.API.Authorization;
 using FinMate.Application.Groups;
 using System.Security.Claims;
 using FinMate.Application.Common.Exceptions;
@@ -166,6 +167,7 @@ public class TransactionsController : ControllerBase
     /// </summary>
     /// <summary>Chia sẻ giao dịch của mình vào nhóm, chuyển sang nhóm khác, hoặc đổi danh mục trong nhóm. Ví và số dư không đổi.</summary>
     [HttpPut("{id:guid}/group")]
+    [RequireGroupsEnabled]
     public async Task<IActionResult> Share(Guid id, [FromBody] ShareTransactionRequest request, [FromServices] IGroupTransactionService groupTransactions, CancellationToken ct)
     {
         await groupTransactions.ShareAsync(CurrentUserId, id, request.GroupId, request.GroupCategoryId, ct);
@@ -173,6 +175,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}/group")]
+    [RequireGroupsEnabled]
     public async Task<IActionResult> Unshare(Guid id, [FromServices] IGroupTransactionService groupTransactions, CancellationToken ct)
     {
         await groupTransactions.UnshareAsync(CurrentUserId, id, ct);

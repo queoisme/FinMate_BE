@@ -128,7 +128,7 @@ Bốn loại đồng ý, mỗi loại có phiên bản câu chữ trong `Consent
 | FR-CONS-02 | Tắt/bật AI trong Hồ sơ | Must | Tắt AI thì chat, giọng nói, quét bill vẫn chạy, chỉ phân loại bằng luật; server đọc đồng ý **từ DB mỗi lần**, không tin client |
 | FR-CONS-03 | Đồng ý đóng góp dữ liệu huấn luyện (`training`, bản 1) là lựa chọn riêng, không bao giờ đi kèm Điều khoản | Must | Chỉ khi đang đồng ý mới gửi chữ hoá đơn **đã lọc** sang AI Service; nhãn chỉ từ user, không từ Gemini; mẫu chưa nhãn bị xoá sau 7 ngày |
 | FR-CONS-04 | Rút đồng ý huấn luyện xoá dữ liệu đã đóng góp | Must | `DELETE /users/me/consents/training` gọi `POST /bill/samples/erase`; lỗi xoá → 503 (bấm lại), **không** nuốt lỗi |
-| FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Cần sửa câu chữ + tăng `ConsentVersions.Terms`, hoặc tắt Vision (mục 13.4) |
+| FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Đã chốt 2026-11-05: giữ Vision và nêu rõ trong bản 4; app phải có câu chữ này trước khi phát hành |
 | FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment của `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ |
 
 ## 4. FR — Tài khoản tài chính và danh mục
@@ -340,7 +340,7 @@ Ví, số dư và dự báo vẫn là của từng người. Nhóm chỉ nhìn t
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-GRP-01 | Tạo, xem, sửa, xóa mềm nhóm | Must | Người tạo là chủ nhóm. Mỗi người tối đa `groups.maxGroupsPerUser` nhóm (mặc định 5). Công tắc `features.groups` mặc định tắt |
+| FR-GRP-01 | Tạo, xem, sửa, xóa mềm nhóm | Must | Người tạo là chủ nhóm. Mỗi người tối đa `groups.maxGroupsPerUser` nhóm (mặc định 5). Công tắc `features.groups` mặc định tắt và được chặn ở server: tắt thì API nhóm trả 422 `GROUPS_DISABLED`, giao dịch cá nhân vẫn chạy, số của nhóm không lệch |
 | FR-GRP-02 | Vai trò chủ nhóm / quản lý / thành viên / chỉ xem | Must | Ma trận quyền ở `docs/group-api.md`. Mỗi nhóm đúng một chủ, ràng buộc ở CSDL |
 | FR-GRP-03 | Cấp hoặc thu hồi quyền cho từng người | Must | Chỉ chủ nhóm; thu hồi thắng cấp; đổi vai trò thì xóa ghi đè. Việc chỉ chủ nhóm được làm không cấp được cho ai |
 | FR-GRP-04 | Mời bằng email hoặc link | Must | Mã dùng một lần, hết hạn sau `groups.invitationTtlDays` ngày (mặc định 7), chỉ lưu SHA-256. Lời mời theo email chỉ nhận được bằng tài khoản đã xác minh đúng email đó. Phản hồi không để lộ email đã có tài khoản hay chưa; mọi mã không dùng được đều trả cùng một lỗi |
@@ -583,7 +583,7 @@ Kiểm trên code ngày 2026-11-02.
 | Mã | Nhãn | Hiện trạng | Việc cần làm | Ảnh hưởng |
 | --- | --- | --- | --- | --- |
 | NFR-SEC-23 | Sai lệch | Không có job xoá `notification_body` | Viết job (hoặc thêm vào `DataDeletionJob`) xoá nội dung > 90 ngày | Trung bình — quyền riêng tư |
-| FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản không nhắc | Sửa câu chữ + tăng `ConsentVersions.Terms`, hoặc tắt Vision | Lớn — pháp lý |
+| FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản bản 3 không nhắc | Đã chốt: nêu trong bản 4, chưa phát hành | Lớn — pháp lý |
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
 | NFR-PERF-07 | Một phần | Client Refit chính timeout 100 s | Đặt timeout tường minh | Nhỏ |
 | NFR-SEC-27 | Một phần | Thiếu 2 key trong guard | Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` | Nhỏ |
@@ -616,13 +616,13 @@ Kiểm trên code ngày 2026-11-02.
 
 ### 13.4 Vấn đề mở (cần chủ sản phẩm quyết)
 
-- [ ] **Google Vision và đồng ý.** Sửa Điều khoản để nêu rõ ảnh hoá đơn gửi Google (tăng `ConsentVersions.Terms` → mọi người đồng ý lại), hay tắt Vision và chỉ dùng OCR cục bộ (chậm hơn ~2,2 lần, độ chính xác tương đương).
+- [x] **Google Vision và đồng ý.** Đã chốt 2026-11-05: giữ Vision, nêu rõ trong Điều khoản bản 4 rằng ảnh hoá đơn được gửi nguyên bản tới Google. Câu chữ cuối nên có người phụ trách pháp lý xem qua.
 - [ ] **Auto-commit (FR-TXN-05).** Làm theo đặc tả hay giữ xác nhận một chạm của Phase 15.
 - [ ] **Gợi ý phương pháp theo luật (FR-FIN-07).** Hồ sơ mẫu nên ra `cash_flow_budget` hay `rule_80_20`.
 - [ ] **Đồng ý khảo sát-AI (FR-CONS-06).** Gỡ hẳn loại đồng ý này hay khôi phục việc kiểm.
 - [ ] **Tách hoá đơn theo món (FR-SCAN-05).** Đang tắt mặc định; có bật cho production không.
 - [ ] SMS OTP: đặc tả ghi "Email / Số điện thoại", quyết định 2026-09-11 chỉ làm email.
-- [ ] **Điều khoản bản 4 (FR-GRP).** App phải hiển thị câu chữ mới về chia sẻ với nhóm và gửi `version = 4` trước hoặc cùng lúc backend lên production; nếu không, đồng ý gửi bản 3 sẽ bị từ chối (409). Nếu chốt Google Vision trước khi phát hành thì gộp vào cùng bản này để người dùng chỉ đồng ý lại một lần.
+- [ ] **Điều khoản bản 4 (FR-GRP).** App phải hiển thị câu chữ mới về chia sẻ với nhóm và gửi `version = 4` trước hoặc cùng lúc backend lên production; nếu không, đồng ý gửi bản 3 sẽ bị từ chối (409). Bản 4 chưa phát hành và gộp cả nội dung về Google Vision (FR-CONS-05) lẫn hỗ trợ (FR-OPS-10, FR-OPS-11), để người dùng chỉ đồng ý lại một lần.
 - [ ] Thống nhất với nhóm app: giao dịch tiền mặt vẫn phải đồng bộ lên server (qua `clientRequestId`).
 - [ ] **Định nghĩa các mã BR của sơ đồ Flow 6** (BR-01.2, 03.1, 03.3, 04.2, 04.3, 06.1, 07.1–07.4, 08.1–08.3, 11.1–11.4). Đợt 1 dùng mặc định ở `forecast.*` trong cấu hình hệ thống; cần đối chiếu khi có tài liệu.
 - [ ] Định nghĩa "giao dịch chi đột biến" (FR-RPT-06).

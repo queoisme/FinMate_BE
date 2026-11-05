@@ -1,3 +1,4 @@
+using FinMate.API.Authorization;
 using System.Security.Claims;
 using FinMate.API.Middleware;
 using FinMate.Application.Common.Models;
@@ -13,6 +14,7 @@ namespace FinMate.API.Controllers;
 [Route("api/v1/group-invitations")]
 [Authorize]
 [EnableRateLimiting(RateLimitingMiddleware.AuthPolicy)]
+[RequireGroupsEnabled]
 public class GroupInvitationsController : ControllerBase
 {
     private readonly IGroupInvitationService _invitations;

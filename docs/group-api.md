@@ -2,7 +2,7 @@
 
 Dành cho nhóm Flutter. Mọi route nằm dưới `/api/v1`, cần JWT, trả về envelope chung. Enum trong JSON là chuỗi PascalCase (`"Owner"`, `"ManageBudgets"`).
 
-Công tắc: `config.features.groups` ở `GET /app-config`, mặc định `false`. Server không chặn theo công tắc này, giống các công tắc khác; app dùng nó để ẩn tính năng.
+Công tắc: `config.features.groups` ở `GET /app-config`, mặc định `false`. App dùng nó để ẩn tính năng, và server cũng chặn thật: khi tắt, mọi API nhóm, `/group-invitations/*` và `PUT|DELETE /transactions/{id}/group` trả 422 `GROUPS_DISABLED`; tạo hoặc xác nhận giao dịch có `groupId` cũng vậy. Giao dịch không có `groupId` vẫn lưu bình thường và bỏ qua quy tắc tự chia sẻ. Sửa hoặc xóa giao dịch đã chia sẻ vẫn cập nhật số của nhóm. Cảnh báo nhóm tạm dừng và được gửi khi bật lại. Dữ liệu nhóm không mất.
 
 ## Vai trò và quyền
 
@@ -97,7 +97,7 @@ Push mới: `data.kind` là `group_budget` (`groupId`, `budgetId`, `percent`) ho
 
 ## Điều khoản
 
-`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm. Nếu phát hành cùng tính năng hỗ trợ, bản 4 còn phải nêu việc lưu ảnh trong ticket và nhân viên xem dữ liệu khi người dùng đồng ý (xem `docs/ops-api.md`).
+`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm. Bản 4 còn phải nêu hai việc: ảnh hóa đơn được gửi nguyên bản, chưa che dữ liệu cá nhân, tới Google Cloud Vision để đọc chữ; và việc lưu ảnh trong ticket, nhân viên xem dữ liệu khi người dùng đồng ý (xem `docs/ops-api.md`).
 
 ## Mã lỗi
 

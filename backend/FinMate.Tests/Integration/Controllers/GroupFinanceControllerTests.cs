@@ -16,7 +16,7 @@ namespace FinMate.Tests.Integration.Controllers;
 
 /// <summary>Chia sẻ giao dịch, ngân sách và mục tiêu nhóm qua API thật. Trọng tâm: số của nhóm luôn đúng, và dữ liệu cá nhân không đổi và không lộ.</summary>
 [Collection("Integration")]
-public class GroupFinanceControllerTests : IClassFixture<AuthApiFactory>
+public class GroupFinanceControllerTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 {
     private const long InitialBalance = 50_000_000L;
 
@@ -25,8 +25,15 @@ public class GroupFinanceControllerTests : IClassFixture<AuthApiFactory>
     private readonly AuthApiFactory _factory;
     private readonly HttpClient _client;
 
+    public Task InitializeAsync() => _flagFactory.SetGroupsEnabledAsync(true);
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private readonly AuthApiFactory _flagFactory;
+
     public GroupFinanceControllerTests(AuthApiFactory factory)
     {
+        _flagFactory = factory;
         _factory = factory;
         _client = factory.CreateClient();
     }
