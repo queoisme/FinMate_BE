@@ -333,6 +333,8 @@ public class Program
         builder.Services.AddScoped<IGroupBudgetService, GroupBudgetService>();
         builder.Services.AddScoped<IGroupGoalService, GroupGoalService>();
         builder.Services.AddScoped<IGroupCategoryService, GroupCategoryService>();
+        builder.Services.AddScoped<IGroupReportService, GroupReportService>();
+        builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
         builder.Services.AddScoped<IForecastService, ForecastService>();

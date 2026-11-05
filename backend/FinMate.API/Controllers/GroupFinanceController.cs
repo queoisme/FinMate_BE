@@ -20,9 +20,11 @@ public class GroupFinanceController : ControllerBase
     private readonly IGroupCategoryService _categories;
     private readonly IGroupBudgetService _budgets;
     private readonly IGroupGoalService _goals;
+    private readonly IGroupReportService _reports;
 
-    public GroupFinanceController(IGroupTransactionService transactions, IGroupCategoryService categories, IGroupBudgetService budgets, IGroupGoalService goals)
+    public GroupFinanceController(IGroupTransactionService transactions, IGroupCategoryService categories, IGroupBudgetService budgets, IGroupGoalService goals, IGroupReportService reports)
     {
+        _reports = reports;
         _transactions = transactions;
         _categories = categories;
         _budgets = budgets;
@@ -52,6 +54,14 @@ public class GroupFinanceController : ControllerBase
     {
         await _transactions.RemoveAsync(groupId, CurrentUserId, transactionId, ct);
         return NoContent();
+    }
+
+    /// <summary>Tổng thu chi của một tháng (giờ Việt Nam), theo danh mục và theo thành viên. Mặc định tháng này.</summary>
+    [HttpGet("reports/monthly")]
+    public async Task<IActionResult> MonthlyReport(Guid groupId, [FromQuery] int? year, [FromQuery] int? month, CancellationToken ct)
+    {
+        var (currentYear, currentMonth) = VietnamTime.YearMonthOf(DateTimeOffset.UtcNow);
+        return Ok(ApiResponse<GroupMonthlyReportDto>.Ok(await _reports.GetMonthlyAsync(groupId, CurrentUserId, year ?? currentYear, month ?? currentMonth, ct)));
     }
 
     [HttpGet("categories")]

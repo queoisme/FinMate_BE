@@ -88,6 +88,27 @@ public class GroupFinanceRepository : IGroupFinanceRepository
         return rows.Select(r => new SharedTransactionView(r.Transaction, r.DisplayName, r.DeletedAt is null)).ToList();
     }
 
+    public Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
+        => (from t in _context.Transactions
+            join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
+            where t.GroupId == groupId
+                && t.Status == TransactionStatus.Confirmed
+                && t.TransactedAt >= start
+                && t.TransactedAt < end
+                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
+            select new GroupReportRow(
+                t.UserId,
+                u.DisplayName,
+                u.DeletedAt == null,
+                t.TransactionType,
+                t.AmountCents,
+                t.GroupCategoryId,
+                t.GroupCategory != null ? t.GroupCategory.Name : null,
+                t.CategoryId,
+                t.Category != null ? t.Category.Name : null,
+                t.Category != null && t.Category.IsSystem))
+            .ToListAsync(ct);
+
     public Task<Transaction?> GetSharedTransactionAsync(Guid groupId, Guid transactionId, CancellationToken ct = default)
         => _context.Transactions
             .Include(t => t.Category)

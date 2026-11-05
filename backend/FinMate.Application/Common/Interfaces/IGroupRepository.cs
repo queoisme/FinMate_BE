@@ -18,6 +18,7 @@ public interface IGroupRepository
 
     Task<List<GroupWithMembership>> ListForUserAsync(Guid userId, CancellationToken ct = default);
     Task<List<GroupMemberView>> ListActiveMembersAsync(Guid groupId, CancellationToken ct = default);
+    Task<List<Guid>> ListOwnedGroupIdsAsync(Guid userId, CancellationToken ct = default);
     Task<int> CountActiveMembersAsync(Guid groupId, CancellationToken ct = default);
     Task<int> CountGroupsForUserAsync(Guid userId, CancellationToken ct = default);
 

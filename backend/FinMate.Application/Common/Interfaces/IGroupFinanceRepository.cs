@@ -1,4 +1,5 @@
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
@@ -6,6 +7,19 @@ namespace FinMate.Application.Common.Interfaces;
 public sealed record SharedTransactionView(Transaction Transaction, string MemberName, bool IsUserActive);
 
 public sealed record GroupContributionView(GoalContribution Contribution, string MemberName, bool IsUserActive);
+
+/// <summary>Một khoản thu chi đã chia sẻ, đã xác nhận, không gồm cho vay/mượn; chỉ có những gì báo cáo cần.</summary>
+public sealed record GroupReportRow(
+    Guid UserId,
+    string MemberName,
+    bool IsUserActive,
+    TransactionType Type,
+    long AmountCents,
+    Guid? GroupCategoryId,
+    string? GroupCategoryName,
+    Guid? CategoryId,
+    string? CategoryName,
+    bool CategoryIsSystem);
 
 /// <summary>Dữ liệu tài chính của nhóm. Không kiểm quyền: mọi lời gọi phải đi sau <c>IGroupAccessService</c>.</summary>
 public interface IGroupFinanceRepository
@@ -21,6 +35,7 @@ public interface IGroupFinanceRepository
     Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
 
     Task<List<SharedTransactionView>> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, int limit, CancellationToken ct = default);
+    Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);
     Task<Transaction?> GetSharedTransactionAsync(Guid groupId, Guid transactionId, CancellationToken ct = default);
 
     Task<List<GroupCategory>> ListCategoriesAsync(Guid groupId, CancellationToken ct = default);

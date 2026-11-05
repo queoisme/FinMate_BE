@@ -85,7 +85,19 @@ Ví và số dư không đổi; khoản đã chia sẻ vẫn tính vào ngân s�
 | `POST /groups/{id}/goals/{goalId}/contribute` `{amountCents, note?}` | `ContributeGoals` | Chỉ ghi sổ, không trừ ví |
 | `PUT /groups/{id}/alerts` `{enabled}` | Thành viên | Tự bật hoặc tắt cảnh báo của nhóm này cho mình |
 
+| `GET /groups/{id}/reports/monthly?year=&month=` | `ViewOverview` | Tổng thu chi, `byCategory`, `byMember`; chế độ `Summary` vẫn hiện tổng |
+
 Push mới: `data.kind` là `group_budget` (`groupId`, `budgetId`, `percent`) hoặc `group_goal` (`groupId`, `goalId`). Cả hai cũng hiện trong `GET /forecast/alerts`.
+
+## Xóa tài khoản
+
+- Yêu cầu xóa: quyền chủ nhóm tự chuyển ngay. Trong 30 ngày chờ, người đó có `isActive = false` và tên hiển thị "Thành viên không còn hoạt động".
+- Xóa cứng: giao dịch đã chia sẻ và khoản góp của họ biến mất, số liệu nhóm được tính lại, nên báo cáo tháng cũ có thể đổi.
+- Rời nhóm thì khác: lịch sử giữ nguyên và vẫn ghi tên.
+
+## Điều khoản
+
+`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm.
 
 ## Mã lỗi
 
