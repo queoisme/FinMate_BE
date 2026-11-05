@@ -53,6 +53,13 @@ public static class AdminUserSeeder
                 repaired = true;
             }
 
+            // Không xác minh được thì không đăng nhập được, tức là không còn là đường cứu. Địa chỉ này do người deploy tự khai nên không cần chứng minh thêm.
+            if (existing.EmailVerifiedAt is null)
+            {
+                existing.EmailVerifiedAt = DateTimeOffset.UtcNow;
+                repaired = true;
+            }
+
             if (repaired)
             {
                 existing.UpdatedAt = DateTimeOffset.UtcNow;
@@ -71,6 +78,7 @@ public static class AdminUserSeeder
             PasswordHash = passwordHasher.Hash(password),
             DisplayName = "Admin",
             Role = UserRole.Admin,
+            EmailVerifiedAt = now,
             CreatedAt = now,
             UpdatedAt = now,
         });

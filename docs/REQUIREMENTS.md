@@ -448,7 +448,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-ADM-07 | Hàng đợi xoá dữ liệu và huỷ yêu cầu | Must | Huỷ xoá `user.DeletedAt`; không có endpoint xoá ngay |
 | FR-ADM-08 | Audit log (chỉ đọc) | Must | Mọi thao tác ghi của admin |
 | FR-ADM-09 | Thống kê chất lượng AI (`/admin/ai-stats`) | Should | AI Service chết vẫn trả 200 với phần của backend |
-| FR-ADM-10 | Tài khoản admin hạt giống | Must | Sửa vai trò, khoá, xoá mềm mỗi lần khởi động — không đổi mật khẩu |
+| FR-ADM-10 | Tài khoản admin hạt giống | Must | Sửa vai trò, khoá, xoá mềm, trạng thái xác minh email mỗi lần khởi động — không đổi mật khẩu |
 | FR-ADM-11 | Quản trị định dạng thông báo (`/admin/provider-formats`, 17 route) | Should | Tạo/sửa/clone/archive/activate định dạng, trường, mẫu regex, mẫu thử; `try`/`check` chạy thử trước khi bật |
 | FR-ADM-12 | **[Ngoài đặc tả]** Quản trị kiến thức AI (`/admin/ai-rules`, `/admin/ai-config`) | Should | Thương hiệu, từ khoá, bộ nhớ cửa hàng, cache món, chỉ dẫn Gemini, mẫu đã nhãn, mô hình; tài liệu cấu hình có phiên bản, bản nháp, xem trước, kích hoạt, lịch sử và hoàn tác |
 | FR-ADM-13 | **[Ngoài đặc tả]** Quản trị phương pháp tài chính | Should | `/admin/finance-methods` (kèm `activeUserCount` trước khi tắt), `/admin/survey-questions`, `/admin/goal-templates`, `/admin/finance-method-prompts`; bố cục trang chủ và hũ |
