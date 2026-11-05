@@ -1,0 +1,19 @@
+using FinMate.Domain.Enums;
+
+namespace FinMate.Application.Monitoring;
+
+/// <summary>Tên, ảnh hưởng và mức độ của từng dịch vụ. Nằm trong code vì đây là phán đoán về kiến trúc, không phải tham số vận hành.</summary>
+public sealed record MonitoredService(string Key, string Name, string Impact, IncidentSeverity Severity);
+
+public static class MonitoredServices
+{
+    public static readonly MonitoredService Redis = new("redis", "Redis", "Đăng nhập bằng mã OTP và các dữ liệu lưu tạm có thể lỗi.", IncidentSeverity.Critical);
+    public static readonly MonitoredService AiService = new("ai_service", "AI Service", "Đọc thông báo ngân hàng, chat và phân loại giao dịch có thể không hoạt động.", IncidentSeverity.High);
+    public static readonly MonitoredService OcrService = new("ocr_service", "OCR", "Khách không quét được hóa đơn và phải nhập tay.", IncidentSeverity.High);
+    public static readonly MonitoredService SttService = new("stt_service", "Nhận dạng giọng nói", "Khách không nhập được giao dịch bằng giọng nói.", IncidentSeverity.High);
+
+    private static readonly Dictionary<string, MonitoredService> ByKey = new[] { Redis, AiService, OcrService, SttService }.ToDictionary(s => s.Key);
+
+    public static string ImpactOf(string serviceKey)
+        => ByKey.TryGetValue(serviceKey, out var service) ? service.Impact : "Một phần hệ thống có thể hoạt động không ổn định.";
+}

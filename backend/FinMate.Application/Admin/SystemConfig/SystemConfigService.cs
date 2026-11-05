@@ -159,6 +159,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("financeMethods", before.FinanceMethods, after.FinanceMethods);
         Compare("groups", before.Groups, after.Groups);
         Compare("support", before.Support, after.Support);
+        Compare("monitoring", before.Monitoring, after.Monitoring);
         return sections;
     }
 }

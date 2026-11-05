@@ -24,6 +24,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
         RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
+        RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
     }
 
     private static bool IsHttps(string value)
@@ -83,6 +84,21 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxGroupsPerUser).InclusiveBetween(1, 50).WithMessage("Số nhóm tối đa của mỗi người phải từ 1 đến 50.");
             RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
             RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
+        }
+    }
+
+    private sealed class MonitoringValidator : AbstractValidator<MonitoringSettings>
+    {
+        public MonitoringValidator()
+        {
+            RuleFor(x => x.ProbeFailureThreshold).InclusiveBetween(1, 60).WithMessage("Số lần kiểm tra lỗi liên tiếp phải từ 1 đến 60.");
+            RuleFor(x => x.ProbeRecoveryThreshold).InclusiveBetween(1, 60).WithMessage("Số lần kiểm tra tốt liên tiếp phải từ 1 đến 60.");
+            RuleFor(x => x.ErrorCountThreshold).InclusiveBetween(1, 10000).WithMessage("Ngưỡng số lỗi phải từ 1 đến 10000.");
+            RuleFor(x => x.ErrorWindowMinutes).InclusiveBetween(1, 1440).WithMessage("Cửa sổ đếm lỗi phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ErrorQuietMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian tự đóng phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ProviderFailureThreshold).InclusiveBetween(1, 1000).WithMessage("Ngưỡng lỗi nhà cung cấp phải từ 1 đến 1000.");
+            RuleFor(x => x.ReminderMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian nhắc lại phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.ErrorRetentionDays).InclusiveBetween(1, 365).WithMessage("Thời gian giữ lỗi phải từ 1 đến 365 ngày.");
         }
     }
 
