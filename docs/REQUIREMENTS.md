@@ -460,6 +460,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-DATA-09 | Không tác dụng phụ ra ngoài trước khi lưu | Review handler |
 | NFR-DATA-10 | Không ghi sai tiền: giao dịch tự lưu chỉ khi số tiền do luật trích ra; OCR luôn cần rà soát | Test |
 | NFR-DATA-11 | Danh mục: hai bộ song song (11 slug backend, 9 nhóm bill/chat) quy đổi qua `SLUG_BY_LOCAL_CATEGORY`, có mất thông tin (`dining`, `groceries` → `food`) | Mọi đầu ra về backend lọc theo 11 slug |
+| NFR-DATA-12 | Ghi đồng thời không làm mất tiền: số dư, `spent_cents`, `saved_cents` có khóa lạc quan; thua xung đột thì tự chạy lại, hết lượt trả 409 `CONCURRENT_UPDATE`, không có gì được lưu | Test song song trên Postgres thật |
 
 ### 11.2 Độ tin cậy và khả dụng
 

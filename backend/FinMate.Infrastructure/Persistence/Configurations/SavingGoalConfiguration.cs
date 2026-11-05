@@ -48,6 +48,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
         builder.Property(g => g.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(g => g.DeletedAt).HasColumnName("deleted_at");
 
+        // Khóa lạc quan theo cột hệ thống xmin của PostgreSQL: số tiền ở bảng này được đọc rồi cộng trong tiến trình, thiếu khóa thì hai request đồng thời làm mất một khoản.
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.HasQueryFilter(g => g.DeletedAt == null);
 
         builder.HasIndex(g => g.UserId).HasDatabaseName("idx_saving_goals_user_id");

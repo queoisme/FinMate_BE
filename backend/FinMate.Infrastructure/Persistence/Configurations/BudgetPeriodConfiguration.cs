@@ -26,6 +26,9 @@ public class BudgetPeriodConfiguration : IEntityTypeConfiguration<BudgetPeriod>
         builder.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(p => p.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
+        // Khóa lạc quan theo cột hệ thống xmin của PostgreSQL: số tiền ở bảng này được đọc rồi cộng trong tiến trình, thiếu khóa thì hai request đồng thời làm mất một khoản.
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.HasIndex(p => new { p.BudgetId, p.PeriodStart })
             .IsUnique()
             .HasDatabaseName("uq_budget_periods_budget_start");

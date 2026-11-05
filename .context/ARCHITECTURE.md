@@ -1155,6 +1155,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 - Enum → **TEXT + CHECK constraint**, không dùng PostgreSQL ENUM type
 - AI DB → **KHÔNG FK** sang Backend DB, dùng `_hash` fields để reference
 - `transaction_type='transfer'` → **luôn loại khỏi mọi phép cộng dồn chi tiêu/thu nhập** (budget, report, forecast, daily summary). Xem §0 quyết định #1
+- `financial_accounts`, `budget_periods`, `saving_goals` có khóa lạc quan `xmin` (thêm 2026-11-05). Handler mới ghi tiền vào ba bảng này phải đọc, tính rồi lưu một lần **trước** mọi tác dụng phụ bên ngoài và đăng ký lớp bọc `Retrying*` (`Application/Common/RetryingMoneyHandlers.cs`); thiếu lớp bọc thì xung đột trả 409 thay vì tự chạy lại
 
 ---
 

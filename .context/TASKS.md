@@ -783,7 +783,8 @@
 | Phase 54 — Dự báo tài chính, đợt 1 | `[ ]` | 7 / 10 *(còn: báo Flutter, chạy thử cả stack, giới hạn `anchor_day`)* |
 | Phase 55 — Dự báo tài chính, đợt 2 (cảnh báo) | `[ ]` | 9 / 11 *(còn: báo Flutter, thu theo mùa)* |
 | Phase 56 — Dự báo tài chính, đợt 3 | `[ ]` | 7 / 9 *(còn: báo Flutter, mùa vụ)* |
-| **Total** (không tính Backlog) | | **424 / 450** *(đếm lại 2026-11-02; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 57 — Nhóm, đợt 0: cộng tiền đồng thời | `[x]` | 6 / 6 |
+| **Total** (không tính Backlog) | | **430 / 456** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1289,3 +1290,12 @@ Nhánh `feat/forecast-complete` (xếp chồng trên `feat/forecast-alerts`). Th
 - [ ] Báo nhóm Flutter: 5 endpoint mới, push `kind = anomaly` (+ `anomalyId`, `transactionId`, `anomalyKind`, `amountCents`), insight `unusual_spending` không còn sinh mới.
 - [ ] Mùa vụ cho dự báo theo danh mục (trang 2, nhánh "Điều chỉnh theo mùa vụ") — cùng điều kiện với BR-07.3: cần hơn một năm dữ liệu.
 - Kiểm chứng: `dotnet build` 0 warning; `dotnet test` 1442/1443 (đỏ duy nhất là FR-FIN-07 có sẵn); `has-pending-model-changes` sạch. Lỗi bắt được khi viết test tích hợp: job Hangfire sau giao dịch và lượt kiểm tra khác chạy song song, bên thua cuộc đua UNIQUE không gửi cảnh báo — và nếu bên thắng hỏng sau khi đánh dấu thì cảnh báo mất hẳn vì giao dịch không bao giờ được quét lại. Nay mỗi lượt quét trả cả khoản đã đánh dấu còn mở trong cửa sổ quét; hộp thư chống trùng.
+
+## Phase 57 — Tính năng nhóm, đợt 0: không mất tiền khi ghi đồng thời (2026-11-05)
+Tiền đề của tính năng nhóm, nhưng là lỗi có sẵn với cá nhân. Đo trên `main` (`bb2fb9f`): 12 `POST /transactions` song song vào một ví đều trả 201, số dư chỉ bị trừ **một** lần.
+- [x] Khóa lạc quan `xmin` cho `financial_accounts`, `budget_periods`, `saving_goals`. Migration `AddMoneyConcurrencyTokens` không sinh SQL đổi schema (cột hệ thống).
+- [x] `IConcurrencyRetry` / `EfConcurrencyRetry`: thua xung đột trên dòng tiền hoặc trùng `uq_budget_periods_budget_start` thì xóa tracker, chạy lại tối đa 3 lần, hết lượt trả 409 `CONCURRENT_UPDATE`. Chỉ nhận xung đột trên ba loại entity này: xung đột khác có thể đến sau khi tiền đã lưu, chạy lại sẽ tính hai lần.
+- [x] Lớp bọc `Retrying*` đăng ký ở `Program.cs` cho tạo, xác nhận, sửa, xóa, chuyển khoản, góp mục tiêu; chat được bảo vệ vì gọi qua interface. Đã đối chiếu: các handler này không có tác dụng phụ ngoài trước lần lưu tiền.
+- [x] Đường ghi khác (sửa ví, sửa hạn mức…) không chạy lại: `ExceptionHandlingMiddleware` trả 409 thay vì 500.
+- [x] `BudgetAlertJob`: kỳ vừa bị đổi thì không báo, lượt sau xét lại. `DataDeletionJob`: lỗi của một người không chặn người sau.
+- [x] Test: `MoneyConcurrencyTests` (Postgres thật, chạy song song, đỏ trước khi sửa), `DataDeletionJobTests`, `BudgetAlertJobTests`.

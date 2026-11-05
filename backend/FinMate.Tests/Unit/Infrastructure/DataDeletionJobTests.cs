@@ -63,4 +63,20 @@ public class DataDeletionJobTests
 
         hardDeleter.Verify(h => h.HardDeleteAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task AFailureForOnePersonDoesNotBlockTheNextPerson()
+    {
+        var failing = new DataDeletionRequest { Id = Guid.NewGuid(), UserId = Guid.NewGuid() };
+        var next = new DataDeletionRequest { Id = Guid.NewGuid(), UserId = Guid.NewGuid() };
+        var requests = new Mock<IDataDeletionRequestRepository>();
+        requests.Setup(r => r.GetDueAsync(It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>())).ReturnsAsync([failing, next]);
+        var hardDeleter = new Mock<IUserHardDeleter>();
+        hardDeleter.Setup(h => h.HardDeleteAsync(failing.UserId, It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("fk"));
+
+        await new DataDeletionJob(requests.Object, hardDeleter.Object).RunAsync();
+
+        requests.Verify(r => r.MarkProcessedAsync(failing, It.IsAny<CancellationToken>()), Times.Never);   // đêm sau thử lại
+        requests.Verify(r => r.MarkProcessedAsync(next, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
