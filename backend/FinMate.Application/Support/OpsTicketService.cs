@@ -261,6 +261,13 @@ public sealed class OpsTicketService : IOpsTicketService
 
         ticket.UpdatedAt = DateTimeOffset.UtcNow;
         await _support.SaveChangesAsync(ct);
+
+        // Khách đồng ý với người phụ trách trước đó, không phải người mới.
+        if (previous != assignee.Id)
+        {
+            await _support.EndGrantsAsync(ticket.Id, ticket.UpdatedAt, ct);
+        }
+
         await _audit.LogAsync(AuditEvents.OpsTicketAssigned, actor.Id, ip, new { ticketId, from = previous, to = assignee.Id }, ct);
         return await DetailAsync(ticketId, ct);
     }

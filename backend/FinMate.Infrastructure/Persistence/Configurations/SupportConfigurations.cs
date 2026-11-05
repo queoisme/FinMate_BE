@@ -92,3 +92,63 @@ public class SupportTicketAttachmentConfiguration : IEntityTypeConfiguration<Sup
         builder.HasOne<SupportTicketMessage>().WithMany().HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class SupportAccessGrantConfiguration : IEntityTypeConfiguration<SupportAccessGrant>
+{
+    public void Configure(EntityTypeBuilder<SupportAccessGrant> builder)
+    {
+        builder.ToTable("support_access_grants", t =>
+        {
+            t.HasCheckConstraint("chk_support_access_grants_status", GroupColumns.CheckIn<SupportAccessStatus>("status"));
+            t.HasCheckConstraint("chk_support_access_grants_scopes", "scopes > 0");
+        });
+
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(g => g.TicketId).HasColumnName("ticket_id").IsRequired();
+        builder.Property(g => g.RequestedByUserId).HasColumnName("requested_by_user_id");
+        builder.Property(g => g.Scopes).HasColumnName("scopes").HasConversion<int>().IsRequired();
+        builder.Property(g => g.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        builder.Property(g => g.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<SupportAccessStatus>()).HasMaxLength(20).IsRequired();
+        builder.Property(g => g.FinancialAccountId).HasColumnName("financial_account_id");
+        builder.Property(g => g.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(g => g.RequestExpiresAt).HasColumnName("request_expires_at").IsRequired();
+        builder.Property(g => g.DecidedAt).HasColumnName("decided_at");
+        builder.Property(g => g.ExpiresAt).HasColumnName("expires_at");
+        builder.Property(g => g.RevokedAt).HasColumnName("revoked_at");
+
+        // Hai lần bấm đồng ý hoặc đồng ý cùng lúc thu hồi: chỉ một lần có hiệu lực.
+        builder.Property<uint>("xmin").IsRowVersion();
+
+        builder.HasIndex(g => g.TicketId, "ix_support_access_grants_ticket");
+        builder.HasIndex(g => g.TicketId, "uq_support_access_grants_one_pending").IsUnique().HasFilter("status = 'pending'");
+
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(g => g.TicketId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(g => g.RequestedByUserId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(g => g.FinancialAccountId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class SupportDataAccessLogConfiguration : IEntityTypeConfiguration<SupportDataAccessLog>
+{
+    public void Configure(EntityTypeBuilder<SupportDataAccessLog> builder)
+    {
+        builder.ToTable("support_data_access_logs");
+
+        builder.HasKey(l => l.Id);
+        builder.Property(l => l.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(l => l.TicketId).HasColumnName("ticket_id").IsRequired();
+        builder.Property(l => l.GrantId).HasColumnName("grant_id").IsRequired();
+        builder.Property(l => l.CustomerUserId).HasColumnName("customer_user_id").IsRequired();
+        builder.Property(l => l.ActorUserId).HasColumnName("actor_user_id");
+        builder.Property(l => l.Scope).HasColumnName("scope").HasConversion<int>().IsRequired();
+        builder.Property(l => l.CreatedAt).HasColumnName("created_at").IsRequired();
+
+        builder.HasIndex(l => new { l.CustomerUserId, l.CreatedAt }).HasDatabaseName("ix_support_data_access_logs_customer");
+
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(l => l.TicketId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<SupportAccessGrant>().WithMany().HasForeignKey(l => l.GrantId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(l => l.CustomerUserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(l => l.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}

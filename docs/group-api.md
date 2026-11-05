@@ -97,7 +97,7 @@ Push mới: `data.kind` là `group_budget` (`groupId`, `budgetId`, `percent`) ho
 
 ## Điều khoản
 
-`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm.
+`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm. Nếu phát hành cùng tính năng hỗ trợ, bản 4 còn phải nêu việc lưu ảnh trong ticket và nhân viên xem dữ liệu khi người dùng đồng ý (xem `docs/ops-api.md`).
 
 ## Mã lỗi
 

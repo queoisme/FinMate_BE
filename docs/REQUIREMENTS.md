@@ -373,6 +373,9 @@ Chi tiết API và ma trận quyền ở `docs/ops-api.md`.
 | FR-OPS-08 | Manager phân công và đổi mức ưu tiên | Must | Staff nhận 403; không giao được cho người ngoài đội hoặc chính người tạo ca |
 | FR-OPS-09 | Tính hạn SLA theo mức ưu tiên, cấu hình ở nhóm `support` | Should | Chỉ tính và hiển thị, chưa có cảnh báo tự động |
 | FR-OPS-10 | Khách gửi ảnh vào ticket | Should | Mã hóa khi lưu; thiếu khóa thì từ chối; nhận dạng theo nội dung file; xem ảnh có ghi audit; tự xóa sau khi ca đóng (NFR-SEC-24) |
+| FR-OPS-11 | Xem dữ liệu khách chỉ khi khách đồng ý theo từng ca | Must | Phải là người phụ trách, đúng phần dữ liệu, tối đa 24 giờ; hết hiệu lực khi đóng ca, đổi người phụ trách hoặc khách thu hồi; Admin không có ngoại lệ |
+| FR-OPS-12 | Khách xem được lịch sử ai đã xem dữ liệu của mình (`/support/access-log`) | Must | Mỗi lần đọc đều ghi; audit không có số tiền |
+| FR-OPS-13 | Nhân viên tạo giao dịch nháp theo ca (`source = Support`) | Should | Cần scope `Draft` và ví khách chọn; không đổi số dư tới khi khách xác nhận; client không tự khai được nguồn này |
 
 ## 7. FR — Thông báo đẩy
 

@@ -52,6 +52,9 @@ public class Transaction
     public Guid? GroupCategoryId { get; set; }
 
     public DateTimeOffset? SharedAt { get; set; }
+
+    /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
+    public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

@@ -112,3 +112,48 @@ Tối đa 5 MB, 3 ảnh mỗi tin nhắn. Định dạng JPEG, PNG, WebP, HEIC, 
 | `GET /{id}/attachments/{attachmentId}` | Tải ảnh, có ghi audit. Phải nhận ca trước | Người phụ trách, Manager trở lên |
 
 Không ai xử lý được ca do chính mình tạo: ca đó không hiện trong hàng đợi của họ và các API trên trả 403.
+
+## Xem dữ liệu khách theo ca
+
+Không ai trong đội vận hành xem được dữ liệu tài chính của khách nếu thiếu một trong các điều kiện sau, **kể cả Admin**:
+
+1. Đang là người phụ trách ca. Manager và Admin cũng phải nhận ca trước.
+2. Chính khách đã đồng ý trong app, cho đúng phần dữ liệu đó.
+3. Quyền còn hạn: tối đa 24 giờ, không cấu hình được.
+4. Ca chưa đóng và chưa đổi người phụ trách. Đổi người phụ trách là kết thúc quyền, kể cả khi ca được giao lại cho người cũ.
+
+| Phạm vi (`scopes`) | Cho phép |
+|---|---|
+| `Accounts` | Xem ví và số dư |
+| `Transactions` | Xem giao dịch; không có số dư sau giao dịch, `notificationLogId`, `clientRequestId` |
+| `Budgets` | Xem ngân sách tháng hiện tại |
+| `Draft` | Tạo giao dịch nháp vào ví khách chọn lúc đồng ý |
+
+### Phía vận hành: `/api/v1/ops/tickets/{ticketId}`
+
+Khách luôn được xác định qua ticket; không API nào nhận user id của khách.
+
+| API | Việc |
+|---|---|
+| `POST /access-requests` | Xin quyền: `scopes`, `reason` (khách đọc được). Mỗi ca chỉ một yêu cầu đang chờ, thừa thì 409. Khách nhận push |
+| `GET /access-requests` | Trạng thái các yêu cầu |
+| `GET /customer-data/accounts`, `/transactions`, `/budgets` | Đọc dữ liệu. Thiếu điều kiện thì 403. Mỗi lần đọc đều ghi lại |
+| `POST /draft-transactions` | Tạo nháp: `amountCents`, `transactionType` (`Debit`, `Credit`), `transactedAt`, `categoryId?` (chỉ danh mục hệ thống), `merchantName?`, `description?`, `clientRequestId?`. Gửi lại cùng `clientRequestId` thì nhận 200 với giao dịch cũ |
+
+Nháp có `source = Support`. Số dư và ngân sách chỉ đổi khi khách xác nhận qua `POST /transactions/{id}/confirm`; nhân viên gọi API này nhận 404.
+
+### Phía khách: `/api/v1/support`
+
+| API | Việc |
+|---|---|
+| `GET /tickets/{id}/access-requests` | Các yêu cầu của ca |
+| `POST /tickets/{id}/access-requests/{requestId}/approve` | Đồng ý. Có scope `Draft` thì bắt buộc `financialAccountId` là ví của mình |
+| `POST /tickets/{id}/access-requests/{requestId}/deny` | Từ chối |
+| `POST /tickets/{id}/access-requests/{requestId}/revoke` | Thu hồi bất cứ lúc nào |
+| `GET /access-log` | Lịch sử xem dữ liệu của mình: ca, phần dữ liệu, thời điểm |
+
+Khi có yêu cầu mới, khách nhận push với `data = { action: "support_access_request", ticketId, requestId }`. Khi có nháp, khách nhận push như nháp từ thông báo ngân hàng.
+
+### Điều khoản
+
+Việc lưu ảnh trong ticket và cho nhân viên xem dữ liệu khi khách đồng ý phải có trong Điều khoản. Bản 4 chưa phát hành nên nội dung này gộp vào bản 4, để người dùng chỉ đồng ý lại một lần. Nếu bản 4 đã lên production trước khi tính năng này phát hành thì phải tăng `ConsentVersions.Terms` lên 5.

@@ -340,6 +340,8 @@ public class Program
         builder.Services.AddScoped<ISupportRepository, SupportRepository>();
         builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
         builder.Services.AddScoped<IOpsTicketService, OpsTicketService>();
+        builder.Services.AddScoped<ISupportAccessService, SupportAccessService>();
+        builder.Services.AddScoped<IOpsCustomerDataService, OpsCustomerDataService>();
         builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
         builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();

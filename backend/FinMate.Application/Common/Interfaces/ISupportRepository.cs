@@ -45,6 +45,15 @@ public interface ISupportRepository
     Task<int> CountAttachmentsAsync(Guid messageId, CancellationToken ct = default);
     Task<SupportTicketAttachment?> GetAttachmentAsync(Guid ticketId, Guid attachmentId, CancellationToken ct = default);
 
+    void AddGrant(SupportAccessGrant grant);
+    void AddAccessLog(SupportDataAccessLog log);
+    Task<SupportAccessGrant?> GetGrantAsync(Guid ticketId, Guid grantId, CancellationToken ct = default);
+    Task<List<SupportAccessGrant>> ListGrantsAsync(Guid ticketId, CancellationToken ct = default);
+
+    /// <summary>Chấm dứt mọi quyền còn hiệu lực và yêu cầu đang chờ của ca.</summary>
+    Task EndGrantsAsync(Guid ticketId, DateTimeOffset now, CancellationToken ct = default);
+    Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default);
+
     Task SetAttachmentExpiryAsync(Guid ticketId, DateTimeOffset deleteAfter, CancellationToken ct = default);
     Task<List<SupportTicket>> ListResolvedBeforeAsync(DateTimeOffset before, int limit, CancellationToken ct = default);
     Task<int> DeleteExpiredAttachmentsAsync(DateTimeOffset now, CancellationToken ct = default);

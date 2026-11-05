@@ -91,4 +91,7 @@ public static class AuditEvents
     public const string OpsTicketPriorityChanged = "Ops.Ticket.PriorityChanged";
     public const string OpsTicketEscalated = "Ops.Ticket.Escalated";
     public const string OpsTicketAttachmentViewed = "Ops.Ticket.AttachmentViewed";
+    public const string OpsCustomerDataRequested = "Ops.CustomerData.Requested";
+    public const string OpsCustomerDataViewed = "Ops.CustomerData.Viewed";
+    public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
 }
