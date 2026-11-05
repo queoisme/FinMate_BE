@@ -371,7 +371,7 @@ public sealed class MarketDataService : IMarketDataService
     {
         var settings = (await _config.GetAsync(ct)).Document.MarketData;
         var sources = await _repository.ListActiveSourcesAsync(ct);
-        var tables = new List<IReadOnlyList<FuelReading>>();
+        var tables = new List<SourceFuelTable>();
         var failed = 0;
         var newDocuments = 0;
 
@@ -390,7 +390,7 @@ public sealed class MarketDataService : IMarketDataService
                     newDocuments += outcome.NewDocuments;
                     if (outcome.Readings is not null)
                     {
-                        tables.Add(outcome.Readings);
+                        tables.Add(new SourceFuelTable(MarketDomains.Of(source.Url), outcome.Readings));
                     }
                 }
                 else
@@ -464,7 +464,19 @@ public sealed class MarketDataService : IMarketDataService
                 continue;
             }
 
-            var outcome = await _signals.ProcessAsync(document, text, settings, ct);
+            MarketAiStatus outcome;
+            try
+            {
+                outcome = await _signals.ProcessAsync(document, text, settings, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Một bài lỗi không được chặn các bài khác và phần gửi cảnh báo phía sau.
+                _logger.LogError("Market document {DocumentId} failed: {ErrorType}", document.Id, ex.GetType().Name);
+                await _signals.RecordFailureAsync(document, ct);
+                continue;
+            }
+
             if (outcome != MarketAiStatus.Ok)
             {
                 return (processed, outcome == MarketAiStatus.NotConfigured ? "not_configured" : "failed");
@@ -501,11 +513,22 @@ public sealed class MarketDataService : IMarketDataService
         return _freshTexts[document.Url];
     }
 
-    private async Task<FuelConfirmation> ConfirmPricesAsync(IReadOnlyList<IReadOnlyList<FuelReading>> tables, MarketDataSettings settings, CancellationToken ct)
+    private async Task<FuelConfirmation> ConfirmPricesAsync(IReadOnlyList<SourceFuelTable> tables, MarketDataSettings settings, CancellationToken ct)
     {
-        var latest = (await _repository.ListLatestFuelPricesAsync(ct))
-            .ToDictionary(p => p.FuelKey, p => new FuelReading(p.FuelKey, p.Region1PriceCents, p.Region2PriceCents));
-        var confirmation = FuelPriceConfirmer.Confirm(tables, latest, settings);
+        var latestRows = await _repository.ListLatestFuelPricesAsync(ct);
+        var latest = latestRows.ToDictionary(p => p.FuelKey, p => new FuelReading(p.FuelKey, p.Region1PriceCents, p.Region2PriceCents));
+
+        // Admin vừa sửa vì nguồn sai: nguồn còn báo đúng giá cũ thì không được ghi đè, nguồn đổi sang giá khác mới là tin mới.
+        var heldStale = new Dictionary<string, FuelReading>();
+        foreach (var manual in latestRows.Where(p => p.Origin == FuelPriceOrigin.Manual))
+        {
+            if (await _repository.GetLatestSourceFuelPriceAsync(manual.FuelKey, ct) is { } source)
+            {
+                heldStale[manual.FuelKey] = new FuelReading(source.FuelKey, source.Region1PriceCents, source.Region2PriceCents);
+            }
+        }
+
+        var confirmation = FuelPriceConfirmer.Confirm(tables, latest, settings, heldStale);
         var now = DateTimeOffset.UtcNow;
         foreach (var reading in confirmation.Confirmed)
         {
@@ -589,7 +612,7 @@ public sealed class MarketDataService : IMarketDataService
                 SourceId = source.Id,
                 Url = candidate.Url,
                 Title = Limit(candidate.Title, MaxTitleLength),
-                PublishedAt = candidate.PublishedAt,
+                PublishedAt = candidate.PublishedAt ?? read.PublishedAt,
                 ContentHash = read.ContentHash,
                 TextLength = read.TextLength,
                 Status = read.Status,
@@ -618,18 +641,18 @@ public sealed class MarketDataService : IMarketDataService
         if (source.Kind == MarketSourceKind.Feed)
         {
             return FeedReader.Read(content)
-                .Where(item => MarketTopics.IsRelevant(item.Title, item.Summary))
+                .Where(item => item.Url.Length <= MaxUrlLength && MarketTopics.IsRelevant(item.Title, item.Summary))
                 .Select(item => new ArticleCandidate(item.Url, item.Title, item.PublishedAt))
                 .DistinctBy(c => c.Url);
         }
 
         return HtmlTextExtractor.Links(content, baseUri)
-            .Where(link => SameSite(link.Url, baseUri) && MarketTopics.IsRelevant(link.Text))
+            .Where(link => link.Url.Length <= MaxUrlLength && SameSite(link.Url, baseUri) && MarketTopics.IsRelevant(link.Text))
             .Select(link => new ArticleCandidate(link.Url, link.Text, null))
             .DistinctBy(c => c.Url);
     }
 
-    private sealed record ArticleRead(MarketDocumentStatus Status, int TextLength, string? ContentHash, string? ErrorCode, bool IsTemporary);
+    private sealed record ArticleRead(MarketDocumentStatus Status, int TextLength, string? ContentHash, string? ErrorCode, bool IsTemporary, DateTimeOffset? PublishedAt = null);
 
     private async Task<ArticleRead> ReadArticleAsync(ArticleCandidate candidate, CancellationToken ct)
     {
@@ -657,8 +680,16 @@ public sealed class MarketDataService : IMarketDataService
                     return new ArticleRead(MarketDocumentStatus.NoContent, text.Length, null, MarketErrorCodes.NoContent, false);
                 }
 
+                var publishedAt = HtmlTextExtractor.PublishedAt(fetched.Content ?? string.Empty);
+
+                // Xét theo trang chứa bài, không theo nguồn: RSS tổng hợp có thể trỏ tới trang không cho phép dùng với AI.
+                if (!rules.AiAllowed)
+                {
+                    return new ArticleRead(MarketDocumentStatus.AiNotAllowed, text.Length, Hash(text), null, false, publishedAt);
+                }
+
                 _freshTexts[candidate.Url] = text;
-                return new ArticleRead(MarketDocumentStatus.PendingAi, text.Length, Hash(text), null, false);
+                return new ArticleRead(MarketDocumentStatus.PendingAi, text.Length, Hash(text), null, false, publishedAt);
             case WebFetchOutcome.Refused or WebFetchOutcome.AddressNotAllowed:
                 return new ArticleRead(MarketDocumentStatus.Blocked, 0, null, ErrorCodeFor(fetched.Outcome), false);
             case WebFetchOutcome.Failed or WebFetchOutcome.TooManyRedirects:
@@ -764,13 +795,7 @@ public sealed class MarketDataService : IMarketDataService
     }
 
     private static bool SameSite(string url, Uri baseUri)
-        => Uri.TryCreate(url, UriKind.Absolute, out var target) && BareHost(target) == BareHost(baseUri);
-
-    private static string BareHost(Uri uri)
-    {
-        var host = uri.Host.ToLowerInvariant();
-        return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
-    }
+        => Uri.TryCreate(url, UriKind.Absolute, out var target) && MarketDomains.OfHost(target.Host) == MarketDomains.OfHost(baseUri.Host);
 
     private static string ErrorCodeFor(WebFetchOutcome outcome) => outcome switch
     {

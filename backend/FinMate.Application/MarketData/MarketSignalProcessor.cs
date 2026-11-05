@@ -44,6 +44,11 @@ public static class MarketSignalValidator
 {
     public const int MaxEvidenceLength = 300;
 
+    /// <summary>Vừa cột <c>numeric(7,2)</c>. Trên mức này chắc chắn không phải mức đổi giá thật.</summary>
+    private const decimal MaxPercent = 9_999m;
+
+    private static readonly Regex PercentInText = new(@"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:%|phần trăm)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
     public sealed record Valid(MarketTopic Topic, MarketDirection Direction, MarketFactStatus FactStatus, decimal? ChangePercent, DateOnly? EffectiveDate, string Evidence);
 
     public static Valid? Validate(MarketAiSignal signal, string articleText)
@@ -58,7 +63,7 @@ public static class MarketSignalValidator
             return null;
         }
 
-        if (signal.ChangePercent is { } percent && !PercentAppearsIn(percent, evidence))
+        if (signal.ChangePercent is { } percent && (Math.Abs(percent) > MaxPercent || !PercentAppearsIn(percent, evidence)))
         {
             return null;
         }
@@ -70,16 +75,10 @@ public static class MarketSignalValidator
     internal static string Normalize(string text)
         => string.Join(' ', text.Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
+    /// <summary>So sánh theo giá trị, vì văn bản giá điện hay viết <c>4,80%</c> trong khi AI trả <c>4.8</c>. Số không dấu chấm phần nghìn nên dấu phẩy và chấm đều là phần thập phân.</summary>
     private static bool PercentAppearsIn(decimal percent, string evidence)
-    {
-        var number = Math.Abs(percent).ToString("0.##", CultureInfo.InvariantCulture);
-        var forms = new[] { number, number.Replace('.', ',') }.Select(Regex.Escape);
-        return Regex.IsMatch(
-            evidence.Normalize(NormalizationForm.FormC),
-            $@"(?<![\d.,])(?:{string.Join('|', forms)})\s*(?:%|phần trăm)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-            TimeSpan.FromSeconds(1));
-    }
+        => PercentInText.Matches(evidence.Normalize(NormalizationForm.FormC))
+            .Any(match => decimal.TryParse(match.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value == Math.Abs(percent));
 
     private static MarketTopic? ParseTopic(string? text) => text switch
     {
@@ -111,12 +110,14 @@ public interface IMarketSignalProcessor
 {
     /// <summary>Gửi một bài cho AI, kiểm tra kết quả và lưu. Khác <see cref="MarketAiStatus.Ok"/> thì bài vẫn chờ.</summary>
     Task<MarketAiStatus> ProcessAsync(MarketDocument document, string text, MarketDataSettings settings, CancellationToken ct = default);
+    Task RecordFailureAsync(MarketDocument document, CancellationToken ct = default);
     Task ExpireOldEventsAsync(CancellationToken ct = default);
 }
 
 public sealed class MarketSignalProcessor : IMarketSignalProcessor
 {
     public const int EventWindowDays = 7;
+    public const int MaxAiFailures = 3;
     public const int MaxAiTextChars = 20_000;
     private const int MaxAiTitleChars = 500;
 
@@ -148,6 +149,7 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
 
         if (result.Status != MarketAiStatus.Ok)
         {
+            await RecordFailureAsync(document, ct);
             return result.Status;
         }
 
@@ -180,6 +182,19 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
         return MarketAiStatus.Ok;
     }
 
+    public async Task RecordFailureAsync(MarketDocument document, CancellationToken ct = default)
+    {
+        _repository.DiscardUnsavedSignals();
+        document.AiFailures++;
+        if (document.AiFailures >= MaxAiFailures)
+        {
+            document.Status = MarketDocumentStatus.Failed;
+            document.ErrorCode = "AI_FAILED";
+        }
+
+        await _repository.SaveChangesAsync(ct);
+    }
+
     public Task ExpireOldEventsAsync(CancellationToken ct = default)
         => _repository.ExpireEventsAsync(DateTimeOffset.UtcNow.AddDays(-EventWindowDays), ct);
 
@@ -193,7 +208,7 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
     {
         var since = now.AddDays(-EventWindowDays);
         var sources = await _repository.ListActualSignalSourcesAsync(topic, direction, since, ct);
-        var domains = sources.Select(s => BareHost(s.Url)).Distinct().Count();
+        var domains = sources.Select(s => MarketDomains.Of(s.SourceUrl)).Distinct().Count();
         if (domains < settings.MinEventDomains)
         {
             return;
@@ -222,12 +237,6 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
                 Status = settings.AutoPublishNewsEvents ? MarketEventStatus.Approved : MarketEventStatus.Pending,
             },
             ct);
-    }
-
-    private static string BareHost(string url)
-    {
-        var host = new Uri(url).Host.ToLowerInvariant();
-        return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
     }
 }
 

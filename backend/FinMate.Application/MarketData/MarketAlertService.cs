@@ -168,7 +168,11 @@ public sealed class MarketAlertService : IMarketAlertService
 
         var latest = waiting[^1];
         var reference = await _market.GetFuelPriceAsOfAsync(settings.ReferenceFuelKey, now.AddDays(-settings.CompareWindowDays), ct);
+
+        // So với 14 ngày trước có thể vẫn cao hơn trong khi giá vừa giảm. Khi đó không được báo là đang tăng.
+        var previous = await _market.GetFuelPriceBeforeAsync(settings.ReferenceFuelKey, latest.FirstSeenAt, latest.Id, ct);
         if (enabled && reference is not null && reference.Id != latest.Id
+            && previous is not null && latest.Region1PriceCents > previous.Region1PriceCents
             && MarketAlertRules.RoseEnough(reference.Region1PriceCents, latest.Region1PriceCents, settings.RiseThresholdPercent))
         {
             await ForEachActiveUserAsync(settings, now, (userId, today) => SendFuelAlertAsync(userId, today, latest, reference, settings, now, ct), ct);

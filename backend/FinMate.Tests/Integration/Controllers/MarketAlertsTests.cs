@@ -226,6 +226,19 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task APriceThatJustFellIsNotCalledRisingEvenIfStillAboveTwoWeeksAgo()
+    {
+        var user = await CustomerAsync();
+        await PriceAsync(20_000, daysAgo: 20, processed: true);
+        await PriceAsync(22_000, daysAgo: 3, processed: true);
+        await PriceAsync(21_500);
+
+        await ProcessAsync();
+
+        (await AlertsAsync(user)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ThePriceIsConsideredOnlyOnce()
     {
         var user = await CustomerAsync();
@@ -284,7 +297,7 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             var sourceId = Guid.NewGuid();
             db.MarketSources.Add(new MarketSource { Id = sourceId, Name = "Báo Mẫu", Url = $"https://{sourceId:N}.vn/rss", Kind = MarketSourceKind.Feed, AiAllowed = true, IsActive = true, CreatedAt = now, UpdatedAt = now });
             var documentId = Guid.NewGuid();
-            db.MarketDocuments.Add(new MarketDocument { Id = documentId, SourceId = sourceId, Url = $"https://{sourceId:N}.vn/a", Title = "Tiêu đề từ trang web", Status = MarketDocumentStatus.Processed, FetchedAt = now });
+            db.MarketDocuments.Add(new MarketDocument { Id = documentId, SourceId = sourceId, Url = $"https://{sourceId:N}.vn/a", Title = "Tiêu đề từ trang web", Status = MarketDocumentStatus.Processed, FetchedAt = now, PublishedAt = now });
             db.MarketSignals.Add(new MarketSignal { Id = Guid.NewGuid(), DocumentId = documentId, Topic = topic, Direction = direction, FactStatus = MarketFactStatus.Actual, Evidence = evidence, CreatedAt = now });
             db.MarketEvents.Add(new MarketEvent { Id = Guid.NewGuid(), Topic = topic, Direction = direction, FirstSeenAt = now, LastSeenAt = now, SourceCount = 2, Status = status });
             return await db.SaveChangesAsync();

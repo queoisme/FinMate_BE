@@ -39,6 +39,9 @@ public class MarketDocument
 
     /// <summary>Lần gần nhất gửi bài này cho AI, kể cả khi lỗi. Dùng để đếm trần số bài mỗi ngày.</summary>
     public DateTimeOffset? AiAttemptedAt { get; set; }
+
+    /// <summary>Số lần AI đọc lỗi. Quá giới hạn thì dừng, để một bài luôn lỗi không chặn các bài còn lại.</summary>
+    public int AiFailures { get; set; }
 }
 
 /// <summary>Thông tin AI rút ra từ một bài, đã đối chiếu đoạn trích với nguyên văn bài.</summary>

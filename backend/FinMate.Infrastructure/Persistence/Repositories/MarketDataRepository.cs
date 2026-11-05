@@ -55,10 +55,16 @@ public class MarketDataRepository : IMarketDataRepository
             await _context.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation })
+        catch (DbUpdateException ex)
         {
+            // Mọi lỗi đều phải gỡ dòng ra: để lại thì lần lưu sau gặp đúng lỗi này và hỏng cả lượt đọc.
             _context.Entry(document).State = EntityState.Detached;
-            return false;
+            if (ex.InnerException is PostgresException { SqlState: UniqueViolation })
+            {
+                return false;
+            }
+
+            throw;
         }
     }
 
@@ -134,6 +140,26 @@ public class MarketDataRepository : IMarketDataRepository
 
     public void AddSignal(MarketSignal signal) => _context.MarketSignals.Add(signal);
 
+    public void DiscardUnsavedSignals()
+    {
+        foreach (var entry in _context.ChangeTracker.Entries<MarketSignal>().Where(e => e.State == EntityState.Added).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    public Task<FuelPrice?> GetFuelPriceBeforeAsync(string fuelKey, DateTimeOffset at, Guid exceptId, CancellationToken ct = default)
+        => _context.FuelPrices.AsNoTracking()
+            .Where(p => p.FuelKey == fuelKey && p.FirstSeenAt <= at && p.Id != exceptId)
+            .OrderByDescending(p => p.FirstSeenAt)
+            .FirstOrDefaultAsync(ct);
+
+    public Task<FuelPrice?> GetLatestSourceFuelPriceAsync(string fuelKey, CancellationToken ct = default)
+        => _context.FuelPrices.AsNoTracking()
+            .Where(p => p.FuelKey == fuelKey && p.Origin == FuelPriceOrigin.Sources)
+            .OrderByDescending(p => p.FirstSeenAt)
+            .FirstOrDefaultAsync(ct);
+
     public Task<List<FuelPrice>> ListFuelPricesAwaitingAlertsAsync(string fuelKey, CancellationToken ct = default)
         => _context.FuelPrices.Where(p => p.FuelKey == fuelKey && p.AlertsProcessedAt == null).OrderBy(p => p.FirstSeenAt).ToListAsync(ct);
 
@@ -147,12 +173,12 @@ public class MarketDataRepository : IMarketDataRepository
             ?? await query.OrderBy(p => p.FirstSeenAt).FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<(string Url, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+    public async Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
     {
         var rows = await SignalRows(topic, direction, since)
-            .Select(row => new { row.Document.Url, SeenAt = row.Document.PublishedAt ?? row.Document.FetchedAt })
+            .Join(_context.MarketSources.AsNoTracking(), row => row.Document.SourceId, source => source.Id, (row, source) => new { source.Url, row.Document.PublishedAt })
             .ToListAsync(ct);
-        return rows.Select(r => (r.Url, r.SeenAt)).ToList();
+        return rows.Select(r => (r.Url, r.PublishedAt!.Value)).ToList();
     }
 
     public Task<MarketEvent?> GetLatestEventAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
@@ -231,7 +257,7 @@ public class MarketDataRepository : IMarketDataRepository
         => _context.MarketSignals.AsNoTracking()
             .Where(s => s.Topic == topic && s.Direction == direction && s.FactStatus == MarketFactStatus.Actual)
             .Join(_context.MarketDocuments.AsNoTracking(), s => s.DocumentId, d => d.Id, (s, d) => new SignalRow { Signal = s, Document = d })
-            .Where(row => (row.Document.PublishedAt ?? row.Document.FetchedAt) >= since);
+            .Where(row => row.Document.PublishedAt != null && row.Document.PublishedAt >= since);
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
 }

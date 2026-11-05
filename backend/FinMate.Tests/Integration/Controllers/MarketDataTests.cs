@@ -618,6 +618,155 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         (await InDbAsync(db => db.MarketDocuments.SingleAsync())).Status.Should().Be(MarketDocumentStatus.Processed);
     }
 
+    [Theory]
+    [InlineData("Giá điện tăng 4,80% từ ngày 10/11.", "4.8")]
+    [InlineData("Giá nước tăng 3.00 phần trăm.", "3")]
+    public async Task APercentWithTrailingZerosStillMatches(string evidence, string percent)
+    {
+        _ai.Respond = (_, _) => PowerUp(percent: decimal.Parse(percent, System.Globalization.CultureInfo.InvariantCulture), evidence: evidence);
+        _web.Html("https://a.vn/rss", "<rss><channel><item><title>Giá điện tăng</title><link>https://a.vn/dien</link></item></channel></rss>");
+        _web.Html("https://a.vn/dien", Article(evidence));
+        await AddSourceAsync("https://a.vn/rss", MarketSourceKind.Feed);
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AHugePercentIsDroppedInsteadOfBreakingTheSave()
+    {
+        const string evidence = "Giá điện tăng 99999999% theo trang lỗi.";
+        _ai.Respond = (_, _) => PowerUp(percent: 99999999m, evidence: evidence);
+        _web.Html("https://a.vn/rss", "<rss><channel><item><title>Giá điện tăng</title><link>https://a.vn/dien</link></item></channel></rss>");
+        _web.Html("https://a.vn/dien", Article(evidence));
+        await AddSourceAsync("https://a.vn/rss", MarketSourceKind.Feed);
+
+        (await RefreshAsync()).AiProcessed.Should().Be(1);
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ABadLinkOnOneSourceDoesNotStopTheOthers()
+    {
+        var longUrl = "https://a.vn/" + new string('x', 2100);
+        _web.Html("https://a.vn/rss", $"<rss><channel><item><title>Giá xăng &amp;#0; tăng</title><link>https://a.vn/nul</link></item><item><title>Giá xăng tăng</title><link>{longUrl}</link></item></channel></rss>");
+        _web.Html("https://a.vn/nul", Article("Giá xăng tăng từ chiều nay."));
+        _web.Html("https://b.vn/", Table());
+        _web.Html("https://c.vn/", Table());
+        await AddSourceAsync("https://a.vn/rss", MarketSourceKind.Feed);
+        await AddSourceAsync("https://b.vn/", MarketSourceKind.PriceTable);
+        await AddSourceAsync("https://c.vn/", MarketSourceKind.PriceTable);
+
+        var summary = await RefreshAsync();
+
+        summary.ConfirmedFuels.Should().HaveCount(3);
+        summary.SourcesFailed.Should().Be(0);
+        (await InDbAsync(db => db.MarketDocuments.AsNoTracking().SingleAsync())).Url.Should().Be("https://a.vn/nul");
+    }
+
+    [Fact]
+    public async Task ADocumentThatKeepsFailingStopsBlockingTheQueue()
+    {
+        _ai.Respond = (_, _) => new MarketAiResult(MarketAiStatus.Failed, []);
+        await AddNewsAsync("a.vn");
+
+        for (var i = 1; i < MarketSignalProcessor.MaxAiFailures; i++)
+        {
+            await RefreshAsync();
+            (await InDbAsync(db => db.MarketDocuments.SingleAsync())).Status.Should().Be(MarketDocumentStatus.PendingAi);
+        }
+
+        await RefreshAsync();
+
+        var document = await InDbAsync(db => db.MarketDocuments.SingleAsync());
+        document.Status.Should().Be(MarketDocumentStatus.Failed);
+        document.ErrorCode.Should().Be("AI_FAILED");
+    }
+
+    [Fact]
+    public async Task AnAggregatorCannotSendAiAForbiddenArticle()
+    {
+        _web.Html("https://tonghop.vn/rss", "<rss><channel><item><title>Giá điện tăng</title><link>https://bao-cam.vn/dien</link></item></channel></rss>");
+        _web.Html("https://bao-cam.vn/robots.txt", "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nDisallow:");
+        _web.Html("https://bao-cam.vn/dien", Article(PowerEvidence));
+        await AddSourceAsync("https://tonghop.vn/rss", MarketSourceKind.Feed);
+
+        await RefreshAsync();
+
+        _ai.Titles.Should().BeEmpty();
+        (await InDbAsync(db => db.MarketDocuments.SingleAsync())).Status.Should().Be(MarketDocumentStatus.AiNotAllowed);
+    }
+
+    [Fact]
+    public async Task AnUndatedArticleDoesNotCountTowardsAnEvent()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        foreach (var host in new[] { "a.vn", "b.vn" })
+        {
+            _web.Html($"https://{host}/tin", $"<html><body><a href=\"/dien\">Giá điện tăng</a></body></html>");
+            _web.Html($"https://{host}/dien", Article(PowerEvidence));
+            await AddSourceAsync($"https://{host}/tin", MarketSourceKind.Page);
+        }
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(2);
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ADatedArticleFromAListPageCounts()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        var published = DateTimeOffset.UtcNow.AddHours(-2).ToString("O");
+        foreach (var host in new[] { "a.vn", "b.vn" })
+        {
+            _web.Html($"https://{host}/tin", $"<html><body><a href=\"/dien\">Giá điện tăng</a></body></html>");
+            _web.Html($"https://{host}/dien", $"<html><head><meta property=\"article:published_time\" content=\"{published}\"></head><body><article><p>{string.Join(" ", Enumerable.Repeat(PowerEvidence, 12))}</p></article></body></html>");
+            await AddSourceAsync($"https://{host}/tin", MarketSourceKind.Page);
+        }
+
+        await RefreshAsync();
+
+        (await EventsAsync()).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task OneFeedLinkingToManySubdomainsCountsAsOneSource()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        var published = DateTimeOffset.UtcNow.AddHours(-1).ToString("R");
+        _web.Html("https://tonghop.vn/rss", $"<rss><channel><item><title>Giá điện tăng</title><link>https://a.khac.vn/dien</link><pubDate>{published}</pubDate></item><item><title>Giá điện tăng mạnh</title><link>https://b.khac.vn/dien</link><pubDate>{published}</pubDate></item></channel></rss>");
+        _web.Html("https://a.khac.vn/dien", Article(PowerEvidence));
+        _web.Html("https://b.khac.vn/dien", Article(PowerEvidence));
+        await AddSourceAsync("https://tonghop.vn/rss", MarketSourceKind.Feed);
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(2);
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ASourceStillWrongDoesNotUndoAnAdminCorrection()
+    {
+        _web.Html("https://a.vn/", Table());
+        _web.Html("https://b.vn/", Table());
+        await AddSourceAsync("https://a.vn/", MarketSourceKind.PriceTable);
+        await AddSourceAsync("https://b.vn/", MarketSourceKind.PriceTable);
+        await RefreshAsync();
+        var token = await AdminTokenAsync();
+        (await SendAsync(HttpMethod.Post, "/api/v1/admin/fuel-prices", token, new { fuelKey = FuelKeys.E10Ron95Level3, region1PriceCents = 22000, region2PriceCents = 22420, note = "Nguồn đang sai" })).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        (await RefreshAsync()).ConfirmedFuels.Should().BeEmpty();
+
+        _web.Html("https://a.vn/", Table(22500));
+        _web.Html("https://b.vn/", Table(22500));
+        (await RefreshAsync()).ConfirmedFuels.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task AnUnknownTopicFromTheModelIsDropped()
     {

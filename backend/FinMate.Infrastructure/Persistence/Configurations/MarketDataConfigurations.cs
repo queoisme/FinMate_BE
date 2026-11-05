@@ -52,6 +52,7 @@ public class MarketDocumentConfiguration : IEntityTypeConfiguration<MarketDocume
         builder.Property(d => d.ErrorCode).HasColumnName("error_code").HasMaxLength(50);
         builder.Property(d => d.FetchedAt).HasColumnName("fetched_at").IsRequired();
         builder.Property(d => d.AiAttemptedAt).HasColumnName("ai_attempted_at");
+        builder.Property(d => d.AiFailures).HasColumnName("ai_failures").HasDefaultValue(0).IsRequired();
 
         builder.HasIndex(d => d.Url).IsUnique().HasDatabaseName("uq_market_documents_url");
         builder.HasIndex(d => new { d.Status, d.FetchedAt }).HasDatabaseName("ix_market_documents_status");

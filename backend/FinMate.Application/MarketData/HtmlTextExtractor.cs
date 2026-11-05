@@ -30,6 +30,14 @@ public static class HtmlTextExtractor
     private static readonly Regex Spaces = new(@"[ \t\r\f\v ]+", Options);
     private static readonly Regex BlankLines = new(@"\n(?:[ ]*\n)+", Options);
     private static readonly Regex Anchor = new(@"<a\b[^>]*?\bhref\s*=\s*[""']([^""']+)[""'][^>]*>([\s\S]*?)</a\s*>", Options);
+    private static readonly Regex[] DatePatterns =
+    [
+        new(@"<meta\b[^>]*(?:property|name|itemprop)\s*=\s*[""'](?:article:published_time|pubdate|datePublished)[""'][^>]*\bcontent\s*=\s*[""']([^""']+)[""']", Options),
+        new(@"<meta\b[^>]*\bcontent\s*=\s*[""']([^""']+)[""'][^>]*(?:property|name|itemprop)\s*=\s*[""'](?:article:published_time|pubdate|datePublished)[""']", Options),
+        new(@"""datePublished""\s*:\s*""([^""]+)""", Options),
+        new(@"<time\b[^>]*\bdatetime\s*=\s*[""']([^""']+)[""']", Options),
+    ];
+
     private static readonly Regex TitleTag = new(@"<title\b[^>]*>([\s\S]*?)</title\s*>", Options);
 
     /// <summary>Text của toàn trang, dùng để đọc bảng giá.</summary>
@@ -102,8 +110,32 @@ public static class HtmlTextExtractor
     private static string ToText(string html)
     {
         var withBreaks = BlockEnd.Replace(html, "\n");
-        var decoded = WebUtility.HtmlDecode(Tag.Replace(withBreaks, " "));
+        var decoded = RemoveControlChars(WebUtility.HtmlDecode(Tag.Replace(withBreaks, " ")));
         return BlankLines.Replace(Spaces.Replace(decoded, " "), "\n").Trim();
+    }
+
+    /// <summary>Thực thể <c>&amp;#0;</c> giải mã thành ký tự mà Postgres từ chối, và một tiêu đề như vậy không được làm hỏng cả lượt đọc.</summary>
+    private static string RemoveControlChars(string text)
+        => string.Create(text.Length, text, (span, source) =>
+        {
+            for (var i = 0; i < source.Length; i++)
+            {
+                span[i] = char.IsControl(source[i]) && source[i] != '\n' ? ' ' : source[i];
+            }
+        });
+
+    /// <summary>Ngày đăng trong thẻ meta, JSON-LD hoặc <c>time</c>. Null nếu không có, và bài như vậy không được tính là tin mới.</summary>
+    public static DateTimeOffset? PublishedAt(string html)
+    {
+        foreach (var pattern in DatePatterns)
+        {
+            if (DateTimeOffset.TryParse(FirstGroup(pattern, html), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var date))
+            {
+                return date.ToUniversalTime();
+            }
+        }
+
+        return null;
     }
 
     private static string? FirstGroup(Regex pattern, string input)

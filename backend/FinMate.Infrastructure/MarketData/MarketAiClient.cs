@@ -36,7 +36,7 @@ public sealed class MarketAiClient : IMarketAiClient
 
             return Parse(await response.Content.ReadAsStringAsync(ct));
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
         {
             _logger.LogWarning("Market extraction via AI Service unavailable: {Reason}", ex.GetType().Name);
             return Failed;

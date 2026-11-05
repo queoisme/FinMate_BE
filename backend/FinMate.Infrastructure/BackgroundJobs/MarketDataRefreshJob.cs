@@ -22,12 +22,26 @@ public class MarketDataRefreshJob
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task RunAsync(CancellationToken ct)
     {
-        var summary = await _service.RefreshAsync(ct);
-        var purged = await _service.PurgeOldDocumentsAsync(ct);
+        Exception? failure = null;
+        try
+        {
+            var summary = await _service.RefreshAsync(ct);
+            var purged = await _service.PurgeOldDocumentsAsync(ct);
+            _logger.LogInformation(
+                "Market data refreshed: {Checked} sources, {Failed} failed, {NewDocuments} new documents, {Confirmed} fuels changed, {Purged} documents purged",
+                summary.SourcesChecked, summary.SourcesFailed, summary.NewDocuments, summary.ConfirmedFuels.Count, purged);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            failure = ex;
+        }
+
+        // Giá đã xác nhận hoặc sự kiện đã duyệt vẫn phải được xét, dù phần đọc gặp lỗi.
         await _alerts.ProcessDueAsync(ct);
-        _logger.LogInformation(
-            "Market data refreshed: {Checked} sources, {Failed} failed, {NewDocuments} new documents, {Confirmed} fuels changed, {Purged} documents purged",
-            summary.SourcesChecked, summary.SourcesFailed, summary.NewDocuments, summary.ConfirmedFuels.Count, purged);
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 }
 

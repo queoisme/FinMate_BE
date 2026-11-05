@@ -88,6 +88,9 @@ public sealed class SafeWebFetcher : IWebPageFetcher
     public const int MaxBytes = 2 * 1024 * 1024;
     private const int MaxRedirects = 3;
 
+    /// <summary>Tính cả lúc đọc nội dung. <see cref="HttpClient.Timeout"/> dừng ở phần header, nên một trang gửi từng byte có thể làm treo cả job.</summary>
+    private static readonly TimeSpan TotalTimeout = TimeSpan.FromSeconds(15);
+
     private static readonly string[] AllowedTypes = ["text/html", "application/xhtml+xml", "application/json", "application/xml", "text/xml", "application/rss+xml", "application/atom+xml", "text/plain"];
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> HostLocks = new(StringComparer.OrdinalIgnoreCase);
@@ -113,6 +116,9 @@ public sealed class SafeWebFetcher : IWebPageFetcher
     public static SocketsHttpHandler CreateHandler() => new()
     {
         AllowAutoRedirect = false,
+
+        // Có proxy thì ConnectCallback chỉ thấy địa chỉ proxy, không kiểm tra được trang đích.
+        UseProxy = false,
         AutomaticDecompression = DecompressionMethods.All,
         ConnectCallback = WebAddressGuard.ConnectAsync,
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
@@ -123,6 +129,10 @@ public sealed class SafeWebFetcher : IWebPageFetcher
     {
         var client = _clients.CreateClient(HttpClientName);
         var current = uri;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TotalTimeout);
+        var outer = ct;
+        ct = timeout.Token;
         try
         {
             for (var hop = 0; hop <= MaxRedirects; hop++)
@@ -188,7 +198,7 @@ public sealed class SafeWebFetcher : IWebPageFetcher
         {
             return new WebFetchResult(WebFetchOutcome.AddressNotAllowed);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UriFormatException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UriFormatException or OperationCanceledException && !outer.IsCancellationRequested)
         {
             // Chỉ log tên kiểu lỗi: thông điệp có thể chứa URL và địa chỉ nội bộ đã phân giải.
             _logger.LogInformation("Web fetch failed: {ErrorType}", ex.GetType().Name);

@@ -220,6 +220,32 @@ public class SafeWebFetcherTests
         (await Fetcher(handler).FetchAsync(new Uri("https://example.vn/"))).Outcome.Should().Be(WebFetchOutcome.UnsupportedContent);
     }
 
+    private sealed class StallingStream : MemoryStream
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+    }
+
+    [Fact]
+    public async Task ABodyThatNeverFinishesCannotHangTheFetch()
+    {
+        var handler = new FakeHandler(_ =>
+        {
+            var content = new StreamContent(new StallingStream());
+            content.Headers.TryAddWithoutValidation("Content-Type", "text/html");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        });
+
+        var fetch = Fetcher(handler).FetchAsync(new Uri("https://example.vn/"));
+        var finished = await Task.WhenAny(fetch, Task.Delay(TimeSpan.FromSeconds(30)));
+
+        finished.Should().Be(fetch);
+        (await fetch).Outcome.Should().Be(WebFetchOutcome.Failed);
+    }
+
     [Fact]
     public void TheRealHandlerDecompressesAndDoesNotFollowRedirects()
     {
@@ -229,5 +255,6 @@ public class SafeWebFetcherTests
         handler.AutomaticDecompression.Should().Be(DecompressionMethods.All);
         handler.ConnectCallback.Should().NotBeNull();
         handler.UseCookies.Should().BeFalse();
+        handler.UseProxy.Should().BeFalse();
     }
 }

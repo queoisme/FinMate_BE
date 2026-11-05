@@ -41,6 +41,9 @@ public static class FuelReadingValidator
         => price >= settings.MinPriceCents && price <= settings.MaxPriceCents;
 }
 
+/// <summary>Bảng giá đọc từ một nguồn. Hai trang cùng một đơn vị chỉ tính là một nguồn khi so khớp.</summary>
+public sealed record SourceFuelTable(string Domain, IReadOnlyList<FuelReading> Readings);
+
 /// <summary>Kết quả xác nhận giá của một lượt đọc.</summary>
 /// <param name="Confirmed">Loại có đủ nguồn khớp và giá khác giá đang lưu.</param>
 /// <param name="HeldBack">Loại có đủ nguồn khớp nhưng đổi quá mạnh, không được nhận.</param>
@@ -50,19 +53,21 @@ public sealed record FuelConfirmation(IReadOnlyList<FuelReading> Confirmed, IRea
 /// <summary>Chỉ nhận giá có đủ số nguồn cho đúng cùng một cặp số. Nguồn lệch giờ cập nhật thì chờ lượt sau, không chọn bên nào.</summary>
 public static class FuelPriceConfirmer
 {
+    /// <param name="heldStale">Giá mà nguồn đang báo trước khi admin sửa tay. Nguồn còn báo đúng giá cũ đó thì giữ giá admin, không ghi đè.</param>
     public static FuelConfirmation Confirm(
-        IReadOnlyList<IReadOnlyList<FuelReading>> sourceTables,
+        IReadOnlyList<SourceFuelTable> sourceTables,
         IReadOnlyDictionary<string, FuelReading> latest,
-        MarketDataSettings settings)
+        MarketDataSettings settings,
+        IReadOnlyDictionary<string, FuelReading>? heldStale = null)
     {
         var confirmed = new List<FuelReading>();
         var heldBack = new List<string>();
         var agreedFuels = 0;
 
         var agreed = sourceTables
-            .SelectMany(table => table)
-            .GroupBy(reading => reading)
-            .Where(group => group.Count() >= settings.MinAgreeingSources)
+            .SelectMany(table => table.Readings.Select(reading => (table.Domain, reading)))
+            .GroupBy(entry => entry.reading)
+            .Where(group => group.Select(entry => entry.Domain).Distinct().Count() >= settings.MinAgreeingSources)
             .Select(group => group.Key)
             .GroupBy(reading => reading.FuelKey);
 
@@ -76,6 +81,11 @@ public static class FuelPriceConfirmer
 
             agreedFuels++;
             var reading = fuel.Single();
+            if (heldStale is not null && heldStale.TryGetValue(reading.FuelKey, out var stale) && stale == reading)
+            {
+                continue;
+            }
+
             if (!latest.TryGetValue(reading.FuelKey, out var current))
             {
                 confirmed.Add(reading);

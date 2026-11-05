@@ -75,6 +75,25 @@ public class WebContentTests
         outsideArticle.Should().Contain("Giá điện tăng từ tháng sau");
     }
 
+    [Theory]
+    [InlineData("""<meta property="article:published_time" content="2026-11-05T08:00:00+07:00">""")]
+    [InlineData("""<meta content="2026-11-05T08:00:00+07:00" name="pubdate">""")]
+    [InlineData("""<script type="application/ld+json">{"datePublished":"2026-11-05T08:00:00+07:00"}</script>""")]
+    [InlineData("""<time datetime="2026-11-05T08:00:00+07:00">hôm nay</time>""")]
+    public void ReadsThePublishedDate(string html)
+        => HtmlTextExtractor.PublishedAt(html).Should().Be(new DateTimeOffset(2026, 11, 5, 1, 0, 0, TimeSpan.Zero));
+
+    [Fact]
+    public void NoDateOrABadDateIsNull()
+    {
+        HtmlTextExtractor.PublishedAt("<p>không có ngày</p>").Should().BeNull();
+        HtmlTextExtractor.PublishedAt("""<time datetime="hôm qua">x</time>""").Should().BeNull();
+    }
+
+    [Fact]
+    public void ControlCharactersThatPostgresRefusesAreRemoved()
+        => HtmlTextExtractor.PageText("<p>Giá&#0; xăng</p>").Should().NotContain("\0");
+
     [Fact]
     public void AnEmptyAppShellHasNoContent()
         => HtmlTextExtractor.ArticleText("<html><body><div id=\"root\"></div><script src=\"/app.js\"></script></body></html>").Length

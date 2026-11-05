@@ -42,7 +42,7 @@ Không có toàn văn, chỉ có tiêu đề, link, độ dài, trạng thái. G
 |---|---|
 | `pending_ai` | Đã đọc được, chờ AI. Không có key hoặc AI lỗi thì ở lại chờ lượt sau |
 | `processed` | AI đã đọc, có thể không rút ra được gì |
-| `ai_not_allowed` | Nguồn không cho phép dùng nội dung với AI |
+| `ai_not_allowed` | Nguồn hoặc trang chứa bài không cho phép dùng nội dung với AI |
 | `no_content` | Không có đủ nội dung trong HTML |
 | `blocked` | Trang hoặc `robots.txt` từ chối |
 | `failed` | Lỗi không thử lại được, ví dụ bài đã bị gỡ |
@@ -56,7 +56,7 @@ Không có toàn văn, chỉ có tiêu đề, link, độ dài, trạng thái. G
 
 `fuelKey`: `e10_ron95_5`, `e10_ron95_3`, `e5_ron92_2`, `do_0001s_5`, `do_005s_2`, `kerosene_2k`. Giá tính bằng đồng.
 
-Một giá chỉ được xác nhận khi đủ `minAgreeingSources` nguồn cho đúng cùng cặp số trong một lượt đọc. Nguồn lệch giờ cập nhật thì chờ lượt sau. Đổi hơn `maxChangePercent` thì không nhận.
+Một giá chỉ được xác nhận khi đủ `minAgreeingSources` nguồn thuộc các tên miền khác nhau cho đúng cùng cặp số trong một lượt đọc. Nguồn lệch giờ cập nhật thì chờ lượt sau. Đổi hơn `maxChangePercent` thì không nhận. Sau khi admin sửa tay, nguồn còn báo đúng giá cũ thì không ghi đè, nguồn đổi sang giá khác mới được tính.
 
 ## Tin bài và AI
 
@@ -66,11 +66,11 @@ Yêu cầu: `{ "title", "text", "published_at" }`. Trả lời: `{ "status": "ok
 
 `topic`: `fuel`, `electricity`, `water`, `food_price`, `other`. `direction`: `up`, `down`, `stable`. `fact_status`: `actual` hoặc `forecast`.
 
-Backend chỉ lưu một mục khi `evidence` có nguyên văn trong bài và `change_percent`, nếu có, nằm trong `evidence`. Việc này cho thấy thông tin đến từ bài, không chứng minh bài đúng. Tính cả lần lỗi, mỗi ngày gửi tối đa `maxAiDocumentsPerDay` bài.
+Backend chỉ lưu một mục khi `evidence` có nguyên văn trong bài và `change_percent`, nếu có, nằm trong `evidence`. Việc này cho thấy thông tin đến từ bài, không chứng minh bài đúng. Mỗi ngày gửi tối đa `maxAiDocumentsPerDay` bài, tính cả bài lỗi, mỗi bài tính một lần trong ngày. AI lỗi 3 lần với cùng một bài thì bài chuyển `failed` với mã `AI_FAILED`, để không chặn các bài khác. Vì không phân biệt được lỗi do bài hay do nhà cung cấp, khi Gemini hỏng lâu, cứ 3 lượt đọc sẽ có một bài bị bỏ.
 
 ## Sự kiện
 
-Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về `electricity`, `water`, `food_price`, đăng trong 7 ngày, từ ít nhất `minEventDomains` tên miền. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
+Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về `electricity`, `water`, `food_price`, có ngày đăng rõ ràng trong 7 ngày, từ nguồn thuộc ít nhất `minEventDomains` tên miền. Tên miền con tính chung, và đếm theo nguồn admin đã thêm, không theo link trong bài. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
 
 | API | Việc |
 |---|---|
@@ -86,7 +86,7 @@ Bật bằng `features.marketAlerts`, mặc định tắt. Việc đọc dữ li
 
 Người dùng nhận cảnh báo khi có đủ:
 
-1. **Xăng:** giá `referenceFuelKey` vùng 1 tăng từ `riseThresholdPercent` so với mốc `compareWindowDays` ngày trước, hoặc so với giá cũ nhất nếu chưa có đủ lịch sử. **Điện, nước, thực phẩm:** có sự kiện tăng giá đã duyệt. Tin về xăng không kích hoạt cảnh báo xăng.
+1. **Xăng:** giá `referenceFuelKey` vùng 1 cao hơn giá ngay trước đó, và tăng từ `riseThresholdPercent` so với mốc `compareWindowDays` ngày trước, hoặc so với giá cũ nhất nếu chưa có đủ lịch sử. **Điện, nước, thực phẩm:** có sự kiện tăng giá đã duyệt. Tin về xăng không kích hoạt cảnh báo xăng.
 2. Có từ `minCategoryTransactions` giao dịch đã xác nhận trong `spendLookbackDays` ngày ở danh mục tương ứng: xăng là `transport` và tên cửa hàng hoặc mô tả có từ khóa xăng, điện và nước là `bills`, thực phẩm là `food`.
 3. Có ngân sách danh mục đó, và dự báo `at_risk`, `over`, hoặc đã dùng từ ngưỡng T1 của người đó.
 4. Chưa nhận cảnh báo cùng chủ đề trong `alertCooldownDays` ngày.
@@ -104,5 +104,5 @@ Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxD
 `SafeWebFetcher` là nơi duy nhất backend mở kết nối tới URL không cố định:
 
 - Chỉ `https` cổng 443. Chặn địa chỉ nội bộ ở lúc mở kết nối, sau khi phân giải tên miền, nên chống được cả chuyển hướng và DNS rebinding.
-- Tối đa 3 lần chuyển hướng, 2 MB, 15 giây. Chỉ nhận HTML, JSON, XML, text.
+- Tối đa 3 lần chuyển hướng, 2 MB, 15 giây cho cả lần tải. Không dùng proxy. Chỉ nhận HTML, JSON, XML, text.
 - Khai báo `User-Agent: FinMateBot/1.0`, không giả trình duyệt.

@@ -90,8 +90,11 @@ public class FuelParsingTests
     public void PricesMustBePlausible(long region1, long region2, string? expected)
         => FuelReadingValidator.ValidatePrice(new FuelReading(FuelKeys.E10Ron95Level3, region1, region2), Settings).Should().Be(expected);
 
-    private static IReadOnlyList<FuelReading> Table(params long[] region1)
-        => region1.Select(price => new FuelReading(FuelKeys.E10Ron95Level3, price, price + 400)).ToList();
+    private static IReadOnlyList<FuelReading> Rows(long region1) => [new FuelReading(FuelKeys.E10Ron95Level3, region1, region1 + 400)];
+
+    private static int _site;
+
+    private static SourceFuelTable Table(long region1, string? domain = null) => new(domain ?? $"site{Interlocked.Increment(ref _site)}.vn", Rows(region1));
 
     private static readonly IReadOnlyDictionary<string, FuelReading> NoPrices = new Dictionary<string, FuelReading>();
 
@@ -102,6 +105,28 @@ public class FuelParsingTests
 
         result.Confirmed.Should().ContainSingle().Which.Region1PriceCents.Should().Be(21150);
     }
+
+    [Fact]
+    public void TwoPagesOfOnePublisherCountAsOneSource()
+        => FuelPriceConfirmer.Confirm([Table(21150, "a.vn"), Table(21150, "a.vn")], NoPrices, Settings).Confirmed.Should().BeEmpty();
+
+    [Fact]
+    public void ASourceStillShowingThePriceAnAdminCorrectedDoesNotOverwriteIt()
+    {
+        var latest = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Rows(23000)[0] };
+        var stale = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Rows(22000)[0] };
+
+        FuelPriceConfirmer.Confirm([Table(22000), Table(22000)], latest, Settings, stale).Confirmed.Should().BeEmpty();
+        FuelPriceConfirmer.Confirm([Table(23500), Table(23500)], latest, Settings, stale).Confirmed.Should().ContainSingle("nguồn đã đổi sang giá mới");
+    }
+
+    [Theory]
+    [InlineData("https://kinhdoanh.vnexpress.net/a", "vnexpress.net")]
+    [InlineData("https://www.tuoitre.vn/a", "tuoitre.vn")]
+    [InlineData("https://baochinhphu.gov.vn/a", "baochinhphu.gov.vn")]
+    [InlineData("https://tin.evn.com.vn/a", "evn.com.vn")]
+    public void DomainsGroupSubdomains(string url, string expected)
+        => MarketDomains.Of(url).Should().Be(expected);
 
     [Fact]
     public void OneSourceAlone_IsNotEnough()
@@ -122,7 +147,7 @@ public class FuelParsingTests
     [Fact]
     public void AnUnchangedPrice_AddsNothing()
     {
-        var latest = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Table(21150)[0] };
+        var latest = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Rows(21150)[0] };
 
         FuelPriceConfirmer.Confirm([Table(21150), Table(21150)], latest, Settings).Confirmed.Should().BeEmpty();
     }
@@ -130,7 +155,7 @@ public class FuelParsingTests
     [Fact]
     public void AnImplausibleJump_IsHeldBackEvenWhenSourcesAgree()
     {
-        var latest = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Table(21150)[0] };
+        var latest = new Dictionary<string, FuelReading> { [FuelKeys.E10Ron95Level3] = Rows(21150)[0] };
 
         var result = FuelPriceConfirmer.Confirm([Table(30000), Table(30000)], latest, Settings);
 

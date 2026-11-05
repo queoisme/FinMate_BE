@@ -26,14 +26,23 @@ public interface IMarketDataRepository
     Task<List<MarketDocument>> ListDocumentsForAiAsync(int limit, CancellationToken ct = default);
     Task<int> CountAiAttemptsSinceAsync(DateTimeOffset since, CancellationToken ct = default);
     void AddSignal(MarketSignal signal);
+
+    /// <summary>Bỏ các tín hiệu chưa lưu được, để lần lưu sau không gặp lại đúng lỗi đó.</summary>
+    void DiscardUnsavedSignals();
+
+    /// <summary>Giá ngay trước mốc đó.</summary>
+    Task<FuelPrice?> GetFuelPriceBeforeAsync(string fuelKey, DateTimeOffset at, Guid exceptId, CancellationToken ct = default);
+
+    /// <summary>Giá gần nhất do nguồn báo, không tính giá admin sửa tay.</summary>
+    Task<FuelPrice?> GetLatestSourceFuelPriceAsync(string fuelKey, CancellationToken ct = default);
     Task<List<FuelPrice>> ListFuelPricesAwaitingAlertsAsync(string fuelKey, CancellationToken ct = default);
     Task<List<MarketEvent>> ListEventsAwaitingAlertsAsync(CancellationToken ct = default);
 
     /// <summary>Giá đang áp dụng tại mốc đó. Chưa có giá nào từ trước mốc thì lấy dòng cũ nhất, null nếu chưa có dòng nào.</summary>
     Task<FuelPrice?> GetFuelPriceAsOfAsync(string fuelKey, DateTimeOffset at, CancellationToken ct = default);
 
-    /// <summary>Trang và thời điểm của các tín hiệu đã xảy ra, tính theo ngày đăng bài hoặc ngày đọc nếu bài không ghi ngày.</summary>
-    Task<List<(string Url, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
+    /// <summary>Nguồn và ngày đăng của các tín hiệu đã xảy ra. Bài không rõ ngày đăng không được tính, vì có thể là tin cũ.</summary>
+    Task<List<(string SourceUrl, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
     Task<MarketEvent?> GetLatestEventAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);
 
     /// <summary>False nếu tiến trình khác vừa tạo sự kiện đang mở cùng chủ đề và hướng.</summary>
