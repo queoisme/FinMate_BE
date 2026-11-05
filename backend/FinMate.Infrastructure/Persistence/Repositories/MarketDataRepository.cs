@@ -114,5 +114,104 @@ public class MarketDataRepository : IMarketDataRepository
 
     public void AddFuelPrice(FuelPrice price) => _context.FuelPrices.Add(price);
 
+    public Task<int> MarkPendingDocumentsNotAllowedAsync(CancellationToken ct = default)
+        => _context.MarketDocuments
+            .Where(d => d.Status == MarketDocumentStatus.PendingAi
+                && _context.MarketSources.Any(s => s.Id == d.SourceId && !s.AiAllowed))
+            .ExecuteUpdateAsync(set => set.SetProperty(d => d.Status, MarketDocumentStatus.AiNotAllowed), ct);
+
+    public Task<List<MarketDocument>> ListDocumentsForAiAsync(int limit, CancellationToken ct = default)
+        => _context.MarketDocuments
+            .Where(d => d.Status == MarketDocumentStatus.PendingAi
+                && _context.MarketSources.Any(s => s.Id == d.SourceId && s.AiAllowed))
+            .OrderByDescending(d => d.FetchedAt)
+            .ThenBy(d => d.Id)
+            .Take(limit)
+            .ToListAsync(ct);
+
+    public Task<int> CountAiAttemptsSinceAsync(DateTimeOffset since, CancellationToken ct = default)
+        => _context.MarketDocuments.CountAsync(d => d.AiAttemptedAt >= since, ct);
+
+    public void AddSignal(MarketSignal signal) => _context.MarketSignals.Add(signal);
+
+    public async Task<List<(string Url, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+    {
+        var rows = await SignalRows(topic, direction, since)
+            .Select(row => new { row.Document.Url, SeenAt = row.Document.PublishedAt ?? row.Document.FetchedAt })
+            .ToListAsync(ct);
+        return rows.Select(r => (r.Url, r.SeenAt)).ToList();
+    }
+
+    public Task<MarketEvent?> GetLatestEventAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+        => _context.MarketEvents
+            .Where(e => e.Topic == topic && e.Direction == direction && e.LastSeenAt >= since && e.Status != MarketEventStatus.Expired)
+            .OrderByDescending(e => e.LastSeenAt)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<bool> TryAddEventAsync(MarketEvent marketEvent, CancellationToken ct = default)
+    {
+        _context.MarketEvents.Add(marketEvent);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation })
+        {
+            _context.Entry(marketEvent).State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    public Task<int> ExpireEventsAsync(DateTimeOffset lastSeenBefore, CancellationToken ct = default)
+        => _context.MarketEvents
+            .Where(e => (e.Status == MarketEventStatus.Pending || e.Status == MarketEventStatus.Approved) && e.LastSeenAt < lastSeenBefore)
+            .ExecuteUpdateAsync(set => set.SetProperty(e => e.Status, MarketEventStatus.Expired), ct);
+
+    public async Task<(List<MarketEvent> Items, int Total)> ListEventsAsync(MarketEventStatus? status, int offset, int limit, CancellationToken ct = default)
+    {
+        var query = _context.MarketEvents.AsNoTracking();
+        if (status is { } wanted)
+        {
+            query = query.Where(e => e.Status == wanted);
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(e => e.LastSeenAt).ThenBy(e => e.Id).Skip(offset).Take(limit).ToListAsync(ct);
+        return (items, total);
+    }
+
+    public Task<List<MarketSignalSource>> ListEventSignalsAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
+        => SignalRows(topic, direction, since)
+            .OrderByDescending(row => row.Signal.CreatedAt)
+            .Select(row => new MarketSignalSource(row.Document.Title, row.Document.Url, row.Signal.Evidence, row.Signal.ChangePercent, row.Signal.EffectiveDate, row.Document.PublishedAt))
+            .ToListAsync(ct);
+
+    public async Task<bool> TryReviewEventAsync(Guid id, MarketEventStatus status, Guid adminId, string? note, DateTimeOffset now, CancellationToken ct = default)
+        => await _context.MarketEvents
+            .Where(e => e.Id == id && e.Status == MarketEventStatus.Pending)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(e => e.Status, status)
+                    .SetProperty(e => e.ReviewedByUserId, adminId)
+                    .SetProperty(e => e.ReviewedAt, now)
+                    .SetProperty(e => e.ReviewNote, note),
+                ct) == 1;
+
+    public Task<MarketEvent?> GetEventAsync(Guid id, CancellationToken ct = default)
+        => _context.MarketEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
+
+    private sealed class SignalRow
+    {
+        public MarketSignal Signal { get; init; } = null!;
+        public MarketDocument Document { get; init; } = null!;
+    }
+
+    private IQueryable<SignalRow> SignalRows(MarketTopic topic, MarketDirection direction, DateTimeOffset since)
+        => _context.MarketSignals.AsNoTracking()
+            .Where(s => s.Topic == topic && s.Direction == direction && s.FactStatus == MarketFactStatus.Actual)
+            .Join(_context.MarketDocuments.AsNoTracking(), s => s.DocumentId, d => d.Id, (s, d) => new SignalRow { Signal = s, Document = d })
+            .Where(row => (row.Document.PublishedAt ?? row.Document.FetchedAt) >= since);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
 }

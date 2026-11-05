@@ -92,6 +92,15 @@ public sealed record MarketDataSettings
 
     /// <summary>Đổi hơn mức này so với giá đang lưu thì không nhận: nhiều khả năng đọc sai hơn là giá thật.</summary>
     public int MaxChangePercent { get; init; } = 20;
+
+    /// <summary>Số tên miền khác nhau cùng đưa tin thì mới thành sự kiện. Báo hay đăng lại của nhau nên đây chỉ là một lớp lọc, không chứng minh là đúng.</summary>
+    public int MinEventDomains { get; init; } = 2;
+
+    /// <summary>Tắt thì sự kiện từ tin bài phải chờ admin duyệt. AI đọc sai mà tự gửi thì nhiều người nhận tin sai cùng lúc.</summary>
+    public bool AutoPublishNewsEvents { get; init; }
+
+    /// <summary>Trần số bài gửi AI mỗi ngày, tính cả lần lỗi, để giới hạn chi phí.</summary>
+    public int MaxAiDocumentsPerDay { get; init; } = 100;
 }
 
 public sealed record LimitSettings

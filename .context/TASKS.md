@@ -798,6 +798,7 @@
 | Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
 | Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
+| Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1407,3 +1408,9 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Test: `FuelParsingTests`, `WebContentTests`, `SafeWebFetcherTests`, `MarketDataTests`.
 
 **Verify Phase 71 (2026-11-06), đọc trang thật bằng `FinMateBot/1.0`:** thêm 11 link. 9 nguồn được nhận (2 `price_table`, 5 `feed`, 2 `page`), `localhost` và `169.254.169.254` bị từ chối. Ở lần chạy thử trước đó trên backend thật, `pvoil.com.vn` bị từ chối vì trả 403 và nhóm Facebook bị từ chối vì `robots.txt`. Lượt đọc đầu xác nhận đủ 6 loại giá, khớp ảnh thông cáo Petrolimex 05/11/2026; lượt sau không thêm dòng giá. 51/51 bài lấy được text (ngắn nhất 216, trung vị 2.700, dài nhất 8.697 ký tự): dantri 13, vietnamnet 20 (chạm trần mỗi lượt), vnexpress 7, thanhnien 5, tuoitre 4, vneconomy 2, cafef 0 vì trang chủ lúc đó không có link khớp từ khóa. Độ dài chưa chứng minh text là đúng nội dung bài, đợt 2 phải kiểm tra thêm khi đưa cho AI. `vnexpress.net` thực ra không chặn GPTBot hay ClaudeBot, nên `aiAllowed` là true; đoạn trong plan ghi "chặn bot AI" là đọc nhầm.
+
+## Phase 72 — Thông tin thị trường, đợt 2: AI đọc tin bài và admin duyệt (2026-11-06)
+- [x] `ai-service`: `POST /api/v1/market-data/extract`, client Gemini riêng, chỉ nhận JSON đúng mẫu.
+- [x] Migration `AddMarketSignals`; `MarketSignalValidator` đối chiếu đoạn trích với nguyên văn bài; gom sự kiện theo tên miền; API duyệt; trần `maxAiDocumentsPerDay`.
+- [x] Test: `MarketDataTests`, `MarketAiClientTests`, `tests/unit/test_market_extractor.py`.
+- [ ] Thử với key Gemini thật: máy này không có key, nên mới kiểm bằng phản hồi giả. Chưa biết AI đọc tin thật đúng đến đâu.

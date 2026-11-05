@@ -111,6 +111,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxDocumentsPerRun).InclusiveBetween(1, 200).WithMessage("Số bài mỗi lượt phải từ 1 đến 200.");
             RuleFor(x => x.MinPriceCents).GreaterThan(0).LessThan(x => x.MaxPriceCents).WithMessage("Giá tối thiểu phải lớn hơn 0 và nhỏ hơn giá tối đa.");
             RuleFor(x => x.MaxChangePercent).InclusiveBetween(1, 100).WithMessage("Mức đổi giá tối đa phải từ 1 đến 100%.");
+            RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
+            RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");
         }
     }
 

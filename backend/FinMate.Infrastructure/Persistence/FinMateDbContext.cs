@@ -65,6 +65,8 @@ public class FinMateDbContext : DbContext
     public DbSet<MarketSource> MarketSources => Set<MarketSource>();
     public DbSet<MarketDocument> MarketDocuments => Set<MarketDocument>();
     public DbSet<FuelPrice> FuelPrices => Set<FuelPrice>();
+    public DbSet<MarketSignal> MarketSignals => Set<MarketSignal>();
+    public DbSet<MarketEvent> MarketEvents => Set<MarketEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

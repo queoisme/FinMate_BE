@@ -40,7 +40,9 @@ Không có toàn văn, chỉ có tiêu đề, link, độ dài, trạng thái. G
 
 | `status` | Ý nghĩa |
 |---|---|
-| `pending_ai` | Đã đọc được, chờ AI |
+| `pending_ai` | Đã đọc được, chờ AI. Không có key hoặc AI lỗi thì ở lại chờ lượt sau |
+| `processed` | AI đã đọc, có thể không rút ra được gì |
+| `ai_not_allowed` | Nguồn không cho phép dùng nội dung với AI |
 | `no_content` | Không có đủ nội dung trong HTML |
 | `blocked` | Trang hoặc `robots.txt` từ chối |
 | `failed` | Lỗi không thử lại được, ví dụ bài đã bị gỡ |
@@ -56,9 +58,31 @@ Không có toàn văn, chỉ có tiêu đề, link, độ dài, trạng thái. G
 
 Một giá chỉ được xác nhận khi đủ `minAgreeingSources` nguồn cho đúng cùng cặp số trong một lượt đọc. Nguồn lệch giờ cập nhật thì chờ lượt sau. Đổi hơn `maxChangePercent` thì không nhận.
 
+## Tin bài và AI
+
+Mỗi bài được gửi cho `POST /api/v1/market-data/extract` của `ai-service`, cần khóa nội bộ. Chỉ gửi nội dung trang công khai, tối đa 20.000 ký tự.
+
+Yêu cầu: `{ "title", "text", "published_at" }`. Trả lời: `{ "status": "ok" | "not_configured" | "failed", "signals": [{ "topic", "direction", "fact_status", "change_percent", "effective_date", "evidence" }] }`.
+
+`topic`: `fuel`, `electricity`, `water`, `food_price`, `other`. `direction`: `up`, `down`, `stable`. `fact_status`: `actual` hoặc `forecast`.
+
+Backend chỉ lưu một mục khi `evidence` có nguyên văn trong bài và `change_percent`, nếu có, nằm trong `evidence`. Việc này cho thấy thông tin đến từ bài, không chứng minh bài đúng. Tính cả lần lỗi, mỗi ngày gửi tối đa `maxAiDocumentsPerDay` bài.
+
+## Sự kiện
+
+Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về `electricity`, `water`, `food_price`, đăng trong 7 ngày, từ ít nhất `minEventDomains` tên miền. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
+
+| API | Việc |
+|---|---|
+| `GET /api/v1/admin/market-events?status=&offset=&limit=` | Danh sách, kèm tiêu đề, link, đoạn trích từng bài. `status`: `pending`, `approved`, `rejected`, `expired` |
+| `POST /api/v1/admin/market-events/{id}/approve` | Duyệt: `{ "note": "tùy chọn" }` |
+| `POST /api/v1/admin/market-events/{id}/reject` | Từ chối. Tin đăng lại trong 7 ngày không tạo sự kiện mới |
+
+Sự kiện đã xử lý trả 409 `MARKET_EVENT_NOT_PENDING`. Sự kiện đang mở không có tin mới sau 7 ngày thì chuyển `expired`.
+
 ## Cấu hình
 
-Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20).
+Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100).
 
 ## An toàn
 

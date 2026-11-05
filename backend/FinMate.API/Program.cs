@@ -365,6 +365,16 @@ public class Program
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
+        builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();
+        builder.Services.AddScoped<IMarketEventService, MarketEventService>();
+
+        // Trần Gemini phía ai-service là 30 giây cho cả chuỗi model.
+        builder.Services.AddHttpClient<IMarketAiClient, MarketAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddHttpClient(SafeWebFetcher.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(SafeWebFetcher.CreateHandler);
         builder.Services.AddSingleton<IWebPageFetcher, SafeWebFetcher>();

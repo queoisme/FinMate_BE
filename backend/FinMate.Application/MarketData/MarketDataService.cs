@@ -41,7 +41,7 @@ public record ArticlePreviewDto(string Url, string Title, int TextLength, string
 
 public record MarketSourceTestDto(string Kind, bool AiAllowed, IReadOnlyList<FuelReadingDto> FuelPrices, string? FuelErrorCode, IReadOnlyList<ArticlePreviewDto> Articles, IReadOnlyList<string> Warnings);
 
-public record MarketRefreshSummary(int SourcesChecked, int SourcesFailed, int NewDocuments, IReadOnlyList<string> ConfirmedFuels, IReadOnlyList<string> HeldBackFuels);
+public record MarketRefreshSummary(int SourcesChecked, int SourcesFailed, int NewDocuments, IReadOnlyList<string> ConfirmedFuels, IReadOnlyList<string> HeldBackFuels, int AiProcessed = 0, string? AiStatus = null);
 
 public sealed record UpdateMarketSourceInput(string? Name, MarketSourceKind? Kind, bool? IsActive);
 
@@ -88,6 +88,8 @@ public static class MarketText
     public static string Status(MarketDocumentStatus status) => status switch
     {
         MarketDocumentStatus.PendingAi => "pending_ai",
+        MarketDocumentStatus.Processed => "processed",
+        MarketDocumentStatus.AiNotAllowed => "ai_not_allowed",
         MarketDocumentStatus.NoContent => "no_content",
         MarketDocumentStatus.Blocked => "blocked",
         MarketDocumentStatus.Failed => "failed",
@@ -97,12 +99,20 @@ public static class MarketText
     public static MarketDocumentStatus? ParseStatus(string? text) => text switch
     {
         "pending_ai" => MarketDocumentStatus.PendingAi,
+        "processed" => MarketDocumentStatus.Processed,
+        "ai_not_allowed" => MarketDocumentStatus.AiNotAllowed,
         "no_content" => MarketDocumentStatus.NoContent,
         "blocked" => MarketDocumentStatus.Blocked,
         "failed" => MarketDocumentStatus.Failed,
         _ => null,
     };
 }
+
+public record MarketEventSignalDto(string Title, string Url, string Evidence, decimal? ChangePercent, DateOnly? EffectiveDate, DateTimeOffset? PublishedAt);
+
+public record MarketEventDto(Guid Id, string Topic, string Direction, DateTimeOffset FirstSeenAt, DateTimeOffset LastSeenAt, int SourceCount, string Status, DateTimeOffset? ReviewedAt, string? ReviewNote, IReadOnlyList<MarketEventSignalDto> Signals);
+
+public record MarketEventPageDto(IReadOnlyList<MarketEventDto> Items, int Total, int Offset, int Limit);
 
 public interface IMarketDataService
 {
@@ -138,11 +148,14 @@ public sealed class MarketDataService : IMarketDataService
     private readonly IWebPageFetcher _fetcher;
     private readonly ISystemConfigProvider _config;
     private readonly IAuditLogService _audit;
+    private readonly IMarketSignalProcessor _signals;
     private readonly ILogger<MarketDataService> _logger;
+    private readonly Dictionary<string, string> _freshTexts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, RobotsLookup> _robots = new(StringComparer.OrdinalIgnoreCase);
 
-    public MarketDataService(IMarketDataRepository repository, IWebPageFetcher fetcher, ISystemConfigProvider config, IAuditLogService audit, ILogger<MarketDataService> logger)
+    public MarketDataService(IMarketDataRepository repository, IWebPageFetcher fetcher, ISystemConfigProvider config, IAuditLogService audit, IMarketSignalProcessor signals, ILogger<MarketDataService> logger)
     {
+        _signals = signals;
         _repository = repository;
         _fetcher = fetcher;
         _config = config;
@@ -394,11 +407,70 @@ public sealed class MarketDataService : IMarketDataService
         }
 
         var confirmation = await ConfirmPricesAsync(tables, settings, ct);
-        return new MarketRefreshSummary(sources.Count, failed, newDocuments, confirmation.Confirmed.Select(c => c.FuelKey).ToList(), confirmation.HeldBack);
+        var (aiProcessed, aiStatus) = await ReadPendingWithAiAsync(settings, ct);
+        await _signals.ExpireOldEventsAsync(ct);
+        return new MarketRefreshSummary(sources.Count, failed, newDocuments, confirmation.Confirmed.Select(c => c.FuelKey).ToList(), confirmation.HeldBack, aiProcessed, aiStatus);
     }
 
     public Task<int> PurgeOldDocumentsAsync(CancellationToken ct = default)
         => _repository.DeleteDocumentsBeforeAsync(DateTimeOffset.UtcNow.AddDays(-DocumentRetentionDays), ct);
+
+    /// <summary>Đọc bài đang chờ, gồm cả bài của lượt trước khi AI chưa sẵn sàng. Không có key hoặc AI lỗi thì dừng, bài ở lại chờ lượt sau.</summary>
+    private async Task<(int Processed, string? Status)> ReadPendingWithAiAsync(MarketDataSettings settings, CancellationToken ct)
+    {
+        await _repository.MarkPendingDocumentsNotAllowedAsync(ct);
+        var used = await _repository.CountAiAttemptsSinceAsync(VietnamTime.DayRange(VietnamTime.Today()).Start, ct);
+        var remaining = settings.MaxAiDocumentsPerDay - used;
+        if (remaining <= 0)
+        {
+            return (0, "daily_limit");
+        }
+
+        var processed = 0;
+        foreach (var document in await _repository.ListDocumentsForAiAsync(remaining, ct))
+        {
+            var text = await TextForAsync(document, ct);
+            if (text is null)
+            {
+                continue;
+            }
+
+            var outcome = await _signals.ProcessAsync(document, text, settings, ct);
+            if (outcome != MarketAiStatus.Ok)
+            {
+                return (processed, outcome == MarketAiStatus.NotConfigured ? "not_configured" : "failed");
+            }
+
+            processed++;
+        }
+
+        return (processed, null);
+    }
+
+    /// <summary>Bài vừa đọc thì dùng lại text trong bộ nhớ. Bài của lượt trước phải tải lại vì toàn văn không được lưu. Null nếu lần này chưa có text.</summary>
+    private async Task<string?> TextForAsync(MarketDocument document, CancellationToken ct)
+    {
+        if (_freshTexts.TryGetValue(document.Url, out var fresh))
+        {
+            return fresh;
+        }
+
+        var read = await ReadArticleAsync(new ArticleCandidate(document.Url, document.Title, document.PublishedAt), ct);
+        if (read.IsTemporary)
+        {
+            return null;
+        }
+
+        if (read.Status != MarketDocumentStatus.PendingAi)
+        {
+            document.Status = read.Status;
+            document.ErrorCode = read.ErrorCode;
+            await _repository.SaveChangesAsync(ct);
+            return null;
+        }
+
+        return _freshTexts[document.Url];
+    }
 
     private async Task<FuelConfirmation> ConfirmPricesAsync(IReadOnlyList<IReadOnlyList<FuelReading>> tables, MarketDataSettings settings, CancellationToken ct)
     {
@@ -551,9 +623,13 @@ public sealed class MarketDataService : IMarketDataService
         {
             case WebFetchOutcome.Ok:
                 var text = HtmlTextExtractor.ArticleText(fetched.Content ?? string.Empty);
-                return text.Length < HtmlTextExtractor.MinArticleLength
-                    ? new ArticleRead(MarketDocumentStatus.NoContent, text.Length, null, MarketErrorCodes.NoContent, false)
-                    : new ArticleRead(MarketDocumentStatus.PendingAi, text.Length, Hash(text), null, false);
+                if (text.Length < HtmlTextExtractor.MinArticleLength)
+                {
+                    return new ArticleRead(MarketDocumentStatus.NoContent, text.Length, null, MarketErrorCodes.NoContent, false);
+                }
+
+                _freshTexts[candidate.Url] = text;
+                return new ArticleRead(MarketDocumentStatus.PendingAi, text.Length, Hash(text), null, false);
             case WebFetchOutcome.Refused or WebFetchOutcome.AddressNotAllowed:
                 return new ArticleRead(MarketDocumentStatus.Blocked, 0, null, ErrorCodeFor(fetched.Outcome), false);
             case WebFetchOutcome.Failed or WebFetchOutcome.TooManyRedirects:

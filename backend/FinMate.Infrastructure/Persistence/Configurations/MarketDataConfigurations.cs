@@ -51,6 +51,7 @@ public class MarketDocumentConfiguration : IEntityTypeConfiguration<MarketDocume
         builder.Property(d => d.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<MarketDocumentStatus>()).HasMaxLength(20).IsRequired();
         builder.Property(d => d.ErrorCode).HasColumnName("error_code").HasMaxLength(50);
         builder.Property(d => d.FetchedAt).HasColumnName("fetched_at").IsRequired();
+        builder.Property(d => d.AiAttemptedAt).HasColumnName("ai_attempted_at");
 
         builder.HasIndex(d => d.Url).IsUnique().HasDatabaseName("uq_market_documents_url");
         builder.HasIndex(d => new { d.Status, d.FetchedAt }).HasDatabaseName("ix_market_documents_status");
@@ -81,5 +82,65 @@ public class FuelPriceConfiguration : IEntityTypeConfiguration<FuelPrice>
 
         builder.HasIndex(p => new { p.FuelKey, p.FirstSeenAt }).HasDatabaseName("ix_fuel_prices_key_time");
         builder.HasOne<User>().WithMany().HasForeignKey(p => p.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class MarketSignalConfiguration : IEntityTypeConfiguration<MarketSignal>
+{
+    public void Configure(EntityTypeBuilder<MarketSignal> builder)
+    {
+        builder.ToTable("market_signals", t =>
+        {
+            t.HasCheckConstraint("chk_market_signals_topic", GroupColumns.CheckIn<MarketTopic>("topic"));
+            t.HasCheckConstraint("chk_market_signals_direction", GroupColumns.CheckIn<MarketDirection>("direction"));
+            t.HasCheckConstraint("chk_market_signals_fact_status", GroupColumns.CheckIn<MarketFactStatus>("fact_status"));
+        });
+
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(s => s.DocumentId).HasColumnName("document_id").IsRequired();
+        builder.Property(s => s.Topic).HasColumnName("topic").HasConversion(GroupColumns.Converter<MarketTopic>()).HasMaxLength(20).IsRequired();
+        builder.Property(s => s.Direction).HasColumnName("direction").HasConversion(GroupColumns.Converter<MarketDirection>()).HasMaxLength(20).IsRequired();
+        builder.Property(s => s.FactStatus).HasColumnName("fact_status").HasConversion(GroupColumns.Converter<MarketFactStatus>()).HasMaxLength(20).IsRequired();
+        builder.Property(s => s.ChangePercent).HasColumnName("change_percent").HasPrecision(7, 2);
+        builder.Property(s => s.EffectiveDate).HasColumnName("effective_date");
+        builder.Property(s => s.Evidence).HasColumnName("evidence").HasMaxLength(300).IsRequired();
+        builder.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
+
+        builder.HasIndex(s => new { s.Topic, s.Direction, s.FactStatus, s.CreatedAt }).HasDatabaseName("ix_market_signals_topic");
+        builder.HasIndex(s => s.DocumentId).HasDatabaseName("ix_market_signals_document");
+        builder.HasOne<MarketDocument>().WithMany().HasForeignKey(s => s.DocumentId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class MarketEventConfiguration : IEntityTypeConfiguration<MarketEvent>
+{
+    public void Configure(EntityTypeBuilder<MarketEvent> builder)
+    {
+        builder.ToTable("market_events", t =>
+        {
+            t.HasCheckConstraint("chk_market_events_topic", GroupColumns.CheckIn<MarketTopic>("topic"));
+            t.HasCheckConstraint("chk_market_events_direction", GroupColumns.CheckIn<MarketDirection>("direction"));
+            t.HasCheckConstraint("chk_market_events_status", GroupColumns.CheckIn<MarketEventStatus>("status"));
+        });
+
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(e => e.Topic).HasColumnName("topic").HasConversion(GroupColumns.Converter<MarketTopic>()).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.Direction).HasColumnName("direction").HasConversion(GroupColumns.Converter<MarketDirection>()).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.FirstSeenAt).HasColumnName("first_seen_at").IsRequired();
+        builder.Property(e => e.LastSeenAt).HasColumnName("last_seen_at").IsRequired();
+        builder.Property(e => e.SourceCount).HasColumnName("source_count").IsRequired();
+        builder.Property(e => e.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<MarketEventStatus>()).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+        builder.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+        builder.Property(e => e.ReviewNote).HasColumnName("review_note").HasMaxLength(500);
+
+        builder.HasIndex(e => new { e.Topic, e.Direction })
+            .IsUnique()
+            .HasFilter("status IN ('pending', 'approved')")
+            .HasDatabaseName("uq_market_events_one_open");
+        builder.HasIndex(e => new { e.Status, e.LastSeenAt }).HasDatabaseName("ix_market_events_status");
+        builder.HasOne<User>().WithMany().HasForeignKey(e => e.ReviewedByUserId).OnDelete(DeleteBehavior.SetNull);
     }
 }

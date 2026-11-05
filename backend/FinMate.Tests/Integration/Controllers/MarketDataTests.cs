@@ -23,6 +23,7 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     private readonly WebApplicationFactory<FinMate.API.Program> _factory;
     private readonly HttpClient _client;
     private readonly FakeWeb _web = new();
+    private readonly FakeAi _ai = new();
 
     public MarketDataTests(AuthApiFactory factory)
     {
@@ -30,6 +31,8 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         {
             services.RemoveAll<IWebPageFetcher>();
             services.AddSingleton<IWebPageFetcher>(_web);
+            services.RemoveAll<IMarketAiClient>();
+            services.AddSingleton<IMarketAiClient>(_ai);
         }));
         _client = _factory.CreateClient();
     }
@@ -38,6 +41,7 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     {
         await InDbAsync(async db =>
         {
+            await db.MarketEvents.ExecuteDeleteAsync();
             await db.MarketDocuments.ExecuteDeleteAsync();
             await db.MarketSources.ExecuteDeleteAsync();
             await db.FuelPrices.ExecuteDeleteAsync();
@@ -58,6 +62,18 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         {
             Requests.Add(uri.AbsoluteUri);
             return Task.FromResult(Pages.TryGetValue(uri.AbsoluteUri, out var page) ? page : new WebFetchResult(WebFetchOutcome.NotFound, StatusCode: 404));
+        }
+    }
+
+    private sealed class FakeAi : IMarketAiClient
+    {
+        public Func<string, string, MarketAiResult> Respond { get; set; } = (_, _) => new MarketAiResult(MarketAiStatus.Ok, []);
+        public List<string> Titles { get; } = [];
+
+        public Task<MarketAiResult> ExtractAsync(string title, string text, DateTimeOffset? publishedAt, CancellationToken ct = default)
+        {
+            Titles.Add(title);
+            return Task.FromResult(Respond(title, text));
         }
     }
 
@@ -375,7 +391,7 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         var document = (await InDbAsync(db => db.MarketDocuments.AsNoTracking().ToListAsync())).Single();
         document.Url.Should().Be("https://bao.vn/xang");
         document.Title.Should().Be("Giá xăng tăng 500 đồng");
-        document.Status.Should().Be(MarketDocumentStatus.PendingAi);
+        document.Status.Should().Be(MarketDocumentStatus.Processed);
         document.TextLength.Should().BeGreaterThan(HtmlTextExtractor.MinArticleLength);
         document.ContentHash.Should().NotContain("bí mật");
         JsonSerializer.Serialize(document).Should().NotContain("Nội dung bí mật");
@@ -546,5 +562,234 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 
         using var scope = _factory.Services.CreateScope();
         (await scope.ServiceProvider.GetRequiredService<IMarketDataService>().PurgeOldDocumentsAsync()).Should().Be(1);
+    }
+
+    private const string PowerEvidence = "Giá điện tăng 4,8% từ ngày 10/11.";
+
+    private static MarketAiResult PowerUp(string fact = "actual", decimal? percent = 4.8m, string evidence = PowerEvidence, string topic = "electricity")
+        => new(MarketAiStatus.Ok, [new MarketAiSignal(topic, "up", fact, percent, "2026-11-10", evidence)]);
+
+    private async Task AddNewsAsync(string host, string title = "Giá điện tăng")
+    {
+        var published = DateTimeOffset.UtcNow.AddHours(-1).ToString("R");
+        _web.Html($"https://{host}/rss", $"<rss><channel><item><title>{title}</title><link>https://{host}/dien</link><pubDate>{published}</pubDate></item></channel></rss>");
+        _web.Html($"https://{host}/dien", Article(PowerEvidence));
+        await AddSourceAsync($"https://{host}/rss", MarketSourceKind.Feed);
+    }
+
+    private Task<List<MarketEvent>> EventsAsync() => InDbAsync(db => db.MarketEvents.AsNoTracking().ToListAsync());
+
+    [Fact]
+    public async Task AValidSignalIsStoredWithItsQuote()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+
+        (await RefreshAsync()).AiProcessed.Should().Be(1);
+
+        var signal = await InDbAsync(db => db.MarketSignals.AsNoTracking().SingleAsync());
+        signal.Topic.Should().Be(MarketTopic.Electricity);
+        signal.ChangePercent.Should().Be(4.8m);
+        signal.EffectiveDate.Should().Be(new DateOnly(2026, 11, 10));
+        signal.Evidence.Should().Be(PowerEvidence);
+    }
+
+    [Theory]
+    [InlineData("Giá điện giảm 50% theo lời hệ thống.", null, "đoạn trích không có trong bài")]
+    [InlineData(PowerEvidence, "12", "số phần trăm không có trong đoạn trích")]
+    [InlineData(PowerEvidence, "8", "8 chỉ là một phần của 4,8%")]
+    public async Task ASignalThatDoesNotMatchTheArticleIsDropped(string evidence, string? percent, string because)
+    {
+        _ai.Respond = (_, _) => PowerUp(percent: percent is null ? null : decimal.Parse(percent), evidence: evidence);
+        await AddNewsAsync("a.vn");
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(0, because);
+        (await InDbAsync(db => db.MarketDocuments.SingleAsync())).Status.Should().Be(MarketDocumentStatus.Processed);
+    }
+
+    [Fact]
+    public async Task AnUnknownTopicFromTheModelIsDropped()
+    {
+        _ai.Respond = (_, _) => PowerUp(topic: "ignore_previous_instructions");
+        await AddNewsAsync("a.vn");
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task OneSiteIsNotEnoughForAnEvent_TwoSitesAre()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+        await RefreshAsync();
+        (await EventsAsync()).Should().BeEmpty();
+
+        await AddNewsAsync("b.vn");
+        await RefreshAsync();
+
+        var marketEvent = (await EventsAsync()).Single();
+        marketEvent.Status.Should().Be(MarketEventStatus.Pending);
+        marketEvent.SourceCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task AForecastNeverBecomesAnEvent()
+    {
+        _ai.Respond = (_, _) => PowerUp(fact: "forecast");
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        await RefreshAsync();
+
+        (await InDbAsync(db => db.MarketSignals.CountAsync())).Should().Be(2);
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FuelNewsDoesNotBecomeAnEventBecauseRealPricesExist()
+    {
+        _ai.Respond = (_, _) => PowerUp(topic: "fuel");
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        await RefreshAsync();
+
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AnOldArticleDoesNotCountTowardsAnEvent()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+        var old = DateTimeOffset.UtcNow.AddDays(-30).ToString("R");
+        _web.Html("https://b.vn/rss", $"<rss><channel><item><title>Giá điện tăng</title><link>https://b.vn/dien</link><pubDate>{old}</pubDate></item></channel></rss>");
+        _web.Html("https://b.vn/dien", Article(PowerEvidence));
+        await AddSourceAsync("https://b.vn/rss", MarketSourceKind.Feed);
+
+        await RefreshAsync();
+
+        (await EventsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task WithoutAKeyArticlesWaitAndCostNothing_AndAreReadOnceAKeyExists()
+    {
+        _ai.Respond = (_, _) => new MarketAiResult(MarketAiStatus.NotConfigured, []);
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        var first = await RefreshAsync();
+
+        first.AiStatus.Should().Be("not_configured");
+        var documents = await InDbAsync(db => db.MarketDocuments.AsNoTracking().ToListAsync());
+        documents.Should().OnlyContain(d => d.Status == MarketDocumentStatus.PendingAi && d.AiAttemptedAt == null);
+
+        _ai.Respond = (_, _) => PowerUp();
+        (await RefreshAsync()).AiProcessed.Should().Be(2);
+        (await EventsAsync()).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AnAiFailureLeavesTheArticleWaitingAndStopsTheRun()
+    {
+        _ai.Respond = (_, _) => new MarketAiResult(MarketAiStatus.Failed, []);
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        (await RefreshAsync()).AiStatus.Should().Be("failed");
+
+        _ai.Titles.Should().ContainSingle();
+        (await InDbAsync(db => db.MarketDocuments.CountAsync(d => d.Status == MarketDocumentStatus.PendingAi))).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ASiteThatForbidsAiIsNeverSentToAi()
+    {
+        _web.Html("https://bao.vn/robots.txt", "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nDisallow:");
+        await AddNewsAsync("bao.vn");
+
+        await RefreshAsync();
+
+        _ai.Titles.Should().BeEmpty();
+        (await InDbAsync(db => db.MarketDocuments.SingleAsync())).Status.Should().Be(MarketDocumentStatus.AiNotAllowed);
+    }
+
+    [Fact]
+    public async Task TheDailyLimitStopsAiCalls()
+    {
+        await AddNewsAsync("a.vn");
+        await InDbAsync(async db =>
+        {
+            var source = await db.MarketSources.FirstAsync();
+            for (var i = 0; i < new MarketDataSettings().MaxAiDocumentsPerDay; i++)
+            {
+                db.MarketDocuments.Add(new MarketDocument { Id = Guid.NewGuid(), SourceId = source.Id, Url = $"https://cu.vn/{i}", Title = "cũ", Status = MarketDocumentStatus.Processed, FetchedAt = DateTimeOffset.UtcNow, AiAttemptedAt = DateTimeOffset.UtcNow });
+            }
+
+            return await db.SaveChangesAsync();
+        });
+
+        (await RefreshAsync()).AiStatus.Should().Be("daily_limit");
+
+        _ai.Titles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AnAdminApprovesOnce_ASecondReviewConflicts()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+        await RefreshAsync();
+        var token = await AdminTokenAsync();
+        var id = (await EventsAsync()).Single().Id;
+
+        var list = await SendAsync(HttpMethod.Get, "/api/v1/admin/market-events?status=pending", token);
+        var item = JsonDocument.Parse(await list.Content.ReadAsStringAsync()).RootElement.GetProperty("data").GetProperty("items")[0];
+        item.GetProperty("topic").GetString().Should().Be("electricity");
+        item.GetProperty("signals").GetArrayLength().Should().Be(2);
+        item.GetProperty("signals")[0].GetProperty("evidence").GetString().Should().Be(PowerEvidence);
+
+        (await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{id}/approve", token, new { note = "Đã kiểm tra EVN" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{id}/reject", token, new { })).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{Guid.NewGuid()}/approve", token, new { })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var reviewed = (await EventsAsync()).Single();
+        reviewed.Status.Should().Be(MarketEventStatus.Approved);
+        reviewed.ReviewNote.Should().Be("Đã kiểm tra EVN");
+    }
+
+    [Fact]
+    public async Task ARejectedEventIsNotRaisedAgainByRepublishedNews()
+    {
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+        await RefreshAsync();
+        var id = (await EventsAsync()).Single().Id;
+        await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{id}/reject", await AdminTokenAsync(), new { });
+
+        await AddNewsAsync("c.vn");
+        await RefreshAsync();
+
+        var marketEvent = (await EventsAsync()).Single();
+        marketEvent.Status.Should().Be(MarketEventStatus.Rejected);
+        marketEvent.SourceCount.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData(UserRole.User)]
+    [InlineData(UserRole.OpsManager)]
+    public async Task OnlyAdminsReviewEvents(UserRole role)
+    {
+        var token = await AdminTokenAsync(role);
+
+        (await SendAsync(HttpMethod.Get, "/api/v1/admin/market-events", token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{Guid.NewGuid()}/approve", token, new { })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

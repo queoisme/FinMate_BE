@@ -36,6 +36,38 @@ public class MarketDocument
     public MarketDocumentStatus Status { get; set; }
     public string? ErrorCode { get; set; }
     public DateTimeOffset FetchedAt { get; set; }
+
+    /// <summary>Lần gần nhất gửi bài này cho AI, kể cả khi lỗi. Dùng để đếm trần số bài mỗi ngày.</summary>
+    public DateTimeOffset? AiAttemptedAt { get; set; }
+}
+
+/// <summary>Thông tin AI rút ra từ một bài, đã đối chiếu đoạn trích với nguyên văn bài.</summary>
+public class MarketSignal
+{
+    public Guid Id { get; set; }
+    public Guid DocumentId { get; set; }
+    public MarketTopic Topic { get; set; }
+    public MarketDirection Direction { get; set; }
+    public MarketFactStatus FactStatus { get; set; }
+    public decimal? ChangePercent { get; set; }
+    public DateOnly? EffectiveDate { get; set; }
+    public string Evidence { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Nhiều trang cùng đưa tin một thay đổi giá. Chỉ sự kiện đã duyệt mới được xét gửi cảnh báo.</summary>
+public class MarketEvent
+{
+    public Guid Id { get; set; }
+    public MarketTopic Topic { get; set; }
+    public MarketDirection Direction { get; set; }
+    public DateTimeOffset FirstSeenAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
+    public int SourceCount { get; set; }
+    public MarketEventStatus Status { get; set; }
+    public Guid? ReviewedByUserId { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? ReviewNote { get; set; }
 }
 
 /// <summary>Giá đã xác nhận. Chỉ thêm dòng khi giá đổi, nên dòng mới nhất của một loại là giá đang áp dụng.</summary>

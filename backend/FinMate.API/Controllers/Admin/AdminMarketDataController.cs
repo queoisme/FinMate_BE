@@ -11,6 +11,8 @@ public record CreateMarketSourcesRequest(IReadOnlyList<string>? Urls);
 
 public record UpdateMarketSourceRequest(string? Name, string? Kind, bool? IsActive);
 
+public record ReviewMarketEventRequest(string? Note);
+
 public record CorrectFuelPriceRequest(string? FuelKey, long Region1PriceCents, long Region2PriceCents, string? Note);
 
 /// <summary>Website làm nguồn thông tin thị trường, bài đã đọc và giá xăng đã xác nhận. Xem <c>docs/market-data-api.md</c>.</summary>
@@ -18,11 +20,33 @@ public record CorrectFuelPriceRequest(string? FuelKey, long Region1PriceCents, l
 public class AdminMarketDataController : AdminControllerBase
 {
     private readonly IMarketDataService _service;
+    private readonly IMarketEventService _events;
 
-    public AdminMarketDataController(IMarketDataService service)
+    public AdminMarketDataController(IMarketDataService service, IMarketEventService events)
     {
         _service = service;
+        _events = events;
     }
+
+    [HttpGet("market-events")]
+    public async Task<IActionResult> ListEvents([FromQuery] string? status, [FromQuery] int offset = 0, [FromQuery] int limit = 50, CancellationToken ct = default)
+    {
+        var parsed = MarketEventText.ParseStatus(status);
+        if (!string.IsNullOrEmpty(status) && parsed is null)
+        {
+            throw new BusinessRuleException("MARKET_EVENT_STATUS_INVALID", "Trạng thái sự kiện không hợp lệ.");
+        }
+
+        return Ok(ApiResponse<MarketEventPageDto>.Ok(await _events.ListAsync(parsed, offset, limit, ct)));
+    }
+
+    [HttpPost("market-events/{id:guid}/approve")]
+    public async Task<IActionResult> ApproveEvent(Guid id, [FromBody] ReviewMarketEventRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<MarketEventDto>.Ok(await _events.ApproveAsync(CurrentAdminId, CurrentIpAddress, id, request?.Note, ct)));
+
+    [HttpPost("market-events/{id:guid}/reject")]
+    public async Task<IActionResult> RejectEvent(Guid id, [FromBody] ReviewMarketEventRequest? request, CancellationToken ct)
+        => Ok(ApiResponse<MarketEventDto>.Ok(await _events.RejectAsync(CurrentAdminId, CurrentIpAddress, id, request?.Note, ct)));
 
     [HttpGet("market-sources")]
     public async Task<IActionResult> ListSources(CancellationToken ct)
