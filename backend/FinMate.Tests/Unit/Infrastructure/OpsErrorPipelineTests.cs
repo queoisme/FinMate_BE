@@ -124,3 +124,20 @@ public class OpsErrorPipelineTests
     public void TheJobFilterRunsBeforeRetriesRewriteTheState()
         => new OpsJobFailureFilter(_queue).Order.Should().BeLessThan(new AutomaticRetryAttribute().Order);
 }
+
+public class ProviderFailureTrackerTests
+{
+    [Fact]
+    public void CountsConsecutiveFailuresAndResetsOnSuccess()
+    {
+        var tracker = new FinMate.Application.Monitoring.ProviderFailureTracker();
+        tracker.RecordFailure("brevo", "a");
+        tracker.RecordFailure("brevo", "b");
+
+        tracker.Get("brevo").Should().Be(new FinMate.Application.Monitoring.ProviderFailureState(2, "b"));
+        tracker.Get("fcm").ConsecutiveFailures.Should().Be(0);
+
+        tracker.RecordSuccess("brevo");
+        tracker.Get("brevo").ConsecutiveFailures.Should().Be(0);
+    }
+}

@@ -32,6 +32,12 @@ public record OpsIncidentDto(
 
 public record OpsIncidentPageDto(IReadOnlyList<OpsIncidentDto> Items, int Total, int Offset, int Limit);
 
+/// <param name="ReadableRate">Tỉ lệ đọc được tiền trên tổng số lần quét; null khi chưa có lần quét nào.</param>
+/// <param name="LocalRate">Tỉ lệ phải đọc cục bộ trên các lần quét biết engine. Tăng là dấu hiệu Vision đang lỗi; bằng 1 cũng có thể là chưa cấu hình Vision.</param>
+public record OcrWindowStatsDto(int Hours, int Total, int Success, int NoAmount, int Unreadable, int GoogleVision, int Local, int UnknownEngine, double? ReadableRate, double? LocalRate);
+
+public record OcrStatsDto(OcrWindowStatsDto Last24Hours, OcrWindowStatsDto Last7Days);
+
 public static class MonitoringErrorCodes
 {
     public const string AlreadyResolved = "MONITORING_INCIDENT_RESOLVED";
@@ -46,6 +52,7 @@ public interface IOpsMonitoringService
     Task<OpsIncidentDto> GetAsync(Guid actorId, Guid incidentId, CancellationToken ct = default);
     Task<OpsIncidentDto> AcknowledgeAsync(Guid actorId, Guid incidentId, string? ip, CancellationToken ct = default);
     Task<OpsIncidentDto> ResolveAsync(Guid actorId, Guid incidentId, string? note, string? ip, CancellationToken ct = default);
+    Task<OcrStatsDto> GetOcrStatsAsync(Guid actorId, CancellationToken ct = default);
 }
 
 public sealed class OpsMonitoringService : IOpsMonitoringService
@@ -128,6 +135,35 @@ public sealed class OpsMonitoringService : IOpsMonitoringService
         await _repository.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.OpsIncidentResolved, actor.Id, ip, new { incidentId }, ct);
         return ToDto(incident, actor);
+    }
+
+    public async Task<OcrStatsDto> GetOcrStatsAsync(Guid actorId, CancellationToken ct = default)
+    {
+        await _access.RequireAsync(actorId, OpsCapability.ViewMonitoring, ct);
+        var now = DateTimeOffset.UtcNow;
+        return new OcrStatsDto(await WindowAsync(24, now, ct), await WindowAsync(24 * 7, now, ct));
+    }
+
+    private async Task<OcrWindowStatsDto> WindowAsync(int hours, DateTimeOffset now, CancellationToken ct)
+    {
+        var counts = await _repository.CountReceiptScansAsync(now.AddHours(-hours), ct);
+        var total = counts.Sum(c => c.Count);
+        int Result(string result) => counts.Where(c => c.OcrResult == result).Sum(c => c.Count);
+        int Engine(string? engine) => counts.Where(c => c.OcrEngine == engine).Sum(c => c.Count);
+        var success = Result(ReceiptScanResults.Success);
+        var vision = Engine(ReceiptScanEngines.GoogleVision);
+        var local = Engine(ReceiptScanEngines.Local);
+        return new OcrWindowStatsDto(
+            hours,
+            total,
+            success,
+            Result(ReceiptScanResults.NoAmount),
+            Result(ReceiptScanResults.Unreadable),
+            vision,
+            local,
+            Engine(null),
+            total == 0 ? null : (double)success / total,
+            vision + local == 0 ? null : (double)local / (vision + local));
     }
 
     private static void EnsureNotResolved(OpsIncident incident)

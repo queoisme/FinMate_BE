@@ -794,7 +794,10 @@
 | Phase 65 — Vận hành, đợt 5: xác thực 2 lớp | `[ ]` | 4 / 5 *(còn: báo người làm web admin)* |
 | Phase 66 — Nhóm: chặn `features.groups` ở server, chốt Google Vision | `[x]` | 3 / 3 |
 | Phase 67 — Vận hành: sửa theo rà soát | `[x]` | 2 / 2 |
-| **Total** (không tính Backlog) | | **475 / 504** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
+| Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
+| Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
+| Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
+| **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
 `[-]` bỏ có chủ ý (SMS OTP, 3 bảng `ab_*`). Danh sách khoảng cách đầy đủ so với đặc tả, kiểm trên code,
@@ -1378,3 +1381,20 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 ## Phase 67 — Vận hành nội bộ: sửa theo rà soát (2026-11-05)
 - [x] Đề xuất quá hạn không còn chặn đề xuất mới; lỗi lúc thực hiện không để lại hồ sơ `Approved`; ca chuyển cấp không tự rời hàng đợi; ca đã đóng không dùng để khóa tài khoản hay xem nhóm; đóng ca trong một DB transaction; khách bị khóa hoặc yêu cầu xóa thì hết quyền xem dữ liệu; lỗi gửi email OTP được báo rõ; `features.groups` và `features.support` áp dụng đủ trên đường vận hành và đồng ý.
 - [x] Test: `OpsReviewFixesTests`, `OpsApprovalServiceTests`.
+
+## Phase 68 — Giám sát hệ thống, đợt 1: sự cố, health probe, email (2026-11-05)
+- [x] Migration `AddOpsMonitoring`: `ops_incidents`, `ops_service_status`, `ops_error_events`; nhóm cấu hình `monitoring`; cờ `MONITORING_ENABLED`.
+- [x] `SystemMonitorJob` mỗi phút, `MonitoringDigestJob` 08:00 giờ VN; probe Redis, AI, OCR, STT.
+- [x] Email cho Admin và OpsManager: nhắc lại tới khi có người nhận, thử lại khi gửi lỗi, báo khi đã khắc phục.
+- [x] API `/ops/monitoring`. Test: `MonitoringTests`.
+
+## Phase 69 — Giám sát hệ thống, đợt 2: lỗi ứng dụng, job (2026-11-05)
+- [x] `OpsErrorSink`, `OpsErrorQueue`, `OpsErrorWriter`; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh.
+- [x] `JobMonitorSource`, `OpsJobFailureFilter`, `ErrorMonitorSource`.
+- [x] `GET /admin/monitoring/error-events`. Test: `MonitoringErrorsTests`, `OpsErrorPipelineTests`.
+
+## Phase 70 — Giám sát hệ thống, đợt 3: nhà cung cấp, chỉ số OCR (2026-11-05)
+- [x] `GET /internal/status` ở `ocr-service`, `GET /api/v1/internal/status` ở `ai-service`; `ProviderMonitorSource`, `IProviderFailureTracker`.
+- [x] Migration `AddReceiptScanOcrEngine`; `/analyze-bill` trả thêm `engine`; `GET /ops/monitoring/ocr`.
+- [x] Test: `MonitoringProvidersTests`, `tests/test_internal_status.py` của `ocr-service`, `tests/unit/test_internal_status.py` của `ai-service`.
+- [ ] Đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready`: backend hoặc Postgres sập thì hệ thống không tự báo được.

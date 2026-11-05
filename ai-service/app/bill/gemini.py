@@ -8,6 +8,7 @@ import json
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from app.bill.provider_health import backup_health, gemini_health
 
 import httpx
 import structlog
@@ -114,6 +115,14 @@ class GeminiClient:
         return _resolve(self._backup_key_source) if self._backup_model else None  # thiếu tên model thì coi như chưa cấu hình
 
     @property
+    def primary_configured(self) -> bool:
+        return bool(self._key)
+
+    @property
+    def backup_configured(self) -> bool:
+        return bool(self._backup_key)
+
+    @property
     def available(self) -> bool:
         return bool(self._key or self._backup_key) and self._clock() >= self._open_until
 
@@ -171,19 +180,27 @@ class GeminiClient:
         if self._key:
             try:
                 async with asyncio.timeout(self._overall_timeout):
-                    return await self._call_models(names, instruction)
+                    result = await self._call_models(names, instruction)
+                gemini_health.success()
+                return result
             except TimeoutError:  # quá trần cả chặng: như mọi lỗi khác
                 last = GeminiFailed("overall_timeout")
+                gemini_health.failure("overall_timeout")
             except GeminiFailed as error:
                 last = error
+                gemini_health.failure(error.args[0] if error.args else "unknown")
         if self._backup_key:
             try:
                 async with asyncio.timeout(self._overall_timeout):
-                    return await self._call_backup(names, instruction)
+                    result = await self._call_backup(names, instruction)
+                backup_health.success()
+                return result
             except TimeoutError:
                 last = GeminiFailed("backup_overall_timeout")
+                backup_health.failure("backup_overall_timeout")
             except GeminiFailed as error:
                 last = error
+                backup_health.failure(error.args[0] if error.args else "unknown")
         raise last or GeminiFailed("no_provider")
 
     async def _call_models(self, names: list[str], instruction: str) -> list[str]:

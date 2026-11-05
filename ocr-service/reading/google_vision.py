@@ -10,9 +10,11 @@ QUYẾT ĐỊNH CỦA CHỦ SẢN PHẨM (2026-10-26): ảnh hóa đơn RỜI h�
 (tên, số điện thoại, địa chỉ có thể nằm trên ảnh). Câu chữ màn đồng ý phải nói đúng điều này. Không log khóa, ảnh hay chữ trên hóa đơn; khóa chỉ nằm trong header.
 """
 import base64
+from datetime import datetime, timezone
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -32,6 +34,31 @@ class _Cooldown:
 
 
 _COOLDOWN = _Cooldown()
+
+
+class _Health:
+    """Sức khỏe Vision trong tiến trình này, để backend đọc mỗi phút. Chỉ giữ mã lỗi, không giữ khóa, ảnh hay nội dung phản hồi. Mất khi khởi động lại là chấp nhận được: lỗi thật sẽ lặp lại."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.consecutive_failures = 0
+        self.last_error_code: str | None = None
+        self.last_error_at: str | None = None
+        self.last_success_at: str | None = None
+
+    def success(self) -> None:
+        with self.lock:
+            self.consecutive_failures = 0
+            self.last_success_at = datetime.now(timezone.utc).isoformat()
+
+    def failure(self, code: str) -> None:
+        with self.lock:
+            self.consecutive_failures += 1
+            self.last_error_code = code
+            self.last_error_at = datetime.now(timezone.utc).isoformat()
+
+
+_HEALTH = _Health()
 
 _SECRET_NAME = "google_vision_api_key"
 _KEY_TTL_SECONDS = 30.0  # đổi key trên trang quản trị có hiệu lực sau chừng này giây, và một lần AI Service chậm không làm chậm mọi lần quét
@@ -74,9 +101,29 @@ _CELL_GAP_RATIO = data_files.threshold("reading.google_vision._CELL_GAP_RATIO")
 class GoogleVisionError(Exception):
     """Phản hồi 200 nhưng Cloud Vision báo lỗi trong thân (hết hạn mức, khóa sai...). Chỉ mang mã lỗi, không mang chữ nào."""
 
+    def __init__(self, code: object) -> None:
+        super().__init__(f"mã {code}")
+        self.code = code
+
+
+def _configured() -> bool:
+    return os.environ.get("FINMATE_OCR_ENGINE", "auto") != "local" and bool(api_key())
+
 
 def enabled() -> bool:
-    return os.environ.get("FINMATE_OCR_ENGINE", "auto") != "local" and bool(api_key()) and time.monotonic() >= _COOLDOWN.until
+    return _configured() and time.monotonic() >= _COOLDOWN.until
+
+
+def status() -> dict:
+    """Trạng thái cho backend giám sát. ``state`` chỉ nói có cấu hình hay không; tạm nghỉ sau lỗi không phải là tắt."""
+    with _HEALTH.lock:
+        return {
+            "state": "enabled" if _configured() else "disabled",
+            "consecutive_failures": _HEALTH.consecutive_failures,
+            "last_error_code": _HEALTH.last_error_code,
+            "last_error_at": _HEALTH.last_error_at,
+            "last_success_at": _HEALTH.last_success_at,
+        }
 
 
 def build_request(image_bytes: bytes) -> urllib.request.Request:
@@ -146,9 +193,13 @@ def read_lines_or_none(image_bytes: bytes) -> list[tuple[str, float, Quad]] | No
         response = _post(build_request(image_bytes))
         error = (response.get("responses") or [{}])[0].get("error")
         if error:
-            raise GoogleVisionError(f"mã {error.get('code')}")
-        return parse(response) or None
+            raise GoogleVisionError(error.get("code"))
+        lines = parse(response) or None
+        _HEALTH.success()  # Google không thấy chữ nào vẫn là Google hoạt động
+        return lines
     except Exception as error:  # noqa: BLE001 - mạng, hạn mức, khóa sai hay phản hồi lạ: đều rơi về OCR cục bộ, lần quét không được thất bại
         _COOLDOWN.until = time.monotonic() + float(os.environ.get("GOOGLE_VISION_COOLDOWN_SECONDS", "60"))
+        code = getattr(error, "code", None)
+        _HEALTH.failure(str(code) if code is not None else type(error).__name__)
         logger.warning("Google Vision lỗi (%s %s): dùng OCR cục bộ và tạm nghỉ Google", type(error).__name__, getattr(error, "code", ""))
         return None

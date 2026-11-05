@@ -29,7 +29,8 @@ from reading import ocr
 from parsing.items import extract_items
 from parsing.prepare import prepare
 from parsing.totals import resolve_total
-from reading.ocr import NoTextError, read_boxes
+from reading import google_vision
+from reading.ocr import NoTextError, last_engine, read_boxes
 from reading.quality import image_quality
 from storage.ai_api import api_from_env, current_user
 from storage.storage_api import open_stores
@@ -141,6 +142,12 @@ async def bind_user(x_user_hash: str | None = Header(None)) -> None:
     current_user.set(x_user_hash)
 
 
+@app.get("/internal/status", dependencies=[Depends(verify_internal_api_key)])
+def internal_status():
+    """Trạng thái Google Vision cho backend giám sát. Không có khóa, ảnh hay nội dung phản hồi."""
+    return {"vision": google_vision.status()}
+
+
 @app.post("/merchant-category", dependencies=[Depends(verify_internal_api_key), Depends(bind_user)])
 def save_merchant_category(body: MerchantCategory):
     name = format_merchant_name(body.merchant) or body.merchant.strip()  # tên đẹp để lưu xuống
@@ -229,6 +236,7 @@ def analyze_bill(image: UploadFile = File(...), share_data: bool = Form(False)):
             forced_total=total_choice[0],
         )
         result["total_verified"] = total_choice[1]
+        result["engine"] = last_engine()
         if shorthand or total_choice[2] == "items":
             result["needs_review"] = True  # số tiền người bán viết tắt theo nghìn, hoặc bill không in tổng nên lấy tổng các món: người dùng xác nhận
         # tên đẹp người dùng đã chốt cho cửa hàng này > tên tự làm sạch từ chữ OCR

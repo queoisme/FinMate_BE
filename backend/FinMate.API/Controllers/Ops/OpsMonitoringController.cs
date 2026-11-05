@@ -22,6 +22,10 @@ public class OpsMonitoringController : OpsControllerBase
     public async Task<IActionResult> Status(CancellationToken ct)
         => Ok(ApiResponse<MonitoringStatusDto>.Ok(await _monitoring.GetStatusAsync(CurrentActorId, ct)));
 
+    [HttpGet("ocr")]
+    public async Task<IActionResult> Ocr(CancellationToken ct)
+        => Ok(ApiResponse<OcrStatsDto>.Ok(await _monitoring.GetOcrStatsAsync(CurrentActorId, ct)));
+
     /// <summary>Không truyền <c>status</c> thì chỉ trả sự cố chưa đóng.</summary>
     [HttpGet("incidents")]
     public async Task<IActionResult> Incidents(

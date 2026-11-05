@@ -27,6 +27,8 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 | `ManageCannedReplies` | ❌ | ✅ | ✅ |
 | `ViewOpsAudit` | ❌ | ✅ | ✅ |
 | `ViewAiStats` | ❌ | ✅ | ✅ |
+| `ViewMonitoring` | ❌ | ✅ | ✅ |
+| `ManageIncidents` | ❌ | ✅ | ✅ |
 | `ManageSystem` | ❌ | ❌ | ✅ |
 
 ## Cách kiểm tra quyền
@@ -68,7 +70,7 @@ Tính năng nằm sau cờ `features.support`, mặc định tắt. Khi tắt, k
 
 ### Mức ưu tiên và SLA
 
-Khách không tự chọn mức ưu tiên; hệ thống gán theo loại, Manager đổi lại được. Đổi mức thì hạn được tính lại từ lúc tạo ca. Chỉ tính và hiển thị trễ hạn, chưa có cảnh báo tự động.
+Khách không tự chọn mức ưu tiên; hệ thống gán theo loại, Manager đổi lại được. Đổi mức thì hạn được tính lại từ lúc tạo ca. Chỉ tính và hiển thị trễ hạn, không gửi cảnh báo trễ SLA.
 
 | Mức | Loại ticket | Phản hồi đầu | Giải quyết |
 |---|---|---|---|
@@ -217,3 +219,62 @@ Gia hạn bằng `POST /auth/refresh` không phải nhập lại mã trong 12 gi
 `OPS_REQUIRE_2FA`: để trống là bật ngoài Development. Cơ chế này cần gửi được email, nên nếu Brevo hỏng thì không ai vào được trang vận hành và admin. Khi đó đặt `false` rồi khởi động lại để vào sửa, sau đó bật lại ngay.
 
 **Thay đổi phá vỡ:** web admin hiện có phải thêm luồng trên trước khi deploy backend có bật cờ này.
+
+## Giám sát hệ thống
+
+Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom lỗi giống nhau thành một sự cố và báo qua email. Quy trình cho con người ở `docs/ops-runbook.md`.
+
+### Quyền
+
+| Chức năng | Staff | OpsManager | Admin |
+|---|---|---|---|
+| Xem trạng thái dịch vụ, sự cố, chỉ số OCR | ❌ | ✅ | ✅ |
+| Nhận xử lý, đóng sự cố | ❌ | ✅ | ✅ |
+| Xem `technicalDetail` của sự cố | ❌ | ❌ | ✅ |
+| Xem danh sách lỗi | ❌ | ❌ | ✅ |
+
+### Các nguồn lỗi
+
+| Nguồn | Theo dõi | Mở sự cố khi | Tự đóng khi |
+|---|---|---|---|
+| Dịch vụ | Redis, AI, OCR, STT | Lỗi `probeFailureThreshold` lần liên tiếp (mặc định 3) | Tốt `probeRecoveryThreshold` lần liên tiếp (mặc định 3) |
+| Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Rasa, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3); Rasa không phản hồi | Có một lần gọi thành công |
+| Lỗi ứng dụng | Log từ mức Error | Cùng một lỗi `errorCountThreshold` lần trong `errorWindowMinutes` (mặc định 10 lần trong 5 phút) | Không lặp lại trong `errorQuietMinutes` (mặc định 30 phút) |
+| Job | Hangfire | Thất bại sau mọi lần thử lại, hoặc quá giờ 10 phút chưa chạy | Lần chạy sau thành công, hoặc đã bắt kịp |
+
+Nhà cung cấp chỉ được đếm khi có lần gọi thật. Không có khách quét hóa đơn thì không có gì để đếm, nên sự cố Vision chỉ tự đóng sau lần quét thành công kế tiếp. Đổi key xong mà muốn đóng ngay thì đóng tay.
+
+Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Dịch vụ Python bản cũ chưa có API trạng thái thì nhà cung cấp có trạng thái `Unknown`, không mở sự cố và không đóng sự cố đang mở.
+
+### Mức độ và người nhận
+
+| Mức | Ví dụ | Email |
+|---|---|---|
+| `Critical` | Redis lỗi; lỗi ứng dụng gấp 5 lần ngưỡng | Admin và OpsManager ngay |
+| `High` | AI, OCR, STT, Vision, Gemini, Brevo, Firebase lỗi; lỗi ứng dụng vượt ngưỡng; job thất bại | Admin và OpsManager ngay |
+| `Normal` | Rasa tắt, nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
+
+- Chưa có người nhận thì nhắc lại mỗi `reminderMinutes` (mặc định 15 phút) trong giờ đầu, sau đó mỗi giờ. Sự cố nặng lên thì báo lại kể cả khi đã có người nhận.
+- Sự cố đã báo khi đóng sẽ có thêm một email báo đã khắc phục.
+- Email chỉ có dịch vụ, mức độ, ảnh hưởng, thời điểm; không có chi tiết kỹ thuật.
+
+Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config`. Tắt cả tính năng bằng `MONITORING_ENABLED=false`.
+
+### API: `/api/v1/ops/monitoring`, OpsManager trở lên
+
+| API | Việc |
+|---|---|
+| `GET /status` | Trạng thái từng dịch vụ (`Healthy`, `Unhealthy`, `Disabled`, `Unknown`) và số sự cố đang mở |
+| `GET /incidents` | Lọc `status`, `severity`; phân trang `offset`, `limit` (tối đa 100). Không truyền `status` thì chỉ trả sự cố chưa đóng |
+| `GET /incidents/{id}` | Chi tiết, kèm `impact`. `technicalDetail` luôn null nếu không phải Admin |
+| `POST /incidents/{id}/acknowledge` | Nhận xử lý, dừng nhắc. Người đầu tiên giữ tên |
+| `POST /incidents/{id}/resolve` | Đóng, kèm `note?`. Lỗi còn tiếp diễn thì sẽ mở sự cố mới |
+| `GET /ocr` | Chỉ số 24 giờ và 7 ngày: số lần quét theo kết quả và engine, `readableRate`, `localRate` |
+
+`localRate` tăng là dấu hiệu Vision đang lỗi; bằng 1 cũng có thể là chưa cấu hình Vision.
+
+### API: `GET /api/v1/admin/monitoring/error-events`, chỉ Admin
+
+Lọc `service`, `exceptionType`, `from`, `to`; phân trang `offset`, `limit` (tối đa 200). Giữ 30 ngày (`errorRetentionDays`).
+
+Mỗi lỗi chỉ có loại exception, vị trí trong code, message template chưa điền giá trị, đường dẫn đã thay định danh bằng `{id}`, và `traceId`. Không có message của exception, stack trace hay giá trị tham số, vì chúng có thể chứa số tiền, token hoặc nội dung của khách. Cần chi tiết thì dùng `traceId` tra `docker logs`.

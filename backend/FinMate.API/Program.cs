@@ -369,6 +369,10 @@ public class Program
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
         builder.Services.AddScoped<IMonitorSource, ErrorMonitorSource>();
         builder.Services.AddScoped<IMonitorSource, JobMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, ProviderMonitorSource>();
+        builder.Services.AddSingleton<IProviderFailureTracker, ProviderFailureTracker>();
+        builder.Services.AddSingleton(new ProviderStatusEndpoints(ocrServiceUrl, builder.Configuration["OCR_SERVICE_API_KEY"], aiServiceUrl, aiServiceApiKey));
+        builder.Services.AddScoped<IProviderStatusClient, ProviderStatusClient>();
         builder.Services.AddScoped<IAdminErrorEventService, AdminErrorEventService>();
         builder.Services.AddHttpClient(HttpServiceProbe.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
         builder.Services.AddScoped<IServiceProbe, RedisProbe>();

@@ -2166,6 +2166,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("needs_review");
 
+                    b.Property<string>("OcrEngine")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ocr_engine");
+
                     b.Property<string>("OcrResult")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -2189,6 +2194,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_scans", null, t =>
                         {
                             t.HasCheckConstraint("chk_receipt_scans_amount_positive", "amount_cents IS NULL OR amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_receipt_scans_ocr_engine", "ocr_engine IS NULL OR ocr_engine IN ('google_vision','local')");
 
                             t.HasCheckConstraint("chk_receipt_scans_ocr_result", "ocr_result IN ('success','no_amount','unreadable')");
                         });

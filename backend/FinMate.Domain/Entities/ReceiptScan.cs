@@ -1,6 +1,12 @@
 namespace FinMate.Domain.Entities;
 
 /// <summary>Giá trị của <see cref="ReceiptScan.OcrResult"/>; khớp đúng <c>ScannedReceiptDto.OcrResult</c> trả cho app.</summary>
+public static class ReceiptScanEngines
+{
+    public const string GoogleVision = "google_vision";
+    public const string Local = "local";
+}
+
 public static class ReceiptScanResults
 {
     public const string Success = "success";
@@ -28,6 +34,9 @@ public class ReceiptScan
 
     /// <summary>Một trong <see cref="ReceiptScanResults"/>. Các trường bên dưới null khi không phải <c>success</c>.</summary>
     public string OcrResult { get; set; } = ReceiptScanResults.Unreadable;
+
+    /// <summary>Engine đã đọc ảnh: google_vision hoặc local. Null khi không biết (quét đường cũ, OCR service bản cũ). Tỉ lệ local tăng là dấu hiệu Vision đang lỗi.</summary>
+    public string? OcrEngine { get; set; }
 
     /// <summary>Tổng tiền (đồng VND, BIGINT như mọi nơi khác).</summary>
     public long? AmountCents { get; set; }

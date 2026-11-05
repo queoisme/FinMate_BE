@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Monitoring;
 using Microsoft.Extensions.Logging;
 
 namespace FinMate.Infrastructure.ExternalServices;
@@ -18,13 +19,16 @@ public class FcmPushNotificationService : IPushNotificationService
     private readonly IDeviceTokenRepository _deviceTokenRepository;
     private readonly IFcmSender _sender;
     private readonly ILogger<FcmPushNotificationService> _logger;
+    private readonly IProviderFailureTracker? _failures;
 
     public FcmPushNotificationService(
         IUserRepository userRepository,
         IDeviceTokenRepository deviceTokenRepository,
         IFcmSender sender,
-        ILogger<FcmPushNotificationService> logger)
+        ILogger<FcmPushNotificationService> logger,
+        IProviderFailureTracker? failures = null)
     {
+        _failures = failures;
         _userRepository = userRepository;
         _deviceTokenRepository = deviceTokenRepository;
         _sender = sender;
@@ -65,6 +69,7 @@ public class FcmPushNotificationService : IPushNotificationService
             // chuyện nhỏ; mất một giao dịch thì không.
             _logger.LogError(ex, "FCM send failed for user {UserId} across {DeviceCount} device(s)",
                 userId, tokens.Count);
+            _failures?.RecordFailure(MonitoredServices.Fcm.Key, ex.GetType().Name);
             return;
         }
 
@@ -79,6 +84,17 @@ public class FcmPushNotificationService : IPushNotificationService
         // báo ngân hàng nhét nó vào body, nhánh xác nhận một chạm nhét vào data), xem luật
         // "không bao giờ log amount_cents" ở CLAUDE.md.
         var delivered = outcomes.Count(o => o.Delivered);
+
+        // Token chết là lỗi của một máy, không phải của Firebase: chỉ tính khi có token còn sống mà vẫn không gửi được.
+        if (delivered > 0)
+        {
+            _failures?.RecordSuccess(MonitoredServices.Fcm.Key);
+        }
+        else if (outcomes.FirstOrDefault(o => !o.TokenIsDead && o.FailureReason is not null) is { } failed)
+        {
+            _failures?.RecordFailure(MonitoredServices.Fcm.Key, failed.FailureReason!);
+        }
+
         var reasons = outcomes
             .Where(o => !o.Delivered && o.FailureReason is not null)
             .Select(o => o.FailureReason!)
