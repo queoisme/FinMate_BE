@@ -106,7 +106,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
     private sealed class MarketDataValidator : AbstractValidator<MarketDataSettings>
     {
         private static bool ValidKeywords(IReadOnlyList<string> keywords)
-            => keywords.Count <= 50 && keywords.All(word => !string.IsNullOrWhiteSpace(word) && word.Length <= 50);
+            => keywords is { Count: <= 50 } && keywords.All(word => !string.IsNullOrWhiteSpace(word) && word.Length <= 50);
 
         public MarketDataValidator()
         {
@@ -123,18 +123,23 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.LastSpendMaxDays).InclusiveBetween(1, 365).WithMessage("Số ngày chi gần nhất phải từ 1 đến 365.");
             RuleFor(x => x.MinSpendSharePercent).InclusiveBetween(0, 100).WithMessage("Tỉ trọng chi tối thiểu phải từ 0 đến 100%.");
             RuleFor(x => x.MinExtraCostCents).GreaterThanOrEqualTo(0).WithMessage("Mức tốn thêm tối thiểu không được âm.");
-            RuleFor(x => x.CostTypes).NotNull().Must(types => types.Count is >= 1 and <= 20).WithMessage("Phải có từ 1 đến 20 loại chi phí.")
+            RuleFor(x => x.CostTypes).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách loại chi phí.")
+                .Must(types => types.Count is >= 1 and <= 20).WithMessage("Phải có từ 1 đến 20 loại chi phí.")
+                .Must(types => types.All(t => t is not null)).WithMessage("Loại chi phí không được để trống.")
+                .Must(types => types.Any(t => t.Enabled)).WithMessage("Phải bật ít nhất một loại chi phí. Muốn tắt cảnh báo thì dùng features.marketAlerts.")
                 .Must(types => types.Select(t => t.Key).Distinct().Count() == types.Count).WithMessage("Mã loại chi phí không được trùng.")
-                .Must(types => types.Count(t => t.HasPriceTable) <= 1).WithMessage("Hiện chỉ một loại chi phí được có bảng giá.");
-            RuleForEach(x => x.CostTypes).ChildRules(type =>
+                .Must(types => types.All(t => !t.HasPriceTable || t.Key == "fuel")).WithMessage("Hiện chỉ loại fuel có bảng giá, vì bộ đọc bảng chỉ đọc giá xăng.");
+            RuleForEach(x => x.CostTypes).Cascade(CascadeMode.Stop).NotNull().ChildRules(type =>
             {
-                type.RuleFor(t => t.Key).Matches("^[a-z][a-z_]{1,28}[a-z]$").NotEqual("other").WithMessage("Mã loại chi phí chỉ gồm chữ thường và dấu gạch dưới, tối đa 30 ký tự, không được là other.");
+                type.RuleFor(t => t.Key).Cascade(CascadeMode.Stop).NotEmpty().Matches(@"\A[a-z][a-z_]{1,28}[a-z]\z").NotEqual("other").WithMessage("Mã loại chi phí chỉ gồm chữ thường và dấu gạch dưới, tối đa 30 ký tự, không được là other.");
                 type.RuleFor(t => t.Label).NotEmpty().MaximumLength(50).WithMessage("Tên loại chi phí từ 1 đến 50 ký tự.");
                 type.RuleFor(t => t.AiDescription).NotEmpty().MaximumLength(200).WithMessage("Mô tả cho AI từ 1 đến 200 ký tự.");
-                type.RuleFor(t => t.TransactionKeywords).NotNull().Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa giao dịch, mỗi từ khóa tối đa 50 ký tự.");
-                type.RuleFor(t => t.NewsKeywords).NotNull().Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa tin bài, mỗi từ khóa tối đa 50 ký tự.");
-                type.RuleFor(t => t.CategorySlugs).NotNull().Must(slugs => slugs.Count <= 10).WithMessage("Tối đa 10 danh mục cho một loại chi phí.");
-                type.RuleFor(t => t).Must(t => t.TransactionKeywords.Count > 0 || t.CategorySlugs.Count > 0).WithMessage("Loại chi phí phải có từ khóa giao dịch hoặc danh mục.");
+                type.RuleFor(t => t.TransactionKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa giao dịch, mỗi từ khóa tối đa 50 ký tự.");
+                type.RuleFor(t => t.TransactionExcludes).Must(ValidKeywords).WithMessage("Tối đa 50 cụm loại trừ, mỗi cụm tối đa 50 ký tự.");
+                type.RuleFor(t => t.NewsKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa tin bài, mỗi từ khóa tối đa 50 ký tự.");
+                type.RuleFor(t => t.CategorySlugs).Must(slugs => slugs is { Count: <= 10 }).WithMessage("Tối đa 10 danh mục cho một loại chi phí.");
+                type.RuleFor(t => t).Must(t => t.TransactionKeywords is { Count: > 0 } || t.CategorySlugs is { Count: > 0 }).WithMessage("Loại chi phí phải có từ khóa giao dịch hoặc danh mục.");
             });
             RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
             RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");

@@ -98,21 +98,22 @@ Nội dung là mẫu cố định trong code, dùng `label` của loại chi ph�
 
 ## Loại chi phí
 
-Nhóm `marketData.costTypes` trong `/admin/system-config`. Thêm loại mới không cần sửa code. Tối đa 20 loại, mã không trùng và không được là `other`.
+Nhóm `marketData.costTypes` trong `/admin/system-config`. Thêm loại mới không cần sửa code. Tối đa 20 loại, mã không trùng, không được là `other`, và phải bật ít nhất một loại.
 
 | Trường | Ý nghĩa |
 |---|---|
 | `key` | Mã chủ đề, chữ thường và dấu gạch dưới |
 | `label` | Tên trong câu cảnh báo: "Giá {label} đang tăng" |
 | `aiDescription` | Mô tả gửi cho AI để nhận ra chủ đề trong bài |
-| `newsKeywords` | Lọc bài trước khi gửi AI |
-| `transactionKeywords`, `categorySlugs` | Nhận diện giao dịch. Phải có ít nhất một trong hai |
-| `hasPriceTable` | Có giá thật ở `fuel_prices`. Hiện chỉ một loại, vì bộ đọc bảng chỉ đọc giá xăng |
+| `newsKeywords` | Lọc bài trước khi gửi AI. Giữ phân biệt dấu, khác với từ khóa giao dịch |
+| `transactionKeywords`, `categorySlugs` | Nhận diện giao dịch. Phải có ít nhất một trong hai. Từ khóa kết thúc bằng `*` khớp phần đầu của từ, như `evn*` với `EVNHCMC` |
+| `transactionExcludes` | Cụm bị bỏ trước khi so khớp, như `tiền điện thoại` |
+| `hasPriceTable` | Có giá thật ở `fuel_prices`. Chỉ `fuel` được bật, vì bộ đọc bảng chỉ đọc giá xăng |
 | `enabled` | Tắt loại này |
 
 Mặc định có `fuel`, `electricity`, `water`, `food_price`, `cooking_gas`. Danh sách từ khóa là điểm xuất phát, chưa đo trên giao dịch thật.
 
-Tiền nhà, internet, gói đăng ký không thuộc phần này, vì tin báo không nói được giá riêng của từng người. Chúng dùng cảnh báo `price_change` của khoản định kỳ: khoản trả đúng một số tiền ở 2 lần trước đó thì tăng bao nhiêu cũng báo, khoản dao động thì chỉ báo khi lệch quá `amountTolerancePercent`.
+Tiền nhà, internet, gói đăng ký không thuộc phần này, vì tin báo không nói được giá riêng của từng người. Chúng dùng cảnh báo `price_change` của khoản định kỳ: khoản hằng tháng trả đúng một số tiền ở 2 kỳ trước đó thì tăng từ 1% là báo, khoản dao động chỉ báo khi lệch quá `amountTolerancePercent`. Khoản hằng năm không đủ 2 lần trong cửa sổ lịch sử nên chỉ báo khi lệch quá ngưỡng đó. Khoản người dùng tự thêm được báo nhưng giữ nguyên số họ đã nhập nếu lệch trong ngưỡng.
 
 Nhiều lượt liền không xác nhận được giá xăng thì mở sự cố `market_data` mức thường. Một nguồn lỗi riêng lẻ chỉ hiện ở `lastErrorCode`.
 

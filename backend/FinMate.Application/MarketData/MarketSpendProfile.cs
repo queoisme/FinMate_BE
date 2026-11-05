@@ -17,7 +17,7 @@ public sealed record MarketSpendProfile(int Count, long TotalCents, long Monthly
             return true;
         }
 
-        return MarketKeywords.ContainsAny($"{transaction.MerchantName} {transaction.Description} {transaction.Category?.Name}", type.TransactionKeywords);
+        return MarketKeywords.MatchesTransaction($"{transaction.MerchantName} {transaction.Description} {transaction.Category?.Name}", type.TransactionKeywords, type.TransactionExcludes);
     }
 
     /// <summary>Null khi người đó không có giao dịch nào của loại chi phí này.</summary>

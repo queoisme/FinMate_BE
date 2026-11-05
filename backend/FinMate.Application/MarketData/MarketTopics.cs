@@ -4,7 +4,7 @@ using FinMate.Application.Admin.SystemConfig;
 namespace FinMate.Application.MarketData;
 
 /// <summary>
-/// So khớp từ khóa theo cả từ, không phân biệt hoa thường và dấu, vì thông báo ngân hàng thường viết "DO XANG". Theo cả từ để "evn" không khớp "seven".
+/// So khớp từ khóa theo cả từ, để "evn" không khớp "seven". Từ khóa kết thúc bằng <c>*</c> khớp phần đầu của từ.
 /// Bảng ký tự viết tay vì <c>InvariantGlobalization</c> bật toàn solution nên không dựa vào <c>string.Normalize</c> được.
 /// </summary>
 public static class MarketKeywords
@@ -52,23 +52,38 @@ public static class MarketKeywords
         return builder.ToString();
     }
 
-    public static bool ContainsAny(string text, IEnumerable<string> keywords)
+    /// <summary>Cho giao dịch: không phân biệt dấu, vì ngân hàng thường viết không dấu. Các cụm trong <paramref name="excludes"/> bị bỏ trước khi so.</summary>
+    public static bool MatchesTransaction(string text, IEnumerable<string> keywords, IEnumerable<string> excludes)
     {
         var normalized = Normalize(text);
+        foreach (var exclude in excludes)
+        {
+            normalized = normalized.Replace(Normalize(exclude), " ", StringComparison.Ordinal);
+        }
+
         return keywords.Any(keyword => ContainsWord(normalized, Normalize(keyword)));
+    }
+
+    /// <summary>Cho tin bài: giữ dấu, vì bỏ dấu thì "chuyên gia" và "giá" trùng nhau, và bài không liên quan sẽ tốn lượt đọc AI.</summary>
+    public static bool MatchesNews(string text, IEnumerable<string> keywords)
+    {
+        var lowered = text.ToLowerInvariant();
+        return keywords.Any(keyword => ContainsWord(lowered, keyword.ToLowerInvariant()));
     }
 
     private static bool ContainsWord(string text, string word)
     {
-        if (word.Length == 0)
+        var prefixOnly = word.EndsWith('*');
+        var target = prefixOnly ? word[..^1] : word;
+        if (target.Length == 0)
         {
             return false;
         }
 
-        for (var at = text.IndexOf(word, StringComparison.Ordinal); at >= 0; at = text.IndexOf(word, at + 1, StringComparison.Ordinal))
+        for (var at = text.IndexOf(target, StringComparison.Ordinal); at >= 0; at = text.IndexOf(target, at + 1, StringComparison.Ordinal))
         {
-            var end = at + word.Length;
-            if ((at == 0 || !char.IsLetterOrDigit(text[at - 1])) && (end == text.Length || !char.IsLetterOrDigit(text[end])))
+            var end = at + target.Length;
+            if ((at == 0 || !char.IsLetterOrDigit(text[at - 1])) && (prefixOnly || end == text.Length || !char.IsLetterOrDigit(text[end])))
             {
                 return true;
             }
@@ -89,7 +104,7 @@ public static class MarketTopics
     public static bool IsRelevant(MarketDataSettings settings, string? title, string? summary = null)
     {
         var text = $"{title} {summary}";
-        return MarketKeywords.ContainsAny(text, GeneralKeywords)
-            || settings.CostTypes.Any(type => type.Enabled && MarketKeywords.ContainsAny(text, type.NewsKeywords));
+        return MarketKeywords.MatchesNews(text, GeneralKeywords)
+            || settings.CostTypes.Any(type => type.Enabled && MarketKeywords.MatchesNews(text, type.NewsKeywords));
     }
 }

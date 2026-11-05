@@ -96,11 +96,17 @@ public sealed record MarketCostType
     /// <summary>Mô tả gửi cho AI để nhận ra chủ đề này trong bài báo.</summary>
     public string AiDescription { get; init; } = string.Empty;
 
-    /// <summary>Lọc bài trước khi gửi AI.</summary>
+    /// <summary>Lọc bài trước khi gửi AI. Giữ phân biệt dấu, vì bỏ dấu thì "tham gia điện ảnh" thành "giá điện".</summary>
     public IReadOnlyList<string> NewsKeywords { get; init; } = [];
 
-    /// <summary>Tìm trong tên cửa hàng, mô tả và tên danh mục của giao dịch, ở mọi danh mục.</summary>
+    /// <summary>
+    /// Tìm trong tên cửa hàng, mô tả và tên danh mục của giao dịch, ở mọi danh mục. Khớp cả từ, không phân biệt dấu.
+    /// Kết thúc bằng <c>*</c> thì khớp phần đầu của từ, dùng cho mã như <c>EVNHCMC</c>, <c>PETROLIMEX04</c>.
+    /// </summary>
     public IReadOnlyList<string> TransactionKeywords { get; init; } = [];
+
+    /// <summary>Cụm bị bỏ trước khi so khớp, để "tiền điện thoại" không thành tiền điện.</summary>
+    public IReadOnlyList<string> TransactionExcludes { get; init; } = [];
 
     /// <summary>Mọi giao dịch trong các danh mục hệ thống này đều tính, dùng khi khoản chi quá đa dạng để liệt kê từ khóa.</summary>
     public IReadOnlyList<string> CategorySlugs { get; init; } = [];
@@ -156,8 +162,8 @@ public sealed record MarketDataSettings
             Key = "fuel",
             Label = "xăng",
             AiDescription = "xăng dầu bán lẻ",
-            TransactionKeywords = ["xăng", "petrolimex", "pvoil", "mipec", "chxd"],
-            NewsKeywords = ["giá xăng", "xăng dầu", "ron 95", "ron95", "ron 92", "e5 ron", "e10"],
+            TransactionKeywords = ["xăng", "petrolimex*", "pvoil*", "mipec*", "chxd*"],
+            NewsKeywords = ["giá xăng", "xăng dầu", "ron 95", "ron95", "ron 92", "ron92", "e5 ron*", "e10"],
             HasPriceTable = true,
         },
         new()
@@ -165,7 +171,8 @@ public sealed record MarketDataSettings
             Key = "electricity",
             Label = "điện",
             AiDescription = "giá điện sinh hoạt",
-            TransactionKeywords = ["evn", "tiền điện", "điện lực", "hóa đơn điện"],
+            TransactionKeywords = ["evn*", "tiền điện", "điện lực", "hóa đơn điện"],
+            TransactionExcludes = ["tiền điện thoại", "hóa đơn điện thoại", "hóa đơn điện tử"],
             NewsKeywords = ["giá điện", "tiền điện", "biểu giá điện"],
         },
         new()
@@ -173,7 +180,8 @@ public sealed record MarketDataSettings
             Key = "water",
             Label = "nước",
             AiDescription = "giá nước sinh hoạt",
-            TransactionKeywords = ["tiền nước", "cấp nước", "sawaco", "hóa đơn nước"],
+            TransactionKeywords = ["tiền nước", "cấp nước", "sawaco*", "hóa đơn nước"],
+            TransactionExcludes = ["tiền nước mía", "tiền nước ngọt", "tiền nước uống"],
             NewsKeywords = ["giá nước", "tiền nước"],
         },
         new()
@@ -191,6 +199,7 @@ public sealed record MarketDataSettings
             Label = "gas nấu ăn",
             AiDescription = "giá gas nấu ăn, khí hóa lỏng bán lẻ",
             TransactionKeywords = ["gas", "bình gas", "đổi gas", "tiền gas"],
+            TransactionExcludes = ["nước có gas", "có gas"],
             NewsKeywords = ["giá gas", "giá khí hóa lỏng", "gas bán lẻ"],
         },
     ];

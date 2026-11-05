@@ -859,6 +859,28 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     }
 
     [Fact]
+    public void BadlyShapedCostTypesAreRefusedWithoutCrashing()
+    {
+        var market = new MarketDataSettings();
+        MarketDataSettings[] bad =
+        [
+            market with { CostTypes = null! },
+            market with { CostTypes = [null!] },
+            market with { CostTypes = market.CostTypes.Select(t => t with { Enabled = false }).ToList() },
+            market with { CostTypes = market.CostTypes.Select(t => t.Key == "fuel" ? t with { HasPriceTable = false } : t with { HasPriceTable = t.Key == "water" }).ToList() },
+            market with { CostTypes = [new MarketCostType { Key = "other\n", Label = "x", AiDescription = "x", TransactionKeywords = ["x"] }] },
+            market with { CostTypes = [new MarketCostType { Key = null!, Label = "x", AiDescription = "x", TransactionKeywords = ["x"] }] },
+            market with { CostTypes = [new MarketCostType { Key = "tuition", Label = "x", AiDescription = "x", TransactionKeywords = null! }] },
+            market with { CostTypes = [new MarketCostType { Key = "tuition", Label = "x", AiDescription = "x", TransactionKeywords = ["x"], NewsKeywords = null! }] },
+        ];
+
+        foreach (var settings in bad)
+        {
+            new SystemConfigDocumentValidator().Validate(new SystemConfigDocument { MarketData = settings }).IsValid.Should().BeFalse();
+        }
+    }
+
+    [Fact]
     public void TheDefaultCostTypesAreValidAndATypeNeedsAWayToMatch()
     {
         new SystemConfigDocumentValidator().Validate(new SystemConfigDocument()).IsValid.Should().BeTrue();

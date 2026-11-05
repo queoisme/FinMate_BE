@@ -13,14 +13,16 @@ public sealed record PriceChange(Guid RecurringItemId, string Name, long OldAmou
 public static class RecurringTracker
 {
     private const int MinFixedPricePayments = 2;
+    private const int MinFixedPriceRisePercent = 1;
 
     /// <summary>
-    /// Ngưỡng dung sai dành cho hóa đơn dao động như tiền điện. Tiền nhà, internet, gói đăng ký trả đúng một số mỗi kỳ, nên tăng bao nhiêu cũng là tăng giá thật.
-    /// Cần 2 lần trả giống hệt nhau trước đó mới coi là giá cố định. Chỉ xét khi tăng.
+    /// Ngưỡng dung sai dành cho hóa đơn dao động như tiền điện. Tiền nhà, internet trả đúng một số mỗi tháng, nên tăng trong ngưỡng cũng là tăng giá thật.
+    /// Cần 2 lần trả giống hệt nhau cách nhau đúng một kỳ trước đó, tăng từ 1% trở lên, và chỉ xét khoản hằng tháng: giao dịch thường và mua lặp lại không phải giá cố định.
+    /// Khoản hằng năm không có đủ 2 lần trong cửa sổ lịch sử nên không xét được.
     /// </summary>
-    private static bool FixedPriceRose(RecurringItem item, ForecastTransaction payment, IReadOnlyList<ForecastTransaction> history)
+    private static bool FixedPriceRose(RecurringItem item, ForecastTransaction payment, IReadOnlyList<ForecastTransaction> history, ForecastRules rules)
     {
-        if (payment.AmountCents <= item.AmountCents)
+        if (item.Cadence != RecurringCadence.Monthly || (payment.AmountCents - item.AmountCents) * 100 < item.AmountCents * MinFixedPriceRisePercent)
         {
             return false;
         }
@@ -30,7 +32,9 @@ public static class RecurringTracker
             .OrderByDescending(t => t.TransactedAt)
             .Take(MinFixedPricePayments)
             .ToList();
-        return earlier.Count == MinFixedPricePayments && earlier.All(t => t.AmountCents == item.AmountCents);
+        return earlier.Count == MinFixedPricePayments
+            && earlier.All(t => t.AmountCents == item.AmountCents)
+            && earlier[0].Date.DayNumber - earlier[1].Date.DayNumber >= rules.MonthlyMinIntervalDays;
     }
 
     /// <summary>Trần số vòng đuổi kịp trong một lần chạy, chặn vòng lặp vô hạn nếu dữ liệu bất thường.</summary>
@@ -61,15 +65,24 @@ public static class RecurringTracker
             item.Occurrences++;
             item.LastSeenAt = payment.TransactedAt;
             item.LastSeenAmountCents = payment.AmountCents;
-            if (!rules.AmountWithinTolerance(item.AmountCents, payment.AmountCents) || FixedPriceRose(item, payment, history))
+            if (!rules.AmountWithinTolerance(item.AmountCents, payment.AmountCents))
             {
                 // Giá đổi thật: theo giá mới cho cả khoản user tự thêm, nếu không dự báo sẽ trừ sai số tiền mãi.
                 priceChanges.Add(new PriceChange(item.Id, item.Name, item.AmountCents, payment.AmountCents, payment.Date));
                 item.AmountCents = payment.AmountCents;
             }
-            else if (item.Source == RecurringSource.Detected)
+            else
             {
-                item.AmountCents = payment.AmountCents;
+                if (FixedPriceRose(item, payment, history, rules))
+                {
+                    priceChanges.Add(new PriceChange(item.Id, item.Name, item.AmountCents, payment.AmountCents, payment.Date));
+                }
+
+                // Khoản user tự thêm giữ nguyên số họ nhập: một lần trả thừa không được làm dự báo lệch mãi.
+                if (item.Source == RecurringSource.Detected)
+                {
+                    item.AmountCents = payment.AmountCents;
+                }
             }
 
             item.NextDueDate = RecurringSchedule.Next(item.NextDueDate, item.Cadence, RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate));

@@ -124,7 +124,8 @@ public sealed class MarketAlertService : IMarketAlertService
         await ProcessFuelAsync(settings, enabled, now, ct);
         foreach (var marketEvent in await _market.ListEventsAwaitingAlertsAsync(ct))
         {
-            var type = settings.CostTypes.FirstOrDefault(t => t.Key == marketEvent.Topic && t.Enabled);
+            // Loại có bảng giá chỉ cảnh báo theo giá thật, kể cả khi còn sự kiện từ trước.
+            var type = settings.CostTypes.FirstOrDefault(t => t.Key == marketEvent.Topic && t.Enabled && !t.HasPriceTable);
             if (enabled && type is not null && marketEvent.Direction == MarketDirection.Up)
             {
                 await SendNewsAlertsAsync(marketEvent, type, settings, now, ct);

@@ -392,6 +392,17 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task FuelNewsNeverAlertsEvenIfAnOldEventExists()
+    {
+        var driver = await CustomerAsync();
+        await EventAsync("fuel", MarketEventStatus.Approved);
+
+        await ProcessAsync();
+
+        (await AlertsAsync(driver)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task CookingGasWorksTheSameWay()
     {
         var cook = await CustomerAsync(slug: "bills", merchant: "Đổi bình gas");

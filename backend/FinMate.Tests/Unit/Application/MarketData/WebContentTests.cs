@@ -124,10 +124,33 @@ public class WebContentTests
     }
 
     [Theory]
+    [InlineData("<a href=\"")]
+    [InlineData("<article>")]
+    [InlineData("<a href='x'>y</a><article>z</article>")]
+    [InlineData("<script>")]
+    public void AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory(string unit)
+    {
+        var page = string.Concat(Enumerable.Repeat(unit, (2 * 1024 * 1024) / unit.Length));
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        HtmlTextExtractor.ArticleText(page);
+        HtmlTextExtractor.PageText(page);
+        HtmlTextExtractor.Links(page, new Uri("https://example.vn/"));
+        HtmlTextExtractor.PublishedAt(page);
+
+        watch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30));
+        (GC.GetAllocatedBytesForCurrentThread() - before).Should().BeLessThan(4L * 1024 * 1024 * 1024);
+    }
+
+    [Theory]
     [InlineData("Giá xăng RON 95 tăng mạnh", true)]
     [InlineData("GIÁ ĐIỆN sẽ tăng từ tháng sau", true)]
     [InlineData("Lạm phát tháng 10", true)]
     [InlineData("Đội tuyển bóng đá thắng đậm", false)]
+    [InlineData("Chuyên gia Trung Quốc tham gia diễn đàn", false)]
+    [InlineData("Các quốc gia lớn họp bàn", false)]
+    [InlineData("Xăng E5 RON92 tăng 200 đồng/lít", true)]
     public void TopicFilterKeepsOnlyPriceNews(string title, bool expected)
         => MarketTopics.IsRelevant(new FinMate.Application.Admin.SystemConfig.MarketDataSettings(), title).Should().Be(expected);
 
