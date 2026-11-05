@@ -79,6 +79,7 @@ public class FuelPriceConfiguration : IEntityTypeConfiguration<FuelPrice>
         builder.Property(p => p.Origin).HasColumnName("origin").HasConversion(GroupColumns.Converter<FuelPriceOrigin>()).HasMaxLength(20).IsRequired();
         builder.Property(p => p.CreatedByUserId).HasColumnName("created_by_user_id");
         builder.Property(p => p.Note).HasColumnName("note").HasMaxLength(500);
+        builder.Property(p => p.AlertsProcessedAt).HasColumnName("alerts_processed_at");
 
         builder.HasIndex(p => new { p.FuelKey, p.FirstSeenAt }).HasDatabaseName("ix_fuel_prices_key_time");
         builder.HasOne<User>().WithMany().HasForeignKey(p => p.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
@@ -135,6 +136,7 @@ public class MarketEventConfiguration : IEntityTypeConfiguration<MarketEvent>
         builder.Property(e => e.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
         builder.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
         builder.Property(e => e.ReviewNote).HasColumnName("review_note").HasMaxLength(500);
+        builder.Property(e => e.AlertsProcessedAt).HasColumnName("alerts_processed_at");
 
         builder.HasIndex(e => new { e.Topic, e.Direction })
             .IsUnique()

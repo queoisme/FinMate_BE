@@ -33,6 +33,8 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             services.AddSingleton<IWebPageFetcher>(_web);
             services.RemoveAll<IMarketAiClient>();
             services.AddSingleton<IMarketAiClient>(_ai);
+            services.RemoveAll<IMarketAlertTrigger>();
+            services.AddSingleton<IMarketAlertTrigger>(new NoAlertTrigger());
         }));
         _client = _factory.CreateClient();
     }
@@ -62,6 +64,13 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
         {
             Requests.Add(uri.AbsoluteUri);
             return Task.FromResult(Pages.TryGetValue(uri.AbsoluteUri, out var page) ? page : new WebFetchResult(WebFetchOutcome.NotFound, StatusCode: 404));
+        }
+    }
+
+    private sealed class NoAlertTrigger : IMarketAlertTrigger
+    {
+        public void Enqueue()
+        {
         }
     }
 

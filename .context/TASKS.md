@@ -799,6 +799,7 @@
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
 | Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
 | Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
+| Phase 73 — Thị trường, đợt 3: cảnh báo, giám sát | `[ ]` | 3 / 4 *(còn: báo người làm Flutter về `market_change`, kiểm tra điều khoản các nguồn trước khi phát hành)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1414,3 +1415,11 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Migration `AddMarketSignals`; `MarketSignalValidator` đối chiếu đoạn trích với nguyên văn bài; gom sự kiện theo tên miền; API duyệt; trần `maxAiDocumentsPerDay`.
 - [x] Test: `MarketDataTests`, `MarketAiClientTests`, `tests/unit/test_market_extractor.py`.
 - [ ] Thử với key Gemini thật: máy này không có key, nên mới kiểm bằng phản hồi giả. Chưa biết AI đọc tin thật đúng đến đâu.
+
+## Phase 73 — Thông tin thị trường, đợt 3: cảnh báo và giám sát (2026-11-06)
+- [x] `ForecastAlertKind.MarketChange`, migration `AddMarketAlerts`; `MarketAlertService`, `MarketAlertRules`; `MarketAlertJob` chạy ngay sau khi duyệt sự kiện hoặc sửa giá; cờ `features.marketAlerts` mặc định tắt.
+- [x] `MonitoredServices.MarketData`: nhiều lượt liền không xác nhận được giá thì mở sự cố mức thường.
+- [x] Test: `MarketAlertRulesTests`, `MarketAlertsTests`, `MonitoringProvidersTests`.
+- [ ] Báo người làm Flutter xử lý `market_change`; kiểm tra điều khoản từng nguồn trước khi phát hành thật.
+
+**Verify Phase 73 (2026-11-06) trên backend thật, Postgres và Redis thật:** tạo hai tài khoản có ngân sách Di chuyển căng, một đổ xăng ở Petrolimex, một đi xe buýt. Sau khi bật cờ và tăng giá từ 21.150 lên 22.200 bằng `POST /admin/fuel-prices`, `MarketAlertJob` chạy qua Hangfire, chỉ tài khoản đổ xăng có cảnh báo, số 19.000đ khớp tính tay, trạng thái `pending` vì lúc đó là 02:00 giờ VN. Migration chạy `Up`, về trước `AddMarketData`, rồi `Up` lại được. Text bài thật: bài chính đọc đúng ở vnexpress, dantri; tuoitre và thanhnien có lẫn phần bình luận và chia sẻ; vietnamnet từng lấy nhầm thẻ tin liên quan, đã sửa nhưng chưa đo lại trên trang thật. **Chưa kiểm chứng:** Gemini thật, push và email thật, `MarketDataRefreshJob` chạy theo lịch qua Hangfire (`RefreshAsync` đã chạy với trang thật qua test tạm, lịch mới thấy được đăng ký).

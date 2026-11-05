@@ -398,6 +398,19 @@ Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không t
 | FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
 | FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
 
+### 6.9 Thông tin thị trường **[Mới so với đặc tả Core Flows]**
+
+Chi tiết ở `docs/market-data-api.md`.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-MKT-01 | Admin gửi link, hệ thống tự nhận dạng loại trang | Must | Nhận RSS, bảng giá, trang danh sách. Trả rõ lý do nếu không dùng được. Tối đa 50 link một lần |
+| FR-MKT-02 | Tải trang an toàn | Must | Chỉ `https`, chặn địa chỉ nội bộ kể cả qua chuyển hướng, tôn trọng `robots.txt`, không vượt 401, 403, 429 |
+| FR-MKT-03 | Giá xăng tự động | Must | Cần đủ nguồn khớp đúng cùng số. Đổi quá mức cho phép thì không nhận. Admin sửa được, bắt buộc ghi chú |
+| FR-MKT-04 | AI đọc tin bài | Should | Đoạn trích phải có nguyên văn trong bài. Dự báo không thành sự kiện. Không có key thì bài chờ. Không lưu toàn văn |
+| FR-MKT-05 | Admin duyệt sự kiện | Should | Sự kiện cần ít nhất 2 tên miền, mặc định chờ duyệt |
+| FR-MKT-06 | Cảnh báo theo ngân sách | Should | Chỉ gửi cho người có chi tiêu và ngân sách đang căng ở danh mục đó. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)

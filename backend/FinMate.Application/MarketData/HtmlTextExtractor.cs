@@ -15,6 +15,7 @@ public static class HtmlTextExtractor
 
     /// <summary>Ngắn hơn mức này thì coi như không có nội dung: thường là trang cần JavaScript.</summary>
     public const int MinArticleLength = 200;
+    private const int SolidArticleLength = 800;
 
     private static readonly Regex[] Removed = new[] { "script", "style", "noscript", "svg", "template", "nav", "header", "footer", "aside" }
         .Select(tag => new Regex($@"<{tag}\b[\s\S]*?</{tag}\s*>", Options))
@@ -34,24 +35,24 @@ public static class HtmlTextExtractor
     /// <summary>Text của toàn trang, dùng để đọc bảng giá.</summary>
     public static string PageText(string html) => ToText(Clean(FirstGroup(Body, html) ?? html));
 
-    /// <summary>Phần nội dung chính của một bài báo.</summary>
+    /// <summary>
+    /// Phần nội dung chính của một bài báo: khối <c>article</c> hoặc <c>main</c> dài nhất. Trang báo hay dùng <c>article</c> cho thẻ tin liên quan,
+    /// nên khối đầu tiên chưa chắc là bài chính. Khối dài nhất vẫn ngắn thì lấy cả trang: thừa chữ còn hơn mất nội dung.
+    /// </summary>
     public static string ArticleText(string html)
     {
-        var cleanable = RemoveNoise(html);
-        foreach (var part in new[] { Article, Main })
+        var cleaned = RemoveNoise(html);
+        var longest = Article.Matches(cleaned).Concat(Main.Matches(cleaned))
+            .Select(match => ToText(match.Groups[1].Value))
+            .OrderByDescending(text => text.Length)
+            .FirstOrDefault() ?? string.Empty;
+        if (longest.Length >= SolidArticleLength)
         {
-            var inner = FirstGroup(part, cleanable);
-            if (inner is not null)
-            {
-                var text = ToText(inner);
-                if (text.Length >= MinArticleLength)
-                {
-                    return text;
-                }
-            }
+            return longest;
         }
 
-        return ToText(FirstGroup(Body, cleanable) ?? cleanable);
+        var page = ToText(FirstGroup(Body, cleaned) ?? cleaned);
+        return page.Length > longest.Length ? page : longest;
     }
 
     public static string? Title(string html)

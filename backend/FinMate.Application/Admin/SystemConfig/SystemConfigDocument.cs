@@ -37,6 +37,9 @@ public sealed record FeatureSettings
 
     /// <summary>Ticket hỗ trợ cho khách. Mặc định tắt: chỉ bật sau khi app có màn hình và web vận hành đã có xác thực 2 lớp.</summary>
     public bool Support { get; init; }
+
+    /// <summary>Cảnh báo giá tăng. Mặc định tắt: chỉ bật sau khi app xử lý được loại cảnh báo này. Việc đọc dữ liệu vẫn chạy khi tắt.</summary>
+    public bool MarketAlerts { get; init; }
 }
 
 public sealed record GroupSettings
@@ -101,6 +104,16 @@ public sealed record MarketDataSettings
 
     /// <summary>Trần số bài gửi AI mỗi ngày, tính cả lần lỗi, để giới hạn chi phí.</summary>
     public int MaxAiDocumentsPerDay { get; init; } = 100;
+
+    /// <summary>Loại xăng dùng để so sánh khi cảnh báo.</summary>
+    public string ReferenceFuelKey { get; init; } = "e10_ron95_3";
+
+    /// <summary>Tăng từ mức này so với mốc cách đây <see cref="CompareWindowDays"/> ngày thì mới xét cảnh báo. Giá đổi vài ngày một lần nên không so với kỳ liền trước.</summary>
+    public int RiseThresholdPercent { get; init; } = 3;
+    public int CompareWindowDays { get; init; } = 14;
+    public int AlertCooldownDays { get; init; } = 14;
+    public int SpendLookbackDays { get; init; } = 60;
+    public int MinCategoryTransactions { get; init; } = 2;
 }
 
 public sealed record LimitSettings

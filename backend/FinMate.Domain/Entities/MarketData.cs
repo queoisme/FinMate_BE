@@ -68,6 +68,9 @@ public class MarketEvent
     public Guid? ReviewedByUserId { get; set; }
     public DateTimeOffset? ReviewedAt { get; set; }
     public string? ReviewNote { get; set; }
+
+    /// <summary>Đã xét gửi cảnh báo. Có mốc này nên job chạy lại không xét lần hai, còn job chết giữa chừng thì lượt sau làm tiếp.</summary>
+    public DateTimeOffset? AlertsProcessedAt { get; set; }
 }
 
 /// <summary>Giá đã xác nhận. Chỉ thêm dòng khi giá đổi, nên dòng mới nhất của một loại là giá đang áp dụng.</summary>
@@ -81,4 +84,7 @@ public class FuelPrice
     public FuelPriceOrigin Origin { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public string? Note { get; set; }
+
+    /// <summary>Đã xét gửi cảnh báo cho mức giá này.</summary>
+    public DateTimeOffset? AlertsProcessedAt { get; set; }
 }

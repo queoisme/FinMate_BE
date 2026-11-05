@@ -134,6 +134,19 @@ public class MarketDataRepository : IMarketDataRepository
 
     public void AddSignal(MarketSignal signal) => _context.MarketSignals.Add(signal);
 
+    public Task<List<FuelPrice>> ListFuelPricesAwaitingAlertsAsync(string fuelKey, CancellationToken ct = default)
+        => _context.FuelPrices.Where(p => p.FuelKey == fuelKey && p.AlertsProcessedAt == null).OrderBy(p => p.FirstSeenAt).ToListAsync(ct);
+
+    public Task<List<MarketEvent>> ListEventsAwaitingAlertsAsync(CancellationToken ct = default)
+        => _context.MarketEvents.Where(e => e.Status == MarketEventStatus.Approved && e.AlertsProcessedAt == null).OrderBy(e => e.LastSeenAt).ToListAsync(ct);
+
+    public async Task<FuelPrice?> GetFuelPriceAsOfAsync(string fuelKey, DateTimeOffset at, CancellationToken ct = default)
+    {
+        var query = _context.FuelPrices.AsNoTracking().Where(p => p.FuelKey == fuelKey);
+        return await query.Where(p => p.FirstSeenAt <= at).OrderByDescending(p => p.FirstSeenAt).FirstOrDefaultAsync(ct)
+            ?? await query.OrderBy(p => p.FirstSeenAt).FirstOrDefaultAsync(ct);
+    }
+
     public async Task<List<(string Url, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
     {
         var rows = await SignalRows(topic, direction, since)
@@ -184,7 +197,14 @@ public class MarketDataRepository : IMarketDataRepository
     public Task<List<MarketSignalSource>> ListEventSignalsAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default)
         => SignalRows(topic, direction, since)
             .OrderByDescending(row => row.Signal.CreatedAt)
-            .Select(row => new MarketSignalSource(row.Document.Title, row.Document.Url, row.Signal.Evidence, row.Signal.ChangePercent, row.Signal.EffectiveDate, row.Document.PublishedAt))
+            .Select(row => new MarketSignalSource(
+                row.Document.Title,
+                row.Document.Url,
+                row.Signal.Evidence,
+                row.Signal.ChangePercent,
+                row.Signal.EffectiveDate,
+                row.Document.PublishedAt,
+                _context.MarketSources.Where(source => source.Id == row.Document.SourceId).Select(source => source.Name).First()))
             .ToListAsync(ct);
 
     public async Task<bool> TryReviewEventAsync(Guid id, MarketEventStatus status, Guid adminId, string? note, DateTimeOffset now, CancellationToken ct = default)

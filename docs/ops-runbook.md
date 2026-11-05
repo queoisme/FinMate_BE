@@ -37,6 +37,7 @@ Hệ thống **không tự báo được** trong hai trường hợp, nên cần
 
 | Trường hợp | Vì sao | Cần làm |
 |---|---|---|
+| Giá xăng không xác nhận được (`market_data`) | Các nguồn lỗi hoặc lệch nhau nhiều lượt liền, cảnh báo giá xăng tạm ngừng | Xem `lastErrorCode` ở `GET /admin/market-sources`. Thêm nguồn khác, hạ `minAgreeingSources`, hoặc sửa giá bằng `POST /admin/fuel-prices` |
 | Backend hoặc Postgres sập | Job giám sát chạy trong backend và lịch Hangfire nằm trong Postgres | Đăng ký dịch vụ theo dõi bên ngoài (ví dụ UptimeRobot), gọi `https://<domain>/health/ready` mỗi phút, báo về email khác hoặc điện thoại |
 | Brevo hỏng | Email là kênh cảnh báo duy nhất | Mở trang trạng thái khi nghi ngờ; log có dòng mức Error. Đặt thêm cảnh báo của chính Brevo nếu có |
 

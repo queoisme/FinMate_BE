@@ -245,9 +245,11 @@ public sealed class MarketEventService : IMarketEventService
 
     private readonly IMarketDataRepository _repository;
     private readonly IAuditLogService _audit;
+    private readonly IMarketAlertTrigger _alertTrigger;
 
-    public MarketEventService(IMarketDataRepository repository, IAuditLogService audit)
+    public MarketEventService(IMarketDataRepository repository, IAuditLogService audit, IMarketAlertTrigger alertTrigger)
     {
+        _alertTrigger = alertTrigger;
         _repository = repository;
         _audit = audit;
     }
@@ -287,6 +289,11 @@ public sealed class MarketEventService : IMarketEventService
         }
 
         await _audit.LogAsync(auditEvent, adminId, ip, new { EventId = id, Note = trimmed }, ct);
+        if (status == MarketEventStatus.Approved)
+        {
+            _alertTrigger.Enqueue();
+        }
+
         var reviewed = await _repository.GetEventAsync(id, ct) ?? throw new NotFoundException("Sự kiện", id);
         return await ToDtoAsync(reviewed, ct);
     }

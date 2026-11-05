@@ -44,7 +44,8 @@ public static class FuelReadingValidator
 /// <summary>Kết quả xác nhận giá của một lượt đọc.</summary>
 /// <param name="Confirmed">Loại có đủ nguồn khớp và giá khác giá đang lưu.</param>
 /// <param name="HeldBack">Loại có đủ nguồn khớp nhưng đổi quá mạnh, không được nhận.</param>
-public sealed record FuelConfirmation(IReadOnlyList<FuelReading> Confirmed, IReadOnlyList<string> HeldBack);
+/// <param name="AgreedFuels">Số loại có đủ nguồn khớp, kể cả khi giá không đổi. Bằng 0 nghĩa là lượt này không xác nhận được gì.</param>
+public sealed record FuelConfirmation(IReadOnlyList<FuelReading> Confirmed, IReadOnlyList<string> HeldBack, int AgreedFuels);
 
 /// <summary>Chỉ nhận giá có đủ số nguồn cho đúng cùng một cặp số. Nguồn lệch giờ cập nhật thì chờ lượt sau, không chọn bên nào.</summary>
 public static class FuelPriceConfirmer
@@ -56,6 +57,7 @@ public static class FuelPriceConfirmer
     {
         var confirmed = new List<FuelReading>();
         var heldBack = new List<string>();
+        var agreedFuels = 0;
 
         var agreed = sourceTables
             .SelectMany(table => table)
@@ -72,6 +74,7 @@ public static class FuelPriceConfirmer
                 continue;
             }
 
+            agreedFuels++;
             var reading = fuel.Single();
             if (!latest.TryGetValue(reading.FuelKey, out var current))
             {
@@ -91,6 +94,6 @@ public static class FuelPriceConfirmer
             }
         }
 
-        return new FuelConfirmation(confirmed, heldBack);
+        return new FuelConfirmation(confirmed, heldBack, agreedFuels);
     }
 }

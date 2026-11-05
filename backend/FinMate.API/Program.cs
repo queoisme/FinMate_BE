@@ -367,6 +367,8 @@ public class Program
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
         builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();
         builder.Services.AddScoped<IMarketEventService, MarketEventService>();
+        builder.Services.AddScoped<IMarketAlertService, MarketAlertService>();
+        builder.Services.AddScoped<IMarketAlertTrigger, HangfireMarketAlertTrigger>();
 
         // Trần Gemini phía ai-service là 30 giây cho cả chuỗi model.
         builder.Services.AddHttpClient<IMarketAiClient, MarketAiClient>(client =>
@@ -569,6 +571,7 @@ public class Program
         builder.Services.AddScoped<SystemMonitorJob>();
         builder.Services.AddScoped<MonitoringDigestJob>();
         builder.Services.AddScoped<MarketDataRefreshJob>();
+        builder.Services.AddScoped<MarketAlertJob>();
         builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();

@@ -111,6 +111,12 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxDocumentsPerRun).InclusiveBetween(1, 200).WithMessage("Số bài mỗi lượt phải từ 1 đến 200.");
             RuleFor(x => x.MinPriceCents).GreaterThan(0).LessThan(x => x.MaxPriceCents).WithMessage("Giá tối thiểu phải lớn hơn 0 và nhỏ hơn giá tối đa.");
             RuleFor(x => x.MaxChangePercent).InclusiveBetween(1, 100).WithMessage("Mức đổi giá tối đa phải từ 1 đến 100%.");
+            RuleFor(x => x.ReferenceFuelKey).Must(key => FinMate.Application.MarketData.FuelKeys.All.Contains(key)).WithMessage("Loại xăng so sánh không hợp lệ.");
+            RuleFor(x => x.RiseThresholdPercent).InclusiveBetween(1, 100).WithMessage("Ngưỡng tăng giá phải từ 1 đến 100%.");
+            RuleFor(x => x.CompareWindowDays).InclusiveBetween(1, 90).WithMessage("Số ngày so sánh phải từ 1 đến 90.");
+            RuleFor(x => x.AlertCooldownDays).InclusiveBetween(0, 365).WithMessage("Thời gian giãn cảnh báo phải từ 0 đến 365 ngày.");
+            RuleFor(x => x.SpendLookbackDays).InclusiveBetween(7, 365).WithMessage("Số ngày xét chi tiêu phải từ 7 đến 365.");
+            RuleFor(x => x.MinCategoryTransactions).InclusiveBetween(1, 100).WithMessage("Số giao dịch tối thiểu phải từ 1 đến 100.");
             RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
             RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");
         }

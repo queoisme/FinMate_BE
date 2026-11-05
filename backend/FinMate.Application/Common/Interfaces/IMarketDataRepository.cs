@@ -3,7 +3,7 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
-public sealed record MarketSignalSource(string Title, string Url, string Evidence, decimal? ChangePercent, DateOnly? EffectiveDate, DateTimeOffset? PublishedAt);
+public sealed record MarketSignalSource(string Title, string Url, string Evidence, decimal? ChangePercent, DateOnly? EffectiveDate, DateTimeOffset? PublishedAt, string SourceName);
 
 public interface IMarketDataRepository
 {
@@ -26,6 +26,11 @@ public interface IMarketDataRepository
     Task<List<MarketDocument>> ListDocumentsForAiAsync(int limit, CancellationToken ct = default);
     Task<int> CountAiAttemptsSinceAsync(DateTimeOffset since, CancellationToken ct = default);
     void AddSignal(MarketSignal signal);
+    Task<List<FuelPrice>> ListFuelPricesAwaitingAlertsAsync(string fuelKey, CancellationToken ct = default);
+    Task<List<MarketEvent>> ListEventsAwaitingAlertsAsync(CancellationToken ct = default);
+
+    /// <summary>Giá đang áp dụng tại mốc đó. Chưa có giá nào từ trước mốc thì lấy dòng cũ nhất, null nếu chưa có dòng nào.</summary>
+    Task<FuelPrice?> GetFuelPriceAsOfAsync(string fuelKey, DateTimeOffset at, CancellationToken ct = default);
 
     /// <summary>Trang và thời điểm của các tín hiệu đã xảy ra, tính theo ngày đăng bài hoặc ngày đọc nếu bài không ghi ngày.</summary>
     Task<List<(string Url, DateTimeOffset SeenAt)>> ListActualSignalSourcesAsync(MarketTopic topic, MarketDirection direction, DateTimeOffset since, CancellationToken ct = default);

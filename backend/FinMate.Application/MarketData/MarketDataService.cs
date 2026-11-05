@@ -4,6 +4,7 @@ using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Monitoring;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.Extensions.Logging;
@@ -149,12 +150,16 @@ public sealed class MarketDataService : IMarketDataService
     private readonly ISystemConfigProvider _config;
     private readonly IAuditLogService _audit;
     private readonly IMarketSignalProcessor _signals;
+    private readonly IMarketAlertTrigger _alertTrigger;
+    private readonly IProviderFailureTracker _tracker;
     private readonly ILogger<MarketDataService> _logger;
     private readonly Dictionary<string, string> _freshTexts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, RobotsLookup> _robots = new(StringComparer.OrdinalIgnoreCase);
 
-    public MarketDataService(IMarketDataRepository repository, IWebPageFetcher fetcher, ISystemConfigProvider config, IAuditLogService audit, IMarketSignalProcessor signals, ILogger<MarketDataService> logger)
+    public MarketDataService(IMarketDataRepository repository, IWebPageFetcher fetcher, ISystemConfigProvider config, IAuditLogService audit, IMarketSignalProcessor signals, IMarketAlertTrigger alertTrigger, IProviderFailureTracker tracker, ILogger<MarketDataService> logger)
     {
+        _alertTrigger = alertTrigger;
+        _tracker = tracker;
         _signals = signals;
         _repository = repository;
         _fetcher = fetcher;
@@ -358,6 +363,7 @@ public sealed class MarketDataService : IMarketDataService
         _repository.AddFuelPrice(price);
         await _repository.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.AdminFuelPriceCorrected, adminId, ip, new { price.Id, price.FuelKey, price.Region1PriceCents, price.Region2PriceCents, Note = note }, ct);
+        _alertTrigger.Enqueue();
         return ToDto(price);
     }
 
@@ -407,9 +413,32 @@ public sealed class MarketDataService : IMarketDataService
         }
 
         var confirmation = await ConfirmPricesAsync(tables, settings, ct);
+        RecordFuelHealth(sources.Count(s => s.Kind == MarketSourceKind.PriceTable), confirmation);
         var (aiProcessed, aiStatus) = await ReadPendingWithAiAsync(settings, ct);
         await _signals.ExpireOldEventsAsync(ct);
         return new MarketRefreshSummary(sources.Count, failed, newDocuments, confirmation.Confirmed.Select(c => c.FuelKey).ToList(), confirmation.HeldBack, aiProcessed, aiStatus);
+    }
+
+    /// <summary>Một nguồn lỗi riêng lẻ chỉ ghi vào nguồn đó. Sự cố chỉ mở khi nhiều lượt liền không xác nhận được giá, vì lúc đó cảnh báo xăng đã ngừng hoạt động.</summary>
+    private void RecordFuelHealth(int priceTableSources, FuelConfirmation confirmation)
+    {
+        var provider = MonitoredServices.MarketData.Key;
+        if (priceTableSources == 0)
+        {
+            _tracker.RecordNotConfigured(provider);
+        }
+        else if (confirmation.HeldBack.Count > 0)
+        {
+            _tracker.RecordFailure(provider, FuelErrorCodes.ChangeTooLarge);
+        }
+        else if (confirmation.AgreedFuels == 0)
+        {
+            _tracker.RecordFailure(provider, "NO_AGREEMENT");
+        }
+        else
+        {
+            _tracker.RecordSuccess(provider);
+        }
     }
 
     public Task<int> PurgeOldDocumentsAsync(CancellationToken ct = default)

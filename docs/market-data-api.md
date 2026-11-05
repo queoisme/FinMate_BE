@@ -80,9 +80,24 @@ Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện ch�
 
 Sự kiện đã xử lý trả 409 `MARKET_EVENT_NOT_PENDING`. Sự kiện đang mở không có tin mới sau 7 ngày thì chuyển `expired`.
 
+## Cảnh báo
+
+Bật bằng `features.marketAlerts`, mặc định tắt. Việc đọc dữ liệu vẫn chạy khi tắt, và bật cờ không gửi bù tin cũ. Cảnh báo có `kind` là `market_change`, đi qua `forecast_alerts`, theo công tắc `forecastAlertsEnabled` của người dùng. Từ 21:00 đến 08:00 thì hẹn tới 08:00.
+
+Người dùng nhận cảnh báo khi có đủ:
+
+1. **Xăng:** giá `referenceFuelKey` vùng 1 tăng từ `riseThresholdPercent` so với mốc `compareWindowDays` ngày trước, hoặc so với giá cũ nhất nếu chưa có đủ lịch sử. **Điện, nước, thực phẩm:** có sự kiện tăng giá đã duyệt. Tin về xăng không kích hoạt cảnh báo xăng.
+2. Có từ `minCategoryTransactions` giao dịch đã xác nhận trong `spendLookbackDays` ngày ở danh mục tương ứng: xăng là `transport` và tên cửa hàng hoặc mô tả có từ khóa xăng, điện và nước là `bills`, thực phẩm là `food`.
+3. Có ngân sách danh mục đó, và dự báo `at_risk`, `over`, hoặc đã dùng từ ngưỡng T1 của người đó.
+4. Chưa nhận cảnh báo cùng chủ đề trong `alertCooldownDays` ngày.
+
+Nội dung là mẫu cố định trong code. Không chữ nào đến từ trang web hay AI, ngoài tên nguồn do admin đặt. Số tiền thêm chỉ ước tính cho xăng: chi xăng trung bình mỗi tháng nhân % tăng, làm tròn tới 1.000đ. App cần xử lý `kind` mới này.
+
+Nhiều lượt liền không xác nhận được giá xăng thì mở sự cố `market_data` mức thường. Một nguồn lỗi riêng lẻ chỉ hiện ở `lastErrorCode`.
+
 ## Cấu hình
 
-Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100).
+Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100), `referenceFuelKey` (`e10_ron95_3`), `riseThresholdPercent` (3), `compareWindowDays` (14), `alertCooldownDays` (14), `spendLookbackDays` (60), `minCategoryTransactions` (2).
 
 ## An toàn
 

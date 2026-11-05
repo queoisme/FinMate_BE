@@ -63,6 +63,19 @@ public class WebContentTests
     }
 
     [Fact]
+    public void ARelatedStoryCardIsNotMistakenForTheArticle()
+    {
+        var card = string.Join(" ", Enumerable.Repeat("Tin liên quan về giá xăng hôm qua.", 8));
+        var body = string.Join(" ", Enumerable.Repeat("Giá điện tăng từ tháng sau theo quyết định mới.", 30));
+
+        var cardFirst = HtmlTextExtractor.ArticleText($"<html><body><article>{card}</article><article>{body}</article></body></html>");
+        var outsideArticle = HtmlTextExtractor.ArticleText($"<html><body><article>{card}</article><div class=\"detail\">{body}</div></body></html>");
+
+        cardFirst.Should().Be(body);
+        outsideArticle.Should().Contain("Giá điện tăng từ tháng sau");
+    }
+
+    [Fact]
     public void AnEmptyAppShellHasNoContent()
         => HtmlTextExtractor.ArticleText("<html><body><div id=\"root\"></div><script src=\"/app.js\"></script></body></html>").Length
             .Should().BeLessThan(HtmlTextExtractor.MinArticleLength);
