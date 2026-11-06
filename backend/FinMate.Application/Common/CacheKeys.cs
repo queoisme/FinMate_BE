@@ -15,4 +15,12 @@ public static class CacheKeys
     public static string ForecastBaseline(Guid userId, DateOnly date) => $"user:{userId}:forecast_baseline:{date:yyyy-MM-dd}";
 
     public static readonly TimeSpan ForecastBaselineTtl = TimeSpan.FromHours(24);
+
+    /// <summary>Đã hỏi chia sẻ lên cộng đồng trong ngày.</summary>
+    public static string CommunityPromptDay(Guid userId, DateOnly date) => $"user:{userId}:community_prompt:{date:yyyy-MM-dd}";
+
+    public static readonly TimeSpan CommunityPromptDayTtl = TimeSpan.FromHours(25);
+
+    /// <summary>Đã hỏi về quán này. <paramref name="placeHash"/> là giá trị băm, để khóa không cho thấy người dùng đã chi ở đâu.</summary>
+    public static string CommunityPromptPlace(Guid userId, string placeHash) => $"user:{userId}:community_prompt_place:{placeHash}";
 }

@@ -46,6 +46,7 @@ public interface ICommunityRepository
     /// <summary>Luôn lọc theo tác giả: bài của người khác coi như không tồn tại.</summary>
     Task<CommunityPost?> GetOwnPostAsync(Guid postId, Guid authorId, CancellationToken ct = default);
     Task<CommunityPost?> GetOwnPostForPlaceAsync(Guid authorId, Guid placeId, CancellationToken ct = default);
+    Task<bool> HasOwnPostForPlaceKeyAsync(Guid authorId, string nameKey, CancellationToken ct = default);
 
     /// <summary>Đếm cả bài đã xóa: đăng rồi xóa không được hoàn lại lượt.</summary>
     Task<int> CountPostsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);

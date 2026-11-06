@@ -22,9 +22,17 @@ public class CommunityController : ControllerBase
     private readonly ICommunityCommentService _comments;
     private readonly ICommunityImageService _images;
     private readonly ICommunityReportService _reports;
+    private readonly ICommunitySharePromptService _prompts;
 
-    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments, ICommunityImageService images, ICommunityReportService reports)
+    public CommunityController(
+        ICommunityService community,
+        ICommunityReadService read,
+        ICommunityCommentService comments,
+        ICommunityImageService images,
+        ICommunityReportService reports,
+        ICommunitySharePromptService prompts)
     {
+        _prompts = prompts;
         _reports = reports;
         _images = images;
         _community = community;
@@ -176,4 +184,9 @@ public class CommunityController : ControllerBase
         await _reports.ReportCommentAsync(CurrentUserId, id, request, ct);
         return NoContent();
     }
+
+    /// <summary>App gọi một lần sau khi lưu hoặc xác nhận giao dịch. Câu trả lời "có" được tính là đã hỏi.</summary>
+    [HttpGet("share-prompt")]
+    public async Task<IActionResult> SharePrompt([FromQuery] Guid transactionId, CancellationToken ct)
+        => Ok(ApiResponse<CommunitySharePromptDto>.Ok(await _prompts.GetAsync(CurrentUserId, transactionId, ct)));
 }

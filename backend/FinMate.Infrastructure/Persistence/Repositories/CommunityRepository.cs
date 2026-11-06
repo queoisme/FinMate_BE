@@ -38,6 +38,12 @@ public class CommunityRepository : ICommunityRepository
     public Task<CommunityPost?> GetOwnPostForPlaceAsync(Guid authorId, Guid placeId, CancellationToken ct = default)
         => _context.CommunityPosts.FirstOrDefaultAsync(p => p.AuthorId == authorId && p.PlaceId == placeId, ct);
 
+    public Task<bool> HasOwnPostForPlaceKeyAsync(Guid authorId, string nameKey, CancellationToken ct = default)
+        => (from post in _context.CommunityPosts
+            join place in _context.CommunityPlaces on post.PlaceId equals place.Id
+            where post.AuthorId == authorId && place.NameKey == nameKey
+            select post.Id).AnyAsync(ct);
+
     public Task<int> CountPostsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default)
         => _context.CommunityPosts.IgnoreQueryFilters().CountAsync(p => p.AuthorId == authorId && p.CreatedAt >= since, ct);
 

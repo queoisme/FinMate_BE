@@ -372,6 +372,7 @@ public class Program
         builder.Services.AddScoped<ICommunityCommentService, CommunityCommentService>();
         builder.Services.AddScoped<ICommunityImageService, CommunityImageService>();
         builder.Services.AddScoped<ICommunityReportService, CommunityReportService>();
+        builder.Services.AddScoped<ICommunitySharePromptService, CommunitySharePromptService>();
         builder.Services.AddScoped<IOpsCommunityService, OpsCommunityService>();
         builder.Services.AddSingleton<ICommunityImageProcessor, SkiaCommunityImageProcessor>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();

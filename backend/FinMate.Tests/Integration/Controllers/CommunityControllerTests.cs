@@ -117,7 +117,7 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
     private async Task<JsonElement> SharePlaceAsync(Account author, string name, string province = Hcm, string? area = District7, string? body = "Cơm ngon, giá ổn", long? priceCents = 30_000, Guid? transactionId = null)
         => await DataAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts", author.Token, new { topic = "places", placeName = name, provinceCode = province, areaCode = area, body, priceCents, transactionId, tags = new[] { "gia_tot" } }));
 
-    private async Task<Guid> SeedDebitAsync(Account owner, string merchant)
+    private async Task<Guid> SeedDebitAsync(Account owner, string? merchant, string? categoryName = null, long amountCents = 30_000, TransactionType type = TransactionType.Debit, TransactionStatus status = TransactionStatus.Confirmed)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
@@ -128,15 +128,22 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
             Id = Guid.NewGuid(),
             UserId = owner.Id,
             FinancialAccountId = account.Id,
-            AmountCents = 30_000,
-            TransactionType = TransactionType.Debit,
+            AmountCents = amountCents,
+            TransactionType = type,
             Source = TransactionSource.Manual,
-            Status = TransactionStatus.Confirmed,
+            Status = status,
             MerchantName = merchant,
             TransactedAt = now,
             CreatedAt = now,
             UpdatedAt = now,
         };
+        if (categoryName is not null)
+        {
+            var category = new Category { Id = Guid.NewGuid(), UserId = owner.Id, Name = categoryName, Slug = $"tu-dat-{Guid.NewGuid():N}", CreatedAt = now, UpdatedAt = now };
+            db.Categories.Add(category);
+            transaction.CategoryId = category.Id;
+        }
+
         db.FinancialAccounts.Add(account);
         db.Transactions.Add(transaction);
         await db.SaveChangesAsync();
@@ -1073,5 +1080,83 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
 
         (await ErrorCodeAsync(await SendAsync(new HttpMethod("PATCH"), $"{Base}/posts/{postId}", author.Token, new { body = "Đã sửa" }))).Should().Be("COMMUNITY_POST_NOT_EDITABLE");
         (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", author.Token))).GetProperty("status").GetString().Should().Be("removed");
+    }
+
+    private async Task<JsonElement> PromptAsync(Account user, Guid transactionId)
+        => await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/share-prompt?transactionId={transactionId}", user.Token));
+
+    [Fact]
+    public async Task SpendingAtAFoodPlacePromptsOnceADay()
+    {
+        var user = await AccountAsync();
+        var first = await PromptAsync(user, await SeedDebitAsync(user, "Quán cơm Bà Ba"));
+        first.GetProperty("shouldPrompt").GetBoolean().Should().BeTrue();
+        first.GetProperty("suggestedPlaceName").GetString().Should().Be("Quán cơm Bà Ba");
+        first.GetProperty("suggestedPriceCents").GetInt64().Should().Be(30_000);
+
+        (await PromptAsync(user, await SeedDebitAsync(user, "Quán phở Hai Lúa"))).GetProperty("shouldPrompt").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ACategoryTheUserNamedThemselvesStillCounts()
+    {
+        var user = await AccountAsync();
+        var prompt = await PromptAsync(user, await SeedDebitAsync(user, "DO AN TRUA QUAN COM BA BA", categoryName: "Sinh hoạt"));
+        prompt.GetProperty("shouldPrompt").GetBoolean().Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("Điện lực TP HCM", 30_000L, TransactionType.Debit, TransactionStatus.Confirmed)]
+    [InlineData("Nguyễn Văn An", 30_000L, TransactionType.Debit, TransactionStatus.Confirmed)]
+    [InlineData("Quán cơm Bà Ba", 300_001L, TransactionType.Debit, TransactionStatus.Confirmed)]
+    [InlineData("Quán cơm Bà Ba", 30_000L, TransactionType.Credit, TransactionStatus.Confirmed)]
+    [InlineData("Quán cơm Bà Ba", 30_000L, TransactionType.Debit, TransactionStatus.Draft)]
+    public async Task OtherSpendingDoesNotPrompt(string merchant, long amount, TransactionType type, TransactionStatus status)
+    {
+        var user = await AccountAsync();
+        var prompt = await PromptAsync(user, await SeedDebitAsync(user, merchant, amountCents: amount, type: type, status: status));
+        prompt.GetProperty("shouldPrompt").GetBoolean().Should().BeFalse();
+        prompt.GetProperty("suggestedPlaceName").ValueKind.Should().Be(JsonValueKind.Null);
+        prompt.GetProperty("suggestedPriceCents").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task AnotherPersonsTransactionIsNotFound()
+    {
+        var owner = await AccountAsync();
+        var stranger = await AccountAsync();
+        var transaction = await SeedDebitAsync(owner, "Quán cơm Bà Ba");
+        (await SendAsync(HttpMethod.Get, $"{Base}/share-prompt?transactionId={transaction}", stranger.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task TurningPromptsOffStopsThem()
+    {
+        var user = await AccountAsync();
+        (await SendAsync(new HttpMethod("PATCH"), $"{Base}/me", user.Token, new { promptsEnabled = false })).IsSuccessStatusCode.Should().BeTrue();
+        (await PromptAsync(user, await SeedDebitAsync(user, "Quán cơm Bà Ba"))).GetProperty("shouldPrompt").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task APlaceAlreadySharedIsNotAskedAboutAgain()
+    {
+        var user = await AccountAsync();
+        var name = "Quán cơm " + UniqueWord();
+        await SharePlaceAsync(user, name);
+        (await PromptAsync(user, await SeedDebitAsync(user, name))).GetProperty("shouldPrompt").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PlacesOthersSharedNearbyAreOfferedSoNamesDoNotSplit()
+    {
+        var other = await AccountAsync();
+        var user = await AccountAsync();
+        var name = "Quán cơm " + UniqueWord();
+        await SharePlaceAsync(other, name);
+        (await SendAsync(new HttpMethod("PATCH"), $"{Base}/me", user.Token, new { provinceCode = Hcm, areaCode = District7 })).IsSuccessStatusCode.Should().BeTrue();
+
+        var prompt = await PromptAsync(user, await SeedDebitAsync(user, name.ToUpperInvariant()));
+        prompt.GetProperty("existingPlaces").GetArrayLength().Should().Be(1);
+        prompt.GetProperty("existingPlaces")[0].GetProperty("name").GetString().Should().Be(name);
     }
 }
