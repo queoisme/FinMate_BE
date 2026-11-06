@@ -60,7 +60,7 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
     }
 
-    private async Task<Account> AccountAsync(string displayName = "Nguyễn Văn Tên Thật", bool consent = true)
+    private async Task<Account> AccountAsync(string displayName = "Nguyễn Văn Tên Thật", bool consent = true, UserRole role = UserRole.User)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
@@ -70,7 +70,7 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
             Id = Guid.NewGuid(),
             Email = $"{Guid.NewGuid():N}@finmate.local",
             DisplayName = displayName,
-            Role = UserRole.User,
+            Role = role,
             CommunityConsentVersion = consent ? ConsentVersions.Community : null,
             CreatedAt = now,
             UpdatedAt = now,
@@ -838,5 +838,240 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
         (await db.CommunityPostImages.AsNoTracking().SingleAsync(i => i.Id == imageId)).Data.Should().BeEmpty();
+    }
+
+    private const string Ops = "/api/v1/ops/community";
+
+    private Task<HttpResponseMessage> ReportPostAsync(Account reporter, Guid postId, string reason = "spam")
+        => SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/report", reporter.Token, new { reason });
+
+    private async Task<JsonElement?> FindReportAsync(Account staff, Guid targetId)
+    {
+        var data = await DataAsync(await SendAsync(HttpMethod.Get, $"{Ops}/reports?limit=200", staff.Token));
+        foreach (var item in data.GetProperty("items").EnumerateArray())
+        {
+            if (item.GetProperty("targetId").GetGuid() == targetId)
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    [Fact]
+    public async Task EnoughDifferentReportersHideAPost_AndRepeatsDoNotCount()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var first = await AccountAsync();
+
+        (await ReportPostAsync(first, postId)).IsSuccessStatusCode.Should().BeTrue();
+        (await ReportPostAsync(first, postId)).IsSuccessStatusCode.Should().BeTrue();
+        (await ReportPostAsync(first, postId, "scam")).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await ReportPostAsync(await AccountAsync(), postId);
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await ReportPostAsync(await AccountAsync(), postId, "harassment");
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ASelfHarmReportGoesFirstAndDoesNotHideThePost()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var normal = (await ShareExperienceAsync(author, "Bài thường")).GetProperty("id").GetGuid();
+        await ReportPostAsync(await AccountAsync(), normal, "spam");
+
+        var urgent = (await DataAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts", author.Token, new { topic = "difficulty", body = "Mình không còn thấy lối thoát" }))).GetProperty("id").GetGuid();
+        for (var i = 0; i < 3; i++)
+        {
+            (await ReportPostAsync(await AccountAsync(), urgent, "self_harm")).IsSuccessStatusCode.Should().BeTrue();
+        }
+
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{urgent}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var queue = (await DataAsync(await SendAsync(HttpMethod.Get, $"{Ops}/reports?limit=200", staff.Token))).GetProperty("items");
+        queue[0].GetProperty("priority").GetString().Should().Be("urgent");
+        queue[0].GetProperty("reason").GetString().Should().Be("self_harm");
+        (await FindReportAsync(staff, normal))!.Value.GetProperty("priority").GetString().Should().Be("normal");
+    }
+
+    [Fact]
+    public async Task ReportsRejectBadInputAndOwnContent()
+    {
+        var author = await AccountAsync();
+        var reporter = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        (await ErrorCodeAsync(await ReportPostAsync(reporter, postId, "khong-co"))).Should().Be("COMMUNITY_INVALID_INPUT");
+        (await ErrorCodeAsync(await ReportPostAsync(author, postId))).Should().Be("COMMUNITY_OWN_POST");
+        (await ReportPostAsync(reporter, Guid.NewGuid())).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task CommentsCanBeReportedHiddenAndRestored()
+    {
+        var author = await AccountAsync();
+        var commenter = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var commentId = (await CommentAsync(commenter, postId)).GetProperty("id").GetGuid();
+
+        var count = async () => (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments", author.Token))).GetProperty("items").GetArrayLength();
+        for (var i = 0; i < 3; i++)
+        {
+            (await SendAsync(HttpMethod.Post, $"{Base}/comments/{commentId}/report", (await AccountAsync()).Token, new { reason = "harassment" })).IsSuccessStatusCode.Should().BeTrue();
+        }
+
+        (await count()).Should().Be(0);
+        (await SendAsync(HttpMethod.Post, $"{Ops}/comments/{commentId}/restore", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+        (await count()).Should().Be(1);
+        (await FindReportAsync(staff, commentId)).Should().BeNull();
+
+        (await SendAsync(HttpMethod.Post, $"{Ops}/comments/{commentId}/hide", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+        (await count()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ResolvingAReportRemovesOrRestoresTheContentAndClosesTheOthers()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+
+        var upheld = (await ShareExperienceAsync(author, "Bài vi phạm")).GetProperty("id").GetGuid();
+        await ReportPostAsync(await AccountAsync(), upheld);
+        await ReportPostAsync(await AccountAsync(), upheld);
+        var report = (await FindReportAsync(staff, upheld))!.Value.GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Post, $"{Ops}/reports/{report}/resolve", staff.Token, new { decision = "upheld" })).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{upheld}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await FindReportAsync(staff, upheld)).Should().BeNull();
+        (await ErrorCodeAsync(await SendAsync(HttpMethod.Post, $"{Ops}/reports/{report}/resolve", staff.Token, new { decision = "upheld" }))).Should().Be("COMMUNITY_ALREADY_RESOLVED");
+
+        var dismissed = (await ShareExperienceAsync(author, "Bài bị báo cáo oan")).GetProperty("id").GetGuid();
+        for (var i = 0; i < 3; i++)
+        {
+            await ReportPostAsync(await AccountAsync(), dismissed);
+        }
+
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{dismissed}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var other = (await FindReportAsync(staff, dismissed))!.Value.GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Post, $"{Ops}/reports/{other}/resolve", staff.Token, new { decision = "dismissed" })).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{dismissed}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task StaffNeverSeeWhoWroteAnonymousContent()
+    {
+        var author = await AccountAsync("Tên Rất Riêng");
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var reporter = await AccountAsync("Người Báo Cáo");
+        await ReportPostAsync(reporter, postId);
+        await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)));
+
+        foreach (var url in new[] { $"{Ops}/reports?limit=200", $"{Ops}/images?limit=200" })
+        {
+            var raw = await (await SendAsync(HttpMethod.Get, url, staff.Token)).Content.ReadAsStringAsync();
+            raw.Should().NotContain(author.Id.ToString()).And.NotContain(author.Email).And.NotContain("Tên Rất Riêng");
+            raw.Should().NotContain(reporter.Id.ToString()).And.NotContain("Người Báo Cáo");
+        }
+    }
+
+    [Fact]
+    public async Task StaffApproveOrRejectImages_AndRejectedDataIsGone()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var approved = (await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)))).GetProperty("id").GetGuid();
+        var rejected = (await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)))).GetProperty("id").GetGuid();
+
+        var queue = await DataAsync(await SendAsync(HttpMethod.Get, $"{Ops}/images?limit=200", staff.Token));
+        queue.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).Should().Contain(new[] { approved, rejected });
+
+        // Nhân viên xem được ảnh chờ duyệt để quyết định.
+        (await SendAsync(HttpMethod.Get, $"{Ops}/images/{approved}", staff.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        (await SendAsync(HttpMethod.Post, $"{Ops}/images/{approved}/approve", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Post, $"{Ops}/images/{rejected}/reject", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+
+        (await SendAsync(HttpMethod.Get, $"{Base}/images/{approved}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SendAsync(HttpMethod.Get, $"{Base}/images/{rejected}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await ErrorCodeAsync(await SendAsync(HttpMethod.Post, $"{Ops}/images/{approved}/approve", staff.Token))).Should().Be("COMMUNITY_ALREADY_RESOLVED");
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.CommunityPostImages.AsNoTracking().SingleAsync(i => i.Id == rejected)).Data.Should().BeEmpty();
+
+        var events = await db.AuditLogs.AsNoTracking().Where(l => l.UserId == staff.Id).Select(l => l.EventType).ToListAsync();
+        events.Should().Contain("Ops.Community.ImageApproved").And.Contain("Ops.Community.ImageRejected");
+    }
+
+    [Fact]
+    public async Task OrdinaryUsersCannotModerate_AndOnlyManagersCanMute()
+    {
+        var author = await AccountAsync();
+        var user = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var manager = await AccountAsync("Quản lý", role: UserRole.OpsManager);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        (await SendAsync(HttpMethod.Get, $"{Ops}/reports", user.Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await SendAsync(HttpMethod.Post, $"{Ops}/posts/{postId}/hide", user.Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await SendAsync(HttpMethod.Post, $"{Ops}/posts/{postId}/mute-author", staff.Token, new { days = 7 })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var muted = await SendAsync(HttpMethod.Post, $"{Ops}/posts/{postId}/mute-author", manager.Token, new { days = 7 });
+        muted.IsSuccessStatusCode.Should().BeTrue();
+        (await muted.Content.ReadAsStringAsync()).Should().NotContain(author.Id.ToString());
+
+        (await ErrorCodeAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts", author.Token, new { topic = "experience", body = "Một chia sẻ" }))).Should().Be("COMMUNITY_MUTED");
+        (await ErrorCodeAsync(await SendAsync(HttpMethod.Post, $"{Ops}/posts/{postId}/mute-author", manager.Token, new { days = 0 }))).Should().Be("COMMUNITY_INVALID_INPUT");
+    }
+
+    [Fact]
+    public async Task HidingAPlaceHidesItsPosts()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var post = await SharePlaceAsync(author, UniqueName());
+        var placeId = post.GetProperty("place").GetProperty("id").GetGuid();
+
+        (await SendAsync(HttpMethod.Post, $"{Ops}/places/{placeId}/hide", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{post.GetProperty("id").GetGuid()}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await SendAsync(HttpMethod.Get, $"{Base}/places/{placeId}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeletingReportedContentClosesItsReports()
+    {
+        var author = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        await ReportPostAsync(await AccountAsync(), postId);
+        (await FindReportAsync(staff, postId)).Should().NotBeNull();
+
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await FindReportAsync(staff, postId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HiddenContentCannotBeEditedByItsAuthor()
+    {
+        var author = await AccountAsync();
+        var staff = await AccountAsync("Nhân viên", role: UserRole.Staff);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Post, $"{Ops}/posts/{postId}/hide", staff.Token)).IsSuccessStatusCode.Should().BeTrue();
+
+        (await ErrorCodeAsync(await SendAsync(new HttpMethod("PATCH"), $"{Base}/posts/{postId}", author.Token, new { body = "Đã sửa" }))).Should().Be("COMMUNITY_POST_NOT_EDITABLE");
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", author.Token))).GetProperty("status").GetString().Should().Be("removed");
     }
 }

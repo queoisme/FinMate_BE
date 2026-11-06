@@ -266,6 +266,128 @@ public class CommunityRepository : ICommunityRepository
             .Where(r => r.PostId == postId && r.Status == CommunityReportStatus.Open)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
 
+    public void AddReport(CommunityReport report) => _context.CommunityReports.Add(report);
+
+    public Task<CommunityComment?> GetVisibleCommentAsync(Guid commentId, Guid viewerId, CancellationToken ct = default)
+        => (from comment in _context.CommunityComments.AsNoTracking()
+            join post in Joined(viewerId, ownOnly: false) on comment.PostId equals post.Post.Id
+            join author in _context.Users.AsNoTracking() on comment.AuthorId equals author.Id
+            where comment.Id == commentId && comment.Status == CommunityContentStatus.Visible && !author.IsLocked
+            select comment).FirstOrDefaultAsync(ct);
+
+    public Task<bool> HasReportedPostAsync(Guid postId, Guid userId, CancellationToken ct = default)
+        => _context.CommunityReports.AnyAsync(r => r.PostId == postId && r.ReporterId == userId, ct);
+
+    public Task<bool> HasReportedCommentAsync(Guid commentId, Guid userId, CancellationToken ct = default)
+        => _context.CommunityReports.AnyAsync(r => r.CommentId == commentId && r.ReporterId == userId, ct);
+
+    public Task<int> CountReportsSinceAsync(Guid userId, DateTimeOffset since, CancellationToken ct = default)
+        => _context.CommunityReports.CountAsync(r => r.ReporterId == userId && r.CreatedAt >= since, ct);
+
+    public Task<int> CountOpenHidingReportsOfPostAsync(Guid postId, CancellationToken ct = default)
+        => _context.CommunityReports.CountAsync(r => r.PostId == postId && r.Status == CommunityReportStatus.Open && r.Reason != CommunityReportReason.SelfHarm, ct);
+
+    public Task<int> CountOpenHidingReportsOfCommentAsync(Guid commentId, CancellationToken ct = default)
+        => _context.CommunityReports.CountAsync(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open && r.Reason != CommunityReportReason.SelfHarm, ct);
+
+    public Task AutoHidePostAsync(Guid postId, CancellationToken ct = default)
+        => _context.CommunityPosts.Where(p => p.Id == postId && p.Status == CommunityContentStatus.Visible)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, CommunityContentStatus.AutoHidden), ct);
+
+    public Task AutoHideCommentAsync(Guid commentId, CancellationToken ct = default)
+        => _context.CommunityComments.Where(c => c.Id == commentId && c.Status == CommunityContentStatus.Visible)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, CommunityContentStatus.AutoHidden), ct);
+
+    public async Task<(List<OpsCommunityReportRow> Items, int Total)> ListOpenReportsAsync(int offset, int limit, CancellationToken ct = default)
+    {
+        var open = _context.CommunityReports.AsNoTracking().Where(r => r.Status == CommunityReportStatus.Open);
+        var total = await open.CountAsync(ct);
+        var reports = await open.OrderByDescending(r => r.Priority).ThenBy(r => r.CreatedAt).ThenBy(r => r.Id).Skip(offset).Take(limit).ToListAsync(ct);
+
+        var postIds = reports.Where(r => r.PostId is not null).Select(r => r.PostId!.Value).ToList();
+        var commentIds = reports.Where(r => r.CommentId is not null).Select(r => r.CommentId!.Value).ToList();
+        var posts = await (from p in _context.CommunityPosts.AsNoTracking()
+                           join u in _context.Users.IgnoreQueryFilters().AsNoTracking() on p.AuthorId equals u.Id
+                           where postIds.Contains(p.Id)
+                           select new { p.Id, p.Title, p.Body, p.IsAnonymous, u.DisplayName, p.Status }).ToDictionaryAsync(x => x.Id, ct);
+        var comments = await (from c in _context.CommunityComments.AsNoTracking()
+                              join u in _context.Users.IgnoreQueryFilters().AsNoTracking() on c.AuthorId equals u.Id
+                              where commentIds.Contains(c.Id)
+                              select new { c.Id, c.Body, c.IsAnonymous, u.DisplayName, c.Status }).ToDictionaryAsync(x => x.Id, ct);
+
+        var rows = new List<OpsCommunityReportRow>(reports.Count);
+        foreach (var report in reports)
+        {
+            if (report.PostId is { } postId && posts.TryGetValue(postId, out var post))
+            {
+                rows.Add(new OpsCommunityReportRow(report, post.Title, post.Body, post.IsAnonymous, post.DisplayName, post.Status));
+            }
+            else if (report.CommentId is { } commentId && comments.TryGetValue(commentId, out var comment))
+            {
+                rows.Add(new OpsCommunityReportRow(report, null, comment.Body, comment.IsAnonymous, comment.DisplayName, comment.Status));
+            }
+        }
+
+        return (rows, total);
+    }
+
+    public Task<CommunityReport?> GetReportAsync(Guid reportId, CancellationToken ct = default)
+        => _context.CommunityReports.AsNoTracking().FirstOrDefaultAsync(r => r.Id == reportId, ct);
+
+    public async Task<bool> SetPostStatusAsync(Guid postId, CommunityContentStatus status, CancellationToken ct = default)
+        => await _context.CommunityPosts.Where(p => p.Id == postId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, status), ct) > 0;
+
+    public async Task<bool> SetCommentStatusAsync(Guid commentId, CommunityContentStatus status, CancellationToken ct = default)
+        => await _context.CommunityComments.Where(c => c.Id == commentId).ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, status), ct) > 0;
+
+    public Task ResolveReportsOfPostAsync(Guid postId, CommunityReportStatus status, Guid actorId, DateTimeOffset now, CancellationToken ct = default)
+        => _context.CommunityReports.Where(r => r.PostId == postId && r.Status == CommunityReportStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, status).SetProperty(r => r.ResolvedBy, actorId).SetProperty(r => r.ResolvedAt, now), ct);
+
+    public Task ResolveReportsOfCommentAsync(Guid commentId, CommunityReportStatus status, Guid actorId, DateTimeOffset now, CancellationToken ct = default)
+        => _context.CommunityReports.Where(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, status).SetProperty(r => r.ResolvedBy, actorId).SetProperty(r => r.ResolvedAt, now), ct);
+
+    public async Task<(List<OpsCommunityImageRow> Items, int Total)> ListPendingImagesAsync(int offset, int limit, CancellationToken ct = default)
+    {
+        var query = from image in _context.CommunityPostImages.AsNoTracking()
+                    join post in _context.CommunityPosts.AsNoTracking() on image.PostId equals post.Id
+                    where image.Status == CommunityImageStatus.Pending
+                    orderby image.CreatedAt, image.Id
+                    select new OpsCommunityImageRow(image.Id, image.PostId, image.Width, image.Height, post.Title, post.Body, image.CreatedAt);
+        return (await query.Skip(offset).Take(limit).ToListAsync(ct), await query.CountAsync(ct));
+    }
+
+    public async Task<bool> ReviewImageAsync(Guid imageId, bool approve, Guid actorId, DateTimeOffset now, CancellationToken ct = default)
+    {
+        if (approve)
+        {
+            return await _context.CommunityPostImages.Where(i => i.Id == imageId && i.Status == CommunityImageStatus.Pending)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.Status, CommunityImageStatus.Approved).SetProperty(i => i.ReviewedBy, actorId).SetProperty(i => i.ReviewedAt, now), ct) > 0;
+        }
+
+        return await _context.CommunityPostImages.Where(i => i.Id == imageId && (i.Status == CommunityImageStatus.Pending || i.Status == CommunityImageStatus.Approved))
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.Status, CommunityImageStatus.Rejected).SetProperty(i => i.Data, Array.Empty<byte>()).SetProperty(i => i.SizeBytes, 0).SetProperty(i => i.ReviewedBy, actorId).SetProperty(i => i.ReviewedAt, now), ct) > 0;
+    }
+
+    public async Task<bool> HidePlaceAsync(Guid placeId, DateTimeOffset now, CancellationToken ct = default)
+        => await _context.CommunityPlaces.Where(p => p.Id == placeId).ExecuteUpdateAsync(s => s.SetProperty(p => p.HiddenAt, now).SetProperty(p => p.UpdatedAt, now), ct) > 0;
+
+    public async Task<bool> MuteAuthorOfPostAsync(Guid postId, DateTimeOffset until, CancellationToken ct = default)
+    {
+        var authorId = await _context.CommunityPosts.Where(p => p.Id == postId).Select(p => (Guid?)p.AuthorId).FirstOrDefaultAsync(ct);
+        return authorId is { } id && await MuteAsync(id, until, ct);
+    }
+
+    public async Task<bool> MuteAuthorOfCommentAsync(Guid commentId, DateTimeOffset until, CancellationToken ct = default)
+    {
+        var authorId = await _context.CommunityComments.Where(c => c.Id == commentId).Select(c => (Guid?)c.AuthorId).FirstOrDefaultAsync(ct);
+        return authorId is { } id && await MuteAsync(id, until, ct);
+    }
+
+    private async Task<bool> MuteAsync(Guid userId, DateTimeOffset until, CancellationToken ct)
+        => await _context.Users.IgnoreQueryFilters().Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.CommunityMutedUntil, until), ct) > 0;
+
     public async Task<bool> TrySaveChangesAsync(CancellationToken ct = default)
     {
         try

@@ -21,9 +21,11 @@ public class CommunityController : ControllerBase
 
     private readonly ICommunityCommentService _comments;
     private readonly ICommunityImageService _images;
+    private readonly ICommunityReportService _reports;
 
-    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments, ICommunityImageService images)
+    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments, ICommunityImageService images, ICommunityReportService reports)
     {
+        _reports = reports;
         _images = images;
         _community = community;
         _read = read;
@@ -159,5 +161,19 @@ public class CommunityController : ControllerBase
         Response.Headers.XContentTypeOptions = "nosniff";
         Response.Headers.CacheControl = "private, max-age=300";
         return File(content.Data, "image/jpeg");
+    }
+
+    [HttpPost("posts/{id:guid}/report")]
+    public async Task<IActionResult> ReportPost(Guid id, [FromBody] CommunityReportInput request, CancellationToken ct)
+    {
+        await _reports.ReportPostAsync(CurrentUserId, id, request, ct);
+        return NoContent();
+    }
+
+    [HttpPost("comments/{id:guid}/report")]
+    public async Task<IActionResult> ReportComment(Guid id, [FromBody] CommunityReportInput request, CancellationToken ct)
+    {
+        await _reports.ReportCommentAsync(CurrentUserId, id, request, ct);
+        return NoContent();
     }
 }
