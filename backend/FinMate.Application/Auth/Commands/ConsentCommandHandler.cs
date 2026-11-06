@@ -28,6 +28,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
             ConsentKind.Ai => ConsentVersions.Ai,
             ConsentKind.Training => ConsentVersions.Training,
             ConsentKind.SurveyAi => ConsentVersions.SurveyAi,
+            ConsentKind.Community => ConsentVersions.Community,
             _ => throw UnknownKind(),
         };
         if (command.Version != current)
@@ -58,6 +59,10 @@ public class ConsentCommandHandler : IConsentCommandHandler
             case ConsentKind.SurveyAi:
                 user.SurveyAiConsentVersion = current;
                 user.SurveyAiConsentAt = now;
+                break;
+            case ConsentKind.Community:
+                user.CommunityConsentVersion = current;
+                user.CommunityConsentAt = now;
                 break;
             default:
                 user.TrainingConsentVersion = current;
@@ -91,6 +96,11 @@ public class ConsentCommandHandler : IConsentCommandHandler
             // Rút đồng ý: từ đây gợi ý chạy bằng rule. Gợi ý đã tạo giữ nguyên (không có gì ở bên thứ ba để thu hồi — request không mang định danh).
             user.SurveyAiConsentVersion = null;
             user.SurveyAiConsentAt = null;
+        }
+        else if (kind == ConsentKind.Community)
+        {
+            user.CommunityConsentVersion = null;
+            user.CommunityConsentAt = null;
         }
         else
         {

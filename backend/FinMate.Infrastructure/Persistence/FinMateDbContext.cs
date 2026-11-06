@@ -52,6 +52,12 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
+    public DbSet<CommunityPlace> CommunityPlaces => Set<CommunityPlace>();
+    public DbSet<CommunityPost> CommunityPosts => Set<CommunityPost>();
+    public DbSet<CommunityPostImage> CommunityPostImages => Set<CommunityPostImage>();
+    public DbSet<CommunityComment> CommunityComments => Set<CommunityComment>();
+    public DbSet<CommunityPostVote> CommunityPostVotes => Set<CommunityPostVote>();
+    public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
     public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();

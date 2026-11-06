@@ -40,6 +40,9 @@ public sealed record FeatureSettings
 
     /// <summary>Cảnh báo giá tăng. Mặc định tắt: chỉ bật sau khi app xử lý được loại cảnh báo này. Việc đọc dữ liệu vẫn chạy khi tắt.</summary>
     public bool MarketAlerts { get; init; }
+
+    /// <summary>Cộng đồng. Mặc định tắt: chỉ bật khi app đã có màn hình, câu chữ đồng ý đã được duyệt và đã có người trực duyệt ảnh.</summary>
+    public bool Community { get; init; }
 }
 
 public sealed record GroupSettings
@@ -423,6 +426,7 @@ public sealed record SystemConfigDocument
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
     public MarketDataSettings MarketData { get; init; } = new();
+    public CommunitySettings Community { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

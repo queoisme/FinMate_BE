@@ -30,6 +30,8 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 | `ViewMonitoring` | ❌ | ✅ | ✅ |
 | `ManageIncidents` | ❌ | ✅ | ✅ |
 | `ManageSystem` | ❌ | ❌ | ✅ |
+| `ModerateCommunity` | ✅ | ✅ | ✅ |
+| `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 
 ## Cách kiểm tra quyền
 
@@ -219,6 +221,25 @@ Gia hạn bằng `POST /auth/refresh` không phải nhập lại mã trong 12 gi
 `OPS_REQUIRE_2FA`: để trống là bật ngoài Development. Cơ chế này cần gửi được email, nên nếu Brevo hỏng thì không ai vào được trang vận hành và admin. Khi đó đặt `false` rồi khởi động lại để vào sửa, sau đó bật lại ngay.
 
 **Thay đổi phá vỡ:** web admin hiện có phải thêm luồng trên trước khi deploy backend có bật cờ này.
+
+## Kiểm duyệt cộng đồng: `/api/v1/ops/community`
+
+Chạy được cả khi `features.community` tắt. **Không response hay audit nào có người đăng hoặc người báo cáo**; tên chỉ hiện trong `publicAuthorName` khi tác giả đã chọn công khai. Dữ liệu tài chính của khách không liên quan tới các API này.
+
+| API | Việc | Quyền |
+|---|---|---|
+| `GET /reports?offset&limit` | Báo cáo còn mở: `self_harm` trước, rồi cũ trước. Có nội dung bị báo cáo | `ModerateCommunity` |
+| `POST /reports/{id}/resolve` | `{ "decision": "upheld\|dismissed" }`. `upheld` gỡ nội dung; `dismissed` hiện lại. Đóng mọi báo cáo còn mở của nội dung đó. Đã xử lý trả 409 `COMMUNITY_ALREADY_RESOLVED` | `ModerateCommunity` |
+| `GET /images?offset&limit` | Ảnh chờ duyệt, cũ trước, kèm tiêu đề và nội dung bài | `ModerateCommunity` |
+| `GET /images/{id}` | Xem ảnh để quyết định | `ModerateCommunity` |
+| `POST /images/{id}/approve` | Duyệt ảnh đang chờ | `ModerateCommunity` |
+| `POST /images/{id}/reject` | Từ chối ảnh đang chờ hoặc gỡ ảnh đã duyệt. Dữ liệu ảnh bị xóa ngay | `ModerateCommunity` |
+| `POST /posts/{id}/hide`, `/restore` | Gỡ hoặc hiện lại bài, đóng báo cáo còn mở | `ModerateCommunity` |
+| `POST /comments/{id}/hide`, `/restore` | Gỡ hoặc hiện lại bình luận, đóng báo cáo còn mở | `ModerateCommunity` |
+| `POST /places/{id}/hide` | Ẩn quán và mọi bài về quán đó | `ModerateCommunity` |
+| `POST /posts/{id}/mute-author`, `POST /comments/{id}/mute-author` | `{ "days": 1..365 }`. Cấm đăng mà không biết tác giả là ai | `MuteCommunityAuthors` |
+
+Đủ 3 người khác nhau báo cáo thì nội dung tự ẩn (`autoHideReportCount`), trừ lý do `self_harm`: lý do này xếp đầu hàng đợi và không tính vào việc tự ẩn.
 
 ## Giám sát hệ thống
 

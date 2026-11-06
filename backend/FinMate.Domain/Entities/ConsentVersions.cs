@@ -33,4 +33,7 @@ public static class ConsentVersions
     /// Người đã đồng ý bản 1 không còn <see cref="User.SurveyAiConsentGranted"/> và phải đồng ý lại bản 2; trong lúc đó gợi ý của họ chạy bằng rule.
     /// </summary>
     public const int SurveyAi = 2;
+
+    /// <summary>Bài, bình luận và ảnh đăng lên cộng đồng là công khai với mọi người dùng. Hỏi riêng khi đăng lần đầu, nên không làm ai phải đồng ý lại Điều khoản.</summary>
+    public const int Community = 1;
 }

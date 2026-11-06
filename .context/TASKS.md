@@ -1437,5 +1437,17 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 
 **Rà soát Phase 74:** `code-review` mức cao có 10 phát hiện. Đã sửa 9: khớp nhầm `tiền điện thoại`, `hóa đơn điện tử`, `nước có gas` (`transactionExcludes`); tin `chuyên gia` khớp `giá` vì bỏ dấu (tin bài giữ dấu); không khớp `EVNHCMC`, `PETROLIMEX04` (`*`); `E5 RON92`; tắt hết loại chi phí; khoản tự thêm bị đội giá vì một lần trả thừa; giao dịch thường bị coi là giá cố định; `hasPriceTable` ngoài `fuel`; validator lỗi 500 với `null`. Không sửa 1: khoản hằng năm không đủ 2 lần trong cửa sổ lịch sử nên vẫn chỉ báo khi lệch quá 10%. `security-review` không có lỗ hổng đạt ngưỡng.
 
-**Lỗi chưa rõ nguyên nhân:** một lần chạy test chết với `Out of memory.`, một lần khác không in dòng tổng kết, đều không lặp lại ở các lần chạy sau (test đầy đủ 2021/2022 lúc cuối, trừ `MethodSelectionOnSeedDataTests`). Máy còn nhiều RAM và bộ tách HTML ổn với trang độc hại 2 MB (`AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory`), nên chưa có bằng chứng đây là lỗi của sản phẩm. Hai lần đó để lại container Postgres của Testcontainers vì tắt Ryuk.
+**Đã rõ nguyên nhân (2026-11-06):** lỗi `Out of memory.` dưới đây do giới hạn 2048 tiến trình mặc định của podman, không phải lỗi sản phẩm; thêm `--pids-limit=-1` thì bộ test chạy hết. Ghi chép lúc chưa rõ: một lần chạy test chết với `Out of memory.`, một lần khác không in dòng tổng kết, đều không lặp lại ở các lần chạy sau (test đầy đủ 2021/2022 lúc cuối, trừ `MethodSelectionOnSeedDataTests`). Máy còn nhiều RAM và bộ tách HTML ổn với trang độc hại 2 MB (`AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory`), nên chưa có bằng chứng đây là lỗi của sản phẩm. Hai lần đó để lại container Postgres của Testcontainers vì tắt Ryuk.
+
+## Phase 75 — Cộng đồng (2026-11-06)
+- [x] Chủ đề, khu vực, bài, chạm một lần, vote, ẩn danh mặc định; `features.community`, `ConsentKind.Community`, migration `AddCommunity`.
+- [x] Bình luận phẳng, ẩn danh mặc định, không có nhãn nối với bài ẩn danh.
+- [x] Ảnh: SkiaSharp, vẽ lại thành JPEG, áp chiều xoay rồi bỏ EXIF; chờ duyệt. Test phát hiện chiều xoay 7 bị vẽ ra ngoài khung, đã sửa bằng ma trận viết thẳng theo bảng EXIF.
+- [x] Báo cáo, tự ẩn, hàng đợi duyệt ảnh và báo cáo, cấm đăng, `OpsCommunityController`, audit.
+- [x] `GET /community/share-prompt`: không sửa handler giao dịch.
+- [ ] Chatbot gợi ý quán: chủ sản phẩm chưa cần ở đợt này.
+- [ ] Đo độ khớp từ khóa ăn uống và từ cấm trên dữ liệu thật: danh sách hiện chỉ là điểm xuất phát.
+- [ ] Trước khi bật cờ: cách liên hệ tác giả ẩn danh khi có báo cáo `self_harm` và đường dây hỗ trợ đã kiểm chứng; câu chữ đồng ý và quy định nội dung được người có chuyên môn pháp lý xem; người trực duyệt ảnh; app Flutter đổi HEIC sang JPEG.
+
+**Rà soát Phase 75 (2026-11-06):** `security-review` có 1 phát hiện: `nextCursor` chứa thời điểm chính xác, phá quy tắc chỉ hiện ngày; con trỏ nay chỉ mang id. `code-review` mức cao có 10 phát hiện, 1 trùng lỗi trên, sửa thêm 8: chia sẻ lại xóa mất bài cũ; đổi tên thành số điện thoại sau khi đăng; xóa bài không nằm trong một transaction; `autohidden` khác tài liệu; xóa bài để né cấm đăng và cấm ngắn đè cấm dài; rút đồng ý vẫn sửa được; chữ tách dấu lọt từ cấm và tạo quán trùng; từ khóa `lẩu` khớp nhầm tên người. Test đỏ trước khi sửa cho mọi lỗi trên, trừ transaction khi xóa bài (không có test giả lập lỗi giữa chừng). Không sửa 1: danh sách quán chỉ xét 2000 lượt chia sẻ mới nhất rồi mới lọc, nên dữ liệu rất lớn sẽ thiếu quán cũ; đây là đánh đổi của thiết kế tính khi đọc, cần xem lại khi có dữ liệu thật.
 

@@ -26,6 +26,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
+        RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
     }
 
     private static bool IsHttps(string value)

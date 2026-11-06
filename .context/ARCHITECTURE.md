@@ -435,6 +435,19 @@ Admin gửi link, `MarketDataRefreshJob` đọc mỗi 3 giờ. API, ngưỡng v�
 - **Loại chi phí:** `marketData.costTypes` trong cấu hình hệ thống, nên `market_signals.topic` và `market_events.topic` là chuỗi tự do, không có CHECK. Danh sách AI được phép trả do backend gửi trong từng lần gọi.
 - **Không lưu toàn văn bài báo.**
 
+### 2.11 Cộng đồng (thêm 2026-11-06)
+
+Sau cờ `features.community`. Code ở `FinMate.Application/Community/`, API ở `docs/community-api.md`, kiểm duyệt ở `docs/ops-api.md`.
+
+- **Ẩn danh:** `CommunityAuthorView` là chỗ duy nhất quyết định hiện tên hay không. Không DTO nào có `author_id`, kể cả DTO cho nhân viên. Cấm đăng đi theo id nội dung để người xử lý không biết tác giả.
+- **Tách khỏi tài chính:** `ICommunityRepository` không truy vấn giao dịch hay ngân sách. `SpentHereVerifier` là đường duy nhất đọc giao dịch, qua `ITransactionRepository` lọc theo `userId`, chỉ trả đúng hoặc sai và không lưu mã giao dịch. Giá trong bài do client gửi.
+- **Chủ đề:** `community.topics` trong cấu hình, nên `community_posts.topic` là chuỗi tự do. `requiresPlace` là nhánh duy nhất quyết định bài có quán. Chỉ bài có quán mới có khu vực, để bài về khó khăn không giúp người quen nhận ra tác giả.
+- **Không có cột đếm tính sẵn:** vote, bình luận và điểm quán tính khi đọc, có giới hạn số dòng. Nhờ vậy `UserHardDeleter` không phải tính lại gì; khóa ngoại xóa nội dung theo người dùng. Bài của tài khoản bị khóa hoặc chờ xóa bị ẩn nhờ join với `users`, nên khôi phục tài khoản là bài trở lại.
+- **Ảnh:** `SkiaCommunityImageProcessor` kiểm tra chữ ký tệp và kích thước trong header rồi mới giải mã, vẽ lại thành JPEG sau khi áp chiều xoay. Bản gốc không được lưu. Cùng lúc tối đa 2 lượt xử lý. Lưu `bytea` trong bảng riêng; đường danh sách không đọc cột dữ liệu. Ảnh bị xóa hoặc từ chối mất dữ liệu nhưng giữ dòng để giới hạn theo ngày vẫn đếm được.
+- **Bộ lọc nội dung:** `CommunityContentPolicy`. Từ cấm so giữ dấu qua `MarketKeywords.MatchesNews`, vì bỏ dấu thì "các" trùng với từ tục. Danh sách không được chứa từ đơn như "vay", vì chủ đề khó khăn cần nói được về nợ.
+- **Báo cáo:** `self_harm` không tính vào việc tự ẩn. Hệ thống chưa có cách liên hệ tác giả ẩn danh, xem `docs/ops-runbook.md`.
+- **Lời hỏi chia sẻ:** app gọi sau khi lưu giao dịch, nên không sửa handler giao dịch nào. Khóa Redis băm tên quán. `/app-config` ẩn nhóm cấu hình này vì là API ẩn danh và có danh sách từ cấm.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
