@@ -24,6 +24,15 @@ public static class CommunityRules
         }
     }
 
+    /// <summary>Tên sắp hiện công khai nên phải sạch thông tin liên hệ. Ẩn danh thì không xét vì tên không hiện.</summary>
+    public static void EnsureDisplayNameAllowed(bool isAnonymous, User user)
+    {
+        if (!isAnonymous && !CommunityContentPolicy.IsDisplayNameAllowed(user.DisplayName))
+        {
+            throw new BusinessRuleException(CommunityErrorCodes.DisplayNameNotAllowed, "Tên hiển thị của bạn có thông tin liên hệ nên chưa thể hiện công khai. Hãy đổi tên hoặc đăng ẩn danh.");
+        }
+    }
+
     /// <summary>Khu vực phải có trong cấu hình. Trả về chuỗi rỗng cho khu vực khi chỉ biết tới cấp tỉnh.</summary>
     public static (string Province, string Area) RequireRegion(string? provinceCode, string? areaCode, CommunitySettings settings)
     {

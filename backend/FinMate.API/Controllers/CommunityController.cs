@@ -18,10 +18,13 @@ public class CommunityController : ControllerBase
     private readonly ICommunityService _community;
     private readonly ICommunityReadService _read;
 
-    public CommunityController(ICommunityService community, ICommunityReadService read)
+    private readonly ICommunityCommentService _comments;
+
+    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments)
     {
         _community = community;
         _read = read;
+        _comments = comments;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -104,4 +107,23 @@ public class CommunityController : ControllerBase
     [HttpDelete("posts/{id:guid}/vote")]
     public async Task<IActionResult> Unvote(Guid id, CancellationToken ct)
         => Ok(ApiResponse<CommunityVoteDto>.Ok(await _community.UnvoteAsync(CurrentUserId, id, ct)));
+
+    [HttpGet("posts/{id:guid}/comments")]
+    public async Task<IActionResult> ListComments(Guid id, [FromQuery] string? cursor, [FromQuery] int limit = 0, CancellationToken ct = default)
+        => Ok(ApiResponse<CommunityCommentPageDto>.Ok(await _comments.ListAsync(CurrentUserId, id, cursor, limit, ct)));
+
+    [HttpPost("posts/{id:guid}/comments")]
+    public async Task<IActionResult> CreateComment(Guid id, [FromBody] CreateCommunityCommentInput request, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, ApiResponse<CommunityCommentDto>.Ok(await _comments.CreateAsync(CurrentUserId, id, request, ct)));
+
+    [HttpPatch("comments/{id:guid}")]
+    public async Task<IActionResult> UpdateComment(Guid id, [FromBody] UpdateCommunityCommentInput request, CancellationToken ct)
+        => Ok(ApiResponse<CommunityCommentDto>.Ok(await _comments.UpdateAsync(CurrentUserId, id, request, ct)));
+
+    [HttpDelete("comments/{id:guid}")]
+    public async Task<IActionResult> DeleteComment(Guid id, CancellationToken ct)
+    {
+        await _comments.DeleteAsync(CurrentUserId, id, ct);
+        return NoContent();
+    }
 }

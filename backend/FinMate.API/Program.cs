@@ -368,6 +368,7 @@ public class Program
         builder.Services.AddScoped<ISpentHereVerifier, SpentHereVerifier>();
         builder.Services.AddScoped<ICommunityReadService, CommunityReadService>();
         builder.Services.AddScoped<ICommunityService, CommunityService>();
+        builder.Services.AddScoped<ICommunityCommentService, CommunityCommentService>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
         builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();

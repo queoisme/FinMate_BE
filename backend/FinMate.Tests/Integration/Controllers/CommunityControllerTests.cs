@@ -545,4 +545,150 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
         var bad = await SendAsync(HttpMethod.Get, $"{Base}/posts?cursor=khong-hop-le", reader.Token);
         (await ErrorCodeAsync(bad)).Should().Be("COMMUNITY_INVALID_INPUT");
     }
+
+    private async Task<JsonElement> CommentAsync(Account author, Guid postId, string body = "Cảm ơn bạn đã chia sẻ", bool? isAnonymous = null)
+        => await DataAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body, isAnonymous }));
+
+    [Fact]
+    public async Task ACommentIsAnonymousByDefault_AndNeverCarriesTheAuthor()
+    {
+        var author = await AccountAsync();
+        var commenter = await AccountAsync("Anh Minh");
+        var reader = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        (await CommentAsync(commenter, postId)).GetProperty("author").GetProperty("isAnonymous").GetBoolean().Should().BeTrue();
+        (await CommentAsync(commenter, postId, "Bình luận có tên", isAnonymous: false)).GetProperty("author").GetProperty("displayName").GetString().Should().Be("Anh Minh");
+
+        var response = await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments", reader.Token);
+        var raw = await response.Content.ReadAsStringAsync();
+        raw.Should().NotContain(commenter.Id.ToString()).And.NotContain(commenter.Email);
+        var items = JsonDocument.Parse(raw).RootElement.GetProperty("data").GetProperty("items");
+        items.GetArrayLength().Should().Be(2);
+        items[0].GetProperty("author").GetProperty("displayName").ValueKind.Should().Be(JsonValueKind.Null);
+        items[0].GetProperty("isMine").GetBoolean().Should().BeFalse();
+
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", reader.Token))).GetProperty("commentCount").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ACommentByThePostAuthorHasNoMarkLinkingItToTheirAnonymousPost()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        await CommentAsync(author, postId, "Mình bổ sung thêm", isAnonymous: false);
+
+        var strangerComment = await AccountAsync("Người lạ");
+        await CommentAsync(strangerComment, postId, "Mình cũng vậy", isAnonymous: false);
+
+        var items = (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments", reader.Token))).GetProperty("items");
+        var fieldsOfAuthor = items[0].EnumerateObject().Select(p => p.Name).ToList();
+        var fieldsOfStranger = items[1].EnumerateObject().Select(p => p.Name).ToList();
+        fieldsOfAuthor.Should().Equal(fieldsOfStranger);
+        fieldsOfAuthor.Should().NotContain(name => name.Contains("isPostAuthor", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CommentsFollowTheContentRules()
+    {
+        var author = await AccountAsync();
+        var noConsent = await AccountAsync(consent: false);
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        var phone = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body = "Gọi 0912345678" });
+        (await ErrorCodeAsync(phone)).Should().Be("COMMUNITY_CONTENT_NOT_ALLOWED");
+
+        var empty = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body = "  " });
+        (await ErrorCodeAsync(empty)).Should().Be("COMMUNITY_INVALID_INPUT");
+
+        var tooLong = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body = new string('a', 301) });
+        (await ErrorCodeAsync(tooLong)).Should().Be("COMMUNITY_INVALID_INPUT");
+
+        var consent = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", noConsent.Token, new { body = "Chào" });
+        (await ErrorCodeAsync(consent)).Should().Be("COMMUNITY_CONSENT_REQUIRED");
+    }
+
+    [Fact]
+    public async Task OneTapSharesCannotBeCommentedOn()
+    {
+        var author = await AccountAsync();
+        var commenter = await AccountAsync();
+        var postId = (await SharePlaceAsync(author, UniqueName(), body: null)).GetProperty("id").GetGuid();
+
+        var response = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", commenter.Token, new { body = "Chào" });
+        (await ErrorCodeAsync(response)).Should().Be("COMMUNITY_COMMENTS_NOT_ALLOWED");
+    }
+
+    [Fact]
+    public async Task OnlyTheCommenterCanEditOrDeleteTheirComment()
+    {
+        var author = await AccountAsync();
+        var commenter = await AccountAsync("Anh Minh");
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var id = (await CommentAsync(commenter, postId)).GetProperty("id").GetGuid();
+
+        (await SendAsync(new HttpMethod("PATCH"), $"{Base}/comments/{id}", author.Token, new { body = "Sửa trộm" })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await SendAsync(HttpMethod.Delete, $"{Base}/comments/{id}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var edited = await DataAsync(await SendAsync(new HttpMethod("PATCH"), $"{Base}/comments/{id}", commenter.Token, new { body = "Đã sửa", isAnonymous = false }));
+        edited.GetProperty("body").GetString().Should().Be("Đã sửa");
+        edited.GetProperty("edited").GetBoolean().Should().BeTrue();
+        edited.GetProperty("author").GetProperty("displayName").GetString().Should().Be("Anh Minh");
+
+        (await SendAsync(HttpMethod.Delete, $"{Base}/comments/{id}", commenter.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments", author.Token))).GetProperty("items").GetArrayLength().Should().Be(0);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.CommunityComments.IgnoreQueryFilters().AsNoTracking().SingleAsync(c => c.Id == id)).Body.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CommentsOnADeletedPostAreGone()
+    {
+        var author = await AccountAsync();
+        var commenter = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        await CommentAsync(commenter, postId);
+
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments", commenter.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", commenter.Token, new { body = "Chào" })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task CommentsPageWithoutRepeating()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        for (var i = 0; i < 3; i++)
+        {
+            await CommentAsync(author, postId, $"Bình luận {i}");
+        }
+
+        var first = await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments?limit=2", author.Token));
+        first.GetProperty("items").GetArrayLength().Should().Be(2);
+        var cursor = first.GetProperty("nextCursor").GetString()!;
+        var second = await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments?limit=2&cursor={Uri.EscapeDataString(cursor)}", author.Token));
+        second.GetProperty("items").GetArrayLength().Should().Be(1);
+        second.GetProperty("items")[0].GetProperty("body").GetString().Should().Be("Bình luận 2");
+    }
+
+    [Fact]
+    public async Task TheCommentLimitCountsDeletedCommentsToo()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            db.CommunityComments.AddRange(Enumerable.Range(0, 30).Select(i => new CommunityComment { Id = Guid.NewGuid(), PostId = postId, AuthorId = author.Id, Body = string.Empty, CreatedAt = now, UpdatedAt = now, DeletedAt = now }));
+            await db.SaveChangesAsync();
+        }
+
+        var response = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body = "Thêm một cái" });
+        (await ErrorCodeAsync(response)).Should().Be("COMMUNITY_LIMIT_REACHED");
+    }
 }

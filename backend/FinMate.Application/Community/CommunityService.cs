@@ -56,7 +56,7 @@ public sealed class CommunityService : ICommunityService
             ?? throw new BusinessRuleException(CommunityErrorCodes.TopicUnknown, "Chủ đề không tồn tại.");
         var clean = CleanContent(input.Title, input.Body, input.Tags, topic, settings);
         var isAnonymous = input.IsAnonymous ?? true;
-        EnsureDisplayNameAllowed(isAnonymous, user);
+        CommunityRules.EnsureDisplayNameAllowed(isAnonymous, user);
 
         if (!topic.RequiresPlace)
         {
@@ -176,7 +176,7 @@ public sealed class CommunityService : ICommunityService
         }
 
         var isAnonymous = input.IsAnonymous ?? post.IsAnonymous;
-        EnsureDisplayNameAllowed(isAnonymous, user);
+        CommunityRules.EnsureDisplayNameAllowed(isAnonymous, user);
 
         var price = input.PriceCents switch { null => post.PriceCents, 0 => null, var value => value };
         ApplyContent(post, clean, isAnonymous, price, DateTimeOffset.UtcNow);
@@ -315,14 +315,6 @@ public sealed class CommunityService : ICommunityService
         if (priceCents is <= 0 or > MaxPriceCents)
         {
             throw new BusinessRuleException(CommunityErrorCodes.InvalidInput, "Giá không hợp lệ.");
-        }
-    }
-
-    private static void EnsureDisplayNameAllowed(bool isAnonymous, User user)
-    {
-        if (!isAnonymous && !CommunityContentPolicy.IsDisplayNameAllowed(user.DisplayName))
-        {
-            throw new BusinessRuleException(CommunityErrorCodes.DisplayNameNotAllowed, "Tên hiển thị của bạn có thông tin liên hệ nên chưa thể hiện công khai. Hãy đổi tên hoặc đăng ẩn danh.");
         }
     }
 

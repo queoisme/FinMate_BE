@@ -209,6 +209,36 @@ public class CommunityRepository : ICommunityRepository
     public Task RemoveVoteAsync(Guid postId, Guid userId, CancellationToken ct = default)
         => _context.CommunityPostVotes.Where(v => v.PostId == postId && v.UserId == userId).ExecuteDeleteAsync(ct);
 
+    public void AddComment(CommunityComment comment) => _context.CommunityComments.Add(comment);
+
+    public async Task<List<CommunityCommentRow>> ListCommentsAsync(Guid postId, Guid viewerId, DateTimeOffset? afterCreatedAt, Guid? afterId, int limit, CancellationToken ct = default)
+    {
+        var query = from comment in _context.CommunityComments.AsNoTracking()
+                    join author in _context.Users.AsNoTracking() on comment.AuthorId equals author.Id
+                    where comment.PostId == postId
+                        && (comment.AuthorId == viewerId || (comment.Status == CommunityContentStatus.Visible && !author.IsLocked))
+                    select new { comment, author.DisplayName };
+
+        if (afterCreatedAt is { } after && afterId is { } id)
+        {
+            query = query.Where(x => x.comment.CreatedAt > after || (x.comment.CreatedAt == after && x.comment.Id.CompareTo(id) > 0));
+        }
+
+        var rows = await query.OrderBy(x => x.comment.CreatedAt).ThenBy(x => x.comment.Id).Take(limit).ToListAsync(ct);
+        return rows.Select(x => new CommunityCommentRow(x.comment, x.DisplayName)).ToList();
+    }
+
+    public Task<CommunityComment?> GetOwnCommentAsync(Guid commentId, Guid authorId, CancellationToken ct = default)
+        => _context.CommunityComments.FirstOrDefaultAsync(c => c.Id == commentId && c.AuthorId == authorId, ct);
+
+    public Task<int> CountCommentsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default)
+        => _context.CommunityComments.IgnoreQueryFilters().CountAsync(c => c.AuthorId == authorId && c.CreatedAt >= since, ct);
+
+    public Task CloseOpenReportsOfCommentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default)
+        => _context.CommunityReports
+            .Where(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
+
     public Task RemoveImagesOfPostAsync(Guid postId, CancellationToken ct = default)
         => _context.CommunityPostImages.Where(i => i.PostId == postId).ExecuteDeleteAsync(ct);
 

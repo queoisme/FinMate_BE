@@ -25,6 +25,8 @@ public sealed record CommunityImageInfo(Guid Id, Guid PostId, int Width, int Hei
 
 public sealed record CommunityPlaceShareRow(CommunityPlace Place, long? PriceCents, bool SpentHereVerified, int Votes, DateTimeOffset CreatedAt, List<string> Tags);
 
+public sealed record CommunityCommentRow(CommunityComment Comment, string AuthorDisplayName);
+
 /// <summary>
 /// Dữ liệu cộng đồng. Không truy vấn nào ở đây chạm tới giao dịch, ngân sách hay số dư. Đường đọc công khai chỉ trả bài còn hiển thị của tài khoản còn hoạt động.
 /// </summary>
@@ -55,6 +57,14 @@ public interface ICommunityRepository
     /// <summary>Gọi lại nhiều lần vẫn chỉ có một dòng, kể cả hai lời gọi cùng lúc.</summary>
     Task AddVoteAsync(Guid postId, Guid userId, DateTimeOffset now, CancellationToken ct = default);
     Task RemoveVoteAsync(Guid postId, Guid userId, CancellationToken ct = default);
+
+    void AddComment(CommunityComment comment);
+
+    /// <summary>Cũ trước, mới sau, để đọc như một cuộc trò chuyện. Bỏ bình luận đã ẩn và bình luận của tài khoản bị khóa hoặc đang chờ xóa.</summary>
+    Task<List<CommunityCommentRow>> ListCommentsAsync(Guid postId, Guid viewerId, DateTimeOffset? afterCreatedAt, Guid? afterId, int limit, CancellationToken ct = default);
+    Task<CommunityComment?> GetOwnCommentAsync(Guid commentId, Guid authorId, CancellationToken ct = default);
+    Task<int> CountCommentsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
+    Task CloseOpenReportsOfCommentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default);
 
     Task RemoveImagesOfPostAsync(Guid postId, CancellationToken ct = default);
     Task CloseOpenReportsOfPostAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default);
