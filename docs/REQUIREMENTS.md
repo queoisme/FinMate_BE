@@ -412,6 +412,21 @@ Chi tiết ở `docs/market-data-api.md`.
 | FR-MKT-06 | Cảnh báo theo ngân sách | Should | Nhận diện khoản chi từ nội dung giao dịch, ở mọi danh mục. Bỏ qua người đã ngừng chi hoặc chi không đáng kể. Xét ngân sách của danh mục chứa khoản đó, không có thì ngân sách tổng. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
 | FR-MKT-07 | Loại chi phí bằng cấu hình | Should | Thêm loại không cần sửa code. AI chỉ được trả chủ đề trong danh sách |
 
+### 6.10 Cộng đồng **[Mới so với đặc tả Core Flows]**
+
+Sau cờ `features.community`, mặc định tắt. API ở `docs/community-api.md`.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-COM-01 | Đăng bài theo chủ đề | Must | `places`, `experience`, `difficulty`, `question`, thêm được bằng cấu hình. Chỉ `places` gắn quán và khu vực |
+| FR-COM-02 | Ẩn danh mặc định | Must | Bài và bình luận ẩn danh trừ khi người dùng chọn khác. Không response nào có id tác giả; nhân viên cũng không thấy tác giả ẩn danh |
+| FR-COM-03 | Quán theo khu vực | Should | Người dùng tự chọn tỉnh, thành và khu vực. Xếp hạng ưu tiên người đã chi thật. Chưa dùng GPS |
+| FR-COM-04 | Vote, bình luận | Should | Mỗi người một vote; bình luận phẳng, chưa có push |
+| FR-COM-05 | Ảnh | Should | Vẽ lại thành JPEG để bỏ EXIF, nhân viên duyệt trước khi hiện công khai |
+| FR-COM-06 | Bộ lọc và báo cáo | Must | Chặn đường dẫn, liên hệ, số dài, từ cấm. 3 người báo cáo thì tự ẩn, trừ `self_harm` xếp đầu hàng đợi và không ẩn |
+| FR-COM-07 | Hỏi chia sẻ sau giao dịch | Could | App gọi sau khi lưu, chỉ với chi tiêu ăn uống, có giới hạn tần suất. Không đăng tự động |
+| FR-COM-08 | Đồng ý riêng | Must | Đồng ý khi đăng lần đầu, không tăng phiên bản Điều khoản |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)

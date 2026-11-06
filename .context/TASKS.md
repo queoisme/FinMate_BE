@@ -1439,3 +1439,13 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 
 **Lỗi chưa rõ nguyên nhân:** một lần chạy test chết với `Out of memory.`, một lần khác không in dòng tổng kết, đều không lặp lại ở các lần chạy sau (test đầy đủ 2021/2022 lúc cuối, trừ `MethodSelectionOnSeedDataTests`). Máy còn nhiều RAM và bộ tách HTML ổn với trang độc hại 2 MB (`AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory`), nên chưa có bằng chứng đây là lỗi của sản phẩm. Hai lần đó để lại container Postgres của Testcontainers vì tắt Ryuk.
 
+## Phase 75 — Cộng đồng (2026-11-06)
+- [x] Chủ đề, khu vực, bài, chạm một lần, vote, ẩn danh mặc định; `features.community`, `ConsentKind.Community`, migration `AddCommunity`.
+- [x] Bình luận phẳng, ẩn danh mặc định, không có nhãn nối với bài ẩn danh.
+- [x] Ảnh: SkiaSharp, vẽ lại thành JPEG, áp chiều xoay rồi bỏ EXIF; chờ duyệt. Test phát hiện chiều xoay 7 bị vẽ ra ngoài khung, đã sửa bằng ma trận viết thẳng theo bảng EXIF.
+- [x] Báo cáo, tự ẩn, hàng đợi duyệt ảnh và báo cáo, cấm đăng, `OpsCommunityController`, audit.
+- [x] `GET /community/share-prompt`: không sửa handler giao dịch.
+- [ ] Chatbot gợi ý quán: chủ sản phẩm chưa cần ở đợt này.
+- [ ] Đo độ khớp từ khóa ăn uống và từ cấm trên dữ liệu thật: danh sách hiện chỉ là điểm xuất phát.
+- [ ] Trước khi bật cờ: cách liên hệ tác giả ẩn danh khi có báo cáo `self_harm` và đường dây hỗ trợ đã kiểm chứng; câu chữ đồng ý và quy định nội dung được người có chuyên môn pháp lý xem; người trực duyệt ảnh; app Flutter đổi HEIC sang JPEG.
+
