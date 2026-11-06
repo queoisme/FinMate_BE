@@ -96,7 +96,10 @@ public sealed class CommunityService : ICommunityService
         if (existing is not null)
         {
             EnsureEditable(existing);
-            ApplyContent(existing, clean, isAnonymous, input.PriceCents, now);
+
+            // Chạm một lần trên quán đã viết bài không được xóa bài đó: trường không gửi thì giữ nguyên.
+            var merged = new CleanedContent(input.Title is null ? existing.Title : clean.Title, input.Body is null ? existing.Body : clean.Body, input.Tags is null ? existing.Tags : clean.Tags);
+            ApplyContent(existing, merged, input.IsAnonymous ?? existing.IsAnonymous, input.PriceCents ?? existing.PriceCents, now);
             existing.SpentHereVerified |= verified;
             return await _community.TrySaveChangesAsync(ct) ? new CommunityCreateResult(await _read.GetOwnAsync(userId, existing.Id, ct), false) : null;
         }
@@ -124,7 +127,7 @@ public sealed class CommunityService : ICommunityService
         }
 
         var (province, area) = CommunityRules.RequireRegion(input.ProvinceCode, input.AreaCode, settings);
-        var key = CounterpartyKey.From(name);
+        var key = CounterpartyKey.From(VietnameseText.ComposeLower(name));
         if (key is null || name.Length > MaxPlaceNameLength || !CommunityContentPolicy.IsAllowed(name, settings.BannedWords))
         {
             throw new BusinessRuleException(CommunityErrorCodes.ContentNotAllowed, "Tên quán không hợp lệ.");
@@ -152,7 +155,7 @@ public sealed class CommunityService : ICommunityService
     {
         var settings = await SettingsAsync(ct);
         var user = await _users.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);
-        CommunityRules.EnsureNotMuted(user);
+        CommunityRules.EnsureCanPost(user);
 
         var post = await _community.GetOwnPostAsync(postId, userId, ct) ?? throw new NotFoundException("CommunityPost", postId);
         EnsureEditable(post);
@@ -184,20 +187,11 @@ public sealed class CommunityService : ICommunityService
         return await _read.GetOwnAsync(userId, post.Id, ct);
     }
 
-    /// <summary>Xóa nội dung, giá và ảnh ngay. Giữ dòng để bộ đếm giới hạn vẫn thấy, và bình luận của người khác không mất lý do tồn tại khi có khiếu nại.</summary>
+    /// <summary>Xóa nội dung, giá và ảnh ngay, trong một DB transaction: lỗi giữa chừng mà bài đã xóa mềm thì không còn đường thử lại, và ảnh sẽ nằm đó mãi.</summary>
     public async Task DeletePostAsync(Guid userId, Guid postId, CancellationToken ct = default)
     {
         var post = await _community.GetOwnPostAsync(postId, userId, ct) ?? throw new NotFoundException("CommunityPost", postId);
-        var now = DateTimeOffset.UtcNow;
-        post.DeletedAt = now;
-        post.UpdatedAt = now;
-        post.Title = null;
-        post.Body = string.Empty;
-        post.PriceCents = null;
-        post.Tags = [];
-        await _community.SaveChangesAsync(ct);
-        await _community.WipeImagesOfPostAsync(post.Id, ct);
-        await _community.CloseOpenReportsOfPostAsync(post.Id, now, ct);
+        await _community.DeletePostContentAsync(post.Id, DateTimeOffset.UtcNow, ct);
     }
 
     public async Task<CommunityVoteDto> VoteAsync(Guid userId, Guid postId, CancellationToken ct = default)

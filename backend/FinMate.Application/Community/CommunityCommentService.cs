@@ -48,10 +48,13 @@ public sealed class CommunityCommentService : ICommunityCommentService
     {
         _ = await _community.GetPostRowAsync(postId, viewerId, ct) ?? throw new NotFoundException("CommunityPost", postId);
         var size = limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
-        var position = CommunityCursor.ReadPosition(cursor);
-        var rows = await _community.ListCommentsAsync(postId, viewerId, position?.CreatedAt, position?.Id, size + 1, ct);
+        var positionId = CommunityCursor.ReadPosition(cursor);
+        var positionTime = positionId is { } id
+            ? await _community.GetCommentCreatedAtAsync(id, postId, ct) ?? throw CommunityCursor.Invalid()
+            : (DateTimeOffset?)null;
+        var rows = await _community.ListCommentsAsync(postId, viewerId, positionTime, positionId, size + 1, ct);
         var page = rows.Take(size).ToList();
-        var next = rows.Count > size ? CommunityCursor.FromPosition(page[^1].Comment.CreatedAt, page[^1].Comment.Id) : null;
+        var next = rows.Count > size ? CommunityCursor.FromPosition(page[^1].Comment.Id) : null;
         return new CommunityCommentPageDto(page.Select(r => ToDto(r, viewerId)).ToList(), next);
     }
 
@@ -83,7 +86,7 @@ public sealed class CommunityCommentService : ICommunityCommentService
     {
         var settings = (await _config.GetAsync(ct)).Document.Community;
         var user = await _users.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);
-        CommunityRules.EnsureNotMuted(user);
+        CommunityRules.EnsureCanPost(user);
 
         var comment = await _community.GetOwnCommentAsync(commentId, userId, ct) ?? throw new NotFoundException("CommunityComment", commentId);
         if (comment.Status != CommunityContentStatus.Visible)
@@ -106,12 +109,7 @@ public sealed class CommunityCommentService : ICommunityCommentService
     public async Task DeleteAsync(Guid userId, Guid commentId, CancellationToken ct = default)
     {
         var comment = await _community.GetOwnCommentAsync(commentId, userId, ct) ?? throw new NotFoundException("CommunityComment", commentId);
-        var now = DateTimeOffset.UtcNow;
-        comment.Body = string.Empty;
-        comment.DeletedAt = now;
-        comment.UpdatedAt = now;
-        await _community.SaveChangesAsync(ct);
-        await _community.CloseOpenReportsOfCommentAsync(comment.Id, now, ct);
+        await _community.DeleteCommentContentAsync(comment.Id, DateTimeOffset.UtcNow, ct);
     }
 
     /// <summary>Bài chạm-một-lần không hiện ở bảng tin nên không ai có chỗ để bình luận; bài đã bị ẩn thì không nhận thêm.</summary>

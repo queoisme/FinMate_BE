@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -12,7 +11,7 @@ public sealed record OpsCommunityReportDto(Guid Id, string TargetType, Guid Targ
 
 public sealed record OpsCommunityReportPageDto(IReadOnlyList<OpsCommunityReportDto> Items, int Total);
 
-public sealed record OpsCommunityImageDto(Guid Id, Guid PostId, int Width, int Height, string? Title, string Body, DateTimeOffset CreatedAt);
+public sealed record OpsCommunityImageDto(Guid Id, Guid PostId, int Width, int Height, string? Title, string Body, DateOnly CreatedOn);
 
 public sealed record OpsCommunityImagePageDto(IReadOnlyList<OpsCommunityImageDto> Items, int Total);
 
@@ -35,7 +34,7 @@ public interface IOpsCommunityService
     Task MuteCommentAuthorAsync(Guid actorId, Guid commentId, OpsMuteAuthorInput input, string? ip, CancellationToken ct = default);
 }
 
-public sealed partial class OpsCommunityService : IOpsCommunityService
+public sealed class OpsCommunityService : IOpsCommunityService
 {
     private const string DecisionUpheld = "upheld";
     private const string DecisionDismissed = "dismissed";
@@ -53,13 +52,6 @@ public sealed partial class OpsCommunityService : IOpsCommunityService
         _audit = audit;
     }
 
-    [GeneratedRegex("(?<!^)([A-Z])", RegexOptions.CultureInvariant, 200)]
-    private static partial Regex WordStart();
-
-    private static string Snake<T>(T value)
-        where T : struct, Enum
-        => WordStart().Replace(value.ToString(), "_$1").ToLowerInvariant();
-
     private static int Clamp(int limit) => limit <= 0 ? 50 : Math.Min(limit, MaxLimit);
 
     public async Task<OpsCommunityReportPageDto> ListReportsAsync(Guid actorId, int offset, int limit, CancellationToken ct = default)
@@ -70,12 +62,12 @@ public sealed partial class OpsCommunityService : IOpsCommunityService
             r.Report.Id,
             r.Report.PostId is null ? "comment" : "post",
             r.Report.PostId ?? r.Report.CommentId!.Value,
-            Snake(r.Report.Reason),
-            Snake(r.Report.Priority),
+            CommunityRules.Snake(r.Report.Reason),
+            CommunityRules.Snake(r.Report.Priority),
             r.Title,
             r.Body,
             CommunityAuthorView.From(r.IsAnonymous, r.DisplayName).DisplayName,
-            Snake(r.TargetStatus),
+            CommunityRules.Snake(r.TargetStatus),
             r.Report.CreatedAt)).ToList();
         return new OpsCommunityReportPageDto(items, total);
     }
@@ -117,7 +109,7 @@ public sealed partial class OpsCommunityService : IOpsCommunityService
     {
         await _access.RequireAsync(actorId, OpsCapability.ModerateCommunity, ct);
         var (rows, total) = await _community.ListPendingImagesAsync(Math.Max(0, offset), Clamp(limit), ct);
-        return new OpsCommunityImagePageDto(rows.Select(r => new OpsCommunityImageDto(r.Id, r.PostId, r.Width, r.Height, r.Title, r.Body, r.CreatedAt)).ToList(), total);
+        return new OpsCommunityImagePageDto(rows.Select(r => new OpsCommunityImageDto(r.Id, r.PostId, r.Width, r.Height, r.Title, r.Body, VietnamTime.DateOf(r.CreatedAt))).ToList(), total);
     }
 
     public async Task<CommunityImageContent> GetImageAsync(Guid actorId, Guid imageId, CancellationToken ct = default)

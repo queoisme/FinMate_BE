@@ -54,21 +54,24 @@ public sealed class CommunityReadService : ICommunityReadService
         }
 
         var byVotes = sort == SortTop;
-        var position = byVotes ? null : CommunityCursor.ReadPosition(query.Cursor);
+        var positionId = byVotes ? null : CommunityCursor.ReadPosition(query.Cursor);
+        var positionTime = positionId is { } id
+            ? await _community.GetPostCreatedAtAsync(id, ct) ?? throw CommunityCursor.Invalid()
+            : (DateTimeOffset?)null;
         var offset = byVotes ? CommunityCursor.ReadOffset(query.Cursor) : 0;
         var limit = ClampLimit(query.Limit);
 
         var rows = await _community.ListPostsAsync(
             new CommunityPostFilter(
                 viewerId, query.Topic, CommunitySettings.PlacesTopic, query.ProvinceCode, query.AreaCode, query.Tag, null, query.Mine, byVotes,
-                byVotes ? DateTimeOffset.UtcNow.AddDays(-TopWindowDays) : null, position?.CreatedAt, position?.Id, offset, limit + 1),
+                byVotes ? DateTimeOffset.UtcNow.AddDays(-TopWindowDays) : null, positionTime, positionId, offset, limit + 1),
             ct);
 
         var hasMore = rows.Count > limit;
         var page = rows.Take(limit).ToList();
         var next = !hasMore ? null
             : byVotes ? CommunityCursor.FromOffset(offset + limit)
-            : CommunityCursor.FromPosition(page[^1].Post.CreatedAt, page[^1].Post.Id);
+            : CommunityCursor.FromPosition(page[^1].Post.Id);
         return new CommunityPostPageDto(await ToDtosAsync(viewerId, page, ct), next);
     }
 
@@ -153,6 +156,6 @@ public sealed class CommunityReadService : ICommunityReadService
             images.Where(i => isMine || i.Status == CommunityImageStatus.Approved)
                 .Select(i => new CommunityImageDto(i.Id, i.Width, i.Height, i.Status.ToString().ToLowerInvariant()))
                 .ToList(),
-            isMine ? post.Status.ToString().ToLowerInvariant() : null);
+            isMine ? CommunityRules.Snake(post.Status) : null);
     }
 }

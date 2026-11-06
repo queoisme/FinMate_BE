@@ -51,6 +51,10 @@ public interface ICommunityRepository
     /// <summary>Đếm cả bài đã xóa: đăng rồi xóa không được hoàn lại lượt.</summary>
     Task<int> CountPostsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
 
+    /// <summary>Tính cả nội dung đã xóa: bài cuối trang bị xóa giữa hai lượt tải không được làm hỏng trang sau. Chỉ dùng để áp con trỏ, không trả ra ngoài.</summary>
+    Task<DateTimeOffset?> GetPostCreatedAtAsync(Guid postId, CancellationToken ct = default);
+    Task<DateTimeOffset?> GetCommentCreatedAtAsync(Guid commentId, Guid postId, CancellationToken ct = default);
+
     Task<CommunityPostRow?> GetPostRowAsync(Guid postId, Guid viewerId, CancellationToken ct = default);
     Task<List<CommunityPostRow>> ListPostsAsync(CommunityPostFilter filter, CancellationToken ct = default);
     Task<List<CommunityImageInfo>> ListImagesAsync(IReadOnlyCollection<Guid> postIds, CancellationToken ct = default);
@@ -69,7 +73,6 @@ public interface ICommunityRepository
     Task<List<CommunityCommentRow>> ListCommentsAsync(Guid postId, Guid viewerId, DateTimeOffset? afterCreatedAt, Guid? afterId, int limit, CancellationToken ct = default);
     Task<CommunityComment?> GetOwnCommentAsync(Guid commentId, Guid authorId, CancellationToken ct = default);
     Task<int> CountCommentsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
-    Task CloseOpenReportsOfCommentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default);
 
     void AddImage(CommunityPostImage image);
 
@@ -81,9 +84,9 @@ public interface ICommunityRepository
     Task<int> CountImagesSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
     Task<int> CountPendingImagesAsync(CancellationToken ct = default);
 
-    /// <summary>Xóa dữ liệu mọi ảnh của bài, giữ dòng để bộ đếm giới hạn vẫn thấy.</summary>
-    Task WipeImagesOfPostAsync(Guid postId, CancellationToken ct = default);
-    Task CloseOpenReportsOfPostAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default);
+    /// <summary>Trong một DB transaction: xóa nội dung, xóa dữ liệu ảnh (giữ dòng để bộ đếm giới hạn vẫn thấy), đóng báo cáo đang mở.</summary>
+    Task DeletePostContentAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default);
+    Task DeleteCommentContentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default);
 
     void AddReport(CommunityReport report);
     Task<CommunityComment?> GetVisibleCommentAsync(Guid commentId, Guid viewerId, CancellationToken ct = default);

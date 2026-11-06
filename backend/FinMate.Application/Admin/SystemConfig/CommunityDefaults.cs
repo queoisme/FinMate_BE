@@ -28,7 +28,7 @@ internal static class CommunityDefaults
     // Cụm hai từ trở lên: một từ đơn như "ăn", "phở" sau khi bỏ dấu trùng với tên người ("An") hay chữ khác ("phố"), và giao dịch chuyển khoản có thể mang tên người thật.
     public static readonly IReadOnlyList<string> FoodKeywords =
     [
-        "quán ăn", "quán cơm", "quán phở", "quán bún", "quán cháo", "quán nướng", "cơm tấm", "cơm gà", "cơm văn phòng", "cơm bình dân", "phở bò", "phở gà", "bún bò", "bún chả", "bún đậu", "bánh mì", "mì quảng", "hủ tiếu", "lẩu", "cà phê", "cafe", "coffee", "trà sữa", "nhà hàng", "ăn sáng", "ăn trưa", "ăn tối", "highlands", "phúc long", "kfc", "lotteria", "jollibee", "grabfood", "shopeefood",
+        "quán ăn", "quán cơm", "quán phở", "quán bún", "quán cháo", "quán nướng", "cơm tấm", "cơm gà", "cơm văn phòng", "cơm bình dân", "phở bò", "phở gà", "bún bò", "bún chả", "bún đậu", "bánh mì", "mì quảng", "hủ tiếu", "quán lẩu", "cà phê", "cafe", "coffee", "trà sữa", "nhà hàng", "ăn sáng", "ăn trưa", "ăn tối", "highlands", "phúc long", "kfc", "lotteria", "jollibee", "grabfood", "shopeefood",
     ];
 
     public static readonly IReadOnlyList<string> FoodExcludes = [];

@@ -12,12 +12,12 @@ public static class CommunityCursor
     private const char Separator = '|';
     private const int MaxOffset = 2000;
 
-    public static string FromPosition(DateTimeOffset createdAt, Guid id)
-        => Encode($"{KeyPrefix}{Separator}{createdAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}{Separator}{id:N}");
+    /// <summary>Chỉ mang id. Thời điểm do server tự tra: con trỏ chứa thời điểm sẽ cho biết giờ đăng chính xác, mà giờ đăng đủ để người quen nhận ra tác giả ẩn danh.</summary>
+    public static string FromPosition(Guid id) => Encode($"{KeyPrefix}{Separator}{id:N}");
 
     public static string FromOffset(int offset) => Encode($"{OffsetPrefix}{Separator}{offset.ToString(CultureInfo.InvariantCulture)}");
 
-    public static (DateTimeOffset CreatedAt, Guid Id)? ReadPosition(string? cursor)
+    public static Guid? ReadPosition(string? cursor)
     {
         if (string.IsNullOrEmpty(cursor))
         {
@@ -25,16 +25,15 @@ public static class CommunityCursor
         }
 
         var parts = Decode(cursor);
-        if (parts is [KeyPrefix, var ticks, var id]
-            && long.TryParse(ticks, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
-            && value <= DateTimeOffset.MaxValue.UtcTicks
-            && Guid.TryParseExact(id, "N", out var guid))
+        if (parts is [KeyPrefix, var id] && Guid.TryParseExact(id, "N", out var guid))
         {
-            return (new DateTimeOffset(value, TimeSpan.Zero), guid);
+            return guid;
         }
 
         throw Invalid();
     }
+
+    public static BusinessRuleException Invalid() => new(CommunityErrorCodes.InvalidInput, "Con trỏ trang không hợp lệ.");
 
     public static int ReadOffset(string? cursor)
     {
@@ -68,5 +67,4 @@ public static class CommunityCursor
         }
     }
 
-    private static BusinessRuleException Invalid() => new(CommunityErrorCodes.InvalidInput, "Con trỏ trang không hợp lệ.");
 }

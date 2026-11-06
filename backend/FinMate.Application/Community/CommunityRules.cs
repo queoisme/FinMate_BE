@@ -1,11 +1,20 @@
+using System.Text.RegularExpressions;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Community;
 
-public static class CommunityRules
+public static partial class CommunityRules
 {
+    [GeneratedRegex("(?<!^)([A-Z])", RegexOptions.CultureInvariant, 200)]
+    private static partial Regex WordStart();
+
+    /// <summary>Tên giá trị enum theo đúng dạng lưu trong DB và ghi trong tài liệu, ví dụ <c>auto_hidden</c>.</summary>
+    public static string Snake<T>(T value)
+        where T : struct, Enum
+        => WordStart().Replace(value.ToString(), "_$1").ToLowerInvariant();
+
     /// <summary>Đủ đồng ý và không bị cấm đăng. Đọc từ DB mỗi lần vì việc cấm phải có hiệu lực ngay.</summary>
     public static void EnsureCanPost(User user)
     {

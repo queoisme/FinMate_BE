@@ -92,6 +92,12 @@ public class CommunityRepository : ICommunityRepository
             VotedByViewer = _context.CommunityPostVotes.Any(v => v.PostId == j.Post.Id && v.UserId == viewerId),
         });
 
+    public Task<DateTimeOffset?> GetPostCreatedAtAsync(Guid postId, CancellationToken ct = default)
+        => _context.CommunityPosts.IgnoreQueryFilters().Where(p => p.Id == postId).Select(p => (DateTimeOffset?)p.CreatedAt).FirstOrDefaultAsync(ct);
+
+    public Task<DateTimeOffset?> GetCommentCreatedAtAsync(Guid commentId, Guid postId, CancellationToken ct = default)
+        => _context.CommunityComments.IgnoreQueryFilters().Where(c => c.Id == commentId && c.PostId == postId).Select(c => (DateTimeOffset?)c.CreatedAt).FirstOrDefaultAsync(ct);
+
     public async Task<CommunityPostRow?> GetPostRowAsync(Guid postId, Guid viewerId, CancellationToken ct = default)
         => (await Rows(Joined(viewerId, ownOnly: false).Where(j => j.Post.Id == postId), viewerId).FirstOrDefaultAsync(ct))?.ToRow();
 
@@ -240,11 +246,6 @@ public class CommunityRepository : ICommunityRepository
     public Task<int> CountCommentsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default)
         => _context.CommunityComments.IgnoreQueryFilters().CountAsync(c => c.AuthorId == authorId && c.CreatedAt >= since, ct);
 
-    public Task CloseOpenReportsOfCommentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default)
-        => _context.CommunityReports
-            .Where(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open)
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
-
     public void AddImage(CommunityPostImage image) => _context.CommunityPostImages.Add(image);
 
     public Task<CommunityPostImage?> GetImageAsync(Guid imageId, CancellationToken ct = default)
@@ -262,15 +263,29 @@ public class CommunityRepository : ICommunityRepository
     public Task<int> CountPendingImagesAsync(CancellationToken ct = default)
         => _context.CommunityPostImages.CountAsync(i => i.Status == CommunityImageStatus.Pending, ct);
 
-    public Task WipeImagesOfPostAsync(Guid postId, CancellationToken ct = default)
-        => _context.CommunityPostImages
-            .Where(i => i.PostId == postId)
-            .ExecuteUpdateAsync(s => s.SetProperty(i => i.Data, Array.Empty<byte>()).SetProperty(i => i.SizeBytes, 0).SetProperty(i => i.Status, CommunityImageStatus.Deleted), ct);
-
-    public Task CloseOpenReportsOfPostAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default)
-        => _context.CommunityReports
-            .Where(r => r.PostId == postId && r.Status == CommunityReportStatus.Open)
+    public async Task DeletePostContentAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        await _context.CommunityPosts.Where(p => p.Id == postId).ExecuteUpdateAsync(
+            s => s.SetProperty(p => p.DeletedAt, now).SetProperty(p => p.UpdatedAt, now).SetProperty(p => p.Title, (string?)null).SetProperty(p => p.Body, string.Empty)
+                .SetProperty(p => p.PriceCents, (long?)null).SetProperty(p => p.Tags, new List<string>()),
+            ct);
+        await _context.CommunityPostImages.Where(i => i.PostId == postId).ExecuteUpdateAsync(
+            s => s.SetProperty(i => i.Data, Array.Empty<byte>()).SetProperty(i => i.SizeBytes, 0).SetProperty(i => i.Status, CommunityImageStatus.Deleted), ct);
+        await _context.CommunityReports.Where(r => r.PostId == postId && r.Status == CommunityReportStatus.Open)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
+        await transaction.CommitAsync(ct);
+    }
+
+    public async Task DeleteCommentContentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        await _context.CommunityComments.Where(c => c.Id == commentId).ExecuteUpdateAsync(
+            s => s.SetProperty(c => c.DeletedAt, now).SetProperty(c => c.UpdatedAt, now).SetProperty(c => c.Body, string.Empty), ct);
+        await _context.CommunityReports.Where(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
+        await transaction.CommitAsync(ct);
+    }
 
     public void AddReport(CommunityReport report) => _context.CommunityReports.Add(report);
 
@@ -379,20 +394,27 @@ public class CommunityRepository : ICommunityRepository
     public async Task<bool> HidePlaceAsync(Guid placeId, DateTimeOffset now, CancellationToken ct = default)
         => await _context.CommunityPlaces.Where(p => p.Id == placeId).ExecuteUpdateAsync(s => s.SetProperty(p => p.HiddenAt, now).SetProperty(p => p.UpdatedAt, now), ct) > 0;
 
+    // Tính cả nội dung đã xóa: xóa bài trước khi Manager kịp xử lý không được là cách né cấm.
     public async Task<bool> MuteAuthorOfPostAsync(Guid postId, DateTimeOffset until, CancellationToken ct = default)
     {
-        var authorId = await _context.CommunityPosts.Where(p => p.Id == postId).Select(p => (Guid?)p.AuthorId).FirstOrDefaultAsync(ct);
+        var authorId = await _context.CommunityPosts.IgnoreQueryFilters().Where(p => p.Id == postId).Select(p => (Guid?)p.AuthorId).FirstOrDefaultAsync(ct);
         return authorId is { } id && await MuteAsync(id, until, ct);
     }
 
     public async Task<bool> MuteAuthorOfCommentAsync(Guid commentId, DateTimeOffset until, CancellationToken ct = default)
     {
-        var authorId = await _context.CommunityComments.Where(c => c.Id == commentId).Select(c => (Guid?)c.AuthorId).FirstOrDefaultAsync(ct);
+        var authorId = await _context.CommunityComments.IgnoreQueryFilters().Where(c => c.Id == commentId).Select(c => (Guid?)c.AuthorId).FirstOrDefaultAsync(ct);
         return authorId is { } id && await MuteAsync(id, until, ct);
     }
 
+    /// <summary>Giữ mốc xa hơn: người xử lý không biết tác giả là ai, nên không biết họ đang bị cấm dài hơn.</summary>
     private async Task<bool> MuteAsync(Guid userId, DateTimeOffset until, CancellationToken ct)
-        => await _context.Users.IgnoreQueryFilters().Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.CommunityMutedUntil, until), ct) > 0;
+    {
+        await _context.Users.IgnoreQueryFilters()
+            .Where(u => u.Id == userId && (u.CommunityMutedUntil == null || u.CommunityMutedUntil < until))
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.CommunityMutedUntil, until), ct);
+        return true;
+    }
 
     public async Task<bool> TrySaveChangesAsync(CancellationToken ct = default)
     {

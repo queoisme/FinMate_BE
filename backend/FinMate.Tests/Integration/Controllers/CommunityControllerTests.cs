@@ -238,6 +238,7 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
     [InlineData("Email lan@example.com")]
     [InlineData("STK của mình 123456789012")]
     [InlineData("Cam kết lợi nhuận mỗi tháng")]
+    [InlineData("Cam ke\u0302\u0301t lo\u031B\u0323i nhua\u0323\u0302n mỗi tháng")]
     public async Task ContentThatLeaksContactsOrLooksLikeAScamIsRefused(string body)
     {
         var author = await AccountAsync();
@@ -1108,6 +1109,7 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
     [Theory]
     [InlineData("Điện lực TP HCM", 30_000L, TransactionType.Debit, TransactionStatus.Confirmed)]
     [InlineData("Nguyễn Văn An", 30_000L, TransactionType.Debit, TransactionStatus.Confirmed)]
+    [InlineData("Trần Văn Lâu", 30_000L, TransactionType.Debit, TransactionStatus.Confirmed)]
     [InlineData("Quán cơm Bà Ba", 300_001L, TransactionType.Debit, TransactionStatus.Confirmed)]
     [InlineData("Quán cơm Bà Ba", 30_000L, TransactionType.Credit, TransactionStatus.Confirmed)]
     [InlineData("Quán cơm Bà Ba", 30_000L, TransactionType.Debit, TransactionStatus.Draft)]
@@ -1158,5 +1160,119 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
         var prompt = await PromptAsync(user, await SeedDebitAsync(user, name.ToUpperInvariant()));
         prompt.GetProperty("existingPlaces").GetArrayLength().Should().Be(1);
         prompt.GetProperty("existingPlaces")[0].GetProperty("name").GetString().Should().Be(name);
+    }
+
+    [Fact]
+    public async Task APageCursorRevealsNoPostingTime_AndAForgedTimeIsRefused()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        await ShareExperienceAsync(author, "Bài thứ hai để có trang sau");
+        for (var i = 0; i < 2; i++)
+        {
+            await CommentAsync(author, postId, $"Bình luận {i}");
+        }
+
+        var feed = await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts?mine=true&limit=1", author.Token));
+        var comments = await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}/comments?limit=1", author.Token));
+        foreach (var cursor in new[] { feed.GetProperty("nextCursor").GetString()!, comments.GetProperty("nextCursor").GetString()! })
+        {
+            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
+            decoded.Split('|').Should().HaveCount(2, "con trỏ chỉ được mang id, không mang thời điểm");
+        }
+
+        var forged = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"k|{DateTimeOffset.UtcNow.UtcTicks}|{postId:N}"));
+        (await ErrorCodeAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts?cursor={Uri.EscapeDataString(forged)}", author.Token))).Should().Be("COMMUNITY_INVALID_INPUT");
+    }
+
+    [Fact]
+    public async Task AOneTapReShareKeepsTheEarlierReview()
+    {
+        var author = await AccountAsync("Chị Lan");
+        var name = UniqueName();
+        var first = await DataAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts", author.Token, new { topic = "places", placeName = name, provinceCode = Hcm, areaCode = District7, title = "Tiêu đề", body = "Rất ngon", priceCents = 30_000L, tags = new[] { "gia_tot" }, isAnonymous = false }));
+
+        var again = await DataAsync(await SendAsync(HttpMethod.Post, $"{Base}/posts", author.Token, new { topic = "places", placeId = first.GetProperty("place").GetProperty("id").GetGuid() }));
+
+        again.GetProperty("id").GetGuid().Should().Be(first.GetProperty("id").GetGuid());
+        again.GetProperty("title").GetString().Should().Be("Tiêu đề");
+        again.GetProperty("body").GetString().Should().Be("Rất ngon");
+        again.GetProperty("priceCents").GetInt64().Should().Be(30_000);
+        again.GetProperty("tags").GetArrayLength().Should().Be(1);
+        again.GetProperty("author").GetProperty("displayName").GetString().Should().Be("Chị Lan");
+    }
+
+    [Fact]
+    public async Task RenamingToAPhoneNumberAfterPostingDoesNotPublishIt()
+    {
+        var author = await AccountAsync("Chị Lan");
+        var reader = await AccountAsync();
+        var id = (await ShareExperienceAsync(author, isAnonymous: false)).GetProperty("id").GetGuid();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+            await db.Users.Where(u => u.Id == author.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.DisplayName, "Zalo 0912345678"));
+        }
+
+        var raw = await (await SendAsync(HttpMethod.Get, $"{Base}/posts/{id}", reader.Token)).Content.ReadAsStringAsync();
+        raw.Should().NotContain("0912345678");
+        JsonDocument.Parse(raw).RootElement.GetProperty("data").GetProperty("author").GetProperty("isAnonymous").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnAutoHiddenPostReportsTheDocumentedStatus()
+    {
+        var author = await AccountAsync();
+        var id = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        for (var i = 0; i < 3; i++)
+        {
+            await ReportPostAsync(await AccountAsync(), id);
+        }
+
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{id}", author.Token))).GetProperty("status").GetString().Should().Be("auto_hidden");
+    }
+
+    [Fact]
+    public async Task DeletingAPostDoesNotEscapeAMute_AndAShortMuteDoesNotShortenALongOne()
+    {
+        var author = await AccountAsync();
+        var manager = await AccountAsync("Quản lý", role: UserRole.OpsManager);
+        var first = (await ShareExperienceAsync(author, "Bài một")).GetProperty("id").GetGuid();
+        var second = (await ShareExperienceAsync(author, "Bài hai")).GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{first}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await SendAsync(HttpMethod.Post, $"{Ops}/posts/{first}/mute-author", manager.Token, new { days = 30 })).IsSuccessStatusCode.Should().BeTrue();
+        (await SendAsync(HttpMethod.Post, $"{Ops}/posts/{second}/mute-author", manager.Token, new { days = 1 })).IsSuccessStatusCode.Should().BeTrue();
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.Users.AsNoTracking().SingleAsync(u => u.Id == author.Id)).CommunityMutedUntil.Should().BeAfter(DateTimeOffset.UtcNow.AddDays(29));
+    }
+
+    [Fact]
+    public async Task WithdrawingConsentStopsEditsToo()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var commentId = (await CommentAsync(author, postId)).GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Delete, "/api/v1/users/me/consents/community", author.Token)).IsSuccessStatusCode.Should().BeTrue();
+
+        (await ErrorCodeAsync(await SendAsync(new HttpMethod("PATCH"), $"{Base}/posts/{postId}", author.Token, new { body = "Sửa" }))).Should().Be("COMMUNITY_CONSENT_REQUIRED");
+        (await ErrorCodeAsync(await SendAsync(new HttpMethod("PATCH"), $"{Base}/comments/{commentId}", author.Token, new { body = "Sửa" }))).Should().Be("COMMUNITY_CONSENT_REQUIRED");
+
+        // Vẫn phải xóa được nội dung của mình.
+        (await SendAsync(HttpMethod.Delete, $"{Base}/comments/{commentId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task ThePlaceNameInDecomposedFormIsTheSamePlace()
+    {
+        var author = await AccountAsync();
+        var other = await AccountAsync();
+        var word = UniqueWord();
+        var first = await SharePlaceAsync(author, $"Quán {word}");
+        var second = await SharePlaceAsync(other, $"Qua\u0301n {word}");
+        second.GetProperty("place").GetProperty("id").GetGuid().Should().Be(first.GetProperty("place").GetProperty("id").GetGuid());
     }
 }

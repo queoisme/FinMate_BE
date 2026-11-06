@@ -83,7 +83,7 @@ Trả 201 khi tạo mới. Với `places`, chia sẻ lại quán đã có bài c
 | `GET /places?provinceCode&areaCode&tag&maxPriceCents&q&cursor&limit` | Xếp theo điểm = chi thật × 3 + vote + số chia sẻ, giảm dần theo thời gian. `typicalPriceCents` là trung vị. `q` không phân biệt dấu |
 | `GET /places/{id}` | Tóm tắt và các bài có nội dung |
 
-Tính khi đọc, không có cột đếm tính sẵn.
+Tính khi đọc, không có cột đếm tính sẵn. Chỉ xét 2000 lượt chia sẻ mới nhất khớp bộ lọc khu vực và tên, nên cần xem lại khi dữ liệu rất lớn.
 
 ## Bình luận
 

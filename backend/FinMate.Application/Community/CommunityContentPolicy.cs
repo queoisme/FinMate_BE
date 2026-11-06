@@ -32,7 +32,7 @@ public static partial class CommunityContentPolicy
 
         try
         {
-            return !HasContact(text) && !MarketKeywords.MatchesNews(text, bannedWords);
+            return !HasContact(text) && !MarketKeywords.MatchesNews(VietnameseText.ComposeLower(text), bannedWords);
         }
         catch (RegexMatchTimeoutException)
         {
