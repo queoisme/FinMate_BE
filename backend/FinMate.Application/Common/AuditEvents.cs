@@ -106,6 +106,11 @@ public static class AuditEvents
     public const string OpsCannedReplyChanged = "Ops.CannedReply.Changed";
     public const string OpsIncidentAcknowledged = "Ops.Incident.Acknowledged";
     public const string OpsIncidentResolved = "Ops.Incident.Resolved";
+    public const string AdminMarketSourceCreated = "Admin.MarketSource.Created";
+    public const string AdminMarketSourceUpdated = "Admin.MarketSource.Updated";
+    public const string AdminFuelPriceCorrected = "Admin.FuelPrice.Corrected";
+    public const string AdminMarketEventApproved = "Admin.MarketEvent.Approved";
+    public const string AdminMarketEventRejected = "Admin.MarketEvent.Rejected";
     public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";
     public const string OpsTwoFactorFailed = "Ops.TwoFactor.Failed";
 }

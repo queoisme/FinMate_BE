@@ -423,6 +423,18 @@ Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn 
 - **Không đưa AI, OCR, STT vào `/health/ready`:** AI lỗi không được làm mất traffic của backend. Giám sát là đường riêng.
 - Trạng thái lưu ở Postgres, không ở Redis, vì Redis có thể chính là thứ đang hỏng.
 
+### 2.10 Thông tin thị trường (thêm 2026-11-06)
+
+Admin gửi link, `MarketDataRefreshJob` đọc mỗi 3 giờ. API, ngưỡng và quy tắc ở `docs/market-data-api.md`.
+
+- **Hai đường dữ liệu:** `price_table` đọc bằng `FuelTableParser`, ra `fuel_prices`; `feed` và `page` lọc từ khóa rồi gửi AI, ra `market_signals`, gom thành `market_events`.
+- **Tải trang:** `SafeWebFetcher` là nơi duy nhất mở kết nối tới URL không cố định, chặn địa chỉ nội bộ trong `ConnectCallback`. Không vượt `robots.txt`, 401, 403, 429.
+- **Tin cậy dữ liệu:** giá cần đủ nguồn khớp đúng cùng số. Kết quả AI phải có đoạn trích nguyên văn trong bài (`MarketSignalValidator`). Sự kiện từ tin bài chờ admin duyệt.
+- **Cảnh báo:** `MarketAlertService` đi qua `forecast_alerts`. Nội dung là mẫu cố định, để nội dung trang web không tới được thông báo của người dùng.
+- **Chọn người nhận:** `MarketSpendProfile` tính thói quen chi từ giao dịch mỗi lần, không lưu. Nhận diện theo nội dung giao dịch chứ không theo mã danh mục, vì người dùng tự đặt danh mục.
+- **Loại chi phí:** `marketData.costTypes` trong cấu hình hệ thống, nên `market_signals.topic` và `market_events.topic` là chuỗi tự do, không có CHECK. Danh sách AI được phép trả do backend gửi trong từng lần gọi.
+- **Không lưu toàn văn bài báo.**
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1210,6 +1222,8 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
+| `MarketDataRefreshJob` | Mỗi 3 giờ, phút 5 | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
+| `MarketAlertJob` | Khi có việc | Xét gửi cảnh báo ngay sau khi admin duyệt sự kiện hoặc sửa giá |
 | `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
 | `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
 | `RecurringDetectionJob` | 01:30 mỗi ngày | Cập nhật khoản định kỳ đã có (thấy thanh toán thì đẩy ngày đến hạn) và đề xuất khoản mới (§2.6). Thay phần `RecurringDetected` của `InsightGeneratorJob` |

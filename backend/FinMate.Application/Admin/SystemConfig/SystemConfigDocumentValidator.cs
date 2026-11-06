@@ -25,6 +25,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
+        RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
     }
 
     private static bool IsHttps(string value)
@@ -99,6 +100,49 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.ProviderFailureThreshold).InclusiveBetween(1, 1000).WithMessage("Ngưỡng lỗi nhà cung cấp phải từ 1 đến 1000.");
             RuleFor(x => x.ReminderMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian nhắc lại phải từ 1 đến 1440 phút.");
             RuleFor(x => x.ErrorRetentionDays).InclusiveBetween(1, 365).WithMessage("Thời gian giữ lỗi phải từ 1 đến 365 ngày.");
+        }
+    }
+
+    private sealed class MarketDataValidator : AbstractValidator<MarketDataSettings>
+    {
+        private static bool ValidKeywords(IReadOnlyList<string> keywords)
+            => keywords is { Count: <= 50 } && keywords.All(word => !string.IsNullOrWhiteSpace(word) && word.Length <= 50);
+
+        public MarketDataValidator()
+        {
+            RuleFor(x => x.MinAgreeingSources).InclusiveBetween(1, 10).WithMessage("Số nguồn phải khớp phải từ 1 đến 10.");
+            RuleFor(x => x.MaxDocumentsPerRun).InclusiveBetween(1, 200).WithMessage("Số bài mỗi lượt phải từ 1 đến 200.");
+            RuleFor(x => x.MinPriceCents).GreaterThan(0).LessThan(x => x.MaxPriceCents).WithMessage("Giá tối thiểu phải lớn hơn 0 và nhỏ hơn giá tối đa.");
+            RuleFor(x => x.MaxChangePercent).InclusiveBetween(1, 100).WithMessage("Mức đổi giá tối đa phải từ 1 đến 100%.");
+            RuleFor(x => x.ReferenceFuelKey).Must(key => FinMate.Application.MarketData.FuelKeys.All.Contains(key)).WithMessage("Loại xăng so sánh không hợp lệ.");
+            RuleFor(x => x.RiseThresholdPercent).InclusiveBetween(1, 100).WithMessage("Ngưỡng tăng giá phải từ 1 đến 100%.");
+            RuleFor(x => x.CompareWindowDays).InclusiveBetween(1, 90).WithMessage("Số ngày so sánh phải từ 1 đến 90.");
+            RuleFor(x => x.AlertCooldownDays).InclusiveBetween(0, 365).WithMessage("Thời gian giãn cảnh báo phải từ 0 đến 365 ngày.");
+            RuleFor(x => x.SpendLookbackDays).InclusiveBetween(7, 365).WithMessage("Số ngày xét chi tiêu phải từ 7 đến 365.");
+            RuleFor(x => x.MinCategoryTransactions).InclusiveBetween(1, 100).WithMessage("Số giao dịch tối thiểu phải từ 1 đến 100.");
+            RuleFor(x => x.LastSpendMaxDays).InclusiveBetween(1, 365).WithMessage("Số ngày chi gần nhất phải từ 1 đến 365.");
+            RuleFor(x => x.MinSpendSharePercent).InclusiveBetween(0, 100).WithMessage("Tỉ trọng chi tối thiểu phải từ 0 đến 100%.");
+            RuleFor(x => x.MinExtraCostCents).GreaterThanOrEqualTo(0).WithMessage("Mức tốn thêm tối thiểu không được âm.");
+            RuleFor(x => x.CostTypes).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách loại chi phí.")
+                .Must(types => types.Count is >= 1 and <= 20).WithMessage("Phải có từ 1 đến 20 loại chi phí.")
+                .Must(types => types.All(t => t is not null)).WithMessage("Loại chi phí không được để trống.")
+                .Must(types => types.Any(t => t.Enabled)).WithMessage("Phải bật ít nhất một loại chi phí. Muốn tắt cảnh báo thì dùng features.marketAlerts.")
+                .Must(types => types.Select(t => t.Key).Distinct().Count() == types.Count).WithMessage("Mã loại chi phí không được trùng.")
+                .Must(types => types.All(t => !t.HasPriceTable || t.Key == "fuel")).WithMessage("Hiện chỉ loại fuel có bảng giá, vì bộ đọc bảng chỉ đọc giá xăng.");
+            RuleForEach(x => x.CostTypes).Cascade(CascadeMode.Stop).NotNull().ChildRules(type =>
+            {
+                type.RuleFor(t => t.Key).Cascade(CascadeMode.Stop).NotEmpty().Matches(@"\A[a-z][a-z_]{1,28}[a-z]\z").NotEqual("other").WithMessage("Mã loại chi phí chỉ gồm chữ thường và dấu gạch dưới, tối đa 30 ký tự, không được là other.");
+                type.RuleFor(t => t.Label).NotEmpty().MaximumLength(50).WithMessage("Tên loại chi phí từ 1 đến 50 ký tự.");
+                type.RuleFor(t => t.AiDescription).NotEmpty().MaximumLength(200).WithMessage("Mô tả cho AI từ 1 đến 200 ký tự.");
+                type.RuleFor(t => t.TransactionKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa giao dịch, mỗi từ khóa tối đa 50 ký tự.");
+                type.RuleFor(t => t.TransactionExcludes).Must(ValidKeywords).WithMessage("Tối đa 50 cụm loại trừ, mỗi cụm tối đa 50 ký tự.");
+                type.RuleFor(t => t.NewsKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa tin bài, mỗi từ khóa tối đa 50 ký tự.");
+                type.RuleFor(t => t.CategorySlugs).Must(slugs => slugs is { Count: <= 10 }).WithMessage("Tối đa 10 danh mục cho một loại chi phí.");
+                type.RuleFor(t => t).Must(t => t.TransactionKeywords is { Count: > 0 } || t.CategorySlugs is { Count: > 0 }).WithMessage("Loại chi phí phải có từ khóa giao dịch hoặc danh mục.");
+            });
+            RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
+            RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");
         }
     }
 

@@ -37,6 +37,9 @@ public sealed record FeatureSettings
 
     /// <summary>Ticket hỗ trợ cho khách. Mặc định tắt: chỉ bật sau khi app có màn hình và web vận hành đã có xác thực 2 lớp.</summary>
     public bool Support { get; init; }
+
+    /// <summary>Cảnh báo giá tăng. Mặc định tắt: chỉ bật sau khi app xử lý được loại cảnh báo này. Việc đọc dữ liệu vẫn chạy khi tắt.</summary>
+    public bool MarketAlerts { get; init; }
 }
 
 public sealed record GroupSettings
@@ -80,6 +83,126 @@ public sealed record MonitoringSettings
     public int ProviderFailureThreshold { get; init; } = 3;
     public int ReminderMinutes { get; init; } = 15;
     public int ErrorRetentionDays { get; init; } = 30;
+}
+
+/// <summary>Một loại chi phí hệ thống theo dõi giá. Thêm loại mới bằng cấu hình, không phải sửa code. Từ khóa so khớp theo cả từ và không phân biệt dấu, vì thông báo ngân hàng thường viết không dấu.</summary>
+public sealed record MarketCostType
+{
+    public string Key { get; init; } = string.Empty;
+
+    /// <summary>Tên trong câu cảnh báo: "Giá {Label} đang tăng". Do admin đặt, không bao giờ lấy từ trang web hay AI.</summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>Mô tả gửi cho AI để nhận ra chủ đề này trong bài báo.</summary>
+    public string AiDescription { get; init; } = string.Empty;
+
+    /// <summary>Lọc bài trước khi gửi AI. Giữ phân biệt dấu, vì bỏ dấu thì "tham gia điện ảnh" thành "giá điện".</summary>
+    public IReadOnlyList<string> NewsKeywords { get; init; } = [];
+
+    /// <summary>
+    /// Tìm trong tên cửa hàng, mô tả và tên danh mục của giao dịch, ở mọi danh mục. Khớp cả từ, không phân biệt dấu.
+    /// Kết thúc bằng <c>*</c> thì khớp phần đầu của từ, dùng cho mã như <c>EVNHCMC</c>, <c>PETROLIMEX04</c>.
+    /// </summary>
+    public IReadOnlyList<string> TransactionKeywords { get; init; } = [];
+
+    /// <summary>Cụm bị bỏ trước khi so khớp, để "tiền điện thoại" không thành tiền điện.</summary>
+    public IReadOnlyList<string> TransactionExcludes { get; init; } = [];
+
+    /// <summary>Mọi giao dịch trong các danh mục hệ thống này đều tính, dùng khi khoản chi quá đa dạng để liệt kê từ khóa.</summary>
+    public IReadOnlyList<string> CategorySlugs { get; init; } = [];
+
+    /// <summary>Có giá thật ở <c>fuel_prices</c>: cảnh báo theo giá và ước tính được số tiền, không qua sự kiện từ tin bài.</summary>
+    public bool HasPriceTable { get; init; }
+    public bool Enabled { get; init; } = true;
+}
+
+public sealed record MarketDataSettings
+{
+    /// <summary>Số nguồn phải cho cùng một giá thì giá mới được xác nhận. Hạ xuống 1 khi một nguồn ngừng hoạt động.</summary>
+    public int MinAgreeingSources { get; init; } = 2;
+    public int MaxDocumentsPerRun { get; init; } = 20;
+    public long MinPriceCents { get; init; } = 10_000;
+    public long MaxPriceCents { get; init; } = 60_000;
+
+    /// <summary>Đổi hơn mức này so với giá đang lưu thì không nhận: nhiều khả năng đọc sai hơn là giá thật.</summary>
+    public int MaxChangePercent { get; init; } = 20;
+
+    /// <summary>Số tên miền khác nhau cùng đưa tin thì mới thành sự kiện. Báo hay đăng lại của nhau nên đây chỉ là một lớp lọc, không chứng minh là đúng.</summary>
+    public int MinEventDomains { get; init; } = 2;
+
+    /// <summary>Tắt thì sự kiện từ tin bài phải chờ admin duyệt. AI đọc sai mà tự gửi thì nhiều người nhận tin sai cùng lúc.</summary>
+    public bool AutoPublishNewsEvents { get; init; }
+
+    /// <summary>Trần số bài gửi AI mỗi ngày, tính cả lần lỗi, để giới hạn chi phí.</summary>
+    public int MaxAiDocumentsPerDay { get; init; } = 100;
+
+    /// <summary>Loại xăng dùng để so sánh khi cảnh báo.</summary>
+    public string ReferenceFuelKey { get; init; } = "e10_ron95_3";
+
+    /// <summary>Tăng từ mức này so với mốc cách đây <see cref="CompareWindowDays"/> ngày thì mới xét cảnh báo. Giá đổi vài ngày một lần nên không so với kỳ liền trước.</summary>
+    public int RiseThresholdPercent { get; init; } = 3;
+    public int CompareWindowDays { get; init; } = 14;
+    public int AlertCooldownDays { get; init; } = 14;
+    public int SpendLookbackDays { get; init; } = 60;
+    public int MinCategoryTransactions { get; init; } = 2;
+
+    /// <summary>Lần chi gần nhất phải trong chừng này ngày: người đã bán xe không cần nghe về giá xăng nữa.</summary>
+    public int LastSpendMaxDays { get; init; } = 45;
+
+    /// <summary>Khoản này phải chiếm ít nhất chừng này phần trăm tổng chi trong kỳ xét.</summary>
+    public int MinSpendSharePercent { get; init; } = 2;
+
+    /// <summary>Ước tính tốn thêm dưới mức này thì không làm phiền người dùng.</summary>
+    public long MinExtraCostCents { get; init; } = 5_000;
+
+    public IReadOnlyList<MarketCostType> CostTypes { get; init; } =
+    [
+        new()
+        {
+            Key = "fuel",
+            Label = "xăng",
+            AiDescription = "xăng dầu bán lẻ",
+            TransactionKeywords = ["xăng", "petrolimex*", "pvoil*", "mipec*", "chxd*"],
+            NewsKeywords = ["giá xăng", "xăng dầu", "ron 95", "ron95", "ron 92", "ron92", "e5 ron*", "e10"],
+            HasPriceTable = true,
+        },
+        new()
+        {
+            Key = "electricity",
+            Label = "điện",
+            AiDescription = "giá điện sinh hoạt",
+            TransactionKeywords = ["evn*", "tiền điện", "điện lực", "hóa đơn điện"],
+            TransactionExcludes = ["tiền điện thoại", "hóa đơn điện thoại", "hóa đơn điện tử"],
+            NewsKeywords = ["giá điện", "tiền điện", "biểu giá điện"],
+        },
+        new()
+        {
+            Key = "water",
+            Label = "nước",
+            AiDescription = "giá nước sinh hoạt",
+            TransactionKeywords = ["tiền nước", "cấp nước", "sawaco*", "hóa đơn nước"],
+            TransactionExcludes = ["tiền nước mía", "tiền nước ngọt", "tiền nước uống"],
+            NewsKeywords = ["giá nước", "tiền nước"],
+        },
+        new()
+        {
+            Key = "food_price",
+            Label = "thực phẩm",
+            AiDescription = "giá thực phẩm: thịt, rau, gạo, trứng",
+            TransactionKeywords = ["bách hóa xanh", "winmart", "co.opmart", "coopmart", "đi chợ", "siêu thị"],
+            NewsKeywords = ["giá thực phẩm", "giá thịt", "giá heo", "giá lợn", "giá rau", "giá gạo", "giá trứng"],
+            CategorySlugs = ["food"],
+        },
+        new()
+        {
+            Key = "cooking_gas",
+            Label = "gas nấu ăn",
+            AiDescription = "giá gas nấu ăn, khí hóa lỏng bán lẻ",
+            TransactionKeywords = ["gas", "bình gas", "đổi gas", "tiền gas"],
+            TransactionExcludes = ["nước có gas", "có gas"],
+            NewsKeywords = ["giá gas", "giá khí hóa lỏng", "gas bán lẻ"],
+        },
+    ];
 }
 
 public sealed record LimitSettings
@@ -299,6 +422,7 @@ public sealed record SystemConfigDocument
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
+    public MarketDataSettings MarketData { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

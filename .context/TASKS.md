@@ -797,6 +797,10 @@
 | Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
 | Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
+| Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
+| Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
+| Phase 73 — Thị trường, đợt 3: cảnh báo, giám sát | `[ ]` | 3 / 4 *(còn: báo người làm Flutter về `market_change`, kiểm tra điều khoản các nguồn trước khi phát hành)* |
+| Phase 74 — Thị trường: theo thói quen từng người, loại chi phí bằng cấu hình | `[ ]` | 3 / 4 *(còn: đo từ khóa trên giao dịch thật)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1398,3 +1402,40 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Migration `AddReceiptScanOcrEngine`; `/analyze-bill` trả thêm `engine`; `GET /ops/monitoring/ocr`.
 - [x] Test: `MonitoringProvidersTests`, `tests/test_internal_status.py` của `ocr-service`, `tests/unit/test_internal_status.py` của `ai-service`.
 - [ ] Đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready`: backend hoặc Postgres sập thì hệ thống không tự báo được.
+
+## Phase 71 — Thông tin thị trường, đợt 1: nguồn, tải trang, bảng giá (2026-11-06)
+- [x] Migration `AddMarketData` (`market_sources`, `market_documents`, `fuel_prices`); nhóm cấu hình `marketData`, không lộ qua `/app-config`.
+- [x] `SafeWebFetcher` chặn địa chỉ nội bộ ở lúc mở kết nối; `RobotsRules`, `FeedReader` cấm DTD, `HtmlTextExtractor`, `FuelTableParser`, `FuelPriceConfirmer`; `MarketDataRefreshJob` mỗi 3 giờ.
+- [x] API admin ở `docs/market-data-api.md`. Không lưu toàn văn bài báo.
+- [x] Test: `FuelParsingTests`, `WebContentTests`, `SafeWebFetcherTests`, `MarketDataTests`.
+
+**Verify Phase 71 (2026-11-06), đọc trang thật bằng `FinMateBot/1.0`:** thêm 11 link. 9 nguồn được nhận (2 `price_table`, 5 `feed`, 2 `page`), `localhost` và `169.254.169.254` bị từ chối. Ở lần chạy thử trước đó trên backend thật, `pvoil.com.vn` bị từ chối vì trả 403 và nhóm Facebook bị từ chối vì `robots.txt`. Lượt đọc đầu xác nhận đủ 6 loại giá, khớp ảnh thông cáo Petrolimex 05/11/2026; lượt sau không thêm dòng giá. 51/51 bài lấy được text (ngắn nhất 216, trung vị 2.700, dài nhất 8.697 ký tự): dantri 13, vietnamnet 20 (chạm trần mỗi lượt), vnexpress 7, thanhnien 5, tuoitre 4, vneconomy 2, cafef 0 vì trang chủ lúc đó không có link khớp từ khóa. Độ dài chưa chứng minh text là đúng nội dung bài, đợt 2 phải kiểm tra thêm khi đưa cho AI. `vnexpress.net` thực ra không chặn GPTBot hay ClaudeBot, nên `aiAllowed` là true; đoạn trong plan ghi "chặn bot AI" là đọc nhầm.
+
+## Phase 72 — Thông tin thị trường, đợt 2: AI đọc tin bài và admin duyệt (2026-11-06)
+- [x] `ai-service`: `POST /api/v1/market-data/extract`, client Gemini riêng, chỉ nhận JSON đúng mẫu.
+- [x] Migration `AddMarketSignals`; `MarketSignalValidator` đối chiếu đoạn trích với nguyên văn bài; gom sự kiện theo tên miền; API duyệt; trần `maxAiDocumentsPerDay`.
+- [x] Test: `MarketDataTests`, `MarketAiClientTests`, `tests/unit/test_market_extractor.py`.
+- [ ] Thử với key Gemini thật: máy này không có key, nên mới kiểm bằng phản hồi giả. Chưa biết AI đọc tin thật đúng đến đâu.
+
+## Phase 73 — Thông tin thị trường, đợt 3: cảnh báo và giám sát (2026-11-06)
+- [x] `ForecastAlertKind.MarketChange`, migration `AddMarketAlerts`; `MarketAlertService`, `MarketAlertRules`; `MarketAlertJob` chạy ngay sau khi duyệt sự kiện hoặc sửa giá; cờ `features.marketAlerts` mặc định tắt.
+- [x] `MonitoredServices.MarketData`: nhiều lượt liền không xác nhận được giá thì mở sự cố mức thường.
+- [x] Test: `MarketAlertRulesTests`, `MarketAlertsTests`, `MonitoringProvidersTests`.
+- [ ] Báo người làm Flutter xử lý `market_change`; kiểm tra điều khoản từng nguồn trước khi phát hành thật.
+
+**Verify Phase 73 (2026-11-06) trên backend thật, Postgres và Redis thật:** tạo hai tài khoản có ngân sách Di chuyển căng, một đổ xăng ở Petrolimex, một đi xe buýt. Sau khi bật cờ và tăng giá từ 21.150 lên 22.200 bằng `POST /admin/fuel-prices`, `MarketAlertJob` chạy qua Hangfire, chỉ tài khoản đổ xăng có cảnh báo, số 19.000đ khớp tính tay, trạng thái `pending` vì lúc đó là 02:00 giờ VN. Migration chạy `Up`, về trước `AddMarketData`, rồi `Up` lại được. Text bài thật: bài chính đọc đúng ở vnexpress, dantri; tuoitre và thanhnien có lẫn phần bình luận và chia sẻ; vietnamnet từng lấy nhầm thẻ tin liên quan, đã sửa nhưng chưa đo lại trên trang thật. **Chưa kiểm chứng:** Gemini thật, push và email thật, `MarketDataRefreshJob` chạy theo lịch qua Hangfire (`RefreshAsync` đã chạy với trang thật qua test tạm, lịch mới thấy được đăng ký).
+
+**Rà soát Phase 71–73 (2026-11-06):** `code-review` mức cao có 10 phát hiện, tất cả có thật và đã sửa: trần 15 giây không tính lúc đọc nội dung; một dòng lỗi hoặc một kết quả AI lỗi làm hỏng cả job; bài luôn lỗi chặn hàng đợi (`ai_failures`, tối đa 3 lần); trang chứa bài cấm AI vẫn bị gửi qua RSS tổng hợp; nguồn ghi đè giá admin sửa; báo "đang tăng" ngay sau khi giá giảm; `4,80%` không khớp `4.8`; bài không rõ ngày tính là tin mới; tên miền con tính là nguồn khác. `security-review` không có lỗ hổng đạt ngưỡng; thêm `UseProxy = false`, và đếm sự kiện theo nguồn admin đã thêm thay vì link trong bài. **Chỗ còn để lại:** khi Gemini hỏng lâu, cứ 3 lượt đọc sẽ có một bài bị bỏ vì không phân biệt được lỗi do bài hay do nhà cung cấp; hai trang cùng chép một nguồn sai vẫn khớp nhau; `/hangfire` trả 401 cả với tài khoản đúng, có từ trước đợt này và chưa sửa.
+
+## Phase 74 — Thông tin thị trường: theo thói quen từng người, loại chi phí bằng cấu hình (2026-11-06)
+- [x] `MarketSpendProfile`, `MarketKeywords`: nhận diện theo nội dung giao dịch ở mọi danh mục, bỏ qua người đã ngừng chi hoặc chi không đáng kể; xét ngân sách danh mục rồi ngân sách tổng.
+- [x] `marketData.costTypes`, thêm `cooking_gas`; migration `MakeMarketTopicsConfigurable`; `topics` trong `/market-data/extract`.
+- [x] `RecurringTracker`: khoản giá cố định tăng trong ngưỡng 10% cũng báo. Test đỏ trước khi sửa: `AFixedPriceThatRisesWithinTheTolerance_IsStillReported`.
+- [ ] Đo độ khớp từ khóa trên giao dịch thật: danh sách hiện chỉ là điểm xuất phát.
+
+**Verify Phase 74 (2026-11-06) trên backend thật, Postgres và Redis thật:** 4 tài khoản có ngân sách căng khi giá tăng từ 21.150 lên 22.200. Danh mục tự tạo `Sinh hoạt` ghi `DO XANG Q7` và `Di chuyển` ghi Petrolimex đều nhận cảnh báo, đúng tên ngân sách, số 19.000đ khớp tính tay; người đi xe buýt và người đổ xăng lần cuối cách đây 50 ngày không nhận. Tăng giá lần nữa không gửi thêm, do cooldown. Thêm `tuition` qua `PUT /admin/system-config` được nhận, `/app-config` không lộ, mã `other` trả 400. Migration về trước `AddMarketData` và `Up` lại được, có dữ liệu chủ đề mới. Đọc lại trang thật: 5 RSS và `vneconomy` lấy được bài, `vietnamnet` đủ nội dung nhưng lẫn menu, `cafef` trang chủ lúc đó không có link khớp. **Chưa kiểm chứng:** Gemini thật, push thật, độ khớp từ khóa trên giao dịch thật.
+
+**Rà soát Phase 74:** `code-review` mức cao có 10 phát hiện. Đã sửa 9: khớp nhầm `tiền điện thoại`, `hóa đơn điện tử`, `nước có gas` (`transactionExcludes`); tin `chuyên gia` khớp `giá` vì bỏ dấu (tin bài giữ dấu); không khớp `EVNHCMC`, `PETROLIMEX04` (`*`); `E5 RON92`; tắt hết loại chi phí; khoản tự thêm bị đội giá vì một lần trả thừa; giao dịch thường bị coi là giá cố định; `hasPriceTable` ngoài `fuel`; validator lỗi 500 với `null`. Không sửa 1: khoản hằng năm không đủ 2 lần trong cửa sổ lịch sử nên vẫn chỉ báo khi lệch quá 10%. `security-review` không có lỗ hổng đạt ngưỡng.
+
+**Lỗi chưa rõ nguyên nhân:** một lần chạy test chết với `Out of memory.`, một lần khác không in dòng tổng kết, đều không lặp lại ở các lần chạy sau (test đầy đủ 2021/2022 lúc cuối, trừ `MethodSelectionOnSeedDataTests`). Máy còn nhiều RAM và bộ tách HTML ổn với trang độc hại 2 MB (`AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory`), nên chưa có bằng chứng đây là lỗi của sản phẩm. Hai lần đó để lại container Postgres của Testcontainers vì tắt Ryuk.
+

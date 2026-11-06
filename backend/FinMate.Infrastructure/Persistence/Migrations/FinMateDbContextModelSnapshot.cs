@@ -949,11 +949,71 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal')");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change')");
 
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
                             t.HasCheckConstraint("chk_forecast_alerts_status", "status IN ('pending','sent')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.FuelPrice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AlertsProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("alerts_processed_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.Property<string>("FuelKey")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("fuel_key");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("origin");
+
+                    b.Property<long>("Region1PriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("region1_price_cents");
+
+                    b.Property<long>("Region2PriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("region2_price_cents");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("FuelKey", "FirstSeenAt")
+                        .HasDatabaseName("ix_fuel_prices_key_time");
+
+                    b.ToTable("fuel_prices", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_fuel_prices_origin", "origin IN ('sources','manual')");
+
+                            t.HasCheckConstraint("chk_fuel_prices_positive", "region1_price_cents > 0 AND region2_price_cents > 0");
                         });
                 });
 
@@ -1417,6 +1477,308 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_group_share_rules_user_active");
 
                     b.ToTable("group_share_rules", (string)null);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AiAttemptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ai_attempted_at");
+
+                    b.Property<int>("AiFailures")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ai_failures");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("content_hash");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("error_code");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fetched_at");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TextLength")
+                        .HasColumnType("integer")
+                        .HasColumnName("text_length");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Url")
+                        .IsUnique()
+                        .HasDatabaseName("uq_market_documents_url");
+
+                    b.HasIndex("SourceId", "FetchedAt")
+                        .HasDatabaseName("ix_market_documents_source");
+
+                    b.HasIndex("Status", "FetchedAt")
+                        .HasDatabaseName("ix_market_documents_status");
+
+                    b.ToTable("market_documents", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_market_documents_status", "status IN ('pending_ai','processed','ai_not_allowed','no_content','blocked','failed')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AlertsProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("alerts_processed_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("direction");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_count");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("Status", "LastSeenAt")
+                        .HasDatabaseName("ix_market_events_status");
+
+                    b.HasIndex("Topic", "Direction")
+                        .IsUnique()
+                        .HasDatabaseName("uq_market_events_one_open")
+                        .HasFilter("status IN ('pending', 'approved')");
+
+                    b.ToTable("market_events", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_market_events_direction", "direction IN ('up','down','stable')");
+
+                            t.HasCheckConstraint("chk_market_events_status", "status IN ('pending','approved','rejected','expired')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketSignal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<decimal?>("ChangePercent")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("change_percent");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("direction");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateOnly?>("EffectiveDate")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_date");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("evidence");
+
+                    b.Property<string>("FactStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("fact_status");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId")
+                        .HasDatabaseName("ix_market_signals_document");
+
+                    b.HasIndex("Topic", "Direction", "FactStatus", "CreatedAt")
+                        .HasDatabaseName("ix_market_signals_topic");
+
+                    b.ToTable("market_signals", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_market_signals_direction", "direction IN ('up','down','stable')");
+
+                            t.HasCheckConstraint("chk_market_signals_fact_status", "fact_status IN ('actual','forecast')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<bool>("AiAllowed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ai_allowed");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer")
+                        .HasColumnName("consecutive_failures");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_checked_at");
+
+                    b.Property<string>("LastContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_content_hash");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<DateTimeOffset?>("LastSuccessAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_success_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Url")
+                        .IsUnique()
+                        .HasDatabaseName("uq_market_sources_url");
+
+                    b.ToTable("market_sources", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_market_sources_kind", "kind IN ('feed','price_table','page')");
+                        });
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
@@ -3954,6 +4316,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.FuelPrice", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.GoalContribution", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.SavingGoal", "SavingGoal")
@@ -4056,6 +4426,40 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketDocument", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.MarketSource", null)
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketEvent", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketSignal", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.MarketDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.MarketSource", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>

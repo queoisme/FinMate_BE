@@ -160,6 +160,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("groups", before.Groups, after.Groups);
         Compare("support", before.Support, after.Support);
         Compare("monitoring", before.Monitoring, after.Monitoring);
+        Compare("marketData", before.MarketData, after.MarketData);
         return sections;
     }
 }
