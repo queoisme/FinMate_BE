@@ -740,7 +740,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("community_post_images", null, t =>
                         {
-                            t.HasCheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected')");
+                            t.HasCheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected','deleted')");
                         });
                 });
 

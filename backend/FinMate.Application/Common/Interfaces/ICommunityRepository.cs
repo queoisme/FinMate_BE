@@ -21,7 +21,7 @@ public sealed record CommunityPostFilter(
 
 public sealed record CommunityPostRow(CommunityPost Post, CommunityPlace? Place, string AuthorDisplayName, int Votes, int Comments, bool VotedByViewer);
 
-public sealed record CommunityImageInfo(Guid Id, Guid PostId, int Width, int Height, CommunityImageStatus Status);
+public sealed record CommunityImageInfo(Guid Id, Guid PostId, int Width, int Height, int Position, CommunityImageStatus Status);
 
 public sealed record CommunityPlaceShareRow(CommunityPlace Place, long? PriceCents, bool SpentHereVerified, int Votes, DateTimeOffset CreatedAt, List<string> Tags);
 
@@ -66,7 +66,18 @@ public interface ICommunityRepository
     Task<int> CountCommentsSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
     Task CloseOpenReportsOfCommentAsync(Guid commentId, DateTimeOffset now, CancellationToken ct = default);
 
-    Task RemoveImagesOfPostAsync(Guid postId, CancellationToken ct = default);
+    void AddImage(CommunityPostImage image);
+
+    /// <summary>Có đọc dữ liệu ảnh. Đường danh sách dùng <see cref="ListImagesAsync"/>, không đụng tới cột này.</summary>
+    Task<CommunityPostImage?> GetImageAsync(Guid imageId, CancellationToken ct = default);
+    Task<CommunityPostImage?> GetImageOfPostAsync(Guid imageId, Guid postId, CancellationToken ct = default);
+
+    /// <summary>Đếm cả ảnh đã xóa: xóa rồi tải lại không được hoàn lượt.</summary>
+    Task<int> CountImagesSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default);
+    Task<int> CountPendingImagesAsync(CancellationToken ct = default);
+
+    /// <summary>Xóa dữ liệu mọi ảnh của bài, giữ dòng để bộ đếm giới hạn vẫn thấy.</summary>
+    Task WipeImagesOfPostAsync(Guid postId, CancellationToken ct = default);
     Task CloseOpenReportsOfPostAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default);
 
     /// <summary>False khi vi phạm ràng buộc duy nhất (hai lời gọi tạo cùng quán hoặc cùng bài); mọi thay đổi chưa lưu bị bỏ, người gọi đọc lại rồi thử lại.</summary>

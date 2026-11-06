@@ -17,6 +17,9 @@ public enum CommunityImageStatus
     Pending,
     Approved,
     Rejected,
+
+    /// <summary>Tác giả đã xóa. Dữ liệu ảnh bị xóa ngay; giữ dòng để xóa rồi tải lại không né được giới hạn số ảnh mỗi ngày.</summary>
+    Deleted,
 }
 
 public enum CommunityReportReason

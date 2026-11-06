@@ -53,6 +53,7 @@ using Microsoft.IdentityModel.Tokens;
 using Refit;
 using FinMate.Application.Community;
 using FinMate.Application.MarketData;
+using FinMate.Infrastructure.Community;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
 using FinMate.API.Monitoring;
@@ -369,6 +370,8 @@ public class Program
         builder.Services.AddScoped<ICommunityReadService, CommunityReadService>();
         builder.Services.AddScoped<ICommunityService, CommunityService>();
         builder.Services.AddScoped<ICommunityCommentService, CommunityCommentService>();
+        builder.Services.AddScoped<ICommunityImageService, CommunityImageService>();
+        builder.Services.AddSingleton<ICommunityImageProcessor, SkiaCommunityImageProcessor>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
         builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();

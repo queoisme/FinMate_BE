@@ -162,7 +162,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_community_post_images", x => x.id);
-                    table.CheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected')");
+                    table.CheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected','deleted')");
                     table.ForeignKey(
                         name: "FK_community_post_images_community_posts_post_id",
                         column: x => x.post_id,

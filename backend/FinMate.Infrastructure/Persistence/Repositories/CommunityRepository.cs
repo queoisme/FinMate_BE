@@ -150,9 +150,9 @@ public class CommunityRepository : ICommunityRepository
 
     public Task<List<CommunityImageInfo>> ListImagesAsync(IReadOnlyCollection<Guid> postIds, CancellationToken ct = default)
         => _context.CommunityPostImages.AsNoTracking()
-            .Where(i => postIds.Contains(i.PostId))
+            .Where(i => postIds.Contains(i.PostId) && i.Status != CommunityImageStatus.Deleted)
             .OrderBy(i => i.Position)
-            .Select(i => new CommunityImageInfo(i.Id, i.PostId, i.Width, i.Height, i.Status))
+            .Select(i => new CommunityImageInfo(i.Id, i.PostId, i.Width, i.Height, i.Position, i.Status))
             .ToListAsync(ct);
 
     public Task<List<CommunityPlaceShareRow>> ListPlaceSharesAsync(string? provinceCode, string? areaCode, Guid? placeId, string? nameKeyContains, int limit, CancellationToken ct = default)
@@ -239,8 +239,27 @@ public class CommunityRepository : ICommunityRepository
             .Where(r => r.CommentId == commentId && r.Status == CommunityReportStatus.Open)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, CommunityReportStatus.Closed).SetProperty(r => r.ResolvedAt, now), ct);
 
-    public Task RemoveImagesOfPostAsync(Guid postId, CancellationToken ct = default)
-        => _context.CommunityPostImages.Where(i => i.PostId == postId).ExecuteDeleteAsync(ct);
+    public void AddImage(CommunityPostImage image) => _context.CommunityPostImages.Add(image);
+
+    public Task<CommunityPostImage?> GetImageAsync(Guid imageId, CancellationToken ct = default)
+        => _context.CommunityPostImages.AsNoTracking().FirstOrDefaultAsync(i => i.Id == imageId, ct);
+
+    public Task<CommunityPostImage?> GetImageOfPostAsync(Guid imageId, Guid postId, CancellationToken ct = default)
+        => _context.CommunityPostImages.FirstOrDefaultAsync(i => i.Id == imageId && i.PostId == postId && i.Status != CommunityImageStatus.Deleted, ct);
+
+    public Task<int> CountImagesSinceAsync(Guid authorId, DateTimeOffset since, CancellationToken ct = default)
+        => (from image in _context.CommunityPostImages
+            join post in _context.CommunityPosts.IgnoreQueryFilters() on image.PostId equals post.Id
+            where post.AuthorId == authorId && image.CreatedAt >= since
+            select image.Id).CountAsync(ct);
+
+    public Task<int> CountPendingImagesAsync(CancellationToken ct = default)
+        => _context.CommunityPostImages.CountAsync(i => i.Status == CommunityImageStatus.Pending, ct);
+
+    public Task WipeImagesOfPostAsync(Guid postId, CancellationToken ct = default)
+        => _context.CommunityPostImages
+            .Where(i => i.PostId == postId)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.Data, Array.Empty<byte>()).SetProperty(i => i.SizeBytes, 0).SetProperty(i => i.Status, CommunityImageStatus.Deleted), ct);
 
     public Task CloseOpenReportsOfPostAsync(Guid postId, DateTimeOffset now, CancellationToken ct = default)
         => _context.CommunityReports

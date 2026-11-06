@@ -22,6 +22,8 @@
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.*" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Refit.HttpClientFactory" Version="7.*" />
+    <PackageReference Include="SkiaSharp" Version="3.*" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
     <PackageReference Include="StackExchange.Redis" Version="2.*" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
   </ItemGroup>

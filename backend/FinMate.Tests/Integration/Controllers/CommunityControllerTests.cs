@@ -691,4 +691,152 @@ public class CommunityControllerTests : IClassFixture<AuthApiFactory>, IAsyncLif
         var response = await SendAsync(HttpMethod.Post, $"{Base}/posts/{postId}/comments", author.Token, new { body = "Thêm một cái" });
         (await ErrorCodeAsync(response)).Should().Be("COMMUNITY_LIMIT_REACHED");
     }
+
+    private Task<HttpResponseMessage> UploadAsync(Account author, Guid postId, byte[] content, string fileName = "anh.jpg")
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(file, "file", fileName);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{Base}/posts/{postId}/images") { Content = form };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", author.Token);
+        return _client.SendAsync(request);
+    }
+
+    private async Task SetImageStatusAsync(Guid imageId, CommunityImageStatus status)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        await db.CommunityPostImages.Where(i => i.Id == imageId).ExecuteUpdateAsync(s => s.SetProperty(i => i.Status, status));
+    }
+
+    [Fact]
+    public async Task AnUploadedImageLosesItsLocationAndWaitsForReview()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        var uploaded = await DataAsync(await UploadAsync(author, postId, TestImages.JpegWithGps(800, 600)));
+        uploaded.GetProperty("status").GetString().Should().Be("pending");
+        var imageId = uploaded.GetProperty("id").GetGuid();
+
+        // Chưa duyệt: người khác không thấy, tác giả thấy.
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", reader.Token))).GetProperty("images").GetArrayLength().Should().Be(0);
+        (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts/{postId}", author.Token))).GetProperty("images").GetArrayLength().Should().Be(1);
+        (await SendAsync(HttpMethod.Get, $"{Base}/images/{imageId}", reader.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var own = await SendAsync(HttpMethod.Get, $"{Base}/images/{imageId}", author.Token);
+        own.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Đã duyệt: mọi người thấy, và ảnh không còn dấu vết GPS.
+        await SetImageStatusAsync(imageId, CommunityImageStatus.Approved);
+        var served = await SendAsync(HttpMethod.Get, $"{Base}/images/{imageId}", reader.Token);
+        served.StatusCode.Should().Be(HttpStatusCode.OK);
+        served.Content.Headers.ContentType!.MediaType.Should().Be("image/jpeg");
+        served.Headers.GetValues("X-Content-Type-Options").Should().Contain("nosniff");
+        var bytes = await served.Content.ReadAsByteArrayAsync();
+        TestImages.ContainsGpsMarker(bytes).Should().BeFalse();
+        TestImages.HasExifSegment(bytes).Should().BeFalse();
+        TestImages.IsDecodableJpeg(bytes).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task APostWithOnlyAPendingImageStaysOutOfTheFeedUntilApproved()
+    {
+        var author = await AccountAsync();
+        var reader = await AccountAsync();
+        var post = await SharePlaceAsync(author, UniqueName(), body: null);
+        var postId = post.GetProperty("id").GetGuid();
+        var imageId = (await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(200, 200)))).GetProperty("id").GetGuid();
+
+        var feed = async () => (await DataAsync(await SendAsync(HttpMethod.Get, $"{Base}/posts?topic=places&limit=50", reader.Token)))
+            .GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).ToList();
+
+        (await feed()).Should().NotContain(postId);
+        await SetImageStatusAsync(imageId, CommunityImageStatus.Approved);
+        (await feed()).Should().Contain(postId);
+    }
+
+    [Theory]
+    [InlineData("fake")]
+    [InlineData("heic")]
+    [InlineData("huge")]
+    public async Task UnusableFilesAreRefusedWithoutAServerError(string kind)
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var content = kind switch
+        {
+            "fake" => "đây không phải là ảnh"u8.ToArray(),
+            "heic" => TestImages.HeicHeader(),
+            _ => TestImages.PngClaiming(9000, 9000),
+        };
+
+        var response = await UploadAsync(author, postId, content);
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ErrorCodeAsync(response)).Should().Be("COMMUNITY_IMAGE_INVALID");
+    }
+
+    [Fact]
+    public async Task AFileOverTheSizeLimitIsRefused()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var response = await UploadAsync(author, postId, new byte[(5 * 1024 * 1024) + 1]);
+        response.IsSuccessStatusCode.Should().BeFalse();
+        response.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
+    }
+
+    [Fact]
+    public async Task APostHoldsAtMostThreeImages_AndOnlyTheAuthorCanChangeThem()
+    {
+        var author = await AccountAsync();
+        var stranger = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+
+        (await UploadAsync(stranger, postId, TestImages.Jpeg(100, 100))).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var ids = new List<Guid>();
+        for (var i = 0; i < 3; i++)
+        {
+            ids.Add((await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)))).GetProperty("id").GetGuid());
+        }
+
+        (await ErrorCodeAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)))).Should().Be("COMMUNITY_LIMIT_REACHED");
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}/images/{ids[0]}", stranger.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}/images/{ids[0]}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.CommunityPostImages.AsNoTracking().SingleAsync(i => i.Id == ids[0])).Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeletingAndUploadingAgainDoesNotEscapeTheDailyImageLimit()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        for (var i = 0; i < 10; i++)
+        {
+            var id = (await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(50, 50)))).GetProperty("id").GetGuid();
+            (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}/images/{id}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
+
+        (await ErrorCodeAsync(await UploadAsync(author, postId, TestImages.Jpeg(50, 50)))).Should().Be("COMMUNITY_LIMIT_REACHED");
+    }
+
+    [Fact]
+    public async Task DeletingAPostWipesItsImages()
+    {
+        var author = await AccountAsync();
+        var postId = (await ShareExperienceAsync(author)).GetProperty("id").GetGuid();
+        var imageId = (await DataAsync(await UploadAsync(author, postId, TestImages.Jpeg(100, 100)))).GetProperty("id").GetGuid();
+        (await SendAsync(HttpMethod.Delete, $"{Base}/posts/{postId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await SendAsync(HttpMethod.Get, $"{Base}/images/{imageId}", author.Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        (await db.CommunityPostImages.AsNoTracking().SingleAsync(i => i.Id == imageId)).Data.Should().BeEmpty();
+    }
 }

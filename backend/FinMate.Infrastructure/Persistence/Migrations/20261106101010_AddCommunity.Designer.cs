@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FinMate.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(FinMateDbContext))]
-    [Migration("20261106095401_AddCommunity")]
+    [Migration("20261106101010_AddCommunity")]
     partial class AddCommunity
     {
         /// <inheritdoc />
@@ -743,7 +743,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("community_post_images", null, t =>
                         {
-                            t.HasCheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected')");
+                            t.HasCheckConstraint("chk_community_post_images_status", "status IN ('pending','approved','rejected','deleted')");
                         });
                 });
 

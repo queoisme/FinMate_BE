@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FinMate.API.Authorization;
 using FinMate.Application.Admin.SystemConfig;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Community;
 using Microsoft.AspNetCore.Authorization;
@@ -19,9 +20,11 @@ public class CommunityController : ControllerBase
     private readonly ICommunityReadService _read;
 
     private readonly ICommunityCommentService _comments;
+    private readonly ICommunityImageService _images;
 
-    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments)
+    public CommunityController(ICommunityService community, ICommunityReadService read, ICommunityCommentService comments, ICommunityImageService images)
     {
+        _images = images;
         _community = community;
         _read = read;
         _comments = comments;
@@ -125,5 +128,36 @@ public class CommunityController : ControllerBase
     {
         await _comments.DeleteAsync(CurrentUserId, id, ct);
         return NoContent();
+    }
+
+    /// <summary>Ảnh được vẽ lại thành JPEG và chờ nhân viên duyệt. Chỉ tác giả thấy cho tới khi được duyệt.</summary>
+    [HttpPost("posts/{id:guid}/images")]
+    [RequestSizeLimit(CommunityImageService.MaxUploadBytes + 4096)]
+    public async Task<IActionResult> UploadImage(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (file.Length > CommunityImageService.MaxUploadBytes)
+        {
+            throw new BusinessRuleException(CommunityErrorCodes.ImageInvalid, "Ảnh không quá 5 MB.");
+        }
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+        return StatusCode(StatusCodes.Status201Created, ApiResponse<CommunityImageDto>.Ok(await _images.UploadAsync(CurrentUserId, id, buffer.ToArray(), ct)));
+    }
+
+    [HttpDelete("posts/{id:guid}/images/{imageId:guid}")]
+    public async Task<IActionResult> DeleteImage(Guid id, Guid imageId, CancellationToken ct)
+    {
+        await _images.DeleteAsync(CurrentUserId, id, imageId, ct);
+        return NoContent();
+    }
+
+    [HttpGet("images/{imageId:guid}")]
+    public async Task<IActionResult> GetImage(Guid imageId, CancellationToken ct)
+    {
+        var content = await _images.GetAsync(CurrentUserId, imageId, ct);
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.CacheControl = "private, max-age=300";
+        return File(content.Data, "image/jpeg");
     }
 }

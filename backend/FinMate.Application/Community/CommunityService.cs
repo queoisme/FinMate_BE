@@ -196,7 +196,7 @@ public sealed class CommunityService : ICommunityService
         post.PriceCents = null;
         post.Tags = [];
         await _community.SaveChangesAsync(ct);
-        await _community.RemoveImagesOfPostAsync(post.Id, ct);
+        await _community.WipeImagesOfPostAsync(post.Id, ct);
         await _community.CloseOpenReportsOfPostAsync(post.Id, now, ct);
     }
 
