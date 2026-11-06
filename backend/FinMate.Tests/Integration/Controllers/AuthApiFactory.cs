@@ -69,7 +69,7 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
     }
 
     /// <summary>Đổi cờ qua API admin, như cách vận hành thật. Cờ không truyền thì giữ nguyên.</summary>
-    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null)
+    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null, bool? subscriptions = null)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMate.Infrastructure.Persistence.FinMateDbContext>();
@@ -83,8 +83,9 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         var current = JsonDocument.Parse(await client.GetStringAsync(url)).RootElement.GetProperty("data");
         var features = current.GetProperty("content").GetProperty("features");
         var (oldGroups, oldSupport) = (features.GetProperty("groups").GetBoolean(), features.GetProperty("support").GetBoolean());
-        var (newGroups, newSupport) = (groups ?? oldGroups, support ?? oldSupport);
-        if (newGroups == oldGroups && newSupport == oldSupport)
+        var oldSubscriptions = features.GetProperty("subscriptions").GetBoolean();
+        var (newGroups, newSupport, newSubscriptions) = (groups ?? oldGroups, support ?? oldSupport, subscriptions ?? oldSubscriptions);
+        if (newGroups == oldGroups && newSupport == oldSupport && newSubscriptions == oldSubscriptions)
         {
             return;
         }
@@ -92,7 +93,7 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         var saved = await client.PutAsJsonAsync(url, new
         {
             expectedVersion = current.GetProperty("version").GetInt32(),
-            content = new { features = new { groups = newGroups, support = newSupport } },
+            content = new { features = new { groups = newGroups, support = newSupport, subscriptions = newSubscriptions } },
             note = "kiem thu",
         });
         saved.EnsureSuccessStatusCode();

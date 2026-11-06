@@ -43,6 +43,9 @@ public sealed record FeatureSettings
 
     /// <summary>Cộng đồng. Mặc định tắt: chỉ bật khi app đã có màn hình, câu chữ đồng ý đã được duyệt và đã có người trực duyệt ảnh.</summary>
     public bool Community { get; init; }
+
+    /// <summary>Gói đăng ký. Mặc định tắt: tắt thì không chặn, không đếm lượt, không tạo đơn mới. Tiền đã trả vẫn được ghi nhận khi tắt.</summary>
+    public bool Subscriptions { get; init; }
 }
 
 public sealed record GroupSettings
