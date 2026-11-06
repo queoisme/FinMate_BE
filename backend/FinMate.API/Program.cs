@@ -51,6 +51,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.Community;
 using FinMate.Application.MarketData;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
@@ -363,6 +364,10 @@ public class Program
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+        builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
+        builder.Services.AddScoped<ISpentHereVerifier, SpentHereVerifier>();
+        builder.Services.AddScoped<ICommunityReadService, CommunityReadService>();
+        builder.Services.AddScoped<ICommunityService, CommunityService>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
         builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();

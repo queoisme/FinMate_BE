@@ -14,7 +14,8 @@ public record UserProfileDto(
     bool AiConsentGranted,
     bool TrainingConsentGranted,
     bool SurveyAiConsentGranted = false,
-    string OnboardingStatus = "pending")
+    string OnboardingStatus = "pending",
+    bool CommunityConsentGranted = false)
 {
     public static UserProfileDto From(User user) => new(
         user.Id,
@@ -28,5 +29,6 @@ public record UserProfileDto(
         user.AiConsentGranted,
         user.TrainingConsentGranted,
         user.SurveyAiConsentGranted,
-        user.OnboardingStatus.ToString().ToLowerInvariant());
+        user.OnboardingStatus.ToString().ToLowerInvariant(),
+        user.CommunityConsentGranted);
 }
