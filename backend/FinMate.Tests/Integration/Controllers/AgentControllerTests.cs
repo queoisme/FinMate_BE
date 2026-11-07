@@ -30,6 +30,18 @@ public class AgentControllerTests : IClassFixture<AuthApiFactory>
         public Exception? GateError { get; set; }
         public List<string> Questions { get; } = [];
         public int ComposeCalls { get; private set; }
+        public List<(string Key, string Value)> Puts { get; } = [];
+
+        public Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<AgentMemoryEntry>>([new AgentMemoryEntry("preferred_method", "phong bì", DateTimeOffset.UtcNow)]);
+
+        public Task PutMemoryAsync(Guid userId, string key, string value, CancellationToken ct = default)
+        {
+            Puts.Add((key, value));
+            return Task.CompletedTask;
+        }
+
+        public Task<int> DeleteMemoryAsync(Guid userId, string? key, CancellationToken ct = default) => Task.FromResult(key is null ? 2 : 1);
 
         public Task<AgentGateResult> GateAsync(string text, CancellationToken ct = default)
         {
@@ -183,6 +195,81 @@ public class AgentControllerTests : IClassFixture<AuthApiFactory>
         await _client.SendAsync(Post("   mua xe 600 triệu   ", token));
 
         _ai.Questions.Should().Equal("mua xe 600 triệu");
+    }
+
+    private record IntBody(bool Success, int Data);
+    private record MemoryItemData(string Key, string Value);
+    private record MemoryListBody(bool Success, List<MemoryItemData> Data);
+
+    private static HttpRequestMessage Memory(HttpMethod method, string path, string? token, string? json = null)
+    {
+        var request = new HttpRequestMessage(method, $"/api/v1/agent/memory{path}");
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        if (json is not null)
+        {
+            request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        }
+
+        return request;
+    }
+
+    [Fact]
+    public async Task MemoryRoutes_RequireAuthentication()
+    {
+        foreach (var (method, path, json) in new[]
+                 {
+                     (HttpMethod.Get, "", null),
+                     (HttpMethod.Put, "/preferred_method", """{"value":"phong bì"}"""),
+                     (HttpMethod.Delete, "/preferred_method", null),
+                     (HttpMethod.Delete, "", null),
+                 })
+        {
+            (await _client.SendAsync(Memory(method, path, null, json))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
+    }
+
+    [Fact]
+    public async Task MemoryCanBeSetListedAndDeleted_ByItsOwner()
+    {
+        var token = await TokenAsync(_client);
+
+        (await _client.SendAsync(Memory(HttpMethod.Put, "/preferred_method", token, """{"value":"  phong bì  "}"""))).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        var listed = await (await _client.SendAsync(Memory(HttpMethod.Get, "", token))).Content.ReadFromJsonAsync<MemoryListBody>(JsonOptions);
+        var one = await (await _client.SendAsync(Memory(HttpMethod.Delete, "/preferred_method", token))).Content.ReadFromJsonAsync<IntBody>(JsonOptions);
+        var all = await (await _client.SendAsync(Memory(HttpMethod.Delete, "", token))).Content.ReadFromJsonAsync<IntBody>(JsonOptions);
+
+        _ai.Puts.Should().Equal(("preferred_method", "phong bì"));
+        listed!.Data.Should().ContainSingle().Which.Key.Should().Be("preferred_method");
+        one!.Data.Should().Be(1);
+        all!.Data.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("/not_allowed", """{"value":"x"}""", "invalid_memory_key")]
+    [InlineData("/preferred_method", """{"value":"   "}""", "invalid_memory_value")]
+    public async Task MemoryWithAnInvalidKeyOrValue_Is422_AndNothingIsStored(string path, string json, string code)
+    {
+        var token = await TokenAsync(_client);
+
+        var response = await _client.SendAsync(Memory(HttpMethod.Put, path, token, json));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadFromJsonAsync<ErrorBody>(JsonOptions))!.Error.Code.Should().Be(code);
+        _ai.Puts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MemoryValueOverTheLimit_Is422()
+    {
+        var token = await TokenAsync(_client);
+
+        var response = await _client.SendAsync(Memory(HttpMethod.Put, "/preferred_method", token, $$"""{"value":"{{new string('x', 201)}}"}"""));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]

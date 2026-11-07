@@ -8,7 +8,22 @@ public sealed record AgentGateResult(bool InScope, string ReasonCode, string? Re
 /// <summary>Công cụ nào bị từ chối vì sao ("invalid_argument:price_vnd"): bộ lập kế hoạch đọc để sửa tham số ở lần lập lại.</summary>
 public sealed record AgentPlanFeedback(string Tool, string Code);
 
-public sealed record AgentPlanRequest(string Text, string Segment, IReadOnlyList<ToolSpec> Tools, int MaxSteps, IReadOnlyList<AgentPlanFeedback>? Feedback = null);
+/// <summary>Một sở thích dài hạn do người dùng đặt (đưa vào lời nhắc dưới dạng DỮ LIỆU, không phải chỉ dẫn).</summary>
+public sealed record AgentMemoryItem(string Key, string Value);
+
+public sealed record AgentMemoryEntry(string Key, string Value, DateTimeOffset UpdatedAt);
+
+/// <summary>Ngữ cảnh ngắn hạn của lượt trước: ý định và các "ô" có cấu trúc, không có văn bản thô.</summary>
+public sealed record AgentPlanState(string? LastIntent, IReadOnlyDictionary<string, string> Slots);
+
+public sealed record AgentPlanRequest(
+    string Text,
+    string Segment,
+    IReadOnlyList<ToolSpec> Tools,
+    int MaxSteps,
+    IReadOnlyList<AgentPlanFeedback>? Feedback = null,
+    AgentPlanState? State = null,
+    IReadOnlyList<AgentMemoryItem>? Memory = null);
 
 public sealed record AgentPlanStep(string Tool, JsonElement Args);
 
@@ -33,4 +48,12 @@ public interface IAgentAiClient
 
     /// <param name="skipVerifier">Chỉ có hiệu lực khi ai-service chạy ở chế độ đánh giá (AGENT_EVAL_ENABLED); production bỏ qua cờ này.</param>
     Task<AgentComposeResult> ComposeAsync(string question, IReadOnlyList<Evidence> evidence, bool skipVerifier = false, CancellationToken ct = default);
+
+    // Bộ nhớ dài hạn: các lời gọi này mang MÃ BĂM SHA-256 của người dùng (do client tính), không bao giờ mang id thật.
+    Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default);
+
+    Task PutMemoryAsync(Guid userId, string key, string value, CancellationToken ct = default);
+
+    /// <param name="key">Null = xóa hết. Trả số dòng đã xóa.</param>
+    Task<int> DeleteMemoryAsync(Guid userId, string? key, CancellationToken ct = default);
 }

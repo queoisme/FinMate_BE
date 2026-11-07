@@ -124,4 +124,21 @@ class ComposeResponse(BaseModel):
     usage: LlmUsage | None = None  # token của mọi lần gọi LLM trong lượt soạn; None nếu không gọi được lần nào
 
 
-__all__ = ["Claim", "ComposeRequest", "ComposeResponse", "Evidence", "EvidenceSource", "GateRequest", "Violation", "GateResponse", "LlmUsage", "MemoryItem", "PlanRequest", "PlanResponse", "PlanState", "PlanStep", "PlanTool"]
+class MemoryPutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id_hash: str = Field(pattern=r"^[0-9a-f]{64}$")  # SHA-256 hex; id thật bị từ chối ngay ở cổng vào
+    value: str = Field(max_length=200)
+
+
+class MemoryEntry(BaseModel):
+    key: str
+    value: str
+    updated_at: datetime
+
+
+class MemoryDeleted(BaseModel):
+    deleted: int
+
+
+__all__ = ["Claim", "ComposeRequest", "MemoryDeleted", "MemoryEntry", "MemoryPutRequest", "ComposeResponse", "Evidence", "EvidenceSource", "GateRequest", "Violation", "GateResponse", "LlmUsage", "MemoryItem", "PlanRequest", "PlanResponse", "PlanState", "PlanStep", "PlanTool"]

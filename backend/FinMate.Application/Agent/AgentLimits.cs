@@ -35,6 +35,18 @@ public static class AgentLimits
     /// <summary>Hệ số biến thiên thu nhập từ mức này trở lên coi là nhóm thu nhập không ổn định (provisional).</summary>
     public const double VariableSegmentCv = 0.25;
 
+    /// <summary>Ngữ cảnh hội thoại ngắn hạn sống chừng này rồi tự hết (provisional).</summary>
+    public static readonly TimeSpan ConversationTtl = TimeSpan.FromMinutes(30);
+
+    /// <summary>Sau chừng này lượt đã trả lời thì ngữ cảnh bắt đầu lại từ đầu: bộ nhớ ngắn hạn không được phình vô hạn (provisional).</summary>
+    public const int MaxTurns = 6;
+
+    /// <summary>Khóa bộ nhớ dài hạn được phép (sở thích do chính người dùng đặt, xem/sửa/xóa được). Khóa nào không có ở đây bị từ chối: bộ nhớ không phải chỗ chứa dữ liệu tự do (provisional).</summary>
+    public static readonly IReadOnlyList<string> MemoryKeys = ["preferred_method", "eating_out_weekends", "notification_quiet_hours", "communication_tone"];
+
+    /// <summary>Độ dài tối đa một giá trị bộ nhớ; cùng giới hạn với cột <c>agent_user_memory.value</c> ở ai-service.</summary>
+    public const int MaxMemoryValueLength = 200;
+
     /// <summary>Độ mới của bằng chứng: tuổi (ngày) tối đa → hệ số. Quá bậc cuối thì dùng <see cref="StaleFreshness"/> (provisional).</summary>
     public static readonly (int MaxAgeDays, double Factor)[] FreshnessBuckets = [(2, 1.0), (7, 0.8), (30, 0.5)];
 

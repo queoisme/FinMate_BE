@@ -24,10 +24,14 @@ public class AgentAiClientContractTests
     private sealed class StubHandler(string responseFixture) : HttpMessageHandler
     {
         public string? Path { get; private set; }
+        public string? Query { get; private set; }
         public string? Body { get; private set; }
+        public HttpMethod? Method { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            Method = request.Method;
+            Query = request.RequestUri!.Query;
             Path = request.RequestUri!.AbsolutePath;
             Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ReadFixture(responseFixture), Encoding.UTF8, "application/json") };
@@ -86,7 +90,11 @@ public class AgentAiClientContractTests
     {
         var handler = new StubHandler("plan_response.json");
         var tools = new IAgentTool[] { new ForecastGoalTool(null!, null!), new GetAssumptionsAgentTool(null!) }.Select(t => t.Spec).ToList();
-        var request = new AgentPlanRequest("Mua xe 600 triệu sau 2 năm được không?", "variable", tools, AgentLimits.MaxPlanSteps, [new AgentPlanFeedback("forecast_goal", "invalid_argument:price_vnd")]);
+        var request = new AgentPlanRequest(
+            "Mua xe 600 triệu sau 2 năm được không?", "variable", tools, AgentLimits.MaxPlanSteps,
+            [new AgentPlanFeedback("forecast_goal", "invalid_argument:price_vnd")],
+            new AgentPlanState("forecast_goal", new Dictionary<string, string> { ["price_vnd"] = "600000000" }),
+            [new AgentMemoryItem("preferred_method", "phong bì")]);
 
         var result = await Client(handler).PlanAsync(request);
 
@@ -119,6 +127,41 @@ public class AgentAiClientContractTests
         result.UsedTemplate.Should().BeFalse();
         result.NoData.Should().BeFalse();
         result.Usage.Should().Be(new AgentUsage(400, 80, "gemini", "gemini-3.1-flash-lite"));
+    }
+
+    [Fact]
+    public async Task memory_requests_carry_a_sha256_hash_never_the_user_id_and_match_the_shared_fixtures()
+    {
+        var user = Guid.Parse("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
+        var put = new StubHandler("memory_put_response.json");
+        await Client(put).PutMemoryAsync(user, "preferred_method", "phong bì");
+
+        put.Path.Should().Be("/api/v1/agent/memory/preferred_method");
+        AssertRequestMatchesFixture(put.Body!, "memory_put_request.json");
+        put.Body.Should().NotContain(user.ToString());
+
+        var list = new StubHandler("memory_list_response.json");
+        var entries = await Client(list).GetMemoryAsync(user);
+
+        list.Path.Should().Be("/api/v1/agent/memory");
+        list.Query.Should().MatchRegex("^\\?user_id_hash=[0-9a-f]{64}$");
+        list.Query.Should().NotContain(user.ToString());
+        var entry = entries.Should().ContainSingle().Subject;
+        (entry.Key, entry.Value).Should().Be(("preferred_method", "phong bì"));
+        entry.UpdatedAt.Should().Be(new DateTimeOffset(2026, 11, 7, 3, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task memory_delete_sends_the_hash_as_a_query_and_reads_the_count()
+    {
+        var handler = new StubHandler("memory_deleted_response.json");
+
+        var deleted = await Client(handler).DeleteMemoryAsync(Guid.NewGuid(), null);
+
+        handler.Method.Should().Be(HttpMethod.Delete);
+        handler.Path.Should().Be("/api/v1/agent/memory");
+        handler.Query.Should().MatchRegex("^\\?user_id_hash=[0-9a-f]{64}$");
+        deleted.Should().Be(2);
     }
 
     [Fact]

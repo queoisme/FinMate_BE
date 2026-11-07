@@ -8,14 +8,14 @@ from __future__ import annotations
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent import gate
+from app.agent import gate, memory
 from app.agent.llm.provider import LlmFailed, LlmProvider, build_provider
 from app.agent.planner import make_plan
 from app.agent.composer import compose
-from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, PlanRequest, PlanResponse
+from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, MemoryDeleted, MemoryEntry, MemoryPutRequest, PlanRequest, PlanResponse
 from app.api.deps import get_db, verify_internal_api_key
 from app.core.config import settings
 from app.services import secret_store
@@ -57,6 +57,34 @@ async def agent_compose(body: ComposeRequest, provider: Annotated[LlmProvider, D
     result = await compose(provider, body.question, body.evidence, settings.agent_max_output_tokens, verifier_on)
     logger.info("agent_compose", template=result.used_template, no_data=result.no_data, claims=len(result.claims), verifier=verifier_on)
     return result
+
+
+HASH_QUERY = Query(pattern=r"^[0-9a-f]{64}$", description="SHA-256 hex của id người dùng")
+
+
+@router.get("/agent/memory", response_model=list[MemoryEntry])
+async def agent_memory_list(session: Annotated[AsyncSession, Depends(get_db)], user_id_hash: Annotated[str, HASH_QUERY]) -> list[MemoryEntry]:
+    return [MemoryEntry(key=r.key, value=r.value, updated_at=r.updated_at) for r in await memory.list_memory(session, user_id_hash)]
+
+
+@router.put("/agent/memory/{key}", response_model=MemoryEntry)
+async def agent_memory_put(key: str, body: MemoryPutRequest, session: Annotated[AsyncSession, Depends(get_db)]) -> MemoryEntry:
+    value = body.value.strip()
+    if not memory.KEY_PATTERN.match(key) or not value:
+        raise HTTPException(status_code=422, detail={"code": "invalid_memory", "reason": "key_or_value"})
+    await memory.put_memory(session, body.user_id_hash, key, value)
+    row = next(r for r in await memory.list_memory(session, body.user_id_hash) if r.key == key)
+    return MemoryEntry(key=row.key, value=row.value, updated_at=row.updated_at)
+
+
+@router.delete("/agent/memory/{key}", response_model=MemoryDeleted)
+async def agent_memory_delete_one(key: str, session: Annotated[AsyncSession, Depends(get_db)], user_id_hash: Annotated[str, HASH_QUERY]) -> MemoryDeleted:
+    return MemoryDeleted(deleted=await memory.delete_memory(session, user_id_hash, key))
+
+
+@router.delete("/agent/memory", response_model=MemoryDeleted)
+async def agent_memory_delete_all(session: Annotated[AsyncSession, Depends(get_db)], user_id_hash: Annotated[str, HASH_QUERY]) -> MemoryDeleted:
+    return MemoryDeleted(deleted=await memory.delete_memory(session, user_id_hash))
 
 
 @router.post("/agent/plan", response_model=PlanResponse)

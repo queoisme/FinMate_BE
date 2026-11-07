@@ -31,7 +31,17 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger) : IAg
 
     private sealed record WireFeedback(string Tool, string Code);
 
-    private sealed record PlanRequestBody(string Text, string Segment, List<WireTool> Tools, int MaxSteps, List<WireFeedback>? Feedback);
+    private sealed record WireState(string? LastIntent, Dictionary<string, string> Slots);
+
+    private sealed record WireMemoryItem(string Key, string Value);
+
+    private sealed record PlanRequestBody(string Text, string Segment, List<WireTool> Tools, int MaxSteps, List<WireFeedback>? Feedback, WireState? State, List<WireMemoryItem>? Memory);
+
+    private sealed record WireMemoryEntry(string Key, string Value, DateTimeOffset UpdatedAt);
+
+    private sealed record MemoryPutBody(string UserIdHash, string Value);
+
+    private sealed record WireDeleted(int Deleted);
 
     private sealed record WireStep(string Tool, JsonElement Args);
 
@@ -60,7 +70,9 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger) : IAg
             request.Segment,
             request.Tools.Select(t => new WireTool(t.Name, t.Description, t.Args.ToDictionary(a => a.Name, a => new WireArg(a.Type, a.Required, a.Type == "int" ? a.Min : null, a.Type == "int" ? a.Max : null)))).ToList(),
             request.MaxSteps,
-            request.Feedback?.Select(f => new WireFeedback(f.Tool, f.Code)).ToList());
+            request.Feedback?.Select(f => new WireFeedback(f.Tool, f.Code)).ToList(),
+            request.State is null ? null : new WireState(request.State.LastIntent, request.State.Slots.ToDictionary(s => s.Key, s => s.Value)),
+            request.Memory?.Select(m => new WireMemoryItem(m.Key, m.Value)).ToList());
 
         var response = await PostAsync<PlanRequestBody, PlanResponseBody>("api/v1/agent/plan", body, "plan", ct);
         return new AgentPlanResult(
@@ -85,13 +97,37 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger) : IAg
             Usage(response.Usage));
     }
 
+    public async Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default)
+    {
+        var entries = await SendAsync<List<WireMemoryEntry>>(HttpMethod.Get, $"api/v1/agent/memory?user_id_hash={UserIdHasher.Hash(userId)}", null, "memory_list", ct);
+        return entries.Select(e => new AgentMemoryEntry(e.Key, e.Value, e.UpdatedAt)).ToList();
+    }
+
+    public async Task PutMemoryAsync(Guid userId, string key, string value, CancellationToken ct = default)
+        => await SendAsync<WireMemoryEntry>(HttpMethod.Put, $"api/v1/agent/memory/{Uri.EscapeDataString(key)}", new MemoryPutBody(UserIdHasher.Hash(userId), value), "memory_put", ct);
+
+    public async Task<int> DeleteMemoryAsync(Guid userId, string? key, CancellationToken ct = default)
+    {
+        var path = key is null ? "api/v1/agent/memory" : $"api/v1/agent/memory/{Uri.EscapeDataString(key)}";
+        return (await SendAsync<WireDeleted>(HttpMethod.Delete, $"{path}?user_id_hash={UserIdHasher.Hash(userId)}", null, "memory_delete", ct)).Deleted;
+    }
+
     private static AgentUsage? Usage(WireUsage? usage) => usage is null ? null : new AgentUsage(usage.InputTokens, usage.OutputTokens, usage.Provider, usage.Model);
 
-    private async Task<TResponse> PostAsync<TRequest, TResponse>(string route, TRequest body, string step, CancellationToken ct)
+    private Task<TResponse> PostAsync<TRequest, TResponse>(string route, TRequest body, string step, CancellationToken ct)
+        => SendAsync<TResponse>(HttpMethod.Post, route, body, step, ct);
+
+    private async Task<TResponse> SendAsync<TResponse>(HttpMethod method, string route, object? body, string step, CancellationToken ct)
     {
         try
         {
-            using var response = await http.PostAsJsonAsync(route, body, Json, ct);
+            using var message = new HttpRequestMessage(method, route);
+            if (body is not null)
+            {
+                message.Content = JsonContent.Create(body, body.GetType(), options: Json);
+            }
+
+            using var response = await http.SendAsync(message, ct);
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("Agent {Step} via AI Service failed: HTTP {Status}", step, (int)response.StatusCode);

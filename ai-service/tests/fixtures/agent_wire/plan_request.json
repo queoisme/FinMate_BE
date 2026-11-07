@@ -41,5 +41,17 @@
       "tool": "forecast_goal",
       "code": "invalid_argument:price_vnd"
     }
+  ],
+  "state": {
+    "last_intent": "forecast_goal",
+    "slots": {
+      "price_vnd": "600000000"
+    }
+  },
+  "memory": [
+    {
+      "key": "preferred_method",
+      "value": "phong bì"
+    }
   ]
 }

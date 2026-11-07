@@ -31,7 +31,7 @@ public static class AgentMessages
 /// <item>ai-service sập sau khi đã có bằng chứng thì trả câu mẫu dựng từ bằng chứng, không 500; sập trước khi có bằng chứng thì 503.</item>
 /// </list>
 /// </summary>
-public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, Func<DateTimeOffset>? now = null) : IAgentOrchestrator
+public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, Func<DateTimeOffset>? now = null) : IAgentOrchestrator
 {
     public async Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default)
     {
@@ -46,10 +46,16 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         }
 
         var profile = await income.GetAsync(userId, clock, ct);
-        var request = new AgentPlanRequest(question, profile.Segment.ToString().ToLowerInvariant(), tools.Registry.Specs, AgentLimits.MaxPlanSteps);
+        var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
+        var state = stored is not null && stored.Turn < AgentLimits.MaxTurns ? stored : null; // đủ MaxTurns lượt thì ngữ cảnh bắt đầu lại
+        var request = new AgentPlanRequest(
+            question, profile.Segment.ToString().ToLowerInvariant(), tools.Registry.Specs, AgentLimits.MaxPlanSteps,
+            State: state is null ? null : new AgentPlanState(state.LastIntent, state.Slots),
+            Memory: await ReadMemoryAsync(userId, ct));
         var plan = await ai.PlanAsync(request, ct);
 
         var evidence = new List<Evidence>();
+        var slots = new Dictionary<string, string>(state?.Slots ?? []);
         string? insufficient = null;
         for (var replan = 0; ; replan++)
         {
@@ -66,6 +72,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
                 {
                     case ToolStatus.Ok:
                         evidence.AddRange(result.Evidence.Where(e => evidence.All(x => x.Id != e.Id)));
+                        Remember(slots, step);
                         break;
                     case ToolStatus.InsufficientData:
                         insufficient ??= result.Code;
@@ -90,6 +97,12 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
                 ? Reply(AgentStatus.InsufficientData, AgentMessages.Insufficient(insufficient), traceId)
                 : Reply(AgentStatus.Clarify, AgentMessages.NotUnderstood, traceId);
         }
+
+        await TryAsync(async () =>
+        {
+            await conversations.SaveAsync(userId, new ConversationState(plan.Intent, slots, (state?.Turn ?? 0) + 1, clock), ct);
+            return true;
+        });
 
         var (claims, usedTemplate) = await ComposeAsync(question, evidence, ct);
         return new AgentAnswerDto(
@@ -126,6 +139,48 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         }
 
         return (LocalTemplateComposer.Compose(evidence).Select(c => new AgentClaimDto(c.Text, c.EvidenceIds)).ToList(), true);
+    }
+
+    /// <summary>Ngữ cảnh và bộ nhớ chỉ giúp hiểu câu nối tiếp: Redis hay ai-service trục trặc ở đây không được làm hỏng lượt hỏi, chỉ mất phần tiện lợi.</summary>
+    private static async Task<T?> TryAsync<T>(Func<Task<T>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return default;
+        }
+    }
+
+    private async Task<IReadOnlyList<AgentMemoryItem>?> ReadMemoryAsync(Guid userId, CancellationToken ct)
+    {
+        try
+        {
+            return (await ai.GetMemoryAsync(userId, ct)).Select(m => new AgentMemoryItem(m.Key, m.Value)).ToList();
+        }
+        catch (AIServiceUnavailableException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Nhớ giá và thời hạn của lần dự báo thành công để câu nối tiếp ("còn 3 năm thì sao?") dùng lại giá cũ. Chỉ số nguyên đã qua kiểm tham số.</summary>
+    private static void Remember(Dictionary<string, string> slots, AgentPlanStep step)
+    {
+        if (step.Tool != "forecast_goal")
+        {
+            return;
+        }
+
+        foreach (var name in new[] { "price_vnd", "horizon_months" })
+        {
+            if (step.Args.TryGetProperty(name, out var value) && value.TryGetInt64(out var number))
+            {
+                slots[name] = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
     }
 
     private static string? VerdictOf(List<Evidence> evidence)

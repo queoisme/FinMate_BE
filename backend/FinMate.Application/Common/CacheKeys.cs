@@ -15,6 +15,9 @@ public static class CacheKeys
 
     public static readonly TimeSpan GamificationTtl = TimeSpan.FromMinutes(10);
 
+    /// <summary>Ngữ cảnh hội thoại ngắn hạn của agent (các "ô" có cấu trúc của lượt trước, không có văn bản thô). TTL: <c>AgentLimits.ConversationTtl</c>.</summary>
+    public static string AgentConversation(Guid userId) => $"user:{userId}:agent_conversation";
+
     public static string ActiveMissions(Guid userId) => $"user:{userId}:active_missions";
 
     public static readonly TimeSpan ActiveMissionsTtl = TimeSpan.FromMinutes(30);

@@ -54,6 +54,21 @@ public class AgentOrchestratorTests
         public Exception? ComposeError { get; set; }
         public List<AgentPlanRequest> PlanCalls { get; } = [];
         public int ComposeCalls { get; private set; }
+        public List<AgentMemoryEntry> Memory { get; } = [];
+        public Exception? MemoryError { get; set; }
+
+        public Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default)
+            => MemoryError is null ? Task.FromResult<IReadOnlyList<AgentMemoryEntry>>(Memory.ToList()) : Task.FromException<IReadOnlyList<AgentMemoryEntry>>(MemoryError);
+
+        public Task PutMemoryAsync(Guid userId, string key, string value, CancellationToken ct = default)
+        {
+            Memory.RemoveAll(m => m.Key == key);
+            Memory.Add(new AgentMemoryEntry(key, value, Now));
+            return Task.CompletedTask;
+        }
+
+        public Task<int> DeleteMemoryAsync(Guid userId, string? key, CancellationToken ct = default)
+            => Task.FromResult(Memory.RemoveAll(m => key is null || m.Key == key));
 
         public Task<AgentGateResult> GateAsync(string text, CancellationToken ct = default)
             => GateError is null ? Task.FromResult(Gate) : Task.FromException<AgentGateResult>(GateError);
@@ -71,14 +86,123 @@ public class AgentOrchestratorTests
         }
     }
 
+    /// <summary>Giả ICacheService: lưu JSON như Redis (nên bản ghi không giữ tham chiếu tới đối tượng gốc) và nhớ TTL.</summary>
+    private sealed class FakeCache : ICacheService
+    {
+        public Dictionary<string, (string Json, TimeSpan Ttl)> Items { get; } = [];
+        public bool Broken { get; set; }
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
+        {
+            if (Broken)
+            {
+                throw new InvalidOperationException("Redis sập");
+            }
+
+            return Task.FromResult(Items.TryGetValue(key, out var item) ? JsonSerializer.Deserialize<T>(item.Json) : default);
+        }
+
+        public Task SetAsync<T>(string key, T value, TimeSpan ttl, CancellationToken ct = default)
+        {
+            if (Broken)
+            {
+                throw new InvalidOperationException("Redis sập");
+            }
+
+            Items[key] = (JsonSerializer.Serialize(value), ttl);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken ct = default)
+        {
+            Items.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+
     private static (AgentOrchestrator Orchestrator, FakeAi Ai, RecordingSource Source) Build(
-        long[]? income = null, IncomeSegment? segmentOverride = null)
+        long[]? income = null, IncomeSegment? segmentOverride = null, FakeCache? cache = null)
     {
         var source = new RecordingSource(new InMemoryFinancialDataSource(income ?? Income, Spend.Take((income ?? Income).Length).ToArray(), 100_000_000, segmentOverride));
         var assumptions = new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>());
         var registry = new ToolRegistry([new ForecastGoalTool(source, assumptions), new GetAssumptionsAgentTool(assumptions)]);
         var ai = new FakeAi();
-        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), () => Now), ai, source);
+        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(cache ?? new FakeCache()), () => Now), ai, source);
+    }
+
+    [Fact]
+    public async Task a_follow_up_reuses_the_price_and_horizon_of_the_previous_turn()
+    {
+        var (orchestrator, ai, _) = Build();
+        var me = Guid.NewGuid();
+
+        await orchestrator.AskAsync(me, "Mua xe 600 triệu sau 5 năm được không?");
+        await orchestrator.AskAsync(me, "còn 3 năm thì sao?");
+
+        ai.PlanCalls[0].State.Should().BeNull();
+        ai.PlanCalls[1].State!.Slots.Should().Contain(new KeyValuePair<string, string>("price_vnd", "600000000"));
+        ai.PlanCalls[1].State!.Slots.Should().Contain(new KeyValuePair<string, string>("horizon_months", "60"));
+        ai.PlanCalls[1].State!.LastIntent.Should().Be("forecast_goal");
+    }
+
+    [Fact]
+    public async Task conversation_state_is_per_user_has_a_ttl_and_stores_no_raw_text()
+    {
+        var cache = new FakeCache();
+        var (orchestrator, ai, _) = Build(cache: cache);
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+
+        await orchestrator.AskAsync(a, "Mua xe 600 triệu sau 5 năm được không?");
+        ai.Plan = _ => new AgentPlanResult("other", [], "Bạn muốn hỏi gì về tài chính?", null); // B hỏi lại → không có lượt nào để nhớ
+        await orchestrator.AskAsync(b, "xin chào, cho mình hỏi một câu");
+
+        var stored = cache.Items.Single();
+        stored.Key.Should().Contain(a.ToString());
+        stored.Value.Ttl.Should().Be(AgentLimits.ConversationTtl);
+        stored.Value.Json.Should().NotContain("Mua xe").And.NotContain("chào");
+        ai.PlanCalls.Last().State.Should().BeNull(); // người dùng B không thấy ngữ cảnh của A
+    }
+
+    [Fact]
+    public async Task the_conversation_starts_over_after_max_turns()
+    {
+        var (orchestrator, ai, _) = Build();
+        var me = Guid.NewGuid();
+
+        for (var i = 0; i < AgentLimits.MaxTurns; i++)
+        {
+            await orchestrator.AskAsync(me, "Mua xe 600 triệu được không?");
+        }
+
+        await orchestrator.AskAsync(me, "còn 3 năm thì sao?");
+
+        ai.PlanCalls[AgentLimits.MaxTurns - 1].State.Should().NotBeNull();
+        ai.PlanCalls[AgentLimits.MaxTurns].State.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task the_users_memory_is_passed_to_the_planner_as_data()
+    {
+        var (orchestrator, ai, _) = Build();
+        ai.Memory.Add(new AgentMemoryEntry("preferred_method", "phong bì", Now));
+
+        await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        ai.PlanCalls[0].Memory.Should().ContainSingle().Which.Should().Be(new AgentMemoryItem("preferred_method", "phong bì"));
+    }
+
+    [Fact]
+    public async Task an_unreachable_memory_store_or_a_broken_cache_never_breaks_the_turn()
+    {
+        var cache = new FakeCache { Broken = true };
+        var (orchestrator, ai, _) = Build(cache: cache);
+        ai.MemoryError = new AIServiceUnavailableException("sập");
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.Status.Should().Be(AgentStatus.Answered);
+        ai.PlanCalls[0].Memory.Should().BeNull();
+        ai.PlanCalls[0].State.Should().BeNull();
     }
 
     [Fact]

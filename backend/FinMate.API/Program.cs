@@ -311,6 +311,8 @@ public class Program
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
+        builder.Services.AddScoped<ConversationStore>();
+        builder.Services.AddScoped<AgentMemoryService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
         // Cổng phạm vi / lập kế hoạch / soạn câu của agent. Timeout 45 giây: lập kế hoạch và soạn câu mỗi lần gọi LLM (tối đa vài chục giây khi nhà cung cấp chậm, cộng lần sinh lại).
         builder.Services.AddHttpClient<IAgentAiClient, AgentAiClient>(client =>

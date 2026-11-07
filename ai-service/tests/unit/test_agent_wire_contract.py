@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, PlanRequest, PlanResponse
+from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, MemoryDeleted, MemoryEntry, MemoryPutRequest, PlanRequest, PlanResponse
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "agent_wire"
 
@@ -37,6 +37,8 @@ def test_the_plan_request_carries_what_the_planner_needs():
     assert request.segment == "variable"
     assert request.max_steps == 4
     assert [(f.tool, f.code) for f in request.feedback] == [("forecast_goal", "invalid_argument:price_vnd")]
+    assert request.state.last_intent == "forecast_goal" and request.state.slots == {"price_vnd": "600000000"}
+    assert [(m.key, m.value) for m in request.memory] == [("preferred_method", "phong bì")]
 
 
 def test_the_compose_request_keeps_money_as_integers_and_sources_as_wire_names():
@@ -47,6 +49,17 @@ def test_the_compose_request_keeps_money_as_integers_and_sources_as_wire_names()
     assert request.skip_verifier is False
 
 
-def test_no_wire_fixture_carries_a_user_identity():
+def test_the_memory_request_and_responses_match_the_models():
+    put = MemoryPutRequest.model_validate(load("memory_put_request.json"))
+
+    assert put.value == "phong bì"
+    assert len(put.user_id_hash) == 64  # mã băm SHA-256, không phải id thật
+    assert MemoryEntry.model_validate(load("memory_put_response.json")).model_dump(mode="json") == load("memory_put_response.json")
+    assert [MemoryEntry.model_validate(i).model_dump(mode="json") for i in load("memory_list_response.json")] == load("memory_list_response.json")
+    assert MemoryDeleted.model_validate(load("memory_deleted_response.json")).deleted == 2
+
+
+def test_no_wire_fixture_carries_a_user_identity_except_the_memory_hash():
     for path in FIXTURES.glob("*.json"):
-        assert "user" not in path.read_text(encoding="utf-8").lower(), path.name
+        text = path.read_text(encoding="utf-8").lower().replace("user_id_hash", "") if path.name.startswith("memory_") else path.read_text(encoding="utf-8").lower()
+        assert "user" not in text, path.name
