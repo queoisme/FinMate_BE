@@ -12,6 +12,11 @@ public static class AgentLimits
     /// <summary>Số lần lập lại kế hoạch tối đa khi thiếu dữ liệu (provisional).</summary>
     public const int MaxReplans = 2;
 
+    /// <summary>Khoảng cho phép của một giả định kinh tế, tính bằng điểm cơ bản (-100% … +1000%/năm) (provisional); cùng khoảng với CHECK ở DB.</summary>
+    public const int AssumptionMinRateBps = -10_000;
+
+    public const int AssumptionMaxRateBps = 100_000;
+
     /// <summary>Số tháng đã trọn gần nhất được dùng để dựng dải thu nhập và chi tiêu (provisional).</summary>
     public const int HistoryMonths = 6;
 

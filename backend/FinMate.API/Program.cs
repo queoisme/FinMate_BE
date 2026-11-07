@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.FinanceCatalog;
+using FinMate.Application.Agent;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Auth;
@@ -299,6 +300,9 @@ public class Program
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
+        builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
+        builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<GetAssumptionsTool>();
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
