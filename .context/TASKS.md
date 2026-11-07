@@ -1202,3 +1202,15 @@ Không có cột nào thêm vào `transactions`: liên kết giao dịch ↔ l�
 - [x] **Đọc độ dài TLV:** chọn cách đếm (ký tự hay byte) theo KẾT QUẢ CẤU TRÚC (tag 63 phải đọc ra đúng CRC và đủ thông tin thụ hưởng) thay vì "thử rồi nuốt lỗi". Chuẩn công khai không nói rõ đếm theo gì nên cả hai được thử; **chưa kiểm với mã thật của ngân hàng có tên có dấu.**
 - [x] **`provider_key` mồ côi:** `provider_key` của provider là BẤT BIẾN nên đổi tên không gây hỏng; lỗi chỉ đến từ dữ liệu sửa tay. `VietQrBankSeeder.FindDanglingProviderKeysAsync` kiểm lúc khởi động (log cảnh báo) và có test bảo đảm dữ liệu seed không có khóa lạc.
 - Kiểm chứng: test cửa sổ khớp đổi qua API admin (thu còn 5 phút thì thông báo đến sau 8 phút không khớp), validator cấu hình, `QrTransferConfig` của FE.
+
+
+### Phase 52 — AI Financial Agent (2026-11-07)
+Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; vai trò: `docs/rbac-matrix.md`.
+- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
+- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
+- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
+- [x] Task 16–17: khoản định kỳ, sổ dòng tiền, `simulate_purchase`, `runway`, `stress_test`, `sensitivity`.
+- [x] Task 19–20: vai trò Manager / SupportStaff / ContentStaff; khiếu nại có leo thang + trợ lý gợi ý.
+- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
+- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
+- Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.

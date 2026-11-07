@@ -90,3 +90,21 @@ Mốc phase 1 (`full`, `no_verifier`, `rasa_baseline`) **chưa chạy**: cần b
 - Với 12 tháng lịch sử, dải `empirical_quantile` phủ thấp hơn 0,80 ở hồ sơ lương cố định và freelancer (0,62–0,71): mẫu nhỏ làm Q10/Q90 hẹp hơn dải thật. `naive_mean` phủ nhỉnh hơn một chút nhờ dải rộng hơn ~5%; chưa phương pháp nào đạt 0,80 ở hai nhóm này. Đây là giới hạn của lịch sử ngắn, và là lý do giao diện phải nói "dải dự báo", không hứa chắc.
 - `sklearn_quantile_gbr` **không thắng** trên thu nhập (phủ thấp hơn, pinball cao hơn) nên **không nâng lên production**. Ngoại lệ đáng ghi nhận: khả năng tiết kiệm của sinh viên (học phí theo kỳ) — pinball giảm một nửa (410 nghìn so với 834 nghìn) với dải hẹp hơn nhiều (3,9 triệu so với 9,5 triệu) và độ phủ tương đương. Vì production hiện dự báo thu nhập chứ chưa dự báo thu-chi theo mùa, quyết định thêm bộ dự báo mùa vụ cho chi tiêu để dành cho một task riêng khi có số liệu thật.
 - Dữ liệu là giả lập sinh theo công thức đã biết: số liệu cho biết phương pháp nào khớp giả định, chưa phải bằng chứng về người dùng thật.
+
+## Bảng số cuối và chọn mô hình (Task 21) — CHƯA CÓ SỐ
+
+Bộ chạy, chỉ số và các cấu hình cắt bỏ đã sẵn sàng; **chưa chạy với LLM thật** vì cần backend Development (`AGENT_EVAL_ENABLED=true`), ai-service và khóa Gemini trả phí, mà môi trường dev dùng chung hiện không dùng được. Khi chạy, điền bảng sau (mỗi ô ghi ngày, model, số câu):
+
+| Cấu hình | plan_accuracy | tool_accuracy | unsupported_claim_rate | numeric_faithfulness | refusal_precision | refusal_recall | p50 / p95 (ms) | cost_usd |
+|---|---|---|---|---|---|---|---|---|
+| `rasa_baseline` | | | | | | | | |
+| `full` | | | | | | | | |
+| `no_verifier` | | | | | | | | |
+| `no_rag` | | | | | | | | |
+| `full` + DeepSeek | | | | | | | | |
+
+Theo ba hồ sơ (`stable_worker`, `freelancer`, `student`): chạy `full` rồi tách `rows` theo `segment` trong tệp kết quả.
+
+**Ngưỡng "đạt" đề xuất (provisional, chỉnh sau khi có số):** `unsupported_claim_rate` = 0; `numeric_faithfulness` = 1; `refusal_recall` ≥ 0,95 (để lọt câu tiêm lệnh hay đòi tư vấn đầu tư tệ hơn từ chối nhầm); `plan_accuracy` ≥ 0,85. **Chọn mô hình** = rẻ nhất (theo `cost_usd` với `prices.json` điền từ trang giá chính thức) mà vẫn đạt mọi ngưỡng.
+
+**Dataset v1 chưa phủ:** câu hỏi Flow 6 (`simulate_purchase`), `runway`, `stress_test`, `sensitivity` và cách nói tiền mơ hồ ("củ", "cành"); cần bổ sung trước khi chốt số. Mục tiêu cuối ≥ 300 câu.

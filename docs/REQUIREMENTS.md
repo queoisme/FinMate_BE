@@ -283,6 +283,14 @@ Pipeline của `POST /api/v1/analyze`; mỗi bước trả độ tin cậy riên
 | FR-AI-08 | Vòng đời mô hình: `seed_dataset` → `train` → `evaluate` → `promote` → `feedback_batch` | Must | `promote` từ chối mô hình chưa đánh giá trên tập test hoặc accuracy < 0,70; mô hình mới được nạp nóng trong 60 giây |
 | FR-AI-09 | Dọn mẫu thô chưa gán nhãn | Should | `purge_raw_samples` qua cron ngoài, giữ 90 ngày; mẫu đã gán nhãn được giữ |
 | FR-AI-10 | A/B testing mô hình (bảng `ab_*`) | Won't (MVP) | Hoãn; tạo migration khi tính năng ship |
+| FR-AI-11 | **[Mới]** Hỏi AI Financial Agent (`POST /api/v1/agent/ask`) | Must | Vòng Gate → Plan → Execute → Compose → Verify. `userId` chỉ từ JWT; trả `answered` / `clarify` / `refused` / `insufficient_data`. Mọi số tiền trong câu trả lời bằng đúng số nguyên đồng của bằng chứng được trích dẫn (bộ kiểm chứng thuần Python), mỗi bằng chứng có nguồn, ngày và độ tin cậy. LLM không bao giờ sinh số tiền. Xem `docs/agent-api.md` |
+| FR-AI-12 | **[Mới]** Dự báo mục tiêu theo hai nhóm thu nhập | Must | Dải Q10/Q50/Q90 từ lịch sử đã trọn; nhóm ổn định / không ổn định tự suy (hệ số biến thiên) hoặc do người dùng chọn; ba kịch bản; dưới 3 tháng lịch sử thì `insufficient_data`, không đoán |
+| FR-AI-13 | **[Mới]** Công cụ của agent nằm trong danh sách cho phép | Must | `forecast_goal`, `get_assumptions`, `search_knowledge`, `simulate_purchase`, `runway`, `stress_test`, `sensitivity`. Công cụ lạ hay tham số lạ (kể cả `user_id`) bị từ chối trước khi đọc dữ liệu |
+| FR-AI-14 | **[Mới]** Giả định kinh tế có nguồn, có duyệt | Must | `economic_assumptions` đi Draft → Approved → Retired; mỗi giả định có nguồn, đường dẫn và ngày số liệu; chỉ bản đã duyệt được dùng |
+| FR-AI-15 | **[Mới]** Kho tri thức RAG có người duyệt | Should | pgvector + full-text gộp RRF, chỉ tài liệu Approved còn hiệu lực; câu hỏi chưa trả lời được chỉ lưu mã băm và số lần gặp, không bao giờ tự vào kho |
+| FR-AI-16 | **[Mới]** Khoản định kỳ và mô phỏng khoản mua (Flow 6) | Should | Khoản định kỳ do người dùng xác nhận (đề xuất từ lịch sử không tự lưu); sổ dòng tiền theo ngày; kết luận `feasible` / `tight` / `infeasible` kèm ngày và số thiếu |
+| FR-AI-17 | **[Mới]** Bộ nhớ và ngữ cảnh của agent | Should | Ngữ cảnh ngắn hạn (Redis, 30 phút, tối đa 6 lượt, chỉ các ô có cấu trúc); sở thích dài hạn do người dùng xem/sửa/xóa (`/agent/memory`) |
+| FR-AI-18 | **[Mới]** Bộ đánh giá agent | Should | `agent_eval`: hồ sơ giả lập có đáp án, bộ câu hỏi có nhãn, chỉ số (tỉ lệ mệnh đề không kiểm chứng, độ trung thực số, precision/recall từ chối, chi phí), cấu hình cắt bỏ. Endpoint đánh giá chỉ tồn tại ở Development |
 
 ## 9. FR — Quản trị (Admin Flow, hỗ trợ)
 
@@ -301,6 +309,9 @@ Pipeline của `POST /api/v1/analyze`; mỗi bước trả độ tin cậy riên
 | FR-ADM-09 | Thống kê chất lượng AI (`/admin/ai-stats`) | Should | Gộp stats của AI Service với tỉ lệ user sửa danh mục (chỉ giao dịch `source = Notification`, cửa sổ mặc định 30 ngày). AI Service chết vẫn trả 200 với phần của backend |
 | FR-ADM-10 | Tài khoản admin hạt giống | Must | `AdminUserSeeder` sửa lại vai trò, trạng thái khoá, xoá mềm mỗi lần khởi động — **không** đổi mật khẩu |
 | FR-ADM-11 | Cấu hình mô hình AI | Should | Hiện làm qua script (`train` → `evaluate` → `promote`, FR-AI-08) và bảng `provider_patterns`; chưa có giao diện quản trị |
+| FR-ADM-12 | **[Mới]** Vai trò nhân sự vận hành | Should | Manager, SupportStaff, ContentStaff với policy `ManagerOrAbove` / `SupportStaffOrAbove` / `ContentStaffOrAbove`; ContentStaff soạn, Manager trở lên duyệt. Ma trận ở `docs/rbac-matrix.md` |
+| FR-ADM-13 | **[Mới]** Quản lý giả định kinh tế và kho tri thức của agent | Should | `/admin/assumptions`, `/admin/knowledge`; mỗi thao tác ghi để lại audit log (không nội dung) |
+| FR-ADM-14 | **[Mới]** Khiếu nại có leo thang | Should | Open → Triaged → Responded → Resolved; ngoại lệ Triaged → Escalated → ManagerReview → Resolved / Rejected; người dùng phản đối thì Reopened. Mỗi bước audit; trợ lý chỉ gợi ý câu trả lời, nhân sự bấm gửi mới ra ngoài |
 
 ## 10. NFR — Bảo mật và quyền riêng tư
 
