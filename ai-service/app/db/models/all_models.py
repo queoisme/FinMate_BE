@@ -6,6 +6,7 @@ Dự án không dùng ``__init__.py`` (namespace package) nên alembic và các 
 
 from app.db.base import Base
 from app.db.models.agent import AgentRefusalTemplate, AgentRun, AgentScopeCue, AgentUserMemory
+from app.db.models.agent_kb import AgentKbChunk, AgentKbDocument
 from app.db.models.bill import (
     BillAiInstruction,
     BillBrand,

@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     agent_eval_enabled: bool = False  # bật khi chạy bộ đánh giá (agent_eval): cho phép bỏ bộ kiểm chứng theo từng lời gọi (đánh giá cắt bỏ). Production luôn False
     agent_verifier_enabled: bool = True  # chỉ tắt khi chạy đánh giá cắt bỏ (agent_eval); production luôn bật
     agent_rag_enabled: bool = True  # tắt = RAG trả rỗng (đánh giá cắt bỏ)
-    agent_embedding_model: str = ""  # tên mô hình embedding (kiểm trên trang chính thức rồi mới điền); trống thì RAG chưa tra được
+    agent_embedding_model: str = "gemini-embedding-2"  # đã đối chiếu trang embeddings chính thức của Google (2026-11-07): tự chuẩn hóa vector khi cắt còn 768 chiều. Trống = RAG chưa tra được
     agent_embedding_dim: int = 768  # số chiều cột vector; đổi số này sau khi có bảng tri thức phải làm migration mới
 
     @property

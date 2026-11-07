@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.api.v1.agent import router as agent_router
+from app.api.v1.kb import router as kb_router
 from app.api.v1.bill import router as bill_router
 from app.agent import gate as agent_gate
 from app.bill import slug_model
@@ -135,6 +136,7 @@ app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(bill_router, prefix="/api/v1", tags=["bill"])
 app.include_router(finance_methods_router, prefix="/api/v1", tags=["finance-methods"])
 app.include_router(agent_router, prefix="/api/v1", tags=["agent"])
+app.include_router(kb_router, prefix="/api/v1", tags=["agent-kb"])
 app.include_router(rules_admin_router, prefix="/api/v1")
 app.include_router(config_admin_router, prefix="/api/v1")
 app.include_router(categories_admin_router, prefix="/api/v1")
