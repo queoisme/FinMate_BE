@@ -1,5 +1,7 @@
 """Application settings loaded from environment variables."""
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -85,6 +87,22 @@ class Settings(BaseSettings):
     method_openrouter_models: str = "dots-studio/dots-3-note-preview:free"
     method_openrouter_timeout_seconds: float = 10.0  # trần cho TỪNG model dự phòng
     method_total_seconds: float = 24.0  # trần cả route (Gemini + dự phòng); backend chờ 30 giây
+
+    # AI Financial Agent (kế hoạch docs/superpowers/plans/2026-11-07-ai-financial-agent.md). Dùng chung GEMINI_API_KEY / OPENROUTER_API_KEY; không có khóa của nhà cung cấp đã chọn thì agent tắt.
+    # Dữ liệu người dùng thật chỉ được đi qua gói Gemini TRẢ PHÍ (gói miễn phí dùng dữ liệu để cải thiện sản phẩm của Google).
+    agent_provider: Literal["gemini", "openrouter"] = "gemini"
+    agent_model: str = "gemini-3.1-flash-lite"  # mô hình của nhà cung cấp đã chọn; đổi mô hình = đổi biến này, chọn bằng bộ đánh giá agent_eval
+    agent_max_output_tokens: int = 1024  # trần token đầu ra mỗi lần gọi LLM, để chi phí không vượt tầm ngân sách
+    agent_verifier_enabled: bool = True  # chỉ tắt khi chạy đánh giá cắt bỏ (agent_eval); production luôn bật
+    agent_rag_enabled: bool = True  # tắt = RAG trả rỗng (đánh giá cắt bỏ)
+    agent_embedding_model: str = ""  # tên mô hình embedding (kiểm trên trang chính thức rồi mới điền); trống thì RAG chưa tra được
+    agent_embedding_dim: int = 768  # số chiều cột vector; đổi số này sau khi có bảng tri thức phải làm migration mới
+
+    @property
+    def agent_enabled(self) -> bool:
+        """Agent chỉ chạy khi nhà cung cấp đã chọn có khóa (môi trường; khóa lưu ở secret_store do tầng gọi LLM tự tra)."""
+        key = self.gemini_api_key if self.agent_provider == "gemini" else self.openrouter_api_key
+        return bool(key)
 
 
 settings = Settings()

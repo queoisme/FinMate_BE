@@ -328,7 +328,7 @@ services:
   ocr-service:  # Python FastAPI + PaddleOCR — đọc hóa đơn, lọc dữ liệu cá nhân, tách từng món (nội bộ)
   rasa:         # Rasa NLU cho chat — chỉ ai-service gọi; tắt thì ai-service trả lời bằng luật
   postgres-main: # PostgreSQL 16 — Backend DB
-  postgres-ai:   # PostgreSQL 16 — AI DB
+  postgres-ai:   # PostgreSQL 16 + extension vector (pgvector) — AI DB
   redis:         # Redis 7
 ```
 
@@ -337,6 +337,14 @@ trong tiến trình `backend` (cổng 8080). Cổng mở ra máy: `backend` 8080
 `redis` 6379. `ocr-service` và `rasa` **không** mở cổng (chỉ mạng nội bộ). `ocr-service` không có Postgres riêng: dùng `finmate_ai`
 của `postgres-ai` (`FINMATE_DATABASE_URL`) và chờ `ai-service` healthy (ai-service chạy `alembic upgrade head` lúc khởi động).
 `backend` chờ `ocr-service` đã chạy. `rasa` chạy `rasa/rasa:3.6.21` với model `models/finmate-nlu-v3.tar.gz` mount từ `ai-service/rasa/`.
+
+**Cập nhật 2026-11-07 (AI Financial Agent, chủ dự án duyệt Task 1).** Image `postgres-ai` đổi từ `postgres:16` sang `pgvector/pgvector:pg16-trixie`
+(cùng bản chính 16 và cùng Debian trixie nên volume `postgres-ai-data` dùng lại được; tag `pg16` trần chạy trên bookworm, lệch collation glibc 2.41 vs 2.36
+làm `CREATE DATABASE` bị từ chối; `postgres-main` giữ `postgres:16`). Extension `vector` được bật bằng migration
+`0033` cùng bảng tri thức RAG; migration `0032` chỉ thêm `agent_runs`, `agent_refusal_templates`, `agent_user_memory`. Không thêm package Python
+nào: kiểu cột vector tự định nghĩa bằng SQLAlchemy và truy vấn `<=>` bằng SQL thô. Nhà cung cấp LLM của agent đặt qua `AGENT_PROVIDER`
+(`gemini` hoặc `openrouter`) và `AGENT_MODEL`; dữ liệu người dùng thật chỉ đi qua gói Gemini trả phí. Kế hoạch đầy đủ:
+`docs/superpowers/plans/2026-11-07-ai-financial-agent.md`.
 
 ### 4.2 Environment Variables
 
