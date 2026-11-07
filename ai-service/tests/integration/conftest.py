@@ -129,7 +129,7 @@ async def clean_tables(engine):
                 " ml_evaluation_category_metrics, ml_evaluation_runs, ml_model_versions,"
                 " ml_training_jobs, ml_sample_splits, ml_labeled_samples, ops_analyze_log,"
                 " ml_raw_samples, kb_provider_formats, kb_provider_patterns, bill_unknown_scans,"
-                " user_merchant_memory, kb_item_categories, ml_training_samples, ops_usage_daily, kb_audit_log, kb_keywords, kb_brands, nlu_model_versions, nlu_candidates, nlu_examples, agent_runs, agent_refusal_templates, agent_user_memory RESTART IDENTITY CASCADE"
+                " user_merchant_memory, kb_item_categories, ml_training_samples, ops_usage_daily, kb_audit_log, kb_keywords, kb_brands, nlu_model_versions, nlu_candidates, nlu_examples, agent_runs, agent_refusal_templates, agent_user_memory, agent_scope_cues RESTART IDENTITY CASCADE"
             )
         )
     yield

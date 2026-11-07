@@ -90,6 +90,7 @@ class Settings(BaseSettings):
 
     # AI Financial Agent (kế hoạch docs/superpowers/plans/2026-11-07-ai-financial-agent.md). Dùng chung GEMINI_API_KEY / OPENROUTER_API_KEY; không có khóa của nhà cung cấp đã chọn thì agent tắt.
     # Dữ liệu người dùng thật chỉ được đi qua gói Gemini TRẢ PHÍ (gói miễn phí dùng dữ liệu để cải thiện sản phẩm của Google).
+    seed_agent_scope: bool = True  # gieo cụm từ + câu từ chối mặc định của cổng phạm vi vào DB lúc khởi động (chỉ thêm, DB thắng)
     agent_provider: Literal["gemini", "openrouter"] = "gemini"
     agent_model: str = "gemini-3.1-flash-lite"  # mô hình của nhà cung cấp đã chọn; đổi mô hình = đổi biến này, chọn bằng bộ đánh giá agent_eval
     agent_timeout_seconds: float = 20.0  # trần cho MỘT lần gọi LLM của agent (từng pha mạng; thử lại 429/503 có trần riêng gấp đôi)

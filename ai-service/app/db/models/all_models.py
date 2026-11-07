@@ -5,7 +5,7 @@ Dự án không dùng ``__init__.py`` (namespace package) nên alembic và các 
 """
 
 from app.db.base import Base
-from app.db.models.agent import AgentRefusalTemplate, AgentRun, AgentUserMemory
+from app.db.models.agent import AgentRefusalTemplate, AgentRun, AgentScopeCue, AgentUserMemory
 from app.db.models.bill import (
     BillAiInstruction,
     BillBrand,
@@ -44,6 +44,7 @@ __all__ = [
     "Base",
     "AgentRefusalTemplate",
     "AgentRun",
+    "AgentScopeCue",
     "AgentUserMemory",
     "BillAiInstruction",
     "BillBrand",

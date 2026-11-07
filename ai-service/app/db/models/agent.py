@@ -6,7 +6,7 @@ người dùng xem/sửa/xóa được; khóa hợp lệ do code quy định (``
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy import text as sql_text  # cột AgentRefusalTemplate.text che mất tên `text` trong thân lớp
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -63,4 +63,25 @@ class AgentUserMemory(Base):
     __table_args__ = (CheckConstraint(f"user_id_hash {HASH_CHECK}", name="chk_agent_user_memory_user_hash"),)
 
 
-__all__ = ["AGENT_STEPS", "AgentRefusalTemplate", "AgentRun", "AgentUserMemory"]
+class AgentScopeCue(Base):
+    """Cụm từ của cổng phạm vi (``app/agent/gate.py``): ``forbidden`` (theo chủ đề: prompt_injection, other_users_data, investment_advice) hoặc ``in_scope`` (chủ đề ``finance``).
+
+    Lưu ĐÃ BỎ DẤU, chữ thường (cổng so khớp trên câu đã bỏ dấu). Admin thêm/tắt cụm qua DB, không cần đổi code; bản mặc định chỉ được gieo thêm, không bao giờ ghi đè."""
+
+    __tablename__ = "agent_scope_cues"
+
+    id: Mapped[uuid_pk]
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)
+    topic: Mapped[str] = mapped_column(String(32), nullable=False)
+    phrase: Mapped[str] = mapped_column(String(80), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("true"))
+    created_at: Mapped[created_at]
+
+    __table_args__ = (
+        UniqueConstraint("kind", "topic", "phrase", name="uq_agent_scope_cues_kind_topic_phrase"),
+        CheckConstraint("kind IN ('forbidden', 'in_scope')", name="chk_agent_scope_cues_kind"),
+        CheckConstraint("length(phrase) > 0 AND phrase = lower(btrim(phrase))", name="chk_agent_scope_cues_phrase"),
+    )
+
+
+__all__ = ["AGENT_STEPS", "AgentRefusalTemplate", "AgentRun", "AgentScopeCue", "AgentUserMemory"]

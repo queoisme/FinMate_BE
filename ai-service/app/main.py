@@ -7,7 +7,9 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from app.api.v1.agent import router as agent_router
 from app.api.v1.bill import router as bill_router
+from app.agent import gate as agent_gate
 from app.bill import slug_model
 from app.bill.rules_admin import RuleError
 from app.bill.seed_defaults import seed_bill_knowledge
@@ -77,6 +79,12 @@ async def lifespan(app: FastAPI):
     except Exception as error:  # noqa: BLE001
         logger.error("slug_model_startup_failed", error_type=type(error).__name__)
     await seed_config_documents()
+    try:  # cụm từ + câu từ chối mặc định của cổng phạm vi agent -> DB (chỉ thêm, DB thắng); lỗi thì cổng dùng bản mặc định trong image
+        if settings.seed_agent_scope:
+            async with AsyncSessionLocal() as session:
+                logger.info("agent_scope_seeded", **await agent_gate.seed_defaults(session))
+    except Exception as error:  # noqa: BLE001
+        logger.error("agent_scope_seed_failed", error_type=type(error).__name__)
     try:  # tài liệu cấu hình admin đã kích hoạt (từ vựng hiểu câu chat...): có thì áp dụng, DB trống hoặc lỗi thì dùng bản mặc định trong image
         logger.info("config_documents_loaded", applied=await config_runtime.refresh())
     except Exception as error:  # noqa: BLE001
@@ -126,6 +134,7 @@ app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(bill_router, prefix="/api/v1", tags=["bill"])
 app.include_router(finance_methods_router, prefix="/api/v1", tags=["finance-methods"])
+app.include_router(agent_router, prefix="/api/v1", tags=["agent"])
 app.include_router(rules_admin_router, prefix="/api/v1")
 app.include_router(config_admin_router, prefix="/api/v1")
 app.include_router(categories_admin_router, prefix="/api/v1")
