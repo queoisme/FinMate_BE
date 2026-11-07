@@ -108,6 +108,7 @@ public class Program
         {
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
+            StartupSecretGuard.ThrowIfEvalEnabled(builder.Configuration, builder.Environment.EnvironmentName);
         }
 
         // Luồng OAuth qua trình duyệt là TUỲ CHỌN và TÁCH RIÊNG khỏi POST /auth/google:
@@ -305,7 +306,10 @@ public class Program
         builder.Services.AddScoped<GetAssumptionsTool>();
 
         // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
-        builder.Services.AddScoped<IFinancialDataSource, RepositoryFinancialDataSource>();
+        builder.Services.AddScoped<RepositoryFinancialDataSource>();
+        builder.Services.AddScoped<SwitchableFinancialDataSource>();
+        builder.Services.AddScoped<IFinancialDataSource>(sp => sp.GetRequiredService<SwitchableFinancialDataSource>());
+        builder.Services.AddScoped<AgentRunOptions>();
         builder.Services.AddScoped<IncomeHistory>();
         builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();

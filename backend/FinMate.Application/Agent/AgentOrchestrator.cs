@@ -3,6 +3,12 @@ using FinMate.Application.Common.Interfaces;
 
 namespace FinMate.Application.Agent;
 
+/// <summary>Cắt bỏ từng thành phần khi đánh giá (đăng ký theo request; chỉ <c>AgentEvalController</c> đặt giá trị). Mặc định là chạy đủ.</summary>
+public sealed class AgentRunOptions
+{
+    public bool SkipVerifier { get; set; }
+}
+
 public interface IAgentOrchestrator
 {
     Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default);
@@ -31,7 +37,7 @@ public static class AgentMessages
 /// <item>ai-service sập sau khi đã có bằng chứng thì trả câu mẫu dựng từ bằng chứng, không 500; sập trước khi có bằng chứng thì 503.</item>
 /// </list>
 /// </summary>
-public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null) : IAgentOrchestrator
+public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null, AgentRunOptions? options = null) : IAgentOrchestrator
 {
     public async Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default)
     {
@@ -54,6 +60,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
             State: state is null ? null : new AgentPlanState(state.LastIntent, state.Slots),
             Memory: await ReadMemoryAsync(userId, ct));
         var plan = await ai.PlanAsync(request, ct);
+        trace.AddUsage(plan.Usage);
 
         var evidence = new List<Evidence>();
         var slots = new Dictionary<string, string>(state?.Slots ?? []);
@@ -69,6 +76,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
             foreach (var step in plan.Steps.Take(AgentLimits.MaxPlanSteps))
             {
                 var result = await tools.ExecuteAsync(context, step.Tool, step.Args, ct);
+                trace.Steps.Add((step.Tool, result.Status.ToString()));
                 switch (result.Status)
                 {
                     case ToolStatus.Ok:
@@ -90,6 +98,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
             }
 
             plan = await ai.PlanAsync(request with { Feedback = rejected }, ct);
+            trace.AddUsage(plan.Usage);
         }
 
         if (evidence.Count == 0)
@@ -121,7 +130,8 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         AgentComposeResult? composed = null;
         try
         {
-            composed = await ai.ComposeAsync(question, evidence, skipVerifier: false, ct);
+            composed = await ai.ComposeAsync(question, evidence, skipVerifier: options?.SkipVerifier ?? false, ct);
+            trace.AddUsage(composed.Usage);
         }
         catch (AIServiceUnavailableException)
         {
