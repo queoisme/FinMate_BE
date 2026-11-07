@@ -1,0 +1,52 @@
+"""Hợp đồng JSON backend ↔ ai-service của vòng agent (Task 9). Các tệp ở tests/fixtures/agent_wire dùng CHUNG với test C# ``AgentAiClientContractTests``:
+request là JSON backend sinh ra (ở đây phải parse được bằng đúng các model ``extra="forbid"``, không trường lạ); response là JSON model Python sinh ra (backend phải đọc được)."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, PlanRequest, PlanResponse
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "agent_wire"
+
+
+def load(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("name,model", [("gate_request.json", GateRequest), ("plan_request.json", PlanRequest), ("compose_request.json", ComposeRequest)])
+def test_the_backend_requests_are_accepted_by_the_models_without_unknown_fields(name, model):
+    parsed = model.model_validate(load(name))
+
+    assert parsed is not None
+
+
+@pytest.mark.parametrize("name,model", [("gate_response.json", GateResponse), ("plan_response.json", PlanResponse), ("compose_response.json", ComposeResponse)])
+def test_the_response_fixtures_are_exactly_what_the_models_produce(name, model):
+    fixture = load(name)
+
+    assert model.model_validate(fixture).model_dump(mode="json") == fixture
+
+
+def test_the_plan_request_carries_what_the_planner_needs():
+    request = PlanRequest.model_validate(load("plan_request.json"))
+
+    assert [t.name for t in request.tools] == ["forecast_goal", "get_assumptions"]
+    assert request.tools[0].args_schema["price_vnd"]["type"] == "int"
+    assert request.segment == "variable"
+    assert request.max_steps == 4
+    assert [(f.tool, f.code) for f in request.feedback] == [("forecast_goal", "invalid_argument:price_vnd")]
+
+
+def test_the_compose_request_keeps_money_as_integers_and_sources_as_wire_names():
+    request = ComposeRequest.model_validate(load("compose_request.json"))
+
+    assert request.evidence[0].value_vnd == 100_000_000 and request.evidence[0].source == "confirmed"
+    assert request.evidence[1].value_vnd is None and request.evidence[1].source_name == "Tổng cục Thống kê"
+    assert request.skip_verifier is False
+
+
+def test_no_wire_fixture_carries_a_user_identity():
+    for path in FIXTURES.glob("*.json"):
+        assert "user" not in path.read_text(encoding="utf-8").lower(), path.name

@@ -58,6 +58,13 @@ class PlanState(BaseModel):
     slots: dict[str, str] = Field(default_factory=dict)
 
 
+class PlanFeedback(BaseModel):
+    """Công cụ nào bị backend từ chối ở lần chạy trước và vì sao (mã cố định như ``invalid_argument:price_vnd``): bộ lập kế hoạch đọc để sửa tham số."""
+
+    tool: str = Field(min_length=1, max_length=48)
+    code: str = Field(min_length=1, max_length=64)
+
+
 class PlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")  # không có user_id: ai-service không bao giờ thấy id thật
 
@@ -67,6 +74,7 @@ class PlanRequest(BaseModel):
     max_steps: int = Field(default=4, ge=1, le=8)
     state: PlanState | None = None
     memory: list[MemoryItem] = Field(default_factory=list, max_length=16)
+    feedback: list[PlanFeedback] = Field(default_factory=list, max_length=8)
 
 
 class PlanStep(BaseModel):

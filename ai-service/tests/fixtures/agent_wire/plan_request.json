@@ -1,0 +1,45 @@
+{
+  "text": "Mua xe 600 triệu sau 2 năm được không?",
+  "segment": "variable",
+  "tools": [
+    {
+      "name": "forecast_goal",
+      "description": "Dự báo bao lâu nữa đủ tiền mua một món giá price_vnd, trong horizon_months tháng, theo ba kịch bản.",
+      "args_schema": {
+        "price_vnd": {
+          "type": "int",
+          "required": true,
+          "min": 1,
+          "max": 10000000000000
+        },
+        "horizon_months": {
+          "type": "int",
+          "required": true,
+          "min": 1,
+          "max": 600
+        },
+        "growth_key": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "get_assumptions",
+      "description": "Tra giả định kinh tế đã duyệt (nguồn, ngày số liệu) theo khóa.",
+      "args_schema": {
+        "key": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ],
+  "max_steps": 4,
+  "feedback": [
+    {
+      "tool": "forecast_goal",
+      "code": "invalid_argument:price_vnd"
+    }
+  ]
+}

@@ -303,6 +303,22 @@ public class Program
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
         builder.Services.AddScoped<GetAssumptionsTool>();
+
+        // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
+        builder.Services.AddScoped<IFinancialDataSource, RepositoryFinancialDataSource>();
+        builder.Services.AddScoped<IncomeHistory>();
+        builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
+        builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
+        builder.Services.AddScoped<ToolRegistry>();
+        builder.Services.AddScoped<ToolExecutor>();
+        builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        // Cổng phạm vi / lập kế hoạch / soạn câu của agent. Timeout 45 giây: lập kế hoạch và soạn câu mỗi lần gọi LLM (tối đa vài chục giây khi nhà cung cấp chậm, cộng lần sinh lại).
+        builder.Services.AddHttpClient<IAgentAiClient, AgentAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();

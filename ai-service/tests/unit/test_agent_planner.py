@@ -6,7 +6,7 @@ import pytest
 
 from app.agent.llm.provider import LlmFailed, LlmResult
 from app.agent.planner import make_plan
-from app.agent.schemas import MemoryItem, PlanRequest, PlanState, PlanTool
+from app.agent.schemas import MemoryItem, PlanFeedback, PlanRequest, PlanState, PlanTool
 
 TOOLS = [PlanTool(name="forecast_goal"), PlanTool(name="get_assumptions")]
 
@@ -120,6 +120,16 @@ async def test_the_question_travels_as_data_never_inside_the_instructions():
     assert sent["memory"] == [{"key": "preferred_method", "value": "phong bì"}]
     assert [t["name"] for t in sent["tools"]] == ["forecast_goal", "get_assumptions"]
     assert call["max"] == 512
+
+
+async def test_rejected_calls_of_the_previous_run_are_passed_back_as_errors():
+    provider = FakeProvider([step(price_vnd=600_000_000, horizon_months=24)])
+
+    await plan(provider, request(feedback=[PlanFeedback(tool="forecast_goal", code="invalid_argument:price_vnd")]))
+    await plan(provider)  # lần đầu không có lỗi nào: khóa previous_errors không xuất hiện
+
+    assert json.loads(provider.calls[0]["user"])["previous_errors"] == [{"tool": "forecast_goal", "code": "invalid_argument:price_vnd"}]
+    assert "previous_errors" not in json.loads(provider.calls[1]["user"])
 
 
 async def test_usage_of_the_llm_call_is_reported():

@@ -22,6 +22,7 @@ SYSTEM = (
     "- Chỉ dùng công cụ có trong danh sách `tools`. Không bịa tên công cụ. Tối đa `max_steps` bước.\n"
     "- Không tự tính, ước lượng hay đưa ra số tiền. Chỉ điền tham số lấy NGUYÊN từ câu hỏi hoặc ngữ cảnh (ví dụ '600 triệu' thành price_vnd = 600000000; '2 năm' thành horizon_months = 24).\n"
     "- Thiếu thông tin bắt buộc (ví dụ không nêu giá) thì để `steps` rỗng và viết MỘT câu hỏi lại ngắn bằng tiếng Việt vào `clarify`; ngược lại để `clarify` là chuỗi rỗng.\n"
+    "- Nếu có `previous_errors`: lần trước lời gọi công cụ bị từ chối vì tham số thiếu, sai kiểu hoặc ngoài khoảng (mã dạng `invalid_argument:price_vnd`). Sửa tham số đó rồi lập kế hoạch lại.\n"
     "- `args_json` là một chuỗi JSON của một object tham số. Chỉ trả JSON đúng schema, không thêm chữ nào khác."
 )
 
@@ -90,6 +91,7 @@ async def make_plan(provider: LlmProvider, request: PlanRequest, max_output_toke
             "memory": [m.model_dump() for m in request.memory],
             "tools": [t.model_dump() for t in request.tools],
             "max_steps": request.max_steps,
+            **({"previous_errors": [f.model_dump() for f in request.feedback]} if request.feedback else {}),
         },
         ensure_ascii=False,
     )
