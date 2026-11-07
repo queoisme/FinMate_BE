@@ -43,6 +43,12 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
 
     private sealed record WireDeleted(int Deleted);
 
+    private sealed record WireTicketMessage(string Role, string Text);
+
+    private sealed record TicketAssistBody(string Subject, string Body, List<WireTicketMessage> History);
+
+    private sealed record TicketAssistResponseBody(string Summary, string? SuggestedReply, bool Verified, WireUsage? Usage);
+
     private sealed record KbSearchBody(string Query, int K);
 
     private sealed record KbSearchResponse(List<WireEvidence> Evidence);
@@ -109,6 +115,12 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
     {
         var response = await PostAsync<KbSearchBody, KbSearchResponse>("api/v1/kb/search", new KbSearchBody(query, k), "kb_search", ct);
         return response.Evidence.Select(e => new Evidence(e.Id, e.Key, e.ValueVnd, e.Text, e.Unit, AgentEvidenceDto.ParseSource(e.Source), e.AsOf, e.Confidence, e.SourceName, e.SourceUrl)).ToList();
+    }
+
+    public async Task<FinMate.Application.Support.TicketAssistResult?> TicketAssistAsync(string subject, string body, IReadOnlyList<FinMate.Application.Support.TicketAssistMessage> history, CancellationToken ct = default)
+    {
+        var response = await PostAsync<TicketAssistBody, TicketAssistResponseBody>("api/v1/agent/ticket-assist", new TicketAssistBody(subject, body, history.Select(h => new WireTicketMessage(h.Role, h.Text)).ToList()), "ticket_assist", ct);
+        return new FinMate.Application.Support.TicketAssistResult(response.Summary, response.SuggestedReply, response.Verified, Usage(response.Usage));
     }
 
     public async Task RecordUnansweredAsync(string question, CancellationToken ct = default)

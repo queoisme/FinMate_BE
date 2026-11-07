@@ -315,6 +315,8 @@ public class Program
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<RecurringItemService>();
+        builder.Services.AddScoped<ISupportTicketRepository, SupportTicketRepository>();
+        builder.Services.AddScoped<FinMate.Application.Support.SupportTicketService>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
         builder.Services.AddScoped<GetAssumptionsTool>();
 

@@ -251,4 +251,19 @@ public class AgentAiClientContractTests
         AssertRequestMatchesFixture(handler.Body!, "kb_candidate_request.json");
         handler.Body!.ToLowerInvariant().Should().NotContain("user");
     }
+
+    [Fact]
+    public async Task ticket_assist_request_and_response_match_the_shared_fixtures()
+    {
+        var handler = new StubHandler("ticket_assist_response.json");
+
+        var result = await Client(handler).TicketAssistAsync("Bị trừ tiền hai lần", "Mình bị trừ 150.000 đồng hai lần cho cùng một đơn.", [new FinMate.Application.Support.TicketAssistMessage("staff", "Bạn gửi giúp mình mã đơn nhé.")]);
+
+        handler.Path.Should().Be("/api/v1/agent/ticket-assist");
+        AssertRequestMatchesFixture(handler.Body!, "ticket_assist_request.json");
+        handler.Body!.ToLowerInvariant().Should().NotContain("user_id");
+        result!.Verified.Should().BeTrue();
+        result.SuggestedReply.Should().StartWith("Mình đã ghi nhận");
+        result.Usage.Should().Be(new AgentUsage(300, 60, "gemini", "gemini-3.1-flash-lite"));
+    }
 }
