@@ -18,6 +18,7 @@ from app.agent.trace import TraceInfo, get_trace
 from app.agent.llm.provider import LlmFailed, LlmProvider, build_provider
 from app.agent.planner import make_plan
 from app.agent.composer import compose
+from app.agent.ticket_assist import TicketAssistRequest, TicketAssistResponse, assist
 from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, MemoryDeleted, MemoryEntry, MemoryPutRequest, PlanRequest, PlanResponse
 from app.api.deps import get_db, verify_internal_api_key
 from app.core.config import settings
@@ -128,3 +129,14 @@ async def agent_plan(
     logger.info("agent_plan", steps=len(plan.steps), clarify=plan.clarify is not None, input_tokens=plan.usage.input_tokens, output_tokens=plan.usage.output_tokens)
     await agent_trace.record(session, trace, "plan", _ms(started), "clarify" if plan.clarify else "ok", plan.usage.input_tokens, plan.usage.output_tokens)
     return plan
+
+
+@router.post("/agent/ticket-assist", response_model=TicketAssistResponse)
+async def agent_ticket_assist(body: TicketAssistRequest, provider: Annotated[LlmProvider, Depends(get_agent_provider)]) -> TicketAssistResponse:
+    """Tóm tắt khiếu nại và GỢI Ý câu trả lời cho nhân sự hỗ trợ. Không gửi gì ra ngoài, không ghi nội dung vào log. LLM hỏng → 503 và khiếu nại vẫn xử lý được không cần trợ lý."""
+    try:
+        result = await assist(provider, body, settings.agent_max_output_tokens)
+    except LlmFailed as error:
+        raise HTTPException(status_code=503, detail={"code": "llm_unavailable", "reason": str(error.args[0]) if error.args else "unknown"}) from error
+    logger.info("agent_ticket_assist", verified=result.verified)
+    return result

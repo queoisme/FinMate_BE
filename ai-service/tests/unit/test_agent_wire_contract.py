@@ -75,3 +75,12 @@ def test_the_knowledge_requests_and_responses_match_the_models():
     assert evidence[0].source == "document" and evidence[0].value_vnd is None and evidence[0].source_name == "Sổ tay FinMate"
     assert [e.model_dump(mode="json") for e in evidence] == [{**e, "as_of": e["as_of"].replace("Z", "Z")} for e in response["evidence"]]
     assert load("kb_candidate_response.json") == {"recorded": True}
+
+
+def test_the_ticket_assist_request_and_response_match_the_models():
+    from app.agent.ticket_assist import TicketAssistRequest, TicketAssistResponse
+
+    request = TicketAssistRequest.model_validate(load("ticket_assist_request.json"))
+    assert request.history[0].role == "staff"
+    response = load("ticket_assist_response.json")
+    assert TicketAssistResponse.model_validate(response).model_dump(mode="json") == response
