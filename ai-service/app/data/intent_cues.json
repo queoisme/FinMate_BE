@@ -230,6 +230,19 @@
     ],
     "not_item_words": [
       "khác"
+    ],
+    "purchase_buy_words": ["mua", "sắm", "tậu", "rinh", "đặt mua", "chốt đơn", "order"],
+    "purchase_ask_strong_phrases": [
+      "được không", "được ko", "được hông", "được chứ", "ổn không", "ổn ko", "ổn chứ", "có sao không", "có sao ko",
+      "đủ tiền", "đủ không", "đủ ko", "hợp lý không", "an toàn không"
+    ],
+    "purchase_ask_weak_phrases": ["có nên", "nên", "liệu"],
+    "purchase_choice_words": ["nào", "gì", "dưới", "trên", "tối đa", "tối thiểu", "không quá"],
+    "purchase_when_lead": ["đợi", "chờ", "đến", "tới", "vào", "lúc", "đúng"],
+    "purchase_stopwords": [
+      "tôi", "mình", "tui", "em", "mua", "sắm", "tậu", "rinh", "cái", "chiếc", "một", "này", "kia", "giá", "tầm", "khoảng", "chừng", "với", "là", "hết",
+      "tốn", "thì", "nhé", "nha", "nhỉ", "ạ", "ơi", "vậy", "xem", "thử", "hỏi", "giúp", "định", "muốn", "sẽ", "đang", "có", "không", "ko", "hông",
+      "được", "chứ", "nên", "liệu"
     ]
   },
   "fragments": {
@@ -534,6 +547,36 @@
       "on": "folded",
       "regex": "(?<![a-z])(?:thang truoc|tuan truoc|nam truoc|hom qua|hom kia)(?![a-z])",
       "doc": "Mốc thời gian đã qua ('tháng trước', 'hôm qua'): hạn mục tiêu phải ở tương lai nên bị từ chối. Khớp trên câu đã bỏ dấu."
+    },
+    "purchase_buy": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<purchase_buy_words>>)(?![a-z])",
+      "doc": "Động từ MUA/SẮM: câu hỏi 'có ổn không' chỉ là hỏi khoản mua khi có động từ này (purchase_parser.py). Khớp trên câu đã bỏ dấu nên 'mưa' cũng khớp: chấp nhận vì còn đòi số tiền và câu hỏi."
+    },
+    "purchase_ask_strong": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<purchase_ask_strong_phrases>>)(?![a-z])",
+      "doc": "Hỏi KHẢ NĂNG CHI ('được không', 'ổn không', 'đủ tiền'): đủ để hỏi lại giá nếu câu thiếu số tiền. Không dùng 'mua nổi'/'chịu nổi': bỏ dấu thì 'mua nổi' trùng 'mua nồi'. Cố ý KHÔNG có 'đáng mua không' (hỏi giá trị món đồ, không phải túi tiền) nên 'iphone 20 triệu có đáng mua không' vẫn ngoài phạm vi."
+    },
+    "purchase_ask_weak": {
+      "on": "accented",
+      "regex": "(?i)(?<!\\w)(?:<<purchase_ask_weak_phrases>>)(?!\\w)",
+      "doc": "Cách hỏi xin LỜI KHUYÊN ('có nên', 'nên', 'liệu'): chỉ tính khi có số tiền, kẻo 'nên mua nhà hay thuê nhà' bị hỏi lại số tiền. Khớp trên câu CÓ dấu vì bỏ dấu thì 'nên' trùng 'nến'/'nền' ('mua nến thơm 200k' là khoản chi); gõ không dấu thì chỉ các cách hỏi khả năng chi (purchase_ask_strong) còn nhận."
+    },
+    "purchase_choice": {
+      "on": "accented",
+      "regex": "(?i)(?<!\\w)(?:<<purchase_choice_words>>)(?!\\w)",
+      "doc": "Hỏi CHỌN món ('mua laptop NÀO dưới 20 triệu', 'nên mua GÌ trên 5 triệu'): số tiền ở đây là hạn mức tìm món, không phải giá một khoản định mua. Chỉ chặn khi câu chỉ có cách hỏi xin lời khuyên (purchase_ask_weak), không có 'được không/ổn không'. Khớp trên câu CÓ dấu."
+    },
+    "purchase_when": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d/])(?:(?:<<purchase_when_lead>>)\\s+)*(?:(?P<today>hom nay)|(?P<tomorrow>ngay mai|(?:sang|trua|chieu|toi) mai|^mai(?![a-z]))|(?P<after>ngay kia)|ngay\\s+(?P<day>\\d{1,2})(?:(?:\\s*/\\s*|\\s+thang\\s+)(?P<month>\\d{1,2}))?(?:/\\d{2,4})?)(?![a-z\\d/])",
+      "doc": "Ngày định mua, TỪ HÔM NAY TRỞ ĐI: hôm nay, ngày mai, ngày kia, 'ngày 16', 'ngày 16/11', 'ngày 16 tháng 11', kèm chữ dẫn ('đợi tới ngày 16'). Số ngày bắt buộc có chữ 'ngày' (như dates.py: '20/10' trần là khuyến mãi). 'mai' trần chỉ nhận ở đầu câu vì 'cây mai' là một thứ để mua. Giữ nguyên tên nhóm today, tomorrow, after, day, month. Khớp trên câu đã bỏ dấu."
+    },
+    "purchase_past": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:hom qua|hom kia|tuan truoc|thang truoc|nam truoc|(?:da|vua) (?:mua|sam)|mua roi)(?![a-z])",
+      "doc": "Mốc đã qua hoặc khoản đã mua ('hôm qua', 'vừa mua'): đánh giá chỉ dành cho khoản ĐỊNH mua, nên bị từ chối kèm hướng dẫn ghi chi tiêu. Khớp trên câu đã bỏ dấu."
     }
   },
   "phrases": {
@@ -702,6 +745,10 @@
     "goal_ask_amount": "Bạn muốn tiết kiệm bao nhiêu? Ví dụ: \"đặt mục tiêu tiết kiệm 20 triệu trong 2 tháng nữa\".",
     "goal_needs_unit": "Bạn nhắn kèm đơn vị cho số tiền nhé, ví dụ \"20 triệu\".",
     "goal_past_deadline": "Hạn phải ở tương lai nhé. Bạn thử lại, ví dụ \"trong 2 tháng nữa\" hoặc \"trước 30/12\".",
-    "goal_default_name": "Mục tiêu tiết kiệm"
+    "goal_default_name": "Mục tiêu tiết kiệm",
+    "purchase": "Mình hiểu khoản định mua của bạn như thế này. Bạn kiểm tra rồi bấm Đánh giá nhé, mình không ghi khoản này vào chi tiêu.",
+    "purchase_needs_unit": "Bạn nhắn kèm đơn vị cho giá nhé, ví dụ \"800k\" hoặc \"2 triệu\".",
+    "purchase_bad_date": "Mình chưa hiểu ngày mua. Bạn thử \"hôm nay\", \"ngày mai\" hoặc \"ngày 16\" nhé.",
+    "purchase_past": "Mình chỉ đánh giá khoản định mua từ hôm nay trở đi. Khoản đã mua thì bạn nhắn kiểu \"mua quần 800k\" để mình ghi chi tiêu nhé."
   }
 }

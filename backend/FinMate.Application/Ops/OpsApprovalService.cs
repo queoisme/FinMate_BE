@@ -1,7 +1,9 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Common.Models;
 using FinMate.Application.Groups;
 using FinMate.Application.Support;
 using FinMate.Domain.Entities;
@@ -48,7 +50,7 @@ public interface IOpsApprovalService
     Task<OpsApprovalDto> ProposeAsync(Guid actorId, ProposeApprovalCommand command, string? ip, CancellationToken ct = default);
 
     /// <summary>Người duyệt thấy tất cả; người chỉ có quyền đề xuất chỉ thấy đề xuất của mình.</summary>
-    Task<IReadOnlyList<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, CancellationToken ct = default);
+    Task<PagedResult<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, string? search, int offset, int limit, CancellationToken ct = default);
     Task<OpsApprovalDto> ApproveAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default);
     Task<OpsApprovalDto> RejectAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default);
 }
@@ -57,7 +59,6 @@ public sealed class OpsApprovalService : IOpsApprovalService
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
     private const int MaxReasonLength = 1000;
-    private const int MaxListSize = 200;
 
     private readonly IOpsRepository _ops;
     private readonly IOpsAccessService _access;
@@ -106,7 +107,7 @@ public sealed class OpsApprovalService : IOpsApprovalService
         {
             var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
             if (ticket.RequesterUserId == actor.Id
-                || (ticket.AssigneeUserId != actor.Id && !OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets)))
+                || (ticket.AssigneeUserId != actor.Id && !await _access.HasAsync(actor.Role, OpsCapability.ManageTickets, ct)))
             {
                 throw new ForbiddenException("Bạn không phụ trách yêu cầu này.");
             }
@@ -152,12 +153,14 @@ public sealed class OpsApprovalService : IOpsApprovalService
         return ToDto(approval, now);
     }
 
-    public async Task<IReadOnlyList<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, CancellationToken ct = default)
+    public async Task<PagedResult<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, string? search, int offset, int limit, CancellationToken ct = default)
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.ProposeApprovals, ct);
-        var requestedBy = OpsPermissions.For(actor.Role).HasFlag(OpsCapability.DecideApprovals) ? (Guid?)null : actor.Id;
+        var requestedBy = await _access.HasAsync(actor.Role, OpsCapability.DecideApprovals, ct) ? (Guid?)null : actor.Id;
         var now = DateTimeOffset.UtcNow;
-        return (await _ops.ListApprovalsAsync(status, requestedBy, MaxListSize, ct)).Select(a => ToDto(a, now)).ToList();
+        var (skip, take) = AdminPaging.Normalize(offset, limit);
+        var (items, total) = await _ops.ListApprovalsAsync(status, requestedBy, search, skip, take, ct);
+        return new PagedResult<OpsApprovalDto>(items.Select(a => ToDto(a, now)).ToList(), total, skip, take);
     }
 
     public async Task<OpsApprovalDto> ApproveAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default)

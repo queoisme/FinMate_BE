@@ -6,7 +6,7 @@ Số tiền là đồng VND (``amount_cents`` theo quy ước của repo), slug 
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -91,6 +91,18 @@ class ChatGoal(BaseModel):
     deadline_text: str | None = None
 
 
+class ChatPurchase(BaseModel):
+    """Khoản ĐỊNH mua (intent ``evaluate_purchase``). Không phải giao dịch và AI không đưa kết luận: app gửi các trường này tới ``POST /forecast/purchase-check``."""
+
+    # Tên món người dùng nói; None khi câu không nói (backend dùng nhãn mặc định). Tối đa 60 ký tự.
+    item: str | None = None
+    amount_cents: int  # đồng VND
+    # Ngày định mua theo giờ Việt Nam, từ hôm nay trở đi ("YYYY-MM-DD"); None = không nói (backend hiểu là hôm nay).
+    purchase_date: date | None = None
+    # Slug backend đoán từ tên món (thuộc CATEGORY_SLUGS); None = chưa rõ.
+    category_slug: str | None = None
+
+
 class ChatNlu(BaseModel):
     source: str  # rasa | rules
     intent: str | None = None
@@ -99,7 +111,7 @@ class ChatNlu(BaseModel):
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | needs_period | create_goal | empty  (create_goal không có ``goal`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | needs_period | create_goal | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None
@@ -112,6 +124,7 @@ class ChatParseResponse(BaseModel):
     # Vế không có số tiền trong câu nhiều khoản ("... và cà phê"): không thành khoản, để app hỏi lại.
     skipped: list[str] = Field(default_factory=list)
     goal: ChatGoal | None = None
+    purchase: ChatPurchase | None = None
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.
     unclear_reason: str | None = None

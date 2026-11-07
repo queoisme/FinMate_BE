@@ -24,7 +24,7 @@ public class OpsMeController : OpsControllerBase
             user.Email,
             user.DisplayName,
             user.Role.ToString(),
-            OpsPermissions.Names(OpsPermissions.For(user.Role)))));
+            OpsPermissions.Names(await _access.CapabilitiesAsync(user.Role, ct)))));
     }
 }
 

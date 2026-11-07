@@ -797,6 +797,7 @@
 | Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
 | Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
+| Phase 71 — Đánh giá khoản mua "Mua món này có ổn không?" | `[ ]` | 6 / 7 *(còn: app Flutter)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1398,3 +1399,15 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Migration `AddReceiptScanOcrEngine`; `/analyze-bill` trả thêm `engine`; `GET /ops/monitoring/ocr`.
 - [x] Test: `MonitoringProvidersTests`, `tests/test_internal_status.py` của `ocr-service`, `tests/unit/test_internal_status.py` của `ai-service`.
 - [ ] Đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready`: backend hoặc Postgres sập thì hệ thống không tự báo được.
+
+## Phase 71 — Đánh giá khoản mua "Mua món này có ổn không?" (2026-11-07)
+Đặc tả: `docs/flows/flow-6-purchase-decision-assistant.md` (§13 ghi phần đã làm); yêu cầu FR-FCST-17. Lớp mỏng trên engine dự báo Phase 54–56: **không đổi schema, không migration**. Trong code gọi là *purchase check* để không trùng "Flow 6" của dự báo.
+- [x] Cấu hình admin `forecast.purchaseDefaultHorizonDays` (14) và `purchaseStaleBalanceDays` (7) + validator; mã lỗi `PURCHASE_CHECK_INVALID`.
+- [x] `PurchaseVerdict` (hàm thuần): kỳ tính tới kỳ thu nhập kế tiếp sau ngày mua, bốn kiểm tra, giá tối đa mua được, ngày mua sớm nhất an toàn, câu kết luận mẫu. `PurchaseVerdictTests` gồm ví dụ −500.000đ của đặc tả.
+- [x] `PurchaseCheckService` + `POST /forecast/purchase-check` (chạy engine hai lần: không mua / có khoản mua; ngân sách qua `IBudgetForecastService`, kế hoạch tháng qua `IGoalPlanningService`; nhận `categorySlug`). `PurchaseCheckControllerTests` (401, ví dụ lương/tiền nhà, bảng giải thích, không đổi số dư, ví người khác 404, input sai 422, ngân sách vượt, chưa có ngân sách/thu nhập = chưa rõ).
+- [x] Hợp đồng chat BE: `ChatParsePurchase`/`purchase` ở `ChatParseResponse`, `ChatActions.Purchase`, `ChatPurchaseDraftDto`; `ChatCommandHandler` chỉ trả tham số, không tạo giao dịch. Test `APurchaseQuestionReturnsOnlyTheParametersAndCreatesNothing`.
+- [x] Tài liệu: đặc tả chép vào `docs/flows/`, REQUIREMENTS §6.5 (FR-FCST-17).
+- [x] AI service: ý định `evaluate_purchase` + `purchase_parser.py` (từ khóa chỉ trong `intent_cues.json`; `audit_overrides --strict` sạch: cứu 35, làm hỏng 2 ca "mua bitcoin bây giờ được không" nay là `needs_amount` thay vì `out_of_scope`); JSON mẫu sinh từ `model_dump_json()` đã ghim trong `ChatParseContractTests`; hợp đồng ghi ở `ARCHITECTURE.md` §3.3 (**cần chủ dự án duyệt** theo `AGENTS.md`). Chưa nhận: thứ trong tuần, "tuần sau", "cuối tháng".
+- [ ] Báo nhóm Flutter: `POST /forecast/purchase-check`, `ChatActions.Purchase`, thẻ đánh giá và nút "Thử một khoản mua".
+- [x] Rasa: ý định `evaluate_purchase` trong `domain.yml` + 347 câu (`seed/nlu_purchase.jsonl`, generator `rasa/tools/generate_purchase.py`), luật bỏ phiếu của Rasa khi không có bản nháp (`PURCHASE_INTENT` trong `transaction_parser.py`), test canh dữ liệu cập nhật. Huấn luyện 3 seed `finmate-nlu-v17-s1..s3` trên DB tạm: cổng promote **chặn cả ba** (sau luật 98,02 / 97,44 / 98,26 so với v11 98,37; seed 3 còn tụt `nlu_test_fresh2` 1 câu). Chưa nhập dữ liệu vào DB dev, chưa promote; số đo ở `docs/rasa-coverage-report.md` §6.
+- Giới hạn đã biết: độ mới số dư lấy từ `financial_accounts.updated_at` (chưa có `balance_updated_at`); người dùng mới luôn ở mức `partial` tới khi đủ `minHistoryDays` ngày dữ liệu; chưa hỗ trợ trả góp; M4 và diễn giải bằng AI chưa làm.

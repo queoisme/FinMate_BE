@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -84,6 +85,13 @@ public class SupportRepository : ISupportRepository
                 t.Status != SupportTicketStatus.Resolved
                 && t.Status != SupportTicketStatus.Closed
                 && (t.ResolveDueAt < now || (t.FirstRespondedAt == null && t.FirstResponseDueAt < now)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = $"%{AdminPaging.EscapeLike(filter.Search.Trim())}%";
+            query = query.Where(t => EF.Functions.ILike(t.Subject, pattern, "\\")
+                || _context.Users.IgnoreQueryFilters().Any(u => u.Id == t.RequesterUserId && EF.Functions.ILike(u.DisplayName, pattern, "\\")));
         }
 
         var total = await query.CountAsync(ct);

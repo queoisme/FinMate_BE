@@ -2445,6 +2445,70 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.Role", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_system");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("roles", (string)null);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RolePermission", b =>
+                {
+                    b.Property<int>("Role")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<long>("Capabilities")
+                        .HasColumnType("bigint")
+                        .HasColumnName("capabilities");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Role");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("role_permissions", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3553,12 +3617,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("quiet_hours_start_minute");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("role");
-
                     b.Property<DateTimeOffset?>("SurveyAiConsentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("survey_ai_consent_at");
@@ -3611,8 +3669,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
                             t.HasCheckConstraint("chk_users_quiet_hours", "(quiet_hours_start_minute IS NULL AND quiet_hours_end_minute IS NULL) OR (quiet_hours_start_minute BETWEEN 0 AND 1439 AND quiet_hours_end_minute BETWEEN 0 AND 1439)");
-
-                            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','staff','opsmanager')");
 
                             t.HasCheckConstraint("chk_users_survey_ai_consent", "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
                         });
@@ -3715,6 +3771,33 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_user_methods_status", "status IN ('active','ended')");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserRoleAssignment", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid?>("AssignedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_by_user_id");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("user_roles", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
@@ -4238,6 +4321,20 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RolePermission", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Role", null)
+                        .WithMany()
+                        .HasForeignKey("Role")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -4533,6 +4630,26 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.UserRoleAssignment", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithOne("RoleAssignment")
+                        .HasForeignKey("FinMate.Domain.Entities.UserRoleAssignment", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -4562,6 +4679,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("FinancialAccounts");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("RoleAssignment");
                 });
 #pragma warning restore 612, 618
         }

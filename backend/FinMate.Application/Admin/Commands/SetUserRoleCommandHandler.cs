@@ -68,7 +68,7 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
         }
 
         var previousRole = user.Role;
-        user.Role = command.Role;
+        user.AssignRole(command.Role, command.AdminId);   // ghi lại ai cấp (user_roles.assigned_by_user_id)
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 

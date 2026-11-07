@@ -27,16 +27,20 @@ public class OpsApprovalsController : OpsControllerBase
             ct)));
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] OpsApprovalStatus? status, CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<OpsApprovalDto>>.Ok(await _approvals.ListAsync(CurrentActorId, status, ct)));
+    public async Task<IActionResult> List(
+        [FromQuery] OpsApprovalStatus? status, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
+    {
+        var page = await _approvals.ListAsync(CurrentActorId, status, search, offset, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<OpsApprovalDto>>.Ok(page.Items, page.ToMeta()));
+    }
 
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> Approve(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] OpsApprovalDecisionRequest? request, CancellationToken ct)
         => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.ApproveAsync(CurrentActorId, id, request?.Note, CurrentIpAddress, ct)));
 
     [HttpPost("{id:guid}/reject")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> Reject(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] OpsApprovalDecisionRequest? request, CancellationToken ct)
         => Ok(ApiResponse<OpsApprovalDto>.Ok(await _approvals.RejectAsync(CurrentActorId, id, request?.Note, CurrentIpAddress, ct)));
 }
@@ -76,41 +80,46 @@ public class OpsManagerController : OpsControllerBase
     }
 
     [HttpGet("dashboard")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> Dashboard(CancellationToken ct)
         => Ok(ApiResponse<OpsDashboardDto>.Ok(await _manager.GetDashboardAsync(CurrentActorId, ct)));
 
     /// <summary>Mọi vai trò nội bộ đọc được để dùng khi trả lời khách.</summary>
     [HttpGet("canned-replies")]
-    public async Task<IActionResult> ListCannedReplies([FromQuery] bool includeInactive = false, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<CannedReplyDto>>.Ok(await _manager.ListCannedRepliesAsync(CurrentActorId, includeInactive, ct)));
+    public async Task<IActionResult> ListCannedReplies(
+        [FromQuery] bool includeInactive = false, [FromQuery] string? search = null, [FromQuery] int offset = 0, [FromQuery] int limit = 0, CancellationToken ct = default)
+    {
+        var page = await _manager.ListCannedRepliesAsync(CurrentActorId, includeInactive, search, offset, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<CannedReplyDto>>.Ok(page.Items, page.ToMeta()));
+    }
 
     [HttpPost("canned-replies")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> CreateCannedReply([FromBody] OpsCannedReplyRequest request, CancellationToken ct)
         => Ok(ApiResponse<CannedReplyDto>.Ok(await _manager.CreateCannedReplyAsync(CurrentActorId, request.Title, request.Body, CurrentIpAddress, ct)));
 
     [HttpPatch("canned-replies/{id:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> UpdateCannedReply(Guid id, [FromBody] OpsCannedReplyPatchRequest request, CancellationToken ct)
         => Ok(ApiResponse<CannedReplyDto>.Ok(await _manager.UpdateCannedReplyAsync(CurrentActorId, id, request.Title, request.Body, request.IsActive, CurrentIpAddress, ct)));
 
     [HttpGet("audit-logs")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> AuditLogs(
         [FromQuery] string? eventType,
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] string? cursor,
         [FromQuery] int limit = 50,
+        [FromQuery] string? search = null,
         CancellationToken ct = default)
     {
-        var page = await _manager.GetAuditLogsAsync(CurrentActorId, eventType, from, to, cursor, limit, ct);
+        var page = await _manager.GetAuditLogsAsync(CurrentActorId, eventType, from, to, cursor, limit, search, ct);
         return Ok(ApiResponse<AuditLogListDto>.Ok(page));
     }
 
     [HttpGet("ai-stats")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> AiStats([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken ct)
         => Ok(ApiResponse<AiStatsDto>.Ok(await _manager.GetAiStatsAsync(CurrentActorId, from, to, ct)));
 }

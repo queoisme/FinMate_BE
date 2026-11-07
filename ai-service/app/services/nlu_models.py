@@ -18,7 +18,7 @@ from pathlib import Path
 
 import httpx
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bill.rules_admin import RuleError
@@ -120,14 +120,20 @@ async def _active_row(session: AsyncSession) -> NluModelVersion | None:
     return await session.scalar(select(NluModelVersion).where(NluModelVersion.status == NluModelStatus.ACTIVE.value))
 
 
-async def overview(session: AsyncSession) -> dict:
-    """Mọi phiên bản trong sổ (mới nhất trước), bản đang chạy theo sổ và theo Rasa, tiến trình kích hoạt, và mỗi bản (trừ bản đang chạy) có qua cổng đo để thay bản đang chạy không."""
-    rows = (await session.scalars(select(NluModelVersion).order_by(NluModelVersion.created_at.desc()))).all()
-    active = next((r for r in rows if r.status == NluModelStatus.ACTIVE.value), None)
+async def overview(session: AsyncSession, *, limit: int | None = None, offset: int = 0) -> dict:
+    """Các phiên bản trong sổ (mới nhất trước), bản đang chạy theo sổ và theo Rasa, tiến trình kích hoạt, và mỗi bản (trừ bản đang chạy) có qua cổng đo để thay bản đang chạy không.
+    ``limit`` None = hết (test/script); API luôn truyền limit. Bản đang chạy lấy riêng nên vẫn đúng khi nó nằm ngoài trang."""
+    query = select(NluModelVersion).order_by(NluModelVersion.created_at.desc(), NluModelVersion.version)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+    rows = (await session.scalars(query)).all()
+    total = await session.scalar(select(func.count()).select_from(NluModelVersion)) or 0
+    active = await _active_row(session)
     running = await _running_model_file()
     return {
         "active_version": active.version if active else None, "running_model_file": running, "in_sync": _in_sync(active, running),
         "activation": current_job(), "can_activate": bool(settings.rasa_url and settings.rasa_models_dir), "items": [_item(r, active) for r in rows],
+        "total": total, "limit": limit if limit is not None else total, "offset": offset,
     }
 
 

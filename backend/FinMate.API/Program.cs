@@ -359,6 +359,8 @@ public class Program
         // Dự báo tài chính (Flow 6, đợt 1).
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+        builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+        builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
         builder.Services.AddScoped<IIncidentService, IncidentService>();
@@ -408,6 +410,7 @@ public class Program
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
         builder.Services.AddScoped<IForecastService, ForecastService>();
+        builder.Services.AddScoped<IPurchaseCheckService, PurchaseCheckService>();
         builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
@@ -464,6 +467,7 @@ public class Program
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();
         builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
@@ -583,6 +587,12 @@ public class Program
 
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.RolePermissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            if (builder.Environment.IsDevelopment())
+            {
+                // Tài khoản Staff/OpsManager để thử web vận hành; mật khẩu bỏ qua chính sách đăng ký nên KHÔNG bao giờ chạy ngoài Development.
+                FinMate.Infrastructure.Persistence.Seed.DevOpsAccountSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            }
             FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.SeedAsync(db).GetAwaiter().GetResult();
             var danglingProviderKeys = FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.FindDanglingProviderKeysAsync(db).GetAwaiter().GetResult();

@@ -13,7 +13,8 @@ public record UserListFilter(
     bool? IsLocked,
     bool IncludeDeleted,
     string? Cursor,
-    int Limit);
+    int Limit,
+    bool InternalOnly = false);   // chỉ tài khoản có vai trò nội bộ (khác User): đội ngũ ở trang Phân quyền
 
 public record UserListResult(IReadOnlyList<User> Items, string? NextCursor);
 

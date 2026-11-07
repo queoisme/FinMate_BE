@@ -770,6 +770,9 @@ Authorization: Bearer {INTERNAL_API_KEY}
 - `query`: `metric` ∈ `expense | income | balance`, `period_key`/`period_label` (mặc định "tháng này"), `start`/`end` nửa mở `[start, end)`
   theo giờ Việt Nam; `category_slug` chỉ khi `metric = expense`. Tổng do **backend** tính.
 - `nlu.source` ∈ `rasa | rules`; `unclear_reason` ∈ `low_confidence | disagree | not_understood | null` (chưa lưu ở đâu).
+- `purchase` (thêm 2026-11-07, ý định `evaluate_purchase` — "Hôm nay mua cái quần 800.000đ được không?"): `{ item: string|null (≤ 60 ký tự), amount_cents: int > 0 (VND, không chia 100), purchase_date: "YYYY-MM-DD"|null (giờ VN, hôm nay trở đi; null = hôm nay), category_slug: slug backend|null }`.
+  Mọi intent khác trả `purchase: null`. Chỉ nhận diện và rút tham số bằng luật (`app/services/purchase_parser.py`, từ khóa trong `intent_cues.json`); **AI không tính số dư hay đưa kết luận**. Thiếu giá → `intent = needs_amount`;
+  ngày quá khứ/không hợp lệ hoặc giá thiếu đơn vị → vẫn `evaluate_purchase`, `purchase = null`, `reply_text` là câu hỏi lại. Backend (`ChatActions.Purchase`) chỉ chuyển tham số; app gọi `POST /forecast/purchase-check` để có đánh giá do backend tính (`docs/flows/flow-6-purchase-decision-assistant.md` §13).
 
 **Phân loại cả bill (Backend → AI Service) — thêm Phase 21, ghi vào tài liệu 2026-10-11:**
 ```json

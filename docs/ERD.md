@@ -197,7 +197,9 @@ erDiagram
 | **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. |
 | **Transaction** | `transactions` | ✓ | Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). Nguồn: thông báo, nhập tay, giọng nói, hóa đơn, chat…; trạng thái nháp / đã xác nhận; `client_request_id` chống gửi lại; cờ loại khỏi dữ liệu dự báo. |
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
-| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, vai trò, khóa tài khoản, xóa mềm; các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled` là value object `NotificationPreferences` nằm chung bảng. |
+| **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). |
+| **UserRoleAssignment** | `user_roles` | ✓ (PK) | Vai trò đang gán cho mỗi người: PK là `user_id` nên mỗi người đúng một vai trò; `role_id` → `roles`; `assigned_by_user_id` ghi Admin đã cấp. Xóa user kéo theo hàng này (cascade). `role_permissions.role_id` cũng trỏ tới `roles`. |
+| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, khóa tài khoản, xóa mềm (vai trò nằm ở `user_roles`); các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled` là value object `NotificationPreferences` nằm chung bảng. |
 | **UserMethod** | `user_methods` | ✓ | Phương pháp người dùng đang / đã dùng (vai trò chính / hỗ trợ, tham số riêng). |
 | **UserSurveyAnswer** | `user_survey_answers` | ✓ | Câu trả lời của người dùng, theo mã câu hỏi / mã lựa chọn. |
 | **VietQrBank** | `vietqr_banks` |  | Danh bạ ngân hàng VietQR, khóa tự nhiên là BIN 6 số. |
@@ -332,7 +334,6 @@ erDiagram
         varchar(320) email UK
         text password_hash "nullable"
         varchar(200) display_name
-        varchar(20) role
         boolean push_enabled
         boolean budget_alerts_enabled
         boolean is_locked

@@ -99,7 +99,7 @@ public class MonitoringRepository : IMonitoringRepository
 
     public Task<List<AlertRecipient>> ListAlertRecipientsAsync(bool includeManagers, CancellationToken ct = default)
         => _context.Users.AsNoTracking()
-            .Where(u => !u.IsLocked && (u.Role == UserRole.Admin || (includeManagers && u.Role == UserRole.OpsManager)))
+            .Where(u => !u.IsLocked && (u.RoleAssignment!.RoleId == UserRole.Admin || (includeManagers && u.RoleAssignment!.RoleId == UserRole.OpsManager)))
             .Select(u => new AlertRecipient(u.Id, u.Email))
             .ToListAsync(ct);
 

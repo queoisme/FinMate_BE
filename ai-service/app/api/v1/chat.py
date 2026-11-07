@@ -35,6 +35,7 @@ from app.schemas.chat import (
     ChatNlu,
     ChatParseRequest,
     ChatParseResponse,
+    ChatPurchase,
     ChatQuery,
     ChatUnclearEraseRequest,
     ChatUnclearEraseResponse,
@@ -134,6 +135,14 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
             deadline_text=parsed.goal.deadline_text,
         )
         if parsed.goal
+        else None,
+        purchase=ChatPurchase(
+            item=parsed.purchase.item,
+            amount_cents=parsed.purchase.amount_cents,
+            purchase_date=parsed.purchase.purchase_date,
+            category_slug=_slug(parsed.purchase.category_slug),
+        )
+        if parsed.purchase
         else None,
     )
 

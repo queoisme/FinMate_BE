@@ -12,7 +12,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.ToTable("users", t =>
         {
-            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','staff','opsmanager')");
             t.HasCheckConstraint(
                 "chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
@@ -63,13 +62,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(200)
             .IsRequired();
 
-        builder.Property(u => u.Role)
-            .HasColumnName("role")
-            .HasConversion(
-                v => v.ToString().ToLowerInvariant(),
-                v => Enum.Parse<UserRole>(v, true))
-            .HasMaxLength(20)
-            .IsRequired();
+        // Vai trò nằm ở bảng user_roles (mỗi người đúng một hàng), không còn là cột của users. AutoInclude để MỌI truy vấn nạp User đều mang vai trò,
+        // không ai phải nhớ Include (quên Include sẽ biến Admin thành User lúc đọc).
+        builder.Ignore(u => u.Role);
+        builder.HasOne(u => u.RoleAssignment)
+            .WithOne()
+            .HasForeignKey<UserRoleAssignment>(a => a.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(u => u.RoleAssignment).AutoInclude();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
         builder.Property(u => u.ForecastReserveCents).HasColumnName("forecast_reserve_cents");

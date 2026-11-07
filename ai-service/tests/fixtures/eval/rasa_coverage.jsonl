@@ -207,3 +207,18 @@
 {"text": "bought coffee 45k", "domain": "robust", "topic": "english", "expect": "any"}
 {"text": "ăn phở 45k!!!!!!!!!!!", "domain": "robust", "topic": "punctuation", "expect": "any"}
 {"text": "ăn phở ４５k", "domain": "robust", "topic": "fullwidth_digits", "expect": "any"}
+{"text": "hôm nay mình muốn mua cái áo 650k, tiền có đủ không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "ngày mai chốt đơn cái điện thoại 12 triệu thì ổn không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "mua máy hút bụi 3tr2 hôm nay có sao không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "đợi tới ngày 20 sắm cái tivi 15 triệu được không nhỉ", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "muốn mua đôi giày chạy bộ 2 triệu ngày kia, đủ tiền không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "hom nay mua ban phim co 1tr8 duoc khong", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "ngay 18 mua laptop 25 trieu co on khong", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "tối nay order bộ nồi 900k được chứ", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "mua vé xem phim 240k hôm nay có ổn không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "ngày 25/11 tậu cái xe đạp 7 triệu có hợp lý không", "domain": "in", "topic": "purchase", "expect": "evaluate_purchase"}
+{"text": "vừa mua cái áo 650k", "domain": "in", "topic": "purchase", "expect": "add_expense"}
+{"text": "hôm qua mua máy hút bụi 3tr2", "domain": "in", "topic": "purchase", "expect": "add_expense"}
+{"text": "tối qua đặt mua bộ nồi 900k", "domain": "in", "topic": "purchase", "expect": "add_expense"}
+{"text": "macbook 30 triệu có đáng mua không", "domain": "off", "topic": "purchase_advice", "expect": "out_of_scope"}
+{"text": "nên mua đất hay mua vàng", "domain": "off", "topic": "purchase_advice", "expect": "out_of_scope"}

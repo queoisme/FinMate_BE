@@ -6,7 +6,7 @@ Rasa tắt hoặc chưa cấu hình thì trả ``available: false`` (200), khôn
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,9 +62,9 @@ async def status() -> dict:
 
 
 @router.get("/models")
-async def list_models(session: Session) -> dict:
-    """Mọi phiên bản model đã đăng ký (sổ ``nlu_model_versions``) kèm số đo, bản đang chạy theo sổ và theo Rasa, và từng bản có qua cổng đo để thay bản đang chạy không."""
-    return await nlu_models.overview(session)
+async def list_models(session: Session, limit: Annotated[int, Query(ge=1, le=200)] = 20, offset: Annotated[int, Query(ge=0)] = 0) -> dict:
+    """Một trang phiên bản model đã đăng ký (sổ ``nlu_model_versions``) kèm số đo, tổng, bản đang chạy theo sổ và theo Rasa, và từng bản có qua cổng đo để thay bản đang chạy không."""
+    return await nlu_models.overview(session, limit=limit, offset=offset)
 
 
 @router.post("/models/{version}/activate", status_code=202)

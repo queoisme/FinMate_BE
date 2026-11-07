@@ -14,6 +14,8 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 
 ## Quyền theo vai trò
 
+Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `role_permissions`). Admin chỉnh được quyền của **Staff và OpsManager** qua `GET`/`PUT /api/v1/admin/role-permissions`, có hiệu lực ngay (quyền đọc từ DB mỗi request, không chờ token hết hạn). Khởi động lại không ghi đè giá trị đã chỉnh. Admin luôn đủ quyền, User không có quyền nội bộ, `ManageSystem` chỉ Admin.
+
 | Quyền (`capabilities`) | Staff | OpsManager | Admin |
 |---|---|---|---|
 | `HandleTickets` | ✅ | ✅ | ✅ |
@@ -30,6 +32,15 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 | `ViewMonitoring` | ❌ | ✅ | ✅ |
 | `ManageIncidents` | ❌ | ✅ | ✅ |
 | `ManageSystem` | ❌ | ❌ | ✅ |
+
+### Chỉnh quyền của vai trò (chỉ Admin)
+
+| API | Việc |
+|---|---|
+| `GET /admin/role-permissions` | `{ catalog, adminOnly, roles: [{ role, editable, capabilities }] }`: mọi quyền hệ thống có, quyền chỉ Admin, và quyền đang áp dụng của User, Staff, OpsManager, Admin |
+| `PUT /admin/role-permissions/{role}` | Đặt **trọn bộ** quyền của `Staff` hoặc `OpsManager`: `{ "capabilities": ["HandleTickets", ...], "reason": "…" }`. Gửi lại đúng bộ đang có thì không ghi gì |
+
+Từ chối với 422: vai trò không sửa được (`ROLE_PERMISSIONS_ROLE_NOT_EDITABLE`), tên quyền lạ (`ROLE_PERMISSIONS_UNKNOWN_CAPABILITY`), gán quyền chỉ Admin (`ROLE_PERMISSIONS_ADMIN_ONLY`), hoặc thiếu quyền phụ thuộc (`ROLE_PERMISSIONS_BROKEN_DEPENDENCY`: `AccessCustomerData` cần `HandleTickets`, `CreateDraftTransactions` cần `AccessCustomerData`). Mỗi lần đổi ghi audit `Admin.RolePermissions.Updated` (role, added, removed, reason).
 
 ## Cách kiểm tra quyền
 

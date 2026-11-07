@@ -86,6 +86,26 @@ public class ChatParseContractTests
         JsonSerializer.Deserialize<ChatParseApiResponse>(ExpenseJson, Options)!.Goal.Should().BeNull();  // AI Service cũ: không có goal
     }
 
+    // Sinh bằng ChatParseResponse.model_dump_json() cho "ngày 16 mua cái quần 800k được không" (hôm nay 06/11/2026), ý định evaluate_purchase.
+    private const string PurchaseJson =
+        """{"intent":"evaluate_purchase","reply_text":"Mình hiểu khoản định mua của bạn như thế này. Bạn kiểm tra rồi bấm Đánh giá nhé, mình không ghi khoản này vào chi tiêu.","entry":null,"entries":[],"query":null,"total_amount":null,"total_mismatch":false,"skipped":[],"goal":null,"purchase":{"item":"quần","amount_cents":800000,"purchase_date":"2026-11-16","category_slug":null},"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":null}""";
+
+    [Fact]
+    public void APurchaseQuestionDeserialisesWithItsDayAndOldResponsesHaveNone()
+    {
+        var response = JsonSerializer.Deserialize<ChatParseApiResponse>(PurchaseJson, Options)!;
+
+        response.Intent.Should().Be("evaluate_purchase");
+        var purchase = response.Purchase!;
+        purchase.Item.Should().Be("quần");
+        purchase.AmountCents.Should().Be(800_000);
+        purchase.PurchaseDate.Should().Be("2026-11-16");
+        purchase.CategorySlug.Should().BeNull();
+        response.Entry.Should().BeNull();
+
+        JsonSerializer.Deserialize<ChatParseApiResponse>(ExpenseJson, Options)!.Purchase.Should().BeNull();  // AI Service cũ: không có purchase
+    }
+
     [Fact]
     public void TheRequestIsSentWithTheNamesTheAiServiceExpects()
     {

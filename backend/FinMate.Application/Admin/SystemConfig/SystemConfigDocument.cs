@@ -207,6 +207,14 @@ public sealed record ForecastSettings
     /// <summary>Số khoản giả định tối đa trong một lần thử kịch bản.</summary>
     public int MaxScenarioItems { get; init; } = 20;
 
+    // ---- Đánh giá khoản mua ("Mua món này có ổn không?") ----
+
+    /// <summary>Chưa biết kỳ thu nhập kế tiếp và người dùng không chọn mốc: đánh giá tới chừng này ngày sau ngày mua (kết quả chỉ ở mức một phần).</summary>
+    public int PurchaseDefaultHorizonDays { get; init; } = 14;
+
+    /// <summary>Số dư ví cập nhật cách đây quá chừng này ngày thì đánh giá chỉ ở mức một phần.</summary>
+    public int PurchaseStaleBalanceDays { get; init; } = 7;
+
     public IReadOnlyList<ForecastHoliday> Holidays { get; init; } = [];
 
     // ---- Đợt 2: cảnh báo (duyệt 2026-11-02) ----

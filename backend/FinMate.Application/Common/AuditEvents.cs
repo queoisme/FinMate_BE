@@ -30,6 +30,8 @@ public static class AuditEvents
     public const string AdminUserLocked = "Admin.User.Locked";
     public const string AdminUserUnlocked = "Admin.User.Unlocked";
     public const string AdminUserRoleChanged = "Admin.User.RoleChanged";
+    /// <summary>Admin thêm/bớt quyền của một vai trò nội bộ. Metadata có role, added, removed, reason.</summary>
+    public const string AdminRolePermissionsUpdated = "Admin.RolePermissions.Updated";
     public const string AdminDataDeletionCancelled = "Admin.DataDeletionRequest.Cancelled";
 
     public const string AdminProviderConfigCreated = "Admin.ProviderConfig.Created";

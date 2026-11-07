@@ -10,7 +10,35 @@ public class User
     public string? PasswordHash { get; set; }
     public string? GoogleId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
-    public UserRole Role { get; set; } = UserRole.User;
+
+    /// <summary>
+    /// Vai trò được gán (bảng <c>user_roles</c>, nạp tự động cùng user). Không phải cột của <c>users</c>.
+    /// Null nghĩa là chưa có hàng gán; khi đó <see cref="Role"/> trả <see cref="UserRole.User"/> (thiếu dữ liệu thì mất quyền chứ không thừa quyền).
+    /// </summary>
+    public UserRoleAssignment? RoleAssignment { get; set; }
+
+    /// <summary>Vai trò hiện tại. Gán qua đây hoặc <see cref="AssignRole"/>; EF lưu thành hàng trong <c>user_roles</c> (điền <c>UserId</c> lúc lưu).</summary>
+    public UserRole Role
+    {
+        get => RoleAssignment?.RoleId ?? UserRole.User;
+        set => AssignRole(value, null);
+    }
+
+    /// <summary>Đổi vai trò và ghi lại ai cấp, lúc nào. Mỗi người luôn đúng một hàng gán.</summary>
+    public void AssignRole(UserRole role, Guid? assignedByUserId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (RoleAssignment is null)
+        {
+            RoleAssignment = new UserRoleAssignment { RoleId = role, AssignedAt = now, AssignedByUserId = assignedByUserId };
+            return;
+        }
+
+        RoleAssignment.RoleId = role;
+        RoleAssignment.AssignedAt = now;
+        RoleAssignment.AssignedByUserId = assignedByUserId;
+    }
+
     /// <summary>
     /// Thu nhập hằng tháng DỰ KIẾN, do người dùng khai ở onboarding (docx Bước 1.3).
     ///

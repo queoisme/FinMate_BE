@@ -14,6 +14,7 @@ namespace FinMate.API.Controllers;
 public class ForecastController : ControllerBase
 {
     private readonly IForecastService _forecast;
+    private readonly IPurchaseCheckService _purchases;
     private readonly IForecastAlertService _alerts;
     private readonly IBudgetForecastService _budgets;
     private readonly IIncomeForecastService _income;
@@ -23,6 +24,7 @@ public class ForecastController : ControllerBase
 
     public ForecastController(
         IForecastService forecast,
+        IPurchaseCheckService purchases,
         IForecastAlertService alerts,
         IBudgetForecastService budgets,
         IIncomeForecastService income,
@@ -31,6 +33,7 @@ public class ForecastController : ControllerBase
         IGoalForecastService goals)
     {
         _forecast = forecast;
+        _purchases = purchases;
         _alerts = alerts;
         _budgets = budgets;
         _income = income;
@@ -54,6 +57,15 @@ public class ForecastController : ControllerBase
         var result = await _forecast.RunScenarioAsync(new CashflowScenarioCommand(CurrentUserId, request.AccountId, request.To, items), ct);
         return Ok(ApiResponse<CashflowForecastDto>.Ok(result));
     }
+
+    /// <summary>
+    /// "Mua món này có ổn không?": số dư thấp nhất trước/sau khoản mua trong kỳ tới kỳ thu nhập kế tiếp, tác động ngân sách và kế hoạch tháng,
+    /// phương án khác và bảng cách tính. Chỉ đọc, không tạo giao dịch.
+    /// </summary>
+    [HttpPost("purchase-check")]
+    public async Task<IActionResult> PurchaseCheck([FromBody] PurchaseCheckRequest request, CancellationToken ct)
+        => Ok(ApiResponse<PurchaseCheckDto>.Ok(await _purchases.CheckAsync(
+            new PurchaseCheckCommand(CurrentUserId, request.AmountCents, request.PurchaseDate, request.Item, request.CategoryId, request.AccountId, request.HorizonDays, request.CategorySlug), ct)));
 
     /// <summary>Số tiền có thể chi trong kỳ và mỗi ngày, kèm bảng cách tính.</summary>
     [HttpGet("spendable")]
@@ -123,5 +135,11 @@ public record ApplyCategoryBudgetsRequest(IReadOnlyList<CategoryBudgetItemReques
 public record AlertFeedbackRequest(string? Feedback);
 
 public record ScenarioItemRequest(DateOnly Date, long AmountCents, RecurringDirection Direction, string? Label);
+
+/// <param name="AmountCents">Giá bằng đồng VND (không chia 100).</param>
+/// <param name="HorizonDays">Chỉ dùng khi chưa biết kỳ thu nhập kế tiếp: đánh giá tới chừng này ngày sau ngày mua.</param>
+/// <param name="CategorySlug">Slug danh mục hệ thống (như chat trả về) khi app chưa có <c>CategoryId</c>.</param>
+public record PurchaseCheckRequest(
+    long AmountCents, DateOnly? PurchaseDate, string? Item, Guid? CategoryId, Guid? AccountId, int? HorizonDays, string? CategorySlug = null);
 
 public record CashflowScenarioRequest(Guid? AccountId, DateOnly? To, IReadOnlyList<ScenarioItemRequest>? Items);

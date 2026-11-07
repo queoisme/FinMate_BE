@@ -32,7 +32,7 @@ public class AdminRasaController : AdminControllerBase
     /// </summary>
     [HttpGet("models")]
     public async Task<IActionResult> Models(CancellationToken ct)
-        => Ok(ApiResponse<JsonElement?>.Ok(await _service.ModelsAsync(ct)));
+        => Ok(ApiResponse<JsonElement?>.Ok(await _service.ModelsAsync(Request.Query.ToDictionary(pair => pair.Key, pair => (string?)pair.Value.ToString()), ct)));   // limit/offset đi tiếp tới AI Service
 
     /// <summary>
     /// Áp dụng một phiên bản (kể cả quay về bản cũ): trả <b>202</b> ngay, Rasa nạp nóng ở nền (vài phút; chat chạy bằng luật trong lúc nạp, không ngừng dịch vụ), KHÔNG cần khởi động lại, và khởi động lại sau này vẫn đúng bản. Theo dõi ở <c>activation</c> (<c>state</c> loading/done/failed, <c>error</c>) của <c>GET models</c>. Kích hoạt lại chính bản đang chạy khi <c>in_sync</c> là false là nạp lại cho khớp (<c>resync</c>). Thân JSON (có thể <c>{}</c>):

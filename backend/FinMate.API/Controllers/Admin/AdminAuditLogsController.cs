@@ -26,10 +26,11 @@ public class AdminAuditLogsController : AdminControllerBase
         [FromQuery] DateTimeOffset? to,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] string? search,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
-            new GetAuditLogListQuery(userId, eventType, from, to, cursor, limit), ct);
+            new GetAuditLogListQuery(userId, eventType, from, to, cursor, limit, search), ct);
 
         return Ok(ApiResponse<IReadOnlyList<AuditLogDto>>.Ok(
             result.Items, new ApiMeta(result.NextCursor)));
