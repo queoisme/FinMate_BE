@@ -88,4 +88,32 @@ class PlanResponse(BaseModel):
     usage: LlmUsage
 
 
-__all__ = ["Evidence", "EvidenceSource", "GateRequest", "GateResponse", "LlmUsage", "MemoryItem", "PlanRequest", "PlanResponse", "PlanState", "PlanStep", "PlanTool"]
+class Claim(BaseModel):
+    """Một mệnh đề của câu trả lời kèm mã các bằng chứng nó dựa vào. Không có bằng chứng thì chỉ được là câu hỏi lại."""
+
+    text: str = Field(min_length=1, max_length=600)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=8)
+
+
+class Violation(BaseModel):
+    claim_index: int
+    kind: Literal["number_unsupported", "no_evidence", "unknown_evidence_id"]
+
+
+class ComposeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=500)
+    evidence: list[Evidence] = Field(default_factory=list, max_length=40)
+    skip_verifier: bool = False  # chỉ có hiệu lực khi AGENT_EVAL_ENABLED (đánh giá cắt bỏ); ở production bị bỏ qua
+
+
+class ComposeResponse(BaseModel):
+    claims: list[Claim]
+    used_template: bool = False  # true = câu dựng từ bằng chứng bằng mẫu cố định (LLM hỏng hoặc hai lần đều không qua kiểm chứng)
+    no_data: bool = False  # true = không có bằng chứng nào, câu trả lời chỉ nói "chưa có dữ liệu"
+    violations_final: list[Violation] = Field(default_factory=list)
+    usage: LlmUsage | None = None  # token của mọi lần gọi LLM trong lượt soạn; None nếu không gọi được lần nào
+
+
+__all__ = ["Claim", "ComposeRequest", "ComposeResponse", "Evidence", "EvidenceSource", "GateRequest", "Violation", "GateResponse", "LlmUsage", "MemoryItem", "PlanRequest", "PlanResponse", "PlanState", "PlanStep", "PlanTool"]

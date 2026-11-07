@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     agent_timeout_seconds: float = 20.0  # trần cho MỘT lần gọi LLM của agent (từng pha mạng; thử lại 429/503 có trần riêng gấp đôi)
     agent_backup_model: str = ""  # mô hình OpenRouter dự phòng khi nhà cung cấp chính lỗi; TRỐNG = không có dự phòng (dữ liệu người dùng không tự đi tới bên chưa ai chọn)
     agent_max_output_tokens: int = 1024  # trần token đầu ra mỗi lần gọi LLM, để chi phí không vượt tầm ngân sách
+    agent_eval_enabled: bool = False  # bật khi chạy bộ đánh giá (agent_eval): cho phép bỏ bộ kiểm chứng theo từng lời gọi (đánh giá cắt bỏ). Production luôn False
     agent_verifier_enabled: bool = True  # chỉ tắt khi chạy đánh giá cắt bỏ (agent_eval); production luôn bật
     agent_rag_enabled: bool = True  # tắt = RAG trả rỗng (đánh giá cắt bỏ)
     agent_embedding_model: str = ""  # tên mô hình embedding (kiểm trên trang chính thức rồi mới điền); trống thì RAG chưa tra được

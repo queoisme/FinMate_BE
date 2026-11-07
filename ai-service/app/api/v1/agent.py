@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent import gate
 from app.agent.llm.provider import LlmFailed, LlmProvider, build_provider
 from app.agent.planner import make_plan
-from app.agent.schemas import GateRequest, GateResponse, PlanRequest, PlanResponse
+from app.agent.composer import compose
+from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, PlanRequest, PlanResponse
 from app.api.deps import get_db, verify_internal_api_key
 from app.core.config import settings
 from app.services import secret_store
@@ -47,6 +48,15 @@ async def agent_gate(body: GateRequest, session: Annotated[AsyncSession, Depends
         reason_code=result.reason_code,
         refusal_text=None if result.in_scope else gate.refusal_text(rules, result.reason_code),
     )
+
+
+@router.post("/agent/compose", response_model=ComposeResponse)
+async def agent_compose(body: ComposeRequest, provider: Annotated[LlmProvider, Depends(get_agent_provider)]) -> ComposeResponse:
+    """Soạn câu từ bằng chứng. LLM hỏng KHÔNG làm lượt hỏi hỏng: trả câu mẫu dựng từ bằng chứng (``used_template``). Bộ kiểm chứng chỉ tắt được khi ``AGENT_EVAL_ENABLED``."""
+    verifier_on = settings.agent_verifier_enabled and not (body.skip_verifier and settings.agent_eval_enabled)
+    result = await compose(provider, body.question, body.evidence, settings.agent_max_output_tokens, verifier_on)
+    logger.info("agent_compose", template=result.used_template, no_data=result.no_data, claims=len(result.claims), verifier=verifier_on)
+    return result
 
 
 @router.post("/agent/plan", response_model=PlanResponse)
