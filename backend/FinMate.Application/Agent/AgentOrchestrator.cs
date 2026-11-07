@@ -7,6 +7,9 @@ namespace FinMate.Application.Agent;
 public sealed class AgentRunOptions
 {
     public bool SkipVerifier { get; set; }
+
+    /// <summary>false = công cụ tra tri thức không trả gì (đánh giá cắt bỏ RAG).</summary>
+    public bool RagEnabled { get; set; } = true;
 }
 
 public interface IAgentOrchestrator
@@ -24,6 +27,7 @@ public static class AgentMessages
     {
         "history_too_short" => $"Mình cần ít nhất {AgentLimits.MinHistoryMonths} tháng lịch sử thu nhập để dự báo. Bạn ghi chép thêm giao dịch rồi hỏi lại nhé.",
         "assumption_missing" => "Mình chưa có giả định kinh tế đã duyệt cho nội dung này.",
+        "knowledge_missing" => "Mình chưa có tài liệu đã được duyệt về nội dung này nên không muốn trả lời theo cảm tính.",
         _ => "Mình chưa đủ dữ liệu để trả lời câu hỏi này.",
     };
 }
@@ -103,6 +107,11 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
 
         if (evidence.Count == 0)
         {
+            if (insufficient is null or "knowledge_missing")
+            {
+                await TryAsync(async () => { await ai.RecordUnansweredAsync(question, ct); return true; }); // chỉ mã băm được lưu: nhân sự nội dung thấy kho còn thiếu gì
+            }
+
             return insufficient is not null
                 ? Reply(AgentStatus.InsufficientData, AgentMessages.Insufficient(insufficient), traceId)
                 : Reply(AgentStatus.Clarify, AgentMessages.NotUnderstood, traceId);

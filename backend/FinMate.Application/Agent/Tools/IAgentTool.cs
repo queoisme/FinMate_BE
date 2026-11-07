@@ -25,7 +25,7 @@ public sealed record ToolResult(ToolStatus Status, IReadOnlyList<Evidence> Evide
     public static ToolResult Rejected(string code) => new(ToolStatus.Rejected, [], code);
 }
 
-/// <summary>Một tham số của công cụ. <c>Type</c> là <c>"int"</c> (số nguyên, kiểm <c>Min</c>/<c>Max</c>) hoặc <c>"string"</c> (không rỗng, ≤ 64 ký tự).</summary>
+/// <summary>Một tham số của công cụ. <c>Type</c> là <c>"int"</c> (số nguyên, kiểm <c>Min</c>/<c>Max</c>) hoặc <c>"string"</c> (không rỗng, ≤ 64 ký tự, hoặc ≤ <c>Max</c> nếu đặt).</summary>
 public sealed record ToolArg(string Name, string Type, bool Required, long Min = 0, long Max = 0);
 
 /// <summary>Mô tả công cụ gửi cho bộ lập kế hoạch: chỉ tên và tham số, không có mã hay dữ liệu.</summary>

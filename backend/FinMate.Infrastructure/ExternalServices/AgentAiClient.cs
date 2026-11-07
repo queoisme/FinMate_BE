@@ -43,6 +43,14 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
 
     private sealed record WireDeleted(int Deleted);
 
+    private sealed record KbSearchBody(string Query, int K);
+
+    private sealed record KbSearchResponse(List<WireEvidence> Evidence);
+
+    private sealed record KbCandidateBody(string Text);
+
+    private sealed record WireRecorded(bool Recorded);
+
     private sealed record WireStep(string Tool, JsonElement Args);
 
     private sealed record WireUsage(int InputTokens, int OutputTokens, string Provider, string Model);
@@ -96,6 +104,15 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
             response.NoData,
             Usage(response.Usage));
     }
+
+    public async Task<IReadOnlyList<Evidence>> SearchKnowledgeAsync(string query, int k, CancellationToken ct = default)
+    {
+        var response = await PostAsync<KbSearchBody, KbSearchResponse>("api/v1/kb/search", new KbSearchBody(query, k), "kb_search", ct);
+        return response.Evidence.Select(e => new Evidence(e.Id, e.Key, e.ValueVnd, e.Text, e.Unit, AgentEvidenceDto.ParseSource(e.Source), e.AsOf, e.Confidence, e.SourceName, e.SourceUrl)).ToList();
+    }
+
+    public async Task RecordUnansweredAsync(string question, CancellationToken ct = default)
+        => await PostAsync<KbCandidateBody, WireRecorded>("api/v1/kb/candidates", new KbCandidateBody(question), "kb_candidate", ct);
 
     public async Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default)
     {

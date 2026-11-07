@@ -313,6 +313,7 @@ public class Program
         builder.Services.AddScoped<IncomeHistory>();
         builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
         builder.Services.AddScoped<AgentTraceContext>();
@@ -392,6 +393,7 @@ public class Program
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();
         builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();

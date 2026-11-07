@@ -170,7 +170,7 @@ def _body(**over):
 
 
 async def test_create_is_draft_and_not_searchable_until_approved_then_not_after_retired(kb_api, auth_headers):
-    created = await kb_api.post("/api/v1/kb/documents", json=_body(), headers=auth_headers)
+    created = await kb_api.post("/api/v1/admin/knowledge/documents", json=_body(), headers=auth_headers)
     assert created.status_code == 201 and created.json()["status"] == "Draft"
     document_id = created.json()["id"]
 
@@ -180,30 +180,30 @@ async def test_create_is_draft_and_not_searchable_until_approved_then_not_after_
         return response.json()["evidence"]
 
     assert await search() == []
-    assert (await kb_api.post(f"/api/v1/kb/documents/{document_id}/approve", headers=auth_headers)).status_code == 200
+    assert (await kb_api.post(f"/api/v1/admin/knowledge/documents/{document_id}/approve", headers=auth_headers)).status_code == 200
     found = await search()
     assert found and found[0]["source_name"] == "Sổ tay FinMate" and found[0]["source"] == "document"
-    assert (await kb_api.post(f"/api/v1/kb/documents/{document_id}/retire", headers=auth_headers)).status_code == 200
+    assert (await kb_api.post(f"/api/v1/admin/knowledge/documents/{document_id}/retire", headers=auth_headers)).status_code == 200
     assert await search() == []
 
 
 async def test_a_document_without_a_source_is_rejected_and_transitions_report_conflicts(kb_api, auth_headers):
     body = _body()
     del body["source_name"]
-    assert (await kb_api.post("/api/v1/kb/documents", json=body, headers=auth_headers)).status_code == 422
+    assert (await kb_api.post("/api/v1/admin/knowledge/documents", json=body, headers=auth_headers)).status_code == 422
 
-    document_id = (await kb_api.post("/api/v1/kb/documents", json=_body(), headers=auth_headers)).json()["id"]
-    assert (await kb_api.post(f"/api/v1/kb/documents/{document_id}/retire", headers=auth_headers)).status_code == 200
-    assert (await kb_api.post(f"/api/v1/kb/documents/{document_id}/approve", headers=auth_headers)).status_code == 409
-    assert (await kb_api.post("/api/v1/kb/documents/00000000-0000-0000-0000-000000000000/approve", headers=auth_headers)).status_code == 404
+    document_id = (await kb_api.post("/api/v1/admin/knowledge/documents", json=_body(), headers=auth_headers)).json()["id"]
+    assert (await kb_api.post(f"/api/v1/admin/knowledge/documents/{document_id}/retire", headers=auth_headers)).status_code == 200
+    assert (await kb_api.post(f"/api/v1/admin/knowledge/documents/{document_id}/approve", headers=auth_headers)).status_code == 409
+    assert (await kb_api.post("/api/v1/admin/knowledge/documents/00000000-0000-0000-0000-000000000000/approve", headers=auth_headers)).status_code == 404
 
 
 async def test_listing_paginates_and_searches_on_the_server(kb_api, auth_headers):
     for i in range(3):
-        await kb_api.post("/api/v1/kb/documents", json=_body(title=f"Tài liệu {i}"), headers=auth_headers)
+        await kb_api.post("/api/v1/admin/knowledge/documents", json=_body(title=f"Tài liệu {i}"), headers=auth_headers)
 
-    page = (await kb_api.get("/api/v1/kb/documents", params={"limit": 2, "offset": 0}, headers=auth_headers)).json()
-    one = (await kb_api.get("/api/v1/kb/documents", params={"search": "Tài liệu 1"}, headers=auth_headers)).json()
+    page = (await kb_api.get("/api/v1/admin/knowledge/documents", params={"limit": 2, "offset": 0}, headers=auth_headers)).json()
+    one = (await kb_api.get("/api/v1/admin/knowledge/documents", params={"search": "Tài liệu 1"}, headers=auth_headers)).json()
 
     assert page["total"] == 3 and len(page["items"]) == 2
     assert one["total"] == 1 and one["items"][0]["title"] == "Tài liệu 1"

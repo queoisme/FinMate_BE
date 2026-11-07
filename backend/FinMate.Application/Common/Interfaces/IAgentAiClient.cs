@@ -49,6 +49,12 @@ public interface IAgentAiClient
     /// <param name="skipVerifier">Chỉ có hiệu lực khi ai-service chạy ở chế độ đánh giá (AGENT_EVAL_ENABLED); production bỏ qua cờ này.</param>
     Task<AgentComposeResult> ComposeAsync(string question, IReadOnlyList<Evidence> evidence, bool skipVerifier = false, CancellationToken ct = default);
 
+    /// <summary>Tìm đoạn tri thức ĐÃ DUYỆT và còn hiệu lực (nguồn <c>Document</c>, kèm tên nguồn và ngày). Mặc định không có kho: trả rỗng.</summary>
+    Task<IReadOnlyList<Evidence>> SearchKnowledgeAsync(string query, int k, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Evidence>>([]);
+
+    /// <summary>Báo ai-service có một câu hỏi tri thức chưa trả lời được. Chỉ MÃ BĂM của câu hỏi được lưu ở đó (không nội dung, không mã người dùng).</summary>
+    Task RecordUnansweredAsync(string question, CancellationToken ct = default) => Task.CompletedTask;
+
     // Bộ nhớ dài hạn: các lời gọi này mang MÃ BĂM SHA-256 của người dùng (do client tính), không bao giờ mang id thật.
     Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default);
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, GateResponse, MemoryDeleted, MemoryEntry, MemoryPutRequest, PlanRequest, PlanResponse
+from app.agent.schemas import ComposeRequest, ComposeResponse, Evidence, GateRequest, GateResponse, MemoryDeleted, MemoryEntry, MemoryPutRequest, PlanRequest, PlanResponse
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "agent_wire"
 
@@ -63,3 +63,15 @@ def test_no_wire_fixture_carries_a_user_identity_except_the_memory_hash():
     for path in FIXTURES.glob("*.json"):
         text = path.read_text(encoding="utf-8").lower().replace("user_id_hash", "") if path.name.startswith("memory_") else path.read_text(encoding="utf-8").lower()
         assert "user" not in text, path.name
+
+
+def test_the_knowledge_requests_and_responses_match_the_models():
+    from app.api.v1.kb import CandidateRecord, SearchRequest
+
+    assert SearchRequest.model_validate(load("kb_search_request.json")).k == 3
+    assert CandidateRecord.model_validate(load("kb_candidate_request.json")).text.endswith("?")
+    response = load("kb_search_response.json")
+    evidence = [Evidence.model_validate(e) for e in response["evidence"]]
+    assert evidence[0].source == "document" and evidence[0].value_vnd is None and evidence[0].source_name == "Sổ tay FinMate"
+    assert [e.model_dump(mode="json") for e in evidence] == [{**e, "as_of": e["as_of"].replace("Z", "Z")} for e in response["evidence"]]
+    assert load("kb_candidate_response.json") == {"recorded": True}

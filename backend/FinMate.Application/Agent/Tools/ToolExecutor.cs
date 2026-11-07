@@ -51,7 +51,7 @@ public sealed class ToolExecutor(ToolRegistry registry)
             var valid = arg.Type switch
             {
                 "int" => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var n) && n >= arg.Min && n <= arg.Max,
-                "string" => value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()) && value.GetString()!.Length <= 64,
+                "string" => value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()) && value.GetString()!.Length <= (arg.Max > 0 ? arg.Max : 64),
                 _ => false,
             };
             if (!valid)

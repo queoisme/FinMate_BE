@@ -226,4 +226,29 @@ public class AgentAiClientContractTests
 
         await ((Func<Task>)(async () => await client.GateAsync("x"))).Should().ThrowAsync<AIServiceUnavailableException>();
     }
+
+    [Fact]
+    public async Task knowledge_search_request_and_response_match_the_shared_fixtures()
+    {
+        var handler = new StubHandler("kb_search_response.json");
+
+        var found = await Client(handler).SearchKnowledgeAsync("quy tắc 50/30/20", 3);
+
+        handler.Path.Should().Be("/api/v1/kb/search");
+        AssertRequestMatchesFixture(handler.Body!, "kb_search_request.json");
+        found.Should().ContainSingle().Which.Should().Match<Evidence>(e =>
+            e.Id == "kb:0a1b2c3d4e5f6a7b" && e.Source == EvidenceSource.Document && e.ValueVnd == null && e.SourceName == "Sổ tay FinMate" && e.Confidence == 1.0 && e.Text!.StartsWith("Quy tắc 50/30/20"));
+    }
+
+    [Fact]
+    public async Task unanswered_question_request_and_response_match_the_shared_fixtures_and_carry_no_identity()
+    {
+        var handler = new StubHandler("kb_candidate_response.json");
+
+        await Client(handler).RecordUnansweredAsync("Quỹ hưu trí tự nguyện hoạt động thế nào?");
+
+        handler.Path.Should().Be("/api/v1/kb/candidates");
+        AssertRequestMatchesFixture(handler.Body!, "kb_candidate_request.json");
+        handler.Body!.ToLowerInvariant().Should().NotContain("user");
+    }
 }

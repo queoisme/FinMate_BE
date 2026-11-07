@@ -52,6 +52,7 @@ public class AgentEvalController(IConfiguration configuration, IWebHostEnvironme
 
         data.Use(new InMemoryFinancialDataSource(s.MonthlyIncome, s.MonthlySpend, s.TotalBalance));
         options.SkipVerifier = !(request.Flags?.Verifier ?? true);
+        options.RagEnabled = request.Flags?.Rag ?? true;
 
         var answer = await orchestrator.AskAsync(Guid.NewGuid(), request.Question.Trim(), ct);
         return Ok(ApiResponse<RunResponse>.Ok(new RunResponse(

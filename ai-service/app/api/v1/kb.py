@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.rag import store
+from app.agent.rag import candidates, store
 from app.agent.rag.cache import KbCache
 from app.agent.rag.chunker import chunk
 from app.agent.rag.embedder import EmbeddingError, embed
@@ -61,7 +61,7 @@ def _fail(error: store.KbError | EmbeddingError) -> HTTPException:
     return HTTPException(status_code=status, detail=error.code)
 
 
-@router.post("/kb/documents", status_code=201)
+@router.post("/admin/knowledge/documents", status_code=201)
 async def create_document(body: DocumentCreate, session: Annotated[AsyncSession, Depends(get_db)]) -> dict:
     parts = chunk(body.text)
     try:
@@ -76,7 +76,7 @@ async def create_document(body: DocumentCreate, session: Annotated[AsyncSession,
     return {"id": str(document_id), "status": "Draft", "chunks": len(parts)}
 
 
-@router.get("/kb/documents")
+@router.get("/admin/knowledge/documents")
 async def list_documents(
     session: Annotated[AsyncSession, Depends(get_db)],
     status: str | None = Query(default=None, pattern="^(Draft|Approved|Retired)$"),
@@ -97,12 +97,12 @@ async def _transition(document_id: uuid.UUID, new_status: str, session: AsyncSes
     return {"id": str(document_id), "status": new_status}
 
 
-@router.post("/kb/documents/{document_id}/approve")
+@router.post("/admin/knowledge/documents/{document_id}/approve")
 async def approve_document(document_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)], cache: Annotated[KbCache, Depends(get_kb_cache)]) -> dict:
     return await _transition(document_id, "Approved", session, cache)
 
 
-@router.post("/kb/documents/{document_id}/retire")
+@router.post("/admin/knowledge/documents/{document_id}/retire")
 async def retire_document(document_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)], cache: Annotated[KbCache, Depends(get_kb_cache)]) -> dict:
     return await _transition(document_id, "Retired", session, cache)
 
@@ -114,3 +114,41 @@ async def search(body: SearchRequest, session: Annotated[AsyncSession, Depends(g
     except EmbeddingError as error:
         raise _fail(error) from error
     return {"evidence": [e.model_dump(mode="json") for e in evidence]}
+
+
+class CandidateRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=500)
+
+
+class CandidateStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str = Field(pattern="^(Dismissed|Covered)$")
+
+
+@router.post("/kb/candidates")
+async def record_candidate(body: CandidateRecord, session: Annotated[AsyncSession, Depends(get_db)]) -> dict:
+    """Backend gọi khi agent không có bằng chứng để trả lời. Chỉ MÃ BĂM câu hỏi và số lần gặp được lưu; nội dung không bao giờ vào DB hay log."""
+    await candidates.record(session, body.text)
+    return {"recorded": True}
+
+
+@router.get("/admin/knowledge/candidates")
+async def list_candidates(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    status: str | None = Query(default=None, pattern="^(New|Dismissed|Covered)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    total, items = await candidates.list_candidates(session, status=status, limit=limit, offset=offset)
+    return {"total": total, "items": [{**i, "id": str(i["id"])} for i in items]}
+
+
+@router.post("/admin/knowledge/candidates/{candidate_id}/resolve")
+async def resolve_candidate(candidate_id: uuid.UUID, body: CandidateStatus, session: Annotated[AsyncSession, Depends(get_db)]) -> dict:
+    """Đánh dấu đã xử lý (Dismissed = bỏ qua, Covered = đã có tài liệu). KHÔNG tạo tài liệu: tri thức mới chỉ vào kho qua POST documents rồi duyệt."""
+    if not await candidates.set_status(session, candidate_id, body.status):
+        raise HTTPException(status_code=404, detail="kb_candidate_not_found")
+    return {"id": str(candidate_id), "status": body.status}

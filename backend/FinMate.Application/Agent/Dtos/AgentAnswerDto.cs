@@ -15,6 +15,15 @@ public sealed record AgentEvidenceDto(string Id, string Key, long? ValueVnd, str
     public static AgentEvidenceDto From(Evidence e)
         => new(e.Id, e.Key, e.ValueVnd, e.Text, e.Unit, WireSource(e.Source), e.AsOf, Math.Round(e.Confidence, 2), e.SourceName, e.SourceUrl);
 
+    public static EvidenceSource ParseSource(string wire) => wire switch
+    {
+        "confirmed" => EvidenceSource.Confirmed,
+        "user_entered" => EvidenceSource.UserEntered,
+        "estimated" => EvidenceSource.Estimated,
+        "document" => EvidenceSource.Document,
+        _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, "Nguồn bằng chứng không hợp lệ."),
+    };
+
     /// <summary>Tên nguồn trên dây (JSON): cùng bộ giá trị với ai-service (<c>confirmed</c>, <c>user_entered</c>, <c>estimated</c>, <c>document</c>).</summary>
     public static string WireSource(EvidenceSource source) => source switch
     {

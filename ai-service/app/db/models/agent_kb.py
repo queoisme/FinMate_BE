@@ -55,3 +55,23 @@ class AgentKbChunk(Base):
         Index("ix_agent_kb_chunks_tsv", "tsv", postgresql_using="gin"),
         # Không có chỉ mục ANN (hnsw/ivfflat): kho vài nghìn đoạn thì quét đúng (exact) vừa nhanh vừa không mất độ chính xác; thêm hnsw khi vượt ~100 nghìn đoạn.
     )
+
+
+class AgentKbCandidate(Base):
+    """Câu hỏi tri thức chưa trả lời được. CHỈ mã băm + số lần gặp: không nội dung câu hỏi, không mã người dùng. Không bao giờ tự thành tài liệu trong kho."""
+
+    __tablename__ = "agent_kb_candidates"
+
+    id: Mapped[uuid_pk]
+    question_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sql_text("1"))
+    first_seen: Mapped[created_at]
+    last_seen: Mapped[timestamptz] = mapped_column(server_default=sql_text("now()"), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default=sql_text("'New'"))
+
+    __table_args__ = (
+        UniqueConstraint("question_hash", name="uq_agent_kb_candidates_hash"),
+        CheckConstraint("question_hash ~ '^[0-9a-f]{64}$'", name="chk_agent_kb_candidates_hash"),
+        CheckConstraint("status IN ('New', 'Dismissed', 'Covered')", name="chk_agent_kb_candidates_status"),
+        CheckConstraint("count >= 1", name="chk_agent_kb_candidates_count"),
+    )
