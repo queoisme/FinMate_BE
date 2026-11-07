@@ -13,6 +13,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.ToTable("users", t =>
         {
             t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
+            t.HasCheckConstraint("chk_users_income_profile_override", "income_profile_override IS NULL OR income_profile_override IN ('stable','variable')");
             t.HasCheckConstraint(
                 "chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
@@ -63,6 +64,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+        builder.Property(u => u.IncomeProfileOverride).HasColumnName("income_profile_override").HasMaxLength(16);
         builder.Property(u => u.TermsVersion).HasColumnName("terms_version");
         builder.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
         builder.Property(u => u.AiConsentVersion).HasColumnName("ai_consent_version");

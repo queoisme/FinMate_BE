@@ -12,6 +12,9 @@ public static class AgentLimits
     /// <summary>Số lần lập lại kế hoạch tối đa khi thiếu dữ liệu (provisional).</summary>
     public const int MaxReplans = 2;
 
+    /// <summary>Số tháng đã trọn gần nhất được dùng để dựng dải thu nhập và chi tiêu (provisional).</summary>
+    public const int HistoryMonths = 6;
+
     /// <summary>Dưới số tháng lịch sử này thì không dựng dải thu nhập, trả InsufficientData (provisional).</summary>
     public const int MinHistoryMonths = 3;
 
