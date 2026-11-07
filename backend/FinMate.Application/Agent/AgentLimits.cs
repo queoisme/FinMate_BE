@@ -12,6 +12,15 @@ public static class AgentLimits
     /// <summary>Số lần lập lại kế hoạch tối đa khi thiếu dữ liệu (provisional).</summary>
     public const int MaxReplans = 2;
 
+    /// <summary>Trần số tháng khi dò "bao lâu nữa đủ tiền" (50 năm); không đạt trong khoảng này thì coi là không bao giờ (provisional).</summary>
+    public const int MaxSearchMonths = 600;
+
+    /// <summary>Trần giá mục tiêu nhận từ lời gọi công cụ (đồng): đủ cho nhà ở, và đủ nhỏ để phép nhân số nguyên không tràn <c>long</c> (provisional).</summary>
+    public const long MaxPriceVnd = 10_000_000_000_000;
+
+    /// <summary>Khóa giả định tăng giá dùng khi lời gọi không chỉ định khóa nào.</summary>
+    public const string DefaultGrowthAssumptionKey = "general_price_growth";
+
     /// <summary>Khoảng cho phép của một giả định kinh tế, tính bằng điểm cơ bản (-100% … +1000%/năm) (provisional); cùng khoảng với CHECK ở DB.</summary>
     public const int AssumptionMinRateBps = -10_000;
 
