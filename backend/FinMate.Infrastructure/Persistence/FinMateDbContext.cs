@@ -50,6 +50,7 @@ public class FinMateDbContext : DbContext
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
     public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
+    public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

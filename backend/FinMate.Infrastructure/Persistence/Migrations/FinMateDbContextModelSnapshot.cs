@@ -1795,6 +1795,57 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("receipt_scan_links", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DayOfMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_of_month");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_recurring_items_user");
+
+                    b.ToTable("recurring_items", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_recurring_items_amount", "amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_day", "day_of_month BETWEEN 1 AND 31");
+
+                            t.HasCheckConstraint("chk_recurring_items_kind", "kind IN ('obligation','inflow')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2972,6 +3023,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Scan");
 
                     b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>

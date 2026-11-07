@@ -302,6 +302,8 @@ public class Program
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
+        builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
+        builder.Services.AddScoped<RecurringItemService>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
         builder.Services.AddScoped<GetAssumptionsTool>();
 
@@ -314,6 +316,7 @@ public class Program
         builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
         builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SimulatePurchaseTool>();
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
         builder.Services.AddScoped<AgentTraceContext>();

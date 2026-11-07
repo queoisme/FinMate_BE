@@ -36,7 +36,7 @@ public class RepositoryFinancialDataSourceTests
         userRepo.Setup(u => u.GetByIdAsync(UserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new User { Id = UserId, IncomeProfileOverride = overrideValue });
 
-        return new RepositoryFinancialDataSource(report.Object, accountRepo.Object, userRepo.Object);
+        return new RepositoryFinancialDataSource(report.Object, accountRepo.Object, userRepo.Object, new RecurringItemService(Mock.Of<IRecurringItemRepository>(), Mock.Of<ITransactionRepository>()));
     }
 
     [Fact]

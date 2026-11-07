@@ -35,6 +35,26 @@ public static class AgentLimits
     /// <summary>Hệ số biến thiên thu nhập từ mức này trở lên coi là nhóm thu nhập không ổn định (provisional).</summary>
     public const double VariableSegmentCv = 0.25;
 
+    /// <summary>Phát hiện khoản định kỳ (provisional): phải xuất hiện ở ít nhất chừng này tháng KHÁC NHAU trong <see cref="RecurringLookbackMonths"/> tháng gần nhất.</summary>
+    public const int RecurringMinMonths = 3;
+
+    public const int RecurringLookbackMonths = 6;
+
+    /// <summary>Số tiền các tháng được lệch tối đa chừng này phần trăm so với trung vị mới coi là cùng một khoản định kỳ (provisional).</summary>
+    public const int RecurringAmountTolerancePercent = 10;
+
+    /// <summary>Ngày trong tháng được lệch tối đa chừng này ngày so với trung vị (provisional).</summary>
+    public const int RecurringDayTolerance = 3;
+
+    /// <summary>Tối đa số khoản định kỳ một người dùng được lưu: chặn lạm dụng và giữ sổ dòng tiền nhỏ (provisional).</summary>
+    public const int MaxRecurringItems = 50;
+
+    /// <summary>Số ngày tối đa của kỳ tính khi mô phỏng một khoản mua, và tối đa số ngày từ hôm nay đến ngày mua giả định (provisional).</summary>
+    public const int MaxSimulationDays = 90;
+
+    /// <summary>Kỳ tính mặc định (ngày) khi không biết ngày nhận thu nhập kế tiếp: Flow 6 §6.1 cho chọn mốc 7/14/30 (provisional).</summary>
+    public const int DefaultSimulationDays = 30;
+
     /// <summary>Ngữ cảnh hội thoại ngắn hạn sống chừng này rồi tự hết (provisional).</summary>
     public static readonly TimeSpan ConversationTtl = TimeSpan.FromMinutes(30);
 

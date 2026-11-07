@@ -17,7 +17,7 @@ namespace FinMate.API.Controllers;
 [ApiController]
 [Route("api/v1/agent")]
 [Authorize]
-public class AgentController(IAgentOrchestrator orchestrator, AgentMemoryService memory) : ControllerBase
+public class AgentController(IAgentOrchestrator orchestrator, AgentMemoryService memory, RecurringItemService recurring) : ControllerBase
 {
     private const int MaxQuestionLength = 500;
 
@@ -26,6 +26,26 @@ public class AgentController(IAgentOrchestrator orchestrator, AgentMemoryService
     public sealed record AskRequest(string Question);
 
     public sealed record PutMemoryRequest(string Value);
+
+    public sealed record CreateRecurringRequest(string Name, long AmountVnd, string Kind, int DayOfMonth);
+
+    /// <summary>Khoản thu/chi định kỳ ĐÃ XÁC NHẬN của chính người dùng, kèm <c>suggestions</c> là các khoản hệ thống thấy lặp lại trong lịch sử nhưng CHƯA lưu (chỉ là đề xuất; xác nhận bằng POST).</summary>
+    [HttpGet("recurring")]
+    public async Task<IActionResult> ListRecurring(CancellationToken ct)
+        => Ok(ApiResponse<RecurringListDto>.Ok(await recurring.ListAsync(CurrentUserId, DateTimeOffset.UtcNow, ct)));
+
+    /// <summary>Xác nhận một khoản định kỳ. <c>kind</c>: <c>obligation</c> (phải trả) hoặc <c>inflow</c> (thu). 422: <c>invalid_recurring_name</c>, <c>invalid_recurring_amount</c>, <c>invalid_recurring_kind</c>, <c>invalid_recurring_day</c>, <c>recurring_limit_reached</c>.</summary>
+    [HttpPost("recurring")]
+    public async Task<IActionResult> CreateRecurring([FromBody] CreateRecurringRequest request, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(await recurring.CreateAsync(CurrentUserId, request.Name, request.AmountVnd, request.Kind, request.DayOfMonth, ct)));
+
+    /// <summary>Bỏ một khoản định kỳ của chính người dùng. 404 nếu không có (kể cả khi id thuộc người khác).</summary>
+    [HttpDelete("recurring/{id:guid}")]
+    public async Task<IActionResult> DeleteRecurring(Guid id, CancellationToken ct)
+    {
+        await recurring.DeleteAsync(CurrentUserId, id, ct);
+        return NoContent();
+    }
 
     /// <summary>Sở thích dài hạn của CHÍNH người dùng (do họ đặt, xem/sửa/xóa được). Khóa cho phép: <c>preferred_method</c>, <c>eating_out_weekends</c>, <c>notification_quiet_hours</c>, <c>communication_tone</c>.</summary>
     [HttpGet("memory")]
