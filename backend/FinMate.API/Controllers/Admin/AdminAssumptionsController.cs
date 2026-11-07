@@ -1,5 +1,7 @@
+using FinMate.API.Authorization;
 using FinMate.Application.Agent;
 using FinMate.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinMate.API.Controllers.Admin;
@@ -9,7 +11,7 @@ namespace FinMate.API.Controllers.Admin;
 /// chỉ phiên bản đã duyệt mới nhất được agent dùng. Mọi thao tác ghi để lại một dòng audit_logs.
 /// </summary>
 [Route("api/v1/admin/assumptions")]
-public class AdminAssumptionsController(IAssumptionService service) : AdminControllerBase
+public class AdminAssumptionsController(IAssumptionService service) : ContentStaffControllerBase
 {
     public sealed record CreateAssumptionRequest(string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf);
 
@@ -28,11 +30,13 @@ public class AdminAssumptionsController(IAssumptionService service) : AdminContr
 
     /// <summary>Duyệt bản nháp: bản đã duyệt trước của cùng khóa tự về Retired. 404 nếu không có, 409 <c>assumption_not_draft</c> nếu không phải bản nháp.</summary>
     [HttpPost("{id:guid}/approve")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
         => Ok(ApiResponse<AssumptionDto>.Ok(AssumptionDto.From(await service.ApproveAsync(id, CurrentAdminId, CurrentIpAddress, ct))));
 
     /// <summary>Gỡ một phiên bản; agent thôi dùng nó ngay. 409 <c>assumption_already_retired</c> nếu đã gỡ.</summary>
     [HttpPost("{id:guid}/retire")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
     public async Task<IActionResult> Retire(Guid id, CancellationToken ct)
         => Ok(ApiResponse<AssumptionDto>.Ok(AssumptionDto.From(await service.RetireAsync(id, CurrentAdminId, CurrentIpAddress, ct))));
 }

@@ -265,6 +265,17 @@ public class Program
             options.AddPolicy(
                 AuthorizationPolicies.AdminOnly,
                 policy => policy.RequireRole(nameof(UserRole.Admin)));
+
+            // Vai trò nhân sự: mỗi policy là một danh sách vai trò TƯỜNG MINH (một giá trị lạ trong JWT không khớp policy nào nên bị từ chối).
+            options.AddPolicy(
+                AuthorizationPolicies.ManagerOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager)));
+            options.AddPolicy(
+                AuthorizationPolicies.SupportStaffOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager), nameof(UserRole.SupportStaff)));
+            options.AddPolicy(
+                AuthorizationPolicies.ContentStaffOrAbove,
+                policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager), nameof(UserRole.ContentStaff)));
         });
 
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));

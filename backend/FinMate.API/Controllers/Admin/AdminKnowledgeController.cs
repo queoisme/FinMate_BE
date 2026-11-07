@@ -1,6 +1,8 @@
 using System.Text.Json;
+using FinMate.API.Authorization;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinMate.API.Controllers.Admin;
@@ -11,7 +13,7 @@ namespace FinMate.API.Controllers.Admin;
 /// mã băm và số lần gặp, KHÔNG có nội dung và không bao giờ tự vào kho. Lỗi từ AI Service giữ nguyên: 404 không có, 409 chuyển trạng thái sai (<c>kb_invalid_transition</c>), 422 dữ liệu sai, 503 chưa nhúng được vector.
 /// </summary>
 [Route("api/v1/admin/knowledge")]
-public class AdminKnowledgeController(IAdminKnowledgeService service) : AdminControllerBase
+public class AdminKnowledgeController(IAdminKnowledgeService service) : ContentStaffControllerBase
 {
     private static Dictionary<string, string?> Query(params (string Name, object? Value)[] values)
         => values.Where(v => v.Value is not null).ToDictionary(v => v.Name, v => (string?)Convert.ToString(v.Value, System.Globalization.CultureInfo.InvariantCulture));
@@ -27,10 +29,12 @@ public class AdminKnowledgeController(IAdminKnowledgeService service) : AdminCon
         => StatusCode(StatusCodes.Status201Created, ApiResponse<JsonElement?>.Ok(await service.SubmitAsync(CurrentAdminId, body, CurrentIpAddress, ct)));
 
     [HttpPost("documents/{id:guid}/approve")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.ApproveAsync(CurrentAdminId, id, CurrentIpAddress, ct)));
 
     [HttpPost("documents/{id:guid}/retire")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
     public async Task<IActionResult> Retire(Guid id, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.RetireAsync(CurrentAdminId, id, CurrentIpAddress, ct)));
 

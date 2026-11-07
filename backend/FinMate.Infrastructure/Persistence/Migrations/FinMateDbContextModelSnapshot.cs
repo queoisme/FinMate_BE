@@ -2553,7 +2553,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
-                            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
+                            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','manager','supportstaff','contentstaff')");
 
                             t.HasCheckConstraint("chk_users_survey_ai_consent", "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
                         });

@@ -57,7 +57,7 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
                 "Tài khoản này đang chờ xoá. Huỷ yêu cầu xoá trước khi cấp quyền quản trị.");
         }
 
-        if (command.Role == UserRole.User && await _userRepository.CountActiveAdminsAsync(ct) <= 1)
+        if (user.Role == UserRole.Admin && command.Role != UserRole.Admin && await _userRepository.CountActiveAdminsAsync(ct) <= 1)
         {
             // Đếm admin còn HOẠT ĐỘNG (chưa bị khoá). Hạ nốt người cuối là hệ thống không còn
             // ai quản trị được, mà đường cứu duy nhất là sửa ADMIN_SEED_* rồi khởi động lại
@@ -72,9 +72,9 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 
-        if (command.Role == UserRole.User)
+        if (!command.Role.Covers(previousRole))
         {
-            // Vai trò nằm TRONG access token và không được tra lại DB mỗi request, nên hạ quyền
+            // Đổi sang vai trò KHÔNG bao hàm vai trò cũ (hạ quyền, hoặc chuyển ngang giữa hai nhóm nhân sự) là mất quyền. Vai trò nằm TRONG access token và không được tra lại DB mỗi request, nên hạ quyền
             // KHÔNG có hiệu lực ngay: token cũ vẫn ghi Admin tới hết TTL 15 phút. Thu hồi
             // refresh token chặn họ gia hạn, kẹp cửa sổ leo thang đặc quyền ở đúng 15 phút đó.
             // Cùng đánh đổi đã ghi ở SetUserLockCommandHandler.

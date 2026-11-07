@@ -11,4 +11,13 @@ public static class AuthorizationPolicies
     /// refresh token để chặn gia hạn; xem <c>SetUserLockCommandHandler</c>.
     /// </summary>
     public const string AdminOnly = "AdminOnly";
+
+    /// <summary>Admin hoặc Manager.</summary>
+    public const string ManagerOrAbove = "ManagerOrAbove";
+
+    /// <summary>Admin, Manager hoặc SupportStaff.</summary>
+    public const string SupportStaffOrAbove = "SupportStaffOrAbove";
+
+    /// <summary>Admin, Manager hoặc ContentStaff.</summary>
+    public const string ContentStaffOrAbove = "ContentStaffOrAbove";
 }

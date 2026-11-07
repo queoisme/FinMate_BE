@@ -173,4 +173,38 @@ public class SetUserRoleCommandHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    [Theory]
+    [InlineData(UserRole.Manager)]
+    [InlineData(UserRole.SupportStaff)]
+    [InlineData(UserRole.ContentStaff)]
+    public async Task TheLastActiveAdminCannotBeMovedToAnyStaffRoleEither(UserRole target)
+    {
+        var user = Setup(UserRole.Admin);
+        _userRepository.Setup(r => r.CountActiveAdminsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        var act = () => ActAsync(user.Id, target);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(AdminErrorCodes.CannotDemoteLastAdmin);
+        user.Role.Should().Be(UserRole.Admin);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin, UserRole.Manager, true)]
+    [InlineData(UserRole.Manager, UserRole.ContentStaff, true)]
+    [InlineData(UserRole.ContentStaff, UserRole.SupportStaff, true)]
+    [InlineData(UserRole.SupportStaff, UserRole.ContentStaff, true)]
+    [InlineData(UserRole.ContentStaff, UserRole.User, true)]
+    [InlineData(UserRole.User, UserRole.ContentStaff, false)]
+    [InlineData(UserRole.User, UserRole.Manager, false)]
+    [InlineData(UserRole.ContentStaff, UserRole.Manager, false)]
+    [InlineData(UserRole.Manager, UserRole.Admin, false)]
+    public async Task RefreshTokensAreRevokedExactlyWhenTheNewRoleDoesNotCoverTheOldOne(UserRole from, UserRole to, bool revoked)
+    {
+        var user = Setup(from);
+
+        await ActAsync(user.Id, to);
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, It.IsAny<CancellationToken>()), revoked ? Times.Once() : Times.Never());
+    }
 }

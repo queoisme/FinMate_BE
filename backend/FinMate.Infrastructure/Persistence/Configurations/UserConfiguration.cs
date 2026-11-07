@@ -12,7 +12,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.ToTable("users", t =>
         {
-            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin')");
+            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','manager','supportstaff','contentstaff')");
             t.HasCheckConstraint("chk_users_income_profile_override", "income_profile_override IS NULL OR income_profile_override IN ('stable','variable')");
             t.HasCheckConstraint(
                 "chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
