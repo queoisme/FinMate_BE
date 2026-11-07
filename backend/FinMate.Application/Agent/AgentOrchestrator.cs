@@ -31,11 +31,12 @@ public static class AgentMessages
 /// <item>ai-service sập sau khi đã có bằng chứng thì trả câu mẫu dựng từ bằng chứng, không 500; sập trước khi có bằng chứng thì 503.</item>
 /// </list>
 /// </summary>
-public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, Func<DateTimeOffset>? now = null) : IAgentOrchestrator
+public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null) : IAgentOrchestrator
 {
     public async Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default)
     {
         var traceId = Guid.NewGuid();
+        trace.Begin(traceId, userId); // từ đây mọi lời gọi sang ai-service mang X-Trace-Id (và mã băm của người dùng) để vết của lượt này nối lại được
         var clock = (now ?? (() => DateTimeOffset.UtcNow))();
         var context = new ToolContext(userId, clock);
 

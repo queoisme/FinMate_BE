@@ -27,9 +27,15 @@ public class AgentAiClientContractTests
         public string? Query { get; private set; }
         public string? Body { get; private set; }
         public HttpMethod? Method { get; private set; }
+        public Dictionary<string, string> Headers { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            foreach (var header in request.Headers)
+            {
+                Headers[header.Key] = string.Join(",", header.Value);
+            }
+
             Method = request.Method;
             Query = request.RequestUri!.Query;
             Path = request.RequestUri!.AbsolutePath;
@@ -56,8 +62,34 @@ public class AgentAiClientContractTests
 
     private static string ReadFixture(string name) => File.ReadAllText(Path.Combine(FixtureDir(), name), Encoding.UTF8);
 
-    private static AgentAiClient Client(HttpMessageHandler handler)
-        => new(new HttpClient(handler) { BaseAddress = new Uri("http://ai-service/") }, NullLogger<AgentAiClient>.Instance);
+    private static AgentAiClient Client(HttpMessageHandler handler, AgentTraceContext? trace = null)
+        => new(new HttpClient(handler) { BaseAddress = new Uri("http://ai-service/") }, NullLogger<AgentAiClient>.Instance, trace ?? new AgentTraceContext());
+
+    [Fact]
+    public async Task an_active_trace_adds_the_trace_id_and_a_hash_header_but_never_the_raw_user_id()
+    {
+        var user = Guid.Parse("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
+        var traceId = Guid.NewGuid();
+        var context = new AgentTraceContext();
+        context.Begin(traceId, user);
+        var handler = new StubHandler("gate_response.json");
+
+        await Client(handler, context).GateAsync("câu hỏi");
+
+        handler.Headers["X-Trace-Id"].Should().Be(traceId.ToString());
+        handler.Headers["X-User-Hash"].Should().MatchRegex("^[0-9a-f]{64}$");
+        handler.Headers.Values.Should().NotContain(v => v.Contains(user.ToString()));
+    }
+
+    [Fact]
+    public async Task without_a_trace_no_trace_headers_are_sent()
+    {
+        var handler = new StubHandler("gate_response.json");
+
+        await Client(handler).GateAsync("câu hỏi");
+
+        handler.Headers.Should().NotContainKey("X-Trace-Id").And.NotContainKey("X-User-Hash");
+    }
 
     private static void AssertRequestMatchesFixture(string actualJson, string fixtureName)
     {

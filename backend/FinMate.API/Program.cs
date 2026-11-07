@@ -311,6 +311,7 @@ public class Program
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
+        builder.Services.AddScoped<AgentTraceContext>();
         builder.Services.AddScoped<ConversationStore>();
         builder.Services.AddScoped<AgentMemoryService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();

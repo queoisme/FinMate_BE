@@ -13,7 +13,7 @@ namespace FinMate.Infrastructure.ExternalServices;
 /// và KHÔNG ghi log câu hỏi, bằng chứng hay câu trả lời — chỉ mã trạng thái cố định (cùng ràng buộc riêng tư với <see cref="MethodAiClient"/>).
 /// Mọi lỗi (mạng, hết giờ, HTTP khác 2xx, thân không đọc được) đều thành <see cref="AIServiceUnavailableException"/>.
 /// </summary>
-public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger) : IAgentAiClient
+public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, AgentTraceContext trace) : IAgentAiClient
 {
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -122,6 +122,12 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger) : IAg
         try
         {
             using var message = new HttpRequestMessage(method, route);
+            if (trace.IsActive)
+            {
+                message.Headers.Add("X-Trace-Id", trace.TraceId.ToString());
+                message.Headers.Add("X-User-Hash", UserIdHasher.Hash(trace.UserId));
+            }
+
             if (body is not null)
             {
                 message.Content = JsonContent.Create(body, body.GetType(), options: Json);

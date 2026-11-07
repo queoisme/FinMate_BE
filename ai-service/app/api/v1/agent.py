@@ -5,6 +5,7 @@ LLM hỏng thì route plan trả 503 ``llm_unavailable`` và backend rơi về c
 
 from __future__ import annotations
 
+import time
 from typing import Annotated
 
 import structlog
@@ -12,6 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import gate, memory
+from app.agent import trace as agent_trace
+from app.agent.trace import TraceInfo, get_trace
 from app.agent.llm.provider import LlmFailed, LlmProvider, build_provider
 from app.agent.planner import make_plan
 from app.agent.composer import compose
@@ -28,6 +31,10 @@ _provider = build_provider(settings, secret_store.getter)  # chỉ dựng đối
 _nlu = open_nlu(settings.rasa_url)
 
 
+def _ms(started: float) -> int:
+    return round((time.monotonic() - started) * 1000)
+
+
 def get_agent_provider() -> LlmProvider:
     """Test thay bằng bản giả qua ``dependency_overrides``."""
     return _provider
@@ -39,10 +46,17 @@ def get_gate_nlu():
 
 
 @router.post("/agent/gate", response_model=GateResponse)
-async def agent_gate(body: GateRequest, session: Annotated[AsyncSession, Depends(get_db)], nlu=Depends(get_gate_nlu)) -> GateResponse:
+async def agent_gate(
+    body: GateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trace: Annotated[TraceInfo | None, Depends(get_trace)],
+    nlu=Depends(get_gate_nlu),
+) -> GateResponse:
+    started = time.monotonic()
     rules = await gate.load_rules(session)
     result = await gate.evaluate(body.text, rules, nlu)
     logger.info("agent_gate", in_scope=result.in_scope, reason=result.reason_code)  # mã cố định, không có nội dung câu hỏi
+    await agent_trace.record(session, trace, "gate", _ms(started), result.reason_code)
     return GateResponse(
         in_scope=result.in_scope,
         reason_code=result.reason_code,
@@ -51,11 +65,22 @@ async def agent_gate(body: GateRequest, session: Annotated[AsyncSession, Depends
 
 
 @router.post("/agent/compose", response_model=ComposeResponse)
-async def agent_compose(body: ComposeRequest, provider: Annotated[LlmProvider, Depends(get_agent_provider)]) -> ComposeResponse:
+async def agent_compose(
+    body: ComposeRequest,
+    provider: Annotated[LlmProvider, Depends(get_agent_provider)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trace: Annotated[TraceInfo | None, Depends(get_trace)],
+) -> ComposeResponse:
     """Soạn câu từ bằng chứng. LLM hỏng KHÔNG làm lượt hỏi hỏng: trả câu mẫu dựng từ bằng chứng (``used_template``). Bộ kiểm chứng chỉ tắt được khi ``AGENT_EVAL_ENABLED``."""
+    started = time.monotonic()
     verifier_on = settings.agent_verifier_enabled and not (body.skip_verifier and settings.agent_eval_enabled)
     result = await compose(provider, body.question, body.evidence, settings.agent_max_output_tokens, verifier_on)
     logger.info("agent_compose", template=result.used_template, no_data=result.no_data, claims=len(result.claims), verifier=verifier_on)
+    verdict = "no_data" if result.no_data else "template" if result.used_template else "ok"
+    await agent_trace.record(
+        session, trace, "compose", _ms(started), verdict,
+        result.usage.input_tokens if result.usage else 0, result.usage.output_tokens if result.usage else 0,
+    )
     return result
 
 
@@ -88,10 +113,18 @@ async def agent_memory_delete_all(session: Annotated[AsyncSession, Depends(get_d
 
 
 @router.post("/agent/plan", response_model=PlanResponse)
-async def agent_plan(body: PlanRequest, provider: Annotated[LlmProvider, Depends(get_agent_provider)]) -> PlanResponse:
+async def agent_plan(
+    body: PlanRequest,
+    provider: Annotated[LlmProvider, Depends(get_agent_provider)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trace: Annotated[TraceInfo | None, Depends(get_trace)],
+) -> PlanResponse:
+    started = time.monotonic()
     try:
         plan = await make_plan(provider, body, settings.agent_max_output_tokens)
     except LlmFailed as error:
+        await agent_trace.record(session, trace, "plan", _ms(started), "llm_unavailable")
         raise HTTPException(status_code=503, detail={"code": "llm_unavailable", "reason": str(error.args[0]) if error.args else "unknown"}) from error
     logger.info("agent_plan", steps=len(plan.steps), clarify=plan.clarify is not None, input_tokens=plan.usage.input_tokens, output_tokens=plan.usage.output_tokens)
+    await agent_trace.record(session, trace, "plan", _ms(started), "clarify" if plan.clarify else "ok", plan.usage.input_tokens, plan.usage.output_tokens)
     return plan

@@ -121,13 +121,39 @@ public class AgentOrchestratorTests
     }
 
     private static (AgentOrchestrator Orchestrator, FakeAi Ai, RecordingSource Source) Build(
-        long[]? income = null, IncomeSegment? segmentOverride = null, FakeCache? cache = null)
+        long[]? income = null, IncomeSegment? segmentOverride = null, FakeCache? cache = null, AgentTraceContext? trace = null)
     {
         var source = new RecordingSource(new InMemoryFinancialDataSource(income ?? Income, Spend.Take((income ?? Income).Length).ToArray(), 100_000_000, segmentOverride));
         var assumptions = new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>());
         var registry = new ToolRegistry([new ForecastGoalTool(source, assumptions), new GetAssumptionsAgentTool(assumptions)]);
         var ai = new FakeAi();
-        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(cache ?? new FakeCache()), () => Now), ai, source);
+        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(cache ?? new FakeCache()), trace ?? new AgentTraceContext(), () => Now), ai, source);
+    }
+
+    [Fact]
+    public async Task the_trace_context_carries_the_answers_trace_id_and_the_asking_user()
+    {
+        var trace = new AgentTraceContext();
+        var (orchestrator, _, _) = Build(trace: trace);
+        var me = Guid.NewGuid();
+
+        var answer = await orchestrator.AskAsync(me, "mua xe 600 triệu");
+
+        trace.IsActive.Should().BeTrue();
+        trace.TraceId.Should().Be(answer.TraceId);
+        trace.UserId.Should().Be(me);
+    }
+
+    [Fact]
+    public async Task the_trace_starts_before_the_first_call_so_even_a_refusal_is_traceable()
+    {
+        var trace = new AgentTraceContext();
+        var (orchestrator, ai, _) = Build(trace: trace);
+        ai.Gate = new AgentGateResult(false, "out_of_scope", "Ngoài phạm vi.");
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "thời tiết");
+
+        trace.TraceId.Should().Be(answer.TraceId);
     }
 
     [Fact]
