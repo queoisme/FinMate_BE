@@ -43,6 +43,19 @@ public sealed class RepositoryFinancialDataSource(
         return new MonthlySeries(income, spend);
     }
 
+    public async Task<IReadOnlyList<CategorySpendVnd>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var rows = await reports.GetCategorySpendAsync(userId, from, to, ct);
+        return rows
+            .Select(r => r.CategoryId is null
+                ? new CategorySpendVnd("uncategorized", "Chưa phân loại", r.SpentCents)
+                : new CategorySpendVnd(r.CategorySlug ?? "category", r.CategoryName ?? "Danh mục", r.SpentCents))
+            .GroupBy(r => r.Slug)
+            .Select(g => new CategorySpendVnd(g.Key, g.First().Name, g.Sum(r => r.SpentVnd)))
+            .OrderByDescending(r => r.SpentVnd)
+            .ToList();
+    }
+
     public async Task<long> GetTotalBalanceAsync(Guid userId, CancellationToken ct = default)
         => (await accounts.GetListByUserAsync(userId, ct)).Where(a => a.DeletedAt is null).Sum(a => a.BalanceCents);
 

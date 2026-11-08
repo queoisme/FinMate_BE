@@ -24,6 +24,12 @@ public class ToolExecutorTests
             return inner.GetMonthlySeriesAsync(userId, months, now, ct);
         }
 
+        public Task<IReadOnlyList<CategorySpendVnd>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+        {
+            UsersSeen.Add(userId);
+            return inner.GetCategorySpendAsync(userId, from, to, ct);
+        }
+
         public Task<long> GetTotalBalanceAsync(Guid userId, CancellationToken ct = default)
         {
             UsersSeen.Add(userId);

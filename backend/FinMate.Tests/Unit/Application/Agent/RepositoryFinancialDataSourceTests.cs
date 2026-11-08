@@ -99,6 +99,52 @@ public class RepositoryFinancialDataSourceTests
         (await source.GetTotalBalanceAsync(UserId)).Should().Be(5_500_000);
     }
 
+    private static RepositoryFinancialDataSource BuildWithCategorySpend(List<CategorySpend> rows, Mock<IReportRepository>? report = null)
+    {
+        report ??= new Mock<IReportRepository>();
+        report.Setup(r => r.GetCategorySpendAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rows);
+        return new RepositoryFinancialDataSource(report.Object, Mock.Of<IFinancialAccountRepository>(), Mock.Of<IUserRepository>());
+    }
+
+    [Fact]
+    public async Task CategorySpend_MapsNullCategoryToUncategorized()
+    {
+        var source = BuildWithCategorySpend([new CategorySpend(null, null, null, 50_000), new CategorySpend(Guid.NewGuid(), "Ăn uống", null, 20_000)]);
+
+        var result = await source.GetCategorySpendAsync(UserId, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        result.Should().Equal(
+            new CategorySpendVnd("uncategorized", "Chưa phân loại", 50_000),
+            new CategorySpendVnd("category", "Ăn uống", 20_000));
+    }
+
+    [Fact]
+    public async Task CategorySpend_SortsByAmountDescending()
+    {
+        var source = BuildWithCategorySpend(
+        [
+            new CategorySpend(Guid.NewGuid(), "A", "a", 10),
+            new CategorySpend(Guid.NewGuid(), "B", "b", 30),
+            new CategorySpend(Guid.NewGuid(), "C", "c", 20),
+        ]);
+
+        var result = await source.GetCategorySpendAsync(UserId, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        result.Select(r => r.Slug).Should().Equal("b", "c", "a");
+    }
+
+    [Fact]
+    public async Task CategorySpend_PassesUserIdAndRangeToRepository()
+    {
+        var report = new Mock<IReportRepository>();
+        var source = BuildWithCategorySpend([], report);
+
+        await source.GetCategorySpendAsync(UserId, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        report.Verify(r => r.GetCategorySpendAsync(UserId, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Theory]
     [InlineData("stable", IncomeSegment.Stable)]
     [InlineData("variable", IncomeSegment.Variable)]
