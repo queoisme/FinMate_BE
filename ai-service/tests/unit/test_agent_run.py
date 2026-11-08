@@ -49,3 +49,65 @@ def test_the_runner_arguments_reject_an_unknown_config():
 
     with pytest.raises(SystemExit):
         run.main(["--config", "nope"])
+
+
+def _runner(fail_ids=()):
+    import httpx
+
+    calls = []
+
+    def runner(question, index):
+        calls.append(question["id"])
+        if question["id"] in fail_ids:
+            raise httpx.ConnectError("llm down")
+        return {"id": question["id"], "kind": question["kind"], "ok": True, "index": index}
+
+    runner.calls = calls
+    return runner
+
+
+def _questions(n=3):
+    return [{"id": f"q{i}", "kind": "forecast"} for i in range(n)]
+
+
+def test_a_failing_question_is_recorded_as_errored_and_the_run_continues(tmp_path):
+    path = tmp_path / "r.jsonl"
+
+    rows, errored = run.run_questions(_questions(), _runner({"q1"}), path)
+
+    assert [r["id"] for r in rows] == ["q0", "q2"]
+    assert errored == ["q1"]
+    lines = [__import__("json").loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
+    assert [x["id"] for x in lines] == ["q0", "q1", "q2"] and "error" in lines[1]
+
+
+def test_resume_skips_answered_ids_retries_errored_ones_and_keeps_question_indices(tmp_path):
+    path = tmp_path / "r.jsonl"
+    run.run_questions(_questions(), _runner({"q1"}), path)
+
+    second = _runner()
+    rows, errored = run.run_questions(_questions(), second, path)
+
+    assert second.calls == ["q1"]  # chỉ chạy lại câu lỗi
+    assert errored == [] and [r["id"] for r in rows] == ["q0", "q1", "q2"]
+    assert next(r for r in rows if r["id"] == "q1")["index"] == 1  # hồ sơ giả lập theo vị trí gốc, không đổi khi resume
+
+
+def test_every_answered_row_is_on_disk_before_the_next_question_runs(tmp_path):
+    path = tmp_path / "r.jsonl"
+    seen = []
+
+    def runner(question, index):
+        seen.append(len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0)
+        return {"id": question["id"], "kind": "forecast"}
+
+    run.run_questions(_questions(), runner, path)
+
+    assert seen == [0, 1, 2]
+
+
+def test_the_runner_accepts_resume_and_rejects_an_unknown_run_id():
+    import pytest
+
+    with pytest.raises(SystemExit):
+        run.main(["--resume", "../escape"])

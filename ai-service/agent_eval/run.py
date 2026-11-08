@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -118,6 +119,33 @@ def run_baseline(client: httpx.Client, ai_url: str, key: str, question: dict) ->
     }
 
 
+def run_questions(questions: list[dict], runner, path: Path) -> tuple[list[dict], list[str]]:
+    """Chạy từng câu và ghi kết quả NGAY vào ``path`` (jsonl), nên một đợt dài bị ngắt giữa chừng không mất phần đã chạy.
+    Câu nào gọi lỗi (mạng, 429, 503...) được ghi ``{"id", "error"}`` rồi chạy tiếp; chạy lại cùng ``path`` thì bỏ qua câu đã trả lời và thử lại câu lỗi.
+    Trả (các hàng đã trả lời, id các câu còn lỗi): câu lỗi KHÔNG vào chỉ số, cũng không bị tính là đúng."""
+    latest: dict[str, dict] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                latest[row["id"]] = row  # dòng cuối của mỗi id thắng
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as out:
+        for index, question in enumerate(questions):  # index theo vị trí gốc: hồ sơ giả lập không đổi khi resume
+            done = latest.get(question["id"])
+            if done is not None and "error" not in done:
+                continue
+            try:
+                row = runner(question, index)
+            except (httpx.HTTPError, KeyError, ValueError) as error:
+                row = {"id": question["id"], "error": type(error).__name__}  # không ghi nội dung lỗi: có thể chứa câu hỏi
+            latest[question["id"]] = row
+            out.write(json.dumps(row, ensure_ascii=False) + "\n")
+            out.flush()
+    ordered = [latest[q["id"]] for q in questions if q["id"] in latest]
+    return [r for r in ordered if "error" not in r], [r["id"] for r in ordered if "error" in r]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent_eval.run", description="Chạy bộ câu hỏi có nhãn qua agent và chấm điểm.")
     parser.add_argument("--config", choices=CONFIGS, default="full")
@@ -126,23 +154,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=None, help="chỉ chạy N câu đầu (chạy thử)")
     parser.add_argument("--provider", default=os.environ.get("AGENT_PROVIDER", "unknown"), help="nhãn ghi vào kết quả")
     parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "unknown"), help="nhãn ghi vào kết quả và khóa tra bảng giá")
+    parser.add_argument("--resume", default=None, help="mã đợt chạy cũ (tên tệp trong agent_eval/results/ không có đuôi): bỏ qua câu đã trả lời, thử lại câu lỗi")
     args = parser.parse_args(argv)
+    if args.resume is not None and not re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-z_]+-[0-9a-f]{6}", args.resume):
+        parser.error("--resume phải là mã đợt chạy dạng 20261108-101500-full-ab12cd")
 
     price_table = json.loads(PRICES.read_text(encoding="utf-8")) if PRICES.exists() else {}
     flags = {"verifier": args.config != "no_verifier", "rag": args.config != "no_rag"}
-    rows: list[dict] = []
+    run_id = args.resume or f"{time.strftime('%Y%m%d-%H%M%S')}-{args.config}-{uuid.uuid4().hex[:6]}"
     with httpx.Client(timeout=90) as client:
-        for index, question in enumerate(load_questions(args.limit)):
-            if args.config == "rasa_baseline":
-                rows.append(run_baseline(client, args.ai_url, os.environ["INTERNAL_API_KEY"], question))
-            else:
-                rows.append(run_agent(client, args.backend_url, os.environ["AI_SERVICE_API_KEY"], question, index, flags, args.model))
+        if args.config == "rasa_baseline":
+            def runner(question: dict, index: int) -> dict:
+                return run_baseline(client, args.ai_url, os.environ["INTERNAL_API_KEY"], question)
+        else:
+            def runner(question: dict, index: int) -> dict:
+                return run_agent(client, args.backend_url, os.environ["AI_SERVICE_API_KEY"], question, index, flags, args.model)
 
+        rows, errored = run_questions(load_questions(args.limit), runner, RESULTS / f"{run_id}.jsonl")
+
+    if not rows:
+        print(f"Không câu nào trả lời được ({len(errored)} lỗi). Kiểm tra backend / ai-service rồi chạy lại với --resume {run_id}")
+        return 1
     summary = summarize(rows, price_table)
-    run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{args.config}-{uuid.uuid4().hex[:6]}"
+    summary["errored"] = len(errored)
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / f"{run_id}.json").write_text(
-        json.dumps({"run_id": run_id, "config": args.config, "provider": args.provider, "model": args.model, "summary": summary, "rows": rows}, ensure_ascii=False, indent=1),
+        json.dumps({"run_id": run_id, "config": args.config, "provider": args.provider, "model": args.model, "summary": summary, "rows": rows, "errored_ids": errored}, ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
     table = markdown_table(args.config, summary)
