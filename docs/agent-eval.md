@@ -47,7 +47,30 @@ Nhà cung cấp/model LLM do ai-service chọn (`AGENT_PROVIDER`, `AGENT_MODEL`)
 
 ## Kết quả
 
-Mốc phase 1 (`full`, `no_verifier`, `rasa_baseline`) **chưa chạy**: cần backend Development + ai-service + khóa Gemini thật. Chạy xong dán bảng vào đây kèm ngày, model và số câu.
+Kế hoạch đo: `docs/superpowers/plans/2026-11-08-ai-agent-measurement.md`.
+
+### Lần chạy thật đầu tiên — 2026-11-08, `full`, `gemini-3.1-flash-lite`, 60 câu của bộ v1
+
+Backend là mã đã merge (chạy trên máy, DB riêng `finmate_eval`), ai-service dùng khóa Gemini trong `ai-service/.env`. Khóa này bị giới hạn tốc độ rất thấp (429 ngay ở lượt thứ hai), nên chạy với `--pause-seconds 15`; không nghỉ thì câu rơi về câu mẫu vì 429 và số đo nhiễu. Dữ liệu là hồ sơ giả lập.
+
+| Chỉ số | Giá trị |
+|---|---|
+| Câu trả lời được / lỗi | 54 / 6 |
+| plan_accuracy | 1,00 |
+| tool_accuracy | 0,83 |
+| unsupported_claim_rate | 0,00 |
+| numeric_faithfulness | 1,00 |
+| refusal_precision / recall | 1,00 / 1,00 |
+| retrieval_recall_at_5 | n/a (chưa có nhãn nguồn, xem Task 6) |
+| latency p50 / p95 | 1,1 s / 5,4 s |
+| template_rate | 0,00 |
+| cost_usd (54 câu) | 0,029 |
+
+Đọc kết quả (đã đối chiếu từng câu):
+- **Không có câu nào sai số tiền hoặc trích dẫn thiếu căn cứ**; mọi câu cần từ chối đều bị từ chối.
+- **tool_accuracy 0,83 do nội dung, không do mã:** 9 câu `knowledge` đều ra `insufficient_data` vì chưa có giả định kinh tế / tri thức nào được duyệt (công cụ chạy nhưng không có gì để trả). Đây là việc của Task 6.
+- **6 câu lỗi (10%) là `ReadTimeout` của Gemini ở bước lập kế hoạch** (trần 20 s mỗi lần gọi), backend trả 503 như thiết kế. `gemini-3.1-flash-lite` chậm thất thường; mô hình khác có thể ổn hơn: so sánh ở Task 7, chưa đổi cấu hình khi chưa có số.
+- Số liệu độ trễ và `template_rate` chỉ đáng tin khi khóa không bị giới hạn tốc độ; nên đo lại với khóa gói trả phí.
 
 ## Backtest dải dự báo (Task 13)
 
