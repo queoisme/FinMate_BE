@@ -34,6 +34,7 @@ public sealed class ProviderMonitorSource : IMonitorSource
         await ApplyAsync(MonitoredServices.Rasa, MapRasa(ai?.Rasa), now, ct);
         await ApplyAsync(MonitoredServices.Brevo, MapLocal(MonitoredServices.Brevo.Key, threshold), now, ct);
         await ApplyAsync(MonitoredServices.Fcm, MapLocal(MonitoredServices.Fcm.Key, threshold), now, ct);
+        await ApplyAsync(MonitoredServices.SePay, MapLocal(MonitoredServices.SePay.Key, threshold), now, ct);
         await ApplyAsync(MonitoredServices.MarketData, MapLocal(MonitoredServices.MarketData.Key, threshold), now, ct);
     }
 

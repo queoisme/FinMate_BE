@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using FinMate.Application.Common;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using Microsoft.Extensions.Configuration;
 
@@ -16,13 +17,29 @@ public class BackendSecretTester : ISecretTester
     private readonly IHttpClientFactory _http;
     private readonly IConfiguration _configuration;
     private readonly FcmApp _fcm;
+    private readonly ISePayClient _sepay;
 
-    public BackendSecretTester(ISecretVault vault, IHttpClientFactory http, IConfiguration configuration, FcmApp fcm)
+    public BackendSecretTester(ISecretVault vault, IHttpClientFactory http, IConfiguration configuration, FcmApp fcm, ISePayClient sepay)
     {
+        _sepay = sepay;
         _vault = vault;
         _http = http;
         _configuration = configuration;
         _fcm = fcm;
+    }
+
+    /// <summary>Tra một mã đơn không tồn tại: SePay trả 404 nghĩa là key đúng, 401 thì client báo không tra được.</summary>
+    private async Task<SecretTestResult> TestSepayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _sepay.GetOrderAsync("FINMATE_KEY_TEST", ct);
+            return new SecretTestResult(true, "SePay chấp nhận key.");
+        }
+        catch (SePayUnavailableException)
+        {
+            return new SecretTestResult(false, "SePay từ chối key, thiếu merchant ID hoặc không gọi được.");
+        }
     }
 
     public async Task<SecretTestResult> TestAsync(string name, CancellationToken ct = default)
@@ -40,6 +57,7 @@ public class BackendSecretTester : ISecretTester
                 BackendSecrets.BrevoApiKey => await TestBrevoAsync(value!, ct),
                 BackendSecrets.GoogleClientSecret => await TestGoogleAsync(value!, ct),
                 BackendSecrets.FcmCredentialsJson => await TestFirebaseAsync(ct),
+                BackendSecrets.SepaySecretKey => await TestSepayAsync(ct),
                 _ => new SecretTestResult(false, "Không có cách thử cho key này."),
             };
         }

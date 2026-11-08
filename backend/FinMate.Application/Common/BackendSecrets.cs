@@ -11,6 +11,8 @@ public static class BackendSecrets
     public const string BrevoApiKey = "brevo_api_key";
     public const string GoogleClientSecret = "google_client_secret";
     public const string FcmCredentialsJson = "fcm_credentials_json";
+    public const string SepaySecretKey = "sepay_secret_key";
+    public const string SepayIpnSecretKey = "sepay_ipn_secret_key";
 
     public const int MaxLength = 8192;
 
@@ -21,6 +23,8 @@ public static class BackendSecrets
         new(BrevoApiKey, "Brevo API key (gửi email OTP)", "BREVO_API_KEY", ValidateToken),
         new(GoogleClientSecret, "Google OAuth client secret (đăng nhập Google)", "GOOGLE_CLIENT_SECRET", ValidateToken),
         new(FcmCredentialsJson, "Firebase service account JSON (thông báo đẩy FCM)", "FCM_CREDENTIALS_JSON", ValidateServiceAccount, Multiline: true),
+        new(SepaySecretKey, "SePay secret key (ký form, tra đơn)", "SEPAY_SECRET_KEY", ValidateToken),
+        new(SepayIpnSecretKey, "SePay IPN secret key (xác thực thông báo thanh toán)", "SEPAY_IPN_SECRET_KEY", ValidateToken),
     ];
 
     public static Definition? Find(string name) => All.FirstOrDefault(d => d.Name == name);
