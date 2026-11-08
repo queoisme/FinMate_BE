@@ -153,3 +153,56 @@ async def test_usage_of_the_llm_call_is_reported():
 async def test_an_llm_failure_propagates_so_the_caller_can_fall_back():
     with pytest.raises(LlmFailed):
         await plan(FakeProvider(error=LlmFailed("http_503")))
+
+
+BUDGET_TOOLS = [PlanTool(name="plan_budget")]
+BUDGET_TEXT = "ba mẹ gửi 2 triệu/tháng, muốn tiết kiệm 1 triệu"
+
+
+def budget_request(text=BUDGET_TEXT) -> PlanRequest:
+    return PlanRequest(text=text, tools=BUDGET_TOOLS)
+
+
+async def test_income_vnd_from_llm_must_match_a_number_in_the_question():
+    provider = FakeProvider([step("plan_budget", income_vnd=20_000_000, save_vnd=1_000_000)])
+
+    result = await plan(provider, budget_request())
+
+    assert all(s.args.get("income_vnd") != 20_000_000 for s in result.steps)  # 20 triệu không có trong câu
+    assert result.steps == [] and result.clarify  # hai số trong câu nên không đoán thay: hỏi lại
+
+
+async def test_save_vnd_not_in_question_is_dropped_and_clarified():
+    provider = FakeProvider([step("plan_budget", income_vnd=2_000_000, save_vnd=5_000_000)])
+
+    result = await plan(provider, budget_request())
+
+    assert result.steps == []
+    assert result.clarify
+
+
+async def test_income_and_save_must_match_different_numbers_in_the_question():
+    both = await plan(FakeProvider([step("plan_budget", income_vnd=2_000_000, save_vnd=1_000_000)]), budget_request())
+    same = await plan(FakeProvider([step("plan_budget", income_vnd=2_000_000, save_vnd=2_000_000)]), budget_request())
+
+    assert both.steps[0].args == {"income_vnd": 2_000_000, "save_vnd": 1_000_000}
+    assert same.steps == [] and same.clarify
+
+
+async def test_a_lone_wrong_income_is_replaced_when_the_question_holds_exactly_one_amount():
+    result = await plan(FakeProvider([step("plan_budget", income_vnd=20_000_000)]), budget_request("mình lương 2 triệu thì chia sao"))
+
+    assert result.steps[0].args == {"income_vnd": 2_000_000}
+
+
+async def test_price_vnd_behaviour_unchanged():
+    one = request("mua xe 600 triệu sau 2 năm được không")
+    many = request("mua xe 600 triệu, lương mình 20 triệu")
+    none = request("mua xe sau 2 năm được không")
+
+    assert (await plan(FakeProvider([step(price_vnd=6_000_000)]), one)).steps[0].args["price_vnd"] == 600_000_000  # đúng một số thì thay
+    assert (await plan(FakeProvider([step(price_vnd=20_000_000)]), many)).steps[0].args["price_vnd"] == 20_000_000  # trùng một số thì giữ
+    dropped = await plan(FakeProvider([step(price_vnd=123)]), many)
+    assert dropped.steps == [] and dropped.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"  # nhiều số mà không trùng: hỏi lại
+    missing = await plan(FakeProvider([step(price_vnd=500_000_000)]), none)
+    assert missing.steps == [] and missing.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"

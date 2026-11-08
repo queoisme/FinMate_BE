@@ -1,6 +1,6 @@
 """Bộ lập kế hoạch của AI Financial Agent: LLM chọn công cụ nào, với tham số nào, để trả lời câu hỏi — và CHỈ vậy.
 
-Ba lớp bảo vệ nằm ở code, không dựa vào lời nhắc: (1) chỉ giữ bước có công cụ nằm trong danh sách backend gửi sang; (2) con số tiền ``price_vnd`` do LLM điền phải trùng một số tiền mà bộ đọc số TẤT ĐỊNH
+Ba lớp bảo vệ nằm ở code, không dựa vào lời nhắc: (1) chỉ giữ bước có công cụ nằm trong danh sách backend gửi sang; (2) con số tiền (``price_vnd``, ``income_vnd``, ``save_vnd``) do LLM điền phải trùng một số tiền mà bộ đọc số TẤT ĐỊNH
 (``find_amounts``) đọc được từ chính câu hỏi (hoặc từ ngữ cảnh lượt trước), nếu không thì sửa theo số đọc được hoặc chuyển thành câu hỏi lại, không bao giờ tin con số LLM tự đoán; (3) câu hỏi, ngữ cảnh và bộ nhớ
 đi vào lời nhắc dưới dạng DỮ LIỆU (JSON ở tin nhắn người dùng), tuyệt đối không nối vào chỉ dẫn hệ thống. Công cụ nào bị loại hay tham số nào sai kiểu cũng có backend kiểm lại lần nữa trước khi chạy."""
 
@@ -15,6 +15,8 @@ from app.services.amount_normalizer import find_amounts
 
 MIN_PRICE_VND = 1_000  # số nhỏ hơn không phải một khoản tiền ("2" trong "2 năm" không được coi là giá)
 CLARIFY_PRICE = "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"
+CLARIFY_INCOME_GOAL = "Bạn cho mình biết thu nhập hàng tháng và số tiền muốn tiết kiệm cụ thể nhé?"
+MONEY_ARGS = ("price_vnd", "income_vnd", "save_vnd")  # mọi tham số tiền đều phải đọc được từ câu hỏi/ngữ cảnh, không tin con số LLM tự điền
 
 SYSTEM = (
     "Bạn là bộ lập kế hoạch của một trợ lý tài chính cá nhân. Nhiệm vụ DUY NHẤT của bạn là chọn công cụ cần gọi để trả lời câu hỏi của người dùng.\n"
@@ -61,23 +63,32 @@ def _allowed_prices(request: PlanRequest) -> tuple[set[int], set[int]]:
     return from_text, carried
 
 
-def _reconcile_prices(request: PlanRequest, steps: list[PlanStep]) -> tuple[list[PlanStep], bool]:
-    """Giữ giá LLM điền nếu trùng một số tiền thật; chỉ có đúng MỘT số trong câu hỏi thì dùng số đó thay cho con số LLM đọc nhầm; còn lại bỏ bước và báo cần hỏi lại."""
+def _reconcile_money(request: PlanRequest, steps: list[PlanStep]) -> tuple[list[PlanStep], list[str]]:
+    """Mỗi tham số tiền (``MONEY_ARGS``) LLM điền phải trùng một số tiền thật; hai tham số trong cùng một bước phải trùng hai số KHÁC nhau. Trùng thì giữ; chỉ có đúng MỘT số trong câu hỏi và đúng MỘT tham số
+    chưa khớp thì dùng số đó thay cho con số LLM đọc nhầm; còn lại bỏ bước. Trả thêm tên các tham số làm bước bị bỏ để chọn câu hỏi lại."""
     from_text, carried = _allowed_prices(request)
     allowed = from_text | carried
     kept: list[PlanStep] = []
-    dropped = False
+    dropped: list[str] = []
     for step in steps:
-        if "price_vnd" not in step.args:
+        names = [n for n in MONEY_ARGS if n in step.args]
+        if not names:
             kept.append(step)
             continue
-        price = step.args["price_vnd"]
-        if isinstance(price, int) and not isinstance(price, bool) and price in allowed:
+        used: set[int] = set()
+        bad: list[str] = []
+        for name in names:
+            value = step.args[name]
+            if isinstance(value, int) and not isinstance(value, bool) and value in allowed and value not in used:
+                used.add(value)
+            else:
+                bad.append(name)
+        if not bad:
             kept.append(step)
-        elif len(from_text) == 1 and not carried:
-            kept.append(step.model_copy(update={"args": {**step.args, "price_vnd": next(iter(from_text))}}))
+        elif len(bad) == 1 and len(from_text) == 1 and not carried and not used:
+            kept.append(step.model_copy(update={"args": {**step.args, bad[0]: next(iter(from_text))}}))
         else:
-            dropped = True
+            dropped += bad
     return kept, dropped
 
 
@@ -107,11 +118,11 @@ async def make_plan(provider: LlmProvider, request: PlanRequest, max_output_toke
             steps.append(PlanStep(tool=raw["tool"], args=args))
     steps = steps[: request.max_steps]
 
-    steps, dropped = _reconcile_prices(request, steps)
+    steps, dropped = _reconcile_money(request, steps)
     llm_clarify = result.data.get("clarify")
     clarify = llm_clarify.strip() if isinstance(llm_clarify, str) and llm_clarify.strip() else None
     if dropped and not steps and clarify is None:
-        clarify = CLARIFY_PRICE
+        clarify = CLARIFY_PRICE if "price_vnd" in dropped else CLARIFY_INCOME_GOAL
 
     intent = result.data.get("intent")
     return PlanResponse(
