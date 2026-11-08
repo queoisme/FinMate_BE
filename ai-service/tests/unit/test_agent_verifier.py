@@ -82,3 +82,12 @@ def test_format_vnd_uses_vietnamese_grouping():
     assert format_vnd(1_500_000) == "1.500.000 đồng"
     assert format_vnd(-500_000) == "-500.000 đồng"
     assert format_vnd(0) == "0 đồng"
+
+
+def test_month_and_year_are_not_mistaken_for_money():
+    assert claim_amounts("Kế hoạch từ tháng 8/2026 đến tháng 10/2026") == set()
+    ok = Claim(text="Từ tháng 8/2026, số dư 1,5 triệu", evidence_ids=["balance"])
+    bad = Claim(text="Từ tháng 8/2026, số dư 1,6 triệu", evidence_ids=["balance"])
+
+    assert kinds([ok]) == []
+    assert kinds([bad]) == [(0, "number_unsupported")]

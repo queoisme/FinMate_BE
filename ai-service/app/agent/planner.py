@@ -7,6 +7,7 @@ Ba lớp bảo vệ nằm ở code, không dựa vào lời nhắc: (1) chỉ gi
 from __future__ import annotations
 
 import json
+from collections import Counter
 from typing import Any
 
 from app.agent.llm.provider import LlmProvider
@@ -56,18 +57,18 @@ def _parse_args(raw: Any) -> dict[str, Any] | None:
     return args if isinstance(args, dict) else None
 
 
-def _allowed_prices(request: PlanRequest) -> tuple[set[int], set[int]]:
-    """(số tiền đọc được từ câu hỏi, số tiền mang từ lượt trước) — chỉ các số ≥ ``MIN_PRICE_VND``."""
-    from_text = {m.value for m in find_amounts(request.text) if m.value >= MIN_PRICE_VND}
-    carried = {int(v) for v in (request.state.slots.values() if request.state else []) if v.isdigit() and int(v) >= MIN_PRICE_VND}
+def _allowed_prices(request: PlanRequest) -> tuple[Counter[int], Counter[int]]:
+    """(số LẦN mỗi số tiền xuất hiện trong câu hỏi, số tiền mang từ lượt trước) — chỉ các số ≥ ``MIN_PRICE_VND``. Đếm lần xuất hiện để "3 triệu … 3 triệu" cho phép hai tham số cùng bằng 3 triệu."""
+    from_text = Counter(m.value for m in find_amounts(request.text) if m.value >= MIN_PRICE_VND)
+    carried = Counter(int(v) for v in (request.state.slots.values() if request.state else []) if v.isdigit() and int(v) >= MIN_PRICE_VND)
     return from_text, carried
 
 
 def _reconcile_money(request: PlanRequest, steps: list[PlanStep]) -> tuple[list[PlanStep], list[str]]:
-    """Mỗi tham số tiền (``MONEY_ARGS``) LLM điền phải trùng một số tiền thật; hai tham số trong cùng một bước phải trùng hai số KHÁC nhau. Trùng thì giữ; chỉ có đúng MỘT số trong câu hỏi và đúng MỘT tham số
+    """Mỗi tham số tiền (``MONEY_ARGS``) LLM điền phải trùng một số tiền thật; hai tham số trong cùng một bước phải trùng hai LẦN XUẤT HIỆN khác nhau (cùng một số chỉ dùng được bao nhiêu lần nó được nêu). Trùng thì giữ; chỉ có đúng MỘT số trong câu hỏi và đúng MỘT tham số
     chưa khớp thì dùng số đó thay cho con số LLM đọc nhầm; còn lại bỏ bước. Trả thêm tên các tham số làm bước bị bỏ để chọn câu hỏi lại."""
     from_text, carried = _allowed_prices(request)
-    allowed = from_text | carried
+    allowed = from_text + carried
     kept: list[PlanStep] = []
     dropped: list[str] = []
     for step in steps:
@@ -75,12 +76,12 @@ def _reconcile_money(request: PlanRequest, steps: list[PlanStep]) -> tuple[list[
         if not names:
             kept.append(step)
             continue
-        used: set[int] = set()
+        used: Counter[int] = Counter()
         bad: list[str] = []
         for name in names:
             value = step.args[name]
-            if isinstance(value, int) and not isinstance(value, bool) and value in allowed and value not in used:
-                used.add(value)
+            if isinstance(value, int) and not isinstance(value, bool) and used[value] < allowed[value]:
+                used[value] += 1
             else:
                 bad.append(name)
         if not bad:

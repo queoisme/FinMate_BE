@@ -13,7 +13,7 @@ from app.services.amount_normalizer import find_amounts
 
 MIN_AMOUNT_VND = 1_000  # nhỏ hơn không phải một khoản tiền ("2" trong "2 năm")
 _YEAR = re.compile(r"(?i)\bnăm\s+(?:19|20)\d{2}\b")
-_DATE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{4}\b")
+_DATE = re.compile(r"\b(?:\d{1,2}/)?\d{1,2}/\d{4}\b")  # 31/10/2026 và 8/2026 (tháng/năm): năm không phải tiền
 _PLAIN = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.,]\d{3})+|\d{4,})(?![\d]|[.,]\d)")  # 1.500.000 hoặc 1500000
 
 

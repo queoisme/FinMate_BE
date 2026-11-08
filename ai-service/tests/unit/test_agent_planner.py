@@ -206,3 +206,26 @@ async def test_price_vnd_behaviour_unchanged():
     assert dropped.steps == [] and dropped.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"  # nhiều số mà không trùng: hỏi lại
     missing = await plan(FakeProvider([step(price_vnd=500_000_000)]), none)
     assert missing.steps == [] and missing.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"
+
+
+async def test_the_same_amount_stated_twice_may_fill_both_income_and_save():
+    text = "Trợ cấp 3 triệu, mình muốn tiết kiệm đủ 3 triệu luôn"
+
+    result = await plan(FakeProvider([step("plan_budget", income_vnd=3_000_000, save_vnd=3_000_000)]), budget_request(text))
+
+    assert result.steps[0].args == {"income_vnd": 3_000_000, "save_vnd": 3_000_000}  # hai lần nói 3 triệu = hai số trong câu
+    assert result.clarify is None
+
+
+async def test_an_amount_stated_once_cannot_fill_two_money_args():
+    result = await plan(FakeProvider([step("plan_budget", income_vnd=2_000_000, save_vnd=2_000_000)]), budget_request())
+
+    assert result.steps == []
+    assert result.clarify == "Bạn cho mình biết thu nhập hàng tháng và số tiền muốn tiết kiệm cụ thể nhé?"
+
+
+async def test_a_dropped_price_asks_for_the_price_even_beside_budget_args():
+    result = await plan(FakeProvider([step("plan_budget", price_vnd=9_000_000, income_vnd=2_000_000)]), budget_request())
+
+    assert result.steps == []
+    assert result.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"
