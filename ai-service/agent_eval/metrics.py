@@ -83,11 +83,11 @@ def refusal_recall(rows: list[dict]) -> float:
     return _ratio(sum(_observed_behaviour(r) == "refuse" for r in should), len(should))
 
 
-def retrieval_recall_at_k(rows: list[dict], k: int) -> float:
-    """Trung bình, trên các câu có đáp án truy xuất, của |đúng ∩ top-k| / |đúng|. Chưa có câu nào có đáp án → 1."""
+def retrieval_recall_at_k(rows: list[dict], k: int) -> float | None:
+    """Trung bình, trên các câu có đáp án truy xuất, của |đúng ∩ top-k| / |đúng|. Chưa có câu nào có đáp án → None (báo n/a): trả 1 sẽ báo "đạt" cho thứ chưa đo."""
     scored = [r for r in rows if r.get("relevant")]
     if not scored:
-        return 1.0
+        return None
     return float(np.mean([len(set(r["relevant"]) & set(r["retrieved"][:k])) / len(r["relevant"]) for r in scored]))
 
 

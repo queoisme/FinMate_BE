@@ -54,8 +54,8 @@ def build_row(question: dict, payload: dict[str, Any], latency_ms: int, model: s
         "latency_ms": latency_ms,
         "usage": {"input_tokens": payload["usage"]["inputTokens"], "output_tokens": payload["usage"]["outputTokens"], "model": model},
         "used_template": answer["usedTemplate"],
-        "retrieved": [],
-        "relevant": [],
+        "retrieved": list(dict.fromkeys(e["sourceName"] for e in answer["evidence"] if e.get("source") == "document" and e.get("sourceName"))),
+        "relevant": question["expect"].get("relevant_sources", []),
     }
 
 

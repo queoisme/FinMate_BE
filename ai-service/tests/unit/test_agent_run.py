@@ -111,3 +111,27 @@ def test_the_runner_accepts_resume_and_rejects_an_unknown_run_id():
 
     with pytest.raises(SystemExit):
         run.main(["--resume", "../escape"])
+
+
+def test_retrieved_comes_from_document_evidence_in_order_without_duplicates_and_relevant_from_the_label():
+    question = {**run.load_questions(1)[0], "expect": {**run.load_questions(1)[0]["expect"], "relevant_sources": ["Phương pháp 50/30/20"]}}
+    body = payload()
+    body["answer"]["evidence"] = [
+        {"id": "d1", "valueVnd": None, "source": "document", "sourceName": "Phương pháp 50/30/20"},
+        {"id": "b", "valueVnd": 1_000, "source": "confirmed", "sourceName": None},
+        {"id": "d2", "valueVnd": None, "source": "document", "sourceName": "Quỹ khẩn cấp"},
+        {"id": "d3", "valueVnd": None, "source": "document", "sourceName": "Phương pháp 50/30/20"},
+    ]
+
+    row = run.build_row(question, body, 10, "m")
+
+    assert row["retrieved"] == ["Phương pháp 50/30/20", "Quỹ khẩn cấp"]
+    assert row["relevant"] == ["Phương pháp 50/30/20"]
+
+
+def test_a_question_without_relevant_sources_has_an_empty_relevant_list_and_the_summary_reports_na():
+    question = run.load_questions(1)[0]
+    rows = [run.build_row(question, payload(), 10, "m")]
+
+    assert rows[0]["relevant"] == [] and rows[0]["retrieved"] == []
+    assert run.summarize(rows, {})["retrieval_recall_at_5"] is None

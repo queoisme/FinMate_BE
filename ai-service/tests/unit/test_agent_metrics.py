@@ -122,3 +122,9 @@ def test_every_price_entry_has_a_source_url_a_date_and_positive_rates():
         assert price["input_per_million"] > 0 and price["output_per_million"] > 0, model
         assert price["source_url"].startswith("https://"), model
         assert len(price["as_of"]) == 10, model  # YYYY-MM-DD
+
+
+def test_retrieval_recall_is_none_not_one_when_no_question_has_relevant_sources():
+    rows = [{"relevant": [], "retrieved": ["a"]}, {"retrieved": []}]
+
+    assert metrics.retrieval_recall_at_k(rows, 5) is None
