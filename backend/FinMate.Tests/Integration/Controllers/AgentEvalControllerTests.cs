@@ -25,10 +25,14 @@ public class AgentEvalControllerTests : IClassFixture<AuthApiFactory>
     {
         public bool? SkipVerifier { get; private set; }
 
+        public string Tool { get; set; } = "forecast_goal";
+
+        public JsonElement ToolArgs { get; set; } = Args;
+
         public Task<AgentGateResult> GateAsync(string text, CancellationToken ct = default) => Task.FromResult(new AgentGateResult(true, "finance_cue", null));
 
         public Task<AgentPlanResult> PlanAsync(AgentPlanRequest request, CancellationToken ct = default)
-            => Task.FromResult(new AgentPlanResult("forecast_goal", [new AgentPlanStep("forecast_goal", Args)], null, new AgentUsage(100, 20, "fake", "fake")));
+            => Task.FromResult(new AgentPlanResult(Tool, [new AgentPlanStep(Tool, ToolArgs)], null, new AgentUsage(100, 20, "fake", "fake")));
 
         public Task<AgentComposeResult> ComposeAsync(string question, IReadOnlyList<Evidence> evidence, bool skipVerifier = false, CancellationToken ct = default)
         {
@@ -119,5 +123,40 @@ public class AgentEvalControllerTests : IClassFixture<AuthApiFactory>
         await Client(true).SendAsync(Post(Key, verifier: false));
 
         _ai.SkipVerifier.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SnapshotWithCategorySpend_ReachesTheTool()
+    {
+        _ai.Tool = "spending_summary";
+        _ai.ToolArgs = JsonDocument.Parse("""{"months":3}""").RootElement.Clone();
+        var request = new HttpRequestMessage(HttpMethod.Post, Run)
+        {
+            Content = JsonContent.Create(new
+            {
+                snapshot = new
+                {
+                    monthlyIncome = Enumerable.Repeat(20_000_000L, 12).ToArray(),
+                    monthlySpend = Enumerable.Repeat(12_000_000L, 12).ToArray(),
+                    totalBalance = 100_000_000L,
+                    categorySpend = new[]
+                    {
+                        new { slug = "transport", name = "Di chuyển", spentVnd = 4_000_000L },
+                        new { slug = "food", name = "Ăn uống", spentVnd = 9_000_000L },
+                    },
+                },
+                question = "3 tháng qua tôi tiêu vào đâu nhiều nhất?",
+                flags = new { verifier = true, rag = true },
+            }),
+        };
+        request.Headers.Add("X-Eval-Key", Key);
+
+        var response = await Client(true).SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var data = (await response.Content.ReadFromJsonAsync<Body>(JsonOptions))!.Data;
+        data.Trace.Should().Contain(new Step("spending_summary", "Ok"));
+        var values = data.Answer.Evidence.ToDictionary(e => e.GetProperty("id").GetString()!, e => e.GetProperty("valueVnd").GetInt64());
+        values.Should().Contain("spend_total", 13_000_000L).And.Contain("cat_1", 9_000_000L).And.Contain("cat_2", 4_000_000L);
     }
 }

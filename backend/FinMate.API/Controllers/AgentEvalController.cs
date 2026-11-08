@@ -16,7 +16,9 @@ namespace FinMate.API.Controllers;
 [AllowAnonymous]
 public class AgentEvalController(IConfiguration configuration, IWebHostEnvironment environment, IAgentOrchestrator orchestrator, SwitchableFinancialDataSource data, AgentRunOptions options, AgentTraceContext trace) : ControllerBase
 {
-    public sealed record SnapshotDto(List<long> MonthlyIncome, List<long> MonthlySpend, long TotalBalance);
+    public sealed record CategorySpendDto(string Slug, string Name, long SpentVnd);
+
+    public sealed record SnapshotDto(List<long> MonthlyIncome, List<long> MonthlySpend, long TotalBalance, List<CategorySpendDto>? CategorySpend = null);
 
     public sealed record FlagsDto(bool Verifier = true, bool Rag = true);
 
@@ -50,7 +52,9 @@ public class AgentEvalController(IConfiguration configuration, IWebHostEnvironme
             return UnprocessableEntity(new { code = "invalid_eval_request" });
         }
 
-        data.Use(new InMemoryFinancialDataSource(s.MonthlyIncome, s.MonthlySpend, s.TotalBalance));
+        data.Use(new InMemoryFinancialDataSource(
+            s.MonthlyIncome, s.MonthlySpend, s.TotalBalance,
+            categorySpend: s.CategorySpend?.Select(c => new CategorySpendVnd(c.Slug, c.Name, c.SpentVnd)).ToList()));
         options.SkipVerifier = !(request.Flags?.Verifier ?? true);
         options.RagEnabled = request.Flags?.Rag ?? true;
 

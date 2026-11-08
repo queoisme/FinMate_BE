@@ -9,7 +9,7 @@ public sealed class InMemoryFinancialDataSource(
     IReadOnlyList<CategorySpendVnd>? categorySpend = null) : IFinancialDataSource
 {
     public Task<IReadOnlyList<CategorySpendVnd>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
-        => Task.FromResult(categorySpend ?? []);
+        => Task.FromResult<IReadOnlyList<CategorySpendVnd>>((categorySpend ?? []).OrderByDescending(r => r.SpentVnd).ThenBy(r => r.Slug, StringComparer.Ordinal).ToList());
 
     public Task<MonthlySeries> GetMonthlySeriesAsync(Guid userId, int months, DateTimeOffset now, CancellationToken ct = default)
     {
