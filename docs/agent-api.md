@@ -65,6 +65,8 @@ Lỗi: 422 `invalid_question`; 503 khi ai-service không dùng được **trư�
 | `runway` | Số dư đủ chi tiêu bao nhiêu tháng nếu thu nhập dừng | `history_too_short`, `no_spending_history` |
 | `stress_test` | Thu nhập giảm X% trong N tháng thì sao | `history_too_short` |
 | `sensitivity` | Yếu tố nào làm kết luận mục tiêu đổi nhiều nhất | `history_too_short` |
+| `spending_summary` | Chi tiêu đã xác nhận theo nhóm trong `months` tháng gần nhất (1–12, **tính cả tháng này** đến hôm nay): tổng chi + tối đa 5 nhóm lớn nhất kèm phần trăm (phần trăm chỉ nằm trong chữ, không phải số tiền bằng chứng) | không có chi tiêu trong khoảng → `no_spending_history` |
+| `plan_budget` | Chia ngân sách tháng: `save_vnd` (bắt buộc) để dành, phần còn lại của `income_vnd` (tùy chọn; bỏ trống = trung vị thu nhập 12 tháng) chia theo tỉ lệ chi của **chính người dùng** trong 3 tháng trọn gần nhất, không có thì theo mẫu admin `agent.budgetTemplate` trong system config. Mỗi nhóm làm tròn xuống nghìn đồng, phần dư dồn vào nhóm lớn nhất: tổng các nhóm + tiết kiệm = thu nhập đúng | tiết kiệm ≥ thu nhập → `goal_exceeds_income`; không nêu thu nhập và lịch sử không cho ra thu nhập (trung vị ≤ 0) → `history_too_short`; không có tỉ lệ của người dùng lẫn mẫu admin → `no_budget_basis` |
 
 ## Các API đi kèm (JWT của chính người dùng)
 

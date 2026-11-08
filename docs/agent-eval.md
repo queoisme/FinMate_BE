@@ -7,7 +7,7 @@ Bộ đánh giá nằm ở `ai-service/agent_eval/`. Mục đích: có số đo 
 | File | Vai trò |
 |---|---|
 | `personas.py` | Hồ sơ người dùng giả lập có đáp án thật: `stable_worker`, `freelancer`, `student`; sinh theo hạt giống cố định, 12 tháng lịch sử + 24 tháng tương lai chỉ dùng để chấm. |
-| `dataset/questions.jsonl` | Câu hỏi có nhãn: forecast, knowledge, clarify, out_of_scope, adversarial (bản đầu 60 câu, mục tiêu ≥300). |
+| `dataset/questions.jsonl` | Câu hỏi có nhãn: forecast, knowledge, clarify, out_of_scope, adversarial, slang_amount, runway, stress, sensitivity, spending (`sp-*`), budget_plan (`bp-*`) — 370 câu (319 + 51 câu `spending`/`budget_plan`). |
 | `metrics.py` | Chỉ số thuần tính toán (không gọi mạng). |
 | `run.py` | Chạy từng câu hỏi trên một hồ sơ giả lập qua backend, chấm điểm, ghi `agent_eval/results/<run_id>.json` (+ `.md`). |
 | `prices.json` | Bảng giá `{model: {input_per_million, output_per_million}}`. Rỗng cho tới khi điền từ trang giá chính thức của nhà cung cấp; thiếu giá thì chi phí in `n/a`, không in $0. |
@@ -84,6 +84,29 @@ Sau khi sửa cổng phạm vi dùng chung bộ đọc số tiền của dự á
 | template_rate | 0,04 (1 câu) |
 | latency p50 / p95 | 3,0 s / 19,1 s |
 | cost_usd (28 câu) | 0,039 |
+
+### Chi tiêu theo nhóm và chia ngân sách — 2026-11-09, `full`, `gemini-3.1-flash-lite`, 51 câu `spending` + `budget_plan`
+
+Lần đầu chạy hai công cụ mới `spending_summary` và `plan_budget` với LLM thật. Môi trường riêng dựng từ mã của nhánh (backend Development, ai-service, Postgres và Redis tạm, xóa sau khi đo); khóa Gemini như các lần trước, `--pause-seconds 15`. Lượt đầu 48/51 trả lời được, 3 câu `spending` lỗi `ReadTimeout` ở bước lập kế hoạch (backend 503); chạy lại bằng `--resume` thì cả 3 qua, nên số dưới đây là đủ 51 câu, 0 lỗi.
+
+| Chỉ số | Cả 51 câu | Bỏ `bp-23`, `bp-24` (49 câu) |
+|---|---|---|
+| plan_accuracy | 0,96 | 1,00 |
+| tool_accuracy | 0,96 | 1,00 |
+| unsupported_claim_rate | 0,00 | 0,00 |
+| numeric_faithfulness | 1,00 | 1,00 |
+| refusal_precision / recall | 1,00 / 1,00 | 1,00 / 1,00 |
+| template_rate | 0,04 (2 câu) | 0,04 |
+| latency p50 / p95 | 2,7 s / 14,1 s | 2,8 s / 14,1 s |
+| cost_usd | 0,058 | 0,057 |
+
+Theo nhóm: `spending` 24 câu đều đúng (plan/tool 1,00, p95 3,3 s, không câu mẫu); `budget_plan` 27 câu plan/tool 0,93, template_rate 0,07, p95 19,6 s.
+
+Đọc kết quả (đã đối chiếu từng câu):
+- **Không có số tiền nào sai hoặc thiếu căn cứ.** Ở cả 22 câu `plan_budget` đã chạy, tổng các nhóm + tiết kiệm đúng bằng thu nhập, và thu nhập/tiết kiệm khớp nhãn. Câu "Moni" (`bp-01`, sinh viên, ba mẹ gửi 2 triệu, muốn để dành 1.000.000đ) được chia 7 nhóm cộng đúng 1.000.000đ, ví dụ "ăn uống 319.000 đồng, giáo dục 245.000 đồng, nhà ở 181.000 đồng…".
+- **Bộ kiểm chứng có việc làm thật:** 3 lần soạn câu `plan_budget` đầu tiên bị từ chối vì có số tiền không phải bằng chứng (`number_unsupported`), soạn lại một lần thì qua; không câu nào phải rơi về câu mẫu vì lý do này (nội dung bị từ chối không được log nên chưa biết là số nào). Chạy lại 27 câu `budget_plan` với `no_verifier` (cùng ngày): unsupported_claim_rate 0,00, numeric_faithfulness 1,00, plan/tool 0,93 — lần đó LLM không viết số lạ nào, tức lỗi này thỉnh thoảng mới gặp, chưa đo được tần suất. Hai câu mẫu (`bp-11`, `bp-13`) là do Gemini quá hạn ở bước soạn câu.
+- **`bp-23`, `bp-24` (tiết kiệm ≥ thu nhập) ra `clarify`, không chạy công cụ**, nên trượt cả plan lẫn tool (không chỉ tool như README của dataset dự đoán). `bp-24` ("trợ cấp 3 triệu, tiết kiệm đủ 3 triệu"): bộ đối chiếu số tiền của planner đòi hai tham số tiền trùng hai số **khác nhau**, nên `income_vnd = save_vnd` bị bỏ bước và hỏi lại; `bp-23` (8 triệu, 10 triệu): LLM tự chọn hỏi lại. Mong đợi là chạy `plan_budget` và trả `goal_exceeds_income`.
+- `ReadTimeout` của Gemini vẫn là nguồn lỗi chính (3 lần ở bước lập kế hoạch, 2 lần ở bước soạn câu) và là lý do p95 cao; như các lần trước.
 
 ## Backtest dải dự báo (Task 13)
 
