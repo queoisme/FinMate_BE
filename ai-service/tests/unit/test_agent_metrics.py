@@ -109,3 +109,16 @@ def test_cost_uses_price_table_not_hardcoded():
     assert metrics.cost_usd(usage, {"m": {"input_per_million": 1.0, "output_per_million": 2.0}}) == pytest.approx(3.0)
     with pytest.raises(KeyError):
         metrics.cost_usd(usage, {})
+
+
+def test_every_price_entry_has_a_source_url_a_date_and_positive_rates():
+    import json
+    from agent_eval.run import PRICES
+
+    table = json.loads(PRICES.read_text(encoding="utf-8"))
+    if not table:
+        pytest.skip("prices.json is still empty")
+    for model, price in table.items():
+        assert price["input_per_million"] > 0 and price["output_per_million"] > 0, model
+        assert price["source_url"].startswith("https://"), model
+        assert len(price["as_of"]) == 10, model  # YYYY-MM-DD
