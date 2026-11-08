@@ -27,6 +27,8 @@ public static class AgentMessages
     {
         "history_too_short" => $"Mình cần ít nhất {AgentLimits.MinHistoryMonths} tháng lịch sử thu nhập để dự báo. Bạn ghi chép thêm giao dịch rồi hỏi lại nhé.",
         "assumption_missing" => "Mình chưa có giả định kinh tế đã duyệt cho nội dung này.",
+        "goal_exceeds_income" => "Số tiền muốn tiết kiệm bằng hoặc lớn hơn thu nhập nên không còn gì để chia cho chi tiêu. Bạn thử mức tiết kiệm thấp hơn nhé.",
+        "no_budget_basis" => "Mình chưa có chi tiêu 3 tháng gần nhất của bạn hay mẫu ngân sách nào để chia. Bạn ghi chép thêm giao dịch rồi hỏi lại nhé.",
         "knowledge_missing" => "Mình chưa có tài liệu đã được duyệt về nội dung này nên không muốn trả lời theo cảm tính.",
         _ => "Mình chưa đủ dữ liệu để trả lời câu hỏi này.",
     };

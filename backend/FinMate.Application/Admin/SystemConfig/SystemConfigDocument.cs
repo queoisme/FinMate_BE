@@ -292,6 +292,16 @@ public sealed record ForecastSettings
     public int GoalRateMonths { get; init; } = 6;
 }
 
+/// <summary>AI Financial Agent.</summary>
+public sealed record AgentSettings
+{
+    /// <summary>
+    /// Mẫu chia ngân sách của công cụ <c>plan_budget</c>, dùng khi người dùng chưa có chi tiêu 3 tháng trọn gần nhất: chuỗi JSON <c>{"slug": phần trăm nguyên}</c>, tổng đúng 100.
+    /// Mặc định RỖNG (chủ dự án chốt 2026-11-08: không đặt tỉ lệ sẵn trong code, admin nhập). Sai dạng thì công cụ coi như chưa có mẫu.
+    /// </summary>
+    public string BudgetTemplate { get; init; } = string.Empty;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -307,6 +317,7 @@ public sealed record SystemConfigDocument
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
+    public AgentSettings Agent { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>
