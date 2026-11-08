@@ -135,3 +135,16 @@ def test_a_question_without_relevant_sources_has_an_empty_relevant_list_and_the_
 
     assert rows[0]["relevant"] == [] and rows[0]["retrieved"] == []
     assert run.summarize(rows, {})["retrieval_recall_at_5"] is None
+
+
+def test_pause_seconds_sleeps_between_questions_that_actually_run_but_not_for_resumed_ones(tmp_path, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: sleeps.append(seconds))
+    path = tmp_path / "r.jsonl"
+
+    run.run_questions(_questions(3), _runner(), path, pause_seconds=2.5)
+    assert sleeps == [2.5, 2.5]  # giữa 3 câu có 2 khoảng nghỉ, không nghỉ sau câu cuối
+
+    sleeps.clear()
+    run.run_questions(_questions(3), _runner(), path, pause_seconds=2.5)  # tất cả đã trả lời: không chạy gì thì không nghỉ
+    assert sleeps == []

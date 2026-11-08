@@ -119,9 +119,10 @@ def run_baseline(client: httpx.Client, ai_url: str, key: str, question: dict) ->
     }
 
 
-def run_questions(questions: list[dict], runner, path: Path) -> tuple[list[dict], list[str]]:
+def run_questions(questions: list[dict], runner, path: Path, pause_seconds: float = 0.0) -> tuple[list[dict], list[str]]:
     """Chạy từng câu và ghi kết quả NGAY vào ``path`` (jsonl), nên một đợt dài bị ngắt giữa chừng không mất phần đã chạy.
     Câu nào gọi lỗi (mạng, 429, 503...) được ghi ``{"id", "error"}`` rồi chạy tiếp; chạy lại cùng ``path`` thì bỏ qua câu đã trả lời và thử lại câu lỗi.
+    ``pause_seconds`` nghỉ giữa các câu THỰC SỰ chạy (không nghỉ cho câu bỏ qua khi resume, cũng không sau câu cuối): nhà cung cấp giới hạn tốc độ trả 429 làm câu rơi về câu mẫu, nhiễu cả độ trễ lẫn tỉ lệ dùng mẫu.
     Trả (các hàng đã trả lời, id các câu còn lỗi): câu lỗi KHÔNG vào chỉ số, cũng không bị tính là đúng."""
     latest: dict[str, dict] = {}
     if path.exists():
@@ -130,11 +131,13 @@ def run_questions(questions: list[dict], runner, path: Path) -> tuple[list[dict]
                 row = json.loads(line)
                 latest[row["id"]] = row  # dòng cuối của mỗi id thắng
     path.parent.mkdir(parents=True, exist_ok=True)
+    pending = [i for i, q in enumerate(questions) if "error" in latest.get(q["id"], {"error": True})]
     with path.open("a", encoding="utf-8") as out:
         for index, question in enumerate(questions):  # index theo vị trí gốc: hồ sơ giả lập không đổi khi resume
-            done = latest.get(question["id"])
-            if done is not None and "error" not in done:
+            if index not in pending:
                 continue
+            if pause_seconds > 0 and index != pending[0]:
+                time.sleep(pause_seconds)
             try:
                 row = runner(question, index)
             except (httpx.HTTPError, KeyError, ValueError) as error:
@@ -154,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=None, help="chỉ chạy N câu đầu (chạy thử)")
     parser.add_argument("--provider", default=os.environ.get("AGENT_PROVIDER", "unknown"), help="nhãn ghi vào kết quả")
     parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "unknown"), help="nhãn ghi vào kết quả và khóa tra bảng giá")
+    parser.add_argument("--pause-seconds", type=float, default=0.0, help="nghỉ giữa các câu để tránh bị giới hạn tốc độ (429) của nhà cung cấp LLM")
     parser.add_argument("--resume", default=None, help="mã đợt chạy cũ (tên tệp trong agent_eval/results/ không có đuôi): bỏ qua câu đã trả lời, thử lại câu lỗi")
     args = parser.parse_args(argv)
     if args.resume is not None and not re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-z_]+-[0-9a-f]{6}", args.resume):
@@ -170,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             def runner(question: dict, index: int) -> dict:
                 return run_agent(client, args.backend_url, os.environ["AI_SERVICE_API_KEY"], question, index, flags, args.model)
 
-        rows, errored = run_questions(load_questions(args.limit), runner, RESULTS / f"{run_id}.jsonl")
+        rows, errored = run_questions(load_questions(args.limit), runner, RESULTS / f"{run_id}.jsonl", args.pause_seconds)
 
     if not rows:
         print(f"Không câu nào trả lời được ({len(errored)} lỗi). Kiểm tra backend / ai-service rồi chạy lại với --resume {run_id}")
