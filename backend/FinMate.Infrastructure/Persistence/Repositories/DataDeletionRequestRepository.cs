@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -34,6 +35,9 @@ public class DataDeletionRequestRepository : IDataDeletionRequestRepository
 
     public Task<DataDeletionRequest?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => _context.DataDeletionRequests.FirstOrDefaultAsync(d => d.Id == id, ct);
+
+    public Task<DataDeletionRequest?> GetPendingForUserAsync(Guid userId, CancellationToken ct = default)
+        => _context.DataDeletionRequests.FirstOrDefaultAsync(d => d.UserId == userId && d.Status == DataDeletionStatus.Pending, ct);
 
     public async Task<DataDeletionRequestListResult> GetPageAsync(
         DataDeletionRequestListFilter filter, CancellationToken ct = default)

@@ -37,6 +37,9 @@ public sealed record AiRulesRequest(
 
     /// <summary>Phiên bản chỉ dẫn (prompt) của AI khi gợi ý cách quản lý tài chính: <c>/admin/finance-method-prompts</c>.</summary>
     public const string MethodPromptsArea = "finance-method-prompts";
+
+    /// <summary>Danh sách "Học AI" (câu chưa hiểu, phản hồi sửa kết quả; chỉ đọc, không kèm băm người dùng): <c>/admin/learning</c>.</summary>
+    public const string LearningArea = "learning";
 }
 
 public interface IAiRulesAdminClient

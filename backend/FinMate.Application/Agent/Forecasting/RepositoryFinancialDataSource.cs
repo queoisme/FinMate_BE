@@ -10,11 +10,8 @@ namespace FinMate.Application.Agent;
 public sealed class RepositoryFinancialDataSource(
     IReportRepository reports,
     IFinancialAccountRepository accounts,
-    IUserRepository users,
-    RecurringItemService recurring) : IFinancialDataSource
+    IUserRepository users) : IFinancialDataSource
 {
-    public async Task<IReadOnlyList<RecurringEntry>> GetRecurringAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default)
-        => await recurring.GetEntriesAsync(userId, now, ct);
 
     public async Task<MonthlySeries> GetMonthlySeriesAsync(Guid userId, int months, DateTimeOffset now, CancellationToken ct = default)
     {

@@ -15,11 +15,4 @@ public interface IFinancialDataSource
 
     /// <summary>Nhóm thu nhập người dùng tự chọn; null = chưa chọn hoặc giá trị không hợp lệ (để hệ thống tự suy).</summary>
     Task<IncomeSegment?> GetIncomeSegmentOverrideAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>Khoản thu/chi định kỳ: đã xác nhận (nguồn <c>Confirmed</c>) cùng ứng viên phát hiện từ lịch sử nhưng chưa xác nhận (nguồn <c>Estimated</c>). Mặc định không có khoản nào.</summary>
-    Task<IReadOnlyList<RecurringEntry>> GetRecurringAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<RecurringEntry>>([]);
 }
-
-/// <param name="PaidThisMonth">Đã có giao dịch thật trả/nhận khoản này trong THÁNG HIỆN TẠI: số dư đã phản ánh nên sổ dòng tiền không tính lần nữa.</param>
-public sealed record RecurringEntry(string Name, long AmountVnd, FinMate.Domain.Entities.RecurringKind Kind, int DayOfMonth, EvidenceSource Source, bool PaidThisMonth);

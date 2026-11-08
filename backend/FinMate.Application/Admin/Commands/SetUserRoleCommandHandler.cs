@@ -50,14 +50,14 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
             return AdminMapper.ToDto(user);
         }
 
-        if (command.Role == UserRole.Admin && user.DeletedAt is not null)
+        if (command.Role.IsInternal() && user.DeletedAt is not null)
         {
             throw new BusinessRuleException(
                 AdminErrorCodes.CannotPromoteDeletedUser,
                 "Tài khoản này đang chờ xoá. Huỷ yêu cầu xoá trước khi cấp quyền quản trị.");
         }
 
-        if (user.Role == UserRole.Admin && command.Role != UserRole.Admin && await _userRepository.CountActiveAdminsAsync(ct) <= 1)
+        if (user.Role == UserRole.Admin && await _userRepository.CountActiveAdminsAsync(ct) <= 1)
         {
             // Đếm admin còn HOẠT ĐỘNG (chưa bị khoá). Hạ nốt người cuối là hệ thống không còn
             // ai quản trị được, mà đường cứu duy nhất là sửa ADMIN_SEED_* rồi khởi động lại
@@ -68,14 +68,14 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
         }
 
         var previousRole = user.Role;
-        user.Role = command.Role;
+        user.AssignRole(command.Role, command.AdminId);   // ghi lại ai cấp (user_roles.assigned_by_user_id)
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 
-        if (!command.Role.Covers(previousRole))
+        if (command.Role.Rank() < previousRole.Rank())
         {
-            // Đổi sang vai trò KHÔNG bao hàm vai trò cũ (hạ quyền, hoặc chuyển ngang giữa hai nhóm nhân sự) là mất quyền. Vai trò nằm TRONG access token và không được tra lại DB mỗi request, nên hạ quyền
-            // KHÔNG có hiệu lực ngay: token cũ vẫn ghi Admin tới hết TTL 15 phút. Thu hồi
+            // Mọi lần giảm quyền, kể cả Admin xuống OpsManager. Vai trò nằm TRONG access token và không được tra lại DB mỗi request, nên hạ quyền
+            // KHÔNG có hiệu lực ngay: token cũ vẫn ghi vai trò cũ tới hết TTL 15 phút. Thu hồi
             // refresh token chặn họ gia hạn, kẹp cửa sổ leo thang đặc quyền ở đúng 15 phút đó.
             // Cùng đánh đổi đã ghi ở SetUserLockCommandHandler.
             await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);

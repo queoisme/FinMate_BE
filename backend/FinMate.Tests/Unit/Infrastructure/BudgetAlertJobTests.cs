@@ -24,6 +24,9 @@ public class BudgetAlertJobTests
         _thresholds
             .Setup(t => t.GetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(FinMate.Application.Budgets.AlertThresholds.Default);
+        _budgetRepository
+            .Setup(r => r.UpdatePeriodAsync(It.IsAny<BudgetPeriod>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _job = new BudgetAlertJob(
             _budgetRepository.Object,
             new BudgetAlertNotifier(_userRepository.Object, _push.Object),
@@ -57,6 +60,19 @@ public class BudgetAlertJobTests
             .ReturnsAsync(new List<BudgetAlertCandidate> { new(period, budget) });
 
         return (budget, period);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAConcurrentTransactionChangedThePeriod_SendsNothingAndLeavesItForTheNextRun()
+    {
+        Arrange(limitCents: 1_000_000, spentCents: 750_000);
+        _budgetRepository
+            .Setup(r => r.UpdatePeriodAsync(It.IsAny<BudgetPeriod>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        await _job.RunAsync();
+
+        _push.VerifyNoOtherCalls();
     }
 
     [Fact]

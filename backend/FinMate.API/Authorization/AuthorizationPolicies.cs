@@ -12,12 +12,15 @@ public static class AuthorizationPolicies
     /// </summary>
     public const string AdminOnly = "AdminOnly";
 
-    /// <summary>Admin hoặc Manager.</summary>
+    /// <summary>
+    /// Staff, OpsManager hoặc Admin. Cũng đọc role trong token nên chỉ dùng để chặn sớm; thao tác nhạy cảm phải qua
+    /// <c>IOpsAccessService</c> để người vừa bị hạ quyền hoặc khoá mất quyền ngay.
+    /// </summary>
+    public const string StaffOrAbove = "StaffOrAbove";
+
+    /// <summary>OpsManager hoặc Admin. Cùng lưu ý với <see cref="StaffOrAbove"/>.</summary>
     public const string ManagerOrAbove = "ManagerOrAbove";
 
-    /// <summary>Admin, Manager hoặc SupportStaff.</summary>
-    public const string SupportStaffOrAbove = "SupportStaffOrAbove";
-
-    /// <summary>Admin, Manager hoặc ContentStaff.</summary>
-    public const string ContentStaffOrAbove = "ContentStaffOrAbove";
+    /// <summary>Có vai trò nội bộ nhưng chưa cần qua OTP. Chỉ dùng cho chính bước nhập OTP; mọi policy khác đều yêu cầu đã qua bước này.</summary>
+    public const string InternalAccount = "InternalAccount";
 }

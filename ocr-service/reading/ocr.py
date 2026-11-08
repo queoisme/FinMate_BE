@@ -16,6 +16,8 @@ from reading.crop import crop_receipt
 from classification.brands import BRAND_CATEGORIES, WHOLE_WORD_BRANDS
 from parsing.extract import _alnum, _norm
 from reading.quality import assess_quality, enhance
+from contextvars import ContextVar
+
 from reading import google_vision, vietocr_onnx
 from reading.text_clean import clean_ocr_text
 from classification import data_files
@@ -211,10 +213,20 @@ def _boxes_from_google(lines) -> list[OcrBox]:
     return sorted(drop_contained([OcrBox(text, float(conf), *c) for (text, conf, _quad), c in zip(lines, coords)]), key=lambda b: (b.y0, b.x0))
 
 
+_ENGINE: ContextVar[str | None] = ContextVar("ocr_engine", default=None)
+
+
+def last_engine() -> str | None:
+    """Engine đã đọc ảnh gần nhất trong luồng xử lý này: ``google_vision`` hoặc ``local``."""
+    return _ENGINE.get()
+
+
 def read_boxes(image_bytes: bytes) -> list[OcrBox]:
     """Trả về các dòng chữ kèm hộp bao theo thứ tự từ trên xuống. Google Cloud Vision đọc trước; lỗi hoặc chưa cấu hình thì OCR cục bộ."""
     if (google := google_vision.read_lines_or_none(image_bytes)) is not None:
+        _ENGINE.set("google_vision")
         return _boxes_from_google(google)
+    _ENGINE.set("local")
     return OCR_EXECUTOR.submit(_read_boxes, image_bytes).result()
 
 

@@ -56,8 +56,8 @@ public interface IAgentAiClient
     Task RecordUnansweredAsync(string question, CancellationToken ct = default) => Task.CompletedTask;
 
     /// <summary>Tóm tắt khiếu nại và GỢI Ý câu trả lời cho nhân sự (chỉ gợi ý). Mặc định không có trợ lý: trả null. Lỗi mạng/HTTP là <see cref="Exceptions.AIServiceUnavailableException"/>.</summary>
-    Task<FinMate.Application.Support.TicketAssistResult?> TicketAssistAsync(string subject, string body, IReadOnlyList<FinMate.Application.Support.TicketAssistMessage> history, CancellationToken ct = default)
-        => Task.FromResult<FinMate.Application.Support.TicketAssistResult?>(null);
+    Task<TicketAssistResult?> TicketAssistAsync(string subject, string body, IReadOnlyList<TicketAssistMessage> history, CancellationToken ct = default)
+        => Task.FromResult<TicketAssistResult?>(null);
 
     // Bộ nhớ dài hạn: các lời gọi này mang MÃ BĂM SHA-256 của người dùng (do client tính), không bao giờ mang id thật.
     Task<IReadOnlyList<AgentMemoryEntry>> GetMemoryAsync(Guid userId, CancellationToken ct = default);

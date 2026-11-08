@@ -27,6 +27,11 @@ public class CreateManualTransactionCommandValidator : AbstractValidator<CreateM
             .NotEqual(TransactionSource.Notification)
             .WithMessage("Giao dịch từ thông báo chỉ được tạo qua POST /notifications/analyze.");
 
+        // Giao dịch hỗ trợ tạo hộ chỉ đi qua API vận hành, có kiểm tra khách đã đồng ý.
+        RuleFor(x => x.Source)
+            .NotEqual(TransactionSource.Support)
+            .WithMessage("Giao dịch do hỗ trợ tạo hộ không tạo được ở đây.");
+
         RuleFor(x => x.MerchantName).MaximumLength(200);
         RuleFor(x => x.Description).MaximumLength(500);
     }

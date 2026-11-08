@@ -13,7 +13,7 @@ import structlog
 from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_internal_api_key
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 from app.bill.rules_admin import RuleError
 from app.core.config import settings
 from app.schemas.finance_methods import RecommendRequest, RecommendResponse
@@ -25,16 +25,17 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 
 # Client riêng (cầu dao tách khỏi hóa đơn và chat), dùng chung khóa Gemini. Dự phòng thứ hai (OpenRouter) ở ``_backup`` bên dưới, không nằm trong client này.
-_gemini = GeminiClient(
+_gemini = LlmClient(
     secret_store.getter("gemini_api_key"),
     settings.method_gemini_model,
     settings.method_gemini_timeout_seconds,
     overall_timeout=settings.method_gemini_overall_seconds,
     fallback_models=tuple(m.strip() for m in settings.method_gemini_fallback_models.split(",") if m.strip()),
+    health_channel="finance_methods",
 )
 
 
-def get_method_gemini_client() -> GeminiClient:
+def get_method_gemini_client() -> LlmClient:
     """Test thay bằng bản giả qua ``dependency_overrides``."""
     return _gemini
 
@@ -65,7 +66,7 @@ def _fail(status: int, code: str, message: str, details: list[str] | None = None
 @router.post("/finance-methods/recommend", response_model=RecommendResponse)
 async def recommend_finance_method(
     body: RecommendRequest,
-    gemini: Annotated[GeminiClient, Depends(get_method_gemini_client)],
+    gemini: Annotated[LlmClient, Depends(get_method_gemini_client)],
     prompt: Annotated[MethodPromptRow | None, Depends(get_method_prompt)],
     backup: Annotated[OpenRouterPicker, Depends(get_method_backup_picker)],
 ) -> RecommendResponse:

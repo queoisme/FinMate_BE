@@ -44,7 +44,8 @@ public class OcrServiceClient : IOcrServiceClient
         [property: JsonPropertyName("items")] List<ItemBody>? Items = null,
         [property: JsonPropertyName("items_ok")] bool ItemsOk = false,
         [property: JsonPropertyName("orders")] List<OrderBody>? Orders = null,
-        [property: JsonPropertyName("incomplete_orders")] int IncompleteOrders = 0);
+        [property: JsonPropertyName("incomplete_orders")] int IncompleteOrders = 0,
+        [property: JsonPropertyName("engine")] string? Engine = null);
 
     internal record OrderBody(
         [property: JsonPropertyName("merchant")] string? Merchant,
@@ -115,5 +116,6 @@ public class OcrServiceClient : IOcrServiceClient
             body.ItemsOk,
             body.Orders?.Where(o => o.TotalAmount is > 0)
                 .Select(o => new OcrOrder(o.Merchant, o.MerchantDisplay, o.TotalAmount!.Value, o.Product, o.Category)).ToList(),
-            body.IncompleteOrders);
+            body.IncompleteOrders,
+            body.Engine);
 }

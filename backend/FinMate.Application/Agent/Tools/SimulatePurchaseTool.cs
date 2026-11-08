@@ -1,114 +1,108 @@
 using System.Text.Json;
 using FinMate.Application.Common;
-using FinMate.Domain.Entities;
+using FinMate.Application.Forecasting;
 
 namespace FinMate.Application.Agent;
 
 /// <summary>
-/// Công cụ <c>simulate_purchase</c> (Flow 6): "mua món giá X hôm nay / N ngày nữa có ổn không?". Dựng sổ dòng tiền THEO NGÀY từ tổng số dư và các khoản định kỳ, rồi so điểm thấp nhất của số dư
-/// trong kỳ tính TRƯỚC và SAU khi mua. Kỳ tính: từ hôm nay đến ngay trước khoản thu định kỳ đã xác nhận kế tiếp; không có thì <c>window_days</c> (mặc định 30) ngày. Kết luận (khớp
-/// <c>AgentAnswerDto.Verdict</c>): <b>infeasible</b> = có ngày số dư dưới 0 sau khi mua (kèm ngày và số thiếu); <b>tight</b> = không âm nhưng kết quả dựa vào khoản CHƯA xác nhận hoặc chưa có khoản định kỳ
-/// nào được xác nhận; <b>feasible</b> = không âm và mọi khoản đưa vào đều đã xác nhận. Không bao giờ nói "chắc chắn". Khoản đã có giao dịch thanh toán trong tháng không bị trừ hai lần.
+/// Công cụ <c>simulate_purchase</c> (Flow 6): "mua món giá X hôm nay / N ngày nữa có ổn không?". KHÔNG tự tính dòng tiền: bọc <see cref="IPurchaseCheckService"/> (engine dự báo dòng tiền theo ngày của Phase 54–55,
+/// dùng khoản định kỳ <c>recurring_items</c>, ngân sách và kế hoạch tháng) rồi đổi kết quả thành bằng chứng có nguồn và độ tin cậy để agent trích dẫn. Một nguồn tính duy nhất: số trong câu trả lời của agent
+/// bằng đúng số mà màn "Mua món này có ổn không?" trong app hiển thị. Kết luận (khớp <c>AgentAnswerDto.Verdict</c>): <b>infeasible</b> = có nguy cơ thiếu tiền; <b>tight</b> = cần cân nhắc hoặc lệch kế hoạch;
+/// <b>feasible</b> = phù hợp kế hoạch. Đọc dữ liệu thật của người dùng đang hỏi (<c>userId</c> từ JWT), nên tab thử của admin (hồ sơ giả lập) không chạy được công cụ này.
 /// </summary>
-public sealed class SimulatePurchaseTool(IFinancialDataSource source) : IAgentTool
+public sealed class SimulatePurchaseTool(IPurchaseCheckService purchases) : IAgentTool
 {
+    private const int MaxEvidenceText = 480;
+
     public ToolSpec Spec { get; } = new(
         "simulate_purchase",
-        "Mô phỏng một khoản mua giá price_vnd, sau purchase_in_days ngày nữa (mặc định hôm nay): số dư thấp nhất trong kỳ tính trước và sau khi mua, theo từng khoản định kỳ.",
+        "Mô phỏng một khoản mua giá price_vnd, sau purchase_in_days ngày nữa (mặc định hôm nay): số dư thấp nhất trong kỳ tính trước và sau khi mua, theo từng khoản thu/chi định kỳ.",
         [
             new ToolArg("price_vnd", "int", true, 1, AgentLimits.MaxPriceVnd),
             new ToolArg("purchase_in_days", "int", false, 0, AgentLimits.MaxSimulationDays),
-            new ToolArg("reserve_vnd", "int", false, 0, AgentLimits.MaxPriceVnd),
             new ToolArg("window_days", "int", false, 1, AgentLimits.MaxSimulationDays),
         ]);
 
     public async Task<ToolResult> RunAsync(ToolContext context, JsonElement args, CancellationToken ct = default)
     {
         var price = args.GetProperty("price_vnd").GetInt64();
-        var inDays = Optional(args, "purchase_in_days", 0);
-        var reserve = Optional(args, "reserve_vnd", 0);
-        var windowDays = (int)Optional(args, "window_days", AgentLimits.DefaultSimulationDays);
+        var inDays = (int)Optional(args, "purchase_in_days", 0);
+        int? horizon = args.TryGetProperty("window_days", out var w) && w.TryGetInt64(out var days) ? (int)days : null;
+        var date = VietnamTime.DateOf(context.Now).AddDays(inDays);
 
-        var today = VietnamTime.DateOf(context.Now);
-        var balance = await source.GetTotalBalanceAsync(context.UserId, ct);
-        var entries = await source.GetRecurringAsync(context.UserId, context.Now, ct);
-
-        var occurrences = entries.SelectMany(e => Occurrences(e, today, today.AddDays(AgentLimits.MaxSimulationDays))).ToList();
-        var nextConfirmedInflow = occurrences
-            .Where(o => o.Entry.Kind == RecurringKind.Inflow && o.Entry.Source == EvidenceSource.Confirmed && o.Item.Date > today && !o.Item.Settled)
-            .Select(o => o.Item.Date)
-            .DefaultIfEmpty()
-            .Min();
-        var end = nextConfirmedInflow == default ? today.AddDays(windowDays) : nextConfirmedInflow.AddDays(-1);
-        end = end < today ? today : end;
-
-        var inflows = occurrences.Where(o => o.Entry.Kind == RecurringKind.Inflow).Select(o => o.Item).ToList();
-        var obligations = occurrences.Where(o => o.Entry.Kind == RecurringKind.Obligation).Select(o => o.Item).ToList();
-        var purchase = new HypotheticalPurchase(price, today.AddDays((int)inDays));
-        var before = CashFlowLedger.Project(balance, inflows, obligations, reserve, null, today, end);
-        var after = CashFlowLedger.Project(balance, inflows, obligations, reserve, purchase, today, end);
-
-        var used = occurrences.Where(o => !o.Item.Settled && o.Item.Date >= today && o.Item.Date <= end).ToList();
-        var anyEstimated = used.Any(o => o.Entry.Source == EvidenceSource.Estimated);
-        var noConfirmedItems = !entries.Any(e => e.Source == EvidenceSource.Confirmed);
-        var derivedSource = anyEstimated || noConfirmedItems ? EvidenceSource.Estimated : EvidenceSource.Confirmed;
+        var check = await purchases.CheckAsync(new PurchaseCheckCommand(context.UserId, price, date, null, null, null, horizon), ct);
+        if (check.Status == PurchaseStatuses.InsufficientData || check.LowestAfter is null || check.LowestBefore is null)
+        {
+            return ToolResult.Insufficient("purchase_data_missing");
+        }
 
         var now = context.Now;
-        Evidence Money(string id, string key, long value, EvidenceSource evidenceSource, string text)
-            => new(id, key, value, text, "VND", evidenceSource, now, ConfidenceCalculator.Compute(evidenceSource, now, now, 1.0));
+        var asOf = check.BalanceAsOf ?? now;
+        var estimated = check.Status != PurchaseStatuses.Assessable || check.Lines.Any(l => l.Source == PurchaseSources.Estimated) || check.Confidence == "low";
+        var derived = estimated ? EvidenceSource.Estimated : EvidenceSource.Confirmed;
 
+        Evidence Money(string id, string key, long value, EvidenceSource source, string text)
+            => new(id, key, value, Cap(text), "VND", source, asOf, ConfidenceCalculator.Compute(source, asOf, now, 1.0));
+
+        var period = $"{check.Period.From:dd/MM}–{check.Period.To:dd/MM}";
         var evidence = new List<Evidence>
         {
-            Money("price", "purchase_price", price, EvidenceSource.UserEntered, $"Giá khoản mua do người dùng nêu, mua sau {inDays} ngày"),
-            Money("balance", "total_balance", balance, EvidenceSource.Confirmed, "Tổng số dư các tài khoản hôm nay"),
+            Money("price", "purchase_price", price, EvidenceSource.UserEntered, $"Giá khoản mua do người dùng nêu, mua ngày {check.PurchaseDate:dd/MM}"),
+            Money("min_before", "min_balance_before", check.LowestBefore.BalanceCents, derived, $"Số dư thấp nhất kỳ {period} nếu KHÔNG mua (ngày {check.LowestBefore.Day:dd/MM})"),
+            Money("min_after", "min_balance_after", check.LowestAfter.BalanceCents, derived, $"Số dư thấp nhất kỳ {period} nếu mua (ngày {check.LowestAfter.Day:dd/MM})"),
+            Money("buffer", "safety_buffer", check.BufferCents, EvidenceSource.Estimated, "Vùng đệm an toàn theo cấu hình hệ thống"),
         };
-        if (reserve > 0)
+        if (check.ConservativeLowestAfterCents is { } conservative)
         {
-            evidence.Add(Money("reserve", "living_reserve", reserve, EvidenceSource.UserEntered, "Khoản dự trữ sinh hoạt người dùng muốn giữ lại trong kỳ"));
+            evidence.Add(Money("min_after_conservative", "min_balance_after_conservative", conservative, EvidenceSource.Estimated, "Số dư thấp nhất sau khi mua theo đường thận trọng (chi hằng ngày cao)"));
+        }
+
+        if (check.ShortfallCents > 0)
+        {
+            evidence.Add(Money("shortfall", "shortfall", check.ShortfallCents, derived, "Số tiền dự kiến thiếu so với mức an toàn"));
+        }
+
+        if (check.MaxAffordableCents is { } affordable)
+        {
+            evidence.Add(Money("max_affordable", "max_affordable", affordable, EvidenceSource.Estimated, "Mức tối đa có thể mua ngày đó mà vẫn giữ vùng đệm"));
         }
 
         var number = 0;
-        foreach (var o in used.OrderBy(o => o.Item.Date))
+        foreach (var line in check.Lines)
         {
-            var label = o.Entry.Kind == RecurringKind.Inflow ? "thu" : "trả";
-            var origin = o.Entry.Source == EvidenceSource.Confirmed ? "đã xác nhận" : "chưa xác nhận (ước tính từ lịch sử)";
-            evidence.Add(Money($"scheduled_{++number}", o.Entry.Kind == RecurringKind.Inflow ? "scheduled_inflow" : "scheduled_obligation", o.Item.AmountVnd, o.Entry.Source, $"{o.Entry.Name}: {label} ngày {o.Item.Date:dd/MM}, {origin}"));
+            var source = line.Source switch
+            {
+                PurchaseSources.Confirmed => EvidenceSource.Confirmed,
+                PurchaseSources.UserEntered => EvidenceSource.UserEntered,
+                _ => EvidenceSource.Estimated,
+            };
+            var when = line.Date is { } d ? $" ngày {d:dd/MM}" : string.Empty;
+            evidence.Add(Money($"scheduled_{++number}", line.AmountCents >= 0 ? "scheduled_inflow" : "scheduled_obligation", Math.Abs(line.AmountCents), source, $"{line.Label}{when} ({(line.AmountCents >= 0 ? "thu" : "chi")})"));
         }
 
-        evidence.Add(Money("min_before", "min_balance_before", before.MinimumBalanceVnd, derivedSource, $"Số dư thấp nhất từ {today:dd/MM} đến {end:dd/MM} nếu KHÔNG mua (ngày {before.MinimumDate:dd/MM})"));
-        evidence.Add(Money("min_after", "min_balance_after", after.MinimumBalanceVnd, derivedSource, $"Số dư thấp nhất từ {today:dd/MM} đến {end:dd/MM} nếu mua (ngày {after.MinimumDate:dd/MM})"));
-        if (after.MinimumBalanceVnd < 0)
+        if (check.EarliestSafeDate is { } safe)
         {
-            evidence.Add(Money("shortfall", "shortfall", -after.MinimumBalanceVnd, derivedSource, $"Số tiền dự kiến thiếu vào ngày {after.MinimumDate:dd/MM}"));
+            evidence.Add(new Evidence("earliest_safe_date", "earliest_safe_date", null, $"Ngày sớm nhất mua mà vẫn an toàn: {safe:dd/MM/yyyy}", "date", EvidenceSource.Estimated, asOf, ConfidenceCalculator.Compute(EvidenceSource.Estimated, asOf, now, 1.0)));
         }
 
-        var verdict = after.MinimumBalanceVnd < 0 ? "infeasible" : derivedSource == EvidenceSource.Estimated ? "tight" : "feasible";
-        evidence.Add(new Evidence(
-            "verdict", "purchase_verdict", null,
-            $"verdict: {verdict} (kỳ tính {today:dd/MM}–{end:dd/MM}; {(noConfirmedItems ? "chưa có khoản định kỳ nào được xác nhận" : anyEstimated ? "có khoản chưa xác nhận" : "mọi khoản đã xác nhận")})",
-            "label", derivedSource, now, ConfidenceCalculator.Compute(derivedSource, now, now, 1.0)));
+        foreach (var warning in check.Warnings.Take(3))
+        {
+            evidence.Add(new Evidence($"warning_{warning.Code}", $"warning_{warning.Code}", null, Cap(warning.Message), "text", EvidenceSource.Estimated, asOf, ConfidenceCalculator.Compute(EvidenceSource.Estimated, asOf, now, 1.0)));
+        }
+
+        var verdict = check.Verdict switch
+        {
+            PurchaseVerdicts.ShortfallRisk => "infeasible",
+            PurchaseVerdicts.FitsPlan => estimated ? "tight" : "feasible",
+            _ => "tight",
+        };
+        evidence.Add(new Evidence("verdict", "purchase_verdict", null, Cap($"verdict: {verdict} (kỳ tính {period}; {check.Summary})"), "label", derived, asOf, ConfidenceCalculator.Compute(derived, asOf, now, 1.0)));
 
         return ToolResult.Ok(evidence);
     }
 
+    private static string Cap(string text) => text.Length <= MaxEvidenceText ? text : text[..MaxEvidenceText];
+
     private static long Optional(JsonElement args, string name, long fallback)
         => args.TryGetProperty(name, out var value) && value.TryGetInt64(out var number) ? number : fallback;
-
-    private sealed record Occurrence(RecurringEntry Entry, ScheduledItem Item);
-
-    /// <summary>Các lần xảy ra của một khoản định kỳ trong [from, to]. Lần của THÁNG HIỆN TẠI mang cờ đã thanh toán nếu đã có giao dịch thật.</summary>
-    private static IEnumerable<Occurrence> Occurrences(RecurringEntry entry, DateOnly from, DateOnly to)
-    {
-        for (var month = new DateOnly(from.Year, from.Month, 1); month <= to; month = month.AddMonths(1))
-        {
-            var date = new DateOnly(month.Year, month.Month, Math.Min(entry.DayOfMonth, DateTime.DaysInMonth(month.Year, month.Month)));
-            if (date < from || date > to)
-            {
-                continue;
-            }
-
-            var settled = entry.PaidThisMonth && month.Year == from.Year && month.Month == from.Month;
-            yield return new Occurrence(entry, new ScheduledItem($"{entry.Name}:{date:yyyy-MM-dd}", entry.Name, entry.AmountVnd, date, entry.Source, settled));
-        }
-    }
 }

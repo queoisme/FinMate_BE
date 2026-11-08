@@ -1,3 +1,5 @@
+using FinMate.API.Authorization;
+using FinMate.Application.Groups;
 using System.Security.Claims;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
@@ -96,7 +98,9 @@ public class TransactionsController : ControllerBase
                 request.ClientRequestId,
                 request.Source ?? TransactionSource.Manual,
                 request.ReceiptScanId,
-                request.ReceiptGroup),
+                request.ReceiptGroup,
+                request.GroupId,
+                request.GroupCategoryId),
             ct);
         return Created(result);
     }
@@ -161,12 +165,29 @@ public class TransactionsController : ControllerBase
     /// Chốt một giao dịch nháp. Body KHÔNG bắt buộc: nhánh một chạm của docx bước 5.2 gửi
     /// rỗng, nhánh chọn danh mục ở bước 5.3 gửi kèm <c>categoryId</c> — vẫn đúng một lần gọi.
     /// </summary>
+    /// <summary>Chia sẻ giao dịch của mình vào nhóm, chuyển sang nhóm khác, hoặc đổi danh mục trong nhóm. Ví và số dư không đổi.</summary>
+    [HttpPut("{id:guid}/group")]
+    [RequireGroupsEnabled]
+    public async Task<IActionResult> Share(Guid id, [FromBody] ShareTransactionRequest request, [FromServices] IGroupTransactionService groupTransactions, CancellationToken ct)
+    {
+        await groupTransactions.ShareAsync(CurrentUserId, id, request.GroupId, request.GroupCategoryId, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/group")]
+    [RequireGroupsEnabled]
+    public async Task<IActionResult> Unshare(Guid id, [FromServices] IGroupTransactionService groupTransactions, CancellationToken ct)
+    {
+        await groupTransactions.UnshareAsync(CurrentUserId, id, ct);
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
     {
         var transaction = await _confirmHandler.HandleAsync(
-            new ConfirmTransactionCommand(CurrentUserId, id, request?.CategoryId), ct);
+            new ConfirmTransactionCommand(CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId), ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
@@ -261,7 +282,9 @@ public record CreateManualTransactionRequest(
     Guid? ClientRequestId = null,
     TransactionSource? Source = null,
     Guid? ReceiptScanId = null,
-    string? ReceiptGroup = null);
+    string? ReceiptGroup = null,
+    Guid? GroupId = null,
+    Guid? GroupCategoryId = null);
 
 /// <param name="ClientRequestId">
 /// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.
@@ -284,7 +307,8 @@ public record UpdateTransactionRequest(
     string? MerchantName,
     string? Description);
 
-public record ConfirmTransactionRequest(Guid? CategoryId);
+public record ConfirmTransactionRequest(Guid? CategoryId, Guid? GroupId = null, Guid? GroupCategoryId = null);
+public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 
 public record ChatRequest(string Text, Guid? FinancialAccountId = null, Guid? ClientRequestId = null);

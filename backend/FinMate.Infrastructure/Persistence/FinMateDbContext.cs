@@ -1,5 +1,4 @@
 using FinMate.Domain.Entities;
-using FinMate.Domain.Entities.Gamification;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence;
@@ -24,6 +23,9 @@ public class FinMateDbContext : DbContext
     public DbSet<SecretEntry> SecretEntries => Set<SecretEntry>();
     public DbSet<VietQrBank> VietQrBanks => Set<VietQrBank>();
     public DbSet<QrTransferIntent> QrTransferIntents => Set<QrTransferIntent>();
+    public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
+    public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
+    public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
@@ -36,11 +38,6 @@ public class FinMateDbContext : DbContext
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<AiResult> AiResults => Set<AiResult>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
-    public DbSet<UserGamification> UserGamifications => Set<UserGamification>();
-    public DbSet<Mission> Missions => Set<Mission>();
-    public DbSet<UserMission> UserMissions => Set<UserMission>();
-    public DbSet<MascotItem> MascotItems => Set<MascotItem>();
-    public DbSet<UserMascotItem> UserMascotItems => Set<UserMascotItem>();
     public DbSet<FinanceMethod> FinanceMethods => Set<FinanceMethod>();
     public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
     public DbSet<SurveyOption> SurveyOptions => Set<SurveyOption>();
@@ -50,8 +47,25 @@ public class FinMateDbContext : DbContext
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
     public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
-    public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
+    public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
+    public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
+    public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
+    public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();
+    public DbSet<SupportAccessGrant> SupportAccessGrants => Set<SupportAccessGrant>();
+    public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
+    public DbSet<OpsApprovalRequest> OpsApprovalRequests => Set<OpsApprovalRequest>();
+    public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
+    public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
+    public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
+    public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

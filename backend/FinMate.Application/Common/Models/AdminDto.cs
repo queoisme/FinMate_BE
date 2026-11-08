@@ -58,19 +58,6 @@ public record AdminCategoryDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
-public record AdminMissionDto(
-    Guid Id,
-    string Code,
-    string Title,
-    string Description,
-    MissionPeriodType PeriodType,
-    MissionConditionType ConditionType,
-    int ConditionTarget,
-    int ExpReward,
-    bool IsActive,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
-
 /// <param name="Metadata">
 /// Chuỗi JSON thô do handler ghi ra, mỗi loại sự kiện một hình dạng khác nhau. Trả nguyên văn
 /// chứ không parse: không có schema chung để parse theo, và cố ép một schema vào đây sẽ làm

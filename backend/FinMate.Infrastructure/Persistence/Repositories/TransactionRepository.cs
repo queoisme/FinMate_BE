@@ -20,12 +20,6 @@ public class TransactionRepository : ITransactionRepository
             .Include(t => t.Category)
             .Include(t => t.FinancialAccount)
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
-    public Task<List<Transaction>> GetConfirmedSinceAsync(Guid userId, DateTimeOffset from, CancellationToken ct = default)
-        => _context.Transactions
-            .AsNoTracking()
-            .Where(t => t.UserId == userId && t.Status == TransactionStatus.Confirmed && t.TransactedAt >= from)
-            .ToListAsync(ct);
-
     public Task<Guid?> FindPossibleDuplicateAsync(
         Guid userId,
         long amountCents,

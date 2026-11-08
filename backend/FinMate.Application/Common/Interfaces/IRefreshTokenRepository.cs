@@ -5,6 +5,7 @@ namespace FinMate.Application.Common.Interfaces;
 public interface IRefreshTokenRepository
 {
     Task<RefreshToken?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default);
+    Task MarkOpsVerifiedAsync(RefreshToken token, DateTimeOffset verifiedAt, CancellationToken ct = default);
     Task AddAsync(RefreshToken token, CancellationToken ct = default);
     Task RevokeAsync(RefreshToken token, string? replacedByTokenHash = null, CancellationToken ct = default);
     Task RevokeAllForUserAsync(Guid userId, CancellationToken ct = default);

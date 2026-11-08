@@ -175,13 +175,13 @@ public class SetUserRoleCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(UserRole.Manager)]
-    [InlineData(UserRole.SupportStaff)]
-    [InlineData(UserRole.ContentStaff)]
-    public async Task TheLastActiveAdminCannotBeMovedToAnyStaffRoleEither(UserRole target)
+    [InlineData(UserRole.OpsManager)]
+    [InlineData(UserRole.Staff)]
+    [InlineData(UserRole.User)]
+    public async Task TheLastAdminCannotBeMovedToAnyLowerRole(UserRole target)
     {
-        var user = Setup(UserRole.Admin);
         _userRepository.Setup(r => r.CountActiveAdminsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        var user = Setup(UserRole.Admin);
 
         var act = () => ActAsync(user.Id, target);
 
@@ -190,21 +190,41 @@ public class SetUserRoleCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(UserRole.Admin, UserRole.Manager, true)]
-    [InlineData(UserRole.Manager, UserRole.ContentStaff, true)]
-    [InlineData(UserRole.ContentStaff, UserRole.SupportStaff, true)]
-    [InlineData(UserRole.SupportStaff, UserRole.ContentStaff, true)]
-    [InlineData(UserRole.ContentStaff, UserRole.User, true)]
-    [InlineData(UserRole.User, UserRole.ContentStaff, false)]
-    [InlineData(UserRole.User, UserRole.Manager, false)]
-    [InlineData(UserRole.ContentStaff, UserRole.Manager, false)]
-    [InlineData(UserRole.Manager, UserRole.Admin, false)]
-    public async Task RefreshTokensAreRevokedExactlyWhenTheNewRoleDoesNotCoverTheOldOne(UserRole from, UserRole to, bool revoked)
+    [InlineData(UserRole.Admin, UserRole.OpsManager)]
+    [InlineData(UserRole.OpsManager, UserRole.Staff)]
+    [InlineData(UserRole.Staff, UserRole.User)]
+    public async Task AnyReductionRevokesRefreshTokens(UserRole from, UserRole to)
     {
         var user = Setup(from);
 
         await ActAsync(user.Id, to);
 
-        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, It.IsAny<CancellationToken>()), revoked ? Times.Once() : Times.Never());
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(UserRole.User, UserRole.Staff)]
+    [InlineData(UserRole.Staff, UserRole.OpsManager)]
+    [InlineData(UserRole.OpsManager, UserRole.Admin)]
+    public async Task PromotionKeepsTheSession(UserRole from, UserRole to)
+    {
+        var user = Setup(from);
+
+        await ActAsync(user.Id, to);
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Staff)]
+    [InlineData(UserRole.OpsManager)]
+    [InlineData(UserRole.Admin)]
+    public async Task AnAccountAwaitingDeletionCannotGetAnyInternalRole(UserRole target)
+    {
+        var user = Setup(deletedAt: DateTimeOffset.UtcNow);
+
+        var act = () => ActAsync(user.Id, target);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 }

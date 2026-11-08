@@ -31,6 +31,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
     private const string SuccessResult = "success";
     private const string NoAmountResult = "no_amount";
+
+    /// <summary>Engine của lần quét đang xử lý. Handler sống theo từng request nên không dùng chung giữa các lần quét.</summary>
+    private string? _ocrEngine;
+
     private const string UnreadableResult = "unreadable";
     private const string DebitType = "debit";
     private const string LabelledTotalSource = "text";
@@ -139,6 +143,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     {
         var ocr = await _ocrServiceClient.AnalyzeAsync(
             new OcrServiceRequest(command.UserId, command.Image, command.FileName, command.ContentType), ct);
+        _ocrEngine = ocr.Engine is ReceiptScanEngines.GoogleVision or ReceiptScanEngines.Local ? ocr.Engine : null;
 
         if (!ocr.Readable)
         {
@@ -241,7 +246,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
 
     /// <summary>
     /// Ghi lại kết quả BÓC TÁCH của lần quét (không ảnh, không chữ OCR) và trả về chính nó kèm mã bản ghi. Bản ghi không động tới số dư,
-    /// ngân sách hay gamification: lần quét chưa phải giao dịch, giao dịch chỉ ra đời khi người dùng bấm Lưu.
+    /// hay ngân sách: lần quét chưa phải giao dịch, giao dịch chỉ ra đời khi người dùng bấm Lưu.
     /// </summary>
     private async Task<ScannedReceiptDto> RecordAsync(
         Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)
@@ -257,6 +262,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         {
             UserId = userId,
             OcrResult = dto.OcrResult,
+            OcrEngine = _ocrEngine,
             AmountCents = dto.AmountCents,
             MerchantName = dto.MerchantName is { Length: > MaxMerchantLength } name ? name[..MaxMerchantLength] : dto.MerchantName,
             TransactedAt = dto.TransactedAt,

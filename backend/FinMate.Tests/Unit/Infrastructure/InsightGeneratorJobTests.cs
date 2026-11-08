@@ -111,8 +111,9 @@ public class InsightGeneratorJobTests
     }
 
     [Fact]
-    public async Task Recurring_MonthlyChargesOfTheSameAmount_AreFlagged()
+    public async Task Recurring_MonthlyCharges_NoLongerProduceAnInsight()
     {
+        // Từ Phase 54 khoản định kỳ thành đề xuất recurring_items (RecurringDetectionJob); một insight nữa sẽ báo trùng cùng một việc.
         SetupDebits(
             Debit(Today.AddDays(-60), 199_000, "Netflix"),
             Debit(Today.AddDays(-30), 199_000, "Netflix"),
@@ -120,84 +121,17 @@ public class InsightGeneratorJobTests
 
         await _job.GenerateAsync(Today);
 
-        var insight = _written.Single(i => i.InsightType == InsightType.RecurringDetected);
-        insight.Body.Should().Contain("Netflix");
-        insight.AmountCents.Should().Be(199_000);
-    }
-
-    [Fact]
-    public async Task Recurring_SameMerchantButErraticAmounts_IsNotASubscription()
-    {
-        SetupDebits(
-            Debit(Today.AddDays(-60), 50_000, "Circle K"),
-            Debit(Today.AddDays(-30), 320_000, "Circle K"),
-            Debit(Today, 90_000, "Circle K"));
-
-        await _job.GenerateAsync(Today);
-
         _written.Should().NotContain(i => i.InsightType == InsightType.RecurringDetected);
     }
 
     [Fact]
-    public async Task Recurring_SameAmountButBunchedTogether_IsNotMonthlyCadence()
+    public async Task UnusualSpending_FarAboveTheCategoryNorm_NoLongerProducesAnInsight()
     {
-        SetupDebits(
-            Debit(Today.AddDays(-4), 199_000, "Highlands"),
-            Debit(Today.AddDays(-2), 199_000, "Highlands"),
-            Debit(Today, 199_000, "Highlands"));
-
-        await _job.GenerateAsync(Today);
-
-        _written.Should().NotContain(i => i.InsightType == InsightType.RecurringDetected);
-    }
-
-    [Fact]
-    public async Task Recurring_OnlyTwoOccurrences_IsTooLittleToCallIt()
-    {
-        SetupDebits(
-            Debit(Today.AddDays(-30), 199_000, "Spotify"),
-            Debit(Today, 199_000, "Spotify"));
-
-        await _job.GenerateAsync(Today);
-
-        _written.Should().NotContain(i => i.InsightType == InsightType.RecurringDetected);
-    }
-
-    [Fact]
-    public async Task UnusualSpending_OneChargeFarAboveTheCategoryNorm_IsFlagged()
-    {
+        // Phase 56: bất thường chuyển sang transaction_anomalies (có phản hồi); insight trùng lặp sẽ báo một khoản hai lần.
         var categoryId = Guid.NewGuid();
         var normal = Enumerable.Range(1, 8)
             .Select(i => Debit(Today.AddDays(-i), 50_000, $"Quán {i}", categoryId));
         SetupDebits(normal.Append(Debit(Today, 5_000_000, "Nhà hàng sang", categoryId)).ToArray());
-
-        await _job.GenerateAsync(Today);
-
-        var insight = _written.Single(i => i.InsightType == InsightType.UnusualSpending);
-        insight.CategoryId.Should().Be(categoryId);
-        insight.AmountCents.Should().Be(5_000_000);
-    }
-
-    [Fact]
-    public async Task UnusualSpending_SteadySpending_HasNoOutlierToReport()
-    {
-        var categoryId = Guid.NewGuid();
-        SetupDebits(Enumerable.Range(1, 8)
-            .Select(i => Debit(Today.AddDays(-i), 50_000, $"Quán {i}", categoryId))
-            .ToArray());
-
-        await _job.GenerateAsync(Today);
-
-        _written.Should().NotContain(i => i.InsightType == InsightType.UnusualSpending);
-    }
-
-    [Fact]
-    public async Task UnusualSpending_TooFewSamples_DoesNotGuess()
-    {
-        var categoryId = Guid.NewGuid();
-        SetupDebits(
-            Debit(Today.AddDays(-2), 20_000, "A", categoryId),
-            Debit(Today, 9_000_000, "B", categoryId));
 
         await _job.GenerateAsync(Today);
 

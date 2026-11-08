@@ -54,6 +54,12 @@ public class SavingGoalRepository : ISavingGoalRepository
             .Take(limit)
             .ToListAsync(ct);
 
+    public Task<List<GoalContribution>> GetContributionsSinceAsync(Guid goalId, Guid userId, DateTimeOffset since, CancellationToken ct = default)
+        => _context.GoalContributions
+            .AsNoTracking()
+            .Where(c => c.SavingGoalId == goalId && c.UserId == userId && c.ContributedAt >= since)
+            .ToListAsync(ct);
+
     public Task<List<SavingGoal>> GetOverdueUnnotifiedGoalsAsync(DateTimeOffset now, CancellationToken ct = default)
         => _context.SavingGoals
             .Where(g => g.Status == SavingGoalStatus.Active

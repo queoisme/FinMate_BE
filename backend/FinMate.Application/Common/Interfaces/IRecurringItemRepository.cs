@@ -1,16 +1,22 @@
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
-/// <summary>Khoản định kỳ đã xác nhận của người dùng. MỌI truy vấn lọc theo <c>userId</c>: không có cách lấy hay xóa một khoản chỉ bằng id.</summary>
+/// <summary>Khoản định kỳ theo người dùng. Mọi hàm lọc theo <c>userId</c>: không có đường nào lấy một dòng chỉ bằng id.</summary>
 public interface IRecurringItemRepository
 {
-    Task<List<RecurringItem>> GetListByUserAsync(Guid userId, CancellationToken ct = default);
+    Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
 
-    Task<int> CountByUserAsync(Guid userId, CancellationToken ct = default);
+    /// <summary>Không truyền trạng thái thì trả mọi khoản trừ đã hủy và đã từ chối.</summary>
+    Task<IReadOnlyList<RecurringItem>> ListAsync(Guid userId, RecurringStatus? status, CancellationToken ct = default);
 
+    /// <summary>Mọi khoản (mọi trạng thái), có theo dõi thay đổi — dùng cho job phát hiện và cập nhật.</summary>
+    Task<IReadOnlyList<RecurringItem>> ListAllTrackedAsync(Guid userId, CancellationToken ct = default);
+
+    Task<RecurringItem?> FindByCounterpartyAsync(Guid userId, RecurringDirection direction, string counterpartyKey, CancellationToken ct = default);
     Task AddAsync(RecurringItem item, CancellationToken ct = default);
-
-    /// <returns>false nếu không có khoản nào của người dùng này với id đó (kể cả khi id thuộc người khác).</returns>
-    Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken ct = default);
+    Task AddRangeAsync(IEnumerable<RecurringItem> items, CancellationToken ct = default);
+    Task UpdateAsync(RecurringItem item, CancellationToken ct = default);
+    Task SaveChangesAsync(CancellationToken ct = default);
 }

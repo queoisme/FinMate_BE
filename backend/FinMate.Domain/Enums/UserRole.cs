@@ -1,16 +1,32 @@
 namespace FinMate.Domain.Enums;
 
+/// <summary>
+/// Vai trò của tài khoản trên toàn hệ thống. <see cref="OpsManager"/> là quản lý đội vận hành, khác hẳn vai <c>manager</c> trong một nhóm tài chính (<see cref="GroupRole"/>).
+/// Giá trị mới luôn thêm ở cuối vì API nhận cả dạng số.
+/// </summary>
 public enum UserRole
 {
     User,
     Admin,
 
-    /// <summary>Quản lý: duyệt giả định / tri thức, xử lý khiếu nại đã leo thang. Không quản lý người dùng hay cấu hình hệ thống (việc của Admin).</summary>
-    Manager,
+    /// <summary>Nhân viên hỗ trợ khách hàng.</summary>
+    Staff,
 
-    /// <summary>Nhân sự hỗ trợ khách hàng: xem và trả lời khiếu nại.</summary>
-    SupportStaff,
+    /// <summary>Quản lý đội vận hành: điều phối ticket và duyệt các việc nhạy cảm.</summary>
+    OpsManager,
+}
 
-    /// <summary>Nhân sự nội dung: soạn giả định kinh tế và tài liệu tri thức (bản nháp); duyệt là việc của Manager trở lên.</summary>
-    ContentStaff,
+public static class UserRoleExtensions
+{
+    /// <summary>Tài khoản thuộc đội vận hành, làm việc trên web nội bộ.</summary>
+    public static bool IsInternal(this UserRole role) => role is UserRole.Staff or UserRole.OpsManager or UserRole.Admin;
+
+    /// <summary>Thứ bậc để nhận biết một lần đổi vai trò có làm giảm quyền hay không. Không dùng thứ tự của enum vì Admin đứng trước Staff.</summary>
+    public static int Rank(this UserRole role) => role switch
+    {
+        UserRole.Admin => 3,
+        UserRole.OpsManager => 2,
+        UserRole.Staff => 1,
+        _ => 0,
+    };
 }

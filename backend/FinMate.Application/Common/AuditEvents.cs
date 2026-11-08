@@ -30,6 +30,8 @@ public static class AuditEvents
     public const string AdminUserLocked = "Admin.User.Locked";
     public const string AdminUserUnlocked = "Admin.User.Unlocked";
     public const string AdminUserRoleChanged = "Admin.User.RoleChanged";
+    /// <summary>Admin thêm/bớt quyền của một vai trò nội bộ. Metadata có role, added, removed, reason.</summary>
+    public const string AdminRolePermissionsUpdated = "Admin.RolePermissions.Updated";
     public const string AdminDataDeletionCancelled = "Admin.DataDeletionRequest.Cancelled";
 
     public const string AdminProviderConfigCreated = "Admin.ProviderConfig.Created";
@@ -46,17 +48,9 @@ public static class AuditEvents
     public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
     public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
 
-    // Khiếu nại: chỉ ghi mã khiếu nại, trạng thái cũ/mới và loại người làm; không ghi nội dung.
-    public const string SupportTicketCreated = "Support.Ticket.Created";
-    public const string SupportTicketTransitioned = "Support.Ticket.Transitioned";
-
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
     public const string AdminCategoryActivationChanged = "Admin.Category.ActivationChanged";
-
-    public const string AdminMissionCreated = "Admin.Mission.Created";
-    public const string AdminMissionUpdated = "Admin.Mission.Updated";
-    public const string AdminMissionActivationChanged = "Admin.Mission.ActivationChanged";
 
     // Luật phân loại của AI (thương hiệu, từ khóa, bộ nhớ tên món, chỉ dẫn Gemini). Chỉ thay đổi THÀNH CÔNG mới ghi; nội dung trước/sau nằm ở nhật ký của AI Service.
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
@@ -89,4 +83,41 @@ public static class AuditEvents
     public const string AdminGoalTemplateUpdated = "Admin.GoalTemplate.Updated";
     public const string AdminGoalTemplateActivationChanged = "Admin.GoalTemplate.ActivationChanged";
     public const string AdminMethodGoalTemplatesReplaced = "Admin.MethodGoalTemplates.Replaced";
+
+    // Nhóm — metadata chỉ có id và vai trò, không có số tiền, email hay mã mời.
+    public const string GroupCreated = "Group.Created";
+    public const string GroupUpdated = "Group.Updated";
+    public const string GroupDeleted = "Group.Deleted";
+    public const string GroupMemberJoined = "Group.Member.Joined";
+    public const string GroupMemberLeft = "Group.Member.Left";
+    public const string GroupMemberRemoved = "Group.Member.Removed";
+    public const string GroupMemberUpdated = "Group.Member.Updated";
+    public const string GroupOwnershipTransferred = "Group.Ownership.Transferred";
+    public const string GroupInvitationCreated = "Group.Invitation.Created";
+    public const string GroupInvitationRevoked = "Group.Invitation.Revoked";
+
+    // Vận hành. Chỉ ghi id và trạng thái, không ghi nội dung ticket.
+    public const string OpsTicketClaimed = "Ops.Ticket.Claimed";
+    public const string OpsTicketAssigned = "Ops.Ticket.Assigned";
+    public const string OpsTicketStatusChanged = "Ops.Ticket.StatusChanged";
+    public const string OpsTicketPriorityChanged = "Ops.Ticket.PriorityChanged";
+    public const string OpsTicketEscalated = "Ops.Ticket.Escalated";
+    public const string OpsTicketAttachmentViewed = "Ops.Ticket.AttachmentViewed";
+    public const string OpsCustomerDataRequested = "Ops.CustomerData.Requested";
+    public const string OpsCustomerDataViewed = "Ops.CustomerData.Viewed";
+    public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
+    public const string OpsTicketsLinked = "Ops.Ticket.Linked";
+    public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
+    public const string OpsApprovalProposed = "Ops.Approval.Proposed";
+    public const string OpsApprovalApproved = "Ops.Approval.Approved";
+    public const string OpsApprovalRejected = "Ops.Approval.Rejected";
+    public const string OpsApprovalFailed = "Ops.Approval.Failed";
+    public const string OpsUserEmergencyLocked = "Ops.User.EmergencyLocked";
+    public const string OpsGroupViewed = "Ops.Group.Viewed";
+    public const string OpsGroupOwnerTransferred = "Ops.Group.OwnerTransferred";
+    public const string OpsCannedReplyChanged = "Ops.CannedReply.Changed";
+    public const string OpsIncidentAcknowledged = "Ops.Incident.Acknowledged";
+    public const string OpsIncidentResolved = "Ops.Incident.Resolved";
+    public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";
+    public const string OpsTwoFactorFailed = "Ops.TwoFactor.Failed";
 }

@@ -8,7 +8,9 @@ public record AuditLogListFilter(
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,
-    int Limit);
+    int Limit,
+    string? EventTypePrefix = null,
+    string? Search = null);   // chữ tự do, khớp tên sự kiện hoặc IP (cố ý KHÔNG tìm trong metadata: nó có thể chứa thông tin nhạy cảm)
 
 public record AuditLogListResult(IReadOnlyList<AuditLog> Items, string? NextCursor);
 

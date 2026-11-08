@@ -22,7 +22,8 @@ public class GetAuditLogListQueryHandler : IGetAuditLogListQueryHandler
                 query.FromDate,
                 query.ToDate,
                 query.Cursor,
-                AdminPaging.Clamp(query.Limit)),
+                AdminPaging.Clamp(query.Limit),
+                Search: query.Search),
             ct);
 
         var items = result.Items

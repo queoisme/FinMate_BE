@@ -587,9 +587,7 @@ public async Task ConfirmTransactionAsync(Guid id, CancellationToken ct)
     {
         // 1. Update transaction
         // 2. Update budget_periods.spent_cents
-        // 3. Update user_gamification.exp_points
-        // 4. Check và update streak
-        // 5. Check mission conditions
+        // 3. Update financial_accounts.balance_cents
         await _context.SaveChangesAsync(ct);
         await dbTransaction.CommitAsync(ct);
     }

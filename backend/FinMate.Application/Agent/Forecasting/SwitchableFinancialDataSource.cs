@@ -16,6 +16,4 @@ public sealed class SwitchableFinancialDataSource(RepositoryFinancialDataSource 
     public Task<long> GetTotalBalanceAsync(Guid userId, CancellationToken ct = default) => _current.GetTotalBalanceAsync(userId, ct);
 
     public Task<IncomeSegment?> GetIncomeSegmentOverrideAsync(Guid userId, CancellationToken ct = default) => _current.GetIncomeSegmentOverrideAsync(userId, ct);
-
-    public Task<IReadOnlyList<RecurringEntry>> GetRecurringAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default) => _current.GetRecurringAsync(userId, now, ct);
 }

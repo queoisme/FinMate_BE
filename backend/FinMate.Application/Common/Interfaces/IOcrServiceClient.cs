@@ -30,7 +30,8 @@ public record OcrServiceResponse(
     IReadOnlyList<OcrItem>? Items = null,
     bool ItemsOk = false,
     IReadOnlyList<OcrOrder>? Orders = null,
-    int IncompleteOrders = 0);
+    int IncompleteOrders = 0,
+    string? Engine = null);
 
 /// <param name="Amount">Tổng tiền của đơn (đồng VND).</param>
 /// <param name="Product">Tên sản phẩm hiển thị đầu đơn (đã rút gọn trên màn hình).</param>

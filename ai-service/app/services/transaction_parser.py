@@ -20,6 +20,7 @@ from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
+from app.services.purchase_parser import PurchaseDraft, parse_purchase
 from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
 from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
@@ -77,6 +78,7 @@ intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.appl
 
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
+PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; Rasa cũng có thể đoán tên này
 
 
 @dataclass(frozen=True)
@@ -121,6 +123,7 @@ class ChatParse:
     total_mismatch: bool = False  # tổng đã nói khác tổng các khoản đọc được
     skipped: tuple[str, ...] = ()  # vế nối bằng "và/rồi" không có số tiền: không thành khoản, báo cho người dùng
     goal: GoalDraft | None = None  # ý định create_goal: bản nháp mục tiêu tiết kiệm để người dùng xác nhận (None = đang hỏi lại, xem reply_text)
+    purchase: PurchaseDraft | None = None  # ý định evaluate_purchase: khoản định mua để backend đánh giá (None = đang hỏi lại, xem reply_text); không phải giao dịch
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -527,6 +530,8 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None, now: datetime) -> st
     rule = _rule_intent(text, norm)
     if not nlu or rule in ("greet", "thanks"):
         return rule  # chào/cảm ơn khớp nguyên cụm: Rasa không có ý định "thanks" nên không có gì để cân nhắc
+    if nlu["intent"] == PURCHASE_INTENT:
+        return rule  # tới đây parse_chat đã hỏi purchase_parser mà không có bản nháp hay câu hỏi lại: lá phiếu của Rasa bị bỏ, luật quyết (giá và ngày chỉ đọc bằng luật, Rasa không tự tạo bản nháp)
     return _arbitrate(text, norm, rule, nlu, now)
 
 
@@ -534,8 +539,8 @@ def _unclear_reason(text: str, norm: str, intent: str, nlu: dict | None) -> str 
     """Vì sao câu này đáng để người dùng (đồng ý chia sẻ) gửi về xem lại; None nếu hiểu rõ."""
     kinds = _ENTRY_INTENTS + ("ask_spending",)
     rule = _rule_intent(text, norm)
-    if nlu and rule in kinds and nlu["intent"] in kinds and rule != nlu["intent"]:
-        return "disagree"
+    if nlu and rule in kinds and (nlu["intent"] in kinds or nlu["intent"] == PURCHASE_INTENT) and rule != nlu["intent"]:
+        return "disagree"  # gồm cả Rasa nói "định mua" mà luật đọc ra khoản chi/hỏi tổng
     if nlu and nlu["confidence"] < UNCERTAIN_BELOW and intent not in ("greet", "goodbye"):
         return "low_confidence"
     if intent == "out_of_scope" and not is_question(text, norm) and len(text) <= 120:
@@ -656,12 +661,16 @@ def parse_chat(
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
                          extra.get("unclear_reason"), extra.get("entries", ()),
-                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"))
+                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"), extra.get("purchase"))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
+    if (check := parse_purchase(text, now)) is not None and not is_query(norm):  # trước _resolve_intent: "…được không?" nếu không sẽ thành out_of_scope qua _is_social_question
+        if check.needs_amount:
+            return result("needs_amount", reply_text=_REPLIES["needs_amount"])
+        return result(PURCHASE_INTENT, purchase=check.draft, reply_text=check.reply or _REPLIES["purchase"])
     intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:

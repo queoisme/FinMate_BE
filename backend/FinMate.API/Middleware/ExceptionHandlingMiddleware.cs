@@ -2,6 +2,7 @@ using System.Text.Json;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.API.Middleware;
 
@@ -32,6 +33,12 @@ public class ExceptionHandlingMiddleware
                 .Select(e => new ApiErrorDetail(e.PropertyName, e.ErrorMessage))
                 .ToList();
             await WriteErrorResponseAsync(context, 400, "VALIDATION_ERROR", "Dữ liệu không hợp lệ.", details);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Dữ liệu vừa bị request khác đổi: không có gì được lưu nên client gửi lại là đúng. Đây không phải lỗi hệ thống.
+            await WriteErrorResponseAsync(context, 409, ConcurrencyErrorCodes.ConcurrentUpdate,
+                ConcurrencyErrorCodes.ConcurrentUpdateMessage, null);
         }
         catch (Exception ex)
         {

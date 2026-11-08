@@ -1,23 +1,55 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
 
-public class RecurringItemRepository(FinMateDbContext context) : IRecurringItemRepository
+public class RecurringItemRepository : IRecurringItemRepository
 {
-    public Task<List<RecurringItem>> GetListByUserAsync(Guid userId, CancellationToken ct = default)
-        => context.RecurringItems.Where(r => r.UserId == userId).OrderBy(r => r.Kind).ThenBy(r => r.DayOfMonth).ThenBy(r => r.Name).ToListAsync(ct);
+    private readonly FinMateDbContext _context;
 
-    public Task<int> CountByUserAsync(Guid userId, CancellationToken ct = default)
-        => context.RecurringItems.CountAsync(r => r.UserId == userId, ct);
+    public RecurringItemRepository(FinMateDbContext context)
+    {
+        _context = context;
+    }
+
+    public Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
+        => _context.RecurringItems.FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, ct);
+
+    public async Task<IReadOnlyList<RecurringItem>> ListAsync(Guid userId, RecurringStatus? status, CancellationToken ct = default)
+    {
+        var query = _context.RecurringItems.AsNoTracking().Where(r => r.UserId == userId);
+        query = status is { } wanted
+            ? query.Where(r => r.Status == wanted)
+            : query.Where(r => r.Status != RecurringStatus.Cancelled && r.Status != RecurringStatus.Rejected);
+        return await query.ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<RecurringItem>> ListAllTrackedAsync(Guid userId, CancellationToken ct = default)
+        => await _context.RecurringItems.Where(r => r.UserId == userId).ToListAsync(ct);
+
+    public Task<RecurringItem?> FindByCounterpartyAsync(Guid userId, RecurringDirection direction, string counterpartyKey, CancellationToken ct = default)
+        => _context.RecurringItems.FirstOrDefaultAsync(
+            r => r.UserId == userId && r.Direction == direction && r.CounterpartyKey == counterpartyKey, ct);
 
     public async Task AddAsync(RecurringItem item, CancellationToken ct = default)
     {
-        context.RecurringItems.Add(item);
-        await context.SaveChangesAsync(ct);
+        _context.RecurringItems.Add(item);
+        await _context.SaveChangesAsync(ct);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken ct = default)
-        => await context.RecurringItems.Where(r => r.Id == id && r.UserId == userId).ExecuteDeleteAsync(ct) > 0;
+    public Task AddRangeAsync(IEnumerable<RecurringItem> items, CancellationToken ct = default)
+    {
+        _context.RecurringItems.AddRange(items);
+        return Task.CompletedTask;
+    }
+
+    public async Task UpdateAsync(RecurringItem item, CancellationToken ct = default)
+    {
+        _context.RecurringItems.Update(item);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public Task SaveChangesAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
 }

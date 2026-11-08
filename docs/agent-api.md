@@ -61,7 +61,7 @@ Lỗi: 422 `invalid_question`; 503 khi ai-service không dùng được **trư�
 | `forecast_goal` | Bao lâu đủ tiền mua món giá X trong N tháng, ba kịch bản | dưới 3 tháng lịch sử → `history_too_short` |
 | `get_assumptions` | Tra giả định kinh tế đã duyệt (nguồn, ngày) | chưa có → `assumption_missing` |
 | `search_knowledge` | Tra tri thức đã duyệt (RAG) | không có đoạn nào → `knowledge_missing` (ghi mã băm câu hỏi) |
-| `simulate_purchase` | Số dư thấp nhất trong kỳ trước và sau khi mua | thiếu khoản định kỳ đã xác nhận → kết luận tối đa `tight` |
+| `simulate_purchase` | Số dư thấp nhất trong kỳ trước và sau khi mua; bọc `IPurchaseCheckService` (cùng số với màn "Mua món này có ổn không?") | engine báo `insufficient_data` → `purchase_data_missing`; có dòng ước tính → kết luận tối đa `tight` |
 | `runway` | Số dư đủ chi tiêu bao nhiêu tháng nếu thu nhập dừng | `history_too_short`, `no_spending_history` |
 | `stress_test` | Thu nhập giảm X% trong N tháng thì sao | `history_too_short` |
 | `sensitivity` | Yếu tố nào làm kết luận mục tiêu đổi nhiều nhất | `history_too_short` |
@@ -71,14 +71,14 @@ Lỗi: 422 `invalid_question`; 503 khi ai-service không dùng được **trư�
 | API | Mô tả |
 |---|---|
 | `GET/PUT/DELETE /api/v1/agent/memory[/{key}]` | Sở thích dài hạn (khóa cho phép: `preferred_method`, `eating_out_weekends`, `notification_quiet_hours`, `communication_tone`; tối đa 200 ký tự) |
-| `GET/POST /api/v1/agent/recurring`, `DELETE /api/v1/agent/recurring/{id}` | Khoản thu/chi định kỳ đã xác nhận; `GET` kèm `suggestions` (đề xuất từ lịch sử, **chưa lưu** — xác nhận bằng `POST`) |
-| `GET/POST /api/v1/support/tickets`, `POST .../{id}/resolve`, `POST .../{id}/reopen` | Khiếu nại của chính người dùng (trạng thái `Open → Triaged → Responded → Resolved`, phản đối thì `Reopened`) |
+| `GET/POST/... /api/v1/recurring-items` | Khoản thu/chi định kỳ (Phase 54, module `Forecasting`): đề xuất tự phát hiện, người dùng xác nhận. Công cụ `simulate_purchase` của agent đọc chúng qua `IPurchaseCheckService`, không có API riêng của agent |
+| `/api/v1/support/tickets` | Khiếu nại của chính người dùng (Phase 62). Agent không có luồng khiếu nại riêng |
 
-## API cho nhân sự (xem `docs/rbac-matrix.md`)
+## API cho nhân sự (vai trò Staff / OpsManager / Admin của Phase 61–65)
 
-- `/api/v1/admin/assumptions` — giả định kinh tế (ContentStaff soạn, Manager trở lên duyệt / gỡ).
-- `/api/v1/admin/knowledge` — tài liệu tri thức và câu hỏi chưa có tri thức (cùng phân quyền).
-- `/api/v1/admin/support/tickets` — hàng đợi khiếu nại (SupportStaff trở lên; `review`, `decide` chỉ Manager trở lên; `assist` chỉ gợi ý, không tự gửi).
+- `/api/v1/admin/assumptions` — giả định kinh tế: Staff trở lên soạn bản nháp, **OpsManager trở lên** (policy `ManagerOrAbove`) duyệt / gỡ.
+- `/api/v1/admin/knowledge` — tài liệu tri thức và câu hỏi chưa có tri thức: cùng phân quyền như trên.
+- `POST /api/v1/ops/tickets/{id}/assist` — trợ lý gợi ý cho nhân sự khi xử lý ticket: tóm tắt + bản nháp trả lời, **chỉ gợi ý** (không đổi ticket, không gửi gì cho khách; nhân sự tự gửi qua `/ops/tickets/{id}/messages`). `available: false` khi LLM sập; `verified: false` khi bản nháp bị bỏ vì chứa số tiền không có trong ticket. Ghi chú nội bộ không bao giờ gửi cho mô hình.
 
 ## Chỉ dùng khi phát triển
 

@@ -5,12 +5,8 @@ public sealed class InMemoryFinancialDataSource(
     IReadOnlyList<long> incomeVnd,
     IReadOnlyList<long> spendVnd,
     long totalBalanceVnd,
-    IncomeSegment? segmentOverride = null,
-    IReadOnlyList<RecurringEntry>? recurring = null) : IFinancialDataSource
+    IncomeSegment? segmentOverride = null) : IFinancialDataSource
 {
-    public Task<IReadOnlyList<RecurringEntry>> GetRecurringAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default)
-        => Task.FromResult(recurring ?? []);
-
     public Task<MonthlySeries> GetMonthlySeriesAsync(Guid userId, int months, DateTimeOffset now, CancellationToken ct = default)
     {
         var skip = Math.Max(0, incomeVnd.Count - months); // chỉ giữ `months` tháng gần nhất, như bản thật

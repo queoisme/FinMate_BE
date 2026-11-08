@@ -10,7 +10,35 @@ public class User
     public string? PasswordHash { get; set; }
     public string? GoogleId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
-    public UserRole Role { get; set; } = UserRole.User;
+
+    /// <summary>
+    /// Vai trò được gán (bảng <c>user_roles</c>, nạp tự động cùng user). Không phải cột của <c>users</c>.
+    /// Null nghĩa là chưa có hàng gán; khi đó <see cref="Role"/> trả <see cref="UserRole.User"/> (thiếu dữ liệu thì mất quyền chứ không thừa quyền).
+    /// </summary>
+    public UserRoleAssignment? RoleAssignment { get; set; }
+
+    /// <summary>Vai trò hiện tại. Gán qua đây hoặc <see cref="AssignRole"/>; EF lưu thành hàng trong <c>user_roles</c> (điền <c>UserId</c> lúc lưu).</summary>
+    public UserRole Role
+    {
+        get => RoleAssignment?.RoleId ?? UserRole.User;
+        set => AssignRole(value, null);
+    }
+
+    /// <summary>Đổi vai trò và ghi lại ai cấp, lúc nào. Mỗi người luôn đúng một hàng gán.</summary>
+    public void AssignRole(UserRole role, Guid? assignedByUserId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (RoleAssignment is null)
+        {
+            RoleAssignment = new UserRoleAssignment { RoleId = role, AssignedAt = now, AssignedByUserId = assignedByUserId };
+            return;
+        }
+
+        RoleAssignment.RoleId = role;
+        RoleAssignment.AssignedAt = now;
+        RoleAssignment.AssignedByUserId = assignedByUserId;
+    }
+
     /// <summary>
     /// Thu nhập hằng tháng DỰ KIẾN, do người dùng khai ở onboarding (docx Bước 1.3).
     ///
@@ -20,6 +48,16 @@ public class User
     /// là "không có thu nhập".
     /// </summary>
     public long? MonthlyIncomeCents { get; set; }
+
+    /// <summary>Khoản dự phòng user tự đặt (đồng) cho "số tiền có thể chi". Null = dùng mặc định hệ thống (% thu nhập dự kiến).</summary>
+    public long? ForecastReserveCents { get; set; }
+
+    /// <summary>Báo khi số dư dự kiến xuống dưới mức này (đồng). Null = tắt cảnh báo số dư thấp.</summary>
+    public long? LowBalanceThresholdCents { get; set; }
+
+    /// <summary>Giờ yên lặng theo phút trong ngày (giờ VN, 0–1439), có thể qua nửa đêm. Cả hai null = dùng mặc định hệ thống.</summary>
+    public short? QuietHoursStartMinute { get; set; }
+    public short? QuietHoursEndMinute { get; set; }
 
     /// <summary>
     /// Người dùng tự chọn nhóm thu nhập cho agent: <c>"stable"</c> hoặc <c>"variable"</c>. NULL = để hệ thống tự suy từ độ biến động lịch sử thu nhập.

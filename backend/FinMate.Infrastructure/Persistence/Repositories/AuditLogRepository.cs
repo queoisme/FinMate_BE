@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,18 @@ public class AuditLogRepository : IAuditLogRepository
         if (!string.IsNullOrWhiteSpace(filter.EventType))
         {
             query = query.Where(a => a.EventType == filter.EventType);
+        }
+
+        if (!string.IsNullOrEmpty(filter.EventTypePrefix))
+        {
+            query = query.Where(a => a.EventType.StartsWith(filter.EventTypePrefix));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = $"%{AdminPaging.EscapeLike(filter.Search.Trim())}%";
+            query = query.Where(a => EF.Functions.ILike(a.EventType, pattern, "\\")
+                || (a.IpAddress != null && EF.Functions.ILike(a.IpAddress, pattern, "\\")));
         }
 
         if (filter.FromDate is { } from)

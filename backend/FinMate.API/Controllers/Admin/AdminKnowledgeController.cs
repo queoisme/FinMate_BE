@@ -13,7 +13,7 @@ namespace FinMate.API.Controllers.Admin;
 /// mã băm và số lần gặp, KHÔNG có nội dung và không bao giờ tự vào kho. Lỗi từ AI Service giữ nguyên: 404 không có, 409 chuyển trạng thái sai (<c>kb_invalid_transition</c>), 422 dữ liệu sai, 503 chưa nhúng được vector.
 /// </summary>
 [Route("api/v1/admin/knowledge")]
-public class AdminKnowledgeController(IAdminKnowledgeService service) : ContentStaffControllerBase
+public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentContentControllerBase
 {
     private static Dictionary<string, string?> Query(params (string Name, object? Value)[] values)
         => values.Where(v => v.Value is not null).ToDictionary(v => v.Name, v => (string?)Convert.ToString(v.Value, System.Globalization.CultureInfo.InvariantCulture));

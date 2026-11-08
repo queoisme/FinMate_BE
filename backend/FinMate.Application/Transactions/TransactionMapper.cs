@@ -19,5 +19,6 @@ internal static class TransactionMapper
         transaction.Description,
         transaction.TransactedAt,
         transaction.BalanceAfterCents,
-        transaction.CreatedAt);
+        transaction.CreatedAt,
+        transaction.GroupId);
 }

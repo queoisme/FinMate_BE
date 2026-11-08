@@ -29,7 +29,7 @@ NOW = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
 RASA_URL = os.environ.get("RASA_URL")
 
 VALID_INTENTS = {"add_expense", "add_income", "transfer_money", "ask_spending", "greet", "goodbye", "thanks", "confirm", "deny", "cancel",
-                 "out_of_scope", "needs_amount", "needs_period", "create_goal", "empty"}
+                 "out_of_scope", "needs_amount", "needs_period", "create_goal", "evaluate_purchase", "empty"}
 SAME = {"needs_amount": "add_expense", "needs_period": "ask_spending"}  # cùng cách scripts/audit_overrides.py: hỏi lại số tiền/kỳ vẫn là đúng loại câu
 
 

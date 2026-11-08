@@ -257,7 +257,7 @@ public class AgentAiClientContractTests
     {
         var handler = new StubHandler("ticket_assist_response.json");
 
-        var result = await Client(handler).TicketAssistAsync("Bị trừ tiền hai lần", "Mình bị trừ 150.000 đồng hai lần cho cùng một đơn.", [new FinMate.Application.Support.TicketAssistMessage("staff", "Bạn gửi giúp mình mã đơn nhé.")]);
+        var result = await Client(handler).TicketAssistAsync("Bị trừ tiền hai lần", "Mình bị trừ 150.000 đồng hai lần cho cùng một đơn.", [new TicketAssistMessage("staff", "Bạn gửi giúp mình mã đơn nhé.")]);
 
         handler.Path.Should().Be("/api/v1/agent/ticket-assist");
         AssertRequestMatchesFixture(handler.Body!, "ticket_assist_request.json");

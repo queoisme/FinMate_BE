@@ -30,6 +30,7 @@ PATTERN_GROUPS = {
     "period_last": {"days", "weeks", "months"},
     "period_quarter": {"quarter", "year", "previous", "current"},
     "period_day_part": {"today", "yesterday"},
+    "purchase_when": {"today", "tomorrow", "after", "day", "month"},
 }
 
 

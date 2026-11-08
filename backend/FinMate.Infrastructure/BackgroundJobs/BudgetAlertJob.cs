@@ -1,3 +1,5 @@
+using FinMate.Application.Groups;
+using FinMate.Domain.Entities;
 using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 
@@ -20,45 +22,82 @@ public class BudgetAlertJob
     private readonly IBudgetRepository _budgetRepository;
     private readonly IBudgetAlertNotifier _notifier;
     private readonly IAlertThresholdProvider _thresholdProvider;
+    private readonly IGroupAlertNotifier? _groupAlerts;
+    private readonly ISystemConfigProvider? _config;
 
     public BudgetAlertJob(
         IBudgetRepository budgetRepository,
         IBudgetAlertNotifier notifier,
-        IAlertThresholdProvider thresholdProvider)
+        IAlertThresholdProvider thresholdProvider,
+        IGroupAlertNotifier? groupAlerts = null,
+        ISystemConfigProvider? config = null)
     {
         _budgetRepository = budgetRepository;
         _notifier = notifier;
         _thresholdProvider = thresholdProvider;
+        _groupAlerts = groupAlerts;
+        _config = config;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var candidates = await _budgetRepository.GetPeriodsForAlertAsync(now, ct);
+
+        // Đang tắt thì bỏ qua, không đóng ngưỡng: lượt quét sau khi bật lại sẽ gửi.
+        var groupsEnabled = _config is not null && (await _config.GetAsync(ct)).Document.Features.Groups;
         var alerts = new List<BudgetAlert>();
         var thresholdsByUser = new Dictionary<Guid, AlertThresholds>();   // một người có thể có nhiều ngân sách trong cùng lượt quét
 
         foreach (var (period, budget) in candidates)
         {
-            var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
-            if (!thresholdsByUser.TryGetValue(budget.UserId, out var thresholds))
+            if (budget.UserId is not { } userId)
             {
-                thresholds = await _thresholdProvider.GetAsync(budget.UserId, ct);
-                thresholdsByUser[budget.UserId] = thresholds;
+                if (groupsEnabled)
+                {
+                    await SweepGroupBudgetAsync(budget, period, now, ct);
+                }
+
+                continue;
             }
 
-            var alert = BudgetAlertEvaluator.Evaluate(period, budget.UserId, scope, thresholds);
-            if (alert is null || !await _notifier.IsEnabledAsync(budget.UserId, ct))
+            var scope = budget.Category?.Name ?? "toàn bộ chi tiêu";
+            if (!thresholdsByUser.TryGetValue(userId, out var thresholds))
+            {
+                thresholds = await _thresholdProvider.GetAsync(userId, ct);
+                thresholdsByUser[userId] = thresholds;
+            }
+
+            var alert = BudgetAlertEvaluator.Evaluate(period, userId, scope, thresholds);
+            if (alert is null || !await _notifier.IsEnabledAsync(userId, ct))
             {
                 continue;
             }
 
             BudgetAlertEvaluator.MarkSent(period, alert, now);
-            alerts.Add(alert);
-            await _budgetRepository.UpdatePeriodAsync(period, ct);
+
+            // Chỉ báo khi cờ đã lưu được. Kỳ vừa bị giao dịch khác đổi thì để lượt sau xét lại, tránh báo trùng với đường tức thì.
+            if (await _budgetRepository.UpdatePeriodAsync(period, ct))
+            {
+                alerts.Add(alert);
+            }
         }
 
         // Gửi sau khi đã lưu cờ, cùng thứ tự với đường tức thì.
         await _notifier.SendAsync(alerts, ct);
+    }
+
+    private async Task SweepGroupBudgetAsync(Budget budget, BudgetPeriod period, DateTimeOffset now, CancellationToken ct)
+    {
+        if (_groupAlerts is null)
+        {
+            return;
+        }
+
+        var alert = await _groupAlerts.EvaluateAndMarkAsync(budget, period, now, ct);
+        if (alert is not null && await _budgetRepository.UpdatePeriodAsync(period, ct))
+        {
+            await _groupAlerts.SendBudgetAlertsAsync([alert], ct);
+        }
     }
 }

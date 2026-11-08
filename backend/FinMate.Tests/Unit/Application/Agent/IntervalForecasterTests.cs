@@ -88,7 +88,7 @@ public class StatisticsQuantileTests
 
     [Fact]
     public void quantile_of_nothing_is_zero()
-        => Statistics.Quantile([], 0.5).Should().Be(0);
+        => Statistics.Quantile(Array.Empty<long>(), 0.5).Should().Be(0); // hai bản nạp chồng (long, double): chỉ rõ kiểu
 
     [Fact]
     public void coefficient_of_variation_is_zero_for_constant_and_for_zero_mean()

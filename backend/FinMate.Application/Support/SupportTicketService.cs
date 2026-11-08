@@ -1,4 +1,4 @@
-using FinMate.Application.Common;
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
@@ -6,149 +6,246 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Support;
 
-public sealed record SupportTicketDto(Guid Id, string Subject, string Body, string Status, string? Reply, string? ResolutionNote, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+/// <summary>Phía khách. Mọi truy vấn đều lọc theo <c>userId</c> lấy từ JWT; ca của người khác trả 404, không phải 403.</summary>
+public interface ISupportTicketService
 {
-    public static SupportTicketDto From(SupportTicket t) => new(t.Id, t.Subject, t.Body, t.Status.ToString(), t.Reply, t.ResolutionNote, t.CreatedAt, t.UpdatedAt);
+    Task<SupportTicketDetailDto> CreateAsync(Guid userId, SupportTicketCategory category, string? subject, string? body, CancellationToken ct = default);
+    Task<IReadOnlyList<SupportTicketDto>> ListAsync(Guid userId, CancellationToken ct = default);
+    Task<SupportTicketDetailDto> GetAsync(Guid userId, Guid ticketId, CancellationToken ct = default);
+    Task<SupportTicketDetailDto> ReplyAsync(Guid userId, Guid ticketId, string? body, CancellationToken ct = default);
+    Task<SupportAttachmentDto> AddAttachmentAsync(Guid userId, Guid ticketId, Guid messageId, byte[] content, CancellationToken ct = default);
+    Task<SupportAttachmentContent> GetAttachmentAsync(Guid userId, Guid ticketId, Guid attachmentId, CancellationToken ct = default);
+    Task<SupportTicketDto> CloseAsync(Guid userId, Guid ticketId, CancellationToken ct = default);
+    Task<SupportTicketDto> RateAsync(Guid userId, Guid ticketId, int rating, CancellationToken ct = default);
 }
 
-public sealed record SupportTicketPage(int Total, IReadOnlyList<SupportTicketDto> Items);
-
-/// <param name="Available">false = trợ lý không dùng được lúc này (LLM sập): nhân sự vẫn xử lý khiếu nại bình thường.</param>
-/// <param name="Verified">false = câu trả lời gợi ý bị bỏ vì chứa số tiền không có trong khiếu nại; <c>Summary</c> khi đó chỉ là tiêu đề.</param>
-public sealed record TicketAssistDto(bool Available, string? Summary, string? SuggestedReply, bool Verified);
-
-public sealed record TicketAssistResult(string Summary, string? SuggestedReply, bool Verified, AgentUsage? Usage);
-
-public sealed record TicketAssistMessage(string Role, string Text);
-
-/// <summary>
-/// Luồng khiếu nại. Mọi chuyển trạng thái đi qua <see cref="TicketStateMachine"/> (sai trạng thái → 409, sai người → 403) và để lại một dòng audit_logs chỉ có mã khiếu nại, trạng thái cũ/mới và loại người làm
-/// (không nội dung). Trợ lý chỉ GỢI Ý: <see cref="AssistAsync"/> không đổi gì trên khiếu nại; câu trả lời chỉ ra ngoài khi nhân sự gửi nó qua <see cref="StaffTransitionAsync"/>.
-/// </summary>
-public sealed class SupportTicketService(ISupportTicketRepository tickets, IAuditLogService audit, IAgentAiClient ai)
+public sealed class SupportTicketService : ISupportTicketService
 {
-    private const int MaxSubject = 120;
-    private const int MaxBody = 2000;
-    private const int MaxNote = 500;
-    public const int MaxOpenPerUser = 10;
+    private readonly ISupportRepository _support;
+    private readonly ISystemConfigProvider _config;
+    private readonly IAttachmentProtector _protector;
 
-    public async Task<SupportTicketDto> CreateAsync(Guid userId, string? subject, string? body, string? ip, CancellationToken ct = default)
+    public SupportTicketService(ISupportRepository support, ISystemConfigProvider config, IAttachmentProtector protector)
     {
-        subject = subject?.Trim();
-        body = body?.Trim();
-        if (string.IsNullOrEmpty(subject) || subject.Length > MaxSubject)
+        _support = support;
+        _config = config;
+        _protector = protector;
+    }
+
+    private async Task<SystemConfigDocument> EnabledConfigAsync(CancellationToken ct)
+    {
+        var document = (await _config.GetAsync(ct)).Document;
+        if (!document.Features.Support)
         {
-            throw new BusinessRuleException("invalid_ticket_subject", $"Tiêu đề phải có 1–{MaxSubject} ký tự.");
+            throw new BusinessRuleException(SupportErrorCodes.Disabled, "Tính năng hỗ trợ chưa được bật.");
         }
 
-        if (string.IsNullOrEmpty(body) || body.Length > MaxBody)
+        return document;
+    }
+
+    private async Task<SupportTicket> RequireTicketAsync(Guid userId, Guid ticketId, CancellationToken ct)
+        => await _support.GetForRequesterAsync(ticketId, userId, ct)
+            ?? throw new NotFoundException("SupportTicket", ticketId);
+
+    public async Task<SupportTicketDetailDto> CreateAsync(Guid userId, SupportTicketCategory category, string? subject, string? body, CancellationToken ct = default)
+    {
+        var settings = (await EnabledConfigAsync(ct)).Support;
+        if (!Enum.IsDefined(category))
         {
-            throw new BusinessRuleException("invalid_ticket_body", $"Nội dung phải có 1–{MaxBody} ký tự.");
+            throw new BusinessRuleException(SupportErrorCodes.InvalidInput, "Loại yêu cầu không hợp lệ.");
         }
 
-        if (await tickets.CountOpenForUserAsync(userId, ct) >= MaxOpenPerUser)
+        var cleanSubject = SupportTicketRules.RequireText(subject, SupportTicketRules.MaxSubjectLength, "tiêu đề");
+        var cleanBody = SupportTicketRules.RequireText(body, SupportTicketRules.MaxBodyLength, "nội dung");
+
+        if (await _support.CountOpenForRequesterAsync(userId, ct) >= settings.MaxOpenTicketsPerUser)
         {
-            throw new BusinessRuleException("ticket_limit_reached", $"Bạn đang có {MaxOpenPerUser} khiếu nại chưa đóng; đợi xử lý xong rồi gửi thêm.");
+            throw new BusinessRuleException(SupportErrorCodes.TooManyOpenTickets, "Bạn đang có quá nhiều yêu cầu chưa đóng.");
         }
 
         var now = DateTimeOffset.UtcNow;
-        var ticket = new SupportTicket { Id = Guid.NewGuid(), UserId = userId, Subject = subject, Body = body, Status = SupportTicketStatus.Open, CreatedAt = now, UpdatedAt = now };
-        await tickets.AddAsync(ticket, ct);
-        await audit.LogAsync(AuditEvents.SupportTicketCreated, userId, ip, new { ticketId = ticket.Id }, ct);
-        return SupportTicketDto.From(ticket);
+        var ticket = new SupportTicket
+        {
+            Id = Guid.NewGuid(),
+            RequesterUserId = userId,
+            Category = category,
+            Priority = SupportTicketRules.DefaultPriority(category),
+            Status = SupportTicketStatus.New,
+            Subject = cleanSubject,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        SupportTicketRules.ApplyDueDates(ticket, settings);
+        _support.AddTicket(ticket);
+        _support.AddMessage(new SupportTicketMessage
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            AuthorUserId = userId,
+            Kind = SupportMessageKind.Customer,
+            Body = cleanBody,
+            CreatedAt = now,
+        });
+        await _support.SaveChangesAsync(ct);
+
+        return await DetailAsync(ticket, ct);
     }
 
-    public async Task<SupportTicketPage> ListMineAsync(Guid userId, SupportTicketStatus? status, int limit, int offset, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SupportTicketDto>> ListAsync(Guid userId, CancellationToken ct = default)
     {
-        var (total, items) = await tickets.ListForUserAsync(userId, status, Math.Clamp(limit, 1, 100), Math.Max(0, offset), ct);
-        return new SupportTicketPage(total, items.Select(SupportTicketDto.From).ToList());
+        await EnabledConfigAsync(ct);
+        var tickets = await _support.ListForRequesterAsync(userId, ct);
+        return tickets.Select(SupportMapper.ToCustomerDto).ToList();
     }
 
-    public async Task<SupportTicketDto> GetMineAsync(Guid userId, Guid id, CancellationToken ct = default)
-        => SupportTicketDto.From(await tickets.GetByIdForUserAsync(id, userId, ct) ?? throw new NotFoundException("Khiếu nại", id));
-
-    /// <summary>Chủ khiếu nại xác nhận đã giải quyết (<c>Responded → Resolved</c>) hoặc phản đối kết quả (<c>→ Reopened</c>).</summary>
-    public async Task<SupportTicketDto> OwnerTransitionAsync(Guid userId, Guid id, SupportTicketStatus to, string? ip, CancellationToken ct = default)
+    public async Task<SupportTicketDetailDto> GetAsync(Guid userId, Guid ticketId, CancellationToken ct = default)
     {
-        var ticket = await tickets.GetByIdForUserAsync(id, userId, ct) ?? throw new NotFoundException("Khiếu nại", id);
-        await ApplyAsync(ticket, to, TicketStateMachine.OwnerActors, TicketActor.Owner, userId, null, null, ip, ct);
-        return SupportTicketDto.From(ticket);
+        await EnabledConfigAsync(ct);
+        return await DetailAsync(await RequireTicketAsync(userId, ticketId, ct), ct);
     }
 
-    public async Task<SupportTicketPage> StaffListAsync(SupportTicketStatus? status, string? search, int limit, int offset, CancellationToken ct = default)
+    public async Task<SupportTicketDetailDto> ReplyAsync(Guid userId, Guid ticketId, string? body, CancellationToken ct = default)
     {
-        var (total, items) = await tickets.ListAllAsync(status, search?.Trim(), Math.Clamp(limit, 1, 100), Math.Max(0, offset), ct);
-        return new SupportTicketPage(total, items.Select(SupportTicketDto.From).ToList());
+        await EnabledConfigAsync(ct);
+        var ticket = await RequireTicketAsync(userId, ticketId, ct);
+        SupportTicketRules.EnsureNotClosed(ticket);
+        var cleanBody = SupportTicketRules.RequireText(body, SupportTicketRules.MaxBodyLength, "nội dung");
+
+        var now = DateTimeOffset.UtcNow;
+        _support.AddMessage(new SupportTicketMessage
+        {
+            Id = Guid.NewGuid(),
+            TicketId = ticket.Id,
+            AuthorUserId = userId,
+            Kind = SupportMessageKind.Customer,
+            Body = cleanBody,
+            CreatedAt = now,
+        });
+
+        // Khách trả lời nghĩa là việc lại về phía đội hỗ trợ, kể cả ca đã giải quyết mà khách thấy chưa xong.
+        if (ticket.Status is SupportTicketStatus.WaitingCustomer or SupportTicketStatus.Resolved)
+        {
+            ticket.Status = ticket.AssigneeUserId is null ? SupportTicketStatus.New : SupportTicketStatus.InProgress;
+            ticket.ResolvedAt = null;
+        }
+
+        ticket.UpdatedAt = now;
+        await _support.SaveChangesAsync(ct);
+        return await DetailAsync(ticket, ct);
     }
 
-    public async Task<SupportTicketDto> StaffGetAsync(Guid id, CancellationToken ct = default)
-        => SupportTicketDto.From(await tickets.GetByIdAsync(id, ct) ?? throw new NotFoundException("Khiếu nại", id));
-
-    /// <param name="reply">Bắt buộc khi chuyển sang Responded: câu trả lời nhân sự ĐÃ GỬI.</param>
-    /// <param name="note">Bắt buộc khi quản lý quyết định cuối (Resolved / Rejected sau ManagerReview).</param>
-    public async Task<SupportTicketDto> StaffTransitionAsync(Guid staffId, UserRole role, Guid id, SupportTicketStatus to, string? reply, string? note, string? ip, CancellationToken ct = default)
+    public async Task<SupportAttachmentDto> AddAttachmentAsync(Guid userId, Guid ticketId, Guid messageId, byte[] content, CancellationToken ct = default)
     {
-        var ticket = await tickets.GetByIdAsync(id, ct) ?? throw new NotFoundException("Khiếu nại", id);
-        var actors = TicketStateMachine.StaffActors(role);
-        var actor = actors.Contains(TicketActor.Manager) ? TicketActor.Manager : TicketActor.Support;
-        await ApplyAsync(ticket, to, actors, actor, staffId, reply, note, ip, ct);
-        return SupportTicketDto.From(ticket);
+        var settings = (await EnabledConfigAsync(ct)).Support;
+        var ticket = await RequireTicketAsync(userId, ticketId, ct);
+        SupportTicketRules.EnsureNotClosed(ticket);
+
+        var message = await _support.GetMessageAsync(ticketId, messageId, ct);
+        if (message is null || message.Kind != SupportMessageKind.Customer || message.AuthorUserId != userId)
+        {
+            throw new NotFoundException("SupportTicketMessage", messageId);
+        }
+
+        // Không có khóa chủ thì từ chối hẳn, không lưu bản rõ.
+        if (!_protector.Available)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.AttachmentsUnavailable, "Hiện chưa gửi được ảnh. Vui lòng mô tả bằng chữ.");
+        }
+
+        if (content.Length == 0 || content.Length > SupportTicketRules.MaxAttachmentBytes)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.AttachmentInvalid, $"Ảnh tối đa {SupportTicketRules.MaxAttachmentBytes / (1024 * 1024)}MB.");
+        }
+
+        var contentType = SupportTicketRules.DetectImageType(content)
+            ?? throw new BusinessRuleException(SupportErrorCodes.AttachmentInvalid, "Chỉ nhận ảnh JPEG, PNG, WebP, HEIC hoặc HEIF.");
+
+        if (await _support.CountAttachmentsAsync(messageId, ct) >= settings.MaxAttachmentsPerMessage)
+        {
+            throw new BusinessRuleException(SupportErrorCodes.TooManyAttachments, $"Mỗi tin nhắn gửi được tối đa {settings.MaxAttachmentsPerMessage} ảnh.");
+        }
+
+        var id = Guid.NewGuid();
+        var (ciphertext, nonce) = _protector.Protect(id, content);
+        var attachment = new SupportTicketAttachment
+        {
+            Id = id,
+            TicketId = ticketId,
+            MessageId = messageId,
+            ContentType = contentType,
+            SizeBytes = content.Length,
+            Data = ciphertext,
+            Nonce = nonce,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _support.AddAttachment(attachment);
+        ticket.UpdatedAt = attachment.CreatedAt;
+        await _support.SaveChangesAsync(ct);
+
+        return new SupportAttachmentDto(id, contentType, content.Length, attachment.CreatedAt);
     }
 
-    /// <summary>Tóm tắt và câu trả lời GỢI Ý. Không đổi khiếu nại, không gửi gì cho người dùng. Trợ lý hỏng thì <c>Available = false</c> và khiếu nại vẫn xử lý bình thường.</summary>
-    public async Task<TicketAssistDto> AssistAsync(Guid id, CancellationToken ct = default)
+    public async Task<SupportAttachmentContent> GetAttachmentAsync(Guid userId, Guid ticketId, Guid attachmentId, CancellationToken ct = default)
     {
-        var ticket = await tickets.GetByIdAsync(id, ct) ?? throw new NotFoundException("Khiếu nại", id);
-        var history = ticket.Reply is null ? [] : new List<TicketAssistMessage> { new("staff", ticket.Reply) };
-        try
-        {
-            var result = await ai.TicketAssistAsync(ticket.Subject, ticket.Body, history, ct);
-            return result is null ? new TicketAssistDto(false, null, null, false) : new TicketAssistDto(true, result.Summary, result.SuggestedReply, result.Verified);
-        }
-        catch (AIServiceUnavailableException)
-        {
-            return new TicketAssistDto(false, null, null, false);
-        }
+        await EnabledConfigAsync(ct);
+        await RequireTicketAsync(userId, ticketId, ct);
+        var attachment = await _support.GetAttachmentAsync(ticketId, attachmentId, ct)
+            ?? throw new NotFoundException("SupportTicketAttachment", attachmentId);
+        var data = _protector.Unprotect(attachment.Id, attachment.Data, attachment.Nonce)
+            ?? throw new NotFoundException("SupportTicketAttachment", attachmentId);
+        return new SupportAttachmentContent(data, attachment.ContentType);
     }
 
-    private async Task ApplyAsync(SupportTicket ticket, SupportTicketStatus to, IReadOnlySet<TicketActor> actors, TicketActor actor, Guid actorId, string? reply, string? note, string? ip, CancellationToken ct)
+    public async Task<SupportTicketDto> CloseAsync(Guid userId, Guid ticketId, CancellationToken ct = default)
     {
-        var from = ticket.Status;
-        if (!TicketStateMachine.Exists(from, to))
+        var settings = (await EnabledConfigAsync(ct)).Support;
+        var ticket = await RequireTicketAsync(userId, ticketId, ct);
+        if (ticket.Status != SupportTicketStatus.Closed)
         {
-            throw new ConflictException("illegal_ticket_transition", $"Không thể chuyển khiếu nại từ {from} sang {to}.");
+            await SupportTicketClosing.CloseAsync(_support, ticket, settings, DateTimeOffset.UtcNow, ct);
         }
 
-        if (!TicketStateMachine.IsLegal(from, to, actors))
+        return SupportMapper.ToCustomerDto(ticket);
+    }
+
+    public async Task<SupportTicketDto> RateAsync(Guid userId, Guid ticketId, int rating, CancellationToken ct = default)
+    {
+        await EnabledConfigAsync(ct);
+        var ticket = await RequireTicketAsync(userId, ticketId, ct);
+        if (rating is < 1 or > 5)
         {
-            throw new ForbiddenException("Vai trò của bạn không được thực hiện bước này của khiếu nại.");
+            throw new BusinessRuleException(SupportErrorCodes.InvalidInput, "Điểm đánh giá phải từ 1 đến 5.");
         }
 
-        if (to == SupportTicketStatus.Responded)
+        if (ticket.Status is not (SupportTicketStatus.Resolved or SupportTicketStatus.Closed))
         {
-            reply = reply?.Trim();
-            if (string.IsNullOrEmpty(reply) || reply.Length > MaxBody)
-            {
-                throw new BusinessRuleException("invalid_ticket_reply", $"Câu trả lời phải có 1–{MaxBody} ký tự.");
-            }
-
-            ticket.Reply = reply;
+            throw new BusinessRuleException(SupportErrorCodes.RatingNotAllowed, "Chỉ đánh giá được khi yêu cầu đã giải quyết.");
         }
 
-        if (from == SupportTicketStatus.ManagerReview)
-        {
-            note = note?.Trim();
-            if (string.IsNullOrEmpty(note) || note.Length < 3 || note.Length > MaxNote)
-            {
-                throw new BusinessRuleException("invalid_ticket_note", $"Quyết định cuối cần ghi chú 3–{MaxNote} ký tự.");
-            }
-
-            ticket.ResolutionNote = note;
-        }
-
-        ticket.Status = to;
+        ticket.Rating = rating;
         ticket.UpdatedAt = DateTimeOffset.UtcNow;
-        await tickets.UpdateAsync(ticket, ct);
-        await audit.LogAsync(AuditEvents.SupportTicketTransitioned, actorId, ip, new { ticketId = ticket.Id, from = from.ToString(), to = to.ToString(), actor = actor.ToString() }, ct);
+        await _support.SaveChangesAsync(ct);
+        return SupportMapper.ToCustomerDto(ticket);
     }
+
+    private async Task<SupportTicketDetailDto> DetailAsync(SupportTicket ticket, CancellationToken ct)
+    {
+        var messages = await _support.ListMessagesAsync(ticket.Id, includeInternal: false, ct);
+        var attachments = (await _support.ListAttachmentsAsync(ticket.Id, ct)).ToLookup(a => a.MessageId);
+        return new SupportTicketDetailDto(
+            SupportMapper.ToCustomerDto(ticket),
+            messages.Select(m => new SupportMessageDto(
+                m.Message.Id,
+                m.Message.Kind.ToString(),
+                m.Message.Body,
+                m.Message.CreatedAt,
+                attachments[m.Message.Id].Select(SupportMapper.ToDto).ToList())).ToList());
+    }
+}
+
+/// <summary>Đóng ca từ bất kỳ đường nào cũng phải đặt hạn xóa ảnh và chấm dứt quyền xem dữ liệu, nên gom về một chỗ.</summary>
+internal static class SupportTicketClosing
+{
+    public static Task CloseAsync(ISupportRepository support, SupportTicket ticket, SupportSettings settings, DateTimeOffset now, CancellationToken ct)
+        => support.CloseTicketAsync(ticket, now, now.AddDays(settings.AttachmentRetentionDays), ct);
 }

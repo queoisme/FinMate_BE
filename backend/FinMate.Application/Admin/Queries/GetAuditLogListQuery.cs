@@ -6,4 +6,5 @@ public record GetAuditLogListQuery(
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,
-    int Limit);
+    int Limit,
+    string? Search = null);

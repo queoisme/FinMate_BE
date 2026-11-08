@@ -1,3 +1,4 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -22,8 +23,11 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ILogger<UpdateTransactionCommandHandler> _logger;
     private readonly IValidator<UpdateTransactionCommand> _validator;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì sửa danh mục không ghi nhớ người nhận
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
+
+    private readonly IGroupLedger? _groupLedger;
 
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -37,8 +41,11 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ILogger<UpdateTransactionCommandHandler> logger,
         IValidator<UpdateTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
-        IQrTransferLinker? qrLinker = null)
+        IQrTransferLinker? qrLinker = null,
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
@@ -49,6 +56,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         _receiptScanRepository = receiptScanRepository;
         _logger = logger;
         _validator = validator;
+        _forecastAlerts = forecastAlerts;
         _qrLinker = qrLinker;
         _trainingSamples = trainingSamples;
     }
@@ -140,6 +148,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             transaction.BalanceAfterCents = accounts[command.FinancialAccountId].BalanceCents;
         }
 
+        // Hoàn phần của nhóm theo giá trị CŨ, trước khi ghi đè entity. Vẫn chạy khi chủ giao dịch đã rời nhóm để số của nhóm luôn đúng.
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.ApplyAsync(transaction, transaction.Category, -1, ct);
+        }
+
         var categoryChanged = transaction.CategoryId != (newCategory?.Id);
         var oldCategorySlug = transaction.Category?.Slug;
 
@@ -155,8 +169,15 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         // account(s) và budget period(s) ở trên (nếu có) đã tracked cùng DbContext —
         // UpdateAsync flush atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
+        IReadOnlyList<GroupBudgetAlert> groupAlerts = _groupLedger is null ? [] : await _groupLedger.ApplyAsync(transaction, newCategory, +1, ct);
+
         await _transactionRepository.UpdateAsync(transaction, ct);
         transaction.Category = newCategory;
+
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+        }
 
         if (wasConfirmed)
         {
@@ -202,6 +223,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         {
             await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return TransactionMapper.ToDto(transaction);
     }
@@ -274,4 +296,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         account.BalanceCents += deltaCents;
         account.UpdatedAt = now;
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

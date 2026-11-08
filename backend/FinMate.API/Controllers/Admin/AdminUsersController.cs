@@ -34,10 +34,11 @@ public class AdminUsersController : AdminControllerBase
         [FromQuery] bool includeDeleted,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] bool internalOnly,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
-            new GetAdminUserListQuery(search, role, isLocked, includeDeleted, cursor, limit), ct);
+            new GetAdminUserListQuery(search, role, isLocked, includeDeleted, cursor, limit, internalOnly), ct);
 
         return Ok(ApiResponse<IReadOnlyList<AdminUserDto>>.Ok(
             result.Items, new ApiMeta(result.NextCursor)));

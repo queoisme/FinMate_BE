@@ -15,6 +15,8 @@ namespace FinMate.Application.Transactions.Commands;
 /// Slug nhóm (hoặc <c>"unknown"</c>) mà giao dịch này lưu thay cho khi hóa đơn được tách. Chỉ dùng làm khóa nối với lần quét: rỗng, toàn khoảng trắng
 /// hoặc dài quá 100 ký tự thì quay về slug danh mục của giao dịch; không được tin hay dùng vào việc nào khác.
 /// </param>
+/// <param name="GroupId">Nhóm để chia sẻ khoản này. Bỏ trống thì theo quy tắc tự chia sẻ của người dùng, nếu có.</param>
+/// <param name="GroupCategoryId">Danh mục trong nhóm; chỉ dùng cùng <paramref name="GroupId"/>.</param>
 /// <param name="Source">
 /// Kênh người dùng dùng để nhập: <c>Manual</c> (form/NLP), <c>Voice</c>, hay <c>Receipt</c>.
 /// <c>Notification</c> bị TỪ CHỐI ở validator — xem lý do ở đó.
@@ -31,4 +33,6 @@ public record CreateManualTransactionCommand(
     Guid? ClientRequestId = null,
     TransactionSource Source = TransactionSource.Manual,
     Guid? ReceiptScanId = null,
-    string? ReceiptGroup = null);
+    string? ReceiptGroup = null,
+    Guid? GroupId = null,
+    Guid? GroupCategoryId = null);

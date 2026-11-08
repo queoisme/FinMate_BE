@@ -143,3 +143,18 @@ Thêm 28 câu kiến thức lịch có từ kỳ và 14 câu chuyện phiếm c�
 3. Rủi ro 4 và 2: cần một nguyên tắc ở lớp luật (cẩn thận với cổng cứu/phá).
 4. Đưa `rasa_coverage.jsonl` vào `audit_overrides`, rồi mở rộng bộ câu (mỗi chủ đề ≥ 15 câu, thêm câu do người dùng thật gõ từ hàng chờ duyệt).
 5. Bổ sung dữ liệu (thu nhập, số dư, cảm ơn, rác, goodbye, merchant) rồi huấn luyện **3 seed** và so trung bình trước khi `promote`.
+
+## 6. Ý định `evaluate_purchase` ("mua món này có ổn không?"), 2026-11-07
+
+Thêm ý định mới vào `domain.yml` và 347 câu (`seed/nlu_purchase.jsonl`, sinh bằng `rasa/tools/generate_purchase.py`): 170 câu `evaluate_purchase` + 70 `add_expense` ("mua cà phê 45k") + 22 `out_of_scope` (xin lời khuyên) + 5 `ask_spending` cho train; test là nhóm `purchase_eval` (82 câu, **khung câu khác train**, 50 câu `evaluate_purchase`). Huấn luyện/đo trên DB tạm khôi phục từ DB dev (4132 câu train, 860 câu test); stack và model đang chạy không bị đụng. Mọi câu trong dữ liệu đã được kiểm bằng `parse_purchase` để nhãn không mâu thuẫn với luật.
+
+Mốc v11 phải đo lại vì tập test đã đổi (thô tụt 91,26% → 85,70% chỉ vì v11 chưa biết ý định mới; nhóm `purchase_eval` thô 32,9%).
+
+| Model | Thô | Sau luật | Luật cứu/phá | `purchase_eval` thô → sau luật | `nlu_test_fresh2` | `nlu_test_v2` |
+|---|---|---|---|---|---|---|
+| v11 (đang chạy) | 85,70% | **98,37%** | 111 / 2 | 32,9% → 100% | 97,0% | 98,1% |
+| v17 seed 1 | 92,09% | 98,02% | 54 / 3 | 91,5% → 100% | 100% | 96,8% |
+| v17 seed 2 | 95,00% | 97,44% | 24 / 3 | 95,1% → 100% | 97,0% | 98,1% |
+| v17 seed 3 | 95,93% | 98,26% | 22 / 2 | 96,3% → 100% | 95,5% | 98,7% |
+
+`promote --dry-run` **chặn cả ba**: sau luật tụt (98,02 / 97,44 / 98,26 so với 98,37; trung bình 3 seed 97,91) và seed 3 còn làm `nlu_test_fresh2` tụt 1 câu (97,01% → 95,52%). Khoảng cách của seed 3 là khoảng 1 câu trên 860, nằm trong nhiễu giữa các seed (±0,5–0,9 điểm) nhưng cổng không có biên. Kết luận: **chưa promote**; v11 + lớp luật vẫn xử lý đúng 100% nhóm `purchase_eval`. Lợi ích của việc dạy Rasa chỉ là Rasa thô tự nhận ra ý định (33% → 92–96%), không đổi kết quả cuối của app.

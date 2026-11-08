@@ -17,7 +17,7 @@ public interface IAdminRasaService
     Task<JsonElement?> ParseAsync(JsonElement body, CancellationToken ct = default);
 
     /// <summary>Mọi phiên bản model đã huấn luyện và đăng ký (kèm số đo, bản đang chạy, mỗi bản có qua cổng đo không). Chỉ đọc.</summary>
-    Task<JsonElement?> ModelsAsync(CancellationToken ct = default);
+    Task<JsonElement?> ModelsAsync(IReadOnlyDictionary<string, string?>? query = null, CancellationToken ct = default);
 
     /// <summary>Kích hoạt một phiên bản: chuyển tiếp rồi, CHỈ khi AI Service chấp nhận (202), ghi một dòng audit_logs (ai, bản nào, có ép qua cổng đo không). Kết quả nạp (vài phút) ở <c>activation</c> của <c>ModelsAsync</c>.</summary>
     Task<JsonElement?> ActivateModelAsync(AdminRasaModelActivation command, CancellationToken ct = default);
@@ -40,8 +40,8 @@ public class AdminRasaService : IAdminRasaService
     public Task<JsonElement?> ParseAsync(JsonElement body, CancellationToken ct = default)
         => _client.SendAsync(new AiRulesRequest(HttpMethod.Post, "parse", Body: body, Area: AiRulesRequest.RasaArea), ct);
 
-    public Task<JsonElement?> ModelsAsync(CancellationToken ct = default)
-        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "models", Area: AiRulesRequest.RasaArea), ct);
+    public Task<JsonElement?> ModelsAsync(IReadOnlyDictionary<string, string?>? query = null, CancellationToken ct = default)
+        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "models", query, Area: AiRulesRequest.RasaArea), ct);
 
     public async Task<JsonElement?> ActivateModelAsync(AdminRasaModelActivation command, CancellationToken ct = default)
     {

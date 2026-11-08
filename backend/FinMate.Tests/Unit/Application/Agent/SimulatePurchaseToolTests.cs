@@ -1,107 +1,143 @@
 using System.Text.Json;
 using FinMate.Application.Agent;
-using FinMate.Domain.Entities;
+using FinMate.Application.Forecasting;
 using FluentAssertions;
+using Moq;
 using Xunit;
 
 namespace FinMate.Tests.Unit.Application.Agent;
 
-/// <summary>Công cụ mô phỏng khoản mua, theo ví dụ chuẩn của Flow 6 §6.4: hôm nay ngày 10, số dư 5.000.000, tiền nhà 3.000.000 ngày 12, lương 10.000.000 ngày 15, dự trữ 1.000.000.</summary>
+/// <summary>
+/// Công cụ mô phỏng khoản mua bọc <see cref="IPurchaseCheckService"/> (engine dự báo của Phase 54–55). Ví dụ chuẩn của Flow 6 §6.4: hôm nay ngày 10, mua 1.500.000 thì điểm thấp nhất đổi từ 1.000.000 thành −500.000.
+/// Ở đây engine là bản giả: kiểm cách công cụ đổi kết quả thành bằng chứng có nguồn, độ tin cậy và kết luận, không kiểm lại phép tính của engine (đã có test ở <c>Forecasting</c>).
+/// </summary>
 public class SimulatePurchaseToolTests
 {
     private static readonly DateTimeOffset Day10 = new(2026, 11, 10, 9, 0, 0, TimeSpan.FromHours(7));
-
-    private static RecurringEntry Rent(EvidenceSource source = EvidenceSource.Confirmed, bool paid = false) => new("Tiền nhà", 3_000_000, RecurringKind.Obligation, 12, source, paid);
-
-    private static RecurringEntry Salary(EvidenceSource source = EvidenceSource.Confirmed) => new("Lương", 10_000_000, RecurringKind.Inflow, 15, source, false);
+    private static readonly DateOnly D10 = new(2026, 11, 10);
 
     private static JsonElement Args(object args) => JsonDocument.Parse(JsonSerializer.Serialize(args)).RootElement.Clone();
 
-    private static async Task<IReadOnlyList<Evidence>> RunAsync(object args, params RecurringEntry[] entries)
+    private static PurchaseCheckDto Check(string status = "assessable", string verdict = "shortfall_risk", long before = 1_000_000, long after = -500_000, string source = "confirmed", string confidence = "high")
+        => new(
+            status, verdict, "Có nguy cơ thiếu tiền trước ngày nhận lương.", 1_500_000, D10, "quần",
+            new PurchasePeriodDto(D10, new DateOnly(2026, 11, 14), "next_income"),
+            new PurchasePointDto(new DateOnly(2026, 11, 12), before), new PurchasePointDto(new DateOnly(2026, 11, 12), after), -900_000,
+            1_000_000, after < 0 ? -after : 0, new PurchaseBudgetImpactDto("unknown", null, null, null, null), new PurchasePlanImpactDto("unknown", null, null),
+            800_000, new DateOnly(2026, 11, 15),
+            [new PurchaseLineDto(new DateOnly(2026, 11, 12), "Tiền nhà", -3_000_000, source), new PurchaseLineDto(new DateOnly(2026, 11, 15), "Lương", 10_000_000, source)],
+            [new PurchaseWarningDto("already_short", "Số dư đã thấp hơn vùng đệm.")],
+            confidence, Day10.AddHours(-2), Day10);
+
+    private static async Task<(ToolResult Result, PurchaseCheckCommand? Sent)> RunAsync(PurchaseCheckDto dto, object? args = null)
     {
-        var source = new InMemoryFinancialDataSource([], [], 5_000_000, null, entries);
-        var result = await new SimulatePurchaseTool(source).RunAsync(new ToolContext(Guid.NewGuid(), Day10), Args(args));
-        result.Status.Should().Be(ToolStatus.Ok);
-        return result.Evidence;
+        PurchaseCheckCommand? sent = null;
+        var purchases = new Mock<IPurchaseCheckService>();
+        purchases.Setup(p => p.CheckAsync(It.IsAny<PurchaseCheckCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<PurchaseCheckCommand, CancellationToken>((c, _) => sent = c)
+            .ReturnsAsync(dto);
+        var result = await new SimulatePurchaseTool(purchases.Object).RunAsync(new ToolContext(Guid.NewGuid(), Day10), Args(args ?? new { price_vnd = 1_500_000 }));
+        return (result, sent);
     }
 
     private static long Value(IReadOnlyList<Evidence> evidence, string id) => evidence.Single(e => e.Id == id).ValueVnd!.Value;
 
     [Fact]
-    public async Task buying_the_trousers_today_turns_the_lowest_point_from_1_000_000_into_minus_500_000()
+    public async Task buying_the_trousers_turns_the_lowest_point_from_1_000_000_into_minus_500_000_and_the_verdict_is_infeasible()
     {
-        var evidence = await RunAsync(new { price_vnd = 1_500_000, reserve_vnd = 1_000_000 }, Rent(), Salary());
+        var (result, _) = await RunAsync(Check());
 
-        Value(evidence, "min_before").Should().Be(1_000_000);
-        Value(evidence, "min_after").Should().Be(-500_000);
-        Value(evidence, "shortfall").Should().Be(500_000);
-        Value(evidence, "balance").Should().Be(5_000_000);
-        evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: infeasible");
+        result.Status.Should().Be(ToolStatus.Ok);
+        Value(result.Evidence, "min_before").Should().Be(1_000_000);
+        Value(result.Evidence, "min_after").Should().Be(-500_000);
+        Value(result.Evidence, "shortfall").Should().Be(500_000);
+        Value(result.Evidence, "price").Should().Be(1_500_000);
+        result.Evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: infeasible");
     }
 
     [Fact]
-    public async Task buying_after_payday_is_outside_the_window_and_changes_nothing_before_it()
+    public async Task the_command_carries_the_asking_user_the_price_and_the_purchase_date_and_never_a_user_id_argument()
     {
-        var evidence = await RunAsync(new { price_vnd = 1_500_000, reserve_vnd = 1_000_000, purchase_in_days = 6 }, Rent(), Salary());
+        var userId = Guid.NewGuid();
+        PurchaseCheckCommand? sent = null;
+        var purchases = new Mock<IPurchaseCheckService>();
+        purchases.Setup(p => p.CheckAsync(It.IsAny<PurchaseCheckCommand>(), It.IsAny<CancellationToken>())).Callback<PurchaseCheckCommand, CancellationToken>((c, _) => sent = c).ReturnsAsync(Check());
 
-        Value(evidence, "min_after").Should().Be(Value(evidence, "min_before")).And.Be(1_000_000);
-        evidence.Should().NotContain(e => e.Id == "shortfall");
-        evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: feasible");
+        await new SimulatePurchaseTool(purchases.Object).RunAsync(new ToolContext(userId, Day10), Args(new { price_vnd = 1_500_000, purchase_in_days = 6, window_days = 14 }));
+
+        sent.Should().NotBeNull();
+        sent!.UserId.Should().Be(userId); // userId của lượt hỏi (từ JWT), không phải do LLM đưa vào
+        sent.AmountCents.Should().Be(1_500_000);
+        sent.PurchaseDate.Should().Be(new DateOnly(2026, 11, 16));
+        sent.HorizonDays.Should().Be(14);
     }
 
     [Fact]
-    public async Task paid_obligation_is_not_deducted_twice()
+    public async Task estimated_lines_make_the_derived_figures_estimated_and_cap_a_fitting_purchase_at_tight()
     {
-        var evidence = await RunAsync(new { price_vnd = 1_500_000, reserve_vnd = 1_000_000 }, Rent(paid: true), Salary());
+        var (result, _) = await RunAsync(Check(verdict: "fits_plan", before: 4_000_000, after: 2_500_000, source: "estimated", confidence: "medium"));
 
-        Value(evidence, "min_after").Should().Be(2_500_000);
-        evidence.Should().NotContain(e => e.Key == "scheduled_obligation"); // khoản đã thanh toán không xuất hiện trong bảng "vì sao"
+        result.Evidence.Single(e => e.Id == "min_after").Source.Should().Be(EvidenceSource.Estimated);
+        result.Evidence.Where(e => e.Key.StartsWith("scheduled_")).Should().OnlyContain(e => e.Source == EvidenceSource.Estimated);
+        result.Evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: tight");
     }
 
     [Fact]
-    public async Task unconfirmed_recurring_is_estimated_source_and_caps_the_verdict_at_tight()
+    public async Task confirmed_everything_and_a_fitting_purchase_is_feasible_and_has_no_shortfall_evidence()
     {
-        var evidence = await RunAsync(new { price_vnd = 500_000 }, Rent(EvidenceSource.Estimated), Salary());
+        var (result, _) = await RunAsync(Check(verdict: "fits_plan", before: 4_000_000, after: 2_500_000));
 
-        evidence.Where(e => e.Key.StartsWith("scheduled_")).Should().Contain(e => e.Key == "scheduled_obligation" && e.Source == EvidenceSource.Estimated);
-        evidence.Single(e => e.Id == "min_after").Source.Should().Be(EvidenceSource.Estimated);
-        evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: tight");
+        result.Evidence.Should().NotContain(e => e.Id == "shortfall");
+        result.Evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: feasible");
+        result.Evidence.Single(e => e.Id == "min_after").Source.Should().Be(EvidenceSource.Confirmed);
+    }
+
+    [Theory]
+    [InlineData("consider")]
+    [InlineData("off_plan")]
+    public async Task consider_and_off_plan_both_read_as_tight(string verdict)
+    {
+        var (result, _) = await RunAsync(Check(verdict: verdict, after: 200_000));
+
+        result.Evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: tight");
     }
 
     [Fact]
-    public async Task with_no_confirmed_recurring_item_the_answer_is_never_feasible()
+    public async Task scheduled_lines_become_evidence_with_a_positive_amount_a_direction_a_date_and_their_own_source()
     {
-        var evidence = await RunAsync(new { price_vnd = 500_000 });
+        var (result, _) = await RunAsync(Check());
 
-        evidence.Single(e => e.Id == "verdict").Text.Should().StartWith("verdict: tight").And.Contain("chưa có khoản định kỳ nào được xác nhận");
-        Value(evidence, "min_after").Should().Be(4_500_000);
+        var lines = result.Evidence.Where(e => e.Id.StartsWith("scheduled_")).ToList();
+        lines.Should().HaveCount(2);
+        lines[0].Should().Match<Evidence>(e => e.ValueVnd == 3_000_000 && e.Key == "scheduled_obligation" && e.Text!.Contains("Tiền nhà") && e.Text.Contains("12/11") && e.Source == EvidenceSource.Confirmed);
+        lines[1].Should().Match<Evidence>(e => e.ValueVnd == 10_000_000 && e.Key == "scheduled_inflow");
     }
 
     [Fact]
-    public async Task without_a_confirmed_payday_the_window_is_window_days_long()
+    public async Task insufficient_data_from_the_engine_is_reported_as_insufficient_never_guessed()
     {
-        // lương CHƯA xác nhận nên không dùng làm mốc kết thúc; kỳ tính là 7 ngày: 10/11 → 17/11, gồm cả ngày 15
-        var evidence = await RunAsync(new { price_vnd = 1_000_000, window_days = 7 }, Rent(), Salary(EvidenceSource.Estimated));
+        var dto = Check(status: "insufficient_data", verdict: "insufficient_data") with { LowestBefore = null, LowestAfter = null };
 
-        evidence.Single(e => e.Id == "min_before").Text.Should().Contain("10/11 đến 17/11");
-        Value(evidence, "min_after").Should().Be(1_000_000); // 5.000.000 − 3.000.000 (ngày 12) − 1.000.000 (mua) — đáy trước khi lương về
+        var (result, _) = await RunAsync(dto);
+
+        result.Status.Should().Be(ToolStatus.InsufficientData);
+        result.Code.Should().Be("purchase_data_missing");
     }
 
     [Fact]
-    public async Task every_money_figure_is_an_integer_with_a_source_and_a_confidence()
+    public async Task every_money_figure_is_an_integer_with_a_confidence_and_evidence_text_fits_the_wire_limit()
     {
-        var evidence = await RunAsync(new { price_vnd = 1_500_000, reserve_vnd = 1_000_000 }, Rent(), Salary());
+        var (result, _) = await RunAsync(Check() with { Warnings = [new PurchaseWarningDto("low_margin", new string('x', 900))] });
 
-        evidence.Where(e => e.Unit == "VND").Should().OnlyContain(e => e.ValueVnd != null && e.Confidence > 0 && e.Confidence <= 1);
-        evidence.Select(e => e.Id).Should().OnlyHaveUniqueItems();
-        evidence.Single(e => e.Id == "price").Source.Should().Be(EvidenceSource.UserEntered);
-        evidence.Single(e => e.Id == "balance").Source.Should().Be(EvidenceSource.Confirmed);
+        result.Evidence.Where(e => e.Unit == "VND").Should().OnlyContain(e => e.ValueVnd != null && e.Confidence > 0 && e.Confidence <= 1);
+        result.Evidence.Select(e => e.Id).Should().OnlyHaveUniqueItems();
+        result.Evidence.Where(e => e.Text is not null).Should().OnlyContain(e => e.Text!.Length <= 500);
     }
 
     [Fact]
     public void the_spec_bounds_every_argument_and_only_the_price_is_required()
     {
-        var spec = new SimulatePurchaseTool(new InMemoryFinancialDataSource([], [], 0)).Spec;
+        var spec = new SimulatePurchaseTool(Mock.Of<IPurchaseCheckService>()).Spec;
 
         spec.Name.Should().Be("simulate_purchase");
         spec.Args.Where(a => a.Required).Select(a => a.Name).Should().Equal("price_vnd");
@@ -111,7 +147,7 @@ public class SimulatePurchaseToolTests
     [Fact]
     public async Task the_executor_rejects_an_unknown_argument_and_an_out_of_range_day()
     {
-        var executor = new ToolExecutor(new ToolRegistry([new SimulatePurchaseTool(new InMemoryFinancialDataSource([], [], 0))]));
+        var executor = new ToolExecutor(new ToolRegistry([new SimulatePurchaseTool(Mock.Of<IPurchaseCheckService>())]));
         var context = new ToolContext(Guid.NewGuid(), Day10);
 
         (await executor.ExecuteAsync(context, "simulate_purchase", Args(new { price_vnd = 1000, user_id = Guid.NewGuid() }))).Status.Should().Be(ToolStatus.Rejected);

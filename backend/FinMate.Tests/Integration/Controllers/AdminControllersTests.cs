@@ -39,10 +39,6 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
     private record UserCategoryData(Guid Id, string Name, string Slug, bool IsSystem);
     private record UserCategoryListBody(bool Success, List<UserCategoryData> Data);
 
-    private record MissionData(
-        Guid Id, string Code, string Title, int ConditionTarget, int ExpReward, bool IsActive);
-    private record MissionBody(bool Success, MissionData Data);
-
     private record AdminUserData(
         Guid Id, string Email, string DisplayName, string Role, bool IsLocked, DateTimeOffset? DeletedAt);
     private record AdminUserListBody(bool Success, List<AdminUserData> Data);
@@ -94,7 +90,6 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         { "GET", "/api/v1/admin/users" },
         { "GET", "/api/v1/admin/provider-configs" },
         { "GET", "/api/v1/admin/categories" },
-        { "GET", "/api/v1/admin/missions" },
         { "GET", "/api/v1/admin/ai-stats" },
         { "GET", "/api/v1/admin/audit-logs" },
         { "GET", "/api/v1/admin/data-deletion-requests" },
@@ -161,7 +156,7 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         var activeList = await active.Content.ReadFromJsonAsync<ProviderConfigListBody>(JsonOptions);
         activeList!.Data.Should().NotContain(x => x.Id == config.Id);
 
-        var all = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/provider-configs?includeInactive=true", token));
+        var all = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/provider-configs?includeInactive=true&limit=100", token));   // danh sách phân trang: mặc định 20 dòng
         var allList = await all.Content.ReadFromJsonAsync<ProviderConfigListBody>(JsonOptions);
         allList!.Data.Should().Contain(x => x.Id == config.Id && !x.IsActive);
     }
@@ -208,37 +203,6 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await response.Content.ReadFromJsonAsync<ErrorBody>(JsonOptions))!.Error.Code
             .Should().Be("ADMIN_SYSTEM_CATEGORY_SLUG_DUPLICATE");
-    }
-
-    // -------------------------------------------------------------- missions
-
-    [Fact]
-    public async Task MissionLifecycle()
-    {
-        var token = await AdminTokenAsync();
-        var code = $"thu_{Guid.NewGuid():N}"[..16];
-
-        var created = await _client.SendAsync(Request(HttpMethod.Post, "/api/v1/admin/missions", token,
-            new CreateMissionRequest(code, "Nhiệm vụ thử", "Mô tả",
-                MissionPeriodType.Daily, MissionConditionType.ConfirmTransaction, 2, 20)));
-        created.StatusCode.Should().Be(HttpStatusCode.Created);
-        var mission = (await created.Content.ReadFromJsonAsync<MissionBody>(JsonOptions))!.Data;
-
-        var updated = await _client.SendAsync(Request(HttpMethod.Patch, $"/api/v1/admin/missions/{mission.Id}", token,
-            new UpdateMissionRequest(null, null, null, null, null, 5, 50)));
-        updated.StatusCode.Should().Be(HttpStatusCode.OK);
-        var afterUpdate = (await updated.Content.ReadFromJsonAsync<MissionBody>(JsonOptions))!.Data;
-        afterUpdate.ConditionTarget.Should().Be(5);
-        afterUpdate.ExpReward.Should().Be(50);
-
-        var conditionChange = await _client.SendAsync(Request(HttpMethod.Patch, $"/api/v1/admin/missions/{mission.Id}", token,
-            new UpdateMissionRequest(null, null, null, null, MissionConditionType.ContributeToGoal, null, null)));
-        conditionChange.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-
-        var deactivated = await _client.SendAsync(Request(HttpMethod.Patch, $"/api/v1/admin/missions/{mission.Id}/activation", token,
-            new SetActivationRequest(false)));
-        deactivated.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await deactivated.Content.ReadFromJsonAsync<MissionBody>(JsonOptions))!.Data.IsActive.Should().BeFalse();
     }
 
     // ----------------------------------------------------------------- users

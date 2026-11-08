@@ -5,7 +5,12 @@ using System.Text;
 using System.Text.Json;
 using FinMate.API.Controllers;
 using FinMate.Application.Common;
+using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
+using FinMate.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace FinMate.Tests.Integration.Controllers;
@@ -18,7 +23,24 @@ public class AdminAssumptionsControllerTests : IClassFixture<AuthApiFactory>
     private const string Base = "/api/v1/admin/assumptions";
     private readonly HttpClient _client;
 
-    public AdminAssumptionsControllerTests(AuthApiFactory factory) => _client = factory.CreateClient();
+    private readonly AuthApiFactory _factory;
+
+    public AdminAssumptionsControllerTests(AuthApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+    }
+
+    private string StaffToken(UserRole role)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var user = new User { Id = Guid.NewGuid(), Email = $"nv{Guid.NewGuid():N}@finmate.local", DisplayName = "Nhân sự", Role = role, CreatedAt = now, UpdatedAt = now };
+        db.Users.Add(user);
+        db.SaveChanges();
+        return scope.ServiceProvider.GetRequiredService<ITokenService>().GenerateAccessToken(user);
+    }
 
     private record AuthResultBody(bool Success, AuthResultData Data);
     private record AuthResultData(string AccessToken);
@@ -93,6 +115,19 @@ public class AdminAssumptionsControllerTests : IClassFixture<AuthApiFactory>
             (await _client.SendAsync(Request(method, url, null, json))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
             (await _client.SendAsync(Request(method, url, user, json))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         }
+    }
+
+    [Fact]
+    public async Task Staff_CanDraft_ButOnlyAManagerOrAdmin_CanApproveOrRetire()
+    {
+        var staff = StaffToken(UserRole.Staff);
+        var manager = StaffToken(UserRole.OpsManager);
+
+        var draft = await CreateAsync(staff, "staff_draft_key");
+
+        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", staff))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/retire", staff))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", manager))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

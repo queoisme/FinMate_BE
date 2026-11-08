@@ -1,8 +1,8 @@
+using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
-using FinMate.Application.Gamification;
 using FinMate.Domain.Enums;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -16,13 +16,15 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ICategoryRepository _categoryRepository;
     private readonly IBudgetPeriodService _budgetPeriodService;
     private readonly IBudgetAlertNotifier _budgetAlertNotifier;
-    private readonly IGamificationService _gamificationService;
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IReceiptScanRepository _receiptScanRepository;
     private readonly ICacheService _cache;
     private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
+    private readonly IForecastAlertTrigger? _forecastAlerts;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
+
+    private readonly IGroupLedger? _groupLedger;
 
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -30,25 +32,27 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ICategoryRepository categoryRepository,
         IBudgetPeriodService budgetPeriodService,
         IBudgetAlertNotifier budgetAlertNotifier,
-        IGamificationService gamificationService,
         IAIServiceClient aiServiceClient,
         IReceiptScanRepository receiptScanRepository,
         ICacheService cache,
         ILogger<CreateManualTransactionCommandHandler> logger,
         IValidator<CreateManualTransactionCommand> validator,
-        ITrainingSampleService? trainingSamples = null)
+        ITrainingSampleService? trainingSamples = null,
+        IForecastAlertTrigger? forecastAlerts = null,
+        IGroupLedger? groupLedger = null)
     {
+        _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
         _budgetPeriodService = budgetPeriodService;
         _budgetAlertNotifier = budgetAlertNotifier;
-        _gamificationService = gamificationService;
         _aiServiceClient = aiServiceClient;
         _receiptScanRepository = receiptScanRepository;
         _cache = cache;
         _logger = logger;
         _validator = validator;
+        _forecastAlerts = forecastAlerts;
         _trainingSamples = trainingSamples;
     }
 
@@ -114,24 +118,21 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             command.TransactedAt,
             ct);
 
-        await _gamificationService.RecordActivityAsync(
-            new GamificationActivity(
-                command.UserId,
-                MissionConditionType.CreateManualTransaction,
-                TransactionExpRewards.CreateManualTransaction,
-                now),
-            ct);
-
-        // account, budget period và gamification đã tracked (cùng DbContext) — AddAsync flush
+        // account và budget period đã tracked (cùng DbContext) — AddAsync flush
         // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
+        var groupAlerts = await ShareIfRequestedAsync(command, transaction, category, now, ct);
+
         await _transactionRepository.AddAsync(transaction, ct);
         transaction.Category = category;
 
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
-        await GamificationCache.InvalidateAsync(_cache, command.UserId, ct);
 
         // SAU khi AddAsync đã lưu — xem ghi chú ở ConfirmTransactionCommandHandler.
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        if (_groupLedger is not null)
+        {
+            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+        }
 
         // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
         var scanWasSplit = false;
@@ -181,7 +182,30 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             await _aiServiceClient.LearnMerchantAsync(
                 new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug), ct);
         }
+        await NotifyForecastAsync(command.UserId, ct);
 
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }
+
+    /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
+    private async Task<IReadOnlyList<GroupBudgetAlert>> ShareIfRequestedAsync(
+        CreateManualTransactionCommand command, Transaction transaction, Category? category, DateTimeOffset now, CancellationToken ct)
+    {
+        if (_groupLedger is null)
+        {
+            return [];
+        }
+
+        var target = await _groupLedger.ResolveAsync(command.UserId, command.GroupId, command.GroupCategoryId, transaction, category, ct);
+        if (target is null)
+        {
+            return [];
+        }
+
+        _groupLedger.MarkShared(transaction, target, command.UserId, now);
+        return await _groupLedger.ApplyAsync(transaction, category, +1, ct);
+    }
+
+    private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
+        => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
 }

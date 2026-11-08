@@ -11,7 +11,7 @@ namespace FinMate.API.Controllers.Admin;
 /// chỉ phiên bản đã duyệt mới nhất được agent dùng. Mọi thao tác ghi để lại một dòng audit_logs.
 /// </summary>
 [Route("api/v1/admin/assumptions")]
-public class AdminAssumptionsController(IAssumptionService service) : ContentStaffControllerBase
+public class AdminAssumptionsController(IAssumptionService service) : AgentContentControllerBase
 {
     public sealed record CreateAssumptionRequest(string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf);
 

@@ -1,6 +1,5 @@
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
-using FinMate.Domain.Entities.Gamification;
 
 namespace FinMate.Application.Admin;
 
@@ -40,17 +39,4 @@ public static class AdminMapper
         category.IsActive,
         category.CreatedAt,
         category.UpdatedAt);
-
-    public static AdminMissionDto ToDto(Mission mission) => new(
-        mission.Id,
-        mission.Code,
-        mission.Title,
-        mission.Description,
-        mission.PeriodType,
-        mission.ConditionType,
-        mission.ConditionTarget,
-        mission.ExpReward,
-        mission.IsActive,
-        mission.CreatedAt,
-        mission.UpdatedAt);
 }

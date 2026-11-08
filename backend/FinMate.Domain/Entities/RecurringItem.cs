@@ -1,30 +1,42 @@
+using FinMate.Domain.Enums;
+
 namespace FinMate.Domain.Entities;
 
-public enum RecurringKind
-{
-    /// <summary>Khoản phải trả định kỳ (tiền nhà, hóa đơn, gói thuê bao...).</summary>
-    Obligation,
-
-    /// <summary>Khoản thu định kỳ (lương, trợ cấp...).</summary>
-    Inflow,
-}
-
 /// <summary>
-/// Một khoản thu/chi định kỳ MÀ NGƯỜI DÙNG ĐÃ XÁC NHẬN (hệ thống chỉ đề xuất ứng viên từ lịch sử giao dịch; không tự lưu). Là đầu vào của sổ dòng tiền theo ngày khi mô phỏng một khoản mua:
-/// khoản đã xác nhận được tính là nguồn <c>Confirmed</c>, còn ứng viên chưa xác nhận chỉ là <c>Estimated</c>. Số tiền là đồng VND trong <c>BIGINT</c> (tên cột <c>amount_cents</c> theo quy ước chung của dự án, không chia 100).
+/// Một khoản thu/chi lặp lại đều đặn: lương, tiền nhà, thuê bao, hóa đơn. Gộp "hóa đơn định kỳ" và "thu nhập đều đặn" vào một thực thể
+/// vì chúng có cùng vòng đời (đề xuất → xác nhận → theo dõi → tạm dừng/hủy) và cùng được engine dự báo đặt lên đường số dư theo ngày.
 /// </summary>
 public class RecurringItem
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    public RecurringDirection Direction { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Tên người nhận/người trả đã chuẩn hóa, dùng để khớp giao dịch. Null với khoản user tự thêm không gắn người nhận.</summary>
+    public string? CounterpartyKey { get; set; }
+
+    public Guid? CategoryId { get; set; }
+    public Guid? FinancialAccountId { get; set; }
     public long AmountCents { get; set; }
-    public RecurringKind Kind { get; set; }
+    public RecurringCadence Cadence { get; set; }
 
-    /// <summary>Ngày trong tháng (1–31). Tháng ngắn hơn thì rơi vào ngày cuối tháng.</summary>
-    public int DayOfMonth { get; set; }
+    /// <summary>Ngày đến hạn kế tiếp (giờ VN). Job đẩy ngày này lên khi thấy giao dịch khớp.</summary>
+    public DateOnly NextDueDate { get; set; }
 
+    public RecurringStatus Status { get; set; }
+    public RecurringSource Source { get; set; }
+
+    /// <summary>Số lần đã thấy giao dịch khớp.</summary>
+    public int Occurrences { get; set; }
+
+    public DateTimeOffset? LastSeenAt { get; set; }
+    public long? LastSeenAmountCents { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 
     public User? User { get; set; }
+    public Category? Category { get; set; }
+    public FinancialAccount? FinancialAccount { get; set; }
 }

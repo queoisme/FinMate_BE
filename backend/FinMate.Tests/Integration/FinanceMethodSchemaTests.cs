@@ -34,10 +34,7 @@ public class FinanceMethodSchemaTests : IClassFixture<ReceiptScanDbFixture>
     {
         var user = Guid.NewGuid();
         var email = $"{user:N}@finmate.local";
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO users (id, email, display_name, role, push_enabled, budget_alerts_enabled, mission_reminders_enabled, created_at, updated_at)
-            VALUES ({user}, {email}, 'Schema Test', 'user', true, true, true, now(), now())
-            """);
+        await RawUserSeed.InsertAsync(db, user, email, "Schema Test");
         return user;
     }
 

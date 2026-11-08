@@ -16,7 +16,7 @@ RASA = Path(__file__).resolve().parents[2] / "rasa"
 TRAIN = RASA / "data" / "nlu_db.yml"
 pytestmark = pytest.mark.skipif(not TRAIN.is_file(), reason="rasa/data/nlu_db.yml chưa được xuất từ DB")
 
-INTENTS = ("add_expense", "add_income", "transfer_money", "ask_spending", "greet", "goodbye", "confirm", "deny", "cancel", "out_of_scope")
+INTENTS = ("add_expense", "add_income", "transfer_money", "ask_spending", "evaluate_purchase", "greet", "goodbye", "confirm", "deny", "cancel", "out_of_scope")
 ANNOTATION = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
 

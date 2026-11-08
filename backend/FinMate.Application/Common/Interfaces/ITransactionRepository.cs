@@ -28,9 +28,6 @@ public interface ITransactionRepository
     Task<Transaction?> GetByClientRequestIdAsync(
         Guid userId, Guid clientRequestId, CancellationToken ct = default);
     Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default);
-    /// <summary>Giao dịch ĐÃ XÁC NHẬN (chưa xóa) của người dùng từ <paramref name="from"/> trở đi, mọi loại kể cả chuyển tiền (người gọi tự lọc). Dùng để phát hiện khoản định kỳ.</summary>
-    Task<List<Transaction>> GetConfirmedSinceAsync(Guid userId, DateTimeOffset from, CancellationToken ct = default);
-
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);
     Task<bool> HasAnyForAccountAsync(Guid financialAccountId, CancellationToken ct = default);

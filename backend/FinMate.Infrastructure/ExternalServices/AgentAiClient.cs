@@ -117,10 +117,10 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
         return response.Evidence.Select(e => new Evidence(e.Id, e.Key, e.ValueVnd, e.Text, e.Unit, AgentEvidenceDto.ParseSource(e.Source), e.AsOf, e.Confidence, e.SourceName, e.SourceUrl)).ToList();
     }
 
-    public async Task<FinMate.Application.Support.TicketAssistResult?> TicketAssistAsync(string subject, string body, IReadOnlyList<FinMate.Application.Support.TicketAssistMessage> history, CancellationToken ct = default)
+    public async Task<TicketAssistResult?> TicketAssistAsync(string subject, string body, IReadOnlyList<TicketAssistMessage> history, CancellationToken ct = default)
     {
         var response = await PostAsync<TicketAssistBody, TicketAssistResponseBody>("api/v1/agent/ticket-assist", new TicketAssistBody(subject, body, history.Select(h => new WireTicketMessage(h.Role, h.Text)).ToList()), "ticket_assist", ct);
-        return new FinMate.Application.Support.TicketAssistResult(response.Summary, response.SuggestedReply, response.Verified, Usage(response.Usage));
+        return new TicketAssistResult(response.Summary, response.SuggestedReply, response.Verified, Usage(response.Usage));
     }
 
     public async Task RecordUnansweredAsync(string question, CancellationToken ct = default)
