@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import AgentRefusalTemplate, AgentScopeCue
+from app.services.amount_normalizer import find_amounts
 from app.services.vi_text import clean_text, fold
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "agent_scope.json"
@@ -30,7 +31,12 @@ FINANCE_INTENTS = frozenset({"add_expense", "add_income", "transfer_money", "ask
 SMALLTALK_INTENTS = frozenset({"greet", "goodbye", "confirm", "deny", "cancel"})
 CACHE_SECONDS = 60.0
 DEFAULT_REFUSAL = "Mình chỉ hỗ trợ các câu hỏi về tài chính cá nhân của bạn. Bạn thử hỏi lại theo hướng đó nhé."  # dự phòng cuối: chỉ dùng khi cả DB lẫn bản mặc định đều thiếu
-_AMOUNT = re.compile(r"\d[\d.,]*\s*(k|tr|trieu|nghin|ngan|dong|vnd|d)(?![a-z0-9])")  # cơ chế nhận số tiền, không phải từ vựng
+MIN_AMOUNT_VND = 1_000  # dưới mức này là số thường (3 con mèo, 8 giờ), không phải số tiền
+
+
+def _has_amount(text: str) -> bool:
+    """Câu có số tiền theo CHÍNH bộ đọc của dự án (k, tr, tỷ, củ, xị, số bằng chữ...), cùng bộ đọc planner và bộ kiểm chứng dùng: không dựng thêm một regex riêng sẽ lệch khỏi nó."""
+    return any(match.value >= MIN_AMOUNT_VND for match in find_amounts(text))
 
 
 @dataclass(frozen=True)
@@ -77,7 +83,7 @@ async def evaluate(text: str, rules: GateRules, nlu: Any | None) -> GateResult:
         if _matches(rules.forbidden[topic], folded):
             return GateResult(False, topic)
 
-    if _AMOUNT.search(folded) or _matches(rules.in_scope, folded):
+    if _has_amount(text) or _matches(rules.in_scope, folded):
         return GateResult(True, "finance_cue")
 
     if nlu is not None:

@@ -19,7 +19,14 @@
       "system prompt",
       "jailbreak",
       "dan mode",
-      "developer mode"
+      "developer mode",
+      "quen cac quy tac",
+      "bo buoc kiem tra",
+      "bo qua buoc kiem tra",
+      "hidden instructions",
+      "reveal your",
+      "dong vai",
+      "khoa api"
     ],
     "other_users_data": [
       "du lieu cua nguoi khac",
@@ -27,7 +34,10 @@
       "tai khoan cua nguoi khac",
       "so du cua nguoi khac",
       "thong tin nguoi dung khac",
-      "du lieu nguoi dung khac"
+      "du lieu nguoi dung khac",
+      "nguoi dung khac",
+      "tai khoan nguoi dung",
+      "nguoi dung ten"
     ],
     "investment_advice": [
       "dau tu",
@@ -46,7 +56,8 @@
       "nen mua vang",
       "vay nong",
       "vay tin dung",
-      "vay ngan hang nao"
+      "vay ngan hang nao",
+      "dau co"
     ]
   },
   "in_scope": [
@@ -77,6 +88,38 @@
     "khoan chi",
     "khoan thu",
     "tra no",
-    "no nan"
+    "no nan",
+    "nghi viec",
+    "mat viec",
+    "that nghiep",
+    "cam cu",
+    "ngung kiem tien",
+    "kiem it hon",
+    "thu nhap giam",
+    "luong giam",
+    "du tien",
+    "co nen mua",
+    "ke hoach mua",
+    "ke hoach tiet kiem",
+    "ke hoach tai chinh",
+    "hu tien",
+    "jars",
+    "tra truoc cho chinh minh",
+    "lai suat",
+    "lam phat",
+    "lai kep",
+    "tang gia",
+    "ty le no",
+    "quy du phong",
+    "dam cuoi",
+    "tien cuoi",
+    "dat coc",
+    "mua o to",
+    "mua laptop",
+    "mua may anh",
+    "mua xe may",
+    "mua can ho",
+    "mua duoc xe",
+    "mua duoc nha"
   ]
 }
