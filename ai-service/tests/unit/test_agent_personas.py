@@ -25,7 +25,7 @@ def test_different_seeds_give_different_personas(kind):
 def test_the_snapshot_has_the_three_data_source_outputs_and_only_integers(kind):
     persona = make_persona(kind, 3)
 
-    assert set(persona.snapshot) == {"monthly_income", "monthly_spend", "total_balance"}
+    assert set(persona.snapshot) == {"monthly_income", "monthly_spend", "total_balance", "category_spend"}
     assert len(persona.snapshot["monthly_income"]) == len(persona.snapshot["monthly_spend"]) == HISTORY_MONTHS
     values = [*persona.snapshot["monthly_income"], *persona.snapshot["monthly_spend"], persona.snapshot["total_balance"], *persona.truth["future_income"], *persona.truth["future_spend"]]
     assert all(type(v) is int and v >= 0 and v % 1000 == 0 for v in values)  # số nguyên đồng, làm tròn nghìn, không âm
@@ -68,6 +68,20 @@ def test_months_to_reach_is_computed_exactly_from_the_true_future():
     assert months_to_reach(persona, 200_000_000) == 10  # (200 − 100) / 10
     assert months_to_reach(persona, 100_000_000) == 0  # đã đủ
     assert months_to_reach(persona, 5_000_000_000) is None  # không tới trong thời gian đã biết
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("seed", range(30))
+def test_persona_category_spend_sums_to_recent_spend(kind, seed):
+    """Chi theo nhóm (cho spending_summary/plan_budget) cộng lại ĐÚNG bằng tổng chi 3 tháng gần nhất, số nguyên làm tròn nghìn, slug là nhóm hệ thống thật."""
+    persona = make_persona(kind, seed)
+    rows = persona.snapshot["category_spend"]
+
+    assert sum(r["spent_vnd"] for r in rows) == sum(persona.snapshot["monthly_spend"][-3:])
+    assert all(set(r) == {"slug", "name", "spent_vnd"} and type(r["spent_vnd"]) is int and r["spent_vnd"] >= 0 and r["spent_vnd"] % 1000 == 0 for r in rows)
+    assert {r["slug"] for r in rows} <= {"food", "transport", "shopping", "education", "housing", "bills", "entertainment", "health", "family", "other"}
+    assert len({r["slug"] for r in rows}) == len(rows)
+    assert make_persona(kind, seed).snapshot["category_spend"] == rows
 
 
 def test_the_future_truth_is_not_part_of_the_snapshot():

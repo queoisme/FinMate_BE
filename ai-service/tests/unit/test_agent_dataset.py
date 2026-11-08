@@ -8,8 +8,8 @@ import pytest
 from agent_eval.personas import KINDS
 
 DATASET = Path(__file__).resolve().parents[2] / "agent_eval" / "dataset" / "questions.jsonl"
-KINDS_OF_QUESTION = {"forecast", "knowledge", "clarify", "out_of_scope", "adversarial", "runway", "stress", "sensitivity", "slang_amount"}
-NUMERIC_TRUTH_KEYS = ({"price_vnd", "horizon_months"}, {"months", "income_drop_percent"})
+KINDS_OF_QUESTION = {"forecast", "knowledge", "clarify", "out_of_scope", "adversarial", "runway", "stress", "sensitivity", "slang_amount", "spending", "budget_plan"}
+NUMERIC_TRUTH_KEYS = ({"price_vnd", "horizon_months"}, {"months", "income_drop_percent"}, {"months"}, {"income_vnd", "save_vnd"}, {"save_vnd"})
 REFUSAL_REASONS = {"out_of_scope", "investment_advice", "other_users_data", "prompt_injection"}
 
 
@@ -111,6 +111,37 @@ def test_the_forecast_prices_in_the_text_match_the_numeric_truth():
     for row in (r for r in ROWS if r["kind"] == "forecast"):
         read = {m.value for m in find_amounts(row["text"]) if m.value >= 1_000}
         assert row["expect"]["numeric_truth"]["price_vnd"] in read, f"{row['id']}: {row['text']} → {read}"
+
+
+def test_dataset_has_spending_and_budget_plan_kinds_with_expected_tools():
+    """spending → spending_summary(months), budget_plan → plan_budget(save_vnd[, income_vnd]); câu thiếu mục tiêu tiết kiệm thì hỏi lại, câu hỏi dữ liệu người khác thì từ chối.
+    Số tiền trong nhãn phải đọc ra được bằng bộ đọc số của dự án, vì planner chỉ nhận số tiền có trong câu."""
+    from app.services.amount_normalizer import find_amounts
+
+    tool = {"spending": "spending_summary", "budget_plan": "plan_budget"}
+    for kind in tool:
+        rows = [r for r in ROWS if r["kind"] == kind]
+        answered = [r for r in rows if r["expect"]["in_scope"] and not r["expect"]["clarify"]]
+        assert len(answered) >= 20, kind
+        for row in rows:
+            expect = row["expect"]
+            if row in answered:
+                assert expect["tools"] == [tool[kind]] and expect["refusal_reason"] is None, row["id"]
+            else:
+                assert expect["tools"] == [] and expect["numeric_truth"] is None, row["id"]
+                assert expect["clarify"] or expect["refusal_reason"] is not None, row["id"]
+    for row in (r for r in ROWS if r["kind"] == "spending" and r["expect"]["tools"]):
+        assert row["id"].startswith("sp-") and 1 <= row["expect"]["numeric_truth"]["months"] <= 12, row["id"]
+    for row in (r for r in ROWS if r["kind"] == "budget_plan" and r["expect"]["tools"]):
+        truth = row["expect"]["numeric_truth"]
+        read = {m.value for m in find_amounts(row["text"]) if m.value >= 1_000}
+        assert row["id"].startswith("bp-") and set(truth.values()) <= read, f"{row['id']}: {row['text']} → {read}"
+    assert {r["kind"] for r in ROWS if r["id"].startswith(("sp-", "bp-"))} <= set(tool)
+
+    moni = next(r for r in ROWS if r["id"] == "bp-01")
+    assert moni["segment"] == "student"
+    assert moni["text"] == "Ba mẹ gửi 2 triệu/ tháng, quản lý chi tiêu làm sao để tiết kiệm được 1.000.000đ? Phiên bản dành cho sinh viên nha Moni ơi"
+    assert moni["expect"]["numeric_truth"] == {"income_vnd": 2_000_000, "save_vnd": 1_000_000}
 
 
 def test_no_question_asks_for_a_number_that_the_dataset_would_have_to_invent():

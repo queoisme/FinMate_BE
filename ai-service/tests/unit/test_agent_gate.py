@@ -135,6 +135,29 @@ async def test_the_new_finance_vocabulary_does_not_let_ordinary_off_topic_questi
     assert (await evaluate(text, RULES, None)).in_scope is False
 
 
+def _new_kind_rows():
+    import json
+    from pathlib import Path
+
+    dataset = Path(__file__).resolve().parents[2] / "agent_eval" / "dataset" / "questions.jsonl"
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [r for r in rows if r["kind"] in ("spending", "budget_plan")]
+
+
+async def test_gate_lets_new_question_kinds_through():
+    """Mọi câu spending/budget_plan qua cổng khi nhãn nói trong phạm vi, và bị chặn đúng chủ đề khi nhãn nói từ chối (cụm từ là dữ liệu trong agent_scope.json)."""
+    rows = _new_kind_rows()
+    assert rows
+
+    wrong = []
+    for row in rows:
+        result = await evaluate(row["text"], RULES, None)
+        expected = (True,) if row["expect"]["in_scope"] else (False, row["expect"]["refusal_reason"])
+        if (result.in_scope,) + (() if result.in_scope else (result.reason_code,)) != expected:
+            wrong.append((row["id"], row["text"], result))
+    assert not wrong, wrong
+
+
 @pytest.mark.parametrize(
     ("text", "topic"),
     [

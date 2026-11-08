@@ -4,7 +4,7 @@ Dữ liệu thật không cho ta "sự thật" về tương lai của một ngư
 tương lai đã biết (``truth``, KHÔNG bao giờ đưa cho agent) để chấm dự báo. Ba kiểu thu nhập: công nhân lương cố định, freelancer dao động mạnh, sinh viên trợ cấp + làm thêm + học phí theo kỳ.
 Sinh bằng ``random.Random(seed)`` nên cùng hạt giống cho đúng cùng hồ sơ. Tiền là số nguyên đồng làm tròn nghìn (không bao giờ float).
 
-``snapshot`` có đúng ba đầu ra của ``IFinancialDataSource`` phía backend (``monthly_income``, ``monthly_spend``, ``total_balance``), cũ nhất trước."""
+``snapshot`` có đúng các đầu ra của ``IFinancialDataSource`` phía backend (``monthly_income``, ``monthly_spend``, ``total_balance``, cũ nhất trước; ``category_spend`` = chi theo nhóm của 3 tháng gần nhất)."""
 
 from __future__ import annotations
 
@@ -15,13 +15,21 @@ from typing import Any
 KINDS = ("stable_worker", "freelancer", "student")
 HISTORY_MONTHS = 12
 FUTURE_MONTHS = 24
+CATEGORY_MONTHS = 3  # chi theo nhóm phủ đúng 3 tháng gần nhất: cùng cửa sổ plan_budget/spending_summary(months=3) đọc
+
+# Tỉ trọng chi theo nhóm của từng kiểu hồ sơ (slug là nhóm hệ thống thật trong CategorySeeder); nhóm ĐẦU TIÊN nhận phần dư làm tròn.
+CATEGORY_WEIGHTS: dict[str, tuple[tuple[str, str, int], ...]] = {
+    "stable_worker": (("food", "Ăn uống", 30), ("housing", "Nhà ở", 25), ("transport", "Di chuyển", 12), ("bills", "Hóa đơn", 10), ("shopping", "Mua sắm", 10), ("entertainment", "Giải trí", 6), ("health", "Sức khỏe", 4), ("other", "Khác", 3)),
+    "freelancer": (("food", "Ăn uống", 28), ("housing", "Nhà ở", 22), ("bills", "Hóa đơn", 12), ("shopping", "Mua sắm", 12), ("transport", "Di chuyển", 10), ("entertainment", "Giải trí", 8), ("health", "Sức khỏe", 5), ("other", "Khác", 3)),
+    "student": (("food", "Ăn uống", 35), ("education", "Giáo dục", 25), ("housing", "Nhà ở", 15), ("transport", "Di chuyển", 8), ("shopping", "Mua sắm", 7), ("bills", "Hóa đơn", 5), ("entertainment", "Giải trí", 5)),
+}
 
 
 @dataclass(frozen=True)
 class Persona:
     kind: str
     seed: int
-    snapshot: dict[str, Any]  # {"monthly_income": [int], "monthly_spend": [int], "total_balance": int}
+    snapshot: dict[str, Any]  # {"monthly_income": [int], "monthly_spend": [int], "total_balance": int, "category_spend": [{"slug", "name", "spent_vnd"}]}
     truth: dict[str, list[int]]  # {"future_income", "future_spend", "future_capacity"}: chỉ để chấm, agent không thấy
 
 
@@ -60,6 +68,17 @@ def _series(kind: str, rng: random.Random, months: int) -> tuple[list[int], list
     return income, spend, balance
 
 
+def _category_spend(kind: str, seed: int, total: int) -> list[dict[str, Any]]:
+    """Chia ``total`` (bội của 1.000) theo tỉ trọng cố định có dao động nhỏ theo hạt giống; cộng lại ĐÚNG bằng ``total``.
+    Dùng RNG riêng nên chuỗi thu/chi của hồ sơ không đổi so với trước khi có phần này."""
+    rng = random.Random(f"{kind}:{seed}:category")
+    weights = [(slug, name, weight * rng.uniform(0.8, 1.2)) for slug, name, weight in CATEGORY_WEIGHTS[kind]]
+    scale = sum(w for _, _, w in weights)
+    rest = [{"slug": slug, "name": name, "spent_vnd": int(total * w / scale) // 1000 * 1000} for slug, name, w in weights[1:]]  # làm tròn XUỐNG nên phần dư ≥ 0
+    first_slug, first_name, _ = weights[0]
+    return [{"slug": first_slug, "name": first_name, "spent_vnd": total - sum(r["spent_vnd"] for r in rest)}, *rest]
+
+
 def make_persona(kind: str, seed: int, months: int = HISTORY_MONTHS) -> Persona:
     if kind not in KINDS:
         raise ValueError(f"kiểu hồ sơ không hợp lệ: {kind!r}; được phép: {', '.join(KINDS)}")
@@ -70,7 +89,12 @@ def make_persona(kind: str, seed: int, months: int = HISTORY_MONTHS) -> Persona:
     return Persona(
         kind=kind,
         seed=seed,
-        snapshot={"monthly_income": history_income, "monthly_spend": history_spend, "total_balance": balance},
+        snapshot={
+            "monthly_income": history_income,
+            "monthly_spend": history_spend,
+            "total_balance": balance,
+            "category_spend": _category_spend(kind, seed, sum(history_spend[-CATEGORY_MONTHS:])),
+        },
         truth={
             "future_income": future_income,
             "future_spend": future_spend,

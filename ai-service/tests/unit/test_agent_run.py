@@ -44,6 +44,30 @@ def test_markdown_table_has_one_line_per_metric():
     assert "| plan_accuracy | 0.9123 |" in table and "| cost_usd | n/a |" in table
 
 
+def test_run_agent_sends_the_personas_category_spend_in_camel_case():
+    from agent_eval.personas import make_persona
+
+    sent = {}
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"data": payload()}
+
+    class Client:
+        def post(self, url, json, headers):
+            sent.update(json)
+            return Response()
+
+    question = run.load_questions(1)[0]
+    run.run_agent(Client(), "http://x", "k", question, 4, {}, "m")
+
+    expected = [{"slug": c["slug"], "name": c["name"], "spentVnd": c["spent_vnd"]} for c in make_persona(question["segment"], 4).snapshot["category_spend"]]
+    assert sent["snapshot"]["categorySpend"] == expected and expected
+
+
 def test_the_runner_arguments_reject_an_unknown_config():
     import pytest
 
