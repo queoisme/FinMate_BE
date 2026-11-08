@@ -72,6 +72,19 @@ Backend là mã đã merge (chạy trên máy, DB riêng `finmate_eval`), ai-ser
 - **6 câu lỗi (10%) là `ReadTimeout` của Gemini ở bước lập kế hoạch** (trần 20 s mỗi lần gọi), backend trả 503 như thiết kế. `gemini-3.1-flash-lite` chậm thất thường; mô hình khác có thể ổn hơn: so sánh ở Task 7, chưa đổi cấu hình khi chưa có số.
 - Số liệu độ trễ và `template_rate` chỉ đáng tin khi khóa không bị giới hạn tốc độ; nên đo lại với khóa gói trả phí.
 
+### Câu lóng về số tiền — 2026-11-08, `full`, `gemini-3.1-flash-lite`, 30 câu `slang_amount`
+
+Sau khi sửa cổng phạm vi dùng chung bộ đọc số tiền của dự án (trước đó cổng chặn nhầm 17/30 câu này vì regex riêng không biết "củ", "tỷ"). Trả lời được 28/30; 2 câu lỗi do Gemini quá hạn ở bước lập kế hoạch (cùng lỗi như lần đầu).
+
+| Chỉ số | Giá trị |
+|---|---|
+| plan_accuracy / tool_accuracy | 1,00 / 1,00 |
+| unsupported_claim_rate / numeric_faithfulness | 0,00 / 1,00 |
+| giá agent đọc ra = giá trong nhãn | 28/28 ("60 củ", "1 tỷ rưỡi", "700tr"...) |
+| template_rate | 0,04 (1 câu) |
+| latency p50 / p95 | 3,0 s / 19,1 s |
+| cost_usd (28 câu) | 0,039 |
+
 ## Backtest dải dự báo (Task 13)
 
 `python -m agent_eval.backtest` (trong `ai-service`): với mỗi kiểu hồ sơ × 30 hạt giống, đưa 12 tháng lịch sử cho từng phương pháp rồi chấm trên 24 tháng tương lai đã biết. `empirical_quantile` là cách đang chạy ở backend (Q10/Q50/Q90 của lịch sử); `naive_mean` = trung bình ± 1,28σ; `last_month` = dự báo điểm; `sklearn_quantile_gbr` = gradient boosting hồi quy phân vị trên đặc trưng chu kỳ. Dải 80% lý tưởng phủ ≈ 0,80.
