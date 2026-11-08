@@ -35,8 +35,13 @@ PRICES = HERE / "prices.json"
 CONFIGS = ("full", "no_verifier", "no_rag", "rasa_baseline")
 
 
-def load_questions(limit: int | None = None) -> list[dict]:
+def load_questions(limit: int | None = None, kinds: list[str] | None = None) -> list[dict]:
     rows = [json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if kinds:
+        unknown = set(kinds) - {r["kind"] for r in rows}
+        if unknown:
+            raise ValueError(f"nhóm câu hỏi không có trong bộ: {sorted(unknown)}")
+        rows = [r for r in rows if r["kind"] in kinds]
     return rows[:limit] if limit else rows
 
 
@@ -155,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--backend-url", default=os.environ.get("FINMATE_BACKEND_URL", "http://localhost:8080"))
     parser.add_argument("--ai-url", default=os.environ.get("FINMATE_AI_URL", "http://localhost:8000"))
     parser.add_argument("--limit", type=int, default=None, help="chỉ chạy N câu đầu (chạy thử)")
+    parser.add_argument("--kinds", default=None, help="chỉ chạy các nhóm câu hỏi này, cách nhau bằng dấu phẩy (vd. slang_amount,runway)")
     parser.add_argument("--provider", default=os.environ.get("AGENT_PROVIDER", "unknown"), help="nhãn ghi vào kết quả")
     parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "unknown"), help="nhãn ghi vào kết quả và khóa tra bảng giá")
     parser.add_argument("--pause-seconds", type=float, default=0.0, help="nghỉ giữa các câu để tránh bị giới hạn tốc độ (429) của nhà cung cấp LLM")
@@ -174,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             def runner(question: dict, index: int) -> dict:
                 return run_agent(client, args.backend_url, os.environ["AI_SERVICE_API_KEY"], question, index, flags, args.model)
 
-        rows, errored = run_questions(load_questions(args.limit), runner, RESULTS / f"{run_id}.jsonl", args.pause_seconds)
+        rows, errored = run_questions(load_questions(args.limit, args.kinds.split(",") if args.kinds else None), runner, RESULTS / f"{run_id}.jsonl", args.pause_seconds)
 
     if not rows:
         print(f"Không câu nào trả lời được ({len(errored)} lỗi). Kiểm tra backend / ai-service rồi chạy lại với --resume {run_id}")

@@ -148,3 +148,13 @@ def test_pause_seconds_sleeps_between_questions_that_actually_run_but_not_for_re
     sleeps.clear()
     run.run_questions(_questions(3), _runner(), path, pause_seconds=2.5)  # tất cả đã trả lời: không chạy gì thì không nghỉ
     assert sleeps == []
+
+
+def test_load_questions_can_be_limited_to_some_kinds_and_rejects_an_unknown_one():
+    import pytest
+
+    slang = run.load_questions(kinds=["slang_amount"])
+    assert slang and {q["kind"] for q in slang} == {"slang_amount"}
+    assert {q["kind"] for q in run.load_questions(kinds=["runway", "stress"])} == {"runway", "stress"}
+    with pytest.raises(ValueError):
+        run.load_questions(kinds=["nope"])
