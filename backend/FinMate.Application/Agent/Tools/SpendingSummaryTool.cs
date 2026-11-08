@@ -50,7 +50,7 @@ public sealed class SpendingSummaryTool(IFinancialDataSource source) : IAgentToo
         var rest = ordered.Skip(TopCategories).Sum(r => r.SpentVnd);
         if (ordered.Count > TopCategories)
         {
-            evidence.Add(Money("cat_other", "category_spend:other", rest, $"Các nhóm khác: {Percent(rest, total)}% tổng chi"));
+            evidence.Add(Money("cat_other", "category_spend_other", rest, $"Các nhóm khác: {Percent(rest, total)}% tổng chi"));
         }
 
         return ToolResult.Ok(evidence);

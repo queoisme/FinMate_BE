@@ -82,6 +82,16 @@ public class SpendingSummaryToolTests
     }
 
     [Fact]
+    public async Task RealOtherCategoryInTopFiveDoesNotCollideWithRemainderKey()
+    {
+        var (result, _, _) = await RunAsync([C("an-uong", 900), C("other", 800), C("nha-o", 700), C("mua-sam", 600), C("giai-tri", 500), C("di-chuyen", 400), C("y-te", 300)]);
+
+        result.Evidence.Single(e => e.Id == "cat_2").Key.Should().Be("category_spend:other");
+        result.Evidence.Single(e => e.Id == "cat_other").Key.Should().Be("category_spend_other");
+        result.Evidence.Select(e => e.Key).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
     public async Task NoTransactionsReturnsInsufficientNoSpendingHistory()
     {
         var (result, _, _) = await RunAsync([]);
