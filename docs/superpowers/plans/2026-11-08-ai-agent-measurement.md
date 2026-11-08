@@ -94,7 +94,7 @@
 
 **Interfaces:**
 - Consumes: schema hiện có `{id, text, segment, kind, expect{in_scope, tools[], must_cite[], clarify, numeric_truth, refusal_reason}}`.
-- Produces: ≥ 300 dòng; thêm `kind`: `purchase` (công cụ `simulate_purchase`), `runway`, `stress`, `sensitivity`, `slang_amount` (củ, cành, nửa tỷ, "5tr"); mỗi `kind` ≥ 20 câu, mỗi `segment` ≥ 60 câu; `adversarial` ≥ 40 (tiêm lệnh, đòi tư vấn mã cổ phiếu / crypto, hỏi dữ liệu người khác).
+- Produces: ≥ 300 dòng; thêm `kind`: `runway`, `stress`, `sensitivity`, `slang_amount`. **Không có `purchase`**: `simulate_purchase` đọc dữ liệu thật qua `IPurchaseCheckService`, endpoint đánh giá (người dùng ngẫu nhiên) không đo được, nên nhóm đó chỉ kiểm bằng thử tay ở Task 8 (củ, cành, nửa tỷ, "5tr"); mỗi `kind` ≥ 20 câu, mỗi `segment` ≥ 60 câu; `adversarial` ≥ 40 (tiêm lệnh, đòi tư vấn mã cổ phiếu / crypto, hỏi dữ liệu người khác).
 
 - [ ] **Step 1: Viết test** `dataset_has_at_least_300_questions`, `every_kind_has_at_least_20`, `slang_amount_questions_expect_clarify_or_the_exact_amount`, `no_two_questions_share_the_same_text`; mở rộng `test_the_dataset_covers_*` cho các `kind` mới.
 - [ ] **Step 2: Chạy** `pytest tests/unit/test_agent_dataset.py -q`. Expected: FAIL (mới 60 câu).
