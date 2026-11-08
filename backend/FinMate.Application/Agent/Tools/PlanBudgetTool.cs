@@ -9,6 +9,8 @@ namespace FinMate.Application.Agent;
 /// Công cụ <c>plan_budget</c>: "thu X, muốn để dành Y mỗi tháng thì chi thế nào?". Phần còn lại (thu − tiết kiệm) chia theo tỉ lệ, ưu tiên:
 /// chi tiêu của chính người dùng trong 3 tháng TRỌN gần nhất (giờ Việt Nam) → mẫu admin <c>agent.budgetTemplate</c> → <c>no_budget_basis</c>.
 /// Mỗi nhóm làm tròn XUỐNG nghìn đồng; phần dư dồn vào nhóm có tỉ lệ lớn nhất (bằng nhau thì slug nhỏ nhất), nên tổng các nhóm + tiết kiệm = thu nhập ĐÚNG.
+/// Chỉ giữ 7 nhóm có tỉ lệ lớn nhất; các nhóm còn lại gộp TRƯỚC khi chia thành một nhóm "Các nhóm khác" (<c>alloc_other</c>), để tổng bằng chứng ≤ 12 — đúng số mệnh đề mẫu dự phòng giữ lại.
+/// Id nhóm theo vị trí (<c>alloc_1..7</c>, số tiền giảm dần), key <c>budget_alloc:&lt;slug&gt;</c> cắt cho vừa 64 ký tự.
 /// Phép nhân trung gian dùng <see cref="Int128"/>: còn lại (≤ 1e11) × số tiền một nhóm (≤ 1e11) vượt <c>long</c>.
 /// </summary>
 public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigProvider config) : IAgentTool
@@ -18,6 +20,8 @@ public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigPro
     private const long Rounding = 1_000;
     private const int IncomeHistoryMonths = 12;
     private const int ShareMonths = 3;
+    private const int TopShares = 7;
+    private const string OtherSlug = ""; // nhóm gộp; slug thật không bao giờ rỗng (mẫu admin rỗng bị coi là không hợp lệ)
 
     public ToolSpec Spec { get; } = new(
         "plan_budget",
@@ -75,6 +79,12 @@ public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigPro
             return ToolResult.Insufficient("no_budget_basis");
         }
 
+        if (shares.Count > TopShares)
+        {
+            var ordered = shares.OrderByDescending(s => s.Weight).ThenBy(s => s.Slug, StringComparer.Ordinal).ToList();
+            shares = [.. ordered.Take(TopShares), (OtherSlug, "Các nhóm khác", ordered.Skip(TopShares).Sum(s => s.Weight))];
+        }
+
         var now = context.Now;
         Evidence Money(string id, string key, long value, EvidenceSource evidenceSource, string text)
             => new(id, key, value, text, "VND", evidenceSource, now, ConfidenceCalculator.Compute(evidenceSource, now, now, 1.0));
@@ -83,11 +93,29 @@ public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigPro
         {
             Money("income", "income", income, incomeSource, incomeSource == EvidenceSource.UserEntered ? "Thu nhập tháng do người dùng nêu" : $"Thu nhập tháng điển hình (trung vị {IncomeHistoryMonths} tháng)"),
             Money("save", "save", save, EvidenceSource.UserEntered, "Số tiền muốn tiết kiệm mỗi tháng do người dùng nêu"),
+            Money("remaining", "budget_remaining", remaining, incomeSource, "Phần còn lại để chi tiêu mỗi tháng (thu nhập − tiết kiệm)"),
         };
 
-        foreach (var (slug, name, amount) in Allocate(remaining, shares))
+        var position = 0;
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (slug, name, amount) in Allocate(remaining, shares).OrderBy(b => b.Slug == OtherSlug))
         {
-            evidence.Add(Money($"alloc_{slug}", $"budget_alloc:{slug}", amount, EvidenceSource.Estimated, $"{name}: mức chi đề xuất mỗi tháng, {basis}"));
+            var text = $"{name}: mức chi đề xuất mỗi tháng, {basis}";
+            if (slug == OtherSlug)
+            {
+                evidence.Add(Money("alloc_other", "budget_alloc_other", amount, EvidenceSource.Estimated, text)); // key thật luôn có dấu hai chấm nên không trùng
+                continue;
+            }
+
+            position++;
+            var key = EvidenceKey.Bounded("budget_alloc:", slug);
+            if (!keys.Add(key))
+            {
+                key = $"{key[..Math.Min(key.Length, EvidenceKey.MaxLength - 2)]}~{position}"; // hai slug dài trùng phần đầu: thêm vị trí (1..7) cho khác nhau
+                keys.Add(key);
+            }
+
+            evidence.Add(Money($"alloc_{position}", key, amount, EvidenceSource.Estimated, text));
         }
 
         evidence.Add(new Evidence(

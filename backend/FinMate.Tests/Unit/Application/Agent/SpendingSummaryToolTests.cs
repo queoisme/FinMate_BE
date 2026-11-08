@@ -112,4 +112,13 @@ public class SpendingSummaryToolTests
         result.Status.Should().Be(ToolStatus.Rejected);
         result.Code.Should().Be("invalid_argument:months");
     }
+
+    [Fact]
+    public async Task LongSlugKeyIsCutToSixtyFourCharacters()
+    {
+        var (result, _, _) = await RunAsync([C(new string('z', 90), 1_000_000)]);
+
+        var key = result.Evidence.Single(e => e.Id == "cat_1").Key;
+        key.Should().HaveLength(64).And.StartWith("category_spend:zzz");
+    }
 }

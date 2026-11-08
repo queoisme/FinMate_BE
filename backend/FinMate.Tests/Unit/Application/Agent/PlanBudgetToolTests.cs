@@ -44,7 +44,7 @@ public class PlanBudgetToolTests
         return new Run { Result = result, From = from, To = to };
     }
 
-    private static long Alloc(ToolResult r, string slug) => r.Evidence.Single(e => e.Id == $"alloc_{slug}").ValueVnd!.Value;
+    private static long Alloc(ToolResult r, string slug) => r.Evidence.Single(e => e.Key == $"budget_alloc:{slug}").ValueVnd!.Value;
 
     private static long AllocSum(ToolResult r) => r.Evidence.Where(e => e.Id.StartsWith("alloc_")).Sum(e => e.ValueVnd!.Value);
 
@@ -58,8 +58,8 @@ public class PlanBudgetToolTests
         Alloc(run.Result, "an-uong").Should().Be(500_000);
         Alloc(run.Result, "nha-o").Should().Be(300_000);
         Alloc(run.Result, "giai-tri").Should().Be(200_000);
-        var alloc = run.Result.Evidence.Single(e => e.Id == "alloc_nha-o");
-        alloc.Key.Should().Be("budget_alloc:nha-o");
+        var alloc = run.Result.Evidence.Single(e => e.Key == "budget_alloc:nha-o");
+        alloc.Id.Should().Be("alloc_2"); // id theo vị trí (số tiền giảm dần), không theo slug
         alloc.Source.Should().Be(EvidenceSource.Estimated);
         var income = run.Result.Evidence.Single(e => e.Id == "income");
         income.ValueVnd.Should().Be(2_000_000);
@@ -74,6 +74,59 @@ public class PlanBudgetToolTests
         rate.Text.Should().Be("Tiết kiệm chiếm 50% thu nhập");
         run.Result.Evidence.Select(e => e.Id).Should().OnlyHaveUniqueItems();
         run.Result.Evidence.Select(e => e.Key).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task RemainingIsIncomeMinusSaveAndEqualsSumOfAllocations()
+    {
+        var given = await RunAsync(new { income_vnd = 7_300_000, save_vnd = 1_250_000 }, spend: [C("a", 5), C("b", 3), C("c", 2)]);
+        var median = await RunAsync(new { save_vnd = 1_000_000 }, template: """{"a":100}""", incomeSeries: [9_000_000, 3_000_000, 5_000_000]);
+
+        var remaining = given.Result.Evidence.Single(e => e.Id == "remaining");
+        remaining.Key.Should().Be("budget_remaining");
+        remaining.ValueVnd.Should().Be(6_050_000);
+        remaining.Source.Should().Be(EvidenceSource.UserEntered);
+        remaining.Text.Should().Be("Phần còn lại để chi tiêu mỗi tháng (thu nhập − tiết kiệm)");
+        AllocSum(given.Result).Should().Be(6_050_000);
+        var medianRemaining = median.Result.Evidence.Single(e => e.Id == "remaining");
+        medianRemaining.ValueVnd.Should().Be(4_000_000);
+        medianRemaining.Source.Should().Be(EvidenceSource.Estimated);
+    }
+
+    [Fact]
+    public async Task ManyCategoriesFoldIntoSevenPlusOtherWithinTwelveEvidence()
+    {
+        var longSlug = new string('x', 80);
+        var spend = Enumerable.Range(1, 11).Select(i => C($"cat-{i:00}", 1_000L * i)).Append(C(longSlug, 20_000)).ToList(); // 12 nhóm, slug dài nhất lớn nhất
+
+        var run = await RunAsync(new { income_vnd = 10_000_000, save_vnd = 1_000_000 }, spend: spend);
+
+        var allocs = run.Result.Evidence.Where(e => e.Id.StartsWith("alloc_")).ToList();
+        allocs.Should().HaveCount(8);
+        allocs.Select(e => e.Id).Should().Equal("alloc_1", "alloc_2", "alloc_3", "alloc_4", "alloc_5", "alloc_6", "alloc_7", "alloc_other");
+        var other = allocs.Single(e => e.Id == "alloc_other");
+        other.Key.Should().Be("budget_alloc_other");
+        other.Text.Should().StartWith("Các nhóm khác:");
+        AllocSum(run.Result).Should().Be(9_000_000);
+        run.Result.Evidence.Single(e => e.Id == "remaining").ValueVnd.Should().Be(9_000_000);
+        run.Result.Evidence.Should().HaveCountLessThanOrEqualTo(12);
+        run.Result.Evidence.Select(e => e.Id).Should().OnlyHaveUniqueItems();
+        run.Result.Evidence.Select(e => e.Key).Should().OnlyHaveUniqueItems();
+        run.Result.Evidence.Should().OnlyContain(e => e.Id.Length <= 64 && e.Key.Length <= 64);
+        allocs[0].Key.Should().StartWith("budget_alloc:xxx"); // nhóm slug dài vẫn có mặt, key bị cắt
+    }
+
+    [Fact]
+    public async Task LongSlugsSharingAPrefixKeepUniqueKeys()
+    {
+        var a = new string('y', 70) + "a";
+        var b = new string('y', 70) + "b";
+
+        var run = await RunAsync(new { income_vnd = 3_000_000, save_vnd = 1_000_000 }, spend: [C(a, 2), C(b, 1)]);
+
+        var keys = run.Result.Evidence.Where(e => e.Id.StartsWith("alloc_")).Select(e => e.Key).ToList();
+        keys.Should().HaveCount(2).And.OnlyHaveUniqueItems();
+        keys.Should().OnlyContain(k => k.Length <= 64);
     }
 
     [Fact]
@@ -94,7 +147,7 @@ public class PlanBudgetToolTests
         // còn 1.500.500: "lon" 99,9% → 1.498.000 + dư 2.500; "nho"/"vua" 0,05% → 750 làm tròn xuống 0 nên bị bỏ, phần đó cũng dồn vào "lon".
         var run = await RunAsync(new { income_vnd = 2_500_500, save_vnd = 1_000_000 }, spend: [C("lon", 1998), C("nho", 1), C("vua", 1)]);
 
-        run.Result.Evidence.Should().NotContain(e => e.Id == "alloc_nho" || e.Id == "alloc_vua");
+        run.Result.Evidence.Should().NotContain(e => e.Key == "budget_alloc:nho" || e.Key == "budget_alloc:vua");
         Alloc(run.Result, "lon").Should().Be(1_500_500);
         (AllocSum(run.Result) + 1_000_000).Should().Be(2_500_500);
     }
@@ -128,8 +181,8 @@ public class PlanBudgetToolTests
 
         Alloc(run.Result, "an-uong").Should().Be(1_500_000);
         Alloc(run.Result, "di-chuyen").Should().Be(500_000);
-        run.Result.Evidence.Should().NotContain(e => e.Id == "alloc_nha-o");
-        run.Result.Evidence.Single(e => e.Id == "alloc_an-uong").Text.Should().StartWith("AN-UONG");
+        run.Result.Evidence.Should().NotContain(e => e.Key == "budget_alloc:nha-o");
+        run.Result.Evidence.Single(e => e.Key == "budget_alloc:an-uong").Text.Should().StartWith("AN-UONG");
         run.From.Should().Be(new DateOnly(2026, 8, 1)); // 3 tháng TRỌN gần nhất: 8, 9, 10
         run.To.Should().Be(new DateOnly(2026, 10, 31));
     }

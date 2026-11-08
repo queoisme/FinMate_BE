@@ -44,7 +44,7 @@ public sealed class SpendingSummaryTool(IFinancialDataSource source) : IAgentToo
         var number = 0;
         foreach (var row in ordered.Take(TopCategories))
         {
-            evidence.Add(Money($"cat_{++number}", $"category_spend:{row.Slug}", row.SpentVnd, $"{row.Name}: {Percent(row.SpentVnd, total)}% tổng chi"));
+            evidence.Add(Money($"cat_{++number}", EvidenceKey.Bounded("category_spend:", row.Slug), row.SpentVnd, $"{row.Name}: {Percent(row.SpentVnd, total)}% tổng chi"));
         }
 
         var rest = ordered.Skip(TopCategories).Sum(r => r.SpentVnd);

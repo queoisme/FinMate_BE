@@ -24,3 +24,12 @@ public sealed record Evidence(
     double Confidence,
     string? SourceName = null,
     string? SourceUrl = null);
+
+/// <summary>Id và key của bằng chứng tối đa 64 ký tự, cùng giới hạn với <c>ai-service/app/agent/schemas.py</c>; quá thì ai-service trả 422 và câu trả lời rơi về mẫu cục bộ.</summary>
+public static class EvidenceKey
+{
+    public const int MaxLength = 64;
+
+    /// <summary><paramref name="prefix"/> + slug, cắt phần slug cho vừa <see cref="MaxLength"/>.</summary>
+    public static string Bounded(string prefix, string slug) => prefix.Length + slug.Length > MaxLength ? (prefix + slug)[..MaxLength] : prefix + slug;
+}
