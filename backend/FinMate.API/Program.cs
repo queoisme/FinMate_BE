@@ -354,6 +354,7 @@ public class Program
         builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
         builder.Services.AddScoped<IAgentTool, SimulatePurchaseTool>();
         builder.Services.AddScoped<IAgentTool, RunwayTool>();
+        builder.Services.AddScoped<IAgentTool, SpendingSummaryTool>();
         builder.Services.AddScoped<IAgentTool, StressTestTool>();
         builder.Services.AddScoped<IAgentTool, SensitivityTool>();
         builder.Services.AddScoped<ToolRegistry>();
