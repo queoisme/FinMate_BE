@@ -25,6 +25,23 @@ public class CpiReleaseParserTests
         release.PublishedOn.Should().Be(new DateOnly(2026, 11, 3));
     }
 
+    // Trang thật các tháng trước (tải 2026-11-09, xem docs/economic-feeds-probe.md): cùng một cấu trúc câu dù nằm ở hai chuyên mục khác nhau của trang.
+    [Theory]
+    [InlineData("09", 9, 452, 508, 62, 2026, 10, 3)]
+    [InlineData("08", 8, 445, 489, 47, 2026, 9, 3)]
+    public void ParsesEarlierRealReleases(string file, int month, int average, int yoy, int mom, int y, int m, int d)
+    {
+        var path = Path.Combine(Path.GetDirectoryName(Here())!, "..", "..", "..", "Fixtures", $"cpi-release-2026-{file}.html");
+
+        var release = CpiReleaseParser.TryParse(File.ReadAllText(path));
+
+        release.Should().NotBeNull();
+        (release!.Month, release.AveragePercentBps, release.YearOnYearBps, release.MonthOnMonthBps, release.PublishedOn)
+            .Should().Be((month, average, yoy, mom, new DateOnly(y, m, d)));
+    }
+
+    private static string Here([CallerFilePath] string here = "") => here;
+
     [Fact]
     public void ReturnsNullOnAnUnrelatedPage()
         => CpiReleaseParser.TryParse("<html><body><h1>Thị trường lao động 9 tháng năm 2026</h1><p>Lao động tăng 1,2%.</p></body></html>").Should().BeNull();
