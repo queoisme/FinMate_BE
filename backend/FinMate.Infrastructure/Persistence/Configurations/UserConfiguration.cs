@@ -87,6 +87,13 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.SurveyAiConsentVersion).HasColumnName("survey_ai_consent_version");
         builder.Property(u => u.SurveyAiConsentAt).HasColumnName("survey_ai_consent_at");
         builder.Ignore(u => u.SurveyAiConsentGranted);
+        builder.Ignore(u => u.CommunityConsentGranted);
+        builder.Property(u => u.CommunityProvinceCode).HasColumnName("community_province_code").HasMaxLength(40);
+        builder.Property(u => u.CommunityAreaCode).HasColumnName("community_area_code").HasMaxLength(40);
+        builder.Property(u => u.CommunityPromptsEnabled).HasColumnName("community_prompts_enabled").HasDefaultValue(true).IsRequired();
+        builder.Property(u => u.CommunityConsentVersion).HasColumnName("community_consent_version");
+        builder.Property(u => u.CommunityConsentAt).HasColumnName("community_consent_at");
+        builder.Property(u => u.CommunityMutedUntil).HasColumnName("community_muted_until");
         builder.Ignore(u => u.TrainingConsentGranted);
         builder.Ignore(u => u.TermsAccepted);
         builder.Ignore(u => u.AiConsentGranted);

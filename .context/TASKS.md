@@ -1400,7 +1400,71 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Test: `MonitoringProvidersTests`, `tests/test_internal_status.py` của `ocr-service`, `tests/unit/test_internal_status.py` của `ai-service`.
 - [ ] Đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready`: backend hoặc Postgres sập thì hệ thống không tự báo được.
 
-## Phase 71 — Đánh giá khoản mua "Mua món này có ổn không?" (2026-11-07)
+## Phase 71 — Thông tin thị trường, đợt 1: nguồn, tải trang, bảng giá (2026-11-06)
+- [x] Migration `AddMarketData` (`market_sources`, `market_documents`, `fuel_prices`); nhóm cấu hình `marketData`, không lộ qua `/app-config`.
+- [x] `SafeWebFetcher` chặn địa chỉ nội bộ ở lúc mở kết nối; `RobotsRules`, `FeedReader` cấm DTD, `HtmlTextExtractor`, `FuelTableParser`, `FuelPriceConfirmer`; `MarketDataRefreshJob` mỗi 3 giờ.
+- [x] API admin ở `docs/market-data-api.md`. Không lưu toàn văn bài báo.
+- [x] Test: `FuelParsingTests`, `WebContentTests`, `SafeWebFetcherTests`, `MarketDataTests`.
+
+**Verify Phase 71 (2026-11-06), đọc trang thật bằng `FinMateBot/1.0`:** thêm 11 link. 9 nguồn được nhận (2 `price_table`, 5 `feed`, 2 `page`), `localhost` và `169.254.169.254` bị từ chối. Ở lần chạy thử trước đó trên backend thật, `pvoil.com.vn` bị từ chối vì trả 403 và nhóm Facebook bị từ chối vì `robots.txt`. Lượt đọc đầu xác nhận đủ 6 loại giá, khớp ảnh thông cáo Petrolimex 05/11/2026; lượt sau không thêm dòng giá. 51/51 bài lấy được text (ngắn nhất 216, trung vị 2.700, dài nhất 8.697 ký tự): dantri 13, vietnamnet 20 (chạm trần mỗi lượt), vnexpress 7, thanhnien 5, tuoitre 4, vneconomy 2, cafef 0 vì trang chủ lúc đó không có link khớp từ khóa. Độ dài chưa chứng minh text là đúng nội dung bài, đợt 2 phải kiểm tra thêm khi đưa cho AI. `vnexpress.net` thực ra không chặn GPTBot hay ClaudeBot, nên `aiAllowed` là true; đoạn trong plan ghi "chặn bot AI" là đọc nhầm.
+
+## Phase 72 — Thông tin thị trường, đợt 2: AI đọc tin bài và admin duyệt (2026-11-06)
+- [x] `ai-service`: `POST /api/v1/market-data/extract`, client Gemini riêng, chỉ nhận JSON đúng mẫu.
+- [x] Migration `AddMarketSignals`; `MarketSignalValidator` đối chiếu đoạn trích với nguyên văn bài; gom sự kiện theo tên miền; API duyệt; trần `maxAiDocumentsPerDay`.
+- [x] Test: `MarketDataTests`, `MarketAiClientTests`, `tests/unit/test_market_extractor.py`.
+- [ ] Thử với key Gemini thật: máy này không có key, nên mới kiểm bằng phản hồi giả. Chưa biết AI đọc tin thật đúng đến đâu.
+
+## Phase 73 — Thông tin thị trường, đợt 3: cảnh báo và giám sát (2026-11-06)
+- [x] `ForecastAlertKind.MarketChange`, migration `AddMarketAlerts`; `MarketAlertService`, `MarketAlertRules`; `MarketAlertJob` chạy ngay sau khi duyệt sự kiện hoặc sửa giá; cờ `features.marketAlerts` mặc định tắt.
+- [x] `MonitoredServices.MarketData`: nhiều lượt liền không xác nhận được giá thì mở sự cố mức thường.
+- [x] Test: `MarketAlertRulesTests`, `MarketAlertsTests`, `MonitoringProvidersTests`.
+- [ ] Báo người làm Flutter xử lý `market_change`; kiểm tra điều khoản từng nguồn trước khi phát hành thật.
+
+**Verify Phase 73 (2026-11-06) trên backend thật, Postgres và Redis thật:** tạo hai tài khoản có ngân sách Di chuyển căng, một đổ xăng ở Petrolimex, một đi xe buýt. Sau khi bật cờ và tăng giá từ 21.150 lên 22.200 bằng `POST /admin/fuel-prices`, `MarketAlertJob` chạy qua Hangfire, chỉ tài khoản đổ xăng có cảnh báo, số 19.000đ khớp tính tay, trạng thái `pending` vì lúc đó là 02:00 giờ VN. Migration chạy `Up`, về trước `AddMarketData`, rồi `Up` lại được. Text bài thật: bài chính đọc đúng ở vnexpress, dantri; tuoitre và thanhnien có lẫn phần bình luận và chia sẻ; vietnamnet từng lấy nhầm thẻ tin liên quan, đã sửa nhưng chưa đo lại trên trang thật. **Chưa kiểm chứng:** Gemini thật, push và email thật, `MarketDataRefreshJob` chạy theo lịch qua Hangfire (`RefreshAsync` đã chạy với trang thật qua test tạm, lịch mới thấy được đăng ký).
+
+**Rà soát Phase 71–73 (2026-11-06):** `code-review` mức cao có 10 phát hiện, tất cả có thật và đã sửa: trần 15 giây không tính lúc đọc nội dung; một dòng lỗi hoặc một kết quả AI lỗi làm hỏng cả job; bài luôn lỗi chặn hàng đợi (`ai_failures`, tối đa 3 lần); trang chứa bài cấm AI vẫn bị gửi qua RSS tổng hợp; nguồn ghi đè giá admin sửa; báo "đang tăng" ngay sau khi giá giảm; `4,80%` không khớp `4.8`; bài không rõ ngày tính là tin mới; tên miền con tính là nguồn khác. `security-review` không có lỗ hổng đạt ngưỡng; thêm `UseProxy = false`, và đếm sự kiện theo nguồn admin đã thêm thay vì link trong bài. **Chỗ còn để lại:** khi Gemini hỏng lâu, cứ 3 lượt đọc sẽ có một bài bị bỏ vì không phân biệt được lỗi do bài hay do nhà cung cấp; hai trang cùng chép một nguồn sai vẫn khớp nhau; `/hangfire` trả 401 cả với tài khoản đúng, có từ trước đợt này và chưa sửa.
+
+## Phase 74 — Thông tin thị trường: theo thói quen từng người, loại chi phí bằng cấu hình (2026-11-06)
+- [x] `MarketSpendProfile`, `MarketKeywords`: nhận diện theo nội dung giao dịch ở mọi danh mục, bỏ qua người đã ngừng chi hoặc chi không đáng kể; xét ngân sách danh mục rồi ngân sách tổng.
+- [x] `marketData.costTypes`, thêm `cooking_gas`; migration `MakeMarketTopicsConfigurable`; `topics` trong `/market-data/extract`.
+- [x] `RecurringTracker`: khoản giá cố định tăng trong ngưỡng 10% cũng báo. Test đỏ trước khi sửa: `AFixedPriceThatRisesWithinTheTolerance_IsStillReported`.
+- [ ] Đo độ khớp từ khóa trên giao dịch thật: danh sách hiện chỉ là điểm xuất phát.
+
+**Verify Phase 74 (2026-11-06) trên backend thật, Postgres và Redis thật:** 4 tài khoản có ngân sách căng khi giá tăng từ 21.150 lên 22.200. Danh mục tự tạo `Sinh hoạt` ghi `DO XANG Q7` và `Di chuyển` ghi Petrolimex đều nhận cảnh báo, đúng tên ngân sách, số 19.000đ khớp tính tay; người đi xe buýt và người đổ xăng lần cuối cách đây 50 ngày không nhận. Tăng giá lần nữa không gửi thêm, do cooldown. Thêm `tuition` qua `PUT /admin/system-config` được nhận, `/app-config` không lộ, mã `other` trả 400. Migration về trước `AddMarketData` và `Up` lại được, có dữ liệu chủ đề mới. Đọc lại trang thật: 5 RSS và `vneconomy` lấy được bài, `vietnamnet` đủ nội dung nhưng lẫn menu, `cafef` trang chủ lúc đó không có link khớp. **Chưa kiểm chứng:** Gemini thật, push thật, độ khớp từ khóa trên giao dịch thật.
+
+**Rà soát Phase 74:** `code-review` mức cao có 10 phát hiện. Đã sửa 9: khớp nhầm `tiền điện thoại`, `hóa đơn điện tử`, `nước có gas` (`transactionExcludes`); tin `chuyên gia` khớp `giá` vì bỏ dấu (tin bài giữ dấu); không khớp `EVNHCMC`, `PETROLIMEX04` (`*`); `E5 RON92`; tắt hết loại chi phí; khoản tự thêm bị đội giá vì một lần trả thừa; giao dịch thường bị coi là giá cố định; `hasPriceTable` ngoài `fuel`; validator lỗi 500 với `null`. Không sửa 1: khoản hằng năm không đủ 2 lần trong cửa sổ lịch sử nên vẫn chỉ báo khi lệch quá 10%. `security-review` không có lỗ hổng đạt ngưỡng.
+
+**Đã rõ nguyên nhân (2026-11-06):** lỗi `Out of memory.` dưới đây do giới hạn 2048 tiến trình mặc định của podman, không phải lỗi sản phẩm; thêm `--pids-limit=-1` thì bộ test chạy hết. Ghi chép lúc chưa rõ: một lần chạy test chết với `Out of memory.`, một lần khác không in dòng tổng kết, đều không lặp lại ở các lần chạy sau (test đầy đủ 2021/2022 lúc cuối, trừ `MethodSelectionOnSeedDataTests`). Máy còn nhiều RAM và bộ tách HTML ổn với trang độc hại 2 MB (`AHostilePageAtTheSizeLimitNeitherStallsNorExhaustsMemory`), nên chưa có bằng chứng đây là lỗi của sản phẩm. Hai lần đó để lại container Postgres của Testcontainers vì tắt Ryuk.
+
+## Phase 75 — Cộng đồng (2026-11-06)
+- [x] Chủ đề, khu vực, bài, chạm một lần, vote, ẩn danh mặc định; `features.community`, `ConsentKind.Community`, migration `AddCommunity`.
+- [x] Bình luận phẳng, ẩn danh mặc định, không có nhãn nối với bài ẩn danh.
+- [x] Ảnh: SkiaSharp, vẽ lại thành JPEG, áp chiều xoay rồi bỏ EXIF; chờ duyệt. Test phát hiện chiều xoay 7 bị vẽ ra ngoài khung, đã sửa bằng ma trận viết thẳng theo bảng EXIF.
+- [x] Báo cáo, tự ẩn, hàng đợi duyệt ảnh và báo cáo, cấm đăng, `OpsCommunityController`, audit.
+- [x] `GET /community/share-prompt`: không sửa handler giao dịch.
+- [ ] Chatbot gợi ý quán: chủ sản phẩm chưa cần ở đợt này.
+- [ ] Đo độ khớp từ khóa ăn uống và từ cấm trên dữ liệu thật: danh sách hiện chỉ là điểm xuất phát.
+- [ ] Trước khi bật cờ: cách liên hệ tác giả ẩn danh khi có báo cáo `self_harm` và đường dây hỗ trợ đã kiểm chứng; câu chữ đồng ý và quy định nội dung được người có chuyên môn pháp lý xem; người trực duyệt ảnh; app Flutter đổi HEIC sang JPEG.
+
+**Rà soát Phase 75 (2026-11-06):** `security-review` có 1 phát hiện: `nextCursor` chứa thời điểm chính xác, phá quy tắc chỉ hiện ngày; con trỏ nay chỉ mang id. `code-review` mức cao có 10 phát hiện, 1 trùng lỗi trên, sửa thêm 8: chia sẻ lại xóa mất bài cũ; đổi tên thành số điện thoại sau khi đăng; xóa bài không nằm trong một transaction; `autohidden` khác tài liệu; xóa bài để né cấm đăng và cấm ngắn đè cấm dài; rút đồng ý vẫn sửa được; chữ tách dấu lọt từ cấm và tạo quán trùng; từ khóa `lẩu` khớp nhầm tên người. Test đỏ trước khi sửa cho mọi lỗi trên, trừ transaction khi xóa bài (không có test giả lập lỗi giữa chừng). Không sửa 1: danh sách quán chỉ xét 2000 lượt chia sẻ mới nhất rồi mới lọc, nên dữ liệu rất lớn sẽ thiếu quán cũ; đây là đánh đổi của thiết kế tính khi đọc, cần xem lại khi có dữ liệu thật.
+
+## Phase 76 — Gói đăng ký trả qua SePay (2026-11-07)
+- [x] Gói, giá, chức năng và hạn mức do OpsManager, Admin cấu hình (`ManageSubscriptionPlans`, `/api/v1/ops/subscriptions`); cờ `features.subscriptions` mặc định tắt; migration `AddSubscriptions`, gồm gói `free`.
+- [x] `[RequireSubscriptionFeature]` chặn chat AI, giọng nói, quét hóa đơn; giữ lượt nguyên tử, lỗi thì trả lại lượt.
+- [x] Mã dùng một lần sang website, phiên `X-Billing-Session`, ký form, IPN, `SettleOrderAsync`, `SubscriptionReconcileJob`, CORS tách theo đường dẫn, IPN qua được bảo trì.
+- [x] Nhắc hết hạn, sự cố cho đơn `NeedsReview`, theo dõi lỗi SePay; `docs/subscription-api.md`.
+- [ ] Chạy thật trên SePay Sandbox: chưa có merchant ID và key. Mọi test đang dùng SePay giả, nên chữ ký mới được đối chiếu với ví dụ và mã mẫu trong tài liệu.
+- [ ] Trên Sandbox, kiểm tra: `order/detail` trả gì sau `TRANSACTION_VOID`, mã `transaction.id` trong IPN có trùng `id` trong `order/detail` không, SePay có gửi lại IPN không.
+- [ ] Trước khi bật cờ: chính sách Google Play cho Việt Nam, điều khoản và hoàn tiền, nghĩa vụ xuất hóa đơn, website thanh toán, màn hình trong app, chốt hạn mức gói free (`docs/ops-runbook.md`).
+- [ ] Sinh lại `docs/ERD.md`: file là ảnh chụp database ngày 03/11, còn thiếu cả các bảng thị trường và cộng đồng, nên không thêm tay phần này.
+
+**Verify Phase 76 (2026-11-07):** toàn bộ test backend 2195/2196; test đỏ duy nhất là `MethodSelectionOnSeedDataTests`, đã có từ trước (Phase 52). Migration chạy `Up`, về `AddCommunity`, rồi `Up` lại trên Postgres 16 thật, đọc lại thấy gói `free` với hạn mức 20/10/10 và cột `next_check_at`. **Chưa kiểm chứng:** SePay thật, push thật, website và app.
+
+**Rà soát Phase 76:** `security-review` không có lỗ hổng đạt ngưỡng. `code-review` mức cao có 10 phát hiện, sửa 9: gói bán khi chưa có chức năng làm người mua giữ gói rỗng đến hết kỳ (gói mới nay ở trạng thái chưa bán); một đơn SePay luôn báo lỗi chặn cả job và không ai được báo; void không kiểm tra đúng giao dịch và bị bỏ khi đơn chưa ghi nhận tiền; gửi lại với `clientRequestId` ăn thêm lượt hoặc bị từ chối (nay miễn một lần cho mỗi mã, vì handler vẫn gọi AI trước khi nhận ra gửi lại); ảnh không đọc được vẫn tính lượt; web không biết ngày kỳ mới bắt đầu (`GET /billing/web/me`); hỏi SePay không giãn cách và job chạy chồng (`next_check_at`, `DisableConcurrentExecution`); danh sách đơn cho Manager lộ id người dùng trái quy tắc `IOpsCustomerDataService`; `cycle` không được kiểm tra. Không sửa 1: mã handoff đọc rồi mới xóa, không nguyên tử, vì `ICacheService` chạy trên `IDistributedCache`; hai request đồng thời cùng mã chỉ tạo thêm một phiên hẹp của chính người đó, cùng mẫu với `GoogleOAuthStore`. **Giới hạn còn lại:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay.
+
+> Đánh số lại khi gộp `main` vào `dev/tuan` (2026-11-09): hai phase dưới đây được làm trên `dev/tuan` với tên Phase 71 và 72, trùng với Phase 71–76 của `main`.
+
+## Phase 77 — Đánh giá khoản mua "Mua món này có ổn không?" (2026-11-07)
 Đặc tả: `docs/flows/flow-6-purchase-decision-assistant.md` (§13 ghi phần đã làm); yêu cầu FR-FCST-17. Lớp mỏng trên engine dự báo Phase 54–56: **không đổi schema, không migration**. Trong code gọi là *purchase check* để không trùng "Flow 6" của dự báo.
 - [x] Cấu hình admin `forecast.purchaseDefaultHorizonDays` (14) và `purchaseStaleBalanceDays` (7) + validator; mã lỗi `PURCHASE_CHECK_INVALID`.
 - [x] `PurchaseVerdict` (hàm thuần): kỳ tính tới kỳ thu nhập kế tiếp sau ngày mua, bốn kiểm tra, giá tối đa mua được, ngày mua sớm nhất an toàn, câu kết luận mẫu. `PurchaseVerdictTests` gồm ví dụ −500.000đ của đặc tả.
@@ -1412,13 +1476,13 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [x] Rasa: ý định `evaluate_purchase` trong `domain.yml` + 347 câu (`seed/nlu_purchase.jsonl`, generator `rasa/tools/generate_purchase.py`), luật bỏ phiếu của Rasa khi không có bản nháp (`PURCHASE_INTENT` trong `transaction_parser.py`), test canh dữ liệu cập nhật. Huấn luyện 3 seed `finmate-nlu-v17-s1..s3` trên DB tạm: cổng promote **chặn cả ba** (sau luật 98,02 / 97,44 / 98,26 so với v11 98,37; seed 3 còn tụt `nlu_test_fresh2` 1 câu). Chưa nhập dữ liệu vào DB dev, chưa promote; số đo ở `docs/rasa-coverage-report.md` §6.
 - Giới hạn đã biết: độ mới số dư lấy từ `financial_accounts.updated_at` (chưa có `balance_updated_at`); người dùng mới luôn ở mức `partial` tới khi đủ `minHistoryDays` ngày dữ liệu; chưa hỗ trợ trả góp; M4 và diễn giải bằng AI chưa làm.
 
-## Phase 72 — AI Financial Agent (2026-11-07)
-Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; phân quyền dùng Staff/OpsManager của Phase 61–65.
-- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
-- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
-- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
-- [x] Task 16–17: sổ dòng tiền, `simulate_purchase` (đọc `recurring_items` của Phase 54), `runway`, `stress_test`, `sensitivity`.
-- [x] Task 20 (phần giữ lại): trợ lý gợi ý trả lời khiếu nại (`ticket_assist`, chỉ gợi ý, kiểm số tiền) gắn vào ticket của Phase 62. Vai trò Manager/SupportStaff/ContentStaff và luồng khiếu nại riêng của agent đã BỎ khi gộp nhánh để dùng bản của Phase 61–65.
-- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
-- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
+## Phase 78 — AI Financial Agent (2026-11-07)
+Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; phân quyền dùng Staff/OpsManager của Phase 61–65.
+- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
+- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
+- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
+- [x] Task 16–17: sổ dòng tiền, `simulate_purchase` (đọc `recurring_items` của Phase 54), `runway`, `stress_test`, `sensitivity`.
+- [x] Task 20 (phần giữ lại): trợ lý gợi ý trả lời khiếu nại (`ticket_assist`, chỉ gợi ý, kiểm số tiền) gắn vào ticket của Phase 62. Vai trò Manager/SupportStaff/ContentStaff và luồng khiếu nại riêng của agent đã BỎ khi gộp nhánh để dùng bản của Phase 61–65.
+- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
+- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
 - Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.

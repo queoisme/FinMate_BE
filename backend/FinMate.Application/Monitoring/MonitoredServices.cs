@@ -20,7 +20,12 @@ public static class MonitoredServices
     public static readonly MonitoredService EconomicFeed = new("economic_feed", "Nguồn số liệu kinh tế", "Giả định lạm phát không tự cập nhật; dự báo mục tiêu dài hạn dùng số cũ cho đến khi có người xử lý.", IncidentSeverity.Normal);
     public static readonly MonitoredService Fcm = new("fcm", "Firebase", "Khách không nhận được thông báo đẩy.", IncidentSeverity.High);
 
-    private static readonly Dictionary<string, MonitoredService> ByKey = new[] { Redis, AiService, OcrService, SttService, Vision, Gemini, GeminiBackup, Rasa, Brevo, Fcm, EconomicFeed }.ToDictionary(s => s.Key);
+    public static readonly MonitoredService MarketData = new("market_data", "Giá xăng tự động", "Không xác nhận được giá xăng mới, nên cảnh báo giá xăng tạm ngừng. Dữ liệu khác không bị ảnh hưởng.", IncidentSeverity.Normal);
+
+    public static readonly MonitoredService SePay = new("sepay", "SePay", "Không xác nhận được thanh toán: khách đã trả tiền có thể chưa nhận được gói cho tới khi SePay hoạt động lại.", IncidentSeverity.High);
+    public static readonly MonitoredService Payments = new("subscription_payments", "Thanh toán gói đăng ký", "Có khách đã trả tiền nhưng hệ thống chưa cấp được gói, cần người kiểm tra đơn.", IncidentSeverity.High);
+
+    private static readonly Dictionary<string, MonitoredService> ByKey = new[] { Redis, AiService, OcrService, SttService, Vision, Gemini, GeminiBackup, Rasa, Brevo, Fcm, EconomicFeed, MarketData, SePay, Payments }.ToDictionary(s => s.Key);
 
     public static string ImpactOf(string serviceKey)
         => ByKey.TryGetValue(serviceKey, out var service) ? service.Impact : "Một phần hệ thống có thể hoạt động không ổn định.";

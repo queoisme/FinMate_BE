@@ -423,6 +423,47 @@ Ba vai trò làm việc trên web: `Staff`, `OpsManager`, `Admin`. Khách vẫn 
 - **Không đưa AI, OCR, STT vào `/health/ready`:** AI lỗi không được làm mất traffic của backend. Giám sát là đường riêng.
 - Trạng thái lưu ở Postgres, không ở Redis, vì Redis có thể chính là thứ đang hỏng.
 
+### 2.10 Thông tin thị trường (thêm 2026-11-06)
+
+Admin gửi link, `MarketDataRefreshJob` đọc mỗi 3 giờ. API, ngưỡng và quy tắc ở `docs/market-data-api.md`.
+
+- **Hai đường dữ liệu:** `price_table` đọc bằng `FuelTableParser`, ra `fuel_prices`; `feed` và `page` lọc từ khóa rồi gửi AI, ra `market_signals`, gom thành `market_events`.
+- **Tải trang:** `SafeWebFetcher` là nơi duy nhất mở kết nối tới URL không cố định, chặn địa chỉ nội bộ trong `ConnectCallback`. Không vượt `robots.txt`, 401, 403, 429.
+- **Tin cậy dữ liệu:** giá cần đủ nguồn khớp đúng cùng số. Kết quả AI phải có đoạn trích nguyên văn trong bài (`MarketSignalValidator`). Sự kiện từ tin bài chờ admin duyệt.
+- **Cảnh báo:** `MarketAlertService` đi qua `forecast_alerts`. Nội dung là mẫu cố định, để nội dung trang web không tới được thông báo của người dùng.
+- **Chọn người nhận:** `MarketSpendProfile` tính thói quen chi từ giao dịch mỗi lần, không lưu. Nhận diện theo nội dung giao dịch chứ không theo mã danh mục, vì người dùng tự đặt danh mục.
+- **Loại chi phí:** `marketData.costTypes` trong cấu hình hệ thống, nên `market_signals.topic` và `market_events.topic` là chuỗi tự do, không có CHECK. Danh sách AI được phép trả do backend gửi trong từng lần gọi.
+- **Không lưu toàn văn bài báo.**
+
+### 2.11 Cộng đồng (thêm 2026-11-06)
+
+Sau cờ `features.community`. Code ở `FinMate.Application/Community/`, API ở `docs/community-api.md`, kiểm duyệt ở `docs/ops-api.md`.
+
+- **Ẩn danh:** `CommunityAuthorView` là chỗ duy nhất quyết định hiện tên hay không. Không DTO nào có `author_id`, kể cả DTO cho nhân viên. Cấm đăng đi theo id nội dung để người xử lý không biết tác giả.
+- **Tách khỏi tài chính:** `ICommunityRepository` không truy vấn giao dịch hay ngân sách. `SpentHereVerifier` là đường duy nhất đọc giao dịch, qua `ITransactionRepository` lọc theo `userId`, chỉ trả đúng hoặc sai và không lưu mã giao dịch. Giá trong bài do client gửi.
+- **Chủ đề:** `community.topics` trong cấu hình, nên `community_posts.topic` là chuỗi tự do. `requiresPlace` là nhánh duy nhất quyết định bài có quán. Chỉ bài có quán mới có khu vực, để bài về khó khăn không giúp người quen nhận ra tác giả.
+- **Không có cột đếm tính sẵn:** vote, bình luận và điểm quán tính khi đọc, có giới hạn số dòng. Nhờ vậy `UserHardDeleter` không phải tính lại gì; khóa ngoại xóa nội dung theo người dùng. Bài của tài khoản bị khóa hoặc chờ xóa bị ẩn nhờ join với `users`, nên khôi phục tài khoản là bài trở lại.
+- **Ảnh:** `SkiaCommunityImageProcessor` kiểm tra chữ ký tệp và kích thước trong header rồi mới giải mã, vẽ lại thành JPEG sau khi áp chiều xoay. Bản gốc không được lưu. Cùng lúc tối đa 2 lượt xử lý. Lưu `bytea` trong bảng riêng; đường danh sách không đọc cột dữ liệu. Ảnh bị xóa hoặc từ chối mất dữ liệu nhưng giữ dòng để giới hạn theo ngày vẫn đếm được.
+- **Bộ lọc nội dung:** `CommunityContentPolicy`. Từ cấm so giữ dấu qua `MarketKeywords.MatchesNews`, vì bỏ dấu thì "các" trùng với từ tục. Danh sách không được chứa từ đơn như "vay", vì chủ đề khó khăn cần nói được về nợ.
+- **Báo cáo:** `self_harm` không tính vào việc tự ẩn. Hệ thống chưa có cách liên hệ tác giả ẩn danh, xem `docs/ops-runbook.md`.
+- **Lời hỏi chia sẻ:** app gọi sau khi lưu giao dịch, nên không sửa handler giao dịch nào. Khóa Redis băm tên quán. `/app-config` ẩn nhóm cấu hình này vì là API ẩn danh và có danh sách từ cấm.
+
+### 2.12 Gói đăng ký (thêm 2026-11-07)
+
+OpsManager và Admin cấu hình gói, giá, chức năng; khách mua trên website riêng và trả qua SePay. API ở `docs/subscription-api.md`, phần quản lý ở `docs/ops-api.md`. Cờ `features.subscriptions` mặc định tắt.
+
+- Bảng (migration `AddSubscriptions`): `subscription_plans`, `subscription_plan_features`, `subscription_orders`, `user_subscription_periods`, `subscription_usage`.
+- Danh mục chức năng ở `SubscriptionFeatures`, trong code. Chặn bằng `[RequireSubscriptionFeature]`: giữ một lượt trước khi chạy và trả lại nếu action lỗi. Thêm endpoint nhập bằng AI thì phải gắn attribute này.
+- Không có cột "gói hiện tại". Mỗi lần trả là một dòng `user_subscription_periods`, nối tiếp kỳ cuối; gói hiện tại là kỳ chứa thời điểm đang xét. Hết hạn không cần job, gia hạn và đổi gói là cùng một phép tính.
+- Đơn chụp giá và toàn bộ chức năng lúc tạo, kỳ chép lại từ đơn. Manager sửa gói không đổi điều khách đã mua. Chức năng không có trong bản chụp (ra đời sau lúc mua) theo gói miễn phí.
+- Website không cầm JWT: mã dùng một lần trên URL đổi lấy phiên hẹp (`X-Billing-Session`, scheme `BillingSession`), chỉ mở `/api/v1/billing/web/*`. CORS của đường này dùng `SUBSCRIPTION_WEB_ORIGINS`, tách khỏi `OPS_WEB_ORIGINS`.
+- Backend ký form vì secret không được rời máy chủ. `success_url` không cấp gì.
+- `SubscriptionSettlementService.SettleOrderAsync` là đường duy nhất cấp quyền lợi, dùng chung cho IPN và `SubscriptionReconcileJob`: IPN chỉ là tín hiệu, backend tự hỏi `order/detail`, so số tiền và tiền tệ với đơn. Ghi nhận trong một DB transaction có khóa `FOR UPDATE` trên đơn và advisory lock theo người dùng; `order_id` duy nhất là chốt cuối chống cấp hai lần.
+- `Cancelled` và `Expired` không phải trạng thái cuối, vì khách có thể trả từ mã QR đã mở. IPN được qua `MaintenanceMiddleware`.
+- Job đối soát hỏi SePay thưa dần theo tuổi đơn (`next_check_at`), đơn báo lỗi bị dời ra sau; lỗi SePay được đếm qua `IProviderFailureTracker` và mở sự cố `sepay`.
+- Void: đơn đã trả chỉ bị hủy khi mã giao dịch khớp; đơn chưa ghi nhận tiền chuyển `NeedsReview`. **Giới hạn:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay; chưa biết `order/detail` trả gì sau void.
+- `user_id` của đơn về `SET NULL` khi xóa cứng, để giữ sổ tiền. Kỳ và lượt dùng xóa theo người dùng. Không lưu thông tin thẻ từ SePay.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1213,6 +1254,10 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
+| `MarketDataRefreshJob` | Mỗi 3 giờ, phút 5 | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
+| `SubscriptionReconcileJob` | Mỗi 10 phút | Tra SePay các đơn đang chờ để ghi nhận tiền khi IPN không về; đơn quá 24 giờ chưa trả thì hết hạn |
+| `SubscriptionReminderJob` | 09:00 mỗi ngày | Nhắc gói sắp hết hạn trước 7 ngày và 1 ngày, bỏ qua nếu đã có kỳ nối tiếp |
+| `MarketAlertJob` | Khi có việc | Xét gửi cảnh báo ngay sau khi admin duyệt sự kiện hoặc sửa giá |
 | `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
 | `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |
 | `RecurringDetectionJob` | 01:30 mỗi ngày | Cập nhật khoản định kỳ đã có (thấy thanh toán thì đẩy ngày đến hạn) và đề xuất khoản mới (§2.6). Thay phần `RecurringDetected` của `InsightGeneratorJob` |

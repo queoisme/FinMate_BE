@@ -6,7 +6,7 @@ using FinMate.Domain.Enums;
 namespace FinMate.API.Middleware;
 
 /// <summary>
-/// Khi bật chế độ bảo trì, mọi API trả 503 trừ: cấu hình công khai (để app biết đang bảo trì), đăng nhập, kiểm tra sống và tài liệu. ADMIN vẫn dùng được toàn bộ để kiểm tra và tắt bảo trì; Staff và OpsManager chỉ dùng được API vận hành để còn trả lời khách.
+/// Khi bật chế độ bảo trì, mọi API trả 503 trừ: cấu hình công khai (để app biết đang bảo trì), đăng nhập, kiểm tra sống, tài liệu, và IPN của SePay (khách đã trả tiền thì phải được ghi nhận). ADMIN vẫn dùng được toàn bộ để kiểm tra và tắt bảo trì; Staff và OpsManager chỉ dùng được API vận hành để còn trả lời khách.
 /// Phía app đã chặn bằng popup; chặn ở máy chủ là để bản app cũ không biết popup và hàng đợi đồng bộ không dồn vào hệ thống đang được sửa.
 /// Đứng SAU xác thực vì cần biết người gọi có phải Admin không.
 /// </summary>
@@ -14,7 +14,7 @@ public class MaintenanceMiddleware
 {
     public const string ErrorCode = "MAINTENANCE";
 
-    private static readonly string[] AlwaysAllowed = ["/api/v1/app-config", "/api/v1/auth/", "/health", "/hangfire", "/swagger"];
+    private static readonly string[] AlwaysAllowed = ["/api/v1/app-config", "/api/v1/auth/", "/api/v1/webhooks/sepay", "/health", "/hangfire", "/swagger"];
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly RequestDelegate _next;

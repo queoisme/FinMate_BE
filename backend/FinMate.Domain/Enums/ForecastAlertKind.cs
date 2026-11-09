@@ -18,4 +18,7 @@ public enum ForecastAlertKind
 
     /// <summary>Mục tiêu nhóm hoàn thành hoặc quá hạn; gửi riêng từng thành viên.</summary>
     GroupGoal,
+
+    /// <summary>Giá tăng ảnh hưởng tới danh mục đang căng.</summary>
+    MarketChange,
 }

@@ -32,6 +32,9 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `ViewMonitoring` | ❌ | ✅ | ✅ |
 | `ManageIncidents` | ❌ | ✅ | ✅ |
 | `ManageSystem` | ❌ | ❌ | ✅ |
+| `ModerateCommunity` | ✅ | ✅ | ✅ |
+| `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
+| `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -231,6 +234,25 @@ Gia hạn bằng `POST /auth/refresh` không phải nhập lại mã trong 12 gi
 
 **Thay đổi phá vỡ:** web admin hiện có phải thêm luồng trên trước khi deploy backend có bật cờ này.
 
+## Kiểm duyệt cộng đồng: `/api/v1/ops/community`
+
+Chạy được cả khi `features.community` tắt. **Không response hay audit nào có người đăng hoặc người báo cáo**; tên chỉ hiện trong `publicAuthorName` khi tác giả đã chọn công khai. Dữ liệu tài chính của khách không liên quan tới các API này.
+
+| API | Việc | Quyền |
+|---|---|---|
+| `GET /reports?offset&limit` | Báo cáo còn mở: `self_harm` trước, rồi cũ trước. Có nội dung bị báo cáo | `ModerateCommunity` |
+| `POST /reports/{id}/resolve` | `{ "decision": "upheld\|dismissed" }`. `upheld` gỡ nội dung; `dismissed` hiện lại. Đóng mọi báo cáo còn mở của nội dung đó. Đã xử lý trả 409 `COMMUNITY_ALREADY_RESOLVED` | `ModerateCommunity` |
+| `GET /images?offset&limit` | Ảnh chờ duyệt, cũ trước, kèm tiêu đề và nội dung bài | `ModerateCommunity` |
+| `GET /images/{id}` | Xem ảnh để quyết định | `ModerateCommunity` |
+| `POST /images/{id}/approve` | Duyệt ảnh đang chờ | `ModerateCommunity` |
+| `POST /images/{id}/reject` | Từ chối ảnh đang chờ hoặc gỡ ảnh đã duyệt. Dữ liệu ảnh bị xóa ngay | `ModerateCommunity` |
+| `POST /posts/{id}/hide`, `/restore` | Gỡ hoặc hiện lại bài, đóng báo cáo còn mở | `ModerateCommunity` |
+| `POST /comments/{id}/hide`, `/restore` | Gỡ hoặc hiện lại bình luận, đóng báo cáo còn mở | `ModerateCommunity` |
+| `POST /places/{id}/hide` | Ẩn quán và mọi bài về quán đó | `ModerateCommunity` |
+| `POST /posts/{id}/mute-author`, `POST /comments/{id}/mute-author` | `{ "days": 1..365 }`. Cấm đăng mà không biết tác giả là ai | `MuteCommunityAuthors` |
+
+Đủ 3 người khác nhau báo cáo thì nội dung tự ẩn (`autoHideReportCount`), trừ lý do `self_harm`: lý do này xếp đầu hàng đợi và không tính vào việc tự ẩn.
+
 ## Giám sát hệ thống
 
 Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom lỗi giống nhau thành một sự cố và báo qua email. Quy trình cho con người ở `docs/ops-runbook.md`.
@@ -311,3 +333,22 @@ Kết quả mỗi lượt:
 - **Cần xem:** số lệch nhiều hoặc ngoài khoảng thì để `Draft` và mở sự cố dịch vụ `economic_feed` (mức Normal) cho Admin và OpsManager; duyệt hoặc bỏ ở trang Giả định kinh tế.
 - **Không đọc được** (trang đổi giao diện, không tải được, không thấy bài): giữ nguyên bản cũ và mở cùng sự cố. Sự cố tự đóng khi lượt sau thành công.
 - Cùng một bài chạy lại không tạo thêm bản nào.
+
+## Gói đăng ký: `/api/v1/ops/subscriptions`
+
+Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi cờ `features.subscriptions` tắt, để chuẩn bị gói trước khi bật. Mọi thao tác ghi đều vào `audit_logs`. Tài liệu cho web và app: `docs/subscription-api.md`.
+
+| API | Việc |
+|---|---|
+| `GET features` | Danh mục chức năng bán được. Danh mục nằm trong code vì mỗi chức năng phải có chỗ chặn thật |
+| `GET plans` | Mọi gói, kể cả gói đã xóa |
+| `POST plans` `{ code, name, description?, monthlyPriceCents?, yearlyPriceCents?, sortOrder? }` | Tạo gói ở trạng thái chưa bán. `code` không đổi được và không dùng lại được; phải có ít nhất một giá |
+| `PATCH plans/{id}` `{ name?, description?, monthlyPriceCents?, yearlyPriceCents?, removeMonthlyPrice?, removeYearlyPrice?, isActive?, sortOrder? }` | Sửa gói, trường không gửi thì giữ nguyên |
+| `PATCH plans/{id}` `{ isActive: true }` | Mở bán, cần có giá và ít nhất một chức năng đang bật. Chức năng không bật sẽ bị khóa với người mua, kể cả khi gói miễn phí có |
+| `DELETE plans/{id}` | Ngừng bán, không xóa vật lý. Người đang dùng giữ đến hết kỳ |
+| `PUT plans/{id}/features` `[{ key, enabled, monthlyLimit }]` | Thay toàn bộ chức năng của gói. `monthlyLimit` null là không giới hạn, 0 là hết lượt ngay |
+| `GET orders?status=&offset=&limit=` | Đơn mua, chỉ đọc. Không có id người dùng |
+
+Giá tính bằng đồng. Gói miễn phí có sẵn, không có giá, không tắt và không xóa được; hạn mức của nó áp dụng ngay cho mọi người chưa mua. Sửa gói trả phí không ảnh hưởng người đã mua, vì đơn giữ bản chụp giá và quyền lợi.
+
+Đơn `NeedsReview` là tiền đã về nhưng chưa cấp được gói. Mỗi đơn mở một sự cố `subscription_payments`, xử lý theo `docs/ops-runbook.md`.

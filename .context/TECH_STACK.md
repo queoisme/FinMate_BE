@@ -96,6 +96,14 @@
      token nào chết mà xoá. -->
 ```
 
+**Xử lý ảnh:**
+```xml
+<PackageReference Include="SkiaSharp" Version="3.*" />
+<PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
+<!-- Duyệt ngày 2026-11-06 cho ảnh cộng đồng: vẽ lại thành JPEG để bỏ EXIF, gồm cả GPS. Giấy phép MIT.
+     Bản NoDependencies vì ảnh aspnet không có fontconfig. Không đọc được HEIC/HEIF. -->
+```
+
 **Security:**
 ```xml
 <PackageReference Include="BCrypt.Net-Next" Version="4.*" />

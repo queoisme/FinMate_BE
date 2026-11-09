@@ -6,6 +6,7 @@ public enum IncidentSource
     AppError,
     Job,
     Provider,
+    Payment,
 }
 
 /// <summary>Thứ tự có nghĩa: số càng lớn càng nặng.</summary>

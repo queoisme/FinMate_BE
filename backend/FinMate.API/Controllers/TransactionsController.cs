@@ -3,6 +3,7 @@ using FinMate.Application.Groups;
 using System.Security.Claims;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Subscriptions;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
 using FinMate.Domain.Enums;
@@ -199,6 +200,7 @@ public class TransactionsController : ControllerBase
     /// Ảnh không được lưu ở đâu trong hệ thống.
     /// </summary>
     [HttpPost("scan-receipt")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.ReceiptScan)]
     [RequestSizeLimit(ScanReceiptCommandHandler.MaxImageBytes + 4096)]
     public async Task<IActionResult> ScanReceipt(IFormFile file, CancellationToken ct)
     {
@@ -228,6 +230,7 @@ public class TransactionsController : ControllerBase
     /// <c>DELETE</c> và <c>PATCH /transactions/{id}</c>.
     /// </summary>
     [HttpPost("chat")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.AiChat)]
     public async Task<IActionResult> Chat([FromBody] ChatRequest request, CancellationToken ct)
     {
         var result = await _chatHandler.HandleAsync(
@@ -241,6 +244,7 @@ public class TransactionsController : ControllerBase
     /// <c>financialAccountId</c>, <c>clientRequestId</c>.
     /// </summary>
     [HttpPost("voice")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.VoiceInput)]
     [RequestSizeLimit(VoiceChatCommandHandler.MaxAudioBytes + 4096)]
     public async Task<IActionResult> Voice(IFormFile file, [FromForm] Guid? financialAccountId, [FromForm] Guid? clientRequestId, CancellationToken ct)
     {
@@ -259,6 +263,7 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("parse")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.AiChat)]
     public async Task<IActionResult> Parse([FromBody] ParseNaturalLanguageRequest request, CancellationToken ct)
     {
         var parsed = await _parseHandler.HandleAsync(new ParseNaturalLanguageCommand(CurrentUserId, request.Text), ct);

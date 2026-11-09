@@ -17,6 +17,7 @@ Repo này chứa **phía server**: backend và các dịch vụ AI. App khách h
 | Dự báo | Dòng tiền, số tiền có thể chi, khoản định kỳ, giao dịch bất thường, ngân sách tháng sau |
 | Tài chính nhóm | Ngân sách, mục tiêu và báo cáo chung. Ví vẫn của riêng từng người, thành viên tự chọn khoản muốn chia sẻ. Đang tắt bằng cờ `features.groups` |
 | Vận hành nội bộ | Ba vai trò `Staff`, `OpsManager`, `Admin`: ca hỗ trợ, xem dữ liệu khách khi khách đồng ý, giao dịch nháp, duyệt hai người, xác thực 2 lớp. API khách hàng đang tắt bằng cờ `features.support` |
+| Thông tin thị trường | Admin gửi link trang giá xăng, báo, trang tài chính. Hệ thống tự đọc, AI hiểu tin bài, admin duyệt, rồi nhắc người có ngân sách đang căng. Cảnh báo đang tắt bằng cờ `features.marketAlerts` |
 | Giám sát | Kiểm tra dịch vụ mỗi phút, gom lỗi thành sự cố, gửi email cho Admin và OpsManager |
 | Quản trị | Người dùng, cấu hình hệ thống, khoá dịch vụ bên ngoài, luật và model AI, nhật ký thao tác |
 
@@ -147,6 +148,7 @@ Sơ đồ thư mục đầy đủ và contract Backend ↔ AI Service: `.context
 | [docs/group-api.md](docs/group-api.md) | API và ma trận quyền của tài chính nhóm |
 | [docs/ops-api.md](docs/ops-api.md) | API và ma trận quyền của vận hành, giám sát |
 | [docs/ops-runbook.md](docs/ops-runbook.md) | quy trình xử lý cho Staff, Manager, Admin |
+| [docs/market-data-api.md](docs/market-data-api.md) | API và quy tắc của thông tin thị trường |
 | README của [backend](backend/README.md), [ai-service](ai-service/README.md), [ocr-service](ocr-service/README.md), [stt-service](stt-service/README.md) | chi tiết từng service |
 
 Các đoạn **Verify** trong `TASKS.md` đáng đọc nhất: chúng ghi lại những gì đã chạy thật, và cả
@@ -183,6 +185,7 @@ Danh sách đầy đủ ở `AGENTS.md` §3.
 
 **Chưa kiểm chứng**
 
+- Thông tin thị trường: AI đọc tin bằng Gemini thật, vì chưa có key. Điều khoản của từng nguồn cũng chưa được kiểm tra.
 - Giám sát: gửi email thật qua Brevo và một job Hangfire thất bại thật. Đã chạy trên backend local
   với email ghi ra log.
 

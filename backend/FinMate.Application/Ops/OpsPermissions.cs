@@ -23,6 +23,13 @@ public enum OpsCapability
     ManageSystem = 1 << 11,
     ViewMonitoring = 1 << 12,
     ManageIncidents = 1 << 13,
+
+    /// <summary>Duyệt ảnh, xử lý báo cáo, ẩn nội dung cộng đồng. Không kèm quyền thấy tác giả.</summary>
+    ModerateCommunity = 1 << 14,
+    MuteCommunityAuthors = 1 << 15,
+
+    /// <summary>Thêm, sửa, xóa gói đăng ký, đặt giá và chọn chức năng của gói; xem đơn mua.</summary>
+    ManageSubscriptionPlans = 1 << 16,
 }
 
 public static class OpsPermissions
@@ -32,7 +39,8 @@ public static class OpsPermissions
         | OpsCapability.AccessCustomerData
         | OpsCapability.CreateDraftTransactions
         | OpsCapability.EmergencyLock
-        | OpsCapability.ProposeApprovals;
+        | OpsCapability.ProposeApprovals
+        | OpsCapability.ModerateCommunity;
 
     private const OpsCapability ManagerCapabilities =
         StaffCapabilities
@@ -43,7 +51,9 @@ public static class OpsPermissions
         | OpsCapability.ViewOpsAudit
         | OpsCapability.ViewAiStats
         | OpsCapability.ViewMonitoring
-        | OpsCapability.ManageIncidents;
+        | OpsCapability.ManageIncidents
+        | OpsCapability.MuteCommunityAuthors
+        | OpsCapability.ManageSubscriptionPlans;
 
     public static OpsCapability For(UserRole role) => role switch
     {

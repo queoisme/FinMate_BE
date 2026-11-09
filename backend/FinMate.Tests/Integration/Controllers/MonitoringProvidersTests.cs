@@ -108,6 +108,29 @@ public class MonitoringProvidersTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task FuelPricesThatCannotBeConfirmedRepeatedlyOpenANormalIncident()
+    {
+        await ResetAsync();
+        var provider = MonitoredServices.MarketData.Key;
+        _tracker.RecordSuccess(provider);
+        _tracker.RecordFailure(provider, "NO_AGREEMENT");
+        _tracker.RecordFailure(provider, "NO_AGREEMENT");
+        await RunAsync(_start);
+        (await IncidentAsync(provider)).Should().BeNull("chưa đủ ngưỡng");
+
+        _tracker.RecordFailure(provider, "NO_AGREEMENT");
+        await RunAsync(_start.AddMinutes(1));
+
+        var incident = await IncidentAsync(provider);
+        incident!.Severity.Should().Be(IncidentSeverity.Normal);
+        incident.TechnicalDetail.Should().Contain("NO_AGREEMENT");
+
+        _tracker.RecordSuccess(provider);
+        await RunAsync(_start.AddMinutes(2));
+        (await IncidentAsync(provider))!.Status.Should().Be(IncidentStatus.Resolved);
+    }
+
+    [Fact]
     public async Task ASuccessfulCallClosesItAtOnce()
     {
         await ResetAsync();

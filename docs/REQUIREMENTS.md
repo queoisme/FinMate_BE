@@ -399,6 +399,35 @@ Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không t
 | FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
 | FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
 
+### 6.9 Thông tin thị trường **[Mới so với đặc tả Core Flows]**
+
+Chi tiết ở `docs/market-data-api.md`.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-MKT-01 | Admin gửi link, hệ thống tự nhận dạng loại trang | Must | Nhận RSS, bảng giá, trang danh sách. Trả rõ lý do nếu không dùng được. Tối đa 50 link một lần |
+| FR-MKT-02 | Tải trang an toàn | Must | Chỉ `https`, chặn địa chỉ nội bộ kể cả qua chuyển hướng, tôn trọng `robots.txt`, không vượt 401, 403, 429 |
+| FR-MKT-03 | Giá xăng tự động | Must | Cần đủ nguồn khớp đúng cùng số. Đổi quá mức cho phép thì không nhận. Admin sửa được, bắt buộc ghi chú |
+| FR-MKT-04 | AI đọc tin bài | Should | Đoạn trích phải có nguyên văn trong bài. Dự báo không thành sự kiện. Không có key thì bài chờ. Không lưu toàn văn |
+| FR-MKT-05 | Admin duyệt sự kiện | Should | Sự kiện cần ít nhất 2 tên miền, mặc định chờ duyệt |
+| FR-MKT-06 | Cảnh báo theo ngân sách | Should | Nhận diện khoản chi từ nội dung giao dịch, ở mọi danh mục. Bỏ qua người đã ngừng chi hoặc chi không đáng kể. Xét ngân sách của danh mục chứa khoản đó, không có thì ngân sách tổng. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
+| FR-MKT-07 | Loại chi phí bằng cấu hình | Should | Thêm loại không cần sửa code. AI chỉ được trả chủ đề trong danh sách |
+
+### 6.10 Cộng đồng **[Mới so với đặc tả Core Flows]**
+
+Sau cờ `features.community`, mặc định tắt. API ở `docs/community-api.md`.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-COM-01 | Đăng bài theo chủ đề | Must | `places`, `experience`, `difficulty`, `question`, thêm được bằng cấu hình. Chỉ `places` gắn quán và khu vực |
+| FR-COM-02 | Ẩn danh mặc định | Must | Bài và bình luận ẩn danh trừ khi người dùng chọn khác. Không response nào có id tác giả; nhân viên cũng không thấy tác giả ẩn danh |
+| FR-COM-03 | Quán theo khu vực | Should | Người dùng tự chọn tỉnh, thành và khu vực. Xếp hạng ưu tiên người đã chi thật. Chưa dùng GPS |
+| FR-COM-04 | Vote, bình luận | Should | Mỗi người một vote; bình luận phẳng, chưa có push |
+| FR-COM-05 | Ảnh | Should | Vẽ lại thành JPEG để bỏ EXIF, nhân viên duyệt trước khi hiện công khai |
+| FR-COM-06 | Bộ lọc và báo cáo | Must | Chặn đường dẫn, liên hệ, số dài, từ cấm. 3 người báo cáo thì tự ẩn, trừ `self_harm` xếp đầu hàng đợi và không ẩn |
+| FR-COM-07 | Hỏi chia sẻ sau giao dịch | Could | App gọi sau khi lưu, chỉ với chi tiêu ăn uống, có giới hạn tần suất. Không đăng tự động |
+| FR-COM-08 | Đồng ý riêng | Must | Đồng ý khi đăng lần đầu, không tăng phiên bản Điều khoản |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -650,6 +679,7 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] **Tách hoá đơn theo món (FR-SCAN-05).** Đang tắt mặc định; có bật cho production không.
 - [ ] SMS OTP: đặc tả ghi "Email / Số điện thoại", quyết định 2026-09-11 chỉ làm email.
 - [ ] **Điều khoản bản 4 (FR-GRP).** App phải hiển thị câu chữ mới về chia sẻ với nhóm và gửi `version = 4` trước hoặc cùng lúc backend lên production; nếu không, đồng ý gửi bản 3 sẽ bị từ chối (409). Bản 4 chưa phát hành và gộp cả nội dung về Google Vision (FR-CONS-05) lẫn hỗ trợ (FR-OPS-10, FR-OPS-11), để người dùng chỉ đồng ý lại một lần.
+- [ ] **Gói đăng ký (2026-11-07), trước khi bật `features.subscriptions`.** Google Play có cho dẫn khách ra web để mua tính năng số ở Việt Nam không (chưa xác nhận được); Điều khoản dịch vụ trả phí, chính sách hoàn tiền, nghĩa vụ xuất hóa đơn; hạn mức gói miễn phí (20/10/10 trong migration là số tạm); ai làm website thanh toán.
 - [ ] Thống nhất với nhóm app: giao dịch tiền mặt vẫn phải đồng bộ lên server (qua `clientRequestId`).
 - [ ] **Định nghĩa các mã BR của sơ đồ Flow 6** (BR-01.2, 03.1, 03.3, 04.2, 04.3, 06.1, 07.1–07.4, 08.1–08.3, 11.1–11.4). Đợt 1 dùng mặc định ở `forecast.*` trong cấu hình hệ thống; cần đối chiếu khi có tài liệu.
 - [ ] Định nghĩa "giao dịch chi đột biến" (FR-RPT-06).
@@ -690,3 +720,4 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-02 | **Dự báo tài chính đợt 2: cảnh báo** | Chủ sản phẩm duyệt kế hoạch (outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi) | FR-FCST-10…13 xong. Migration `AddForecastAlerts`: bảng `forecast_alerts`, cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute`, `forecast_alerts_enabled`. API mới: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /budgets/transfer`; `PUT /me/forecast-settings` nay thay toàn bộ cài đặt |
 | 2026-11-05 | **Thêm tài chính nhóm / gia đình**, làm theo đợt | Chủ sản phẩm duyệt: một mô hình ưu tiên gia đình; giao dịch chia sẻ vẫn tính vào ngân sách cá nhân; mặc định thấy chi tiết giao dịch đã chia sẻ; rời nhóm giữ lịch sử, xóa tài khoản xóa hẳn rồi tính lại | Nhóm FR-GRP (6.6). Migration `AddGroups`: `groups`, `group_members`, `group_invitations`, `group_activities`. `AddGroupSharedFinance`: `group_categories`, `group_share_rules`; `transactions.group_id`, `group_category_id`, `shared_at`; `budgets`, `saving_goals`: `user_id` thành nullable, thêm `group_id`, CHECK một chủ. `ConsentVersions.Terms` lên 4. Chưa làm: ví chung, chia tiền và công nợ, dự báo cấp nhóm |
 | 2026-11-02 | **Dự báo tài chính đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu** | Chủ sản phẩm duyệt kế hoạch (bảng đánh dấu riêng, quét trong lượt kiểm tra sau giao dịch, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu) | FR-FCST-14…16 xong. Migration `AddTransactionAnomalies`: bảng `transaction_anomalies`, thêm `anomaly` vào CHECK `forecast_alerts.kind`. API mới: `/forecast/anomalies`, `/forecast/categories`, `/forecast/categories/apply`, `/forecast/goals/{id}`. Insight `UnusualSpending` ngừng sinh. Ngưỡng outlier dùng trung vị + 3·MAD có sẵn (`Statistics`) thay vì Q3 + 1,5·IQR ghi trong kế hoạch |
+| 2026-11-07 | **Thêm gói đăng ký trả qua SePay**, sau cờ `features.subscriptions` | Chủ sản phẩm duyệt kế hoạch: OpsManager cấu hình gói; web app riêng; trả trước, tự gia hạn tay vì SePay chưa có thanh toán định kỳ; chỉ thu phí nhập bằng AI; đổi gói chạy sau khi gói cũ hết; người đã mua giữ quyền lợi đến hết kỳ | API ở `docs/subscription-api.md`; việc còn lại ở 13.4 |
