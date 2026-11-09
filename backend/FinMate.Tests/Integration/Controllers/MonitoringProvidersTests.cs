@@ -199,27 +199,15 @@ public class MonitoringProvidersTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task GeminiFailuresAreHigh_BackupAndRasaAreNormal()
+    public async Task GeminiFailuresAreHigh_BackupIsNormal()
     {
         await ResetAsync();
-        _status.Ai = new AiStatusBody(Enabled(4, "http_500"), Enabled(4, "http_500"), new RasaStatusBody(true, false));
+        _status.Ai = new AiStatusBody(Enabled(4, "http_500"), Enabled(4, "http_500"));
 
         await RunAsync(_start);
 
         (await IncidentAsync("gemini"))!.Severity.Should().Be(IncidentSeverity.High);
         (await IncidentAsync("gemini_backup"))!.Severity.Should().Be(IncidentSeverity.Normal);
-        (await IncidentAsync("rasa"))!.Severity.Should().Be(IncidentSeverity.Normal);
-    }
-
-    [Fact]
-    public async Task RasaNotConfiguredIsNotAProblem()
-    {
-        await ResetAsync();
-        _status.Ai = new AiStatusBody(Enabled(), Enabled(), new RasaStatusBody(false, false));
-
-        await RunAsync(_start);
-
-        (await IncidentAsync("rasa")).Should().BeNull();
     }
 
     [Fact]

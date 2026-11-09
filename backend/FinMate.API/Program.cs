@@ -501,7 +501,6 @@ public class Program
         builder.Services.AddScoped<IAiCategorySyncService, AiCategorySyncService>();
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
-        builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
         builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
         builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();

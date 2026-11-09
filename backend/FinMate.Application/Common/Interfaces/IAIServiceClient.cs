@@ -100,7 +100,7 @@ public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false);
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
 /// <param name="IncomeType">salary | bonus | gift | side_income | refund | other_income, khi đoán được.</param>
-/// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, Rasa (nếu có) chắc.</param>
+/// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, bộ phân loại ý định (nếu có) chắc.</param>
 /// <param name="ToOthers">"Chuyển cho người khác / trả nợ" đã được AI tính là chi tiêu.</param>
 /// <param name="CategorySource">rule (từ khóa quyết định) | cache (chỉ gợi ý từ bảng nhớ tên món) | null (chưa biết).</param>
 public record ChatParseEntry(
@@ -212,7 +212,7 @@ public interface IAIServiceClient
 
     /// <summary>
     /// Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.
-    /// Rasa tắt thì AI Service vẫn trả lời (bằng luật), nên lỗi ở đây là lỗi của chính AI Service.
+    /// bộ phân loại ý định tắt thì AI Service vẫn trả lời (bằng luật), nên lỗi ở đây là lỗi của chính AI Service.
     /// </summary>
     Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default);
 

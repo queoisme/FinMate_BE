@@ -36,7 +36,6 @@ public class OpsRolesControllerTests : IClassFixture<AuthApiFactory>
         "/api/v1/admin/finance-method-prompts",
         "/api/v1/admin/goal-templates",
         "/api/v1/admin/survey-questions",
-        "/api/v1/admin/rasa/status",
         "/api/v1/admin/ai-rules/meta",
         "/api/v1/admin/ai-config/documents",
     ];

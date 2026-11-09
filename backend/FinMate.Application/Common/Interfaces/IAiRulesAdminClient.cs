@@ -26,9 +26,6 @@ public sealed record AiRulesRequest(
     /// <summary>Định dạng thông báo theo nhà cung cấp (regex, trường, mẫu kiểm tra): <c>/admin/provider-formats</c>.</summary>
     public const string FormatsArea = "provider-formats";
 
-    /// <summary>Trạng thái và thử câu của Rasa (chỉ đọc): <c>/admin/rasa</c>.</summary>
-    public const string RasaArea = "rasa";
-
     /// <summary>Key của bên thứ ba (Gemini, OpenRouter) lưu mã hóa ở AI Service: <c>/admin/secrets</c>. Thân yêu cầu CÓ giá trị key nên không được log ở bất kỳ đâu.</summary>
     public const string SecretsArea = "secrets";
 

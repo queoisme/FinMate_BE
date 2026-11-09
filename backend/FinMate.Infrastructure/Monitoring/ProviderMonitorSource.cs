@@ -31,7 +31,6 @@ public sealed class ProviderMonitorSource : IMonitorSource
         await ApplyAsync(MonitoredServices.Vision, Map(ocr?.Vision, threshold), now, ct);
         await ApplyAsync(MonitoredServices.Gemini, Map(ai?.Gemini, threshold), now, ct);
         await ApplyAsync(MonitoredServices.GeminiBackup, Map(ai?.GeminiBackup, threshold), now, ct);
-        await ApplyAsync(MonitoredServices.Rasa, MapRasa(ai?.Rasa), now, ct);
         await ApplyAsync(MonitoredServices.Brevo, MapLocal(MonitoredServices.Brevo.Key, threshold), now, ct);
         await ApplyAsync(MonitoredServices.Fcm, MapLocal(MonitoredServices.Fcm.Key, threshold), now, ct);
     }
@@ -59,21 +58,6 @@ public sealed class ProviderMonitorSource : IMonitorSource
         return body.ConsecutiveFailures == 0 && body.LastSuccessAt is not null
             ? new ProbeResult(MonitoredServiceState.Healthy)
             : new ProbeResult(MonitoredServiceState.Unknown);
-    }
-
-    internal static ProbeResult MapRasa(RasaStatusBody? rasa)
-    {
-        if (rasa is null)
-        {
-            return new ProbeResult(MonitoredServiceState.Unknown);
-        }
-
-        if (!rasa.Configured)
-        {
-            return new ProbeResult(MonitoredServiceState.Disabled);
-        }
-
-        return rasa.Available ? new ProbeResult(MonitoredServiceState.Healthy) : new ProbeResult(MonitoredServiceState.Unhealthy, "không phản hồi");
     }
 
     private ProbeResult MapLocal(string provider, int threshold)

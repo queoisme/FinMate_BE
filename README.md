@@ -42,7 +42,6 @@ Tám service khởi động theo thứ tự phụ thuộc, migration tự chạy
 | `ai-service` | 8000 | Python 3.11 FastAPI |
 | `ocr-service` | không mở | đọc hoá đơn, Python 3.10 FastAPI |
 | `stt-service` | không mở | giọng nói thành chữ |
-| `rasa` | không mở | hiểu ý định câu chat |
 | `postgres-main` | 5433 | DB của backend |
 | `postgres-ai` | 5434 | DB của AI service, tách hoàn toàn |
 | `redis` | 6379 | cache, hạn mức, mã OTP |
@@ -77,7 +76,6 @@ Thiếu khoá hoặc model thì tính năng tự lùi về chế độ đơn gi�
 | `GOOGLE_CLIENT_SECRET` | 3 endpoint `/auth/google/*` trả 422; đăng nhập email/mật khẩu không ảnh hưởng |
 | `GOOGLE_VISION_API_KEY` | đọc hoá đơn bằng OCR cục bộ (PaddleOCR + VietOCR) |
 | `GEMINI_API_KEY` | phân loại món bằng luật, món lạ thành `unknown` |
-| Model trong `ai-service/rasa/models/` | chat chỉ dùng luật. Model không có trong git, xem `ai-service/rasa/README.md` |
 | Model trong `stt-service/models/` | nhập bằng giọng nói không dùng được. Cách tải ở `stt-service/README.md` |
 
 Hướng dẫn bật từng khoá nằm trong các file `.env.example` và `.context/TECH_STACK.md` §4.2.
@@ -108,7 +106,7 @@ service cần Postgres, không có thì bỏ qua.
 
 ```
 Flutter app ──┐                   ┌──► ai-service ──► postgres-ai
-              ├──► backend (8080) ┤        └──► rasa
+              ├──► backend (8080) ┤
 Web nội bộ ───┘       │           ├──► ocr-service ──► Google Vision (khi có khoá)
                       │           └──► stt-service
                postgres-main + redis
