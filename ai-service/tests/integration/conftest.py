@@ -61,6 +61,7 @@ async def _create_database(admin_url: str, test_url: str) -> None:
         async with engine.begin() as connection:
             # create_all thay vì chạy alembic: bước verify đã có `alembic check` bảo đảm
             # migration khớp model, nên ở đây chỉ cần schema đúng và dựng nhanh.
+            await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))  # cột embedding của kho tri thức agent (image postgres-ai là pgvector)
             await connection.run_sync(Base.metadata.create_all)
             # kb_categories là bảng cha của mọi khóa ngoại category_slug; clean_tables không xóa nó nên chỉ cần seed một lần.
             await seed_categories(connection)
@@ -129,7 +130,7 @@ async def clean_tables(engine):
                 " ml_evaluation_category_metrics, ml_evaluation_runs, ml_model_versions,"
                 " ml_training_jobs, ml_sample_splits, ml_labeled_samples, ops_analyze_log,"
                 " ml_raw_samples, kb_provider_formats, kb_provider_patterns, bill_unknown_scans,"
-                " user_merchant_memory, kb_item_categories, ml_training_samples, ops_usage_daily, kb_audit_log, kb_keywords, kb_brands, nlu_model_versions, nlu_candidates, nlu_examples RESTART IDENTITY CASCADE"
+                " user_merchant_memory, kb_item_categories, ml_training_samples, ops_usage_daily, kb_audit_log, kb_keywords, kb_brands, nlu_model_versions, nlu_candidates, nlu_examples, agent_runs, agent_refusal_templates, agent_user_memory, agent_scope_cues, agent_kb_documents, agent_kb_chunks, agent_kb_candidates RESTART IDENTITY CASCADE"
             )
         )
     yield

@@ -38,6 +38,16 @@ public static class AuditEvents
     public const string AdminProviderConfigUpdated = "Admin.ProviderConfig.Updated";
     public const string AdminProviderConfigActivationChanged = "Admin.ProviderConfig.ActivationChanged";
 
+    // Giả định kinh tế của AI Financial Agent: chỉ ghi khóa, phiên bản, tỉ lệ — không có bí mật.
+    public const string AdminAssumptionCreated = "Admin.Assumption.Created";
+    public const string AdminAssumptionApproved = "Admin.Assumption.Approved";
+    public const string AdminAssumptionRetired = "Admin.Assumption.Retired";
+
+    // Kho tri thức của agent: chỉ ghi mã tài liệu, không ghi nội dung. Nội dung và trạng thái nằm ở agent_kb_documents của AI Service.
+    public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";
+    public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
+    public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
+
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
     public const string AdminCategoryActivationChanged = "Admin.Category.ActivationChanged";

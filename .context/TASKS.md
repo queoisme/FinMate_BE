@@ -1411,3 +1411,14 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 - [ ] Báo nhóm Flutter: `POST /forecast/purchase-check`, `ChatActions.Purchase`, thẻ đánh giá và nút "Thử một khoản mua".
 - [x] Rasa: ý định `evaluate_purchase` trong `domain.yml` + 347 câu (`seed/nlu_purchase.jsonl`, generator `rasa/tools/generate_purchase.py`), luật bỏ phiếu của Rasa khi không có bản nháp (`PURCHASE_INTENT` trong `transaction_parser.py`), test canh dữ liệu cập nhật. Huấn luyện 3 seed `finmate-nlu-v17-s1..s3` trên DB tạm: cổng promote **chặn cả ba** (sau luật 98,02 / 97,44 / 98,26 so với v11 98,37; seed 3 còn tụt `nlu_test_fresh2` 1 câu). Chưa nhập dữ liệu vào DB dev, chưa promote; số đo ở `docs/rasa-coverage-report.md` §6.
 - Giới hạn đã biết: độ mới số dư lấy từ `financial_accounts.updated_at` (chưa có `balance_updated_at`); người dùng mới luôn ở mức `partial` tới khi đủ `minHistoryDays` ngày dữ liệu; chưa hỗ trợ trả góp; M4 và diễn giải bằng AI chưa làm.
+
+## Phase 72 — AI Financial Agent (2026-11-07)
+Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; phân quyền dùng Staff/OpsManager của Phase 61–65.
+- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
+- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
+- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
+- [x] Task 16–17: sổ dòng tiền, `simulate_purchase` (đọc `recurring_items` của Phase 54), `runway`, `stress_test`, `sensitivity`.
+- [x] Task 20 (phần giữ lại): trợ lý gợi ý trả lời khiếu nại (`ticket_assist`, chỉ gợi ý, kiểm số tiền) gắn vào ticket của Phase 62. Vai trò Manager/SupportStaff/ContentStaff và luồng khiếu nại riêng của agent đã BỎ khi gộp nhánh để dùng bản của Phase 61–65.
+- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
+- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
+- Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.

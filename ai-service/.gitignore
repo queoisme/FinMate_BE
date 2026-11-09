@@ -1,3 +1,6 @@
 
 # Artifact model — sản phẩm build, sinh lại bằng scripts/train.py
 models/**/*.joblib
+
+# Kết quả đánh giá agent: file thô sinh lại được; số liệu chốt nằm trong docs/agent-eval.md
+agent_eval/results/

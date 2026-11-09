@@ -1,0 +1,9 @@
+{
+  "claims": [
+    {"text": "Bạn đang có 100 triệu.", "evidence_ids": ["balance"]}
+  ],
+  "used_template": false,
+  "no_data": false,
+  "violations_final": [],
+  "usage": {"input_tokens": 400, "output_tokens": 80, "provider": "gemini", "model": "gemini-3.1-flash-lite"}
+}

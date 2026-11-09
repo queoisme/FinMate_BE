@@ -116,4 +116,18 @@ public class StartupSecretGuardTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ADMIN_SEED_PASSWORD*");
     }
+
+    [Fact]
+    public void TheEvalFlagStopsTheProcessStartingOutsideDevelopment()
+    {
+        var act = () => StartupSecretGuard.ThrowIfEvalEnabled(Config(("AGENT_EVAL_ENABLED", "true")), "Production");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*AGENT_EVAL_ENABLED*");
+    }
+
+    [Theory]
+    [InlineData("false")]
+    [InlineData("")]
+    public void AnEvalFlagThatIsOffDoesNotStopStartup(string value)
+        => StartupSecretGuard.ThrowIfEvalEnabled(Config(("AGENT_EVAL_ENABLED", value)), "Production");
 }

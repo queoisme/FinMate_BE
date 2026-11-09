@@ -463,6 +463,14 @@ AI Service chỉ phân tích: trích xuất, phân loại, tính độ tin cậy
 | FR-AI-13 | **[Ngoài đặc tả]** Chọn phương pháp tài chính (`/finance-methods/recommend`) | Should | Tự kiểm đầu ra (mã trong danh sách, lý do 1–240 ký tự); chỉ dẫn ở `kb_method_prompts` (có phiên bản, một dòng active); OpenRouter dự phòng, trần route 24 giây |
 | FR-AI-14 | **[Ngoài đặc tả]** Vòng học hoá đơn và Rasa | Could | Mẫu bill đã lọc + nhãn user; phiếu bầu món; mô hình bill và mô hình Rasa có phiên bản, đánh giá và chặn bản tệ hơn trước khi promote (`scripts/nlu_model.py train|eval|promote`) |
 | FR-AI-15 | **[Ngoài đặc tả]** Kho dữ liệu cho `ocr-service` (`/api/v1/ocr-store/*`) | Must | `ocr-service` không nối DB; mọi đọc/ghi kiến thức và bộ nhớ cửa hàng đi qua API này |
+| FR-AI-16 | **[Mới]** Hỏi AI Financial Agent (`POST /api/v1/agent/ask`) | Must | Vòng Gate → Plan → Execute → Compose → Verify. `userId` chỉ từ JWT; trả `answered` / `clarify` / `refused` / `insufficient_data`. Mọi số tiền trong câu trả lời bằng đúng số nguyên đồng của bằng chứng được trích dẫn (bộ kiểm chứng thuần Python), mỗi bằng chứng có nguồn, ngày và độ tin cậy. LLM không bao giờ sinh số tiền. Xem `docs/agent-api.md` |
+| FR-AI-17 | **[Mới]** Dự báo mục tiêu theo hai nhóm thu nhập | Must | Dải Q10/Q50/Q90 từ lịch sử đã trọn; nhóm ổn định / không ổn định tự suy (hệ số biến thiên) hoặc do người dùng chọn; ba kịch bản; dưới 3 tháng lịch sử thì `insufficient_data`, không đoán |
+| FR-AI-18 | **[Mới]** Công cụ của agent nằm trong danh sách cho phép | Must | `forecast_goal`, `get_assumptions`, `search_knowledge`, `simulate_purchase`, `runway`, `stress_test`, `sensitivity`. Công cụ lạ hay tham số lạ (kể cả `user_id`) bị từ chối trước khi đọc dữ liệu |
+| FR-AI-19 | **[Mới]** Giả định kinh tế có nguồn, có duyệt | Must | `economic_assumptions` đi Draft → Approved → Retired; mỗi giả định có nguồn, đường dẫn và ngày số liệu; chỉ bản đã duyệt được dùng |
+| FR-AI-20 | **[Mới]** Kho tri thức RAG có người duyệt | Should | pgvector + full-text gộp RRF, chỉ tài liệu Approved còn hiệu lực; câu hỏi chưa trả lời được chỉ lưu mã băm và số lần gặp, không bao giờ tự vào kho |
+| FR-AI-21 | **[Mới]** Khoản định kỳ và mô phỏng khoản mua (Flow 6) | Should | Khoản định kỳ lấy từ `recurring_items` (đang chạy = Confirmed, đề xuất = Estimated); sổ dòng tiền theo ngày; kết luận `feasible` / `tight` / `infeasible` kèm ngày và số thiếu |
+| FR-AI-22 | **[Mới]** Bộ nhớ và ngữ cảnh của agent | Should | Ngữ cảnh ngắn hạn (Redis, 30 phút, tối đa 6 lượt, chỉ các ô có cấu trúc); sở thích dài hạn do người dùng xem/sửa/xóa (`/agent/memory`) |
+| FR-AI-23 | **[Mới]** Bộ đánh giá agent | Should | `agent_eval`: hồ sơ giả lập có đáp án, bộ câu hỏi có nhãn, chỉ số (tỉ lệ mệnh đề không kiểm chứng, độ trung thực số, precision/recall từ chối, chi phí), cấu hình cắt bỏ. Endpoint đánh giá chỉ tồn tại ở Development |
 
 ## 9. FR — Quản trị (Admin Flow, hỗ trợ)
 
@@ -491,6 +499,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-CFG-01 | Cấu hình hệ thống có phiên bản (`/admin/system-config`) | Must | Một tài liệu JSON đã kiểm hợp lệ: bảo trì, phiên bản app tối thiểu / bắt buộc cập nhật, cờ tính năng (`chatAi`, `voice`, `billScan`, `notificationReading`), ngưỡng T1/T2 mặc định, retry thông báo, QR, phương pháp tài chính, dự báo (`forecast`, FR-FCST). Hằng số nghiệp vụ không viết cứng trong code |
 | FR-CFG-02 | Chế độ bảo trì và cấu hình công khai | Must | `MaintenanceMiddleware` chặn API khi bật; `GET /app-config` (ẩn danh) cho app biết bảo trì, phiên bản tối thiểu, cờ tính năng |
 | FR-CFG-03 | Kho key bên thứ ba (`/admin/secrets`) | Must | Mọi key (Gemini, OpenRouter, Google Vision, Brevo, Google OAuth, FCM) sửa trên trang admin, đọc lúc gọi (không cần khởi động lại). Mã hoá AES-256-GCM, khoá chủ `SECRETS_MASTER_KEY`, tên key làm AAD; key không bao giờ trả về nguyên văn. Thiếu khoá chủ thì kho tắt và chỉ dùng biến môi trường |
+| FR-ADM-15 | **[Mới]** Quản lý giả định kinh tế và kho tri thức của agent | Should | `/admin/assumptions`, `/admin/knowledge`; duyệt/gỡ chỉ Manager trở lên (OpsManager, Admin); mỗi thao tác ghi để lại audit log (không nội dung) |
 
 ## 10. NFR — Bảo mật và quyền riêng tư
 

@@ -16,7 +16,10 @@ services:
       retries: 10
 
   postgres-ai:
-    image: postgres:16
+    # pgvector/pgvector:pg16-trixie = postgres:16 + extension `vector` (kho tri thức RAG của AI Financial Agent). Chỉ DB AI; postgres-main giữ image postgres:16.
+    # Phải là biến thể -trixie: volume postgres-ai-data được tạo trên Debian trixie (glibc 2.41); tag `pg16` trần chạy trên bookworm (glibc 2.36) và Postgres
+    # từ chối CREATE DATABASE vì lệch phiên bản collation (đo 2026-11-07), còn thứ tự chỉ mục chữ có thể sai âm thầm.
+    image: pgvector/pgvector:pg16-trixie
     environment:
       POSTGRES_DB: finmate_ai
       POSTGRES_USER: finmate

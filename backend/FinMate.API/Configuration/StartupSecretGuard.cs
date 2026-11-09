@@ -57,4 +57,16 @@ public static class StartupSecretGuard
             $"Refusing to start in {environmentName}: these still hold the placeholder value "
             + $"from .env.example — {string.Join(", ", unchanged)}.");
     }
+
+    /// <summary>
+    /// <c>AGENT_EVAL_ENABLED</c> mở endpoint chạy agent trên dữ liệu giả lập và (phía ai-service) cho phép tắt bộ kiểm chứng số tiền. Cả hai chỉ dành cho Development: ở nơi khác
+    /// cờ này bật nghĩa là câu trả lời có thể không qua kiểm chứng, nên từ chối khởi động thay vì chạy im lặng.
+    /// </summary>
+    public static void ThrowIfEvalEnabled(IConfiguration configuration, string environmentName)
+    {
+        if (string.Equals(configuration["AGENT_EVAL_ENABLED"], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Refusing to start in {environmentName}: AGENT_EVAL_ENABLED must be off outside Development.");
+        }
+    }
 }

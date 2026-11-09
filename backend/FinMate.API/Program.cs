@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.FinanceCatalog;
+using FinMate.Application.Agent;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Auth;
@@ -123,6 +124,7 @@ public class Program
         {
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
+            StartupSecretGuard.ThrowIfEvalEnabled(builder.Configuration, builder.Environment.EnvironmentName);
         }
 
         // Luồng OAuth qua trình duyệt là TUỲ CHỌN và TÁCH RIÊNG khỏi POST /auth/google:
@@ -340,6 +342,37 @@ public class Program
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
+        builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
+        builder.Services.AddScoped<TicketAssistService>();
+        builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<GetAssumptionsTool>();
+
+        // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
+        builder.Services.AddScoped<RepositoryFinancialDataSource>();
+        builder.Services.AddScoped<SwitchableFinancialDataSource>();
+        builder.Services.AddScoped<IFinancialDataSource>(sp => sp.GetRequiredService<SwitchableFinancialDataSource>());
+        builder.Services.AddScoped<AgentRunOptions>();
+        builder.Services.AddScoped<IncomeHistory>();
+        builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
+        builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SimulatePurchaseTool>();
+        builder.Services.AddScoped<IAgentTool, RunwayTool>();
+        builder.Services.AddScoped<IAgentTool, StressTestTool>();
+        builder.Services.AddScoped<IAgentTool, SensitivityTool>();
+        builder.Services.AddScoped<ToolRegistry>();
+        builder.Services.AddScoped<ToolExecutor>();
+        builder.Services.AddScoped<AgentTraceContext>();
+        builder.Services.AddScoped<ConversationStore>();
+        builder.Services.AddScoped<AgentMemoryService>();
+        builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        // Cổng phạm vi / lập kế hoạch / soạn câu của agent. Timeout 45 giây: lập kế hoạch và soạn câu mỗi lần gọi LLM (tối đa vài chục giây khi nhà cung cấp chậm, cộng lần sinh lại).
+        builder.Services.AddHttpClient<IAgentAiClient, AgentAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
@@ -498,6 +531,7 @@ public class Program
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
         builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();

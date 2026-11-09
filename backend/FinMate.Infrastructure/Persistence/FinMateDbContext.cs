@@ -46,6 +46,7 @@ public class FinMateDbContext : DbContext
     public DbSet<UserSurveyAnswer> UserSurveyAnswers => Set<UserSurveyAnswer>();
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
+    public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();

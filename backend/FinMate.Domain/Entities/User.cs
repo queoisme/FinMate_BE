@@ -60,6 +60,12 @@ public class User
     public short? QuietHoursEndMinute { get; set; }
 
     /// <summary>
+    /// Người dùng tự chọn nhóm thu nhập cho agent: <c>"stable"</c> hoặc <c>"variable"</c>. NULL = để hệ thống tự suy từ độ biến động lịch sử thu nhập.
+    /// Có tác dụng thắng giá trị tự suy (người dùng biết hoàn cảnh của mình hơn số liệu), nhưng không thay được số liệu: dải dự báo vẫn lấy từ lịch sử thật.
+    /// </summary>
+    public string? IncomeProfileOverride { get; set; }
+
+    /// <summary>
     /// Lúc người dùng chứng minh họ thật sự sở hữu email này. NULL = chưa xác minh.
     ///
     /// Trước Phase 17 không có trường nào như vậy, nên ai cũng đăng ký được bằng email của
