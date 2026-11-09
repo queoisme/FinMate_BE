@@ -23,7 +23,7 @@ from app.bill.gemini import LlmClient
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
 from app.services.chat_ai import apply_ai_categories
-from app.services.nlu import RasaNlu, open_nlu
+from app.services.intent_classifier import IntentClassifier, shared_classifier
 from app.services.transaction_parser import VN, ChatParse, parse_chat
 from app.services.vi_text import clean_text
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
@@ -47,12 +47,15 @@ from app.services import category_registry, nlu_candidates
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 
-_nlu: RasaNlu | None = open_nlu(settings.rasa_url)
+_nlu_override: list[IntentClassifier | None] = []  # có phần tử khi test ghi đè (kể cả None = chỉ dùng luật)
 
 
-def set_nlu(nlu: RasaNlu | None) -> None:
-    global _nlu
-    _nlu = nlu
+def set_nlu(nlu: IntentClassifier | None) -> None:
+    _nlu_override[:] = [nlu]
+
+
+def _active_nlu() -> IntentClassifier | None:
+    return _nlu_override[0] if _nlu_override else shared_classifier()
 
 
 async def _with_cached_categories(parsed: ChatParse, knowledge: BillKnowledge) -> ChatParse:
@@ -157,8 +160,9 @@ async def chat_parse(
 ) -> ChatParseResponse:
     started = time.perf_counter()
     await knowledge.refresh_if_stale()  # từ khóa/thương hiệu trong DB: parse_chat tra chúng qua category_resolver, không có bước này thì chat dùng bản trong image
-    text = clean_text(body.text)  # Rasa cũng phải đọc câu đã bỏ ký tự vô hình, không thì nó cắt từ sai
-    nlu = await _nlu.parse(text) if _nlu else None
+    text = clean_text(body.text)  # bộ phân loại cũng phải đọc câu đã bỏ ký tự vô hình
+    classifier = _active_nlu()
+    nlu = await classifier.parse(text) if classifier else None
     parsed = parse_chat(
         text,
         nlu,
