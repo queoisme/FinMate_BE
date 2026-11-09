@@ -65,6 +65,8 @@ public static class AuditEvents
     /// <summary>Định dạng thông báo của một ngân hàng/ví (tạo, nhân bản, sửa pattern/trường/mẫu, kích hoạt, lưu trữ). Nội dung nằm ở nhật ký của AI Service; ở đây không ghi thân yêu cầu vì mẫu có thể chứa chữ thông báo.</summary>
     public const string AdminProviderFormatChanged = "Admin.ProviderFormat.Changed";
     /// <summary>Cấu hình hệ thống (bảo trì, phiên bản app, tính năng, giao diện) được lưu hoặc hoàn tác. Metadata chỉ có tên các phần đã đổi; nội dung nằm ở chính phiên bản trong <c>system_config_versions</c>.</summary>
+    /// <summary>Admin bấm "Chạy ngay" làm mới giả định kinh tế. Metadata chỉ có kết quả của lượt chạy.</summary>
+    public const string AdminEconomicFeedRefreshed = "Admin.EconomicFeed.Refreshed";
     public const string AdminSystemConfigChanged = "Admin.SystemConfig.Changed";
     /// <summary>Key bên thứ ba được đặt hoặc xóa. Metadata chỉ có tên key, hành động và lý do: KHÔNG BAO GIỜ có giá trị key (AI Service cũng chỉ giữ 4 ký tự cuối).</summary>
     public const string AdminSecretChanged = "Admin.Secret.Changed";

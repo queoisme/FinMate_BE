@@ -298,7 +298,16 @@ public sealed record ForecastSettings
 /// </summary>
 public sealed record EconomicFeedsSettings
 {
-    /// <summary>Trang danh sách thông cáo của Cục Thống kê (https). Rỗng = tắt.</summary>
+    /// <summary>Bật/tắt lịch tự chạy. Tắt thì gỡ job khỏi lịch (nút "Chạy ngay" vẫn dùng được).</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Ngày trong tháng job chạy (1–28, tránh tháng ngắn). Cục Thống kê công bố CPI khoảng ngày 3–6.</summary>
+    public int ScheduleDayOfMonth { get; init; } = 6;
+
+    /// <summary>Giờ chạy (0–23, giờ Việt Nam).</summary>
+    public int ScheduleHour { get; init; } = 9;
+
+    /// <summary>Trang danh sách thông cáo của Cục Thống kê (https). Rỗng = không tải gì.</summary>
     public string CpiIndexUrl { get; init; } = string.Empty;
 
     /// <summary>Bản CPI mới chỉ tự duyệt khi chênh so với bản đang dùng không quá số điểm cơ bản này (100 = 1 điểm phần trăm); lớn hơn thì để Draft chờ người duyệt.</summary>

@@ -294,13 +294,17 @@ Mỗi lỗi chỉ có loại exception, vị trí trong code, message template c
 
 ## Cập nhật số liệu kinh tế tự động (CPI)
 
-Job Hangfire `economic-assumption-refresh` chạy 09:00 giờ VN ngày 6 hằng tháng (cron UTC `0 2 6 * *`). Nó đọc thông cáo CPI mới nhất của Cục Thống kê và ghi giả định `general_price_growth` (đơn vị `pct_per_year`, giá trị là CPI bình quân từ đầu năm so với cùng kỳ). Cấu hình ở system config nhóm `economicFeeds` (sửa ở trang cấu hình hệ thống, có lịch sử thay đổi):
+Job Hangfire `economic-assumption-refresh` đọc thông cáo CPI mới nhất của Cục Thống kê và ghi giả định `general_price_growth` (đơn vị `pct_per_year`, giá trị là CPI bình quân từ đầu năm so với cùng kỳ). **Lịch nằm trong cấu hình, không nằm trong code**: lưu hoặc hoàn tác cấu hình là job được đăng ký lại ngay (không cần deploy hay khởi động lại). Cấu hình ở system config nhóm `economicFeeds` (có lịch sử thay đổi):
 
 | Trường | Ý nghĩa |
 |---|---|
-| `cpiIndexUrl` | Địa chỉ trang liệt kê bài CPI (https). **Để trống = job tắt**, không gọi mạng. Gợi ý: trang tìm kiếm của site, xem `docs/economic-feeds-probe.md` |
+| `enabled` | Mặc định `true`. `false` = gỡ job khỏi lịch |
+| `scheduleDayOfMonth`, `scheduleHour` | Ngày trong tháng (1–28) và giờ (0–23, **giờ Việt Nam**). Mặc định ngày 6, 9 giờ |
+| `cpiIndexUrl` | Địa chỉ trang liệt kê bài CPI (https). **Để trống = job chạy nhưng không gọi mạng**. Gợi ý: trang tìm kiếm của site, xem `docs/economic-feeds-probe.md` |
 | `autoApproveMaxDeltaBps` | Chênh tối đa so với bản đang dùng để job tự duyệt (mặc định 100 = 1 điểm phần trăm) |
 | `minRateBps`, `maxRateBps` | Khoảng hợp lý; ngoài khoảng thì không bao giờ tự duyệt |
+
+`POST /api/v1/admin/economic-feeds/refresh` (chỉ Admin, có audit `Admin.EconomicFeed.Refreshed`) chạy ngay một lượt và trả `{ "outcome": "Disabled | AlreadyCurrent | AutoApproved | NeedsReview | Failed" }`, dùng để thử sau khi đổi địa chỉ nguồn. Không phụ thuộc `enabled`.
 
 Kết quả mỗi lượt:
 - **Tự duyệt:** tạo bản mới và duyệt ngay, bản cũ chuyển Retired. Người thực hiện là tài khoản hệ thống (có trong audit log).

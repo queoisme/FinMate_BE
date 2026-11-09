@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Agent;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Monitoring;
@@ -21,6 +22,12 @@ public interface IEconomicFeedClient
 public interface IEconomicFeedStatus
 {
     Task ReportAsync(bool healthy, string? detail, CancellationToken ct = default);
+}
+
+/// <summary>Đăng ký lịch chạy của job làm mới theo cấu hình. Gọi lúc khởi động và sau mỗi lần lưu hoặc hoàn tác cấu hình hệ thống.</summary>
+public interface IEconomicFeedScheduler
+{
+    void Apply(EconomicFeedsSettings settings);
 }
 
 public sealed class EconomicFeedStatus(ServiceStatusTracker tracker) : IEconomicFeedStatus

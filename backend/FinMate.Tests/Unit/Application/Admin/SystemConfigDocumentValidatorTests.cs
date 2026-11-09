@@ -229,4 +229,18 @@ public class SystemConfigDocumentValidatorTests
 
         doc.EconomicFeeds.CpiIndexUrl.Should().BeEmpty();
     }
+
+    [Theory]
+    [InlineData(1, 0, true)]
+    [InlineData(28, 23, true)]
+    [InlineData(0, 9, false)]
+    [InlineData(29, 9, false)]
+    [InlineData(6, -1, false)]
+    [InlineData(6, 24, false)]
+    public void EconomicFeeds_ScheduleBounds(int day, int hour, bool valid)
+    {
+        var doc = new SystemConfigDocument { EconomicFeeds = new EconomicFeedsSettings { ScheduleDayOfMonth = day, ScheduleHour = hour } };
+
+        _validator.Validate(doc).IsValid.Should().Be(valid);
+    }
 }

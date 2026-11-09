@@ -1,3 +1,4 @@
+using FinMate.Application.Economics;
 using System.Text.Json;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
@@ -39,13 +40,16 @@ public class SystemConfigService : ISystemConfigService
     private readonly ISystemConfigProvider _provider;
     private readonly IValidator<SystemConfigDocument> _validator;
     private readonly IAuditLogService _auditLogService;
+    private readonly IEconomicFeedScheduler? _economicFeedScheduler;
 
     public SystemConfigService(
         ISystemConfigRepository repository,
         ISystemConfigProvider provider,
         IValidator<SystemConfigDocument> validator,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IEconomicFeedScheduler? economicFeedScheduler = null)
     {
+        _economicFeedScheduler = economicFeedScheduler;
         _repository = repository;
         _provider = provider;
         _validator = validator;
@@ -113,6 +117,9 @@ public class SystemConfigService : ISystemConfigService
         }
 
         _provider.Invalidate();
+
+        // Lịch job nằm trong cấu hình: lưu hoặc hoàn tác xong thì đăng ký lại ngay, không chờ khởi động lại.
+        _economicFeedScheduler?.Apply(content.EconomicFeeds);
 
         // Chỉ ghi tên các phần đã đổi, không ghi nội dung: giá trị đã nằm trong chính phiên bản vừa lưu.
         await _auditLogService.LogAsync(

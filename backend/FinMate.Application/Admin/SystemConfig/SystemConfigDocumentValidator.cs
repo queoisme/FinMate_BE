@@ -94,6 +94,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         public EconomicFeedsValidator()
         {
             RuleFor(x => x.CpiIndexUrl).NotNull().Must(url => url == string.Empty || IsHttps(url)).WithMessage("Địa chỉ nguồn CPI phải là https hợp lệ hoặc để trống.");
+            RuleFor(x => x.ScheduleDayOfMonth).InclusiveBetween(1, 28).WithMessage("Ngày chạy phải từ 1 đến 28.");
+            RuleFor(x => x.ScheduleHour).InclusiveBetween(0, 23).WithMessage("Giờ chạy phải từ 0 đến 23.");
             RuleFor(x => x.AutoApproveMaxDeltaBps).InclusiveBetween(0, 10000).WithMessage("Ngưỡng tự duyệt phải từ 0 đến 10000 điểm cơ bản.");
             RuleFor(x => x.MinRateBps).InclusiveBetween(-10000, 100000).WithMessage("Giới hạn dưới của tốc độ tăng phải từ -10000 đến 100000 điểm cơ bản.");
             RuleFor(x => x.MaxRateBps).GreaterThan(x => x.MinRateBps).WithMessage("Giới hạn trên của tốc độ tăng phải lớn hơn giới hạn dưới.");

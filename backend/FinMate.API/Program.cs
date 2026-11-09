@@ -192,6 +192,7 @@ public class Program
         builder.Services.AddHangfireServer();
         builder.Services.AddHostedService<OpsErrorWriter>();
         builder.Services.AddSingleton<IRecurringJobReader, HangfireRecurringJobReader>();
+        builder.Services.AddSingleton<IEconomicFeedScheduler, HangfireEconomicFeedScheduler>();
         builder.Services.AddSingleton<OpsJobFailureFilter>();
 
         // OCR service riêng (PaddleOCR + VietOCR): có URL thì backend gọi nó rồi mới gọi AI Service phân loại; không có thì quét qua
@@ -701,11 +702,21 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 20 * * *");
 
-        // 09:00 giờ VN ngày 6 hằng tháng (Cục Thống kê công bố CPI khoảng ngày 6). Chưa đặt địa chỉ nguồn thì job không làm gì.
-        RecurringJob.AddOrUpdate<EconomicAssumptionRefreshJob>(
-            "economic-assumption-refresh",
-            job => job.RunAsync(CancellationToken.None),
-            "0 2 6 * *");
+        // Lịch job làm mới CPI nằm trong cấu hình hệ thống (economicFeeds). Chưa đọc được cấu hình (DB chưa sẵn sàng) thì dùng mặc định, lần lưu cấu hình kế tiếp sẽ đăng ký lại.
+        using (var scope = app.Services.CreateScope())
+        {
+            EconomicFeedsSettings feeds;
+            try
+            {
+                feeds = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>().GetAsync().GetAwaiter().GetResult().Document.EconomicFeeds;
+            }
+            catch (Exception)
+            {
+                feeds = new EconomicFeedsSettings();
+            }
+
+            app.Services.GetRequiredService<IEconomicFeedScheduler>().Apply(feeds);
+        }
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(
