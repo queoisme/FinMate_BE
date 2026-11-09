@@ -23,6 +23,7 @@ không gắn lại trên từng controller.
 | `/api/v1/*` | Khách hàng trên app Flutter | Swagger; nhóm ở `../docs/group-api.md` |
 | `/api/v1/admin/*` | `Admin`, kế thừa `AdminControllerBase` | `FinMate.API/Controllers/Admin/README.md` |
 | `/api/v1/ops/*` | `Staff`, `OpsManager`, `Admin`, kế thừa `OpsControllerBase` | `../docs/ops-api.md` |
+| `/api/v1/admin/market-*`, `/api/v1/admin/fuel-prices` | `Admin`: thông tin thị trường | `../docs/market-data-api.md` |
 | `/health/live`, `/health/ready` | Hạ tầng. `live` chỉ báo tiến trình còn sống, `ready` kiểm tra Postgres và Redis | |
 | `/hangfire` | Dashboard job, basic auth `HANGFIRE_DASHBOARD_USER/PASS` | |
 
@@ -33,6 +34,7 @@ Hangfire đọc cron theo **UTC**, nên job chạy theo giờ Việt Nam phải 
 
 | Job | Cron (UTC) | Việc |
 |---|---|---|
+| `market-data-refresh` | `5 */3 * * *` | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
 | `system-monitor` | `* * * * *` | Kiểm tra dịch vụ, mở và đóng sự cố, gửi email. Tắt bằng `MONITORING_ENABLED=false` |
 | `monitoring-digest` | `0 1 * * *` | Gom sự cố mức thường, xoá lỗi quá hạn. Tắt cùng job trên |
 | `retry-failed-notifications` | `*/15 * * * *` | Thử lại thông báo phân tích lỗi |

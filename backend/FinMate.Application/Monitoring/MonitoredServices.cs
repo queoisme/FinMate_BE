@@ -19,7 +19,9 @@ public static class MonitoredServices
     public static readonly MonitoredService Brevo = new("brevo", "Brevo", "Không gửi được email: mã OTP đăng nhập, đặt lại mật khẩu và cảnh báo sự cố.", IncidentSeverity.High);
     public static readonly MonitoredService Fcm = new("fcm", "Firebase", "Khách không nhận được thông báo đẩy.", IncidentSeverity.High);
 
-    private static readonly Dictionary<string, MonitoredService> ByKey = new[] { Redis, AiService, OcrService, SttService, Vision, Gemini, GeminiBackup, Rasa, Brevo, Fcm }.ToDictionary(s => s.Key);
+    public static readonly MonitoredService MarketData = new("market_data", "Giá xăng tự động", "Không xác nhận được giá xăng mới, nên cảnh báo giá xăng tạm ngừng. Dữ liệu khác không bị ảnh hưởng.", IncidentSeverity.Normal);
+
+    private static readonly Dictionary<string, MonitoredService> ByKey = new[] { Redis, AiService, OcrService, SttService, Vision, Gemini, GeminiBackup, Rasa, Brevo, Fcm, MarketData }.ToDictionary(s => s.Key);
 
     public static string ImpactOf(string serviceKey)
         => ByKey.TryGetValue(serviceKey, out var service) ? service.Impact : "Một phần hệ thống có thể hoạt động không ổn định.";

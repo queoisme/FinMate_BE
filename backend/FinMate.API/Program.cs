@@ -51,9 +51,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Refit;
+using FinMate.Application.Community;
+using FinMate.Application.MarketData;
+using FinMate.Infrastructure.Community;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
 using FinMate.API.Monitoring;
+using FinMate.Infrastructure.MarketData;
 using FinMate.Infrastructure.Monitoring;
 using FinMate.Application.Support;
 using Serilog;
@@ -363,6 +367,33 @@ public class Program
         builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+        builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
+        builder.Services.AddScoped<ISpentHereVerifier, SpentHereVerifier>();
+        builder.Services.AddScoped<ICommunityReadService, CommunityReadService>();
+        builder.Services.AddScoped<ICommunityService, CommunityService>();
+        builder.Services.AddScoped<ICommunityCommentService, CommunityCommentService>();
+        builder.Services.AddScoped<ICommunityImageService, CommunityImageService>();
+        builder.Services.AddScoped<ICommunityReportService, CommunityReportService>();
+        builder.Services.AddScoped<ICommunitySharePromptService, CommunitySharePromptService>();
+        builder.Services.AddScoped<IOpsCommunityService, OpsCommunityService>();
+        builder.Services.AddSingleton<ICommunityImageProcessor, SkiaCommunityImageProcessor>();
+        builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
+        builder.Services.AddScoped<IMarketDataService, MarketDataService>();
+        builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();
+        builder.Services.AddScoped<IMarketEventService, MarketEventService>();
+        builder.Services.AddScoped<IMarketAlertService, MarketAlertService>();
+        builder.Services.AddScoped<IMarketAlertTrigger, HangfireMarketAlertTrigger>();
+
+        // Trần Gemini phía ai-service là 30 giây cho cả chuỗi model.
+        builder.Services.AddHttpClient<IMarketAiClient, MarketAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
+        builder.Services.AddHttpClient(SafeWebFetcher.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(SafeWebFetcher.CreateHandler);
+        builder.Services.AddSingleton<IWebPageFetcher, SafeWebFetcher>();
         builder.Services.AddScoped<IIncidentService, IncidentService>();
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
@@ -555,6 +586,8 @@ public class Program
         builder.Services.AddScoped<DataDeletionJob>();
         builder.Services.AddScoped<SystemMonitorJob>();
         builder.Services.AddScoped<MonitoringDigestJob>();
+        builder.Services.AddScoped<MarketDataRefreshJob>();
+        builder.Services.AddScoped<MarketAlertJob>();
         builder.Services.AddScoped<SupportRetentionJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
@@ -676,6 +709,12 @@ public class Program
             RecurringJob.RemoveIfExists("system-monitor");
             RecurringJob.RemoveIfExists("monitoring-digest");
         }
+
+        // Mỗi 3 giờ, lệch phút 5 để không dồn vào đầu giờ của các trang nguồn.
+        RecurringJob.AddOrUpdate<MarketDataRefreshJob>(
+            "market-data-refresh",
+            job => job.RunAsync(CancellationToken.None),
+            "5 */3 * * *");
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",

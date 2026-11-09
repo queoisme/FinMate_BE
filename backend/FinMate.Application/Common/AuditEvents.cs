@@ -106,8 +106,20 @@ public static class AuditEvents
     public const string OpsGroupViewed = "Ops.Group.Viewed";
     public const string OpsGroupOwnerTransferred = "Ops.Group.OwnerTransferred";
     public const string OpsCannedReplyChanged = "Ops.CannedReply.Changed";
+    public const string OpsCommunityImageApproved = "Ops.Community.ImageApproved";
+    public const string OpsCommunityImageRejected = "Ops.Community.ImageRejected";
+    public const string OpsCommunityReportResolved = "Ops.Community.ReportResolved";
+    public const string OpsCommunityContentHidden = "Ops.Community.ContentHidden";
+    public const string OpsCommunityContentRestored = "Ops.Community.ContentRestored";
+    public const string OpsCommunityPlaceHidden = "Ops.Community.PlaceHidden";
+    public const string OpsCommunityAuthorMuted = "Ops.Community.AuthorMuted";
     public const string OpsIncidentAcknowledged = "Ops.Incident.Acknowledged";
     public const string OpsIncidentResolved = "Ops.Incident.Resolved";
+    public const string AdminMarketSourceCreated = "Admin.MarketSource.Created";
+    public const string AdminMarketSourceUpdated = "Admin.MarketSource.Updated";
+    public const string AdminFuelPriceCorrected = "Admin.FuelPrice.Corrected";
+    public const string AdminMarketEventApproved = "Admin.MarketEvent.Approved";
+    public const string AdminMarketEventRejected = "Admin.MarketEvent.Rejected";
     public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";
     public const string OpsTwoFactorFailed = "Ops.TwoFactor.Failed";
 }

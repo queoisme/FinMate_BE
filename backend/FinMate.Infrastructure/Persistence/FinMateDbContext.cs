@@ -52,6 +52,12 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
+    public DbSet<CommunityPlace> CommunityPlaces => Set<CommunityPlace>();
+    public DbSet<CommunityPost> CommunityPosts => Set<CommunityPost>();
+    public DbSet<CommunityPostImage> CommunityPostImages => Set<CommunityPostImage>();
+    public DbSet<CommunityComment> CommunityComments => Set<CommunityComment>();
+    public DbSet<CommunityPostVote> CommunityPostVotes => Set<CommunityPostVote>();
+    public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
     public DbSet<SupportTicketAttachment> SupportTicketAttachments => Set<SupportTicketAttachment>();
@@ -65,6 +71,11 @@ public class FinMateDbContext : DbContext
     public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
     public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
     public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
+    public DbSet<MarketSource> MarketSources => Set<MarketSource>();
+    public DbSet<MarketDocument> MarketDocuments => Set<MarketDocument>();
+    public DbSet<FuelPrice> FuelPrices => Set<FuelPrice>();
+    public DbSet<MarketSignal> MarketSignals => Set<MarketSignal>();
+    public DbSet<MarketEvent> MarketEvents => Set<MarketEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

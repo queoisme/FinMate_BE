@@ -87,11 +87,26 @@ public class User
     public int? SurveyAiConsentVersion { get; set; }
     public DateTimeOffset? SurveyAiConsentAt { get; set; }
 
+    /// <summary>Khu vực người dùng tự chọn, dùng làm mặc định khi đọc và đăng bài về quán. Không dùng GPS.</summary>
+    public string? CommunityProvinceCode { get; set; }
+    public string? CommunityAreaCode { get; set; }
+
+    /// <summary>Tắt thì app không hỏi chia sẻ sau khi ghi giao dịch.</summary>
+    public bool CommunityPromptsEnabled { get; set; } = true;
+
+    /// <summary>Đồng ý đăng nội dung công khai. Chỉ cần khi đăng, xem thì không cần.</summary>
+    public int? CommunityConsentVersion { get; set; }
+    public DateTimeOffset? CommunityConsentAt { get; set; }
+
+    /// <summary>Bị cấm đăng tới mốc này. Vẫn đọc được.</summary>
+    public DateTimeOffset? CommunityMutedUntil { get; set; }
+
     /// <summary>Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại.</summary>
     public bool TermsAccepted => TermsVersion == ConsentVersions.Terms;
     public bool AiConsentGranted => AiConsentVersion == ConsentVersions.Ai;
     public bool TrainingConsentGranted => TrainingConsentVersion == ConsentVersions.Training;
     public bool SurveyAiConsentGranted => SurveyAiConsentVersion == ConsentVersions.SurveyAi;
+    public bool CommunityConsentGranted => CommunityConsentVersion == ConsentVersions.Community;
 
     /// <summary>
     /// Khảo sát đầu vào đã làm hay bỏ qua chưa. Tài khoản có TRƯỚC tính năng này được migration đặt

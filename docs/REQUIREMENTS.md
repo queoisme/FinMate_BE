@@ -399,6 +399,35 @@ Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không t
 | FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
 | FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
 
+### 6.9 Thông tin thị trường **[Mới so với đặc tả Core Flows]**
+
+Chi tiết ở `docs/market-data-api.md`.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-MKT-01 | Admin gửi link, hệ thống tự nhận dạng loại trang | Must | Nhận RSS, bảng giá, trang danh sách. Trả rõ lý do nếu không dùng được. Tối đa 50 link một lần |
+| FR-MKT-02 | Tải trang an toàn | Must | Chỉ `https`, chặn địa chỉ nội bộ kể cả qua chuyển hướng, tôn trọng `robots.txt`, không vượt 401, 403, 429 |
+| FR-MKT-03 | Giá xăng tự động | Must | Cần đủ nguồn khớp đúng cùng số. Đổi quá mức cho phép thì không nhận. Admin sửa được, bắt buộc ghi chú |
+| FR-MKT-04 | AI đọc tin bài | Should | Đoạn trích phải có nguyên văn trong bài. Dự báo không thành sự kiện. Không có key thì bài chờ. Không lưu toàn văn |
+| FR-MKT-05 | Admin duyệt sự kiện | Should | Sự kiện cần ít nhất 2 tên miền, mặc định chờ duyệt |
+| FR-MKT-06 | Cảnh báo theo ngân sách | Should | Nhận diện khoản chi từ nội dung giao dịch, ở mọi danh mục. Bỏ qua người đã ngừng chi hoặc chi không đáng kể. Xét ngân sách của danh mục chứa khoản đó, không có thì ngân sách tổng. Mẫu câu cố định. Tắt mặc định bằng `features.marketAlerts` |
+| FR-MKT-07 | Loại chi phí bằng cấu hình | Should | Thêm loại không cần sửa code. AI chỉ được trả chủ đề trong danh sách |
+
+### 6.10 Cộng đồng **[Mới so với đặc tả Core Flows]**
+
+Sau cờ `features.community`, mặc định tắt. API ở `docs/community-api.md`.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-COM-01 | Đăng bài theo chủ đề | Must | `places`, `experience`, `difficulty`, `question`, thêm được bằng cấu hình. Chỉ `places` gắn quán và khu vực |
+| FR-COM-02 | Ẩn danh mặc định | Must | Bài và bình luận ẩn danh trừ khi người dùng chọn khác. Không response nào có id tác giả; nhân viên cũng không thấy tác giả ẩn danh |
+| FR-COM-03 | Quán theo khu vực | Should | Người dùng tự chọn tỉnh, thành và khu vực. Xếp hạng ưu tiên người đã chi thật. Chưa dùng GPS |
+| FR-COM-04 | Vote, bình luận | Should | Mỗi người một vote; bình luận phẳng, chưa có push |
+| FR-COM-05 | Ảnh | Should | Vẽ lại thành JPEG để bỏ EXIF, nhân viên duyệt trước khi hiện công khai |
+| FR-COM-06 | Bộ lọc và báo cáo | Must | Chặn đường dẫn, liên hệ, số dài, từ cấm. 3 người báo cáo thì tự ẩn, trừ `self_harm` xếp đầu hàng đợi và không ẩn |
+| FR-COM-07 | Hỏi chia sẻ sau giao dịch | Could | App gọi sau khi lưu, chỉ với chi tiêu ăn uống, có giới hạn tần suất. Không đăng tự động |
+| FR-COM-08 | Đồng ý riêng | Must | Đồng ý khi đăng lần đầu, không tăng phiên bản Điều khoản |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)

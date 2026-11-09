@@ -15,6 +15,7 @@ from app.bill.samples import purge_loop
 from app.api.v1.categories_admin import router as categories_admin_router
 from app.api.v1.ocr_store import router as ocr_store_router
 from app.api.v1.internal_status import router as internal_status_router
+from app.api.v1.market_data import router as market_data_router
 from app.api.v1.provider_formats_admin import router as provider_formats_admin_router
 from app.api.v1.method_prompts_admin import router as method_prompts_admin_router
 from app.api.v1.learning_admin import router as learning_admin_router
@@ -139,6 +140,7 @@ app.include_router(secrets_admin_router, prefix="/api/v1")
 app.include_router(internal_secrets_router, prefix="/api/v1")
 app.include_router(ocr_store_router, prefix="/api/v1")
 app.include_router(internal_status_router, prefix="/api/v1", tags=["internal"])
+app.include_router(market_data_router, prefix="/api/v1", tags=["internal"])
 
 
 @app.exception_handler(RuleError)

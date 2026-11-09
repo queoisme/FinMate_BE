@@ -37,10 +37,25 @@ Hệ thống **không tự báo được** trong hai trường hợp, nên cần
 
 | Trường hợp | Vì sao | Cần làm |
 |---|---|---|
+| Giá xăng không xác nhận được (`market_data`) | Các nguồn lỗi hoặc lệch nhau nhiều lượt liền, cảnh báo giá xăng tạm ngừng | Xem `lastErrorCode` ở `GET /admin/market-sources`. Thêm nguồn khác, hạ `minAgreeingSources`, hoặc sửa giá bằng `POST /admin/fuel-prices` |
 | Backend hoặc Postgres sập | Job giám sát chạy trong backend và lịch Hangfire nằm trong Postgres | Đăng ký dịch vụ theo dõi bên ngoài (ví dụ UptimeRobot), gọi `https://<domain>/health/ready` mỗi phút, báo về email khác hoặc điện thoại |
 | Brevo hỏng | Email là kênh cảnh báo duy nhất | Mở trang trạng thái khi nghi ngờ; log có dòng mức Error. Đặt thêm cảnh báo của chính Brevo nếu có |
 
 Admin và OpsManager phải dùng email thật, vì cảnh báo gửi về địa chỉ tài khoản.
+
+## Kiểm duyệt cộng đồng
+
+API ở `docs/ops-api.md`, phần "Kiểm duyệt cộng đồng". Nhân viên xử lý nội dung và không biết ai viết; đừng tìm cách suy ra.
+
+**Ảnh chờ duyệt.** Không ai duyệt thì ảnh chờ mãi và tới trần 500 ảnh, người dùng không tải được nữa. Từ chối ảnh đồi trụy, bạo lực, ảnh có giấy tờ tùy thân, thẻ ngân hàng, số tài khoản hoặc hóa đơn còn thông tin cá nhân, ảnh trẻ em hoặc người khác không liên quan tới nội dung, và quảng cáo. Ảnh trông như nội dung xâm hại trẻ em thì chuyển ngay cho Manager, không tải về và không chia sẻ lại.
+
+**Báo cáo.** Xử lý theo thứ tự hàng đợi. Giữ báo cáo thì nội dung bị gỡ, bỏ báo cáo thì nội dung hiện lại.
+
+- `scam`: quảng cáo cho vay, kêu gọi đầu tư, đa cấp. Gỡ, nếu tái phạm thì nhờ Manager cấm đăng.
+- `personal_info`: nêu tên, số điện thoại, số tài khoản của người khác hoặc của chính họ. Gỡ.
+- `self_harm`: xem ngay. Bài không tự ẩn; đừng gỡ chỉ vì bài buồn. **Hệ thống hiện chưa có cách liên hệ với tác giả ẩn danh**, và chưa có đường dây hỗ trợ được kiểm chứng trong tài liệu này. Trước khi bật cờ `features.community`, chủ sản phẩm phải chốt hai việc đó; trong lúc chưa có, báo ngay cho Manager.
+
+**Cấm đăng.** Chỉ Manager, theo nội dung vi phạm, tối đa 365 ngày. Người bị cấm vẫn đọc được.
 
 ## Lỗi diện rộng
 
