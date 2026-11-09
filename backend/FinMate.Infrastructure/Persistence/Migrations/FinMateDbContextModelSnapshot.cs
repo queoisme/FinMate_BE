@@ -2644,7 +2644,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ops_error_events", null, t =>
                         {
-                            t.HasCheckConstraint("chk_ops_error_events_source", "source IN ('health','app_error','job','provider')");
+                            t.HasCheckConstraint("chk_ops_error_events_source", "source IN ('health','app_error','job','provider','payment')");
                         });
                 });
 
@@ -2766,7 +2766,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_ops_incidents_severity", "severity IN ('normal','high','critical')");
 
-                            t.HasCheckConstraint("chk_ops_incidents_source", "source IN ('health','app_error','job','provider')");
+                            t.HasCheckConstraint("chk_ops_incidents_source", "source IN ('health','app_error','job','provider','payment')");
 
                             t.HasCheckConstraint("chk_ops_incidents_status", "status IN ('open','acknowledged','resolved')");
                         });
@@ -3591,6 +3591,258 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("spending_insights", null, t =>
                         {
                             t.HasCheckConstraint("chk_spending_insights_insight_type", "insight_type IN ('vs_last_month','recurring_detected','unusual_spending')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Cycle")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cycle");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("FeaturesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("features");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("invoice_number");
+
+                    b.Property<DateTimeOffset>("NextCheckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_check_at");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("plan_code");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("plan_name");
+
+                    b.Property<DateTimeOffset?>("ReviewAlertedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("review_alerted_at");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("review_reason");
+
+                    b.Property<string>("SepayTransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sepay_transaction_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("voided_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_subscription_orders_invoice");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_subscription_orders_status");
+
+                    b.HasIndex("Status", "NextCheckAt")
+                        .HasDatabaseName("ix_subscription_orders_next_check");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_subscription_orders_user");
+
+                    b.ToTable("subscription_orders", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_subscription_orders_amount", "amount_cents > 0");
+
+                            t.HasCheckConstraint("chk_subscription_orders_cycle", "cycle IN ('monthly','yearly')");
+
+                            t.HasCheckConstraint("chk_subscription_orders_features", "jsonb_typeof(features) = 'array'");
+
+                            t.HasCheckConstraint("chk_subscription_orders_status", "status IN ('pending','paid','cancelled','expired','voided','needs_review')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDefaultFree")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_default_free");
+
+                    b.Property<long?>("MonthlyPriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("monthly_price_cents");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("YearlyPriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("yearly_price_cents");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_subscription_plans_code");
+
+                    b.HasIndex("IsDefaultFree")
+                        .IsUnique()
+                        .HasDatabaseName("uq_subscription_plans_default_free")
+                        .HasFilter("is_default_free");
+
+                    b.ToTable("subscription_plans", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_subscription_plans_free_has_no_price", "NOT is_default_free OR (monthly_price_cents IS NULL AND yearly_price_cents IS NULL)");
+
+                            t.HasCheckConstraint("chk_subscription_plans_monthly_price", "monthly_price_cents IS NULL OR monthly_price_cents > 0");
+
+                            t.HasCheckConstraint("chk_subscription_plans_yearly_price", "yearly_price_cents IS NULL OR yearly_price_cents > 0");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("FeatureKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("feature_key");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int?>("MonthlyLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("monthly_limit");
+
+                    b.HasKey("PlanId", "FeatureKey");
+
+                    b.ToTable("subscription_plan_features", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_subscription_plan_features_limit", "monthly_limit IS NULL OR monthly_limit >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionUsage", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("FeatureKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("feature_key");
+
+                    b.Property<DateOnly>("Month")
+                        .HasColumnType("date")
+                        .HasColumnName("month");
+
+                    b.Property<int>("Used")
+                        .HasColumnType("integer")
+                        .HasColumnName("used");
+
+                    b.HasKey("UserId", "FeatureKey", "Month");
+
+                    b.ToTable("subscription_usage", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_subscription_usage_used", "used >= 0");
                         });
                 });
 
@@ -4681,6 +4933,84 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("user_roles", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.UserSubscriptionPeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<string>("FeaturesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("features");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("plan_code");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("plan_name");
+
+                    b.Property<DateTimeOffset?>("Reminded1dAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reminded_1d_at");
+
+                    b.Property<DateTimeOffset?>("Reminded7dAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reminded_7d_at");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("voided_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndsAt")
+                        .HasDatabaseName("ix_user_subscription_periods_ends_at")
+                        .HasFilter("voided_at IS NULL");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_user_subscription_periods_order");
+
+                    b.HasIndex("UserId", "EndsAt")
+                        .HasDatabaseName("ix_user_subscription_periods_user");
+
+                    b.ToTable("user_subscription_periods", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_user_subscription_periods_features", "jsonb_typeof(features) = 'array'");
+
+                            t.HasCheckConstraint("chk_user_subscription_periods_range", "ends_at > starts_at");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5385,6 +5715,38 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionOrder", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.SubscriptionPlan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.SubscriptionPlan", null)
+                        .WithMany("Features")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionUsage", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SupportAccessGrant", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.FinancialAccount", null)
@@ -5652,6 +6014,21 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.UserSubscriptionPeriod", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.SubscriptionOrder", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.UserSurveyAnswer", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -5674,6 +6051,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
                     b.Navigation("Contributions");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Navigation("Features");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.User", b =>

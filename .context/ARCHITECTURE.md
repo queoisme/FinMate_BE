@@ -448,6 +448,22 @@ Sau cờ `features.community`. Code ở `FinMate.Application/Community/`, API �
 - **Báo cáo:** `self_harm` không tính vào việc tự ẩn. Hệ thống chưa có cách liên hệ tác giả ẩn danh, xem `docs/ops-runbook.md`.
 - **Lời hỏi chia sẻ:** app gọi sau khi lưu giao dịch, nên không sửa handler giao dịch nào. Khóa Redis băm tên quán. `/app-config` ẩn nhóm cấu hình này vì là API ẩn danh và có danh sách từ cấm.
 
+### 2.12 Gói đăng ký (thêm 2026-11-07)
+
+OpsManager và Admin cấu hình gói, giá, chức năng; khách mua trên website riêng và trả qua SePay. API ở `docs/subscription-api.md`, phần quản lý ở `docs/ops-api.md`. Cờ `features.subscriptions` mặc định tắt.
+
+- Bảng (migration `AddSubscriptions`): `subscription_plans`, `subscription_plan_features`, `subscription_orders`, `user_subscription_periods`, `subscription_usage`.
+- Danh mục chức năng ở `SubscriptionFeatures`, trong code. Chặn bằng `[RequireSubscriptionFeature]`: giữ một lượt trước khi chạy và trả lại nếu action lỗi. Thêm endpoint nhập bằng AI thì phải gắn attribute này.
+- Không có cột "gói hiện tại". Mỗi lần trả là một dòng `user_subscription_periods`, nối tiếp kỳ cuối; gói hiện tại là kỳ chứa thời điểm đang xét. Hết hạn không cần job, gia hạn và đổi gói là cùng một phép tính.
+- Đơn chụp giá và toàn bộ chức năng lúc tạo, kỳ chép lại từ đơn. Manager sửa gói không đổi điều khách đã mua. Chức năng không có trong bản chụp (ra đời sau lúc mua) theo gói miễn phí.
+- Website không cầm JWT: mã dùng một lần trên URL đổi lấy phiên hẹp (`X-Billing-Session`, scheme `BillingSession`), chỉ mở `/api/v1/billing/web/*`. CORS của đường này dùng `SUBSCRIPTION_WEB_ORIGINS`, tách khỏi `OPS_WEB_ORIGINS`.
+- Backend ký form vì secret không được rời máy chủ. `success_url` không cấp gì.
+- `SubscriptionSettlementService.SettleOrderAsync` là đường duy nhất cấp quyền lợi, dùng chung cho IPN và `SubscriptionReconcileJob`: IPN chỉ là tín hiệu, backend tự hỏi `order/detail`, so số tiền và tiền tệ với đơn. Ghi nhận trong một DB transaction có khóa `FOR UPDATE` trên đơn và advisory lock theo người dùng; `order_id` duy nhất là chốt cuối chống cấp hai lần.
+- `Cancelled` và `Expired` không phải trạng thái cuối, vì khách có thể trả từ mã QR đã mở. IPN được qua `MaintenanceMiddleware`.
+- Job đối soát hỏi SePay thưa dần theo tuổi đơn (`next_check_at`), đơn báo lỗi bị dời ra sau; lỗi SePay được đếm qua `IProviderFailureTracker` và mở sự cố `sepay`.
+- Void: đơn đã trả chỉ bị hủy khi mã giao dịch khớp; đơn chưa ghi nhận tiền chuyển `NeedsReview`. **Giới hạn:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay; chưa biết `order/detail` trả gì sau void.
+- `user_id` của đơn về `SET NULL` khi xóa cứng, để giữ sổ tiền. Kỳ và lượt dùng xóa theo người dùng. Không lưu thông tin thẻ từ SePay.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1239,6 +1255,8 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
 | `MarketDataRefreshJob` | Mỗi 3 giờ, phút 5 | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
+| `SubscriptionReconcileJob` | Mỗi 10 phút | Tra SePay các đơn đang chờ để ghi nhận tiền khi IPN không về; đơn quá 24 giờ chưa trả thì hết hạn |
+| `SubscriptionReminderJob` | 09:00 mỗi ngày | Nhắc gói sắp hết hạn trước 7 ngày và 1 ngày, bỏ qua nếu đã có kỳ nối tiếp |
 | `MarketAlertJob` | Khi có việc | Xét gửi cảnh báo ngay sau khi admin duyệt sự kiện hoặc sửa giá |
 | `RetryFailedNotificationJob` | Mặc định mỗi 15 phút | Retry notification_logs `failed`; khoảng chạy và số lần tối đa (mặc định 5) đọc từ cấu hình hệ thống |
 | `AiCategorySyncJob` | Mỗi giờ (phút 30) + một lần lúc khởi động | Đồng bộ danh mục hệ thống sang AI Service |

@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication;
+using FinMate.Infrastructure.ExternalServices.SePay;
+using FinMate.Application.Subscriptions;
 using FinMate.API.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using FinMate.API.Configuration;
@@ -260,6 +263,7 @@ public class Program
 
         builder.Services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddScheme<AuthenticationSchemeOptions, BillingSessionAuthenticationHandler>(BillingSessionAuthenticationHandler.SchemeName, null)
             .AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -293,6 +297,9 @@ public class Program
             options.AddPolicy(
                 AuthorizationPolicies.InternalAccount,
                 policy => policy.RequireRole(nameof(UserRole.Staff), nameof(UserRole.OpsManager), nameof(UserRole.Admin)));
+            options.AddPolicy(
+                AuthorizationPolicies.BillingSession,
+                policy => policy.AddAuthenticationSchemes(BillingSessionAuthenticationHandler.SchemeName).RequireAuthenticatedUser());
         });
 
         // Không khai báo domain nào thì policy rỗng, trình duyệt không được phép gọi. Xác thực bằng header Bearer nên không bật AllowCredentials.
@@ -300,6 +307,12 @@ public class Program
         builder.Services.AddCors(options => options.AddPolicy(
             OpsWebOrigins.PolicyName,
             policy => policy.WithOrigins(opsWebOrigins.ToArray()).AllowAnyMethod().WithHeaders("Authorization", "Content-Type")));
+
+        // Tách khỏi web vận hành: domain web thanh toán chỉ được gọi đúng các API thanh toán.
+        var subscriptionWebOrigins = OpsWebOrigins.Parse(builder.Configuration["SUBSCRIPTION_WEB_ORIGINS"]);
+        builder.Services.AddCors(options => options.AddPolicy(
+            SubscriptionConfiguration.CorsPolicyName,
+            policy => policy.WithOrigins(subscriptionWebOrigins.ToArray()).AllowAnyMethod().WithHeaders(BillingSessionAuthenticationHandler.HeaderName, "Content-Type")));
 
         builder.Services.AddSingleton(new AuthOptions(requireEmailVerification));
 
@@ -409,6 +422,17 @@ public class Program
         builder.Services.AddScoped<ICommunityReportService, CommunityReportService>();
         builder.Services.AddScoped<ICommunitySharePromptService, CommunitySharePromptService>();
         builder.Services.AddScoped<IOpsCommunityService, OpsCommunityService>();
+        builder.Services.AddSingleton(SubscriptionConfiguration.Read(builder.Configuration));
+        builder.Services.AddHttpClient(SePayClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+        builder.Services.AddScoped<ISePayClient, SePayClient>();
+        builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        builder.Services.AddScoped<ISubscriptionEntitlementService, SubscriptionEntitlementService>();
+        builder.Services.AddScoped<IOpsSubscriptionService, OpsSubscriptionService>();
+        builder.Services.AddScoped<IBillingWebSessionStore, BillingWebSessionStore>();
+        builder.Services.AddScoped<ISubscriptionCheckoutService, SubscriptionCheckoutService>();
+        builder.Services.AddScoped<ISubscriptionSettlementService, SubscriptionSettlementService>();
+        builder.Services.AddScoped<SubscriptionReconcileJob>();
+        builder.Services.AddScoped<SubscriptionReminderJob>();
         builder.Services.AddSingleton<ICommunityImageProcessor, SkiaCommunityImageProcessor>();
         builder.Services.AddScoped<IMarketDataRepository, MarketDataRepository>();
         builder.Services.AddScoped<IMarketDataService, MarketDataService>();
@@ -436,6 +460,7 @@ public class Program
         builder.Services.AddScoped<IMonitorSource, ErrorMonitorSource>();
         builder.Services.AddScoped<IMonitorSource, JobMonitorSource>();
         builder.Services.AddScoped<IMonitorSource, ProviderMonitorSource>();
+        builder.Services.AddScoped<IMonitorSource, SubscriptionReviewMonitorSource>();
         builder.Services.AddSingleton<IProviderFailureTracker, ProviderFailureTracker>();
         builder.Services.AddSingleton(new ProviderStatusEndpoints(ocrServiceUrl, builder.Configuration["OCR_SERVICE_API_KEY"], aiServiceUrl, aiServiceApiKey));
         builder.Services.AddScoped<IProviderStatusClient, ProviderStatusClient>();
@@ -689,7 +714,8 @@ public class Program
         }
 
         // TRƯỚC chuyển hướng HTTPS và bảo trì: trình duyệt không gửi token khi preflight và không chấp nhận preflight bị chuyển hướng hay 503.
-        app.UseCors(OpsWebOrigins.PolicyName);
+        app.UseWhen(context => SubscriptionConfiguration.IsBillingWebPath(context.Request.Path), branch => branch.UseCors(SubscriptionConfiguration.CorsPolicyName));
+        app.UseWhen(context => !SubscriptionConfiguration.IsBillingWebPath(context.Request.Path), branch => branch.UseCors(OpsWebOrigins.PolicyName));
 
         app.UseHttpsRedirection();
 
@@ -749,6 +775,17 @@ public class Program
             "market-data-refresh",
             job => job.RunAsync(CancellationToken.None),
             "5 */3 * * *");
+
+        RecurringJob.AddOrUpdate<SubscriptionReconcileJob>(
+            "subscription-reconcile",
+            job => job.RunAsync(CancellationToken.None),
+            "*/10 * * * *");
+
+        // 09:00 giờ VN.
+        RecurringJob.AddOrUpdate<SubscriptionReminderJob>(
+            "subscription-reminders",
+            job => job.RunAsync(CancellationToken.None),
+            "0 2 * * *");
 
         RecurringJob.AddOrUpdate<RetryFailedNotificationJob>(
             "retry-failed-notifications",

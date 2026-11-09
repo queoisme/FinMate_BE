@@ -132,4 +132,12 @@ public static class AuditEvents
     public const string AdminMarketEventRejected = "Admin.MarketEvent.Rejected";
     public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";
     public const string OpsTwoFactorFailed = "Ops.TwoFactor.Failed";
+    public const string OpsSubscriptionPlanCreated = "Ops.SubscriptionPlan.Created";
+    public const string OpsSubscriptionPlanUpdated = "Ops.SubscriptionPlan.Updated";
+    public const string OpsSubscriptionPlanDeleted = "Ops.SubscriptionPlan.Deleted";
+    public const string OpsSubscriptionPlanFeaturesUpdated = "Ops.SubscriptionPlan.FeaturesUpdated";
+    public const string SubscriptionOrderCreated = "Subscription.Order.Created";
+    public const string SubscriptionOrderPaid = "Subscription.Order.Paid";
+    public const string SubscriptionOrderVoided = "Subscription.Order.Voided";
+    public const string SubscriptionOrderNeedsReview = "Subscription.Order.NeedsReview";
 }

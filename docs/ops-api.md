@@ -34,6 +34,7 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `ManageSystem` | ❌ | ❌ | ✅ |
 | `ModerateCommunity` | ✅ | ✅ | ✅ |
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
+| `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -312,3 +313,22 @@ Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config
 Lọc `service`, `exceptionType`, `from`, `to`; phân trang `offset`, `limit` (tối đa 200). Giữ 30 ngày (`errorRetentionDays`).
 
 Mỗi lỗi chỉ có loại exception, vị trí trong code, message template chưa điền giá trị, đường dẫn đã thay định danh bằng `{id}`, và `traceId`. Không có message của exception, stack trace hay giá trị tham số, vì chúng có thể chứa số tiền, token hoặc nội dung của khách. Cần chi tiết thì dùng `traceId` tra `docker logs`.
+
+## Gói đăng ký: `/api/v1/ops/subscriptions`
+
+Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi cờ `features.subscriptions` tắt, để chuẩn bị gói trước khi bật. Mọi thao tác ghi đều vào `audit_logs`. Tài liệu cho web và app: `docs/subscription-api.md`.
+
+| API | Việc |
+|---|---|
+| `GET features` | Danh mục chức năng bán được. Danh mục nằm trong code vì mỗi chức năng phải có chỗ chặn thật |
+| `GET plans` | Mọi gói, kể cả gói đã xóa |
+| `POST plans` `{ code, name, description?, monthlyPriceCents?, yearlyPriceCents?, sortOrder? }` | Tạo gói ở trạng thái chưa bán. `code` không đổi được và không dùng lại được; phải có ít nhất một giá |
+| `PATCH plans/{id}` `{ name?, description?, monthlyPriceCents?, yearlyPriceCents?, removeMonthlyPrice?, removeYearlyPrice?, isActive?, sortOrder? }` | Sửa gói, trường không gửi thì giữ nguyên |
+| `PATCH plans/{id}` `{ isActive: true }` | Mở bán, cần có giá và ít nhất một chức năng đang bật. Chức năng không bật sẽ bị khóa với người mua, kể cả khi gói miễn phí có |
+| `DELETE plans/{id}` | Ngừng bán, không xóa vật lý. Người đang dùng giữ đến hết kỳ |
+| `PUT plans/{id}/features` `[{ key, enabled, monthlyLimit }]` | Thay toàn bộ chức năng của gói. `monthlyLimit` null là không giới hạn, 0 là hết lượt ngay |
+| `GET orders?status=&offset=&limit=` | Đơn mua, chỉ đọc. Không có id người dùng |
+
+Giá tính bằng đồng. Gói miễn phí có sẵn, không có giá, không tắt và không xóa được; hạn mức của nó áp dụng ngay cho mọi người chưa mua. Sửa gói trả phí không ảnh hưởng người đã mua, vì đơn giữ bản chụp giá và quyền lợi.
+
+Đơn `NeedsReview` là tiền đã về nhưng chưa cấp được gói. Mỗi đơn mở một sự cố `subscription_payments`, xử lý theo `docs/ops-runbook.md`.

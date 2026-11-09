@@ -96,3 +96,24 @@ Khách bị khóa hoặc đã yêu cầu xóa thì không đăng nhập được
 - **Mỗi ngày:** Manager xem ca tồn, ca trễ và trạng thái hệ thống. Admin đọc email gom sự cố mức thường lúc 08:00.
 - **Mỗi tuần:** chấm mẫu vài ca của mỗi Staff, xem lỗi lặp lại, họp ngắn với Admin.
 - **Mỗi tháng:** Admin rà quyền truy cập, hạn key, hạn mức; Manager rà nhật ký xem dữ liệu khách.
+
+## Đơn đăng ký cần kiểm tra (`NeedsReview`)
+
+Có sự cố `subscription_payments` nghĩa là khách đã trả tiền nhưng hệ thống chưa cấp gói. Hệ thống không có nút cấp gói hay hoàn tiền tay trong đợt này. Mã đơn nằm ở `GET /ops/subscriptions/orders?status=NeedsReview`; Admin xem được mã đơn trong chi tiết kỹ thuật của sự cố.
+
+1. Đối chiếu đơn với trang quản lý giao dịch của SePay theo `invoiceNumber`.
+2. `amount_mismatch`: số tiền hoặc tiền tệ khác đơn. Danh sách đơn không có id người dùng, nên việc với khách làm khi họ mở ticket kèm mã đơn. Hoàn tiền trên SePay nếu cần.
+3. `user_missing`: tài khoản đã bị xóa hẳn trước khi tiền về, không còn cách liên hệ qua hệ thống. Hoàn tiền trên SePay.
+4. `void_before_payment`: SePay báo hủy giao dịch khi đơn chưa ghi nhận tiền. Kiểm tra trên SePay xem tiền còn hay không. Đơn này không tự cấp gói.
+5. Ghi kết quả vào phần giải quyết sự cố rồi đóng. Sự cố không mở lại.
+
+## Bật gói đăng ký
+
+Trước khi bật cờ `features.subscriptions`:
+
+1. Xác nhận với chính sách thanh toán của Google Play rằng được dẫn khách ra web để mua.
+2. Điều khoản dịch vụ trả phí, chính sách hoàn tiền, nghĩa vụ xuất hóa đơn đã được duyệt.
+3. Đã kích hoạt cổng SePay, cấu hình `SEPAY_*`, `SUBSCRIPTION_WEB_*` và khai báo URL IPN kiểu `SECRET_KEY`.
+4. Đã chạy một lần mua thật trên Sandbox rồi trên Production.
+5. Manager đã chốt hạn mức gói miễn phí và tạo gói trả phí. Bật cờ là hạn mức có hiệu lực ngay với mọi người dùng.
+6. App và web đã có màn hình, app xử lý được `SUBSCRIPTION_FEATURE_LOCKED` và `SUBSCRIPTION_LIMIT_REACHED`.

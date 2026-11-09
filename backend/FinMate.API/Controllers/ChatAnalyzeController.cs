@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using FinMate.API.Authorization;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Subscriptions;
 using FinMate.Application.Transactions.Commands;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,10 +22,12 @@ public class ChatAnalyzeController(IChatAnalyzeCommandHandler handler) : Control
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpPost("analyze")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.AiChat)]
     public async Task<IActionResult> Analyze([FromBody] AnalyzeRequest request, CancellationToken ct)
         => Ok(ApiResponse<ChatParseResponse>.Ok(await handler.AnalyzeAsync(CurrentUserId, request.Text, ct)));
 
     [HttpPost("analyze-voice")]
+    [RequireSubscriptionFeature(SubscriptionFeatures.VoiceInput)]
     [RequestSizeLimit(VoiceChatCommandHandler.MaxAudioBytes + 4096)]
     public async Task<IActionResult> AnalyzeVoice(IFormFile file, CancellationToken ct)
     {

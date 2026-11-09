@@ -27,6 +27,9 @@ public enum OpsCapability
     /// <summary>Duyệt ảnh, xử lý báo cáo, ẩn nội dung cộng đồng. Không kèm quyền thấy tác giả.</summary>
     ModerateCommunity = 1 << 14,
     MuteCommunityAuthors = 1 << 15,
+
+    /// <summary>Thêm, sửa, xóa gói đăng ký, đặt giá và chọn chức năng của gói; xem đơn mua.</summary>
+    ManageSubscriptionPlans = 1 << 16,
 }
 
 public static class OpsPermissions
@@ -49,7 +52,8 @@ public static class OpsPermissions
         | OpsCapability.ViewAiStats
         | OpsCapability.ViewMonitoring
         | OpsCapability.ManageIncidents
-        | OpsCapability.MuteCommunityAuthors;
+        | OpsCapability.MuteCommunityAuthors
+        | OpsCapability.ManageSubscriptionPlans;
 
     public static OpsCapability For(UserRole role) => role switch
     {

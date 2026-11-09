@@ -23,4 +23,7 @@ public static class AuthorizationPolicies
 
     /// <summary>Có vai trò nội bộ nhưng chưa cần qua OTP. Chỉ dùng cho chính bước nhập OTP; mọi policy khác đều yêu cầu đã qua bước này.</summary>
     public const string InternalAccount = "InternalAccount";
+
+    /// <summary>Phiên thanh toán của website (<c>X-Billing-Session</c>). Cố ý không nhận JWT, và phiên này không mở được API nào khác.</summary>
+    public const string BillingSession = "BillingSession";
 }
