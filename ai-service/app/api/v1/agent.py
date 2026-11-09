@@ -23,13 +23,12 @@ from app.agent.schemas import ComposeRequest, ComposeResponse, GateRequest, Gate
 from app.api.deps import get_db, verify_internal_api_key
 from app.core.config import settings
 from app.services import secret_store
-from app.services.nlu import open_nlu
+from app.services.intent_classifier import shared_classifier
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 
 _provider = build_provider(settings, secret_store.getter)  # chỉ dựng đối tượng, không gọi mạng; khóa tra lúc gọi nên đổi khóa qua trang quản trị có hiệu lực ngay
-_nlu = open_nlu(settings.rasa_url)
 
 
 def _ms(started: float) -> int:
@@ -43,7 +42,7 @@ def get_agent_provider() -> LlmProvider:
 
 def get_gate_nlu():
     """Test thay bằng bản giả qua ``dependency_overrides``."""
-    return _nlu
+    return shared_classifier()
 
 
 @router.post("/agent/gate", response_model=GateResponse)

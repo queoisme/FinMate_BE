@@ -271,7 +271,7 @@ Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom l�
 | Nguồn | Theo dõi | Mở sự cố khi | Tự đóng khi |
 |---|---|---|---|
 | Dịch vụ | Redis, AI, OCR, STT | Lỗi `probeFailureThreshold` lần liên tiếp (mặc định 3) | Tốt `probeRecoveryThreshold` lần liên tiếp (mặc định 3) |
-| Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Rasa, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3); Rasa không phản hồi | Có một lần gọi thành công |
+| Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3) | Có một lần gọi thành công |
 | Lỗi ứng dụng | Log từ mức Error | Cùng một lỗi `errorCountThreshold` lần trong `errorWindowMinutes` (mặc định 10 lần trong 5 phút) | Không lặp lại trong `errorQuietMinutes` (mặc định 30 phút) |
 | Job | Hangfire | Thất bại sau mọi lần thử lại, hoặc quá giờ 10 phút chưa chạy | Lần chạy sau thành công, hoặc đã bắt kịp |
 
@@ -287,7 +287,7 @@ Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ đư�
 |---|---|---|
 | `Critical` | Redis lỗi; lỗi ứng dụng gấp 5 lần ngưỡng | Admin và OpsManager ngay |
 | `High` | AI, OCR, STT, Vision, Gemini, Brevo, Firebase lỗi; lỗi ứng dụng vượt ngưỡng; job thất bại | Admin và OpsManager ngay |
-| `Normal` | Rasa tắt, nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
+| `Normal` | nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
 
 - Chưa có người nhận thì nhắc lại mỗi `reminderMinutes` (mặc định 15 phút) trong giờ đầu, sau đó mỗi giờ. Sự cố nặng lên thì báo lại kể cả khi đã có người nhận.
 - Sự cố đã báo khi đóng sẽ có thêm một email báo đã khắc phục.

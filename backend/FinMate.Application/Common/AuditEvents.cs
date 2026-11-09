@@ -56,8 +56,6 @@ public static class AuditEvents
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
     /// <summary>Tài liệu cấu hình của AI/OCR (từ vựng chat, từ điển cửa hàng, ngưỡng...) được lưu bản nháp hoặc kích hoạt. Nội dung từng phiên bản do AI Service giữ (config_documents).</summary>
     public const string AdminAiConfigChanged = "Admin.AiConfig.Changed";
-    /// <summary>Admin yêu cầu kích hoạt một phiên bản model Rasa (kể cả quay về bản cũ, kể cả ép qua cổng đo). AI Service nhận (202) rồi nạp ở nền; kết quả cuối và số đo nằm ở sổ <c>nlu_model_versions</c> / <c>activation</c> của <c>GET /admin/rasa/models</c>.</summary>
-    public const string AdminRasaModelActivationRequested = "Admin.RasaModel.ActivationRequested";
     /// <summary>Admin thêm một phiên bản chỉ dẫn AI cho gợi ý phương thức. Nội dung chỉ dẫn nằm ở <c>kb_method_prompts</c> của AI Service, không ghi vào nhật ký chung.</summary>
     public const string AdminMethodPromptCreated = "Admin.MethodPrompt.Created";
     /// <summary>Admin chuyển bản chỉ dẫn AI đang dùng (kể cả quay về bản cũ).</summary>

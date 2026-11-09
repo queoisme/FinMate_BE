@@ -15,7 +15,7 @@ namespace FinMate.Tests.Integration.Controllers;
 
 /// <summary>
 /// "Học AI" cho trang admin (câu chưa hiểu, phản hồi sửa kết quả): chỉ admin, chỉ đọc, đi nguyên văn tới khu vực <c>learning</c> của AI Service cùng đủ tham số cắt trang, tìm kiếm và lọc
-/// (client giả ghi lại lời gọi). Cũng ghim việc danh sách model Rasa chuyển tiếp <c>limit/offset</c> (trước đây bị bỏ giữa đường nên trang 2 trả lại trang 1).
+/// (client giả ghi lại lời gọi).  <c>limit/offset</c> (trước đây bị bỏ giữa đường nên trang 2 trả lại trang 1).
 /// </summary>
 [Collection("Integration")]
 public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
@@ -81,7 +81,7 @@ public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
     public async Task Anonymous_Is401_AndAPlainUser_Is403_OnEveryRoute()
     {
         var user = await UserTokenAsync();
-        foreach (var url in new[] { $"{Base}/unclear", $"{Base}/feedback" })
+        foreach (var url in new[] { $"{Base}/feedback" })
         {
             (await _client.SendAsync(Get(url, null))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
             (await _client.SendAsync(Get(url, user))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -91,7 +91,6 @@ public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Theory]
-    [InlineData("unclear", "q=tr%E1%BA%A3&status=pending&reason=disagree&limit=20&offset=20")]
     [InlineData("feedback", "q=agribank&feedback_type=category_correction&processed=false&limit=50&offset=0")]
     public async Task Listing_ForwardsPagingSearchAndFiltersToTheLearningArea_AndReturnsTheBodyAsIs(string path, string query)
     {
@@ -111,17 +110,5 @@ public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
         var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("data");
         body.GetProperty("total").GetInt32().Should().Be(41);
         body.GetProperty("offset").GetInt32().Should().Be(20);
-    }
-
-    [Fact]
-    public async Task RasaModels_ForwardsLimitAndOffset()
-    {
-        var admin = await AdminTokenAsync();
-        _ai.Calls.Clear();
-
-        (await _client.SendAsync(Get("/api/v1/admin/rasa/models?limit=5&offset=10", admin))).StatusCode.Should().Be(HttpStatusCode.OK);
-
-        _ai.Calls.Single().Should().Match<AiRulesRequest>(c => c.Area == AiRulesRequest.RasaArea && c.Path == "models"
-            && c.Query != null && c.Query["limit"] == "5" && c.Query["offset"] == "10");
     }
 }

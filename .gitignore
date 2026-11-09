@@ -29,10 +29,6 @@ ocr-service/category_model.joblib
 ocr-service/category_models/
 ocr-service/benchmark/images/
 
-# Rasa (chat): model đã huấn luyện (~26MB) đặt ở ai-service/rasa/models/, xem ai-service/rasa/README.md
-ai-service/rasa/models/*
-!ai-service/rasa/models/README.md
-ai-service/rasa/.rasa/
 
 # Env
 .env

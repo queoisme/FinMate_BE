@@ -166,7 +166,7 @@ def test_other_intents_are_untouched(text, intent):
     assert parse_chat(text, None, now=NOW).intent == intent
 
 
-def test_parse_chat_returns_the_draft_and_no_entry_even_when_rasa_disagrees():
+def test_parse_chat_returns_the_draft_and_no_entry_even_when_classifier_disagrees():
     nlu = {"intent": "add_expense", "confidence": 0.99, "entities": {"amount": "800.000đ"}}
     for source in (None, nlu):
         parsed = parse_chat("Hôm nay mua cái quần 800.000đ được không?", source, now=NOW)

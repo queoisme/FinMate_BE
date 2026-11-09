@@ -59,13 +59,6 @@ async def test_prompt_versions_page_and_keep_the_active_name_even_when_it_is_off
     assert page["total"] >= 3 and len(page["items"]) == 2 and page["limit"] == 2
     assert page["active_version"] == "method-select-p1"
 
-
-async def test_rasa_model_ledger_reports_total_and_page(client, auth_headers):
-    body = (await client.get("/api/v1/admin/rasa/models", params={"limit": 5}, headers=auth_headers)).json()
-
-    assert body["limit"] == 5 and body["offset"] == 0 and body["total"] == len(body["items"])
-
-
 async def test_provider_formats_search_by_package_or_provider_and_echo_paging(client, auth_headers):
     headers = {**auth_headers, "X-Actor-Hash": ACTOR}
     for key, package in (("alpha_bank", "com.alpha.bank"), ("beta_wallet", "com.beta.wallet")):

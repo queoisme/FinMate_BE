@@ -1486,3 +1486,11 @@ Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task
 - [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
 - [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
 - Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.
+
+## Phase 79 — Bỏ Rasa, thay bằng bộ phân loại ý định trong tiến trình (2026-11-09)
+Nhánh `feat/replace-rasa-intent-classifier`. Quyết định của chủ dự án: bỏ hẳn Rasa; thành phần nào còn lại phải được giải thích và thật sự được dùng.
+- [x] Bộ phân loại ý định trong tiến trình `ai-service/app/services/intent_classifier.py` (TF-IDF + hồi quy logistic, học lười từ `ai-service/data/intent/examples.jsonl`) và `ai-service/scripts/eval_intent.py`; `nlu.source` ∈ `model | rules`.
+- [x] Gỡ Rasa: API admin Rasa, mục giám sát Rasa, endpoint "câu chưa rõ", biến `RASA_URL`, service `rasa` trong `docker-compose.yml`, thư mục `ai-service/rasa/`, `RasaNlu` và vòng huấn luyện NLU.
+- [x] Migration alembic `0036_drop_nlu_training_tables` bỏ ba bảng `nlu_examples`, `nlu_model_versions`, `nlu_candidates` (và loại `rasa` khỏi `ml_models.kind`).
+- [x] Viết lại tài liệu hiện hành: `.context/ARCHITECTURE.md` (§3.6), `.context/TECH_STACK.md`, `CLAUDE.md`, `docs/ERD.md`, `docs/ai-service-db-schema.txt`, `docs/ai-service-db-constraints-v5_1.md`, `docs/evaluation.md`.
+- [ ] Sinh lại `docs/scorecard.md` bằng `python scripts/scorecard.py` (bản 2026-10-22 còn số đo của Rasa) và ghi số đo của bộ phân loại vào `docs/evaluation.md` bằng `scripts/eval_intent.py`.

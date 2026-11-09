@@ -6,7 +6,7 @@ Cấu hình (cắt bỏ từng thành phần để đo đóng góp của nó):
   full           đủ GATE → PLAN → EXECUTE → COMPOSE → VERIFY
   no_verifier    bỏ bộ kiểm chứng số tiền (ai-service phải chạy với AGENT_EVAL_ENABLED=true)
   no_rag         tắt truy xuất tri thức (cờ có hiệu lực từ khi có RAG, Task 14)
-  rasa_baseline  đường /chat/parse hiện có, không LLM: mốc so sánh
+  chat_parse_baseline  đường /chat/parse hiện có, không LLM: mốc so sánh
 Nhà cung cấp/model LLM do ai-service chọn qua AGENT_PROVIDER/AGENT_MODEL: muốn so sánh thì chạy lại ai-service với biến khác rồi truyền ``--provider``/``--model`` chỉ để GHI NHÃN vào kết quả và tra bảng giá.
 
 Cần backend chạy Development với AGENT_EVAL_ENABLED=true; khóa lấy từ biến môi trường AI_SERVICE_API_KEY (backend) và INTERNAL_API_KEY (ai-service), không bao giờ nhận qua dòng lệnh."""
@@ -32,7 +32,7 @@ HERE = Path(__file__).resolve().parent
 DATASET = HERE / "dataset" / "questions.jsonl"
 RESULTS = HERE / "results"
 PRICES = HERE / "prices.json"
-CONFIGS = ("full", "no_verifier", "no_rag", "rasa_baseline")
+CONFIGS = ("full", "no_verifier", "no_rag", "chat_parse_baseline")
 
 
 def load_questions(limit: int | None = None, kinds: list[str] | None = None) -> list[dict]:
@@ -113,7 +113,7 @@ def run_agent(client: httpx.Client, backend_url: str, key: str, question: dict, 
 
 
 def run_baseline(client: httpx.Client, ai_url: str, key: str, question: dict) -> dict:
-    """Đường Rasa hiện có: không từ chối được, không công cụ, không bằng chứng. Hỏi lại khi nó tự đánh dấu câu chưa rõ."""
+    """Đường /chat/parse hiện có: không từ chối được, không công cụ, không bằng chứng. Hỏi lại khi nó tự đánh dấu câu chưa rõ."""
     started = time.monotonic()
     response = client.post(f"{ai_url}/api/v1/chat/parse", json={"text": question["text"]}, headers={"Authorization": f"Bearer {key}"})
     latency = round((time.monotonic() - started) * 1000)
@@ -121,7 +121,7 @@ def run_baseline(client: httpx.Client, ai_url: str, key: str, question: dict) ->
     unclear = response.json().get("unclear_reason") is not None
     return {
         "id": question["id"], "kind": question["kind"], "expect": question["expect"], "status": "clarify" if unclear else "answered", "tools": [], "claims": [], "evidence": [],
-        "latency_ms": latency, "usage": {"input_tokens": 0, "output_tokens": 0, "model": "rasa"}, "used_template": False, "retrieved": [], "relevant": [],
+        "latency_ms": latency, "usage": {"input_tokens": 0, "output_tokens": 0, "model": "chat_parse"}, "used_template": False, "retrieved": [], "relevant": [],
     }
 
 
@@ -174,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     flags = {"verifier": args.config != "no_verifier", "rag": args.config != "no_rag"}
     run_id = args.resume or f"{time.strftime('%Y%m%d-%H%M%S')}-{args.config}-{uuid.uuid4().hex[:6]}"
     with httpx.Client(timeout=90) as client:
-        if args.config == "rasa_baseline":
+        if args.config == "chat_parse_baseline":
             def runner(question: dict, index: int) -> dict:
                 return run_baseline(client, args.ai_url, os.environ["INTERNAL_API_KEY"], question)
         else:

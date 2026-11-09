@@ -15,7 +15,7 @@ Bộ đánh giá nằm ở `ai-service/agent_eval/`. Mục đích: có số đo 
 ## Cách chạy
 
 1. Backend chạy **Development** với `AGENT_EVAL_ENABLED=true` (ai-service cũng `AGENT_EVAL_ENABLED=true` nếu muốn cấu hình `no_verifier`). Ngoài Development cờ này bật là backend **từ chối khởi động**.
-2. Đặt khóa trong biến môi trường (không truyền qua dòng lệnh): `AI_SERVICE_API_KEY` (backend, gửi trong header `X-Eval-Key`), `INTERNAL_API_KEY` (ai-service, cho `rasa_baseline`).
+2. Đặt khóa trong biến môi trường (không truyền qua dòng lệnh): `AI_SERVICE_API_KEY` (backend, gửi trong header `X-Eval-Key`), `INTERNAL_API_KEY` (ai-service, cho `chat_parse_baseline`).
 3. `cd ai-service && python -m agent_eval.run --config full`
 
 `POST /api/v1/internal/agent/run` nhận `{snapshot: {monthlyIncome[], monthlySpend[], totalBalance}, question, flags: {verifier, rag}}`, dựng nguồn dữ liệu giả lập **chỉ cho request đó** (`SwitchableFinancialDataSource`) nên công cụ thật đọc dữ liệu giả lập mà không bị sửa, và trả `{answer, trace[{tool,status}], usage{inputTokens,outputTokens}}`. Mỗi lượt dùng một `userId` ngẫu nhiên: không dính ngữ cảnh/bộ nhớ của lượt khác, không chạm dữ liệu người dùng thật. Không bật cờ thì endpoint trả 404.
@@ -27,7 +27,7 @@ Bộ đánh giá nằm ở `ai-service/agent_eval/`. Mục đích: có số đo 
 | `full` | Đủ cả năm bước. |
 | `no_verifier` | Bỏ bộ kiểm chứng số tiền → đo bộ kiểm chứng bắt được bao nhiêu mệnh đề sai. |
 | `no_rag` | Tắt truy xuất tri thức (có hiệu lực từ khi có RAG, Task 14). |
-| `rasa_baseline` | Đường `/chat/parse` hiện có: không từ chối, không công cụ, không bằng chứng. Mốc so sánh. |
+| `chat_parse_baseline` | Đường `/chat/parse` hiện có: không từ chối, không công cụ, không bằng chứng. Mốc so sánh. |
 
 Nhà cung cấp/model LLM do ai-service chọn (`AGENT_PROVIDER`, `AGENT_MODEL`). So sánh Gemini với DeepSeek: chạy lại ai-service với biến khác rồi truyền `--provider/--model` để ghi nhãn và tra giá.
 
@@ -157,7 +157,7 @@ Bộ chạy, chỉ số và các cấu hình cắt bỏ đã sẵn sàng; **chư
 
 | Cấu hình | plan_accuracy | tool_accuracy | unsupported_claim_rate | numeric_faithfulness | refusal_precision | refusal_recall | p50 / p95 (ms) | cost_usd |
 |---|---|---|---|---|---|---|---|---|
-| `rasa_baseline` | | | | | | | | |
+| `chat_parse_baseline` | | | | | | | | |
 | `full` | | | | | | | | |
 | `no_verifier` | | | | | | | | |
 | `no_rag` | | | | | | | | |

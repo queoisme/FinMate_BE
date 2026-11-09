@@ -15,7 +15,7 @@ public class ChatParseContractTests
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
     private const string ExpenseJson =
-        """{"intent":"add_expense","reply_text":null,"entry":{"kind":"expense","amount_cents":200000,"description":"đi ăn","merchant":null,"category_slug":"food","income_type":null,"auto_save_ok":true,"to_others":false},"query":null,"nlu":{"source":"rasa","intent":"add_expense","confidence":0.97},"unclear_reason":null,"processing_ms":12}""";
+        """{"intent":"add_expense","reply_text":null,"entry":{"kind":"expense","amount_cents":200000,"description":"đi ăn","merchant":null,"category_slug":"food","income_type":null,"auto_save_ok":true,"to_others":false},"query":null,"nlu":{"source":"model","intent":"add_expense","confidence":0.97},"unclear_reason":null,"processing_ms":12}""";
 
     private const string QueryJson =
         """{"intent":"ask_spending","reply_text":null,"entry":null,"query":{"metric":"expense","period_key":"thang nay","period_label":"tháng này","start":"2026-10-01T00:00:00+07:00","end":"2026-11-01T00:00:00+07:00","category_slug":"food","income_type":null},"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":3}""";

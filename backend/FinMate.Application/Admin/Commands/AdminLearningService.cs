@@ -10,9 +10,6 @@ namespace FinMate.Application.Admin.Commands;
 /// </summary>
 public interface IAdminLearningService
 {
-    /// <summary>Câu chưa hiểu (mới nhất trước): <c>{items, total, limit, offset}</c>.</summary>
-    Task<JsonElement?> UnclearAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
-
     /// <summary>Phản hồi sửa kết quả AI của người dùng (mới nhất trước): <c>{items, total, limit, offset}</c>.</summary>
     Task<JsonElement?> FeedbackAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
 }
@@ -25,9 +22,6 @@ public class AdminLearningService : IAdminLearningService
     {
         _client = client;
     }
-
-    public Task<JsonElement?> UnclearAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
-        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "unclear", query, Area: AiRulesRequest.LearningArea), ct);
 
     public Task<JsonElement?> FeedbackAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
         => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "feedback", query, Area: AiRulesRequest.LearningArea), ct);

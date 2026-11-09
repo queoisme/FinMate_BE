@@ -18,7 +18,7 @@
 ## 1. Kết quả kiểm tra
 
 Hai database tách biệt hoàn toàn (không FK chéo, không dùng chung): **`finmate_main`** của backend và **`finmate_ai`** của ai-service.
-`ocr-service` không có database (đọc/ghi qua ai-service); `stt-service` và `rasa` cũng không có.
+`ocr-service` không có database (đọc/ghi qua ai-service); `stt-service` cũng không có.
 
 | | `finmate_main` (backend) | `finmate_ai` (ai-service) |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ Hai database tách biệt hoàn toàn (không FK chéo, không dùng chung): **`
 | Không có cột `timestamp without time zone` | Đạt — mọi mốc thời gian là `timestamptz` (ngày thuần dùng `date`) |
 | Tiền là `BIGINT` | Đạt — mọi cột `*_cents`, `*amount*`, `*balance*` là `bigint`. `double precision` chỉ dùng cho độ tin cậy và chỉ số đánh giá model |
 | Khóa chính là UUID | Đạt, trừ các **khóa tự nhiên có chủ ý**: `secret_store.name` (cả hai DB), `vietqr_banks.bin`; bên AI: `kb_categories.slug`, `kb_item_categories.item_key`, `ml_item_feedback(item_key, user_id_hash)`, `ops_usage_daily(day, metric)`. Không bảng nào dùng khóa số tự tăng |
-| AI DB không chứa `user_id` thật | Đạt — 8 bảng chỉ có `user_id_hash` (SHA-256); id giao dịch backend cũng chỉ ở dạng hash (`ml_user_feedback.backend_transaction_id_hash`); người sửa luật là `actor_hash` |
+| AI DB không chứa `user_id` thật | Đạt — 7 bảng chỉ có `user_id_hash` (SHA-256); id giao dịch backend cũng chỉ ở dạng hash (`ml_user_feedback.backend_transaction_id_hash`); người sửa luật là `actor_hash` |
 | Dữ liệu theo người dùng phải có `user_id` | Đạt — 22 bảng backend có `user_id`; 19 bảng có FK tới `users` với ON DELETE CASCADE (xóa cứng một user là một câu `DELETE`) |
 | Enum lưu TEXT + CHECK | Đạt gần hết. **Ngoại lệ:** `ai_results.transaction_type` là enum `TransactionType` trong code nhưng không có CHECK (lệch CONVENTIONS, rủi ro thấp vì chỉ backend ghi). `audit_logs.event_type`, `*.category_source`, các cột `source`/`reason` bên AI là chuỗi tự do, không phải enum |
 | FK có index | Backend: đạt, cả 50 FK. AI: **17 FK không có index ở cột đầu** — phần lớn trỏ tới `kb_categories(slug)` (bảng nhỏ, gần như không xóa), còn lại là `ml_label_events.feedback_id`, `ml_model_versions.training_job_id`, `ml_user_feedback.batch_id`, `ops_analyze_log.(pattern_id, raw_sample_id, duplicate_of_request_id)`. Không sai, chỉ chậm khi xóa / cập nhật dòng được trỏ tới |
@@ -275,9 +275,6 @@ erDiagram
 | **MlLabelEvent** | `ml_label_events` | Lịch sử từng lần gắn / sửa nhãn. |
 | **MlModel** | `ml_models` | Danh mục các model (mã, loại, nhà cung cấp). |
 | **ModelVersion** | `ml_model_versions` | Phiên bản model: đường dẫn artifact, trạng thái (candidate / active …), chỉ số. |
-| **NluCandidate** | `nlu_candidates` | Câu người dùng mà NLU chưa chắc, chờ duyệt để thành ví dụ. |
-| **NluExample** | `nlu_examples` | Câu ví dụ huấn luyện NLU (intent, split). |
-| **NluModelVersion** | `nlu_model_versions` | Phiên bản model Rasa và kết quả đánh giá. |
 | **PipelineRequest** | `ops_analyze_log` | Mỗi lần gọi `/analyze`: kết quả từng bước, độ tin cậy, phiên bản model / cấu hình. `backend_request_id` là id `notification_logs` bên backend. |
 | **ProviderFormat** | `kb_provider_formats` | Định dạng thông báo của từng ngân hàng / ví, có phiên bản và trạng thái. |
 | **ProviderFormatField** | `kb_provider_format_fields` | Trường cần bóc của một định dạng (map sang trường giao dịch, chuẩn hóa, cờ nhạy cảm). |
@@ -312,7 +309,7 @@ erDiagram
 
 | Phía backend | Phía AI | Cách nối |
 | --- | --- | --- |
-| `users.id` | `*.user_id_hash` (8 bảng) | SHA-256 của id; không đảo ngược được |
+| `users.id` | `*.user_id_hash` (7 bảng) | SHA-256 của id; không đảo ngược được |
 | `notification_logs.id` | `ops_analyze_log.backend_request_id` (UNIQUE) | Gửi kèm `POST /api/v1/analyze`; `ml_user_feedback.pipeline_request_id` cũng mang giá trị này |
 | `transactions.id` | `ml_user_feedback.backend_transaction_id_hash` | SHA-256, gửi kèm phản hồi sửa danh mục |
 | `receipt_scans.id` | `ml_training_samples.scan_id` (PK) | Chỉ khi người dùng đồng ý đóng góp dữ liệu |
@@ -3066,7 +3063,7 @@ Danh mục các model (mã, loại, nhà cung cấp).
 | 6 | `created_at` | timestamptz |  | `now()` |  |
 
 Ràng buộc:
-- CHECK `chk_ml_models_kind`: `kind IN ('sklearn', 'rasa', 'llm', 'rules')`
+- CHECK `chk_ml_models_kind`: `kind IN ('sklearn', 'llm', 'rules')`
 - UNIQUE `uq_ml_models_code`: `code`
 
 ##### `ml_training_jobs` — TrainingJob
@@ -3206,123 +3203,7 @@ Index:
 - `idx_evaluation_predictions_labeled_sample` `(labeled_sample_id)`
 - `idx_evaluation_predictions_run` `(evaluation_run_id, is_correct)`
 
-#### 3.2.6 NLU (Rasa)
-
-```mermaid
-erDiagram
-    nlu_examples {
-        uuid id PK
-        text text
-        varchar(400) text_key UK
-        varchar(32) intent
-        varchar(16) split
-        varchar(40) tag "nullable"
-        varchar(32) source
-        boolean is_active
-        timestamptz created_at
-    }
-    nlu_candidates {
-        uuid id PK
-        varchar(64) user_id_hash
-        text text
-        varchar(400) text_key
-        varchar(32) predicted_intent "nullable"
-        float8 predicted_confidence "nullable"
-        varchar(24) unclear_reason
-        varchar(16) status
-        timestamptz created_at
-    }
-    nlu_model_versions {
-        uuid id PK
-        varchar(64) version UK
-        text artifact_path
-        varchar(16) status
-        varchar(64) dataset_hash
-        jsonb dataset_counts "nullable"
-        jsonb eval_raw "nullable"
-        jsonb eval_final "nullable"
-        text notes "nullable"
-        timestamptz created_at
-        timestamptz activated_at "nullable"
-    }
-```
-
-##### `nlu_examples` — NluExample
-
-Câu ví dụ huấn luyện NLU (intent, split).
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `text` | text |  |  |  |
-| 3 | `text_key` | varchar(400) |  |  | UK |
-| 4 | `intent` | varchar(32) |  |  |  |
-| 5 | `split` | varchar(16) |  |  |  |
-| 6 | `tag` | varchar(40) | có |  |  |
-| 7 | `source` | varchar(32) |  |  |  |
-| 8 | `is_active` | boolean |  | `true` |  |
-| 9 | `created_at` | timestamptz |  | `now()` |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_examples_source`: `source IN ('seed', 'user_feedback', 'human')`
-- CHECK `chk_nlu_examples_split`: `split IN ('train', 'val', 'test')`
-- CHECK `chk_nlu_examples_text_len`: `char_length(text) <= 200`
-- UNIQUE `uq_nlu_examples_text_key`: `text_key`
-
-Index:
-- `idx_nlu_examples_split_intent` `(split, intent)`
-
-##### `nlu_candidates` — NluCandidate
-
-Câu người dùng mà NLU chưa chắc, chờ duyệt để thành ví dụ.
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `user_id_hash` | varchar(64) |  |  |  |
-| 3 | `text` | text |  |  |  |
-| 4 | `text_key` | varchar(400) |  |  |  |
-| 5 | `predicted_intent` | varchar(32) | có |  |  |
-| 6 | `predicted_confidence` | float8 | có |  |  |
-| 7 | `unclear_reason` | varchar(24) |  |  |  |
-| 8 | `status` | varchar(16) |  | `'pending'::character varying` |  |
-| 9 | `created_at` | timestamptz |  | `now()` |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_candidates_status`: `status IN ('pending', 'rejected')`
-- CHECK `chk_nlu_candidates_user_hash`: `user_id_hash ~ '^[0-9a-f]{64}$'`
-- UNIQUE `uq_nlu_candidates_user_text`: `user_id_hash, text_key`
-
-Index:
-- `idx_nlu_candidates_status_created` `(status, created_at)`
-
-##### `nlu_model_versions` — NluModelVersion
-
-Phiên bản model Rasa và kết quả đánh giá.
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `version` | varchar(64) |  |  | UK |
-| 3 | `artifact_path` | text |  |  |  |
-| 4 | `status` | varchar(16) |  |  |  |
-| 5 | `dataset_hash` | varchar(64) |  |  |  |
-| 6 | `dataset_counts` | jsonb | có |  |  |
-| 7 | `eval_raw` | jsonb | có |  |  |
-| 8 | `eval_final` | jsonb | có |  |  |
-| 9 | `notes` | text | có |  |  |
-| 10 | `created_at` | timestamptz |  | `now()` |  |
-| 11 | `activated_at` | timestamptz | có |  |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_model_versions_dataset_hash`: `(dataset_hash = 'unknown') OR (dataset_hash ~ '^[0-9a-f]{64}$')`
-- CHECK `chk_nlu_model_versions_status`: `status IN ('candidate', 'active', 'retired', 'rejected')`
-- UNIQUE `uq_nlu_model_versions_version`: `version`
-
-Index:
-- UNIQUE `uq_nlu_model_versions_active` `(status) WHERE status = 'active'`
-
-#### 3.2.7 View
+#### 3.2.6 View
 
 ##### `bill_unknown_merchants` (view)
 

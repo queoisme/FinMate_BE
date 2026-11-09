@@ -146,7 +146,7 @@
 
 > **Cập nhật 2026-10-11.** Bảng trên là của `ai-service` (`FROM python:3.11-slim`). `ocr-service` chạy **Python 3.10**
 > (`ocr-service/Dockerfile`: `FROM python:3.10-slim`), cài `requirements.txt` kèm `constraints.txt` ghim đúng phiên bản đã chạy thử
-> (numpy, opencv, paddle…). `rasa` dùng image chính thức `rasa/rasa:3.6.21`, không build từ repo.
+> (numpy, opencv, paddle…).
 
 ### 2.2 requirements.txt — ĐƯỢC DÙNG
 
@@ -237,21 +237,20 @@ mỗi pha và 8 giây cho cả lời gọi, khóa mạch 30 giây sau lỗi, kh�
 ai-service `classify-items` gọi Gemini/OpenRouter.
 
 **Cập nhật 2026-10-11 — đối chiếu requirements/Dockerfile/compose với code.**
-- `ai-service/requirements.txt` **không đổi** so với danh sách ở trên (vẫn `pytesseract`, `Pillow`, không có `paddleocr`, `torch`, `rasa`);
+- `ai-service/requirements.txt` **không đổi** so với danh sách ở trên (vẫn `pytesseract`, `Pillow`, không có `paddleocr`, `torch`);
   `ai-service/Dockerfile` vẫn cài `tesseract-ocr` + `tesseract-ocr-vie`. Tesseract trong ai-service là **lựa chọn cấu hình**, không
   phải dự phòng lúc chạy: route `/api/v1/ocr` chỉ dùng nó khi ai-service **không** có `OCR_SERVICE_URL`; có URL thì route luôn gọi
   ocr-service (`remote_ocr.py`), ocr-service lỗi hoặc thiếu `OCR_SERVICE_API_KEY` → 503, không quay về Tesseract. Backend cũng không
   quay về: ocr-service lỗi → `AIServiceUnavailableException`, lần quét thất bại. Compose đặt `OCR_SERVICE_URL` cho cả backend và
   ai-service, nên bộ chạy mặc định không dùng Tesseract. Hai bộ đọc OCR: PaddleOCR + VietOCR trong `ocr-service` (khi có URL) và
   Tesseract trong `ai-service` (khi không có URL). Chưa quyết định gỡ Tesseract.
-- **Rasa NLU (chat, Phase 19–20)** — ghi vào stack với sự đồng ý của chủ dự án ngày 2026-10-11 — chạy thành container riêng từ image `rasa/rasa:3.6.21` — **không** nằm trong requirements của
-  ai-service. ai-service gọi nó bằng `httpx` có sẵn (`POST {RASA_URL}/model/parse`, timeout 2 giây, cầu dao 30 giây). Không có
-  `RASA_URL` thì chat chạy bằng luật. Model đã huấn luyện (`ai-service/rasa/models/finmate-nlu-v3.tar.gz`) bị git bỏ qua; dữ liệu
-  huấn luyện (`ai-service/rasa/data/nlu.yml`) và bộ đo (`ai-service/rasa/tests/nlu_test.yml`) nằm trong git.
+- **Bộ phân loại ý định của chat (2026-11-09)** chạy trong tiến trình ai-service, dùng `scikit-learn` có sẵn (TF-IDF + hồi quy logistic),
+  **không** thêm thư viện, container hay biến môi trường nào. Học lười ở lần dùng đầu từ tệp có version `ai-service/data/intent/examples.jsonl`
+  (không có bảng DB, không có file model); tệp thiếu thì chat chạy bằng luật. Chi tiết ở `ARCHITECTURE.md` §3.6.
 - `ocr-service/requirements.txt` thực tế không ghim phiên bản (`fastapi`, `uvicorn`, `python-multipart`, `pillow`, `numpy`,
   `paddleocr==2.7.3`, `paddlepaddle==2.6.2`, `onnxruntime`, `scikit-learn`, `psycopg[binary]`, `pytest`, `httpx`); phiên bản thật do
   `constraints.txt` ghim. Model PaddleOCR được tải sẵn vào image lúc build.
-- Backend: không thêm/bớt NuGet nào cho chat, OCR hay Rasa (`OcrServiceClient` dùng `HttpClient` qua `AddHttpClient`, chat/bill
+- Backend: không thêm/bớt NuGet nào cho chat hay OCR (`OcrServiceClient` dùng `HttpClient` qua `AddHttpClient`, chat/bill
   dùng Refit có sẵn).
 
 **HTTP client (gọi về backend nếu cần):**
@@ -334,7 +333,6 @@ services:
   backend:      # ASP.NET Core 9
   ai-service:   # Python FastAPI
   ocr-service:  # Python FastAPI + PaddleOCR — đọc hóa đơn, lọc dữ liệu cá nhân, tách từng món (nội bộ)
-  rasa:         # Rasa NLU cho chat — chỉ ai-service gọi; tắt thì ai-service trả lời bằng luật
   postgres-main: # PostgreSQL 16 — Backend DB
   postgres-ai:   # PostgreSQL 16 + extension vector (pgvector) — AI DB
   redis:         # Redis 7
@@ -342,9 +340,9 @@ services:
 
 **Cập nhật 2026-10-11 (đối chiếu `docker-compose.yml`).** Không có service `hangfire-dashboard`: dashboard `/hangfire` chạy ngay
 trong tiến trình `backend` (cổng 8080). Cổng mở ra máy: `backend` 8080, `ai-service` 8000, `postgres-main` 5433, `postgres-ai` 5434,
-`redis` 6379. `ocr-service` và `rasa` **không** mở cổng (chỉ mạng nội bộ). `ocr-service` không có Postgres riêng: dùng `finmate_ai`
+`redis` 6379. `ocr-service` **không** mở cổng (chỉ mạng nội bộ). `ocr-service` không có Postgres riêng: dùng `finmate_ai`
 của `postgres-ai` (`FINMATE_DATABASE_URL`) và chờ `ai-service` healthy (ai-service chạy `alembic upgrade head` lúc khởi động).
-`backend` chờ `ocr-service` đã chạy. `rasa` chạy `rasa/rasa:3.6.21` với model `models/finmate-nlu-v3.tar.gz` mount từ `ai-service/rasa/`.
+`backend` chờ `ocr-service` đã chạy.
 
 **Cập nhật 2026-11-07 (AI Financial Agent, chủ dự án duyệt Task 1).** Image `postgres-ai` đổi từ `postgres:16` sang `pgvector/pgvector:pg16-trixie`
 (cùng bản chính 16 và cùng Debian trixie nên volume `postgres-ai-data` dùng lại được; tag `pg16` trần chạy trên bookworm, lệch collation glibc 2.41 vs 2.36
@@ -438,8 +436,6 @@ GEMINI_TIMEOUT_SECONDS=5
 OCR_SERVICE_URL=http://ocr-service:8000
 OCR_SERVICE_API_KEY=...        # phải giống khóa ở backend/.env và ocr-service/.env
 OCR_SERVICE_TIMEOUT_SECONDS=30
-# Rasa cho POST /api/v1/chat/parse. Trống = chỉ dùng luật. Compose đặt http://rasa:5005.
-RASA_URL=http://rasa:5005
 # Khoản chi dưới mức này (đồng) mới được gắn auto_save_ok; 0 = không bao giờ.
 CHAT_AUTO_SAVE_BELOW=2000000
 ```

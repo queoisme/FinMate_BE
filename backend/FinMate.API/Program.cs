@@ -569,7 +569,6 @@ public class Program
         builder.Services.AddScoped<IAiCategorySyncService, AiCategorySyncService>();
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
-        builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
         builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
         builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
@@ -767,7 +766,9 @@ public class Program
             EconomicFeedsSettings feeds;
             try
             {
-                feeds = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>().GetAsync().GetAwaiter().GetResult().Document.EconomicFeeds;
+                var configProvider = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>();
+                feeds = configProvider.GetAsync().GetAwaiter().GetResult().Document.EconomicFeeds;
+                configProvider.Invalidate();   // lần đọc lúc khởi động không được nằm lại trong bộ nhớ đệm 10 giây của middleware bảo trì và các cờ tính năng
             }
             catch (Exception)
             {

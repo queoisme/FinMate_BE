@@ -77,11 +77,11 @@ cộng tiền theo nhóm → app. App chỉ nói chuyện với backend.
 **Cập nhật 2026-10-11 (đối chiếu code, Phase 19–23).**
 - Khối trên cùng trước ghi "Android App (Kotlin)". Client đang làm là app **Flutter** ở repo riêng `FinMate_FE` (`TASKS.md`
   mục "Client app (`FinMate_FE`, Flutter)…"); repo này không chứa code client nên chi tiết bên trong app không mô tả ở đây.
-- Ngoài AI Service còn hai container nội bộ, không mở cổng ra máy chủ (`docker-compose.yml`): `ocr-service` (§3.5) và
-  `rasa` (Rasa NLU cho chat, chỉ ai-service gọi — §3.6). Bảng tổng quan đầy đủ hơn:
+- Ngoài AI Service còn container nội bộ `ocr-service` (§3.5), không mở cổng ra máy chủ (`docker-compose.yml`). Bộ phân loại ý định của chat
+  chạy ngay trong tiến trình ai-service (§3.6), không có container riêng. Bảng tổng quan đầy đủ hơn:
 
 ```
-App ──HTTPS──► Backend ──Bearer AI_SERVICE_API_KEY──► AI Service ──RASA_URL──► rasa (NLU, tuỳ chọn)
+App ──HTTPS──► Backend ──Bearer AI_SERVICE_API_KEY──► AI Service (bộ phân loại ý định chạy trong tiến trình)
                   │                                      │  └──GEMINI (tuỳ chọn, chỉ tên món)──► Gemini API
                   └──Bearer OCR_SERVICE_API_KEY──► ocr-service          (ai-service /api/v1/ocr cũng gọi được ocr-service)
                                                          │
@@ -508,8 +508,8 @@ ai-service/
 │   │   ├── vocab.py              # từ khóa chat → 9 nhóm, loại thu nhập (salary, bonus…)
 │   │   ├── vi_text.py            # bỏ dấu, đọc số viết bằng chữ ("bốn mươi lăm nghìn")
 │   │   ├── amount.py             # số tiền tiếng lóng: 200k, 3 củ 8, 1 lít 2, 2 triệu rưỡi…
-│   │   ├── nlu.py                # RasaNlu: gọi {RASA_URL}/model/parse, timeout 2s, cầu dao 30s
-│   │   └── parser.py             # parse_chat: gộp Rasa + luật → intent, entry/query, auto_save_ok
+│   │   ├── intent_classifier.py  # IntentClassifier: TF-IDF + hồi quy logistic, học lười từ data/intent/examples.jsonl; shared_classifier()
+│   │   └── parser.py             # parse_chat: gộp gợi ý của bộ phân loại + luật → intent, entry/query, auto_save_ok
 │   │
 │   ├── schemas/                  # Pydantic models
 │   │   ├── request.py            # AnalyzeRequest, FeedbackRequest
@@ -546,17 +546,13 @@ ai-service/
 │   ├── unit/
 │   └── integration/
 ├── alembic/                      # DB migrations cho AI DB (0001–0008; Dockerfile chạy `alembic upgrade head` lúc khởi động)
-├── rasa/                         # Dữ liệu + cấu hình Rasa NLU (§3.6); container `rasa` mount thư mục này
-│   ├── config.yml, domain.yml, credentials.yml, endpoints.yml, README.md
-│   ├── data/nlu.yml, data/rules.yml, data/stories.yml   # rules/stories chưa dùng
-│   ├── tests/nlu_test.yml, tests/test_stories.yml
-│   └── models/README.md          # file model finmate-nlu-v3.tar.gz đặt ở đây, KHÔNG nằm trong git (.gitignore)
+├── data/intent/examples.jsonl    # câu ví dụ có nhãn ý định + split train/test; bộ phân loại học từ đây (§3.6)
 ├── requirements.txt
 └── Dockerfile
 ```
 
 **Cập nhật 2026-10-11.** Cây trên trước thiếu các route `chat`, `ocr`, `stats`, gói `app/chat/`, `remote_ocr.py`,
-`category_map.py`, `schemas/chat.py`, `schemas/bill.py`, model `bill.py` và thư mục `rasa/` — đã bổ sung theo code hiện tại.
+`category_map.py`, `schemas/chat.py`, `schemas/bill.py` và model `bill.py` — đã bổ sung theo code hiện tại.
 Thư mục `utils/` thực tế còn có `number_words.py`, `amount_slang.py` (Phase 10).
 
 ### 3.2 Pipeline flow chi tiết
@@ -787,7 +783,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
   },
   "entries": [ /* mọi khoản trong câu; entry = entries[0]; câu một khoản thì entries = [entry] */ ],
   "query": null,
-  "nlu": { "source": "rasa", "intent": "add_expense", "confidence": 0.98 },
+  "nlu": { "source": "model", "intent": "add_expense", "confidence": 0.98 },
   "unclear_reason": null,
   "processing_ms": 12
 }
@@ -803,14 +799,14 @@ Authorization: Bearer {INTERNAL_API_KEY}
   thu nhập: luôn `"income"` + `income_type` (`salary | bonus | gift | side_income | refund | other_income`); chuyển tiền: `null`.
   "Chuyển cho người khác / trả nợ" trả về `kind = "expense"`, `category_slug = "other"`, `to_others = true`.
 - `auto_save_ok` chỉ `true` khi: chi tiêu, đã có slug, số tiền dưới `CHAT_AUTO_SAVE_BELOW` (mặc định 2.000.000 đồng; 0 = không bao giờ),
-  và Rasa (nếu có) trả `add_expense` với độ chắc ≥ 0,9. Đây chỉ là **gợi ý**; backend còn tự kiểm ví và danh mục (§2.4).
+  và bộ phân loại (nếu có) trả `add_expense` với độ chắc ≥ 0,9. Đây chỉ là **gợi ý**; backend còn tự kiểm ví và danh mục (§2.4).
 - `entries` (thêm 2026-10-12): câu có nhiều số tiền ("ăn cơm 20k, uống nước 10k") tách thành nhiều khoản; chỉ tách khi **cả hai vế** có số tiền
   và vế sau có chữ mô tả, nên "1,5tr", "1.250.000", "mua 2 lít sữa 50k", "ăn 20k + 30k" vẫn là một khoản. Câu nhiều khoản không khoản nào
   `auto_save_ok` và đọc loại (chi/thu) theo luật từng vế. `occurred_at`: "hôm nay/qua/kia", "sáng/trưa/chiều/tối nay|qua", "ngày 5/10" (giờ Việt Nam,
   không nhận ngày tương lai; số trần "5/10" không nhận). Khóa `education` và `family` của từ vựng chat là slug backend dùng thẳng.
 - `query`: `metric` ∈ `expense | income | balance`, `period_key`/`period_label` (mặc định "tháng này"), `start`/`end` nửa mở `[start, end)`
   theo giờ Việt Nam; `category_slug` chỉ khi `metric = expense`. Tổng do **backend** tính.
-- `nlu.source` ∈ `rasa | rules`; `unclear_reason` ∈ `low_confidence | disagree | not_understood | null` (chưa lưu ở đâu).
+- `nlu.source` ∈ `model | rules`; `unclear_reason` ∈ `low_confidence | disagree | not_understood | null` (chưa lưu ở đâu).
 - `purchase` (thêm 2026-11-07, ý định `evaluate_purchase` — "Hôm nay mua cái quần 800.000đ được không?"): `{ item: string|null (≤ 60 ký tự), amount_cents: int > 0 (VND, không chia 100), purchase_date: "YYYY-MM-DD"|null (giờ VN, hôm nay trở đi; null = hôm nay), category_slug: slug backend|null }`.
   Mọi intent khác trả `purchase: null`. Chỉ nhận diện và rút tham số bằng luật (`app/services/purchase_parser.py`, từ khóa trong `intent_cues.json`); **AI không tính số dư hay đưa kết luận**. Thiếu giá → `intent = needs_amount`;
   ngày quá khứ/không hợp lệ hoặc giá thiếu đơn vị → vẫn `evaluate_purchase`, `purchase = null`, `reply_text` là câu hỏi lại. Backend (`ChatActions.Purchase`) chỉ chuyển tham số; app gọi `POST /forecast/purchase-check` để có đánh giá do backend tính (`docs/flows/flow-6-purchase-decision-assistant.md` §13).
@@ -1001,33 +997,34 @@ nhỏ ("44") là viết tắt nghìn đồng, nhân thành 44.000, và ô gộp 
 chế độ `local` 58 tổng đúng, 54 tên, 55 danh mục, 52 đúng cả ba, `items_ok` 40/51, 3,1 giây mỗi ảnh (hai bill viết tay bị từ chối vì PaddleOCR đọc quá kém); chế độ `auto` (Google) 59, 55, 57, 52, 41/51, 1,4 giây;
 58 bill cũ không đổi kết quả. Ngưỡng của phần này chỉ chỉnh trên hai bill viết tay, cần kiểm trên ảnh mới.
 
-### 3.6 Chat và Rasa NLU (thêm 2026-10-11)
+### 3.6 Chat: bộ phân loại ý định + luật (viết lại 2026-11-09)
 
-`POST /api/v1/chat/parse` (contract ở §3.3) = **Rasa (tuỳ chọn) + luật**, trong `app/services/`. Rasa và route này được ghi vào kiến trúc
-như một phần của stack với sự đồng ý của chủ dự án ngày 2026-10-11.
+`POST /api/v1/chat/parse` (contract ở §3.3) = **bộ phân loại ý định (tuỳ chọn) + luật**, trong `app/services/`, hoàn toàn trong tiến trình
+ai-service: không container riêng, không bảng DB, không file model nhị phân.
 
-- **Rasa chỉ hiểu câu**: trả ý định (10 intent: `add_expense, add_income, transfer_money, ask_spending, greet, goodbye, confirm,
-  deny, cancel, out_of_scope`) và thực thể (`amount`, `merchant`). Rasa **không** quyết ghi hay không, chỉ nhận đúng câu chữ
-  (`{"text": ...}`, không có mã người dùng), không nối DB nào (compose **không** mount `endpoints.yml` vào container `rasa`, nên Rasa dùng tracker mặc định trong bộ nhớ); ai-service quyết intent cuối cùng, backend quyết mọi hậu quả (§2.4).
-- **Container `rasa`** (image `rasa/rasa:3.6.21`, `run --enable-api -m models/finmate-nlu-v3.tar.gz --port 5005`), không mở cổng ra
-  máy chủ. Mount `ai-service/rasa/{models,config.yml,domain.yml,data,tests}`. Pipeline DIET 100 epoch + FallbackClassifier 0,4
-  (`ai-service/rasa/config.yml`). Model `ai-service/rasa/models/finmate-nlu-v3.tar.gz` **không nằm trong git** (`.gitignore`);
-  lệnh huấn luyện lại nằm trong comment của service `rasa` ở `docker-compose.yml`.
-- **Cách ai-service gọi** (`app/services/nlu.py`): `POST {RASA_URL}/model/parse`, timeout 2 giây. Bất kỳ lỗi nào → trả `None` (dùng luật),
-  cảnh báo tối đa mỗi 60 giây, và **cầu dao 30 giây** không gọi lại Rasa. `RASA_URL` trống → chỉ dùng luật.
-- **Gộp Rasa với luật** (`app/services/transaction_parser.py`; từ vựng, mẫu, ngưỡng và câu trả lời nằm ở `app/data/intent_cues.json`, nạp bởi
-  `app/services/intent_cues.py`, KHÔNG viết trong code): cơ chế là năm nguyên tắc, không phải danh sách ngoại lệ. Rasa chắc dưới 0,6 → bỏ qua.
+- **Bộ phân loại chỉ hiểu câu** (`app/services/intent_classifier.py`): TF-IDF (n-gram ký tự `char_wb` 2–5 + từ 1–2) + hồi quy logistic
+  (C=20, `class_weight` cân bằng) + một đặc trưng "câu có số tiền" + tăng cường dữ liệu bằng bản bỏ dấu. Trả `{"intent", "confidence", "entities": {}}`
+  với 10 ý định (`add_expense, add_income, transfer_money, ask_spending, greet, goodbye, confirm, deny, cancel, out_of_scope`); `entities` luôn
+  rỗng vì số tiền và danh mục do luật đọc. Nó **không** quyết ghi hay không, chỉ nhận đúng câu chữ (không có mã người dùng); ai-service quyết
+  intent cuối cùng, backend quyết mọi hậu quả (§2.4).
+- **Dữ liệu học và nạp**: học lười ở lần dùng đầu từ tệp có version `ai-service/data/intent/examples.jsonl` (mỗi dòng có nhãn và split
+  train/test); `shared_classifier()` giữ một bản dùng chung cho cả tiến trình. Tệp thiếu → `shared_classifier()` trả `None` và chat chạy bằng luật.
+  Sửa hành vi = sửa tệp ví dụ rồi khởi động lại, không có bước huấn luyện riêng hay duyệt model.
+- **Đo**: `ai-service/scripts/eval_intent.py` huấn luyện trên split train rồi đo split test của tệp (thô) và hai bộ độc lập
+  `tests/fixtures/eval/heldout_intent.jsonl`, `intent_coverage.jsonl` qua `parse_chat` (cả luật).
+- **Gộp bộ phân loại với luật** (`app/services/transaction_parser.py`; từ vựng, mẫu, ngưỡng và câu trả lời nằm ở `app/data/intent_cues.json`, nạp bởi
+  `app/services/intent_cues.py`, KHÔNG viết trong code): cơ chế là năm nguyên tắc, không phải danh sách ngoại lệ. bộ phân loại chắc dưới 0,6 → bỏ qua.
   (1) *Hình thức câu* quyết định câu không phải khoản ghi: hỏi giá thị trường, lệnh quản lý dữ liệu/tài khoản, câu hỏi có/không (có "?", kết
   thúc bằng "không/chưa/nhỉ/hả", "có nên…"), chào/cảm ơn nguyên cụm. (2) Số tiền kèm bằng chứng giao dịch (tên món, cho tặng, trả) là khoản ghi
-  dù Rasa bảo `out_of_scope`; Rasa dưới 0,75 thì luôn thua. (3) Chỉ từ hỏi tổng mới làm câu hỏi chi tiêu. (4) *Chiều giao dịch*: dấu hiệu CỤ THỂ
-  (động từ/vai trò: nhận, được cho, người thân gửi mình, bán, trả nợ cho mình, phí, rút/nạp vào ví của mình) thắng Rasa dù Rasa chắc đến đâu,
+  dù bộ phân loại bảo `out_of_scope`; bộ phân loại dưới 0,75 thì luôn thua. (3) Chỉ từ hỏi tổng mới làm câu hỏi chi tiêu. (4) *Chiều giao dịch*: dấu hiệu CỤ THỂ
+  (động từ/vai trò: nhận, được cho, người thân gửi mình, bán, trả nợ cho mình, phí, rút/nạp vào ví của mình) thắng bộ phân loại dù bộ phân loại chắc đến đâu,
   vì độ chắc softmax chưa hiệu chỉnh (đo được sai ở 1,00); dấu hiệu chỉ nói tiền đi ra chỉ đủ bác bỏ "tiền vào". (5) Bằng chứng YẾU (tên một
-  thứ được mua, hay mặc định chi tiêu) chỉ thắng khi Rasa dưới 0,97, hoặc khi lời "thu nhập/chuyển tiền" không có dấu hiệu nâng đỡ **và câu có
-  dấu** (câu không dấu nhường Rasa vì "ban" là bạn/bán). Mỗi thay đổi ở lớp luật phải qua cổng `scripts/audit_overrides.py` (luật cứu ≥ phá,
-  không làm tụt bộ độc lập `tests/fixtures/eval/heldout_intent.jsonl` và `rasa/tests/nlu_test_fresh*.yml`); không vá theo từng câu lỗi. `auto_save_ok` cần Rasa (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
-  "mua nước") trả `needs_amount` kể cả khi không có Rasa (có động từ chi tiêu hoặc từ danh mục; câu hỏi đã bị chặn trước). Các mô-đun
+  thứ được mua, hay mặc định chi tiêu) chỉ thắng khi bộ phân loại dưới 0,97, hoặc khi lời "thu nhập/chuyển tiền" không có dấu hiệu nâng đỡ **và câu có
+  dấu** (câu không dấu nhường bộ phân loại vì "ban" là bạn/bán). Mỗi thay đổi ở lớp luật phải qua cổng `scripts/audit_overrides.py` (luật cứu ≥ phá,
+  không làm tụt hai bộ độc lập `tests/fixtures/eval/heldout_intent.jsonl` và `intent_coverage.jsonl` (đo bằng `scripts/eval_intent.py`)); không vá theo từng câu lỗi. `auto_save_ok` cần bộ phân loại (nếu có) `add_expense` ≥ 0,9. Cụm chi tiêu không kèm số tiền ("ăn cơm",
+  "mua nước") trả `needs_amount` kể cả khi không có bộ phân loại (có động từ chi tiêu hoặc từ danh mục; câu hỏi đã bị chặn trước). Các mô-đun
   `app/services/clauses.py` (tách khoản) và `app/services/dates.py` (ngày) thêm 2026-10-12.
-- **Số tiền và danh mục** luôn do luật: `amount.py` (Rasa chỉ giúp khi luật không thấy số), `vocab.py` (9 nhóm). Khi từ vựng chat
+- **Số tiền và danh mục** luôn do luật: `amount.py` (bộ phân loại không đọc số tiền), `vocab.py` (9 nhóm). Khi từ vựng chat
   không ra nhóm, route thử từ điển cửa hàng của pipeline thông báo (`categorize_by_rules`, chỉ nhận khớp độ chắc ≥ 0,90, không nhận `income`).
 
 ### 3.7 Hai bộ danh mục và chỗ dùng (thêm 2026-10-11)
@@ -1302,11 +1299,11 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
 - AI Service không expose ra public internet
 - Xác thực bằng `INTERNAL_API_KEY` trong header `Authorization: Bearer {key}`
 - Key được set qua environment variable, không hardcode
-- **Thêm 2026-10-11 — ocr-service và Rasa.** `ocr-service` và `rasa` không có `ports` trong `docker-compose.yml` (chỉ mạng nội bộ).
+- **Thêm 2026-10-11 — ocr-service.** `ocr-service` không có `ports` trong `docker-compose.yml` (chỉ mạng nội bộ).
   ocr-service đòi `Authorization: Bearer {OCR_SERVICE_API_KEY}` (cùng một giá trị ở `backend/.env`, `ai-service/.env`,
   `ocr-service/.env`); khóa chưa đặt → 503 cho mọi request. `X-User-Hash` là mã băm do backend tính, ocr-service tin nó vì chỉ backend
   gọi được — mở ocr-service ra ngoài thì ai cũng giả được header này. Backend từ chối khởi động ngoài Development nếu
-  `OCR_SERVICE_API_KEY` còn giá trị mẫu (`StartupSecretGuard.GuardedKeys`). Rasa không có xác thực riêng: nó chỉ được che bằng mạng nội bộ.
+  `OCR_SERVICE_API_KEY` còn giá trị mẫu (`StartupSecretGuard.GuardedKeys`).
 
 ### 7.3 Data privacy
 - `notification_body` gốc → xóa sau 90 ngày (DataCleanupJob)
@@ -1320,9 +1317,9 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
 - **ocr-service không còn đường AI bên thứ ba (2026-10-15):** `ocr-service/ai_refine.py` và cờ `use_ai` đã bị xóa vì backend không bao giờ gửi cờ này.
   Muốn thêm lại phải rà soát riêng tư trước (§3.5).
 - `receipt_scan_items` lưu tên món + số tiền + nhóm (trường đã bóc tách), không lưu chữ OCR hay ảnh; mất khi người dùng bị xóa.
-- **Chat (thêm 2026-10-11):** câu chat đi backend → ai-service → `rasa` (nội bộ, không ra bên thứ ba), không kèm mã người dùng sang Rasa.
+- **Chat (thêm 2026-10-11):** câu chat đi backend → ai-service và được phân loại ngay trong tiến trình (không gửi sang dịch vụ nào khác, không ra bên thứ ba).
   `/chat/parse` không lưu câu và chỉ log `intent`, `source`, `processing_ms`. **Chữ hóa đơn:** chỉ chữ **đã lọc** (`privacy.sanitize_lines`)
   rời ocr-service; chữ gốc và ảnh thì không.
 
 
-**Bố cục `ai-service/` cho phần chat + phân loại (2026-10-13).** `rasa/` (NLU), `dictionaries/` (từ vựng phân loại, mỗi nhóm một tệp JSON: `kind`, `label`, `keywords`; nạp một lần lúc khởi động bởi `app/services/vocab.py`), `category-classifier/` (`train|validation|test.csv` chia theo cửa hàng, xuất bằng `scripts/export_category_dataset.py`, không nằm trong git) và `app/services/`: `transaction_parser.py` (câu → khoản), `category_resolver.py` (từ khóa → danh mục, dùng chung chat và hóa đơn), `amount_normalizer.py` (số tiền) cùng các phần phụ của chúng (`clauses.py`, `dates.py`, `nlu.py` gọi Rasa, `vocab.py`, `vi_text.py`). Thay cho `app/chat/` và `app/core/category_resolver.py` cũ.
+**Bố cục `ai-service/` cho phần chat + phân loại (2026-10-13).** `data/intent/` (câu ví dụ cho bộ phân loại ý định), `dictionaries/` (từ vựng phân loại, mỗi nhóm một tệp JSON: `kind`, `label`, `keywords`; nạp một lần lúc khởi động bởi `app/services/vocab.py`), `category-classifier/` (`train|validation|test.csv` chia theo cửa hàng, xuất bằng `scripts/export_category_dataset.py`, không nằm trong git) và `app/services/`: `transaction_parser.py` (câu → khoản), `category_resolver.py` (từ khóa → danh mục, dùng chung chat và hóa đơn), `amount_normalizer.py` (số tiền) cùng các phần phụ của chúng (`clauses.py`, `dates.py`, `intent_classifier.py`, `vocab.py`, `vi_text.py`). Thay cho `app/chat/` và `app/core/category_resolver.py` cũ.

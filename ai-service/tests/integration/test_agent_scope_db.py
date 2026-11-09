@@ -28,7 +28,7 @@ class FakeProvider:
 
 @pytest.fixture
 def override(client):
-    """Cho từng test đặt nhà cung cấp LLM và Rasa giả; dọn khi xong (``client`` đã dọn dependency_overrides của chính nó)."""
+    """Cho từng test đặt nhà cung cấp LLM và bộ phân loại giả; dọn khi xong (``client`` đã dọn dependency_overrides của chính nó)."""
     from app.main import app
 
     def apply(provider=None, nlu=None):

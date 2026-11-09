@@ -24,14 +24,6 @@ public class AdminAiLearningController : AdminControllerBase
         => Request.Query.ToDictionary(pair => pair.Key, pair => (string?)pair.Value.ToString());
 
     /// <summary>
-    /// Câu chưa hiểu (mới nhất trước): <c>id, text, predicted_intent, predicted_confidence, unclear_reason, status, created_at</c>. <c>predicted_intent</c> chỉ là đoán của máy, không phải nhãn.
-    /// Lọc: <c>q</c> (nội dung câu), <c>status</c> (pending | rejected), <c>reason</c> (low_confidence | disagree | not_understood). Giá trị ngoài danh sách là 422.
-    /// </summary>
-    [HttpGet("unclear")]
-    public async Task<IActionResult> Unclear(CancellationToken ct)
-        => Ok(ApiResponse<JsonElement?>.Ok(await _service.UnclearAsync(QueryOf(), ct)));
-
-    /// <summary>
     /// Phản hồi sửa kết quả AI (mới nhất trước): <c>id, package_name, predicted_category, corrected_category, feedback_type, processed, created_at</c>.
     /// Lọc: <c>q</c> (gói ứng dụng hoặc danh mục), <c>feedback_type</c> (category_correction | amount_correction | not_a_transaction), <c>processed</c> (true | false).
     /// </summary>
