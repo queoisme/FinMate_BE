@@ -291,3 +291,19 @@ Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config
 Lọc `service`, `exceptionType`, `from`, `to`; phân trang `offset`, `limit` (tối đa 200). Giữ 30 ngày (`errorRetentionDays`).
 
 Mỗi lỗi chỉ có loại exception, vị trí trong code, message template chưa điền giá trị, đường dẫn đã thay định danh bằng `{id}`, và `traceId`. Không có message của exception, stack trace hay giá trị tham số, vì chúng có thể chứa số tiền, token hoặc nội dung của khách. Cần chi tiết thì dùng `traceId` tra `docker logs`.
+
+## Cập nhật số liệu kinh tế tự động (CPI)
+
+Job Hangfire `economic-assumption-refresh` chạy 09:00 giờ VN ngày 6 hằng tháng (cron UTC `0 2 6 * *`). Nó đọc thông cáo CPI mới nhất của Cục Thống kê và ghi giả định `general_price_growth` (đơn vị `pct_per_year`, giá trị là CPI bình quân từ đầu năm so với cùng kỳ). Cấu hình ở system config nhóm `economicFeeds` (sửa ở trang cấu hình hệ thống, có lịch sử thay đổi):
+
+| Trường | Ý nghĩa |
+|---|---|
+| `cpiIndexUrl` | Địa chỉ trang liệt kê bài CPI (https). **Để trống = job tắt**, không gọi mạng. Gợi ý: trang tìm kiếm của site, xem `docs/economic-feeds-probe.md` |
+| `autoApproveMaxDeltaBps` | Chênh tối đa so với bản đang dùng để job tự duyệt (mặc định 100 = 1 điểm phần trăm) |
+| `minRateBps`, `maxRateBps` | Khoảng hợp lý; ngoài khoảng thì không bao giờ tự duyệt |
+
+Kết quả mỗi lượt:
+- **Tự duyệt:** tạo bản mới và duyệt ngay, bản cũ chuyển Retired. Người thực hiện là tài khoản hệ thống (có trong audit log).
+- **Cần xem:** số lệch nhiều hoặc ngoài khoảng thì để `Draft` và mở sự cố dịch vụ `economic_feed` (mức Normal) cho Admin và OpsManager; duyệt hoặc bỏ ở trang Giả định kinh tế.
+- **Không đọc được** (trang đổi giao diện, không tải được, không thấy bài): giữ nguyên bản cũ và mở cùng sự cố. Sự cố tự đóng khi lượt sau thành công.
+- Cùng một bài chạy lại không tạo thêm bản nào.

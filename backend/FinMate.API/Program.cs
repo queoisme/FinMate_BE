@@ -7,6 +7,7 @@ using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.FinanceCatalog;
 using FinMate.Application.Agent;
+using FinMate.Application.Economics;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Auth;
@@ -229,6 +230,16 @@ public class Program
                 client.Timeout = TimeSpan.FromSeconds(60);
             });
         }
+
+        // Nguồn số liệu kinh tế (CPI): chỉ gọi khi admin đặt địa chỉ ở cấu hình hệ thống, mỗi tháng một lần.
+        builder.Services.AddHttpClient<IEconomicFeedClient, EconomicFeedClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(20);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("FinMate-EconomicFeed/1.0");
+        });
+        builder.Services.AddScoped<IEconomicFeedStatus, EconomicFeedStatus>();
+        builder.Services.AddScoped<EconomicAssumptionRefresher>();
+        builder.Services.AddScoped<EconomicAssumptionRefreshJob>();
 
         builder.Services.AddRefitClient<IAIServiceApi>()
             .ConfigureHttpClient(client =>
@@ -689,6 +700,12 @@ public class Program
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
             "0 20 * * *");
+
+        // 09:00 giờ VN ngày 6 hằng tháng (Cục Thống kê công bố CPI khoảng ngày 6). Chưa đặt địa chỉ nguồn thì job không làm gì.
+        RecurringJob.AddOrUpdate<EconomicAssumptionRefreshJob>(
+            "economic-assumption-refresh",
+            job => job.RunAsync(CancellationToken.None),
+            "0 2 6 * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(
