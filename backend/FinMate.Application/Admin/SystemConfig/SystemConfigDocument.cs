@@ -292,6 +292,24 @@ public sealed record ForecastSettings
     public int GoalRateMonths { get; init; } = 6;
 }
 
+/// <summary>
+/// Nguồn số liệu kinh tế tự cập nhật (giả định lạm phát hằng tháng). Mặc định TẮT: <see cref="CpiIndexUrl"/> rỗng thì job không chạy.
+/// Địa chỉ nằm ở cấu hình admin chứ không trong mã, vì trang nguồn có thể đổi.
+/// </summary>
+public sealed record EconomicFeedsSettings
+{
+    /// <summary>Trang danh sách thông cáo của Cục Thống kê (https). Rỗng = tắt.</summary>
+    public string CpiIndexUrl { get; init; } = string.Empty;
+
+    /// <summary>Bản CPI mới chỉ tự duyệt khi chênh so với bản đang dùng không quá số điểm cơ bản này (100 = 1 điểm phần trăm); lớn hơn thì để Draft chờ người duyệt.</summary>
+    public int AutoApproveMaxDeltaBps { get; init; } = 100;
+
+    /// <summary>Khoảng hợp lý của tốc độ tăng hằng năm (điểm cơ bản). Ngoài khoảng này (ví dụ đọc nhầm 45,7% thay vì 4,57%) thì không bao giờ tự duyệt.</summary>
+    public int MinRateBps { get; init; } = -2000;
+
+    public int MaxRateBps { get; init; } = 5000;
+}
+
 /// <summary>AI Financial Agent.</summary>
 public sealed record AgentSettings
 {
@@ -318,6 +336,7 @@ public sealed record SystemConfigDocument
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
     public AgentSettings Agent { get; init; } = new();
+    public EconomicFeedsSettings EconomicFeeds { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

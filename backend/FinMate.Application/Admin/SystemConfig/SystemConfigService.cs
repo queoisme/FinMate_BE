@@ -161,6 +161,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("support", before.Support, after.Support);
         Compare("monitoring", before.Monitoring, after.Monitoring);
         Compare("agent", before.Agent, after.Agent);
+        Compare("economicFeeds", before.EconomicFeeds, after.EconomicFeeds);
         return sections;
     }
 }

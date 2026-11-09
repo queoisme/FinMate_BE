@@ -26,6 +26,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
         RuleFor(x => x.Agent).NotNull();
+        RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
     }
 
     private static bool IsHttps(string value)
@@ -85,6 +86,17 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxGroupsPerUser).InclusiveBetween(1, 50).WithMessage("Số nhóm tối đa của mỗi người phải từ 1 đến 50.");
             RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
             RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
+        }
+    }
+
+    private sealed class EconomicFeedsValidator : AbstractValidator<EconomicFeedsSettings>
+    {
+        public EconomicFeedsValidator()
+        {
+            RuleFor(x => x.CpiIndexUrl).NotNull().Must(url => url == string.Empty || IsHttps(url)).WithMessage("Địa chỉ nguồn CPI phải là https hợp lệ hoặc để trống.");
+            RuleFor(x => x.AutoApproveMaxDeltaBps).InclusiveBetween(0, 10000).WithMessage("Ngưỡng tự duyệt phải từ 0 đến 10000 điểm cơ bản.");
+            RuleFor(x => x.MinRateBps).InclusiveBetween(-10000, 100000).WithMessage("Giới hạn dưới của tốc độ tăng phải từ -10000 đến 100000 điểm cơ bản.");
+            RuleFor(x => x.MaxRateBps).GreaterThan(x => x.MinRateBps).WithMessage("Giới hạn trên của tốc độ tăng phải lớn hơn giới hạn dưới.");
         }
     }
 
