@@ -1,7 +1,7 @@
 """Cổng phạm vi của AI Financial Agent: câu hỏi này có thuộc phạm vi tài chính cá nhân không?
 
-Quyết định bằng LUẬT + Rasa, KHÔNG gọi LLM: rẻ, nhanh, chạy được kể cả khi LLM hỏng (NFR-REL-01), và là lớp chặn đầu tiên chống câu hỏi lạc đề / đòi tư vấn đầu tư / chèn lệnh.
-Thứ tự: (1) chủ đề CẤM thắng mọi thứ (kể cả khi câu có số tiền); (2) cụm tài chính hoặc số tiền → qua; (3) ý định của Rasa (nếu Rasa trả lời và đủ chắc); (4) còn lại → ngoài phạm vi.
+Quyết định bằng LUẬT + bộ phân loại ý định, KHÔNG gọi LLM: rẻ, nhanh, chạy được kể cả khi LLM hỏng (NFR-REL-01), và là lớp chặn đầu tiên chống câu hỏi lạc đề / đòi tư vấn đầu tư / chèn lệnh.
+Thứ tự: (1) chủ đề CẤM thắng mọi thứ (kể cả khi câu có số tiền); (2) cụm tài chính hoặc số tiền → qua; (3) ý định của bộ phân loại ý định (nếu bộ phân loại ý định trả lời và đủ chắc); (4) còn lại → ngoài phạm vi.
 
 Cụm từ và câu từ chối nằm ở DB (``agent_scope_cues``, ``agent_refusal_templates``) để admin sửa mà không cần đổi code; ``app/data/agent_scope.json`` chỉ là bản mặc định để GIEO (chỉ thêm, DB thắng)
 và để cổng vẫn chạy khi DB còn trống. So khớp trên câu đã bỏ dấu và theo ranh giới từ: "mưa" (→ "mua") không bị nhầm với "mua xe"."""
@@ -26,7 +26,7 @@ from app.services.vi_text import clean_text, fold
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "agent_scope.json"
 FORBIDDEN_ORDER = ("prompt_injection", "other_users_data", "investment_advice")  # chủ đề đứng trước thắng khi một câu dính nhiều chủ đề
-RASA_MIN_CONFIDENCE = 0.6
+INTENT_MIN_CONFIDENCE = 0.6
 FINANCE_INTENTS = frozenset({"add_expense", "add_income", "transfer_money", "ask_spending"})
 SMALLTALK_INTENTS = frozenset({"greet", "goodbye", "confirm", "deny", "cancel"})
 CACHE_SECONDS = 60.0
@@ -75,7 +75,7 @@ def _matches(phrases: tuple[str, ...], folded: str) -> bool:
 
 
 async def evaluate(text: str, rules: GateRules, nlu: Any | None) -> GateResult:
-    """``nlu`` là ``RasaNlu`` (hoặc None khi tắt); Rasa lỗi/chậm thì ``parse`` trả None và cổng vẫn quyết định bằng luật."""
+    """``nlu`` là ``IntentClassifier`` (hoặc None khi không có); ``parse`` trả None thì cổng vẫn quyết định bằng luật."""
     folded = " ".join(fold(clean_text(text)).split())
 
     topics = [t for t in FORBIDDEN_ORDER if t in rules.forbidden] + sorted(t for t in rules.forbidden if t not in FORBIDDEN_ORDER)
@@ -88,9 +88,9 @@ async def evaluate(text: str, rules: GateRules, nlu: Any | None) -> GateResult:
 
     if nlu is not None:
         parsed = await nlu.parse(clean_text(text))
-        if parsed and parsed.get("confidence", 0.0) >= RASA_MIN_CONFIDENCE:
+        if parsed and parsed.get("confidence", 0.0) >= INTENT_MIN_CONFIDENCE:
             if parsed.get("intent") in FINANCE_INTENTS:
-                return GateResult(True, "rasa_intent")
+                return GateResult(True, "intent_model")
             if parsed.get("intent") in SMALLTALK_INTENTS:
                 return GateResult(True, "smalltalk")
 

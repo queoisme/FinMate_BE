@@ -1,4 +1,4 @@
-"""Cổng phạm vi của agent (Task 7): quyết định bằng luật + Rasa, KHÔNG gọi LLM; chủ đề cấm và câu từ chối nằm ở dữ liệu (DB), không hard-code trong code."""
+"""Cổng phạm vi của agent (Task 7): quyết định bằng luật + bộ phân loại, KHÔNG gọi LLM; chủ đề cấm và câu từ chối nằm ở dữ liệu (DB), không hard-code trong code."""
 
 import pytest
 
@@ -17,17 +17,17 @@ class FakeNlu:
         return self.result
 
 
-async def test_in_scope_forecast_question_passes_without_calling_rasa():
+async def test_in_scope_forecast_question_passes_without_calling_the_classifier():
     nlu = FakeNlu(None)
 
     result = await evaluate("Mua xe 600 triệu sau 2 năm được không?", RULES, nlu)
 
     assert result.in_scope is True
     assert result.reason_code == "finance_cue"
-    assert nlu.calls == 0  # cụm tài chính rõ ràng thì khỏi tốn một lần gọi Rasa
+    assert nlu.calls == 0  # cụm tài chính rõ ràng thì khỏi tốn một lần gọi bộ phân loại
 
 
-async def test_off_topic_is_refused_when_rasa_is_down():
+async def test_off_topic_is_refused_when_rasa_returns_nothing():
     result = await evaluate("Thời tiết hôm nay thế nào?", RULES, FakeNlu(None))
 
     assert (result.in_scope, result.reason_code) == (False, "out_of_scope")
@@ -66,17 +66,17 @@ async def test_an_amount_alone_is_a_finance_cue():
     assert (await evaluate("50k ăn trưa", RULES, None)).reason_code == "finance_cue"
 
 
-async def test_rasa_intent_makes_a_cue_less_message_in_scope():
+async def test_classifier_intent_makes_a_cue_less_message_in_scope():
     assert (await evaluate("xin chào", RULES, FakeNlu({"intent": "greet", "confidence": 0.95, "entities": {}}))).reason_code == "smalltalk"
-    assert (await evaluate("hôm qua phở bò", RULES, FakeNlu({"intent": "add_expense", "confidence": 0.9, "entities": {}}))).reason_code == "rasa_intent"
+    assert (await evaluate("hôm qua phở bò", RULES, FakeNlu({"intent": "add_expense", "confidence": 0.9, "entities": {}}))).reason_code == "intent_model"
 
 
 @pytest.mark.parametrize("parsed", [{"intent": "out_of_scope", "confidence": 0.9, "entities": {}}, {"intent": "greet", "confidence": 0.3, "entities": {}}])
-async def test_rasa_out_of_scope_or_low_confidence_is_refused(parsed):
+async def test_classifier_out_of_scope_or_low_confidence_is_refused(parsed):
     assert (await evaluate("blah blah", RULES, FakeNlu(parsed))).in_scope is False
 
 
-async def test_forbidden_topic_beats_every_finance_cue_and_rasa():
+async def test_forbidden_topic_beats_every_finance_cue_and_classifier():
     nlu = FakeNlu({"intent": "add_expense", "confidence": 0.99, "entities": {}})
 
     result = await evaluate("mua bitcoin 50 triệu", RULES, nlu)

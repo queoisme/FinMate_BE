@@ -3,7 +3,7 @@
     cd ai-service && python scripts/eval_intent.py [--c 20] [--holdout-only]
 
 Mặc định huấn luyện trên split "train" của data/intent/examples.jsonl rồi đo: (1) split "test" của chính tệp (raw, không qua luật),
-(2) hai bộ độc lập tests/fixtures/eval/heldout_intent.jsonl và rasa_coverage.jsonl qua parse_chat (cả luật). Với --holdout-only chỉ in hai bộ độc lập.
+(2) hai bộ độc lập tests/fixtures/eval/heldout_intent.jsonl và intent_coverage.jsonl qua parse_chat (cả luật). Với --holdout-only chỉ in hai bộ độc lập.
 Mốc so sánh đo ngày 2026-11-09 trên cùng hai bộ: chỉ luật 106/138 và 185/212; Rasa + luật 130/138 và 209/212.
 """
 from __future__ import annotations
@@ -33,17 +33,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--c", type=float, default=20.0, help="độ mạnh điều chuẩn nghịch của hồi quy logistic")
     parser.add_argument("--holdout-only", action="store_true")
-    parser.add_argument("--balanced", action="store_true", help="trọng số lớp cân bằng (bù lệch số câu giữa các ý định)")
+    parser.add_argument("--unbalanced", action="store_true", help="tắt trọng số lớp cân bằng (mặc định bật, bù lệch số câu giữa các ý định)")
     args = parser.parse_args()
 
-    classifier = IntentClassifier.train(load_examples(splits=("train",)), c=args.c, class_weight="balanced" if args.balanced else None)
+    classifier = IntentClassifier.train(load_examples(splits=("train",)), c=args.c, class_weight=None if args.unbalanced else "balanced")
     if not args.holdout_only:
         test = load_examples(splits=("test",))
         raw = sum(classifier.predict(t)[0] == i for t, i in test)
         print(f"test split của tệp ví dụ: raw {raw}/{len(test)} ({raw / len(test):.1%})")
 
     async def run() -> None:
-        for name, file, key in (("heldout", "heldout_intent.jsonl", "intent"), ("coverage", "rasa_coverage.jsonl", "expect")):
+        for name, file, key in (("heldout", "heldout_intent.jsonl", "intent"), ("coverage", "intent_coverage.jsonl", "expect")):
             cases, ok, wrong = _cases(file, key), 0, collections.Counter()
             for text, expected in cases:
                 intent, confidence = classifier.predict(text)

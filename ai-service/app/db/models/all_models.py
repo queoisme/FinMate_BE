@@ -32,9 +32,6 @@ from app.db.models.method_prompt import MethodPrompt
 from app.db.models.ml_model import MlModel
 from app.db.models.secret import SecretRow
 from app.db.models.model_version import ModelVersion, TrainingJob
-from app.db.models.nlu_candidate import NluCandidate
-from app.db.models.nlu_example import NluExample
-from app.db.models.nlu_model_version import NluModelVersion
 from app.db.models.pipeline_request import PipelineRequest
 from app.db.models.provider_format import ProviderFormat, ProviderFormatField, ProviderFormatSample
 from app.db.models.provider_pattern import ProviderPattern
@@ -66,9 +63,6 @@ __all__ = [
     "MlLabelEvent",
     "MlModel",
     "ModelVersion",
-    "NluCandidate",
-    "NluExample",
-    "NluModelVersion",
     "PipelineRequest",
     "ProviderFormat",
     "ProviderFormatField",

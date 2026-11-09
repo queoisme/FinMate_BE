@@ -109,21 +109,6 @@ services:
       ai-service:
         condition: service_healthy
 
-  # Rasa NLU: hiểu ý định + cắt số tiền của câu chat, cho POST /api/v1/chat/parse. Không mở cổng ra máy chủ:
-  # chỉ ai-service gọi (RASA_URL). Rasa tắt thì ai-service vẫn trả lời bằng luật. Model đặt ở ai-service/rasa/models/.
-  # Model đang chạy luôn là models/active.tar.gz; đổi model bằng `python scripts/nlu_model.py promote <phiên bản>` (từ ai-service), không sửa dòng `command`.
-  # Huấn luyện lại từ DB, đo, chặn bản tệ hơn: xem ai-service/rasa/README.md (scripts/nlu_model.py train|eval|promote).
-  rasa:
-    image: rasa/rasa:3.6.21
-    command: ["run", "--enable-api", "-m", "models/active.tar.gz", "--port", "5005"]  # bản chép của model active trong bảng nlu_model_versions; các bản cũ còn trong models/ để quay lại
-    restart: unless-stopped
-    volumes:
-      - ./ai-service/rasa/models:/app/models
-      - ./ai-service/rasa/config.yml:/app/config.yml:ro
-      - ./ai-service/rasa/domain.yml:/app/domain.yml:ro
-      - ./ai-service/rasa/data:/app/data:ro
-      - ./ai-service/rasa/tests:/app/tests:ro
-
   ai-service:
     build:
       context: ./ai-service
@@ -139,14 +124,10 @@ services:
       # Có URL (và OCR_SERVICE_API_KEY trong ai-service/.env) thì /api/v1/ocr đọc hóa đơn qua ocr-service;
       # bỏ dòng này thì quay về Tesseract trong tiến trình ai-service.
       OCR_SERVICE_URL: "http://ocr-service:8000"
-      # Rasa hiểu ý định câu chat; bỏ dòng này thì /api/v1/chat/parse chỉ dùng luật.
-      RASA_URL: "http://rasa:5005"
-      RASA_MODELS_DIR: "/rasa_models"  # trang admin chọn phiên bản Rasa: chép bản chọn thành active.tar.gz rồi bảo Rasa nạp nóng
     volumes:
       # Artifact model do scripts/train.py sinh ra. Mount thay vì COPY vào image: model
       # được promote mà không phải build lại, và model đã train không mất khi rebuild.
       - ./ai-service/models:/models
-      - ./ai-service/rasa/models:/rasa_models  # cùng thư mục với volume models của Rasa
     ports:
       - "8000:8000"
     healthcheck:

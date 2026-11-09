@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, verify_internal_api_key
 from app.bill.rules_admin import ilike_contains
-from app.db.models.nlu_candidate import NluCandidate
 from app.db.models.user_feedback import UserFeedback
 
 router = APIRouter(prefix="/admin/learning", tags=["learning-admin"], dependencies=[Depends(verify_internal_api_key)])
@@ -26,40 +25,6 @@ async def _page(session: AsyncSession, query, where: list, model, limit: int, of
     total = (await session.execute(select(func.count()).select_from(model).where(*where))).scalar_one()
     rows = (await session.execute(query.where(*where).limit(limit).offset(offset))).scalars().all()
     return list(rows), total
-
-
-@router.get("/unclear")
-async def list_unclear(
-    session: Session,
-    q: str | None = None,
-    status: Literal["pending", "rejected"] | None = None,
-    reason: Literal["low_confidence", "disagree", "not_understood"] | None = None,
-    limit: Limit = 20,
-    offset: Offset = 0,
-) -> dict:
-    """Câu chưa hiểu (mới nhất trước). ``q`` tìm trong nội dung câu; ``status`` và ``reason`` lọc theo trạng thái duyệt và lý do chưa rõ."""
-    where = []
-    if q and q.strip():
-        where.append(NluCandidate.text.ilike(ilike_contains(q), escape="\\"))
-    if status:
-        where.append(NluCandidate.status == status)
-    if reason:
-        where.append(NluCandidate.unclear_reason == reason)
-    query = select(NluCandidate).order_by(NluCandidate.created_at.desc(), NluCandidate.id)
-    rows, total = await _page(session, query, where, NluCandidate, limit, offset)
-    items = [
-        {
-            "id": str(r.id),
-            "text": r.text,
-            "predicted_intent": r.predicted_intent,  # đoán của máy, KHÔNG phải nhãn
-            "predicted_confidence": r.predicted_confidence,
-            "unclear_reason": r.unclear_reason,
-            "status": r.status,
-            "created_at": r.created_at.isoformat(),
-        }
-        for r in rows
-    ]
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/feedback")

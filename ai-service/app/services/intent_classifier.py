@@ -1,4 +1,4 @@
-"""Bộ phân loại ý định của câu chat (thay máy chủ Rasa): TF-IDF ký tự + từ, hồi quy logistic, huấn luyện lúc khởi động từ ``data/intent/examples.jsonl``.
+"""Bộ phân loại ý định của câu chat (thay máy chủ bộ phân loại ý định): TF-IDF ký tự + từ, hồi quy logistic, huấn luyện lúc khởi động từ ``data/intent/examples.jsonl``.
 
 Cùng giao diện với ``RasaNlu`` cũ: ``parse(text)`` trả ``{"intent", "confidence", "entities"}`` hoặc None. ``entities`` luôn rỗng: số tiền và danh mục do luật đọc.
 Dữ liệu là một tệp văn bản có phiên bản (không có bảng DB, không có tệp model nhị phân): thêm câu mẫu vào tệp rồi khởi động lại là có hiệu lực, và
@@ -46,7 +46,7 @@ class IntentClassifier:
         self._classes = list(pipeline.classes_)
 
     @classmethod
-    def train(cls, examples: list[tuple[str, str]], *, c: float = 20.0, class_weight: str | None = None) -> "IntentClassifier":
+    def train(cls, examples: list[tuple[str, str]], *, c: float = 20.0, class_weight: str | None = "balanced") -> "IntentClassifier":
         data = _augment(examples)
         features = make_union(
             TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 5), sublinear_tf=True, min_df=2),

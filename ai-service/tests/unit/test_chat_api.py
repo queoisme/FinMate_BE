@@ -1,4 +1,4 @@
-"""``POST /api/v1/chat/parse``: xác thực, quy đổi sang slug backend, và Rasa tắt thì vẫn chạy bằng luật."""
+"""``POST /api/v1/chat/parse``: xác thực, quy đổi sang slug backend, và không có bộ phân loại thì vẫn chạy bằng luật."""
 
 from datetime import datetime
 
@@ -7,7 +7,6 @@ import pytest
 
 from app.api.v1 import chat as chat_route
 from app.api.v1.bill import get_bill_knowledge
-from app.services.nlu import RasaNlu
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
 from app.main import app
@@ -33,7 +32,7 @@ class FakeKnowledge:
 
 
 @pytest.fixture(autouse=True)
-def no_rasa():
+def no_classifier():
     chat_route.set_nlu(None)
     app.dependency_overrides[get_bill_knowledge] = lambda: FakeKnowledge()  # test đơn vị không đụng DB
     yield
@@ -160,32 +159,22 @@ async def test_text_is_capped_and_hash_is_required():
     assert (await post("đi ăn 200k", user_id_hash="short")).status_code == 422
 
 
-async def test_rasa_is_used_when_available_and_ignored_when_down():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"intent": {"name": "add_expense", "confidence": 0.97}, "entities": []})
+class FakeClassifier:
+    def __init__(self, result):
+        self.result = result
 
-    chat_route.set_nlu(RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(handler))))
+    async def parse(self, text):
+        return self.result
+
+
+async def test_classifier_is_used_when_present_and_ignored_when_it_returns_nothing():
+    chat_route.set_nlu(FakeClassifier({"intent": "add_expense", "confidence": 0.97, "entities": {}}))
     body = (await post("đi ăn 200k")).json()
-    assert body["nlu"] == {"source": "rasa", "intent": "add_expense", "confidence": 0.97}
+    assert body["nlu"] == {"source": "model", "intent": "add_expense", "confidence": 0.97}
 
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
-
-    chat_route.set_nlu(RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(down))))
+    chat_route.set_nlu(FakeClassifier(None))
     body = (await post("đi ăn 200k")).json()
     assert body["nlu"]["source"] == "rules" and body["entry"]["category_slug"] == "food"
-
-
-async def test_rasa_circuit_breaker_stops_calling_after_a_failure():
-    calls = []
-
-    def down(request: httpx.Request) -> httpx.Response:
-        calls.append(1)
-        raise httpx.ConnectError("down")
-
-    nlu = RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
-    assert await nlu.parse("a") is None and await nlu.parse("b") is None
-    assert len(calls) == 1
 
 
 async def test_response_carries_entries_and_the_date():

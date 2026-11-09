@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.v1 import internal_status, rasa_admin
+from app.api.v1 import internal_status
 from app.bill import provider_health
 from app.bill.gemini import GeminiClient, GeminiFailed
 from app.bill.provider_health import ProviderHealth
@@ -117,7 +117,6 @@ def test_snapshot_never_contains_a_key_and_reports_disabled():
 
 
 def test_status_endpoint_requires_the_internal_key(monkeypatch):
-    monkeypatch.setattr(rasa_admin.settings, "rasa_url", None)
     app = FastAPI()
     app.include_router(internal_status.router, prefix="/api/v1")
     client = TestClient(app, raise_server_exceptions=False)
@@ -126,12 +125,11 @@ def test_status_endpoint_requires_the_internal_key(monkeypatch):
 
 
 def test_status_endpoint_reports_each_provider_without_secrets(monkeypatch):
-    monkeypatch.setattr(rasa_admin.settings, "rasa_url", None)
     monkeypatch.setattr(internal_status, "get_gemini_client", lambda: _client(lambda _r: httpx.Response(500)))
 
     body = asyncio.run(internal_status.internal_status())
 
     assert body["gemini"]["state"] == "enabled"
     assert body["gemini_backup"]["state"] == "disabled"
-    assert body["rasa"] == {"configured": False, "available": False}
+    assert "rasa" not in body
     assert SECRET not in json.dumps(body)

@@ -67,7 +67,7 @@ def _validate_intent_cues(content: dict) -> None:
     for name, spec in content["thresholds"].items():
         value = spec.get("value") if isinstance(spec, dict) else None
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
-            raise _invalid("invalid_threshold", f"Ngưỡng '{name}' phải là số trong khoảng 0 đến 1 (độ chắc của Rasa).")
+            raise _invalid("invalid_threshold", f"Ngưỡng '{name}' phải là số trong khoảng 0 đến 1 (độ chắc của bộ phân loại ý định).")
     for name, text in content["replies"].items():
         if not isinstance(text, str) or not text.strip():
             raise _invalid("invalid_reply", f"Câu trả lời '{name}' phải là chuỗi không rỗng.")
@@ -398,7 +398,7 @@ def _run_cases(cases: list[tuple[str, str]]) -> dict[str, str]:
 
 
 def _preview_intent_cues(content: dict) -> dict:
-    """Chạy bộ câu có đáp án với bản đang chạy và với bản nháp (luật thuần, không Rasa). Đồng bộ, không await: không tiến trình nào chen vào lúc đổi tạm."""
+    """Chạy bộ câu có đáp án với bản đang chạy và với bản nháp (luật thuần, không bộ phân loại ý định). Đồng bộ, không await: không tiến trình nào chen vào lúc đổi tạm."""
     cases = _eval_cases()
     if not cases:
         return {"available": False, "reason": "Không thấy bộ câu thử trong image (tests/fixtures/eval)."}
@@ -413,7 +413,7 @@ def _preview_intent_cues(content: dict) -> dict:
     changed = [{"text": text, "expected": expected, "before": before[text], "after": after[text]} for text, expected in cases if before[text] != after[text]]
     return {"available": True, "cases": len(cases), "correct_before": right(before), "correct_after": right(after),
             "delta": right(after) - right(before), "changed": changed[:MAX_PREVIEW_CHANGES], "changed_total": len(changed),
-            "note": "Luật thuần (không Rasa) trên bộ câu có đáp án; với Rasa kết quả có thể khác."}
+            "note": "Luật thuần (không bộ phân loại ý định) trên bộ câu có đáp án; với bộ phân loại ý định kết quả có thể khác."}
 
 
 def _load_cases(name: str) -> list[dict]:
@@ -465,7 +465,7 @@ def _preview_chat_dictionary(content: dict) -> dict:
     changed = [{"text": text, "expected": expected, "before": before[text], "after": after[text]} for text, expected in cases if before[text] != after[text]]
     return {"available": True, "cases": len(cases), "correct_before": right(before), "correct_after": right(after), "delta": right(after) - right(before),
             "changed": changed[:MAX_PREVIEW_CHANGES], "changed_total": len(changed), "keyword_changes": _keyword_changes(active, content),
-            "note": "Luật thuần (không Rasa) trên bộ câu chat và cụm từ có đáp án: chỉ đo phần danh mục/số tiền mà từ điển ảnh hưởng."}
+            "note": "Luật thuần (không bộ phân loại ý định) trên bộ câu chat và cụm từ có đáp án: chỉ đo phần danh mục/số tiền mà từ điển ảnh hưởng."}
 
 
 # ------------------------------------------------------------------ danh sách tài liệu được phép sửa

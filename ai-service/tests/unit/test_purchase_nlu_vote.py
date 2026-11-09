@@ -30,7 +30,7 @@ def test_a_valid_draft_comes_from_the_rules_whatever_rasa_says(confidence):
     parsed = parse_chat("Hôm nay mua cái quần 800.000đ được không?", rasa(confidence), now=NOW)
     assert parsed.intent == "evaluate_purchase" and parsed.entries == ()
     assert parsed.purchase == PurchaseDraft("quần", 800_000, date(2026, 10, 17), None)
-    assert (parsed.nlu_source, parsed.nlu_intent) == ("rasa", "evaluate_purchase") and parsed.unclear_reason is None
+    assert (parsed.nlu_source, parsed.nlu_intent) == ("model", "evaluate_purchase") and parsed.unclear_reason is None
 
 
 @pytest.mark.parametrize("confidence", CONFIDENCES)

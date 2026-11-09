@@ -271,7 +271,7 @@
     "income_specific_plain": {
       "on": "folded",
       "regex": "(?<![a-z])(?:<<income_specific_plain_src>>)(?![a-z])",
-      "doc": "Bản không dấu của dấu hiệu cụ thể. 'ban' vừa là bạn/bán/ban nên chỉ nhận các cụm cố định; phần còn lại để Rasa quyết (giới hạn đã biết)."
+      "doc": "Bản không dấu của dấu hiệu cụ thể. 'ban' vừa là bạn/bán/ban nên chỉ nhận các cụm cố định; phần còn lại để bộ phân loại ý định quyết (giới hạn đã biết)."
     },
     "income_plain": {
       "on": "folded",
@@ -371,7 +371,7 @@
     "self_reference": {
       "on": "folded",
       "regex": "(?<![a-z])(?:toi|minh|tui)(?![a-z])",
-      "doc": "Đại từ ngôi thứ nhất: câu hỏi tổng nói về chính người dùng. Dùng khi phân xử với Rasa (nguyên tắc 2b): câu hỏi tổng nêu kỳ cụ thể chỉ thắng lời 'ngoài chủ đề' của Rasa khi nói về chính người dùng (đại từ này, hoặc từ hỏi chi tiêu như 'tiêu', 'đã chi'); 'thưởng tết năm nay các công ty bao nhiêu' là kiến thức chung nên vẫn theo Rasa."
+      "doc": "Đại từ ngôi thứ nhất: câu hỏi tổng nói về chính người dùng. Dùng khi phân xử với bộ phân loại ý định (nguyên tắc 2b): câu hỏi tổng nêu kỳ cụ thể chỉ thắng lời 'ngoài chủ đề' của bộ phân loại ý định khi nói về chính người dùng (đại từ này, hoặc từ hỏi chi tiêu như 'tiêu', 'đã chi'); 'thưởng tết năm nay các công ty bao nhiêu' là kiến thức chung nên vẫn theo bộ phân loại ý định."
     },
     "period_year": {
       "on": "folded",
@@ -426,12 +426,12 @@
     "balance_q": {
       "on": "folded",
       "regex": "<<balance_src>>",
-      "doc": "Hỏi SỐ DƯ / phần còn lại thay vì tổng chi hay thu: dùng chung nguồn với patterns.query (fragments.balance_src). Câu hỏi số dư nói về chính người dùng thắng lời 'ngoài chủ đề' của Rasa."
+      "doc": "Hỏi SỐ DƯ / phần còn lại thay vì tổng chi hay thu: dùng chung nguồn với patterns.query (fragments.balance_src). Câu hỏi số dư nói về chính người dùng thắng lời 'ngoài chủ đề' của bộ phân loại ý định."
     },
     "reply_cue_confirm": {
       "on": "folded",
       "regex": "(?<![a-z])(?:ok|oke|okay|okie|yes|dung|chuan|vang|uh|duoc|dong y|xac nhan|luu|ghi|chinh xac|phai|chot|ung)(?![a-z])",
-      "doc": "Từ cho thấy một câu thật sự là lời XÁC NHẬN. Rasa gán 'confirm' cho chuỗi vô nghĩa/emoji ('asdfgh', '😀😀😀') với độ chắc 0,88-1,00; câu mà Rasa cho là xác nhận nhưng không có từ nào ở đây thì coi là rác (ngoài chủ đề). Chỉ là bộ lọc: không có từ nào ở đây thì chỉ mất lời đáp, không mất việc gì khác."
+      "doc": "Từ cho thấy một câu thật sự là lời XÁC NHẬN. bộ phân loại ý định gán 'confirm' cho chuỗi vô nghĩa/emoji ('asdfgh', '😀😀😀') với độ chắc 0,88-1,00; câu mà bộ phân loại ý định cho là xác nhận nhưng không có từ nào ở đây thì coi là rác (ngoài chủ đề). Chỉ là bộ lọc: không có từ nào ở đây thì chỉ mất lời đáp, không mất việc gì khác."
     },
     "reply_cue_deny": {
       "on": "folded",
@@ -685,7 +685,7 @@
         "deny",
         "cancel"
       ],
-      "doc": "Tên ý định của Rasa mà code coi là lời đáp (chào, tạm biệt, đồng ý/từ chối/hủy), không phải một khoản ghi. Là tên ý định trong mô hình, không phải từ tiếng Việt."
+      "doc": "Tên ý định của bộ phân loại ý định mà code coi là lời đáp (chào, tạm biệt, đồng ý/từ chối/hủy), không phải một khoản ghi. Là tên ý định trong mô hình, không phải từ tiếng Việt."
     },
     "needs_accent": {
       "map": {
@@ -700,23 +700,23 @@
   "thresholds": {
     "min_nlu_confidence": {
       "value": 0.6,
-      "doc": "Rasa chắc dưới mức này thì bỏ qua, dùng luật."
+      "doc": "bộ phân loại ý định chắc dưới mức này thì bỏ qua, dùng luật."
     },
     "out_of_scope_override": {
       "value": 0.75,
-      "doc": "Câu có số tiền mà Rasa bảo 'ngoài chủ đề' chỉ bị từ chối khi Rasa chắc từ mức này."
+      "doc": "Câu có số tiền mà bộ phân loại ý định bảo 'ngoài chủ đề' chỉ bị từ chối khi bộ phân loại ý định chắc từ mức này."
     },
     "kind_trust": {
       "value": 0.97,
-      "doc": "Rasa và luật bất đồng loại giao dịch mà luật chỉ có bằng chứng yếu: Rasa chỉ thắng khi chắc từ mức này. Dấu hiệu CỤ THỂ thắng bất kể độ chắc (softmax chưa hiệu chỉnh, đo được sai ở 1,00)."
+      "doc": "bộ phân loại ý định và luật bất đồng loại giao dịch mà luật chỉ có bằng chứng yếu: bộ phân loại ý định chỉ thắng khi chắc từ mức này. Dấu hiệu CỤ THỂ thắng bất kể độ chắc (softmax chưa hiệu chỉnh, đo được sai ở 1,00)."
     },
     "uncertain_below": {
       "value": 0.85,
-      "doc": "Rasa hiểu nhưng chắc dưới mức này: tin nhắn đáng để xem lại."
+      "doc": "bộ phân loại ý định hiểu nhưng chắc dưới mức này: tin nhắn đáng để xem lại."
     },
     "auto_confidence": {
       "value": 0.9,
-      "doc": "Rasa chắc từ mức này (và là add_expense) mới cho ghi ngay."
+      "doc": "bộ phân loại ý định chắc từ mức này (và là add_expense) mới cho ghi ngay."
     }
   },
   "replies": {
