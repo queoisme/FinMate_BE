@@ -12,6 +12,9 @@ public interface IAdminKnowledgeService
 {
     Task<JsonElement?> ListDocumentsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
 
+    /// <summary>Một tài liệu kèm toàn bộ nội dung, để người duyệt đọc trước khi duyệt.</summary>
+    Task<JsonElement?> GetDocumentAsync(Guid documentId, CancellationToken ct = default);
+
     Task<JsonElement?> SubmitAsync(Guid adminId, JsonElement body, string? ip, CancellationToken ct = default);
 
     Task<JsonElement?> ApproveAsync(Guid adminId, Guid documentId, string? ip, CancellationToken ct = default);
@@ -29,6 +32,9 @@ public class AdminKnowledgeService(IAiRulesAdminClient client, IAuditLogService 
 
     public Task<JsonElement?> ListDocumentsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
         => client.SendAsync(new AiRulesRequest(HttpMethod.Get, "documents", query, Area: Area), ct);
+
+    public Task<JsonElement?> GetDocumentAsync(Guid documentId, CancellationToken ct = default)
+        => client.SendAsync(new AiRulesRequest(HttpMethod.Get, $"documents/{documentId}", null, Area: Area), ct);
 
     public async Task<JsonElement?> SubmitAsync(Guid adminId, JsonElement body, string? ip, CancellationToken ct = default)
     {

@@ -2,7 +2,7 @@
 
 Tình trạng đo ngày 2026-11-08: **0 tài liệu tri thức** (`agent_kb_documents`) và **0 giả định kinh tế đã duyệt**. Vì vậy mọi câu hỏi về tri thức hoặc giả định đều ra `insufficient_data` (9/9 câu `knowledge` của bộ v1), và dự báo mục tiêu giữ giá không đổi theo thời gian.
 
-Cách nạp: trang admin → *Giả định kinh tế* (`/api/v1/admin/assumptions`) và *Tri thức* (`/api/v1/admin/knowledge`). Staff soạn bản nháp, **OpsManager hoặc Admin duyệt**. Agent chỉ dùng bản đã duyệt. Mọi con số phải lấy từ trang nguồn do người nhập mở và kiểm; không điền theo trí nhớ. `sourceUrl` phải là trang cụ thể (không phải trang chủ), `asOf` là ngày số liệu.
+Cách nạp: web quản trị → menu vận hành *Giả định kinh tế* (`/api/v1/admin/assumptions`) và *Tri thức AI* (`/api/v1/admin/knowledge`). Staff soạn bản nháp, **OpsManager hoặc Admin duyệt**. Agent chỉ dùng bản đã duyệt. Mọi con số phải lấy từ trang nguồn do người nhập mở và kiểm; không điền theo trí nhớ. `sourceUrl` phải là trang cụ thể (không phải trang chủ), `asOf` là ngày số liệu.
 
 ## 1. Giả định kinh tế (`economic_assumptions`)
 

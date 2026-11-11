@@ -23,6 +23,11 @@ public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentCon
     public async Task<IActionResult> ListDocuments([FromQuery] string? status, [FromQuery] string? search, [FromQuery] int? limit, [FromQuery] int? offset, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.ListDocumentsAsync(Query(("status", status), ("search", search), ("limit", limit), ("offset", offset)), ct)));
 
+    /// <summary>Một tài liệu kèm toàn bộ nội dung (<c>text</c>) để đọc trước khi duyệt. 404 nếu không có.</summary>
+    [HttpGet("documents/{id:guid}")]
+    public async Task<IActionResult> GetDocument(Guid id, CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await service.GetDocumentAsync(id, ct)));
+
     /// <summary>Gửi tài liệu mới (Draft): <c>{title, source_name, source_url?, as_of, effective_from, effective_to?, text}</c>. Nội dung được cắt đoạn và nhúng vector.</summary>
     [HttpPost("documents")]
     public async Task<IActionResult> Submit([FromBody] JsonElement body, CancellationToken ct)

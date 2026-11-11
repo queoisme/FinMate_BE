@@ -79,7 +79,8 @@ Lỗi: 422 `invalid_question`; 503 khi ai-service không dùng được **trư�
 ## API cho nhân sự (vai trò Staff / OpsManager / Admin của Phase 61–65)
 
 - `/api/v1/admin/assumptions` — giả định kinh tế: Staff trở lên soạn bản nháp, **OpsManager trở lên** (policy `ManagerOrAbove`) duyệt / gỡ.
-- `/api/v1/admin/knowledge` — tài liệu tri thức và câu hỏi chưa có tri thức: cùng phân quyền như trên.
+- `/api/v1/admin/knowledge` — tài liệu tri thức và câu hỏi chưa có tri thức: cùng phân quyền như trên. `GET /documents` là danh sách (không kèm nội dung); `GET /documents/{id}` trả thêm `text` (toàn bộ nội dung) để người duyệt đọc trước khi bấm duyệt.
+- Giao diện duyệt trên web quản trị (repo `FinMate_Admin`): menu vận hành **Tri thức AI** (`/ops/knowledge`) và **Giả định kinh tế** (`/ops/assumptions`), dành cho OpsManager và Admin (quyền `DecideApprovals`). Cấu hình tự cập nhật CPI nằm ở trang Admin **Số liệu kinh tế** (`/settings/economic`).
 - `POST /api/v1/ops/tickets/{id}/assist` — trợ lý gợi ý cho nhân sự khi xử lý ticket: tóm tắt + bản nháp trả lời, **chỉ gợi ý** (không đổi ticket, không gửi gì cho khách; nhân sự tự gửi qua `/ops/tickets/{id}/messages`). `available: false` khi LLM sập; `verified: false` khi bản nháp bị bỏ vì chứa số tiền không có trong ticket. Ghi chú nội bộ không bao giờ gửi cho mô hình.
 
 ## Chỉ dùng khi phát triển

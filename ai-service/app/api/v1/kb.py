@@ -88,6 +88,14 @@ async def list_documents(
     return {"total": total, "items": [{**i, "id": str(i["id"])} for i in items]}
 
 
+@router.get("/admin/knowledge/documents/{document_id}")
+async def get_document(document_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)]) -> dict:
+    document = await store.get_document(session, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="kb_document_not_found")
+    return {**document, "id": str(document["id"])}
+
+
 async def _transition(document_id: uuid.UUID, new_status: str, session: AsyncSession, cache: KbCache) -> dict:
     try:
         await store.set_status(session, document_id, new_status, cache)

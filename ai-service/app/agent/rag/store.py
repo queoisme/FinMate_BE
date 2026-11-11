@@ -92,3 +92,19 @@ async def list_documents(session: AsyncSession, *, status: str | None, search: s
         )
     ).mappings().all()
     return total, [dict(r) for r in rows]
+
+
+async def get_document(session: AsyncSession, document_id: uuid.UUID) -> dict | None:
+    """Một tài liệu kèm TOÀN BỘ nội dung (các đoạn ghép lại theo thứ tự), để người duyệt đọc trước khi bấm duyệt. None nếu không có."""
+    row = (
+        await session.execute(
+            text(
+                "SELECT id, title, source_name, source_url, as_of, effective_from, effective_to, status, version,"
+                " (SELECT count(*) FROM agent_kb_chunks c WHERE c.document_id = d.id) AS chunks,"
+                " (SELECT string_agg(c.text, ' ' ORDER BY c.chunk_index) FROM agent_kb_chunks c WHERE c.document_id = d.id) AS text"
+                " FROM agent_kb_documents d WHERE d.id = :id"
+            ),
+            {"id": document_id},
+        )
+    ).mappings().first()
+    return dict(row) if row else None

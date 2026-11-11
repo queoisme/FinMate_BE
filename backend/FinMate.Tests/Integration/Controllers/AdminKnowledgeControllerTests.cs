@@ -113,6 +113,7 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
         foreach (var (method, url, json) in new[]
                  {
                      (HttpMethod.Get, $"{Base}/documents", null),
+                     (HttpMethod.Get, $"{Base}/documents/{DocId}", null),
                      (HttpMethod.Post, $"{Base}/documents", """{"title":"t"}"""),
                      (HttpMethod.Post, $"{Base}/documents/{DocId}/approve", null),
                      (HttpMethod.Post, $"{Base}/documents/{DocId}/retire", null),
@@ -125,6 +126,22 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
         }
 
         _ai.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GettingOneDocument_AsksTheAiServiceForItsFullText_AndLeavesNoAuditRow()
+    {
+        var admin = await AdminTokenAsync();
+        var before = await KnowledgeAuditCountAsync(admin);
+        _ai.Calls.Clear();
+        _ai.Respond = _ => Parse("""{"id":"3f2504e0-4f89-11d3-9a0c-0305e82c3301","title":"Quy tắc 50/30/20","status":"Draft","text":"Nội dung đầy đủ"}""");
+
+        var response = await _client.SendAsync(Request(HttpMethod.Get, $"{Base}/documents/{DocId}", admin));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Nội dung đầy đủ");
+        _ai.Calls.Single().Should().Match<AiRulesRequest>(c => c.Path == $"documents/{DocId}" && c.Method == HttpMethod.Get && c.Area == AiRulesRequest.KnowledgeArea);
+        (await KnowledgeAuditCountAsync(admin)).Should().Be(before);
     }
 
     [Fact]
