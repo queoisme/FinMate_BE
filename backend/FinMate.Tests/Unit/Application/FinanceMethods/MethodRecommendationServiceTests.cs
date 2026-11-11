@@ -79,10 +79,11 @@ public class MethodRecommendationServiceTests
         var result = await _service.GenerateAsync(_userId);
 
         _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Once);
-        result.Source.Should().Be("rule_fallback");
-        result.Primary.Method.Code.Should().Be("main");
-        result.Support!.Method.Code.Should().Be("tool");
-        result.Primary.Reason.Should().Be("Why main", "nhánh rule dùng why_text của phương pháp");
+        result.Created.Should().BeTrue();
+        result.Recommendation.Source.Should().Be("rule_fallback");
+        result.Recommendation.Primary.Method.Code.Should().Be("main");
+        result.Recommendation.Support!.Method.Code.Should().Be("tool");
+        result.Recommendation.Primary.Reason.Should().Be("Why main", "nhánh rule dùng why_text của phương pháp");
         _saved!.Source.Should().Be(RecommendationSource.RuleFallback);
         _saved.PromptVersion.Should().BeNull("không gọi AI thì không có prompt");
         _saved.Outcome.Should().Be(RecommendationOutcome.Shown);
@@ -95,10 +96,10 @@ public class MethodRecommendationServiceTests
 
         var result = await _service.GenerateAsync(_userId);
 
-        result.Source.Should().Be("ai");
-        result.Primary.Method.Code.Should().Be("other", "AI được phép chọn khác rule miễn là nằm trong danh sách");
-        result.Primary.Reason.Should().Be("AI chọn other");
-        result.Support!.Reason.Should().Be("AI chọn tool");
+        result.Recommendation.Source.Should().Be("ai");
+        result.Recommendation.Primary.Method.Code.Should().Be("other", "AI được phép chọn khác rule miễn là nằm trong danh sách");
+        result.Recommendation.Primary.Reason.Should().Be("AI chọn other");
+        result.Recommendation.Support!.Reason.Should().Be("AI chọn tool");
         _saved!.Source.Should().Be(RecommendationSource.Ai);
         _saved.PromptVersion.Should().Be("method-select-v1");
     }
@@ -127,8 +128,8 @@ public class MethodRecommendationServiceTests
 
         var result = await _service.GenerateAsync(_userId);
 
-        result.Source.Should().Be("rule_fallback");
-        result.Primary.Method.Code.Should().Be("main");
+        result.Recommendation.Source.Should().Be("rule_fallback");
+        result.Recommendation.Primary.Method.Code.Should().Be("main");
         _saved!.PromptVersion.Should().BeNull();
     }
 
@@ -140,7 +141,7 @@ public class MethodRecommendationServiceTests
     {
         AiReturns(new AiMethodPick(primary, reason, support, supportReason, "v1"));
 
-        (await _service.GenerateAsync(_userId)).Source.Should().Be("rule_fallback");
+        (await _service.GenerateAsync(_userId)).Recommendation.Source.Should().Be("rule_fallback");
     }
 
     [Fact]
@@ -150,8 +151,8 @@ public class MethodRecommendationServiceTests
 
         var result = await _service.GenerateAsync(_userId);
 
-        result.Source.Should().Be("rule_fallback");
-        result.Primary.Method.Code.Should().Be("main");
+        result.Recommendation.Source.Should().Be("rule_fallback");
+        result.Recommendation.Primary.Method.Code.Should().Be("main");
     }
 
     [Fact]
@@ -187,7 +188,8 @@ public class MethodRecommendationServiceTests
 
         var result = await _service.GenerateAsync(_userId);
 
-        result.Primary.Reason.Should().Be("Lý do đã lưu");
+        result.Created.Should().BeFalse();
+        result.Recommendation.Primary.Reason.Should().Be("Lý do đã lưu");
         _saved.Should().BeNull();
         _ai.Verify(a => a.RecommendAsync(It.IsAny<IReadOnlyDictionary<string, int>>(), It.IsAny<IReadOnlyList<AiMethodCandidate>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -221,11 +223,11 @@ public class MethodRecommendationServiceTests
         _catalog.Remove(_tool);
         _catalog.Add(Method("half_tool", FinanceMethodRole.Supporting, new() { ["x"] = 1 }, sortOrder: 4));
 
-        (await _service.GenerateAsync(_userId)).Support!.Method.Code.Should().Be("half_tool");
+        (await _service.GenerateAsync(_userId)).Recommendation.Support!.Method.Code.Should().Be("half_tool");
 
         _settings = new FinanceMethodSettings { SupportMinSharePercent = 100 };
         _saved = null;
-        (await _service.GenerateAsync(_userId)).Support.Should().BeNull();
+        (await _service.GenerateAsync(_userId)).Recommendation.Support.Should().BeNull();
     }
 
     [Theory]

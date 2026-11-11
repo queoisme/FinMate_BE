@@ -29,10 +29,19 @@ public class FinanceMethodsController : ControllerBase
     public async Task<IActionResult> GetCatalog(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<MethodDto>>.Ok(await _userMethods.GetCatalogAsync(ct)));
 
-    /// <summary>Tạo gợi ý từ câu trả lời khảo sát. Cần đã làm khảo sát (422 nếu chưa).</summary>
+    /// <summary>
+    /// Tạo gợi ý từ câu trả lời khảo sát. Cần đã làm khảo sát (422 nếu chưa).
+    /// 201 khi thật sự tạo mới, 200 khi trả lại gợi ý vừa tạo trong cửa sổ dùng lại —
+    /// xem <c>TransactionsController.Created</c> cho cùng lý do không trả 201 cho một request không tạo ra gì.
+    /// </summary>
     [HttpPost("recommendations")]
     public async Task<IActionResult> Recommend(CancellationToken ct)
-        => StatusCode(StatusCodes.Status201Created, ApiResponse<RecommendationDto>.Ok(await _recommendations.GenerateAsync(CurrentUserId, ct)));
+    {
+        var result = await _recommendations.GenerateAsync(CurrentUserId, ct);
+        return StatusCode(
+            result.Created ? StatusCodes.Status201Created : StatusCodes.Status200OK,
+            ApiResponse<RecommendationDto>.Ok(result.Recommendation));
+    }
 
     [HttpGet("recommendations/latest")]
     public async Task<IActionResult> GetLatest(CancellationToken ct)
