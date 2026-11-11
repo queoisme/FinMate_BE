@@ -8,11 +8,22 @@ using FluentValidation.Results;
 
 namespace FinMate.Application.QrTransfers;
 
+/// <summary>Giới hạn trang cho các danh sách phân trang kiểu con trỏ trong tính năng quét QR chuyển khoản.</summary>
+public static class QrTransferPaging
+{
+    public const int DefaultLimit = 20;
+    public const int MaxLimit = 100;
+
+    public static int Clamp(int limit) => limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
+}
+
+public sealed record QrTransferListResult(IReadOnlyList<QrTransferDto> Items, string? NextCursor);
+
 public interface IQrTransferService
 {
     Task<IReadOnlyList<QrBankDto>> ListBanksAsync(CancellationToken ct = default);
     Task<QrTransferDto> CreateAsync(CreateQrTransferCommand command, CancellationToken ct = default);
-    Task<IReadOnlyList<QrTransferDto>> ListAsync(Guid userId, QrTransferStatus? status, int limit, CancellationToken ct = default);
+    Task<QrTransferListResult> ListAsync(Guid userId, QrTransferStatus? status, string? cursor, int limit, CancellationToken ct = default);
     Task<QrTransferDto> CancelAsync(Guid userId, Guid id, CancellationToken ct = default);
 
     /// <summary>Danh mục đã nhớ cho người nhận này, hoặc null nếu chưa có. Không có là trạng thái bình thường, không phải lỗi.</summary>
@@ -111,14 +122,14 @@ public class QrTransferService : IQrTransferService
         return ToDto(intent, banks, category is null ? null : new Dictionary<Guid, string> { [category.Id] = category.Name }, now, PendingLifetime(settings));
     }
 
-    public async Task<IReadOnlyList<QrTransferDto>> ListAsync(Guid userId, QrTransferStatus? status, int limit, CancellationToken ct = default)
+    public async Task<QrTransferListResult> ListAsync(Guid userId, QrTransferStatus? status, string? cursor, int limit, CancellationToken ct = default)
     {
-        var intents = await _repository.ListIntentsAsync(userId, status, Math.Clamp(limit, 1, 100), ct);
+        var page = await _repository.ListIntentsAsync(userId, status, cursor, QrTransferPaging.Clamp(limit), ct);
         var banks = await BankNamesAsync(ct);
         var categories = (await _categories.GetListForUserAsync(userId, ct)).ToDictionary(c => c.Id, c => c.Name);
         var now = DateTimeOffset.UtcNow;
         var lifetime = PendingLifetime(await SettingsAsync(ct));
-        return intents.Select(i => ToDto(i, banks, categories, now, lifetime)).ToList();
+        return new QrTransferListResult(page.Items.Select(i => ToDto(i, banks, categories, now, lifetime)).ToList(), page.NextCursor);
     }
 
     public async Task<QrTransferDto> CancelAsync(Guid userId, Guid id, CancellationToken ct = default)

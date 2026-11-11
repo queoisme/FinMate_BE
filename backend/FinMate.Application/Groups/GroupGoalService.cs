@@ -10,6 +10,8 @@ namespace FinMate.Application.Groups;
 
 public sealed record GroupContributionDto(Guid Id, Guid MemberUserId, string MemberName, long AmountCents, string? Note, DateTimeOffset ContributedAt);
 
+public sealed record GroupContributionListResult(IReadOnlyList<GroupContributionDto> Items, string? NextCursor);
+
 public sealed record CreateGroupGoalCommand(Guid UserId, Guid GroupId, string Name, long TargetCents, DateTimeOffset? Deadline);
 
 /// <summary>Trường null = giữ nguyên.</summary>
@@ -58,7 +60,7 @@ public interface IGroupGoalService
     Task<SavingGoalDto> UpdateAsync(UpdateGroupGoalCommand command, CancellationToken ct = default);
     Task CancelAsync(Guid groupId, Guid userId, Guid goalId, CancellationToken ct = default);
     Task<SavingGoalDto> ContributeAsync(ContributeGroupGoalCommand command, CancellationToken ct = default);
-    Task<IReadOnlyList<GroupContributionDto>> ListContributionsAsync(Guid groupId, Guid userId, Guid goalId, int limit, CancellationToken ct = default);
+    Task<GroupContributionListResult> ListContributionsAsync(Guid groupId, Guid userId, Guid goalId, string? cursor, int limit, CancellationToken ct = default);
 }
 
 public class GroupGoalService : IGroupGoalService
@@ -169,18 +171,20 @@ public class GroupGoalService : IGroupGoalService
         return SavingGoalMapper.ToDto(goal);
     }
 
-    public async Task<IReadOnlyList<GroupContributionDto>> ListContributionsAsync(Guid groupId, Guid userId, Guid goalId, int limit, CancellationToken ct = default)
+    public async Task<GroupContributionListResult> ListContributionsAsync(Guid groupId, Guid userId, Guid goalId, string? cursor, int limit, CancellationToken ct = default)
     {
         await _access.RequireAsync(groupId, userId, GroupPermission.ViewOverview, ct);
         await RequireGoalAsync(groupId, goalId, ct);
-        var rows = await _finance.ListContributionsAsync(goalId, Math.Clamp(limit, 1, GroupGoalLimits.MaxContributions), ct);
-        return rows.Select(r => new GroupContributionDto(
-            r.Contribution.Id,
-            r.Contribution.UserId,
-            r.IsUserActive ? r.MemberName : GroupMemberService.InactiveMemberName,
-            r.Contribution.AmountCents,
-            r.Contribution.Note,
-            r.Contribution.ContributedAt)).ToList();
+        var page = await _finance.ListContributionsAsync(goalId, cursor, GroupPaging.Clamp(limit, GroupGoalLimits.MaxContributions), ct);
+        return new GroupContributionListResult(
+            page.Items.Select(r => new GroupContributionDto(
+                r.Contribution.Id,
+                r.Contribution.UserId,
+                r.IsUserActive ? r.MemberName : GroupMemberService.InactiveMemberName,
+                r.Contribution.AmountCents,
+                r.Contribution.Note,
+                r.Contribution.ContributedAt)).ToList(),
+            page.NextCursor);
     }
 
     private async Task<(SavingGoal Goal, bool JustCompleted)> ContributeOnceAsync(ContributeGroupGoalCommand command, CancellationToken ct)

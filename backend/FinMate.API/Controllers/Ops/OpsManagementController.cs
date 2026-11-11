@@ -27,8 +27,11 @@ public class OpsApprovalsController : OpsControllerBase
             ct)));
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] OpsApprovalStatus? status, CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<OpsApprovalDto>>.Ok(await _approvals.ListAsync(CurrentActorId, status, ct)));
+    public async Task<IActionResult> List([FromQuery] OpsApprovalStatus? status, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _approvals.ListAsync(CurrentActorId, status, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<OpsApprovalDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     [HttpPost("{id:guid}/approve")]
     [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]

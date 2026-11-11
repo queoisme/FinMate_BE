@@ -45,7 +45,7 @@ public class OpsRepository : IOpsRepository
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, OpsApprovalStatus.Failed).SetProperty(a => a.FailureCode, failureCode), ct);
 
-    public Task<List<OpsApprovalRequest>> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, int limit, CancellationToken ct = default)
+    public async Task<OpsApprovalPage> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, string? cursor, int limit, CancellationToken ct = default)
     {
         var query = _context.OpsApprovalRequests.AsNoTracking();
         if (status is { } s)
@@ -58,7 +58,27 @@ public class OpsRepository : IOpsRepository
             query = query.Where(a => a.RequestedByUserId == r);
         }
 
-        return query.OrderByDescending(a => a.CreatedAt).Take(limit).ToListAsync(ct);
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(a =>
+                a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
+            .OrderByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new OpsApprovalPage(items, nextCursor);
     }
 
     public Task<List<CannedReply>> ListCannedRepliesAsync(bool includeInactive, CancellationToken ct = default)

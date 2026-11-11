@@ -72,8 +72,11 @@ public class ForecastController : ControllerBase
 
     /// <summary>Các cảnh báo dự báo gần nhất (mới nhất trước), để app hiển thị chi tiết.</summary>
     [HttpGet("alerts")]
-    public async Task<IActionResult> Alerts([FromQuery] int limit = 20, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<ForecastAlertDto>>.Ok(await _alerts.ListAsync(CurrentUserId, limit, ct)));
+    public async Task<IActionResult> Alerts([FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _alerts.ListAsync(CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<ForecastAlertDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     /// <summary>Báo cảnh báo không chính xác. Hiện chỉ nhận <c>"inaccurate"</c>.</summary>
     [HttpPost("alerts/{id:guid}/feedback")]
@@ -82,10 +85,11 @@ public class ForecastController : ControllerBase
 
     /// <summary>Khoản chi bị đánh dấu bất thường, mới nhất trước. <paramref name="status"/>: <c>open</c> (mặc định, chưa phản hồi) hoặc <c>all</c>.</summary>
     [HttpGet("anomalies")]
-    public async Task<IActionResult> Anomalies([FromQuery] string? status = null, [FromQuery] int limit = 20, CancellationToken ct = default)
+    public async Task<IActionResult> Anomalies([FromQuery] string? status, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
     {
         var openOnly = !string.Equals(status, AllAnomalies, StringComparison.OrdinalIgnoreCase);
-        return Ok(ApiResponse<IReadOnlyList<AnomalyDto>>.Ok(await _anomalies.ListAsync(CurrentUserId, openOnly, limit, ct)));
+        var result = await _anomalies.ListAsync(CurrentUserId, openOnly, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<AnomalyDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
 
     /// <summary>Phản hồi một khoản bất thường: <c>normal</c> | <c>one_off</c> | <c>wrong_entry</c> | <c>suspicious</c>.</summary>

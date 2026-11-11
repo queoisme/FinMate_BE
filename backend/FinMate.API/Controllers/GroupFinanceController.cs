@@ -15,9 +15,6 @@ namespace FinMate.API.Controllers;
 [RequireGroupsEnabled]
 public class GroupFinanceController : ControllerBase
 {
-    private const int DefaultTransactionLimit = 100;
-    private const int DefaultContributionLimit = 50;
-
     private readonly IGroupTransactionService _transactions;
     private readonly IGroupCategoryService _categories;
     private readonly IGroupBudgetService _budgets;
@@ -37,11 +34,11 @@ public class GroupFinanceController : ControllerBase
 
     /// <summary>Giao dịch đã chia sẻ trong một tháng (giờ Việt Nam), mặc định tháng này. Không có quyền xem chi tiết thì chỉ thấy khoản của chính mình.</summary>
     [HttpGet("transactions")]
-    public async Task<IActionResult> Transactions(Guid groupId, [FromQuery] int? year, [FromQuery] int? month, [FromQuery] int limit = DefaultTransactionLimit, CancellationToken ct = default)
+    public async Task<IActionResult> Transactions(Guid groupId, [FromQuery] int? year, [FromQuery] int? month, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
     {
         var (currentYear, currentMonth) = VietnamTime.YearMonthOf(DateTimeOffset.UtcNow);
-        return Ok(ApiResponse<IReadOnlyList<GroupTransactionDto>>.Ok(
-            await _transactions.ListAsync(groupId, CurrentUserId, year ?? currentYear, month ?? currentMonth, limit, ct)));
+        var result = await _transactions.ListAsync(groupId, CurrentUserId, year ?? currentYear, month ?? currentMonth, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<GroupTransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
 
     [HttpPatch("transactions/{transactionId:guid}")]
@@ -151,8 +148,11 @@ public class GroupFinanceController : ControllerBase
         => Ok(ApiResponse<SavingGoalDto>.Ok(await _goals.ContributeAsync(new ContributeGroupGoalCommand(CurrentUserId, groupId, goalId, request.AmountCents, request.Note), ct)));
 
     [HttpGet("goals/{goalId:guid}/contributions")]
-    public async Task<IActionResult> Contributions(Guid groupId, Guid goalId, [FromQuery] int limit = DefaultContributionLimit, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<GroupContributionDto>>.Ok(await _goals.ListContributionsAsync(groupId, CurrentUserId, goalId, limit, ct)));
+    public async Task<IActionResult> Contributions(Guid groupId, Guid goalId, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _goals.ListContributionsAsync(groupId, CurrentUserId, goalId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<GroupContributionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 }
 
 public record ReclassifyGroupTransactionRequest(Guid? GroupCategoryId);

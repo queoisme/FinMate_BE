@@ -23,6 +23,8 @@ public sealed record OpsDashboardData(
     double? AverageRating,
     int PendingApprovals);
 
+public sealed record OpsApprovalPage(IReadOnlyList<OpsApprovalRequest> Items, string? NextCursor);
+
 public interface IOpsRepository
 {
     /// <summary>Lưu đề xuất mới. Đã có đề xuất đang chờ cho cùng đối tượng thì 409, kể cả khi hai người gửi cùng lúc.</summary>
@@ -32,7 +34,7 @@ public interface IOpsRepository
 
     /// <summary>Ghi thẳng xuống DB, không qua change tracker: lúc này tracker có thể còn giữ thay đổi hỏng của bước thực hiện.</summary>
     Task MarkApprovalFailedAsync(Guid id, string failureCode, CancellationToken ct = default);
-    Task<List<OpsApprovalRequest>> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, int limit, CancellationToken ct = default);
+    Task<OpsApprovalPage> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, string? cursor, int limit, CancellationToken ct = default);
 
     Task<List<CannedReply>> ListCannedRepliesAsync(bool includeInactive, CancellationToken ct = default);
     Task<CannedReply?> GetCannedReplyAsync(Guid id, CancellationToken ct = default);

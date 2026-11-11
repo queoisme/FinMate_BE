@@ -47,8 +47,32 @@ public class SubscriptionRepository : ISubscriptionRepository
     public Task<SubscriptionOrder?> GetUserOrderByInvoiceAsync(Guid userId, string invoiceNumber, CancellationToken ct = default)
         => _context.SubscriptionOrders.AsNoTracking().FirstOrDefaultAsync(o => o.UserId == userId && o.InvoiceNumber == invoiceNumber, ct);
 
-    public Task<List<SubscriptionOrder>> ListUserOrdersAsync(Guid userId, int limit, CancellationToken ct = default)
-        => _context.SubscriptionOrders.AsNoTracking().Where(o => o.UserId == userId).OrderByDescending(o => o.CreatedAt).Take(limit).ToListAsync(ct);
+    public async Task<SubscriptionOrderPage> ListUserOrdersAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.SubscriptionOrders.AsNoTracking().Where(o => o.UserId == userId);
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(o =>
+                o.CreatedAt < cursorAt || (o.CreatedAt == cursorAt && o.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenByDescending(o => o.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new SubscriptionOrderPage(items, nextCursor);
+    }
 
     public async Task<(List<SubscriptionOrder> Items, int Total)> ListOrdersAsync(SubscriptionOrderStatus? status, int offset, int limit, CancellationToken ct = default)
     {

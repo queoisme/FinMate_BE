@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
@@ -43,12 +44,14 @@ public record OpsApprovalDto(
     DateTimeOffset ExpiresAt,
     DateTimeOffset CreatedAt);
 
+public record OpsApprovalListResult(IReadOnlyList<OpsApprovalDto> Items, string? NextCursor);
+
 public interface IOpsApprovalService
 {
     Task<OpsApprovalDto> ProposeAsync(Guid actorId, ProposeApprovalCommand command, string? ip, CancellationToken ct = default);
 
     /// <summary>Người duyệt thấy tất cả; người chỉ có quyền đề xuất chỉ thấy đề xuất của mình.</summary>
-    Task<IReadOnlyList<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, CancellationToken ct = default);
+    Task<OpsApprovalListResult> ListAsync(Guid actorId, OpsApprovalStatus? status, string? cursor, int limit, CancellationToken ct = default);
     Task<OpsApprovalDto> ApproveAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default);
     Task<OpsApprovalDto> RejectAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default);
 }
@@ -57,7 +60,6 @@ public sealed class OpsApprovalService : IOpsApprovalService
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
     private const int MaxReasonLength = 1000;
-    private const int MaxListSize = 200;
 
     private readonly IOpsRepository _ops;
     private readonly IOpsAccessService _access;
@@ -152,12 +154,13 @@ public sealed class OpsApprovalService : IOpsApprovalService
         return ToDto(approval, now);
     }
 
-    public async Task<IReadOnlyList<OpsApprovalDto>> ListAsync(Guid actorId, OpsApprovalStatus? status, CancellationToken ct = default)
+    public async Task<OpsApprovalListResult> ListAsync(Guid actorId, OpsApprovalStatus? status, string? cursor, int limit, CancellationToken ct = default)
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.ProposeApprovals, ct);
         var requestedBy = OpsPermissions.For(actor.Role).HasFlag(OpsCapability.DecideApprovals) ? (Guid?)null : actor.Id;
         var now = DateTimeOffset.UtcNow;
-        return (await _ops.ListApprovalsAsync(status, requestedBy, MaxListSize, ct)).Select(a => ToDto(a, now)).ToList();
+        var page = await _ops.ListApprovalsAsync(status, requestedBy, cursor, AdminPaging.Clamp(limit), ct);
+        return new OpsApprovalListResult(page.Items.Select(a => ToDto(a, now)).ToList(), page.NextCursor);
     }
 
     public async Task<OpsApprovalDto> ApproveAsync(Guid actorId, Guid approvalId, string? note, string? ip, CancellationToken ct = default)

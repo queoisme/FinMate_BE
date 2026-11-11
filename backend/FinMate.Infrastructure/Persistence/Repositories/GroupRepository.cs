@@ -89,13 +89,32 @@ public class GroupRepository : IGroupRepository
     public Task<int> CountPendingInvitationsAsync(Guid groupId, DateTimeOffset now, CancellationToken ct = default)
         => PendingInvitations(groupId, now).CountAsync(ct);
 
-    public Task<List<GroupActivity>> ListActivitiesAsync(Guid groupId, int limit, CancellationToken ct = default)
-        => _context.GroupActivities
-            .AsNoTracking()
-            .Where(a => a.GroupId == groupId)
+    public async Task<GroupActivityPage> ListActivitiesAsync(Guid groupId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.GroupActivities.AsNoTracking().Where(a => a.GroupId == groupId);
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(a =>
+                a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
             .OrderByDescending(a => a.CreatedAt)
-            .Take(limit)
+            .ThenByDescending(a => a.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new GroupActivityPage(items, nextCursor);
+    }
 
     public async Task TransferOwnershipAsync(GroupMember currentOwner, GroupMember newOwner, CancellationToken ct = default)
     {
