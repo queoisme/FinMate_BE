@@ -68,7 +68,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             command.UserId, contentHash, ct);
         if (processed is not null)
         {
-            return new NotificationAnalysisResultDto(processed.Id, processed.Status.ToString(), null);
+            // Lần xử lý trước có thể đã tạo giao dịch nháp — client gửi lại (đồng bộ hàng đợi offline) vẫn cần biết
+            // giao dịch đó để mở đúng màn xác nhận, không phải chỉ biết thông báo đã "Processed".
+            var draft = await _transactionRepository.GetByNotificationLogIdAsync(processed.Id, ct);
+            return new NotificationAnalysisResultDto(processed.Id, processed.Status.ToString(), draft?.Id);
         }
 
         var account = await _financialAccountRepository.GetByUserAndMonitoredPackageAsync(command.UserId, command.PackageName, ct);

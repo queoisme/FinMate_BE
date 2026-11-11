@@ -124,6 +124,14 @@ public class GoalPlanningService : IGoalPlanningService
             throw new BusinessRuleException(FinanceErrorCodes.FeasibilityInputInvalid, "Số tiền mục tiêu phải lớn hơn 0 và số đã có không được âm.");
         }
 
+        // Cùng ràng buộc với CreateSavingGoalCommandValidator/UpdateSavingGoalCommandValidator: hạn đã qua thì
+        // MonthsRemaining bên dưới âm/0, bị kẹp về 1 tháng — cho ra con số "cần góp mỗi tháng" trông hợp lý nhưng sai,
+        // thay vì báo lỗi rõ ràng ngay từ đầu.
+        if (deadline <= DateTimeOffset.UtcNow)
+        {
+            throw new BusinessRuleException(FinanceErrorCodes.FeasibilityInputInvalid, "Hạn hoàn thành phải ở tương lai.");
+        }
+
         var remaining = Math.Max(0, targetCents - savedCents);
         if (remaining == 0)
         {

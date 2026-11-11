@@ -27,6 +27,13 @@ public interface ITransactionRepository
     /// </summary>
     Task<Transaction?> GetByClientRequestIdAsync(
         Guid userId, Guid clientRequestId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Giao dịch nháp đã tạo từ một thông báo ngân hàng cụ thể, hoặc null nếu thông báo đó
+    /// không sinh ra giao dịch nào (không phải thông báo tài chính, hoặc nghi trùng).
+    /// notification_log_id là duy nhất nên không cần lọc theo userId.
+    /// </summary>
+    Task<Transaction?> GetByNotificationLogIdAsync(Guid notificationLogId, CancellationToken ct = default);
     Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default);
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);

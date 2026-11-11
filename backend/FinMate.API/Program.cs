@@ -68,7 +68,11 @@ using FinMate.Application.Support;
 using Serilog;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
+using CommonApiResponse = FinMate.Application.Common.Models.ApiResponse<object>;
+using FinMate.Application.Common.Models;
 
 namespace FinMate.API;
 
@@ -153,6 +157,27 @@ public class Program
         builder.Services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddEndpointsApiExplorer();
+
+        // Lỗi model-binding/validation (vd. enum không parse được) xảy ra TRƯỚC khi action chạy,
+        // nên bỏ qua ExceptionHandlingMiddleware. Đồng bộ về cùng envelope ApiResponse như mọi lỗi khác.
+        builder.Services.Configure<ApiBehaviorOptions>(options =>
+        {
+            options.InvalidModelStateResponseFactory = context =>
+            {
+                var details = context.ModelState
+                    .Where(entry => entry.Value is { Errors.Count: > 0 })
+                    .Select(entry => new ApiErrorDetail(
+                        entry.Key,
+                        string.Join(" ", entry.Value!.Errors.Select(e => e.ErrorMessage))))
+                    .ToList();
+                var response = CommonApiResponse.Fail(
+                    new ApiError("VALIDATION_ERROR", "Dữ liệu không hợp lệ.", details));
+                return new BadRequestObjectResult(response)
+                {
+                    ContentTypes = { "application/json" },
+                };
+            };
+        });
 
         builder.Services.AddSwaggerGen(options =>
         {
@@ -287,6 +312,23 @@ public class Program
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero,
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    // Mặc định middleware xác thực trả body rỗng, khác envelope ApiResponse mà mọi lỗi
+                    // khác trong app dùng. Tự viết lại để FE chỉ cần xử lý một dạng lỗi.
+                    OnChallenge = async context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.ContentType = "application/json";
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        var response = CommonApiResponse.Fail(
+                            new ApiError("UNAUTHORIZED", "Thiếu hoặc token xác thực không hợp lệ."));
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                        }));
+                    },
+                };
             });
 
         // Every controller requires auth by default (AGENTS.md §3.2) — Auth's public
@@ -354,7 +396,19 @@ public class Program
         builder.Services.AddScoped<IOtpService, OtpService>();
 
         builder.Services.AddScoped<LoggingEmailSender>();
-        builder.Services.AddScoped<IEmailSender, SwitchingEmailSender>();
+
+        // Development (docker-compose dev stack, và bộ test) luôn in mã ra log thay vì gọi Brevo thật — dù secret_store
+        // hay biến môi trường BREVO_API_KEY có được cấu hình hay không. Bật lại đường thật cục bộ bằng FORCE_REAL_EMAIL=true
+        // khi cố ý cần kiểm tra Brevo. Ngoài Development (staging/production) luôn qua SwitchingEmailSender như cũ.
+        var forceRealEmail = bool.TryParse(builder.Configuration["FORCE_REAL_EMAIL"], out var parsedForceRealEmail) && parsedForceRealEmail;
+        if (builder.Environment.IsDevelopment() && !forceRealEmail)
+        {
+            builder.Services.AddScoped<IEmailSender>(sp => sp.GetRequiredService<LoggingEmailSender>());
+        }
+        else
+        {
+            builder.Services.AddScoped<IEmailSender, SwitchingEmailSender>();
+        }
 
         builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
         builder.Services.AddScoped<ITokenService, TokenService>();
