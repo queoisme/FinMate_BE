@@ -100,7 +100,7 @@ public class GroupTransactionService : IGroupTransactionService
     public async Task<IReadOnlyList<GroupTransactionDto>> ListAsync(Guid groupId, Guid userId, int year, int month, int limit, CancellationToken ct = default)
     {
         var access = await _access.RequireAsync(groupId, userId, GroupPermission.ViewOverview, ct);
-        var (from, to) = VietnamTime.MonthRange(new DateTimeOffset(year, month, 1, 12, 0, 0, VietnamTime.Offset));
+        var (from, to) = VietnamTime.MonthRange(year, month);
         var onlyOwn = access.Has(GroupPermission.ViewMemberTransactions) ? (Guid?)null : userId;
         var rows = await _finance.ListSharedTransactionsAsync(groupId, onlyOwn, from, to, Math.Clamp(limit, 1, MaxLimit), ct);
         return rows.Select(ToDto).ToList();

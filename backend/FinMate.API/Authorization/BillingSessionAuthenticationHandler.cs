@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
+using FinMate.Application.Common.Models;
 using FinMate.Application.Subscriptions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -40,5 +42,24 @@ public sealed class BillingSessionAuthenticationHandler : AuthenticationHandler<
 
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.Value.ToString())], SchemeName);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName));
+    }
+
+    // Mặc định middleware xác thực trả body rỗng, khác envelope ApiResponse mà mọi lỗi khác trong app dùng
+    // (xem JwtBearerEvents.OnChallenge trong Program.cs — cùng lý do, viết lại ở đây cho scheme riêng này).
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+        => WriteEnvelopeAsync(StatusCodes.Status401Unauthorized, "UNAUTHORIZED", "Thiếu hoặc phiên thanh toán không hợp lệ.");
+
+    protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
+        => WriteEnvelopeAsync(StatusCodes.Status403Forbidden, "FORBIDDEN", "Bạn không có quyền truy cập tài nguyên này.");
+
+    private async Task WriteEnvelopeAsync(int statusCode, string code, string message)
+    {
+        Response.ContentType = "application/json";
+        Response.StatusCode = statusCode;
+        var response = ApiResponse<object>.Fail(new ApiError(code, message));
+        await Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        }));
     }
 }

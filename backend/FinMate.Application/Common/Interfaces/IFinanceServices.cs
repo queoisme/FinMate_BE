@@ -22,11 +22,14 @@ public interface ISurveyService
     Task<SurveyDto> DeleteAsync(Guid userId, CancellationToken ct = default);
 }
 
+/// <param name="Created">false khi trả lại gợi ý cùng signals đã tạo gần đây thay vì tạo mới — controller dùng để trả 200 thay vì 201.</param>
+public record RecommendationResult(RecommendationDto Recommendation, bool Created);
+
 /// <summary>Gợi ý cách quản lý: AI nếu người dùng đồng ý và AI dùng được, không thì rule.</summary>
 public interface IMethodRecommendationService
 {
     /// <summary>Tạo gợi ý mới (hoặc trả lại gợi ý cùng signals vừa tạo trong 10 phút gần đây, để bấm liên tục không gọi AI liên tục).</summary>
-    Task<RecommendationDto> GenerateAsync(Guid userId, CancellationToken ct = default);
+    Task<RecommendationResult> GenerateAsync(Guid userId, CancellationToken ct = default);
 
     Task<RecommendationDto> GetLatestAsync(Guid userId, CancellationToken ct = default);
 

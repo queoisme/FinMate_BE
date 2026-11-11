@@ -256,6 +256,16 @@ public class GoalPlanningServiceTests
     public async Task Preview_NothingLeftToSave_ReturnsNull()
         => (await _service.PreviewFeasibilityAsync(_userId, 5_000_000, 5_000_000, DateTimeOffset.UtcNow.AddDays(30))).Should().BeNull();
 
+    [Theory]
+    [InlineData(-30)]
+    [InlineData(0)]
+    public async Task Preview_RejectsPastOrPresentDeadline(int daysFromNow)
+    {
+        var act = () => _service.PreviewFeasibilityAsync(_userId, 5_000_000, 0, DateTimeOffset.UtcNow.AddDays(daysFromNow));
+
+        (await act.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be(FinanceErrorCodes.FeasibilityInputInvalid);
+    }
+
     [Fact]
     public async Task Preview_WithoutIncome_StillSaysHowMuchPerMonth_ButDoesNotConclude()
     {

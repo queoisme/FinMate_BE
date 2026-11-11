@@ -45,9 +45,25 @@ public static class VietnamTime
         return MonthRange(local.Year, local.Month);
     }
 
-    /// <summary>Nửa mở [start, end) của tháng <paramref name="year"/>/<paramref name="month"/> theo giờ VN.</summary>
+    /// <summary>
+    /// Nửa mở [start, end) của tháng <paramref name="year"/>/<paramref name="month"/> theo giờ VN.
+    /// Validate year/month ở đây (thay vì để <see cref="DateTimeOffset"/> ném <see cref="ArgumentOutOfRangeException"/>)
+    /// vì year/month ở nhiều call site đến thẳng từ query param người dùng.
+    /// </summary>
     public static (DateTimeOffset Start, DateTimeOffset End) MonthRange(int year, int month)
     {
+        if (month is < 1 or > 12)
+        {
+            throw new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure(nameof(month), "Tháng phải từ 1 đến 12.")]);
+        }
+
+        if (year is < 1 or > 9999)
+        {
+            throw new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure(nameof(year), "Năm không hợp lệ.")]);
+        }
+
         var start = new DateTimeOffset(year, month, 1, 0, 0, 0, Offset);
         return (start.ToUniversalTime(), start.AddMonths(1).ToUniversalTime());
     }

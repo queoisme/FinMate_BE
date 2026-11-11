@@ -36,7 +36,7 @@ public class GroupReportService : IGroupReportService
     public async Task<GroupMonthlyReportDto> GetMonthlyAsync(Guid groupId, Guid userId, int year, int month, CancellationToken ct = default)
     {
         await _access.RequireAsync(groupId, userId, GroupPermission.ViewOverview, ct);
-        var (start, end) = VietnamTime.MonthRange(new DateTimeOffset(year, month, 1, 12, 0, 0, VietnamTime.Offset));
+        var (start, end) = VietnamTime.MonthRange(year, month);
         var rows = await _finance.ListReportRowsAsync(groupId, start, end, ct);
         var spending = rows.Where(r => r.Type == TransactionType.Debit).ToList();
 

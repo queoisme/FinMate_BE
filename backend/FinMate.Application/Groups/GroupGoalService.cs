@@ -125,6 +125,11 @@ public class GroupGoalService : IGroupGoalService
         await _updateValidator.ValidateAndThrowAsync(command, ct);
         await _access.RequireAsync(command.GroupId, command.UserId, GroupPermission.ManageGoals, ct);
         var goal = await RequireGoalAsync(command.GroupId, command.GoalId, ct);
+        if (goal.Status != SavingGoalStatus.Active)
+        {
+            throw new BusinessRuleException(GroupErrorCodes.GoalNotActive, "Chỉ sửa được mục tiêu đang hoạt động.");
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         goal.Name = command.Name?.Trim() ?? goal.Name;

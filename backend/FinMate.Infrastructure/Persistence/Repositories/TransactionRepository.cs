@@ -43,6 +43,11 @@ public class TransactionRepository : ITransactionRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public Task<Transaction?> GetByNotificationLogIdAsync(Guid notificationLogId, CancellationToken ct = default)
+        => _context.Transactions
+            .Include(t => t.Category)
+            .FirstOrDefaultAsync(t => t.NotificationLogId == notificationLogId, ct);
+
     public Task<Transaction?> GetByClientRequestIdAsync(
         Guid userId, Guid clientRequestId, CancellationToken ct = default)
         => _context.Transactions

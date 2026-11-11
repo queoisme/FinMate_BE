@@ -39,11 +39,19 @@ public class RefreshTokenCommandHandler : IRefreshTokenCommandHandler
 
         if (existing.RevokedAt is not null)
         {
-            // Token already rotated once before — this is a reuse, treat as a security breach.
-            await _refreshTokenRepository.RevokeAllForUserAsync(existing.UserId, ct);
-            await _auditLogService.LogAsync(
-                AuditEvents.TokenReuseDetected, existing.UserId, command.IpAddress, ct: ct);
-            throw new AuthenticationException(AuthErrorCodes.TokenReuseDetected, "Refresh token đã bị sử dụng lại.");
+            // ReplacedByTokenHash chỉ được đặt khi RotateAsync thực sự xoay token (xem RefreshTokenRepository.RotateAsync).
+            // Có giá trị đó nghĩa là token này đã bị dùng để đổi lấy token mới trước đây — ai đó đang trình lại một token
+            // đã bị thay thế, tức token bị lộ. Null nghĩa là bị thu hồi vì lý do khác (đăng xuất mọi thiết bị, đổi mật
+            // khẩu, xóa tài khoản) — hợp lệ và chủ động từ người dùng, không phải tấn công.
+            if (existing.ReplacedByTokenHash is not null)
+            {
+                await _refreshTokenRepository.RevokeAllForUserAsync(existing.UserId, ct);
+                await _auditLogService.LogAsync(
+                    AuditEvents.TokenReuseDetected, existing.UserId, command.IpAddress, ct: ct);
+                throw new AuthenticationException(AuthErrorCodes.TokenReuseDetected, "Refresh token đã bị sử dụng lại.");
+            }
+
+            throw new AuthenticationException(AuthErrorCodes.TokenInvalid, "Refresh token không hợp lệ.");
         }
 
         if (existing.ExpiresAt <= DateTimeOffset.UtcNow)

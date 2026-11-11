@@ -33,7 +33,7 @@ public class MethodRecommendationService : IMethodRecommendationService
         _config = config;
     }
 
-    public async Task<RecommendationDto> GenerateAsync(Guid userId, CancellationToken ct = default)
+    public async Task<RecommendationResult> GenerateAsync(Guid userId, CancellationToken ct = default)
     {
         var answers = await _surveys.GetAnswersAsync(userId, ct);
         var signals = SurveySignals.FromAnswers(
@@ -52,7 +52,7 @@ public class MethodRecommendationService : IMethodRecommendationService
         // Trong khoảng này, xin gợi ý lại với CÙNG signals thì trả bản vừa tạo: bấm liên tục không gọi AI liên tục.
         if (latest is not null && now - latest.CreatedAt < TimeSpan.FromMinutes(settings.RecommendationReuseMinutes) && SameSignals(FinanceJson.ReadIntMap(latest.SignalsSnapshot), signals))
         {
-            return await ToDtoAsync(latest, ct);
+            return new RecommendationResult(await ToDtoAsync(latest, ct), Created: false);
         }
 
         var shortlist = MethodSelector.Shortlist(await _methods.GetMethodsAsync(includeInactive: false, ct), signals);
@@ -80,7 +80,7 @@ public class MethodRecommendationService : IMethodRecommendationService
         };
         await _userMethods.AddRecommendationAsync(recommendation, ct);
 
-        return await ToDtoAsync(recommendation, ct);
+        return new RecommendationResult(await ToDtoAsync(recommendation, ct), Created: true);
     }
 
     public async Task<RecommendationDto> GetLatestAsync(Guid userId, CancellationToken ct = default)
