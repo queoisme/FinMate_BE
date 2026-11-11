@@ -67,9 +67,35 @@ public class AnalyzeNotificationCommandHandlerTests
 
         result.NotificationLogId.Should().Be(existingLog.Id);
         result.Status.Should().Be("Processed");
+        result.DraftTransactionId.Should().BeNull("lần xử lý trước đó không tạo ra giao dịch nháp nào (không phải tài chính, hoặc nghi trùng)");
         _aiServiceClient.Verify(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         _notificationLogRepository.Verify(
             r => r.AddAsync(It.IsAny<NotificationLog>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_DuplicateOfANotificationThatCreatedADraft_ReturnsTheSameDraftId()
+    {
+        var account = new FinancialAccount { Id = Guid.NewGuid(), IsMonitored = true };
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+
+        var existingLog = new NotificationLog { Id = Guid.NewGuid(), Status = NotificationLogStatus.Processed };
+        _notificationLogRepository
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingLog);
+
+        var draft = new Transaction { Id = Guid.NewGuid(), NotificationLogId = existingLog.Id, Status = TransactionStatus.Draft };
+        _transactionRepository
+            .Setup(r => r.GetByNotificationLogIdAsync(existingLog.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.NotificationLogId.Should().Be(existingLog.Id);
+        result.Status.Should().Be("Processed");
+        result.DraftTransactionId.Should().Be(draft.Id, "đồng bộ lại thông báo cũ không được làm client mất liên kết tới giao dịch nháp đã tạo");
     }
 
     [Fact]
