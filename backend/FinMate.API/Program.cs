@@ -512,6 +512,10 @@ public class Program
         builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
+        builder.Services.AddScoped<IForecastAccuracyRepository, ForecastAccuracyRepository>();
+        builder.Services.AddScoped<IForecastAccuracyService, ForecastAccuracyService>();
+        builder.Services.AddScoped<IForecastFeedbackService, ForecastFeedbackService>();
+        builder.Services.AddScoped<ForecastAccuracyJob>();
         builder.Services.AddScoped<IForecastService, ForecastService>();
         builder.Services.AddScoped<IPurchaseCheckService, PurchaseCheckService>();
         builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
@@ -846,6 +850,12 @@ public class Program
             "recurring-detection",
             job => job.RunAsync(CancellationToken.None),
             "30 18 * * *");
+
+        // 19:30 UTC = 02:30 VN: sau RecurringDetectionJob. Điền số thực tế rồi chụp dự báo hôm nay để đo độ chính xác.
+        RecurringJob.AddOrUpdate<ForecastAccuracyJob>(
+            "forecast-accuracy",
+            job => job.RunAsync(CancellationToken.None),
+            "30 19 * * *");
 
         // 01:00 UTC = 08:00 VN: cảnh báo dự báo hằng ngày, sau RecurringDetectionJob và không push giữa đêm.
         RecurringJob.AddOrUpdate<ForecastDailyAlertJob>(

@@ -65,6 +65,8 @@ public static class AuditEvents
     /// <summary>Cấu hình hệ thống (bảo trì, phiên bản app, tính năng, giao diện) được lưu hoặc hoàn tác. Metadata chỉ có tên các phần đã đổi; nội dung nằm ở chính phiên bản trong <c>system_config_versions</c>.</summary>
     /// <summary>Admin bấm "Chạy ngay" làm mới giả định kinh tế. Metadata chỉ có kết quả của lượt chạy.</summary>
     public const string AdminEconomicFeedRefreshed = "Admin.EconomicFeed.Refreshed";
+    /// <summary>Staff gán nguyên nhân cho phản hồi "dự báo sai". Metadata chỉ có id phản hồi và nguyên nhân: không có người dùng hay lời nhắn của họ.</summary>
+    public const string OpsForecastFeedbackLabeled = "Ops.ForecastFeedback.Labeled";
     public const string AdminSystemConfigChanged = "Admin.SystemConfig.Changed";
     /// <summary>Key bên thứ ba được đặt hoặc xóa. Metadata chỉ có tên key, hành động và lý do: KHÔNG BAO GIỜ có giá trị key (AI Service cũng chỉ giữ 4 ký tự cuối).</summary>
     public const string AdminSecretChanged = "Admin.Secret.Changed";

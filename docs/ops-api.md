@@ -352,3 +352,26 @@ Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi 
 Giá tính bằng đồng. Gói miễn phí có sẵn, không có giá, không tắt và không xóa được; hạn mức của nó áp dụng ngay cho mọi người chưa mua. Sửa gói trả phí không ảnh hưởng người đã mua, vì đơn giữ bản chụp giá và quyền lợi.
 
 Đơn `NeedsReview` là tiền đã về nhưng chưa cấp được gói. Mỗi đơn mở một sự cố `subscription_payments`, xử lý theo `docs/ops-runbook.md`.
+
+## Chất lượng dự báo: độ chính xác và phản hồi "dự báo sai"
+
+Vòng khép kín: người dùng xem dự báo, báo sai, Staff gán nguyên nhân, OpsManager theo dõi sai số thật. Không có định danh người dùng ở bất kỳ phản hồi nào của nhân sự.
+
+**Job `forecast-accuracy`** chạy 02:30 giờ VN (cron UTC `30 19 * * *`), sau nhận diện khoản định kỳ. Hai bước: (1) điền số dư **thực tế** cho các bản chụp đã tới ngày của mốc, (2) **chụp** dự báo hôm nay cho mọi người có hoạt động trong cửa sổ lịch sử: một dòng mỗi mốc nhìn trước 7, 14, 30 ngày, lưu trong `forecast_snapshots` (số dư dự kiến, hai đầu dải, mốc so sánh "chỉ khoản định kỳ", mức tin cậy, phiên bản cấu hình, tên phương pháp). Chạy lại trong ngày không tạo bản trùng.
+
+Số dư thực tế = số dư lúc chụp + thu chi thật từ ngày gốc tới ngày của mốc, cùng định nghĩa với dự báo: chỉ ví được tính vào dự báo, không gồm chuyển khoản nội bộ và cho vay/mượn. Giao dịch user loại khỏi dự báo vẫn tính vì tiền đã đổi thật.
+
+| API | Quyền | Việc |
+|---|---|---|
+| `POST /api/v1/forecast/feedback` `{reason, note?}` | Người dùng (JWT) | Báo dự báo sai. `reason`: `balance_wrong`, `missing_bill`, `wrong_bill`, `unusual_spending`, `other`; `note` tối đa 300 ký tự. Gắn với bản chụp gần nhất của chính họ; gửi lại khi phản hồi trước chưa xử lý thì trả lại phản hồi đó. 422 `FORECAST_FEEDBACK_INVALID` |
+| `GET /api/v1/ops/forecast/feedback?status=&limit=&offset=` | Staff trở lên (xử lý ticket) | Hàng đợi, `status` là `new` hoặc `labeled`. Mỗi dòng có lý do, lời nhắn, số dự báo và số thực tế của bản chụp; **không có id người dùng** |
+| `PATCH /api/v1/ops/forecast/feedback/{id}` `{cause}` | Staff trở lên | Gán nguyên nhân: `data_missing`, `recurring_misread`, `one_off`, `model_issue`, `other`. Gán lại được. Nhật ký `Ops.ForecastFeedback.Labeled` chỉ có id và nguyên nhân |
+| `GET /api/v1/ops/forecast/accuracy?windowDays=30` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày |
+
+`accuracy` trả, theo mỗi mốc 7/14/30 ngày và theo nhóm `all`, `low` (ít dữ liệu), `normal`:
+- `maeCents`: sai số tuyệt đối trung bình của số dư dự báo (đồng); `medianAbsErrorCents`.
+- `maeRecurringOnlyCents` và `maeHoldCents`: cùng chỉ số nếu chỉ dùng khoản định kỳ (kiểu Simplifi/Monzo) và nếu giả định số dư không đổi. `ratioVsHold` và `ratioVsRecurringOnly` nhỏ hơn 1 nghĩa là dự báo hơn mốc đó.
+- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Dải hiện tại cộng dồn P25/P75 từng ngày nên **dự kiến cao hơn 50%**; đây là số đo để quyết định có thay bằng bootstrap hay không.
+- `meanBandWidthCents`, số mẫu, số bản chụp đã điền và còn chờ, số phản hồi theo lý do và theo nguyên nhân.
+
+Giới hạn đã biết: chưa có mốc so sánh trung bình 90 ngày (B1) và seasonal naive (B2); mốc "không đổi" là mốc thấp nhất. Số thực tế dùng giao dịch đã xác nhận, nên giao dịch ghi muộn làm số thực tế đổi theo.

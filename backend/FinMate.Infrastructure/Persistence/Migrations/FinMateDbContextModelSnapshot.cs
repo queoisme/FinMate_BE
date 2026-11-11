@@ -1441,6 +1441,176 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Cause")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("cause");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("LabeledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("labeled_at");
+
+                    b.Property<Guid?>("LabeledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeled_by_user_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("SnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("snapshot_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_forecast_feedback_status_created");
+
+                    b.HasIndex("UserId", "SnapshotId")
+                        .HasDatabaseName("ix_forecast_feedback_user_snapshot_new")
+                        .HasFilter("status = 'new'");
+
+                    b.ToTable("forecast_feedback", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_forecast_feedback_cause", "cause IS NULL OR cause IN ('data_missing','recurring_misread','one_off','model_issue','other')");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_labeled", "(status = 'labeled') = (cause IS NOT NULL AND labeled_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_reason", "reason IN ('balance_wrong','missing_bill','wrong_bill','unusual_spending','other')");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_status", "status IN ('new','labeled')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long?>("ActualCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actual_cents");
+
+                    b.Property<DateTimeOffset?>("ActualFilledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("actual_filled_at");
+
+                    b.Property<string>("Confidence")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("confidence");
+
+                    b.Property<int>("ConfigVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("config_version");
+
+                    b.Property<long>("ConservativeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("conservative_cents");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("HorizonDate")
+                        .HasColumnType("date")
+                        .HasColumnName("horizon_date");
+
+                    b.Property<int>("HorizonDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("horizon_days");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("method");
+
+                    b.Property<long>("OptimisticCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("optimistic_cents");
+
+                    b.Property<DateOnly>("OriginDate")
+                        .HasColumnType("date")
+                        .HasColumnName("origin_date");
+
+                    b.Property<long>("PredictedCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("predicted_cents");
+
+                    b.Property<long>("RecurringOnlyCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("recurring_only_cents");
+
+                    b.Property<long>("StartBalanceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("start_balance_cents");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HorizonDate")
+                        .HasDatabaseName("ix_forecast_snapshots_awaiting_actual")
+                        .HasFilter("actual_cents IS NULL");
+
+                    b.HasIndex("OriginDate")
+                        .HasDatabaseName("ix_forecast_snapshots_filled_origin")
+                        .HasFilter("actual_cents IS NOT NULL");
+
+                    b.HasIndex("UserId", "OriginDate", "HorizonDays")
+                        .IsUnique()
+                        .HasDatabaseName("uq_forecast_snapshots_user_origin_horizon");
+
+                    b.ToTable("forecast_snapshots", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_forecast_snapshots_actual", "(actual_cents IS NULL) = (actual_filled_at IS NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_snapshots_confidence", "confidence IN ('low','normal')");
+
+                            t.HasCheckConstraint("chk_forecast_snapshots_horizon", "horizon_days > 0 AND horizon_date > origin_date");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.FuelPrice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5317,6 +5487,35 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.ForecastAlert", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastFeedback", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.ForecastSnapshot", "Snapshot")
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Snapshot");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastSnapshot", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
