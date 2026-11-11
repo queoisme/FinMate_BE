@@ -211,3 +211,35 @@ async def test_listing_paginates_and_searches_on_the_server(kb_api, auth_headers
 
 async def test_the_kb_routes_need_the_internal_key(kb_api):
     assert (await kb_api.post("/api/v1/kb/search", json={"query": "x"})).status_code == 401
+
+
+async def _text_branch_top(session, query: str) -> list[str]:
+    """Thứ tự của RIÊNG nhánh full-text (bỏ vector), để kiểm xếp hạng từ khóa mà không bị nhiễu."""
+    from sqlalchemy import text
+
+    from app.agent.rag.retriever import _FETCH_SQL, _TEXT_SQL
+
+    ids = (await session.execute(text(_TEXT_SQL), {"t": query, "now": NOW})).scalars().all()
+    rows = {r["id"]: r["text"] for r in (await session.execute(text(_FETCH_SQL), {"ids": [str(i) for i in ids]})).mappings().all()}
+    return [rows[i] for i in ids]
+
+
+async def test_a_rare_exact_term_outranks_chunks_full_of_common_words(session):
+    # Câu hỏi "Phương pháp 50/30/20 là gì?": cụm quyết định chỉ có ở MỘT đoạn, còn "phương pháp", "là", "gì" có ở rất nhiều đoạn khác.
+    # Xếp theo số từ khớp thì các đoạn nhiều từ thông dụng thắng; xếp theo độ hiếm (IDF) thì đoạn chứa "50/30/20" đứng đầu.
+    target = "Quy tắc 50/30/20 chia thu nhập thành ba phần cho nhu cầu, mong muốn và mục tiêu."
+    await add(session, target, 1, title="Quy tắc 50/30/20")
+    for axis in range(2, 9):
+        await add(session, f"Phương pháp quản lý tiền là gì? Đây là cách số {axis} giúp bạn chi tiêu, và phương pháp này là một lựa chọn.", axis, title=f"Phương pháp {axis}")
+
+    ranked = await _text_branch_top(session, "Phương pháp 50/30/20 là gì?")
+
+    assert ranked[0] == target
+
+
+async def test_terms_found_in_every_chunk_add_nothing(session):
+    # Từ có ở mọi đoạn có điểm 0: một câu chỉ gồm từ như vậy không trả đoạn nào thay vì trả tất cả.
+    for axis in range(1, 4):
+        await add(session, f"Đoạn số {axis} nói về tiền.", axis, title=f"Tài liệu {axis}")
+
+    assert await _text_branch_top(session, "tiền") == []
