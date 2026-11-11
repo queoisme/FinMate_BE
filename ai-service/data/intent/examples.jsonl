@@ -4990,3 +4990,116 @@
 {"text": "đổ [45k](amount) vào ví điện tử", "intent": "transfer_money", "split": "train"}
 {"text": "đổ [50.000đ](amount) vào shopeepay", "intent": "transfer_money", "split": "train"}
 {"text": "đổ [một trăm nghìn](amount) vào ví cá nhân", "intent": "transfer_money", "split": "train"}
+{"text": "tiền lãi gửi ngân hàng tháng này về 150k", "intent": "add_income", "split": "train"}
+{"text": "nhận lãi ngân hàng 70k", "intent": "add_income", "split": "train"}
+{"text": "ngân hàng cộng lãi vào tài khoản 110k", "intent": "add_income", "split": "train"}
+{"text": "lãi quý này về 200k", "intent": "add_income", "split": "train"}
+{"text": "lãi gửi tiết kiệm kỳ này 90k", "intent": "add_income", "split": "train"}
+{"text": "ngân hàng vừa trả tiền lãi cho mình 130k", "intent": "add_income", "split": "train"}
+{"text": "lãi tài khoản tháng 10 về 55k", "intent": "add_income", "split": "train"}
+{"text": "tiền lãi tiết kiệm về 300k", "intent": "add_income", "split": "train"}
+{"text": "hoàn tiền thẻ tín dụng 60k", "intent": "add_income", "split": "train"}
+{"text": "được cashback 35k từ ví", "intent": "add_income", "split": "train"}
+{"text": "cashback tháng này 80k", "intent": "add_income", "split": "train"}
+{"text": "thẻ cashback hoàn về 50k", "intent": "add_income", "split": "train"}
+{"text": "ví hoàn tiền khuyến mãi 25k", "intent": "add_income", "split": "train"}
+{"text": "nhận hoàn tiền mua sắm 140k", "intent": "add_income", "split": "train"}
+{"text": "cashback grab 20k", "intent": "add_income", "split": "train"}
+{"text": "được hoàn tiền đơn hàng 95k", "intent": "add_income", "split": "train"}
+{"text": "bán điện thoại cũ được 3 triệu", "intent": "add_income", "split": "train"}
+{"text": "bán xe đạp cũ thu về 1tr2", "intent": "add_income", "split": "train"}
+{"text": "thanh lý laptop cũ lấy 6 triệu", "intent": "add_income", "split": "train"}
+{"text": "bán lại cái tủ lạnh cũ 2tr5", "intent": "add_income", "split": "train"}
+{"text": "bán đồ cũ được 400k", "intent": "add_income", "split": "train"}
+{"text": "bán sách cũ lấy 150k", "intent": "add_income", "split": "train"}
+{"text": "bán máy tính cũ lấy 5 triệu", "intent": "add_income", "split": "train"}
+{"text": "bán lại chiếc xe máy cũ 12 triệu", "intent": "add_income", "split": "train"}
+{"text": "thanh lý bàn ghế cũ 800k", "intent": "add_income", "split": "train"}
+{"text": "bán quần áo cũ trên chợ mạng được 250k", "intent": "add_income", "split": "train"}
+{"text": "bán cái tivi cũ lấy 1tr8", "intent": "add_income", "split": "train"}
+{"text": "bán đồ cũ cho người quen 500k", "intent": "add_income", "split": "train"}
+{"text": "bạn chuyển khoản trả tiền ăn 200k", "intent": "add_income", "split": "train"}
+{"text": "bạn trả tiền cà phê hôm qua 80k", "intent": "add_income", "split": "train"}
+{"text": "đồng nghiệp chuyển trả tiền cơm trưa 120k", "intent": "add_income", "split": "train"}
+{"text": "bạn gửi lại tiền xem phim 100k", "intent": "add_income", "split": "train"}
+{"text": "nhỏ bạn chuyển tiền trả phần ăn lẩu 250k", "intent": "add_income", "split": "train"}
+{"text": "anh chuyển lại tiền taxi 90k", "intent": "add_income", "split": "train"}
+{"text": "bạn trả nốt tiền mua chung 300k", "intent": "add_income", "split": "train"}
+{"text": "chị chuyển trả tiền đi chợ hộ 180k", "intent": "add_income", "split": "train"}
+{"text": "bạn thân chuyển khoản trả tiền nước 60k", "intent": "add_income", "split": "train"}
+{"text": "cậu ấy trả lại tiền ăn sáng 45k", "intent": "add_income", "split": "train"}
+{"text": "đóng bảo hiểm xe máy năm nay 70k", "intent": "add_expense", "split": "train"}
+{"text": "đóng phí bảo hiểm ô tô hết 6 triệu", "intent": "add_expense", "split": "train"}
+{"text": "gia hạn bảo hiểm xe 90k", "intent": "add_expense", "split": "train"}
+{"text": "bảo hiểm y tế cả năm 800k", "intent": "add_expense", "split": "train"}
+{"text": "mua bảo hiểm xe máy bắt buộc 66k", "intent": "add_expense", "split": "train"}
+{"text": "đóng bảo hiểm xe máy 2 bánh 60k", "intent": "add_expense", "split": "train"}
+{"text": "gia hạn bảo hiểm trách nhiệm xe 480k", "intent": "add_expense", "split": "train"}
+{"text": "đóng phí bảo hiểm nhân thọ 1tr5", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng xe", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng sáng nay", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng đầy bình", "intent": "add_expense", "split": "train"}
+{"text": "vừa đổ xăng", "intent": "add_expense", "split": "train"}
+{"text": "đi đổ xăng", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng ở cây xăng đầu ngõ", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng chiều nay", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng cho xe máy", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng 50k", "intent": "add_expense", "split": "train"}
+{"text": "đổ xăng hết 80 nghìn", "intent": "add_expense", "split": "train"}
+{"text": "đóng tiền học thêm cho con 800k", "intent": "add_expense", "split": "train"}
+{"text": "đóng học phí tiếng anh cho em 1tr2", "intent": "add_expense", "split": "train"}
+{"text": "đóng tiền học vẽ cho bé 500k", "intent": "add_expense", "split": "train"}
+{"text": "nộp tiền học thêm toán 600k", "intent": "add_expense", "split": "train"}
+{"text": "đóng tiền lớp piano cho con 700k", "intent": "add_expense", "split": "train"}
+{"text": "đóng tiền học bơi cho em 350k", "intent": "add_expense", "split": "train"}
+{"text": "đóng tiền học thêm văn cho cháu 450k", "intent": "add_expense", "split": "train"}
+{"text": "nạp tiền vào game 200k", "intent": "add_expense", "split": "train"}
+{"text": "nạp thẻ vào tài khoản game 100k", "intent": "add_expense", "split": "train"}
+{"text": "nạp tiền vào game liên quân 300k", "intent": "add_expense", "split": "train"}
+{"text": "nạp kim cương 99k", "intent": "add_expense", "split": "train"}
+{"text": "nạp tiền chơi game 50k", "intent": "add_expense", "split": "train"}
+{"text": "nạp vào game 500k", "intent": "add_expense", "split": "train"}
+{"text": "nạp quân huy vào game 120k", "intent": "add_expense", "split": "train"}
+{"text": "mua gói vip trong game 150k", "intent": "add_expense", "split": "train"}
+{"text": "gửi mẹ 3 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi ba 2tr", "intent": "transfer_money", "split": "train"}
+{"text": "gửi mẹ tiền sinh hoạt 5 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi tiền cho mẹ 1tr5", "intent": "transfer_money", "split": "train"}
+{"text": "gửi về quê 4 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi em 500k", "intent": "transfer_money", "split": "train"}
+{"text": "gửi chị 1 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi bố 2 triệu 500", "intent": "transfer_money", "split": "train"}
+{"text": "gửi tiền về nhà 3tr", "intent": "transfer_money", "split": "train"}
+{"text": "gửi cho em gái 700k", "intent": "transfer_money", "split": "train"}
+{"text": "gửi ông bà 2 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi con 1tr tiền ăn", "intent": "transfer_money", "split": "train"}
+{"text": "gửi vợ 4 triệu", "intent": "transfer_money", "split": "train"}
+{"text": "gửi chồng 2tr", "intent": "transfer_money", "split": "train"}
+{"text": "mức lương tối thiểu vùng 2 là bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "lương cơ sở năm nay là bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "thưởng tết của ngân hàng năm nay thế nào", "intent": "out_of_scope", "split": "train"}
+{"text": "lương của cầu thủ messi một năm", "intent": "out_of_scope", "split": "train"}
+{"text": "tiền lương giáo viên năm nay bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "lương thủ tướng bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "tiền thưởng world cup bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "mức thưởng tết nhà nước năm nay", "intent": "out_of_scope", "split": "train"}
+{"text": "lương ceo các công ty lớn là bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "mức lương tối thiểu vùng 3 hiện nay", "intent": "out_of_scope", "split": "train"}
+{"text": "thưởng tết của giáo viên có nhiều không", "intent": "out_of_scope", "split": "train"}
+{"text": "lương của ca sĩ nổi tiếng một tháng", "intent": "out_of_scope", "split": "train"}
+{"text": "tiền lương của diễn viên hollywood", "intent": "out_of_scope", "split": "train"}
+{"text": "lương tối thiểu giờ là bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "thưởng tết các ngân hàng năm nay bao nhiêu", "intent": "out_of_scope", "split": "train"}
+{"text": "tiền lương của bác sĩ ở nước ngoài mỗi năm", "intent": "out_of_scope", "split": "train"}
+{"text": "khách chuyển khoản tiền hàng 3tr", "intent": "add_income", "split": "train"}
+{"text": "khách hàng chuyển khoản trả tiền đơn 1tr5", "intent": "add_income", "split": "train"}
+{"text": "người thân chuyển khoản cho mình 2 triệu", "intent": "add_income", "split": "train"}
+{"text": "ba chuyển khoản cho mình 3tr", "intent": "add_income", "split": "train"}
+{"text": "chị gái chuyển khoản cho mình 500k", "intent": "add_income", "split": "train"}
+{"text": "bạn bè chuyển khoản cho mình 400k", "intent": "add_income", "split": "train"}
+{"text": "có người chuyển khoản vào tài khoản mình 800k", "intent": "add_income", "split": "train"}
+{"text": "đối tác chuyển khoản thanh toán 5 triệu", "intent": "add_income", "split": "train"}
+{"text": "anh trai chuyển cho mình 1 triệu", "intent": "add_income", "split": "train"}
+{"text": "cô chuyển khoản cho cháu 700k", "intent": "add_income", "split": "train"}
+{"text": "nhận chuyển khoản từ khách 2tr5", "intent": "add_income", "split": "train"}
+{"text": "vừa nhận được tiền chuyển khoản của bạn 350k", "intent": "add_income", "split": "train"}
