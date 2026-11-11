@@ -56,3 +56,6 @@ ai-service/category-classifier/*.csv
 
 # Bản sao lưu DB (chứa dữ liệu người dùng đã băm): không đưa vào git
 backups/
+
+# File tạm draw.io sinh khi mở sơ đồ (.$ten.drawio.bkp / .dtmp): sơ đồ thật vẫn được theo dõi
+docs/diagrams/.$*
