@@ -767,6 +767,11 @@ public class Program
             FinMate.Infrastructure.Persistence.Seed.SurveySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.FinanceMethodSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.GoalTemplateSeeder.SeedAsync(db).GetAwaiter().GetResult();   // SAU FinanceMethodSeeder: bảng nối tham chiếu phương pháp
+            if (builder.Environment.IsDevelopment())
+            {
+                // Người dùng demo có sáu tháng giao dịch để thử agent; cần danh mục hệ thống nên chạy SAU CategorySeeder. KHÔNG bao giờ chạy ngoài Development.
+                FinMate.Infrastructure.Persistence.Seed.DemoUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            }
         }
 
         // TRƯỚC mọi middleware đọc IP hay scheme — nó viết lại chính hai thứ đó.
