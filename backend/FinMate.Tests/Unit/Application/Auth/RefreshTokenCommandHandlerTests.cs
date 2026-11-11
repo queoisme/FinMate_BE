@@ -62,7 +62,7 @@ public class RefreshTokenCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_AlreadyRevokedToken_RevokesAllAndThrowsReuseDetected()
+    public async Task HandleAsync_TokenAlreadyRotated_RevokesAllAndThrowsReuseDetected()
     {
         var userId = Guid.NewGuid();
         var token = new RefreshToken
@@ -72,6 +72,7 @@ public class RefreshTokenCommandHandlerTests
             TokenHash = "hash-of-reused",
             ExpiresAt = DateTimeOffset.UtcNow.AddDays(10),
             RevokedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            ReplacedByTokenHash = "hash-of-the-token-that-replaced-it",
         };
         _refreshTokenRepository
             .Setup(r => r.GetByTokenHashAsync("hash-of-reused", It.IsAny<CancellationToken>()))
@@ -85,6 +86,35 @@ public class RefreshTokenCommandHandlerTests
         _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
         _auditLogService.Verify(a => a.LogAsync(
             "Auth.TokenReuse.Detected", userId, null, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_TokenRevokedWithoutReplacement_ThrowsTokenInvalid_WithNoReuseAlert()
+    {
+        // Thu hồi do đăng xuất mọi thiết bị / đổi mật khẩu / xóa tài khoản: không có token thay thế,
+        // nên đây KHÔNG phải một lần dùng lại token đã bị lộ — không được báo động bảo mật.
+        var userId = Guid.NewGuid();
+        var token = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hash-of-logged-out",
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(10),
+            RevokedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+            ReplacedByTokenHash = null,
+        };
+        _refreshTokenRepository
+            .Setup(r => r.GetByTokenHashAsync("hash-of-logged-out", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(token);
+
+        var act = () => _handler.HandleAsync(new RefreshTokenCommand("logged-out"));
+
+        await act.Should().ThrowAsync<AuthenticationException>()
+            .Where(e => e.ErrorCode == AuthErrorCodes.TokenInvalid);
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _auditLogService.Verify(a => a.LogAsync(
+            "Auth.TokenReuse.Detected", It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
