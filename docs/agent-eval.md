@@ -109,6 +109,14 @@ Theo nhóm: `spending` 24 câu đều đúng (plan/tool 1,00, p95 3,3 s, không 
 - **Nhánh chưa được đo:** không lượt nào đi qua mẫu ngân sách của admin (DB tạm không đặt `agent.budgetTemplate`; hồ sơ giả lập đều có chi theo nhóm nên luôn dùng tỉ lệ của chính người dùng). Các mã `no_budget_basis` và `history_too_short` không xuất hiện, và `goal_exceeds_income` chưa lần nào được tạo ra qua agent (hai câu dành cho nó dừng ở `clarify`). `template_rate` ở bảng trên là tỉ lệ câu trả lời dựng bằng câu mẫu khi soạn câu lỗi, không liên quan tới mẫu ngân sách.
 - `ReadTimeout` của Gemini vẫn là nguồn lỗi chính (3 lần ở bước lập kế hoạch, 2 lần ở bước soạn câu) và là lý do p95 cao; như các lần trước.
 
+### Truy xuất tri thức, 2026-11-11 (không phải lần chạy `agent_eval.run`)
+
+Kho có 38 tài liệu `Approved` (nhóm A của FinMate, nhóm D thuật ngữ, nhóm B quỹ khẩn cấp và bốn tài liệu CFPB duyệt cùng ngày). 23 trong 40 câu `kn-xx` có nhãn `expect.relevant_sources` (mỗi câu một tên nguồn). Hỏi từng câu qua `POST /api/v1/agent/ask` bằng tài khoản demo trên backend 8080 (Gemini thật, mô hình `gemini-3.1-flash-lite`), lấy `sourceName` của bằng chứng `document` theo thứ tự rồi tính recall@5 đúng công thức của `metrics.py`.
+
+- **Kết quả: 23/23 câu có nguồn đúng trong top-5, `retrieval_recall_at_5` = 1,00; cả 23 câu `answered`**, không câu nào `insufficient_data`.
+- **Đọc con số này thận trọng.** (1) Chỉ đo trên 23 câu đã có tài liệu; 13 câu `kn` chưa có tài liệu (xem README nhóm B) và 4 câu dùng công cụ giả định không nằm trong mẫu, nên đây không phải recall của cả 40 câu. (2) Nhãn do người soạn tài liệu gắn, và một số tài liệu dùng chung `source_name` (4 tài liệu quỹ khẩn cấp cùng một tên nguồn) nên đo theo tên nguồn dễ hơn đo theo tài liệu. (3) Chưa chấm nội dung câu trả lời, `unsupported_claim_rate` hay từ chối: cần chạy `python -m agent_eval.run --config full` với backend bật cờ eval.
+- `ReadTimeout` của Gemini làm một số lần gọi trả 503; script thử lại tối đa 4 lần mỗi câu.
+
 ## Backtest dải dự báo (Task 13)
 
 `python -m agent_eval.backtest` (trong `ai-service`): với mỗi kiểu hồ sơ × 30 hạt giống, đưa 12 tháng lịch sử cho từng phương pháp rồi chấm trên 24 tháng tương lai đã biết. `empirical_quantile` là cách đang chạy ở backend (Q10/Q50/Q90 của lịch sử); `naive_mean` = trung bình ± 1,28σ; `last_month` = dự báo điểm; `sklearn_quantile_gbr` = gradient boosting hồi quy phân vị trên đặc trưng chu kỳ. Dải 80% lý tưởng phủ ≈ 0,80.
