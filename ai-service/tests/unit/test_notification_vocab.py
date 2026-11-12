@@ -3,7 +3,7 @@ import pytest
 
 from app.bill.rules_admin import RuleError
 from app.core.enums import TransactionType
-from app.pipeline.stages.extractor import _infer_type, _merchant_after_preposition, _merchant_from_description
+from app.pipeline.stages.extractor import _infer_type, _merchant_after_preposition, _merchant_from_description, relation_hint_for
 from app.services import config_documents as docs
 from app.services import notification_vocab
 
@@ -142,3 +142,56 @@ def test_balance_label_belongs_to_the_number_right_after_it():
     assert (selection.amount.value, selection.balance.value) == (200_000, 3_400_000)  # trước đây amount = 2026 (năm trong ngày)
     both = select_amounts("SD: 980VND SD KHA DUNG: 980VND")
     assert both.balance.value == 980 and both.amount is None
+
+
+# ---- Phase 81: relation_hint (hoàn tiền / đảo giao dịch / cashback) ----
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("TK 1234 +900,000 VND. ND: HOAN TIEN DON HANG 5521", "refund"),
+        ("Shopee hoàn tiền đơn hàng 2409 vào ví +120.000đ", "refund"),
+        ("+250,000 VND tien hoan tu Lazada", "refund"),
+        ("+500,000 VND. ND: Hoan tra GD loi ngay 10/11", "reversal"),
+        ("+500.000đ GD bị hủy, tiền đã được hoàn về tài khoản", "reversal"),
+        ("+500.000đ GD bị huỷ", "reversal"),
+        ("TK +75,000 VND huy giao dich POS", "reversal"),
+        ("+1,200,000 VND tra soat thanh cong", "reversal"),
+        ("+20,000 VND cashback 2% tu the tin dung", None),
+        ("+50.000đ hoàn tiền khuyến mãi", None),
+        ("+15,000,000 VND luong thang 10", None),
+    ],
+)
+def test_relation_hint_on_credit(text, expected):
+    assert relation_hint_for(text, TransactionType.CREDIT) == expected
+
+
+def test_relation_hint_never_on_debit():
+    """Một khoản chi có chữ "hủy" (phí hủy vé) vẫn là chi: hint chỉ có ý nghĩa với tiền vào."""
+    assert relation_hint_for("-50,000 VND phi huy giao dich ve may bay", TransactionType.DEBIT) is None
+    assert relation_hint_for("-900,000 VND hoan tien don hang", TransactionType.DEBIT) is None
+
+
+def test_relation_groups_come_from_the_document():
+    """Từ khoá nằm trong tài liệu DB: admin thêm cụm mới thì có hiệu lực mà không sửa code."""
+    content = notification_vocab.default_data()
+    content["refund_markers"] = [*content["refund_markers"], "tra lai tien coc"]
+    SPEC.validate(content)
+    notification_vocab.apply(content)
+    assert relation_hint_for("+2,000,000 VND tra lai tien coc", TransactionType.CREDIT) == "refund"
+
+
+def test_document_saved_before_phase81_still_works():
+    """Tài liệu đã lưu trong DB trước Phase 81 không có ba nhóm mới: lấy nhóm đó từ bản mặc định thay vì vỡ."""
+    old = {k: v for k, v in notification_vocab.default_data().items() if k not in notification_vocab.RELATION_GROUPS}
+    upgraded = SPEC.upgrade(old)
+    SPEC.validate(upgraded)
+    notification_vocab.apply(upgraded)
+    assert relation_hint_for("+900,000 VND hoan tien don hang", TransactionType.CREDIT) == "refund"
+
+
+def test_relation_term_must_belong_to_one_group():
+    content = notification_vocab.default_data()
+    content["reversal_markers"] = [*content["reversal_markers"], content["refund_markers"][0]]
+    assert rejected(content).code == "ambiguous_relation"
