@@ -71,10 +71,16 @@ public class GroupTransactionService : IGroupTransactionService
             {
                 var transaction = await RequireOwnAsync(userId, transactionId, token);
                 var target = await _ledger.ResolveAsync(userId, groupId, groupCategoryId, transaction, transaction.Category, token);
+                var now = DateTimeOffset.UtcNow;
 
-                await _ledger.ApplyAsync(transaction, transaction.Category, -1, token);
-                _ledger.MarkShared(transaction, target!, userId, DateTimeOffset.UtcNow);
-                var raised = await _ledger.ApplyAsync(transaction, transaction.Category, +1, token);
+                // Khoản gốc có khoản hoàn/đảo: cả cụm đi vào nhóm cùng nhau và nhóm được tính lại (Phase 81, BR-RF-10).
+                var raised = await MoveWithRefundsAsync(transaction, t => _ledger.MarkShared(t, target!, userId, now), token);
+                if (raised is null)
+                {
+                    await _ledger.ApplyAsync(transaction, transaction.Category, -1, token);
+                    _ledger.MarkShared(transaction, target!, userId, now);
+                    raised = await _ledger.ApplyAsync(transaction, transaction.Category, +1, token);
+                }
 
                 await _groups.SaveChangesAsync(token);
                 return raised;
@@ -120,9 +126,13 @@ public class GroupTransactionService : IGroupTransactionService
                     throw new NotFoundException("GroupCategory", id);
                 }
 
-                await _ledger.ApplyAsync(transaction, transaction.Category, -1, token);
-                transaction.GroupCategoryId = groupCategoryId;
-                var raised = await _ledger.ApplyAsync(transaction, transaction.Category, +1, token);
+                var raised = await MoveWithRefundsAsync(transaction, t => t.GroupCategoryId = groupCategoryId, token);
+                if (raised is null)
+                {
+                    await _ledger.ApplyAsync(transaction, transaction.Category, -1, token);
+                    transaction.GroupCategoryId = groupCategoryId;
+                    raised = await _ledger.ApplyAsync(transaction, transaction.Category, +1, token);
+                }
                 _groups.AddActivity(GroupService.NewActivity(groupId, userId, GroupActivityType.TransactionReclassified, transactionId, DateTimeOffset.UtcNow));
                 await _groups.SaveChangesAsync(token);
                 return raised;
@@ -144,12 +154,57 @@ public class GroupTransactionService : IGroupTransactionService
 
     private async Task DetachAsync(Transaction transaction, Guid groupId, Guid actorUserId, CancellationToken ct)
     {
-        await _ledger.ApplyAsync(transaction, transaction.Category, -1, ct);
-        transaction.GroupId = null;
-        transaction.GroupCategoryId = null;
-        transaction.SharedAt = null;
+        static void Unshare(Transaction t)
+        {
+            t.GroupId = null;
+            t.GroupCategoryId = null;
+            t.SharedAt = null;
+        }
+
+        if (await MoveWithRefundsAsync(transaction, Unshare, ct) is null)
+        {
+            await _ledger.ApplyAsync(transaction, transaction.Category, -1, ct);
+            Unshare(transaction);
+        }
+
         _groups.AddActivity(GroupService.NewActivity(groupId, actorUserId, GroupActivityType.TransactionUnshared, transaction.Id, DateTimeOffset.UtcNow));
         await _groups.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Phase 81, BR-RF-10: khoản hoàn/đảo không vào/ra nhóm hay đổi danh mục nhóm riêng, nó đi theo khoản gốc (422). Khoản gốc có khoản hoàn thì
+    /// áp <paramref name="move"/> cho cả cụm và TÍNH LẠI các kỳ ngân sách nhóm cũ lẫn mới (không cộng trừ delta, D2). Không có khoản hoàn → null,
+    /// caller đi đường cũ. Tra khoản hoàn theo chủ giao dịch (quyền với nhóm đã kiểm ở caller).
+    /// </summary>
+    private async Task<IReadOnlyList<GroupBudgetAlert>?> MoveWithRefundsAsync(Transaction transaction, Action<Transaction> move, CancellationToken ct)
+    {
+        if (transaction.Relation is not null)
+        {
+            throw new BusinessRuleException(
+                TransactionErrorCodes.RefundFollowsOriginal,
+                "Khoản hoàn đi theo khoản chi gốc: chia sẻ, bỏ chia sẻ hay đổi danh mục nhóm ở khoản chi gốc.");
+        }
+
+        if (transaction.TransactionType != TransactionType.Debit)
+        {
+            return null;
+        }
+
+        var related = await _transactions.ListRelatedAsync(transaction.UserId, transaction.Id, ct);
+        if (related.Count == 0)
+        {
+            return null;
+        }
+
+        List<Transaction> cluster = [transaction, .. related];
+        var before = cluster.Select(t => GroupScopeTouch.Of(t, t.Category)).OfType<GroupScopeTouch>().ToList();
+        foreach (var member in cluster)
+        {
+            move(member);
+        }
+
+        var after = cluster.Select(t => GroupScopeTouch.Of(t, t.Category)).OfType<GroupScopeTouch>();
+        return await _ledger.RecomputeAsync(cluster, before.Concat(after).Distinct().ToList(), ct);
     }
 
     private async Task<Transaction> RequireOwnAsync(Guid userId, Guid transactionId, CancellationToken ct)

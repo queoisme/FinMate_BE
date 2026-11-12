@@ -14,6 +14,9 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
     private readonly IGroupLedger? _groupLedger;
+    private readonly Refunds.IRefundLedger? _refunds;
+    private readonly IBudgetAlertNotifier? _budgetAlerts;
+    private readonly IDailySummaryRefresher? _summaries;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -21,9 +24,15 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         IBudgetPeriodService budgetPeriodService,
         ICacheService cache,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        Refunds.IRefundLedger? refunds = null,
+        IBudgetAlertNotifier? budgetAlerts = null,
+        IDailySummaryRefresher? summaries = null)
     {
         _groupLedger = groupLedger;
+        _refunds = refunds;
+        _budgetAlerts = budgetAlerts;
+        _summaries = summaries;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
@@ -38,6 +47,19 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
 
         var now = DateTimeOffset.UtcNow;
         var wasConfirmed = transaction.Status == TransactionStatus.Confirmed;
+
+        // Phase 81 (BR-RF-11, D18): khoản gốc còn khoản hoàn/đảo ĐÃ XÁC NHẬN thì không xoá được; nháp đang trỏ tới nó chỉ mất liên kết.
+        if (_refunds is not null && transaction.TransactionType == TransactionType.Debit)
+        {
+            await ReleaseDraftsOrRefuseAsync(command.UserId, transaction, now, ct);
+        }
+
+        // Xoá một khoản hoàn/đảo đã xác nhận: hoàn tác như giao dịch thường, nhưng ngân sách được TÍNH LẠI (D2) và dưới khoá khoản gốc.
+        if (wasConfirmed && transaction.Relation is not null && _refunds is not null)
+        {
+            await DeleteRefundAsync(command.UserId, transaction, _refunds, now, ct);
+            return;
+        }
 
         if (wasConfirmed)
         {
@@ -85,6 +107,67 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         }
         await NotifyForecastAsync(command.UserId, ct);
+    }
+
+    private async Task ReleaseDraftsOrRefuseAsync(Guid userId, Domain.Entities.Transaction original, DateTimeOffset now, CancellationToken ct)
+    {
+        var related = await _transactionRepository.ListRelatedAsync(userId, original.Id, ct);
+        if (related.Any(r => r.Status == TransactionStatus.Confirmed))
+        {
+            throw new ConflictException(
+                TransactionErrorCodes.HasRefunds,
+                "Khoản chi này đã có khoản hoàn hoặc đảo. Xoá các khoản đó trước rồi mới xoá khoản chi.");
+        }
+
+        foreach (var draft in related)
+        {
+            draft.RelatedTransactionId = null;
+            draft.Relation = null;
+            draft.UpdatedAt = now;
+        }
+    }
+
+    private async Task DeleteRefundAsync(Guid userId, Domain.Entities.Transaction refund, Refunds.IRefundLedger refunds, DateTimeOffset now, CancellationToken ct)
+    {
+        async Task<Refunds.RefundEffects> DeleteAsync(Domain.Entities.Transaction? original)
+        {
+            var account = await _financialAccountRepository.GetByIdAsync(refund.FinancialAccountId, userId, ct)
+                ?? throw new NotFoundException("FinancialAccount", refund.FinancialAccountId);
+            account.BalanceCents -= refund.AmountCents;   // khoản hoàn là tiền vào: xoá thì lấy lại
+            account.UpdatedAt = now;
+
+            var before = new List<Refunds.RefundScopeSnapshot> { Refunds.RefundScopeSnapshot.Of(refund) };
+            List<Domain.Entities.Transaction> pending = [refund];
+            if (original is not null)
+            {
+                pending.Add(original);
+                if (refund.Relation == TransactionRelation.Reversal)
+                {
+                    original.IsReversed = false;   // xoá lệnh đảo: khoản gốc trở lại mọi tổng hợp, ở kỳ của nó
+                    original.UpdatedAt = now;
+                    before.Add(Refunds.RefundScopeSnapshot.Of(original));
+                }
+            }
+
+            refund.DeletedAt = now;
+            refund.UpdatedAt = now;
+            var effects = await refunds.RecomputeAsync(userId, pending, before, ct);
+            await _transactionRepository.UpdateAsync(refund, ct);
+            return effects;
+        }
+
+        var effects = refund.RelatedTransactionId is { } originalId
+            ? await _transactionRepository.RunWithOriginalLockedAsync(userId, originalId, original => DeleteAsync(original), ct)
+            : await DeleteAsync(null);
+
+        if (_budgetAlerts is not null)
+        {
+            await new RefundAfterSave(_budgetAlerts, _cache, _groupLedger, _summaries, _forecastAlerts).RunAsync(userId, effects, ct);
+        }
+        else
+        {
+            await NotifyForecastAsync(userId, ct);
+        }
     }
 
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
