@@ -176,7 +176,8 @@ def _settings(**overrides) -> Settings:
 def test_build_provider_follows_the_setting():
     getter = lambda name: (lambda: {"gemini_api_key": "g", "openrouter_api_key": "o"}[name])  # noqa: E731
 
-    assert isinstance(build_provider(_settings(), getter), GeminiProvider)
+    # Gemini chính luôn kèm một khóa Gemini dự phòng (không có khóa thì bị bỏ qua, không gọi gì).
+    assert [type(p) for p in build_provider(_settings(), getter).providers] == [GeminiProvider, GeminiProvider]
     assert isinstance(build_provider(_settings(agent_provider="openrouter", agent_model="deepseek/deepseek-v3.2"), getter), OpenRouterProvider)
 
 
@@ -186,4 +187,40 @@ def test_build_provider_adds_a_backup_only_when_one_is_configured():
     chain = build_provider(_settings(agent_backup_model="deepseek/deepseek-v3.2"), getter)
 
     assert isinstance(chain, ChainProvider)
-    assert [type(p) for p in chain.providers] == [GeminiProvider, OpenRouterProvider]
+    assert [type(p) for p in chain.providers] == [GeminiProvider, GeminiProvider, OpenRouterProvider]
+
+
+def test_the_backup_gemini_provider_reads_its_own_secret():
+    getter = lambda name: (lambda: {"gemini_api_key": "primary-key", "gemini_api_key_backup": "backup-key", "openrouter_api_key": "o"}[name])  # noqa: E731
+
+    primary, backup = build_provider(_settings(), getter).providers
+
+    assert primary._key == "primary-key"
+    assert backup._key == "backup-key"
+
+
+async def test_chain_uses_the_backup_gemini_key_when_the_primary_is_rate_limited():
+    seen = []
+
+    def backup_handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers["x-goog-api-key"])
+        return gemini_ok({"intent": "other"})
+
+    primary = gemini(httpx.MockTransport(lambda r: httpx.Response(429)))
+    backup = gemini(httpx.MockTransport(backup_handler), api_key="backup-key")
+
+    result = await ChainProvider([primary, backup]).generate_json("s", "u", SCHEMA, 64)
+
+    assert result.data == {"intent": "other"}
+    assert seen == ["backup-key"]
+
+
+async def test_without_a_backup_key_the_chain_still_reports_the_primary_failure_and_calls_nothing_extra():
+    calls = []
+    primary = gemini(httpx.MockTransport(lambda r: httpx.Response(429)))
+    backup = gemini(httpx.MockTransport(lambda r: calls.append(r) or httpx.Response(200)), api_key=None)
+
+    with pytest.raises(LlmFailed):
+        await ChainProvider([primary, backup]).generate_json("s", "u", SCHEMA, 64)
+
+    assert calls == []
