@@ -128,7 +128,7 @@ Bốn loại đồng ý, mỗi loại có phiên bản câu chữ trong `Consent
 | FR-CONS-03 | Đồng ý đóng góp dữ liệu huấn luyện (`training`, bản 1) là lựa chọn riêng, không bao giờ đi kèm Điều khoản | Must | Chỉ khi đang đồng ý mới gửi chữ hoá đơn **đã lọc** sang AI Service; nhãn chỉ từ user, không từ Gemini; mẫu chưa nhãn bị xoá sau 7 ngày |
 | FR-CONS-04 | Rút đồng ý huấn luyện xoá dữ liệu đã đóng góp | Must | `DELETE /users/me/consents/training` gọi `POST /bill/samples/erase`; lỗi xoá → 503 (bấm lại), **không** nuốt lỗi |
 | FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Đã chốt 2026-11-05: giữ Vision và nêu rõ trong bản 4; app phải có câu chữ này trước khi phát hành |
-| FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment của `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ |
+| FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment `ConsentVersions.SurveyAi` đã sửa theo hành vi này (2026-11-12). Gỡ hay khôi phục: §13.4 |
 
 ## 4. FR — Tài khoản tài chính và danh mục
 
@@ -534,11 +534,11 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-20 | Không log mật khẩu, token, key, `amount_cents`, `notification_body`, payload push | Review log |
 | NFR-SEC-21 | CSDL AI chỉ lưu `SHA-256(user_id)` (cùng hàm `UserIdHasher` cho AI Service và `ocr-service`), không FK sang backend | Kiểm schema |
 | NFR-SEC-22 | Nội dung thông báo vào tập huấn luyện đã che số tài khoản, thẻ, SĐT, email; chữ hoá đơn đã lọc dữ liệu cá nhân trước khi rời `ocr-service`; chuỗi ≥ 9 chữ số liền bị từ chối | Unit test `anonymizer`, `privacy.sanitize_lines` |
-| NFR-SEC-23 | **[Sai lệch]** `notification_body` gốc bị xoá sau 90 ngày | Tài liệu cũ ghi `DataCleanupJob` đáp ứng, nhưng **job này chưa từng có trong code** (chỉ có trong skeleton ban đầu); không có job nào xoá `notification_logs.notification_body` |
+| NFR-SEC-23 | `notification_body` gốc bị xoá sau 90 ngày | `NotificationBodyPurgeJob` (2026-11-12) chạy 03:15 giờ VN, đặt `notification_body = NULL` cho log có `created_at` quá 90 ngày. Tiêu đề, `content_hash` (dedup), trạng thái, kết quả AI và giao dịch giữ nguyên. Trước đó tài liệu ghi `DataCleanupJob` nhưng job này chưa từng có |
 | NFR-SEC-24 | **[Đổi]** Ảnh quét hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB. Ngoại lệ duy nhất: ảnh khách chủ động gửi vào ticket hỗ trợ, được mã hóa và tự xóa sau khi ca đóng (FR-OPS-10) | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
 | NFR-SEC-25 | Quyền được xoá: xoá cứng sau 30 ngày, kèm mẫu huấn luyện ở AI Service | Test `DataDeletionJob`; lỗi xoá ở AI Service → giữ user lại thử đêm sau |
 | NFR-SEC-26 | Production không trả stack trace | Middleware + test |
-| NFR-SEC-27 | **[Một phần]** Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Chưa có `STT_SERVICE_API_KEY` và `SECRETS_MASTER_KEY` (thiếu khoá chủ thì kho key tắt âm thầm) |
+| NFR-SEC-27 | Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `STT_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SECRETS_MASTER_KEY`. `SECRETS_MASTER_KEY` trống vẫn được (kho key tùy chọn), có giá trị mà không phải 32 byte base64 thì từ chối khởi động thay vì tắt kho key âm thầm |
 | NFR-SEC-28 | Chỉ xử lý thông báo của package gắn với tài khoản đang theo dõi | Package lạ → `Ignored` |
 | NFR-SEC-29 | **[Một phần]** Bằng chứng đồng ý lưu lâu dài kể cả khi user yêu cầu xoá dữ liệu | Hiện lưu ở cột của `users`, bị xoá cùng user khi xoá cứng |
 | NFR-SEC-30 | Gửi dữ liệu tới LLM bên thứ ba chỉ khi có đồng ý và chỉ phần tối thiểu | Tên món / cụm sản phẩm đã bỏ số tiền; signals khảo sát ẩn danh; OpenRouter luôn `data_collection = deny` |
@@ -586,7 +586,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-PERF-04 | Cảnh báo ngân sách ≤ 10 s sau khi lưu | Đo log → FCM |
 | NFR-PERF-05 | Cache Redis cho dữ liệu đọc nhiều | Review `CacheKeys` |
 | NFR-PERF-06 | Danh sách phân trang; báo cáo đọc bảng tổng hợp | Review query |
-| NFR-PERF-07 | **[Một phần]** Mọi lời gọi ra ngoài có timeout tường minh | Có: `ocr-service` 60 s, `stt-service` 60 s, chọn phương pháp 30 s, admin rules 15 s, `/bill/learn` 3 s. **Chưa có**: client Refit chính (`/analyze`, `/chat/parse`, `/bill/classify*`) dùng mặc định 100 s (`Program.cs`) |
+| NFR-PERF-07 | Mọi lời gọi ra ngoài có timeout tường minh | `ocr-service` 60 s, `stt-service` 60 s, client Refit chính tới ai-service (`/analyze`, `/chat/parse`, `/ocr`, `/bill/classify*`) 35 s (trần chuyển tiếp OCR của ai-service 30 s + dư), chọn phương pháp 30 s, admin rules 15 s, `/bill/learn` 3 s |
 
 ## 12. NFR — Triển khai, vận hành, bảo trì
 
@@ -636,11 +636,8 @@ Kiểm trên code ngày 2026-11-02.
 
 | Mã | Nhãn | Hiện trạng | Việc cần làm | Ảnh hưởng |
 | --- | --- | --- | --- | --- |
-| NFR-SEC-23 | Sai lệch | Không có job xoá `notification_body` | Viết job (hoặc thêm vào `DataDeletionJob`) xoá nội dung > 90 ngày | Trung bình — quyền riêng tư |
 | FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản bản 3 không nhắc | Đã chốt: nêu trong bản 4, chưa phát hành | Lớn — pháp lý |
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
-| NFR-PERF-07 | Một phần | Client Refit chính timeout 100 s | Đặt timeout tường minh | Nhỏ |
-| NFR-SEC-27 | Một phần | Thiếu 2 key trong guard | Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` | Nhỏ |
 | FR-TXN-05, 05a, 06 | Đổi | Luôn Draft + một chạm | Auto-commit theo trường cốt lõi và extraction | Lớn — đảo Phase 15, đổi hợp đồng push |
 | FR-TXN-17, FR-AI-04 | Đổi / Một phần | Bỏ bản trùng, không liên kết | Lưu bản trùng kèm liên kết; mở rộng khoá so khớp | Trung bình |
 | FR-TXN-18 | Mới | Không có | Sự kiện liên quan (hoàn tiền, đảo giao dịch…) | Lớn |
@@ -651,7 +648,7 @@ Kiểm trên code ngày 2026-11-02.
 | FR-FCST-13, 15 | Một phần | Đợt 1–3 (FR-FCST-01…16) xong | Mùa vụ: thu theo mùa (BR-07.3) và chi theo mùa (trang 2) — cần hơn một năm dữ liệu | Nhỏ |
 | FR-FCST-09 | Giới hạn | Ngày gốc trong tháng suy từ ngày đến hạn | Khoản đến hạn ngày 28 hằng tháng bị coi là "cuối tháng" sau tháng 2 (nhảy sang 31/3); sửa triệt để cần cột `anchor_day` | Nhỏ |
 | FR-RPT-05 | Một phần | 1 loại insight (`VsLastMonth`) | Cuối tuần / ngày thường, tỉ trọng nhóm con | Trung bình |
-| FR-CONS-06 | Một phần | Đồng ý khảo sát-AI không còn tác dụng | Gỡ hoặc sửa comment `ConsentVersions.SurveyAi` | Nhỏ |
+| FR-CONS-06 | Một phần | Đồng ý khảo sát-AI không còn tác dụng | Comment đã sửa (2026-11-12); gỡ hay khôi phục chờ §13.4 | Nhỏ |
 
 **Đã đóng so với bản 2026-09-24:** ngưỡng T1/T2 theo user (FR-BUD-03, 06 — nay ba tầng), đề xuất chuyển khoản từ câu tự nhiên (FR-TXN-24, qua `/transactions/chat`), giao diện quản trị cấu hình AI (FR-ADM-11, 12).
 

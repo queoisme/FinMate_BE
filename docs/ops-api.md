@@ -101,7 +101,7 @@ Chỉ thấy ca của mình; ca của người khác trả 404. Response không 
 | API | Việc |
 |---|---|
 | `POST /` | Tạo ca: `category`, `subject` (tối đa 200), `body` (tối đa 4000). Tối đa 10 ca chưa đóng |
-| `GET /`, `GET /{id}` | Danh sách, chi tiết kèm tin nhắn |
+| `GET /?cursor=&limit=`, `GET /{id}` | Danh sách (mới nhất trước, phân trang con trỏ: `limit` mặc định 20, tối đa 100; trang sau dùng `meta.cursor`, hết thì `null`), chi tiết kèm tin nhắn |
 | `POST /{id}/messages` | Trả lời |
 | `POST /{id}/messages/{messageId}/attachments` | Gửi ảnh (multipart `file`) vào tin nhắn của mình |
 | `GET /{id}/attachments/{attachmentId}` | Tải ảnh |
@@ -168,7 +168,7 @@ Nháp có `source = Support`. Số dư và ngân sách chỉ đổi khi khách x
 | `POST /tickets/{id}/access-requests/{requestId}/approve` | Đồng ý. Có scope `Draft` thì bắt buộc `financialAccountId` là ví của mình |
 | `POST /tickets/{id}/access-requests/{requestId}/deny` | Từ chối |
 | `POST /tickets/{id}/access-requests/{requestId}/revoke` | Thu hồi bất cứ lúc nào |
-| `GET /access-log` | Lịch sử xem dữ liệu của mình: ca, phần dữ liệu, thời điểm |
+| `GET /access-log?cursor=&limit=` | Lịch sử xem dữ liệu của mình: ca, phần dữ liệu, thời điểm. Phân trang con trỏ: `limit` mặc định 20, tối đa 100; trang sau dùng `meta.cursor`, hết thì `null` |
 
 Khi có yêu cầu mới, khách nhận push với `data = { action: "support_access_request", ticketId, requestId }`. Khi có nháp, khách nhận push như nháp từ thông báo ngân hàng.
 

@@ -132,6 +132,7 @@ public class Program
         {
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
+            StartupSecretGuard.ThrowIfMasterKeyInvalid(builder.Configuration, builder.Environment.EnvironmentName);
             StartupSecretGuard.ThrowIfEvalEnabled(builder.Configuration, builder.Environment.EnvironmentName);
         }
 
@@ -274,11 +275,15 @@ public class Program
         builder.Services.AddScoped<EconomicAssumptionRefresher>();
         builder.Services.AddScoped<EconomicAssumptionRefreshJob>();
 
+        // Timeout 35 giây (NFR-PERF-07): route chậm nhất của ai-service là /ocr chuyển tiếp sang ocr-service (trần 30 giây,
+        // ocr_service_timeout_seconds), Gemini của /bill/classify-items trần 20 giây; cộng vài giây dư. Không đặt thì mặc định 100 giây,
+        // ai-service treo là request của người dùng treo theo. Quá hạn ném TaskCanceledException, AIServiceClient đã đổi thành AIServiceUnavailableException.
         builder.Services.AddRefitClient<IAIServiceApi>()
             .ConfigureHttpClient(client =>
             {
                 client.BaseAddress = new Uri(aiServiceUrl);
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+                client.Timeout = TimeSpan.FromSeconds(35);
             });
 
         // Quản trị luật phân loại của AI: chuyển tiếp nguyên văn tới /api/v1/admin/rules của AI Service (cùng khóa nội bộ).
@@ -719,6 +724,7 @@ public class Program
         builder.Services.AddScoped<MarketDataRefreshJob>();
         builder.Services.AddScoped<MarketAlertJob>();
         builder.Services.AddScoped<SupportRetentionJob>();
+        builder.Services.AddScoped<NotificationBodyPurgeJob>();
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
@@ -840,6 +846,12 @@ public class Program
 
             app.Services.GetRequiredService<IEconomicFeedScheduler>().Apply(feeds);
         }
+
+        // 03:15 giờ VN, sau data-deletion: xóa nội dung gốc thông báo ngân hàng quá 90 ngày (NFR-SEC-23).
+        RecurringJob.AddOrUpdate<NotificationBodyPurgeJob>(
+            "notification-body-purge",
+            job => job.RunAsync(CancellationToken.None),
+            "15 20 * * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(

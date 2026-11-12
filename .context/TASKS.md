@@ -1234,15 +1234,15 @@ trong REQUIREMENTS được kiểm lại trên code tại commit `b2e97b4` (khô
 - [x] Kiểm từng mục [Mới]/[Đổi]/[Một phần] của REQUIREMENTS trên code; đóng FR-BUD-03/06 (ngưỡng ba tầng), FR-TXN-24 (chuyển khoản qua `/transactions/chat`), FR-ADM-11 (giao diện quản trị AI).
 - [x] Viết lại `docs/REQUIREMENTS.md`: thêm nhóm CONS, SCAN, CHAT, QR, FIN, CFG cho Phase 19–51; thêm nhãn **[Ngoài đặc tả]** và **[Sai lệch]**; cập nhật NFR theo 5 dịch vụ.
 - [x] Cập nhật `CLAUDE.md` (Current state, repo layout) và bảng Progress Summary (đếm lại: 390 / 410).
-- [ ] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có.
+- [x] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có. *2026-11-12: `NotificationBodyPurgeJob` 03:15 giờ VN, đặt `notification_body = NULL` cho log có `created_at` quá 90 ngày; tiêu đề, `content_hash`, trạng thái, kết quả AI và giao dịch giữ nguyên. Không thêm index (một câu UPDATE mỗi đêm).*
 - [ ] **Google Vision và đồng ý** (FR-CONS-05): ảnh gốc chưa che gửi Google khi có key, Điều khoản bản 3 không nhắc. Chờ chủ sản phẩm: sửa câu chữ + tăng `ConsentVersions.Terms`, hay tắt Vision.
 - [ ] **Test đỏ `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`** (FR-FIN-07): từ `b6f1c42`, luật gợi ý `rule_80_20` thay `cash_flow_budget`. Chờ chốt: chỉnh trọng số hay đổi kỳ vọng.
-- [ ] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`).
-- [ ] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27).
+- [x] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`). *2026-11-12: 35 giây = trần chuyển tiếp OCR của ai-service (30 giây) + dư.*
+- [x] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27). *2026-11-12: cả hai vào `GuardedKeys`; thêm `ThrowIfMasterKeyInvalid` — khóa chủ trống vẫn được (kho key tùy chọn), có giá trị mà không phải 32 byte base64 thì từ chối khởi động.*
 - [x] Quyết định Mascot items (FR-GAME-06) — *2026-11-02: bỏ TOÀN BỘ gamification, giữ trạng thái cảnh báo ngân sách. Gỡ code ở Phase 53.*
-- [ ] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment.
+- [x] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment. *2026-11-12: đã sửa comment; gỡ hẳn hay khôi phục vẫn chờ chủ sản phẩm (REQUIREMENTS §13.4).*
 - [x] Sửa bảng job ARCHITECTURE.md §5 *(làm cùng Phase 53)*: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
-- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06).
+- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06). *2026-11-12: cố ý chưa sửa — đọc nó nghĩa là làm lịch dự báo theo từng người (tính năng mới), và mặc định 1320 (22:00) trái với lịch cảnh báo 08:00 hiện có. Chờ quyết định FR-RPT-06.*
 
 ## Phase 53 — Gỡ toàn bộ gamification (quyết định 2026-11-02)
 Quyết định chủ sản phẩm: bỏ EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge và quản trị nhiệm vụ (`docs/REQUIREMENTS.md` §13.6). **Giữ** trạng thái
@@ -1494,3 +1494,11 @@ Nhánh `feat/replace-rasa-intent-classifier`. Quyết định của chủ dự �
 - [x] Migration alembic `0036_drop_nlu_training_tables` bỏ ba bảng `nlu_examples`, `nlu_model_versions`, `nlu_candidates` (và loại `rasa` khỏi `ml_models.kind`).
 - [x] Viết lại tài liệu hiện hành: `.context/ARCHITECTURE.md` (§3.6), `.context/TECH_STACK.md`, `CLAUDE.md`, `docs/ERD.md`, `docs/ai-service-db-schema.txt`, `docs/ai-service-db-constraints-v5_1.md`, `docs/evaluation.md`.
 - [ ] Sinh lại `docs/scorecard.md` bằng `python scripts/scorecard.py` (bản 2026-10-22 còn số đo của Rasa) và ghi số đo của bộ phân loại vào `docs/evaluation.md` bằng `scripts/eval_intent.py`.
+
+## Phase 80 — Dọn lỗi kỹ thuật còn lại sau khi gộp `dev/tuan` và `dev/tho` (2026-11-12)
+Nhánh `fix/phase52-leftovers`. Bốn mục của Phase 52 không cần chủ sản phẩm quyết (đã tick ở đó) cộng hai mục phát sinh từ PR #28. Không đổi schema.
+- [x] `NotificationBodyPurgeJob` (NFR-SEC-23), timeout 35 giây cho `IAIServiceApi` (NFR-PERF-07), `StartupSecretGuard` thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` và `ThrowIfMasterKeyInvalid` (NFR-SEC-27), comment `ConsentVersions.SurveyAi` (FR-CONS-06).
+- [x] `ITransactionRepository.GetByNotificationLogIdAsync` (thêm ở `cc5b879`) nhận và lọc theo `userId`, đúng quy tắc không lấy dữ liệu người dùng chỉ bằng id.
+- [x] Test cho 9 danh sách phân trang con trỏ của `dev/tho` (vốn không có test): `CursorPagingRepositoryTests` trên Postgres thật, mỗi danh sách 5 dòng có 2 dòng trùng mốc thời gian, cộng 1 dòng của chủ khác; kèm 2 test cho job xóa nội dung thông báo.
+- [x] Tài liệu API: `docs/group-api.md`, `docs/ops-api.md`, `docs/subscription-api.md` ghi `cursor`/`limit` và `meta.cursor` (không phải `nextCursor`).
+- [ ] Báo nhóm Flutter: 9 danh sách (`/forecast/alerts`, `/forecast/anomalies`, `/support/tickets`, `/support/access-log`, `/groups/{id}/transactions`, `/groups/{id}/goals/{goalId}/contributions`, `/groups/{id}/activities`, `/qr/transfers`, `/subscriptions/orders`) giờ trả 20 dòng một trang, trang sau qua `meta.cursor`.

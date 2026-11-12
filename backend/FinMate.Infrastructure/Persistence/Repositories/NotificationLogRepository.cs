@@ -38,6 +38,11 @@ public class NotificationLogRepository : INotificationLogRepository
             .Where(n => n.Status == NotificationLogStatus.Failed && n.RetryCount < maxRetryCount)
             .ToListAsync(ct);
 
+    public Task<int> PurgeBodiesOlderThanAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+        => _context.NotificationLogs
+            .Where(n => n.CreatedAt < cutoff && n.NotificationBody != null)
+            .ExecuteUpdateAsync(set => set.SetProperty(n => n.NotificationBody, (string?)null), ct);
+
     public async Task AddAsync(NotificationLog log, CancellationToken ct = default)
     {
         _context.NotificationLogs.Add(log);

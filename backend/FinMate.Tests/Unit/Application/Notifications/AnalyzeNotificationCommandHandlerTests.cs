@@ -86,12 +86,13 @@ public class AnalyzeNotificationCommandHandlerTests
             .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingLog);
 
+        var command = Command();
         var draft = new Transaction { Id = Guid.NewGuid(), NotificationLogId = existingLog.Id, Status = TransactionStatus.Draft };
         _transactionRepository
-            .Setup(r => r.GetByNotificationLogIdAsync(existingLog.Id, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetByNotificationLogIdAsync(command.UserId, existingLog.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(draft);
 
-        var result = await _handler.HandleAsync(Command());
+        var result = await _handler.HandleAsync(command);
 
         result.NotificationLogId.Should().Be(existingLog.Id);
         result.Status.Should().Be("Processed");
