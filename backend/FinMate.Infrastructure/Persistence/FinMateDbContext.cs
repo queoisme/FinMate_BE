@@ -36,6 +36,7 @@ public class FinMateDbContext : DbContext
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
     public DbSet<SpendingInsight> SpendingInsights => Set<SpendingInsight>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<AiResult> AiResults => Set<AiResult>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<FinanceMethod> FinanceMethods => Set<FinanceMethod>();

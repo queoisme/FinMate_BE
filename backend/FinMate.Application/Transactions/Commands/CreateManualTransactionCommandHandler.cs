@@ -2,6 +2,8 @@ using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Forecasting;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -22,6 +24,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
     private readonly IForecastAlertTrigger? _forecastAlerts;
+    private readonly IUserNotificationService? _userNotifications;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     private readonly IGroupLedger? _groupLedger;
@@ -39,7 +42,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IValidator<CreateManualTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        IUserNotificationService? userNotifications = null)
     {
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
@@ -54,6 +58,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         _validator = validator;
         _forecastAlerts = forecastAlerts;
         _trainingSamples = trainingSamples;
+        _userNotifications = userNotifications;
     }
 
     public async Task<TransactionCreationResult> HandleAsync(CreateManualTransactionCommand command, CancellationToken ct = default)
@@ -134,6 +139,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             await _groupLedger.SendAlertsAsync(groupAlerts, ct);
         }
 
+        await NotifyBalanceChangeAsync(transaction, ct);
+
         // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
         var scanWasSplit = false;
         if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
@@ -208,4 +215,24 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
+
+    /// <summary>Ghi vào hộp thư trong app (tab "Biến động") rằng giao dịch này vừa đổi số dư. Gọi SAU khi đã lưu.</summary>
+    private Task NotifyBalanceChangeAsync(Transaction transaction, CancellationToken ct)
+    {
+        if (_userNotifications is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var verb = transaction.TransactionType == TransactionType.Credit ? "Nhận" : "Chi";
+        return _userNotifications.CreateAsync(
+            transaction.UserId,
+            UserNotificationType.BalanceChange,
+            "Giao dịch mới",
+            $"{verb} {ForecastText.Money(transaction.AmountCents)}"
+            + (transaction.MerchantName is { Length: > 0 } merchant ? $" tại {merchant}" : string.Empty),
+            "Transaction",
+            transaction.Id,
+            ct);
+    }
 }

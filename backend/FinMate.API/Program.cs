@@ -27,6 +27,7 @@ using FinMate.Application.Devices.Commands;
 using FinMate.Application.FinanceMethods;
 using FinMate.Application.FinancialAccounts.Commands;
 using FinMate.Application.FinancialAccounts.Queries;
+using FinMate.Application.Notifications;
 using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Forecasting;
@@ -410,6 +411,8 @@ public class Program
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
+        builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
+        builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
         builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();

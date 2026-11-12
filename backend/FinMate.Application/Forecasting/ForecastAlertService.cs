@@ -2,6 +2,7 @@ using System.Text.Json;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -50,6 +51,7 @@ public class ForecastAlertService : IForecastAlertService
     private readonly ISystemConfigProvider _config;
     private readonly ICacheService _cache;
     private readonly IAnomalyService? _anomalies;
+    private readonly IUserNotificationService? _userNotifications;
 
     public ForecastAlertService(
         IForecastService forecast,
@@ -61,7 +63,8 @@ public class ForecastAlertService : IForecastAlertService
         IForecastAlertRepository alerts,
         ISystemConfigProvider config,
         ICacheService cache,
-        IAnomalyService? anomalies = null)
+        IAnomalyService? anomalies = null,
+        IUserNotificationService? userNotifications = null)
     {
         _forecast = forecast;
         _budgetForecast = budgetForecast;
@@ -73,6 +76,7 @@ public class ForecastAlertService : IForecastAlertService
         _config = config;
         _cache = cache;
         _anomalies = anomalies;
+        _userNotifications = userNotifications;
     }
 
     public async Task CheckUserAsync(Guid userId, CancellationToken ct = default)
@@ -195,6 +199,12 @@ public class ForecastAlertService : IForecastAlertService
                     ["anomalyKind"] = AnomalyService.KindText(anomaly.Kind),
                     ["amountCents"] = anomaly.AmountCents.ToString(),
                 }), ct);
+
+            if (_userNotifications is not null)
+            {
+                await _userNotifications.CreateAsync(
+                    userId, UserNotificationType.AnomalyDetected, "Có một khoản chi bất thường", body, "Transaction", anomaly.TransactionId, ct);
+            }
         }
     }
 
@@ -242,10 +252,16 @@ public class ForecastAlertService : IForecastAlertService
             var data = new Dictionary<string, string> { ["recurringItemId"] = item.Id.ToString(), ["dueDate"] = ForecastText.Iso(reminder.DueDate) };
             if (reminder.Kind == BillReminderKind.DueSoon)
             {
+                var title = $"Sắp đến hạn {item.Name}";
+                var body = $"{ForecastText.Money(item.AmountCents)} đến hạn ngày {ForecastText.Day(reminder.DueDate)}.";
                 await _dispatcher.RaiseAsync(new ForecastAlertRequest(
-                    userId, ForecastAlertKind.BillDue, $"bill_due:{item.Id}:{ForecastText.Iso(reminder.DueDate)}",
-                    $"Sắp đến hạn {item.Name}",
-                    $"{ForecastText.Money(item.AmountCents)} đến hạn ngày {ForecastText.Day(reminder.DueDate)}.", data), ct);
+                    userId, ForecastAlertKind.BillDue, $"bill_due:{item.Id}:{ForecastText.Iso(reminder.DueDate)}", title, body, data), ct);
+
+                if (_userNotifications is not null)
+                {
+                    await _userNotifications.CreateAsync(userId, UserNotificationType.RecurringBillDue, title, body, "RecurringItem", item.Id, ct);
+                }
+
                 continue;
             }
 
