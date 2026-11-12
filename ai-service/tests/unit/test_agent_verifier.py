@@ -91,3 +91,18 @@ def test_month_and_year_are_not_mistaken_for_money():
 
     assert kinds([ok]) == []
     assert kinds([bad]) == [(0, "number_unsupported")]
+
+
+def test_a_ratio_word_is_not_read_as_a_billion():
+    # "một tỷ lệ để dành" (tài liệu FinMate) đã bị đọc thành 1.000.000.000 đồng và làm mệnh đề bị coi là sai số
+    assert claim_amounts("Mục tiêu theo phần trăm thu nhập là một tỷ lệ để dành") == set()
+    assert claim_amounts("Mục tiêu là một ty le de danh") == set()
+
+
+def test_legal_document_numbers_are_not_money():
+    assert claim_amounts("Theo Nghị định 188/2025/NĐ-CP, có hiệu lực từ 15/8/2025") == set()
+    assert claim_amounts("Luật số 109/2025/QH15 được thông qua ngày 10/12/2025") == set()
+
+
+def test_real_amounts_next_to_a_document_number_are_still_read():
+    assert claim_amounts("Theo Nghị định 188/2025/NĐ-CP mức đóng là 1.500.000 đồng") == {1_500_000}

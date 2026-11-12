@@ -230,6 +230,10 @@ def _give_back_leading_digits(spans: list[tuple[int, int, str]], start: int, end
     return new_end if new_end > start else end
 
 
+# Chữ đứng sau "tỷ" làm nó thành từ ghép (tỷ lệ, tỷ số, tỷ giá, tỷ trọng, tỷ suất, tỷ phú), không còn là đơn vị tiền.
+_TY_COMPOUND_NEXT = frozenset({"lệ", "số", "giá", "trọng", "suất", "phú"})
+
+
 def find_number_words(text: str) -> list[NumberWordMatch]:
     """Mọi cụm số đọc bằng chữ trong câu, theo thứ tự xuất hiện.
 
@@ -238,6 +242,9 @@ def find_number_words(text: str) -> list[NumberWordMatch]:
     """
     lowered = text.lower()
     spans = [(m.start(), m.end(), m.group(0)) for m in _WORD_SPAN.finditer(lowered)]
+    for i in range(len(spans) - 1):
+        if spans[i][2] == "tỷ" and spans[i + 1][2] in _TY_COMPOUND_NEXT:
+            spans[i] = (spans[i][0], spans[i][1], "tỷ-ghép")  # "một tỷ lệ" là từ ghép, không phải một tỷ đồng; token lạ làm cụm số dừng trước nó
     matches: list[NumberWordMatch] = []
 
     index = 0
