@@ -62,7 +62,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
         var state = stored is not null && stored.Turn < AgentLimits.MaxTurns ? stored : null; // đủ MaxTurns lượt thì ngữ cảnh bắt đầu lại
         var request = new AgentPlanRequest(
-            question, profile.Segment.ToString().ToLowerInvariant(), tools.Registry.Specs, AgentLimits.MaxPlanSteps,
+            question, profile.Segment.ToString().ToLowerInvariant(), await tools.Registry.SpecsAsync(ct), AgentLimits.MaxPlanSteps,
             State: state is null ? null : new AgentPlanState(state.LastIntent, state.Slots),
             Memory: await ReadMemoryAsync(userId, ct));
         var plan = await ai.PlanAsync(request, ct);
