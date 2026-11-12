@@ -35,4 +35,5 @@ public record CreateManualTransactionCommand(
     Guid? ReceiptScanId = null,
     string? ReceiptGroup = null,
     Guid? GroupId = null,
-    Guid? GroupCategoryId = null);
+    Guid? GroupCategoryId = null,
+    TransactionRelation? Relation = null);

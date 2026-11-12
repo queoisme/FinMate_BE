@@ -25,6 +25,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     private readonly IGroupLedger? _groupLedger;
+    private readonly Refunds.IRefundLedger? _refunds;
 
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -39,9 +40,11 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         IValidator<CreateManualTransactionCommand> validator,
         ITrainingSampleService? trainingSamples = null,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        Refunds.IRefundLedger? refunds = null)
     {
         _groupLedger = groupLedger;
+        _refunds = refunds;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _categoryRepository = categoryRepository;
@@ -111,16 +114,29 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // Giao dịch thủ công vào thẳng Status=Confirmed (không qua bước confirm riêng) nên
         // phải tiêu hạn mức ngay tại đây, không phải ở ConfirmTransactionCommandHandler.
-        var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
-            command.UserId,
-            category?.Id,
-            TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, category),
-            command.TransactedAt,
-            ct);
+        IReadOnlyList<FinMate.Application.Budgets.BudgetAlert> budgetAlerts;
+        IReadOnlyList<GroupBudgetAlert> groupAlerts;
+        if (command.Relation is not null && _refunds is not null)
+        {
+            // Hoàn "mồ côi" (D5, BR-RF-09): tính lại kỳ thay vì cộng delta âm rồi chặn ở 0 (D2); không chia sẻ nhóm (validator).
+            transaction.Id = Guid.NewGuid();
+            var effects = await _refunds.MarkOrphanAsync(command.UserId, transaction, category!, before: null, ct);
+            budgetAlerts = effects.BudgetAlerts;
+            groupAlerts = [];
+        }
+        else
+        {
+            budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
+                command.UserId,
+                category?.Id,
+                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, category),
+                command.TransactedAt,
+                ct);
 
-        // account và budget period đã tracked (cùng DbContext) — AddAsync flush
-        // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
-        var groupAlerts = await ShareIfRequestedAsync(command, transaction, category, now, ct);
+            // account và budget period đã tracked (cùng DbContext) — AddAsync flush
+            // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
+            groupAlerts = await ShareIfRequestedAsync(command, transaction, category, now, ct);
+        }
 
         await _transactionRepository.AddAsync(transaction, ct);
         transaction.Category = category;

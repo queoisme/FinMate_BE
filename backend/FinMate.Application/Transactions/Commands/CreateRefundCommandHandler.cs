@@ -52,7 +52,7 @@ public class CreateRefundCommandHandler : ICreateRefundCommandHandler
 
         if (!result.AlreadyExisted)
         {
-            await AfterSaveAsync(command.UserId, effects, ct);
+            await new RefundAfterSave(_budgetAlerts, _cache, _groupLedger, _summaries, _forecastAlerts).RunAsync(command.UserId, effects, ct);
         }
 
         return result;
@@ -111,30 +111,6 @@ public class CreateRefundCommandHandler : ICreateRefundCommandHandler
 
     private async Task<long?> RefundedOfAsync(Guid userId, Transaction transaction, CancellationToken ct)
         => transaction.TransactionType == TransactionType.Debit ? await _transactions.SumConfirmedRefundsAsync(userId, transaction.Id, null, ct) : null;
-
-    private async Task AfterSaveAsync(Guid userId, RefundEffects effects, CancellationToken ct)
-    {
-        foreach (var date in effects.TouchedDates)
-        {
-            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, userId, new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)), ct);
-        }
-
-        await _budgetAlerts.SendAsync(effects.BudgetAlerts, ct);
-        if (_groupLedger is not null)
-        {
-            await _groupLedger.SendAlertsAsync(effects.GroupAlerts, ct);
-        }
-
-        if (_summaries is not null)
-        {
-            await _summaries.RefreshAsync(userId, effects.TouchedDates, ct);
-        }
-
-        if (_forecastAlerts is not null)
-        {
-            await _forecastAlerts.UserChangedAsync(userId, ct);
-        }
-    }
 }
 
 public class CreateRefundCommandValidator : AbstractValidator<CreateRefundCommand>

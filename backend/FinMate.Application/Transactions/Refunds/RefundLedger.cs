@@ -29,8 +29,14 @@ public interface IRefundLedger
     Task<RefundEffects> AttachAsync(
         Guid userId, Transaction original, Transaction refund, TransactionRelation relation, RefundScopeSnapshot? before, CancellationToken ct = default);
 
-    /// <summary>Gỡ quan hệ: khoản hoàn thành khoản thu thường (danh mục <paramref name="incomeCategory"/>); gỡ một lệnh đảo thì khoản gốc hết bị đảo.</summary>
-    Task<RefundEffects> DetachAsync(Guid userId, Transaction original, Transaction refund, Category? incomeCategory, CancellationToken ct = default);
+    /// <summary>
+    /// Gỡ quan hệ: khoản hoàn thành khoản thu thường (danh mục <paramref name="incomeCategory"/>); gỡ một lệnh đảo thì khoản gốc hết bị đảo.
+    /// <paramref name="original"/> null với hoàn mồ côi.
+    /// </summary>
+    Task<RefundEffects> DetachAsync(Guid userId, Transaction? original, Transaction refund, Category? incomeCategory, CancellationToken ct = default);
+
+    /// <summary>Biến một khoản tiền vào thành hoàn "mồ côi" (BR-RF-09): không có khoản gốc, người dùng tự chọn danh mục chi.</summary>
+    Task<RefundEffects> MarkOrphanAsync(Guid userId, Transaction refund, Category category, RefundScopeSnapshot? before, CancellationToken ct = default);
 
     /// <summary>Tính lại sau một thay đổi khác trên khoản hoàn/khoản gốc (sửa số tiền, ngày, danh mục, xoá) mà handler đã áp vào entity.</summary>
     Task<RefundEffects> RecomputeAsync(
@@ -102,7 +108,7 @@ public sealed class RefundLedger : IRefundLedger
         return await RecomputeAsync(userId, [refund, original], snapshots, ct);
     }
 
-    public async Task<RefundEffects> DetachAsync(Guid userId, Transaction original, Transaction refund, Category? incomeCategory, CancellationToken ct = default)
+    public async Task<RefundEffects> DetachAsync(Guid userId, Transaction? original, Transaction refund, Category? incomeCategory, CancellationToken ct = default)
     {
         var before = RefundScopeSnapshot.Of(refund);
         var wasReversal = refund.Relation == TransactionRelation.Reversal;
@@ -113,7 +119,7 @@ public sealed class RefundLedger : IRefundLedger
         refund.Category = incomeCategory;
         refund.UpdatedAt = DateTimeOffset.UtcNow;
 
-        if (wasReversal && refund.Status == TransactionStatus.Confirmed)
+        if (wasReversal && original is not null && refund.Status == TransactionStatus.Confirmed)
         {
             original.IsReversed = false;
             original.UpdatedAt = refund.UpdatedAt;
@@ -125,12 +131,42 @@ public sealed class RefundLedger : IRefundLedger
         }
 
         var snapshots = new List<RefundScopeSnapshot> { before, RefundScopeSnapshot.Of(refund) };
-        if (wasReversal)
+        List<Transaction> pending = [refund];
+        if (original is not null)
         {
-            snapshots.Add(RefundScopeSnapshot.Of(original));
+            pending.Add(original);
+            if (wasReversal)
+            {
+                snapshots.Add(RefundScopeSnapshot.Of(original));
+            }
         }
 
-        return await RecomputeAsync(userId, [refund, original], snapshots, ct);
+        return await RecomputeAsync(userId, pending, snapshots, ct);
+    }
+
+    public async Task<RefundEffects> MarkOrphanAsync(Guid userId, Transaction refund, Category category, RefundScopeSnapshot? before, CancellationToken ct = default)
+    {
+        RefundPolicy.EnsureCanCarryRelation(refund, null);
+        RefundPolicy.EnsureOrphanCategory(category);
+
+        refund.Relation = TransactionRelation.Refund;
+        refund.RelatedTransactionId = null;
+        refund.CategoryId = category.Id;
+        refund.Category = category;
+        refund.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (refund.Status != TransactionStatus.Confirmed)
+        {
+            return RefundEffects.None;
+        }
+
+        var snapshots = new List<RefundScopeSnapshot> { RefundScopeSnapshot.Of(refund) };
+        if (before is not null)
+        {
+            snapshots.Add(before);
+        }
+
+        return await RecomputeAsync(userId, [refund], snapshots, ct);
     }
 
     public async Task<RefundEffects> RecomputeAsync(

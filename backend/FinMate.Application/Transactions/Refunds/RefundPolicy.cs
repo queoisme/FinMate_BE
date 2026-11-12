@@ -51,6 +51,22 @@ public static class RefundPolicy
         }
     }
 
+    /// <summary>
+    /// Hoàn "mồ côi" phải mang một danh mục CHI (BR-RF-09): nó trừ vào chi tiêu của danh mục đó. "Thu nhập" thì nó là thu nhập thường,
+    /// "cho vay/mượn" thì là thu nợ; cả hai không phải hoàn tiền.
+    /// </summary>
+    public static void EnsureOrphanCategory(Category? category)
+    {
+        if (category is null || category.Slug is IncomeSlug or Category.LoanSlug)
+        {
+            throw new BusinessRuleException(
+                TransactionErrorCodes.RefundNotLinkable,
+                "Khoản hoàn không có khoản gốc phải chọn một danh mục chi tiêu (không phải thu nhập hay cho vay/mượn).");
+        }
+    }
+
+    public const string IncomeSlug = "income";
+
     public static bool IsEligibleOriginal(Transaction original)
         => original.TransactionType == TransactionType.Debit
             && original.Status == TransactionStatus.Confirmed
