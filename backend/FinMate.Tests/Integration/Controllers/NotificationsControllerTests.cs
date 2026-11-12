@@ -193,6 +193,7 @@ public class NotificationsControllerTests : IClassFixture<AuthApiFactory>
         var secondBody = await secondResponse.Content.ReadFromJsonAsync<AnalysisBody>(JsonOptions);
 
         secondBody!.Data.NotificationLogId.Should().Be(firstBody!.Data.NotificationLogId);
-        secondBody.Data.DraftTransactionId.Should().BeNull();
+        // Lần gửi lại trỏ về đúng bản nháp của lần đầu (cc5b879), không tạo bản nháp mới.
+        secondBody.Data.DraftTransactionId.Should().Be(firstBody.Data.DraftTransactionId);
     }
 }
