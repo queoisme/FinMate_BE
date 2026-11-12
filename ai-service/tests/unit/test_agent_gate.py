@@ -192,3 +192,18 @@ async def test_tuition_and_setting_money_aside_are_finance_cues(text):
     result = await evaluate(text, RULES, None)
 
     assert (result.in_scope, result.reason_code) == (True, "finance_cue")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "phương pháp phong bì", "quy tắc 50/30/20", "quy tắc 70/20/10", "quy tắc 80/20", "phương pháp trả cho mình trước", "phương pháp 6 chiếc hũ", "zero-based budget",
+        "safe to spend", "số tiền an toàn để chi", "cash flow", "dòng tiền", "pay yourself first", "envelope", "cảnh báo T1 và T2", "hạn mức",
+        "trả nợ tuyết lăn", "trả nợ thác tuyết", "tự động hóa tài chính", "theo dõi chi tiêu tối giản",
+    ],
+)
+async def test_the_names_of_the_apps_own_methods_and_terms_are_finance_cues(name):
+    # Câu hỏi thẳng về một phương pháp/thuật ngữ của chính FinMate không có chữ "chi tiêu" hay "ngân sách" nào, nhưng là câu tài chính điển hình.
+    result = await evaluate(f"{name[0].upper()}{name[1:]} là gì?", RULES, None)
+
+    assert (result.in_scope, result.reason_code) == (True, "finance_cue")
