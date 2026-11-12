@@ -21,6 +21,13 @@ public sealed class RetryingConfirmTransactionCommandHandler(IConfirmTransaction
         => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
 }
 
+public sealed class RetryingCreateRefundCommandHandler(ICreateRefundCommandHandler inner, IConcurrencyRetry retry)
+    : ICreateRefundCommandHandler
+{
+    public Task<TransactionCreationResult> HandleAsync(CreateRefundCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
 public sealed class RetryingUpdateTransactionCommandHandler(IUpdateTransactionCommandHandler inner, IConcurrencyRetry retry)
     : IUpdateTransactionCommandHandler
 {

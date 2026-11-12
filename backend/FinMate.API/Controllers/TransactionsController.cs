@@ -183,6 +183,21 @@ public class TransactionsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Ghi tay một khoản hoàn (hoặc đảo) cho khoản chi <paramref name="id"/> (Phase 81). Mặc định hoàn phần còn lại, vào ví gốc, ngày hiện tại.
+    /// 201 khi tạo, 200 khi <c>clientRequestId</c> đã dùng. Khoản gốc hay ví của người khác → 404; vượt số gốc → 422 <c>REFUND_EXCEEDS_ORIGINAL</c>.
+    /// </summary>
+    [HttpPost("{id:guid}/refunds")]
+    public async Task<IActionResult> CreateRefund(
+        Guid id, [FromBody] CreateRefundRequest? request, [FromServices] ICreateRefundCommandHandler handler, CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(
+            new CreateRefundCommand(
+                CurrentUserId, id, request?.AmountCents, request?.TransactedAt, request?.FinancialAccountId, request?.Relation, request?.ClientRequestId),
+            ct);
+        return Created(result);
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
@@ -311,6 +326,13 @@ public record UpdateTransactionRequest(
     DateTimeOffset TransactedAt,
     string? MerchantName,
     string? Description);
+
+public record CreateRefundRequest(
+    long? AmountCents = null,
+    DateTimeOffset? TransactedAt = null,
+    Guid? FinancialAccountId = null,
+    TransactionRelation? Relation = null,
+    Guid? ClientRequestId = null);
 
 public record ConfirmTransactionRequest(Guid? CategoryId, Guid? GroupId = null, Guid? GroupCategoryId = null);
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);

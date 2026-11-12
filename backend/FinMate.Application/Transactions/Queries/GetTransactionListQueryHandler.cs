@@ -33,6 +33,6 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
 
         var result = await _transactionRepository.GetListAsync(filter, ct);
 
-        return new TransactionListDto(result.Items.Select(TransactionMapper.ToDto).ToList(), result.NextCursor);
+        return new TransactionListDto(result.Items.Select(t => TransactionMapper.ToDto(t)).ToList(), result.NextCursor);
     }
 }

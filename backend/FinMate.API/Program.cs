@@ -683,6 +683,9 @@ public class Program
         builder.Services.AddScoped<ICreateManualTransactionCommandHandler>(sp => new RetryingCreateManualTransactionCommandHandler(sp.GetRequiredService<CreateManualTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateTransferCommandHandler>();
         builder.Services.AddScoped<ICreateTransferCommandHandler>(sp => new RetryingCreateTransferCommandHandler(sp.GetRequiredService<CreateTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();
+        builder.Services.AddScoped<CreateRefundCommandHandler>();
+        builder.Services.AddScoped<ICreateRefundCommandHandler>(sp => new RetryingCreateRefundCommandHandler(sp.GetRequiredService<CreateRefundCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<UpdateTransactionCommandHandler>();
         builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<DeleteTransactionCommandHandler>();

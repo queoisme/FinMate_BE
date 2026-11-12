@@ -41,7 +41,7 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
                 // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày.
                 g.Sum(t => t.TransactionType == TransactionType.Debit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
                 g.Sum(t => t.TransactionType == TransactionType.Credit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
-                g.Select(TransactionMapper.ToDto).ToList()))
+                g.Select(t => TransactionMapper.ToDto(t)).ToList()))
             .ToList();
 
         return new TimelineDto(days, result.NextCursor);

@@ -5,7 +5,8 @@ namespace FinMate.Application.Transactions;
 
 internal static class TransactionMapper
 {
-    public static TransactionDto ToDto(Transaction transaction) => new(
+    /// <param name="refundedCents">Tổng hoàn đã xác nhận nếu đây là khoản chi đã xác nhận (caller đọc); null thì hai trường hoàn để trống.</param>
+    public static TransactionDto ToDto(Transaction transaction, long? refundedCents = null, IReadOnlyList<RefundSuggestionDto>? suggestions = null) => new(
         transaction.Id,
         transaction.FinancialAccountId,
         transaction.CounterAccountId,
@@ -20,5 +21,11 @@ internal static class TransactionMapper
         transaction.TransactedAt,
         transaction.BalanceAfterCents,
         transaction.CreatedAt,
-        transaction.GroupId);
+        transaction.GroupId,
+        transaction.Relation?.ToString(),
+        transaction.RelatedTransactionId,
+        transaction.IsReversed,
+        refundedCents,
+        refundedCents is { } refunded ? Refunds.RefundPolicy.RemainingRefundable(transaction, refunded) : null,
+        suggestions);
 }
