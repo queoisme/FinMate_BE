@@ -25,6 +25,13 @@ public interface INotificationLogRepository
 
     Task<List<NotificationLog>> GetFailedForRetryAsync(int maxRetryCount, CancellationToken ct = default);
 
+    /// <summary>
+    /// Xóa nội dung gốc (<c>notification_body</c>) của mọi log ghi trước <paramref name="cutoff"/> (NFR-SEC-23), trả số dòng đã xóa.
+    /// Chỉ cột nội dung: tiêu đề, <c>content_hash</c> (dedup vẫn chạy), trạng thái, kết quả AI và giao dịch giữ nguyên.
+    /// Đo theo <c>CreatedAt</c> (giờ server ghi), không theo <c>ReceivedAt</c> do client gửi lên.
+    /// </summary>
+    Task<int> PurgeBodiesOlderThanAsync(DateTimeOffset cutoff, CancellationToken ct = default);
+
     Task AddAsync(NotificationLog log, CancellationToken ct = default);
     Task UpdateAsync(NotificationLog log, CancellationToken ct = default);
     Task AddAiResultAsync(AiResult result, CancellationToken ct = default);
