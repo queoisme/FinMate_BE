@@ -30,8 +30,11 @@ public class SupportTicketsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<SupportTicketDto>>.Ok(await _tickets.ListAsync(CurrentUserId, ct)));
+    public async Task<IActionResult> List([FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _tickets.ListAsync(CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<SupportTicketDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)

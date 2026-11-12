@@ -72,20 +72,38 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     }
 
     // IgnoreQueryFilters trên Users: người đã yêu cầu xóa tài khoản vẫn còn giao dịch tới lúc xóa cứng.
-    public async Task<List<SharedTransactionView>> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset start, DateTimeOffset end, int limit, CancellationToken ct = default)
+    public async Task<SharedTransactionPage> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset start, DateTimeOffset end, string? cursor, int limit, CancellationToken ct = default)
     {
-        var rows = await (from t in _context.Transactions.AsNoTracking().Include(x => x.Category).Include(x => x.GroupCategory)
-                          join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
-                          where t.GroupId == groupId
-                              && t.Status == TransactionStatus.Confirmed
-                              && t.TransactedAt >= start
-                              && t.TransactedAt < end
-                              && (onlyUserId == null || t.UserId == onlyUserId)
-                          orderby t.TransactedAt descending, t.Id
-                          select new { Transaction = t, u.DisplayName, u.DeletedAt })
-            .Take(limit)
+        var query = from t in _context.Transactions.AsNoTracking().Include(x => x.Category).Include(x => x.GroupCategory)
+                    join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
+                    where t.GroupId == groupId
+                        && t.Status == TransactionStatus.Confirmed
+                        && t.TransactedAt >= start
+                        && t.TransactedAt < end
+                        && (onlyUserId == null || t.UserId == onlyUserId)
+                    select new { Transaction = t, u.DisplayName, u.DeletedAt };
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(r =>
+                r.Transaction.TransactedAt < cursorAt || (r.Transaction.TransactedAt == cursorAt && r.Transaction.Id.CompareTo(cursorId) < 0));
+        }
+
+        var rows = await query
+            .OrderByDescending(r => r.Transaction.TransactedAt)
+            .ThenByDescending(r => r.Transaction.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
-        return rows.Select(r => new SharedTransactionView(r.Transaction, r.DisplayName, r.DeletedAt is null)).ToList();
+
+        string? nextCursor = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1].Transaction;
+            nextCursor = KeysetCursor.Encode(last.TransactedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        return new SharedTransactionPage(rows.Select(r => new SharedTransactionView(r.Transaction, r.DisplayName, r.DeletedAt is null)).ToList(), nextCursor);
     }
 
     public Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
@@ -145,16 +163,34 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     public Task<SavingGoal?> GetGoalAsync(Guid groupId, Guid goalId, CancellationToken ct = default)
         => _context.SavingGoals.FirstOrDefaultAsync(g => g.Id == goalId && g.GroupId == groupId, ct);
 
-    public async Task<List<GroupContributionView>> ListContributionsAsync(Guid goalId, int limit, CancellationToken ct = default)
+    public async Task<GroupContributionPage> ListContributionsAsync(Guid goalId, string? cursor, int limit, CancellationToken ct = default)
     {
-        var rows = await (from c in _context.GoalContributions.AsNoTracking()
-                          join u in _context.Users.IgnoreQueryFilters() on c.UserId equals u.Id
-                          where c.SavingGoalId == goalId
-                          orderby c.ContributedAt descending
-                          select new { Contribution = c, u.DisplayName, u.DeletedAt })
-            .Take(limit)
+        var query = from c in _context.GoalContributions.AsNoTracking()
+                    join u in _context.Users.IgnoreQueryFilters() on c.UserId equals u.Id
+                    where c.SavingGoalId == goalId
+                    select new { Contribution = c, u.DisplayName, u.DeletedAt };
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(r =>
+                r.Contribution.ContributedAt < cursorAt || (r.Contribution.ContributedAt == cursorAt && r.Contribution.Id.CompareTo(cursorId) < 0));
+        }
+
+        var rows = await query
+            .OrderByDescending(r => r.Contribution.ContributedAt)
+            .ThenByDescending(r => r.Contribution.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
-        return rows.Select(r => new GroupContributionView(r.Contribution, r.DisplayName, r.DeletedAt is null)).ToList();
+
+        string? nextCursor = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1].Contribution;
+            nextCursor = KeysetCursor.Encode(last.ContributedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        return new GroupContributionPage(rows.Select(r => new GroupContributionView(r.Contribution, r.DisplayName, r.DeletedAt is null)).ToList(), nextCursor);
     }
 
     public void AddGoal(SavingGoal goal) => _context.SavingGoals.Add(goal);

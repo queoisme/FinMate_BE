@@ -125,7 +125,7 @@ public sealed class OpsUserService : IOpsUserService
         }
 
         var members = await _groups.ListActiveMembersAsync(groupId, ct);
-        var activities = await _groups.ListActivitiesAsync(groupId, ActivityLimit, ct);
+        var activities = (await _groups.ListActivitiesAsync(groupId, null, ActivityLimit, ct)).Items;
         await _audit.LogAsync(AuditEvents.OpsGroupViewed, actor.Id, ip, new { groupId, ticketId }, ct);
 
         return new OpsGroupDto(

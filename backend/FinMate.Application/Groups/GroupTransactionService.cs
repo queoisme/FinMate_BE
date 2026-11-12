@@ -20,6 +20,8 @@ public sealed record GroupTransactionDto(
     Guid? GroupCategoryId,
     string CategoryName);
 
+public sealed record GroupTransactionListResult(IReadOnlyList<GroupTransactionDto> Items, string? NextCursor);
+
 public interface IGroupTransactionService
 {
     /// <summary>Chủ giao dịch chia sẻ, hoặc chuyển sang nhóm khác. Gọi lại với cùng nhóm để đổi danh mục nhóm.</summary>
@@ -28,7 +30,7 @@ public interface IGroupTransactionService
     Task UnshareAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 
     /// <summary>Chế độ chỉ xem tổng: người không có quyền xem chi tiết chỉ thấy khoản của chính mình.</summary>
-    Task<IReadOnlyList<GroupTransactionDto>> ListAsync(Guid groupId, Guid userId, int year, int month, int limit, CancellationToken ct = default);
+    Task<GroupTransactionListResult> ListAsync(Guid groupId, Guid userId, int year, int month, string? cursor, int limit, CancellationToken ct = default);
 
     Task ReclassifyAsync(Guid groupId, Guid userId, Guid transactionId, Guid? groupCategoryId, CancellationToken ct = default);
     Task RemoveAsync(Guid groupId, Guid userId, Guid transactionId, CancellationToken ct = default);
@@ -97,13 +99,13 @@ public class GroupTransactionService : IGroupTransactionService
             },
             ct);
 
-    public async Task<IReadOnlyList<GroupTransactionDto>> ListAsync(Guid groupId, Guid userId, int year, int month, int limit, CancellationToken ct = default)
+    public async Task<GroupTransactionListResult> ListAsync(Guid groupId, Guid userId, int year, int month, string? cursor, int limit, CancellationToken ct = default)
     {
         var access = await _access.RequireAsync(groupId, userId, GroupPermission.ViewOverview, ct);
         var (from, to) = VietnamTime.MonthRange(year, month);
         var onlyOwn = access.Has(GroupPermission.ViewMemberTransactions) ? (Guid?)null : userId;
-        var rows = await _finance.ListSharedTransactionsAsync(groupId, onlyOwn, from, to, Math.Clamp(limit, 1, MaxLimit), ct);
-        return rows.Select(ToDto).ToList();
+        var page = await _finance.ListSharedTransactionsAsync(groupId, onlyOwn, from, to, cursor, GroupPaging.Clamp(limit, MaxLimit), ct);
+        return new GroupTransactionListResult(page.Items.Select(ToDto).ToList(), page.NextCursor);
     }
 
     public async Task ReclassifyAsync(Guid groupId, Guid userId, Guid transactionId, Guid? groupCategoryId, CancellationToken ct = default)
