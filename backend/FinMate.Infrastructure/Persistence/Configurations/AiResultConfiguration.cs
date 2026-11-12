@@ -23,9 +23,13 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
 
     public void Configure(EntityTypeBuilder<AiResult> builder)
     {
-        builder.ToTable("ai_results", t => t.HasCheckConstraint(
-            "chk_ai_results_pipeline_result",
-            "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')"));
+        builder.ToTable("ai_results", t =>
+        {
+            t.HasCheckConstraint(
+                "chk_ai_results_pipeline_result",
+                "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
+            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal')");
+        });
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id)
@@ -61,6 +65,12 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
 
         builder.Property(a => a.IsPotentialDuplicate).HasColumnName("is_potential_duplicate").HasDefaultValue(false);
         builder.Property(a => a.DuplicateRequestId).HasColumnName("duplicate_request_id");
+        builder.Property(a => a.RelationHint)
+            .HasColumnName("relation_hint")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<TransactionRelation>(v, true))
+            .HasMaxLength(20);
 
         builder.Property(a => a.ClassifierVersion).HasColumnName("classifier_version").HasMaxLength(20);
         builder.Property(a => a.ExtractorVersion).HasColumnName("extractor_version").HasMaxLength(20);

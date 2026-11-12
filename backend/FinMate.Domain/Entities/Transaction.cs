@@ -53,6 +53,18 @@ public class Transaction
 
     public DateTimeOffset? SharedAt { get; set; }
 
+    /// <summary>
+    /// Khoản chi gốc mà khoản này hoàn lại hoặc đảo (Phase 81). Chỉ có khi <see cref="Relation"/> có giá trị; NULL với hoàn "mồ côi".
+    /// Cùng user với khoản này, mọi đường liên kết đều tra theo userId.
+    /// </summary>
+    public Guid? RelatedTransactionId { get; set; }
+
+    /// <summary>Hoàn tiền hay đảo giao dịch. Có giá trị thì giao dịch phải là <see cref="TransactionType.Credit"/> và KHÔNG được tính là thu nhập.</summary>
+    public TransactionRelation? Relation { get; set; }
+
+    /// <summary>Khoản chi gốc đã bị một lệnh <see cref="TransactionRelation.Reversal"/> đảo: vẫn hiện trong lịch sử nhưng bị loại khỏi mọi tổng hợp.</summary>
+    public bool IsReversed { get; set; }
+
     /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
     public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -66,4 +78,5 @@ public class Transaction
     public NotificationLog? NotificationLog { get; set; }
     public SavingGoal? SavingGoal { get; set; }
     public GroupCategory? GroupCategory { get; set; }
+    public Transaction? RelatedTransaction { get; set; }
 }

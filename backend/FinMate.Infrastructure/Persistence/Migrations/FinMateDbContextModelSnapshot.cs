@@ -114,6 +114,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("processing_ms");
 
+                    b.Property<string>("RelationHint")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("relation_hint");
+
                     b.Property<DateTimeOffset?>("TransactedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("transacted_at");
@@ -132,6 +137,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("ai_results", null, t =>
                         {
                             t.HasCheckConstraint("chk_ai_results_pipeline_result", "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
+
+                            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal')");
                         });
                 });
 
@@ -936,6 +943,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L)
                         .HasColumnName("total_income_cents");
+
+                    b.Property<long>("TotalRefundedCents")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("total_refunded_cents");
 
                     b.Property<long>("TotalSpentCents")
                         .ValueGeneratedOnAdd()
@@ -4607,6 +4620,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
 
+                    b.Property<bool>("IsReversed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_reversed");
+
                     b.Property<string>("MerchantName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -4615,6 +4634,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("NotificationLogId")
                         .HasColumnType("uuid")
                         .HasColumnName("notification_log_id");
+
+                    b.Property<Guid?>("RelatedTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_transaction_id");
+
+                    b.Property<string>("Relation")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("relation");
 
                     b.Property<Guid?>("SavingGoalId")
                         .HasColumnType("uuid")
@@ -4674,6 +4702,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasIndex("NotificationLogId")
                         .IsUnique();
 
+                    b.HasIndex("RelatedTransactionId")
+                        .HasDatabaseName("ix_transactions_related_transaction_id")
+                        .HasFilter("related_transaction_id IS NOT NULL");
+
                     b.HasIndex("SavingGoalId");
 
                     b.HasIndex("SupportTicketId");
@@ -4697,6 +4729,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
 
                             t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
+
+                            t.HasCheckConstraint("chk_transactions_related_has_relation", "related_transaction_id IS NULL OR relation IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_transactions_related_not_self", "related_transaction_id IS NULL OR related_transaction_id <> id");
+
+                            t.HasCheckConstraint("chk_transactions_relation", "relation IS NULL OR relation IN ('refund','reversal')");
+
+                            t.HasCheckConstraint("chk_transactions_relation_money_in", "relation IS NULL OR transaction_type = 'credit'");
+
+                            t.HasCheckConstraint("chk_transactions_reversal_has_original", "relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_transactions_reversed_debit", "is_reversed = false OR transaction_type = 'debit'");
 
                             t.HasCheckConstraint("chk_transactions_source", "source IN ('notification','manual','voice','receipt','support')");
 
@@ -4790,7 +4834,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_transaction_anomalies_kind", "kind IN ('category_spike','merchant_spike','duplicate')");
 
-                            t.HasCheckConstraint("chk_transaction_anomalies_resolution", "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious')");
+                            t.HasCheckConstraint("chk_transaction_anomalies_resolution", "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious','refunded','reversed')");
 
                             t.HasCheckConstraint("chk_transaction_anomalies_resolved_at", "(resolution IS NULL) = (resolved_at IS NULL)");
 
@@ -6081,6 +6125,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FinMate.Domain.Entities.Transaction", "NotificationLogId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "RelatedTransaction")
+                        .WithMany()
+                        .HasForeignKey("RelatedTransactionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("FinMate.Domain.Entities.SavingGoal", "SavingGoal")
                         .WithMany()
                         .HasForeignKey("SavingGoalId")
@@ -6106,6 +6155,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("GroupCategory");
 
                     b.Navigation("NotificationLog");
+
+                    b.Navigation("RelatedTransaction");
 
                     b.Navigation("SavingGoal");
 

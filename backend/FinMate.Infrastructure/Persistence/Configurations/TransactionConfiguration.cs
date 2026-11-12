@@ -31,6 +31,17 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
             t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
 
+            // Hoàn tiền / đảo giao dịch (Phase 81). Khoản mang quan hệ luôn là tiền VÀO, nên mọi nhánh số dư hiện có (credit → +)
+            // vẫn đúng mà không phải biết tới hoàn tiền; còn mọi phép cộng thu nhập phải loại nó ra (relation IS NULL).
+            t.HasCheckConstraint("chk_transactions_relation", "relation IS NULL OR relation IN ('refund','reversal')");
+            t.HasCheckConstraint("chk_transactions_relation_money_in", "relation IS NULL OR transaction_type = 'credit'");
+            t.HasCheckConstraint("chk_transactions_related_has_relation", "related_transaction_id IS NULL OR relation IS NOT NULL");
+            t.HasCheckConstraint("chk_transactions_related_not_self", "related_transaction_id IS NULL OR related_transaction_id <> id");
+
+            // Hoàn "mồ côi" (không có khoản gốc trong app) được phép; đảo thì luôn phải trỏ tới khoản bị đảo.
+            t.HasCheckConstraint("chk_transactions_reversal_has_original", "relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL");
+            t.HasCheckConstraint("chk_transactions_reversed_debit", "is_reversed = false OR transaction_type = 'debit'");
+
             // Lý do chỉ có khi đang bị loại khỏi dự báo, và bị loại thì phải có lý do.
             t.HasCheckConstraint(
                 "chk_transactions_forecast_exclusion",
@@ -101,6 +112,25 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.GroupCategoryId).HasColumnName("group_category_id");
         builder.Property(t => t.SharedAt).HasColumnName("shared_at");
         builder.Property(t => t.SupportTicketId).HasColumnName("support_ticket_id");
+
+        builder.Property(t => t.RelatedTransactionId).HasColumnName("related_transaction_id");
+        builder.Property(t => t.Relation)
+            .HasColumnName("relation")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<TransactionRelation>(v, true))
+            .HasMaxLength(20);
+        builder.Property(t => t.IsReversed).HasColumnName("is_reversed").HasDefaultValue(false);
+
+        // NO ACTION (không phải Restrict/Cascade): Postgres kiểm ở cuối câu lệnh, nên xoá cứng cả user (cascade xoá mọi giao dịch
+        // trong MỘT câu) không vướng thứ tự gốc/hoàn. Xoá mềm thì ứng dụng chặn bằng HAS_REFUNDS trước khi tới đây.
+        builder.HasOne(t => t.RelatedTransaction)
+            .WithMany()
+            .HasForeignKey(t => t.RelatedTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.RelatedTransactionId)
+            .HasFilter("related_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_related_transaction_id");
 
         builder.HasQueryFilter(t => t.DeletedAt == null);
 

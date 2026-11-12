@@ -67,6 +67,8 @@ internal static class AnomalyResolutionColumn
         [AnomalyResolution.OneOff] = "one_off",
         [AnomalyResolution.WrongEntry] = "wrong_entry",
         [AnomalyResolution.Suspicious] = "suspicious",
+        [AnomalyResolution.Refunded] = "refunded",
+        [AnomalyResolution.Reversed] = "reversed",
     };
 
     private static readonly Dictionary<string, AnomalyResolution> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);

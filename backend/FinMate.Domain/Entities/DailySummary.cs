@@ -13,6 +13,9 @@ public class DailySummary
 
     public long TotalSpentCents { get; set; }
     public long TotalIncomeCents { get; set; }
+
+    /// <summary>Tổng khoản hoàn (<see cref="Enums.TransactionRelation.Refund"/>) nhận trong ngày. Đã được trừ khỏi <see cref="TotalSpentCents"/>, không nằm trong thu nhập.</summary>
+    public long TotalRefundedCents { get; set; }
     public int TransactionCount { get; set; }
 
     public Guid? TopCategoryId { get; set; }
