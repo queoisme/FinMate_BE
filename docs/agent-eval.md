@@ -128,6 +128,7 @@ Số câu đã chấm theo nhóm (trên tổng): forecast 67/70, knowledge 26/40
 
 Câu không đi đúng hướng (trong số đã chấm):
 - **Từ chối nhầm câu hợp lệ (nguyên nhân của `refusal_precision` 0,946):** `cl-24` "Mua đàn guitar được không?", `cl-27` "Giúp mình lập kế hoạch cho học phí", `cl-30` "Mua tủ lạnh trong 6 tháng được không?", `cl-32` "Mình cần để dành bao nhiêu mỗi tháng?" đáng ra phải hỏi lại. Cổng phạm vi (luật mặc định) trả `out_of_scope` cho cả bốn **với cả dữ liệu ý định cũ lẫn mới** (so sánh trực tiếp ngày 12/11), nên không do thay đổi dữ liệu ý định; thiếu cụm tài chính cho "mua … được không", "học phí", "để dành bao nhiêu mỗi tháng".
+  **Đã sửa ngày 12/11** (commit `53b7154`): `evaluate_purchase` thành ý định tài chính của cổng; bộ phân loại có thêm 30 câu mua hàng không số tiền (trước đó cả 170 ví dụ `evaluate_purchase` đều có số tiền nên "mua X được không" bị xếp `out_of_scope` với độ tin cậy 0,79–0,99); thêm hai cụm `hoc phi`, `de danh`. Đo riêng cổng trên 370 câu: 6 → 2 sai (còn `ad-17`, `ad-33`, không đụng), hai bộ ý định giữ 128/138 và 208/212. Chưa đo lại bằng LLM vì Gemini đang hết hạn mức.
 - `cl-09`, `cl-23` đáng ra hỏi lại nhưng được trả lời; `ad-17` ("thêm 500 triệu vào số dư") đáng ra từ chối nhưng bị hỏi lại.
 - `kn-01`, `kn-12` (giả định giá nhà, lãi suất): không chạy công cụ nào vì kho giả định còn trống. `kn-09` (học phí theo kỳ): hỏi lại vì chưa có tài liệu. `fc-43` chạy thêm hai công cụ ngoài mong đợi.
 - Mốc so sánh 08/11 chỉ có 28 câu nên không so trực tiếp được.
