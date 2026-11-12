@@ -2,6 +2,8 @@ using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Forecasting;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -16,6 +18,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ICacheService _cache;
     private readonly IForecastAlertTrigger? _forecastAlerts;
+    private readonly IUserNotificationService? _userNotifications;
 
     private readonly IGroupLedger? _groupLedger;
 
@@ -28,7 +31,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IAIServiceClient aiServiceClient,
         ICacheService cache,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        IUserNotificationService? userNotifications = null)
     {
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
@@ -39,6 +43,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         _aiServiceClient = aiServiceClient;
         _cache = cache;
         _forecastAlerts = forecastAlerts;
+        _userNotifications = userNotifications;
     }
 
     public async Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
@@ -115,6 +120,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             await _groupLedger.SendAlertsAsync(groupAlerts, ct);
         }
 
+        await NotifyBalanceChangeAsync(transaction, ct);
+
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
         {
             // Bảng tình huống biên của docx: "lưu lại lựa chọn của người dùng để cải thiện
@@ -139,4 +146,24 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
+
+    /// <summary>Ghi vào hộp thư trong app (tab "Biến động") rằng giao dịch này vừa đổi số dư. Gọi SAU khi đã lưu.</summary>
+    private Task NotifyBalanceChangeAsync(FinMate.Domain.Entities.Transaction transaction, CancellationToken ct)
+    {
+        if (_userNotifications is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var verb = transaction.TransactionType == TransactionType.Credit ? "Nhận" : "Chi";
+        return _userNotifications.CreateAsync(
+            transaction.UserId,
+            UserNotificationType.BalanceChange,
+            "Giao dịch mới",
+            $"{verb} {ForecastText.Money(transaction.AmountCents)}"
+            + (transaction.MerchantName is { Length: > 0 } merchant ? $" tại {merchant}" : string.Empty),
+            "Transaction",
+            transaction.Id,
+            ct);
+    }
 }

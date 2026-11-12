@@ -1,6 +1,7 @@
 using FinMate.Application.Common;
 using FinMate.Application.Reports;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -19,10 +20,12 @@ public class InsightGeneratorJob
     private const int ActivityLookbackDays = 90;
 
     private readonly IReportRepository _reportRepository;
+    private readonly IUserNotificationService? _userNotifications;
 
-    public InsightGeneratorJob(IReportRepository reportRepository)
+    public InsightGeneratorJob(IReportRepository reportRepository, IUserNotificationService? userNotifications = null)
     {
         _reportRepository = reportRepository;
+        _userNotifications = userNotifications;
     }
 
     public Task RunAsync(CancellationToken ct = default)
@@ -91,9 +94,15 @@ public class InsightGeneratorJob
     }
 
 
-    private Task AddAsync(SpendingInsight insight, CancellationToken ct)
+    private async Task AddAsync(SpendingInsight insight, CancellationToken ct)
     {
         insight.CreatedAt = DateTimeOffset.UtcNow;
-        return _reportRepository.AddInsightAsync(insight, ct);
+        await _reportRepository.AddInsightAsync(insight, ct);
+
+        if (_userNotifications is not null)
+        {
+            await _userNotifications.CreateAsync(
+                insight.UserId, UserNotificationType.ForecastReady, insight.Title, insight.Body, "SpendingInsight", insight.Id, ct);
+        }
     }
 }
