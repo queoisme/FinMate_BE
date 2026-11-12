@@ -97,6 +97,7 @@ public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigPro
         };
 
         var position = 0;
+        var actions = new List<SuggestedActionDto>();
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (slug, name, amount) in Allocate(remaining, shares).OrderBy(b => b.Slug == OtherSlug))
         {
@@ -116,13 +117,14 @@ public sealed class PlanBudgetTool(IFinancialDataSource source, ISystemConfigPro
             }
 
             evidence.Add(Money($"alloc_{position}", key, amount, EvidenceSource.Estimated, text));
+            actions.Add(new SuggestedActionDto(SuggestedActionKinds.SetBudgetLimit, $"Đặt hạn mức {name} {LocalTemplateComposer.FormatVnd(amount)} mỗi tháng", amount, null, slug, name, [$"alloc_{position}"]));
         }
 
         evidence.Add(new Evidence(
             "savings_rate", "savings_rate", null, $"Tiết kiệm chiếm {(save * 100 + income / 2) / income}% thu nhập", "pct",
             incomeSource, now, ConfidenceCalculator.Compute(incomeSource, now, now, 1.0)));
 
-        return ToolResult.Ok(evidence);
+        return ToolResult.Ok(evidence, actions);
     }
 
     /// <summary>Chia <paramref name="remaining"/> theo trọng số; trả các nhóm khác 0, số tiền giảm dần (bằng nhau thì theo slug), tổng đúng bằng <paramref name="remaining"/>.</summary>

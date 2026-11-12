@@ -38,6 +38,9 @@ public static class AgentLimits
     /// <summary>Số ngày tối đa của kỳ tính khi mô phỏng một khoản mua, và tối đa số ngày từ hôm nay đến ngày mua giả định (provisional).</summary>
     public const int MaxSimulationDays = 90;
 
+    /// <summary>Số thẻ đề xuất hành động tối đa trong một câu trả lời (provisional): nhiều hơn thì app khó hiển thị và người dùng khó chọn.</summary>
+    public const int MaxSuggestedActions = 8;
+
     /// <summary>Kỳ tính mặc định (ngày) khi không biết ngày nhận thu nhập kế tiếp: Flow 6 §6.1 cho chọn mốc 7/14/30 (provisional).</summary>
     public const int DefaultSimulationDays = 30;
 

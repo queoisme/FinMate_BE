@@ -16,9 +16,12 @@ public enum ToolStatus
     Rejected,
 }
 
-public sealed record ToolResult(ToolStatus Status, IReadOnlyList<Evidence> Evidence, string? Code = null)
+public sealed record ToolResult(ToolStatus Status, IReadOnlyList<Evidence> Evidence, string? Code = null, IReadOnlyList<SuggestedActionDto>? Actions = null)
 {
     public static ToolResult Ok(IReadOnlyList<Evidence> evidence) => new(ToolStatus.Ok, evidence);
+
+    /// <summary>Kèm các thẻ đề xuất hành động do công cụ sinh từ chính dữ liệu của nó (xem <see cref="SuggestedActionDto"/>).</summary>
+    public static ToolResult Ok(IReadOnlyList<Evidence> evidence, IReadOnlyList<SuggestedActionDto> actions) => new(ToolStatus.Ok, evidence, null, actions);
 
     public static ToolResult Insufficient(string code) => new(ToolStatus.InsufficientData, [], code);
 

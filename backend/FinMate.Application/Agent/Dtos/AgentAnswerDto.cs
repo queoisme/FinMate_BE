@@ -47,4 +47,5 @@ public sealed record AgentAnswerDto(
     IReadOnlyList<AgentEvidenceDto> Evidence,
     string? Verdict,
     Guid TraceId,
-    bool UsedTemplate);
+    bool UsedTemplate,
+    IReadOnlyList<SuggestedActionDto> SuggestedActions);
