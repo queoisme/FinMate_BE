@@ -35,8 +35,14 @@ public interface IGroupFinanceRepository
     Task<List<BudgetPeriod>> ListPeriodsAsync(Guid groupId, DateTimeOffset periodStart, CancellationToken ct = default);
     void AddBudget(Budget budget);
 
-    /// <summary>Tổng khoản chi đã xác nhận, đã chia sẻ, khớp đúng phạm vi ngân sách; loại cho vay/mượn. Không truyền danh mục là ngân sách tổng.</summary>
+    /// <summary>
+    /// Chi ròng đã xác nhận, đã chia sẻ, khớp đúng phạm vi ngân sách (<see cref="Budgets.BudgetSpendScope.Group"/>): chi − hoàn, bỏ cặp đảo và
+    /// cho vay/mượn, chặn dưới ở 0. Không truyền danh mục là ngân sách tổng.
+    /// </summary>
     Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
+
+    /// <summary>Như trên nhưng KHÔNG chặn ở 0 và bỏ các giao dịch đang sửa trong bộ nhớ (caller tự cộng phần của chúng). Phase 81, D2.</summary>
+    Task<long> SumSharedNetSpendAsync(System.Linq.Expressions.Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default);
 
     Task<SharedTransactionPage> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, string? cursor, int limit, CancellationToken ct = default);
     Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);

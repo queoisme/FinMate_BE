@@ -21,4 +21,19 @@ public interface IBudgetPeriodService
         long spentDeltaCents,
         DateTimeOffset transactedAt,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Tính LẠI <c>spent_cents</c> của mọi kỳ ngân sách bị chạm, thay vì cộng delta (Phase 81, D2). Dùng cho mọi thao tác có dính hoàn tiền
+    /// hoặc đảo giao dịch: cộng delta rồi chặn ở 0 làm số lệch (hoàn ở tháng chưa chi → bị chặn, xoá khoản hoàn sau đó → cộng lại số không
+    /// có thật). Số mới = max(0, chi ròng trong DB không kể <paramref name="pending"/> + phần của <paramref name="pending"/> theo trạng thái
+    /// trong bộ nhớ), cùng một định nghĩa với backfill (<see cref="Budgets.BudgetSpendScope"/>).
+    /// Cảnh báo chỉ đánh giá khi số mới LỚN HƠN số cũ, và không bao giờ reset cờ <c>alert_*_sent_at</c> (BR-RF-05). Không lưu.
+    /// </summary>
+    /// <param name="pending">Các giao dịch đang sửa trong bộ nhớ (thêm mới, đổi trạng thái, đổi liên kết, xoá mềm), đã nạp danh mục.</param>
+    /// <param name="touched">Các cặp (danh mục, thời điểm) có thể đã đổi: cả giá trị CŨ lẫn MỚI của mỗi giao dịch trong <paramref name="pending"/>.</param>
+    Task<IReadOnlyList<BudgetAlert>> RecomputeAsync(
+        Guid userId,
+        IReadOnlyCollection<Domain.Entities.Transaction> pending,
+        IReadOnlyCollection<(Guid? CategoryId, DateTimeOffset At)> touched,
+        CancellationToken ct = default);
 }

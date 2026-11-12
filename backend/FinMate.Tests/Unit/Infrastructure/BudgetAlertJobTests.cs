@@ -218,4 +218,21 @@ public class BudgetAlertJobTests
             It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task RunAsync_AfterARefundLoweredSpending_SendsNothingAndKeepsTheFlags()
+    {
+        // Phase 81, BR-RF-05: kỳ đã báo T2 rồi được hoàn còn 30%. Lưới vét không gửi lại, không gửi mốc thấp hơn, không đụng cờ.
+        var sent = DateTimeOffset.UtcNow.AddDays(-1);
+        var (_, period) = Arrange(limitCents: 1_000_000, spentCents: 300_000);
+        period.AlertT1SentAt = sent;
+        period.AlertT2SentAt = sent;
+
+        await _job.RunAsync();
+
+        _push.VerifyNoOtherCalls();
+        period.AlertT1SentAt.Should().Be(sent);
+        period.AlertT2SentAt.Should().Be(sent);
+        period.AlertOverSentAt.Should().BeNull();
+    }
 }

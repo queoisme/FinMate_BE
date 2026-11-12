@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -50,25 +52,17 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     public void AddBudget(Budget budget) => _context.Budgets.Add(budget);
 
     public async Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default)
+        => Math.Max(0, await SumSharedNetSpendAsync(BudgetSpendScope.Group(groupId, systemCategoryId, groupCategoryId, from, to), [], ct));
+
+    public async Task<long> SumSharedNetSpendAsync(Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default)
     {
-        var query = _context.Transactions.Where(t =>
-            t.GroupId == groupId
-            && t.Status == TransactionStatus.Confirmed
-            && t.TransactionType == TransactionType.Debit
-            && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-            && t.TransactedAt >= from
-            && t.TransactedAt < to);
-
-        if (groupCategoryId is not null)
+        var query = _context.Transactions.Where(scope).Where(BudgetSpendScope.Counts);
+        if (excludeTransactionIds.Count > 0)
         {
-            query = query.Where(t => t.GroupCategoryId == groupCategoryId);
-        }
-        else if (systemCategoryId is not null)
-        {
-            query = query.Where(t => t.GroupCategoryId == null && t.CategoryId == systemCategoryId);
+            query = query.Where(t => !excludeTransactionIds.Contains(t.Id));
         }
 
-        return await query.SumAsync(t => (long?)t.AmountCents, ct) ?? 0;
+        return await query.Select(BudgetSpendScope.Signed).SumAsync(ct);
     }
 
     // IgnoreQueryFilters trên Users: người đã yêu cầu xóa tài khoản vẫn còn giao dịch tới lúc xóa cứng.
