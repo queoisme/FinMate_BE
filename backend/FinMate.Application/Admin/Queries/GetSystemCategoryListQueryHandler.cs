@@ -12,10 +12,14 @@ public class GetSystemCategoryListQueryHandler : IGetSystemCategoryListQueryHand
         _categoryRepository = categoryRepository;
     }
 
-    public async Task<IReadOnlyList<AdminCategoryDto>> HandleAsync(
+    public async Task<PagedResult<AdminCategoryDto>> HandleAsync(
         GetSystemCategoryListQuery query, CancellationToken ct = default)
     {
         var categories = await _categoryRepository.GetSystemListAsync(query.IncludeInactive, ct);
-        return categories.Select(AdminMapper.ToDto).ToList();
+        var matched = categories
+            .Where(c => AdminPaging.Matches(query.Search, c.Name, c.Slug))
+            .OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(c => c.Id);
+        return AdminPaging.Page(matched, query.Offset, query.Limit).Map(AdminMapper.ToDto);
     }
 }

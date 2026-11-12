@@ -191,4 +191,56 @@ public class SystemConfigDocumentValidatorTests
     {
         _validator.Validate(new SystemConfigDocument { QrTransfer = new QrTransferSettings { DeeplinkReturnUrl = "http://www.vietqr.io/deeplink" } }).IsValid.Should().BeFalse();
     }
+
+    [Fact]
+    public void EconomicFeeds_AreOffAndValidByDefault()
+    {
+        var defaults = new SystemConfigDocument().EconomicFeeds;
+        defaults.CpiIndexUrl.Should().BeEmpty();
+        _validator.Validate(new SystemConfigDocument()).IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("https://www.nso.gov.vn/tin-tuc-khac", true)]
+    [InlineData("", true)]
+    [InlineData("http://www.nso.gov.vn/tin-tuc-khac", false)]
+    [InlineData("not a url", false)]
+    public void EconomicFeeds_CpiUrl_MustBeHttpsOrEmpty(string url, bool valid)
+    {
+        _validator.Validate(new SystemConfigDocument { EconomicFeeds = new EconomicFeedsSettings { CpiIndexUrl = url } }).IsValid.Should().Be(valid);
+    }
+
+    [Theory]
+    [InlineData(-2000, 5000, 100, true)]
+    [InlineData(5000, -2000, 100, false)]
+    [InlineData(100, 100, 100, false)]
+    [InlineData(-2000, 5000, -1, false)]
+    public void EconomicFeeds_RateBoundsAndAutoApproveDelta_AreSane(int min, int max, int delta, bool valid)
+    {
+        var feeds = new EconomicFeedsSettings { MinRateBps = min, MaxRateBps = max, AutoApproveMaxDeltaBps = delta };
+
+        _validator.Validate(new SystemConfigDocument { EconomicFeeds = feeds }).IsValid.Should().Be(valid);
+    }
+
+    [Fact]
+    public void AStoredDocumentWithoutTheEconomicFeedsGroup_ReadsWithEmptyDefaults()
+    {
+        var doc = System.Text.Json.JsonSerializer.Deserialize<SystemConfigDocument>("{}", new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+
+        doc.EconomicFeeds.CpiIndexUrl.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(1, 0, true)]
+    [InlineData(28, 23, true)]
+    [InlineData(0, 9, false)]
+    [InlineData(29, 9, false)]
+    [InlineData(6, -1, false)]
+    [InlineData(6, 24, false)]
+    public void EconomicFeeds_ScheduleBounds(int day, int hour, bool valid)
+    {
+        var doc = new SystemConfigDocument { EconomicFeeds = new EconomicFeedsSettings { ScheduleDayOfMonth = day, ScheduleHour = hour } };
+
+        _validator.Validate(doc).IsValid.Should().Be(valid);
+    }
 }

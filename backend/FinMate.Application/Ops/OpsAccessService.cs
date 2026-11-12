@@ -12,6 +12,12 @@ public interface IOpsAccessService
 
     /// <summary>Như <see cref="RequireInternalAsync"/> và phải có đủ quyền được yêu cầu.</summary>
     Task<User> RequireAsync(Guid actorId, OpsCapability capability, CancellationToken ct = default);
+
+    /// <summary>Vai trò này đang có quyền đó không (đọc DB). Dùng khi cần rẽ nhánh theo quyền thay vì chặn.</summary>
+    Task<bool> HasAsync(UserRole role, OpsCapability capability, CancellationToken ct = default);
+
+    /// <summary>Toàn bộ quyền đang áp dụng của một vai trò.</summary>
+    Task<OpsCapability> CapabilitiesAsync(UserRole role, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -23,11 +29,18 @@ public sealed class OpsAccessService : IOpsAccessService
     private const string DeniedMessage = "Bạn không có quyền thực hiện thao tác này.";
 
     private readonly IUserRepository _users;
+    private readonly IRolePermissionService _permissions;
 
-    public OpsAccessService(IUserRepository users)
+    public OpsAccessService(IUserRepository users, IRolePermissionService permissions)
     {
         _users = users;
+        _permissions = permissions;
     }
+
+    public Task<OpsCapability> CapabilitiesAsync(UserRole role, CancellationToken ct = default) => _permissions.ForAsync(role, ct);
+
+    public async Task<bool> HasAsync(UserRole role, OpsCapability capability, CancellationToken ct = default)
+        => (await _permissions.ForAsync(role, ct)).HasFlag(capability);
 
     public async Task<User> RequireInternalAsync(Guid actorId, CancellationToken ct = default)
     {
@@ -43,7 +56,7 @@ public sealed class OpsAccessService : IOpsAccessService
     public async Task<User> RequireAsync(Guid actorId, OpsCapability capability, CancellationToken ct = default)
     {
         var user = await RequireInternalAsync(actorId, ct);
-        if (!OpsPermissions.For(user.Role).HasFlag(capability))
+        if (!await HasAsync(user.Role, capability, ct))
         {
             throw new ForbiddenException(DeniedMessage);
         }

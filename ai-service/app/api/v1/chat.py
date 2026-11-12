@@ -1,8 +1,7 @@
 """``POST /api/v1/chat/parse`` — câu chat → quyết định (khoản thu/chi/chuyển tiền, hoặc câu hỏi tổng).
 
-``/chat/parse`` không lưu gì và không giữ trạng thái: backend dựng bản nháp, hỏi xác nhận, hoàn tác, sửa danh mục và tự tính tổng. Chỉ
-``/chat/unclear`` (và ``/chat/unclear/erase``) ghi câu chưa rõ vào bảng chờ duyệt, khi người dùng đã đồng ý chia sẻ. Không ghi
-nội dung câu hay số tiền vào log (AGENTS.md §3.2).
+``/chat/parse`` không lưu gì và không giữ trạng thái: backend dựng bản nháp, hỏi xác nhận, hoàn tác, sửa danh mục và tự tính tổng.
+Không ghi nội dung câu hay số tiền vào log (AGENTS.md §3.2).
 """
 
 from __future__ import annotations
@@ -14,16 +13,15 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import verify_internal_api_key
-from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client, get_classify_stats, get_session_factory
+from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client, get_classify_stats
 from app.bill.classify_stats import ClassifyStatsRecorder
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
 from app.services.chat_ai import apply_ai_categories
-from app.services.nlu import RasaNlu, open_nlu
+from app.services.intent_classifier import IntentClassifier, shared_classifier
 from app.services.transaction_parser import VN, ChatParse, parse_chat
 from app.services.vi_text import clean_text
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
@@ -35,23 +33,23 @@ from app.schemas.chat import (
     ChatNlu,
     ChatParseRequest,
     ChatParseResponse,
+    ChatPurchase,
     ChatQuery,
-    ChatUnclearEraseRequest,
-    ChatUnclearEraseResponse,
-    ChatUnclearRequest,
-    ChatUnclearResponse,
 )
-from app.services import category_registry, nlu_candidates
+from app.services import category_registry
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 
-_nlu: RasaNlu | None = open_nlu(settings.rasa_url)
+_nlu_override: list[IntentClassifier | None] = []  # có phần tử khi test ghi đè (kể cả None = chỉ dùng luật)
 
 
-def set_nlu(nlu: RasaNlu | None) -> None:
-    global _nlu
-    _nlu = nlu
+def set_nlu(nlu: IntentClassifier | None) -> None:
+    _nlu_override[:] = [nlu]
+
+
+def _active_nlu() -> IntentClassifier | None:
+    return _nlu_override[0] if _nlu_override else shared_classifier()
 
 
 async def _with_cached_categories(parsed: ChatParse, knowledge: BillKnowledge) -> ChatParse:
@@ -135,6 +133,14 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
         )
         if parsed.goal
         else None,
+        purchase=ChatPurchase(
+            item=parsed.purchase.item,
+            amount_cents=parsed.purchase.amount_cents,
+            purchase_date=parsed.purchase.purchase_date,
+            category_slug=_slug(parsed.purchase.category_slug),
+        )
+        if parsed.purchase
+        else None,
     )
 
 
@@ -142,14 +148,15 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
 async def chat_parse(
     body: ChatParseRequest,
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
-    gemini: Annotated[GeminiClient, Depends(get_chat_gemini_client)],
+    gemini: Annotated[LlmClient, Depends(get_chat_gemini_client)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
     recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
 ) -> ChatParseResponse:
     started = time.perf_counter()
     await knowledge.refresh_if_stale()  # từ khóa/thương hiệu trong DB: parse_chat tra chúng qua category_resolver, không có bước này thì chat dùng bản trong image
-    text = clean_text(body.text)  # Rasa cũng phải đọc câu đã bỏ ký tự vô hình, không thì nó cắt từ sai
-    nlu = await _nlu.parse(text) if _nlu else None
+    text = clean_text(body.text)  # bộ phân loại cũng phải đọc câu đã bỏ ký tự vô hình
+    classifier = _active_nlu()
+    nlu = await classifier.parse(text) if classifier else None
     parsed = parse_chat(
         text,
         nlu,
@@ -168,33 +175,3 @@ async def chat_parse(
     response.processing_ms = int((time.perf_counter() - started) * 1000)
     logger.info("chat_parsed", intent=response.intent, source=response.nlu.source, processing_ms=response.processing_ms)
     return response
-
-
-@router.post("/chat/unclear", response_model=ChatUnclearResponse)
-async def store_unclear(
-    body: ChatUnclearRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
-) -> ChatUnclearResponse:
-    """Lưu một câu chat chưa rõ để NGƯỜI duyệt gán nhãn (xem ``app.services.nlu_candidates``). Best-effort như ``/bill/samples``: lỗi DB không bao giờ thành 500.
-    Câu có số điện thoại, email, số dài, đường dẫn hay "[" "]" bị từ chối (``stored: false`` kèm lý do). Không ghi nội dung câu vào log."""
-    try:
-        async with factory() as session:
-            reason = await nlu_candidates.add_pending(
-                session, user_id_hash=body.user_id_hash, text=body.text, predicted_intent=body.predicted_intent,
-                predicted_confidence=body.predicted_confidence, unclear_reason=body.unclear_reason,
-            )
-    except Exception as error:  # noqa: BLE001 - học từ người dùng là phần phụ, không được làm hỏng luồng chat
-        logger.warning("nlu_candidate_store_failed", error_type=type(error).__name__)
-        return ChatUnclearResponse(stored=False, reason="error")
-    logger.info("nlu_candidate", stored=reason is None, reason=reason)
-    return ChatUnclearResponse(stored=reason is None, reason=reason)
-
-
-@router.post("/chat/unclear/erase", response_model=ChatUnclearEraseResponse)
-async def erase_unclear(
-    body: ChatUnclearEraseRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
-) -> ChatUnclearEraseResponse:
-    """Xóa mọi câu chưa duyệt của một người dùng (rút đồng ý, xóa tài khoản). Lỗi DB để nổi lên (500): người gọi cần biết việc xóa chưa xong."""
-    async with factory() as session:
-        deleted = await nlu_candidates.delete_by_user_hash(session, body.user_id_hash)
-    logger.info("nlu_candidates_erased", deleted=deleted)
-    return ChatUnclearEraseResponse(deleted=deleted)

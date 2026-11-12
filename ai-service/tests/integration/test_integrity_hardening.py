@@ -14,8 +14,6 @@ HASH_INSERTS = {
     "ml_training_samples.user_id_hash": "INSERT INTO ml_training_samples (scan_id, user_id_hash, lines) VALUES (gen_random_uuid(), :h, 'x')",
     "kb_audit_log.actor_hash": "INSERT INTO kb_audit_log (resource, resource_key, action, actor_hash) VALUES ('brand', 'k', 'create', :h)",
     "config_documents.created_by": "INSERT INTO config_documents (name, version, status, content, created_by) VALUES ('thresholds', 1, 'draft', '{}', :h)",
-    "nlu_candidates.user_id_hash": "INSERT INTO nlu_candidates (user_id_hash, text, text_key, unclear_reason) VALUES (:h, 't', 't', 'low_confidence')",
-    "nlu_model_versions.dataset_hash": "INSERT INTO nlu_model_versions (version, artifact_path, status, dataset_hash) VALUES ('v1', 'p', 'candidate', :h)",
     "ops_analyze_log.user_id_hash": "INSERT INTO ops_analyze_log (backend_request_id, user_id_hash, package_name, received_at, pipeline_result) VALUES (gen_random_uuid(), :h, 'p', now(), 'financial')",
     "ml_raw_samples.user_id_hash": "INSERT INTO ml_raw_samples (source, package_name, notification_body, received_at, user_id_hash, content_hash) VALUES ('notification', 'p', 'x', now(), :h, repeat('c', 64))",
     "ml_raw_samples.content_hash": "INSERT INTO ml_raw_samples (source, package_name, notification_body, received_at, content_hash) VALUES ('notification', 'p', 'x', now(), :h)",
@@ -40,11 +38,6 @@ async def test_hash_columns_accept_only_lowercase_sha256_hex(session, column):
     for bad in ("", "short", "A" * 64, "g" * 64, "a" * 63, "a" * 65, "user-123"):
         assert await rejected(session, sql, h=bad), f"{column} nhận {bad!r}"
     assert not await rejected(session, sql, h=GOOD)
-
-
-async def test_the_nlu_dataset_hash_also_accepts_unknown(session):
-    sql = HASH_INSERTS["nlu_model_versions.dataset_hash"]
-    assert not await rejected(session, sql, h="unknown")
 
 
 async def test_a_raw_sample_may_have_no_user(session):

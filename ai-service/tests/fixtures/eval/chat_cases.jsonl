@@ -64,3 +64,9 @@
 {"text": "ăn cơm 25k uống nước 10k", "expect": [{"kind": "expense", "amount": 25000, "category": "food"}, {"kind": "expense", "amount": 10000, "category": "food"}]}
 {"text": "ăn cơm 25k và mua sữa rửa mặt 80k", "expect": [{"kind": "expense", "amount": 25000, "category": "food"}, {"kind": "expense", "amount": 80000, "category": "shopping"}]}
 {"text": "trong 100k có 20k ăn cơm và 80k mua sữa rửa mặt", "expect": [{"kind": "expense", "amount": 20000, "category": "food"}, {"kind": "expense", "amount": 80000, "category": "shopping"}]}
+{"text": "Hôm nay mua cái quần 800.000đ được không?", "intent": "evaluate_purchase"}
+{"text": "đợi tới ngày 16 mua laptop 20 triệu có ổn không", "intent": "evaluate_purchase"}
+{"text": "mua giày 1tr2 đủ tiền không", "intent": "evaluate_purchase"}
+{"text": "mua laptop được không?", "intent": "needs_amount"}
+{"text": "mua cà phê 45k", "expect": [{"kind": "expense", "amount": 45000, "category": "food"}]}
+{"text": "hôm qua mua laptop 20 triệu", "expect": [{"kind": "expense", "amount": 20000000, "category": "shopping"}]}

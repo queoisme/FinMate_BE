@@ -12,7 +12,8 @@ public record DataDeletionRequestRow(
 public record DataDeletionRequestListFilter(
     DataDeletionStatus? Status,
     string? Cursor,
-    int Limit);
+    int Limit,
+    string? Search = null);   // khớp email hoặc tên của người yêu cầu
 
 public record DataDeletionRequestListResult(
     IReadOnlyList<DataDeletionRequestRow> Items,

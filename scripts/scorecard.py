@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Bảng điểm khả thi của chatbot (Rasa + luật + AI), Speech (STT) và OCR, trong một lần chạy.
+"""Bảng điểm khả thi của chatbot (bộ phân loại ý định + luật + AI), Speech (STT) và OCR, trong một lần chạy.
 
 Chạy từ gốc repo, khi `docker compose up` đã chạy các service:
 
     python scripts/scorecard.py                  # đo tất cả (~4 phút, phần lớn là OCR), ghi docs/scorecard.md
     python scripts/scorecard.py --skip ocr       # bỏ OCR (nhanh, ~30 giây)
-    python scripts/scorecard.py --only rasa,stt
+    python scripts/scorecard.py --only chat_live,stt
     python scripts/scorecard.py --ai             # đo thêm chat có Gemini thật (tốn hạn mức, kết quả phụ thuộc hạn mức lúc đó)
 
 Chỉ dùng thư viện chuẩn: mỗi phép đo chạy TRONG container của service đó (đúng model, đúng cấu hình đang chạy) và script này chỉ đọc kết quả.
@@ -119,74 +119,17 @@ def chat_live(with_ai: bool):
     d = json_from(run_in("ai-service", "python", "-", *(["--ai"] if with_ai else []),
                          stdin=ROOT / "ai-service/scripts/eval_chat_live.py"))
     rows, details = [], []
-    for key, label in (("rules_rasa", "Rasa + luật"), ("with_ai", "Rasa + luật + Gemini")):
+    for key, label in (("rules_model", "Bộ phân loại + luật"), ("with_ai", "Bộ phân loại + luật + Gemini")):
         if key not in d:
             continue
         m = d[key]
         rows += [
             row(f"{label}: đúng ({m['n']} câu)", m["accuracy"], 0.95),
             row(f"{label}: sai mà vẫn tự tin", m["wrong_confident"] / m["n"], 0.02, higher=False),
-            row(f"{label}: Rasa có trả lời", m["rasa_rate"], 0.95),
+            row(f"{label}: bộ phân loại có trả lời", m["model_rate"], 0.95),
             row(f"{label}: thời gian p95", m["p95_ms"], 9000 if key == "with_ai" else 500, higher=False, fmt=MS),
         ]
         details += m["failures"][:8]
-    return rows, details
-
-
-RASA_SETS = {  # tên file -> (nhãn, ngưỡng độ chính xác ý định)
-    "nlu_test": ("câu viết tay", 0.90),
-    "nlu_test_fresh": ("viết tay, món chưa từng thấy", 0.85),
-    "nlu_test_fresh2": ("viết tay, khung câu chưa từng thấy", 0.85),
-    "nlu_test_massive_oos": ("ngoài chủ đề (MASSIVE)", 0.90),
-    "nlu_test_v2": ("tổng hợp, nhiều biến thể", 0.80),
-}
-
-
-def _nlu_cases() -> list[dict]:
-    """Đọc ai-service/rasa/tests/nlu_test*.yml (định dạng cố định, không cần PyYAML): [{set, intent, text}] với chú thích thực thể đã bỏ."""
-    cases = []
-    for path in sorted((ROOT / "ai-service/rasa/tests").glob("nlu_test*.yml")):
-        intent = None
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("- intent:"):
-                intent = line.split(":", 1)[1].strip()
-            elif intent and line.startswith("    - "):
-                cases.append({"set": path.stem, "intent": intent, "text": re.sub(r"\[([^\]]+)\]\(\w+\)", r"\1", line[6:].strip())})
-    return cases
-
-
-def rasa():
-    d = json_from(run_in("rasa", "python", "-", stdin=ROOT / "ai-service/rasa/tools/eval_live.py"))
-    rows, details = [], []
-    for stem, (label, target) in RASA_SETS.items():
-        if stem not in d:
-            continue
-        m = d[stem]
-        rows += [
-            row(f"Rasa thô, ý định, {label} ({m['n']} câu)", m["intent_accuracy"], target),
-            # Chỉ để tham khảo: luật trong parser chặn phần lớn các ca này; ngưỡng đặt ở chỉ tiêu "sau luật" bên dưới.
-            row(f"Rasa thô, đoán sai mà độ chắc ≥ 0,8, {label}", m["wrong_confident"] / m["n"]),
-        ]
-        if m["amount_recall"] is not None:
-            rows.append(row(f"Rasa thô, cắt đúng số tiền, {label}", m["amount_recall"], 0.90))
-        details += [f"[{label}] {w}" for w in m["wrong"][:3]]
-    rows.append(row("Thời gian p95 một câu", max(m["p95_ms"] for m in d.values()), 200, higher=False, fmt=MS))
-
-    # Tầng sản phẩm: cùng các câu đó đi qua /chat/parse (Rasa + luật). Đây mới là thứ người dùng thấy.
-    with tempfile.TemporaryDirectory() as tmp:
-        cases = Path(tmp) / "nlu_cases.json"
-        cases.write_text(json.dumps(_nlu_cases(), ensure_ascii=False), encoding="utf-8")
-        compose("cp", str(cases), "ai-service:/tmp/nlu_cases.json")
-    p = json_from(run_in("ai-service", "python", "-", stdin=ROOT / "ai-service/scripts/eval_nlu_pipeline.py"))
-    for stem, (label, _) in RASA_SETS.items():
-        if stem in p:
-            rows.append(row(f"Sau luật, đúng ý định, {label} ({p[stem]['n']} câu)", p[stem].get("ok", 0) / p[stem]["n"], 0.90))
-    total = sum(m["n"] for m in p.values())
-    rows += [
-        row(f"Sau luật, sai mà KHÔNG nhắc xem lại (cả {total} câu)", sum(m.get("silent_wrong", 0) for m in p.values()) / total, 0.03, higher=False),
-        row("Sau luật, sai mà bị TỰ LƯU không hỏi", sum(m.get("auto_saved_wrong", 0) for m in p.values()), 0, higher=False, fmt="{:.0f}"),
-    ]
-    details += [f"[sau luật] {w}" for m in p.values() for w in m["bad"] if "KHÔNG nhắc" in w or "TỰ LƯU" in w][:10]
     return rows, details
 
 
@@ -253,16 +196,12 @@ def ocr():
 # ---------------------------------------------------------------- khối, nhóm, độ tin cậy
 
 BLOCKS = {  # khóa -> (nhóm, tiêu đề, hàm, độ tin cậy)
-    "chat_rules": ("Chatbot", "Chat và món: luật + từ điển (không Rasa, không AI)", chat_rules,
+    "chat_rules": ("Chatbot", "Chat và món: luật + từ điển (không bộ phân loại, không AI)", chat_rules,
                    "Bộ câu do người sửa luật viết nhãn, nhỏ (~66 câu chat, ~127 món). Cho thấy hướng đi, không phải độ chính xác với người dùng thật."),
     "money": ("Chatbot", "Đọc số tiền tiếng Việt (chữ, 'k', 'củ', 'lít')", money,
               "Bộ giữ riêng ít bị tinh chỉnh theo hơn bộ chính, nhưng cũng do người viết luật gán nhãn."),
-    "chat_live": ("Chatbot", "Chat qua endpoint thật (Rasa đang chạy)", None,
-                  "Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần Rasa gây ra."),
-    "rasa": ("Chatbot", "Rasa NLU (ý định + số tiền)", rasa,
-             "Hai bộ viết tay 'món chưa từng thấy' (nlu_test_fresh) và 'khung câu chưa từng thấy' (nlu_test_fresh2) là bộ độc lập nhất: không được đưa vào data/ (generate_nlu.py chặn). "
-             "Bộ 'tổng hợp' do máy sinh, món và mẫu câu tách khỏi bộ học nhưng cùng 'họ' (nạp thẻ, trả tiền...), nên lạc quan hơn. "
-             "'Sau luật' là thứ người dùng thấy; 'Rasa thô' chỉ để theo dõi model."),
+    "chat_live": ("Chatbot", "Chat qua endpoint thật (bộ phân loại ý định + luật)", None,
+                  "Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần bộ phân loại ý định gây ra."),
     "voice_text": ("Speech", "Giọng nói, phần chữ → số tiền/loại/danh mục", voice_text,
                    "Chỉ đo phần SAU khi đã có chữ. Câu đưa vào là chữ viết sẵn, chưa phải kết quả nhận dạng thật của người nói giọng vùng miền."),
     "stt": ("Speech", "Giọng nói → chữ (GIPFormer)", stt,

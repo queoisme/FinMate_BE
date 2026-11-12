@@ -14,7 +14,8 @@ public sealed record OpsTicketFilter(
     bool OverdueOnly,
     Guid? ParentTicketId,
     int Offset,
-    int Limit);
+    int Limit,
+    string? Search = null);   // khớp chủ đề hoặc tên khách
 
 public sealed record OpsTicketRow(SupportTicket Ticket, string? RequesterName, string? AssigneeName);
 

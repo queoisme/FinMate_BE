@@ -24,7 +24,7 @@ public class AdminFinanceMethodPromptsController : AdminControllerBase
     /// <summary>Mọi phiên bản chỉ dẫn (mới nhất trước) và <c>active_version</c>. Mỗi bản có <c>instruction_text</c>, <c>is_active</c>, <c>created_at</c>.</summary>
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
-        => Ok(ApiResponse<JsonElement?>.Ok(await _service.ListAsync(ct)));
+        => Ok(ApiResponse<JsonElement?>.Ok(await _service.ListAsync(Request.Query.ToDictionary(pair => pair.Key, pair => (string?)pair.Value.ToString()), ct)));   // limit/offset đi tiếp tới AI Service (cắt trang ở đó)
 
     /// <summary>
     /// Thêm một phiên bản. Thân: <c>{"prompt_version": "method-select-v2", "instruction_text": "...", "activate": false}</c>. Tên chỉ gồm chữ, số, <c>. _ -</c> (≤ 50 ký tự); nội dung 1–8000 ký tự.

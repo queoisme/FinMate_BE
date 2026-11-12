@@ -17,7 +17,14 @@ public static class ChatActions
 
     /// <summary>Đặt mục tiêu tiết kiệm: client hiện <see cref="ChatResultDto.Goal"/> để xác nhận rồi tự gọi <c>POST /saving-goals</c>. Không bao giờ tự tạo.</summary>
     public const string Goal = "goal";
+
+    /// <summary>Hỏi "mua món này có ổn không": client hiện <see cref="ChatResultDto.Purchase"/> rồi gọi <c>POST /forecast/purchase-check</c> để lấy đánh giá. Không tạo giao dịch.</summary>
+    public const string Purchase = "purchase";
 }
+
+/// <summary>Khoản mua người dùng đang cân nhắc, từ câu chat. Chưa có kết luận: kết quả tính ở <c>POST /forecast/purchase-check</c>.</summary>
+/// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
+public record ChatPurchaseDraftDto(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
 /// <summary>Bản nháp mục tiêu tiết kiệm từ câu chat. Chưa tạo gì: tạo bằng <c>POST /saving-goals</c> sau khi người dùng xác nhận.</summary>
 /// <param name="NameIsDefault">Người dùng không nói tên nên <paramref name="Name"/> là tên mặc định; client cho sửa.</param>
@@ -92,4 +99,5 @@ public record ChatResultDto(
     ChatDraftDto? Draft,
     ChatSummaryDto? Summary,
     IReadOnlyList<ChatDraftDto>? Drafts = null,
-    ChatGoalDraftDto? Goal = null);
+    ChatGoalDraftDto? Goal = null,
+    ChatPurchaseDraftDto? Purchase = null);

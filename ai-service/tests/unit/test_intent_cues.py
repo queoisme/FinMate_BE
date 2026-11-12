@@ -1,4 +1,4 @@
-"""Bộ nạp từ vựng (app/data/intent_cues.json) và các NGUYÊN TẮC phân xử Rasa/luật. Mỗi ca dùng một loại câu khác với các câu đã gặp lỗi:
+"""Bộ nạp từ vựng (app/data/intent_cues.json) và các NGUYÊN TẮC phân xử bộ phân loại/luật. Mỗi ca dùng một loại câu khác với các câu đã gặp lỗi:
 nếu luật chỉ thuộc từng câu thì test này đỏ."""
 
 import json
@@ -12,7 +12,7 @@ from app.services.transaction_parser import VN, parse_chat
 NOW = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
 
 
-def rasa(intent: str, confidence: float = 1.0) -> dict:
+def nlu(intent: str, confidence: float = 1.0) -> dict:
     return {"intent": intent, "confidence": confidence, "entities": {}}
 
 
@@ -53,7 +53,7 @@ class TestLoader:
 
 
 class TestSpecificCuesBeatAConfidentModel:
-    """Nguyên tắc 4: động từ/vai trò nói rõ chiều tiền thắng model, vì độ chắc softmax của Rasa chưa hiệu chỉnh."""
+    """Nguyên tắc 4: động từ/vai trò nói rõ chiều tiền thắng model, vì độ chắc softmax của bộ phân loại chưa hiệu chỉnh."""
 
     @pytest.mark.parametrize("text,wrong", [
         ("bán chiếc điện thoại cũ 3 triệu", "add_expense"),  # động từ "bán", không liệt kê đồ vật
@@ -63,7 +63,7 @@ class TestSpecificCuesBeatAConfidentModel:
         ("nhận được tiền hoàn 200k", "add_expense"),
     ])
     def test_money_coming_in(self, text, wrong):
-        assert parse_chat(text, rasa(wrong), now=NOW).intent == "add_income"
+        assert parse_chat(text, nlu(wrong), now=NOW).intent == "add_income"
 
 
 class TestContextWordsDoNotFlipAConfidentModel:
@@ -78,11 +78,11 @@ class TestContextWordsDoNotFlipAConfidentModel:
         ("cho bạn 200k", "transfer_money"),
     ])
     def test_model_keeps_its_answer(self, text, intent):
-        assert parse_chat(text, rasa(intent), now=NOW).intent == intent
+        assert parse_chat(text, nlu(intent), now=NOW).intent == intent
 
     def test_without_diacritics_lexical_evidence_defers_to_the_model(self):
         # "ban" không dấu có thể là bạn/bán/ban: luật không thấy động từ nên không được dùng tên món để lật lời của model
-        assert parse_chat("ban laptop cu lay 7 trieu", rasa("add_income"), now=NOW).intent == "add_income"
+        assert parse_chat("ban laptop cu lay 7 trieu", nlu("add_income"), now=NOW).intent == "add_income"
 
     def test_with_diacritics_a_purchase_noun_still_beats_an_unsupported_income_claim(self):
-        assert parse_chat("cắt kính cận 800k", rasa("add_income"), now=NOW).intent == "add_expense"
+        assert parse_chat("cắt kính cận 800k", nlu("add_income"), now=NOW).intent == "add_expense"

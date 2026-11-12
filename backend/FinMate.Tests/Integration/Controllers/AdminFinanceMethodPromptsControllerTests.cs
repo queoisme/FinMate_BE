@@ -134,6 +134,17 @@ public class AdminFinanceMethodPromptsControllerTests : IClassFixture<AuthApiFac
     }
 
     [Fact]
+    public async Task Listing_ForwardsLimitAndOffset_SoThePageTheAdminAsksForIsThePageHeSees()
+    {
+        var admin = await AdminTokenAsync();
+        _ai.Calls.Clear();
+
+        (await _client.SendAsync(Request(HttpMethod.Get, $"{Base}?limit=20&offset=40", admin))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        _ai.Calls.Single().Query.Should().BeEquivalentTo(new Dictionary<string, string?> { ["limit"] = "20", ["offset"] = "40" });
+    }
+
+    [Fact]
     public async Task Creating_IsForwardedWithTheAdminAsActor_AndWritesOneAuditRowWithoutTheInstructionText()
     {
         var admin = await AdminTokenAsync();

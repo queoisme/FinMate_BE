@@ -231,7 +231,28 @@ public class AIServiceClient : IAIServiceClient
             response.Skipped,
             response.Goal is null
                 ? null
-                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText));
+                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText),
+            response.Purchase is null
+                ? null
+                : new ChatParsePurchase(response.Purchase.Item, response.Purchase.AmountCents, ParseDay(response.Purchase.PurchaseDate), response.Purchase.CategorySlug));
+    }
+
+    /// <summary>Ngày mua AI trả về: "2026-11-16" hoặc "2026-11-16T00:00:00+07:00". Không đọc được thì coi như không nói ngày (mặc định hôm nay), không làm hỏng cả câu.</summary>
+    private static DateOnly? ParseDay(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var day))
+        {
+            return day;
+        }
+
+        return DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var at)
+            ? DateOnly.FromDateTime(at.DateTime)
+            : null;
     }
 
     public async Task<BillClassifyResponse> ClassifyBillAsync(BillClassifyRequest request, CancellationToken ct = default)

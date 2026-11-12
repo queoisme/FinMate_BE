@@ -1,4 +1,4 @@
-"""Câu xã giao bị Rasa hiểu nhầm (đo trên Rasa thật 2026-10-21): "ăn cơm chưa" thành chi tiêu thiếu số tiền, "đi ăn không" thành từ chối,
+"""Câu xã giao bị bộ phân loại hiểu nhầm (đo trên bộ phân loại thật 2026-10-21): "ăn cơm chưa" thành chi tiêu thiếu số tiền, "đi ăn không" thành từ chối,
 "chào bạn" thành ngoài chủ đề, "cảm ơn" thành xác nhận, "giá bitcoin bao nhiêu" thành hỏi tổng chi tiêu."""
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from app.services.transaction_parser import VN, parse_chat
 NOW = datetime(2026, 10, 21, 10, 0, tzinfo=VN)
 
 
-def rasa(intent: str, confidence: float = 1.0) -> dict:
+def nlu(intent: str, confidence: float = 1.0) -> dict:
     return {"intent": intent, "confidence": confidence, "entities": {}}
 
 
@@ -29,7 +29,7 @@ def rasa(intent: str, confidence: float = 1.0) -> dict:
     ("giá xăng hôm nay bao nhiêu", "ask_spending", 1.0, "out_of_scope"),
 ])
 def test_small_talk_is_not_a_transaction_or_a_reply(text, nlu_intent, confidence, expected):
-    assert parse_chat(text, rasa(nlu_intent, confidence), now=NOW).intent == expected
+    assert parse_chat(text, nlu(nlu_intent, confidence), now=NOW).intent == expected
 
 
 @pytest.mark.parametrize("text,nlu_intent,expected", [
@@ -49,4 +49,4 @@ def test_small_talk_is_not_a_transaction_or_a_reply(text, nlu_intent, confidence
     ("tạm biệt", "goodbye", "goodbye"),
 ])
 def test_real_replies_and_transactions_are_not_broken(text, nlu_intent, expected):
-    assert parse_chat(text, rasa(nlu_intent), now=NOW).intent == expected
+    assert parse_chat(text, nlu(nlu_intent), now=NOW).intent == expected

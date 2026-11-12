@@ -1,4 +1,0 @@
-version: "3.1"
-
-# Rasa chỉ làm NLU (ai-service gọi /model/parse): câu trả lời nằm ở ai-service (app/data/intent_cues.json, sửa được từ trang quản trị), không có luật hội thoại ở đây.
-rules: []

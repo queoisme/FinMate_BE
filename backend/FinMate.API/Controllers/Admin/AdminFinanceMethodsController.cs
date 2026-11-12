@@ -16,8 +16,12 @@ public class AdminFinanceMethodsController : AdminControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<AdminFinanceMethodDto>>.Ok(await _catalog.ListMethodsAsync(includeInactive, ct)));
+    public async Task<IActionResult> GetList(
+        [FromQuery] bool includeInactive, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
+    {
+        var page = await _catalog.ListMethodsAsync(includeInactive, search, offset, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<AdminFinanceMethodDto>>.Ok(page.Items, page.ToMeta()));
+    }
 
     /// <summary>Các loại khối giao diện trang chủ mà app biết vẽ (để chọn khi sửa <c>homeLayout</c>). Thêm loại mới cần code ở app.</summary>
     [HttpGet("home-blocks")]

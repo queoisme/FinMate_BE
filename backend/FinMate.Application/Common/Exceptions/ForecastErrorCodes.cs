@@ -8,6 +8,9 @@ public static class ForecastErrorCodes
     /// <summary>Kịch bản có quá nhiều khoản giả định hoặc khoản nằm ngoài kỳ dự báo.</summary>
     public const string ScenarioInvalid = "FORECAST_SCENARIO_INVALID";
 
+    /// <summary>Yêu cầu đánh giá khoản mua sai: giá không hợp lệ, ngày mua ngoài kỳ, mốc thời gian ngoài mức cho phép.</summary>
+    public const string PurchaseInvalid = "PURCHASE_CHECK_INVALID";
+
     /// <summary>Đã có khoản định kỳ đang theo dõi cho cùng người nhận và cùng chiều.</summary>
     public const string RecurringDuplicate = "RECURRING_ITEM_DUPLICATE";
 

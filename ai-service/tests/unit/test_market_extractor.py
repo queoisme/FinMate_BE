@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1 import market_data
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.core.config import settings
 from app.services.market_extractor import MAX_EVIDENCE_CHARS, MAX_SIGNALS, MAX_TEXT_CHARS, parse_signals
 
@@ -28,15 +28,15 @@ def _gemini_reply(payload) -> httpx.Response:
     return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(payload)}]}}]})
 
 
-def _app(client: GeminiClient) -> TestClient:
+def _app(client: LlmClient) -> TestClient:
     app = FastAPI()
     app.include_router(market_data.router, prefix="/api/v1")
     app.dependency_overrides[market_data.get_market_gemini_client] = lambda: client
     return TestClient(app)
 
 
-def _client(handler, key: str | None = "khoa") -> GeminiClient:
-    return GeminiClient(key, "model-a", 1.0, transport=httpx.MockTransport(handler), health_channel="market-test")
+def _client(handler, key: str | None = "khoa") -> LlmClient:
+    return LlmClient(key, "model-a", 1.0, transport=httpx.MockTransport(handler), health_channel="market-test")
 
 
 def _post(test_client: TestClient, **body):

@@ -30,6 +30,7 @@ PATTERN_GROUPS = {
     "period_last": {"days", "weeks", "months"},
     "period_quarter": {"quarter", "year", "previous", "current"},
     "period_day_part": {"today", "yesterday"},
+    "purchase_when": {"today", "tomorrow", "after", "day", "month"},
 }
 
 
@@ -44,7 +45,7 @@ class Cues:
     lists: dict[str, tuple[str, ...]]  # nguyên văn như trong tệp (không bỏ dấu): nơi code cần danh sách từ riêng, không qua mẫu
     period_labels: tuple[tuple[str, str], ...]  # (khóa kỳ đã bỏ dấu, nhãn hiển thị) theo thứ tự thử khớp; khóa là định danh code dùng (period_range)
     needs_accent: dict[str, str]  # từ khóa đã bỏ dấu -> dạng có dấu mà câu gốc phải chứa thì từ khóa mới được nhận
-    reply_intents: tuple[str, ...]  # tên ý định của Rasa mà code coi là lời đáp chứ không phải khoản ghi
+    reply_intents: tuple[str, ...]  # tên ý định của bộ phân loại ý định mà code coi là lời đáp chứ không phải khoản ghi
 
 
 def _expand(template: str, lists: dict[str, list[str]], fragments: dict[str, str], folded: bool, stack: tuple[str, ...] = ()) -> str:

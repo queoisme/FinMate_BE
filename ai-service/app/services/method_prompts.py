@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bill.rules_admin import RuleError
@@ -29,10 +29,15 @@ def _item(row: MethodPrompt) -> dict:
     return {"prompt_version": row.prompt_version, "instruction_text": row.instruction_text, "is_active": row.is_active, "created_at": row.created_at, "updated_at": row.updated_at}
 
 
-async def list_prompts(session: AsyncSession) -> dict:
-    """Mọi phiên bản (mới nhất trước) và tên bản đang dùng."""
-    rows = (await session.scalars(select(MethodPrompt).order_by(MethodPrompt.created_at.desc()))).all()
-    return {"active_version": next((r.prompt_version for r in rows if r.is_active), None), "items": [_item(r) for r in rows]}
+async def list_prompts(session: AsyncSession, *, limit: int | None = None, offset: int = 0) -> dict:
+    """Các phiên bản (mới nhất trước) và tên bản đang dùng. ``limit`` None = hết (test/script); API luôn truyền limit. Bản đang dùng lấy riêng nên không mất khi nó nằm ngoài trang."""
+    query = select(MethodPrompt).order_by(MethodPrompt.created_at.desc(), MethodPrompt.id)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+    rows = (await session.scalars(query)).all()
+    total = await session.scalar(select(func.count()).select_from(MethodPrompt)) or 0
+    active = await session.scalar(select(MethodPrompt.prompt_version).where(MethodPrompt.is_active.is_(True)))
+    return {"active_version": active, "items": [_item(r) for r in rows], "total": total, "limit": limit if limit is not None else total, "offset": offset}
 
 
 async def _activate_row(session: AsyncSession, row: MethodPrompt) -> None:

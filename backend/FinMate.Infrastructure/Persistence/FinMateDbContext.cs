@@ -26,6 +26,8 @@ public class FinMateDbContext : DbContext
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
+    public DbSet<ForecastSnapshot> ForecastSnapshots => Set<ForecastSnapshot>();
+    public DbSet<ForecastFeedback> ForecastFeedback => Set<ForecastFeedback>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
@@ -46,6 +48,7 @@ public class FinMateDbContext : DbContext
     public DbSet<UserSurveyAnswer> UserSurveyAnswers => Set<UserSurveyAnswer>();
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
+    public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
@@ -70,6 +73,9 @@ public class FinMateDbContext : DbContext
     public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
     public DbSet<OpsApprovalRequest> OpsApprovalRequests => Set<OpsApprovalRequest>();
     public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
     public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
     public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();

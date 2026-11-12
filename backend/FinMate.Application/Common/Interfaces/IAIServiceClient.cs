@@ -100,7 +100,7 @@ public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false);
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
 /// <param name="IncomeType">salary | bonus | gift | side_income | refund | other_income, khi đoán được.</param>
-/// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, Rasa (nếu có) chắc.</param>
+/// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, bộ phân loại ý định (nếu có) chắc.</param>
 /// <param name="ToOthers">"Chuyển cho người khác / trả nợ" đã được AI tính là chi tiêu.</param>
 /// <param name="CategorySource">rule (từ khóa quyết định) | cache (chỉ gợi ý từ bảng nhớ tên món) | null (chưa biết).</param>
 public record ChatParseEntry(
@@ -133,7 +133,14 @@ public record ChatParseQuery(
 /// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để app hiện kèm ngày cụ thể cho họ soát.</param>
 public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
+/// <summary>
+/// Khoản mua người dùng đang cân nhắc (intent evaluate_purchase). Chỉ là tham số có cấu trúc: không tạo giao dịch, không có kết luận tiền.
+/// Kết quả do <c>POST /forecast/purchase-check</c> tính từ dữ liệu của người dùng.
+/// </summary>
+/// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
+public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
+
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,
@@ -144,7 +151,8 @@ public record ChatParseResponse(
     long? TotalAmount = null,
     bool TotalMismatch = false,
     IReadOnlyList<string>? Skipped = null,
-    ChatParseGoal? Goal = null);
+    ChatParseGoal? Goal = null,
+    ChatParsePurchase? Purchase = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.
@@ -204,7 +212,7 @@ public interface IAIServiceClient
 
     /// <summary>
     /// Ném <see cref="Exceptions.AIServiceUnavailableException"/> khi AI Service không phản hồi.
-    /// Rasa tắt thì AI Service vẫn trả lời (bằng luật), nên lỗi ở đây là lỗi của chính AI Service.
+    /// bộ phân loại ý định tắt thì AI Service vẫn trả lời (bằng luật), nên lỗi ở đây là lỗi của chính AI Service.
     /// </summary>
     Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default);
 

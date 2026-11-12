@@ -4,8 +4,8 @@ Chỉ ĐỌC câu và trả quyết định, không lưu gì và không giữ tr
 hoàn tác, sửa danh mục đều là việc của backend). Số liệu tổng hợp cũng do backend tính từ giao dịch của nó; ở đây chỉ hiểu người dùng
 hỏi gì (loại, kỳ, danh mục).
 
-Ý định lấy từ Rasa khi Rasa có mặt và đủ chắc, không thì từ luật. Hai bên bất đồng giữa chi tiêu/thu nhập/chuyển tiền thì tin dấu hiệu trong câu,
-trừ khi Rasa rất chắc. Nhóm danh mục ở đây là 9 nhóm của bộ luật bill/chat; quy đổi sang slug backend làm ở route (app/core/category_map.py).
+Ý định lấy từ bộ phân loại ý định khi bộ phân loại ý định có mặt và đủ chắc, không thì từ luật. Hai bên bất đồng giữa chi tiêu/thu nhập/chuyển tiền thì tin dấu hiệu trong câu,
+trừ khi bộ phân loại ý định rất chắc. Nhóm danh mục ở đây là 9 nhóm của bộ luật bill/chat; quy đổi sang slug backend làm ở route (app/core/category_map.py).
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
+from app.services.purchase_parser import PurchaseDraft, parse_purchase
 from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
 from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
@@ -48,7 +49,7 @@ def _bind(cues: intent_cues.Cues) -> None:
     UNCERTAIN_BELOW, AUTO_CONFIDENCE = thresholds["uncertain_below"], thresholds["auto_confidence"]
     _GREET, _THANKS = cues.phrases["greet"], cues.phrases["thanks"]
     _THANKS_LEAD = p["thanks_lead"]
-    _REPLY_CUES = {name: p[f"reply_cue_{name}"] for name in ("confirm", "deny", "cancel")}  # tên ý định của Rasa -> mẫu từ của lời đáp loại đó
+    _REPLY_CUES = {name: p[f"reply_cue_{name}"] for name in ("confirm", "deny", "cancel")}  # tên ý định của bộ phân loại ý định -> mẫu từ của lời đáp loại đó
     # Tiền vào có ba mức bằng chứng (xem _direction): CỤ THỂ, CHỦ ĐỀ (lương, thưởng...: đi cả hai chiều) và YẾU (anh/em gửi: người dùng hay tự xưng anh/em).
     _INCOME_SPECIFIC, _INCOME_ACCENTED = p["income_specific"], p["income_accented"]
     _INCOME_SPECIFIC_PLAIN, _INCOME_PLAIN = p["income_specific_plain"], p["income_plain"]
@@ -77,6 +78,7 @@ intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.appl
 
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
+PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; bộ phân loại ý định cũng có thể đoán tên này
 
 
 @dataclass(frozen=True)
@@ -112,7 +114,7 @@ class ChatParse:
     entry: Entry | None
     query: Query | None
     reply_text: str | None
-    nlu_source: str  # rasa | rules
+    nlu_source: str  # model | rules
     nlu_intent: str | None
     nlu_confidence: float | None
     unclear_reason: str | None  # low_confidence | disagree | not_understood | None
@@ -121,6 +123,7 @@ class ChatParse:
     total_mismatch: bool = False  # tổng đã nói khác tổng các khoản đọc được
     skipped: tuple[str, ...] = ()  # vế nối bằng "và/rồi" không có số tiền: không thành khoản, báo cho người dùng
     goal: GoalDraft | None = None  # ý định create_goal: bản nháp mục tiêu tiết kiệm để người dùng xác nhận (None = đang hỏi lại, xem reply_text)
+    purchase: PurchaseDraft | None = None  # ý định evaluate_purchase: khoản định mua để backend đánh giá (None = đang hỏi lại, xem reply_text); không phải giao dịch
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -302,7 +305,7 @@ def _unresolved_period(norm: str, now: datetime) -> bool:
 
 
 def _names_a_period(norm: str, now: datetime) -> bool:
-    """Câu có nói một kỳ cụ thể (hôm nay, tuần trước, tháng 9, ngày 15/3, 7 ngày qua, năm 2025...)? Dùng làm bằng chứng cho câu hỏi tổng khi phân xử với Rasa."""
+    """Câu có nói một kỳ cụ thể (hôm nay, tuần trước, tháng 9, ngày 15/3, 7 ngày qua, năm 2025...)? Dùng làm bằng chứng cho câu hỏi tổng khi phân xử với bộ phân loại ý định."""
     return _resolve_period(norm, now) is not None  # (cùng ý với _mentions_period nhưng loại kỳ không hợp lệ như "tháng 13", "ngày 31/2")
 
 
@@ -379,7 +382,7 @@ def _direction(text: str) -> tuple[str, str | None]:
 
     Phạm vi bằng chứng cho biết dấu hiệu mạnh đến đâu so với lời của model:
       "any"  = dấu hiệu CỤ THỂ cho đúng chiều này (trả nợ cho mình, phí, người thân gửi mình, bán, rút / nạp vào ví của mình): thắng model dù model chắc đến đâu,
-               vì độ chắc của Rasa là softmax chưa hiệu chỉnh (đo được sai ở mức 1,00);
+               vì độ chắc của bộ phân loại ý định là softmax chưa hiệu chỉnh (đo được sai ở mức 1,00);
       "flow" = chỉ nói tiền ĐI RA ("cho mẹ"): đủ để bác bỏ "tiền vào", không đủ để chọn giữa chi tiêu và chuyển tiền;
       None   = chỉ là chủ đề (lương, thưởng...) hoặc mặc định chi tiêu: model được quyền quyết khi nó chắc.
     """
@@ -402,7 +405,7 @@ def _direction(text: str) -> tuple[str, str | None]:
 
 
 def detect_kind(text: str) -> str:
-    """"expense" | "income" | "transfer" theo dấu hiệu trong câu (luật; Rasa có thể ghi đè khi rất chắc)."""
+    """"expense" | "income" | "transfer" theo dấu hiệu trong câu (luật; bộ phân loại ý định có thể ghi đè khi rất chắc)."""
     return _direction(text)[0]
 
 
@@ -473,7 +476,7 @@ def _purchase_evidence(norm: str) -> bool:
 
 def _income_evidence(text: str, rule: str) -> bool:
     """Số tiền kèm dấu hiệu tiền vào CỤ THỂ ("được thưởng", "bán được", "hoàn lại", "cho thuê") là một khoản thu, cùng sức nặng với bằng chứng mua hàng của chi tiêu:
-    Rasa nói ngoài chủ đề (có khi ở 1,00) cũng không đủ để từ chối."""
+    bộ phân loại ý định nói ngoài chủ đề (có khi ở 1,00) cũng không đủ để từ chối."""
     return rule == "add_income" and _direction(text)[1] == "any"
 
 
@@ -486,19 +489,19 @@ def _flow(intent: str) -> str:
 
 
 def _arbitrate(text: str, norm: str, rule: str, nlu: dict, now: datetime) -> str:
-    """Rasa và luật bất đồng thì ai thắng. Mỗi nguyên tắc viết một lần, không theo từng câu:
-      2. Số tiền kèm bằng chứng giao dịch là một khoản ghi, kể cả khi Rasa nói ngoài chủ đề.
+    """bộ phân loại ý định và luật bất đồng thì ai thắng. Mỗi nguyên tắc viết một lần, không theo từng câu:
+      2. Số tiền kèm bằng chứng giao dịch là một khoản ghi, kể cả khi bộ phân loại ý định nói ngoài chủ đề.
       2b. Câu hỏi tổng NÊU MỘT KỲ cụ thể ("tháng 9", "năm 2025", "tuần trước") và nói về CHÍNH NGƯỜI DÙNG (đại từ "tôi/mình/tui" hoặc từ hỏi chi tiêu "tiêu", "đã chi")
-          là câu hỏi chi tiêu, kể cả khi Rasa nói ngoài chủ đề: mô hình chưa thấy đủ cách nói kỳ (câu có số năm từng bị đoán out_of_scope với độ chắc 0,98).
-          Câu về chủ thể khác ("thưởng tết năm nay các công ty bao nhiêu") là kiến thức chung nên vẫn theo Rasa.
+          là câu hỏi chi tiêu, kể cả khi bộ phân loại ý định nói ngoài chủ đề: mô hình chưa thấy đủ cách nói kỳ (câu có số năm từng bị đoán out_of_scope với độ chắc 0,98).
+          Câu về chủ thể khác ("thưởng tết năm nay các công ty bao nhiêu") là kiến thức chung nên vẫn theo bộ phân loại ý định.
       3. Chỉ từ hỏi tổng (bao nhiêu, tổng chi...) mới làm câu hỏi chi tiêu; câu có số tiền mà không có từ hỏi là khoản ghi.
-      4. Chiều giao dịch: dấu hiệu CỤ THỂ trong câu thắng model (xem _direction); độ chắc của Rasa chưa hiệu chỉnh nên không dùng làm lý do ngược lại.
+      4. Chiều giao dịch: dấu hiệu CỤ THỂ trong câu thắng model (xem _direction); độ chắc của bộ phân loại ý định chưa hiệu chỉnh nên không dùng làm lý do ngược lại.
       5. Bằng chứng YẾU (tên một thứ được mua, hay mặc định chi tiêu) chỉ thắng lời "thu nhập/chuyển tiền" của model khi model không chắc,
          hoặc khi lời đó không có dấu hiệu nào trong câu nâng đỡ.
     """
     name, confidence = nlu["intent"], nlu["confidence"]
     if name in _REPLY_CUES and not _REPLY_CUES[name].search(norm):
-        return rule  # Rasa gán xác nhận/từ chối/hủy mà câu không có từ nào của loại đó: chuỗi vô nghĩa hay emoji (độ chắc 0,88-1,00 vẫn sai), để luật quyết
+        return rule  # bộ phân loại ý định gán xác nhận/từ chối/hủy mà câu không có từ nào của loại đó: chuỗi vô nghĩa hay emoji (độ chắc 0,88-1,00 vẫn sai), để luật quyết
     has_entry = rule in _ENTRY_INTENTS  # luật đã tìm thấy số tiền
     if name == "out_of_scope" and has_entry and (confidence < OUT_OF_SCOPE_OVERRIDE or _purchase_evidence(norm) or _income_evidence(text, rule)):
         return rule
@@ -526,7 +529,9 @@ def _resolve_intent(text: str, norm: str, nlu: dict | None, now: datetime) -> st
         return "out_of_scope"
     rule = _rule_intent(text, norm)
     if not nlu or rule in ("greet", "thanks"):
-        return rule  # chào/cảm ơn khớp nguyên cụm: Rasa không có ý định "thanks" nên không có gì để cân nhắc
+        return rule  # chào/cảm ơn khớp nguyên cụm: bộ phân loại ý định không có ý định "thanks" nên không có gì để cân nhắc
+    if nlu["intent"] == PURCHASE_INTENT:
+        return rule  # tới đây parse_chat đã hỏi purchase_parser mà không có bản nháp hay câu hỏi lại: lá phiếu của bộ phân loại ý định bị bỏ, luật quyết (giá và ngày chỉ đọc bằng luật, bộ phân loại ý định không tự tạo bản nháp)
     return _arbitrate(text, norm, rule, nlu, now)
 
 
@@ -534,8 +539,8 @@ def _unclear_reason(text: str, norm: str, intent: str, nlu: dict | None) -> str 
     """Vì sao câu này đáng để người dùng (đồng ý chia sẻ) gửi về xem lại; None nếu hiểu rõ."""
     kinds = _ENTRY_INTENTS + ("ask_spending",)
     rule = _rule_intent(text, norm)
-    if nlu and rule in kinds and nlu["intent"] in kinds and rule != nlu["intent"]:
-        return "disagree"
+    if nlu and rule in kinds and (nlu["intent"] in kinds or nlu["intent"] == PURCHASE_INTENT) and rule != nlu["intent"]:
+        return "disagree"  # gồm cả bộ phân loại ý định nói "định mua" mà luật đọc ra khoản chi/hỏi tổng
     if nlu and nlu["confidence"] < UNCERTAIN_BELOW and intent not in ("greet", "goodbye"):
         return "low_confidence"
     if intent == "out_of_scope" and not is_question(text, norm) and len(text) <= 120:
@@ -544,7 +549,7 @@ def _unclear_reason(text: str, norm: str, intent: str, nlu: dict | None) -> str 
 
 
 def _auto_ok(kind: str, value: int, category: str | None, nlu: dict | None, auto_below: int) -> bool:
-    """Ghi ngay (không hỏi) chỉ khi: chi tiêu, đã biết danh mục, số tiền dưới ngưỡng, và Rasa (nếu có) chắc rằng đây là chi tiêu."""
+    """Ghi ngay (không hỏi) chỉ khi: chi tiêu, đã biết danh mục, số tiền dưới ngưỡng, và bộ phân loại ý định (nếu có) chắc rằng đây là chi tiêu."""
     if auto_below <= 0 or kind != "expense" or category is None or value >= auto_below:
         return False
     return nlu is None or (nlu["intent"] == "add_expense" and nlu["confidence"] >= AUTO_CONFIDENCE)
@@ -574,11 +579,11 @@ def _entry_core(text: str, kind: str, nlu: dict | None, auto_below: int, fallbac
     if match:
         value, description = match.value, remove_amount(text, match)
         assumed = match.assumed
-    else:  # luật không thấy số tiền nhưng Rasa cắt được một cụm số tiền: đọc cụm đó
+    else:  # luật không thấy số tiền nhưng bộ phân loại ý định cắt được một cụm số tiền: đọc cụm đó
         phrase = entities.get("amount")
-        found = parse_amount(phrase) if phrase and not _PERCENT.search(normalize(text)) else None  # "giảm năm mươi phần trăm": Rasa cắt "năm mươi", mất chữ phần trăm
+        found = parse_amount(phrase) if phrase and not _PERCENT.search(normalize(text)) else None  # "giảm năm mươi phần trăm": bộ phân loại ý định cắt "năm mươi", mất chữ phần trăm
         if found and _SLANG_FOLDED.intersection(fold(w) for w in re.findall(r"[^\W\d_]+", phrase)):
-            # Luật đã THẤY cụm này trong cả câu và loại nó ("hai củ" trong "mua hai củ cải", "hai lít" trong "đổ hai lít xăng"); đọc riêng cụm Rasa cắt ra
+            # Luật đã THẤY cụm này trong cả câu và loại nó ("hai củ" trong "mua hai củ cải", "hai lít" trong "đổ hai lít xăng"); đọc riêng cụm bộ phân loại ý định cắt ra
             # thì mất ngữ cảnh đó và biến củ cải, lít xăng thành tiền. Từ lóng chỉ được đọc khi có cả câu.
             found = None
         if not found:
@@ -644,24 +649,28 @@ def parse_chat(
     auto_save_below: int = 2_000_000,
     fallback_category: Callable[[str | None, str], str | None] | None = None,
 ) -> ChatParse:
-    """nlu: kết quả Rasa {"intent", "confidence", "entities"} hoặc None. fallback_category(merchant, mô tả) -> nhóm 9 nhóm hoặc None."""
+    """nlu: kết quả bộ phân loại ý định {"intent", "confidence", "entities"} hoặc None. fallback_category(merchant, mô tả) -> nhóm 9 nhóm hoặc None."""
     text = clean_text(text or "").strip()
     now = now or datetime.now(VN)
     norm = re.sub(r"\s+", " ", normalize(text)).strip(" .!?,")
     if nlu is not None and nlu["confidence"] < MIN_NLU_CONFIDENCE:
         nlu = None
-    source, nlu_intent = ("rasa", nlu["intent"]) if nlu else ("rules", None)
+    source, nlu_intent = ("model", nlu["intent"]) if nlu else ("rules", None)
     confidence = round(nlu["confidence"], 3) if nlu else None
 
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
                          extra.get("unclear_reason"), extra.get("entries", ()),
-                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"))
+                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"), extra.get("purchase"))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
+    if (check := parse_purchase(text, now)) is not None and not is_query(norm):  # trước _resolve_intent: "…được không?" nếu không sẽ thành out_of_scope qua _is_social_question
+        if check.needs_amount:
+            return result("needs_amount", reply_text=_REPLIES["needs_amount"])
+        return result(PURCHASE_INTENT, purchase=check.draft, reply_text=check.reply or _REPLIES["purchase"])
     intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
@@ -673,7 +682,7 @@ def parse_chat(
         text = ", ".join(split_on_amounts(text))  # "ăn cơm 25k uống nước 10k" (giọng nói không có dấu câu): tách theo số tiền
         text, skipped = split_amountless(text)
         clauses = split_clauses(text)
-        if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (Rasa chỉ hiểu cả câu), và không bao giờ ghi ngay
+        if len(clauses) > 1:  # nhiều khoản: loại từng khoản đọc theo luật (bộ phân loại ý định chỉ hiểu cả câu), và không bao giờ ghi ngay
             whole = parse_when(text, now)  # ngày nói ở một vế ("... cà phê 30k hôm qua") áp cho các vế không có ngày riêng
             many = tuple(
                 replace(e, auto_save_ok=False)
@@ -687,7 +696,7 @@ def parse_chat(
         if entry is None:
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
         if skipped or suspicious or reason == "disagree" or _AMBIGUOUS_SEND.search(norm) or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
-            entry = replace(entry, auto_save_ok=False)  # "disagree": luật và Rasa bất đồng loại giao dịch, kể cả khi Rasa chắc 1,0 và thắng
+            entry = replace(entry, auto_save_ok=False)  # "disagree": luật và bộ phân loại ý định bất đồng loại giao dịch, kể cả khi bộ phân loại ý định chắc 1,0 và thắng
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         if _unresolved_period(norm, now):  # nói về thời gian mà không đọc được: hỏi lại, không trả số của "tháng này" như thể đó là điều được hỏi

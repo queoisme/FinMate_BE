@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import structlog
 
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 
 logger = structlog.get_logger(__name__)
 
@@ -109,7 +109,7 @@ def parse_signals(raw: str, topic_keys: list[str]) -> list[MarketSignal]:
     return signals
 
 
-async def extract_signals(client: GeminiClient, title: str, text: str, published_at: str | None, topics: dict[str, str]) -> list[MarketSignal]:
+async def extract_signals(client: LlmClient, title: str, text: str, published_at: str | None, topics: dict[str, str]) -> list[MarketSignal]:
     topic_keys = [*topics, OTHER_TOPIC]
     article = json.dumps(
         {"title": title[:MAX_TITLE_CHARS], "published_at": published_at, "text": text[:MAX_TEXT_CHARS]},

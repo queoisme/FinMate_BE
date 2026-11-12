@@ -14,6 +14,8 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 
 ## Quyền theo vai trò
 
+Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `role_permissions`). Admin chỉnh được quyền của **Staff và OpsManager** qua `GET`/`PUT /api/v1/admin/role-permissions`, có hiệu lực ngay (quyền đọc từ DB mỗi request, không chờ token hết hạn). Khởi động lại không ghi đè giá trị đã chỉnh. Admin luôn đủ quyền, User không có quyền nội bộ, `ManageSystem` chỉ Admin.
+
 | Quyền (`capabilities`) | Staff | OpsManager | Admin |
 |---|---|---|---|
 | `HandleTickets` | ✅ | ✅ | ✅ |
@@ -33,6 +35,15 @@ Tài liệu cho người làm web vận hành. Toàn bộ API nằm dưới `/ap
 | `ModerateCommunity` | ✅ | ✅ | ✅ |
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 | `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
+
+### Chỉnh quyền của vai trò (chỉ Admin)
+
+| API | Việc |
+|---|---|
+| `GET /admin/role-permissions` | `{ catalog, adminOnly, roles: [{ role, editable, capabilities }] }`: mọi quyền hệ thống có, quyền chỉ Admin, và quyền đang áp dụng của User, Staff, OpsManager, Admin |
+| `PUT /admin/role-permissions/{role}` | Đặt **trọn bộ** quyền của `Staff` hoặc `OpsManager`: `{ "capabilities": ["HandleTickets", ...], "reason": "…" }`. Gửi lại đúng bộ đang có thì không ghi gì |
+
+Từ chối với 422: vai trò không sửa được (`ROLE_PERMISSIONS_ROLE_NOT_EDITABLE`), tên quyền lạ (`ROLE_PERMISSIONS_UNKNOWN_CAPABILITY`), gán quyền chỉ Admin (`ROLE_PERMISSIONS_ADMIN_ONLY`), hoặc thiếu quyền phụ thuộc (`ROLE_PERMISSIONS_BROKEN_DEPENDENCY`: `AccessCustomerData` cần `HandleTickets`, `CreateDraftTransactions` cần `AccessCustomerData`). Mỗi lần đổi ghi audit `Admin.RolePermissions.Updated` (role, added, removed, reason).
 
 ## Cách kiểm tra quyền
 
@@ -260,7 +271,7 @@ Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom l�
 | Nguồn | Theo dõi | Mở sự cố khi | Tự đóng khi |
 |---|---|---|---|
 | Dịch vụ | Redis, AI, OCR, STT | Lỗi `probeFailureThreshold` lần liên tiếp (mặc định 3) | Tốt `probeRecoveryThreshold` lần liên tiếp (mặc định 3) |
-| Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Rasa, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3); Rasa không phản hồi | Có một lần gọi thành công |
+| Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3) | Có một lần gọi thành công |
 | Lỗi ứng dụng | Log từ mức Error | Cùng một lỗi `errorCountThreshold` lần trong `errorWindowMinutes` (mặc định 10 lần trong 5 phút) | Không lặp lại trong `errorQuietMinutes` (mặc định 30 phút) |
 | Job | Hangfire | Thất bại sau mọi lần thử lại, hoặc quá giờ 10 phút chưa chạy | Lần chạy sau thành công, hoặc đã bắt kịp |
 
@@ -276,7 +287,7 @@ Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ đư�
 |---|---|---|
 | `Critical` | Redis lỗi; lỗi ứng dụng gấp 5 lần ngưỡng | Admin và OpsManager ngay |
 | `High` | AI, OCR, STT, Vision, Gemini, Brevo, Firebase lỗi; lỗi ứng dụng vượt ngưỡng; job thất bại | Admin và OpsManager ngay |
-| `Normal` | Rasa tắt, nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
+| `Normal` | nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
 
 - Chưa có người nhận thì nhắc lại mỗi `reminderMinutes` (mặc định 15 phút) trong giờ đầu, sau đó mỗi giờ. Sự cố nặng lên thì báo lại kể cả khi đã có người nhận.
 - Sự cố đã báo khi đóng sẽ có thêm một email báo đã khắc phục.
@@ -303,6 +314,26 @@ Lọc `service`, `exceptionType`, `from`, `to`; phân trang `offset`, `limit` (t
 
 Mỗi lỗi chỉ có loại exception, vị trí trong code, message template chưa điền giá trị, đường dẫn đã thay định danh bằng `{id}`, và `traceId`. Không có message của exception, stack trace hay giá trị tham số, vì chúng có thể chứa số tiền, token hoặc nội dung của khách. Cần chi tiết thì dùng `traceId` tra `docker logs`.
 
+## Cập nhật số liệu kinh tế tự động (CPI)
+
+Job Hangfire `economic-assumption-refresh` đọc thông cáo CPI mới nhất của Cục Thống kê và ghi giả định `general_price_growth` (đơn vị `pct_per_year`, giá trị là CPI bình quân từ đầu năm so với cùng kỳ). **Lịch nằm trong cấu hình, không nằm trong code**: lưu hoặc hoàn tác cấu hình là job được đăng ký lại ngay (không cần deploy hay khởi động lại). Cấu hình ở system config nhóm `economicFeeds` (có lịch sử thay đổi):
+
+| Trường | Ý nghĩa |
+|---|---|
+| `enabled` | Mặc định `true`. `false` = gỡ job khỏi lịch |
+| `scheduleDayOfMonth`, `scheduleHour` | Ngày trong tháng (1–28) và giờ (0–23, **giờ Việt Nam**). Mặc định ngày 6, 9 giờ |
+| `cpiIndexUrl` | Địa chỉ trang liệt kê bài CPI (https). **Để trống = job chạy nhưng không gọi mạng**. Gợi ý: trang tìm kiếm của site, xem `docs/economic-feeds-probe.md` |
+| `autoApproveMaxDeltaBps` | Chênh tối đa so với bản đang dùng để job tự duyệt (mặc định 100 = 1 điểm phần trăm) |
+| `minRateBps`, `maxRateBps` | Khoảng hợp lý; ngoài khoảng thì không bao giờ tự duyệt |
+
+`POST /api/v1/admin/economic-feeds/refresh` (chỉ Admin, có audit `Admin.EconomicFeed.Refreshed`) chạy ngay một lượt và trả `{ "outcome": "Disabled | AlreadyCurrent | AutoApproved | NeedsReview | Failed" }`, dùng để thử sau khi đổi địa chỉ nguồn. Không phụ thuộc `enabled`.
+
+Kết quả mỗi lượt:
+- **Tự duyệt:** tạo bản mới và duyệt ngay, bản cũ chuyển Retired. Người thực hiện là tài khoản hệ thống (có trong audit log).
+- **Cần xem:** số lệch nhiều hoặc ngoài khoảng thì để `Draft` và mở sự cố dịch vụ `economic_feed` (mức Normal) cho Admin và OpsManager; duyệt hoặc bỏ ở trang Giả định kinh tế.
+- **Không đọc được** (trang đổi giao diện, không tải được, không thấy bài): giữ nguyên bản cũ và mở cùng sự cố. Sự cố tự đóng khi lượt sau thành công.
+- Cùng một bài chạy lại không tạo thêm bản nào.
+
 ## Gói đăng ký: `/api/v1/ops/subscriptions`
 
 Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi cờ `features.subscriptions` tắt, để chuẩn bị gói trước khi bật. Mọi thao tác ghi đều vào `audit_logs`. Tài liệu cho web và app: `docs/subscription-api.md`.
@@ -321,3 +352,26 @@ Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi 
 Giá tính bằng đồng. Gói miễn phí có sẵn, không có giá, không tắt và không xóa được; hạn mức của nó áp dụng ngay cho mọi người chưa mua. Sửa gói trả phí không ảnh hưởng người đã mua, vì đơn giữ bản chụp giá và quyền lợi.
 
 Đơn `NeedsReview` là tiền đã về nhưng chưa cấp được gói. Mỗi đơn mở một sự cố `subscription_payments`, xử lý theo `docs/ops-runbook.md`.
+
+## Chất lượng dự báo: độ chính xác và phản hồi "dự báo sai"
+
+Vòng khép kín: người dùng xem dự báo, báo sai, Staff gán nguyên nhân, OpsManager theo dõi sai số thật. Không có định danh người dùng ở bất kỳ phản hồi nào của nhân sự.
+
+**Job `forecast-accuracy`** chạy 02:30 giờ VN (cron UTC `30 19 * * *`), sau nhận diện khoản định kỳ. Hai bước: (1) điền số dư **thực tế** cho các bản chụp đã tới ngày của mốc, (2) **chụp** dự báo hôm nay cho mọi người có hoạt động trong cửa sổ lịch sử: một dòng mỗi mốc nhìn trước 7, 14, 30 ngày, lưu trong `forecast_snapshots` (số dư dự kiến, hai đầu dải, mốc so sánh "chỉ khoản định kỳ", mức tin cậy, phiên bản cấu hình, tên phương pháp). Chạy lại trong ngày không tạo bản trùng.
+
+Số dư thực tế = số dư lúc chụp + thu chi thật từ ngày gốc tới ngày của mốc, cùng định nghĩa với dự báo: chỉ ví được tính vào dự báo, không gồm chuyển khoản nội bộ và cho vay/mượn. Giao dịch user loại khỏi dự báo vẫn tính vì tiền đã đổi thật.
+
+| API | Quyền | Việc |
+|---|---|---|
+| `POST /api/v1/forecast/feedback` `{reason, note?}` | Người dùng (JWT) | Báo dự báo sai. `reason`: `balance_wrong`, `missing_bill`, `wrong_bill`, `unusual_spending`, `other`; `note` tối đa 300 ký tự. Gắn với bản chụp gần nhất của chính họ; gửi lại khi phản hồi trước chưa xử lý thì trả lại phản hồi đó. 422 `FORECAST_FEEDBACK_INVALID` |
+| `GET /api/v1/ops/forecast/feedback?status=&limit=&offset=` | Staff trở lên (xử lý ticket) | Hàng đợi, `status` là `new` hoặc `labeled`. Mỗi dòng có lý do, lời nhắn, số dự báo và số thực tế của bản chụp; **không có id người dùng** |
+| `PATCH /api/v1/ops/forecast/feedback/{id}` `{cause}` | Staff trở lên | Gán nguyên nhân: `data_missing`, `recurring_misread`, `one_off`, `model_issue`, `other`. Gán lại được. Nhật ký `Ops.ForecastFeedback.Labeled` chỉ có id và nguyên nhân |
+| `GET /api/v1/ops/forecast/accuracy?windowDays=30` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày |
+
+`accuracy` trả, theo mỗi mốc 7/14/30 ngày và theo nhóm `all`, `low` (ít dữ liệu), `normal`:
+- `maeCents`: sai số tuyệt đối trung bình của số dư dự báo (đồng); `medianAbsErrorCents`.
+- `maeRecurringOnlyCents` và `maeHoldCents`: cùng chỉ số nếu chỉ dùng khoản định kỳ (kiểu Simplifi/Monzo) và nếu giả định số dư không đổi. `ratioVsHold` và `ratioVsRecurringOnly` nhỏ hơn 1 nghĩa là dự báo hơn mốc đó.
+- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Dải hiện tại cộng dồn P25/P75 từng ngày nên **dự kiến cao hơn 50%**; đây là số đo để quyết định có thay bằng bootstrap hay không.
+- `meanBandWidthCents`, số mẫu, số bản chụp đã điền và còn chờ, số phản hồi theo lý do và theo nguyên nhân.
+
+Giới hạn đã biết: chưa có mốc so sánh trung bình 90 ngày (B1) và seasonal naive (B2); mốc "không đổi" là mốc thấp nhất. Số thực tế dùng giao dịch đã xác nhận, nên giao dịch ghi muộn làm số thực tế đổi theo.

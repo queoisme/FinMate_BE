@@ -797,10 +797,7 @@
 | Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
 | Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
-| Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
-| Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
-| Phase 73 — Thị trường, đợt 3: cảnh báo, giám sát | `[ ]` | 3 / 4 *(còn: báo người làm Flutter về `market_change`, kiểm tra điều khoản các nguồn trước khi phát hành)* |
-| Phase 74 — Thị trường: theo thói quen từng người, loại chi phí bằng cấu hình | `[ ]` | 3 / 4 *(còn: đo từ khóa trên giao dịch thật)* |
+| Phase 71 — Đánh giá khoản mua "Mua món này có ổn không?" | `[ ]` | 6 / 7 *(còn: app Flutter)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1465,3 +1462,35 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 
 **Rà soát Phase 76:** `security-review` không có lỗ hổng đạt ngưỡng. `code-review` mức cao có 10 phát hiện, sửa 9: gói bán khi chưa có chức năng làm người mua giữ gói rỗng đến hết kỳ (gói mới nay ở trạng thái chưa bán); một đơn SePay luôn báo lỗi chặn cả job và không ai được báo; void không kiểm tra đúng giao dịch và bị bỏ khi đơn chưa ghi nhận tiền; gửi lại với `clientRequestId` ăn thêm lượt hoặc bị từ chối (nay miễn một lần cho mỗi mã, vì handler vẫn gọi AI trước khi nhận ra gửi lại); ảnh không đọc được vẫn tính lượt; web không biết ngày kỳ mới bắt đầu (`GET /billing/web/me`); hỏi SePay không giãn cách và job chạy chồng (`next_check_at`, `DisableConcurrentExecution`); danh sách đơn cho Manager lộ id người dùng trái quy tắc `IOpsCustomerDataService`; `cycle` không được kiểm tra. Không sửa 1: mã handoff đọc rồi mới xóa, không nguyên tử, vì `ICacheService` chạy trên `IDistributedCache`; hai request đồng thời cùng mã chỉ tạo thêm một phiên hẹp của chính người đó, cùng mẫu với `GoogleOAuthStore`. **Giới hạn còn lại:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay.
 
+> Đánh số lại khi gộp `main` vào `dev/tuan` (2026-11-09): hai phase dưới đây được làm trên `dev/tuan` với tên Phase 71 và 72, trùng với Phase 71–76 của `main`.
+
+## Phase 77 — Đánh giá khoản mua "Mua món này có ổn không?" (2026-11-07)
+Đặc tả: `docs/flows/flow-6-purchase-decision-assistant.md` (§13 ghi phần đã làm); yêu cầu FR-FCST-17. Lớp mỏng trên engine dự báo Phase 54–56: **không đổi schema, không migration**. Trong code gọi là *purchase check* để không trùng "Flow 6" của dự báo.
+- [x] Cấu hình admin `forecast.purchaseDefaultHorizonDays` (14) và `purchaseStaleBalanceDays` (7) + validator; mã lỗi `PURCHASE_CHECK_INVALID`.
+- [x] `PurchaseVerdict` (hàm thuần): kỳ tính tới kỳ thu nhập kế tiếp sau ngày mua, bốn kiểm tra, giá tối đa mua được, ngày mua sớm nhất an toàn, câu kết luận mẫu. `PurchaseVerdictTests` gồm ví dụ −500.000đ của đặc tả.
+- [x] `PurchaseCheckService` + `POST /forecast/purchase-check` (chạy engine hai lần: không mua / có khoản mua; ngân sách qua `IBudgetForecastService`, kế hoạch tháng qua `IGoalPlanningService`; nhận `categorySlug`). `PurchaseCheckControllerTests` (401, ví dụ lương/tiền nhà, bảng giải thích, không đổi số dư, ví người khác 404, input sai 422, ngân sách vượt, chưa có ngân sách/thu nhập = chưa rõ).
+- [x] Hợp đồng chat BE: `ChatParsePurchase`/`purchase` ở `ChatParseResponse`, `ChatActions.Purchase`, `ChatPurchaseDraftDto`; `ChatCommandHandler` chỉ trả tham số, không tạo giao dịch. Test `APurchaseQuestionReturnsOnlyTheParametersAndCreatesNothing`.
+- [x] Tài liệu: đặc tả chép vào `docs/flows/`, REQUIREMENTS §6.5 (FR-FCST-17).
+- [x] AI service: ý định `evaluate_purchase` + `purchase_parser.py` (từ khóa chỉ trong `intent_cues.json`; `audit_overrides --strict` sạch: cứu 35, làm hỏng 2 ca "mua bitcoin bây giờ được không" nay là `needs_amount` thay vì `out_of_scope`); JSON mẫu sinh từ `model_dump_json()` đã ghim trong `ChatParseContractTests`; hợp đồng ghi ở `ARCHITECTURE.md` §3.3 (**cần chủ dự án duyệt** theo `AGENTS.md`). Chưa nhận: thứ trong tuần, "tuần sau", "cuối tháng".
+- [ ] Báo nhóm Flutter: `POST /forecast/purchase-check`, `ChatActions.Purchase`, thẻ đánh giá và nút "Thử một khoản mua".
+- [x] Rasa: ý định `evaluate_purchase` trong `domain.yml` + 347 câu (`seed/nlu_purchase.jsonl`, generator `rasa/tools/generate_purchase.py`), luật bỏ phiếu của Rasa khi không có bản nháp (`PURCHASE_INTENT` trong `transaction_parser.py`), test canh dữ liệu cập nhật. Huấn luyện 3 seed `finmate-nlu-v17-s1..s3` trên DB tạm: cổng promote **chặn cả ba** (sau luật 98,02 / 97,44 / 98,26 so với v11 98,37; seed 3 còn tụt `nlu_test_fresh2` 1 câu). Chưa nhập dữ liệu vào DB dev, chưa promote; số đo ở `docs/rasa-coverage-report.md` §6.
+- Giới hạn đã biết: độ mới số dư lấy từ `financial_accounts.updated_at` (chưa có `balance_updated_at`); người dùng mới luôn ở mức `partial` tới khi đủ `minHistoryDays` ngày dữ liệu; chưa hỗ trợ trả góp; M4 và diễn giải bằng AI chưa làm.
+
+## Phase 78 — AI Financial Agent (2026-11-07)
+Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; phân quyền dùng Staff/OpsManager của Phase 61–65.
+- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
+- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
+- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
+- [x] Task 16–17: sổ dòng tiền, `simulate_purchase` (đọc `recurring_items` của Phase 54), `runway`, `stress_test`, `sensitivity`.
+- [x] Task 20 (phần giữ lại): trợ lý gợi ý trả lời khiếu nại (`ticket_assist`, chỉ gợi ý, kiểm số tiền) gắn vào ticket của Phase 62. Vai trò Manager/SupportStaff/ContentStaff và luồng khiếu nại riêng của agent đã BỎ khi gộp nhánh để dùng bản của Phase 61–65.
+- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
+- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
+- Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.
+
+## Phase 79 — Bỏ Rasa, thay bằng bộ phân loại ý định trong tiến trình (2026-11-09)
+Nhánh `feat/replace-rasa-intent-classifier`. Quyết định của chủ dự án: bỏ hẳn Rasa; thành phần nào còn lại phải được giải thích và thật sự được dùng.
+- [x] Bộ phân loại ý định trong tiến trình `ai-service/app/services/intent_classifier.py` (TF-IDF + hồi quy logistic, học lười từ `ai-service/data/intent/examples.jsonl`) và `ai-service/scripts/eval_intent.py`; `nlu.source` ∈ `model | rules`.
+- [x] Gỡ Rasa: API admin Rasa, mục giám sát Rasa, endpoint "câu chưa rõ", biến `RASA_URL`, service `rasa` trong `docker-compose.yml`, thư mục `ai-service/rasa/`, `RasaNlu` và vòng huấn luyện NLU.
+- [x] Migration alembic `0036_drop_nlu_training_tables` bỏ ba bảng `nlu_examples`, `nlu_model_versions`, `nlu_candidates` (và loại `rasa` khỏi `ml_models.kind`).
+- [x] Viết lại tài liệu hiện hành: `.context/ARCHITECTURE.md` (§3.6), `.context/TECH_STACK.md`, `CLAUDE.md`, `docs/ERD.md`, `docs/ai-service-db-schema.txt`, `docs/ai-service-db-constraints-v5_1.md`, `docs/evaluation.md`.
+- [ ] Sinh lại `docs/scorecard.md` bằng `python scripts/scorecard.py` (bản 2026-10-22 còn số đo của Rasa) và ghi số đo của bộ phân loại vào `docs/evaluation.md` bằng `scripts/eval_intent.py`.

@@ -16,8 +16,12 @@ public class AdminGoalTemplatesController : AdminControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<AdminGoalTemplateDto>>.Ok(await _catalog.ListTemplatesAsync(includeInactive, ct)));
+    public async Task<IActionResult> GetList(
+        [FromQuery] bool includeInactive, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
+    {
+        var page = await _catalog.ListTemplatesAsync(includeInactive, search, offset, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<AdminGoalTemplateDto>>.Ok(page.Items, page.ToMeta()));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateGoalTemplateRequest request, CancellationToken ct)

@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -44,7 +45,7 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public Task<int> CountActiveAdminsAsync(CancellationToken ct = default)
-        => _context.Users.CountAsync(u => u.Role == UserRole.Admin && !u.IsLocked, ct);
+        => _context.Users.CountAsync(u => u.RoleAssignment!.RoleId == UserRole.Admin && !u.IsLocked, ct);
 
     public async Task<UserListResult> GetPageAsync(
         UserListFilter filter, CancellationToken ct = default)
@@ -57,15 +58,20 @@ public class UserRepository : IUserRepository
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var search = filter.Search.Trim();
+            var pattern = $"%{AdminPaging.EscapeLike(filter.Search.Trim())}%";
             query = query.Where(u =>
-                EF.Functions.ILike(u.Email, $"%{search}%")
-                || EF.Functions.ILike(u.DisplayName, $"%{search}%"));
+                EF.Functions.ILike(u.Email, pattern, "\\")
+                || EF.Functions.ILike(u.DisplayName, pattern, "\\"));
         }
 
         if (filter.Role is { } role)
         {
-            query = query.Where(u => u.Role == role);
+            query = query.Where(u => u.RoleAssignment!.RoleId == role);
+        }
+
+        if (filter.InternalOnly)
+        {
+            query = query.Where(u => u.RoleAssignment!.RoleId != UserRole.User);
         }
 
         if (filter.IsLocked is { } isLocked)

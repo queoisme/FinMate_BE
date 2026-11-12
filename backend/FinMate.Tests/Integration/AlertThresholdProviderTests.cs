@@ -36,9 +36,10 @@ public class AlertThresholdProviderTests : IClassFixture<ReceiptScanDbFixture>
         var user = Guid.NewGuid();
         var email = $"{user:N}@finmate.local";
         await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO users (id, email, display_name, role, push_enabled, budget_alerts_enabled, created_at, updated_at)
-            VALUES ({user}, {email}, 'Threshold Test', 'user', true, true, now(), now())
+            INSERT INTO users (id, email, display_name, push_enabled, budget_alerts_enabled, created_at, updated_at)
+            VALUES ({user}, {email}, 'Threshold Test', true, true, now(), now())
             """);
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO user_roles (user_id, role_id, assigned_at) VALUES ({user}, 0, now())");
         return user;
     }
 
