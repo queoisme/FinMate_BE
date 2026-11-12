@@ -5103,3 +5103,33 @@
 {"text": "cô chuyển khoản cho cháu 700k", "intent": "add_income", "split": "train"}
 {"text": "nhận chuyển khoản từ khách 2tr5", "intent": "add_income", "split": "train"}
 {"text": "vừa nhận được tiền chuyển khoản của bạn 350k", "intent": "add_income", "split": "train"}
+{"text": "mua máy giặt mới được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "có nên mua bàn phím cơ không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua tai nghe chống ồn có đáng không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua xe đạp điện được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua ghế công thái học có ổn không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua đồng hồ thông minh có nổi không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "tháng sau mua máy lọc nước được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua điều hòa mới trong 3 tháng nữa nổi không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua tivi mới bây giờ được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "có nên mua máy ảnh mới không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua loa bluetooth có đáng không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua nồi chiên không dầu được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua bộ bàn ăn mới có ổn không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua đôi giày chạy bộ được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua cái máy hút bụi có nổi không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua tủ quần áo mới trong 2 tháng được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua kính cận mới có đáng không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua máy tính bảng cho con được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua đàn piano cho bé được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua xe máy cũ được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua bộ nồi inox có đáng không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua quạt điều hòa được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua cái bếp từ được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "tuần sau mua màn hình mới được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua balo laptop có nên không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua đồ chơi cho con có ổn không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua nệm mới trong 4 tháng nữa được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua ống kính máy ảnh có đáng không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua máy chơi game được không", "intent": "evaluate_purchase", "split": "train"}
+{"text": "mua bàn học cho con có nổi không", "intent": "evaluate_purchase", "split": "train"}

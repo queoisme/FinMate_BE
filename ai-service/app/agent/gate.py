@@ -27,7 +27,7 @@ from app.services.vi_text import clean_text, fold
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "agent_scope.json"
 FORBIDDEN_ORDER = ("prompt_injection", "other_users_data", "investment_advice")  # chủ đề đứng trước thắng khi một câu dính nhiều chủ đề
 INTENT_MIN_CONFIDENCE = 0.6
-FINANCE_INTENTS = frozenset({"add_expense", "add_income", "transfer_money", "ask_spending"})
+FINANCE_INTENTS = frozenset({"add_expense", "add_income", "transfer_money", "ask_spending", "evaluate_purchase"})   # evaluate_purchase = "mua X được không?", việc của công cụ simulate_purchase
 SMALLTALK_INTENTS = frozenset({"greet", "goodbye", "confirm", "deny", "cancel"})
 CACHE_SECONDS = 60.0
 DEFAULT_REFUSAL = "Mình chỉ hỗ trợ các câu hỏi về tài chính cá nhân của bạn. Bạn thử hỏi lại theo hướng đó nhé."  # dự phòng cuối: chỉ dùng khi cả DB lẫn bản mặc định đều thiếu

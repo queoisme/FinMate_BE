@@ -171,3 +171,24 @@ async def test_injection_and_cross_user_phrasings_are_refused_at_the_gate_even_w
     result = await evaluate(text, RULES, None)
 
     assert (result.in_scope, result.reason_code) == (False, topic)
+
+
+async def test_a_confident_purchase_question_is_in_scope_whatever_the_product():
+    # "Mua X được không?" là câu hỏi mua hàng (công cụ simulate_purchase); không thể liệt kê từng món X làm cụm từ.
+    nlu = FakeNlu({"intent": "evaluate_purchase", "confidence": 0.9, "entities": {}})
+
+    result = await evaluate("Mua đàn guitar được không?", RULES, nlu)
+
+    assert (result.in_scope, result.reason_code) == (True, "intent_model")
+
+
+async def test_an_unsure_or_unrelated_intent_is_still_refused():
+    assert (await evaluate("Mua đàn guitar được không?", RULES, FakeNlu({"intent": "evaluate_purchase", "confidence": 0.3, "entities": {}}))).in_scope is False
+    assert (await evaluate("Kể chuyện cười đi", RULES, FakeNlu({"intent": "out_of_scope", "confidence": 0.95, "entities": {}}))).in_scope is False
+
+
+@pytest.mark.parametrize("text", ["Giúp mình lập kế hoạch cho học phí", "Mình cần để dành bao nhiêu mỗi tháng?"])
+async def test_tuition_and_setting_money_aside_are_finance_cues(text):
+    result = await evaluate(text, RULES, None)
+
+    assert (result.in_scope, result.reason_code) == (True, "finance_cue")
