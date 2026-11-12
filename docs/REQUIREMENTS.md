@@ -14,7 +14,6 @@ Tài liệu này liệt kê các yêu cầu chức năng (FR) và phi chức nă
 | AI Service | Python 3.11 FastAPI, PostgreSQL 16 (`finmate_ai`) | Hiểu thông báo, câu chat, tên món; chọn phương pháp tài chính; kho kiến thức và vòng học |
 | `ocr-service` | Python 3.10, PaddleOCR + VietOCR ONNX, Google Cloud Vision (tuỳ chọn) | Đọc ảnh hoá đơn, lọc dữ liệu cá nhân, tách món. Không có DB, ghi qua API của AI Service |
 | `stt-service` | Python, GIPFormer 1.5 ONNX (CPU) | Giọng nói → chữ |
-| `rasa` | Rasa 3.6 NLU | Ý định và thực thể của câu chat; chỉ AI Service gọi |
 
 Client là app **Flutter** ở repo riêng `FinMate_FE` (tài liệu cũ ghi `android/` Kotlin — đã đổi). Client nằm ngoài phạm vi; các yêu cầu đặc tả giao cho app được gom ở mục 2.3 để truy vết.
 
@@ -50,9 +49,9 @@ Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 | Tác nhân | Loại | Tương tác với hệ thống |
 | --- | --- | --- |
 | User | Người dùng cuối qua app Flutter | Ví, giao dịch, chat/giọng nói/quét bill, QR chuyển khoản, ngân sách, mục tiêu, phương pháp tài chính, báo cáo |
-| Admin | Nhân sự vận hành, vai trò `Admin` trong JWT | Người dùng, provider và định dạng thông báo, danh mục, phương pháp/khảo sát/mẫu mục tiêu, kiến thức AI, Rasa, cấu hình hệ thống, key bên thứ ba, audit |
+| Admin | Nhân sự vận hành, vai trò `Admin` trong JWT | Người dùng, provider và định dạng thông báo, danh mục, phương pháp/khảo sát/mẫu mục tiêu, kiến thức AI, cấu hình hệ thống, key bên thứ ba, audit |
 | Android OS | Nguồn sự kiện, chuyển qua app | Thông báo biến động số dư từ app ngân hàng / ví được chọn. FinMate **không** kết nối tài khoản ngân hàng |
-| AI Service, `ocr-service`, `stt-service`, `rasa` | Dịch vụ nội bộ, Bearer key riêng, không mở cổng ra máy chủ | Xem mục 1 |
+| AI Service, `ocr-service`, `stt-service` | Dịch vụ nội bộ, Bearer key riêng, không mở cổng ra máy chủ | Xem mục 1 |
 | Google | OAuth 2.0 / OIDC; Cloud Vision; Gemini | Đăng nhập; đọc chữ ảnh hoá đơn (tuỳ chọn); phân loại tên món / cụm sản phẩm và chọn phương pháp (khi được đồng ý) |
 | OpenRouter | LLM dự phòng (model `:free`, `data_collection = deny`) | Dự phòng khi Gemini lỗi |
 | VietQR (`dl.vietqr.io`) | Liên kết mở app ngân hàng | Client mở app ngân hàng với số tài khoản/số tiền/nội dung đã điền |
@@ -77,7 +76,7 @@ Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 | Kênh | Core Flow | Đường vào server | Ai tạo giá trị tiền |
 | --- | --- | --- | --- |
 | Thông báo ngân hàng / ví | Flow 1 | `POST /notifications/analyze` | Định dạng thông báo theo provider (regex trong DB của AI Service) |
-| Chat (gõ câu tự nhiên) | Flow 2 | `POST /transactions/chat` (lưu được) · `POST /transactions/parse` và `POST /chat/analyze` (chỉ phân tích) | Luật số tiền của AI Service ("75k", "1.5tr", số bằng chữ); Rasa chỉ hỗ trợ khi luật không thấy số |
+| Chat (gõ câu tự nhiên) | Flow 2 | `POST /transactions/chat` (lưu được) · `POST /transactions/parse` và `POST /chat/analyze` (chỉ phân tích) | Luật số tiền của AI Service ("75k", "1.5tr", số bằng chữ); bộ phân loại ý định chỉ hỗ trợ khi luật không thấy số |
 | Giọng nói | Flow 2 | `POST /transactions/voice` · `POST /chat/analyze-voice` (file âm thanh) | `stt-service` ra chữ, rồi như kênh chat |
 | Ảnh hoá đơn | Flow 2 | `POST /transactions/scan-receipt` | `ocr-service` bóc tổng tiền; luôn cần user rà soát |
 | Form nhập tay | Flow 2 | `POST /transactions` | User |
@@ -235,7 +234,7 @@ Vòng đời hiện tại của một thông báo ngân hàng. Đặc tả muố
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-CHAT-01 | `POST /transactions/chat` (`{text, financialAccountId?, clientRequestId?}`) | Must | Text 1–500 ký tự. AI Service (`/chat/parse` = Rasa tuỳ chọn + luật + Gemini khi có đồng ý) chỉ trả quyết định; backend quyết mọi hậu quả |
+| FR-CHAT-01 | `POST /transactions/chat` (`{text, financialAccountId?, clientRequestId?}`) | Must | Text 1–500 ký tự. AI Service (`/chat/parse` = bộ phân loại ý định (chạy trong tiến trình) + luật + Gemini khi có đồng ý) chỉ trả quyết định; backend quyết mọi hậu quả |
 | FR-CHAT-02 | Tự lưu khi đủ điều kiện, còn lại hỏi xác nhận | Must | Tự lưu (`action = saved`) chỉ khi: một khoản, `auto_save_ok`, là chi tiêu, chọn được ví (ví user chọn hoặc ví duy nhất), slug ra danh mục hệ thống, không có khoản Debit cùng số tiền trong ±10 phút. Thu nhập, chuyển khoản và câu nhiều khoản **luôn** `action = confirm` |
 | FR-CHAT-03 | Hỏi tổng chi/thu theo kỳ | Should | `action = summary`; backend tự cộng (AI Service không thấy số liệu); xin chi tiết thì kèm tối đa 20 khoản và `transactionsHasMore` |
 | FR-CHAT-04 | Ngày trong câu ("hôm qua") | Should | Dùng làm `transactedAt` |
@@ -332,6 +331,7 @@ Các mã BR của sơ đồ chưa có định nghĩa; số mặc định thay th
 | FR-FCST-13 | Dự báo thu nhập (trang 5) | Should | `GET /forecast/income`: lịch thu định kỳ 60 ngày, khoản thu trễ (quá `incomeLateDays` ngày, BR-07.4, có cảnh báo), thu không đều: thận trọng = phân vị 25 / trung bình theo tháng trọn vẹn (`irregularIncomeMonths`, BR-07.2). Khai báo nguồn thu = `POST /recurring-items` chiều `Inflow`. Thu quá hạn chưa nhận **không** được cộng vào dự báo. Số tiền có thể chi cộng thu không đều mức thận trọng khi không có khoản thu định kỳ. **Chưa làm**: thu theo mùa (BR-07.3) |
 | FR-FCST-14 | **[Mới]** Phát hiện chi tiêu bất thường có phản hồi (trang 9) | Should | Quét các khoản chi `anomalyScanDays` (3) ngày gần nhất sau mỗi giao dịch và lúc 08:00; mỗi giao dịch xét một lần (`transaction_anomalies`, UNIQUE theo giao dịch). Loại: `duplicate` (cùng ví + số tiền + nơi nhận trong `duplicateWindowMinutes` = 10 phút; chỉ khoản sau), `merchant_spike` (≥ 3 lần trước ở cùng nơi nhận, gấp ≥ 300% trung vị), `category_spike` (BR-11.1: ≥ 5 khoản cùng danh mục trong 90 ngày; BR-11.2: gấp ≥ 300% trung vị **và** vượt trung vị + 3·MAD). Khoản < 200.000đ, khoản khớp khoản định kỳ (đổi giá có cảnh báo riêng), khoản đã loại khỏi dự báo: không xét. BR-11.3: gấp ≥ 500% hoặc trùng → mức cao → thông báo (kind `anomaly`, một lần mỗi giao dịch); mức thường chỉ đánh dấu trong app. BR-11.4: đã xác nhận bình thường cùng danh mục + nơi nhận với số tiền ≥ 80% → không báo. `GET /forecast/anomalies?status=open\|all`, `POST /forecast/anomalies/{id}/feedback` `normal\|one_off\|wrong_entry\|suspicious`: `one_off` đặt FR-FCST-08 (đổi ý thì trả lại), `suspicious` trả hướng dẫn liên hệ ngân hàng (chung chung), `wrong_entry` để app gọi sửa/xóa giao dịch. Insight `UnusualSpending` ngừng sinh |
 | FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | `GET /forecast/categories?month=yyyy-MM` (tháng tới hoặc tháng sau nữa; trả `availableMonths`): từng danh mục có mức dự kiến, tháng trước, hạn mức hiện tại, % thay đổi, cờ "thay đổi nhiều" (≥ 20%), hạn mức đề xuất (làm tròn lên 10.000đ). Xu hướng = trung bình trọng số 3:2:1 của 3 tháng trọn vẹn, chỉ tính từ tháng đầu tiên có dữ liệu. Loại khoản chi một lần và khoản bất thường chưa xác nhận bình thường. BR-06.1: < 2 tháng có dữ liệu → hạn mức ngân sách, không có thì trung bình theo ngày quy ra tháng, `confidence = low`. `POST /forecast/categories/apply`: danh mục đã có ngân sách → hạn mức mới áp **từ tháng sau** (tháng này giữ snapshot cũ); chưa có → tạo ngân sách, áp ngay. **Chưa làm**: điều chỉnh mùa vụ (`seasonalAdjusted` luôn false) |
+| FR-FCST-17 | **[Mới]** Đánh giá khoản mua "Mua món này có ổn không?" (`POST /forecast/purchase-check`) | Should | Chỉ đọc, không tạo giao dịch. Chạy engine dòng tiền hai lần (không mua / có khoản mua) và so điểm số dư thấp nhất trong kỳ tới ngày trước kỳ thu nhập kế tiếp sau ngày mua; chưa biết kỳ thu nhập thì dùng mốc người dùng chọn hoặc `forecast.purchaseDefaultHorizonDays`. Kết luận `shortfall_risk` / `consider` (dưới vùng đệm của user) / `off_plan` (vượt ngân sách hoặc kế hoạch tháng) / `fits_plan` / `insufficient_data`; dữ liệu chỉ một phần thì không bao giờ trả "phù hợp". Trả kèm giá tối đa mua được, ngày mua sớm nhất an toàn, bảng giải thích có nguồn (`confirmed`/`user_entered`/`estimated`) và cảnh báo. Câu chữ do backend sinh bằng mẫu, không qua AI. Chi tiết: `docs/flows/flow-6-purchase-decision-assistant.md` §13. **Chưa làm**: trả góp, lưu món/nhắc lại/đối chiếu giao dịch (M4), diễn giải bằng AI |
 | FR-FCST-16 | **[Mới]** Ngày đạt mục tiêu tiết kiệm (trang 4) | Could | `GET /forecast/goals/{goalId}?monthlyContributionCents=`: BR-08.1 tốc độ góp theo tháng từ khoản góp vào chính mục tiêu (tối đa `goalRateMonths` = 6 tháng trọn vẹn từ tháng tạo; chưa có tháng trọn vẹn thì dùng tháng này, độ tin cậy thấp) — trung bình và thận trọng (phân vị 25). BR-08.2 hai ngày dự kiến. BR-08.3 kịp hạn = ngày thận trọng ≤ hạn chót; không kịp → mức cần góp/tháng. Trạng thái `reached\|unreachable\|no_deadline\|on_track\|behind`. Tham số `monthlyContributionCents` là thử kịch bản, không lưu; đổi số tiền / hạn chót dùng `PATCH /saving-goals/{id}` |
 
 ### 6.6 Tài chính nhóm / gia đình **[Mới so với đặc tả Core Flows]**
@@ -394,7 +394,7 @@ Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không t
 | FR-MON-04 | Mức thường chỉ gom một email cho Admin lúc 08:00 giờ VN | Should | OpsManager không nhận |
 | FR-MON-05 | Theo dõi lỗi ứng dụng | Must | Từ mức Error; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh, `traceId`; không làm chậm request; giữ 30 ngày |
 | FR-MON-06 | Theo dõi job Hangfire | Should | Thất bại sau mọi lần thử mở sự cố `High`; quá giờ 10 phút mở sự cố `Normal` |
-| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase, Rasa | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
+| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
 | FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
 | FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
 
@@ -458,10 +458,18 @@ AI Service chỉ phân tích: trích xuất, phân loại, tính độ tin cậy
 | FR-AI-09 | Dọn dữ liệu | Should | Script cron ngoài: mẫu thô chưa nhãn, `pipeline_requests` > 90 ngày, `bill_unknown_scans` > 90 ngày; mẫu bill chưa nhãn > 7 ngày (`purge_loop` trong service) |
 | FR-AI-10 | A/B testing mô hình (bảng `ab_*`) | Won't (MVP) | Hoãn |
 | FR-AI-11 | **[Ngoài đặc tả]** Phân loại hoá đơn (`/bill/classify`, `/bill/classify-items`) | Should | Bộ nhớ user → luật/thương hiệu → Gemini (nếu đồng ý, ≤ 20 món mỗi lần, chỉ tên món đã bỏ giá) → `unknown`; câu trả lời Gemini cache dùng chung theo tên món; đếm theo ngày không kèm tên món/user |
-| FR-AI-12 | **[Ngoài đặc tả]** Hiểu câu chat (`/chat/parse`) | Must | Rasa (10 intent, timeout 2 giây, cầu dao 30 giây) + luật trong `intent_cues.json`; số tiền và danh mục luôn do luật; Gemini cho chat có client và cầu dao riêng (3,5 s mỗi model < 7,5 s cả chuỗi < 9 s bước AI) |
+| FR-AI-12 | **[Ngoài đặc tả]** Hiểu câu chat (`/chat/parse`) | Must | bộ phân loại ý định TF-IDF + hồi quy logistic huấn luyện từ `ai-service/data/intent/examples.jsonl` + luật trong `intent_cues.json`; số tiền và danh mục luôn do luật; Gemini cho chat có client và cầu dao riêng (3,5 s mỗi model < 7,5 s cả chuỗi < 9 s bước AI) |
 | FR-AI-13 | **[Ngoài đặc tả]** Chọn phương pháp tài chính (`/finance-methods/recommend`) | Should | Tự kiểm đầu ra (mã trong danh sách, lý do 1–240 ký tự); chỉ dẫn ở `kb_method_prompts` (có phiên bản, một dòng active); OpenRouter dự phòng, trần route 24 giây |
-| FR-AI-14 | **[Ngoài đặc tả]** Vòng học hoá đơn và Rasa | Could | Mẫu bill đã lọc + nhãn user; phiếu bầu món; mô hình bill và mô hình Rasa có phiên bản, đánh giá và chặn bản tệ hơn trước khi promote (`scripts/nlu_model.py train|eval|promote`) |
+| FR-AI-14 | **[Ngoài đặc tả]** Vòng học hoá đơn | Could | Mẫu bill đã lọc + nhãn user; phiếu bầu món; mô hình bill có phiên bản, đánh giá và chặn bản tệ hơn trước khi promote (`scripts/nlu_model.py train|eval|promote`) |
 | FR-AI-15 | **[Ngoài đặc tả]** Kho dữ liệu cho `ocr-service` (`/api/v1/ocr-store/*`) | Must | `ocr-service` không nối DB; mọi đọc/ghi kiến thức và bộ nhớ cửa hàng đi qua API này |
+| FR-AI-16 | **[Mới]** Hỏi AI Financial Agent (`POST /api/v1/agent/ask`) | Must | Vòng Gate → Plan → Execute → Compose → Verify. `userId` chỉ từ JWT; trả `answered` / `clarify` / `refused` / `insufficient_data`. Mọi số tiền trong câu trả lời bằng đúng số nguyên đồng của bằng chứng được trích dẫn (bộ kiểm chứng thuần Python), mỗi bằng chứng có nguồn, ngày và độ tin cậy. LLM không bao giờ sinh số tiền. Xem `docs/agent-api.md` |
+| FR-AI-17 | **[Mới]** Dự báo mục tiêu theo hai nhóm thu nhập | Must | Dải Q10/Q50/Q90 từ lịch sử đã trọn; nhóm ổn định / không ổn định tự suy (hệ số biến thiên) hoặc do người dùng chọn; ba kịch bản; dưới 3 tháng lịch sử thì `insufficient_data`, không đoán |
+| FR-AI-18 | **[Mới]** Công cụ của agent nằm trong danh sách cho phép | Must | `forecast_goal`, `get_assumptions`, `search_knowledge`, `simulate_purchase`, `runway`, `stress_test`, `sensitivity`. Công cụ lạ hay tham số lạ (kể cả `user_id`) bị từ chối trước khi đọc dữ liệu |
+| FR-AI-19 | **[Mới]** Giả định kinh tế có nguồn, có duyệt | Must | `economic_assumptions` đi Draft → Approved → Retired; mỗi giả định có nguồn, đường dẫn và ngày số liệu; chỉ bản đã duyệt được dùng |
+| FR-AI-20 | **[Mới]** Kho tri thức RAG có người duyệt | Should | pgvector + full-text gộp RRF, chỉ tài liệu Approved còn hiệu lực; câu hỏi chưa trả lời được chỉ lưu mã băm và số lần gặp, không bao giờ tự vào kho |
+| FR-AI-21 | **[Mới]** Khoản định kỳ và mô phỏng khoản mua (Flow 6) | Should | Khoản định kỳ lấy từ `recurring_items` (đang chạy = Confirmed, đề xuất = Estimated); sổ dòng tiền theo ngày; kết luận `feasible` / `tight` / `infeasible` kèm ngày và số thiếu |
+| FR-AI-22 | **[Mới]** Bộ nhớ và ngữ cảnh của agent | Should | Ngữ cảnh ngắn hạn (Redis, 30 phút, tối đa 6 lượt, chỉ các ô có cấu trúc); sở thích dài hạn do người dùng xem/sửa/xóa (`/agent/memory`) |
+| FR-AI-23 | **[Mới]** Bộ đánh giá agent | Should | `agent_eval`: hồ sơ giả lập có đáp án, bộ câu hỏi có nhãn, chỉ số (tỉ lệ mệnh đề không kiểm chứng, độ trung thực số, precision/recall từ chối, chi phí), cấu hình cắt bỏ. Endpoint đánh giá chỉ tồn tại ở Development |
 
 ## 9. FR — Quản trị (Admin Flow, hỗ trợ)
 
@@ -481,7 +489,6 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-ADM-11 | Quản trị định dạng thông báo (`/admin/provider-formats`, 17 route) | Should | Tạo/sửa/clone/archive/activate định dạng, trường, mẫu regex, mẫu thử; `try`/`check` chạy thử trước khi bật |
 | FR-ADM-12 | **[Ngoài đặc tả]** Quản trị kiến thức AI (`/admin/ai-rules`, `/admin/ai-config`) | Should | Thương hiệu, từ khoá, bộ nhớ cửa hàng, cache món, chỉ dẫn Gemini, mẫu đã nhãn, mô hình; tài liệu cấu hình có phiên bản, bản nháp, xem trước, kích hoạt, lịch sử và hoàn tác |
 | FR-ADM-13 | **[Ngoài đặc tả]** Quản trị phương pháp tài chính | Should | `/admin/finance-methods` (kèm `activeUserCount` trước khi tắt), `/admin/survey-questions`, `/admin/goal-templates`, `/admin/finance-method-prompts`; bố cục trang chủ và hũ |
-| FR-ADM-14 | **[Ngoài đặc tả]** Quản trị Rasa (`/admin/rasa`) | Could | Trạng thái, danh sách phiên bản model, chọn phiên bản |
 
 ### 9.1 Cấu hình hệ thống và key bên thứ ba **[Ngoài đặc tả]**
 
@@ -490,6 +497,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-CFG-01 | Cấu hình hệ thống có phiên bản (`/admin/system-config`) | Must | Một tài liệu JSON đã kiểm hợp lệ: bảo trì, phiên bản app tối thiểu / bắt buộc cập nhật, cờ tính năng (`chatAi`, `voice`, `billScan`, `notificationReading`), ngưỡng T1/T2 mặc định, retry thông báo, QR, phương pháp tài chính, dự báo (`forecast`, FR-FCST). Hằng số nghiệp vụ không viết cứng trong code |
 | FR-CFG-02 | Chế độ bảo trì và cấu hình công khai | Must | `MaintenanceMiddleware` chặn API khi bật; `GET /app-config` (ẩn danh) cho app biết bảo trì, phiên bản tối thiểu, cờ tính năng |
 | FR-CFG-03 | Kho key bên thứ ba (`/admin/secrets`) | Must | Mọi key (Gemini, OpenRouter, Google Vision, Brevo, Google OAuth, FCM) sửa trên trang admin, đọc lúc gọi (không cần khởi động lại). Mã hoá AES-256-GCM, khoá chủ `SECRETS_MASTER_KEY`, tên key làm AAD; key không bao giờ trả về nguyên văn. Thiếu khoá chủ thì kho tắt và chỉ dùng biến môi trường |
+| FR-ADM-15 | **[Mới]** Quản lý giả định kinh tế và kho tri thức của agent | Should | `/admin/assumptions`, `/admin/knowledge`; duyệt/gỡ chỉ Manager trở lên (OpsManager, Admin); mỗi thao tác ghi để lại audit log (không nội dung) |
 
 ## 10. NFR — Bảo mật và quyền riêng tư
 
@@ -505,7 +513,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-04 | Mọi endpoint `[Authorize]` trừ `/auth/*`, `/app-config` và health | Test không token → 401 |
 | NFR-SEC-05 | Admin controller kế thừa `AdminControllerBase` | User thường → 403 |
 | NFR-SEC-06 | Repository lọc theo `userId` từ JWT. Dữ liệu nhóm đi qua `IGroupAccessService`: không phải thành viên → 404, thiếu quyền → 403, quyền đọc từ DB mỗi request | Test cross-user và cross-group → 404 |
-| NFR-SEC-07 | AI Service, `ocr-service`, `stt-service`, `rasa` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
+| NFR-SEC-07 | AI Service, `ocr-service`, `stt-service` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
 | NFR-SEC-08 | Client ↔ server qua TLS | TLS ở reverse proxy |
 
 ### 10.2 Chống lạm dụng
@@ -560,13 +568,13 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | Mã | Yêu cầu | Cách kiểm chứng |
 | --- | --- | --- |
 | NFR-REL-01 | AI Service chết không làm sập backend | Tắt container AI rồi gọi API |
-| NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Rasa tắt, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
+| NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
 | NFR-REL-03 | FCM, Brevo, `/bill/learn` lỗi không làm hỏng thao tác gốc | Client giả ném lỗi |
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
 | NFR-REL-05 | Job nền bền qua khởi động lại; 10 job định kỳ: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob`, `RecurringDetectionJob`, `ForecastDailyAlertJob`, `ForecastAlertDispatchJob` (thêm `ForecastUserCheckJob` xếp hàng sau mỗi giao dịch) | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
 | NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Cần đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready` (`docs/ops-runbook.md`); chưa đăng ký |
-| NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
+| NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
 
 ### 11.3 Hiệu năng (đề xuất, chưa đo)
 
@@ -587,14 +595,14 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | Mã | Yêu cầu | Cách kiểm chứng |
 | --- | --- | --- |
 | NFR-OPS-01 | Image backend multi-stage, user không root | `docker image ls` |
-| NFR-OPS-02 | Stack: PostgreSQL × 2, Redis, backend, AI Service, `ocr-service`, `stt-service`, `rasa` | `docker compose ps` |
+| NFR-OPS-02 | Stack: PostgreSQL × 2, Redis, backend, AI Service, `ocr-service`, `stt-service` | `docker compose ps` |
 | NFR-OPS-03 | Cấu hình qua biến môi trường và cấu hình hệ thống trong DB; key bên thứ ba qua kho key | Grep repo |
 | NFR-OPS-04 | Log Serilog ra stdout | `docker logs` |
 | NFR-OPS-05 | Log khởi động nêu chế độ thật/dự phòng của push, email, OCR, STT | Log lúc boot |
 | NFR-OPS-10 | Có giám sát và cảnh báo tự động (FR-MON). Backend hoặc Postgres sập phải được theo dõi từ bên ngoài | Runbook; `/health/ready` |
 | NFR-OPS-06 | Hangfire dashboard có mật khẩu riêng | Không mật khẩu → 401 |
 | NFR-OPS-07 | Migration: EF Core (30) và Alembic (32); không sửa migration đã phát hành | Review |
-| NFR-OPS-08 | Model không nằm trong git, phải tải riêng: Rasa (`ai-service/rasa/models/active.tar.gz`), GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
+| NFR-OPS-08 | Model không nằm trong git, phải tải riêng: GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
 | NFR-OPS-09 | Build backend cần cả thư mục `ocr-service/data/` (embed `shared_words.json`) | `dotnet build` từ gốc repo |
 
 ### 12.2 Bảo trì và kiểm thử
@@ -649,7 +657,7 @@ Kiểm trên code ngày 2026-11-02.
 
 ### 13.2 Ràng buộc
 
-- Backend: ASP.NET Core 9, EF Core, PostgreSQL 16, Redis 7, Hangfire. AI Service: Python 3.11, FastAPI, SQLAlchemy, scikit-learn, Rasa 3.6. `ocr-service`: Python 3.10, PaddleOCR, VietOCR ONNX. `stt-service`: GIPFormer ONNX.
+- Backend: ASP.NET Core 9, EF Core, PostgreSQL 16, Redis 7, Hangfire. AI Service: Python 3.11, FastAPI, SQLAlchemy, scikit-learn. `ocr-service`: Python 3.10, PaddleOCR, VietOCR ONNX. `stt-service`: GIPFormer ONNX.
 - Đơn vị tiền duy nhất là VND; múi giờ nghiệp vụ duy nhất là UTC+7.
 - Ứng dụng Flutter do nhóm khác phát triển ở repo riêng.
 - LLM bên thứ ba (Gemini, OpenRouter) đang dùng gói miễn phí: Gemini trả 429 ở ~27 lượt/phút (đo 2026-10-17), nên chat hay rơi về luật khi tải cao. Cần gói trả phí trước khi có nhiều người dùng.

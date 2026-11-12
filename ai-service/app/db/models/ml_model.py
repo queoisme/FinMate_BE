@@ -2,7 +2,7 @@
 
 ``code`` giữ đúng giá trị ``stage`` cũ (``classifier``, ``categorizer``, ``bill_slug``, ``bill_category``) nên mã gọi và ocr-service không phải đổi tên.
 Phiên bản, lần huấn luyện và lần đánh giá của MỌI model nằm chung ở ``ml_model_versions`` / ``ml_training_jobs`` / ``ml_evaluation_*``.
-Model Rasa NLU vẫn ở bảng riêng ``nlu_model_versions`` (vòng đời và artifact khác: cả thư mục .tar.gz do Rasa nạp).
+Model bộ phân loại ý định NLU vẫn ở bảng riêng ``nlu_model_versions`` (vòng đời và artifact khác: cả thư mục .tar.gz do bộ phân loại ý định nạp).
 """
 
 from sqlalchemy import CheckConstraint, String, Text, UniqueConstraint
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, created_at, uuid_pk
 
-MODEL_KINDS = ("sklearn", "rasa", "llm", "rules")
+MODEL_KINDS = ("sklearn", "llm", "rules")
 
 
 class MlModel(Base):
@@ -25,7 +25,7 @@ class MlModel(Base):
 
     __table_args__ = (
         UniqueConstraint("code", name="uq_ml_models_code"),
-        CheckConstraint("kind IN ('sklearn', 'rasa', 'llm', 'rules')", name="chk_ml_models_kind"),
+        CheckConstraint("kind IN ('sklearn', 'llm', 'rules')", name="chk_ml_models_kind"),
     )
 
 

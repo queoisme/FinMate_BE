@@ -12,7 +12,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.ToTable("users", t =>
         {
-            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','staff','opsmanager')");
             t.HasCheckConstraint(
                 "chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
@@ -31,6 +30,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
                 "chk_users_alert_thresholds",
                 "(alert_t1_pct IS NULL AND alert_t2_pct IS NULL) OR (alert_t1_pct IS NOT NULL AND alert_t2_pct IS NOT NULL AND alert_t1_pct >= 1 AND alert_t1_pct < alert_t2_pct AND alert_t2_pct <= 99)");
 
+            t.HasCheckConstraint("chk_users_income_profile_override", "income_profile_override IS NULL OR income_profile_override IN ('stable','variable')");
             t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
             t.HasCheckConstraint("chk_users_low_balance_threshold", "low_balance_threshold_cents IS NULL OR low_balance_threshold_cents >= 0");
 
@@ -63,15 +63,17 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(200)
             .IsRequired();
 
-        builder.Property(u => u.Role)
-            .HasColumnName("role")
-            .HasConversion(
-                v => v.ToString().ToLowerInvariant(),
-                v => Enum.Parse<UserRole>(v, true))
-            .HasMaxLength(20)
-            .IsRequired();
+        // Vai trò nằm ở bảng user_roles (mỗi người đúng một hàng), không còn là cột của users. AutoInclude để MỌI truy vấn nạp User đều mang vai trò,
+        // không ai phải nhớ Include (quên Include sẽ biến Admin thành User lúc đọc).
+        builder.Ignore(u => u.Role);
+        builder.HasOne(u => u.RoleAssignment)
+            .WithOne()
+            .HasForeignKey<UserRoleAssignment>(a => a.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(u => u.RoleAssignment).AutoInclude();
 
         builder.Property(u => u.MonthlyIncomeCents).HasColumnName("monthly_income_cents");
+        builder.Property(u => u.IncomeProfileOverride).HasColumnName("income_profile_override").HasMaxLength(16); // nhóm thu nhập người dùng tự chọn cho AI Financial Agent
         builder.Property(u => u.ForecastReserveCents).HasColumnName("forecast_reserve_cents");
         builder.Property(u => u.LowBalanceThresholdCents).HasColumnName("low_balance_threshold_cents");
         builder.Property(u => u.QuietHoursStartMinute).HasColumnName("quiet_hours_start_minute");

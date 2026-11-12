@@ -19,6 +19,14 @@ internal static class RawUserSeed
             ) AS "Value"
             """).SingleAsync();
 
+        // Sau migration NormalizeRoles vai trò nằm ở user_roles, không còn cột users.role.
+        var hasRoleColumn = await db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'role'
+            ) AS "Value"
+            """).SingleAsync();
+
         if (hasMissionColumn)
         {
             await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -28,9 +36,19 @@ internal static class RawUserSeed
             return;
         }
 
+        if (hasRoleColumn)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO users (id, email, display_name, role, push_enabled, budget_alerts_enabled, created_at, updated_at)
+                VALUES ({user}, {email}, {displayName}, 'user', true, true, now(), now())
+                """);
+            return;
+        }
+
         await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO users (id, email, display_name, role, push_enabled, budget_alerts_enabled, created_at, updated_at)
-            VALUES ({user}, {email}, {displayName}, 'user', true, true, now(), now())
+            INSERT INTO users (id, email, display_name, push_enabled, budget_alerts_enabled, created_at, updated_at)
+            VALUES ({user}, {email}, {displayName}, true, true, now(), now())
             """);
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO user_roles (user_id, role_id, assigned_at) VALUES ({user}, 0, now())");
     }
 }

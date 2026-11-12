@@ -7,10 +7,12 @@ using FinMate.Domain.Enums;
 namespace FinMate.Application.Support;
 
 /// <summary>Phía khách. Mọi truy vấn đều lọc theo <c>userId</c> lấy từ JWT; ca của người khác trả 404, không phải 403.</summary>
+public sealed record SupportTicketListResult(IReadOnlyList<SupportTicketDto> Items, string? NextCursor);
+
 public interface ISupportTicketService
 {
     Task<SupportTicketDetailDto> CreateAsync(Guid userId, SupportTicketCategory category, string? subject, string? body, CancellationToken ct = default);
-    Task<IReadOnlyList<SupportTicketDto>> ListAsync(Guid userId, CancellationToken ct = default);
+    Task<SupportTicketListResult> ListAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
     Task<SupportTicketDetailDto> GetAsync(Guid userId, Guid ticketId, CancellationToken ct = default);
     Task<SupportTicketDetailDto> ReplyAsync(Guid userId, Guid ticketId, string? body, CancellationToken ct = default);
     Task<SupportAttachmentDto> AddAttachmentAsync(Guid userId, Guid ticketId, Guid messageId, byte[] content, CancellationToken ct = default);
@@ -91,11 +93,11 @@ public sealed class SupportTicketService : ISupportTicketService
         return await DetailAsync(ticket, ct);
     }
 
-    public async Task<IReadOnlyList<SupportTicketDto>> ListAsync(Guid userId, CancellationToken ct = default)
+    public async Task<SupportTicketListResult> ListAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
     {
         await EnabledConfigAsync(ct);
-        var tickets = await _support.ListForRequesterAsync(userId, ct);
-        return tickets.Select(SupportMapper.ToCustomerDto).ToList();
+        var page = await _support.ListForRequesterAsync(userId, cursor, SupportPaging.Clamp(limit), ct);
+        return new SupportTicketListResult(page.Items.Select(SupportMapper.ToCustomerDto).ToList(), page.NextCursor);
     }
 
     public async Task<SupportTicketDetailDto> GetAsync(Guid userId, Guid ticketId, CancellationToken ct = default)

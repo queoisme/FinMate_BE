@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using FinMate.API.Middleware;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Admin.FinanceCatalog;
+using FinMate.Application.Agent;
+using FinMate.Application.Economics;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Auth;
@@ -130,6 +132,7 @@ public class Program
         {
             StartupSecretGuard.ThrowIfPlaceholdersRemain(
                 builder.Configuration, builder.Environment.EnvironmentName);
+            StartupSecretGuard.ThrowIfEvalEnabled(builder.Configuration, builder.Environment.EnvironmentName);
         }
 
         // Luồng OAuth qua trình duyệt là TUỲ CHỌN và TÁCH RIÊNG khỏi POST /auth/google:
@@ -221,6 +224,7 @@ public class Program
         builder.Services.AddHangfireServer();
         builder.Services.AddHostedService<OpsErrorWriter>();
         builder.Services.AddSingleton<IRecurringJobReader, HangfireRecurringJobReader>();
+        builder.Services.AddSingleton<IEconomicFeedScheduler, HangfireEconomicFeedScheduler>();
         builder.Services.AddSingleton<OpsJobFailureFilter>();
 
         // OCR service riêng (PaddleOCR + VietOCR): có URL thì backend gọi nó rồi mới gọi AI Service phân loại; không có thì quét qua
@@ -259,6 +263,16 @@ public class Program
                 client.Timeout = TimeSpan.FromSeconds(60);
             });
         }
+
+        // Nguồn số liệu kinh tế (CPI): chỉ gọi khi admin đặt địa chỉ ở cấu hình hệ thống, mỗi tháng một lần.
+        builder.Services.AddHttpClient<IEconomicFeedClient, EconomicFeedClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(20);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("FinMate-EconomicFeed/1.0");
+        });
+        builder.Services.AddScoped<IEconomicFeedStatus, EconomicFeedStatus>();
+        builder.Services.AddScoped<EconomicAssumptionRefresher>();
+        builder.Services.AddScoped<EconomicAssumptionRefreshJob>();
 
         builder.Services.AddRefitClient<IAIServiceApi>()
             .ConfigureHttpClient(client =>
@@ -407,6 +421,39 @@ public class Program
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
+        builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
+        builder.Services.AddScoped<TicketAssistService>();
+        builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<GetAssumptionsTool>();
+
+        // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
+        builder.Services.AddScoped<RepositoryFinancialDataSource>();
+        builder.Services.AddScoped<SwitchableFinancialDataSource>();
+        builder.Services.AddScoped<IFinancialDataSource>(sp => sp.GetRequiredService<SwitchableFinancialDataSource>());
+        builder.Services.AddScoped<AgentRunOptions>();
+        builder.Services.AddScoped<IncomeHistory>();
+        builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
+        builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
+        builder.Services.AddScoped<IAgentTool, SimulatePurchaseTool>();
+        builder.Services.AddScoped<IAgentTool, RunwayTool>();
+        builder.Services.AddScoped<IAgentTool, SpendingSummaryTool>();
+        builder.Services.AddScoped<IAgentTool, PlanBudgetTool>();
+        builder.Services.AddScoped<IAgentTool, StressTestTool>();
+        builder.Services.AddScoped<IAgentTool, SensitivityTool>();
+        builder.Services.AddScoped<ToolRegistry>();
+        builder.Services.AddScoped<ToolExecutor>();
+        builder.Services.AddScoped<AgentTraceContext>();
+        builder.Services.AddScoped<ConversationStore>();
+        builder.Services.AddScoped<AgentMemoryService>();
+        builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        // Cổng phạm vi / lập kế hoạch / soạn câu của agent. Timeout 45 giây: lập kế hoạch và soạn câu mỗi lần gọi LLM (tối đa vài chục giây khi nhà cung cấp chậm, cộng lần sinh lại).
+        builder.Services.AddHttpClient<IAgentAiClient, AgentAiClient>(client =>
+        {
+            client.BaseAddress = new Uri(aiServiceUrl.TrimEnd('/') + "/");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiServiceApiKey);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
@@ -430,6 +477,8 @@ public class Program
         // Dự báo tài chính (Flow 6, đợt 1).
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();
         builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+        builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+        builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
         builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
@@ -517,7 +566,12 @@ public class Program
         builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
+        builder.Services.AddScoped<IForecastAccuracyRepository, ForecastAccuracyRepository>();
+        builder.Services.AddScoped<IForecastAccuracyService, ForecastAccuracyService>();
+        builder.Services.AddScoped<IForecastFeedbackService, ForecastFeedbackService>();
+        builder.Services.AddScoped<ForecastAccuracyJob>();
         builder.Services.AddScoped<IForecastService, ForecastService>();
+        builder.Services.AddScoped<IPurchaseCheckService, PurchaseCheckService>();
         builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
@@ -573,7 +627,8 @@ public class Program
         builder.Services.AddScoped<IAiCategorySyncService, AiCategorySyncService>();
         builder.Services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
-        builder.Services.AddScoped<IAdminRasaService, AdminRasaService>();
+        builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
+        builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();
         builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
@@ -695,6 +750,12 @@ public class Program
 
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             FinMate.Infrastructure.Persistence.Seed.AdminUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            FinMate.Infrastructure.Persistence.Seed.RolePermissionSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            if (builder.Environment.IsDevelopment())
+            {
+                // Tài khoản Staff/OpsManager để thử web vận hành; mật khẩu bỏ qua chính sách đăng ký nên KHÔNG bao giờ chạy ngoài Development.
+                FinMate.Infrastructure.Persistence.Seed.DevOpsAccountSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            }
             FinMate.Infrastructure.Persistence.Seed.ProviderConfigSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.SeedAsync(db).GetAwaiter().GetResult();
             var danglingProviderKeys = FinMate.Infrastructure.Persistence.Seed.VietQrBankSeeder.FindDanglingProviderKeysAsync(db).GetAwaiter().GetResult();
@@ -706,6 +767,11 @@ public class Program
             FinMate.Infrastructure.Persistence.Seed.SurveySeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.FinanceMethodSeeder.SeedAsync(db).GetAwaiter().GetResult();
             FinMate.Infrastructure.Persistence.Seed.GoalTemplateSeeder.SeedAsync(db).GetAwaiter().GetResult();   // SAU FinanceMethodSeeder: bảng nối tham chiếu phương pháp
+            if (builder.Environment.IsDevelopment())
+            {
+                // Người dùng demo có sáu tháng giao dịch để thử agent; cần danh mục hệ thống nên chạy SAU CategorySeeder. KHÔNG bao giờ chạy ngoài Development.
+                FinMate.Infrastructure.Persistence.Seed.DemoUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            }
         }
 
         // TRƯỚC mọi middleware đọc IP hay scheme — nó viết lại chính hai thứ đó.
@@ -756,6 +822,24 @@ public class Program
             "data-deletion",
             job => job.RunAsync(CancellationToken.None),
             "0 20 * * *");
+
+        // Lịch job làm mới CPI nằm trong cấu hình hệ thống (economicFeeds). Chưa đọc được cấu hình (DB chưa sẵn sàng) thì dùng mặc định, lần lưu cấu hình kế tiếp sẽ đăng ký lại.
+        using (var scope = app.Services.CreateScope())
+        {
+            EconomicFeedsSettings feeds;
+            try
+            {
+                var configProvider = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>();
+                feeds = configProvider.GetAsync().GetAwaiter().GetResult().Document.EconomicFeeds;
+                configProvider.Invalidate();   // lần đọc lúc khởi động không được nằm lại trong bộ nhớ đệm 10 giây của middleware bảo trì và các cờ tính năng
+            }
+            catch (Exception)
+            {
+                feeds = new EconomicFeedsSettings();
+            }
+
+            app.Services.GetRequiredService<IEconomicFeedScheduler>().Apply(feeds);
+        }
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(
@@ -825,6 +909,12 @@ public class Program
             "recurring-detection",
             job => job.RunAsync(CancellationToken.None),
             "30 18 * * *");
+
+        // 19:30 UTC = 02:30 VN: sau RecurringDetectionJob. Điền số thực tế rồi chụp dự báo hôm nay để đo độ chính xác.
+        RecurringJob.AddOrUpdate<ForecastAccuracyJob>(
+            "forecast-accuracy",
+            job => job.RunAsync(CancellationToken.None),
+            "30 19 * * *");
 
         // 01:00 UTC = 08:00 VN: cảnh báo dự báo hằng ngày, sau RecurringDetectionJob và không push giữa đêm.
         RecurringJob.AddOrUpdate<ForecastDailyAlertJob>(

@@ -23,6 +23,52 @@ public static class Statistics
             : (sorted[mid - 1] + sorted[mid]) / 2.0;
     }
 
+    /// <summary>
+    /// Phân vị <paramref name="p"/> (0..1) của dãy <b>đã sắp tăng dần</b>, nội suy tuyến tính bằng số nguyên: tiền không đi qua <c>double</c>.
+    /// <paramref name="p"/> được làm tròn tới phần nghìn. Dãy rỗng trả 0 (cùng quy ước với <see cref="Median"/>).
+    /// </summary>
+    public static long Quantile(IReadOnlyList<long> sorted, double p)
+    {
+        if (sorted.Count == 0)
+        {
+            return 0;
+        }
+
+        var permille = (long)Math.Round(Math.Clamp(p, 0.0, 1.0) * 1000);
+        var position = permille * (sorted.Count - 1); // vị trí theo phần nghìn của chỉ số
+        var lower = (int)(position / 1000);
+        var remainder = position % 1000;
+        if (remainder == 0)
+        {
+            return sorted[lower];
+        }
+
+        var low = sorted[lower];
+        var high = sorted[lower + 1];
+        return low + (((high - low) * remainder) + 500) / 1000; // làm tròn nửa lên; dãy sắp tăng nên high >= low
+    }
+
+    /// <summary>
+    /// Hệ số biến thiên = độ lệch chuẩn (tổng thể) / trung bình. Là tỉ số không có đơn vị dùng để PHÂN LOẠI độ biến động, không phải một khoản tiền, nên dùng <c>double</c>.
+    /// Trung bình bằng 0 trả 0.
+    /// </summary>
+    public static double CoefficientOfVariation(IReadOnlyList<long> values)
+    {
+        if (values.Count == 0)
+        {
+            return 0;
+        }
+
+        var mean = values.Average(v => (double)v);
+        if (mean == 0)
+        {
+            return 0;
+        }
+
+        var variance = values.Average(v => Math.Pow(v - mean, 2));
+        return Math.Sqrt(variance) / Math.Abs(mean);
+    }
+
     /// <summary>Median absolute deviation — độ phân tán quanh trung vị.</summary>
     public static double MedianAbsoluteDeviation(IReadOnlyList<double> values)
     {

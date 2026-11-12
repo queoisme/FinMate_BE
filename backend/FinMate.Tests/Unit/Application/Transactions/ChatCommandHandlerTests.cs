@@ -383,6 +383,24 @@ public class ChatCommandHandlerTests
         result.ReplyText.Should().Contain("bao nhiêu");
     }
 
+    // ------------------------------------------------------------ hỏi trước khi mua
+
+    [Fact]
+    public async Task APurchaseQuestionReturnsOnlyTheParametersAndCreatesNothing()
+    {
+        AiReturns(new ChatParseResponse(
+            "evaluate_purchase", "Mình sẽ xem khoản này có hợp với kế hoạch của bạn không.", null, null, 3,
+            Purchase: new ChatParsePurchase("cái quần", 800_000, new DateOnly(2026, 11, 16), "shopping")));
+
+        var result = await _handler.HandleAsync(Command("ngày 16 mua cái quần 800k được không"));
+
+        result.Action.Should().Be(ChatActions.Purchase);
+        result.Purchase.Should().Be(new ChatPurchaseDraftDto("cái quần", 800_000, new DateOnly(2026, 11, 16), "shopping"));
+        result.Draft.Should().BeNull();
+        result.Goal.Should().BeNull();
+        NothingWasCreated();  // hỏi không phải là chi: tính toán nằm ở POST /forecast/purchase-check, không ghi giao dịch
+    }
+
     [Fact]
     public async Task AskingAboutTwoCategoriesTotalsBothAndShowsBothRows()
     {

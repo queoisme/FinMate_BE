@@ -1057,6 +1057,84 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.EconomicAssumption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTimeOffset>("AsOf")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("as_of");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)")
+                        .HasColumnName("key");
+
+                    b.Property<int>("RateBps")
+                        .HasColumnType("integer")
+                        .HasColumnName("rate_bps");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_name");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_url");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("uq_economic_assumptions_key_version");
+
+                    b.ToTable("economic_assumptions", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_economic_assumptions_rate", "rate_bps BETWEEN -10000 AND 100000");
+
+                            t.HasCheckConstraint("chk_economic_assumptions_source", "status = 'draft' OR (length(btrim(source_name)) > 0 AND length(btrim(source_url)) > 0)");
+
+                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired')");
+
+                            t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.FinanceMethod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1360,6 +1438,176 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
                             t.HasCheckConstraint("chk_forecast_alerts_status", "status IN ('pending','sent')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Cause")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("cause");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("LabeledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("labeled_at");
+
+                    b.Property<Guid?>("LabeledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("labeled_by_user_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("SnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("snapshot_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_forecast_feedback_status_created");
+
+                    b.HasIndex("UserId", "SnapshotId")
+                        .HasDatabaseName("ix_forecast_feedback_user_snapshot_new")
+                        .HasFilter("status = 'new'");
+
+                    b.ToTable("forecast_feedback", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_forecast_feedback_cause", "cause IS NULL OR cause IN ('data_missing','recurring_misread','one_off','model_issue','other')");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_labeled", "(status = 'labeled') = (cause IS NOT NULL AND labeled_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_reason", "reason IN ('balance_wrong','missing_bill','wrong_bill','unusual_spending','other')");
+
+                            t.HasCheckConstraint("chk_forecast_feedback_status", "status IN ('new','labeled')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long?>("ActualCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actual_cents");
+
+                    b.Property<DateTimeOffset?>("ActualFilledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("actual_filled_at");
+
+                    b.Property<string>("Confidence")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("confidence");
+
+                    b.Property<int>("ConfigVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("config_version");
+
+                    b.Property<long>("ConservativeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("conservative_cents");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("HorizonDate")
+                        .HasColumnType("date")
+                        .HasColumnName("horizon_date");
+
+                    b.Property<int>("HorizonDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("horizon_days");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("method");
+
+                    b.Property<long>("OptimisticCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("optimistic_cents");
+
+                    b.Property<DateOnly>("OriginDate")
+                        .HasColumnType("date")
+                        .HasColumnName("origin_date");
+
+                    b.Property<long>("PredictedCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("predicted_cents");
+
+                    b.Property<long>("RecurringOnlyCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("recurring_only_cents");
+
+                    b.Property<long>("StartBalanceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("start_balance_cents");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HorizonDate")
+                        .HasDatabaseName("ix_forecast_snapshots_awaiting_actual")
+                        .HasFilter("actual_cents IS NULL");
+
+                    b.HasIndex("OriginDate")
+                        .HasDatabaseName("ix_forecast_snapshots_filled_origin")
+                        .HasFilter("actual_cents IS NOT NULL");
+
+                    b.HasIndex("UserId", "OriginDate", "HorizonDays")
+                        .IsUnique()
+                        .HasDatabaseName("uq_forecast_snapshots_user_origin_horizon");
+
+                    b.ToTable("forecast_snapshots", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_forecast_snapshots_actual", "(actual_cents IS NULL) = (actual_filled_at IS NULL)");
+
+                            t.HasCheckConstraint("chk_forecast_snapshots_confidence", "confidence IN ('low','normal')");
+
+                            t.HasCheckConstraint("chk_forecast_snapshots_horizon", "horizon_days > 0 AND horizon_date > origin_date");
                         });
                 });
 
@@ -3213,6 +3461,70 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.Role", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_system");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("roles", (string)null);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RolePermission", b =>
+                {
+                    b.Property<int>("Role")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<long>("Capabilities")
+                        .HasColumnType("bigint")
+                        .HasColumnName("capabilities");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Role");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("role_permissions", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4563,6 +4875,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("google_id");
 
+                    b.Property<string>("IncomeProfileOverride")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("income_profile_override");
+
                     b.Property<bool>("IsLocked")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4600,12 +4917,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<short?>("QuietHoursStartMinute")
                         .HasColumnType("smallint")
                         .HasColumnName("quiet_hours_start_minute");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("role");
 
                     b.Property<DateTimeOffset?>("SurveyAiConsentAt")
                         .HasColumnType("timestamp with time zone")
@@ -4652,6 +4963,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_users_forecast_reserve", "forecast_reserve_cents IS NULL OR forecast_reserve_cents >= 0");
 
+                            t.HasCheckConstraint("chk_users_income_profile_override", "income_profile_override IS NULL OR income_profile_override IN ('stable','variable')");
+
                             t.HasCheckConstraint("chk_users_low_balance_threshold", "low_balance_threshold_cents IS NULL OR low_balance_threshold_cents >= 0");
 
                             t.HasCheckConstraint("chk_users_onboarding_completed_at", "(onboarding_status = 'pending') = (onboarding_completed_at IS NULL)");
@@ -4659,8 +4972,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_users_onboarding_status", "onboarding_status IN ('pending','completed','skipped')");
 
                             t.HasCheckConstraint("chk_users_quiet_hours", "(quiet_hours_start_minute IS NULL AND quiet_hours_end_minute IS NULL) OR (quiet_hours_start_minute BETWEEN 0 AND 1439 AND quiet_hours_end_minute BETWEEN 0 AND 1439)");
-
-                            t.HasCheckConstraint("chk_users_role", "role IN ('user','admin','staff','opsmanager')");
 
                             t.HasCheckConstraint("chk_users_survey_ai_consent", "(survey_ai_consent_version IS NULL) = (survey_ai_consent_at IS NULL)");
                         });
@@ -4763,6 +5074,33 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_user_methods_status", "status IN ('active','ended')");
                         });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserRoleAssignment", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid?>("AssignedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_by_user_id");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("user_roles", (string)null);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.UserSubscriptionPeriod", b =>
@@ -5159,6 +5497,35 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastFeedback", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.ForecastSnapshot", "Snapshot")
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Snapshot");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.ForecastSnapshot", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.FuelPrice", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", null)
@@ -5483,6 +5850,20 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RolePermission", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Role", null)
+                        .WithMany()
+                        .HasForeignKey("Role")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>
@@ -5812,6 +6193,26 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.UserRoleAssignment", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("FinMate.Domain.Entities.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithOne("RoleAssignment")
+                        .HasForeignKey("FinMate.Domain.Entities.UserRoleAssignment", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.UserSubscriptionPeriod", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.SubscriptionOrder", null)
@@ -5861,6 +6262,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("FinancialAccounts");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("RoleAssignment");
                 });
 #pragma warning restore 612, 618
         }

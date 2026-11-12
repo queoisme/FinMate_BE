@@ -14,6 +14,7 @@ namespace FinMate.API.Controllers;
 public class ForecastController : ControllerBase
 {
     private readonly IForecastService _forecast;
+    private readonly IPurchaseCheckService _purchases;
     private readonly IForecastAlertService _alerts;
     private readonly IBudgetForecastService _budgets;
     private readonly IIncomeForecastService _income;
@@ -23,6 +24,7 @@ public class ForecastController : ControllerBase
 
     public ForecastController(
         IForecastService forecast,
+        IPurchaseCheckService purchases,
         IForecastAlertService alerts,
         IBudgetForecastService budgets,
         IIncomeForecastService income,
@@ -31,6 +33,7 @@ public class ForecastController : ControllerBase
         IGoalForecastService goals)
     {
         _forecast = forecast;
+        _purchases = purchases;
         _alerts = alerts;
         _budgets = budgets;
         _income = income;
@@ -55,6 +58,15 @@ public class ForecastController : ControllerBase
         return Ok(ApiResponse<CashflowForecastDto>.Ok(result));
     }
 
+    /// <summary>
+    /// "Mua món này có ổn không?": số dư thấp nhất trước/sau khoản mua trong kỳ tới kỳ thu nhập kế tiếp, tác động ngân sách và kế hoạch tháng,
+    /// phương án khác và bảng cách tính. Chỉ đọc, không tạo giao dịch.
+    /// </summary>
+    [HttpPost("purchase-check")]
+    public async Task<IActionResult> PurchaseCheck([FromBody] PurchaseCheckRequest request, CancellationToken ct)
+        => Ok(ApiResponse<PurchaseCheckDto>.Ok(await _purchases.CheckAsync(
+            new PurchaseCheckCommand(CurrentUserId, request.AmountCents, request.PurchaseDate, request.Item, request.CategoryId, request.AccountId, request.HorizonDays, request.CategorySlug), ct)));
+
     /// <summary>Số tiền có thể chi trong kỳ và mỗi ngày, kèm bảng cách tính.</summary>
     [HttpGet("spendable")]
     public async Task<IActionResult> Spendable(CancellationToken ct)
@@ -72,8 +84,11 @@ public class ForecastController : ControllerBase
 
     /// <summary>Các cảnh báo dự báo gần nhất (mới nhất trước), để app hiển thị chi tiết.</summary>
     [HttpGet("alerts")]
-    public async Task<IActionResult> Alerts([FromQuery] int limit = 20, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<ForecastAlertDto>>.Ok(await _alerts.ListAsync(CurrentUserId, limit, ct)));
+    public async Task<IActionResult> Alerts([FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _alerts.ListAsync(CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<ForecastAlertDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     /// <summary>Báo cảnh báo không chính xác. Hiện chỉ nhận <c>"inaccurate"</c>.</summary>
     [HttpPost("alerts/{id:guid}/feedback")]
@@ -82,10 +97,11 @@ public class ForecastController : ControllerBase
 
     /// <summary>Khoản chi bị đánh dấu bất thường, mới nhất trước. <paramref name="status"/>: <c>open</c> (mặc định, chưa phản hồi) hoặc <c>all</c>.</summary>
     [HttpGet("anomalies")]
-    public async Task<IActionResult> Anomalies([FromQuery] string? status = null, [FromQuery] int limit = 20, CancellationToken ct = default)
+    public async Task<IActionResult> Anomalies([FromQuery] string? status, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
     {
         var openOnly = !string.Equals(status, AllAnomalies, StringComparison.OrdinalIgnoreCase);
-        return Ok(ApiResponse<IReadOnlyList<AnomalyDto>>.Ok(await _anomalies.ListAsync(CurrentUserId, openOnly, limit, ct)));
+        var result = await _anomalies.ListAsync(CurrentUserId, openOnly, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<AnomalyDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
 
     /// <summary>Phản hồi một khoản bất thường: <c>normal</c> | <c>one_off</c> | <c>wrong_entry</c> | <c>suspicious</c>.</summary>
@@ -123,5 +139,11 @@ public record ApplyCategoryBudgetsRequest(IReadOnlyList<CategoryBudgetItemReques
 public record AlertFeedbackRequest(string? Feedback);
 
 public record ScenarioItemRequest(DateOnly Date, long AmountCents, RecurringDirection Direction, string? Label);
+
+/// <param name="AmountCents">Giá bằng đồng VND (không chia 100).</param>
+/// <param name="HorizonDays">Chỉ dùng khi chưa biết kỳ thu nhập kế tiếp: đánh giá tới chừng này ngày sau ngày mua.</param>
+/// <param name="CategorySlug">Slug danh mục hệ thống (như chat trả về) khi app chưa có <c>CategoryId</c>.</param>
+public record PurchaseCheckRequest(
+    long AmountCents, DateOnly? PurchaseDate, string? Item, Guid? CategoryId, Guid? AccountId, int? HorizonDays, string? CategorySlug = null);
 
 public record CashflowScenarioRequest(Guid? AccountId, DateOnly? To, IReadOnlyList<ScenarioItemRequest>? Items);

@@ -60,13 +60,34 @@ public class AnomalyRepository : IAnomalyRepository
         }
     }
 
-    public async Task<IReadOnlyList<TransactionAnomaly>> ListAsync(Guid userId, bool openOnly, int limit, CancellationToken ct = default)
-        => await _context.TransactionAnomalies.AsNoTracking()
+    public async Task<TransactionAnomalyPage> ListAsync(Guid userId, bool openOnly, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.TransactionAnomalies.AsNoTracking()
             .Include(a => a.Transaction)
-            .Where(a => a.UserId == userId && (!openOnly || a.Resolution == null))
+            .Where(a => a.UserId == userId && (!openOnly || a.Resolution == null));
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(a =>
+                a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
             .OrderByDescending(a => a.CreatedAt)
-            .Take(limit)
+            .ThenByDescending(a => a.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new TransactionAnomalyPage(items, nextCursor);
+    }
 
     public Task<TransactionAnomaly?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.TransactionAnomalies

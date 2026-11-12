@@ -75,6 +75,14 @@ public class ChatCommandHandler : IChatCommandHandler
                 new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText));
         }
 
+        if (parsed.Purchase is { } purchase)
+        {
+            // Hỏi trước khi mua: chỉ trả tham số. Không tạo giao dịch; app gọi POST /forecast/purchase-check để có đánh giá do backend tính.
+            return new ChatResultDto(
+                ChatActions.Purchase, parsed.Intent, parsed.ReplyText, null, null, null, null, null,
+                new ChatPurchaseDraftDto(purchase.Item, purchase.AmountCents, purchase.PurchaseDate, purchase.CategorySlug));
+        }
+
         if (parsed.Entries is { Count: > 1 } many)
         {
             // Nhiều khoản trong một câu: luôn qua bước xác nhận, không bao giờ ghi ngay (một câu sai là sai nhiều khoản cùng lúc).

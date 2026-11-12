@@ -126,7 +126,7 @@ def test_ordinary_sentences_are_not_goals(text):
     assert parse_goal(text, NOW) is None
 
 
-def test_the_chat_pipeline_returns_a_goal_not_a_transfer_even_when_rasa_says_transfer():
+def test_the_chat_pipeline_returns_a_goal_not_a_transfer_even_when_classifier_says_transfer():
     nlu = {"intent": "transfer_money", "confidence": 0.99, "entities": {"amount": "hai mươi triệu"}}
     parsed = parse_chat("đặt mục tiêu vào tháng tiếp theo tôi sẽ tiết kiệm được hai mươi triệu", nlu, now=NOW)
     assert parsed.intent == "create_goal" and parsed.entries == () and parsed.entry is None

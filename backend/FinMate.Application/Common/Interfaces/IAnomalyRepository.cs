@@ -3,6 +3,8 @@ using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Common.Interfaces;
 
+public sealed record TransactionAnomalyPage(IReadOnlyList<TransactionAnomaly> Items, string? NextCursor);
+
 /// <summary>Đánh dấu chi tiêu bất thường. Mọi hàm lọc theo <c>userId</c>.</summary>
 public interface IAnomalyRepository
 {
@@ -18,7 +20,7 @@ public interface IAnomalyRepository
     Task<bool> TryAddAsync(TransactionAnomaly anomaly, CancellationToken ct = default);
 
     /// <summary>Kèm giao dịch (tên cửa hàng, thời điểm). <paramref name="openOnly"/>: chỉ khoản chưa có phản hồi.</summary>
-    Task<IReadOnlyList<TransactionAnomaly>> ListAsync(Guid userId, bool openOnly, int limit, CancellationToken ct = default);
+    Task<TransactionAnomalyPage> ListAsync(Guid userId, bool openOnly, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>Có theo dõi thay đổi, kèm giao dịch.</summary>
     Task<TransactionAnomaly?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);

@@ -6,8 +6,7 @@ Số tiền là đồng VND (``amount_cents`` theo quy ước của repo), slug 
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -17,32 +16,6 @@ class ChatParseRequest(BaseModel):
     user_id_hash: str = Field(min_length=64, max_length=64)
     # Người dùng đã đồng ý gửi cụm sản phẩm cho AI bên thứ ba (backend đọc từ DB mỗi lần). Mặc định tắt: không gửi gì ra ngoài.
     allow_ai: bool = False
-
-
-class ChatUnclearRequest(BaseModel):
-    """Câu chat mà bộ hiểu câu chưa chắc, gửi để NGƯỜI duyệt gán nhãn. Backend chỉ gọi khi người dùng đồng ý chia sẻ dữ liệu huấn luyện (mỗi lần đọc lại từ DB)."""
-
-    text: str = Field(min_length=1, max_length=500)
-    user_id_hash: str = Field(min_length=64, max_length=64)
-    # Chính ``unclear_reason`` của /chat/parse. "cancelled" (người dùng tự hủy khoản vừa nói) không đáng học: ai-service từ chối nên backend khỏi phải lọc.
-    unclear_reason: Literal["low_confidence", "disagree", "not_understood", "cancelled"]
-    # Dự đoán của máy, chỉ để người duyệt tham khảo; KHÔNG được coi là nhãn.
-    predicted_intent: str | None = Field(default=None, max_length=32)
-    predicted_confidence: float | None = Field(default=None, ge=0, le=1)
-
-
-class ChatUnclearResponse(BaseModel):
-    stored: bool
-    # Vì sao không lưu: not_learnable | empty | too_long | brackets | personal_data | already_known | error. None khi đã lưu.
-    reason: str | None = None
-
-
-class ChatUnclearEraseRequest(BaseModel):
-    user_id_hash: str = Field(min_length=64, max_length=64)
-
-
-class ChatUnclearEraseResponse(BaseModel):
-    deleted: int
 
 
 class ChatEntry(BaseModel):
@@ -56,7 +29,7 @@ class ChatEntry(BaseModel):
     category_source: str | None = None
     # Loại thu nhập (salary | bonus | gift | side_income | refund | other_income) khi đoán được; backend chỉ có slug "income".
     income_type: str | None = None
-    # Đủ chắc để ghi ngay không cần hỏi: chỉ với chi tiêu đã biết danh mục, dưới ngưỡng tiền, và Rasa (nếu có) chắc đó là chi tiêu.
+    # Đủ chắc để ghi ngay không cần hỏi: chỉ với chi tiêu đã biết danh mục, dưới ngưỡng tiền, và bộ phân loại ý định (nếu có) chắc đó là chi tiêu.
     auto_save_ok: bool = False
     # "Chuyển cho người khác / trả nợ" đã được tính là chi tiêu (tiền rời khỏi người dùng).
     to_others: bool = False
@@ -91,15 +64,27 @@ class ChatGoal(BaseModel):
     deadline_text: str | None = None
 
 
+class ChatPurchase(BaseModel):
+    """Khoản ĐỊNH mua (intent ``evaluate_purchase``). Không phải giao dịch và AI không đưa kết luận: app gửi các trường này tới ``POST /forecast/purchase-check``."""
+
+    # Tên món người dùng nói; None khi câu không nói (backend dùng nhãn mặc định). Tối đa 60 ký tự.
+    item: str | None = None
+    amount_cents: int  # đồng VND
+    # Ngày định mua theo giờ Việt Nam, từ hôm nay trở đi ("YYYY-MM-DD"); None = không nói (backend hiểu là hôm nay).
+    purchase_date: date | None = None
+    # Slug backend đoán từ tên món (thuộc CATEGORY_SLUGS); None = chưa rõ.
+    category_slug: str | None = None
+
+
 class ChatNlu(BaseModel):
-    source: str  # rasa | rules
+    source: str  # model | rules
     intent: str | None = None
     confidence: float | None = None
 
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | needs_period | create_goal | empty  (create_goal không có ``goal`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | needs_period | create_goal | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None
@@ -112,6 +97,7 @@ class ChatParseResponse(BaseModel):
     # Vế không có số tiền trong câu nhiều khoản ("... và cà phê"): không thành khoản, để app hỏi lại.
     skipped: list[str] = Field(default_factory=list)
     goal: ChatGoal | None = None
+    purchase: ChatPurchase | None = None
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.
     unclear_reason: str | None = None

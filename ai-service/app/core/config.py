@@ -1,5 +1,7 @@
 """Application settings loaded from environment variables."""
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,11 +37,6 @@ class Settings(BaseSettings):
     ocr_service_api_key: str | None = None
     ocr_service_timeout_seconds: float = 30.0
 
-    # Rasa (hiểu ý định câu chat). Để trống thì /chat/parse chỉ dùng luật.
-    rasa_url: str | None = None
-    # Thư mục model của Rasa (ai-service/rasa/models) mount vào ai-service, để trang admin chọn được phiên bản đang chạy: chép bản chọn thành active.tar.gz
-    # (khởi động lại Rasa vẫn nạp đúng bản) rồi bảo Rasa nạp nóng. Để trống thì trang admin chỉ liệt kê, không kích hoạt được.
-    rasa_models_dir: str | None = None
     # Khoản chi chắc chắn dưới mức này (đồng) được đánh dấu auto_save_ok; 0 = không bao giờ.
     chat_auto_save_below: int = 2_000_000
 
@@ -85,6 +82,26 @@ class Settings(BaseSettings):
     method_openrouter_models: str = "dots-studio/dots-3-note-preview:free"
     method_openrouter_timeout_seconds: float = 10.0  # trần cho TỪNG model dự phòng
     method_total_seconds: float = 24.0  # trần cả route (Gemini + dự phòng); backend chờ 30 giây
+
+    # AI Financial Agent (kế hoạch docs/superpowers/plans/2026-11-07-ai-financial-agent.md). Dùng chung GEMINI_API_KEY / OPENROUTER_API_KEY; không có khóa của nhà cung cấp đã chọn thì agent tắt.
+    # Dữ liệu người dùng thật chỉ được đi qua gói Gemini TRẢ PHÍ (gói miễn phí dùng dữ liệu để cải thiện sản phẩm của Google).
+    seed_agent_scope: bool = True  # gieo cụm từ + câu từ chối mặc định của cổng phạm vi vào DB lúc khởi động (chỉ thêm, DB thắng)
+    agent_provider: Literal["gemini", "openrouter"] = "gemini"
+    agent_model: str = "gemini-3.1-flash-lite"  # mô hình của nhà cung cấp đã chọn; đổi mô hình = đổi biến này, chọn bằng bộ đánh giá agent_eval
+    agent_timeout_seconds: float = 20.0  # trần cho MỘT lần gọi LLM của agent (từng pha mạng; thử lại 429/503 có trần riêng gấp đôi)
+    agent_backup_model: str = ""  # mô hình OpenRouter dự phòng khi nhà cung cấp chính lỗi; TRỐNG = không có dự phòng (dữ liệu người dùng không tự đi tới bên chưa ai chọn)
+    agent_max_output_tokens: int = 1024  # trần token đầu ra mỗi lần gọi LLM, để chi phí không vượt tầm ngân sách
+    agent_eval_enabled: bool = False  # bật khi chạy bộ đánh giá (agent_eval): cho phép bỏ bộ kiểm chứng theo từng lời gọi (đánh giá cắt bỏ). Production luôn False
+    agent_verifier_enabled: bool = True  # chỉ tắt khi chạy đánh giá cắt bỏ (agent_eval); production luôn bật
+    agent_rag_enabled: bool = True  # tắt = RAG trả rỗng (đánh giá cắt bỏ)
+    agent_embedding_model: str = "gemini-embedding-2"  # đã đối chiếu trang embeddings chính thức của Google (2026-11-07): tự chuẩn hóa vector khi cắt còn 768 chiều. Trống = RAG chưa tra được
+    agent_embedding_dim: int = 768  # số chiều cột vector; đổi số này sau khi có bảng tri thức phải làm migration mới
+
+    @property
+    def agent_enabled(self) -> bool:
+        """Agent chỉ chạy khi nhà cung cấp đã chọn có khóa (môi trường; khóa lưu ở secret_store do tầng gọi LLM tự tra)."""
+        key = self.gemini_api_key if self.agent_provider == "gemini" else self.openrouter_api_key
+        return bool(key)
 
 
 settings = Settings()

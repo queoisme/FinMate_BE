@@ -32,9 +32,13 @@ public interface IOpsRepository
 
     /// <summary>Ghi thẳng xuống DB, không qua change tracker: lúc này tracker có thể còn giữ thay đổi hỏng của bước thực hiện.</summary>
     Task MarkApprovalFailedAsync(Guid id, string failureCode, CancellationToken ct = default);
-    Task<List<OpsApprovalRequest>> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, int limit, CancellationToken ct = default);
+    /// <summary>Một trang đề xuất (mới nhất trước) và tổng số khớp. <paramref name="search"/> khớp lý do hoặc ghi chú quyết định.</summary>
+    Task<(List<OpsApprovalRequest> Items, int Total)> ListApprovalsAsync(
+        OpsApprovalStatus? status, Guid? requestedBy, string? search, int offset, int limit, CancellationToken ct = default);
 
-    Task<List<CannedReply>> ListCannedRepliesAsync(bool includeInactive, CancellationToken ct = default);
+    /// <summary>Một trang câu trả lời mẫu (theo tiêu đề) và tổng số khớp. <paramref name="search"/> khớp tiêu đề hoặc nội dung.</summary>
+    Task<(List<CannedReply> Items, int Total)> ListCannedRepliesAsync(
+        bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default);
     Task<CannedReply?> GetCannedReplyAsync(Guid id, CancellationToken ct = default);
     void AddCannedReply(CannedReply reply);
 

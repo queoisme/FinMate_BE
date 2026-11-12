@@ -6,6 +6,8 @@ namespace FinMate.Application.Common.Interfaces;
 /// <summary>Một ngân hàng VietQR kèm việc FinMate có đọc được thông báo của nó không (<c>provider_key</c> có và provider đang bật).</summary>
 public sealed record QrBankView(VietQrBank Bank, bool CanMatchNotifications);
 
+public sealed record QrTransferIntentPage(IReadOnlyList<QrTransferIntent> Items, string? NextCursor);
+
 /// <summary>
 /// Dữ liệu của luồng quét QR chuyển khoản: danh mục ngân hàng (dùng chung), ý định chuyển tiền và bảng "người nhận → danh mục". Mọi hàm của hai nhóm sau đều lọc theo <c>userId</c>:
 /// không có đường nào lấy một dòng chỉ bằng id.
@@ -24,7 +26,7 @@ public interface IQrTransferRepository
     // ------------------------------------------------------------------ ý định chuyển tiền
     Task AddIntentAsync(QrTransferIntent intent, CancellationToken ct = default);
     Task<QrTransferIntent?> GetIntentAsync(Guid id, Guid userId, CancellationToken ct = default);
-    Task<IReadOnlyList<QrTransferIntent>> ListIntentsAsync(Guid userId, QrTransferStatus? status, int limit, CancellationToken ct = default);
+    Task<QrTransferIntentPage> ListIntentsAsync(Guid userId, QrTransferStatus? status, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>Ý định đang chờ gần nhất của người dùng: đúng ngân hàng gửi, đúng số tiền, quét trong <c>[notBefore, notAfter]</c>.</summary>
     Task<QrTransferIntent?> FindPendingAsync(

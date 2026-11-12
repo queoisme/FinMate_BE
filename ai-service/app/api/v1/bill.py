@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.api.deps import verify_internal_api_key
 
 from app.bill.classify_stats import ClassifyStatsRecorder, build_counts
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.item_classifier import classify_items
 from app.bill import item_votes
 from app.bill import samples as bill_samples
@@ -63,7 +63,7 @@ def get_bill_knowledge() -> BillKnowledge:
     return _knowledge
 
 
-_gemini = GeminiClient(
+_gemini = LlmClient(
     secret_store.getter("gemini_api_key"),
     settings.gemini_model,
     settings.gemini_timeout_seconds,
@@ -84,7 +84,7 @@ def get_classify_stats() -> ClassifyStatsRecorder:
 
 # Chat có client riêng: chuỗi model nhanh hơn, trần thời gian chặt hơn, không đi nhà cung cấp dự phòng (OpenRouter), và cầu dao tách biệt với luồng hóa đơn
 # (hóa đơn tải nặng không làm chat mất AI, và ngược lại).
-_chat_gemini = GeminiClient(
+_chat_gemini = LlmClient(
     secret_store.getter("gemini_api_key"),
     settings.chat_gemini_model,
     settings.chat_gemini_timeout_seconds,
@@ -94,12 +94,12 @@ _chat_gemini = GeminiClient(
 )
 
 
-def get_chat_gemini_client() -> GeminiClient:
+def get_chat_gemini_client() -> LlmClient:
     """Gemini cho chat và giọng nói. Test thay bằng bản giả qua ``dependency_overrides``."""
     return _chat_gemini
 
 
-def get_gemini_client() -> GeminiClient:
+def get_gemini_client() -> LlmClient:
     """Một client dùng chung (giữ cache và khóa mạch 30 giây). Test thay bằng bản giả qua ``dependency_overrides``."""
     return _gemini
 
@@ -263,7 +263,7 @@ async def record_item_feedback(
 async def classify_bill_items(
     body: BillClassifyItemsRequest,
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
-    gemini: Annotated[GeminiClient, Depends(get_gemini_client)],
+    gemini: Annotated[LlmClient, Depends(get_gemini_client)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
     recorder: Annotated[ClassifyStatsRecorder, Depends(get_classify_stats)],
 ) -> BillClassifyItemsResponse:

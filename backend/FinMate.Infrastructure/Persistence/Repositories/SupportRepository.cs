@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -23,12 +24,32 @@ public class SupportRepository : ISupportRepository
     public Task<SupportTicket?> GetForRequesterAsync(Guid ticketId, Guid userId, CancellationToken ct = default)
         => _context.SupportTickets.FirstOrDefaultAsync(t => t.Id == ticketId && t.RequesterUserId == userId, ct);
 
-    public Task<List<SupportTicket>> ListForRequesterAsync(Guid userId, CancellationToken ct = default)
-        => _context.SupportTickets.AsNoTracking()
-            .Where(t => t.RequesterUserId == userId)
+    public async Task<SupportTicketPage> ListForRequesterAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.SupportTickets.AsNoTracking().Where(t => t.RequesterUserId == userId);
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(t =>
+                t.CreatedAt < cursorAt || (t.CreatedAt == cursorAt && t.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
             .OrderByDescending(t => t.CreatedAt)
-            .Take(200)
+            .ThenByDescending(t => t.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new SupportTicketPage(items, nextCursor);
+    }
 
     public Task<int> CountOpenForRequesterAsync(Guid userId, CancellationToken ct = default)
         => _context.SupportTickets.CountAsync(t => t.RequesterUserId == userId && t.Status != SupportTicketStatus.Closed, ct);
@@ -84,6 +105,13 @@ public class SupportRepository : ISupportRepository
                 t.Status != SupportTicketStatus.Resolved
                 && t.Status != SupportTicketStatus.Closed
                 && (t.ResolveDueAt < now || (t.FirstRespondedAt == null && t.FirstResponseDueAt < now)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = $"%{AdminPaging.EscapeLike(filter.Search.Trim())}%";
+            query = query.Where(t => EF.Functions.ILike(t.Subject, pattern, "\\")
+                || _context.Users.IgnoreQueryFilters().Any(u => u.Id == t.RequesterUserId && EF.Functions.ILike(u.DisplayName, pattern, "\\")));
         }
 
         var total = await query.CountAsync(ct);
@@ -164,12 +192,32 @@ public class SupportRepository : ISupportRepository
                 && _context.SupportTickets.Any(t => t.Id == g.TicketId && t.RequesterUserId == requesterUserId))
             .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, SupportAccessStatus.Revoked).SetProperty(g => g.RevokedAt, now), ct);
 
-    public Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default)
-        => _context.SupportDataAccessLogs.AsNoTracking()
-            .Where(l => l.CustomerUserId == customerUserId)
+    public async Task<SupportAccessLogPage> ListAccessLogsAsync(Guid customerUserId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.SupportDataAccessLogs.AsNoTracking().Where(l => l.CustomerUserId == customerUserId);
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(l =>
+                l.CreatedAt < cursorAt || (l.CreatedAt == cursorAt && l.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
             .OrderByDescending(l => l.CreatedAt)
-            .Take(200)
+            .ThenByDescending(l => l.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new SupportAccessLogPage(items, nextCursor);
+    }
 
     public async Task CloseTicketAsync(SupportTicket ticket, DateTimeOffset now, DateTimeOffset attachmentsDeleteAfter, CancellationToken ct = default)
     {

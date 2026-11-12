@@ -40,8 +40,11 @@ public class SupportAccessController : ControllerBase
         => Ok(ApiResponse<SupportAccessRequestDto>.Ok(await _access.RevokeAsync(CurrentUserId, id, requestId, ct)));
 
     [HttpGet("access-log")]
-    public async Task<IActionResult> AccessLog(CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<SupportAccessLogDto>>.Ok(await _access.AccessLogAsync(CurrentUserId, ct)));
+    public async Task<IActionResult> AccessLog([FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _access.AccessLogAsync(CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<SupportAccessLogDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 }
 
 public record ApproveSupportAccessRequest(Guid? FinancialAccountId);

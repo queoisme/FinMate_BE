@@ -70,13 +70,13 @@ def test_ordinary_word_that_sounds_like_slang_is_not_money(text):
 
 
 @pytest.mark.parametrize(("text", "phrase"), [("mua hai củ cải", "hai củ"), ("đổ hai lít xăng", "hai lít"), ("mua hai chai bia", "hai chai")])
-def test_rasa_amount_entity_cannot_turn_an_ordinary_word_into_money(text, phrase):
-    """Rasa cắt "hai củ" ra khỏi "mua hai củ cải"; đọc riêng cụm đó thì mất chữ "cải" và ra 2 triệu."""
+def test_classifier_amount_entity_cannot_turn_an_ordinary_word_into_money(text, phrase):
+    """bộ phân loại cắt "hai củ" ra khỏi "mua hai củ cải"; đọc riêng cụm đó thì mất chữ "cải" và ra 2 triệu."""
     parsed = parse(text, nlu("add_expense", amount=phrase))
     assert parsed.entries == () and parsed.intent == "needs_amount"
 
 
-def test_rasa_ask_spending_does_not_turn_a_spend_with_an_amount_into_a_summary():
+def test_classifier_ask_spending_does_not_turn_a_spend_with_an_amount_into_a_summary():
     """"cho con đi học một triệu" từng ra bảng "tóm tắt chi tiêu tháng này" của danh mục Gia đình."""
     parsed = parse("cho con đi học một triệu", nlu("ask_spending"))
     assert (parsed.intent, parsed.entry.kind, parsed.entry.amount, parsed.entry.category) == ("add_expense", "expense", 1_000_000, "family")
@@ -182,8 +182,8 @@ def test_money_received_from_a_parent_is_still_income():
     assert parse("mẹ cho em 500k").entry.kind == "income"
 
 
-def test_rasa_out_of_scope_does_not_reject_a_sentence_with_amount_and_a_clear_expense_word():
-    """Cùng một câu chỉ đổi "có" thành "còn" từng bị Rasa chấm "ngoài chủ đề" một lần và hiểu một lần: có số tiền và từ khóa chi tiêu thì luật giữ quyền."""
+def test_classifier_out_of_scope_does_not_reject_a_sentence_with_amount_and_a_clear_expense_word():
+    """Cùng một câu chỉ đổi "có" thành "còn" từng bị bộ phân loại chấm "ngoài chủ đề" một lần và hiểu một lần: có số tiền và từ khóa chi tiêu thì luật giữ quyền."""
     out_of_scope = nlu("out_of_scope", 0.95)
     parsed = parse("tôi có đi mua một bộ quần áo hết hai triệu tôi cho mẹ hai củ mẹ cho tôi hai tỏi", out_of_scope)
     assert [(e.kind, e.amount) for e in parsed.entries] == [("expense", 2_000_000), ("expense", 2_000_000), ("income", 2_000_000_000)]
@@ -191,7 +191,7 @@ def test_rasa_out_of_scope_does_not_reject_a_sentence_with_amount_and_a_clear_ex
 
 
 @pytest.mark.parametrize("text", ["tôi có 2 triệu trong ví", "hôm nay trời đẹp 2 triệu"])
-def test_rasa_out_of_scope_still_wins_when_there_is_no_expense_cue(text):
+def test_classifier_out_of_scope_still_wins_when_there_is_no_expense_cue(text):
     assert parse(text, nlu("out_of_scope", 0.95)).intent == "out_of_scope"
 
 
@@ -199,15 +199,15 @@ def test_rasa_out_of_scope_still_wins_when_there_is_no_expense_cue(text):
     ("text", "amount"),
     [("sau đó trả năm chục nghìn", 50_000), ("trả góp xe máy một triệu tám", 1_800_000), ("thanh toán hai triệu", 2_000_000)],
 )
-def test_rasa_out_of_scope_does_not_reject_paying_an_amount(text, amount):
-    """Trả/thanh toán đi với số tiền là khoản chi dù chưa có từ khoá danh mục; Rasa chấm "ngoài chủ đề" thì luật giữ quyền."""
+def test_classifier_out_of_scope_does_not_reject_paying_an_amount(text, amount):
+    """Trả/thanh toán đi với số tiền là khoản chi dù chưa có từ khoá danh mục; bộ phân loại chấm "ngoài chủ đề" thì luật giữ quyền."""
     parsed = parse(text, nlu("out_of_scope", 0.95))
     assert parsed.intent == "add_expense"
     assert parsed.entry.amount == amount
 
 
 @pytest.mark.parametrize("text", ["trả lời 5 câu hỏi", "trả lại 2 triệu trong ví"])
-def test_rasa_out_of_scope_still_wins_for_tra_that_is_not_paying(text):
+def test_classifier_out_of_scope_still_wins_for_tra_that_is_not_paying(text):
     assert parse(text, nlu("out_of_scope", 0.95)).intent == "out_of_scope"
 
 
@@ -279,30 +279,30 @@ def test_transfer_to_another_person_counts_as_an_expense():
     assert (entry.kind, entry.category, entry.to_others, entry.auto_save_ok) == ("expense", "other", True, False)
 
 
-def test_rasa_must_be_sure_and_agree_for_auto_save():
+def test_classifier_must_be_sure_and_agree_for_auto_save():
     assert parse("đi ăn 200k", nlu("add_expense", 0.95)).entry.auto_save_ok is True
     assert parse("đi ăn 200k", nlu("add_expense", 0.80)).entry.auto_save_ok is False
     assert parse("đi ăn 200k", nlu("transfer_money", 0.99)).entry.auto_save_ok is False
 
 
-def test_rasa_overconfident_income_is_ignored_when_the_sentence_has_a_clear_expense_keyword():
+def test_classifier_overconfident_income_is_ignored_when_the_sentence_has_a_clear_expense_keyword():
     parsed = parse("cắt kính cận 800k", nlu("add_income", 1.0))
     assert parsed.intent == "add_expense" and parsed.entry.category == "health"
     assert parse("mua kính râm 300k").entry.category == "shopping"
 
 
-def test_rasa_disagreement_trusts_the_sentence_unless_rasa_is_very_sure():
+def test_classifier_disagreement_trusts_the_sentence_unless_classifier_is_very_sure():
     assert parse("nhận lương 14 củ", nlu("add_expense", 0.90)).intent == "add_income"
-    assert parse("250k", nlu("add_income", 0.99)).intent == "add_income"  # không có từ khóa chi tiêu nào, Rasa rất chắc thì thắng
+    assert parse("250k", nlu("add_income", 0.99)).intent == "add_income"  # không có từ khóa chi tiêu nào, bộ phân loại rất chắc thì thắng
     assert parse("250k", nlu("add_income", 0.90)).intent == "add_expense"
 
 
-def test_low_rasa_confidence_falls_back_to_rules():
+def test_low_classifier_confidence_falls_back_to_rules():
     parsed = parse("đi ăn 200k", nlu("goodbye", 0.40))
     assert (parsed.intent, parsed.nlu_source) == ("add_expense", "rules")
 
 
-def test_rasa_can_cut_an_amount_the_rules_cannot_read():
+def test_classifier_can_cut_an_amount_the_rules_cannot_read():
     parsed = parse("gửi mẹ mười lăm", nlu("add_expense", 0.95, amount="2 triệu"))
     assert parsed.intent in ("add_expense", "needs_amount")
 
@@ -433,7 +433,7 @@ def test_an_amount_range_is_not_a_range_of_days():
 
 
 @pytest.mark.parametrize("text", ["7 ngày qua tôi tiêu bao nhiêu", "từ ngày 1 đến ngày 10 tôi chi bao nhiêu", "ngày 15/3 tôi chi bao nhiêu", "quý 1 tôi tiêu bao nhiêu"])
-def test_a_day_span_question_beats_rasa_saying_out_of_scope(text):
+def test_a_day_span_question_beats_classifier_saying_out_of_scope(text):
     assert parse(text, {"intent": "out_of_scope", "confidence": 0.99, "entities": {}}).intent == "ask_spending"
 
 
@@ -453,21 +453,21 @@ def test_a_bare_year_is_a_year_period():
     "text",
     ["năm 2025 tôi tiêu bao nhiêu", "tháng 9 năm 2025 tôi chi bao nhiêu", "tháng 9 tôi chi bao nhiêu", "năm ngoái tôi tiêu bao nhiêu", "tuần trước tôi tiêu bao nhiêu"],
 )
-def test_a_total_question_naming_a_period_beats_rasa_saying_out_of_scope(text):
-    # Rasa từng đoán các câu có số năm là out_of_scope với độ chắc 0,86-0,98 vì dữ liệu huấn luyện chưa có cách nói kỳ này
+def test_a_total_question_naming_a_period_beats_classifier_saying_out_of_scope(text):
+    # bộ phân loại từng đoán các câu có số năm là out_of_scope với độ chắc 0,86-0,98 vì dữ liệu huấn luyện chưa có cách nói kỳ này
     assert parse(text, nlu("out_of_scope", 0.98)).intent == "ask_spending"
     assert parse(text, nlu("out_of_scope", 0.98)).query is not None
 
 
-def test_rasa_out_of_scope_still_wins_when_the_rules_see_no_period_or_no_total_question():
+def test_classifier_out_of_scope_still_wins_when_the_rules_see_no_period_or_no_total_question():
     assert parse("bạn có bao nhiêu tiền", nlu("out_of_scope", 0.98)).intent == "out_of_scope"  # câu xã giao hỏi bot
     assert parse("tháng 9 trời đẹp quá", nlu("out_of_scope", 0.98)).intent == "out_of_scope"  # có kỳ nhưng không phải câu hỏi tổng
     assert parse("iphone 20 triệu có đáng mua không", nlu("out_of_scope", 0.98)).intent == "out_of_scope"
-    # kỳ cụ thể nhưng câu hỏi về chủ thể khác (không có "tôi", không có từ hỏi chi tiêu): kiến thức chung, vẫn theo Rasa
+    # kỳ cụ thể nhưng câu hỏi về chủ thể khác (không có "tôi", không có từ hỏi chi tiêu): kiến thức chung, vẫn theo bộ phân loại
     assert parse("thưởng tết năm nay các công ty bao nhiêu", nlu("out_of_scope", 0.98)).intent == "out_of_scope"
 
 
-def test_a_spend_question_without_a_pronoun_but_with_a_spend_word_still_beats_rasa():
+def test_a_spend_question_without_a_pronoun_but_with_a_spend_word_still_beats_classifier():
     assert parse("năm 2025 tiêu bao nhiêu", nlu("out_of_scope", 0.98)).intent == "ask_spending"
     assert parse("tháng 9 mình thu được bao nhiêu", nlu("out_of_scope", 0.98)).intent == "ask_spending"
 
@@ -513,7 +513,7 @@ def test_advice_and_context_free_words_are_not_a_detail_request(text):
 
 
 @pytest.mark.parametrize("text", ["liệt kê các khoản chi tháng này", "hôm nay tôi mua gì", "chi tiết chi tiêu hôm nay"])
-def test_a_detail_request_beats_rasa_saying_out_of_scope(text):
+def test_a_detail_request_beats_classifier_saying_out_of_scope(text):
     parsed = parse(text, nlu("out_of_scope", 0.98))
     assert parsed.intent == "ask_spending" and parsed.query.detail is True
 
@@ -572,7 +572,7 @@ def test_decimal_comma_thousands_dot_and_quantity_stay_one_entry():
         assert [e.amount for e in parsed.entries] == [amount], text
 
 
-def test_multi_entries_are_never_auto_save_ok_even_with_rasa_absent():
+def test_multi_entries_are_never_auto_save_ok_even_with_classifier_absent():
     assert not any(e.auto_save_ok for e in parse("ăn cơm 20k, đổ xăng 50k").entries)
 
 
@@ -791,13 +791,13 @@ def test_half_after_a_spoken_number_keeps_the_number(text, amount):
 
 # ---- "cho" (đưa) không phải "chợ": bỏ dấu làm hai từ trùng nhau và mọi câu có chữ "cho" bị xếp vào Ăn uống
 @pytest.mark.parametrize("text", ["mẹ tôi cho ba triệu", "mẹ cho tôi 3 triệu", "bố tôi cho 500k"])
-def test_money_given_to_the_user_is_income_even_without_rasa(text):
+def test_money_given_to_the_user_is_income_even_without_classifier(text):
     parsed = parse(text)
     assert parsed.intent == "add_income"
     assert (parsed.entry.kind, parsed.entry.income_type) == ("income", "gift")
 
 
-def test_money_given_to_the_user_is_income_when_rasa_agrees():
+def test_money_given_to_the_user_is_income_when_classifier_agrees():
     assert parse("mẹ tôi cho ba triệu", nlu("add_income", 1.0)).entry.kind == "income"
 
 
@@ -845,8 +845,8 @@ def test_sending_money_to_a_person_is_still_an_other_expense_not_a_loan():
     assert entry.category != "loan"
 
 
-def test_rasa_cannot_turn_a_friend_repaying_me_back_into_an_expense():
-    """Rasa học "trả nợ bạn" là chuyển tiền ra nên với "bạn trả nợ" nó cũng trả transfer_money rất chắc."""
+def test_classifier_cannot_turn_a_friend_repaying_me_back_into_an_expense():
+    """bộ phân loại học "trả nợ bạn" là chuyển tiền ra nên với "bạn trả nợ" nó cũng trả transfer_money rất chắc."""
     parsed = parse("bạn trả nợ 500k", nlu("transfer_money", 0.99))
     assert (parsed.intent, parsed.entry.kind) == ("add_income", "income")
 
@@ -862,8 +862,8 @@ def test_the_market_is_still_food(text):
 
 
 @pytest.mark.parametrize("text", ["cho mẹ 500k", "tôi cho em 100k", "cho bạn vay 200k"])
-def test_giving_money_away_stays_an_expense_even_when_rasa_says_income(text):
-    # Rasa v5 trả add_income 1.0 cho "cho mẹ 500k" (lẫn với "mẹ cho"): tiền đi ra
+def test_giving_money_away_stays_an_expense_even_when_classifier_says_income(text):
+    # bộ phân loại cũ trả add_income 1.0 cho "cho mẹ 500k" (lẫn với "mẹ cho"): tiền đi ra
     parsed = parse(text, nlu("add_income", 1.0))
     assert (parsed.intent, parsed.entry.kind) == ("add_expense", "expense")
 

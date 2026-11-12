@@ -336,6 +336,14 @@ public sealed record ForecastSettings
     /// <summary>Số khoản giả định tối đa trong một lần thử kịch bản.</summary>
     public int MaxScenarioItems { get; init; } = 20;
 
+    // ---- Đánh giá khoản mua ("Mua món này có ổn không?") ----
+
+    /// <summary>Chưa biết kỳ thu nhập kế tiếp và người dùng không chọn mốc: đánh giá tới chừng này ngày sau ngày mua (kết quả chỉ ở mức một phần).</summary>
+    public int PurchaseDefaultHorizonDays { get; init; } = 14;
+
+    /// <summary>Số dư ví cập nhật cách đây quá chừng này ngày thì đánh giá chỉ ở mức một phần.</summary>
+    public int PurchaseStaleBalanceDays { get; init; } = 7;
+
     public IReadOnlyList<ForecastHoliday> Holidays { get; init; } = [];
 
     // ---- Đợt 2: cảnh báo (duyệt 2026-11-02) ----
@@ -413,6 +421,43 @@ public sealed record ForecastSettings
     public int GoalRateMonths { get; init; } = 6;
 }
 
+/// <summary>
+/// Nguồn số liệu kinh tế tự cập nhật (giả định lạm phát hằng tháng). Mặc định TẮT: <see cref="CpiIndexUrl"/> rỗng thì job không chạy.
+/// Địa chỉ nằm ở cấu hình admin chứ không trong mã, vì trang nguồn có thể đổi.
+/// </summary>
+public sealed record EconomicFeedsSettings
+{
+    /// <summary>Bật/tắt lịch tự chạy. Tắt thì gỡ job khỏi lịch (nút "Chạy ngay" vẫn dùng được).</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Ngày trong tháng job chạy (1–28, tránh tháng ngắn). Cục Thống kê công bố CPI khoảng ngày 3–6.</summary>
+    public int ScheduleDayOfMonth { get; init; } = 6;
+
+    /// <summary>Giờ chạy (0–23, giờ Việt Nam).</summary>
+    public int ScheduleHour { get; init; } = 9;
+
+    /// <summary>Trang danh sách thông cáo của Cục Thống kê (https). Rỗng = không tải gì.</summary>
+    public string CpiIndexUrl { get; init; } = string.Empty;
+
+    /// <summary>Bản CPI mới chỉ tự duyệt khi chênh so với bản đang dùng không quá số điểm cơ bản này (100 = 1 điểm phần trăm); lớn hơn thì để Draft chờ người duyệt.</summary>
+    public int AutoApproveMaxDeltaBps { get; init; } = 100;
+
+    /// <summary>Khoảng hợp lý của tốc độ tăng hằng năm (điểm cơ bản). Ngoài khoảng này (ví dụ đọc nhầm 45,7% thay vì 4,57%) thì không bao giờ tự duyệt.</summary>
+    public int MinRateBps { get; init; } = -2000;
+
+    public int MaxRateBps { get; init; } = 5000;
+}
+
+/// <summary>AI Financial Agent.</summary>
+public sealed record AgentSettings
+{
+    /// <summary>
+    /// Mẫu chia ngân sách của công cụ <c>plan_budget</c>, dùng khi người dùng chưa có chi tiêu 3 tháng trọn gần nhất: chuỗi JSON <c>{"slug": phần trăm nguyên}</c>, tổng đúng 100.
+    /// Mặc định RỖNG (chủ dự án chốt 2026-11-08: không đặt tỉ lệ sẵn trong code, admin nhập). Sai dạng thì công cụ coi như chưa có mẫu.
+    /// </summary>
+    public string BudgetTemplate { get; init; } = string.Empty;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -428,6 +473,8 @@ public sealed record SystemConfigDocument
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
+    public AgentSettings Agent { get; init; } = new();
+    public EconomicFeedsSettings EconomicFeeds { get; init; } = new();
     public MarketDataSettings MarketData { get; init; } = new();
     public CommunitySettings Community { get; init; } = new();
 }

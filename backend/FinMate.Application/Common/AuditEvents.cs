@@ -30,11 +30,23 @@ public static class AuditEvents
     public const string AdminUserLocked = "Admin.User.Locked";
     public const string AdminUserUnlocked = "Admin.User.Unlocked";
     public const string AdminUserRoleChanged = "Admin.User.RoleChanged";
+    /// <summary>Admin thêm/bớt quyền của một vai trò nội bộ. Metadata có role, added, removed, reason.</summary>
+    public const string AdminRolePermissionsUpdated = "Admin.RolePermissions.Updated";
     public const string AdminDataDeletionCancelled = "Admin.DataDeletionRequest.Cancelled";
 
     public const string AdminProviderConfigCreated = "Admin.ProviderConfig.Created";
     public const string AdminProviderConfigUpdated = "Admin.ProviderConfig.Updated";
     public const string AdminProviderConfigActivationChanged = "Admin.ProviderConfig.ActivationChanged";
+
+    // Giả định kinh tế của AI Financial Agent: chỉ ghi khóa, phiên bản, tỉ lệ — không có bí mật.
+    public const string AdminAssumptionCreated = "Admin.Assumption.Created";
+    public const string AdminAssumptionApproved = "Admin.Assumption.Approved";
+    public const string AdminAssumptionRetired = "Admin.Assumption.Retired";
+
+    // Kho tri thức của agent: chỉ ghi mã tài liệu, không ghi nội dung. Nội dung và trạng thái nằm ở agent_kb_documents của AI Service.
+    public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";
+    public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
+    public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
 
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
@@ -44,8 +56,6 @@ public static class AuditEvents
     public const string AdminAiRuleChanged = "Admin.AiRule.Changed";
     /// <summary>Tài liệu cấu hình của AI/OCR (từ vựng chat, từ điển cửa hàng, ngưỡng...) được lưu bản nháp hoặc kích hoạt. Nội dung từng phiên bản do AI Service giữ (config_documents).</summary>
     public const string AdminAiConfigChanged = "Admin.AiConfig.Changed";
-    /// <summary>Admin yêu cầu kích hoạt một phiên bản model Rasa (kể cả quay về bản cũ, kể cả ép qua cổng đo). AI Service nhận (202) rồi nạp ở nền; kết quả cuối và số đo nằm ở sổ <c>nlu_model_versions</c> / <c>activation</c> của <c>GET /admin/rasa/models</c>.</summary>
-    public const string AdminRasaModelActivationRequested = "Admin.RasaModel.ActivationRequested";
     /// <summary>Admin thêm một phiên bản chỉ dẫn AI cho gợi ý phương thức. Nội dung chỉ dẫn nằm ở <c>kb_method_prompts</c> của AI Service, không ghi vào nhật ký chung.</summary>
     public const string AdminMethodPromptCreated = "Admin.MethodPrompt.Created";
     /// <summary>Admin chuyển bản chỉ dẫn AI đang dùng (kể cả quay về bản cũ).</summary>
@@ -53,6 +63,10 @@ public static class AuditEvents
     /// <summary>Định dạng thông báo của một ngân hàng/ví (tạo, nhân bản, sửa pattern/trường/mẫu, kích hoạt, lưu trữ). Nội dung nằm ở nhật ký của AI Service; ở đây không ghi thân yêu cầu vì mẫu có thể chứa chữ thông báo.</summary>
     public const string AdminProviderFormatChanged = "Admin.ProviderFormat.Changed";
     /// <summary>Cấu hình hệ thống (bảo trì, phiên bản app, tính năng, giao diện) được lưu hoặc hoàn tác. Metadata chỉ có tên các phần đã đổi; nội dung nằm ở chính phiên bản trong <c>system_config_versions</c>.</summary>
+    /// <summary>Admin bấm "Chạy ngay" làm mới giả định kinh tế. Metadata chỉ có kết quả của lượt chạy.</summary>
+    public const string AdminEconomicFeedRefreshed = "Admin.EconomicFeed.Refreshed";
+    /// <summary>Staff gán nguyên nhân cho phản hồi "dự báo sai". Metadata chỉ có id phản hồi và nguyên nhân: không có người dùng hay lời nhắn của họ.</summary>
+    public const string OpsForecastFeedbackLabeled = "Ops.ForecastFeedback.Labeled";
     public const string AdminSystemConfigChanged = "Admin.SystemConfig.Changed";
     /// <summary>Key bên thứ ba được đặt hoặc xóa. Metadata chỉ có tên key, hành động và lý do: KHÔNG BAO GIỜ có giá trị key (AI Service cũng chỉ giữ 4 ký tự cuối).</summary>
     public const string AdminSecretChanged = "Admin.Secret.Changed";

@@ -3,6 +3,8 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
+public sealed record ForecastAlertPage(IReadOnlyList<ForecastAlert> Items, string? NextCursor);
+
 /// <summary>Hộp thư cảnh báo dự báo. Mọi hàm đọc theo user đều lọc theo <c>userId</c>.</summary>
 public interface IForecastAlertRepository
 {
@@ -15,7 +17,7 @@ public interface IForecastAlertRepository
     Task<bool> TryAddAsync(ForecastAlert alert, CancellationToken ct = default);
 
     Task<IReadOnlyList<ForecastAlert>> ListDuePendingAsync(DateTimeOffset now, int limit, CancellationToken ct = default);
-    Task<IReadOnlyList<ForecastAlert>> ListForUserAsync(Guid userId, int limit, CancellationToken ct = default);
+    Task<ForecastAlertPage> ListForUserAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
     Task<ForecastAlert?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
     Task UpdateAsync(ForecastAlert alert, CancellationToken ct = default);
 }

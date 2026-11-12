@@ -19,6 +19,8 @@ public sealed record ForecastAlertDto(
     bool MarkedInaccurate,
     DateTimeOffset CreatedAt);
 
+public sealed record ForecastAlertListResult(IReadOnlyList<ForecastAlertDto> Items, string? NextCursor);
+
 public interface IForecastAlertService
 {
     /// <summary>Kiểm tra sau khi user có thay đổi (giao dịch mới…): số dư thấp và vượt ngân sách sớm.</summary>
@@ -27,7 +29,7 @@ public interface IForecastAlertService
     /// <summary>Lượt kiểm tra hằng ngày: như <see cref="CheckUserAsync"/> cộng nhắc hóa đơn, tạm ngừng khoản quá hạn lâu, thu nhập trễ.</summary>
     Task RunDailyAsync(Guid userId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ForecastAlertDto>> ListAsync(Guid userId, int limit, CancellationToken ct = default);
+    Task<ForecastAlertListResult> ListAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>User báo cảnh báo không chính xác (sơ đồ trang 1) — hiện chỉ nhận <c>"inaccurate"</c>. Cảnh báo số dư thấp bị tắt một thời gian.</summary>
     Task<ForecastAlertDto> SetFeedbackAsync(Guid userId, Guid alertId, string? feedback, CancellationToken ct = default);
@@ -99,8 +101,11 @@ public class ForecastAlertService : IForecastAlertService
         await WarnLateIncomeAsync(userId, views, recent, today, settings, rules, ct);
     }
 
-    public async Task<IReadOnlyList<ForecastAlertDto>> ListAsync(Guid userId, int limit, CancellationToken ct = default)
-        => (await _alerts.ListForUserAsync(userId, Math.Clamp(limit, 1, MaxListLimit), ct)).Select(ToDto).ToList();
+    public async Task<ForecastAlertListResult> ListAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var page = await _alerts.ListForUserAsync(userId, cursor, ForecastPaging.Clamp(limit, MaxListLimit), ct);
+        return new ForecastAlertListResult(page.Items.Select(ToDto).ToList(), page.NextCursor);
+    }
 
     public async Task<ForecastAlertDto> SetFeedbackAsync(Guid userId, Guid alertId, string? feedback, CancellationToken ct = default)
     {

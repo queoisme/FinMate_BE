@@ -7,7 +7,7 @@ import httpx
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.rules_admin import RuleError
 from app.services import secret_store
 
@@ -81,7 +81,7 @@ def test_an_unknown_secret_name_is_a_404():
 
 
 def test_the_gemini_client_picks_up_a_changed_key_without_a_restart():
-    client = GeminiClient(secret_store.getter("gemini_api_key"), "model", 5.0, backup_key=secret_store.getter("openrouter_api_key"), backup_model="m")
+    client = LlmClient(secret_store.getter("gemini_api_key"), "model", 5.0, backup_key=secret_store.getter("openrouter_api_key"), backup_model="m")
     assert not client.available  # chưa có key nào
     secret_store._values["gemini_api_key"] = KEY
     assert client.available and client._key == KEY
@@ -93,7 +93,7 @@ def test_the_gemini_client_picks_up_a_changed_key_without_a_restart():
 
 
 def test_a_plain_string_key_still_works_for_existing_callers():
-    assert GeminiClient("plain-key-123", "model", 5.0)._key == "plain-key-123"
+    assert LlmClient("plain-key-123", "model", 5.0)._key == "plain-key-123"
 
 
 def _use_transport(monkeypatch, handler):

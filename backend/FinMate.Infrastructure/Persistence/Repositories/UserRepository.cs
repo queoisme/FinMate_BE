@@ -1,7 +1,10 @@
+using FinMate.Application.Admin;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
 
@@ -26,10 +29,20 @@ public class UserRepository : IUserRepository
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default)
         => _context.Users.AnyAsync(u => u.Email == email, ct);
 
+    private const string UniqueViolation = "23505";
+
     public async Task AddAsync(User user, CancellationToken ct = default)
     {
         _context.Users.Add(user);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation, ConstraintName: "uq_users_email" })
+        {
+            _context.Entry(user).State = EntityState.Detached;
+            throw new ConflictException(AuthErrorCodes.EmailAlreadyExists, "Email đã được sử dụng.");
+        }
     }
 
     public async Task UpdateAsync(User user, CancellationToken ct = default)
@@ -44,7 +57,7 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public Task<int> CountActiveAdminsAsync(CancellationToken ct = default)
-        => _context.Users.CountAsync(u => u.Role == UserRole.Admin && !u.IsLocked, ct);
+        => _context.Users.CountAsync(u => u.RoleAssignment!.RoleId == UserRole.Admin && !u.IsLocked, ct);
 
     public async Task<UserListResult> GetPageAsync(
         UserListFilter filter, CancellationToken ct = default)
@@ -57,15 +70,20 @@ public class UserRepository : IUserRepository
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var search = filter.Search.Trim();
+            var pattern = $"%{AdminPaging.EscapeLike(filter.Search.Trim())}%";
             query = query.Where(u =>
-                EF.Functions.ILike(u.Email, $"%{search}%")
-                || EF.Functions.ILike(u.DisplayName, $"%{search}%"));
+                EF.Functions.ILike(u.Email, pattern, "\\")
+                || EF.Functions.ILike(u.DisplayName, pattern, "\\"));
         }
 
         if (filter.Role is { } role)
         {
-            query = query.Where(u => u.Role == role);
+            query = query.Where(u => u.RoleAssignment!.RoleId == role);
+        }
+
+        if (filter.InternalOnly)
+        {
+            query = query.Where(u => u.RoleAssignment!.RoleId != UserRole.User);
         }
 
         if (filter.IsLocked is { } isLocked)

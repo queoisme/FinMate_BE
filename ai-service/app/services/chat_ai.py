@@ -18,7 +18,7 @@ from dataclasses import replace
 
 import structlog
 
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.item_classifier import classify_items
 from app.bill.knowledge import BillKnowledge
 from app.core.category_map import INCOME_SLUG, SLUG_BY_LOCAL_CATEGORY
@@ -48,7 +48,7 @@ def _is_product(entry: Entry) -> bool:
 async def apply_ai_categories(
     parsed: ChatParse,
     knowledge: BillKnowledge,
-    gemini: GeminiClient,
+    gemini: LlmClient,
     instruction: str,
     allow_ai: bool,
     *,
