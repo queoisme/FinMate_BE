@@ -62,13 +62,14 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
         var state = stored is not null && stored.Turn < AgentLimits.MaxTurns ? stored : null; // đủ MaxTurns lượt thì ngữ cảnh bắt đầu lại
         var request = new AgentPlanRequest(
-            question, profile.Segment.ToString().ToLowerInvariant(), tools.Registry.Specs, AgentLimits.MaxPlanSteps,
+            question, profile.Segment.ToString().ToLowerInvariant(), await tools.Registry.SpecsAsync(ct), AgentLimits.MaxPlanSteps,
             State: state is null ? null : new AgentPlanState(state.LastIntent, state.Slots),
             Memory: await ReadMemoryAsync(userId, ct));
         var plan = await ai.PlanAsync(request, ct);
         trace.AddUsage(plan.Usage);
 
         var evidence = new List<Evidence>();
+        var actions = new List<SuggestedActionDto>();
         var slots = new Dictionary<string, string>(state?.Slots ?? []);
         string? insufficient = null;
         for (var replan = 0; ; replan++)
@@ -87,6 +88,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
                 {
                     case ToolStatus.Ok:
                         evidence.AddRange(result.Evidence.Where(e => evidence.All(x => x.Id != e.Id)));
+                        actions.AddRange(result.Actions ?? []);
                         Remember(slots, step);
                         break;
                     case ToolStatus.InsufficientData:
@@ -133,7 +135,8 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
             evidence.Select(AgentEvidenceDto.From).ToList(),
             VerdictOf(evidence),
             traceId,
-            usedTemplate);
+            usedTemplate,
+            actions.DistinctBy(a => (a.Kind, a.Date, a.AmountVnd, a.CategorySlug)).Take(AgentLimits.MaxSuggestedActions).ToList());
     }
 
     private async Task<(IReadOnlyList<AgentClaimDto> Claims, bool UsedTemplate)> ComposeAsync(string question, List<Evidence> evidence, CancellationToken ct)
@@ -220,5 +223,5 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
     }
 
     private static AgentAnswerDto Reply(string status, string message, Guid traceId)
-        => new(status, message, [], [], null, traceId, false);
+        => new(status, message, [], [], null, traceId, false, []);
 }

@@ -46,6 +46,19 @@ Lỗi: 422 `invalid_question`; 503 khi ai-service không dùng được **trư�
 | `verdict` | Chỉ với câu hỏi mục tiêu / mua / chịu đựng: `feasible`, `tight`, `infeasible`; không có thì `null`. Không dùng từ "chắc chắn" hay "nên mua" |
 | `traceId` | Mã vết của lượt (không chứa nội dung) |
 | `usedTemplate` | `true` = câu trả lời dựng bằng mẫu cố định từ bằng chứng (ai-service lỗi hoặc không qua kiểm chứng) |
+| `suggestedActions[]` | Thẻ đề xuất hành động (luôn có mảng, rỗng khi không có gì để đề xuất; tối đa 8). Xem mục "Thẻ đề xuất hành động" bên dưới |
+
+### Thẻ đề xuất hành động
+
+Mỗi phần tử: `{kind, title, amountVnd, date, categorySlug, categoryName, evidenceIds}`. Thẻ do **code của công cụ** sinh từ dữ liệu có cấu trúc, **không do LLM viết**: `title` và mọi con số lấy từ bằng chứng của chính lượt này (`evidenceIds` chỉ tới chúng nên màn "Vì sao?" mở được nguồn), nên thẻ không thể mang một con số không có nguồn. Thẻ chỉ là **đề xuất**: app hiện nút, người dùng bấm xác nhận thì app mới gọi API sẵn có; agent không tự đổi dữ liệu nào.
+
+| `kind` | Khi nào có | Trường dùng | App làm gì khi người dùng bấm |
+|---|---|---|---|
+| `wait_until` | Khoản mua chưa ổn (`verdict` khác `feasible`) và có ngày an toàn sau ngày mua | `date` (`yyyy-MM-dd`) | Hỏi lại "Mua món này có ổn không?" với ngày đó (`/forecast/purchase-check`) hoặc đặt nhắc |
+| `lower_amount_to` | Khoản mua chưa ổn và mức tối đa còn giữ được vùng đệm thấp hơn giá | `amountVnd` | Điền lại giá bằng `amountVnd` rồi hỏi lại |
+| `set_budget_limit` | Kết quả chia ngân sách (`plan_budget`): mỗi nhóm một thẻ, không có thẻ cho nhóm "Các nhóm khác" | `categorySlug`, `categoryName`, `amountVnd` | Tạo hoặc sửa hạn mức tháng của nhóm đó (`POST`/`PATCH /budgets`); app đổi `categorySlug` sang mã nhóm của người dùng |
+
+Không có thẻ khi `status` khác `answered`, khi khoản mua đã khả thi với dữ liệu đã xác nhận, hoặc khi hoãn/giảm không đổi được gì. Thêm loại thẻ mới = thêm một hằng ở `SuggestedActionKinds` và để công cụ tương ứng sinh ra nó cùng bằng chứng làm căn cứ.
 
 ### Thẻ kết quả (gợi ý cho app)
 

@@ -11,5 +11,30 @@ public sealed class ToolRegistry
 
     public IReadOnlyList<ToolSpec> Specs => _tools.Values.Select(t => t.Spec).ToArray();
 
+    /// <summary>Mô tả gửi cho planner: công cụ có mô tả theo dữ liệu hiện có thì lấy bản đó; lỗi lúc lấy (DB...) thì quay về mô tả tĩnh, không làm hỏng việc lập kế hoạch.</summary>
+    public async Task<IReadOnlyList<ToolSpec>> SpecsAsync(CancellationToken ct = default)
+    {
+        var specs = new List<ToolSpec>(_tools.Count);
+        foreach (var tool in _tools.Values)
+        {
+            if (tool is IRuntimeDescribedTool described)
+            {
+                try
+                {
+                    specs.Add(await described.GetSpecAsync(ct));
+                    continue;
+                }
+                catch (Exception) when (!ct.IsCancellationRequested)
+                {
+                    // rơi xuống mô tả tĩnh bên dưới
+                }
+            }
+
+            specs.Add(tool.Spec);
+        }
+
+        return specs;
+    }
+
     public bool TryGet(string name, out IAgentTool tool) => _tools.TryGetValue(name, out tool!);
 }

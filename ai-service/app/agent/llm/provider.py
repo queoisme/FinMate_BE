@@ -71,10 +71,13 @@ def build_provider(settings: Any, key_getter: Callable[[str], Callable[[], str |
     from app.agent.llm.openrouter_provider import OpenRouterProvider
 
     timeout = settings.agent_timeout_seconds
+    chain: list[LlmProvider] = []
     if settings.agent_provider == "gemini":
-        primary: LlmProvider = GeminiProvider(key_getter("gemini_api_key"), settings.agent_model, timeout)
+        chain.append(GeminiProvider(key_getter("gemini_api_key"), settings.agent_model, timeout))
+        # Khóa Gemini dự phòng (project khác): khi khóa chính bị 429/lỗi thì thử khóa này. Chưa nhập khóa thì GeminiProvider báo "unavailable" mà không gọi mạng.
+        chain.append(GeminiProvider(key_getter("gemini_api_key_backup"), settings.agent_model, timeout))
     else:
-        primary = OpenRouterProvider(key_getter("openrouter_api_key"), settings.agent_model, timeout)
+        chain.append(OpenRouterProvider(key_getter("openrouter_api_key"), settings.agent_model, timeout))
     if settings.agent_backup_model:
-        return ChainProvider([primary, OpenRouterProvider(key_getter("openrouter_api_key"), settings.agent_backup_model, timeout)])
-    return primary
+        chain.append(OpenRouterProvider(key_getter("openrouter_api_key"), settings.agent_backup_model, timeout))
+    return chain[0] if len(chain) == 1 else ChainProvider(chain)

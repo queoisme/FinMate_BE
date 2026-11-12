@@ -16,9 +16,12 @@ public enum ToolStatus
     Rejected,
 }
 
-public sealed record ToolResult(ToolStatus Status, IReadOnlyList<Evidence> Evidence, string? Code = null)
+public sealed record ToolResult(ToolStatus Status, IReadOnlyList<Evidence> Evidence, string? Code = null, IReadOnlyList<SuggestedActionDto>? Actions = null)
 {
     public static ToolResult Ok(IReadOnlyList<Evidence> evidence) => new(ToolStatus.Ok, evidence);
+
+    /// <summary>Kèm các thẻ đề xuất hành động do công cụ sinh từ chính dữ liệu của nó (xem <see cref="SuggestedActionDto"/>).</summary>
+    public static ToolResult Ok(IReadOnlyList<Evidence> evidence, IReadOnlyList<SuggestedActionDto> actions) => new(ToolStatus.Ok, evidence, null, actions);
 
     public static ToolResult Insufficient(string code) => new(ToolStatus.InsufficientData, [], code);
 
@@ -30,6 +33,12 @@ public sealed record ToolArg(string Name, string Type, bool Required, long Min =
 
 /// <summary>Mô tả công cụ gửi cho bộ lập kế hoạch: chỉ tên và tham số, không có mã hay dữ liệu.</summary>
 public sealed record ToolSpec(string Name, string Description, IReadOnlyList<ToolArg> Args);
+
+/// <summary>Công cụ có mô tả phụ thuộc dữ liệu hiện có (ví dụ các khóa giả định đã duyệt): planner nhận mô tả này thay cho <see cref="IAgentTool.Spec"/> lúc lập kế hoạch.</summary>
+public interface IRuntimeDescribedTool
+{
+    Task<ToolSpec> GetSpecAsync(CancellationToken ct = default);
+}
 
 public interface IAgentTool
 {

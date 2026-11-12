@@ -14,6 +14,7 @@ from app.services.amount_normalizer import find_amounts
 MIN_AMOUNT_VND = 1_000  # nhỏ hơn không phải một khoản tiền ("2" trong "2 năm")
 _YEAR = re.compile(r"(?i)\bnăm\s+(?:19|20)\d{2}\b")
 _DATE = re.compile(r"\b(?:\d{1,2}/)?\d{1,2}/\d{4}\b")  # 31/10/2026 và 8/2026 (tháng/năm): năm không phải tiền
+_LEGAL_NO = re.compile(r"\b\d+/(?:19|20)\d{2}/[A-Za-zĐđ][\w-]*")  # số hiệu văn bản: 188/2025/NĐ-CP, 109/2025/QH15 (năm trong số hiệu không phải tiền)
 _PLAIN = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.,]\d{3})+|\d{4,})(?![\d]|[.,]\d)")  # 1.500.000 hoặc 1500000
 
 
@@ -24,7 +25,7 @@ def format_vnd(amount: int) -> str:
 
 def claim_amounts(text: str) -> set[int]:
     """Mọi số tiền (đồng) xuất hiện trong ``text``."""
-    cleaned = _DATE.sub(" ", _YEAR.sub(" ", text))
+    cleaned = _DATE.sub(" ", _YEAR.sub(" ", _LEGAL_NO.sub(" ", text)))
     amounts = {match.value for match in find_amounts(cleaned) if match.value >= MIN_AMOUNT_VND}
     for match in _PLAIN.finditer(cleaned):
         token = match.group(1)

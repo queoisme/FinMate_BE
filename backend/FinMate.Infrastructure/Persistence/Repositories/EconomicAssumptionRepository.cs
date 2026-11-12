@@ -15,6 +15,14 @@ public class EconomicAssumptionRepository(FinMateDbContext context) : IEconomicA
             .OrderByDescending(a => a.Version)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<string>> ListApprovedKeysAsync(CancellationToken ct = default)
+        => await context.EconomicAssumptions
+            .Where(a => a.Status == AssumptionStatus.Approved)
+            .Select(a => a.Key)
+            .Distinct()
+            .OrderBy(k => k)
+            .ToListAsync(ct);
+
     public async Task<int> GetMaxVersionAsync(string key, CancellationToken ct = default)
         => await context.EconomicAssumptions.Where(a => a.Key == key).MaxAsync(a => (int?)a.Version, ct) ?? 0;
 

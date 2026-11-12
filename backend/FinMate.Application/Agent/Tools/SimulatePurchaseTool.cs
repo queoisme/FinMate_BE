@@ -98,7 +98,22 @@ public sealed class SimulatePurchaseTool(IPurchaseCheckService purchases) : IAge
         };
         evidence.Add(new Evidence("verdict", "purchase_verdict", null, Cap($"verdict: {verdict} (kỳ tính {period}; {check.Summary})"), "label", derived, asOf, ConfidenceCalculator.Compute(derived, asOf, now, 1.0)));
 
-        return ToolResult.Ok(evidence);
+        // Chỉ đề xuất khi khoản mua chưa ổn: có lý do để hoãn hoặc giảm. Mỗi thẻ trỏ tới bằng chứng cùng tên ở trên.
+        var actions = new List<SuggestedActionDto>();
+        if (verdict != "feasible")
+        {
+            if (check.EarliestSafeDate is { } safeDate && safeDate > check.PurchaseDate)
+            {
+                actions.Add(new SuggestedActionDto(SuggestedActionKinds.WaitUntil, $"Hoãn mua tới {safeDate:dd/MM/yyyy}", null, safeDate.ToString("yyyy-MM-dd"), null, null, ["earliest_safe_date"]));
+            }
+
+            if (check.MaxAffordableCents is { } cap && cap > 0 && cap < price)
+            {
+                actions.Add(new SuggestedActionDto(SuggestedActionKinds.LowerAmountTo, $"Giảm số tiền mua xuống tối đa {LocalTemplateComposer.FormatVnd(cap)}", cap, null, null, null, ["max_affordable"]));
+            }
+        }
+
+        return ToolResult.Ok(evidence, actions);
     }
 
     private static string Cap(string text) => text.Length <= MaxEvidenceText ? text : text[..MaxEvidenceText];

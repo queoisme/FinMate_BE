@@ -60,6 +60,11 @@ SECRETS: dict[str, SecretSpec] = {
         "gemini_api_key", "Gemini API key", "gemini_api_key",
         "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", lambda key: {"x-goog-api-key": key},
     ),
+    # Khóa Gemini dự phòng cho agent: dùng khi khóa chính bị giới hạn (429) hoặc lỗi. Để trống thì bị bỏ qua.
+    "gemini_api_key_backup": SecretSpec(
+        "gemini_api_key_backup", "Gemini API key dự phòng", "gemini_api_key_backup",
+        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", lambda key: {"x-goog-api-key": key},
+    ),
     "openrouter_api_key": SecretSpec(
         "openrouter_api_key", "OpenRouter API key", "openrouter_api_key",
         "https://openrouter.ai/api/v1/auth/key", lambda key: {"Authorization": f"Bearer {key}"},

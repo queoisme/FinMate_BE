@@ -174,3 +174,14 @@ def test_slang_word_that_is_an_ordinary_word_is_not_money(spoken):
 )
 def test_a_unit_that_does_not_shrink_starts_a_new_number(spoken, expected):
     assert [m.value for m in find_number_words(spoken)] == expected
+
+
+@pytest.mark.parametrize("text", ["Mục tiêu theo phần trăm là một tỷ lệ để dành", "Tỷ giá hôm nay thay đổi", "một tỷ suất sinh lời", "tỷ số hai ba", "hai tỷ phú đến dự"])
+def test_ty_inside_a_compound_word_is_not_a_billion(text):
+    # "tỷ lệ", "tỷ giá", "tỷ suất", "tỷ số", "tỷ phú" là từ ghép: "một tỷ lệ" không phải một tỷ đồng
+    assert [m for m in find_number_words(text) if m.has_scale] == []
+
+
+@pytest.mark.parametrize("text, expected", [("mua nhà ba tỷ", 3_000_000_000), ("vay hai tỷ rưỡi", 2_500_000_000), ("một tỷ hai trăm triệu", 1_200_000_000)])
+def test_ty_as_a_unit_still_reads_as_a_billion(text, expected):
+    assert parse_number_words(text) == expected

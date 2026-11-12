@@ -8,6 +8,9 @@ public sealed record ApprovedAssumption(Evidence Evidence, int RateBps);
 /// <summary>Công cụ tra giả định kinh tế. Không có bản đã duyệt thì trả null, không bao giờ trả một con số mặc định.</summary>
 public sealed class GetAssumptionsTool(IEconomicAssumptionRepository repository)
 {
+    /// <summary>Các khóa có bản đã duyệt, để mô tả công cụ cho planner.</summary>
+    public Task<IReadOnlyList<string>> ApprovedKeysAsync(CancellationToken ct = default) => repository.ListApprovedKeysAsync(ct);
+
     public async Task<ApprovedAssumption?> GetApprovedAsync(string key, DateTimeOffset now, CancellationToken ct = default)
     {
         var assumption = await repository.GetApprovedAsync(key, ct);

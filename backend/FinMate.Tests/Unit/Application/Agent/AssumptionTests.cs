@@ -22,6 +22,8 @@ public class AssumptionTests
         public Task<EconomicAssumption?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(Rows.FirstOrDefault(r => r.Id == id));
         public Task<EconomicAssumption?> GetApprovedAsync(string key, CancellationToken ct = default)
             => Task.FromResult(Rows.Where(r => r.Key == key && r.Status == AssumptionStatus.Approved).OrderByDescending(r => r.Version).FirstOrDefault());
+        public Task<IReadOnlyList<string>> ListApprovedKeysAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(Rows.Where(r => r.Status == AssumptionStatus.Approved).Select(r => r.Key).Distinct().OrderBy(k => k).ToList());
         public Task<int> GetMaxVersionAsync(string key, CancellationToken ct = default) => Task.FromResult(Rows.Where(r => r.Key == key).Select(r => r.Version).DefaultIfEmpty(0).Max());
         public Task<List<EconomicAssumption>> ListAsync(string? key, CancellationToken ct = default) => Task.FromResult(Rows.Where(r => key == null || r.Key == key).ToList());
         public Task AddAsync(EconomicAssumption assumption, CancellationToken ct = default) { Rows.Add(assumption); return Task.CompletedTask; }

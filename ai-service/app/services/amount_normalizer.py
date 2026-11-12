@@ -114,6 +114,11 @@ def _words(norm: str) -> list[AmountMatch]:
         words = run.split()
         if words[0] in ("tu", "lam") or not _MAGNITUDE.intersection(words):
             continue
+        if words[-1] == "ty" and re.match(r"\s*(?:le|so|gia|trong|suat|phu)(?![a-z])", norm[m.end():]):
+            words = words[:-1]   # "mot ty le": ty là từ ghép (tỷ lệ), không phải đơn vị
+            run = " ".join(words)
+            if not words or not _MAGNITUDE.intersection(words):
+                continue
         value = words_to_amount(run)
         if value is None:
             continue

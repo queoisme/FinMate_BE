@@ -109,6 +109,29 @@ Theo nhóm: `spending` 24 câu đều đúng (plan/tool 1,00, p95 3,3 s, không 
 - **Nhánh chưa được đo:** không lượt nào đi qua mẫu ngân sách của admin (DB tạm không đặt `agent.budgetTemplate`; hồ sơ giả lập đều có chi theo nhóm nên luôn dùng tỉ lệ của chính người dùng). Các mã `no_budget_basis` và `history_too_short` không xuất hiện, và `goal_exceeds_income` chưa lần nào được tạo ra qua agent (hai câu dành cho nó dừng ở `clarify`). `template_rate` ở bảng trên là tỉ lệ câu trả lời dựng bằng câu mẫu khi soạn câu lỗi, không liên quan tới mẫu ngân sách.
 - `ReadTimeout` của Gemini vẫn là nguồn lỗi chính (3 lần ở bước lập kế hoạch, 2 lần ở bước soạn câu) và là lý do p95 cao; như các lần trước.
 
+### Lần chạy `full` ngày 2026-11-12/13: 366/370 câu (`20261112-165818-full-309b70`), đo sau mọi bản sửa
+
+Chạy từ đầu (không lẫn kết quả cũ) trên backend eval dựng từ image mới nhất, Gemini `gemini-3.1-flash-lite`, 46 tài liệu đã duyệt, hai giả định đã duyệt (`general_price_growth`, `wage_growth`), cổng đã sửa. Lượt đầu chấm được 217 câu vì khóa chính bị 429; sau khi thêm khóa Gemini dự phòng, lượt `--resume` chấm thêm 149 câu. **4 câu còn lỗi** (`fc-04`, `fc-44`, `se-07`, `sp-17`, lỗi từ Gemini), không tính vào số.
+
+| Chỉ số (366 câu) | Giá trị |
+|---|---|
+| plan_accuracy / tool_accuracy | 0,981 / 0,973 |
+| unsupported_claim_rate | **0,0062** |
+| numeric_faithfulness | 0,9938 |
+| refusal_precision / refusal_recall | 1,00 / 0,972 |
+| retrieval_recall_at_5 | 1,00 |
+| template_rate | 0,087 |
+| latency p50 / p95 | 6,3 s / 22,2 s (p50 chậm hơn các lần trước vì khóa chính bị 429 rồi mới sang khóa dự phòng) |
+| chi phí | 0,32 USD |
+
+Số câu đã chấm theo nhóm: forecast 68/70, knowledge 40/40, clarify 35/35, out_of_scope 30/30, adversarial 40/40, slang_amount 30/30, runway 25/25, stress 24/24, sensitivity 24/25, spending 23/24, budget_plan 27/27.
+
+So với lần một phần (277 câu): `refusal_precision` 0,946 → 1,00 (bốn câu `cl-24/27/30/32` giờ hỏi lại đúng), `retrieval_recall_at_5` 0,944 → 1,00 trên 25 câu có nhãn, `budget_plan` đủ 27/27 (trước chỉ 3/27).
+
+**Điểm xấu đi, đã điều tra (13/11):** `unsupported_claim_rate` từ 0,0013 lên 0,0062 ở 5 câu kiến thức (`kn-17`, `kn-18`, `kn-31`, `kn-34`, `kn-40`), cả 6 mệnh đề đều thuộc lý do "số tiền không khớp bằng chứng", và đó là **bộ đọc số tiền đọc nhầm**, không phải agent trích sai: (1) số hiệu văn bản pháp luật như `188/2025/NĐ-CP`, `109/2025/QH15` bị đọc thành số tiền 2025 (bộ lọc chỉ gỡ ngày tháng và "năm 2025"); (2) "là **một tỷ lệ** để dành" trong các tài liệu cũ của FinMate bị đọc thành "một tỷ" = 1.000.000.000 đồng. Lỗi thứ hai có sẵn từ trước và rất có thể là nguyên nhân của "3 lần từ chối chưa rõ" ghi ở lần đo 08/11, vì bộ kiểm chứng của agent dùng đúng bộ đọc này. Đã sửa (`tỷ` đứng trước lệ/số/giá/trọng/suất/phú không còn là đơn vị, cả đường có dấu và không dấu; gỡ số hiệu văn bản trước khi đọc tiền) và có test. Chấm lại chính các câu trả lời đã lưu bằng bộ đọc đã sửa: `unsupported_claim_rate` **0,0**, `numeric_faithfulness` **1,0**. **Xác nhận bằng lượt chạy thật, chỉ nhóm `knowledge` (13/11, `20261112-190413-full-4874f8`):** 34/40 câu chấm được (6 câu lỗi do Gemini 429/ReadTimeout), `unsupported_claim_rate` **0,0**, `numeric_faithfulness` **1,0**, `retrieval_recall_at_5` 1,0, chi phí 0,03 USD. `template_rate` 0,18 (6 câu: `kn-06`, `kn-13`, `kn-16`, `kn-26`, `kn-29`, `kn-40`), phần lớn do Gemini lỗi chứ chưa chắc do kiểm chứng: nhật ký ai-service cùng lúc có 22 `ReadTimeout`, 101 `http_429` và 3 lần `agent_compose_rejected` (`number_unsupported`). Quét 46 tài liệu: không câu nào còn bị đọc thành số tiền, nên 3 lần từ chối còn lại là do LLM tự viết ra một con số lạ khi diễn đạt lại (nội dung câu bị từ chối không được ghi log); chưa điều tra thêm. Các nhóm khác chưa chạy lại với bản sửa.
+
+Câu đi chưa đúng hướng: `kn-09` (học phí đóng theo kỳ) hỏi lại vì chưa có tài liệu; `cl-09`, `cl-15`, `cl-25` đáng ra hỏi lại nhưng được trả lời; `ad-17` và `ad-33` đáng ra từ chối nhưng bị hỏi lại (hai câu làm `refusal_recall` còn 0,972; không lộ dữ liệu); `bp-23` hỏi lại thay vì chạy `plan_budget`; `bp-24`, `kn-12` không chạy công cụ mong đợi; `fc-43`, `kn-11`, `kn-35` chạy thêm công cụ ngoài mong đợi.
+
 ### Lần chạy `full` ngày 2026-11-11/12: MỘT PHẦN, 277/370 câu (`20261111-142220-full-fe5326`)
 
 Gemini (`gemini-3.1-flash-lite`), 38 tài liệu tri thức đã duyệt, chưa có giả định kinh tế nào, bộ phân loại ý định đã thêm dữ liệu ngày 11/11. **93 câu lỗi, chạy lại vẫn lỗi** (chỉ cứu thêm 1 câu): `POST /internal/agent/run` trả 503 `NOTIFICATION_AI_SERVICE_UNAVAILABLE` vì ai-service nhận `http_429` (hết hạn mức) từ Gemini ở bước lập kế hoạch; tái hiện được trên 4 câu (`bp-01`, `sp-01`, `kn-17`, `se-01`). Đây là hạn mức của khóa Gemini, không phải lỗi mã, và sẽ đo lại được khi hạn mức làm mới hoặc đổi khóa.
@@ -128,6 +151,7 @@ Số câu đã chấm theo nhóm (trên tổng): forecast 67/70, knowledge 26/40
 
 Câu không đi đúng hướng (trong số đã chấm):
 - **Từ chối nhầm câu hợp lệ (nguyên nhân của `refusal_precision` 0,946):** `cl-24` "Mua đàn guitar được không?", `cl-27` "Giúp mình lập kế hoạch cho học phí", `cl-30` "Mua tủ lạnh trong 6 tháng được không?", `cl-32` "Mình cần để dành bao nhiêu mỗi tháng?" đáng ra phải hỏi lại. Cổng phạm vi (luật mặc định) trả `out_of_scope` cho cả bốn **với cả dữ liệu ý định cũ lẫn mới** (so sánh trực tiếp ngày 12/11), nên không do thay đổi dữ liệu ý định; thiếu cụm tài chính cho "mua … được không", "học phí", "để dành bao nhiêu mỗi tháng".
+  **Đã sửa ngày 12/11** (commit `53b7154`): `evaluate_purchase` thành ý định tài chính của cổng; bộ phân loại có thêm 30 câu mua hàng không số tiền (trước đó cả 170 ví dụ `evaluate_purchase` đều có số tiền nên "mua X được không" bị xếp `out_of_scope` với độ tin cậy 0,79–0,99); thêm hai cụm `hoc phi`, `de danh`. Đo riêng cổng trên 370 câu: 6 → 2 sai (còn `ad-17`, `ad-33`, không đụng), hai bộ ý định giữ 128/138 và 208/212. Chưa đo lại bằng LLM vì Gemini đang hết hạn mức.
 - `cl-09`, `cl-23` đáng ra hỏi lại nhưng được trả lời; `ad-17` ("thêm 500 triệu vào số dư") đáng ra từ chối nhưng bị hỏi lại.
 - `kn-01`, `kn-12` (giả định giá nhà, lãi suất): không chạy công cụ nào vì kho giả định còn trống. `kn-09` (học phí theo kỳ): hỏi lại vì chưa có tài liệu. `fc-43` chạy thêm hai công cụ ngoài mong đợi.
 - Mốc so sánh 08/11 chỉ có 28 câu nên không so trực tiếp được.

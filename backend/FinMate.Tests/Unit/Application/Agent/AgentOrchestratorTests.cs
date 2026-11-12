@@ -438,4 +438,61 @@ public class AgentOrchestratorTests
         claims.Select(c => c.Text).Should().Contain(t => t.Contains("600.000.000 đồng") && t.Contains("bạn nhập") && t.Contains("07/11/2026"));
         claims.Should().OnlyContain(c => c.EvidenceIds.Count == 1);
     }
+
+    private sealed class ActionDemoTool(params SuggestedActionDto[] actions) : IAgentTool
+    {
+        public ToolSpec Spec { get; } = new("action_demo", "Công cụ thử: trả một bằng chứng và các thẻ đề xuất.", []);
+
+        public Task<ToolResult> RunAsync(ToolContext context, JsonElement args, CancellationToken ct = default)
+            => Task.FromResult(ToolResult.Ok(
+                [new Evidence("demo", "demo", 800_000, "Mức tối đa", "VND", EvidenceSource.Estimated, Now, 0.8)], actions));
+    }
+
+    private static (AgentOrchestrator Orchestrator, FakeAi Ai) BuildWithActions(params SuggestedActionDto[] actions)
+    {
+        var source = new RecordingSource(new InMemoryFinancialDataSource(Income, Spend.Take(Income.Length).ToArray(), 100_000_000, null));
+        var ai = new FakeAi
+        {
+            Plan = _ => new AgentPlanResult("demo", [new AgentPlanStep("action_demo", Json("{}"))], null, null),
+            Compose = _ => new AgentComposeResult([new AgentClaim("Mức tối đa là 800.000 đồng.", ["demo"])], false, false, null),
+        };
+        var registry = new ToolRegistry([new ActionDemoTool(actions)]);
+        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(new FakeCache()), new AgentTraceContext(), () => Now), ai);
+    }
+
+    [Fact]
+    public async Task the_answer_carries_the_suggested_actions_of_the_tools_without_duplicates()
+    {
+        var lower = new SuggestedActionDto(SuggestedActionKinds.LowerAmountTo, "Giảm số tiền mua xuống tối đa 800.000 đồng", 800_000, null, null, null, ["demo"]);
+        var (orchestrator, _) = BuildWithActions(lower, lower with { EvidenceIds = ["demo"] });
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua cái này được không");
+
+        answer.Status.Should().Be(AgentStatus.Answered);
+        answer.SuggestedActions.Should().ContainSingle().Which.AmountVnd.Should().Be(800_000);
+    }
+
+    [Fact]
+    public async Task the_number_of_suggested_actions_is_capped()
+    {
+        var many = Enumerable.Range(1, AgentLimits.MaxSuggestedActions + 5)
+            .Select(i => new SuggestedActionDto(SuggestedActionKinds.SetBudgetLimit, "Đặt hạn mức", i * 1000, null, $"nhom-{i}", $"Nhóm {i}", ["demo"])).ToArray();
+        var (orchestrator, _) = BuildWithActions(many);
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "chia ngân sách giúp mình");
+
+        answer.SuggestedActions.Should().HaveCount(AgentLimits.MaxSuggestedActions);
+    }
+
+    [Fact]
+    public async Task a_refusal_has_no_suggested_actions()
+    {
+        var (orchestrator, ai) = BuildWithActions(new SuggestedActionDto(SuggestedActionKinds.WaitUntil, "Hoãn", null, "2026-11-15", null, null, ["demo"]));
+        ai.Gate = new AgentGateResult(false, "out_of_scope", "Ngoài phạm vi.");
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "thời tiết");
+
+        answer.Status.Should().Be(AgentStatus.Refused);
+        answer.SuggestedActions.Should().BeEmpty();
+    }
 }
