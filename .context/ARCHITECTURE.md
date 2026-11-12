@@ -1227,7 +1227,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 - `raw_samples` giữ nội dung thông báo. Đó là tập dữ liệu huấn luyện, và nội dung đã qua
   `anonymizer` (che số tài khoản/thẻ/SĐT/email, giữ nguyên số tiền vì số tiền là nhãn của
   chính bài toán). Bản gốc chưa che chỉ tồn tại ở `notification_logs` phía backend và bị
-  `DataCleanupJob` xoá sau 90 ngày theo §7.3.
+  `NotificationBodyPurgeJob` xoá sau 90 ngày theo §7.3.
 
 ### 4.3 Quy tắc database quan trọng
 
@@ -1251,6 +1251,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `DailySummaryJob` | 00:05 mỗi ngày | Tổng hợp daily_summaries của ngày hôm trước |
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
+| `NotificationBodyPurgeJob` | 03:15 mỗi ngày | Đặt `notification_logs.notification_body = NULL` cho log ghi quá 90 ngày (NFR-SEC-23, §7.3). Tiêu đề, `content_hash`, trạng thái, kết quả AI và giao dịch giữ nguyên |
 | `MarketDataRefreshJob` | Mỗi 3 giờ, phút 5 | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
 | `SubscriptionReconcileJob` | Mỗi 10 phút | Tra SePay các đơn đang chờ để ghi nhận tiền khi IPN không về; đơn quá 24 giờ chưa trả thì hết hạn |
 | `SubscriptionReminderJob` | 09:00 mỗi ngày | Nhắc gói sắp hết hạn trước 7 ngày và 1 ngày, bỏ qua nếu đã có kỳ nối tiếp |
@@ -1261,7 +1262,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `ForecastDailyAlertJob` | 08:00 mỗi ngày | Cảnh báo dự báo hằng ngày (§2.6 đợt 2) và quét chi tiêu bất thường (đợt 3) |
 | `ForecastAlertDispatchJob` | Mỗi 15 phút | Gửi cảnh báo đã hẹn giờ (hết giờ yên lặng, đổi giá chờ tới sáng) |
 
-**Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (chưa có job nào xóa `notification_body` sau 90 ngày — xem `TASKS.md` Phase 52). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
+**Không tồn tại (cập nhật 2026-11-02):** `ForecastJob` (dự báo chỉ tính khi client gọi) và `DataCleanupJob` (tên trong tài liệu cũ; việc xóa `notification_body` sau 90 ngày do `NotificationBodyPurgeJob` làm từ 2026-11-12). `StreakCheckJob` và `MissionResetJob` đã gỡ cùng gamification; `Program.cs` gọi `RecurringJob.RemoveIfExists` cho hai id cũ. Giờ trong bảng là giờ VN; Hangfire đọc cron theo UTC nên `Program.cs` quy đổi.
 
 ---
 
@@ -1306,7 +1307,7 @@ Nếu refresh_token bị reuse → hủy TẤT CẢ tokens của user (security 
   `OCR_SERVICE_API_KEY` còn giá trị mẫu (`StartupSecretGuard.GuardedKeys`).
 
 ### 7.3 Data privacy
-- `notification_body` gốc → xóa sau 90 ngày (DataCleanupJob)
+- `notification_body` gốc → xóa sau 90 ngày (`NotificationBodyPurgeJob`, 03:15 giờ VN; tính theo `created_at`)
 - AI DB không lưu `user_id` thực → luôn SHA-256 hash
 - Admin không đọc được `amount_cents` hay `description` của user cụ thể
 - **Gemini (thêm 2026-10-10, tuỳ chọn, mặc định tắt) — đường ai-service `classify-items`:** chỉ nhận **tên món** (≤ 20 món, ≤ 60 ký tự, đã cắt cụm trông như
