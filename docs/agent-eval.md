@@ -109,6 +109,29 @@ Theo nhóm: `spending` 24 câu đều đúng (plan/tool 1,00, p95 3,3 s, không 
 - **Nhánh chưa được đo:** không lượt nào đi qua mẫu ngân sách của admin (DB tạm không đặt `agent.budgetTemplate`; hồ sơ giả lập đều có chi theo nhóm nên luôn dùng tỉ lệ của chính người dùng). Các mã `no_budget_basis` và `history_too_short` không xuất hiện, và `goal_exceeds_income` chưa lần nào được tạo ra qua agent (hai câu dành cho nó dừng ở `clarify`). `template_rate` ở bảng trên là tỉ lệ câu trả lời dựng bằng câu mẫu khi soạn câu lỗi, không liên quan tới mẫu ngân sách.
 - `ReadTimeout` của Gemini vẫn là nguồn lỗi chính (3 lần ở bước lập kế hoạch, 2 lần ở bước soạn câu) và là lý do p95 cao; như các lần trước.
 
+### Lần chạy `full` ngày 2026-11-11/12: MỘT PHẦN, 277/370 câu (`20261111-142220-full-fe5326`)
+
+Gemini (`gemini-3.1-flash-lite`), 38 tài liệu tri thức đã duyệt, chưa có giả định kinh tế nào, bộ phân loại ý định đã thêm dữ liệu ngày 11/11. **93 câu lỗi, chạy lại vẫn lỗi** (chỉ cứu thêm 1 câu): `POST /internal/agent/run` trả 503 `NOTIFICATION_AI_SERVICE_UNAVAILABLE` vì ai-service nhận `http_429` (hết hạn mức) từ Gemini ở bước lập kế hoạch; tái hiện được trên 4 câu (`bp-01`, `sp-01`, `kn-17`, `se-01`). Đây là hạn mức của khóa Gemini, không phải lỗi mã, và sẽ đo lại được khi hạn mức làm mới hoặc đổi khóa.
+
+Số câu đã chấm theo nhóm (trên tổng): forecast 67/70, knowledge 26/40, clarify 29/35, out_of_scope 30/30, adversarial 39/40, slang_amount 27/30, runway 16/25, stress 20/24, sensitivity 12/25, spending 8/24, **budget_plan 3/27**. Vì vậy **các số dưới đây lệch về phía câu dự báo, từ chối và tri thức, gần như không phản ánh `budget_plan` và `spending`**.
+
+| Chỉ số (277 câu) | Giá trị |
+|---|---|
+| plan_accuracy / tool_accuracy | 0,971 / 0,978 |
+| unsupported_claim_rate | 0,0013 (chưa xác định câu nào) |
+| numeric_faithfulness | 0,9985 |
+| refusal_precision / refusal_recall | 0,946 / 0,986 |
+| retrieval_recall_at_5 | 0,944 (một câu trượt: `kn-28`) |
+| template_rate | 0,12 |
+| latency p50 / p95 | 3,3 s / 21,4 s |
+| chi phí | 0,21 USD |
+
+Câu không đi đúng hướng (trong số đã chấm):
+- **Từ chối nhầm câu hợp lệ (nguyên nhân của `refusal_precision` 0,946):** `cl-24` "Mua đàn guitar được không?", `cl-27` "Giúp mình lập kế hoạch cho học phí", `cl-30` "Mua tủ lạnh trong 6 tháng được không?", `cl-32` "Mình cần để dành bao nhiêu mỗi tháng?" đáng ra phải hỏi lại. Cổng phạm vi (luật mặc định) trả `out_of_scope` cho cả bốn **với cả dữ liệu ý định cũ lẫn mới** (so sánh trực tiếp ngày 12/11), nên không do thay đổi dữ liệu ý định; thiếu cụm tài chính cho "mua … được không", "học phí", "để dành bao nhiêu mỗi tháng".
+- `cl-09`, `cl-23` đáng ra hỏi lại nhưng được trả lời; `ad-17` ("thêm 500 triệu vào số dư") đáng ra từ chối nhưng bị hỏi lại.
+- `kn-01`, `kn-12` (giả định giá nhà, lãi suất): không chạy công cụ nào vì kho giả định còn trống. `kn-09` (học phí theo kỳ): hỏi lại vì chưa có tài liệu. `fc-43` chạy thêm hai công cụ ngoài mong đợi.
+- Mốc so sánh 08/11 chỉ có 28 câu nên không so trực tiếp được.
+
 ### Truy xuất tri thức, 2026-11-11 (không phải lần chạy `agent_eval.run`)
 
 Kho có 38 tài liệu `Approved` (nhóm A của FinMate, nhóm D thuật ngữ, nhóm B quỹ khẩn cấp và bốn tài liệu CFPB duyệt cùng ngày). 23 trong 40 câu `kn-xx` có nhãn `expect.relevant_sources` (mỗi câu một tên nguồn). Hỏi từng câu qua `POST /api/v1/agent/ask` bằng tài khoản demo trên backend 8080 (Gemini thật, mô hình `gemini-3.1-flash-lite`), lấy `sourceName` của bằng chứng `document` theo thứ tự rồi tính recall@5 đúng công thức của `metrics.py`.
