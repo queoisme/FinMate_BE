@@ -90,7 +90,7 @@ public class GroupLedger : IGroupLedger
 
     public async Task<IReadOnlyList<GroupBudgetAlert>> ApplyAsync(Transaction transaction, Category? category, int sign, CancellationToken ct = default)
     {
-        var spend = TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, category);
+        var spend = TransactionBudgetDelta.Spend(transaction, category);
         if (transaction.GroupId is not { } groupId || transaction.Status != TransactionStatus.Confirmed || spend == 0)
         {
             return [];

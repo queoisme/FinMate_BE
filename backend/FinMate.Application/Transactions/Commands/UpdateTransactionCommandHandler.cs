@@ -113,14 +113,14 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 transaction.CategoryId,
-                -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
+                -TransactionBudgetDelta.Spend(transaction, transaction.Category),
                 transaction.TransactedAt,
                 ct);
 
             budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 newCategory?.Id,
-                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, newCategory),
+                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, newCategory, transaction.Relation, transaction.IsReversed),
                 command.TransactedAt,
                 ct);
 
