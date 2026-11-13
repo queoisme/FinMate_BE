@@ -39,6 +39,7 @@ public class ChatCommandHandler : IChatCommandHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly IValidator<ChatCommand> _validator;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý (test cũ) thì không gửi gì ra bên thứ ba
+    private readonly Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc cho câu "được hoàn tiền"
 
     public ChatCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -48,8 +49,10 @@ public class ChatCommandHandler : IChatCommandHandler
         IReportRepository reportRepository,
         ITransactionRepository transactionRepository,
         IValidator<ChatCommand> validator,
-        IAiConsentReader? consent = null)
+        IAiConsentReader? consent = null,
+        Refunds.IRefundSuggestions? refundSuggestions = null)
     {
+        _refundSuggestions = refundSuggestions;
         _aiServiceClient = aiServiceClient;
         _createHandler = createHandler;
         _financialAccountRepository = financialAccountRepository;
@@ -90,7 +93,7 @@ public class ChatCommandHandler : IChatCommandHandler
             var drafts = new List<ChatDraftDto>();
             foreach (var e in many)
             {
-                drafts.Add(DraftOf(e, accountId, await FindDuplicateAsync(command, e, ct)));
+                drafts.Add(await WithRefundSuggestionsAsync(command, e, DraftOf(e, accountId, await FindDuplicateAsync(command, e, ct)), ct));
             }
 
             // Client cũ chỉ đọc `draft` (bản đầu): câu trả lời nói rõ có nhiều khoản để người dùng không im lặng mất các khoản sau.
@@ -144,7 +147,7 @@ public class ChatCommandHandler : IChatCommandHandler
             }
         }
 
-        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, WithNotes(parsed.ReplyText, parsed), null, DraftOf(entry, accountId, duplicate), null);
+        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, WithNotes(parsed.ReplyText, parsed), null, await WithRefundSuggestionsAsync(command, entry, DraftOf(entry, accountId, duplicate), ct), null);
     }
 
     // Chạy được cả khi runtime ở chế độ globalization-invariant (không có culture vi-VN): tự đổi dấu phân cách nghìn sang dấu chấm.
@@ -177,6 +180,32 @@ public class ChatCommandHandler : IChatCommandHandler
             ? _transactionRepository.FindPossibleDuplicateAsync(
                 command.UserId, entry.AmountCents, entry.OccurredAt ?? DateTimeOffset.UtcNow, DuplicateWindow, command.ClientRequestId, ct)
             : Task.FromResult<Guid?>(null);
+
+    /// <summary>
+    /// Phase 81 (D17): câu chat là nhận tiền hoàn (AI đoán <c>income_type = refund</c>) → kèm khoản chi gốc gợi ý. Chat không bao giờ tự lưu
+    /// thu nhập (FR-CHAT-02), nên không có đường lưu mới: app chọn khoản gốc rồi gọi <c>POST /transactions/{id}/refunds</c>.
+    /// </summary>
+    private async Task<ChatDraftDto> WithRefundSuggestionsAsync(ChatCommand command, ChatParseEntry entry, ChatDraftDto draft, CancellationToken ct)
+    {
+        if (_refundSuggestions is null || entry.Kind != IncomeKind || !string.Equals(entry.IncomeType, RefundIncomeType, StringComparison.OrdinalIgnoreCase))
+        {
+            return draft;
+        }
+
+        var probe = new Transaction
+        {
+            UserId = command.UserId,
+            FinancialAccountId = draft.SuggestedFinancialAccountId ?? Guid.Empty,
+            AmountCents = entry.AmountCents,
+            TransactionType = TransactionType.Credit,
+            MerchantName = entry.MerchantName,
+            TransactedAt = entry.OccurredAt ?? DateTimeOffset.UtcNow,
+        };
+        var suggestions = await _refundSuggestions.SuggestAsync(command.UserId, probe, TransactionRelation.Refund, ct);
+        return draft with { RelationHint = TransactionRelation.Refund.ToString(), SuggestedRelatedTransactions = suggestions };
+    }
+
+    private const string RefundIncomeType = "refund";
 
     private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null)
     {

@@ -29,6 +29,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
+        RuleFor(x => x.Refunds).NotNull().SetValidator(new RefundValidator());
     }
 
     private static bool IsHttps(string value)
@@ -244,6 +245,16 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
                     .WithName(nameof(ForecastHoliday.Start)).WithMessage("Ngày lễ phải có ngày bắt đầu không sau ngày kết thúc và dài tối đa 32 ngày.");
                 h.RuleFor(x => x.MultiplierPercent).InclusiveBetween(50, 300).WithMessage("Hệ số chi tiêu ngày lễ phải từ 50 đến 300%.");
             });
+        }
+    }
+
+    private sealed class RefundValidator : AbstractValidator<RefundSettings>
+    {
+        public RefundValidator()
+        {
+            RuleFor(x => x.MatchWindowDays).InclusiveBetween(1, 365).WithMessage("Cửa sổ gợi ý hoàn tiền phải từ 1 đến 365 ngày.");
+            RuleFor(x => x.ReversalMatchWindowDays).InclusiveBetween(1, 60).WithMessage("Cửa sổ gợi ý đảo giao dịch phải từ 1 đến 60 ngày.");
+            RuleFor(x => x.MaxSuggestions).InclusiveBetween(1, 10).WithMessage("Số khoản gợi ý phải từ 1 đến 10.");
         }
     }
 

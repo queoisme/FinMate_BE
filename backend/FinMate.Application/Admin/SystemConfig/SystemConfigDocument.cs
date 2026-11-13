@@ -458,6 +458,22 @@ public sealed record AgentSettings
     public string BudgetTemplate { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Hoàn tiền / đảo giao dịch (Phase 81). Các cửa sổ chỉ giới hạn danh sách GỢI Ý khoản chi gốc cho một khoản tiền vào mà AI đoán là hoàn/đảo;
+/// người dùng liên kết tay thì không giới hạn thời gian (D12).
+/// </summary>
+public sealed record RefundSettings
+{
+    /// <summary>Gợi ý khoản chi trong bao nhiêu ngày trước khoản hoàn.</summary>
+    public int MatchWindowDays { get; init; } = 60;
+
+    /// <summary>Đảo giao dịch lỗi thường về trong vài ngày, nên cửa sổ ngắn hơn hẳn.</summary>
+    public int ReversalMatchWindowDays { get; init; } = 3;
+
+    /// <summary>Số khoản chi gợi ý tối đa.</summary>
+    public int MaxSuggestions { get; init; } = 3;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -477,6 +493,7 @@ public sealed record SystemConfigDocument
     public EconomicFeedsSettings EconomicFeeds { get; init; } = new();
     public MarketDataSettings MarketData { get; init; } = new();
     public CommunitySettings Community { get; init; } = new();
+    public RefundSettings Refunds { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

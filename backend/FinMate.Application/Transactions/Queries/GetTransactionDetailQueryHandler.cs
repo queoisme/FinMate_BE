@@ -8,10 +8,12 @@ namespace FinMate.Application.Transactions.Queries;
 public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandler
 {
     private readonly ITransactionRepository _transactionRepository;
+    private readonly Refunds.IRefundSuggestions? _suggestions;
 
-    public GetTransactionDetailQueryHandler(ITransactionRepository transactionRepository)
+    public GetTransactionDetailQueryHandler(ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null)
     {
         _transactionRepository = transactionRepository;
+        _suggestions = suggestions;
     }
 
     public async Task<TransactionDto> HandleAsync(GetTransactionDetailQuery query, CancellationToken ct = default)
@@ -23,7 +25,9 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
         long? refunded = RefundableShape(transaction)
             ? await _transactionRepository.SumConfirmedRefundsAsync(query.UserId, transaction.Id, null, ct)
             : null;
-        return TransactionMapper.ToDto(transaction, refunded);
+        var suggestions = _suggestions is null ? null : await _suggestions.ForDraftsAsync(query.UserId, [transaction], ct);
+        return TransactionMapper.ToDto(
+            transaction, refunded, suggestions is not null && suggestions.TryGetValue(transaction.Id, out var s) ? s.Items : null);
     }
 
     internal static bool RefundableShape(Domain.Entities.Transaction transaction)

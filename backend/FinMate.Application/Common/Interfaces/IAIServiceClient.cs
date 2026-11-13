@@ -22,7 +22,8 @@ public record ExtractionResult(
     string? Description,
     DateTimeOffset? TransactedAt,
     long? BalanceAfterCents,
-    double? Confidence);
+    double? Confidence,
+    string? RelationHint = null);   // Phase 81: "refund" | "reversal" | null — chỉ để GỢI Ý liên kết
 
 public record CategorizationResult(string? CategorySlug, double? Confidence);
 

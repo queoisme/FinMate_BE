@@ -16,4 +16,5 @@ public record GetTransactionListQuery(
     DateTimeOffset? FromDate,
     DateTimeOffset? ToDate,
     string? Cursor,
-    int Limit);
+    int Limit,
+    TransactionRelation? Relation = null);

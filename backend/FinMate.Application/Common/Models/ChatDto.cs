@@ -45,6 +45,8 @@ public static class ChatMissingFields
 /// <param name="IncomeType">Loại thu nhập AI đoán được (lương, thưởng...); backend chỉ có một danh mục "income".</param>
 /// <param name="SuggestedFinancialAccountId">Ví đã tự chọn được (ví duy nhất của người dùng); null thì client hỏi.</param>
 /// <param name="MissingFields">"category" | "account" | "accounts" — việc client còn phải làm trước khi gọi POST /transactions.</param>
+/// <param name="RelationHint">Phase 81 (D17): <c>Refund</c> khi câu chat là nhận tiền hoàn; app cho chọn khoản chi gốc rồi gọi <c>POST /transactions/{id}/refunds</c>.</param>
+/// <param name="SuggestedRelatedTransactions">Tối đa 3 khoản chi gốc gợi ý khi có <paramref name="RelationHint"/>.</param>
 public record ChatDraftDto(
     string Kind,
     long AmountCents,
@@ -57,7 +59,9 @@ public record ChatDraftDto(
     Guid? SuggestedFinancialAccountId,
     IReadOnlyList<string> MissingFields,
     DateTimeOffset? OccurredAt = null,
-    Guid? PossibleDuplicateTransactionId = null);
+    Guid? PossibleDuplicateTransactionId = null,
+    string? RelationHint = null,
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 

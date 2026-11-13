@@ -13,7 +13,8 @@ public record TransactionListFilter(
     DateTimeOffset? ToDate,
     string? Cursor,
     int Limit,
-    bool ExcludeLoans = false);  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
+    bool ExcludeLoans = false,
+    TransactionRelation? Relation = null);  // Phase 81: chỉ khoản hoàn hoặc chỉ khoản đảo  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
 
 public record TransactionListResult(IReadOnlyList<Transaction> Items, string? NextCursor);
 

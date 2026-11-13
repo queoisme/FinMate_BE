@@ -67,11 +67,12 @@ public class TransactionsController : ControllerBase
         [FromQuery] DateTimeOffset? toDate,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] TransactionRelation? relation,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
             new GetTransactionListQuery(
-                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit),
+                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit, relation),
             ct);
         return Ok(ApiResponse<IReadOnlyList<TransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }

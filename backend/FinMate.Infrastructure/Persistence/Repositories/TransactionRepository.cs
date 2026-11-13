@@ -86,6 +86,11 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.Status == filter.Status);
         }
 
+        if (filter.Relation is not null)
+        {
+            query = query.Where(t => t.Relation == filter.Relation);
+        }
+
         if (filter.ExcludeLoans)
         {
             query = query.Where(t => t.Category == null || t.Category.Slug != Category.LoanSlug);
