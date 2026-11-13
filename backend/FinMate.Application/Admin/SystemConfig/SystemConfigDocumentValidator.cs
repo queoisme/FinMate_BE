@@ -30,6 +30,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
         RuleFor(x => x.Refunds).NotNull().SetValidator(new RefundValidator());
+        RuleFor(x => x.Duplicates).NotNull().SetValidator(new DuplicateValidator());
     }
 
     private static bool IsHttps(string value)
@@ -255,6 +256,16 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MatchWindowDays).InclusiveBetween(1, 365).WithMessage("Cửa sổ gợi ý hoàn tiền phải từ 1 đến 365 ngày.");
             RuleFor(x => x.ReversalMatchWindowDays).InclusiveBetween(1, 60).WithMessage("Cửa sổ gợi ý đảo giao dịch phải từ 1 đến 60 ngày.");
             RuleFor(x => x.MaxSuggestions).InclusiveBetween(1, 10).WithMessage("Số khoản gợi ý phải từ 1 đến 10.");
+        }
+    }
+
+    private sealed class DuplicateValidator : AbstractValidator<DuplicateSettings>
+    {
+        public DuplicateValidator()
+        {
+            RuleFor(x => x.NotificationWindowMinutes).InclusiveBetween(1, 60).WithMessage("Cửa sổ trùng giữa hai thông báo phải từ 1 đến 60 phút.");
+            RuleFor(x => x.ManualWindowHours).InclusiveBetween(1, 168).WithMessage("Cửa sổ trùng giữa khoản nhập tay và thông báo phải từ 1 đến 168 giờ.");
+            RuleFor(x => x.ReceiptWindowHours).InclusiveBetween(1, 72).WithMessage("Cửa sổ trùng của hoá đơn phải từ 1 đến 72 giờ.");
         }
     }
 

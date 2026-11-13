@@ -145,7 +145,7 @@ public class SystemConfigService : ISystemConfigService
     /// <summary>Đọc lại nội dung đã lưu; trường mà code thêm SAU khi phiên bản được lưu nhận giá trị mặc định.</summary>
     private static SystemConfigDocument Deserialize(string json) => JsonSerializer.Deserialize<SystemConfigDocument>(json, Json) ?? new SystemConfigDocument();
 
-    private static List<string> ChangedSections(SystemConfigDocument before, SystemConfigDocument after)
+    internal static List<string> ChangedSections(SystemConfigDocument before, SystemConfigDocument after)
     {
         var sections = new List<string>();
         void Compare<T>(string name, T a, T b)
@@ -164,6 +164,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("theme", before.Theme, after.Theme);
         Compare("qrTransfer", before.QrTransfer, after.QrTransfer);
         Compare("financeMethods", before.FinanceMethods, after.FinanceMethods);
+        Compare("forecast", before.Forecast, after.Forecast);
         Compare("groups", before.Groups, after.Groups);
         Compare("support", before.Support, after.Support);
         Compare("monitoring", before.Monitoring, after.Monitoring);
@@ -171,6 +172,8 @@ public class SystemConfigService : ISystemConfigService
         Compare("economicFeeds", before.EconomicFeeds, after.EconomicFeeds);
         Compare("marketData", before.MarketData, after.MarketData);
         Compare("community", before.Community, after.Community);
+        Compare("refunds", before.Refunds, after.Refunds);
+        Compare("duplicates", before.Duplicates, after.Duplicates);
         return sections;
     }
 }
