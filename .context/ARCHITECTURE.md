@@ -26,6 +26,10 @@ thì hỏi user, đừng tự chọn.
 - Transfer **không có category** — `category_id` phải NULL.
 - Mọi truy vấn cộng dồn chi tiêu đều phải lọc `transaction_type <> 'transfer'`. Thêm truy vấn
   tổng hợp mới ở bất kỳ đâu thì kiểm tra lại điều này trước.
+- **Sửa 2026-11-13 (Phase 83):** "không vào forecast" giờ chỉ đúng với transfer giữa hai ví CÙNG được tính. Transfer có đúng một ví
+  thuộc tập ví được tính (FR-FCST-07) là tiền ra/vào của tập đó: nó vào số thực tế của độ chính xác dự báo (`ForecastActuals`) và các
+  bộ khoản định kỳ, qua một truy vấn riêng `GetBoundaryTransfersAsync`. Nó vẫn **không bao giờ** vào thói quen chi, thu nhập, bất
+  thường hay dự báo theo danh mục. `GetRawTransactionsAsync` và `GetTransactionsAsync` giữ nguyên ngữ nghĩa.
 
 **Nguyên tắc hoàn tiền / đảo giao dịch (Phase 81, 2026-11-13) — dễ sai thứ hai:**
 
@@ -49,6 +53,17 @@ thì hỏi user, đừng tự chọn.
   dùng gộp (`merge`) hoặc bác (`not-duplicate`). Bản bị gộp **xoá mềm** kèm `merged_into_transaction_id`, nên mọi truy vấn đang lọc
   `deleted_at` tự loại nó. Gộp tính lại ngân sách bằng bộ máy của Phase 81 và khoá hai dòng theo id tăng dần → ví → kỳ ngân sách.
   Chi tiết: `docs/superpowers/plans/2026-11-13-linked-duplicates.md`.
+
+**Nguyên tắc ghép cặp chuyển ví (Phase 83, 2026-11-13):**
+
+- Nạp/rút ví, rút/nộp ATM, chuyển giữa hai tài khoản của chính mình được nhận ra và **gợi ý** chuyển thành `transfer`. Gợi ý tính khi
+  đọc, không lưu; không bao giờ tự chuyển. Chỉ gợi ý khi có tín hiệu: từ khoá (`relation_hint = transfer` kèm `transfer_kind`, AI) hoặc
+  nội dung một chiều nhắc tên ví bên kia. Số tiền và thời gian khớp mà không có tín hiệu thì không gợi ý.
+- **Bất biến số dư:** sau khi chuyển đổi, số dư mỗi ví bằng đúng số dư nếu hai thông báo được xác nhận như chi/thu thường, bất kể
+  trước đó mỗi chiều là nháp hay đã xác nhận. Phần chênh (phí) thành một khoản chi riêng, danh mục `other`.
+- Ghép hai chiều đi theo đường gộp của Phase 82 (bản còn lại xoá mềm kèm `merged_into_transaction_id`). Mọi đường gộp/chuyển đổi ghi
+  một dòng `transaction_merge_snapshots` trong cùng DB transaction, đủ để hoàn tác sau này; dòng này có hạn lưu.
+  Chi tiết: `docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`.
 
 ---
 
