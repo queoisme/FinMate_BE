@@ -490,6 +490,48 @@ public sealed record DuplicateSettings
     public int ReceiptWindowHours { get; init; } = 12;
 }
 
+/// <summary>
+/// Ghép cặp chuyển tiền giữa các ví của chính người dùng (Phase 83, BR-TRF-02). Chỉ là điều kiện GỢI Ý; người dùng mới là người chuyển đổi.
+/// </summary>
+public sealed record TransferSettings
+{
+    /// <summary>Tiền vào phải đến sau tiền ra tối đa bấy nhiêu phút.</summary>
+    public int PairWindowMinutes { get; init; } = 30;
+
+    /// <summary>Hai push có thể về lệch nhau: tiền vào được phép đến SỚM hơn tiền ra tối đa bấy nhiêu phút (D6).</summary>
+    public int ClockSkewMinutes { get; init; } = 2;
+
+    /// <summary>Phần chênh tối đa (đồng) giữa tiền ra và tiền vào để vẫn coi là một lần chuyển có phí.</summary>
+    public long MaxFeeCents { get; init; } = 20_000;
+
+    /// <summary>Phần chênh tối đa tính theo % số tiền chuyển; phải thoả CẢ hai giới hạn.</summary>
+    public int MaxFeePercent { get; init; } = 2;
+
+    /// <summary>
+    /// Bí danh của từng provider (khoá = <c>provider_key</c>) để nhận ra "nội dung nhắc tên ví bên kia" (D5). Tên hiển thị và chính
+    /// <c>provider_key</c> luôn được dùng thêm, không cần khai ở đây.
+    /// </summary>
+    public IReadOnlyDictionary<string, string[]> ProviderAliases { get; init; } = new Dictionary<string, string[]>
+    {
+        ["vietcombank"] = ["vcb", "vietcombank"],
+        ["momo"] = ["momo"],
+        ["zalopay"] = ["zalopay", "zalo pay"],
+        ["vnpay"] = ["vnpay"],
+        ["shopeepay"] = ["shopeepay", "shopee pay"],
+        ["techcombank"] = ["tcb", "techcombank"],
+        ["vpbank"] = ["vpbank", "vpb"],
+        ["mb_bank"] = ["mb bank", "mbbank"],
+        ["vietinbank"] = ["vietinbank", "ctg"],
+        ["bidv"] = ["bidv"],
+    };
+}
+
+/// <summary>Ảnh chụp lúc gộp / chuyển đổi (Phase 83, phần B, S5): giữ đủ lâu để hoàn tác, không lâu hơn (tối thiểu hoá dữ liệu).</summary>
+public sealed record SnapshotSettings
+{
+    public int RetentionDays { get; init; } = 365;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -511,6 +553,8 @@ public sealed record SystemConfigDocument
     public CommunitySettings Community { get; init; } = new();
     public RefundSettings Refunds { get; init; } = new();
     public DuplicateSettings Duplicates { get; init; } = new();
+    public TransferSettings Transfers { get; init; } = new();
+    public SnapshotSettings Snapshots { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>
