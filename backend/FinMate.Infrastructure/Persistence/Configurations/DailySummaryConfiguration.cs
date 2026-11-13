@@ -20,6 +20,7 @@ public class DailySummaryConfiguration : IEntityTypeConfiguration<DailySummary>
 
         builder.Property(s => s.TotalSpentCents).HasColumnName("total_spent_cents").HasDefaultValue(0L);
         builder.Property(s => s.TotalIncomeCents).HasColumnName("total_income_cents").HasDefaultValue(0L);
+        builder.Property(s => s.TotalRefundedCents).HasColumnName("total_refunded_cents").HasDefaultValue(0L);
         builder.Property(s => s.TransactionCount).HasColumnName("transaction_count").HasDefaultValue(0);
 
         builder.Property(s => s.TopCategoryId).HasColumnName("top_category_id");

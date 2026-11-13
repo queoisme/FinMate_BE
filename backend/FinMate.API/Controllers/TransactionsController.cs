@@ -67,11 +67,12 @@ public class TransactionsController : ControllerBase
         [FromQuery] DateTimeOffset? toDate,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] TransactionRelation? relation,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
             new GetTransactionListQuery(
-                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit),
+                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit, relation),
             ct);
         return Ok(ApiResponse<IReadOnlyList<TransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
@@ -101,7 +102,8 @@ public class TransactionsController : ControllerBase
                 request.ReceiptScanId,
                 request.ReceiptGroup,
                 request.GroupId,
-                request.GroupCategoryId),
+                request.GroupCategoryId,
+                request.Relation),
             ct);
         return Created(result);
     }
@@ -183,12 +185,47 @@ public class TransactionsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Ghi tay một khoản hoàn (hoặc đảo) cho khoản chi <paramref name="id"/> (Phase 81). Mặc định hoàn phần còn lại, vào ví gốc, ngày hiện tại.
+    /// 201 khi tạo, 200 khi <c>clientRequestId</c> đã dùng. Khoản gốc hay ví của người khác → 404; vượt số gốc → 422 <c>REFUND_EXCEEDS_ORIGINAL</c>.
+    /// </summary>
+    [HttpPost("{id:guid}/refunds")]
+    public async Task<IActionResult> CreateRefund(
+        Guid id, [FromBody] CreateRefundRequest? request, [FromServices] ICreateRefundCommandHandler handler, CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(
+            new CreateRefundCommand(
+                CurrentUserId, id, request?.AmountCents, request?.TransactedAt, request?.FinancialAccountId, request?.Relation, request?.ClientRequestId),
+            ct);
+        return Created(result);
+    }
+
+    /// <summary>Liên kết khoản tiền vào <paramref name="id"/> làm hoàn/đảo của một khoản chi (Phase 81). Áp lại tác động trong một lượt lưu.</summary>
+    [HttpPut("{id:guid}/related")]
+    public async Task<IActionResult> LinkRelated(
+        Guid id, [FromBody] LinkRelatedTransactionRequest request, [FromServices] ILinkRelatedTransactionCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(
+            new LinkRelatedTransactionCommand(CurrentUserId, id, request.RelatedTransactionId, request.Relation, request.CategoryId), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>Gỡ liên kết: khoản đó trở lại thành thu nhập thường.</summary>
+    [HttpDelete("{id:guid}/related")]
+    public async Task<IActionResult> UnlinkRelated(Guid id, [FromServices] IUnlinkRelatedTransactionCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new UnlinkRelatedTransactionCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
     {
         var transaction = await _confirmHandler.HandleAsync(
-            new ConfirmTransactionCommand(CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId), ct);
+            new ConfirmTransactionCommand(
+                CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId, request?.RelatedTransactionId, request?.Relation),
+            ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
@@ -289,7 +326,8 @@ public record CreateManualTransactionRequest(
     Guid? ReceiptScanId = null,
     string? ReceiptGroup = null,
     Guid? GroupId = null,
-    Guid? GroupCategoryId = null);
+    Guid? GroupCategoryId = null,
+    TransactionRelation? Relation = null);
 
 /// <param name="ClientRequestId">
 /// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.
@@ -312,7 +350,22 @@ public record UpdateTransactionRequest(
     string? MerchantName,
     string? Description);
 
-public record ConfirmTransactionRequest(Guid? CategoryId, Guid? GroupId = null, Guid? GroupCategoryId = null);
+public record CreateRefundRequest(
+    long? AmountCents = null,
+    DateTimeOffset? TransactedAt = null,
+    Guid? FinancialAccountId = null,
+    TransactionRelation? Relation = null,
+    Guid? ClientRequestId = null);
+
+public record ConfirmTransactionRequest(
+    Guid? CategoryId,
+    Guid? GroupId = null,
+    Guid? GroupCategoryId = null,
+    Guid? RelatedTransactionId = null,
+    TransactionRelation? Relation = null);
+
+/// <param name="RelatedTransactionId">Khoản chi gốc; null + <c>Refund</c> = hoàn không có khoản gốc, khi đó bắt buộc <paramref name="CategoryId"/>.</param>
+public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, TransactionRelation Relation = TransactionRelation.Refund, Guid? CategoryId = null);
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 

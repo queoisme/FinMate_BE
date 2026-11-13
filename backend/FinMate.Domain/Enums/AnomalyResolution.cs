@@ -14,4 +14,10 @@ public enum AnomalyResolution
 
     /// <summary>Giao dịch lạ — app hiện hướng dẫn liên hệ ngân hàng.</summary>
     Suspicious,
+
+    /// <summary>Hệ thống tự đóng: khoản chi đã được hoàn 100%. Client không gửi được giá trị này.</summary>
+    Refunded,
+
+    /// <summary>Hệ thống tự đóng: khoản chi đã bị đảo. Client không gửi được giá trị này.</summary>
+    Reversed,
 }

@@ -301,6 +301,12 @@ def _validate_notification_vocab(content: dict) -> None:
         both = set(content[first]) & set(content[second])
         if both:
             raise _invalid(code, f"Từ {sorted(both)[:5]} có ở cả hai nhóm {meaning}.")
+    relation_groups = notification_vocab.RELATION_GROUPS
+    for index, first in enumerate(relation_groups):
+        for second in relation_groups[index + 1 :]:
+            both = set(content[first]) & set(content[second])
+            if both:
+                raise _invalid("ambiguous_relation", f"Từ {sorted(both)[:5]} có ở cả hai nhóm '{first}' và '{second}': một cụm chỉ được báo một loại tiền vào.")
 
 
 def _lexicon_cases() -> list[tuple[str, str, str]]:

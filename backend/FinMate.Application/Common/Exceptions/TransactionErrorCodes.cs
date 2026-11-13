@@ -24,4 +24,27 @@ public static class TransactionErrorCodes
 
     /// <summary>Không nghe ra lời nào (im lặng hoặc quá nhiễu): người dùng nên ghi lại hoặc gõ tay.</summary>
     public const string VoiceNoSpeech = "TRANSACTION_VOICE_NO_SPEECH";
+
+    // ---- Hoàn tiền / đảo giao dịch (Phase 81). Mã giữ đúng tên đã chốt trong đề bài, không thêm tiền tố TRANSACTION_. ----
+
+    /// <summary>422: tổng các khoản hoàn đã xác nhận sẽ vượt số tiền khoản gốc (BR-RF-02).</summary>
+    public const string RefundExceedsOriginal = "REFUND_EXCEEDS_ORIGINAL";
+
+    /// <summary>409: xoá, đổi số tiền hoặc đổi loại một khoản gốc còn khoản hoàn/đảo đã xác nhận (BR-RF-11).</summary>
+    public const string HasRefunds = "HAS_REFUNDS";
+
+    /// <summary>422: khoản gốc không nhận hoàn được: không phải chi đã xác nhận, là cho vay/mượn, hoặc đã bị đảo (D12).</summary>
+    public const string RefundOriginalNotEligible = "REFUND_ORIGINAL_NOT_ELIGIBLE";
+
+    /// <summary>422: lệnh đảo phải bằng đúng số tiền gốc và khoản gốc chưa được hoàn phần nào (D4).</summary>
+    public const string ReversalAmountMismatch = "REVERSAL_AMOUNT_MISMATCH";
+
+    /// <summary>422: danh mục của khoản hoàn đã liên kết đi theo khoản gốc, không sửa riêng được (D13).</summary>
+    public const string RefundCategoryLocked = "REFUND_CATEGORY_LOCKED";
+
+    /// <summary>422: giao dịch này không mang được quan hệ hoàn/đảo (không phải tiền vào, hoặc trỏ vào chính nó).</summary>
+    public const string RefundNotLinkable = "REFUND_NOT_LINKABLE";
+
+    /// <summary>422: khoản hoàn đi theo khoản gốc vào/ra nhóm, không chia sẻ hay bỏ chia sẻ riêng được (BR-RF-10).</summary>
+    public const string RefundFollowsOriginal = "REFUND_FOLLOWS_ORIGINAL";
 }

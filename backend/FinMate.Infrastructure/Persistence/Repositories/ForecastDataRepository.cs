@@ -17,6 +17,9 @@ public class ForecastDataRepository : IForecastDataRepository
     }
 
     public async Task<IReadOnlyList<ForecastTransaction>> GetTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+        => RefundNetting.ForHabits(await GetRawTransactionsAsync(userId, from, to, ct));
+
+    public async Task<IReadOnlyList<ForecastTransaction>> GetRawTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var (start, end) = VietnamTime.DayRange(from, to);
         var rows = await _context.Transactions
@@ -37,13 +40,17 @@ public class ForecastDataRepository : IForecastDataRepository
                 t.TransactedAt,
                 t.MerchantName,
                 t.ExcludeFromForecast,
+                t.Relation,
+                t.RelatedTransactionId,
+                t.IsReversed,
             })
             .ToListAsync(ct);
 
         return rows
             .Select(r => new ForecastTransaction(
                 r.Id, r.FinancialAccountId, r.CategoryId, r.AmountCents, r.TransactionType, r.TransactedAt,
-                VietnamTime.DateOf(r.TransactedAt), r.MerchantName, CounterpartyKey.From(r.MerchantName), r.ExcludeFromForecast))
+                VietnamTime.DateOf(r.TransactedAt), r.MerchantName, CounterpartyKey.From(r.MerchantName), r.ExcludeFromForecast,
+                r.Relation, r.RelatedTransactionId, r.IsReversed))
             .ToList();
     }
 }

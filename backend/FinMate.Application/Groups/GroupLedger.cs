@@ -1,3 +1,4 @@
+using FinMate.Application.Budgets;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
@@ -8,6 +9,16 @@ using FinMate.Domain.Enums;
 namespace FinMate.Application.Groups;
 
 public sealed record GroupShareTarget(Guid GroupId, Guid? GroupCategoryId);
+
+/// <summary>Một phạm vi ngân sách nhóm có thể đã đổi: nhóm, danh mục (hệ thống / nhóm) và thời điểm, theo giá trị cũ hoặc mới của một giao dịch.</summary>
+public sealed record GroupScopeTouch(Guid GroupId, Guid? SystemCategoryId, Guid? GroupCategoryId, DateTimeOffset At)
+{
+    /// <summary>Phạm vi mà <paramref name="transaction"/> đang chạm theo trạng thái HIỆN TẠI của nó; null nếu nó không thuộc nhóm nào.</summary>
+    public static GroupScopeTouch? Of(Transaction transaction, Category? category)
+        => transaction.GroupId is { } groupId
+            ? new GroupScopeTouch(groupId, category is { IsSystem: true } ? category.Id : null, transaction.GroupCategoryId, transaction.TransactedAt)
+            : null;
+}
 
 /// <summary>
 /// Cộng và hoàn phần giao dịch đã chia sẻ vào ngân sách nhóm. Theo đúng khuôn của <c>BudgetPeriodService</c>: chỉ đổi dữ liệu đang được theo
@@ -24,6 +35,12 @@ public interface IGroupLedger
 
     /// <param name="sign">+1 khi tính vào nhóm, -1 khi hoàn. Đọc số tiền, ngày và danh mục từ <paramref name="transaction"/> như nó đang là lúc gọi.</param>
     Task<IReadOnlyList<GroupBudgetAlert>> ApplyAsync(Transaction transaction, Category? category, int sign, CancellationToken ct = default);
+
+    /// <summary>
+    /// Tính LẠI <c>spent_cents</c> các kỳ ngân sách nhóm bị chạm thay vì cộng delta (Phase 81, D2, R4): cùng định nghĩa và cùng cách với
+    /// <c>IBudgetPeriodService.RecomputeAsync</c>. Cảnh báo chỉ đánh giá khi số tăng và cờ <c>features.groups</c> đang bật. Không lưu.
+    /// </summary>
+    Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default);
 
     Task SendAlertsAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default);
 }
@@ -90,7 +107,7 @@ public class GroupLedger : IGroupLedger
 
     public async Task<IReadOnlyList<GroupBudgetAlert>> ApplyAsync(Transaction transaction, Category? category, int sign, CancellationToken ct = default)
     {
-        var spend = TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, category);
+        var spend = TransactionBudgetDelta.Spend(transaction, category);
         if (transaction.GroupId is not { } groupId || transaction.Status != TransactionStatus.Confirmed || spend == 0)
         {
             return [];
@@ -103,7 +120,8 @@ public class GroupLedger : IGroupLedger
         var alerts = new List<GroupBudgetAlert>();
 
         // Đang tắt thì không đóng ngưỡng cảnh báo: đóng mà không gửi là mất hẳn ngưỡng đó. BudgetAlertJob quét lại khi cờ bật.
-        var alertsEnabled = sign > 0 && await IsEnabledAsync(ct);
+        // Chỉ khi chi tiêu TĂNG: một khoản hoàn (spend âm) được áp với sign +1 vẫn là giảm, không bao giờ cảnh báo (BR-RF-05).
+        var alertsEnabled = sign * spend > 0 && await IsEnabledAsync(ct);
 
         foreach (var budget in budgets)
         {
@@ -114,6 +132,44 @@ public class GroupLedger : IGroupLedger
             if (alertsEnabled && await _alerts.EvaluateAndMarkAsync(budget, period, now, ct) is { } alert)
             {
                 alerts.Add(alert);
+            }
+        }
+
+        return alerts;
+    }
+
+    public async Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+        IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
+    {
+        var pendingIds = pending.Select(t => t.Id).Where(id => id != Guid.Empty).ToList();
+        var now = DateTimeOffset.UtcNow;
+        var alerts = new List<GroupBudgetAlert>();
+        var done = new HashSet<(Guid BudgetId, DateTimeOffset Start)>();
+        bool? alertsEnabled = null;
+
+        foreach (var touch in touched)
+        {
+            var (periodStart, periodEnd) = VietnamTime.MonthRange(touch.At);
+            foreach (var budget in await _finance.GetMatchingBudgetsAsync(touch.GroupId, touch.SystemCategoryId, touch.GroupCategoryId, ct))
+            {
+                if (!done.Add((budget.Id, periodStart)))
+                {
+                    continue;
+                }
+
+                var scope = BudgetSpendScope.Group(touch.GroupId, budget.CategoryId, budget.GroupCategoryId, periodStart, periodEnd);
+                var spent = await _finance.SumSharedNetSpendAsync(scope, pendingIds, ct) + pending.Sum(t => BudgetSpendScope.ContributionOf(t, scope));
+                var period = await _budgets.GetPeriodAsync(budget.Id, periodStart, ct) ?? AddPeriod(budget, periodStart, periodEnd, now);
+                var before = period.SpentCents;
+                period.SpentCents = Math.Max(0, spent);
+                period.UpdatedAt = now;
+
+                if (period.SpentCents > before
+                    && (alertsEnabled ??= await IsEnabledAsync(ct))
+                    && await _alerts.EvaluateAndMarkAsync(budget, period, now, ct) is { } alert)
+                {
+                    alerts.Add(alert);
+                }
             }
         }
 

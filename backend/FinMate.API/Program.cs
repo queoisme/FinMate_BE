@@ -683,6 +683,14 @@ public class Program
         builder.Services.AddScoped<ICreateManualTransactionCommandHandler>(sp => new RetryingCreateManualTransactionCommandHandler(sp.GetRequiredService<CreateManualTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateTransferCommandHandler>();
         builder.Services.AddScoped<ICreateTransferCommandHandler>(sp => new RetryingCreateTransferCommandHandler(sp.GetRequiredService<CreateTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundFollowUps, FinMate.Application.Transactions.Refunds.RefundFollowUps>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundSuggestions, FinMate.Application.Transactions.Refunds.RefundSuggestions>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();
+        builder.Services.AddScoped<CreateRefundCommandHandler>();
+        builder.Services.AddScoped<ICreateRefundCommandHandler>(sp => new RetryingCreateRefundCommandHandler(sp.GetRequiredService<CreateRefundCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<RelatedTransactionCommandHandler>();
+        builder.Services.AddScoped<ILinkRelatedTransactionCommandHandler>(sp => new RetryingLinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IUnlinkRelatedTransactionCommandHandler>(sp => new RetryingUnlinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<UpdateTransactionCommandHandler>();
         builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<DeleteTransactionCommandHandler>();
@@ -728,6 +736,7 @@ public class Program
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
+        builder.Services.AddScoped<IDailySummaryRefresher, DailySummaryRefresher>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
         builder.Services.AddScoped<RecurringDetectionJob>();

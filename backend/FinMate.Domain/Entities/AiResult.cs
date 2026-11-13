@@ -25,6 +25,9 @@ public class AiResult
     public bool IsPotentialDuplicate { get; set; }
     public Guid? DuplicateRequestId { get; set; }
 
+    /// <summary>Gợi ý của AI rằng thông báo là hoàn tiền hay đảo giao dịch (<c>refund</c>/<c>reversal</c>). Chỉ để gợi ý liên kết, không bao giờ tự liên kết.</summary>
+    public TransactionRelation? RelationHint { get; set; }
+
     public string? ClassifierVersion { get; set; }
     public string? ExtractorVersion { get; set; }
     public string? CategorizerVersion { get; set; }

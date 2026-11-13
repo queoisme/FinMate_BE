@@ -28,6 +28,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IValidator<AnalyzeNotificationCommand> _validator;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
+    private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -38,8 +39,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IPushNotificationService pushNotificationService,
         IValidator<AnalyzeNotificationCommand> validator,
         IAiConsentReader? consent = null,
-        IQrTransferLinker? qrLinker = null)
+        IQrTransferLinker? qrLinker = null,
+        Transactions.Refunds.IRefundSuggestions? refundSuggestions = null)
     {
+        _refundSuggestions = refundSuggestions;
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
         _categoryRepository = categoryRepository;
@@ -139,6 +142,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             ExtractorVersion = response.ModelVersions?.Extractor,
             CategorizerVersion = response.ModelVersions?.Categorizer,
             ProcessingMs = response.ProcessingMs,
+            // Phase 81: chỉ có nghĩa với tiền vào; lưu để dựng lại gợi ý khi app mở nháp sau này.
+            RelationHint = ParseTransactionType(response.Extraction?.TransactionType) == TransactionType.Credit
+                ? Transactions.Refunds.IRefundSuggestions.Parse(response.Extraction?.RelationHint)
+                : null,
             CreatedAt = now,
         };
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
@@ -148,6 +155,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         await _notificationLogRepository.UpdateAsync(log, ct);
 
         Guid? draftTransactionId = null;
+        IReadOnlyList<RefundSuggestionDto>? suggestions = null;
         if (pipelineResult == PipelineResult.Financial
             && !aiResult.IsPotentialDuplicate
             && aiResult.AmountCents is > 0
@@ -196,6 +204,13 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
             }
 
+            // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
+            if (aiResult.RelationHint is { } hint && _refundSuggestions is not null)
+            {
+                transaction.FinancialAccount = account;
+                suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
+            }
+
             // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách
             // khác nhau tuỳ mức tin cậy. Trước Phase 15 mọi nháp đều nhận đúng một dòng chữ
             // cụt, không kèm dữ liệu nào để client dựng nút xác nhận.
@@ -203,13 +218,16 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 transaction,
                 category?.Name,
                 TransactionReviewPushBuilder.ReviewConfidence(
-                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence));
+                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
+                aiResult.RelationHint,
+                suggestions?.Count ?? 0);
 
             await _pushNotificationService.NotifyAsync(
                 command.UserId, review.Title, review.Body, review.Data, ct);
         }
 
-        return new NotificationAnalysisResultDto(log.Id, log.Status.ToString(), draftTransactionId);
+        return new NotificationAnalysisResultDto(
+            log.Id, log.Status.ToString(), draftTransactionId, draftTransactionId is null ? null : aiResult.RelationHint?.ToString(), suggestions);
     }
 
     // Chỉ đọc đồng ý AI ở đây (nhánh thật sự gọi ai-service), không đọc DB thừa cho nhánh Ignored/trùng.

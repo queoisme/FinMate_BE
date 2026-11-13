@@ -16,7 +16,10 @@ public sealed record ForecastTransaction(
     DateOnly Date,
     string? MerchantName,
     string? CounterpartyKey,
-    bool ExcludedFromForecast);
+    bool ExcludedFromForecast,
+    TransactionRelation? Relation = null,
+    Guid? RelatedTransactionId = null,
+    bool IsReversed = false);
 
 /// <summary>Bản rút gọn của khoản định kỳ mà các bộ tính toán cần (không kéo entity EF vào hàm thuần).</summary>
 public sealed record RecurringItemView(

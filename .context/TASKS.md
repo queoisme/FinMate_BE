@@ -1502,3 +1502,26 @@ Nhánh `fix/phase52-leftovers`. Bốn mục của Phase 52 không cần chủ s�
 - [x] Test cho 9 danh sách phân trang con trỏ của `dev/tho` (vốn không có test): `CursorPagingRepositoryTests` trên Postgres thật, mỗi danh sách 5 dòng có 2 dòng trùng mốc thời gian, cộng 1 dòng của chủ khác; kèm 2 test cho job xóa nội dung thông báo.
 - [x] Tài liệu API: `docs/group-api.md`, `docs/ops-api.md`, `docs/subscription-api.md` ghi `cursor`/`limit` và `meta.cursor` (không phải `nextCursor`).
 - [ ] Báo nhóm Flutter: 9 danh sách (`/forecast/alerts`, `/forecast/anomalies`, `/support/tickets`, `/support/access-log`, `/groups/{id}/transactions`, `/groups/{id}/goals/{goalId}/contributions`, `/groups/{id}/activities`, `/qr/transfers`, `/subscriptions/orders`) giờ trả 20 dòng một trang, trang sau qua `meta.cursor`.
+
+## Phase 81 — Hoàn tiền và đảo giao dịch (2026-11-13)
+Nhánh `feat/refund-reversal`. Kế hoạch và các quyết định D1–D19, R1–R4: `docs/superpowers/plans/2026-11-13-refund-reversal.md`. API cho app: `docs/transactions-refund-api.md`. Khoản hoàn là `Credit` mang `relation` (`refund`/`reversal`) và `related_transaction_id`; KHÔNG phải thu nhập, trừ vào chi tiêu của danh mục khoản gốc. Ba chốt chặn: `TransactionBudgetDelta.Spend` (ngân sách), `BudgetSpendScope` + `NetFlow` (báo cáo, Agent), `RefundNetting.ForHabits` (dự báo).
+- [x] Migration `AddTransactionRefundRelation`: `transactions.related_transaction_id` (FK tự tham chiếu NO ACTION, index một phần), `relation`, `is_reversed` + 6 CHECK; `ai_results.relation_hint`; `daily_summaries.total_refunded_cents`; `transaction_anomalies.resolution` thêm `refunded`/`reversed`. Alembic ai-service `0037`: `ops_analyze_log.relation_hint`.
+- [x] `RefundPolicy` (BR-RF-01/02/08, D4, D12), mã lỗi `REFUND_EXCEEDS_ORIGINAL`, `HAS_REFUNDS`, `REFUND_ORIGINAL_NOT_ELIGIBLE`, `REVERSAL_AMOUNT_MISMATCH`, `REFUND_CATEGORY_LOCKED`, `REFUND_NOT_LINKABLE`, `REFUND_FOLLOWS_ORIGINAL`.
+- [x] Khoá `SELECT … FOR UPDATE` dòng khoản gốc, thứ tự khoá gốc → ví → kỳ ngân sách (D19); test 10 khoản hoàn song song vào hai ví.
+- [x] Ngân sách cá nhân và nhóm TÍNH LẠI kỳ (không cộng delta) cho mọi thao tác dính hoàn/đảo (D2); đảo hoàn tác khoản gốc ở kỳ của nó, cả nhóm (D1, R4); không cảnh báo, không reset cờ (BR-RF-05).
+- [x] `POST /transactions/{id}/refunds`, `PUT/DELETE /transactions/{id}/related`, `confirm` nhận `relatedTransactionId`/`relation`, hoàn mồ côi qua `POST /transactions` với `relation` (D5).
+- [x] Sửa/xoá: 409 `HAS_REFUNDS`, khoản hoàn đi theo danh mục và nhóm của khoản gốc (BR-RF-10/11, D13, D18).
+- [x] Báo cáo, daily summary (chốt lại ngày đã chốt, D7), timeline, cơ cấu danh mục, hũ, `/me/spendable`, báo cáo nhóm, chat, insight, Agent, thị trường: chi ròng, thu không gồm hoàn, `refundedCents`, `crossPeriodRefundCents` (D3).
+- [x] Dự báo: thói quen, thu nhập, bất thường, xu hướng danh mục, định kỳ dùng dữ liệu đã trừ hoàn; đối chiếu số dư dùng dữ liệu thô (BR-RF-07). R1 (đảo → khoản định kỳ về chưa trả), R2 (bất thường tự đóng `refunded`/`reversed`).
+- [x] ai-service: nhóm từ khoá `refund_markers`/`reversal_markers`/`cashback_markers` trong tài liệu `notification_vocab`, `extraction.relation_hint`; cashback chuyển sang `other_income` (D10a).
+- [x] Gợi ý tối đa 3 khoản chi gốc cho nháp có hint (cấu hình `refunds.*`), push `choose_refund_link` (D16), chat trả gợi ý (D17), R3 (ý định QR giữ `Matched`), lọc `GET /transactions?relation=`.
+- [x] Kịch bản đầu-cuối: hoàn đủ, hoàn một phần 300.000đ, đảo giao dịch (`RefundScenarioTests`).
+- [ ] Lỗ hổng sẵn có, ngoài phạm vi (D7): sửa/xoá giao dịch THƯỜNG ở một ngày đã chốt vẫn không chốt lại `daily_summaries`.
+- [ ] "nhận cashback 20k" ở chat ra `add_expense` (bộ phân loại ý định), có từ trước; BR-RF-12 giữ nguyên hành vi nên không sửa ở đây.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/refunds` `{amountCents?, transactedAt?, financialAccountId?, relation?, clientRequestId?}` (201/200); `PUT /transactions/{id}/related` `{relatedTransactionId, relation, categoryId?}`; `DELETE /transactions/{id}/related`.
+  - `POST /transactions/{id}/confirm` nhận thêm `relatedTransactionId?`, `relation?`; `POST /transactions` nhận `relation: "Refund"` cho hoàn không có khoản gốc; `GET /transactions?relation=Refund|Reversal`.
+  - `TransactionDto` thêm `relation`, `relatedTransactionId`, `isReversed`, `refundedCents`, `remainingRefundableCents`, `suggestedRelatedTransactions` (chỉ nháp). Kết quả `POST /notifications/analyze` thêm `relationHint`, `suggestedRelatedTransactions`. Bản nháp chat thêm `relationHint`, `suggestedRelatedTransactions`.
+  - Push `data.action = "choose_refund_link"` (kèm `relationHint`, `suggestionCount`): mở màn chọn khoản chi gốc / "hoàn không có khoản gốc" / "thu nhập thường".
+  - Báo cáo tháng thêm `refundedCents`, `crossPeriodRefundCents`; báo cáo nhóm thêm `refundedCents`. Tổng chi giờ là chi ròng.
+  - Lỗi mới: 409 `HAS_REFUNDS`; 422 `REFUND_EXCEEDS_ORIGINAL`, `REFUND_ORIGINAL_NOT_ELIGIBLE`, `REVERSAL_AMOUNT_MISMATCH`, `REFUND_CATEGORY_LOCKED`, `REFUND_NOT_LINKABLE`, `REFUND_FOLLOWS_ORIGINAL`.

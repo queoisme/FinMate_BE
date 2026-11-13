@@ -69,6 +69,7 @@ async def test_response_matches_the_backend_contract(
         "transacted_at",
         "balance_after_cents",
         "confidence",
+        "relation_hint",  # Phase 81, AIServiceApiContracts.ExtractionApiResult.RelationHint
     }
     assert set(body["categorization"]) == {"category_slug", "confidence"}
     assert set(body["duplicate"]) == {"is_potential_duplicate", "duplicate_request_id"}
@@ -362,3 +363,25 @@ async def test_credit_with_allow_ai_is_income_and_ai_is_not_called(client, auth_
     gemini, _ = fake_ai
     body = (await post(client, auth_headers, user_hash, now, body=NARRATIVE_CREDIT, allow_ai=True)).json()
     assert body["categorization"]["category_slug"] == "income" and gemini.calls == []
+
+
+# ---- Phase 81: relation_hint ----
+
+MB_REFUND = "TK 0123456789|GD: +900,000VND 09/09/2026 10:28|SD: 3,400,000VND|ND: HOAN TIEN DON HANG 5521"
+MB_REVERSAL = "TK 0123456789|GD: +500,000VND 09/09/2026 10:28|SD: 3,000,000VND|ND: Hoan tra GD loi ngay 08/09"
+MB_CASHBACK = "TK 0123456789|GD: +20,000VND 09/09/2026 10:28|SD: 2,520,000VND|ND: CASHBACK THE TIN DUNG"
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [(MB_REFUND, "refund"), (MB_REVERSAL, "reversal"), (MB_CASHBACK, None), (MB_DEBIT, None)],
+)
+async def test_relation_hint_is_returned_and_stored(client, auth_headers, user_hash, now, body, expected):
+    request_id = uuid.uuid4()
+    sent = payload(user_hash, now, body=body, request_id=request_id)
+    first = (await client.post("/api/v1/analyze", json=sent, headers=auth_headers)).json()
+    assert first["extraction"]["relation_hint"] == expected
+
+    # Gửi lại cùng backend_request_id trả kết quả ĐÃ LƯU: hint phải nằm trong dòng nhật ký, không chỉ trong response lần đầu.
+    again = (await client.post("/api/v1/analyze", json=sent, headers=auth_headers)).json()
+    assert again["extraction"]["relation_hint"] == expected

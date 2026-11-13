@@ -24,7 +24,8 @@ public record ExtractionApiResult(
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("transacted_at")] DateTimeOffset? TransactedAt,
     [property: JsonPropertyName("balance_after_cents")] long? BalanceAfterCents,
-    [property: JsonPropertyName("confidence")] double? Confidence);
+    [property: JsonPropertyName("confidence")] double? Confidence,
+    [property: JsonPropertyName("relation_hint")] string? RelationHint = null);
 
 public record CategorizationApiResult(
     [property: JsonPropertyName("category_slug")] string? CategorySlug,

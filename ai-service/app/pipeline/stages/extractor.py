@@ -144,6 +144,13 @@ def _signed_type(text: str, amount_start: int) -> TransactionType | None:
     return None
 
 
+def relation_hint_for(text: str, transaction_type: TransactionType) -> str | None:
+    """Gợi ý quan hệ của khoản tiền vào (Phase 81). Khoản chi không bao giờ có hint: "phí hủy vé" vẫn là chi."""
+    if transaction_type != TransactionType.CREDIT:
+        return None
+    return notification_vocab.relation_hint(f" {text.lower()} ")
+
+
 def _infer_type(text: str) -> TransactionType:
     lowered = f" {text.lower()} "
     credit_hit = notification_vocab.credit_position(lowered)

@@ -9,6 +9,8 @@ using FinMate.Domain.Enums;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
+using FinMate.Application.Transactions.Refunds;
+
 namespace FinMate.Application.Transactions.Commands;
 
 public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
@@ -28,6 +30,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
     private readonly IGroupLedger? _groupLedger;
+    private readonly IRefundLedger? _refunds;
+    private readonly IDailySummaryRefresher? _summaries;
 
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -43,8 +47,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ITrainingSampleService? trainingSamples = null,
         IQrTransferLinker? qrLinker = null,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        IRefundLedger? refunds = null,
+        IDailySummaryRefresher? summaries = null)
     {
+        _refunds = refunds;
+        _summaries = summaries;
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -68,6 +76,18 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         var transaction = await _transactionRepository.GetByIdAsync(command.TransactionId, command.UserId, ct)
             ?? throw new NotFoundException("Transaction", command.TransactionId);
 
+        // Phase 81: sửa một khoản hoàn/đảo đã xác nhận phải giữ khoá dòng khoản gốc tới lúc commit (BR-RF-02 khi đổi số tiền). Đọc, tính, lưu
+        // trong khoá; mọi việc bên ngoài (push, AI, ghi nhớ) chạy SAU khi đã commit.
+        var afterSave = _refunds is not null && transaction.Status == TransactionStatus.Confirmed && transaction.RelatedTransactionId is { } originalId
+            ? await _transactionRepository.RunWithOriginalLockedAsync(command.UserId, originalId, original => SaveAsync(command, transaction, original, ct), ct)
+            : await SaveAsync(command, transaction, null, ct);
+
+        await afterSave();
+        return TransactionMapper.ToDto(transaction);
+    }
+
+    private async Task<Func<Task>> SaveAsync(UpdateTransactionCommand command, Transaction transaction, Transaction? original, CancellationToken ct)
+    {
         Category? newCategory = null;
         if (command.CategoryId is not null)
         {
@@ -105,25 +125,30 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         // Chỉ giao dịch đã Confirmed mới ảnh hưởng balance_cents và budget_periods — Draft
         // chưa từng cộng/trừ gì nên đổi amount/account/category ở Draft không cần revert.
+        var refundShape = await RefundShapeAsync(command, transaction, newCategory, original, ct);
+
         IReadOnlyList<BudgetAlert> budgetAlerts = [];
-        if (transaction.Status == TransactionStatus.Confirmed)
+        if (transaction.Status == TransactionStatus.Confirmed && refundShape is null)
         {
             // Revert theo giá trị CŨ trước khi ghi đè entity: category, số tiền và ngày giao
             // dịch cũ có thể trỏ vào một budget khác và một chu kỳ khác với giá trị mới.
             await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 transaction.CategoryId,
-                -TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
+                -TransactionBudgetDelta.Spend(transaction, transaction.Category),
                 transaction.TransactedAt,
                 ct);
 
             budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
                 command.UserId,
                 newCategory?.Id,
-                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, newCategory),
+                TransactionBudgetDelta.Spend(command.TransactionType, command.AmountCents, newCategory, transaction.Relation, transaction.IsReversed),
                 command.TransactedAt,
                 ct);
+        }
 
+        if (transaction.Status == TransactionStatus.Confirmed)
+        {
             // Revert hình dạng CŨ rồi áp hình dạng MỚI. Với transfer, "hình dạng" gồm 2 ví —
             // ví đích cũng phải được trả về trạng thái cũ trước khi cộng theo giá trị mới.
             var accounts = new Dictionary<Guid, FinancialAccount>();
@@ -149,7 +174,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         }
 
         // Hoàn phần của nhóm theo giá trị CŨ, trước khi ghi đè entity. Vẫn chạy khi chủ giao dịch đã rời nhóm để số của nhóm luôn đúng.
-        if (_groupLedger is not null)
+        if (_groupLedger is not null && refundShape is null)
         {
             await _groupLedger.ApplyAsync(transaction, transaction.Category, -1, ct);
         }
@@ -169,63 +194,169 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         // account(s) và budget period(s) ở trên (nếu có) đã tracked cùng DbContext —
         // UpdateAsync flush atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
-        IReadOnlyList<GroupBudgetAlert> groupAlerts = _groupLedger is null ? [] : await _groupLedger.ApplyAsync(transaction, newCategory, +1, ct);
+        IReadOnlyList<GroupBudgetAlert> groupAlerts = _groupLedger is null || refundShape is not null ? [] : await _groupLedger.ApplyAsync(transaction, newCategory, +1, ct);
+        RefundEffects refundEffects = RefundEffects.None;
+        if (refundShape is not null)
+        {
+            transaction.Category = newCategory;
+            refundEffects = await ApplyRefundShapeAsync(command.UserId, transaction, newCategory, refundShape, ct);
+            budgetAlerts = refundEffects.BudgetAlerts;
+            groupAlerts = refundEffects.GroupAlerts;
+        }
 
         await _transactionRepository.UpdateAsync(transaction, ct);
         transaction.Category = newCategory;
-
-        if (_groupLedger is not null)
+        return async () =>
         {
-            await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+            if (_groupLedger is not null)
+            {
+                await _groupLedger.SendAlertsAsync(groupAlerts, ct);
+            }
+
+            if (wasConfirmed)
+            {
+                // Đổi ngày giao dịch có thể kéo chi tiêu sang chu kỳ khác — xóa cache cả 2 tháng.
+                await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, oldTransactedAt, ct);
+                await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
+
+                // SAU khi UpdateAsync đã lưu. Sửa giao dịch cũng có thể đẩy một danh mục qua
+                // ngưỡng — đổi 50k thành 500k thì cảnh báo phải bắn ngay như lúc tạo.
+                await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+            }
+
+            // Người dùng vừa tự sửa danh mục: nếu giao dịch này đến từ một lần quét QR thì nhớ danh mục cho người nhận, lần sau tự gắn.
+            if (categoryChanged && newCategory is not null && _qrLinker is not null)
+            {
+                await _qrLinker.LearnCategoryAsync(command.UserId, transaction.Id, newCategory.Id, ct);
+            }
+
+            if (categoryChanged && transaction.Source == TransactionSource.Notification)
+            {
+                // IAIServiceClient.SendFeedbackAsync tự nuốt lỗi (best-effort) — không cần try/catch ở đây.
+                await _aiServiceClient.SendFeedbackAsync(
+                    new FeedbackRequest(
+                        transaction.Id,
+                        command.UserId,
+                        null,
+                        transaction.FinancialAccount?.PackageName ?? "unknown",
+                        oldCategorySlug,
+                        newCategory?.Slug,
+                        "category_correction"),
+                    ct);
+            }
+
+            // Sửa danh mục của một khoản chi từ hóa đơn: lựa chọn mới của người dùng thắng gợi ý cũ của AI, và lần quét sau cùng cửa hàng ra đúng nó.
+            if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName, scanWasSplit: false)
+                && !await LinkedToSplitScanAsync(transaction.Id, command.UserId, ct))
+            {
+                await _aiServiceClient.LearnMerchantAsync(
+                    new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
+            }
+
+            if (categoryChanged && transaction.Source == TransactionSource.Receipt && _trainingSamples is not null)
+            {
+                await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
+            }
+            await NotifyForecastAsync(command.UserId, ct);
+
+            if (refundEffects.TouchedDates.Count > 0 && _summaries is not null)
+            {
+                await _summaries.RefreshAsync(command.UserId, refundEffects.TouchedDates, ct);
+            }
+        };
+    }
+
+    /// <summary>Giao dịch đang sửa dính tới hoàn/đảo: các giao dịch phải tính lại cùng nó, phạm vi ngân sách TRƯỚC khi sửa, và các khoản hoàn đi theo.</summary>
+    private sealed record RefundShape(IReadOnlyList<Transaction> Pending, IReadOnlyList<RefundScopeSnapshot> Before, IReadOnlyList<Transaction> Followers);
+
+    /// <summary>
+    /// Phase 81 (BR-RF-11, D13). Khoản hoàn: luôn là tiền vào; đã liên kết thì danh mục theo khoản gốc, đổi số tiền thì kiểm lại BR-RF-02 (đang giữ
+    /// khoá khoản gốc); mồ côi thì danh mục phải là danh mục chi. Khoản gốc còn hoàn/đảo đã xác nhận: không đổi số tiền hay loại (409), đổi danh mục
+    /// thì các khoản hoàn đi theo. Null = giao dịch thường, đi đường delta như cũ.
+    /// </summary>
+    private async Task<RefundShape?> RefundShapeAsync(
+        UpdateTransactionCommand command, Transaction transaction, Category? newCategory, Transaction? original, CancellationToken ct)
+    {
+        if (_refunds is null)
+        {
+            return null;
         }
 
-        if (wasConfirmed)
+        if (transaction.Relation is { } relation)
         {
-            // Đổi ngày giao dịch có thể kéo chi tiêu sang chu kỳ khác — xóa cache cả 2 tháng.
-            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, oldTransactedAt, ct);
-            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, command.TransactedAt, ct);
+            if (command.TransactionType != TransactionType.Credit)
+            {
+                throw new BusinessRuleException(TransactionErrorCodes.TypeChangeNotAllowed, "Khoản hoàn luôn là tiền vào. Gỡ liên kết trước nếu muốn đổi loại.");
+            }
 
-            // SAU khi UpdateAsync đã lưu. Sửa giao dịch cũng có thể đẩy một danh mục qua
-            // ngưỡng — đổi 50k thành 500k thì cảnh báo phải bắn ngay như lúc tạo.
-            await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+            if (transaction.RelatedTransactionId is null)
+            {
+                RefundPolicy.EnsureOrphanCategory(newCategory);
+            }
+            else if (newCategory?.Id != transaction.CategoryId)
+            {
+                throw new BusinessRuleException(TransactionErrorCodes.RefundCategoryLocked, "Khoản hoàn dùng danh mục của khoản chi gốc.");
+            }
+            else if (original is not null && command.AmountCents != transaction.AmountCents)
+            {
+                var refunded = await _transactionRepository.SumConfirmedRefundsAsync(command.UserId, original.Id, transaction.Id, ct);
+                RefundPolicy.EnsureLinkable(original, relation, command.AmountCents, refunded);
+            }
+
+            if (transaction.Status != TransactionStatus.Confirmed)
+            {
+                return null;
+            }
+
+            List<Transaction> pending = [transaction];
+            if (original is not null)
+            {
+                pending.Add(original);
+            }
+
+            return new RefundShape(pending, [RefundScopeSnapshot.Of(transaction)], []);
         }
 
-        // Người dùng vừa tự sửa danh mục: nếu giao dịch này đến từ một lần quét QR thì nhớ danh mục cho người nhận, lần sau tự gắn.
-        if (categoryChanged && newCategory is not null && _qrLinker is not null)
+        if (transaction.TransactionType != TransactionType.Debit)
         {
-            await _qrLinker.LearnCategoryAsync(command.UserId, transaction.Id, newCategory.Id, ct);
+            return null;
         }
 
-        if (categoryChanged && transaction.Source == TransactionSource.Notification)
+        var related = await _transactionRepository.ListRelatedAsync(command.UserId, transaction.Id, ct);
+        if (related.Count == 0)
         {
-            // IAIServiceClient.SendFeedbackAsync tự nuốt lỗi (best-effort) — không cần try/catch ở đây.
-            await _aiServiceClient.SendFeedbackAsync(
-                new FeedbackRequest(
-                    transaction.Id,
-                    command.UserId,
-                    null,
-                    transaction.FinancialAccount?.PackageName ?? "unknown",
-                    oldCategorySlug,
-                    newCategory?.Slug,
-                    "category_correction"),
-                ct);
+            return null;
         }
 
-        // Sửa danh mục của một khoản chi từ hóa đơn: lựa chọn mới của người dùng thắng gợi ý cũ của AI, và lần quét sau cùng cửa hàng ra đúng nó.
-        if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName, scanWasSplit: false)
-            && !await LinkedToSplitScanAsync(transaction.Id, command.UserId, ct))
+        if (related.Any(r => r.Status == TransactionStatus.Confirmed)
+            && (command.AmountCents != transaction.AmountCents || command.TransactionType != transaction.TransactionType))
         {
-            await _aiServiceClient.LearnMerchantAsync(
-                new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
+            throw new ConflictException(
+                TransactionErrorCodes.HasRefunds,
+                "Khoản chi này đã có khoản hoàn hoặc đảo nên không đổi được số tiền hay loại. Xoá các khoản đó trước.");
         }
 
-        if (categoryChanged && transaction.Source == TransactionSource.Receipt && _trainingSamples is not null)
+        if (transaction.Status != TransactionStatus.Confirmed)
         {
-            await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
+            return null;
         }
-        await NotifyForecastAsync(command.UserId, ct);
 
-        return TransactionMapper.ToDto(transaction);
+        return new RefundShape(
+            [transaction, .. related],
+            [RefundScopeSnapshot.Of(transaction), .. related.Select(RefundScopeSnapshot.Of)],
+            related);
+    }
+
+    private async Task<RefundEffects> ApplyRefundShapeAsync(Guid userId, Transaction transaction, Category? newCategory, RefundShape shape, CancellationToken ct)
+    {
+        foreach (var follower in shape.Followers)
+        {
+            follower.CategoryId = transaction.CategoryId;   // BR-RF-11: đổi danh mục khoản gốc thì khoản hoàn đi theo
+            follower.Category = newCategory;
+            follower.UpdatedAt = transaction.UpdatedAt;
+        }
+
+        return await _refunds!.RecomputeAsync(userId, shape.Pending, shape.Before, ct);
     }
 
     /// <summary>

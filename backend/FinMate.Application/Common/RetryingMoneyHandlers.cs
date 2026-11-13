@@ -21,6 +21,27 @@ public sealed class RetryingConfirmTransactionCommandHandler(IConfirmTransaction
         => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
 }
 
+public sealed class RetryingCreateRefundCommandHandler(ICreateRefundCommandHandler inner, IConcurrencyRetry retry)
+    : ICreateRefundCommandHandler
+{
+    public Task<TransactionCreationResult> HandleAsync(CreateRefundCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
+public sealed class RetryingLinkRelatedTransactionCommandHandler(ILinkRelatedTransactionCommandHandler inner, IConcurrencyRetry retry)
+    : ILinkRelatedTransactionCommandHandler
+{
+    public Task<TransactionDto> HandleAsync(LinkRelatedTransactionCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
+public sealed class RetryingUnlinkRelatedTransactionCommandHandler(IUnlinkRelatedTransactionCommandHandler inner, IConcurrencyRetry retry)
+    : IUnlinkRelatedTransactionCommandHandler
+{
+    public Task<TransactionDto> HandleAsync(UnlinkRelatedTransactionCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
 public sealed class RetryingUpdateTransactionCommandHandler(IUpdateTransactionCommandHandler inner, IConcurrencyRetry retry)
     : IUpdateTransactionCommandHandler
 {

@@ -25,6 +25,8 @@ class ExtractionResult(BaseModel):
     transacted_at: datetime | None = None
     balance_after_cents: int | None = None
     confidence: float | None = None
+    # Phase 81: "refund" | "reversal" | None. Thêm trường tuỳ chọn, client cũ bỏ qua được. Backend chỉ GỢI Ý liên kết theo nó.
+    relation_hint: str | None = None
 
 
 class CategorizationResult(BaseModel):

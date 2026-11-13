@@ -7,4 +7,16 @@ namespace FinMate.Application.Transactions.Commands;
 /// <c>PUT /transactions/{id}</c> rồi mới <c>confirm</c> — hai lần gọi mạng cho một thao tác,
 /// và có khoảng giữa hai lần đó mà trạng thái lỡ dở.
 /// </param>
-public record ConfirmTransactionCommand(Guid UserId, Guid TransactionId, Guid? CategoryId = null, Guid? GroupId = null, Guid? GroupCategoryId = null);
+/// <param name="RelatedTransactionId">
+/// Phase 81: xác nhận nháp này là khoản hoàn/đảo của khoản chi đó (người dùng chọn từ <c>suggestedRelatedTransactions</c> hoặc tự chọn).
+/// Không gửi = giữ liên kết đã đặt bằng <c>PUT /related</c> (nếu có), không thì là thu nhập thường như trước.
+/// </param>
+/// <param name="Relation">Mặc định <c>Refund</c>.</param>
+public record ConfirmTransactionCommand(
+    Guid UserId,
+    Guid TransactionId,
+    Guid? CategoryId = null,
+    Guid? GroupId = null,
+    Guid? GroupCategoryId = null,
+    Guid? RelatedTransactionId = null,
+    Domain.Enums.TransactionRelation? Relation = null);

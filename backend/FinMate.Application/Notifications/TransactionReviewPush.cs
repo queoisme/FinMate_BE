@@ -33,6 +33,12 @@ public static class TransactionReviewPushBuilder
     public const string ActionChooseCategory = "choose_category";
 
     /// <summary>
+    /// Phase 81 (D16): AI đoán nháp này là hoàn tiền / đảo giao dịch. Không bao giờ một chạm, kể cả khi tin cậy ≥ 85% và kể cả khi không có ứng viên
+    /// nào: người dùng phải chọn khoản chi gốc, "hoàn không có khoản gốc" hoặc "thu nhập thường" (BR-RF-13, hệ thống chỉ gợi ý).
+    /// </summary>
+    public const string ActionChooseRefundLink = "choose_refund_link";
+
+    /// <summary>
     /// Mức tin cậy quyết định nhánh: THẤP NHẤT giữa bóc số và phân loại.
     ///
     /// Không lấy riêng điểm phân loại: một chạm xác nhận TOÀN BỘ bản ghi — số tiền, loại,
@@ -64,8 +70,10 @@ public static class TransactionReviewPushBuilder
         NumberGroupSizes = [3],
     };
 
+    /// <param name="relationHint">Gợi ý hoàn/đảo của AI; có giá trị thì luôn ra <see cref="ActionChooseRefundLink"/>.</param>
+    /// <param name="suggestionCount">Số khoản chi gốc gợi ý (0..3), đưa vào payload để app biết mở danh sách hay màn chọn tay.</param>
     public static TransactionReviewPush Build(
-        Transaction transaction, string? categoryName, double? confidence)
+        Transaction transaction, string? categoryName, double? confidence, TransactionRelation? relationHint = null, int suggestionCount = 0)
     {
         var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
         var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
@@ -92,6 +100,18 @@ public static class TransactionReviewPushBuilder
         }
 
         var at = merchant is null ? "" : $" tại {merchant}";
+
+        if (relationHint is { } hint)
+        {
+            data["action"] = ActionChooseRefundLink;
+            data["relationHint"] = hint.ToString();
+            data["suggestionCount"] = suggestionCount.ToString(CultureInfo.InvariantCulture);
+            var what = hint == TransactionRelation.Reversal ? "giao dịch bị đảo" : "khoản hoàn tiền";
+            return new TransactionReviewPush(
+                "Có tiền hoàn về",
+                $"Bạn vừa nhận {amount}{at}, có vẻ là {what}. Chạm để chọn khoản chi gốc.",
+                data);
+        }
 
         if (confidence >= OneTapThreshold)
         {

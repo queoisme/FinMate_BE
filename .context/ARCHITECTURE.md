@@ -27,6 +27,17 @@ thì hỏi user, đừng tự chọn.
 - Mọi truy vấn cộng dồn chi tiêu đều phải lọc `transaction_type <> 'transfer'`. Thêm truy vấn
   tổng hợp mới ở bất kỳ đâu thì kiểm tra lại điều này trước.
 
+**Nguyên tắc hoàn tiền / đảo giao dịch (Phase 81, 2026-11-13) — dễ sai thứ hai:**
+
+- Khoản hoàn là `credit` mang `relation = 'refund'` (hoặc `'reversal'`) và `related_transaction_id` trỏ tới khoản chi gốc. Số dư
+  xử lý như mọi khoản tiền vào, nhưng nó **KHÔNG** phải thu nhập: mọi phép cộng thu nhập phải lọc `relation IS NULL`, và khoản hoàn
+  **trừ vào** chi tiêu của danh mục khoản gốc. Khoản gốc bị đảo có `is_reversed = true`; cả cặp bị loại khỏi mọi tổng hợp.
+- Không viết lại quy tắc ở chỗ mới. Ngân sách: `TransactionBudgetDelta.Spend` và `BudgetSpendScope` (một predicate dùng chung cho
+  backfill, tính lại kỳ, nhóm, xoá cứng). Báo cáo cộng trong bộ nhớ: `NetFlow`. Dự báo: `IForecastDataRepository.GetTransactionsAsync`
+  (đã qua `RefundNetting.ForHabits`); đối chiếu số dư dùng `GetRawTransactionsAsync`.
+- Thao tác có dính hoàn/đảo **tính lại** kỳ ngân sách (không cộng delta rồi chặn ở 0, vì như vậy số bị lệch) và chạy dưới khoá
+  `SELECT … FOR UPDATE` dòng khoản gốc, thứ tự khoá cố định: khoản gốc → ví → kỳ ngân sách. Chi tiết: `docs/transactions-refund-api.md`.
+
 ---
 
 ## 1. Tổng quan hệ thống
@@ -1238,6 +1249,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 - Enum → **TEXT + CHECK constraint**, không dùng PostgreSQL ENUM type
 - AI DB → **KHÔNG FK** sang Backend DB, dùng `_hash` fields để reference
 - `transaction_type='transfer'` → **luôn loại khỏi mọi phép cộng dồn chi tiêu/thu nhập** (budget, report, forecast, daily summary). Xem §0 quyết định #1
+- `relation IS NOT NULL` (hoàn/đảo, Phase 81) → **không bao giờ là thu nhập**; hoàn trừ vào chi tiêu, cặp đảo (`is_reversed` + `relation='reversal'`) bị loại. Xem §0 nguyên tắc hoàn tiền
 - `financial_accounts`, `budget_periods`, `saving_goals` có khóa lạc quan `xmin` (thêm 2026-11-05). Handler mới ghi tiền vào ba bảng này phải đọc, tính rồi lưu một lần **trước** mọi tác dụng phụ bên ngoài và đăng ký lớp bọc `Retrying*` (`Application/Common/RetryingMoneyHandlers.cs`); thiếu lớp bọc thì xung đột trả 409 thay vì tự chạy lại
 
 ---

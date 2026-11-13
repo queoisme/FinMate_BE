@@ -17,7 +17,29 @@ public record TransactionDto(
     DateTimeOffset TransactedAt,
     long? BalanceAfterCents,
     DateTimeOffset CreatedAt,
-    Guid? GroupId = null);
+    Guid? GroupId = null,
+    string? Relation = null,
+    Guid? RelatedTransactionId = null,
+    bool IsReversed = false,
+    long? RefundedCents = null,
+    long? RemainingRefundableCents = null,
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null);
+
+/// <summary>
+/// Phase 81. Trên mỗi giao dịch: <c>Relation</c> (<c>Refund</c>/<c>Reversal</c>) và <c>RelatedTransactionId</c> khi đây là khoản hoàn/đảo;
+/// <c>RefundedCents</c>/<c>RemainingRefundableCents</c> chỉ có với khoản chi đã xác nhận; <c>IsReversed</c> khi khoản chi đã bị đảo;
+/// <c>SuggestedRelatedTransactions</c> chỉ có với NHÁP mà AI đoán là hoàn/đảo (tối đa 3, tốt nhất trước). Trường nào không áp dụng thì null.
+/// </summary>
+public record RefundSuggestionDto(
+    Guid TransactionId,
+    long AmountCents,
+    long RefundedCents,
+    long RemainingRefundableCents,
+    string? MerchantName,
+    Guid? CategoryId,
+    string? CategoryName,
+    Guid FinancialAccountId,
+    DateTimeOffset TransactedAt);
 
 public record TransactionListDto(IReadOnlyList<TransactionDto> Items, string? NextCursor);
 

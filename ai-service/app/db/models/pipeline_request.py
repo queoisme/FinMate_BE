@@ -55,6 +55,8 @@ class PipelineRequest(Base):
     balance_after_cents: Mapped[int | None] = mapped_column(BigInteger)
     extraction_confidence: Mapped[float | None] = mapped_column(Float)
     extraction_method: Mapped[str | None] = mapped_column(String(16))
+    # Phase 81: khoản tiền vào này giống hoàn tiền (``refund``) hay đảo giao dịch lỗi (``reversal``). Chỉ là gợi ý cho backend.
+    relation_hint: Mapped[str | None] = mapped_column(String(16))
 
     # Pattern nào đã khớp — không có cột này thì gỡ lỗi "sao giao dịch ra sai số tiền"
     # phải đoán mò trong hàng chục regex.
@@ -132,6 +134,7 @@ class PipelineRequest(Base):
             "categorization_confidence IS NULL OR categorization_confidence BETWEEN 0 AND 1", name="chk_ops_analyze_log_categorization_conf"
         ),
         CheckConstraint("amount_cents IS NULL OR amount_cents >= 0", name="chk_ops_analyze_log_amount"),
+        CheckConstraint("relation_hint IS NULL OR relation_hint IN ('refund', 'reversal')", name="chk_ops_analyze_log_relation_hint"),
         CheckConstraint("processing_ms IS NULL OR processing_ms >= 0", name="chk_ops_analyze_log_processing_ms"),
         CheckConstraint("extra_fields IS NULL OR jsonb_typeof(extra_fields) = 'object'", name="chk_ops_analyze_log_extra_fields"),
         # FK tự tham chiếu SET NULL: xóa dòng cha không được quét cả bảng (cùng lý do với idx_pipeline_requests_raw_sample).

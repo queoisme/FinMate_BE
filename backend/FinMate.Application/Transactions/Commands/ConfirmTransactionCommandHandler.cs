@@ -18,6 +18,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
     private readonly IGroupLedger? _groupLedger;
+    private readonly Refunds.IRefundLedger? _refunds;
+    private readonly IDailySummaryRefresher? _summaries;
 
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -28,9 +30,13 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IAIServiceClient aiServiceClient,
         ICacheService cache,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        Refunds.IRefundLedger? refunds = null,
+        IDailySummaryRefresher? summaries = null)
     {
         _groupLedger = groupLedger;
+        _refunds = refunds;
+        _summaries = summaries;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _budgetPeriodService = budgetPeriodService;
@@ -51,6 +57,12 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             throw new BusinessRuleException(
                 TransactionErrorCodes.NotDraft,
                 "Giao dịch đã được xác nhận hoặc không còn ở trạng thái nháp.");
+        }
+
+        // Phase 81: nháp là khoản hoàn/đảo (người dùng vừa chọn khoản gốc, hoặc đã đặt bằng PUT /related) → đường riêng, dưới khoá khoản gốc.
+        if (_refunds is not null && (command.RelatedTransactionId ?? transaction.RelatedTransactionId) is { } originalId)
+        {
+            return await ConfirmAsRefundAsync(command, transaction, originalId, _refunds, ct);
         }
 
         var account = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
@@ -87,7 +99,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
             command.UserId,
             transaction.CategoryId,
-            TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
+            TransactionBudgetDelta.Spend(transaction, transaction.Category),
             transaction.TransactedAt,
             ct);
 
@@ -133,6 +145,36 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }
         await NotifyForecastAsync(command.UserId, ct);
 
+        return TransactionMapper.ToDto(transaction);
+    }
+
+    private async Task<TransactionDto> ConfirmAsRefundAsync(
+        ConfirmTransactionCommand command, Domain.Entities.Transaction transaction, Guid originalId, Refunds.IRefundLedger refunds, CancellationToken ct)
+    {
+        var relation = command.Relation ?? transaction.Relation ?? TransactionRelation.Refund;
+        var effects = await _transactionRepository.RunWithOriginalLockedAsync(command.UserId, originalId, async original =>
+        {
+            // D13: danh mục của khoản hoàn là danh mục khoản gốc; người dùng chọn danh mục khác ở bước này là mâu thuẫn, báo rõ thay vì lặng lẽ bỏ qua.
+            if (command.CategoryId is { } chosen && chosen != original.CategoryId)
+            {
+                throw new BusinessRuleException(TransactionErrorCodes.RefundCategoryLocked, "Khoản hoàn dùng danh mục của khoản chi gốc.");
+            }
+
+            var account = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
+                ?? throw new NotFoundException("FinancialAccount", transaction.FinancialAccountId);
+
+            var now = DateTimeOffset.UtcNow;
+            transaction.Status = TransactionStatus.Confirmed;
+            transaction.UpdatedAt = now;
+            var result = await refunds.AttachAsync(command.UserId, original, transaction, relation, before: null, ct);
+
+            account.BalanceCents += transaction.AmountCents;   // AttachAsync đã bảo đảm đây là tiền vào
+            account.UpdatedAt = now;
+            await _transactionRepository.UpdateAsync(transaction, ct);
+            return result;
+        }, ct);
+
+        await new RefundAfterSave(_budgetAlertNotifier, _cache, _groupLedger, _summaries, _forecastAlerts).RunAsync(command.UserId, effects, ct);
         return TransactionMapper.ToDto(transaction);
     }
 

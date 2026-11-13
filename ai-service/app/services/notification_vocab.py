@@ -10,7 +10,12 @@ import re
 from dataclasses import dataclass
 
 _PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "notification_vocab.json"
-GROUPS = ("credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "balance_markers", "non_financial_markers", "financial_markers")
+GROUPS = (
+    "credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "balance_markers", "non_financial_markers", "financial_markers",
+    # Phase 81: khoản tiền VÀO là hoàn tiền, đảo giao dịch lỗi, hay cashback khuyến mãi (cashback là thu nhập, không phải hoàn). Khớp nguyên từ.
+    "refund_markers", "reversal_markers", "cashback_markers",
+)
+RELATION_GROUPS = ("cashback_markers", "reversal_markers", "refund_markers")  # thứ tự ưu tiên khi một câu trúng nhiều nhóm
 MAX_MERCHANT_CHARS = 120
 _STRIP_PREFIX = " -:"
 _STRIP_MERCHANT = " .,;:"
@@ -42,6 +47,9 @@ class _Vocab:
     balance: re.Pattern[str] | None
     non_financial: tuple[str, ...]
     financial: tuple[str, ...]
+    cashback: re.Pattern[str] | None
+    reversal: re.Pattern[str] | None
+    refund: re.Pattern[str] | None
 
 
 def build(content: dict) -> _Vocab:
@@ -54,6 +62,9 @@ def build(content: dict) -> _Vocab:
         balance=_any_word(content["balance_markers"]),
         non_financial=tuple(content["non_financial_markers"]),
         financial=tuple(content["financial_markers"]),
+        cashback=_any_word(content["cashback_markers"]),
+        reversal=_any_word(content["reversal_markers"]),
+        refund=_any_word(content["refund_markers"]),
     )
 
 
@@ -114,3 +125,15 @@ def has_non_financial_marker(lowered: str) -> bool:
 def financial_signals(lowered: str) -> int:
     """Số dấu hiệu của một biến động số dư thật có trong văn bản (đã viết thường); mỗi dấu hiệu tính một lần dù chồng lên nhau."""
     return sum(1 for marker in _vocab.financial if marker in lowered)
+
+
+def relation_hint(text: str) -> str | None:
+    """``refund`` / ``reversal`` / None cho một khoản tiền vào. Cashback thắng trước ("hoàn tiền khuyến mãi" là thu nhập), rồi tới đảo
+    ("hoàn trả GD lỗi" chứa cả chữ hoàn), cuối cùng là hoàn tiền. Chỉ là GỢI Ý: backend không bao giờ tự liên kết theo nó."""
+    if _vocab.cashback is not None and _vocab.cashback.search(text):
+        return None
+    if _vocab.reversal is not None and _vocab.reversal.search(text):
+        return "reversal"
+    if _vocab.refund is not None and _vocab.refund.search(text):
+        return "refund"
+    return None
