@@ -24,7 +24,7 @@ public class SpendingForecasterTests
 
     private void SetupDays(params DailySpendPoint[] points)
         => _reportRepository.Setup(r => r.GetDailySpendAsync(
-                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(points.ToList());
 
     private static DailySpendPoint Day(DateOnly date, long spent) => new(date, spent, 0, 1);

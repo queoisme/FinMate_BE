@@ -15,6 +15,12 @@ public record AnalyzeRequest(
 
 public record ClassifierResult(string Label, double Confidence);
 
+/// <param name="ProviderReference">
+/// Mã tham chiếu ngân hàng của chính giao dịch này khi provider bắt được (vd VietinBank's
+/// "CT DI:..."), có thể đã bị ẩn một phần (vd "xxxxxxxx7666") — null khi provider không có.
+/// Dùng để phân biệt 2 giao dịch THẬT khác nhau khỏi 1 giao dịch bị gửi lặp khi cả hai trùng
+/// ví + số tiền + chiều tiền trong cùng cửa sổ kiểm tra trùng (2026-11-13).
+/// </param>
 public record ExtractionResult(
     long? AmountCents,
     string? TransactionType,
@@ -22,7 +28,8 @@ public record ExtractionResult(
     string? Description,
     DateTimeOffset? TransactedAt,
     long? BalanceAfterCents,
-    double? Confidence);
+    double? Confidence,
+    string? ProviderReference = null);
 
 public record CategorizationResult(string? CategorySlug, double? Confidence);
 

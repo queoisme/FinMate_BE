@@ -69,6 +69,12 @@ public interface ITransactionRepository
     /// Quyết định trùng nghiệp vụ THẬT (§5.5) — khác <see cref="FindPossibleDuplicateAsync"/> (chỉ
     /// cảnh báo, không bao giờ chặn, chỉ xét Debit, lọc theo UserId). Lọc theo FinancialAccountId +
     /// AmountCents + TransactionType + TransactedAt trong 1 cửa sổ ngắn, xét cả Debit và Credit.
+    ///
+    /// <paramref name="providerReference"/> (2026-11-13): khi CẢ hai bên có mã tham chiếu và
+    /// chúng KHÁC nhau, không coi là trùng — bằng chứng cụ thể đây là 2 giao dịch THẬT khác nhau
+    /// (vd 2 lần quét QR cùng số tiền cho 2 người khác nhau trong cùng cửa sổ). Thiếu mã ở MỘT
+    /// trong hai bên (null) vẫn giữ hành vi cũ (coi là trùng) — không có gì để phân biệt thì thận
+    /// trọng vẫn hơn.
     /// </summary>
     Task<bool> HasAuthoritativeDuplicateAsync(
         Guid financialAccountId,
@@ -77,11 +83,16 @@ public interface ITransactionRepository
         DateTimeOffset at,
         TimeSpan window,
         Guid? excludeTransactionId = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        string? providerReference = null);
 
     /// <summary>
-    /// Vế đối ứng của 1 lần chuyển tiền nội bộ cùng user (§16.3): cùng số tiền, chiều ngược,
-    /// ví khác, trong cửa sổ, và CÒN đang Draft (v1 không merge vào giao dịch đã Confirmed).
+    /// Vế đối ứng của 1 lần chuyển tiền nội bộ cùng user (§16.3): cùng số tiền, chiều ngược, ví
+    /// khác, trong cửa sổ. Khớp cả Draft VÀ Confirmed (Issue A, 2026-11-13) — caller phải tự đảo
+    /// ngược hiệu ứng số dư/ngân sách đã áp dụng nếu <c>Status == Confirmed</c> trước khi gộp
+    /// thành Transfer, xem <c>AnalyzeNotificationCommandHandler.MergeIntoTransferAsync</c>. Kèm
+    /// <c>Category</c> (navigation) vì hiệu ứng ngân sách cần biết <c>Category.Slug</c> có phải
+    /// "Cho vay/Mượn" không.
     /// </summary>
     Task<Transaction?> FindMergeCandidateAsync(
         Guid userId,

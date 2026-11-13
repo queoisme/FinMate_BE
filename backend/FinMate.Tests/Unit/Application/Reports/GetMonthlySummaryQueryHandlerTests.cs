@@ -23,7 +23,7 @@ public class GetMonthlySummaryQueryHandlerTests
                 It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DailySummary>());
         _reportRepository.Setup(r => r.GetDailySpendAsync(
-                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<DailySpendPoint>());
     }
 
@@ -41,7 +41,11 @@ public class GetMonthlySummaryQueryHandlerTests
             .ReturnsAsync(summaries.ToList());
 
     private void SetupLive(DateOnly from, DateOnly to, params DailySpendPoint[] points)
-        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>()))
+        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+            .ReturnsAsync(points.ToList());
+
+    private void SetupLiveForAccount(Guid accountId, DateOnly from, DateOnly to, params DailySpendPoint[] points)
+        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), accountId))
             .ReturnsAsync(points.ToList());
 
     [Fact]
@@ -74,6 +78,25 @@ public class GetMonthlySummaryQueryHandlerTests
 
         result.TotalSpentCents.Should().Be(500_000);
         result.TransactionCount.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Handle_AccountIdGiven_BypassesPrecomputedSummaries_AndUsesLiveFilteredByAccount()
+    {
+        // Issue D (2026-11-13): daily_summaries không có chiều theo ví — lọc theo accountId phải
+        // luôn tính live, ngay cả khi tháng đó đã có dòng summary (SetupSummaries ở đây sẽ KHÔNG
+        // được dùng nếu bug tái diễn và handler lại đọc summary cho nhánh có accountId).
+        var accountId = Guid.NewGuid();
+        var first = new DateOnly(2026, 1, 1);
+        var last = new DateOnly(2026, 1, 31);
+        SetupSummaries(first, last, Summary(first, 999_000_000, 999_000_000, 99));
+        SetupLiveForAccount(accountId, first, last, new DailySpendPoint(first, 50_000, 200_000, 2));
+
+        var result = await _handler.HandleAsync(new GetMonthlySummaryQuery(_userId, 2026, 1, accountId));
+
+        result.TotalSpentCents.Should().Be(50_000);
+        result.TotalIncomeCents.Should().Be(200_000);
+        result.TransactionCount.Should().Be(2);
     }
 
     [Fact]

@@ -579,7 +579,12 @@ POST /api/v1/analyze
     │       Input: notification_body, package_name, provider_patterns
     │       Output: { amount_cents, transaction_type: "debit|credit",
     │                 merchant_name, description, transacted_at,
-    │                 balance_after_cents }
+    │                 balance_after_cents, provider_reference }
+    │       provider_reference: mã tham chiếu NGÂN HÀNG của chính giao dịch này khi
+    │       format provider bắt được (vd "628111031960" từ "CT DI:628111031960" của
+    │       VietinBank) — null khi không có. Dùng để Backend phân biệt 2 giao dịch
+    │       THẬT khác nhau khỏi 1 giao dịch bị gửi lặp khi cả hai trùng ví+số tiền+
+    │       chiều tiền trong cùng cửa sổ kiểm tra trùng (2026-11-13).
     │       Fallback: rule-based extraction nếu model uncertain
     │
     ├─► [3. Categorizer]
@@ -631,6 +636,7 @@ Authorization: Bearer {INTERNAL_API_KEY}
     "description": "Thanh toan Highlands",
     "transacted_at": "2026-09-09T10:28:00+07:00",
     "balance_after_cents": 2500000,
+    "provider_reference": null,
     "confidence": 0.91
   },
   "categorization": {

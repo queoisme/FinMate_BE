@@ -32,6 +32,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly ISystemConfigProvider _config;
     private readonly ITransactionConfirmationEffects _confirmationEffects;
     private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
+    private readonly IBudgetPeriodService _budgetPeriodService;
+    private readonly ICacheService _cache;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
 
@@ -46,6 +48,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         ISystemConfigProvider config,
         ITransactionConfirmationEffects confirmationEffects,
         IMerchantCategoryOverrideRepository merchantCategoryOverrides,
+        IBudgetPeriodService budgetPeriodService,
+        ICacheService cache,
         IAiConsentReader? consent = null,
         IQrTransferLinker? qrLinker = null)
     {
@@ -59,6 +63,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         _config = config;
         _confirmationEffects = confirmationEffects;
         _merchantCategoryOverrides = merchantCategoryOverrides;
+        _budgetPeriodService = budgetPeriodService;
+        _cache = cache;
         _consent = consent;
         _qrLinker = qrLinker;
     }
@@ -142,6 +148,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             Description = response.Extraction?.Description,
             TransactedAt = response.Extraction?.TransactedAt,
             BalanceAfterCents = response.Extraction?.BalanceAfterCents,
+            ProviderReference = response.Extraction?.ProviderReference,
             ExtractionConfidence = response.Extraction?.Confidence,
             CategorySlug = response.Categorization?.CategorySlug,
             CategorizationConfidence = response.Categorization?.Confidence,
@@ -174,9 +181,14 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
 
             // Việc 2 (§5.5): trùng nghiệp vụ THẬT — lọc theo chính ví này, xét cả Debit và Credit.
             // Thay cho aiResult.IsPotentialDuplicate (chỉ cảnh báo, không đáng tin để chặn hẳn).
+            //
+            // 2026-11-13: kèm providerReference khi có — 2 giao dịch THẬT khác nhau (vd 2 lần
+            // quét QR 2.000đ cho 2 người khác nhau trong vòng 5 phút) cùng ví+số tiền+chiều tiền
+            // trước đây bị hiểu lầm là 1 giao dịch gửi lặp vì không có gì phân biệt được nội dung.
             var isBusinessDuplicate = await _transactionRepository.HasAuthoritativeDuplicateAsync(
                 account.Id, amount, type, transactedAt,
-                TimeSpan.FromMinutes(pipelineSettings.BusinessDuplicateWindowMinutes), null, ct);
+                TimeSpan.FromMinutes(pipelineSettings.BusinessDuplicateWindowMinutes), null, ct,
+                aiResult.ProviderReference);
 
             if (!isBusinessDuplicate)
             {
@@ -204,6 +216,20 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 {
                     draftTransactionId = await MergeIntoTransferAsync(mergeCandidate, account, type, amount, ct);
 
+                    // Bug thật, 2026-11-13: leg này có thể cũng xuất phát từ 1 lần quét QR (tự
+                    // chuyển cho chính mình giữa 2 ví) — nhánh merge trước đây bỏ qua hoàn toàn
+                    // việc khớp QR, nên QrTransferIntent/PendingQrTransfer không bao giờ được đóng
+                    // lại dù D1 đã ghi đúng là Transfer: C3 (Lịch sử quét QR) kẹt "Chờ ngân hàng
+                    // xác nhận" mãi mãi.
+                    if (_qrLinker is not null && type == TransactionType.Debit)
+                    {
+                        var mergedQrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, amount, ct);
+                        if (mergedQrIntent is not null)
+                        {
+                            await _qrLinker.LinkAsync(mergedQrIntent, mergeCandidate.Id, ct);
+                        }
+                    }
+
                     // Transfer đã Confirmed ngay (§16.3) — nếu vế đầu từng nhận push "Chờ duyệt",
                     // phải sửa lại cảm nhận bằng 1 push mới, không để im lặng biến mất.
                     await _pushNotificationService.NotifyAsync(
@@ -223,6 +249,11 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                         ? null
                         : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
 
+                    // Issue B: tên hiển thị người dùng đã lưu/đổi tay cho người nhận này (nếu có)
+                    // đáng tin hơn tên thô trong thông báo/mã QR — chuỗi dự phòng cuối cùng là
+                    // savedDisplayName -> qrIntent?.ReceiverName -> aiResult.MerchantName.
+                    string? savedDisplayName = null;
+
                     // Việc 5 (§7 priority #1, §16.5): override theo tên merchant, cho case KHÔNG
                     // qua QR — chỉ áp khi chưa có gì khác (AI slug) và trước khi QR override (nếu
                     // có) ghi đè tiếp ở dưới, vì QR có dữ liệu đáng tin hơn.
@@ -233,6 +264,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                         if (merchantOverride is not null)
                         {
                             category = merchantOverride.Category;
+                            savedDisplayName = merchantOverride.DisplayName;
                         }
                     }
 
@@ -241,6 +273,14 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                     if (_qrLinker is not null && type == TransactionType.Debit)
                     {
                         qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, amount, ct);
+                        if (qrIntent is not null)
+                        {
+                            // Người nhận có dữ liệu cấu trúc (BankBin + AccountNumber) qua QR —
+                            // đáng tin hơn chuỗi merchant tự do của case không-QR.
+                            savedDisplayName = await _qrLinker.GetSavedDisplayNameAsync(
+                                command.UserId, qrIntent.ReceiverBankBin, qrIntent.ReceiverAccountNumber, ct) ?? savedDisplayName;
+                        }
+
                         if (qrIntent?.CategoryId is Guid qrCategoryId
                             && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
                             && (chosen.UserId is null || chosen.UserId == command.UserId))
@@ -259,10 +299,11 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                         TransactionType = type,
                         Source = TransactionSource.Notification,
                         Status = autoCommitEligible ? TransactionStatus.Confirmed : TransactionStatus.Draft,
-                        MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
+                        MerchantName = savedDisplayName ?? qrIntent?.ReceiverName ?? aiResult.MerchantName,
                         Description = aiResult.Description,
                         TransactedAt = transactedAt,
                         BalanceAfterCents = aiResult.BalanceAfterCents,  // giữ nguyên số AI đọc từ bank, không ghi đè bằng account.BalanceCents
+                        ProviderReference = aiResult.ProviderReference,
                         CreatedAt = now,
                         UpdatedAt = now,
                     };
@@ -320,6 +361,14 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     /// <summary>
     /// Gộp leg hiện tại vào vế đối ứng (<paramref name="mergeCandidate"/>) thành 1 giao dịch
     /// Transfer đã Confirmed (§16.3) — không tạo transaction mới cho leg hiện tại.
+    ///
+    /// Issue A (2026-11-13, user chọn Option A): <paramref name="mergeCandidate"/> có thể đã
+    /// Confirmed từ trước (Auto-commit chạy gần như ngay lập tức từ §16.6 khiến việc này phổ biến
+    /// hơn hẳn so với lúc §16.3 được quyết định, khi giả định ngầm là 2 thông báo luôn tới trước
+    /// khi người dùng — hay Auto-commit — có cơ hội xác nhận vế đầu). Nếu vậy, phải ĐẢO NGƯỢC
+    /// hiệu ứng số dư/ngân sách đã áp dụng cho vế đó trước khi gộp, cùng công thức đảo dấu đã dùng ở
+    /// <c>DeleteTransactionCommandHandler</c> — không thì tiền/ngân sách bị áp 2 lần (1 lần lúc
+    /// Auto-commit vế đầu, 1 lần ở merge dưới đây cho giao dịch Transfer gộp).
     /// </summary>
     private async Task<Guid> MergeIntoTransferAsync(
         Transaction mergeCandidate, FinancialAccount incomingAccount, TransactionType incomingType,
@@ -337,6 +386,33 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             ? incomingAccount
             : await _financialAccountRepository.GetByIdAsync(destAccountId, mergeCandidate.UserId, ct)
                 ?? throw new NotFoundException("FinancialAccount", destAccountId);
+
+        if (mergeCandidate.Status == TransactionStatus.Confirmed)
+        {
+            // mergeCandidate.FinancialAccountId vẫn còn là ví GỐC của vế đầu lúc này (chưa bị
+            // gán lại thành sourceAccountId ở dưới) — đúng chính ví mà Auto-commit đã áp hiệu ứng.
+            var mergeCandidateAccount = mergeCandidate.FinancialAccountId == sourceAccount.Id
+                ? sourceAccount
+                : mergeCandidate.FinancialAccountId == destAccount.Id
+                    ? destAccount
+                    : await _financialAccountRepository.GetByIdAsync(mergeCandidate.FinancialAccountId, mergeCandidate.UserId, ct)
+                        ?? throw new NotFoundException("FinancialAccount", mergeCandidate.FinancialAccountId);
+
+            mergeCandidateAccount.BalanceCents -= mergeCandidate.TransactionType == TransactionType.Credit
+                ? mergeCandidate.AmountCents
+                : -mergeCandidate.AmountCents;
+            mergeCandidateAccount.UpdatedAt = now;
+
+            // Đảo dấu delta ngân sách đã áp — luôn 0 với Credit/Transfer (Spend chỉ tính Debit),
+            // và không bao giờ chạm ngưỡng cảnh báo giống nhánh Delete, bỏ qua BudgetAlert trả về.
+            await _budgetPeriodService.ApplyDeltaAsync(
+                mergeCandidate.UserId,
+                mergeCandidate.CategoryId,
+                -TransactionBudgetDelta.Spend(mergeCandidate.TransactionType, mergeCandidate.AmountCents, mergeCandidate.Category),
+                mergeCandidate.TransactedAt,
+                ct);
+            await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, mergeCandidate.UserId, mergeCandidate.TransactedAt, ct);
+        }
 
         sourceAccount.BalanceCents -= amount;
         sourceAccount.UpdatedAt = now;

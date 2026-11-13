@@ -4,6 +4,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Notifications;
 using FinMate.Application.Notifications.Commands;
+using FinMate.Application.QrTransfers;
 using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -24,6 +25,8 @@ public class AnalyzeNotificationCommandHandlerTests
     private readonly Mock<ISystemConfigProvider> _config = new();
     private readonly Mock<ITransactionConfirmationEffects> _confirmationEffects = new();
     private readonly Mock<IMerchantCategoryOverrideRepository> _merchantCategoryOverrides = new();
+    private readonly Mock<IBudgetPeriodService> _budgetPeriodService = new();
+    private readonly Mock<ICacheService> _cache = new();
     private readonly AnalyzeNotificationCommandHandler _handler;
 
     public AnalyzeNotificationCommandHandlerTests()
@@ -32,6 +35,9 @@ public class AnalyzeNotificationCommandHandlerTests
             .ReturnsAsync(new SystemConfigSnapshot(0, new SystemConfigDocument(), null));
         _confirmationEffects
             .Setup(e => e.ApplyAsync(It.IsAny<Transaction>(), It.IsAny<FinancialAccount>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<BudgetAlert>)[]);
+        _budgetPeriodService
+            .Setup(s => s.ApplyDeltaAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<BudgetAlert>)[]);
 
         _handler = new AnalyzeNotificationCommandHandler(
@@ -44,7 +50,9 @@ public class AnalyzeNotificationCommandHandlerTests
             new AnalyzeNotificationCommandValidator(),
             _config.Object,
             _confirmationEffects.Object,
-            _merchantCategoryOverrides.Object);
+            _merchantCategoryOverrides.Object,
+            _budgetPeriodService.Object,
+            _cache.Object);
     }
 
     private static AnalyzeNotificationCommand Command(string packageName = "com.mbmobile") =>
@@ -306,6 +314,43 @@ public class AnalyzeNotificationCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ExtractionHasProviderReference_PassesItToTheDuplicateCheck()
+    {
+        // 2026-11-13: VietinBank/§5.5 — mã tham chiếu phải tới được HasAuthoritativeDuplicateAsync
+        // để 2 giao dịch THẬT khác nhau cùng ví+số tiền+chiều tiền trong cửa sổ kiểm tra trùng
+        // không còn bị hiểu lầm là 1 giao dịch gửi lặp.
+        var account = new FinancialAccount { Id = Guid.NewGuid(), IsMonitored = true, BalanceCents = 1_000_000 };
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+        _notificationLogRepository
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((NotificationLog?)null);
+        _aiServiceClient
+            .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AnalyzeResponse(
+                "financial",
+                new ClassifierResult("financial", 0.97),
+                new ExtractionResult(2_000, "debit", "LE XUAN THO Chuyen tien; tai iPay", "ND:...", DateTimeOffset.UtcNow, 2_860_075, 0.98, "xxxxxxxx7666"),
+                new CategorizationResult(null, null),
+                new DuplicateResult(false, null),
+                new ModelVersions("1.0", "1.0", "1.0"),
+                11));
+
+        var result = await _handler.HandleAsync(Command());
+
+        result.DraftTransactionId.Should().NotBeNull();
+        _transactionRepository.Verify(
+            r => r.HasAuthoritativeDuplicateAsync(
+                account.Id, 2_000, TransactionType.Debit, It.IsAny<DateTimeOffset>(),
+                It.IsAny<TimeSpan>(), null, It.IsAny<CancellationToken>(), "xxxxxxxx7666"),
+            Times.Once);
+        _transactionRepository.Verify(
+            r => r.AddAsync(It.Is<Transaction>(t => t.ProviderReference == "xxxxxxxx7666"), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_BusinessDuplicateFound_DoesNotCreateTransaction()
     {
         var account = new FinancialAccount { Id = Guid.NewGuid(), IsMonitored = true };
@@ -328,7 +373,7 @@ public class AnalyzeNotificationCommandHandlerTests
         _transactionRepository
             .Setup(r => r.HasAuthoritativeDuplicateAsync(
                 account.Id, 75_000, TransactionType.Debit, It.IsAny<DateTimeOffset>(),
-                It.IsAny<TimeSpan>(), null, It.IsAny<CancellationToken>()))
+                It.IsAny<TimeSpan>(), null, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(true);
 
         var result = await _handler.HandleAsync(Command());
@@ -395,6 +440,128 @@ public class AnalyzeNotificationCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_MergeCandidateFound_AlsoLinksTheQrIntentOfTheDebitLeg()
+    {
+        // Bug thật, 2026-11-13: tự chuyển cho chính mình giữa 2 ví BẰNG cách quét QR — nhánh merge
+        // (§16.3) trước đây bỏ qua hoàn toàn việc khớp QR, nên QrTransferIntent không bao giờ được
+        // đóng lại dù giao dịch đã đúng là Transfer: C3 kẹt "Chờ ngân hàng xác nhận" mãi mãi.
+        var userId = Guid.NewGuid();
+        var mbAccount = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, IsMonitored = true, BalanceCents = 1_000_000 };
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mbAccount);
+        _notificationLogRepository
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((NotificationLog?)null);
+        _aiServiceClient
+            .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AnalyzeResponse(
+                "financial",
+                new ClassifierResult("financial", 0.97),
+                new ExtractionResult(17_000, "debit", null, "Chuyen tien", DateTimeOffset.UtcNow, null, 0.95),
+                new CategorizationResult(null, null),
+                new DuplicateResult(false, null),
+                new ModelVersions("1.0", "1.0", "1.0"),
+                245));
+
+        var vietinAccount = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 500_000 };
+        var mergeCandidate = new Transaction
+        {
+            Id = Guid.NewGuid(), UserId = userId, FinancialAccountId = vietinAccount.Id,
+            AmountCents = 17_000, TransactionType = TransactionType.Credit, Status = TransactionStatus.Draft,
+            TransactedAt = DateTimeOffset.UtcNow,
+        };
+        _transactionRepository
+            .Setup(r => r.FindMergeCandidateAsync(
+                It.IsAny<Guid>(), 17_000, TransactionType.Credit, mbAccount.Id,
+                It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mergeCandidate);
+        _financialAccountRepository
+            .Setup(r => r.GetByIdAsync(vietinAccount.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vietinAccount);
+
+        var qrIntent = new QrTransferIntent { Id = Guid.NewGuid(), UserId = userId };
+        var qrLinker = new Mock<IQrTransferLinker>();
+        qrLinker
+            .Setup(l => l.FindMatchAsync(userId, "com.mbmobile", It.IsAny<DateTimeOffset>(), 17_000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(qrIntent);
+
+        var handler = new AnalyzeNotificationCommandHandler(
+            _financialAccountRepository.Object, _notificationLogRepository.Object, _categoryRepository.Object,
+            _transactionRepository.Object, _aiServiceClient.Object, _pushNotificationService.Object,
+            new AnalyzeNotificationCommandValidator(), _config.Object, _confirmationEffects.Object,
+            _merchantCategoryOverrides.Object, _budgetPeriodService.Object, _cache.Object,
+            qrLinker: qrLinker.Object);
+
+        var command = new AnalyzeNotificationCommand(userId, "com.mbmobile", "MB Bank", "TK 123: -17,000VND", DateTimeOffset.UtcNow);
+        var result = await handler.HandleAsync(command);
+
+        result.DraftTransactionId.Should().Be(mergeCandidate.Id);
+        qrLinker.Verify(l => l.LinkAsync(qrIntent, mergeCandidate.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_MergeCandidateAlreadyConfirmed_ReversesAppliedEffectsBeforeMerging()
+    {
+        // Issue A (§16.3 reversed 2026-11-13, Option A): vế đầu đã Auto-commit (Confirmed) TRƯỚC khi
+        // vế đối ứng tới — merge phải đảo ngược hiệu ứng số dư/ngân sách đã áp cho vế đó, không chỉ
+        // bỏ qua merge như hành vi v1 (chỉ merge khi còn Draft).
+        var userId = Guid.NewGuid();
+        var incomingAccount = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, IsMonitored = true, BalanceCents = 1_000_000 };
+        _financialAccountRepository
+            .Setup(r => r.GetByUserAndMonitoredPackageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(incomingAccount);
+        _notificationLogRepository
+            .Setup(r => r.GetProcessedByContentHashAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((NotificationLog?)null);
+        _aiServiceClient
+            .Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AnalyzeResponse(
+                "financial",
+                new ClassifierResult("financial", 0.97),
+                new ExtractionResult(50_000, "credit", null, "Chuyen tien", DateTimeOffset.UtcNow, null, 0.70),
+                new CategorizationResult(null, null),
+                new DuplicateResult(false, null),
+                new ModelVersions("1.0", "1.0", "1.0"),
+                245));
+
+        // Vế đầu đã Auto-commit từ trước: ví otherAccount đã bị trừ 50.000đ lúc đó (Confirmed Debit).
+        var otherAccount = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 450_000 };
+        var mergeCandidate = new Transaction
+        {
+            Id = Guid.NewGuid(), UserId = userId, FinancialAccountId = otherAccount.Id,
+            AmountCents = 50_000, TransactionType = TransactionType.Debit, Status = TransactionStatus.Confirmed,
+            TransactedAt = DateTimeOffset.UtcNow,
+        };
+        _transactionRepository
+            .Setup(r => r.FindMergeCandidateAsync(
+                It.IsAny<Guid>(), 50_000, TransactionType.Debit, incomingAccount.Id,
+                It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mergeCandidate);
+        _financialAccountRepository
+            .Setup(r => r.GetByIdAsync(otherAccount.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(otherAccount);
+
+        var command = new AnalyzeNotificationCommand(userId, "com.mbmobile", "MB Bank", "TK 123: +50,000VND", DateTimeOffset.UtcNow);
+        var result = await _handler.HandleAsync(command);
+
+        result.DraftTransactionId.Should().Be(mergeCandidate.Id);
+        // Đảo ngược: trả lại 50.000đ đã trừ lúc Auto-commit, rồi mới trừ lại đúng 1 lần cho Transfer.
+        otherAccount.BalanceCents.Should().Be(450_000);
+        incomingAccount.BalanceCents.Should().Be(1_050_000);
+        _budgetPeriodService.Verify(
+            s => s.ApplyDeltaAsync(userId, mergeCandidate.CategoryId, -50_000, mergeCandidate.TransactedAt, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _transactionRepository.Verify(
+            r => r.UpdateAsync(It.Is<Transaction>(t =>
+                t.Id == mergeCandidate.Id
+                && t.TransactionType == TransactionType.Transfer
+                && t.Status == TransactionStatus.Confirmed
+                && t.CounterAccountId == incomingAccount.Id), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_NonFinancialResult_DoesNotCreateTransaction()
     {
         var account = new FinancialAccount { Id = Guid.NewGuid(), IsMonitored = true };
@@ -422,7 +589,7 @@ public class AnalyzeNotificationCommandHandlerTests
         _financialAccountRepository.Object, _notificationLogRepository.Object, _categoryRepository.Object,
         _transactionRepository.Object, _aiServiceClient.Object, _pushNotificationService.Object,
         new AnalyzeNotificationCommandValidator(), _config.Object, _confirmationEffects.Object,
-        _merchantCategoryOverrides.Object, consent);
+        _merchantCategoryOverrides.Object, _budgetPeriodService.Object, _cache.Object, consent);
 
     private static Mock<IAiConsentReader> Consent(bool granted)
     {

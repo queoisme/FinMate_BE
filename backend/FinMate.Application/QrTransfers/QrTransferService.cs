@@ -92,15 +92,17 @@ public class QrTransferService : IQrTransferService
         var account = command.ReceiverAccountNumber.Trim();
         var receiverName = string.IsNullOrWhiteSpace(command.ReceiverName) ? null : command.ReceiverName.Trim();
         var now = DateTimeOffset.UtcNow;
+        var existingOverride = await _repository.GetOverrideAsync(command.UserId, command.ReceiverBankBin, account, ct);
 
         Category? category = null;
+        var currentOverride = existingOverride;
         if (command.CategoryId is Guid chosen)
         {
             // Chọn tay là tín hiệu rõ ràng duy nhất: ghi đè luôn mapping của người nhận này, không đợi tới lúc khớp thông báo.
             category = await RequireUsableCategoryAsync(command.UserId, chosen, ct);
-            await UpsertOverrideAsync(command.UserId, command.ReceiverBankBin, account, receiverName, category.Id, now, ct);
+            currentOverride = await UpsertOverrideAsync(command.UserId, command.ReceiverBankBin, account, receiverName, category.Id, now, existingOverride, ct);
         }
-        else if (await _repository.GetOverrideAsync(command.UserId, command.ReceiverBankBin, account, ct) is { } known)
+        else if (existingOverride is { } known)
         {
             // Đã từng chọn cho người này: tự gắn, không hỏi lại. Danh mục bị tắt/xóa thì bỏ qua thay vì gắn cái không còn dùng được.
             var remembered = await _categories.GetByIdAsync(known.CategoryId, ct);
@@ -125,8 +127,15 @@ public class QrTransferService : IQrTransferService
             CreatedAt = now,
         };
         await _repository.AddIntentAsync(intent, ct);
-        return ToDto(intent, banks, category is null ? null : new Dictionary<Guid, string> { [category.Id] = category.Name }, now, PendingLifetime(settings));
+
+        // Issue B: nếu người dùng đã đổi tên hiển thị cho người nhận này (màn "Đã lưu người nhận"),
+        // ưu tiên tên đó hơn tên gốc đọc được từ mã QR lần quét này.
+        var resolvedReceiverName = ResolveDisplayName(currentOverride?.DisplayName, receiverName);
+        return ToDto(intent, banks, category is null ? null : new Dictionary<Guid, string> { [category.Id] = category.Name }, resolvedReceiverName, now, PendingLifetime(settings));
     }
+
+    private static string? ResolveDisplayName(string? savedDisplayName, string? fallback)
+        => string.IsNullOrWhiteSpace(savedDisplayName) ? fallback : savedDisplayName;
 
     public async Task<QrTransferListResult> ListAsync(Guid userId, QrTransferStatus? status, string? cursor, int limit, CancellationToken ct = default)
     {
@@ -135,7 +144,19 @@ public class QrTransferService : IQrTransferService
         var categories = (await _categories.GetListForUserAsync(userId, ct)).ToDictionary(c => c.Id, c => c.Name);
         var now = DateTimeOffset.UtcNow;
         var lifetime = PendingLifetime(await SettingsAsync(ct));
-        return new QrTransferListResult(page.Items.Select(i => ToDto(i, banks, categories, now, lifetime)).ToList(), page.NextCursor);
+
+        // Issue B: C3 không được tự đọc thẳng QrTransferIntent.ReceiverName (tên gốc của lần quét
+        // này) — phải ưu tiên tên người dùng đã lưu/đổi cho người nhận này, giống D1.
+        var overrides = await _repository.ListOverridesAsync(userId, ct);
+        var displayNames = overrides
+            .Where(o => !string.IsNullOrWhiteSpace(o.DisplayName))
+            .ToDictionary(o => (o.BankBin, o.AccountNumber), o => o.DisplayName);
+
+        return new QrTransferListResult(
+            page.Items
+                .Select(i => ToDto(i, banks, categories, ResolveDisplayName(displayNames.GetValueOrDefault((i.ReceiverBankBin, i.ReceiverAccountNumber)), i.ReceiverName), now, lifetime))
+                .ToList(),
+            page.NextCursor);
     }
 
     public async Task<QrTransferDto> CancelAsync(Guid userId, Guid id, CancellationToken ct = default)
@@ -153,7 +174,8 @@ public class QrTransferService : IQrTransferService
         }
 
         var categories = (await _categories.GetListForUserAsync(userId, ct)).ToDictionary(c => c.Id, c => c.Name);
-        return ToDto(intent, await BankNamesAsync(ct), categories, DateTimeOffset.UtcNow, PendingLifetime(await SettingsAsync(ct)));
+        var savedOverride = await _repository.GetOverrideAsync(userId, intent.ReceiverBankBin, intent.ReceiverAccountNumber, ct);
+        return ToDto(intent, await BankNamesAsync(ct), categories, ResolveDisplayName(savedOverride?.DisplayName, intent.ReceiverName), DateTimeOffset.UtcNow, PendingLifetime(await SettingsAsync(ct)));
     }
 
     public async Task<CounterpartyOverrideDto?> LookupOverrideAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default)
@@ -204,16 +226,17 @@ public class QrTransferService : IQrTransferService
         return category;
     }
 
-    private async Task UpsertOverrideAsync(Guid userId, string bin, string account, string? name, Guid categoryId, DateTimeOffset now, CancellationToken ct)
+    private async Task<CounterpartyCategoryOverride> UpsertOverrideAsync(
+        Guid userId, string bin, string account, string? name, Guid categoryId, DateTimeOffset now, CounterpartyCategoryOverride? existing, CancellationToken ct)
     {
-        var existing = await _repository.GetOverrideAsync(userId, bin, account, ct);
         string? displayName;
         if (existing is null)
         {
-            await _repository.AddOverrideAsync(new CounterpartyCategoryOverride
+            existing = new CounterpartyCategoryOverride
             {
                 UserId = userId, BankBin = bin, AccountNumber = account, DisplayName = name, CategoryId = categoryId, CreatedAt = now, UpdatedAt = now,
-            }, ct);
+            };
+            await _repository.AddOverrideAsync(existing, ct);
             displayName = name;
         }
         else
@@ -226,6 +249,7 @@ public class QrTransferService : IQrTransferService
         }
 
         await CounterpartyMerchantSync.UpsertAsync(_merchantCategoryOverrides, _logger, userId, displayName, categoryId, now, ct);
+        return existing;
     }
 
     private async Task<CounterpartyOverrideDto> ToOverrideDtoAsync(CounterpartyCategoryOverride mapping, Guid userId, CancellationToken ct)
@@ -243,10 +267,10 @@ public class QrTransferService : IQrTransferService
     private static TimeSpan PendingLifetime(QrTransferSettings settings) => TimeSpan.FromHours(settings.PendingLifetimeHours);
 
     private static QrTransferDto ToDto(
-        QrTransferIntent i, IReadOnlyDictionary<string, string> banks, IReadOnlyDictionary<Guid, string>? categories, DateTimeOffset now, TimeSpan lifetime)
+        QrTransferIntent i, IReadOnlyDictionary<string, string> banks, IReadOnlyDictionary<Guid, string>? categories, string? resolvedReceiverName, DateTimeOffset now, TimeSpan lifetime)
         => new(
             i.Id,
-            i.ReceiverBankBin, banks.GetValueOrDefault(i.ReceiverBankBin, i.ReceiverBankBin), i.ReceiverAccountNumber, i.ReceiverName,
+            i.ReceiverBankBin, banks.GetValueOrDefault(i.ReceiverBankBin, i.ReceiverBankBin), i.ReceiverAccountNumber, resolvedReceiverName,
             i.SenderBankBin, banks.GetValueOrDefault(i.SenderBankBin, i.SenderBankBin),
             i.AmountCents, i.Message,
             i.CategoryId, i.CategoryId is Guid cid && categories is not null ? categories.GetValueOrDefault(cid) : null,

@@ -50,7 +50,8 @@ public class TransactionRepository : ITransactionRepository
         DateTimeOffset at,
         TimeSpan window,
         Guid? excludeTransactionId = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? providerReference = null)
     {
         var from = at - window;
         var to = at + window;
@@ -60,7 +61,10 @@ public class TransactionRepository : ITransactionRepository
             && t.AmountCents == amountCents
             && t.TransactedAt >= from
             && t.TransactedAt <= to
-            && (excludeTransactionId == null || t.Id != excludeTransactionId), ct);
+            && (excludeTransactionId == null || t.Id != excludeTransactionId)
+            // 2026-11-13: cả 2 bên có mã tham chiếu và khác nhau -> chắc chắn không phải cùng 1
+            // giao dịch, không tính là trùng. Thiếu mã ở 1 trong 2 bên vẫn giữ hành vi cũ.
+            && (providerReference == null || t.ProviderReference == null || t.ProviderReference == providerReference), ct);
     }
 
     public Task<Transaction?> FindMergeCandidateAsync(
@@ -75,8 +79,9 @@ public class TransactionRepository : ITransactionRepository
         var from = at - window;
         var to = at + window;
         return _context.Transactions
+            .Include(t => t.Category)
             .Where(t => t.UserId == userId
-                && t.Status == TransactionStatus.Draft
+                && (t.Status == TransactionStatus.Draft || t.Status == TransactionStatus.Confirmed)
                 && t.TransactionType == oppositeType
                 && t.FinancialAccountId != excludeFinancialAccountId
                 && t.AmountCents == amountCents

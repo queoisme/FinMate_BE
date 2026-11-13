@@ -36,7 +36,7 @@ public class ConfirmTransactionCommandHandlerTests
         _transactionRepository
             .Setup(r => r.HasAuthoritativeDuplicateAsync(
                 It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<TransactionType>(), It.IsAny<DateTimeOffset>(),
-                It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(false);
 
         _handler = new ConfirmTransactionCommandHandler(
@@ -193,7 +193,7 @@ public class ConfirmTransactionCommandHandlerTests
         _transactionRepository
             .Setup(r => r.HasAuthoritativeDuplicateAsync(
                 account.Id, transaction.AmountCents, transaction.TransactionType, transaction.TransactedAt,
-                It.IsAny<TimeSpan>(), transaction.Id, It.IsAny<CancellationToken>()))
+                It.IsAny<TimeSpan>(), transaction.Id, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ReturnsAsync(true);
 
         var act = () => _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));

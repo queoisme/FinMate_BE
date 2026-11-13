@@ -199,7 +199,7 @@ public class ChatCommandHandlerTests
     private void MonthHas(long spent, long income, params CategorySpend[] byCategory)
     {
         _reports
-            .Setup(r => r.GetDailySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetDailySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<DailySpendPoint> { new(new DateOnly(2026, 10, 5), spent, income, 3) });
         _reports
             .Setup(r => r.GetCategorySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>()))

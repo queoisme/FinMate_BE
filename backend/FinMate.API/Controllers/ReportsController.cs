@@ -41,11 +41,12 @@ public class ReportsController : ControllerBase
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+    /// <param name="accountId">Lọc theo một ví cụ thể (Issue D, 2026-11-13); bỏ trống = tổng mọi ví.</param>
     [HttpGet("monthly-summary")]
-    public async Task<IActionResult> GetMonthlySummary([FromQuery] int? year, [FromQuery] int? month, CancellationToken ct)
+    public async Task<IActionResult> GetMonthlySummary([FromQuery] int? year, [FromQuery] int? month, [FromQuery] Guid? accountId, CancellationToken ct)
     {
         var summary = await _monthlySummaryHandler.HandleAsync(
-            new GetMonthlySummaryQuery(CurrentUserId, year, month), ct);
+            new GetMonthlySummaryQuery(CurrentUserId, year, month, accountId), ct);
         return Ok(ApiResponse<MonthlySummaryDto>.Ok(summary));
     }
 

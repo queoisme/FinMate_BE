@@ -17,6 +17,13 @@ public interface IQrTransferLinker
     Task LinkAsync(QrTransferIntent intent, Guid transactionId, CancellationToken ct = default);
 
     /// <summary>
+    /// Tên hiển thị người dùng đã lưu/đổi cho người nhận này (màn "Đã lưu người nhận"), hoặc null
+    /// nếu chưa có — đáng tin hơn <see cref="QrTransferIntent.ReceiverName"/> của riêng lần quét
+    /// này, vì tên đó chỉ là tên gốc đọc từ mã QR (Issue B).
+    /// </summary>
+    Task<string?> GetSavedDisplayNameAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default);
+
+    /// <summary>
     /// Người dùng vừa SỬA TAY danh mục của một giao dịch: nếu giao dịch đó đã khớp một lần quét QR thì ghi nhớ danh mục cho người nhận. Không làm ở bước xác nhận vì ở đó không phân biệt được
     /// "người dùng chủ động chọn" với "chỉ chấp nhận gợi ý của AI".
     /// </summary>
@@ -66,6 +73,9 @@ public class QrTransferLinker : IQrTransferLinker
         intent.MatchedAt = DateTimeOffset.UtcNow;
         await _repository.UpdateIntentAsync(intent, ct);
     }
+
+    public async Task<string?> GetSavedDisplayNameAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default)
+        => (await _repository.GetOverrideAsync(userId, bankBin, accountNumber, ct))?.DisplayName;
 
     public async Task LearnCategoryAsync(Guid userId, Guid transactionId, Guid categoryId, CancellationToken ct = default)
     {

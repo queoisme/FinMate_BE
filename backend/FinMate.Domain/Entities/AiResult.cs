@@ -19,6 +19,12 @@ public class AiResult
     public long? BalanceAfterCents { get; set; }
     public double? ExtractionConfidence { get; set; }
 
+    /// <summary>
+    /// Mã tham chiếu ngân hàng của chính giao dịch này khi provider bắt được, có thể đã bị ẩn
+    /// một phần (vd "xxxxxxxx7666") — null khi provider không có (2026-11-13).
+    /// </summary>
+    public string? ProviderReference { get; set; }
+
     public string? CategorySlug { get; set; }
     public double? CategorizationConfidence { get; set; }
 

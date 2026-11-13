@@ -74,6 +74,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.Description).HasColumnName("description").HasMaxLength(500);
         builder.Property(t => t.TransactedAt).HasColumnName("transacted_at").IsRequired();
         builder.Property(t => t.BalanceAfterCents).HasColumnName("balance_after_cents");
+        builder.Property(t => t.ProviderReference).HasColumnName("provider_reference").HasMaxLength(64);
         builder.Property(t => t.ExcludeFromForecast).HasColumnName("exclude_from_forecast").HasDefaultValue(false);
         builder.Property(t => t.ForecastExclusionReason)
             .HasColumnName("forecast_exclusion_reason")

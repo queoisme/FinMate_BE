@@ -280,6 +280,7 @@ def _response_from_row(
             transacted_at=_to_utc(row.transacted_at),
             balance_after_cents=row.balance_after_cents,
             confidence=row.extraction_confidence,
+            provider_reference=(row.extra_fields or {}).get("provider_reference"),
         )
 
     categorization = None
