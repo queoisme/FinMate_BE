@@ -11,11 +11,14 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
 
     private readonly ITransactionRepository _transactionRepository;
     private readonly Refunds.IRefundSuggestions? _suggestions;
+    private readonly Duplicates.IDuplicateDetector? _duplicates;
 
-    public GetTransactionListQueryHandler(ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null)
+    public GetTransactionListQueryHandler(
+        ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null, Duplicates.IDuplicateDetector? duplicates = null)
     {
         _transactionRepository = transactionRepository;
         _suggestions = suggestions;
+        _duplicates = duplicates;
     }
 
     public async Task<TransactionListDto> HandleAsync(GetTransactionListQuery query, CancellationToken ct = default)
@@ -32,7 +35,8 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
             query.ToDate,
             query.Cursor,
             limit,
-            Relation: query.Relation);
+            Relation: query.Relation,
+            DuplicateStatus: query.DuplicateStatus);
 
         var result = await _transactionRepository.GetListAsync(filter, ct);
 
@@ -42,12 +46,16 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
         var suggestions = _suggestions is null
             ? new Dictionary<Guid, (Domain.Enums.TransactionRelation, IReadOnlyList<RefundSuggestionDto>)>()
             : await _suggestions.ForDraftsAsync(query.UserId, result.Items, ct);
+        var duplicates = _duplicates is null
+            ? new Dictionary<Guid, DuplicateView>()
+            : await _duplicates.ViewAsync(query.UserId, result.Items, ct);
 
         return new TransactionListDto(
             result.Items.Select(t => TransactionMapper.ToDto(
                 t,
                 GetTransactionDetailQueryHandler.RefundableShape(t) ? refunded.GetValueOrDefault(t.Id) : null,
-                suggestions.TryGetValue(t.Id, out var s) ? s.Items : null)).ToList(),
+                suggestions.TryGetValue(t.Id, out var s) ? s.Items : null,
+                duplicates.GetValueOrDefault(t.Id))).ToList(),
             result.NextCursor);
     }
 }

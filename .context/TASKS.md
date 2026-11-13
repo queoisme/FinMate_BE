@@ -1525,3 +1525,26 @@ Nhánh `feat/refund-reversal`. Kế hoạch và các quyết định D1–D19, R
   - Push `data.action = "choose_refund_link"` (kèm `relationHint`, `suggestionCount`): mở màn chọn khoản chi gốc / "hoàn không có khoản gốc" / "thu nhập thường".
   - Báo cáo tháng thêm `refundedCents`, `crossPeriodRefundCents`; báo cáo nhóm thêm `refundedCents`. Tổng chi giờ là chi ròng.
   - Lỗi mới: 409 `HAS_REFUNDS`; 422 `REFUND_EXCEEDS_ORIGINAL`, `REFUND_ORIGINAL_NOT_ELIGIBLE`, `REVERSAL_AMOUNT_MISMATCH`, `REFUND_CATEGORY_LOCKED`, `REFUND_NOT_LINKABLE`, `REFUND_FOLLOWS_ORIGINAL`.
+
+## Phase 82 — Bản trùng có liên kết (2026-11-13)
+Nhánh `feat/linked-duplicates` (từ `main` sau PR #30). Kế hoạch và D0–D19: `docs/superpowers/plans/2026-11-13-linked-duplicates.md`. API cho app: `docs/transactions-duplicates-api.md`. Backend quyết trùng (`DuplicateMatcher`), cờ trùng của AI chỉ là tín hiệu xếp hạng; nghi trùng thành giao dịch mang `duplicate_status = suspected`, người dùng gộp hoặc bác.
+- [x] Migration `AddLinkedDuplicates`: `transactions.duplicate_of_transaction_id`, `duplicate_status`, `merged_into_transaction_id`, `merged_sources` (+ 6 CHECK, 2 FK tự tham chiếu NO ACTION); `notification_logs.status` thêm `duplicate`. Sửa `ReceiptScanRepository` nối được hoá đơn vào giao dịch đã xoá.
+- [x] Cấu hình hệ thống nhóm `duplicates` (10 phút / 48 giờ / 12 giờ); audit ghi thêm tên nhóm `forecast`, `refunds`, `duplicates`.
+- [x] `DuplicateMatcher` (BR-DUP-03/04/05) + `DuplicateDetector`; thông báo, job thử lại, chat (giữ chặn ±10 phút, D3), hoá đơn (D4), tạo tay (D1) đi chung một luật.
+- [x] Push `review_duplicate` (thắng `choose_refund_link` và một chạm, D15); analyze trả `status = Duplicate` khi cùng sự kiện ngân hàng.
+- [x] `POST /transactions/{id}/not-duplicate`, lọc `duplicateStatus`, DTO `duplicateStatus`/`duplicateOf`/`suggestedDuplicates`/`mergedSources`.
+- [x] `POST /transactions/{id}/merge`: `MergePolicy` (BR-DUP-09/10/12, D6, D12), khoá hai dòng id tăng dần, ngân sách cá nhân và nhóm tính lại bằng `RefundLedger`, chốt lại `daily_summaries`, tham chiếu đi theo survivor (D6–D10), gộp lại → 200. Xác nhận/sửa/xoá khoá dòng của mình (D11), deadlock được thử lại.
+- [x] Xoá giao dịch được trỏ tới → bỏ nghi trùng (BR-DUP-08); phát hiện bất thường bỏ qua cặp đã có liên kết trùng (BR-DUP-13).
+- [x] `/admin/ai-stats`: số nghi trùng / đã bác / đã gộp theo cặp nguồn, số thông báo bị bỏ vì trùng sự kiện.
+- [x] Kịch bản đầu-cuối (a)–(d) (`DuplicateScenarioTests`), test đồng thời (`TransactionMergeControllerTests`), tổng hợp sau gộp (`MergeAggregatesTests`).
+- [ ] Chưa có hoàn tác gộp (unmerge) — §13.1.
+- [ ] Ghép cặp chuyển giữa hai ví của mình (VCB → MoMo) thành `Transfer`: phase sau — §13.1.
+- [ ] Giọng nói tự lưu với `source = manual` (có từ trước, D18c) — §13.1.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/merge` `{withTransactionId, categoryId?, clientRequestId?}` → 200 + giao dịch giữ lại (bản giữ lại do server chọn, có thể là `withTransactionId`; mở lại theo `id` trả về). `POST /transactions/{id}/not-duplicate` → 200. `GET /transactions?duplicateStatus=Suspected`.
+  - `TransactionDto` thêm `duplicateStatus` (`Suspected`/`Dismissed`), `duplicateOf` `{id, amountCents, transactedAt, source, merchantName, categoryName, financialAccountName}`, `suggestedDuplicates` (chỉ nháp, tối đa 3, cùng dạng), `mergedSources` (vd `["manual","notification"]`).
+  - Push `data.action = "review_duplicate"` (kèm `transactionId`, `duplicateOfTransactionId`, `suggestionCount`): mở màn so hai giao dịch với hai nút "Gộp" / "Không trùng". Thắng `choose_refund_link` và `confirm_one_tap`.
+  - `POST /notifications/analyze` thêm `duplicateOfTransactionId`; `status` có thể là `Duplicate` (không có nháp mới: thông báo này là bản gửi lại của giao dịch đó).
+  - Bản nháp chat và kết quả quét hoá đơn (cả từng nhóm, từng đơn) thêm `suggestedDuplicates`; `possibleDuplicateTransactionId` giữ nguyên cho app cũ. Chat có thông báo ngân hàng khớp thì không tự lưu (`action = confirm`).
+  - Giao dịch đã gộp trả 404 khi mở lại: dùng giao dịch giữ lại trong response của merge.
+  - Lỗi mới: 422 `MERGE_NOT_ALLOWED` (lý do trong message), 422 `NOT_SUSPECTED_DUPLICATE`.

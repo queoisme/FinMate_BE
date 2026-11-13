@@ -11,6 +11,7 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
     private const int MaxRetries = 3;
     private const int MaxBackoffMilliseconds = 60;
     private const string UniqueViolation = "23505";
+    private const string DeadlockDetected = "40P01";
     private const string BudgetPeriodUniqueIndex = "uq_budget_periods_budget_start";
 
     private readonly FinMateDbContext _context;
@@ -28,7 +29,7 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
             {
                 return await operation(ct);
             }
-            catch (DbUpdateException ex) when (IsLostMoneyRace(ex))
+            catch (Exception ex) when (IsLostMoneyRace(ex) || IsDeadlock(ex))
             {
                 if (attempt >= MaxRetries)
                 {
@@ -46,9 +47,27 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
     /// Chỉ nhận đúng xung đột trên dòng tiền, vốn xảy ra ở lần lưu tiền. Xung đột khác (vd gỡ token thiết bị sau khi đã lưu) có thể
     /// đến khi tiền đã được ghi, chạy lại sẽ tính hai lần.
     /// </summary>
-    private static bool IsLostMoneyRace(DbUpdateException ex) => ex switch
+    private static bool IsLostMoneyRace(Exception ex) => ex switch
     {
         DbUpdateConcurrencyException conflict => conflict.Entries.Any(e => e.Entity is FinancialAccount or BudgetPeriod or SavingGoal),
-        _ => ex.InnerException is PostgresException { SqlState: UniqueViolation, ConstraintName: BudgetPeriodUniqueIndex },
+        DbUpdateException update => update.InnerException is PostgresException { SqlState: UniqueViolation, ConstraintName: BudgetPeriodUniqueIndex },
+        _ => false,
     };
+
+    /// <summary>
+    /// Phase 82: hai thao tác khoá các dòng giao dịch theo thứ tự khác nhau (gộp khoá theo id tăng dần; xoá một khoản hoàn khoá chính nó rồi tới
+    /// khoản gốc) thì Postgres huỷ một bên với 40P01. Bên bị huỷ chưa ghi gì (cả DB transaction đã rollback), nên chạy lại toàn bộ là an toàn.
+    /// </summary>
+    private static bool IsDeadlock(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException { SqlState: DeadlockDetected })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

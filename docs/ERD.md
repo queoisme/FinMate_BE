@@ -409,6 +409,8 @@ erDiagram
     users ||--o{ transaction_anomalies : "user_id"
     users ||--o{ transactions : "user_id"
     transactions o|--o{ transactions : "related_transaction_id"
+    transactions o|--o{ transactions : "duplicate_of_transaction_id"
+    transactions o|--o{ transactions : "merged_into_transaction_id"
     users ||--o{ user_methods : "user_id"
     users ||--o{ user_survey_answers : "user_id"
     users o|..o{ audit_logs : "user_id (không FK)"
@@ -616,6 +618,10 @@ erDiagram
         uuid related_transaction_id FK "nullable"
         varchar(20) relation "nullable"
         boolean is_reversed
+        uuid duplicate_of_transaction_id FK "nullable"
+        varchar(20) duplicate_status "nullable"
+        uuid merged_into_transaction_id FK "nullable"
+        text_array merged_sources "nullable"
     }
     notification_logs {
         uuid id PK
@@ -800,9 +806,14 @@ Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). 
 | 22 | `related_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 81: khoản chi gốc của khoản hoàn/đảo) |
 | 23 | `relation` | varchar(20) | có |  | Phase 81: `refund` / `reversal`; có giá trị thì không phải thu nhập |
 | 24 | `is_reversed` | boolean |  | `false` | Phase 81: khoản chi đã bị đảo |
+| 25 | `duplicate_of_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: giao dịch mà khoản này có thể trùng; bản mới hơn trỏ tới bản cũ hơn) |
+| 26 | `duplicate_status` | varchar(20) | có |  | Phase 82: `suspected` / `dismissed`; luôn đi cùng `duplicate_of_transaction_id` |
+| 27 | `merged_into_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: survivor; chỉ có trên dòng đã xoá mềm) |
+| 28 | `merged_sources` | text[] | có |  | Phase 82: các kênh đã góp vào survivor (`notification` = ngân hàng đã xác thực) |
 
 Khóa ngoại:
 - `related_transaction_id` → `transactions(id)` ON DELETE NO ACTION (kiểm ở cuối câu lệnh, nên xoá cứng cả user một lần không vướng thứ tự)
+- `duplicate_of_transaction_id`, `merged_into_transaction_id` → `transactions(id)` ON DELETE NO ACTION (cùng lý do)
 - `category_id` → `categories(id)` ON DELETE SET NULL
 - `counter_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
 - `financial_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
@@ -817,6 +828,12 @@ Ràng buộc:
 - CHECK `chk_transactions_related_not_self`: `related_transaction_id IS NULL OR related_transaction_id <> id`
 - CHECK `chk_transactions_reversal_has_original`: `relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL`
 - CHECK `chk_transactions_reversed_debit`: `is_reversed = false OR transaction_type = 'debit'`
+- CHECK `chk_transactions_duplicate_status`: `duplicate_status IS NULL OR duplicate_status IN ('suspected','dismissed')`
+- CHECK `chk_transactions_duplicate_link`: `(duplicate_status IS NULL) = (duplicate_of_transaction_id IS NULL)`
+- CHECK `chk_transactions_duplicate_not_self`: `duplicate_of_transaction_id IS NULL OR duplicate_of_transaction_id <> id`
+- CHECK `chk_transactions_merged_not_self`: `merged_into_transaction_id IS NULL OR merged_into_transaction_id <> id`
+- CHECK `chk_transactions_merged_deleted`: `merged_into_transaction_id IS NULL OR deleted_at IS NOT NULL`
+- CHECK `chk_transactions_merged_sources`: `merged_sources IS NULL OR merged_sources <@ ARRAY['notification','manual','voice','receipt','support']`
 - CHECK `chk_transactions_forecast_exclusion`: `((exclude_from_forecast = false) AND (forecast_exclusion_reason IS NULL)) OR ((exclude_from_forecast = true) AND forecast_exclusion_reason IN ('one_off', 'user_marked'))`
 - CHECK `chk_transactions_source`: `source IN ('notification', 'manual', 'voice', 'receipt')`
 - CHECK `chk_transactions_status`: `status IN ('draft', 'confirmed')`
@@ -826,6 +843,8 @@ Ràng buộc:
 Index:
 - UNIQUE `IX_transactions_notification_log_id` `(notification_log_id)`
 - `ix_transactions_related_transaction_id` `(related_transaction_id) WHERE related_transaction_id IS NOT NULL`
+- `ix_transactions_duplicate_of_transaction_id` `(duplicate_of_transaction_id) WHERE duplicate_of_transaction_id IS NOT NULL`
+- `ix_transactions_merged_into_transaction_id` `(merged_into_transaction_id) WHERE merged_into_transaction_id IS NOT NULL`
 - `IX_transactions_saving_goal_id` `(saving_goal_id)`
 - `idx_transactions_category_id` `(category_id)`
 - `idx_transactions_counter_account_id` `(counter_account_id)`
@@ -858,7 +877,7 @@ Khóa ngoại:
 - `user_id` → `users(id)` ON DELETE CASCADE
 
 Ràng buộc:
-- CHECK `chk_notification_logs_status`: `status IN ('pending', 'processed', 'failed', 'ignored')`
+- CHECK `chk_notification_logs_status`: `status IN ('pending', 'processed', 'failed', 'ignored', 'duplicate')` (`duplicate` từ Phase 82: cùng sự kiện ngân hàng gửi lại)
 
 Index:
 - `IX_notification_logs_financial_account_id` `(financial_account_id)`

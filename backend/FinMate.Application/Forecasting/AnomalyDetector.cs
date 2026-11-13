@@ -63,7 +63,8 @@ public static class AnomalyDetector
             && t.AmountCents == candidate.AmountCents
             && SamePayee(t, candidate)
             && IsEarlier(t, candidate)
-            && candidate.TransactedAt - t.TransactedAt <= window);
+            && candidate.TransactedAt - t.TransactedAt <= window
+            && !LinkedAsDuplicates(t, candidate));
         return hasEarlierTwin
             ? new AnomalyFinding(AnomalyKind.Duplicate, AnomalySeverity.High, candidate.AmountCents, DuplicateRatioPercent)
             : null;
@@ -132,6 +133,13 @@ public static class AnomalyDetector
         => priorNormals.Any(p => p.CategoryId == candidate.CategoryId
             && p.CounterpartyKey == candidate.CounterpartyKey
             && candidate.AmountCents * 100 <= p.AmountCents * rules.NormalTolerancePercent);
+
+    /// <summary>
+    /// Phase 82 (BR-DUP-13, D10): cặp đã có liên kết trùng (nghi trùng đang chờ Gộp/Không trùng, hoặc người dùng đã bác) thì luồng xem lại bản trùng
+    /// đã hỏi người dùng rồi; gắn cờ bất thường nữa là hỏi hai lần cùng một việc, và với cặp đã bác là nói ngược lại người dùng.
+    /// </summary>
+    private static bool LinkedAsDuplicates(ForecastTransaction a, ForecastTransaction b)
+        => a.DuplicateOfTransactionId == b.Id || b.DuplicateOfTransactionId == a.Id;
 
     private static bool SamePayee(ForecastTransaction a, ForecastTransaction b)
         => a.CounterpartyKey is not null || b.CounterpartyKey is not null

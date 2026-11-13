@@ -47,4 +47,12 @@ public static class TransactionErrorCodes
 
     /// <summary>422: khoản hoàn đi theo khoản gốc vào/ra nhóm, không chia sẻ hay bỏ chia sẻ riêng được (BR-RF-10).</summary>
     public const string RefundFollowsOriginal = "REFUND_FOLLOWS_ORIGINAL";
+
+    // ---- Bản trùng có liên kết (Phase 82) ----
+
+    /// <summary>422: hai giao dịch không gộp được (khác chiều/số tiền, có khoản hoàn, đã chia sẻ nhóm, cả hai đã khớp QR, đã gộp vào khoản khác…); lý do nằm trong message.</summary>
+    public const string MergeNotAllowed = "MERGE_NOT_ALLOWED";
+
+    /// <summary>422: "Không trùng" cho một giao dịch không có liên kết nghi trùng nào.</summary>
+    public const string NotSuspectedDuplicate = "NOT_SUSPECTED_DUPLICATE";
 }

@@ -32,4 +32,10 @@ public interface IAnomalyRepository
     /// đang được theo dõi, KHÔNG lưu: lưu cùng thao tác hoàn/đảo. Trả số dòng đã đóng.
     /// </summary>
     Task<int> ResolveOpenForTransactionAsync(Guid userId, Guid transactionId, Domain.Enums.AnomalyResolution resolution, DateTimeOffset at, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 82 (D10): bỏ đánh dấu bất thường của một giao dịch (bản bị gộp: mọi dòng; survivor đổi ví/ngày: chỉ dòng CÒN MỞ, để lượt quét sau
+    /// xét lại, giữ câu trả lời người dùng đã đưa). Chỉ đổi dữ liệu đang được theo dõi, KHÔNG lưu. Trả số dòng đã bỏ.
+    /// </summary>
+    Task<int> RemoveForTransactionAsync(Guid userId, Guid transactionId, bool openOnly, CancellationToken ct = default);
 }

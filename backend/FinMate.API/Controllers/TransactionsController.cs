@@ -68,11 +68,12 @@ public class TransactionsController : ControllerBase
         [FromQuery] string? cursor,
         [FromQuery] int limit,
         [FromQuery] TransactionRelation? relation,
+        [FromQuery] DuplicateStatus? duplicateStatus,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
             new GetTransactionListQuery(
-                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit, relation),
+                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit, relation, duplicateStatus),
             ct);
         return Ok(ApiResponse<IReadOnlyList<TransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
@@ -216,6 +217,31 @@ public class TransactionsController : ControllerBase
     {
         var transaction = await handler.HandleAsync(new UnlinkRelatedTransactionCommand(CurrentUserId, id), ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>
+    /// "Không trùng" (Phase 82): giữ liên kết với trạng thái <c>Dismissed</c> để cặp này không bị gợi ý lại. Nháp sau đó xác nhận như thường.
+    /// Gọi lại → 200 như cũ; giao dịch không nghi trùng → 422 <c>NOT_SUSPECTED_DUPLICATE</c>; của người khác → 404.
+    /// </summary>
+    [HttpPost("{id:guid}/not-duplicate")]
+    public async Task<IActionResult> NotDuplicate(Guid id, [FromServices] INotDuplicateCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new NotDuplicateCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>
+    /// Gộp hai giao dịch là một (Phase 82). Bản giữ lại do hệ thống chọn (đã xác nhận trước, rồi bản tạo trước / bản ngân hàng báo) và luôn được
+    /// xác nhận; trả về bản đó. Gộp lại cùng cặp → 200 với bản cũ. Khác chiều/số tiền, có khoản hoàn, đã chia sẻ nhóm… → 422 <c>MERGE_NOT_ALLOWED</c>;
+    /// giao dịch của người khác hoặc không tồn tại → 404.
+    /// </summary>
+    [HttpPost("{id:guid}/merge")]
+    public async Task<IActionResult> Merge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var survivor = await handler.HandleAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(survivor));
     }
 
     [HttpPost("{id:guid}/confirm")]
@@ -366,6 +392,10 @@ public record ConfirmTransactionRequest(
 
 /// <param name="RelatedTransactionId">Khoản chi gốc; null + <c>Refund</c> = hoàn không có khoản gốc, khi đó bắt buộc <paramref name="CategoryId"/>.</param>
 public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, TransactionRelation Relation = TransactionRelation.Refund, Guid? CategoryId = null);
+
+/// <summary>Phase 82: <c>WithTransactionId</c> là bản còn lại của cặp; <c>CategoryId</c> tuỳ chọn thắng mọi nguồn; <c>ClientRequestId</c> nhận nhưng không dùng (gộp lại cùng cặp đã trả về bản cũ).</summary>
+public record MergeTransactionsRequest(Guid WithTransactionId, Guid? CategoryId = null, Guid? ClientRequestId = null);
+
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 

@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -75,6 +76,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly ILogger<ScanReceiptCommandHandler> _logger;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
+    private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: cảnh báo trùng kiểu cũ (±3 giờ, mọi khoản chi)
 
     public ScanReceiptCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -84,8 +86,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         IUserRepository userRepository,
         ITransactionRepository transactionRepository,
         ILogger<ScanReceiptCommandHandler> logger,
-        ITrainingSampleService? trainingSamples = null)
+        ITrainingSampleService? trainingSamples = null,
+        Duplicates.IDuplicateDetector? duplicates = null)
     {
+        _duplicates = duplicates;
         _aiServiceClient = aiServiceClient;
         _ocrServiceClient = ocrServiceClient;
         _receiptScanRepository = receiptScanRepository;
@@ -128,6 +132,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             new ScanReceiptRequest(command.UserId, command.Image, command.FileName, command.ContentType),
             ct);
 
+        var extraction = response.Extraction;
+        var legacyDuplicates = extraction is { AmountCents: > 0 }
+            ? await DuplicatesOfAsync(command.UserId, extraction.AmountCents.Value, extraction.TransactedAt, extraction.MerchantName, ct)
+            : NoDuplicates;
         var dto = new ScannedReceiptDto(
             response.OcrResult,
             response.Extraction?.AmountCents,
@@ -135,7 +143,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             response.Extraction?.MerchantName,
             response.Extraction?.TransactedAt,
             response.Categorization?.CategorySlug,
-            response.Extraction?.Confidence);
+            response.Extraction?.Confidence,
+            PossibleDuplicateTransactionId: legacyDuplicates.Id,
+            SuggestedDuplicates: legacyDuplicates.Items);
         return await RecordAsync(command.UserId, dto, categorySource: null, needsReview: false, ct);
     }
 
@@ -182,9 +192,11 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             category = new BillClassifyResponse(itemVote, null, 0.8, ItemVoteSource);
         }
 
+        var duplicates = await DuplicatesOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, merchant, ct);
         var dto = new ScannedReceiptDto(
             SuccessResult, ocr.TotalAmount, DebitType, merchant, ocr.TransactedAt, category?.CategorySlug, confidence,
-            PossibleDuplicateTransactionId: await DuplicateOfAsync(command.UserId, ocr.TotalAmount.Value, ocr.TransactedAt, ct));
+            PossibleDuplicateTransactionId: duplicates.Id,
+            SuggestedDuplicates: duplicates.Items);
         // Cờ tách nhóm bật mà các dòng món không khớp tổng bill (ItemsOk = false): bill phải về một nhóm, người dùng nên xem lại.
         var needsReview = ocr.NeedsReview || (_options.SplitByItemsEnabled && !ocr.ItemsOk);
         var recorded = await RecordAsync(command.UserId, dto, category?.Source, needsReview, ct);
@@ -222,7 +234,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             var category = await ClassifyOrderAsync(userId, order, ct);
             // AI Service không nhận ra (hoặc lỗi) thì giữ nhóm OCR service đã đoán: màn "Đơn đã mua" của sàn thương mại luôn là mua sắm.
             var slug = category?.CategorySlug ?? (order.Category is { } local && LocalToSlug.TryGetValue(local, out var mapped) ? mapped : null);
-            scanned.Add(new ScannedOrder(name, order.Amount, order.Product, slug));
+            var duplicates = await DuplicatesOfAsync(userId, order.Amount, ocr.TransactedAt, name, ct);
+            scanned.Add(new ScannedOrder(name, order.Amount, order.Product, slug, duplicates.Items));
         }
 
         var dto = new ScannedReceiptDto(
@@ -369,7 +382,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         var flagged = new List<ReceiptGroup>();
         foreach (var group in groups)
         {
-            flagged.Add(group with { PossibleDuplicateTransactionId = await DuplicateOfAsync(userId, group.AmountCents, ocr.TransactedAt, ct) });
+            var duplicates = await DuplicatesOfAsync(userId, group.AmountCents, ocr.TransactedAt, merchant, ct);
+            flagged.Add(group with { PossibleDuplicateTransactionId = duplicates.Id, SuggestedDuplicates = duplicates.Items });
         }
 
         groups = flagged;
@@ -421,9 +435,25 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         return regularCents > 0 && knownCents * 100 >= regularCents * ItemVoteSharePercent ? slugs[0] : null;
     }
 
-    private Task<Guid?> DuplicateOfAsync(Guid userId, long amountCents, DateTimeOffset? at, CancellationToken ct)
-        => _transactionRepository.FindPossibleDuplicateAsync(
-            userId, amountCents, at ?? DateTimeOffset.UtcNow, DuplicateWindow, null, ct);
+    private static readonly (Guid? Id, IReadOnlyList<DuplicateSummaryDto>? Items) NoDuplicates = (null, null);
+
+    /// <summary>
+    /// Phase 82: hoá đơn ↔ thông báo ngân hàng (sẽ mang nghi trùng khi lưu) và hoá đơn ↔ khoản nhập tay (chỉ cảnh báo, D4), cùng cửa sổ
+    /// <c>receiptWindowHours</c>. <c>Id</c> là ứng viên hạng 1, giữ cho app cũ đọc <c>possibleDuplicateTransactionId</c>.
+    /// </summary>
+    private async Task<(Guid? Id, IReadOnlyList<DuplicateSummaryDto>? Items)> DuplicatesOfAsync(
+        Guid userId, long amountCents, DateTimeOffset? at, string? merchant, CancellationToken ct)
+    {
+        if (_duplicates is null)
+        {
+            var legacy = await _transactionRepository.FindPossibleDuplicateAsync(userId, amountCents, at ?? DateTimeOffset.UtcNow, DuplicateWindow, null, ct);
+            return (legacy, null);
+        }
+
+        var suggested = await _duplicates.SuggestForInputAsync(
+            new Duplicates.DuplicateInput(userId, TransactionSource.Receipt, TransactionType.Debit, amountCents, at ?? DateTimeOffset.UtcNow, null, merchant), ct);
+        return suggested.Items.Count == 0 ? NoDuplicates : (suggested.Items[0].Id, suggested.Items);
+    }
 
     private static ReceiptScanItem ToScanItem(OcrItem item, int position, ClassifiedItem classified)
     {

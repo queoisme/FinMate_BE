@@ -65,6 +65,23 @@ public class Transaction
     /// <summary>Khoản chi gốc đã bị một lệnh <see cref="TransactionRelation.Reversal"/> đảo: vẫn hiện trong lịch sử nhưng bị loại khỏi mọi tổng hợp.</summary>
     public bool IsReversed { get; set; }
 
+    /// <summary>
+    /// Giao dịch mà khoản này có thể trùng với (Phase 82). Luôn đi cùng <see cref="DuplicateStatus"/>; chỉ lưu ứng viên hạng 1,
+    /// danh sách đầy đủ tính khi đọc. Bản mới hơn trỏ tới bản cũ hơn.
+    /// </summary>
+    public Guid? DuplicateOfTransactionId { get; set; }
+
+    public DuplicateStatus? DuplicateStatus { get; set; }
+
+    /// <summary>Survivor mà khoản này đã được gộp vào. Chỉ có trên dòng đã xoá mềm.</summary>
+    public Guid? MergedIntoTransactionId { get; set; }
+
+    /// <summary>
+    /// Các kênh đã góp vào survivor sau khi gộp (giá trị của <see cref="TransactionSource"/>, chữ thường), ví dụ
+    /// <c>{manual, notification}</c>: có <c>notification</c> nghĩa là ngân hàng đã xác thực khoản này. NULL khi chưa từng gộp.
+    /// </summary>
+    public string[]? MergedSources { get; set; }
+
     /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
     public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -79,4 +96,5 @@ public class Transaction
     public SavingGoal? SavingGoal { get; set; }
     public GroupCategory? GroupCategory { get; set; }
     public Transaction? RelatedTransaction { get; set; }
+    public Transaction? DuplicateOf { get; set; }
 }

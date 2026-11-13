@@ -19,7 +19,8 @@ public sealed record ForecastTransaction(
     bool ExcludedFromForecast,
     TransactionRelation? Relation = null,
     Guid? RelatedTransactionId = null,
-    bool IsReversed = false);
+    bool IsReversed = false,
+    Guid? DuplicateOfTransactionId = null);  // Phase 82: liên kết trùng (nghi trùng hoặc đã bác), để phát hiện bất thường không gắn cờ lại cặp này
 
 /// <summary>Bản rút gọn của khoản định kỳ mà các bộ tính toán cần (không kéo entity EF vào hàm thuần).</summary>
 public sealed record RecurringItemView(

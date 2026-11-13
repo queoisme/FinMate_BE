@@ -474,6 +474,22 @@ public sealed record RefundSettings
     public int MaxSuggestions { get; init; } = 3;
 }
 
+/// <summary>
+/// Cửa sổ thời gian để coi hai giao dịch cùng chiều, cùng số tiền là có thể trùng (Phase 82, BR-DUP-03), theo cặp nguồn.
+/// Hai khoản đều nhập tay thì không bao giờ so: user tự nhập hai lần là ý của họ.
+/// </summary>
+public sealed record DuplicateSettings
+{
+    /// <summary>Thông báo ↔ thông báo. Cũng là cửa sổ để hai thông báo cùng số dư sau giao dịch được coi là cùng một sự kiện (BR-DUP-05).</summary>
+    public int NotificationWindowMinutes { get; init; } = 10;
+
+    /// <summary>Nhập tay, giọng nói, nhân viên hỗ trợ ↔ thông báo. Dài vì người dùng hay ghi lại khoản chi muộn.</summary>
+    public int ManualWindowHours { get; init; } = 48;
+
+    /// <summary>Hoá đơn ↔ thông báo, và hoá đơn ↔ nhập tay (chỉ để cảnh báo, D4).</summary>
+    public int ReceiptWindowHours { get; init; } = 12;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -494,6 +510,7 @@ public sealed record SystemConfigDocument
     public MarketDataSettings MarketData { get; init; } = new();
     public CommunitySettings Community { get; init; } = new();
     public RefundSettings Refunds { get; init; } = new();
+    public DuplicateSettings Duplicates { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

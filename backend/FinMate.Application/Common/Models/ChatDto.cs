@@ -47,6 +47,8 @@ public static class ChatMissingFields
 /// <param name="MissingFields">"category" | "account" | "accounts" — việc client còn phải làm trước khi gọi POST /transactions.</param>
 /// <param name="RelationHint">Phase 81 (D17): <c>Refund</c> khi câu chat là nhận tiền hoàn; app cho chọn khoản chi gốc rồi gọi <c>POST /transactions/{id}/refunds</c>.</param>
 /// <param name="SuggestedRelatedTransactions">Tối đa 3 khoản chi gốc gợi ý khi có <paramref name="RelationHint"/>.</param>
+/// <param name="PossibleDuplicateTransactionId">Giữ cho app cũ: khoản cùng số tiền trong ±10 phút, hoặc ứng viên trùng hạng 1.</param>
+/// <param name="SuggestedDuplicates">Phase 82: tối đa 3 giao dịch đã ghi mà khoản này có thể trùng (hạng 1 trước). Lưu khoản này thì nó mang nghi trùng.</param>
 public record ChatDraftDto(
     string Kind,
     long AmountCents,
@@ -61,7 +63,8 @@ public record ChatDraftDto(
     DateTimeOffset? OccurredAt = null,
     Guid? PossibleDuplicateTransactionId = null,
     string? RelationHint = null,
-    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null);
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 

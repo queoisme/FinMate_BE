@@ -9,11 +9,14 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
 {
     private readonly ITransactionRepository _transactionRepository;
     private readonly Refunds.IRefundSuggestions? _suggestions;
+    private readonly Duplicates.IDuplicateDetector? _duplicates;
 
-    public GetTransactionDetailQueryHandler(ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null)
+    public GetTransactionDetailQueryHandler(
+        ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null, Duplicates.IDuplicateDetector? duplicates = null)
     {
         _transactionRepository = transactionRepository;
         _suggestions = suggestions;
+        _duplicates = duplicates;
     }
 
     public async Task<TransactionDto> HandleAsync(GetTransactionDetailQuery query, CancellationToken ct = default)
@@ -26,8 +29,12 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
             ? await _transactionRepository.SumConfirmedRefundsAsync(query.UserId, transaction.Id, null, ct)
             : null;
         var suggestions = _suggestions is null ? null : await _suggestions.ForDraftsAsync(query.UserId, [transaction], ct);
+        var duplicates = _duplicates is null ? null : await _duplicates.ViewAsync(query.UserId, [transaction], ct);
         return TransactionMapper.ToDto(
-            transaction, refunded, suggestions is not null && suggestions.TryGetValue(transaction.Id, out var s) ? s.Items : null);
+            transaction,
+            refunded,
+            suggestions is not null && suggestions.TryGetValue(transaction.Id, out var s) ? s.Items : null,
+            duplicates?.GetValueOrDefault(transaction.Id));
     }
 
     internal static bool RefundableShape(Domain.Entities.Transaction transaction)

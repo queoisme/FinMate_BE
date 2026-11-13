@@ -19,6 +19,10 @@ public class DeleteTransactionCommandHandlerTests
 
     public DeleteTransactionCommandHandlerTests()
     {
+        // Phase 82: xoá đọc các bản đang nghi trùng với giao dịch này (BR-DUP-08); repository thật luôn trả danh sách, không bao giờ null.
+        _transactionRepository
+            .Setup(r => r.ListDuplicateLinksToAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         _handler = new DeleteTransactionCommandHandler(
             _transactionRepository.Object,
             _financialAccountRepository.Object,

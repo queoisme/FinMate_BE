@@ -678,13 +678,17 @@ public class Program
         builder.Services.AddScoped<IAnalyzeNotificationCommandHandler, AnalyzeNotificationCommandHandler>();
 
         builder.Services.AddScoped<ConfirmTransactionCommandHandler>();
-        builder.Services.AddScoped<IConfirmTransactionCommandHandler>(sp => new RetryingConfirmTransactionCommandHandler(sp.GetRequiredService<ConfirmTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IConfirmTransactionCommandHandler>(sp => new RetryingConfirmTransactionCommandHandler(new RowLockedConfirmTransactionCommandHandler(sp.GetRequiredService<ConfirmTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateManualTransactionCommandHandler>();
         builder.Services.AddScoped<ICreateManualTransactionCommandHandler>(sp => new RetryingCreateManualTransactionCommandHandler(sp.GetRequiredService<CreateManualTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateTransferCommandHandler>();
         builder.Services.AddScoped<ICreateTransferCommandHandler>(sp => new RetryingCreateTransferCommandHandler(sp.GetRequiredService<CreateTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundFollowUps, FinMate.Application.Transactions.Refunds.RefundFollowUps>();
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundSuggestions, FinMate.Application.Transactions.Refunds.RefundSuggestions>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Duplicates.IDuplicateDetector, FinMate.Application.Transactions.Duplicates.DuplicateDetector>();
+        builder.Services.AddScoped<INotDuplicateCommandHandler, NotDuplicateCommandHandler>();
+        builder.Services.AddScoped<MergeTransactionsCommandHandler>();
+        builder.Services.AddScoped<IMergeTransactionsCommandHandler>(sp => new RetryingMergeTransactionsCommandHandler(sp.GetRequiredService<MergeTransactionsCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();
         builder.Services.AddScoped<CreateRefundCommandHandler>();
         builder.Services.AddScoped<ICreateRefundCommandHandler>(sp => new RetryingCreateRefundCommandHandler(sp.GetRequiredService<CreateRefundCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
@@ -692,9 +696,9 @@ public class Program
         builder.Services.AddScoped<ILinkRelatedTransactionCommandHandler>(sp => new RetryingLinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IUnlinkRelatedTransactionCommandHandler>(sp => new RetryingUnlinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<UpdateTransactionCommandHandler>();
-        builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(new RowLockedUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<DeleteTransactionCommandHandler>();
-        builder.Services.AddScoped<IDeleteTransactionCommandHandler>(sp => new RetryingDeleteTransactionCommandHandler(sp.GetRequiredService<DeleteTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IDeleteTransactionCommandHandler>(sp => new RetryingDeleteTransactionCommandHandler(new RowLockedDeleteTransactionCommandHandler(sp.GetRequiredService<DeleteTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
         // Tách bill theo món: mặc định TẮT, giá trị sai cũng coi là tắt (Receipt__SplitByItemsEnabled khi đặt qua biến môi trường).
         builder.Services.AddSingleton(new FinMate.Application.Transactions.ReceiptOptions(

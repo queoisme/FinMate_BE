@@ -4,6 +4,7 @@ using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions.Duplicates;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -89,6 +90,11 @@ public class TransactionRepository : ITransactionRepository
         if (filter.Relation is not null)
         {
             query = query.Where(t => t.Relation == filter.Relation);
+        }
+
+        if (filter.DuplicateStatus is not null)
+        {
+            query = query.Where(t => t.DuplicateStatus == filter.DuplicateStatus);
         }
 
         if (filter.ExcludeLoans)
@@ -228,6 +234,106 @@ public class TransactionRepository : ITransactionRepository
         await _context.Entry(original).ReloadAsync(ct);
 
         var result = await work(original);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var wanted = ids.Distinct().ToList();
+        return await _context.Transactions
+            .AsNoTracking()
+            .Include(t => t.Category)
+            .Include(t => t.FinancialAccount)
+            .Where(t => t.UserId == userId && wanted.Contains(t.Id))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => await _context.Transactions
+            .Where(t => t.UserId == userId && t.DuplicateOfTransactionId == transactionId)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default)
+    {
+        if (query.AmountsCents.Count == 0)
+        {
+            return [];
+        }
+
+        var amounts = query.AmountsCents.Distinct().ToList();
+        return await _context.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == query.UserId
+                && (t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit)
+                && t.Relation == null
+                && amounts.Contains(t.AmountCents)
+                && t.TransactedAt >= query.From
+                && t.TransactedAt <= query.To)
+            .Select(t => new DuplicateCandidateRow(
+                new DuplicateProbe(
+                    t.Id,
+                    t.Source,
+                    t.TransactionType,
+                    t.AmountCents,
+                    t.TransactedAt,
+                    t.CreatedAt,
+                    t.FinancialAccountId,
+                    t.MerchantName,
+                    t.BalanceAfterCents,
+                    t.NotificationLog != null ? t.NotificationLog.PackageName : null,
+                    t.Relation,
+                    t.DeletedAt != null,
+                    t.MergedIntoTransactionId != null,
+                    t.MergedSources,
+                    t.NotificationLogId),
+                t.DuplicateOfTransactionId,
+                t.DuplicateStatus))
+            .ToListAsync(ct);
+    }
+
+    public async Task<T> RunWithTransactionsLockedAsync<T>(
+        Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default)
+    {
+        // Thứ tự khoá CỐ ĐỊNH (Phase 82, BR-DUP-14): các dòng giao dịch theo id tăng dần (ORDER BY trước FOR UPDATE: Postgres khoá theo
+        // thứ tự đã sắp) → ví (xmin) → kỳ ngân sách (xmin). Hai lượt gộp chéo nhau (A,B) và (B,A) vì vậy không chờ nhau vòng tròn.
+        // Khác RunWithOriginalLockedAsync: dòng đã xoá mềm vẫn được khoá và trả về, để gộp lại cùng cặp trả về survivor cũ.
+        var distinct = ids.Distinct().ToArray();
+        var owns = _context.Database.CurrentTransaction is null;
+        await using var transaction = owns ? await _context.Database.BeginTransactionAsync(ct) : null;
+
+        var locked = await _context.Transactions
+            .FromSqlInterpolated($"SELECT * FROM transactions WHERE id = ANY({distinct}) AND user_id = {userId} ORDER BY id FOR UPDATE")
+            .IgnoreQueryFilters()
+            .Select(t => t.Id)
+            .ToListAsync(ct);
+        var missing = distinct.Where(id => !locked.Contains(id)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new NotFoundException("Transaction", missing[0]);
+        }
+
+        // Đọc lại SAU khi khoá, để trạng thái, ví và cờ xoá là bản mới nhất (ngữ cảnh có thể đang giữ bản cũ).
+        var rows = await _context.Transactions
+            .IgnoreQueryFilters()
+            .Include(t => t.Category)
+            .Where(t => distinct.Contains(t.Id) && t.UserId == userId)
+            .ToListAsync(ct);
+        foreach (var row in rows)
+        {
+            await _context.Entry(row).ReloadAsync(ct);
+        }
+
+        var result = await work(rows.ToDictionary(t => t.Id));
         if (transaction is not null)
         {
             await transaction.CommitAsync(ct);

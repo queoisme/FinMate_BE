@@ -93,12 +93,14 @@ public class QrTransfersControllerTests : IClassFixture<AuthApiFactory>
     private static object Intent(long amount, string senderBin = MbBin, string receiverBin = VietinBin, string account = "0123456789", Guid? categoryId = null, string? name = "NGUYEN VAN A")
         => new { receiverBankBin = receiverBin, receiverAccountNumber = account, receiverName = name, senderBankBin = senderBin, amountCents = amount, message = "tien an", categoryId };
 
-    private async Task<AnalysisData> AnalyzeMbDebitAsync(string token, long amount, DateTimeOffset receivedAt, string aiCategory = "shopping")
+    /// <param name="balanceAfter">Số dư sau giao dịch ngân hàng báo. Hai thông báo cùng số tiền, cùng số dư trong 10 phút là CÙNG một sự kiện (Phase 82, BR-DUP-05).</param>
+    private async Task<AnalysisData> AnalyzeMbDebitAsync(
+        string token, long amount, DateTimeOffset receivedAt, string aiCategory = "shopping", long balanceAfter = 9_000_000)
     {
         FakeAIServiceClient.SetScenario("com.mbmobile", new AnalyzeResponse(
             "financial",
             new ClassifierResult("financial", 0.97),
-            new ExtractionResult(amount, "debit", "Ten do AI doan", "Chuyen tien", receivedAt, 9_000_000, 0.91),
+            new ExtractionResult(amount, "debit", "Ten do AI doan", "Chuyen tien", receivedAt, balanceAfter, 0.91),
             new CategorizationResult(aiCategory, 0.6),
             new DuplicateResult(false, null),
             new ModelVersions("1.0", "1.0", "1.0"),
@@ -326,7 +328,8 @@ public class QrTransfersControllerTests : IClassFixture<AuthApiFactory>
             await SetMatchWindowAsync(admin, original);
         }
 
-        var wide = await AnalyzeMbDebitAsync(token, 666_001, DateTimeOffset.UtcNow.AddMinutes(8).AddSeconds(5));
+        // Lần chuyển thứ hai là một giao dịch thật khác nên số dư sau giao dịch khác lần đầu.
+        var wide = await AnalyzeMbDebitAsync(token, 666_001, DateTimeOffset.UtcNow.AddMinutes(8).AddSeconds(5), balanceAfter: 8_333_999);
         wide.DraftTransactionId.Should().NotBeNull();
         (await SendAsync<List<TransferData>>(HttpMethod.Get, "/api/v1/qr/transfers?status=Matched", token)).Should().NotBeEmpty();
     }
