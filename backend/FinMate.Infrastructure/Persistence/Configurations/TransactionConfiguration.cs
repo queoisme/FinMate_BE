@@ -42,6 +42,18 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             t.HasCheckConstraint("chk_transactions_reversal_has_original", "relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL");
             t.HasCheckConstraint("chk_transactions_reversed_debit", "is_reversed = false OR transaction_type = 'debit'");
 
+            // Bản trùng có liên kết (Phase 82). Trạng thái và liên kết luôn đi cùng nhau: bỏ nghi trùng là bỏ cả hai.
+            t.HasCheckConstraint("chk_transactions_duplicate_status", "duplicate_status IS NULL OR duplicate_status IN ('suspected','dismissed')");
+            t.HasCheckConstraint("chk_transactions_duplicate_link", "(duplicate_status IS NULL) = (duplicate_of_transaction_id IS NULL)");
+            t.HasCheckConstraint("chk_transactions_duplicate_not_self", "duplicate_of_transaction_id IS NULL OR duplicate_of_transaction_id <> id");
+            t.HasCheckConstraint("chk_transactions_merged_not_self", "merged_into_transaction_id IS NULL OR merged_into_transaction_id <> id");
+
+            // Bản bị gộp luôn xoá mềm, để mọi truy vấn đang lọc deleted_at tự loại nó mà không phải biết tới việc gộp.
+            t.HasCheckConstraint("chk_transactions_merged_deleted", "merged_into_transaction_id IS NULL OR deleted_at IS NOT NULL");
+            t.HasCheckConstraint(
+                "chk_transactions_merged_sources",
+                "merged_sources IS NULL OR merged_sources <@ ARRAY['notification','manual','voice','receipt','support']::text[]");
+
             // Lý do chỉ có khi đang bị loại khỏi dự báo, và bị loại thì phải có lý do.
             t.HasCheckConstraint(
                 "chk_transactions_forecast_exclusion",
@@ -131,6 +143,32 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.HasIndex(t => t.RelatedTransactionId)
             .HasFilter("related_transaction_id IS NOT NULL")
             .HasDatabaseName("ix_transactions_related_transaction_id");
+
+        builder.Property(t => t.DuplicateOfTransactionId).HasColumnName("duplicate_of_transaction_id");
+        builder.Property(t => t.DuplicateStatus)
+            .HasColumnName("duplicate_status")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<DuplicateStatus>(v, true))
+            .HasMaxLength(20);
+        builder.Property(t => t.MergedIntoTransactionId).HasColumnName("merged_into_transaction_id");
+        builder.Property(t => t.MergedSources).HasColumnName("merged_sources");
+
+        // NO ACTION, cùng lý do với related_transaction_id: xoá cứng user xoá cả chuỗi trong một câu lệnh.
+        builder.HasOne(t => t.DuplicateOf)
+            .WithMany()
+            .HasForeignKey(t => t.DuplicateOfTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.DuplicateOfTransactionId)
+            .HasFilter("duplicate_of_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_duplicate_of_transaction_id");
+        builder.HasOne<Transaction>()
+            .WithMany()
+            .HasForeignKey(t => t.MergedIntoTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.MergedIntoTransactionId)
+            .HasFilter("merged_into_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_merged_into_transaction_id");
 
         builder.HasQueryFilter(t => t.DeletedAt == null);
 

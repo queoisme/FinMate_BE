@@ -2658,7 +2658,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("notification_logs", null, t =>
                         {
-                            t.HasCheckConstraint("chk_notification_logs_status", "status IN ('pending','processed','failed','ignored')");
+                            t.HasCheckConstraint("chk_notification_logs_status", "status IN ('pending','processed','failed','ignored','duplicate')");
                         });
                 });
 
@@ -4597,6 +4597,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
+                    b.Property<Guid?>("DuplicateOfTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("duplicate_of_transaction_id");
+
+                    b.Property<string>("DuplicateStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("duplicate_status");
+
                     b.Property<bool>("ExcludeFromForecast")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -4630,6 +4639,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("merchant_name");
+
+                    b.Property<Guid?>("MergedIntoTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("merged_into_transaction_id");
+
+                    b.PrimitiveCollection<string[]>("MergedSources")
+                        .HasColumnType("text[]")
+                        .HasColumnName("merged_sources");
 
                     b.Property<Guid?>("NotificationLogId")
                         .HasColumnType("uuid")
@@ -4694,10 +4711,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasIndex("CounterAccountId")
                         .HasDatabaseName("idx_transactions_counter_account_id");
 
+                    b.HasIndex("DuplicateOfTransactionId")
+                        .HasDatabaseName("ix_transactions_duplicate_of_transaction_id")
+                        .HasFilter("duplicate_of_transaction_id IS NOT NULL");
+
                     b.HasIndex("FinancialAccountId")
                         .HasDatabaseName("idx_transactions_financial_account_id");
 
                     b.HasIndex("GroupCategoryId");
+
+                    b.HasIndex("MergedIntoTransactionId")
+                        .HasDatabaseName("ix_transactions_merged_into_transaction_id")
+                        .HasFilter("merged_into_transaction_id IS NOT NULL");
 
                     b.HasIndex("NotificationLogId")
                         .IsUnique();
@@ -4724,11 +4749,23 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("transactions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_transactions_duplicate_link", "(duplicate_status IS NULL) = (duplicate_of_transaction_id IS NULL)");
+
+                            t.HasCheckConstraint("chk_transactions_duplicate_not_self", "duplicate_of_transaction_id IS NULL OR duplicate_of_transaction_id <> id");
+
+                            t.HasCheckConstraint("chk_transactions_duplicate_status", "duplicate_status IS NULL OR duplicate_status IN ('suspected','dismissed')");
+
                             t.HasCheckConstraint("chk_transactions_forecast_exclusion", "(exclude_from_forecast = false AND forecast_exclusion_reason IS NULL) OR (exclude_from_forecast = true AND forecast_exclusion_reason IN ('one_off','user_marked'))");
 
                             t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
 
                             t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
+
+                            t.HasCheckConstraint("chk_transactions_merged_deleted", "merged_into_transaction_id IS NULL OR deleted_at IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_transactions_merged_not_self", "merged_into_transaction_id IS NULL OR merged_into_transaction_id <> id");
+
+                            t.HasCheckConstraint("chk_transactions_merged_sources", "merged_sources IS NULL OR merged_sources <@ ARRAY['notification','manual','voice','receipt','support']::text[]");
 
                             t.HasCheckConstraint("chk_transactions_related_has_relation", "related_transaction_id IS NULL OR relation IS NOT NULL");
 
@@ -6104,6 +6141,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CounterAccountId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "DuplicateOf")
+                        .WithMany()
+                        .HasForeignKey("DuplicateOfTransactionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("FinMate.Domain.Entities.FinancialAccount", "FinancialAccount")
                         .WithMany()
                         .HasForeignKey("FinancialAccountId")
@@ -6119,6 +6161,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FinMate.Domain.Entities.Transaction", null)
+                        .WithMany()
+                        .HasForeignKey("MergedIntoTransactionId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("FinMate.Domain.Entities.NotificationLog", "NotificationLog")
                         .WithOne()
@@ -6149,6 +6196,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("CounterAccount");
+
+                    b.Navigation("DuplicateOf");
 
                     b.Navigation("FinancialAccount");
 

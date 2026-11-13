@@ -39,7 +39,7 @@ public class ReceiptScanRepository : IReceiptScanRepository
             INSERT INTO receipt_scan_links (transaction_id, scan_id, group_category_slug)
             SELECT t.id, s.id, {groupCategorySlug}
             FROM receipt_scans s
-            JOIN transactions t ON t.id = {transactionId} AND t.user_id = {userId}
+            JOIN transactions t ON t.id = {transactionId} AND t.user_id = {userId} AND t.deleted_at IS NULL
             WHERE s.id = {scanId} AND s.user_id = {userId}
             ON CONFLICT DO NOTHING
             """, ct);

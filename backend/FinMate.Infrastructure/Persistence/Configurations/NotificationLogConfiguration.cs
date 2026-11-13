@@ -10,7 +10,7 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
     public void Configure(EntityTypeBuilder<NotificationLog> builder)
     {
         builder.ToTable("notification_logs", t => t.HasCheckConstraint(
-            "chk_notification_logs_status", "status IN ('pending','processed','failed','ignored')"));
+            "chk_notification_logs_status", "status IN ('pending','processed','failed','ignored','duplicate')"));
 
         builder.HasKey(n => n.Id);
         builder.Property(n => n.Id)
