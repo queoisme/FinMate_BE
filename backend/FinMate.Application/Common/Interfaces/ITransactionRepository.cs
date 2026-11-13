@@ -23,7 +23,9 @@ public record TransactionListResult(IReadOnlyList<Transaction> Items, string? Ne
 /// Ứng viên trùng thô (Phase 82): cùng user, chiều Debit/Credit, không có <c>relation</c>, chưa xoá, số tiền nằm trong <paramref name="AmountsCents"/>
 /// và thời điểm trong [<paramref name="From"/>, <paramref name="To"/>]. Phần còn lại của luật trùng do <c>DuplicateMatcher</c> quyết.
 /// </summary>
-public sealed record DuplicateCandidateQuery(Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To);
+/// <param name="TransferAmountMin">Phase 83: Transfer có số tiền trong [min, max] cũng là ứng viên (thông báo tiền ra có thể lớn hơn vì phí).</param>
+public sealed record DuplicateCandidateQuery(
+    Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To, long? TransferAmountMin = null, long? TransferAmountMax = null);
 
 /// <summary>Một giao dịch có thể trùng, kèm liên kết trùng của chính nó để tính các cặp đã bị user bác.</summary>
 public sealed record DuplicateCandidateRow(

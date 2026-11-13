@@ -293,4 +293,28 @@ public class TransferConversionControllerTests : IClassFixture<AuthApiFactory>, 
         var fees = await _api.Base.WithDbAsync(db => db.Transactions.AsNoTracking().CountAsync(t => t.UserId == w.UserId && t.Description == "Phí giao dịch"));
         fees.Should().Be(1);
     }
+
+    // ---- BR-TRF-06: thông báo về sau một Transfer đã ghi tay ----
+
+    [Fact]
+    public async Task ABankDebitWithAFee_MergedIntoAManualTransfer_KeepsTheTransferAndAddsTheFee()
+    {
+        var w = await _api.StartAsync();
+        var transfer = await _api.ManualTransferAsync(w, w.Vcb, w.Momo, 1_000_000);
+        var bank = await _api.Dup.InsertAsync(w.S, 1_003_300, DateTimeOffset.UtcNow.AddMinutes(-4), account: w.Vcb,
+            duplicateOf: transfer, duplicateStatus: DuplicateStatus.Suspected, description: "nap MoMo");
+
+        var response = await _api.Dup.MergeAsync(w.S, bank, transfer);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var survivor = await DuplicateApi.DataAsync(response);
+        survivor.Id.Should().Be(transfer, "chuyển khoản ghi tay luôn được giữ (D9)");
+        survivor.TransactionType.Should().Be("Transfer");
+        survivor.MergedSources.Should().Equal("manual", "notification");
+        (await _api.Base.BalanceAsync(w.Vcb)).Should().Be(5_000_000 - 1_003_300, "ví nguồn kết thúc đúng như ngân hàng báo");
+        (await _api.Base.BalanceAsync(w.Momo)).Should().Be(1_000_000);
+        var fee = await _api.Base.WithDbAsync(db => db.Transactions.AsNoTracking().SingleAsync(t => t.UserId == w.UserId && t.Description == "Phí giao dịch"));
+        fee.AmountCents.Should().Be(3_300);
+    }
 }
+

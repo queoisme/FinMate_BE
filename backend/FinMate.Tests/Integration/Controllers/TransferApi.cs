@@ -83,6 +83,14 @@ internal sealed class TransferApi
         => Dup.InsertAsync(w.S, amount, at ?? DateTimeOffset.UtcNow.AddMinutes(-4), TransactionSource.Notification, status, account ?? w.Momo, category,
             type: TransactionType.Credit, description: description);
 
+    /// <summary>Chuyển tiền ghi tay (<c>POST /transactions/transfer</c>), như app lưu sau câu chat "nạp 500k vào momo".</summary>
+    public async Task<Guid> ManualTransferAsync(Wallets w, Guid from, Guid to, long amount, DateTimeOffset? at = null)
+    {
+        var response = await Base.SendAsync(HttpMethod.Post, "/api/v1/transactions/transfer", w.S.Token,
+            new CreateTransferRequest(from, to, amount, at ?? DateTimeOffset.UtcNow.AddMinutes(-5), "nạp momo"));
+        return (await response.Content.ReadFromJsonAsync<RefundApi.Envelope<RefundApi.IdData>>(RefundApi.JsonOptions))!.Data.Id;
+    }
+
     /// <summary>Giao dịch đã xác nhận được chèn thẳng vào DB thì chưa cộng vào số dư: cộng tay như đường xác nhận thật.</summary>
     public Task ApplyAsync(Guid account, long signedAmount)
         => Base.WithDbAsync(async db =>

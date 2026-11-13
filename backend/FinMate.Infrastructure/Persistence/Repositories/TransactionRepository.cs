@@ -312,14 +312,17 @@ public class TransactionRepository : ITransactionRepository
         }
 
         var amounts = query.AmountsCents.Distinct().ToList();
+        var withTransfers = query.TransferAmountMin is not null && query.TransferAmountMax is not null;
+        var transferMin = query.TransferAmountMin ?? 0;
+        var transferMax = query.TransferAmountMax ?? 0;
         return await _context.Transactions
             .AsNoTracking()
             .Where(t => t.UserId == query.UserId
-                && (t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit)
                 && t.Relation == null
-                && amounts.Contains(t.AmountCents)
                 && t.TransactedAt >= query.From
-                && t.TransactedAt <= query.To)
+                && t.TransactedAt <= query.To
+                && (((t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit) && amounts.Contains(t.AmountCents))
+                    || (withTransfers && t.TransactionType == TransactionType.Transfer && t.AmountCents >= transferMin && t.AmountCents <= transferMax)))
             .Select(t => new DuplicateCandidateRow(
                 new DuplicateProbe(
                     t.Id,
@@ -336,7 +339,8 @@ public class TransactionRepository : ITransactionRepository
                     t.DeletedAt != null,
                     t.MergedIntoTransactionId != null,
                     t.MergedSources,
-                    t.NotificationLogId),
+                    t.NotificationLogId,
+                    t.CounterAccountId),
                 t.DuplicateOfTransactionId,
                 t.DuplicateStatus))
             .ToListAsync(ct);

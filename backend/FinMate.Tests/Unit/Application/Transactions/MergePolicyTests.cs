@@ -182,10 +182,16 @@ public class MergePolicyTests
         {
             "type" => Tx(TransactionSource.Notification, TransactionStatus.Draft, type: TransactionType.Credit),
             "amount" => Tx(TransactionSource.Notification, TransactionStatus.Draft, amount: 50_001),
+            // Phase 83 (BR-TRF-06): một khoản chi gộp được vào một Transfer đã ghi tay; hai Transfer với nhau thì không.
             "transfer" => Tx(TransactionSource.Notification, TransactionStatus.Draft, type: TransactionType.Transfer),
             "relation" => Tx(TransactionSource.Notification, TransactionStatus.Draft, type: TransactionType.Credit),
             _ => a,
         };
+        if (what == "transfer")
+        {
+            a.TransactionType = TransactionType.Transfer;
+        }
+
         if (what == "relation")
         {
             a.TransactionType = TransactionType.Credit;
@@ -265,4 +271,48 @@ public class MergePolicyTests
 
         act.Should().Throw<BusinessRuleException>().Which.ErrorCode.Should().Be(TransactionErrorCodes.MergeNotAllowed);
     }
+
+    // ---- Phase 83, BR-TRF-06 + D9: gộp thông báo vào một Transfer đã ghi tay ----
+
+    private static Transaction ManualTransfer(long amount = 500_000)
+    {
+        var t = Tx(TransactionSource.Manual, TransactionStatus.Confirmed, created: TimeSpan.FromMinutes(5), account: Vcb, amount: amount, type: TransactionType.Transfer);
+        t.CounterAccountId = Cash;
+        return t;
+    }
+
+    [Fact]
+    public void TheTransfer_IsAlwaysKept_EvenWhenTheNotificationIsOlderAndConfirmed()
+    {
+        var transfer = ManualTransfer();
+        var bank = Tx(TransactionSource.Notification, TransactionStatus.Confirmed, account: Vcb, amount: 500_000);
+
+        MergePolicy.ChooseSurvivor(bank, transfer).Should().BeSameAs(transfer);
+    }
+
+    [Theory]
+    [InlineData(TransactionType.Debit, "vcb", 500_000, true)]
+    [InlineData(TransactionType.Debit, "vcb", 503_300, true)]
+    [InlineData(TransactionType.Debit, "vcb", 530_000, false)]
+    [InlineData(TransactionType.Debit, "cash", 500_000, false)]
+    [InlineData(TransactionType.Credit, "cash", 500_000, true)]
+    [InlineData(TransactionType.Credit, "cash", 499_000, false)]
+    [InlineData(TransactionType.Credit, "vcb", 500_000, false)]
+    public void ANotification_FitsTheTransferOnlyOnTheRightSide(TransactionType type, string wallet, long amount, bool fits)
+    {
+        var transfer = ManualTransfer();
+        var bank = Tx(TransactionSource.Notification, TransactionStatus.Draft, account: wallet == "vcb" ? Vcb : Cash, amount: amount, type: type);
+
+        var act = () => MergePolicy.EnsureMergeable(bank, transfer, transfer, Facts());
+
+        if (fits)
+        {
+            act.Should().NotThrow();
+        }
+        else
+        {
+            act.Should().Throw<BusinessRuleException>().Which.ErrorCode.Should().Be(TransactionErrorCodes.MergeNotAllowed);
+        }
+    }
 }
+

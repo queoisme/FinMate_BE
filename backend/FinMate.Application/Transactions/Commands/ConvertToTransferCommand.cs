@@ -42,9 +42,6 @@ public static class TransferWarnings
 /// </summary>
 public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
 {
-    public const string FeeDescription = "Phí giao dịch";
-    private const string FeeCategorySlug = "other";
-    private const string FeeKeyName = "fee";
 
     private readonly ITransactionRepository _transactions;
     private readonly IFinancialAccountRepository _accounts;
@@ -233,29 +230,9 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         survivor.UpdatedAt = now;
     }
 
-    /// <summary>BR-TRF-08: phần chênh thành một khoản chi riêng ở ví nguồn, danh mục <c>other</c>; khoá idempotent = UUID v5(id Transfer, "fee").</summary>
+    /// <summary>BR-TRF-08: phần chênh thành một khoản chi riêng ở ví nguồn (<see cref="TransferFee"/>).</summary>
     private async Task<Transaction> FeeAsync(Guid userId, Transaction survivor, Transaction debit, TransferPlan plan, DateTimeOffset now, CancellationToken ct)
-    {
-        var other = await _categories.GetSystemBySlugAsync(FeeCategorySlug, ct);
-        return new Transaction
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ClientRequestId = DeterministicGuid.V5(survivor.Id, FeeKeyName),
-            FinancialAccountId = plan.FromAccountId,
-            CategoryId = other?.Id,
-            Category = other,
-            AmountCents = plan.FeeCents,
-            TransactionType = TransactionType.Debit,
-            Source = debit.Source,
-            Status = TransactionStatus.Confirmed,
-            Description = FeeDescription,
-            TransactedAt = debit.TransactedAt,
-            BalanceAfterCents = debit.BalanceAfterCents,
-            CreatedAt = now,
-            UpdatedAt = now,
-        };
-    }
+        => TransferFee.Build(userId, survivor.Id, debit, plan.FromAccountId, plan.FeeCents, await _categories.GetSystemBySlugAsync(TransferFee.CategorySlug, ct), now);
 
     /// <summary>Nháp hoàn/đảo (Phase 81) đang chờ liên kết với một khoản chi vừa thành Transfer: Transfer không phải khoản chi gốc nên gỡ liên kết.</summary>
     private async Task<List<Guid>> ReleaseDraftRefundsAsync(Guid userId, IEnumerable<Transaction> sides, DateTimeOffset now, CancellationToken ct)
@@ -334,7 +311,7 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
             throw Refuse("Giao dịch này đã là chuyển khoản giữa hai ví khác.");
         }
 
-        var fee = await _transactions.GetByClientRequestIdAsync(command.UserId, DeterministicGuid.V5(transfer.Id, FeeKeyName), ct);
+        var fee = await _transactions.GetByClientRequestIdAsync(command.UserId, TransferFee.ClientRequestIdFor(transfer.Id), ct);
         return new Outcome(transfer, fee, RefundEffects.None, [], new Dictionary<Guid, long>());
     }
 

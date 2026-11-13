@@ -23,7 +23,8 @@ public sealed record DuplicateProbe(
     bool IsDeleted,
     bool IsMerged,
     string[]? MergedSources,
-    Guid? NotificationLogId);
+    Guid? NotificationLogId,
+    Guid? CounterAccountId = null);   // Phase 83: ví đích của một Transfer
 
 /// <summary>Cặp nguồn của hai giao dịch được so. Mỗi cặp có cửa sổ thời gian riêng (<see cref="DuplicateSettings"/>).</summary>
 public enum DuplicatePair
@@ -34,6 +35,9 @@ public enum DuplicatePair
 
     /// <summary>Hoá đơn ↔ nhập tay: chỉ cảnh báo, không gắn nghi trùng (D4).</summary>
     ReceiptManual,
+
+    /// <summary>Phase 83 (BR-TRF-06): thông báo của ngân hàng ↔ một Transfer người dùng đã ghi tay giữa hai ví của mình.</summary>
+    TransferNotification,
 }
 
 public sealed record RankedDuplicate(Guid Id, DuplicatePair Pair)
@@ -68,7 +72,8 @@ public static class DuplicateMatcher
         IReadOnlyCollection<DuplicateProbe> candidates,
         IReadOnlySet<Guid> dismissed,
         DuplicateSettings settings,
-        Guid? aiHintLogId = null)
+        Guid? aiHintLogId = null,
+        TransferSettings? transfers = null)
     {
         if (!CanHaveDuplicates(subject))
         {
@@ -79,6 +84,16 @@ public static class DuplicateMatcher
         var ranked = new List<(DuplicateProbe Probe, DuplicatePair Pair)>();
         foreach (var other in candidates)
         {
+            if (other.Type == TransactionType.Transfer)
+            {
+                if (transfers is not null && MatchesTransfer(subject, other, dismissed, settings, transfers))
+                {
+                    ranked.Add((other, DuplicatePair.TransferNotification));
+                }
+
+                continue;
+            }
+
             if (!IsComparable(subject, other, dismissed) || PairOf(subject.Source, other.Source) is not { } pair)
             {
                 continue;
@@ -110,6 +125,34 @@ public static class DuplicateMatcher
             .Select(r => new RankedDuplicate(r.Probe.Id, r.Pair))
             .ToList();
         return new DuplicateMatch(null, top);
+    }
+
+    /// <summary>
+    /// BR-TRF-06 (D8): thông báo của ngân hàng về một Transfer đã ghi tay. Tiền ra phải ở ví nguồn, bằng số của Transfer hoặc lớn hơn trong giới hạn
+    /// phí; tiền vào phải ở ví đích và bằng đúng. Cửa sổ là giá trị lớn hơn giữa cửa sổ ghép cặp và cửa sổ nhập tay.
+    /// </summary>
+    private static bool MatchesTransfer(
+        DuplicateProbe subject, DuplicateProbe transfer, IReadOnlySet<Guid> dismissed, DuplicateSettings settings, TransferSettings transfers)
+    {
+        if (subject.Source != TransactionSource.Notification || transfer.IsDeleted || transfer.IsMerged || dismissed.Contains(transfer.Id))
+        {
+            return false;
+        }
+
+        var window = TimeSpan.FromMinutes(Math.Max(transfers.PairWindowMinutes, settings.ManualWindowHours * 60));
+        if ((subject.TransactedAt - transfer.TransactedAt).Duration() > window)
+        {
+            return false;
+        }
+
+        if (subject.Type == TransactionType.Credit)
+        {
+            return transfer.CounterAccountId == subject.AccountId && subject.AmountCents == transfer.AmountCents;
+        }
+
+        var fee = subject.AmountCents - transfer.AmountCents;
+        return transfer.AccountId == subject.AccountId
+               && fee >= 0 && fee <= transfers.MaxFeeCents && fee * 100 <= transfer.AmountCents * transfers.MaxFeePercent;
     }
 
     /// <summary>Cửa sổ rộng nhất trên mọi cặp: repository chỉ cần nạp ứng viên trong khoảng này.</summary>

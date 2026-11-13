@@ -86,12 +86,15 @@ public sealed class DuplicateDetector : IDuplicateDetector
             return DuplicateMatch.None;
         }
 
-        var settings = (await _config.GetAsync(ct)).Document.Duplicates;
+        var document = (await _config.GetAsync(ct)).Document;
+        var settings = document.Duplicates;
         var window = DuplicateMatcher.WidestWindow(settings);
         var rows = await _transactions.ListDuplicateCandidatesAsync(
-            new DuplicateCandidateQuery(transaction.UserId, [transaction.AmountCents], subject.TransactedAt - window, subject.TransactedAt + window), ct);
+            new DuplicateCandidateQuery(transaction.UserId, [transaction.AmountCents], subject.TransactedAt - window, subject.TransactedAt + window,
+                TransferAmountMin: transaction.AmountCents - document.Transfers.MaxFeeCents, TransferAmountMax: transaction.AmountCents),
+            ct);
 
-        var match = DuplicateMatcher.Match(subject, Probes(rows), DismissedWith(subject.Id, rows), settings, aiHintLogId);
+        var match = DuplicateMatcher.Match(subject, Probes(rows), DismissedWith(subject.Id, rows), settings, aiHintLogId, document.Transfers);
         if (match.SameEventId is null && match.SuspectedOf is { } top)
         {
             transaction.DuplicateOfTransactionId = top.Id;
@@ -182,14 +185,17 @@ public sealed class DuplicateDetector : IDuplicateDetector
             return new Dictionary<Guid, DuplicateMatch>();
         }
 
-        var settings = (await _config.GetAsync(ct)).Document.Duplicates;
+        var document = (await _config.GetAsync(ct)).Document;
+        var settings = document.Duplicates;
         var window = DuplicateMatcher.WidestWindow(settings);
         var rows = await _transactions.ListDuplicateCandidatesAsync(
             new DuplicateCandidateQuery(
                 userId,
                 subjects.Select(s => s.AmountCents).Distinct().ToList(),
                 subjects.Min(s => s.TransactedAt) - window,
-                subjects.Max(s => s.TransactedAt) + window),
+                subjects.Max(s => s.TransactedAt) + window,
+                subjects.Min(s => s.AmountCents) - document.Transfers.MaxFeeCents,
+                subjects.Max(s => s.AmountCents)),
             ct);
         var probes = Probes(rows);
 
@@ -197,7 +203,7 @@ public sealed class DuplicateDetector : IDuplicateDetector
         foreach (var subject in subjects)
         {
             // Lúc đọc chỉ cần danh sách ứng viên; "cùng sự kiện" chỉ có nghĩa khi một thông báo vừa đến (đã bị bỏ trước khi thành dòng).
-            var match = DuplicateMatcher.Match(subject, probes, DismissedWith(subject.Id, rows), settings);
+            var match = DuplicateMatcher.Match(subject, probes, DismissedWith(subject.Id, rows), settings, null, document.Transfers);
             if (match.Candidates.Count > 0)
             {
                 result[subject.Id] = match;

@@ -8,7 +8,9 @@ namespace FinMate.Application.Transactions.Duplicates;
 /// <param name="LoserHasConfirmedRefunds">Bản bị gộp đang có khoản hoàn/đảo đã xác nhận (Phase 81).</param>
 /// <param name="AMatchedQr">Bản thứ nhất đã khớp một ý định QR.</param>
 /// <param name="BMatchedQr">Bản thứ hai đã khớp một ý định QR.</param>
-public sealed record MergeFacts(bool LoserHasConfirmedRefunds, bool AMatchedQr, bool BMatchedQr);
+/// <param name="MaxFeeCents">Phase 83: giới hạn phí khi gộp một thông báo tiền ra vào một Transfer đã ghi tay (<c>transfers.maxFeeCents</c>).</param>
+/// <param name="MaxFeePercent">Như trên, theo % số tiền chuyển.</param>
+public sealed record MergeFacts(bool LoserHasConfirmedRefunds, bool AMatchedQr, bool BMatchedQr, long MaxFeeCents = 20_000, int MaxFeePercent = 2);
 
 /// <summary>Giá trị cuối của survivor sau gộp (BR-DUP-10). Số tiền không có ở đây: hai bản luôn bằng nhau.</summary>
 public sealed record MergeFields(
@@ -26,6 +28,12 @@ public static class MergePolicy
     /// </summary>
     public static Transaction ChooseSurvivor(Transaction a, Transaction b)
     {
+        // Phase 83 (D9): một Transfer người dùng đã ghi tay luôn được giữ; thông báo của ngân hàng chỉ góp giờ và số dư vào nó.
+        if (a.TransactionType == TransactionType.Transfer || b.TransactionType == TransactionType.Transfer)
+        {
+            return a.TransactionType == TransactionType.Transfer ? a : b;
+        }
+
         var aConfirmed = a.Status == TransactionStatus.Confirmed;
         var bConfirmed = b.Status == TransactionStatus.Confirmed;
         if (aConfirmed != bConfirmed)
@@ -54,12 +62,16 @@ public static class MergePolicy
             throw Refuse("Không thể gộp một giao dịch với chính nó.");
         }
 
-        if (a.TransactionType != b.TransactionType || a.TransactionType == TransactionType.Transfer)
+        if (a.TransactionType == TransactionType.Transfer || b.TransactionType == TransactionType.Transfer)
+        {
+            EnsureFitsTheTransfer(a.TransactionType == TransactionType.Transfer ? a : b, a.TransactionType == TransactionType.Transfer ? b : a, facts);
+        }
+        else if (a.TransactionType != b.TransactionType)
         {
             throw Refuse("Chỉ gộp được hai khoản cùng là chi hoặc cùng là thu.");
         }
 
-        if (a.AmountCents != b.AmountCents)
+        if (a.AmountCents != b.AmountCents && a.TransactionType != TransactionType.Transfer && b.TransactionType != TransactionType.Transfer)
         {
             throw Refuse("Hai khoản khác số tiền nên không phải cùng một giao dịch.");
         }
@@ -83,6 +95,34 @@ public static class MergePolicy
         if (facts.AMatchedQr && facts.BMatchedQr)
         {
             throw Refuse("Cả hai khoản đều đã khớp một lần quét QR nên là hai lần chuyển khác nhau.");
+        }
+    }
+
+    /// <summary>
+    /// BR-TRF-06 (D8): chỉ gộp được tiền ra ở ví nguồn (bằng số Transfer hoặc lớn hơn trong giới hạn phí) hoặc tiền vào ở ví đích (bằng đúng).
+    /// </summary>
+    private static void EnsureFitsTheTransfer(Transaction transfer, Transaction other, MergeFacts facts)
+    {
+        if (other.TransactionType == TransactionType.Transfer)
+        {
+            throw Refuse("Không gộp hai chuyển khoản với nhau.");
+        }
+
+        if (other.TransactionType == TransactionType.Credit)
+        {
+            if (other.FinancialAccountId != transfer.CounterAccountId || other.AmountCents != transfer.AmountCents)
+            {
+                throw Refuse("Khoản tiền vào phải ở ví đích của chuyển khoản và bằng đúng số tiền.");
+            }
+
+            return;
+        }
+
+        var fee = other.AmountCents - transfer.AmountCents;
+        if (other.FinancialAccountId != transfer.FinancialAccountId
+            || fee < 0 || fee > facts.MaxFeeCents || fee * 100 > transfer.AmountCents * facts.MaxFeePercent)
+        {
+            throw Refuse("Khoản tiền ra phải ở ví nguồn của chuyển khoản, bằng số tiền chuyển hoặc chỉ chênh phí.");
         }
     }
 
