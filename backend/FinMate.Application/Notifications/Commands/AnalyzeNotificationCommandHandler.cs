@@ -1,10 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using FinMate.Application.Admin.SystemConfig;
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Notifications;
 using FinMate.Application.QrTransfers;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -26,6 +29,9 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IAIServiceClient _aiServiceClient;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly IValidator<AnalyzeNotificationCommand> _validator;
+    private readonly ISystemConfigProvider _config;
+    private readonly ITransactionConfirmationEffects _confirmationEffects;
+    private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
 
@@ -37,6 +43,9 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IAIServiceClient aiServiceClient,
         IPushNotificationService pushNotificationService,
         IValidator<AnalyzeNotificationCommand> validator,
+        ISystemConfigProvider config,
+        ITransactionConfirmationEffects confirmationEffects,
+        IMerchantCategoryOverrideRepository merchantCategoryOverrides,
         IAiConsentReader? consent = null,
         IQrTransferLinker? qrLinker = null)
     {
@@ -47,6 +56,9 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         _aiServiceClient = aiServiceClient;
         _pushNotificationService = pushNotificationService;
         _validator = validator;
+        _config = config;
+        _confirmationEffects = confirmationEffects;
+        _merchantCategoryOverrides = merchantCategoryOverrides;
         _consent = consent;
         _qrLinker = qrLinker;
     }
@@ -148,68 +160,198 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         await _notificationLogRepository.UpdateAsync(log, ct);
 
         Guid? draftTransactionId = null;
-        if (pipelineResult == PipelineResult.Financial
-            && !aiResult.IsPotentialDuplicate
+
+        // §5.1: UNCERTAIN cũng phải rơi vào nhánh tạo giao dịch (như một ép buộc về phía Draft) —
+        // trước đây chỉ Financial mới qua được, Uncertain không tạo gì cả (sai).
+        if ((pipelineResult == PipelineResult.Financial || pipelineResult == PipelineResult.Uncertain)
             && aiResult.AmountCents is > 0
             && aiResult.TransactionType is not null)
         {
-            Category? category = aiResult.CategorySlug is null
-                ? null
-                : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
+            var amount = aiResult.AmountCents.Value;
+            var type = aiResult.TransactionType.Value;
+            var transactedAt = aiResult.TransactedAt ?? command.ReceivedAt;
+            var pipelineSettings = (await _config.GetAsync(ct)).Document.NotificationPipeline;
 
-            // Chi tiền sau một lần quét QR: lấy người nhận + danh mục người dùng đã chọn thay vì để AI đoán từ nội dung chuyển khoản P2P (thường không có gì để đoán).
-            QrTransferIntent? qrIntent = null;
-            if (_qrLinker is not null && aiResult.TransactionType == TransactionType.Debit)
+            // Việc 2 (§5.5): trùng nghiệp vụ THẬT — lọc theo chính ví này, xét cả Debit và Credit.
+            // Thay cho aiResult.IsPotentialDuplicate (chỉ cảnh báo, không đáng tin để chặn hẳn).
+            var isBusinessDuplicate = await _transactionRepository.HasAuthoritativeDuplicateAsync(
+                account.Id, amount, type, transactedAt,
+                TimeSpan.FromMinutes(pipelineSettings.BusinessDuplicateWindowMinutes), null, ct);
+
+            if (!isBusinessDuplicate)
             {
-                qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, aiResult.AmountCents.Value, ct);
-                if (qrIntent?.CategoryId is Guid qrCategoryId
-                    && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
-                    && (chosen.UserId is null || chosen.UserId == command.UserId))
+                // Việc 1 (§7/§16.1): tính Auto-commit TRƯỚC khi quyết định tạo gì — chỉ khi nhãn
+                // Financial (không bao giờ cho Uncertain, dù confidence có cao thế nào).
+                //
+                // Ngưỡng Auto-commit chỉ xét ExtractionConfidence — KHÔNG trộn với
+                // CategorizationConfidence (khác với ReviewConfidence dùng cho nội dung push ở
+                // nhánh Draft bên dưới, giữ nguyên không đổi). §7 nói rõ category confidence thấp
+                // không được chặn Auto-commit — bug thật phát hiện qua test thiết bị: 1 giao dịch
+                // 2.000đ đọc số sạch vẫn rơi về Draft chỉ vì người nhận ("Tuân") không quen nên AI
+                // phân loại thiếu tự tin.
+                var confidence = TransactionReviewPushBuilder.ReviewConfidence(
+                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence);
+                var autoCommitEligible = pipelineResult == PipelineResult.Financial
+                    && aiResult.ExtractionConfidence is { } extractionConfidence
+                    && extractionConfidence >= TransactionReviewPushBuilder.OneTapThreshold;
+
+                // Việc 4 (§16.3): có vế đối ứng của 1 lần chuyển khoản nội bộ đang chờ Draft không?
+                var mergeCandidate = await _transactionRepository.FindMergeCandidateAsync(
+                    command.UserId, amount, Opposite(type), account.Id, transactedAt,
+                    TimeSpan.FromMinutes(pipelineSettings.SelfTransferMergeWindowMinutes), ct);
+
+                if (mergeCandidate is not null)
                 {
-                    category = chosen;
+                    draftTransactionId = await MergeIntoTransferAsync(mergeCandidate, account, type, amount, ct);
+
+                    // Transfer đã Confirmed ngay (§16.3) — nếu vế đầu từng nhận push "Chờ duyệt",
+                    // phải sửa lại cảm nhận bằng 1 push mới, không để im lặng biến mất.
+                    await _pushNotificationService.NotifyAsync(
+                        mergeCandidate.UserId,
+                        "Đã tự động ghi nhận",
+                        "Đã nhận diện là chuyển khoản nội bộ giữa 2 ví của bạn, đã tự động ghi nhận.",
+                        new Dictionary<string, string>
+                        {
+                            ["type"] = "transfer_merged",
+                            ["transactionId"] = mergeCandidate.Id.ToString(),
+                        },
+                        ct);
+                }
+                else
+                {
+                    Category? category = aiResult.CategorySlug is null
+                        ? null
+                        : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
+
+                    // Việc 5 (§7 priority #1, §16.5): override theo tên merchant, cho case KHÔNG
+                    // qua QR — chỉ áp khi chưa có gì khác (AI slug) và trước khi QR override (nếu
+                    // có) ghi đè tiếp ở dưới, vì QR có dữ liệu đáng tin hơn.
+                    if (!string.IsNullOrWhiteSpace(aiResult.MerchantName))
+                    {
+                        var merchantOverride = await _merchantCategoryOverrides.GetAsync(
+                            command.UserId, MerchantCategoryKey.Normalize(aiResult.MerchantName), ct);
+                        if (merchantOverride is not null)
+                        {
+                            category = merchantOverride.Category;
+                        }
+                    }
+
+                    // Chi tiền sau một lần quét QR: lấy người nhận + danh mục người dùng đã chọn thay vì để AI đoán từ nội dung chuyển khoản P2P (thường không có gì để đoán).
+                    QrTransferIntent? qrIntent = null;
+                    if (_qrLinker is not null && type == TransactionType.Debit)
+                    {
+                        qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, amount, ct);
+                        if (qrIntent?.CategoryId is Guid qrCategoryId
+                            && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
+                            && (chosen.UserId is null || chosen.UserId == command.UserId))
+                        {
+                            category = chosen;
+                        }
+                    }
+
+                    var transaction = new Transaction
+                    {
+                        UserId = command.UserId,
+                        FinancialAccountId = account.Id,
+                        CategoryId = category?.Id,
+                        NotificationLogId = log.Id,
+                        AmountCents = amount,
+                        TransactionType = type,
+                        Source = TransactionSource.Notification,
+                        Status = autoCommitEligible ? TransactionStatus.Confirmed : TransactionStatus.Draft,
+                        MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
+                        Description = aiResult.Description,
+                        TransactedAt = transactedAt,
+                        BalanceAfterCents = aiResult.BalanceAfterCents,  // giữ nguyên số AI đọc từ bank, không ghi đè bằng account.BalanceCents
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                    };
+
+                    IReadOnlyList<BudgetAlert> budgetAlerts = [];
+                    if (autoCommitEligible)
+                    {
+                        budgetAlerts = await _confirmationEffects.ApplyAsync(transaction, account, ct);
+                    }
+
+                    await _transactionRepository.AddAsync(transaction, ct);
+                    draftTransactionId = transaction.Id;
+                    transaction.Category = category;
+
+                    if (qrIntent is not null)
+                    {
+                        await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
+                    }
+
+                    if (autoCommitEligible)
+                    {
+                        await _confirmationEffects.NotifyAsync(transaction, budgetAlerts, ct);
+
+                        // Việc 1: KHÔNG im lặng — tiền đã bị trừ/cộng tự động, phải báo rõ khác
+                        // với push "Chờ duyệt" (đây KHÔNG còn gì để duyệt nữa).
+                        var autoPush = TransactionReviewPushBuilder.BuildAutoCommittedPush(transaction, category?.Name);
+                        await _pushNotificationService.NotifyAsync(
+                            command.UserId, autoPush.Title, autoPush.Body, autoPush.Data, ct);
+                    }
+                    else
+                    {
+                        // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai
+                        // cách khác nhau tuỳ mức tin cậy.
+                        var review = TransactionReviewPushBuilder.Build(transaction, category?.Name, confidence);
+                        await _pushNotificationService.NotifyAsync(
+                            command.UserId, review.Title, review.Body, review.Data, ct);
+                    }
                 }
             }
-
-            var transaction = new Transaction
-            {
-                UserId = command.UserId,
-                FinancialAccountId = account.Id,
-                CategoryId = category?.Id,
-                NotificationLogId = log.Id,
-                AmountCents = aiResult.AmountCents.Value,
-                TransactionType = aiResult.TransactionType.Value,
-                Source = TransactionSource.Notification,
-                Status = TransactionStatus.Draft,
-                MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
-                Description = aiResult.Description,
-                TransactedAt = aiResult.TransactedAt ?? command.ReceivedAt,
-                BalanceAfterCents = aiResult.BalanceAfterCents,
-                CreatedAt = now,
-                UpdatedAt = now,
-            };
-            await _transactionRepository.AddAsync(transaction, ct);
-            draftTransactionId = transaction.Id;
-            transaction.Category = category;
-
-            if (qrIntent is not null)
-            {
-                await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
-            }
-
-            // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách
-            // khác nhau tuỳ mức tin cậy. Trước Phase 15 mọi nháp đều nhận đúng một dòng chữ
-            // cụt, không kèm dữ liệu nào để client dựng nút xác nhận.
-            var review = TransactionReviewPushBuilder.Build(
-                transaction,
-                category?.Name,
-                TransactionReviewPushBuilder.ReviewConfidence(
-                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence));
-
-            await _pushNotificationService.NotifyAsync(
-                command.UserId, review.Title, review.Body, review.Data, ct);
+            // isBusinessDuplicate == true: không tạo gì cả — log.Status đã Processed từ trước.
+            // Không có cột nào trên NotificationLog để đánh dấu "trùng với giao dịch X"; chấp nhận
+            // giới hạn này thay vì tự ý thêm cột/migration ngoài phạm vi đã duyệt (§13).
         }
 
         return new NotificationAnalysisResultDto(log.Id, log.Status.ToString(), draftTransactionId);
+    }
+
+    private static TransactionType Opposite(TransactionType type) => type switch
+    {
+        TransactionType.Debit => TransactionType.Credit,
+        TransactionType.Credit => TransactionType.Debit,
+        _ => type,
+    };
+
+    /// <summary>
+    /// Gộp leg hiện tại vào vế đối ứng (<paramref name="mergeCandidate"/>) thành 1 giao dịch
+    /// Transfer đã Confirmed (§16.3) — không tạo transaction mới cho leg hiện tại.
+    /// </summary>
+    private async Task<Guid> MergeIntoTransferAsync(
+        Transaction mergeCandidate, FinancialAccount incomingAccount, TransactionType incomingType,
+        long amount, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var sourceAccountId = incomingType == TransactionType.Debit ? incomingAccount.Id : mergeCandidate.FinancialAccountId;
+        var destAccountId = incomingType == TransactionType.Debit ? mergeCandidate.FinancialAccountId : incomingAccount.Id;
+
+        var sourceAccount = sourceAccountId == incomingAccount.Id
+            ? incomingAccount
+            : await _financialAccountRepository.GetByIdAsync(sourceAccountId, mergeCandidate.UserId, ct)
+                ?? throw new NotFoundException("FinancialAccount", sourceAccountId);
+        var destAccount = destAccountId == incomingAccount.Id
+            ? incomingAccount
+            : await _financialAccountRepository.GetByIdAsync(destAccountId, mergeCandidate.UserId, ct)
+                ?? throw new NotFoundException("FinancialAccount", destAccountId);
+
+        sourceAccount.BalanceCents -= amount;
+        sourceAccount.UpdatedAt = now;
+        destAccount.BalanceCents += amount;
+        destAccount.UpdatedAt = now;
+
+        mergeCandidate.FinancialAccountId = sourceAccountId;
+        mergeCandidate.CounterAccountId = destAccountId;
+        mergeCandidate.TransactionType = TransactionType.Transfer;
+        mergeCandidate.CategoryId = null;
+        mergeCandidate.Status = TransactionStatus.Confirmed;
+        mergeCandidate.BalanceAfterCents = sourceAccount.BalanceCents;
+        mergeCandidate.UpdatedAt = now;
+        await _transactionRepository.UpdateAsync(mergeCandidate, ct);
+        return mergeCandidate.Id;
     }
 
     // Chỉ đọc đồng ý AI ở đây (nhánh thật sự gọi ai-service), không đọc DB thừa cho nhánh Ignored/trùng.

@@ -276,6 +276,18 @@ public sealed record QrTransferSettings
 }
 
 /// <summary>
+/// Cửa sổ xử lý Flow 1 (thông báo ngân hàng) — §5.5 (trùng nghiệp vụ) và §16.3 (gộp chuyển khoản nội bộ).
+/// </summary>
+public sealed record NotificationPipelineSettings
+{
+    /// <summary>Cửa sổ xét trùng nghiệp vụ THẬT (§5.5) quanh TransactedAt, tính bằng phút.</summary>
+    public int BusinessDuplicateWindowMinutes { get; init; } = 5;
+
+    /// <summary>Cửa sổ khớp 2 vế của 1 lần chuyển tiền nội bộ cùng user để gộp thành 1 Transfer (§16.3), tính bằng phút.</summary>
+    public int SelfTransferMergeWindowMinutes { get; init; } = 10;
+}
+
+/// <summary>
 /// Gợi ý cách quản lý tài chính. Hai hằng số từng nằm cứng trong code; mặc định là giá trị đã dùng nên thêm nhóm này không đổi hành vi của bản cũ.
 /// Chỉ dẫn gửi cho AI nằm ở chỗ khác (<c>/admin/finance-method-prompts</c>) vì có phiên bản riêng để truy ngược từng gợi ý.
 /// </summary>
@@ -423,6 +435,7 @@ public sealed record SystemConfigDocument
     public SyncSettings Sync { get; init; } = new();
     public ThemeSettings Theme { get; init; } = new();
     public QrTransferSettings QrTransfer { get; init; } = new();
+    public NotificationPipelineSettings NotificationPipeline { get; init; } = new();
     public FinanceMethodSettings FinanceMethods { get; init; } = new();
     public ForecastSettings Forecast { get; init; } = new();
     public GroupSettings Groups { get; init; } = new();

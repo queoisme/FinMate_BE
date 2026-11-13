@@ -27,6 +27,7 @@ public class FinMateDbContext : DbContext
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
+    public DbSet<MerchantCategoryOverride> MerchantCategoryOverrides => Set<MerchantCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();

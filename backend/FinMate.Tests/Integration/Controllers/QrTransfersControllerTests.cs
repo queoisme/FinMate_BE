@@ -326,7 +326,12 @@ public class QrTransfersControllerTests : IClassFixture<AuthApiFactory>
             await SetMatchWindowAsync(admin, original);
         }
 
-        var wide = await AnalyzeMbDebitAsync(token, 666_001, DateTimeOffset.UtcNow.AddMinutes(8).AddSeconds(5));
+        // Số tiền khác với vòng "narrow" ở trên (666_002, không phải 666_001): cùng ví + cùng số
+        // tiền + chỉ cách 5 giây là chính xác trường hợp business-duplicate-check (§5.5) phải chặn
+        // — đây không phải thứ bài test này muốn kiểm (nó kiểm cửa sổ khớp QR, không phải trùng
+        // nghiệp vụ), nên dùng intent/số tiền riêng để 2 khối không giao nhau.
+        await SendAsync<TransferData>(HttpMethod.Post, "/api/v1/qr/transfers", token, Intent(666_002), HttpStatusCode.Created);
+        var wide = await AnalyzeMbDebitAsync(token, 666_002, DateTimeOffset.UtcNow.AddMinutes(8).AddSeconds(5));
         wide.DraftTransactionId.Should().NotBeNull();
         (await SendAsync<List<TransferData>>(HttpMethod.Get, "/api/v1/qr/transfers?status=Matched", token)).Should().NotBeEmpty();
     }

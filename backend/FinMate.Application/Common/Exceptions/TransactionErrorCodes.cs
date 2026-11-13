@@ -24,4 +24,7 @@ public static class TransactionErrorCodes
 
     /// <summary>Không nghe ra lời nào (im lặng hoặc quá nhiễu): người dùng nên ghi lại hoặc gõ tay.</summary>
     public const string VoiceNoSpeech = "TRANSACTION_VOICE_NO_SPEECH";
+
+    /// <summary>Dữ liệu tại thời điểm xác nhận trùng với 1 giao dịch khác — user phải tự quyết, không bị hệ thống chặn im lặng (§8).</summary>
+    public const string PossibleDuplicateOnConfirm = "TRANSACTION_POSSIBLE_DUPLICATE_ON_CONFIRM";
 }

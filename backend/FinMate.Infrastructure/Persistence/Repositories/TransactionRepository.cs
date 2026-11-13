@@ -43,6 +43,49 @@ public class TransactionRepository : ITransactionRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public Task<bool> HasAuthoritativeDuplicateAsync(
+        Guid financialAccountId,
+        long amountCents,
+        TransactionType transactionType,
+        DateTimeOffset at,
+        TimeSpan window,
+        Guid? excludeTransactionId = null,
+        CancellationToken ct = default)
+    {
+        var from = at - window;
+        var to = at + window;
+        return _context.Transactions.AnyAsync(t =>
+            t.FinancialAccountId == financialAccountId
+            && t.TransactionType == transactionType
+            && t.AmountCents == amountCents
+            && t.TransactedAt >= from
+            && t.TransactedAt <= to
+            && (excludeTransactionId == null || t.Id != excludeTransactionId), ct);
+    }
+
+    public Task<Transaction?> FindMergeCandidateAsync(
+        Guid userId,
+        long amountCents,
+        TransactionType oppositeType,
+        Guid excludeFinancialAccountId,
+        DateTimeOffset at,
+        TimeSpan window,
+        CancellationToken ct = default)
+    {
+        var from = at - window;
+        var to = at + window;
+        return _context.Transactions
+            .Where(t => t.UserId == userId
+                && t.Status == TransactionStatus.Draft
+                && t.TransactionType == oppositeType
+                && t.FinancialAccountId != excludeFinancialAccountId
+                && t.AmountCents == amountCents
+                && t.TransactedAt >= from
+                && t.TransactedAt <= to)
+            .OrderByDescending(t => t.TransactedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public Task<Transaction?> GetByNotificationLogIdAsync(Guid notificationLogId, CancellationToken ct = default)
         => _context.Transactions
             .Include(t => t.Category)

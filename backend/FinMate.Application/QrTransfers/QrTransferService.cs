@@ -5,6 +5,7 @@ using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.QrTransfers;
 
@@ -40,14 +41,19 @@ public class QrTransferService : IQrTransferService
     private readonly ICategoryRepository _categories;
     private readonly IValidator<CreateQrTransferCommand> _validator;
     private readonly ISystemConfigProvider _config;
+    private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
+    private readonly ILogger<QrTransferService> _logger;
 
     public QrTransferService(
-        IQrTransferRepository repository, ICategoryRepository categories, IValidator<CreateQrTransferCommand> validator, ISystemConfigProvider config)
+        IQrTransferRepository repository, ICategoryRepository categories, IValidator<CreateQrTransferCommand> validator, ISystemConfigProvider config,
+        IMerchantCategoryOverrideRepository merchantCategoryOverrides, ILogger<QrTransferService> logger)
     {
         _repository = repository;
         _categories = categories;
         _validator = validator;
         _config = config;
+        _merchantCategoryOverrides = merchantCategoryOverrides;
+        _logger = logger;
     }
 
     private async Task<QrTransferSettings> SettingsAsync(CancellationToken ct) => (await _config.GetAsync(ct)).Document.QrTransfer;
@@ -169,9 +175,11 @@ public class QrTransferService : IQrTransferService
         var mapping = await _repository.GetOverrideByIdAsync(id, userId, ct) ?? throw new NotFoundException("CounterpartyOverride", id);
         var category = await RequireUsableCategoryAsync(userId, categoryId, ct);
 
+        var now = DateTimeOffset.UtcNow;
         mapping.CategoryId = category.Id;
-        mapping.UpdatedAt = DateTimeOffset.UtcNow;
+        mapping.UpdatedAt = now;
         await _repository.UpdateOverrideAsync(mapping, ct);
+        await CounterpartyMerchantSync.UpsertAsync(_merchantCategoryOverrides, _logger, userId, mapping.DisplayName, category.Id, now, ct);
         return await ToOverrideDtoAsync(mapping, userId, ct);
     }
 
@@ -199,19 +207,25 @@ public class QrTransferService : IQrTransferService
     private async Task UpsertOverrideAsync(Guid userId, string bin, string account, string? name, Guid categoryId, DateTimeOffset now, CancellationToken ct)
     {
         var existing = await _repository.GetOverrideAsync(userId, bin, account, ct);
+        string? displayName;
         if (existing is null)
         {
             await _repository.AddOverrideAsync(new CounterpartyCategoryOverride
             {
                 UserId = userId, BankBin = bin, AccountNumber = account, DisplayName = name, CategoryId = categoryId, CreatedAt = now, UpdatedAt = now,
             }, ct);
-            return;
+            displayName = name;
+        }
+        else
+        {
+            existing.CategoryId = categoryId;
+            existing.DisplayName = name ?? existing.DisplayName;
+            existing.UpdatedAt = now;
+            await _repository.UpdateOverrideAsync(existing, ct);
+            displayName = existing.DisplayName;
         }
 
-        existing.CategoryId = categoryId;
-        existing.DisplayName = name ?? existing.DisplayName;
-        existing.UpdatedAt = now;
-        await _repository.UpdateOverrideAsync(existing, ct);
+        await CounterpartyMerchantSync.UpsertAsync(_merchantCategoryOverrides, _logger, userId, displayName, categoryId, now, ct);
     }
 
     private async Task<CounterpartyOverrideDto> ToOverrideDtoAsync(CounterpartyCategoryOverride mapping, Guid userId, CancellationToken ct)

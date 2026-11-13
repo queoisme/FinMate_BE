@@ -2,22 +2,22 @@
   {
     "provider_key": "mb_bank",
     "package_name": "com.mbmobile",
-    "pattern_name": "mb_qr_v1",
+    "pattern_name": "mb_qr_v2",
     "transaction_type": null,
-    "priority": 10,
-    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*\\|\\s*ND:\\s*(?:TT|THANH TOAN)\\s+QR\\s+(?P<merchant>.+?)\\s*$",
+    "priority": 1,
+    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND(?:\\s*\\|\\s*(?:TU|DEN):\\s*[^|]*)?\\s*\\|\\s*ND:\\s*(?:TT|THANH TOAN)\\s+QR\\s+(?P<merchant>.+?)\\s*$",
     "sample_text": "TK 0123456789|GD: -75,000VND 09/09/2026 10:28|SD: 2,500,000VND|ND: TT QR HIGHLANDS COFFEE",
-    "notes": "Template quét QR — có tên đơn vị bán, ưu tiên trước template tổng quát."
+    "notes": "v2 (§16.7): thêm đoạn |TU:|DEN: (người gửi/nhận) tuỳ chọn giữa SD: và ND: — không phải mọi thông báo MB đều có. mb_qr_v1 đã seed sẵn (insert-only, không ghi đè) nên phải đổi tên pattern mới có hiệu lực; priority=1 (thấp hơn mb_qr_v1=10 VÀ mb_generic_v1/v2) để thắng tie-break theo (priority, pattern_name) — nếu để cùng priority 10, 'mb_qr_v1' < 'mb_qr_v2' theo alphabet thì v1 vẫn được thử trước và thắng vì regex cũ vẫn match được (chỉ bẩn hơn), khiến bản sửa im lặng vô hiệu."
   },
   {
     "provider_key": "mb_bank",
     "package_name": "com.mbmobile",
-    "pattern_name": "mb_generic_v1",
+    "pattern_name": "mb_generic_v2",
     "transaction_type": null,
-    "priority": 20,
-    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*\\|\\s*ND:\\s*(?P<description>.+?)\\s*$",
+    "priority": 2,
+    "regex": "TK\\s*(?P<account>[\\dx*]+)\\s*\\|\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*\\|\\s*SD:\\s*(?P<balance>[\\d.,]+)\\s*VND(?:\\s*\\|\\s*(?:TU|DEN):\\s*[^|]*)?\\s*\\|\\s*ND:\\s*(?P<description>.+?)\\s*$",
     "sample_text": "TK 0123456789|GD: +15,000,000VND 05/09/2026 08:00|SD: 17,500,000VND|ND: CONG TY ABC TRA LUONG THANG 8",
-    "notes": "Template chung cho chuyển khoản / nhận lương — ND là văn bản tự do."
+    "notes": "v2 (§16.7): thêm đoạn |TU:|DEN: tuỳ chọn giữa SD: và ND:. priority=2 (sau mb_qr_v2=1, trước mb_generic_v1=20 VÀ mb_qr_v1=10) để pattern QR hẹp vẫn được thử trước pattern chung rộng, đồng thời thắng tie-break với các bản v1 đã seed sẵn vì cùng lý do với mb_qr_v2."
   },
   {
     "provider_key": "vietcombank",
@@ -108,5 +108,15 @@
     "regex": "Agribank:\\s*(?P<occurred_at>\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4})\\s*Tai khoan\\s*(?P<account>[\\w*.]*)\\s*(?P<sign>[-+])\\s*(?P<amount>[\\d.,]+)\\s*VND\\.?\\s*Noi dung giao dich:\\s*(?P<description>.+?)\\.?(?:\\s*So du cuoi:\\s*(?P<balance>[\\d.,]+)\\s*VND)?\\s*$",
     "sample_text": "Agribank: 16:17 22/06/2026 Tài khoản 1234xxxx5678 +5,000,000VND. Nội dung giao dịch: MB(641035)(NGUYEN VAN A chuyen tien). Số dư cuối: 80,136,010VND",
     "notes": "Dựng từ ảnh thông báo trên mạng, CHƯA đối chiếu với thông báo thật trên Android. Dấu +/- suy chiều tiền; nhánh tiền ra là phỏng đoán. Package com.vnpay.Agribank3g chưa kiểm chứng trên máy thật."
+  },
+  {
+    "provider_key": "vietinbank",
+    "package_name": "com.vietinbank.ipay",
+    "pattern_name": "vietinbank_v3",
+    "transaction_type": null,
+    "priority": 5,
+    "regex": "VietinBank:\\s*(?P<occurred_at>\\d{1,2}/\\d{1,2}/\\d{2,4}\\s+\\d{1,2}:\\d{2})\\s*TK:\\s*(?P<account>[\\dx*]+)\\s*GD:\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*SDC:\\s*(?P<balance>[\\d.,]+)\\s*VND\\s*ND:\\s*(?:CT\\s+(?:DI|DEN):\\s*[0-9A-Za-z]+\\s+)?(?:QR\\s*-\\s*)?(?P<merchant>.+?)\\s*$",
+    "sample_text": "VietinBank:08/10/2026 11:08 TK:107876452515 GD:-5,000 VND SDC:2,860,075 VND ND:CT DI:628111031960 LE XUAN THO Chuyen tien; tai iPay",
+    "notes": "v3 (§16.8): v1 chỉ lọc tiền tố 'CT DI:<digits>' số thuần; thông báo thật còn có tham chiếu alphanumeric + 'QR - ' (quét QR) và 'CT DEN:' (credit) mà v1 không bắt. seed_patterns.py chỉ THÊM theo khoá (package_name, pattern_name), không bao giờ ghi đè — v1 đã seed sẵn nên sửa JSON suông vô nghĩa, phải đổi tên pattern mới. Bài học thật từ chính đợt sửa này: bản 'v2' ban đầu CŨNG dính chính lỗi này lần 2 — seed xong 1 lần với priority=10 (bằng v1) rồi mới hạ priority=5 trong JSON, nhưng vì key (package_name, pattern_name) đã tồn tại nên lần rebuild sau seeder bỏ qua, priority mới không bao giờ tới DB → phải đổi tên tiếp thành v3 mới áp được priority=5 đúng ngay từ lần seed đầu. priority thấp hơn v1=10 LÀ BẮT BUỘC chứ không phải tuỳ chọn: nếu bằng nhau, tie-break theo pattern_name alphabet khiến bản cũ luôn thắng vì regex cũ vẫn match được (chỉ bẩn hơn, không fail). Biết còn 1 mẫu cũ (credit không có tiền tố CT DI/DEN) vẫn giữ nguyên tham chiếu trong merchant — residual gap đã biết, không xử lý trong đợt này."
   }
 ]

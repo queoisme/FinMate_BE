@@ -64,4 +64,31 @@ public interface ITransactionRepository
         TimeSpan window,
         Guid? exceptClientRequestId = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Quyết định trùng nghiệp vụ THẬT (§5.5) — khác <see cref="FindPossibleDuplicateAsync"/> (chỉ
+    /// cảnh báo, không bao giờ chặn, chỉ xét Debit, lọc theo UserId). Lọc theo FinancialAccountId +
+    /// AmountCents + TransactionType + TransactedAt trong 1 cửa sổ ngắn, xét cả Debit và Credit.
+    /// </summary>
+    Task<bool> HasAuthoritativeDuplicateAsync(
+        Guid financialAccountId,
+        long amountCents,
+        TransactionType transactionType,
+        DateTimeOffset at,
+        TimeSpan window,
+        Guid? excludeTransactionId = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Vế đối ứng của 1 lần chuyển tiền nội bộ cùng user (§16.3): cùng số tiền, chiều ngược,
+    /// ví khác, trong cửa sổ, và CÒN đang Draft (v1 không merge vào giao dịch đã Confirmed).
+    /// </summary>
+    Task<Transaction?> FindMergeCandidateAsync(
+        Guid userId,
+        long amountCents,
+        TransactionType oppositeType,
+        Guid excludeFinancialAccountId,
+        DateTimeOffset at,
+        TimeSpan window,
+        CancellationToken ct = default);
 }

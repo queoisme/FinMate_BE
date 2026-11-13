@@ -20,6 +20,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Sync).NotNull().SetValidator(new SyncValidator());
         RuleFor(x => x.Theme).NotNull().SetValidator(new ThemeValidator());
         RuleFor(x => x.QrTransfer).NotNull().SetValidator(new QrTransferValidator());
+        RuleFor(x => x.NotificationPipeline).NotNull().SetValidator(new NotificationPipelineValidator());
         RuleFor(x => x.FinanceMethods).NotNull().SetValidator(new FinanceMethodValidator());
         RuleFor(x => x.Forecast).NotNull().SetValidator(new ForecastValidator());
         RuleFor(x => x.Groups).NotNull().SetValidator(new GroupValidator());
@@ -248,6 +249,17 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
                 .WithName(nameof(QrTransferSettings.DefaultMessage)).WithMessage("Nội dung mặc định dài hơn độ dài tối đa cho phép.");
             RuleFor(x => x.DeeplinkHost).Must(h => Host.IsMatch(h)).WithMessage("Máy chủ chuyển tiếp phải là tên miền (vd dl.vietqr.io), không kèm https://, cổng hay đường dẫn.");
             RuleFor(x => x.DeeplinkReturnUrl).Must(url => url.Length <= 500 && IsHttps(url)).WithMessage("Liên kết quay về phải là địa chỉ https (tối đa 500 ký tự).");
+        }
+    }
+
+    private sealed class NotificationPipelineValidator : AbstractValidator<NotificationPipelineSettings>
+    {
+        public NotificationPipelineValidator()
+        {
+            RuleFor(x => x.BusinessDuplicateWindowMinutes).InclusiveBetween(1, 60)
+                .WithMessage("Cửa sổ xét trùng nghiệp vụ phải từ 1 đến 60 phút.");
+            RuleFor(x => x.SelfTransferMergeWindowMinutes).InclusiveBetween(1, 60)
+                .WithMessage("Cửa sổ gộp chuyển khoản nội bộ phải từ 1 đến 60 phút.");
         }
     }
 

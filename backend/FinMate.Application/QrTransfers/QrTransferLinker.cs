@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.QrTransfers;
 
@@ -26,11 +27,19 @@ public class QrTransferLinker : IQrTransferLinker
 {
     private readonly IQrTransferRepository _repository;
     private readonly ISystemConfigProvider _config;
+    private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
+    private readonly ILogger<QrTransferLinker> _logger;
 
-    public QrTransferLinker(IQrTransferRepository repository, ISystemConfigProvider config)
+    public QrTransferLinker(
+        IQrTransferRepository repository,
+        ISystemConfigProvider config,
+        IMerchantCategoryOverrideRepository merchantCategoryOverrides,
+        ILogger<QrTransferLinker> logger)
     {
         _repository = repository;
         _config = config;
+        _merchantCategoryOverrides = merchantCategoryOverrides;
+        _logger = logger;
     }
 
     public async Task<QrTransferIntent?> FindMatchAsync(Guid userId, string packageName, DateTimeOffset receivedAt, long amountCents, CancellationToken ct = default)
@@ -80,11 +89,14 @@ public class QrTransferLinker : IQrTransferLinker
                 CreatedAt = now,
                 UpdatedAt = now,
             }, ct);
-            return;
+        }
+        else
+        {
+            existing.CategoryId = categoryId;
+            existing.UpdatedAt = now;
+            await _repository.UpdateOverrideAsync(existing, ct);
         }
 
-        existing.CategoryId = categoryId;
-        existing.UpdatedAt = now;
-        await _repository.UpdateOverrideAsync(existing, ct);
+        await CounterpartyMerchantSync.UpsertAsync(_merchantCategoryOverrides, _logger, userId, intent.ReceiverName, categoryId, now, ct);
     }
 }

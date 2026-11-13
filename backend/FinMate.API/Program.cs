@@ -414,6 +414,8 @@ public class Program
         builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
         builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
         builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+        builder.Services.AddScoped<ITransactionConfirmationEffects, TransactionConfirmationEffects>();
+        builder.Services.AddScoped<IMerchantCategoryOverrideRepository, MerchantCategoryOverrideRepository>();
         builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
         builder.Services.AddScoped<IBudgetPeriodService, BudgetPeriodService>();
         builder.Services.AddScoped<IBudgetAlertNotifier, BudgetAlertNotifier>();
