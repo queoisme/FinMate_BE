@@ -100,7 +100,7 @@ public class ForecastAccuracyService(
             try
             {
                 var included = (await accounts.GetListByUserAsync(group.Key, ct)).Where(a => a.IncludeInForecast).Select(a => a.Id).ToHashSet();
-                var transactions = await data.GetTransactionsAsync(group.Key, group.Min(s => s.OriginDate), group.Max(s => s.HorizonDate), ct);
+                var transactions = await data.GetRawTransactionsAsync(group.Key, group.Min(s => s.OriginDate), group.Max(s => s.HorizonDate), ct);
                 var now = DateTimeOffset.UtcNow;
                 foreach (var s in group)
                 {

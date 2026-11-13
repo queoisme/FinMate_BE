@@ -55,12 +55,14 @@ public sealed class RefundLedger : IRefundLedger
     private readonly ITransactionRepository _transactions;
     private readonly IBudgetPeriodService _budgets;
     private readonly IGroupLedger? _groupLedger;
+    private readonly IRefundFollowUps? _followUps;
 
-    public RefundLedger(ITransactionRepository transactions, IBudgetPeriodService budgets, IGroupLedger? groupLedger = null)
+    public RefundLedger(ITransactionRepository transactions, IBudgetPeriodService budgets, IGroupLedger? groupLedger = null, IRefundFollowUps? followUps = null)
     {
         _transactions = transactions;
         _budgets = budgets;
         _groupLedger = groupLedger;
+        _followUps = followUps;
     }
 
     public async Task<RefundEffects> AttachAsync(
@@ -103,6 +105,11 @@ public sealed class RefundLedger : IRefundLedger
         if (relation == TransactionRelation.Reversal)
         {
             snapshots.Add(snapshotOriginal);   // D1/R4: hoàn tác khoản gốc ở kỳ CỦA NÓ
+        }
+
+        if (_followUps is not null)
+        {
+            await _followUps.OnRefundedAsync(userId, original, alreadyRefunded + refund.AmountCents, ct);   // R1, R2
         }
 
         return await RecomputeAsync(userId, [refund, original], snapshots, ct);
