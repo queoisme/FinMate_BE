@@ -71,9 +71,11 @@ public class NotificationLogRepository : INotificationLogRepository
 
         var rows = await (from r in _context.AiResults.AsNoTracking()
                           join l in _context.NotificationLogs on r.NotificationLogId equals l.Id
-                          where l.UserId == userId && notificationLogIds.Contains(r.NotificationLogId) && r.RelationHint != null
+                          where l.UserId == userId && notificationLogIds.Contains(r.NotificationLogId)
+                                && (r.RelationHint == NotificationRelationHint.Refund || r.RelationHint == NotificationRelationHint.Reversal)
                           select new { r.NotificationLogId, r.RelationHint })
             .ToListAsync(ct);
-        return rows.GroupBy(r => r.NotificationLogId).ToDictionary(g => g.Key, g => g.First().RelationHint!.Value);
+        // Chỉ hoàn/đảo: gợi ý chuyển ví (Phase 83) đi đường riêng, không phải khoản chi gốc để liên kết.
+        return rows.GroupBy(r => r.NotificationLogId).ToDictionary(g => g.Key, g => g.First().RelationHint.AsRefundRelation()!.Value);
     }
 }

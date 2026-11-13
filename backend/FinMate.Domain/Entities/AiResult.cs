@@ -25,8 +25,14 @@ public class AiResult
     public bool IsPotentialDuplicate { get; set; }
     public Guid? DuplicateRequestId { get; set; }
 
-    /// <summary>Gợi ý của AI rằng thông báo là hoàn tiền hay đảo giao dịch (<c>refund</c>/<c>reversal</c>). Chỉ để gợi ý liên kết, không bao giờ tự liên kết.</summary>
-    public TransactionRelation? RelationHint { get; set; }
+    /// <summary>
+    /// Gợi ý của AI: hoàn tiền, đảo giao dịch (chỉ tiền vào, Phase 81) hay chuyển giữa các ví của chính người dùng (cả hai chiều, Phase 83).
+    /// Chỉ để gợi ý, không bao giờ tự liên kết hay tự chuyển đổi.
+    /// </summary>
+    public NotificationRelationHint? RelationHint { get; set; }
+
+    /// <summary>Loại chuyển ví khi <see cref="RelationHint"/> là <c>Transfer</c>.</summary>
+    public TransferKind? TransferKind { get; set; }
 
     public string? ClassifierVersion { get; set; }
     public string? ExtractorVersion { get; set; }

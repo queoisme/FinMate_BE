@@ -69,12 +69,10 @@ public class RetryFailedNotificationJob
                     ExtractorVersion = response.ModelVersions?.Extractor,
                     CategorizerVersion = response.ModelVersions?.Categorizer,
                     ProcessingMs = response.ProcessingMs,
-                    // Phase 81: như đường chính; job không gửi push, nháp dựng gợi ý khoản chi gốc khi app đọc nó.
-                    RelationHint = ParseTransactionType(response.Extraction?.TransactionType) == TransactionType.Credit
-                        ? Application.Transactions.Refunds.IRefundSuggestions.Parse(response.Extraction?.RelationHint)
-                        : null,
                     CreatedAt = DateTimeOffset.UtcNow,
                 };
+                // Phase 81/83: như đường chính; job không gửi push, nháp dựng gợi ý khi app đọc nó.
+                (aiResult.RelationHint, aiResult.TransferKind) = Application.Notifications.NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
                 await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
                 // Phase 82: như đường chính, cờ trùng của AI không còn làm mất thông báo; job không gửi push, nháp nghi trùng chờ trong tab Chờ duyệt.

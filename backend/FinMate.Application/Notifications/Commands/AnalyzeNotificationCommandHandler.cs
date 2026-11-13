@@ -146,12 +146,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             ExtractorVersion = response.ModelVersions?.Extractor,
             CategorizerVersion = response.ModelVersions?.Categorizer,
             ProcessingMs = response.ProcessingMs,
-            // Phase 81: chỉ có nghĩa với tiền vào; lưu để dựng lại gợi ý khi app mở nháp sau này.
-            RelationHint = ParseTransactionType(response.Extraction?.TransactionType) == TransactionType.Credit
-                ? Transactions.Refunds.IRefundSuggestions.Parse(response.Extraction?.RelationHint)
-                : null,
             CreatedAt = now,
         };
+        // Phase 81/83: hoàn/đảo chỉ với tiền vào, chuyển ví với cả hai chiều; lưu để dựng lại gợi ý khi app mở nháp sau này.
+        (aiResult.RelationHint, aiResult.TransferKind) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
         var outcome = pipelineResult == PipelineResult.Financial
@@ -169,7 +167,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             log.Id,
             log.Status.ToString(),
             outcome.Draft?.Id,
-            outcome.Draft is null ? null : aiResult.RelationHint?.ToString(),
+            outcome.Draft is null ? null : aiResult.RelationHint.AsRefundRelation()?.ToString(),
             outcome.Suggestions,
             outcome.SameEventId ?? outcome.Draft?.DuplicateOfTransactionId);
     }
@@ -240,7 +238,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
 
         // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
         IReadOnlyList<RefundSuggestionDto>? suggestions = null;
-        if (aiResult.RelationHint is { } hint && _refundSuggestions is not null)
+        if (aiResult.RelationHint.AsRefundRelation() is { } hint && _refundSuggestions is not null)
         {
             transaction.FinancialAccount = account;
             suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
@@ -251,7 +249,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             transaction,
             category?.Name,
             TransactionReviewPushBuilder.ReviewConfidence(aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
-            aiResult.RelationHint,
+            aiResult.RelationHint.AsRefundRelation(),
             suggestions?.Count ?? 0,
             duplicates.Candidates.Count(c => c.MarksSuspected));
 

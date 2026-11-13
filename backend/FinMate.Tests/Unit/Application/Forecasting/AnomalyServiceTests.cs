@@ -119,4 +119,37 @@ public class AnomalyServiceTests
         await _service.Invoking(s => s.SetFeedbackAsync(UserId, Guid.NewGuid(), "maybe")).Should().ThrowAsync<ValidationException>();
         await _service.Invoking(s => s.SetFeedbackAsync(UserId, Guid.NewGuid(), "normal")).Should().ThrowAsync<NotFoundException>();
     }
+
+    [Theory]
+    [InlineData(AnomalyResolution.Refunded, "refunded")]
+    [InlineData(AnomalyResolution.Reversed, "reversed")]
+    [InlineData(AnomalyResolution.Transfer, "transfer")]
+    public async Task ListingShowsAnomaliesTheSystemClosed(AnomalyResolution resolution, string text)
+    {
+        // Lý do hệ thống tự đóng (Phase 81, 83) không có trong bảng phản hồi của client; trước đây liệt kê chúng ném InvalidOperationException.
+        var closed = new TransactionAnomaly
+        {
+            Id = Guid.NewGuid(), UserId = UserId, TransactionId = Guid.NewGuid(), Kind = AnomalyKind.Duplicate, Severity = AnomalySeverity.High,
+            AmountCents = 300_000, TypicalCents = 300_000, RatioPercent = 100, Resolution = resolution, ResolvedAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _anomalies.Setup(a => a.ListAsync(UserId, false, null, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionAnomalyPage([closed], null));
+
+        var page = await _service.ListAsync(UserId, openOnly: false, cursor: null, limit: 20);
+
+        page.Items.Should().ContainSingle().Which.Resolution.Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData("refunded")]
+    [InlineData("reversed")]
+    [InlineData("transfer")]
+    public async Task ClientsCannotSendASystemReason(string resolution)
+    {
+        var act = () => _service.SetFeedbackAsync(UserId, Guid.NewGuid(), resolution);
+
+        await act.Should().ThrowAsync<FluentValidation.ValidationException>();
+    }
 }
+

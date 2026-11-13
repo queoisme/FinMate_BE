@@ -20,4 +20,7 @@ public enum AnomalyResolution
 
     /// <summary>Hệ thống tự đóng: khoản chi đã bị đảo. Client không gửi được giá trị này.</summary>
     Reversed,
+
+    /// <summary>Phase 83: giao dịch được chuyển thành Transfer giữa hai ví của chính người dùng. Chỉ hệ thống đặt.</summary>
+    Transfer,
 }

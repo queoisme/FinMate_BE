@@ -82,6 +82,12 @@ public class Transaction
     /// </summary>
     public string[]? MergedSources { get; set; }
 
+    /// <summary>
+    /// Người dùng đã nói "không phải chuyển ví" (Phase 83, BR-TRF-12, S2): chỉ tắt GỢI Ý chuyển ví có dính giao dịch này. Chuyển đổi tay vẫn được,
+    /// và chuyển đổi thành công thì cột này được xoá.
+    /// </summary>
+    public DateTimeOffset? TransferDismissedAt { get; set; }
+
     /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
     public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

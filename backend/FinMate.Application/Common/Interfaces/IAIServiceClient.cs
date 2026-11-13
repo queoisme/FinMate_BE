@@ -23,7 +23,8 @@ public record ExtractionResult(
     DateTimeOffset? TransactedAt,
     long? BalanceAfterCents,
     double? Confidence,
-    string? RelationHint = null);   // Phase 81: "refund" | "reversal" | null — chỉ để GỢI Ý liên kết
+    string? RelationHint = null,    // Phase 81: "refund" | "reversal"; Phase 83: "transfer" — chỉ để GỢI Ý
+    string? TransferKind = null);   // Phase 83: atm_withdrawal | atm_deposit | wallet_topup | wallet_withdrawal | own_account
 
 public record CategorizationResult(string? CategorySlug, double? Confidence);
 

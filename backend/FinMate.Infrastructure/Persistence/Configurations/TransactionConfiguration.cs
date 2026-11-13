@@ -153,6 +153,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             .HasMaxLength(20);
         builder.Property(t => t.MergedIntoTransactionId).HasColumnName("merged_into_transaction_id");
         builder.Property(t => t.MergedSources).HasColumnName("merged_sources");
+        builder.Property(t => t.TransferDismissedAt).HasColumnName("transfer_dismissed_at");
 
         // NO ACTION, cùng lý do với related_transaction_id: xoá cứng user xoá cả chuỗi trong một câu lệnh.
         builder.HasOne(t => t.DuplicateOf)
