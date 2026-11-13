@@ -23,7 +23,8 @@ public sealed class RepositoryFinancialDataSource(
         var points = await reports.GetDailySpendAsync(userId, from, to, ct);
         var byMonth = points
             .GroupBy(p => new DateOnly(p.Date.Year, p.Date.Month, 1))
-            .ToDictionary(g => g.Key, g => (Income: g.Sum(p => p.IncomeCents), Spend: g.Sum(p => p.SpentCents)));
+            // Chi ròng (Phase 81): một tháng chỉ có hoàn cho món mua tháng trước không thành "chi âm" (D3); thu không gồm hoàn.
+            .ToDictionary(g => g.Key, g => (Income: g.Sum(p => p.IncomeCents), Spend: Math.Max(0, g.Sum(p => p.SpentCents))));
 
         var income = new List<long>();
         var spend = new List<long>();
