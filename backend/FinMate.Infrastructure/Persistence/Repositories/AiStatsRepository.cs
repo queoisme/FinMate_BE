@@ -105,6 +105,62 @@ public class AiStatsRepository : IAiStatsRepository
             totals?.AvgExtraction,
             totals?.AvgCategorization,
             totals?.AvgProcessing,
-            totals?.MaxProcessing);
+            totals?.MaxProcessing,
+            await GetDuplicateOutcomesAsync(from, to, ct));
     }
+
+    /// <summary>
+    /// Phase 82: luồng bản trùng có làm đúng việc không, theo cặp nguồn. Chỉ trả số đếm gộp: không id, không user, không số tiền.
+    /// Bản được trỏ tới hay survivor có thể đã xoá mềm, nên đọc chúng bỏ qua bộ lọc xoá mềm.
+    /// </summary>
+    private async Task<DuplicateOutcomeStats> GetDuplicateOutcomesAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    {
+        var linked = await _context.Transactions
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(t => t.DuplicateStatus != null && t.DeletedAt == null && t.CreatedAt >= from && t.CreatedAt < to)
+            .Join(_context.Transactions.IgnoreQueryFilters(), t => t.DuplicateOfTransactionId, d => (Guid?)d.Id,
+                (t, d) => new { A = t.Source, B = d.Source, t.DuplicateStatus })
+            .GroupBy(x => new { x.A, x.B, x.DuplicateStatus })
+            .Select(g => new { g.Key.A, g.Key.B, g.Key.DuplicateStatus, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var merged = await _context.Transactions
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(t => t.MergedIntoTransactionId != null && t.DeletedAt >= from && t.DeletedAt < to)
+            .Join(_context.Transactions.IgnoreQueryFilters(), t => t.MergedIntoTransactionId, s => (Guid?)s.Id,
+                (t, s) => new { A = t.Source, B = s.Source })
+            .GroupBy(x => new { x.A, x.B })
+            .Select(g => new { g.Key.A, g.Key.B, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var dropped = await _context.NotificationLogs
+            .AsNoTracking()
+            .CountAsync(l => l.Status == NotificationLogStatus.Duplicate && l.CreatedAt >= from && l.CreatedAt < to, ct);
+
+        var byPair = new Dictionary<string, DuplicatePairCounts>();
+        void Add(TransactionSource a, TransactionSource b, int suspected, int dismissed, int mergedCount)
+        {
+            var key = PairKey(a, b);
+            var current = byPair.GetValueOrDefault(key) ?? new DuplicatePairCounts(0, 0, 0);
+            byPair[key] = new DuplicatePairCounts(current.Suspected + suspected, current.Dismissed + dismissed, current.Merged + mergedCount);
+        }
+
+        foreach (var row in linked)
+        {
+            var suspected = row.DuplicateStatus == DuplicateStatus.Suspected ? row.Count : 0;
+            Add(row.A, row.B, suspected, row.Count - suspected, 0);
+        }
+
+        foreach (var row in merged)
+        {
+            Add(row.A, row.B, 0, 0, row.Count);
+        }
+
+        return new DuplicateOutcomeStats(byPair, dropped);
+    }
+
+    private static string PairKey(TransactionSource a, TransactionSource b)
+        => string.Join('+', new[] { a, b }.Select(s => s.ToString().ToLowerInvariant()).Order(StringComparer.Ordinal));
 }

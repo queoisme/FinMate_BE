@@ -68,7 +68,8 @@ public class GetAiStatsQueryHandler : IGetAiStatsQueryHandler
         stats.AvgExtractionConfidence,
         stats.AvgCategorizationConfidence,
         stats.AvgProcessingMs,
-        stats.MaxProcessingMs);
+        stats.MaxProcessingMs,
+        stats.Duplicates);
 
     /// <summary>null khi chưa có mẫu nào — "chưa biết" không phải là 0%.</summary>
     private static double? Rate(int numerator, int denominator)

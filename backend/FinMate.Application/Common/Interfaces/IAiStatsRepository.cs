@@ -22,7 +22,18 @@ public record AiProductionStats(
     double? AvgExtractionConfidence,
     double? AvgCategorizationConfidence,
     double? AvgProcessingMs,
-    int? MaxProcessingMs);
+    int? MaxProcessingMs,
+    DuplicateOutcomeStats? Duplicates = null);
+
+/// <summary>Số lượng của một cặp nguồn (Phase 82). Chỉ là số đếm: không id, không số tiền, không gì theo user.</summary>
+public record DuplicatePairCounts(int Suspected, int Dismissed, int Merged);
+
+/// <param name="ByPair">
+/// Khoá = hai nguồn chữ thường, sắp theo bảng chữ cái, nối bằng <c>+</c> (vd <c>manual+notification</c>). <c>Suspected</c>/<c>Dismissed</c> đếm theo
+/// trạng thái HIỆN TẠI của các giao dịch tạo trong kỳ; <c>Merged</c> đếm bản bị gộp có thời điểm gộp trong kỳ.
+/// </param>
+/// <param name="SameEventDropped">Thông báo bị bỏ vì là cùng một sự kiện ngân hàng gửi lại (log <c>duplicate</c>, BR-DUP-05).</param>
+public record DuplicateOutcomeStats(IReadOnlyDictionary<string, DuplicatePairCounts> ByPair, int SameEventDropped);
 
 public interface IAiStatsRepository
 {
