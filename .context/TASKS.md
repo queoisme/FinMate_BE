@@ -1548,3 +1548,26 @@ Nhánh `feat/linked-duplicates` (từ `main` sau PR #30). Kế hoạch và D0–
   - Bản nháp chat và kết quả quét hoá đơn (cả từng nhóm, từng đơn) thêm `suggestedDuplicates`; `possibleDuplicateTransactionId` giữ nguyên cho app cũ. Chat có thông báo ngân hàng khớp thì không tự lưu (`action = confirm`).
   - Giao dịch đã gộp trả 404 khi mở lại: dùng giao dịch giữ lại trong response của merge.
   - Lỗi mới: 422 `MERGE_NOT_ALLOWED` (lý do trong message), 422 `NOT_SUSPECTED_DUPLICATE`.
+
+## Phase 83 — Ghép cặp chuyển tiền giữa các ví của chính mình (2026-11-13 → 2026-11-14)
+Nhánh `feat/self-transfer-pairing` (từ `main` sau PR #31). Kế hoạch, D1–D22 và S1–S6: `docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`. API cho app: `docs/transactions-transfer-pairing-api.md`. Báo cáo: `docs/reports/2026-11-14-phase83-self-transfer-pairing-report.md`.
+- [x] ai-service: `relation_hint = transfer` cả hai chiều + `transfer_kind` (5 loại), nhóm loại trừ (nạp điện thoại, VETC, hoá đơn…), cụm dài nhất quyết loại, hoàn tiền thắng chuyển ví; alembic `0038`.
+- [x] Migration `AddSelfTransferPairing`: `ai_results.transfer_kind` + CHECK `relation_hint` có `transfer`; `transactions.transfer_dismissed_at`; lý do đóng bất thường `transfer`; bảng `transaction_merge_snapshots`.
+- [x] Cấu hình `transfers` (cửa sổ 30 phút, lệch giờ 2 phút, phí ≤ 20.000đ và ≤ 2%, bí danh ví) và `snapshots.retentionDays` (365).
+- [x] `TransferMatcher` (gợi ý, chỉ khi có tín hiệu) và `TransferConversion` (bất biến số dư cho mọi tổ hợp nháp/đã xác nhận).
+- [x] `POST /transactions/{id}/convert-to-transfer`, `/not-transfer`, hai `/preview`; push `review_transfer`; `transferSuggestion` trên giao dịch.
+- [x] Thông báo về sau một Transfer ghi tay → nghi trùng → gộp, Transfer luôn được giữ, phí thành khoản chi riêng (BR-TRF-06).
+- [x] Dự báo: chuyển khoản vượt ranh giới ví được tính vào số thực tế và bộ khoản định kỳ (chỉ tiền ra), không vào thói quen chi; hỏi "còn dùng không?" khi lần trả của khoản định kỳ thành chuyển khoản trong tập được tính (S3).
+- [x] Snapshot ở mọi đường gộp/chuyển đổi; dọn theo hạn lưu trong `NotificationBodyPurgeJob`.
+- [x] `/admin/ai-stats`: gợi ý / chấp nhận / từ chối theo loại.
+- [x] Sửa lỗi có từ Phase 81: liệt kê bất thường đã được hệ thống đóng (`refunded`/`reversed`) bị lỗi 500.
+- [x] Kịch bản (a)–(f) (`TransferScenarioTests`), test đồng thời, test tổng hợp, test dự báo.
+- [ ] Hoàn tác chuyển đổi / gộp (đã có snapshot) — §13.1.
+- [ ] Danh mục phí riêng, 4 số đuôi tài khoản — §13.4.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/convert-to-transfer` `{counterAccountId, pairedTransactionId?, clientRequestId?}` → `{transfer, fee?, warnings?}`; `POST …/convert-to-transfer/preview` và `POST …/merge/preview` → `{survivor, fee?, balanceChanges[], warnings?}`; `POST /transactions/{id}/not-transfer`.
+  - `TransactionDto` thêm `transferSuggestion` `{kind, pairedTransaction?, candidateAccounts[], feeCents?}`.
+  - Push `data.action = "review_transfer"` (kèm `transferKind`, `candidateCount`, `pairedTransactionId?`). Thứ tự: `review_duplicate` > `review_transfer` > `choose_refund_link` > `confirm_one_tap`.
+  - Rút ATM không có ví Tiền mặt → `candidateAccounts` rỗng: app mời tạo ví. `warnings: ["CASH_BALANCE_NEGATIVE"]` → nhắc kiểm tra ví Tiền mặt.
+  - Màn gộp (Phase 82) nên gọi `merge/preview` để hiện số dư trước/sau. Chuyển khoản ghi tay rồi thông báo về: dùng màn gộp như Phase 82.
+  - Lỗi mới: 422 `TRANSFER_SHARED_NOT_ALLOWED`, `TRANSFER_NOT_ALLOWED`, `TRANSFER_PAIR_MISMATCH`.

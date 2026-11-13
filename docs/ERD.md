@@ -196,6 +196,7 @@ erDiagram
 | **SurveyQuestion** | `survey_questions` |  | Câu hỏi khảo sát đầu vào (`show_if` để hỏi có điều kiện). |
 | **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. |
 | **Transaction** | `transactions` | ✓ | Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). Nguồn: thông báo, nhập tay, giọng nói, hóa đơn, chat…; trạng thái nháp / đã xác nhận; `client_request_id` chống gửi lại; cờ loại khỏi dữ liệu dự báo. |
+| **TransactionMergeSnapshot** | `transaction_merge_snapshots` | ✓ | Phase 83: ảnh chụp trạng thái trước mỗi lượt gộp / chuyển thành Transfer, để hoàn tác sau này; có hạn lưu. |
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
 | **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). |
 | **UserRoleAssignment** | `user_roles` | ✓ (PK) | Vai trò đang gán cho mỗi người: PK là `user_id` nên mỗi người đúng một vai trò; `role_id` → `roles`; `assigned_by_user_id` ghi Admin đã cấp. Xóa user kéo theo hàng này (cascade). `role_permissions.role_id` cũng trỏ tới `roles`. |
@@ -407,6 +408,7 @@ erDiagram
     users ||--o{ saving_goals : "user_id"
     users ||--o{ spending_insights : "user_id"
     users ||--o{ transaction_anomalies : "user_id"
+    users ||--o{ transaction_merge_snapshots : "user_id"
     users ||--o{ transactions : "user_id"
     transactions o|--o{ transactions : "related_transaction_id"
     transactions o|--o{ transactions : "duplicate_of_transaction_id"
@@ -810,6 +812,7 @@ Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). 
 | 26 | `duplicate_status` | varchar(20) | có |  | Phase 82: `suspected` / `dismissed`; luôn đi cùng `duplicate_of_transaction_id` |
 | 27 | `merged_into_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: survivor; chỉ có trên dòng đã xoá mềm) |
 | 28 | `merged_sources` | text[] | có |  | Phase 82: các kênh đã góp vào survivor (`notification` = ngân hàng đã xác thực) |
+| 29 | `transfer_dismissed_at` | timestamptz | có |  | Phase 83: người dùng nói "không phải chuyển ví"; chỉ tắt gợi ý, chuyển đổi tay xoá cột này |
 
 Khóa ngoại:
 - `related_transaction_id` → `transactions(id)` ON DELETE NO ACTION (kiểm ở cuối câu lệnh, nên xoá cứng cả user một lần không vướng thứ tự)
@@ -911,14 +914,16 @@ Kết quả pipeline AI cho một thông báo (1–1 với `notification_logs`):
 | 19 | `categorizer_version` | varchar(20) | có |  |  |
 | 20 | `processing_ms` | integer | có |  |  |
 | 21 | `created_at` | timestamptz |  |  |  |
-| 22 | `relation_hint` | varchar(20) | có |  | Phase 81: `refund` / `reversal`, gợi ý của AI cho khoản tiền vào |
+| 22 | `relation_hint` | varchar(20) | có |  | Phase 81: `refund` / `reversal`, gợi ý của AI cho khoản tiền vào. Phase 83: thêm `transfer` (cả hai chiều) |
+| 23 | `transfer_kind` | varchar(24) | có |  | Phase 83: `atm_withdrawal` / `atm_deposit` / `wallet_topup` / `wallet_withdrawal` / `own_account`, chỉ khi `relation_hint = transfer` |
 
 Khóa ngoại:
 - `notification_log_id` → `notification_logs(id)` ON DELETE CASCADE
 
 Ràng buộc:
 - CHECK `chk_ai_results_pipeline_result`: `pipeline_result IN ('financial', 'non_financial', 'uncertain', 'extraction_failed', 'error')`
-- CHECK `chk_ai_results_relation_hint`: `relation_hint IS NULL OR relation_hint IN ('refund','reversal')`
+- CHECK `chk_ai_results_relation_hint`: `relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')`
+- CHECK `chk_ai_results_transfer_kind`: `transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))`
 
 Index:
 - UNIQUE `uq_ai_results_notification_log_id` `(notification_log_id)`
@@ -1914,7 +1919,7 @@ Khóa ngoại:
 Ràng buộc:
 - CHECK `chk_transaction_anomalies_amounts`: `(amount_cents > 0) AND (typical_cents > 0) AND (ratio_percent > 0)`
 - CHECK `chk_transaction_anomalies_kind`: `kind IN ('category_spike', 'merchant_spike', 'duplicate')`
-- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious', 'refunded', 'reversed')` (hai giá trị cuối do hệ thống đặt khi khoản chi được hoàn đủ / bị đảo, Phase 81)
+- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious', 'refunded', 'reversed', 'transfer')` (ba giá trị cuối do hệ thống đặt: khoản chi được hoàn đủ / bị đảo, Phase 81; chuyển thành Transfer, Phase 83)
 - CHECK `chk_transaction_anomalies_resolved_at`: `(resolution IS NULL) = (resolved_at IS NULL)`
 - CHECK `chk_transaction_anomalies_severity`: `severity IN ('normal', 'high')`
 
@@ -1922,6 +1927,34 @@ Index:
 - `ix_transaction_anomalies_user_created` `(user_id, created_at DESC)`
 - `ix_transaction_anomalies_user_normal` `(user_id, category_id) WHERE resolution = 'normal'`
 - UNIQUE `uq_transaction_anomalies_transaction` `(transaction_id)`
+
+#### `transaction_merge_snapshots` (Phase 83)
+
+Ảnh chụp trạng thái TRƯỚC mỗi lượt gộp bản trùng hoặc chuyển thành Transfer, ghi trong cùng DB transaction; đủ để hoàn tác sau này. Không có FK tới
+`transactions` (là lịch sử). Xoá sau `snapshots.retentionDays` (365) bởi `NotificationBodyPurgeJob`; xoá cứng tài khoản xoá theo user.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `user_id` | uuid |  |  | FK → `users.id` |
+| 3 | `survivor_id` | uuid |  |  | Giao dịch còn lại |
+| 4 | `merged_id` | uuid | có |  | Giao dịch bị gộp; null khi đổi một chiều thành Transfer |
+| 5 | `kind` | varchar(20) |  |  | `duplicate_merge` / `transfer_pair` / `transfer_convert` |
+| 6 | `transfer_kind` | varchar(24) | có |  | Loại chuyển ví AI nhận ra (thống kê); null với gộp bản trùng hoặc ghép chỉ nhờ tên ví |
+| 7 | `before` | jsonb |  |  | Các dòng trước thao tác, thay đổi số dư từng ví, khoản phí đã tạo, tham chiếu đã chuyển hoặc gỡ |
+| 8 | `created_at` | timestamptz |  |  |  |
+
+Khóa ngoại:
+- `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc:
+- CHECK `chk_transaction_merge_snapshots_kind`: `kind IN ('duplicate_merge','transfer_pair','transfer_convert')`
+- CHECK `chk_transaction_merge_snapshots_transfer_kind`: `transfer_kind IS NULL OR transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account')`
+- CHECK `chk_transaction_merge_snapshots_before`: `jsonb_typeof(before) = 'object'`
+
+Index:
+- `ix_transaction_merge_snapshots_user_survivor` `(user_id, survivor_id)`
+- `ix_transaction_merge_snapshots_created_at` `(created_at)`
 
 #### 3.1.7 Cấu hình hệ thống
 
@@ -2527,7 +2560,8 @@ Mỗi lần gọi `/analyze`: kết quả từng bước, độ tin cậy, phiê
 | 30 | `pattern_id` | uuid | có |  | FK → `kb_provider_patterns.id` |
 | 31 | `config_versions` | jsonb | có |  |  |
 | 32 | `extra_fields` | jsonb | có |  |  |
-| 33 | `relation_hint` | varchar(16) | có |  | Phase 81 (alembic `0037`): `refund` / `reversal` cho khoản tiền vào |
+| 33 | `relation_hint` | varchar(16) | có |  | Phase 81 (alembic `0037`): `refund` / `reversal` cho khoản tiền vào; Phase 83 (alembic `0038`): thêm `transfer` |
+| 34 | `transfer_kind` | varchar(24) | có |  | Phase 83 (alembic `0038`): loại chuyển ví khi `relation_hint = transfer` |
 
 Khóa ngoại:
 - `pattern_id` → `kb_provider_patterns(id)` ON DELETE SET NULL
@@ -2537,7 +2571,8 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_ops_analyze_log_amount`: `(amount_cents IS NULL) OR (amount_cents >= 0)`
-- CHECK `chk_ops_analyze_log_relation_hint`: `(relation_hint IS NULL) OR relation_hint IN ('refund', 'reversal')`
+- CHECK `chk_ops_analyze_log_relation_hint`: `(relation_hint IS NULL) OR relation_hint IN ('refund', 'reversal', 'transfer')`
+- CHECK `chk_ops_analyze_log_transfer_kind`: `transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal', 'atm_deposit', 'wallet_topup', 'wallet_withdrawal', 'own_account'))`
 - CHECK `chk_ops_analyze_log_categorization_conf`: `(categorization_confidence IS NULL) OR ((categorization_confidence >= 0) AND (categorization_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_classifier_conf`: `(classifier_confidence IS NULL) OR ((classifier_confidence >= 0) AND (classifier_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_extra_fields`: `(extra_fields IS NULL) OR (jsonb_typeof(extra_fields) = 'object')`

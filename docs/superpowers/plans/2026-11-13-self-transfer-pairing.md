@@ -337,3 +337,24 @@ Thứ tự: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 1
   - pytest cho từng `transfer_kind`;
   - mỗi BR-TRF-01…13 có ít nhất một test (bảng BR → test thêm vào cuối kế hoạch này khi xong).
 - `dotnet ef migrations script` áp được lên DB thử; `alembic upgrade head` chạy được trên Postgres thử.
+
+## Bảng BR → test (sau khi làm)
+
+| BR / S | Test |
+|---|---|
+| BR-TRF-01 (marker, `transfer_kind`, S1) | ai-service `test_notification_vocab.py` (mỗi loại, nạp điện thoại/VETC/hoá đơn bị loại, hoàn tiền nạp ví vẫn là refund, cụm dài nhất, chiều không hợp lệ), `test_analyze_api.py::test_transfer_kind_is_returned_and_stored`; backend `AnalyzeNotificationDuplicateTests.TheAiTransferHint_IsStoredForBothDirections`, `TransferPairingSchemaTests` |
+| BR-TRF-02 (ghép hai chiều, tín hiệu) | `TransferMatcherTests` (hint một chiều, tên ví, nguyên từ, cửa sổ và lệch giờ, phí ở biên, cùng ví, xếp hạng); kịch bản (a), (d) |
+| BR-TRF-03 (một chiều) | `TransferMatcherTests.AtmWithdrawal_*`, `AtmDeposit_*`, `OtherKinds_*`; kịch bản (b) |
+| BR-TRF-04 (không đủ điều kiện) | `TransferMatcherTests.Ineligible*`, `Conversion_IgnoresADismissal_*`; `TransferConversionControllerTests.SharedIntoAGroup_*`, `SuspectedDuplicate_*` |
+| BR-TRF-05 (tính khi đọc, push) | `TransactionReviewPushBuilderTests.Transfer*`, `AnalyzeNotificationDuplicateTests.ATransferSuggestion_*`; kịch bản (a) |
+| BR-TRF-06 (thông báo sau Transfer ghi tay) | `DuplicateMatcherTests.Bank*Transfer*`, `MergePolicyTests.TheTransfer_*`, `ANotification_FitsTheTransfer*`, `TransferConversionControllerTests.ABankDebitWithAFee_MergedIntoAManualTransfer_*`; kịch bản (e) |
+| BR-TRF-07 (bất biến số dư) | `TransferConversionTests.BR_TRF_07_*` (4 tổ hợp × có/không phí), `BR_TRF_09_*`; kịch bản (a), (c) |
+| BR-TRF-08 (survivor, phí) | `TransferConversionTests.BR_TRF_08_*`, `TransferConversionControllerTests.Fee_*`; kịch bản (c) |
+| BR-TRF-09 (một chiều) | `TransferConversionTests.BR_TRF_09_*`, `TransferConversionControllerTests.AtmWithdrawal_*` |
+| BR-TRF-10 (tác động phụ, S3) | `TransferAggregatesTests` (ngân sách, `daily_summaries`, bất thường), `ForecastBoundaryTransferTests.S3_*` |
+| BR-TRF-11 (dự báo, S4) | `ForecastBoundaryTransferTests` (số thực tế, định kỳ, thói quen), `TransferAggregatesTests.CashflowStartsFromTheCountedWallets_*`; mọi test dự báo cũ pass không sửa |
+| BR-TRF-12 (không phải chuyển ví, S2) | `TransferConversionControllerTests.NotTransfer_*`, `ADismissedSuggestion_CanStillBeConvertedByHand_*`; kịch bản (f) |
+| BR-TRF-13 + phần B (snapshot, preview, S5) | `PreviewAndSnapshotTests`, `TransferConversionControllerTests.AConversion_WritesASnapshot*`, `TransferPairingSchemaTests.DeletingUser_RemovesTheirSnapshots` |
+| S6 (bỏ loại khỏi dự báo, ví Tiền mặt âm) | `TransferConversionControllerTests.ConversionClearsForecastExclusion`, `AtmDeposit_ThatTakesCashBelowZero_*` |
+| Đồng thời, idempotent | `TransferConversionControllerTests.TwoConversionsOfTheSamePairAtOnce_*`, `ConvertingAgain_*` |
+| Thống kê (D19) | `AiStatsDuplicateTests.TransferOutcomes_AreCountedByKind` |
