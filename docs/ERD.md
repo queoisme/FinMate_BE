@@ -408,6 +408,7 @@ erDiagram
     users ||--o{ spending_insights : "user_id"
     users ||--o{ transaction_anomalies : "user_id"
     users ||--o{ transactions : "user_id"
+    transactions o|--o{ transactions : "related_transaction_id"
     users ||--o{ user_methods : "user_id"
     users ||--o{ user_survey_answers : "user_id"
     users o|..o{ audit_logs : "user_id (không FK)"
@@ -612,6 +613,9 @@ erDiagram
         uuid client_request_id "nullable"
         boolean exclude_from_forecast
         varchar(20) forecast_exclusion_reason "nullable"
+        uuid related_transaction_id FK "nullable"
+        varchar(20) relation "nullable"
+        boolean is_reversed
     }
     notification_logs {
         uuid id PK
@@ -793,8 +797,12 @@ Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). 
 | 19 | `client_request_id` | uuid | có |  |  |
 | 20 | `exclude_from_forecast` | boolean |  | `false` |  |
 | 21 | `forecast_exclusion_reason` | varchar(20) | có |  |  |
+| 22 | `related_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 81: khoản chi gốc của khoản hoàn/đảo) |
+| 23 | `relation` | varchar(20) | có |  | Phase 81: `refund` / `reversal`; có giá trị thì không phải thu nhập |
+| 24 | `is_reversed` | boolean |  | `false` | Phase 81: khoản chi đã bị đảo |
 
 Khóa ngoại:
+- `related_transaction_id` → `transactions(id)` ON DELETE NO ACTION (kiểm ở cuối câu lệnh, nên xoá cứng cả user một lần không vướng thứ tự)
 - `category_id` → `categories(id)` ON DELETE SET NULL
 - `counter_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
 - `financial_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
@@ -803,6 +811,12 @@ Khóa ngoại:
 - `user_id` → `users(id)` ON DELETE CASCADE
 
 Ràng buộc:
+- CHECK `chk_transactions_relation`: `relation IS NULL OR relation IN ('refund','reversal')`
+- CHECK `chk_transactions_relation_money_in`: `relation IS NULL OR transaction_type = 'credit'`
+- CHECK `chk_transactions_related_has_relation`: `related_transaction_id IS NULL OR relation IS NOT NULL`
+- CHECK `chk_transactions_related_not_self`: `related_transaction_id IS NULL OR related_transaction_id <> id`
+- CHECK `chk_transactions_reversal_has_original`: `relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL`
+- CHECK `chk_transactions_reversed_debit`: `is_reversed = false OR transaction_type = 'debit'`
 - CHECK `chk_transactions_forecast_exclusion`: `((exclude_from_forecast = false) AND (forecast_exclusion_reason IS NULL)) OR ((exclude_from_forecast = true) AND forecast_exclusion_reason IN ('one_off', 'user_marked'))`
 - CHECK `chk_transactions_source`: `source IN ('notification', 'manual', 'voice', 'receipt')`
 - CHECK `chk_transactions_status`: `status IN ('draft', 'confirmed')`
@@ -811,6 +825,7 @@ Ràng buộc:
 
 Index:
 - UNIQUE `IX_transactions_notification_log_id` `(notification_log_id)`
+- `ix_transactions_related_transaction_id` `(related_transaction_id) WHERE related_transaction_id IS NOT NULL`
 - `IX_transactions_saving_goal_id` `(saving_goal_id)`
 - `idx_transactions_category_id` `(category_id)`
 - `idx_transactions_counter_account_id` `(counter_account_id)`
@@ -877,12 +892,14 @@ Kết quả pipeline AI cho một thông báo (1–1 với `notification_logs`):
 | 19 | `categorizer_version` | varchar(20) | có |  |  |
 | 20 | `processing_ms` | integer | có |  |  |
 | 21 | `created_at` | timestamptz |  |  |  |
+| 22 | `relation_hint` | varchar(20) | có |  | Phase 81: `refund` / `reversal`, gợi ý của AI cho khoản tiền vào |
 
 Khóa ngoại:
 - `notification_log_id` → `notification_logs(id)` ON DELETE CASCADE
 
 Ràng buộc:
 - CHECK `chk_ai_results_pipeline_result`: `pipeline_result IN ('financial', 'non_financial', 'uncertain', 'extraction_failed', 'error')`
+- CHECK `chk_ai_results_relation_hint`: `relation_hint IS NULL OR relation_hint IN ('refund','reversal')`
 
 Index:
 - UNIQUE `uq_ai_results_notification_log_id` `(notification_log_id)`
@@ -1731,6 +1748,7 @@ Tổng thu / chi theo ngày, tính sẵn bởi `DailySummaryJob`.
 | 8 | `top_category_spent_cents` | bigint |  | `0` |  |
 | 9 | `created_at` | timestamptz |  |  |  |
 | 10 | `updated_at` | timestamptz |  |  |  |
+| 11 | `total_refunded_cents` | bigint |  | `0` | Phase 81: tổng hoàn trong ngày; đã trừ khỏi `total_spent_cents` (chi ròng), không nằm trong thu |
 
 Khóa ngoại:
 - `top_category_id` → `categories(id)` ON DELETE SET NULL
@@ -1877,7 +1895,7 @@ Khóa ngoại:
 Ràng buộc:
 - CHECK `chk_transaction_anomalies_amounts`: `(amount_cents > 0) AND (typical_cents > 0) AND (ratio_percent > 0)`
 - CHECK `chk_transaction_anomalies_kind`: `kind IN ('category_spike', 'merchant_spike', 'duplicate')`
-- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious')`
+- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious', 'refunded', 'reversed')` (hai giá trị cuối do hệ thống đặt khi khoản chi được hoàn đủ / bị đảo, Phase 81)
 - CHECK `chk_transaction_anomalies_resolved_at`: `(resolution IS NULL) = (resolved_at IS NULL)`
 - CHECK `chk_transaction_anomalies_severity`: `severity IN ('normal', 'high')`
 
@@ -2490,6 +2508,7 @@ Mỗi lần gọi `/analyze`: kết quả từng bước, độ tin cậy, phiê
 | 30 | `pattern_id` | uuid | có |  | FK → `kb_provider_patterns.id` |
 | 31 | `config_versions` | jsonb | có |  |  |
 | 32 | `extra_fields` | jsonb | có |  |  |
+| 33 | `relation_hint` | varchar(16) | có |  | Phase 81 (alembic `0037`): `refund` / `reversal` cho khoản tiền vào |
 
 Khóa ngoại:
 - `pattern_id` → `kb_provider_patterns(id)` ON DELETE SET NULL
@@ -2499,6 +2518,7 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_ops_analyze_log_amount`: `(amount_cents IS NULL) OR (amount_cents >= 0)`
+- CHECK `chk_ops_analyze_log_relation_hint`: `(relation_hint IS NULL) OR relation_hint IN ('refund', 'reversal')`
 - CHECK `chk_ops_analyze_log_categorization_conf`: `(categorization_confidence IS NULL) OR ((categorization_confidence >= 0) AND (categorization_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_classifier_conf`: `(classifier_confidence IS NULL) OR ((classifier_confidence >= 0) AND (classifier_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_extra_fields`: `(extra_fields IS NULL) OR (jsonb_typeof(extra_fields) = 'object')`
