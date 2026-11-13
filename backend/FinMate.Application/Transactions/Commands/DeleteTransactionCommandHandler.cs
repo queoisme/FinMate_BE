@@ -97,6 +97,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
 
         transaction.DeletedAt = now;
         transaction.UpdatedAt = now;
+        await ReleaseSuspectedLinksAsync(command.UserId, transaction.Id, now, ct);
 
         // account và budget period (nếu có) đã tracked cùng DbContext — UpdateAsync flush
         // atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
@@ -107,6 +108,23 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         }
         await NotifyForecastAsync(command.UserId, ct);
+    }
+
+    /// <summary>
+    /// Phase 82 (BR-DUP-08): khoản đang bị nghi là trùng với giao dịch này không còn gì để trùng nữa → bỏ nghi trùng (liên kết về null) trong cùng
+    /// lượt lưu. Cặp đã bác giữ nguyên: liên kết tới một dòng đã xoá mềm không hại gì.
+    /// </summary>
+    private async Task ReleaseSuspectedLinksAsync(Guid userId, Guid deletedId, DateTimeOffset now, CancellationToken ct)
+    {
+        foreach (var linked in await _transactionRepository.ListDuplicateLinksToAsync(userId, deletedId, ct))
+        {
+            if (linked.DuplicateStatus == DuplicateStatus.Suspected)
+            {
+                linked.DuplicateOfTransactionId = null;
+                linked.DuplicateStatus = null;
+                linked.UpdatedAt = now;
+            }
+        }
     }
 
     private async Task ReleaseDraftsOrRefuseAsync(Guid userId, Domain.Entities.Transaction original, DateTimeOffset now, CancellationToken ct)

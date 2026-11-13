@@ -43,6 +43,7 @@ public class ForecastDataRepository : IForecastDataRepository
                 t.Relation,
                 t.RelatedTransactionId,
                 t.IsReversed,
+                t.DuplicateOfTransactionId,
             })
             .ToListAsync(ct);
 
@@ -50,7 +51,7 @@ public class ForecastDataRepository : IForecastDataRepository
             .Select(r => new ForecastTransaction(
                 r.Id, r.FinancialAccountId, r.CategoryId, r.AmountCents, r.TransactionType, r.TransactedAt,
                 VietnamTime.DateOf(r.TransactedAt), r.MerchantName, CounterpartyKey.From(r.MerchantName), r.ExcludeFromForecast,
-                r.Relation, r.RelatedTransactionId, r.IsReversed))
+                r.Relation, r.RelatedTransactionId, r.IsReversed, r.DuplicateOfTransactionId))
             .ToList();
     }
 }

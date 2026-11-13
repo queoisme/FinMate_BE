@@ -123,6 +123,30 @@ public class TransactionDuplicateControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task DeletingTheTransactionADraftPointsAt_ReleasesTheSuspicion()
+    {
+        var (s, chat, draft) = await SuspectedPairAsync();
+
+        (await _api.Base.SendAsync(HttpMethod.Delete, $"/api/v1/transactions/{chat}", s.Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var dto = await _api.GetAsync(s, draft);
+        dto.DuplicateStatus.Should().BeNull("BR-DUP-08: không còn gì để trùng");
+        dto.DuplicateOf.Should().BeNull();
+        (await _api.ListAsync(s, "duplicateStatus=Suspected")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeletingTheOtherHalfOfADismissedPair_KeepsTheDismissal()
+    {
+        var (s, chat, draft) = await SuspectedPairAsync();
+        await _api.NotDuplicateAsync(s, draft);
+
+        await _api.Base.SendAsync(HttpMethod.Delete, $"/api/v1/transactions/{chat}", s.Token);
+
+        (await _api.GetAsync(s, draft)).DuplicateStatus.Should().Be("Dismissed");
+    }
+
+    [Fact]
     public async Task NotDuplicate_WithoutToken_Is401()
     {
         var response = await _api.Base.Client.PostAsync($"/api/v1/transactions/{Guid.NewGuid()}/not-duplicate", null);
