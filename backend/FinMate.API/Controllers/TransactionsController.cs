@@ -258,6 +258,26 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<TransferConversionDto>.Ok(result));
     }
 
+    /// <summary>Xem trước <c>convert-to-transfer</c> (Phase 83): giao dịch còn lại, khoản phí, số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/convert-to-transfer/preview")]
+    public async Task<IActionResult> PreviewConvertToTransfer(
+        Guid id, [FromBody] ConvertToTransferRequest request, [FromServices] IConvertToTransferCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new ConvertToTransferCommand(CurrentUserId, id, request.CounterAccountId, request.PairedTransactionId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
+    /// <summary>Xem trước <c>merge</c> (Phase 83): giao dịch còn lại sau gộp và số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/merge/preview")]
+    public async Task<IActionResult> PreviewMerge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
     /// <summary>"Không phải chuyển ví" (Phase 83): tắt gợi ý cho giao dịch này và chiều đang được gợi ý ghép cùng. Gọi lại → 200.</summary>
     [HttpPost("{id:guid}/not-transfer")]
     public async Task<IActionResult> NotTransfer(Guid id, [FromServices] INotTransferCommandHandler handler, CancellationToken ct)

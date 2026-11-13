@@ -24,6 +24,9 @@ public record TransferConversionDto(TransactionDto Transfer, TransactionDto? Fee
 public interface IConvertToTransferCommandHandler
 {
     Task<TransferConversionDto> HandleAsync(ConvertToTransferCommand command, CancellationToken ct = default);
+
+    /// <summary><c>POST /transactions/{id}/convert-to-transfer/preview</c>: kết quả sẽ ra, không ghi gì. Cùng 404/422 với lệnh thật.</summary>
+    Task<TransactionPreviewDto> PreviewAsync(ConvertToTransferCommand command, CancellationToken ct = default);
 }
 
 public static class TransferWarnings
@@ -79,7 +82,21 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         _afterSave = new RefundAfterSave(budgetAlerts, cache, groupLedger, summaries, forecastAlerts);
     }
 
-    private sealed record Outcome(Transaction Transfer, Transaction? Fee, RefundEffects Effects, IReadOnlyList<SnapshotRow> Converted);
+    private sealed record Outcome(
+        Transaction Transfer, Transaction? Fee, RefundEffects Effects, IReadOnlyList<SnapshotRow> Converted, IReadOnlyDictionary<Guid, long> Deltas);
+
+    public async Task<TransactionPreviewDto> PreviewAsync(ConvertToTransferCommand command, CancellationToken ct = default)
+    {
+        var ids = command.PairedTransactionId is { } paired ? new[] { command.TransactionId, paired } : [command.TransactionId];
+        var outcome = await _transactions.RunPreviewAsync(
+            () => _transactions.RunWithTransactionsLockedAsync(command.UserId, ids, rows => ConvertLockedAsync(command, rows, ct), ct), ct);
+        var changes = await BalancePreview.ChangesAsync(_accounts, command.UserId, outcome.Deltas, ct);
+        var from = await _accounts.GetByIdAsync(outcome.Transfer.FinancialAccountId, command.UserId, ct);
+        var cashAfter = changes.FirstOrDefault(c => c.AccountId == from?.Id)?.BalanceAfterCents ?? from?.BalanceCents;
+        IReadOnlyList<string>? warnings = from?.AccountType == AccountType.Cash && cashAfter < 0 ? [TransferWarnings.CashBalanceNegative] : null;
+        return new TransactionPreviewDto(
+            TransactionMapper.ToDto(outcome.Transfer), outcome.Fee is null ? null : TransactionMapper.ToDto(outcome.Fee), changes, warnings);
+    }
 
     public async Task<TransferConversionDto> HandleAsync(ConvertToTransferCommand command, CancellationToken ct = default)
     {
@@ -176,7 +193,7 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
             new SnapshotBefore(rowsBefore, plan.BalanceDeltas, fee?.Id, ReleasedDraftRefunds: released, RepointedDuplicateLinks: repointed, ClosedAnomalies: closed),
             now));
         await SaveAsync(survivor, loser, fee, ct);
-        return new Outcome(survivor, fee, effects, rowsBefore);
+        return new Outcome(survivor, fee, effects, rowsBefore, plan.BalanceDeltas);
     }
 
     /// <summary>
@@ -318,7 +335,7 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         }
 
         var fee = await _transactions.GetByClientRequestIdAsync(command.UserId, DeterministicGuid.V5(transfer.Id, FeeKeyName), ct);
-        return new Outcome(transfer, fee, RefundEffects.None, []);
+        return new Outcome(transfer, fee, RefundEffects.None, [], new Dictionary<Guid, long>());
     }
 
     private async Task EnsureConvertibleAsync(ConvertToTransferCommand command, Transaction subject, Transaction? other, CancellationToken ct)

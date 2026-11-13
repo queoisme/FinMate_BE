@@ -342,6 +342,20 @@ public class TransactionRepository : ITransactionRepository
             .ToListAsync(ct);
     }
 
+    public async Task<T> RunPreviewAsync<T>(Func<Task<T>> work, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        try
+        {
+            return await work();
+        }
+        finally
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _context.ChangeTracker.Clear();
+        }
+    }
+
     public async Task<T> RunWithTransactionsLockedAsync<T>(
         Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default)
     {

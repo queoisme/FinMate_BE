@@ -138,6 +138,12 @@ public interface ITransactionRepository
     /// Id không thuộc user → <c>NotFoundException</c> (404). <paramref name="work"/> tự lưu; commit khi nó trả về.
     /// Thứ tự khoá CỐ ĐỊNH: các dòng giao dịch (id tăng dần) → ví (xmin) → kỳ ngân sách (xmin).
     /// </summary>
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction rồi LUÔN rollback và xoá theo dõi thay đổi (Phase 83, xem trước): cùng đường code với lệnh
+    /// thật nên kết quả xem trước không bao giờ lệch, mà không có gì được ghi. Khoá hàng mà <paramref name="work"/> lấy được nhả khi rollback.
+    /// </summary>
+    Task<T> RunPreviewAsync<T>(Func<Task<T>> work, CancellationToken ct = default);
+
     Task<T> RunWithTransactionsLockedAsync<T>(
         Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default);
 

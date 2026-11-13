@@ -41,6 +41,15 @@ public record TransferSuggestionDto(
     IReadOnlyList<TransferAccountDto> CandidateAccounts,
     long? FeeCents);
 
+/// <summary>
+/// Phase 83 (phần B): kết quả SẼ ra của một lượt gộp hoặc chuyển đổi, không ghi gì. <c>Survivor</c> là giao dịch còn lại sau thao tác, <c>Fee</c> là
+/// khoản phí sẽ tạo (nếu có), <c>BalanceChanges</c> là số dư từng ví trước và sau.
+/// </summary>
+public record TransactionPreviewDto(
+    TransactionDto Survivor, TransactionDto? Fee, IReadOnlyList<BalanceChangeDto> BalanceChanges, IReadOnlyList<string>? Warnings = null);
+
+public record BalanceChangeDto(Guid AccountId, string AccountName, long BalanceBeforeCents, long BalanceAfterCents);
+
 public record TransferPairedDto(Guid Id, long AmountCents, DateTimeOffset TransactedAt, Guid FinancialAccountId, string? FinancialAccountName);
 
 public record TransferAccountDto(Guid Id, string Name, string AccountType);
