@@ -686,6 +686,7 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundFollowUps, FinMate.Application.Transactions.Refunds.RefundFollowUps>();
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundSuggestions, FinMate.Application.Transactions.Refunds.RefundSuggestions>();
         builder.Services.AddScoped<FinMate.Application.Transactions.Duplicates.IDuplicateDetector, FinMate.Application.Transactions.Duplicates.DuplicateDetector>();
+        builder.Services.AddScoped<INotDuplicateCommandHandler, NotDuplicateCommandHandler>();
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();
         builder.Services.AddScoped<CreateRefundCommandHandler>();
         builder.Services.AddScoped<ICreateRefundCommandHandler>(sp => new RetryingCreateRefundCommandHandler(sp.GetRequiredService<CreateRefundCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));

@@ -23,7 +23,21 @@ public record TransactionDto(
     bool IsReversed = false,
     long? RefundedCents = null,
     long? RemainingRefundableCents = null,
-    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null);
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null,
+    string? DuplicateStatus = null,
+    DuplicateSummaryDto? DuplicateOf = null,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null,
+    IReadOnlyList<string>? MergedSources = null);
+
+/// <summary>
+/// Phase 82 trên mỗi giao dịch: <c>DuplicateStatus</c> (<c>Suspected</c>/<c>Dismissed</c>) và <c>DuplicateOf</c> (giao dịch nó có thể trùng)
+/// khi có liên kết; <c>SuggestedDuplicates</c> chỉ với NHÁP, tính khi đọc (tối đa 3, hạng 1 trước); <c>MergedSources</c> khi giao dịch là
+/// survivor của một lần gộp (có <c>notification</c> = ngân hàng đã xác thực). Trường nào không áp dụng thì null.
+/// </summary>
+public sealed record DuplicateView(DuplicateSummaryDto? Of, IReadOnlyList<DuplicateSummaryDto>? Suggested)
+{
+    public static readonly DuplicateView None = new(null, null);
+}
 
 /// <summary>
 /// Phase 81. Trên mỗi giao dịch: <c>Relation</c> (<c>Refund</c>/<c>Reversal</c>) và <c>RelatedTransactionId</c> khi đây là khoản hoàn/đảo;
@@ -82,7 +96,23 @@ public record ScannedReceiptDto(
     Guid? PossibleDuplicateTransactionId = null,
     bool NeedsReview = false,
     IReadOnlyList<ScannedOrder>? Orders = null,
-    int IncompleteOrders = 0);
+    int IncompleteOrders = 0,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
 
 /// <summary>Một đơn trong ảnh chụp màn hình danh sách đơn hàng; app hiện mỗi đơn một bản nháp để người dùng xác nhận từng đơn.</summary>
-public record ScannedOrder(string? MerchantName, long AmountCents, string? Description, string? CategorySlug);
+/// <param name="SuggestedDuplicates">Phase 82: giao dịch đã ghi mà đơn này có thể trùng (thường là thông báo ngân hàng).</param>
+public record ScannedOrder(
+    string? MerchantName, long AmountCents, string? Description, string? CategorySlug, IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
+
+/// <summary>
+/// Một giao dịch có thể trùng (Phase 82), đủ để app hiện cạnh bản đang xét mà không phải gọi thêm. Chỉ dữ liệu của chính user.
+/// </summary>
+/// <param name="Source">Kênh đã ghi giao dịch (<c>Notification</c>, <c>Manual</c>…), để app nói "ngân hàng báo" hay "bạn đã nhập".</param>
+public record DuplicateSummaryDto(
+    Guid Id,
+    long AmountCents,
+    DateTimeOffset TransactedAt,
+    string Source,
+    string? MerchantName,
+    string? CategoryName,
+    string? FinancialAccountName);

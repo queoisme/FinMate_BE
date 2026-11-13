@@ -17,4 +17,5 @@ public record GetTransactionListQuery(
     DateTimeOffset? ToDate,
     string? Cursor,
     int Limit,
-    TransactionRelation? Relation = null);
+    TransactionRelation? Relation = null,
+    DuplicateStatus? DuplicateStatus = null);  // Phase 82: `Suspected` = các khoản đang chờ Gộp / Không trùng

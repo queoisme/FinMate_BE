@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -19,8 +20,33 @@ public interface IDuplicateDetector
     /// <param name="aiHintLogId">Notification log mà AI Service cho là bản gốc (<c>duplicate_request_id</c>), chỉ để phân định hạng (D14).</param>
     Task<DuplicateMatch> MarkSuspectedAsync(Transaction transaction, string? packageName, Guid? aiHintLogId = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Ứng viên cho một khoản CHƯA lưu (bản nháp của chat, một lần quét hoá đơn): không đụng gì trong DB, chỉ trả danh sách để app hiện.
+    /// <see cref="DuplicateSuggestion.MarksSuspected"/> = khoản này khi lưu sẽ mang nghi trùng, nên chat không được tự lưu nó (BR-DUP-06).
+    /// </summary>
+    Task<DuplicateSuggestion> SuggestForInputAsync(DuplicateInput input, CancellationToken ct = default);
+
+    /// <summary>Mô tả các giao dịch theo id, giữ đúng thứ tự đưa vào; id không còn (đã xoá, của người khác) bị bỏ.</summary>
+    Task<IReadOnlyList<DuplicateSummaryDto>> DescribeAsync(Guid userId, IReadOnlyList<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phần nghi trùng của DTO cho một trang giao dịch (hai truy vấn cho cả trang): giao dịch mà mỗi dòng trỏ tới, và gợi ý trùng cho các NHÁP.
+    /// Khoá = id giao dịch; dòng không có gì để hiện thì không có khoá.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, DuplicateView>> ViewAsync(Guid userId, IReadOnlyCollection<Transaction> transactions, CancellationToken ct = default);
+
     /// <summary>Ứng viên tính khi đọc cho nhiều giao dịch của cùng user (một truy vấn). Khoá = id giao dịch; không có ứng viên thì không có khoá.</summary>
     Task<IReadOnlyDictionary<Guid, DuplicateMatch>> FindForManyAsync(Guid userId, IReadOnlyCollection<Transaction> transactions, CancellationToken ct = default);
+}
+
+/// <summary>Một khoản người dùng sắp ghi (chưa có trong DB). <paramref name="AccountId"/> null khi chưa chọn được ví.</summary>
+public sealed record DuplicateInput(
+    Guid UserId, TransactionSource Source, TransactionType Type, long AmountCents, DateTimeOffset At, Guid? AccountId, string? MerchantName);
+
+/// <param name="Items">Tối đa 3 ứng viên, hạng 1 trước.</param>
+public sealed record DuplicateSuggestion(IReadOnlyList<DuplicateSummaryDto> Items, bool MarksSuspected)
+{
+    public static readonly DuplicateSuggestion None = new([], false);
 }
 
 public sealed class DuplicateDetector : IDuplicateDetector
@@ -73,6 +99,78 @@ public sealed class DuplicateDetector : IDuplicateDetector
         }
 
         return match;
+    }
+
+    public async Task<DuplicateSuggestion> SuggestForInputAsync(DuplicateInput input, CancellationToken ct = default)
+    {
+        if (input.AmountCents <= 0)
+        {
+            return DuplicateSuggestion.None;
+        }
+
+        // Bản dựng tạm, không bao giờ lưu: chỉ để hỏi bộ so khớp như thể khoản này đã được ghi.
+        var probe = new Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = input.UserId,
+            FinancialAccountId = input.AccountId ?? Guid.Empty,
+            AmountCents = input.AmountCents,
+            TransactionType = input.Type,
+            Source = input.Source,
+            MerchantName = input.MerchantName,
+            TransactedAt = input.At,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var match = await MarkSuspectedAsync(probe, null, null, ct);
+        if (match.Candidates.Count == 0)
+        {
+            return DuplicateSuggestion.None;
+        }
+
+        var items = await DescribeAsync(input.UserId, match.Candidates.Select(c => c.Id).ToList(), ct);
+        return new DuplicateSuggestion(items, match.SuspectedOf is not null);
+    }
+
+    public async Task<IReadOnlyList<DuplicateSummaryDto>> DescribeAsync(Guid userId, IReadOnlyList<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var byId = (await _transactions.ListByIdsAsync(userId, ids, ct)).ToDictionary(t => t.Id);
+        return ids.Where(byId.ContainsKey).Select(id => Describe(byId[id])).ToList();
+    }
+
+    public static DuplicateSummaryDto Describe(Transaction t) => new(
+        t.Id, t.AmountCents, t.TransactedAt, t.Source.ToString(), t.MerchantName, t.Category?.Name, t.FinancialAccount?.AccountName);
+
+    public async Task<IReadOnlyDictionary<Guid, DuplicateView>> ViewAsync(
+        Guid userId, IReadOnlyCollection<Transaction> transactions, CancellationToken ct = default)
+    {
+        var drafts = transactions.Where(t => t.Status == TransactionStatus.Draft).ToList();
+        var matches = drafts.Count == 0 ? new Dictionary<Guid, DuplicateMatch>() : await FindForManyAsync(userId, drafts, ct);
+
+        var linked = transactions.Where(t => t.DuplicateOfTransactionId is not null).Select(t => t.DuplicateOfTransactionId!.Value);
+        var ids = linked.Concat(matches.Values.SelectMany(m => m.Candidates.Select(c => c.Id))).Distinct().ToList();
+        var byId = ids.Count == 0
+            ? new Dictionary<Guid, DuplicateSummaryDto>()
+            : (await _transactions.ListByIdsAsync(userId, ids, ct)).ToDictionary(t => t.Id, Describe);
+
+        var result = new Dictionary<Guid, DuplicateView>();
+        foreach (var t in transactions)
+        {
+            var of = t.DuplicateOfTransactionId is { } target ? byId.GetValueOrDefault(target) : null;
+            var suggested = matches.TryGetValue(t.Id, out var match)
+                ? match.Candidates.Where(c => byId.ContainsKey(c.Id)).Select(c => byId[c.Id]).ToList()
+                : null;
+            if (of is not null || suggested is { Count: > 0 })
+            {
+                result[t.Id] = new DuplicateView(of, suggested is { Count: > 0 } ? suggested : null);
+            }
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyDictionary<Guid, DuplicateMatch>> FindForManyAsync(

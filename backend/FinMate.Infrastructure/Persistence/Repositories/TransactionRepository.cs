@@ -92,6 +92,11 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.Relation == filter.Relation);
         }
 
+        if (filter.DuplicateStatus is not null)
+        {
+            query = query.Where(t => t.DuplicateStatus == filter.DuplicateStatus);
+        }
+
         if (filter.ExcludeLoans)
         {
             query = query.Where(t => t.Category == null || t.Category.Slug != Category.LoanSlug);
@@ -235,6 +240,22 @@ public class TransactionRepository : ITransactionRepository
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var wanted = ids.Distinct().ToList();
+        return await _context.Transactions
+            .AsNoTracking()
+            .Include(t => t.Category)
+            .Include(t => t.FinancialAccount)
+            .Where(t => t.UserId == userId && wanted.Contains(t.Id))
+            .ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default)

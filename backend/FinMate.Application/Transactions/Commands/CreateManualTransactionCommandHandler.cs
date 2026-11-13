@@ -26,6 +26,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
     private readonly IGroupLedger? _groupLedger;
     private readonly Refunds.IRefundLedger? _refunds;
+    private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
 
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -41,8 +42,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ITrainingSampleService? trainingSamples = null,
         IForecastAlertTrigger? forecastAlerts = null,
         IGroupLedger? groupLedger = null,
-        Refunds.IRefundLedger? refunds = null)
+        Refunds.IRefundLedger? refunds = null,
+        Duplicates.IDuplicateDetector? duplicates = null)
     {
+        _duplicates = duplicates;
         _groupLedger = groupLedger;
         _refunds = refunds;
         _transactionRepository = transactionRepository;
@@ -136,6 +139,14 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             // account và budget period đã tracked (cùng DbContext) — AddAsync flush
             // mọi thay đổi atomically, xem ghi chú trong ConfirmTransactionCommandHandler.
             groupAlerts = await ShareIfRequestedAsync(command, transaction, category, now, ct);
+        }
+
+        // Phase 82 (BR-DUP-06): ngân hàng có thể đã báo khoản này (hoặc người dùng vừa quét hoá đơn của nó) → lưu bình thường nhưng mang nghi
+        // trùng để app hỏi Gộp / Không trùng. Không chặn việc lưu: tiền đã đi rồi, người dùng chỉ đang ghi lại.
+        if (_duplicates is not null && command.Relation is null)
+        {
+            transaction.Id = transaction.Id == Guid.Empty ? Guid.NewGuid() : transaction.Id;
+            await _duplicates.MarkSuspectedAsync(transaction, null, null, ct);
         }
 
         await _transactionRepository.AddAsync(transaction, ct);

@@ -14,7 +14,8 @@ public record TransactionListFilter(
     string? Cursor,
     int Limit,
     bool ExcludeLoans = false,
-    TransactionRelation? Relation = null);  // Phase 81: chỉ khoản hoàn hoặc chỉ khoản đảo  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
+    TransactionRelation? Relation = null,
+    DuplicateStatus? DuplicateStatus = null);  // Phase 81: chỉ khoản hoàn hoặc chỉ khoản đảo  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
 
 public record TransactionListResult(IReadOnlyList<Transaction> Items, string? NextCursor);
 
@@ -110,6 +111,9 @@ public interface ITransactionRepository
     /// giao dịch có id trong <paramref name="excludeTransactionIds"/> (chúng đang sửa trong bộ nhớ, caller tự cộng phần của chúng).
     /// </summary>
     Task<long> SumNetSpendAsync(System.Linq.Expressions.Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default);
+
+    /// <summary>Các giao dịch còn sống của user theo id, đã nạp danh mục và ví. Id lạ hoặc của người khác bị bỏ qua.</summary>
+    Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
     Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);
