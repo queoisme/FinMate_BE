@@ -145,10 +145,23 @@ def _signed_type(text: str, amount_start: int) -> TransactionType | None:
 
 
 def relation_hint_for(text: str, transaction_type: TransactionType) -> str | None:
-    """Gợi ý quan hệ của khoản tiền vào (Phase 81). Khoản chi không bao giờ có hint: "phí hủy vé" vẫn là chi."""
-    if transaction_type != TransactionType.CREDIT:
+    """
+    Gợi ý quan hệ. Hoàn tiền / đảo (Phase 81) chỉ cho tiền vào: "phí hủy vé" vẫn là chi. Chuyển ví (Phase 83) cho cả hai chiều: "RUT TIEN ATM"
+    là khoản chi, "Nap tien tu Vietcombank" là khoản thu. Hoàn tiền thắng chuyển ví.
+    """
+    lowered = f" {text.lower()} "
+    if transaction_type == TransactionType.CREDIT and (hint := notification_vocab.relation_hint(lowered)) is not None:
+        return hint
+    return "transfer" if transfer_kind_for(text, transaction_type) is not None else None
+
+
+def transfer_kind_for(text: str, transaction_type: TransactionType) -> str | None:
+    """Loại chuyển ví (Phase 83); None khi câu là hoàn tiền / đảo / cashback hoặc không có cụm chuyển ví."""
+    lowered = f" {text.lower()} "
+    if transaction_type == TransactionType.CREDIT and notification_vocab.is_special_money_in(lowered):
         return None
-    return notification_vocab.relation_hint(f" {text.lower()} ")
+    direction = "credit" if transaction_type == TransactionType.CREDIT else "debit"
+    return notification_vocab.transfer_kind(lowered, direction)
 
 
 def _infer_type(text: str) -> TransactionType:

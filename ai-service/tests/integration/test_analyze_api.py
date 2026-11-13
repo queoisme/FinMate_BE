@@ -70,6 +70,7 @@ async def test_response_matches_the_backend_contract(
         "balance_after_cents",
         "confidence",
         "relation_hint",  # Phase 81, AIServiceApiContracts.ExtractionApiResult.RelationHint
+        "transfer_kind",  # Phase 83, AIServiceApiContracts.ExtractionApiResult.TransferKind
     }
     assert set(body["categorization"]) == {"category_slug", "confidence"}
     assert set(body["duplicate"]) == {"is_potential_duplicate", "duplicate_request_id"}
@@ -385,3 +386,24 @@ async def test_relation_hint_is_returned_and_stored(client, auth_headers, user_h
     # Gửi lại cùng backend_request_id trả kết quả ĐÃ LƯU: hint phải nằm trong dòng nhật ký, không chỉ trong response lần đầu.
     again = (await client.post("/api/v1/analyze", json=sent, headers=auth_headers)).json()
     assert again["extraction"]["relation_hint"] == expected
+
+
+# ---- Phase 83: chuyển ví (relation_hint = transfer, transfer_kind) ----
+
+MB_ATM = "TK 0123456789|GD: -2,000,000VND 09/09/2026 10:28|SD: 500,000VND|ND: RUT TIEN ATM 123 LE LOI"
+MB_TOPUP = "TK 0123456789|GD: -500,000VND 09/09/2026 10:28|SD: 2,000,000VND|ND: chuyen tien den vi MoMo"
+MB_PHONE = "TK 0123456789|GD: -50,000VND 09/09/2026 10:28|SD: 2,450,000VND|ND: Nap tien dien thoai Viettel"
+
+
+@pytest.mark.parametrize(
+    "body,hint,kind",
+    [(MB_ATM, "transfer", "atm_withdrawal"), (MB_TOPUP, "transfer", "wallet_topup"), (MB_PHONE, None, None), (MB_REFUND, "refund", None)],
+)
+async def test_transfer_kind_is_returned_and_stored(client, auth_headers, user_hash, now, body, hint, kind):
+    request_id = uuid.uuid4()
+    sent = payload(user_hash, now, body=body, request_id=request_id)
+    first = (await client.post("/api/v1/analyze", json=sent, headers=auth_headers)).json()
+    assert (first["extraction"]["relation_hint"], first["extraction"]["transfer_kind"]) == (hint, kind)
+
+    again = (await client.post("/api/v1/analyze", json=sent, headers=auth_headers)).json()
+    assert (again["extraction"]["relation_hint"], again["extraction"]["transfer_kind"]) == (hint, kind)
