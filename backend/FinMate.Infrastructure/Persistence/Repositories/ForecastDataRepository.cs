@@ -19,6 +19,43 @@ public class ForecastDataRepository : IForecastDataRepository
     public async Task<IReadOnlyList<ForecastTransaction>> GetTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
         => RefundNetting.ForHabits(await GetRawTransactionsAsync(userId, from, to, ct));
 
+    public async Task<IReadOnlyList<ForecastTransaction>> GetBoundaryTransfersAsync(
+        Guid userId, IReadOnlySet<Guid> countedAccountIds, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var (start, end) = VietnamTime.DayRange(from, to);
+        var counted = countedAccountIds.ToList();
+        var rows = await _context.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId
+                && t.Status == TransactionStatus.Confirmed
+                && t.TransactionType == TransactionType.Transfer
+                && t.CounterAccountId != null
+                && counted.Contains(t.FinancialAccountId) != counted.Contains(t.CounterAccountId!.Value)
+                && t.TransactedAt >= start
+                && t.TransactedAt < end)
+            .Select(t => new
+            {
+                t.Id,
+                t.FinancialAccountId,
+                CounterAccountId = t.CounterAccountId!.Value,
+                t.AmountCents,
+                t.TransactedAt,
+                t.MerchantName,
+                SourceName = t.FinancialAccount!.AccountName,
+                CounterName = t.CounterAccount!.AccountName,
+            })
+            .ToListAsync(ct);
+
+        return rows.Select(r =>
+        {
+            var outgoing = counted.Contains(r.FinancialAccountId);
+            var name = r.MerchantName ?? (outgoing ? r.CounterName : r.SourceName);
+            return new ForecastTransaction(
+                r.Id, outgoing ? r.FinancialAccountId : r.CounterAccountId, null, r.AmountCents, outgoing ? TransactionType.Debit : TransactionType.Credit,
+                r.TransactedAt, VietnamTime.DateOf(r.TransactedAt), name, CounterpartyKey.From(name), false);
+        }).ToList();
+    }
+
     public async Task<IReadOnlyList<ForecastTransaction>> GetRawTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var (start, end) = VietnamTime.DayRange(from, to);
