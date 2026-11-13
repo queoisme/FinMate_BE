@@ -18,6 +18,18 @@ public record TransactionListFilter(
 
 public record TransactionListResult(IReadOnlyList<Transaction> Items, string? NextCursor);
 
+/// <summary>
+/// Ứng viên trùng thô (Phase 82): cùng user, chiều Debit/Credit, không có <c>relation</c>, chưa xoá, số tiền nằm trong <paramref name="AmountsCents"/>
+/// và thời điểm trong [<paramref name="From"/>, <paramref name="To"/>]. Phần còn lại của luật trùng do <c>DuplicateMatcher</c> quyết.
+/// </summary>
+public sealed record DuplicateCandidateQuery(Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To);
+
+/// <summary>Một giao dịch có thể trùng, kèm liên kết trùng của chính nó để tính các cặp đã bị user bác.</summary>
+public sealed record DuplicateCandidateRow(
+    FinMate.Application.Transactions.Duplicates.DuplicateProbe Probe,
+    Guid? DuplicateOfTransactionId,
+    DuplicateStatus? DuplicateStatus);
+
 /// <summary>Một khoản chi có thể là gốc của khoản hoàn đang xét (Phase 81). Chỉ để GỢI Ý; người dùng mới là người liên kết.</summary>
 public sealed record RefundCandidate(Transaction Original, long RefundedCents, long RemainingRefundableCents);
 
@@ -98,6 +110,18 @@ public interface ITransactionRepository
     /// giao dịch có id trong <paramref name="excludeTransactionIds"/> (chúng đang sửa trong bộ nhớ, caller tự cộng phần của chúng).
     /// </summary>
     Task<long> SumNetSpendAsync(System.Linq.Expressions.Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default);
+
+    /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
+    Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction tường minh sau khi khoá các dòng giao dịch bằng <c>SELECT … FOR UPDATE</c> theo
+    /// <b>id tăng dần</b> (Phase 82, BR-DUP-14, D11). Dòng đã xoá mềm cũng được khoá và trả về (để gộp lại cùng cặp trả 200); caller tự quyết.
+    /// Id không thuộc user → <c>NotFoundException</c> (404). <paramref name="work"/> tự lưu; commit khi nó trả về.
+    /// Thứ tự khoá CỐ ĐỊNH: các dòng giao dịch (id tăng dần) → ví (xmin) → kỳ ngân sách (xmin).
+    /// </summary>
+    Task<T> RunWithTransactionsLockedAsync<T>(
+        Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default);
 
     Task<Guid?> FindPossibleDuplicateAsync(
         Guid userId,
