@@ -128,4 +128,45 @@ public class TransactionReviewPushBuilderTests
         push.Data.Should().NotContainKey("categorySlug");
         push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionChooseCategory);
     }
+
+    // ------------------------------------------------------------ Phase 82: nghi trùng
+
+    private static Transaction Suspected(TransactionType type = TransactionType.Debit)
+    {
+        var tx = Draft(type: type);
+        tx.DuplicateOfTransactionId = Guid.NewGuid();
+        tx.DuplicateStatus = DuplicateStatus.Suspected;
+        return tx;
+    }
+
+    [Fact]
+    public void SuspectedDuplicate_AsksToReview_EvenAtHighConfidence()
+    {
+        var tx = Suspected();
+
+        var push = TransactionReviewPushBuilder.Build(tx, "Ăn uống", 0.99, duplicateCandidateCount: 2);
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewDuplicate);
+        push.Data["duplicateOfTransactionId"].Should().Be(tx.DuplicateOfTransactionId.ToString());
+        push.Data["suggestionCount"].Should().Be("2");
+        push.Data["transactionId"].Should().Be(tx.Id.ToString());
+        push.Body.Should().Contain("75.000đ");
+    }
+
+    [Fact]
+    public void SuspectedDuplicate_WinsOverARefundHint()
+    {
+        var push = TransactionReviewPushBuilder.Build(Suspected(TransactionType.Credit), null, 0.5, TransactionRelation.Refund, 1, 1);
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewDuplicate);
+    }
+
+    [Fact]
+    public void DismissedDuplicate_FollowsTheNormalBranches()
+    {
+        var tx = Suspected();
+        tx.DuplicateStatus = DuplicateStatus.Dismissed;
+
+        TransactionReviewPushBuilder.Build(tx, "Ăn uống", 0.99).Data["action"].Should().Be(TransactionReviewPushBuilder.ActionOneTap);
+    }
 }

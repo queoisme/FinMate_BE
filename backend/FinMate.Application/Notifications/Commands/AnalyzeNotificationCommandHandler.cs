@@ -5,6 +5,7 @@ using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Notifications;
 using FinMate.Application.QrTransfers;
+using FinMate.Application.Transactions.Duplicates;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -29,6 +30,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý thì không gửi gì ra bên thứ ba
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
     private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
+    private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -40,9 +42,11 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IValidator<AnalyzeNotificationCommand> validator,
         IAiConsentReader? consent = null,
         IQrTransferLinker? qrLinker = null,
-        Transactions.Refunds.IRefundSuggestions? refundSuggestions = null)
+        Transactions.Refunds.IRefundSuggestions? refundSuggestions = null,
+        IDuplicateDetector? duplicates = null)
     {
         _refundSuggestions = refundSuggestions;
+        _duplicates = duplicates;
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
         _categoryRepository = categoryRepository;
@@ -150,84 +154,109 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         };
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
-        log.Status = NotificationLogStatus.Processed;
+        var outcome = pipelineResult == PipelineResult.Financial
+            && aiResult.AmountCents is > 0
+            && aiResult.TransactionType is not null
+                ? await CreateDraftAsync(command, account, log, aiResult, now, ct)
+                : DraftOutcome.None;
+
+        // Phase 82 (BR-DUP-05): cùng một sự kiện ngân hàng gửi lại với nội dung khác (khác contentHash) → bỏ âm thầm, ghi lại vì sao.
+        log.Status = outcome.SameEventId is null ? NotificationLogStatus.Processed : NotificationLogStatus.Duplicate;
         log.ProcessedAt = DateTimeOffset.UtcNow;
         await _notificationLogRepository.UpdateAsync(log, ct);
 
-        Guid? draftTransactionId = null;
-        IReadOnlyList<RefundSuggestionDto>? suggestions = null;
-        if (pipelineResult == PipelineResult.Financial
-            && !aiResult.IsPotentialDuplicate
-            && aiResult.AmountCents is > 0
-            && aiResult.TransactionType is not null)
+        return new NotificationAnalysisResultDto(
+            log.Id,
+            log.Status.ToString(),
+            outcome.Draft?.Id,
+            outcome.Draft is null ? null : aiResult.RelationHint?.ToString(),
+            outcome.Suggestions,
+            outcome.SameEventId ?? outcome.Draft?.DuplicateOfTransactionId);
+    }
+
+    private sealed record DraftOutcome(Transaction? Draft, IReadOnlyList<RefundSuggestionDto>? Suggestions, Guid? SameEventId)
+    {
+        public static readonly DraftOutcome None = new(null, null, null);
+    }
+
+    /// <summary>
+    /// Dựng nháp từ kết quả AI, hỏi <see cref="IDuplicateDetector"/> trước khi lưu. Cờ trùng của AI Service chỉ là tín hiệu xếp hạng: nó không còn
+    /// làm mất thông báo (Phase 82, BR-DUP-02). Hai lần mua 35k cách nhau 3 phút vì vậy là hai nháp, không phải một.
+    /// </summary>
+    private async Task<DraftOutcome> CreateDraftAsync(
+        AnalyzeNotificationCommand command, FinancialAccount account, NotificationLog log, AiResult aiResult, DateTimeOffset now, CancellationToken ct)
+    {
+        Category? category = aiResult.CategorySlug is null
+            ? null
+            : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
+
+        // Chi tiền sau một lần quét QR: lấy người nhận + danh mục người dùng đã chọn thay vì để AI đoán từ nội dung chuyển khoản P2P (thường không có gì để đoán).
+        QrTransferIntent? qrIntent = null;
+        if (_qrLinker is not null && aiResult.TransactionType == TransactionType.Debit)
         {
-            Category? category = aiResult.CategorySlug is null
-                ? null
-                : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
-
-            // Chi tiền sau một lần quét QR: lấy người nhận + danh mục người dùng đã chọn thay vì để AI đoán từ nội dung chuyển khoản P2P (thường không có gì để đoán).
-            QrTransferIntent? qrIntent = null;
-            if (_qrLinker is not null && aiResult.TransactionType == TransactionType.Debit)
+            qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, aiResult.AmountCents!.Value, ct);
+            if (qrIntent?.CategoryId is Guid qrCategoryId
+                && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
+                && (chosen.UserId is null || chosen.UserId == command.UserId))
             {
-                qrIntent = await _qrLinker.FindMatchAsync(command.UserId, command.PackageName, command.ReceivedAt, aiResult.AmountCents.Value, ct);
-                if (qrIntent?.CategoryId is Guid qrCategoryId
-                    && await _categoryRepository.GetByIdAsync(qrCategoryId, ct) is { IsActive: true } chosen
-                    && (chosen.UserId is null || chosen.UserId == command.UserId))
-                {
-                    category = chosen;
-                }
+                category = chosen;
             }
-
-            var transaction = new Transaction
-            {
-                UserId = command.UserId,
-                FinancialAccountId = account.Id,
-                CategoryId = category?.Id,
-                NotificationLogId = log.Id,
-                AmountCents = aiResult.AmountCents.Value,
-                TransactionType = aiResult.TransactionType.Value,
-                Source = TransactionSource.Notification,
-                Status = TransactionStatus.Draft,
-                MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
-                Description = aiResult.Description,
-                TransactedAt = aiResult.TransactedAt ?? command.ReceivedAt,
-                BalanceAfterCents = aiResult.BalanceAfterCents,
-                CreatedAt = now,
-                UpdatedAt = now,
-            };
-            await _transactionRepository.AddAsync(transaction, ct);
-            draftTransactionId = transaction.Id;
-            transaction.Category = category;
-
-            if (qrIntent is not null)
-            {
-                await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
-            }
-
-            // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
-            if (aiResult.RelationHint is { } hint && _refundSuggestions is not null)
-            {
-                transaction.FinancialAccount = account;
-                suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
-            }
-
-            // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách
-            // khác nhau tuỳ mức tin cậy. Trước Phase 15 mọi nháp đều nhận đúng một dòng chữ
-            // cụt, không kèm dữ liệu nào để client dựng nút xác nhận.
-            var review = TransactionReviewPushBuilder.Build(
-                transaction,
-                category?.Name,
-                TransactionReviewPushBuilder.ReviewConfidence(
-                    aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
-                aiResult.RelationHint,
-                suggestions?.Count ?? 0);
-
-            await _pushNotificationService.NotifyAsync(
-                command.UserId, review.Title, review.Body, review.Data, ct);
         }
 
-        return new NotificationAnalysisResultDto(
-            log.Id, log.Status.ToString(), draftTransactionId, draftTransactionId is null ? null : aiResult.RelationHint?.ToString(), suggestions);
+        var transaction = new Transaction
+        {
+            Id = Guid.NewGuid(),
+            UserId = command.UserId,
+            FinancialAccountId = account.Id,
+            CategoryId = category?.Id,
+            NotificationLogId = log.Id,
+            AmountCents = aiResult.AmountCents!.Value,
+            TransactionType = aiResult.TransactionType!.Value,
+            Source = TransactionSource.Notification,
+            Status = TransactionStatus.Draft,
+            MerchantName = qrIntent?.ReceiverName ?? aiResult.MerchantName,
+            Description = aiResult.Description,
+            TransactedAt = aiResult.TransactedAt ?? command.ReceivedAt,
+            BalanceAfterCents = aiResult.BalanceAfterCents,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        var duplicates = _duplicates is null
+            ? DuplicateMatch.None
+            : await _duplicates.MarkSuspectedAsync(transaction, command.PackageName, aiResult.DuplicateRequestId, ct);
+        if (duplicates.SameEventId is { } sameEvent)
+        {
+            return new DraftOutcome(null, null, sameEvent);
+        }
+
+        await _transactionRepository.AddAsync(transaction, ct);
+        transaction.Category = category;
+
+        if (qrIntent is not null)
+        {
+            await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
+        }
+
+        // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
+        IReadOnlyList<RefundSuggestionDto>? suggestions = null;
+        if (aiResult.RelationHint is { } hint && _refundSuggestions is not null)
+        {
+            transaction.FinancialAccount = account;
+            suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
+        }
+
+        // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách khác nhau tuỳ mức tin cậy; nghi trùng thì hỏi gộp trước (D15).
+        var review = TransactionReviewPushBuilder.Build(
+            transaction,
+            category?.Name,
+            TransactionReviewPushBuilder.ReviewConfidence(aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
+            aiResult.RelationHint,
+            suggestions?.Count ?? 0,
+            duplicates.Candidates.Count(c => c.MarksSuspected));
+
+        await _pushNotificationService.NotifyAsync(command.UserId, review.Title, review.Body, review.Data, ct);
+        return new DraftOutcome(transaction, suggestions, null);
     }
 
     // Chỉ đọc đồng ý AI ở đây (nhánh thật sự gọi ai-service), không đọc DB thừa cho nhánh Ignored/trùng.

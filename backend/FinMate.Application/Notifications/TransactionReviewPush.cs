@@ -39,6 +39,12 @@ public static class TransactionReviewPushBuilder
     public const string ActionChooseRefundLink = "choose_refund_link";
 
     /// <summary>
+    /// Phase 82 (BR-DUP-06, D15): nháp có thể trùng một giao dịch đã ghi. Thắng mọi nhánh khác, kể cả hoàn tiền và một chạm: người dùng phải
+    /// chọn Gộp hoặc Không trùng trước, xác nhận nhanh lúc này là ghi một khoản chi hai lần.
+    /// </summary>
+    public const string ActionReviewDuplicate = "review_duplicate";
+
+    /// <summary>
     /// Mức tin cậy quyết định nhánh: THẤP NHẤT giữa bóc số và phân loại.
     ///
     /// Không lấy riêng điểm phân loại: một chạm xác nhận TOÀN BỘ bản ghi — số tiền, loại,
@@ -72,8 +78,14 @@ public static class TransactionReviewPushBuilder
 
     /// <param name="relationHint">Gợi ý hoàn/đảo của AI; có giá trị thì luôn ra <see cref="ActionChooseRefundLink"/>.</param>
     /// <param name="suggestionCount">Số khoản chi gốc gợi ý (0..3), đưa vào payload để app biết mở danh sách hay màn chọn tay.</param>
+    /// <param name="duplicateCandidateCount">Số giao dịch có thể trùng (1..3) khi nháp đang <c>Suspected</c>.</param>
     public static TransactionReviewPush Build(
-        Transaction transaction, string? categoryName, double? confidence, TransactionRelation? relationHint = null, int suggestionCount = 0)
+        Transaction transaction,
+        string? categoryName,
+        double? confidence,
+        TransactionRelation? relationHint = null,
+        int suggestionCount = 0,
+        int duplicateCandidateCount = 0)
     {
         var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
         var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
@@ -100,6 +112,17 @@ public static class TransactionReviewPushBuilder
         }
 
         var at = merchant is null ? "" : $" tại {merchant}";
+
+        if (transaction.DuplicateStatus == DuplicateStatus.Suspected && transaction.DuplicateOfTransactionId is { } duplicateOf)
+        {
+            data["action"] = ActionReviewDuplicate;
+            data["duplicateOfTransactionId"] = duplicateOf.ToString();
+            data["suggestionCount"] = duplicateCandidateCount.ToString(CultureInfo.InvariantCulture);
+            return new TransactionReviewPush(
+                "Có thể đã ghi rồi",
+                $"Bạn vừa {verb} {amount}{at}. Khoản này có thể trùng với một giao dịch đã ghi. Chạm để gộp hoặc giữ cả hai.",
+                data);
+        }
 
         if (relationHint is { } hint)
         {
