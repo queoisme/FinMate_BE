@@ -28,6 +28,13 @@ public sealed class RetryingCreateRefundCommandHandler(ICreateRefundCommandHandl
         => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
 }
 
+public sealed class RetryingMergeTransactionsCommandHandler(IMergeTransactionsCommandHandler inner, IConcurrencyRetry retry)
+    : IMergeTransactionsCommandHandler
+{
+    public Task<TransactionDto> HandleAsync(MergeTransactionsCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
 public sealed class RetryingLinkRelatedTransactionCommandHandler(ILinkRelatedTransactionCommandHandler inner, IConcurrencyRetry retry)
     : ILinkRelatedTransactionCommandHandler
 {
@@ -74,4 +81,34 @@ public sealed class RetryingContributeToGoalCommandHandler(IContributeToGoalComm
 {
     public Task<SavingGoalDto> HandleAsync(ContributeToGoalCommand command, CancellationToken ct = default)
         => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+}
+
+// ---- Phase 82 (D11): khoá dòng giao dịch trước khi đổi nó ----
+// transactions không có xmin. Lượt gộp xoá mềm bản bị gộp dưới FOR UPDATE; nếu xác nhận/sửa/xoá cùng dòng chạy song song mà không khoá, lệnh
+// UPDATE của nó (không đụng deleted_at) có thể để lại một dòng vừa bị gộp vừa đã xác nhận, ví đã bị trừ. Bọc ngoài handler (dưới lớp Retrying),
+// nên mỗi lần thử lại là một DB transaction mới và handler giữ nguyên. Thứ tự khoá: dòng giao dịch → (khoản gốc của Phase 81) → ví → kỳ ngân sách.
+
+public sealed class RowLockedConfirmTransactionCommandHandler(IConfirmTransactionCommandHandler inner, ITransactionRepository transactions)
+    : IConfirmTransactionCommandHandler
+{
+    public Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
+        => transactions.RunWithTransactionsLockedAsync(command.UserId, [command.TransactionId], _ => inner.HandleAsync(command, ct), ct);
+}
+
+public sealed class RowLockedUpdateTransactionCommandHandler(IUpdateTransactionCommandHandler inner, ITransactionRepository transactions)
+    : IUpdateTransactionCommandHandler
+{
+    public Task<TransactionDto> HandleAsync(UpdateTransactionCommand command, CancellationToken ct = default)
+        => transactions.RunWithTransactionsLockedAsync(command.UserId, [command.TransactionId], _ => inner.HandleAsync(command, ct), ct);
+}
+
+public sealed class RowLockedDeleteTransactionCommandHandler(IDeleteTransactionCommandHandler inner, ITransactionRepository transactions)
+    : IDeleteTransactionCommandHandler
+{
+    public Task HandleAsync(DeleteTransactionCommand command, CancellationToken ct = default)
+        => transactions.RunWithTransactionsLockedAsync(command.UserId, [command.TransactionId], async _ =>
+        {
+            await inner.HandleAsync(command, ct);
+            return true;
+        }, ct);
 }

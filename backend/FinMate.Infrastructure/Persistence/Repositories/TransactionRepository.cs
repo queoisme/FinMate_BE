@@ -258,6 +258,11 @@ public class TransactionRepository : ITransactionRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => await _context.Transactions
+            .Where(t => t.UserId == userId && t.DuplicateOfTransactionId == transactionId)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default)
     {
         if (query.AmountsCents.Count == 0)

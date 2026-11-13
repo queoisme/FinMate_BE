@@ -115,6 +115,9 @@ public interface ITransactionRepository
     /// <summary>Các giao dịch còn sống của user theo id, đã nạp danh mục và ví. Id lạ hoặc của người khác bị bỏ qua.</summary>
     Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
+    /// <summary>Các giao dịch (có theo dõi thay đổi) đang trỏ <c>duplicate_of_transaction_id</c> tới <paramref name="transactionId"/>. Lọc theo user.</summary>
+    Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
     /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
     Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);
 

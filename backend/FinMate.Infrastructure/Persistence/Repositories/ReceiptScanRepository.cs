@@ -46,6 +46,20 @@ public class ReceiptScanRepository : IReceiptScanRepository
         return inserted == 1;
     }
 
+    public async Task<bool> MoveLinkAsync(Guid userId, Guid fromTransactionId, Guid toTransactionId, CancellationToken ct = default)
+    {
+        // Một câu: chủ sở hữu của cả hai giao dịch nằm trong điều kiện; đích đã có liên kết thì không đổi gì (khoá chính là transaction_id).
+        var moved = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE receipt_scan_links l
+            SET transaction_id = {toTransactionId}
+            WHERE l.transaction_id = {fromTransactionId}
+              AND EXISTS (SELECT 1 FROM transactions f WHERE f.id = {fromTransactionId} AND f.user_id = {userId})
+              AND EXISTS (SELECT 1 FROM transactions t WHERE t.id = {toTransactionId} AND t.user_id = {userId})
+              AND NOT EXISTS (SELECT 1 FROM receipt_scan_links x WHERE x.transaction_id = {toTransactionId})
+            """, ct);
+        return moved == 1;
+    }
+
     public Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)
         // Lọc theo chủ sở hữu: không đọc món của người khác.
         => IsAnySplitAsync(_context.ReceiptScans.Where(s => s.Id == scanId && s.UserId == userId), ct);

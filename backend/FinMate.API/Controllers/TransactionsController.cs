@@ -230,6 +230,20 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
+    /// <summary>
+    /// Gộp hai giao dịch là một (Phase 82). Bản giữ lại do hệ thống chọn (đã xác nhận trước, rồi bản tạo trước / bản ngân hàng báo) và luôn được
+    /// xác nhận; trả về bản đó. Gộp lại cùng cặp → 200 với bản cũ. Khác chiều/số tiền, có khoản hoàn, đã chia sẻ nhóm… → 422 <c>MERGE_NOT_ALLOWED</c>;
+    /// giao dịch của người khác hoặc không tồn tại → 404.
+    /// </summary>
+    [HttpPost("{id:guid}/merge")]
+    public async Task<IActionResult> Merge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var survivor = await handler.HandleAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(survivor));
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
@@ -378,6 +392,10 @@ public record ConfirmTransactionRequest(
 
 /// <param name="RelatedTransactionId">Khoản chi gốc; null + <c>Refund</c> = hoàn không có khoản gốc, khi đó bắt buộc <paramref name="CategoryId"/>.</param>
 public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, TransactionRelation Relation = TransactionRelation.Refund, Guid? CategoryId = null);
+
+/// <summary>Phase 82: <c>WithTransactionId</c> là bản còn lại của cặp; <c>CategoryId</c> tuỳ chọn thắng mọi nguồn; <c>ClientRequestId</c> nhận nhưng không dùng (gộp lại cùng cặp đã trả về bản cũ).</summary>
+public record MergeTransactionsRequest(Guid WithTransactionId, Guid? CategoryId = null, Guid? ClientRequestId = null);
+
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 
