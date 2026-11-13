@@ -50,6 +50,7 @@ public class ForecastAlertService : IForecastAlertService
     private readonly ISystemConfigProvider _config;
     private readonly ICacheService _cache;
     private readonly IAnomalyService? _anomalies;
+    private readonly IFinancialAccountRepository? _accounts;   // null: không xét chuyển khoản vượt ranh giới (test cũ)
 
     public ForecastAlertService(
         IForecastService forecast,
@@ -61,8 +62,10 @@ public class ForecastAlertService : IForecastAlertService
         IForecastAlertRepository alerts,
         ISystemConfigProvider config,
         ICacheService cache,
-        IAnomalyService? anomalies = null)
+        IAnomalyService? anomalies = null,
+        IFinancialAccountRepository? accounts = null)
     {
+        _accounts = accounts;
         _forecast = forecast;
         _budgetForecast = budgetForecast;
         _items = items;
@@ -97,7 +100,13 @@ public class ForecastAlertService : IForecastAlertService
 
         var views = active.Select(i => i.ToView()).ToList();
         var recent = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
-        await RemindBillsAsync(userId, active, views, recent, today, settings, rules, ct);
+        // Phase 83 (S4): một hoá đơn trả bằng chuyển khoản sang ví bị loại khỏi dự báo vẫn là đã trả, không nhắc hay tạm dừng nó.
+        var paid = _accounts is null
+            ? recent
+            : BoundaryTransfers.ForRecurring(recent, await BoundaryTransfers.OutflowsAsync(
+                _data, userId, (await _accounts.GetListByUserAsync(userId, ct)).Where(a => a.IncludeInForecast).Select(a => a.Id).ToHashSet(),
+                today.AddDays(-rules.HistoryWindowDays), today, ct));
+        await RemindBillsAsync(userId, active, views, paid, today, settings, rules, ct);
         await WarnLateIncomeAsync(userId, views, recent, today, settings, rules, ct);
     }
 

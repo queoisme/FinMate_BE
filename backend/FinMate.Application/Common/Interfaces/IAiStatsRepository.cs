@@ -23,7 +23,18 @@ public record AiProductionStats(
     double? AvgCategorizationConfidence,
     double? AvgProcessingMs,
     int? MaxProcessingMs,
-    DuplicateOutcomeStats? Duplicates = null);
+    DuplicateOutcomeStats? Duplicates = null,
+    TransferOutcomeStats? Transfers = null);
+
+/// <summary>Số lượng chuyển ví của một loại (Phase 83). Chỉ số đếm.</summary>
+public record TransferKindCounts(int Suggested, int Accepted, int Rejected);
+
+/// <param name="ByKind">
+/// Khoá = <c>transfer_kind</c> (<c>atm_withdrawal</c>…) hoặc <c>unhinted</c> (ghép chỉ nhờ tên ví, AI không nhận ra). "Gợi ý" = kết quả AI có
+/// <c>relation_hint = transfer</c> (gợi ý tính khi đọc nên không đếm được số lần hiện ra); "chấp nhận" = lượt chuyển đổi (ảnh chụp
+/// <c>transfer_pair</c>/<c>transfer_convert</c>); "từ chối" = giao dịch người dùng đã bác. Không id, không user, không số tiền.
+/// </param>
+public record TransferOutcomeStats(IReadOnlyDictionary<string, TransferKindCounts> ByKind);
 
 /// <summary>Số lượng của một cặp nguồn (Phase 82). Chỉ là số đếm: không id, không số tiền, không gì theo user.</summary>
 public record DuplicatePairCounts(int Suspected, int Dismissed, int Merged);

@@ -128,6 +128,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("transaction_type");
 
+                    b.Property<string>("TransferKind")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("transfer_kind");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NotificationLogId")
@@ -138,7 +143,9 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_ai_results_pipeline_result", "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
 
-                            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal')");
+                            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')");
+
+                            t.HasCheckConstraint("chk_ai_results_transfer_kind", "transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))");
                         });
                 });
 
@@ -4695,6 +4702,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("transaction_type");
 
+                    b.Property<DateTimeOffset?>("TransferDismissedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("transfer_dismissed_at");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -4871,11 +4882,69 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_transaction_anomalies_kind", "kind IN ('category_spike','merchant_spike','duplicate')");
 
-                            t.HasCheckConstraint("chk_transaction_anomalies_resolution", "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious','refunded','reversed')");
+                            t.HasCheckConstraint("chk_transaction_anomalies_resolution", "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious','refunded','reversed','transfer')");
 
                             t.HasCheckConstraint("chk_transaction_anomalies_resolved_at", "(resolution IS NULL) = (resolved_at IS NULL)");
 
                             t.HasCheckConstraint("chk_transaction_anomalies_severity", "severity IN ('normal','high')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.TransactionMergeSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Before")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("MergedId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("merged_id");
+
+                    b.Property<Guid>("SurvivorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("survivor_id");
+
+                    b.Property<string>("TransferKind")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("transfer_kind");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_transaction_merge_snapshots_created_at");
+
+                    b.HasIndex("UserId", "SurvivorId")
+                        .HasDatabaseName("ix_transaction_merge_snapshots_user_survivor");
+
+                    b.ToTable("transaction_merge_snapshots", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_transaction_merge_snapshots_before", "jsonb_typeof(before) = 'object'");
+
+                            t.HasCheckConstraint("chk_transaction_merge_snapshots_kind", "kind IN ('duplicate_merge','transfer_pair','transfer_convert')");
+
+                            t.HasCheckConstraint("chk_transaction_merge_snapshots_transfer_kind", "transfer_kind IS NULL OR transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account')");
                         });
                 });
 
@@ -6229,6 +6298,15 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("Transaction");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.TransactionMergeSnapshot", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.User", b =>

@@ -55,4 +55,15 @@ public static class TransactionErrorCodes
 
     /// <summary>422: "Không trùng" cho một giao dịch không có liên kết nghi trùng nào.</summary>
     public const string NotSuspectedDuplicate = "NOT_SUSPECTED_DUPLICATE";
+
+    // ---- Chuyển tiền giữa các ví của chính mình (Phase 83) ----
+
+    /// <summary>422: giao dịch đã chia sẻ vào nhóm; chuyển khoản nội bộ không chia sẻ được (FR-GRP-07), người dùng gỡ khỏi nhóm trước.</summary>
+    public const string TransferSharedNotAllowed = "TRANSFER_SHARED_NOT_ALLOWED";
+
+    /// <summary>422: giao dịch không chuyển thành Transfer được (khoản hoàn, đã đảo, đang nghi trùng, đã khớp QR, có khoản hoàn, đã gộp…); lý do trong message.</summary>
+    public const string TransferNotAllowed = "TRANSFER_NOT_ALLOWED";
+
+    /// <summary>422: hai chiều không ghép được (cùng chiều, cùng ví, ví đích không phải ví chiều kia, phí ngoài giới hạn).</summary>
+    public const string TransferPairMismatch = "TRANSFER_PAIR_MISMATCH";
 }

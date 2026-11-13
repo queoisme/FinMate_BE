@@ -23,13 +23,21 @@ public record TransactionListResult(IReadOnlyList<Transaction> Items, string? Ne
 /// Ứng viên trùng thô (Phase 82): cùng user, chiều Debit/Credit, không có <c>relation</c>, chưa xoá, số tiền nằm trong <paramref name="AmountsCents"/>
 /// và thời điểm trong [<paramref name="From"/>, <paramref name="To"/>]. Phần còn lại của luật trùng do <c>DuplicateMatcher</c> quyết.
 /// </summary>
-public sealed record DuplicateCandidateQuery(Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To);
+/// <param name="TransferAmountMin">Phase 83: Transfer có số tiền trong [min, max] cũng là ứng viên (thông báo tiền ra có thể lớn hơn vì phí).</param>
+public sealed record DuplicateCandidateQuery(
+    Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To, long? TransferAmountMin = null, long? TransferAmountMax = null);
 
 /// <summary>Một giao dịch có thể trùng, kèm liên kết trùng của chính nó để tính các cặp đã bị user bác.</summary>
 public sealed record DuplicateCandidateRow(
     FinMate.Application.Transactions.Duplicates.DuplicateProbe Probe,
     Guid? DuplicateOfTransactionId,
     DuplicateStatus? DuplicateStatus);
+
+/// <summary>
+/// Giao dịch để xét chuyển ví (Phase 83): theo khoảng thời gian (mọi khoản chi/thu còn sống của user), hoặc theo id (kể cả đã xoá mềm, để lượt
+/// chuyển đổi đọc được). Luôn lọc theo user.
+/// </summary>
+public sealed record TransferProbeQuery(Guid UserId, DateTimeOffset? From = null, DateTimeOffset? To = null, IReadOnlyCollection<Guid>? Ids = null);
 
 /// <summary>Một khoản chi có thể là gốc của khoản hoàn đang xét (Phase 81). Chỉ để GỢI Ý; người dùng mới là người liên kết.</summary>
 public sealed record RefundCandidate(Transaction Original, long RefundedCents, long RemainingRefundableCents);
@@ -118,6 +126,11 @@ public interface ITransactionRepository
     /// <summary>Các giao dịch (có theo dõi thay đổi) đang trỏ <c>duplicate_of_transaction_id</c> tới <paramref name="transactionId"/>. Lọc theo user.</summary>
     Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Ảnh chụp để xét chuyển ví (Phase 83), kèm gợi ý/loại của AI, đã khớp QR chưa, có khoản hoàn đã xác nhận chưa. Chỉ <c>Debit</c>/<c>Credit</c>.
+    /// </summary>
+    Task<IReadOnlyList<Transactions.Transfers.TransferProbe>> ListTransferProbesAsync(TransferProbeQuery query, CancellationToken ct = default);
+
     /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
     Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);
 
@@ -127,6 +140,12 @@ public interface ITransactionRepository
     /// Id không thuộc user → <c>NotFoundException</c> (404). <paramref name="work"/> tự lưu; commit khi nó trả về.
     /// Thứ tự khoá CỐ ĐỊNH: các dòng giao dịch (id tăng dần) → ví (xmin) → kỳ ngân sách (xmin).
     /// </summary>
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction rồi LUÔN rollback và xoá theo dõi thay đổi (Phase 83, xem trước): cùng đường code với lệnh
+    /// thật nên kết quả xem trước không bao giờ lệch, mà không có gì được ghi. Khoá hàng mà <paramref name="work"/> lấy được nhả khi rollback.
+    /// </summary>
+    Task<T> RunPreviewAsync<T>(Func<Task<T>> work, CancellationToken ct = default);
+
     Task<T> RunWithTransactionsLockedAsync<T>(
         Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default);
 

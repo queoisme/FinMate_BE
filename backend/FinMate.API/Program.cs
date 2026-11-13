@@ -687,6 +687,12 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundSuggestions, FinMate.Application.Transactions.Refunds.RefundSuggestions>();
         builder.Services.AddScoped<FinMate.Application.Transactions.Duplicates.IDuplicateDetector, FinMate.Application.Transactions.Duplicates.DuplicateDetector>();
         builder.Services.AddScoped<INotDuplicateCommandHandler, NotDuplicateCommandHandler>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Transfers.ITransferSuggestions, FinMate.Application.Transactions.Transfers.TransferSuggestions>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Transfers.IMergeSnapshotRepository, MergeSnapshotRepository>();
+        builder.Services.AddScoped<INotTransferCommandHandler, NotTransferCommandHandler>();
+        builder.Services.AddScoped<ITransferRecurringCheck, FinMate.Application.Transactions.Transfers.TransferRecurringCheck>();
+        builder.Services.AddScoped<ConvertToTransferCommandHandler>();
+        builder.Services.AddScoped<IConvertToTransferCommandHandler>(sp => new RetryingConvertToTransferCommandHandler(sp.GetRequiredService<ConvertToTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<MergeTransactionsCommandHandler>();
         builder.Services.AddScoped<IMergeTransactionsCommandHandler>(sp => new RetryingMergeTransactionsCommandHandler(sp.GetRequiredService<MergeTransactionsCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();

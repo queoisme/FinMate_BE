@@ -96,7 +96,8 @@ public record AiProductionStatsDto(
     double? AvgCategorizationConfidence,
     double? AvgProcessingMs,
     int? MaxProcessingMs,
-    DuplicateOutcomeStats? Duplicates = null);  // Phase 82: kết quả của luồng bản trùng theo cặp nguồn
+    DuplicateOutcomeStats? Duplicates = null,  // Phase 82: kết quả của luồng bản trùng theo cặp nguồn
+    TransferOutcomeStats? Transfers = null);   // Phase 83: gợi ý / chấp nhận / từ chối chuyển ví theo loại
 
 public record AiModelStatusDto(
     string Stage,

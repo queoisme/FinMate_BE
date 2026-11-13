@@ -26,6 +26,7 @@ public class FinMateDbContext : DbContext
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
+    public DbSet<TransactionMergeSnapshot> TransactionMergeSnapshots => Set<TransactionMergeSnapshot>();
     public DbSet<ForecastSnapshot> ForecastSnapshots => Set<ForecastSnapshot>();
     public DbSet<ForecastFeedback> ForecastFeedback => Set<ForecastFeedback>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();

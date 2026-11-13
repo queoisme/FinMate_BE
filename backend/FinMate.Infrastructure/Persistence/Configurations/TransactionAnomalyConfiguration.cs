@@ -15,7 +15,7 @@ public class TransactionAnomalyConfiguration : IEntityTypeConfiguration<Transact
             t.HasCheckConstraint("chk_transaction_anomalies_severity", "severity IN ('normal','high')");
             t.HasCheckConstraint(
                 "chk_transaction_anomalies_resolution",
-                "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious','refunded','reversed')");
+                "resolution IS NULL OR resolution IN ('normal','one_off','wrong_entry','suspicious','refunded','reversed','transfer')");
             t.HasCheckConstraint("chk_transaction_anomalies_resolved_at", "(resolution IS NULL) = (resolved_at IS NULL)");
             t.HasCheckConstraint("chk_transaction_anomalies_amounts", "amount_cents > 0 AND typical_cents > 0 AND ratio_percent > 0");
         });

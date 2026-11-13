@@ -27,7 +27,32 @@ public record TransactionDto(
     string? DuplicateStatus = null,
     DuplicateSummaryDto? DuplicateOf = null,
     IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null,
-    IReadOnlyList<string>? MergedSources = null);
+    IReadOnlyList<string>? MergedSources = null,
+    TransferSuggestionDto? TransferSuggestion = null);
+
+/// <summary>
+/// Phase 83: gợi ý "đây có thể là tiền chuyển giữa các ví của bạn". Tính khi đọc. <c>PairedTransaction</c> có khi đã tìm thấy chiều bên kia (gọi
+/// <c>convert-to-transfer</c> với <c>pairedTransactionId</c>); không thì người dùng chọn một ví trong <c>CandidateAccounts</c> (rỗng với rút ATM mà
+/// chưa có ví Tiền mặt: app mời tạo ví). <c>Kind</c>: <c>AtmWithdrawal</c>, <c>AtmDeposit</c>, <c>WalletTopup</c>, <c>WalletWithdrawal</c>, <c>OwnAccount</c>.
+/// </summary>
+public record TransferSuggestionDto(
+    string Kind,
+    TransferPairedDto? PairedTransaction,
+    IReadOnlyList<TransferAccountDto> CandidateAccounts,
+    long? FeeCents);
+
+/// <summary>
+/// Phase 83 (phần B): kết quả SẼ ra của một lượt gộp hoặc chuyển đổi, không ghi gì. <c>Survivor</c> là giao dịch còn lại sau thao tác, <c>Fee</c> là
+/// khoản phí sẽ tạo (nếu có), <c>BalanceChanges</c> là số dư từng ví trước và sau.
+/// </summary>
+public record TransactionPreviewDto(
+    TransactionDto Survivor, TransactionDto? Fee, IReadOnlyList<BalanceChangeDto> BalanceChanges, IReadOnlyList<string>? Warnings = null);
+
+public record BalanceChangeDto(Guid AccountId, string AccountName, long BalanceBeforeCents, long BalanceAfterCents);
+
+public record TransferPairedDto(Guid Id, long AmountCents, DateTimeOffset TransactedAt, Guid FinancialAccountId, string? FinancialAccountName);
+
+public record TransferAccountDto(Guid Id, string Name, string AccountType);
 
 /// <summary>
 /// Phase 82 trên mỗi giao dịch: <c>DuplicateStatus</c> (<c>Suspected</c>/<c>Dismissed</c>) và <c>DuplicateOf</c> (giao dịch nó có thể trùng)

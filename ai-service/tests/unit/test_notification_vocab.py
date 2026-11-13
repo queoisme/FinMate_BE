@@ -3,7 +3,7 @@ import pytest
 
 from app.bill.rules_admin import RuleError
 from app.core.enums import TransactionType
-from app.pipeline.stages.extractor import _infer_type, _merchant_after_preposition, _merchant_from_description, relation_hint_for
+from app.pipeline.stages.extractor import _infer_type, _merchant_after_preposition, _merchant_from_description, relation_hint_for, transfer_kind_for
 from app.services import config_documents as docs
 from app.services import notification_vocab
 
@@ -194,4 +194,77 @@ def test_document_saved_before_phase81_still_works():
 def test_relation_term_must_belong_to_one_group():
     content = notification_vocab.default_data()
     content["reversal_markers"] = [*content["reversal_markers"], content["refund_markers"][0]]
+    assert rejected(content).code == "ambiguous_relation"
+
+
+# ---- Phase 83: chuyển tiền giữa các ví của chính mình (relation_hint = transfer, transfer_kind) ----
+
+
+@pytest.mark.parametrize(
+    ("text", "direction", "kind"),
+    [
+        ("VCB -2,000,000VND RUT TIEN ATM tai 123 Le Loi", TransactionType.DEBIT, "atm_withdrawal"),
+        ("TK 0011 -500,000VND chuyen tien den vi MoMo", TransactionType.DEBIT, "wallet_topup"),
+        ("MoMo +500,000d Nap tien tu Vietcombank", TransactionType.CREDIT, "wallet_topup"),
+        ("ZaloPay -1,000,000d rut ve ngan hang VCB", TransactionType.DEBIT, "wallet_withdrawal"),
+        ("VCB +3,000,000VND NOP TIEN TAI ATM", TransactionType.CREDIT, "atm_deposit"),
+        ("TCB +5,000,000VND CK den TK chinh chu", TransactionType.CREDIT, "own_account"),
+    ],
+)
+def test_transfer_kind_for_each_kind(text, direction, kind):
+    assert transfer_kind_for(text, direction) == kind
+    assert relation_hint_for(text, direction) == "transfer"
+
+
+def test_phone_topup_is_a_payment_not_a_transfer():
+    # S1: nhóm loại trừ thắng mọi nhóm chuyển ví, dù câu có "nap tien".
+    text = "Nap tien dien thoai Viettel 50,000"
+    assert transfer_kind_for(text, TransactionType.DEBIT) is None
+    assert relation_hint_for(text, TransactionType.DEBIT) is None
+
+
+@pytest.mark.parametrize("text", ["-200,000 VND nap data Vinaphone", "-500,000 VND nap tien VETC", "-300,000 VND thanh toan hoa don dien"])
+def test_other_payments_named_like_top_ups_are_excluded(text):
+    assert relation_hint_for(text, TransactionType.DEBIT) is None
+
+
+def test_a_refund_of_a_top_up_stays_a_refund():
+    # Hoàn tiền thắng chuyển ví: "hoàn tiền nạp ví" là tiền trả lại, không phải tiền chuyển.
+    text = "+500,000d hoan tien nap vi"
+    assert relation_hint_for(text, TransactionType.CREDIT) == "refund"
+    assert transfer_kind_for(text, TransactionType.CREDIT) is None
+
+
+def test_sending_money_to_a_friend_has_no_hint():
+    # Kịch bản (d): không có cụm "chuyen tien" trơn trong danh sách mặc định.
+    assert relation_hint_for("-500,000 VND chuyen tien cho ban Nam an trua", TransactionType.DEBIT) is None
+
+
+def test_the_longest_phrase_decides_the_kind():
+    # "rut tien" (rút ví) nằm trong "rut tien atm" (rút ATM): cụm dài hơn thắng.
+    assert transfer_kind_for("-2,000,000 rut tien atm", TransactionType.DEBIT) == "atm_withdrawal"
+    assert transfer_kind_for("-2,000,000 rut tien ve ngan hang", TransactionType.DEBIT) == "wallet_withdrawal"
+
+
+def test_a_kind_that_cannot_go_that_way_gives_no_hint():
+    # Rút ATM luôn là tiền ra khỏi ngân hàng; nộp ATM luôn là tiền vào.
+    assert transfer_kind_for("+2,000,000 rut tien atm", TransactionType.CREDIT) is None
+    assert transfer_kind_for("-2,000,000 nop tien tai atm", TransactionType.DEBIT) is None
+
+
+def test_document_saved_before_phase83_still_works():
+    content = {k: v for k, v in notification_vocab.default_data().items() if not k.startswith("transfer_")}
+    notification_vocab.apply(notification_vocab.with_defaults(content))
+    assert transfer_kind_for("RUT TIEN ATM", TransactionType.DEBIT) == "atm_withdrawal"
+
+
+def test_a_transfer_phrase_must_belong_to_one_group():
+    content = notification_vocab.default_data()
+    content["transfer_own_account_markers"] = [*content["transfer_own_account_markers"], "nap tien tu"]
+    assert rejected(content).code == "ambiguous_relation"
+
+
+def test_an_exclusion_phrase_cannot_also_be_a_transfer_phrase():
+    content = notification_vocab.default_data()
+    content["transfer_exclusion_markers"] = [*content["transfer_exclusion_markers"], "rut tien atm"]
     assert rejected(content).code == "ambiguous_relation"

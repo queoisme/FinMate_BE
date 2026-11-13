@@ -174,6 +174,8 @@ public class SystemConfigService : ISystemConfigService
         Compare("community", before.Community, after.Community);
         Compare("refunds", before.Refunds, after.Refunds);
         Compare("duplicates", before.Duplicates, after.Duplicates);
+        Compare("transfers", before.Transfers, after.Transfers);
+        Compare("snapshots", before.Snapshots, after.Snapshots);
         return sections;
     }
 }

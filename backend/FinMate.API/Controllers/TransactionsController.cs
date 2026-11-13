@@ -244,6 +244,48 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<TransactionDto>.Ok(survivor));
     }
 
+    /// <summary>
+    /// Đổi khoản chi/thu thành chuyển tiền giữa hai ví của chính người dùng (Phase 83). Có <c>pairedTransactionId</c> → ghép hai chiều, phần chênh thành
+    /// khoản "Phí giao dịch". Gọi lại cùng input → 200 như cũ. Lỗi: 404 (giao dịch/ví của người khác), 422 <c>TRANSFER_SHARED_NOT_ALLOWED</c>,
+    /// <c>TRANSFER_NOT_ALLOWED</c>, <c>TRANSFER_PAIR_MISMATCH</c>, <c>TRANSACTION_TRANSFER_SAME_ACCOUNT</c>.
+    /// </summary>
+    [HttpPost("{id:guid}/convert-to-transfer")]
+    public async Task<IActionResult> ConvertToTransfer(
+        Guid id, [FromBody] ConvertToTransferRequest request, [FromServices] IConvertToTransferCommandHandler handler, CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(
+            new ConvertToTransferCommand(CurrentUserId, id, request.CounterAccountId, request.PairedTransactionId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransferConversionDto>.Ok(result));
+    }
+
+    /// <summary>Xem trước <c>convert-to-transfer</c> (Phase 83): giao dịch còn lại, khoản phí, số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/convert-to-transfer/preview")]
+    public async Task<IActionResult> PreviewConvertToTransfer(
+        Guid id, [FromBody] ConvertToTransferRequest request, [FromServices] IConvertToTransferCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new ConvertToTransferCommand(CurrentUserId, id, request.CounterAccountId, request.PairedTransactionId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
+    /// <summary>Xem trước <c>merge</c> (Phase 83): giao dịch còn lại sau gộp và số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/merge/preview")]
+    public async Task<IActionResult> PreviewMerge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
+    /// <summary>"Không phải chuyển ví" (Phase 83): tắt gợi ý cho giao dịch này và chiều đang được gợi ý ghép cùng. Gọi lại → 200.</summary>
+    [HttpPost("{id:guid}/not-transfer")]
+    public async Task<IActionResult> NotTransfer(Guid id, [FromServices] INotTransferCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new NotTransferCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
@@ -395,6 +437,9 @@ public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, Transact
 
 /// <summary>Phase 82: <c>WithTransactionId</c> là bản còn lại của cặp; <c>CategoryId</c> tuỳ chọn thắng mọi nguồn; <c>ClientRequestId</c> nhận nhưng không dùng (gộp lại cùng cặp đã trả về bản cũ).</summary>
 public record MergeTransactionsRequest(Guid WithTransactionId, Guid? CategoryId = null, Guid? ClientRequestId = null);
+
+/// <summary>Phase 83: <c>CounterAccountId</c> là ví còn lại (đích nếu giao dịch là khoản chi, nguồn nếu là khoản thu).</summary>
+public record ConvertToTransferRequest(Guid CounterAccountId, Guid? PairedTransactionId = null, Guid? ClientRequestId = null);
 
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);

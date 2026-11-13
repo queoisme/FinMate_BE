@@ -31,6 +31,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
         RuleFor(x => x.Refunds).NotNull().SetValidator(new RefundValidator());
         RuleFor(x => x.Duplicates).NotNull().SetValidator(new DuplicateValidator());
+        RuleFor(x => x.Transfers).NotNull().SetValidator(new TransferValidator());
+        RuleFor(x => x.Snapshots).NotNull().SetValidator(new SnapshotValidator());
     }
 
     private static bool IsHttps(string value)
@@ -266,6 +268,28 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.NotificationWindowMinutes).InclusiveBetween(1, 60).WithMessage("Cửa sổ trùng giữa hai thông báo phải từ 1 đến 60 phút.");
             RuleFor(x => x.ManualWindowHours).InclusiveBetween(1, 168).WithMessage("Cửa sổ trùng giữa khoản nhập tay và thông báo phải từ 1 đến 168 giờ.");
             RuleFor(x => x.ReceiptWindowHours).InclusiveBetween(1, 72).WithMessage("Cửa sổ trùng của hoá đơn phải từ 1 đến 72 giờ.");
+        }
+    }
+
+    private sealed class TransferValidator : AbstractValidator<TransferSettings>
+    {
+        public TransferValidator()
+        {
+            RuleFor(x => x.PairWindowMinutes).InclusiveBetween(1, 240).WithMessage("Cửa sổ ghép cặp chuyển ví phải từ 1 đến 240 phút.");
+            RuleFor(x => x.ClockSkewMinutes).InclusiveBetween(0, 10).WithMessage("Độ lệch giờ cho phép phải từ 0 đến 10 phút.");
+            RuleFor(x => x.MaxFeeCents).InclusiveBetween(0, 200_000).WithMessage("Phí chuyển tối đa phải từ 0 đến 200.000 đồng.");
+            RuleFor(x => x.MaxFeePercent).InclusiveBetween(0, 10).WithMessage("Phí chuyển tối đa phải từ 0 đến 10%.");
+            RuleFor(x => x.ProviderAliases).NotNull()
+                .Must(map => map.All(p => !string.IsNullOrWhiteSpace(p.Key) && p.Value is not null && p.Value.All(a => a is not null && a.Trim().Length >= 2)))
+                .WithMessage("Mỗi bí danh của ví phải có ít nhất 2 ký tự.");
+        }
+    }
+
+    private sealed class SnapshotValidator : AbstractValidator<SnapshotSettings>
+    {
+        public SnapshotValidator()
+        {
+            RuleFor(x => x.RetentionDays).InclusiveBetween(30, 3650).WithMessage("Thời hạn lưu ảnh chụp phải từ 30 đến 3650 ngày.");
         }
     }
 

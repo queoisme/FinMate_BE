@@ -100,7 +100,10 @@ public class ForecastAccuracyService(
             try
             {
                 var included = (await accounts.GetListByUserAsync(group.Key, ct)).Where(a => a.IncludeInForecast).Select(a => a.Id).ToHashSet();
-                var transactions = await data.GetRawTransactionsAsync(group.Key, group.Min(s => s.OriginDate), group.Max(s => s.HorizonDate), ct);
+                var raw = await data.GetRawTransactionsAsync(group.Key, group.Min(s => s.OriginDate), group.Max(s => s.HorizonDate), ct);
+                // Phase 83 (S4): tiền chuyển giữa ví được tính và ví bị loại làm số dư tập được tính đổi thật; trước đây "số thực tế" bỏ sót nó.
+                var boundary = await BoundaryTransfers.AllAsync(data, group.Key, included, group.Min(s => s.OriginDate), group.Max(s => s.HorizonDate), ct);
+                var transactions = boundary.Count == 0 ? raw : raw.Concat(boundary).ToList();
                 var now = DateTimeOffset.UtcNow;
                 foreach (var s in group)
                 {

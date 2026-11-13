@@ -31,6 +31,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
     private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
     private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
+    private readonly Transactions.Transfers.ITransferSuggestions? _transfers;  // null: không gợi ý chuyển ví (test cũ)
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -43,10 +44,12 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IAiConsentReader? consent = null,
         IQrTransferLinker? qrLinker = null,
         Transactions.Refunds.IRefundSuggestions? refundSuggestions = null,
-        IDuplicateDetector? duplicates = null)
+        IDuplicateDetector? duplicates = null,
+        Transactions.Transfers.ITransferSuggestions? transfers = null)
     {
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
+        _transfers = transfers;
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
         _categoryRepository = categoryRepository;
@@ -146,12 +149,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             ExtractorVersion = response.ModelVersions?.Extractor,
             CategorizerVersion = response.ModelVersions?.Categorizer,
             ProcessingMs = response.ProcessingMs,
-            // Phase 81: chỉ có nghĩa với tiền vào; lưu để dựng lại gợi ý khi app mở nháp sau này.
-            RelationHint = ParseTransactionType(response.Extraction?.TransactionType) == TransactionType.Credit
-                ? Transactions.Refunds.IRefundSuggestions.Parse(response.Extraction?.RelationHint)
-                : null,
             CreatedAt = now,
         };
+        // Phase 81/83: hoàn/đảo chỉ với tiền vào, chuyển ví với cả hai chiều; lưu để dựng lại gợi ý khi app mở nháp sau này.
+        (aiResult.RelationHint, aiResult.TransferKind) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
         var outcome = pipelineResult == PipelineResult.Financial
@@ -169,7 +170,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             log.Id,
             log.Status.ToString(),
             outcome.Draft?.Id,
-            outcome.Draft is null ? null : aiResult.RelationHint?.ToString(),
+            outcome.Draft is null ? null : aiResult.RelationHint.AsRefundRelation()?.ToString(),
             outcome.Suggestions,
             outcome.SameEventId ?? outcome.Draft?.DuplicateOfTransactionId);
     }
@@ -240,20 +241,24 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
 
         // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
         IReadOnlyList<RefundSuggestionDto>? suggestions = null;
-        if (aiResult.RelationHint is { } hint && _refundSuggestions is not null)
+        if (aiResult.RelationHint.AsRefundRelation() is { } hint && _refundSuggestions is not null)
         {
             transaction.FinancialAccount = account;
             suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
         }
+
+        // Phase 83: nháp đang nghi trùng không bao giờ mang gợi ý chuyển ví (BR-TRF-04); TransferMatcher tự loại nó.
+        var transfer = _transfers is null ? null : await _transfers.ForOneAsync(command.UserId, transaction, ct);
 
         // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách khác nhau tuỳ mức tin cậy; nghi trùng thì hỏi gộp trước (D15).
         var review = TransactionReviewPushBuilder.Build(
             transaction,
             category?.Name,
             TransactionReviewPushBuilder.ReviewConfidence(aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
-            aiResult.RelationHint,
+            aiResult.RelationHint.AsRefundRelation(),
             suggestions?.Count ?? 0,
-            duplicates.Candidates.Count(c => c.MarksSuspected));
+            duplicates.Candidates.Count(c => c.MarksSuspected),
+            transfer);
 
         await _pushNotificationService.NotifyAsync(command.UserId, review.Title, review.Body, review.Data, ct);
         return new DraftOutcome(transaction, suggestions, null);

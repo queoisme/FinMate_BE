@@ -12,13 +12,18 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly Refunds.IRefundSuggestions? _suggestions;
     private readonly Duplicates.IDuplicateDetector? _duplicates;
+    private readonly Transfers.ITransferSuggestions? _transfers;
 
     public GetTransactionListQueryHandler(
-        ITransactionRepository transactionRepository, Refunds.IRefundSuggestions? suggestions = null, Duplicates.IDuplicateDetector? duplicates = null)
+        ITransactionRepository transactionRepository,
+        Refunds.IRefundSuggestions? suggestions = null,
+        Duplicates.IDuplicateDetector? duplicates = null,
+        Transfers.ITransferSuggestions? transfers = null)
     {
         _transactionRepository = transactionRepository;
         _suggestions = suggestions;
         _duplicates = duplicates;
+        _transfers = transfers;
     }
 
     public async Task<TransactionListDto> HandleAsync(GetTransactionListQuery query, CancellationToken ct = default)
@@ -49,13 +54,17 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
         var duplicates = _duplicates is null
             ? new Dictionary<Guid, DuplicateView>()
             : await _duplicates.ViewAsync(query.UserId, result.Items, ct);
+        var transfers = _transfers is null
+            ? new Dictionary<Guid, TransferSuggestionDto>()
+            : await _transfers.ForAsync(query.UserId, result.Items, ct);
 
         return new TransactionListDto(
             result.Items.Select(t => TransactionMapper.ToDto(
                 t,
                 GetTransactionDetailQueryHandler.RefundableShape(t) ? refunded.GetValueOrDefault(t.Id) : null,
                 suggestions.TryGetValue(t.Id, out var s) ? s.Items : null,
-                duplicates.GetValueOrDefault(t.Id))).ToList(),
+                duplicates.GetValueOrDefault(t.Id),
+                transfers.GetValueOrDefault(t.Id))).ToList(),
             result.NextCursor);
     }
 }

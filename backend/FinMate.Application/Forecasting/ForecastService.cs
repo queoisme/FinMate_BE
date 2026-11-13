@@ -103,7 +103,9 @@ public class ForecastService : IForecastService
 
         var included = (await _accounts.GetListByUserAsync(userId, ct)).Where(a => a.IncludeInForecast).ToList();
         var items = ActiveItemsFor(await _items.ListAsync(userId, RecurringStatus.Active, ct), included.Select(a => a.Id).ToHashSet(), accountId: null);
-        var recent = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
+        var habits = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
+        var recent = BoundaryTransfers.ForRecurring(habits, await BoundaryTransfers.OutflowsAsync(
+            _data, userId, included.Select(a => a.Id).ToHashSet(), today.AddDays(-rules.HistoryWindowDays), today, ct));
         var goals = await _goals.GetSpendableAsync(userId, ct);
         var irregular = await IrregularIncomeAsync(userId, items, today, settings, rules, ct);
 
@@ -166,7 +168,8 @@ public class ForecastService : IForecastService
             .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, items, rules))
             .Sum(t => t.AmountCents);
 
-        var events = CashflowEngine.RecurringEvents(items, transactions, today, end, rules)
+        var boundary = await BoundaryTransfers.OutflowsAsync(_data, userId, accountIds, today.AddDays(-rules.HistoryWindowDays), today, ct);
+        var events = CashflowEngine.RecurringEvents(items, BoundaryTransfers.ForRecurring(transactions, boundary), today, end, rules)
             .Concat(scenario.Select(i => new CashflowEvent(
                 i.Date, i.Direction == RecurringDirection.Inflow ? i.AmountCents : -i.AmountCents, i.Label.Trim(), CashflowEventKinds.Scenario, null)))
             .ToList();

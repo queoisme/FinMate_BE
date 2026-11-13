@@ -288,4 +288,77 @@ public class DuplicateMatcherTests
 
         Match(next, [survivor]).Candidates.Should().BeEmpty();
     }
+
+    // ---- Phase 83, BR-TRF-06: thông báo về sau một Transfer đã ghi tay ----
+
+    private static readonly Guid Momo = Guid.NewGuid();
+    private static readonly TransferSettings Transfers = new();
+
+    private static DuplicateProbe ManualTransfer(long amount = 50_000, TimeSpan? offset = null)
+        => Probe(TransactionSource.Manual, TransactionType.Transfer, amount, offset ?? TimeSpan.FromMinutes(-5), account: Vcb) with { CounterAccountId = Momo };
+
+    private static DuplicateMatch MatchWithTransfers(DuplicateProbe subject, params DuplicateProbe[] candidates)
+        => DuplicateMatcher.Match(subject, candidates, new HashSet<Guid>(), Settings, null, Transfers);
+
+    [Fact]
+    public void BankDebitFromTheSourceWallet_IsSuspectedOfTheTransfer()
+    {
+        var transfer = ManualTransfer();
+
+        var match = MatchWithTransfers(Probe(account: Vcb), transfer);
+
+        match.Candidates.Should().ContainSingle().Which.Id.Should().Be(transfer.Id);
+        match.Candidates[0].Pair.Should().Be(DuplicatePair.TransferNotification);
+        match.Candidates[0].MarksSuspected.Should().BeTrue();
+    }
+
+    [Fact]
+    public void BankCreditIntoTheDestinationWallet_IsSuspectedOfTheTransfer()
+    {
+        var transfer = ManualTransfer();
+
+        MatchWithTransfers(Probe(type: TransactionType.Credit, account: Momo), transfer).Candidates.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void BankDebitWithAFeeWithinTheLimits_StillMatches_ButACreditMustBeExact()
+    {
+        var transfer = ManualTransfer(1_000_000);
+
+        MatchWithTransfers(Probe(amount: 1_003_300, account: Vcb), transfer).Candidates.Should().ContainSingle();
+        MatchWithTransfers(Probe(amount: 1_020_001, account: Vcb), transfer).Candidates.Should().BeEmpty();
+        MatchWithTransfers(Probe(type: TransactionType.Credit, amount: 999_000, account: Momo), transfer).Candidates.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WrongWalletSide_DoesNotMatchTheTransfer()
+    {
+        var transfer = ManualTransfer();
+
+        MatchWithTransfers(Probe(account: Momo), transfer).Candidates.Should().BeEmpty("tiền ra phải ở ví nguồn");
+        MatchWithTransfers(Probe(type: TransactionType.Credit, account: Vcb), transfer).Candidates.Should().BeEmpty("tiền vào phải ở ví đích");
+    }
+
+    [Theory]
+    [InlineData(48 * 60, true)]
+    [InlineData(48 * 60 + 1, false)]
+    public void TheWindowIsTheLargerOfThePairWindowAndTheManualWindow(int minutesApart, bool matches)
+    {
+        var transfer = ManualTransfer(offset: TimeSpan.FromMinutes(-minutesApart));
+
+        MatchWithTransfers(Probe(account: Vcb), transfer).Candidates.Any().Should().Be(matches);
+    }
+
+    [Fact]
+    public void WithoutTransferSettings_TransfersAreStillIgnored()
+    {
+        Match(Probe(account: Vcb), [ManualTransfer()]).Candidates.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AHandEnteredDebit_IsNeverComparedWithATransfer()
+    {
+        MatchWithTransfers(Probe(TransactionSource.Manual, account: Vcb), ManualTransfer()).Candidates.Should().BeEmpty();
+    }
 }
+

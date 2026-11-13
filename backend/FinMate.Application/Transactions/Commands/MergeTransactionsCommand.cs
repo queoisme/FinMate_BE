@@ -4,6 +4,7 @@ using FinMate.Application.Common.Models;
 using FinMate.Application.Groups;
 using FinMate.Application.Transactions.Duplicates;
 using FinMate.Application.Transactions.Refunds;
+using FinMate.Application.Transactions.Transfers;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -19,6 +20,9 @@ public record MergeTransactionsCommand(Guid UserId, Guid TransactionId, Guid Wit
 public interface IMergeTransactionsCommandHandler
 {
     Task<TransactionDto> HandleAsync(MergeTransactionsCommand command, CancellationToken ct = default);
+
+    /// <summary><c>POST /transactions/{id}/merge/preview</c>: kết quả sẽ ra, không ghi gì. Cùng 404/422 với lệnh thật.</summary>
+    Task<TransactionPreviewDto> PreviewAsync(MergeTransactionsCommand command, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -40,6 +44,11 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
     private readonly IAIServiceClient _ai;
     private readonly IDuplicateDetector _duplicates;
     private readonly RefundAfterSave _afterSave;
+    private readonly IMergeSnapshotRepository? _snapshots;   // null: không ghi ảnh chụp (test cũ)
+    private readonly ISystemConfigProvider? _config;         // null: giới hạn phí mặc định
+
+    // Thay đổi số dư của lượt đang chạy, theo ví (để xem trước và ảnh chụp). Handler sống theo request; đặt lại đầu mỗi lượt (kể cả lượt thử lại).
+    private readonly Dictionary<Guid, long> _deltas = new();
 
     public MergeTransactionsCommandHandler(
         ITransactionRepository transactions,
@@ -55,8 +64,12 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         ICacheService cache,
         IGroupLedger? groupLedger = null,
         IDailySummaryRefresher? summaries = null,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IMergeSnapshotRepository? snapshots = null,
+        ISystemConfigProvider? config = null)
     {
+        _snapshots = snapshots;
+        _config = config;
         _transactions = transactions;
         _accounts = accounts;
         _categories = categories;
@@ -69,7 +82,9 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         _afterSave = new RefundAfterSave(budgetAlerts, cache, groupLedger, summaries, forecastAlerts);
     }
 
-    private sealed record Outcome(Transaction Survivor, RefundEffects Effects, CategoryFeedback? Feedback);
+    private sealed record Outcome(Transaction Survivor, RefundEffects Effects, CategoryFeedback? Feedback, Transaction? Fee = null);
+
+    private sealed record MovedReferences(List<Guid> QrIntents, List<Guid> DraftRefunds, List<Guid> DuplicateLinks);
 
     private sealed record CategoryFeedback(Guid TransactionId, string Package, string? PredictedSlug, string? CorrectedSlug);
 
@@ -91,8 +106,24 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         return TransactionMapper.ToDto(outcome.Survivor, duplicates: view.GetValueOrDefault(outcome.Survivor.Id));
     }
 
+    public async Task<TransactionPreviewDto> PreviewAsync(MergeTransactionsCommand command, CancellationToken ct = default)
+    {
+        var (outcome, deltas) = await _transactions.RunPreviewAsync(async () =>
+        {
+            var result = await _transactions.RunWithTransactionsLockedAsync(
+                command.UserId, [command.TransactionId, command.WithTransactionId], rows => MergeLockedAsync(command, rows, ct), ct);
+            return (result, new Dictionary<Guid, long>(_deltas));
+        }, ct);
+
+        return new TransactionPreviewDto(
+            TransactionMapper.ToDto(outcome.Survivor),
+            outcome.Fee is null ? null : TransactionMapper.ToDto(outcome.Fee),
+            await BalancePreview.ChangesAsync(_accounts, command.UserId, deltas, ct));
+    }
+
     private async Task<Outcome> MergeLockedAsync(MergeTransactionsCommand command, IReadOnlyDictionary<Guid, Transaction> rows, CancellationToken ct)
     {
+        _deltas.Clear();
         var a = rows[command.TransactionId];
         var b = rows[command.WithTransactionId];
         if (AlreadyMerged(a, b) is { } done)
@@ -109,7 +140,14 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         var qrB = await _qr.GetIntentByTransactionAsync(b.Id, command.UserId, ct);
         var loserRefunded = loser.Status == TransactionStatus.Confirmed
             && await _transactions.SumConfirmedRefundsAsync(command.UserId, loser.Id, null, ct) > 0;
-        MergePolicy.EnsureMergeable(a, b, survivor, new MergeFacts(loserRefunded, qrA is not null, qrB is not null));
+        var transfers = _config is null ? new Admin.SystemConfig.TransferSettings() : (await _config.GetAsync(ct)).Document.Transfers;
+        MergePolicy.EnsureMergeable(
+            a, b, survivor, new MergeFacts(loserRefunded, qrA is not null, qrB is not null, transfers.MaxFeeCents, transfers.MaxFeePercent));
+        if (survivor.TransactionType == TransactionType.Transfer)
+        {
+            var (transferQr, otherQr) = ReferenceEquals(survivor, a) ? (qrA, qrB) : (qrB, qrA);
+            return await MergeIntoTransferAsync(command.UserId, survivor, loser, otherQr, transferQr, ct);
+        }
 
         var chosen = await ChosenCategoryAsync(command, ct);
         var before = new[] { survivor, loser }.Where(t => t.Status == TransactionStatus.Confirmed).Select(RefundScopeSnapshot.Of).ToList();
@@ -118,9 +156,14 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         var now = DateTimeOffset.UtcNow;
         var (survivorQr, loserQr) = ReferenceEquals(survivor, a) ? (qrA, qrB) : (qrB, qrA);
 
+        var rowsBefore = new[] { survivor, loser }.Select(SnapshotRow.Of).ToList();
+        var receiptMoves = await _receipts.GetLinkedScanIdAsync(loser.Id, command.UserId, ct) is not null
+            && await _receipts.GetLinkedScanIdAsync(survivor.Id, command.UserId, ct) is null;
+
         await MoveMoneyAsync(command.UserId, survivor, loser, fields.AccountId, now, ct);
         var moved = await ApplyFieldsAsync(survivor, loser, fields, chosen, now, ct);
-        await MoveReferencesAsync(command.UserId, survivor, loser, loserQr, survivorQr, moved, now, ct);
+        var anomalies = await AnomaliesToRemoveAsync(command.UserId, survivor, loser, moved, ct);
+        var references = await MoveReferencesAsync(command.UserId, survivor, loser, loserQr, survivorQr, moved, now, ct);
 
         loser.DeletedAt = now;
         loser.MergedIntoTransactionId = survivor.Id;
@@ -129,6 +172,12 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         loser.UpdatedAt = now;
 
         var effects = await _ledger.RecomputeAsync(command.UserId, [survivor, loser], before, ct);
+        _snapshots?.Add(MergeSnapshotFactory.Create(
+            command.UserId, survivor.Id, loser.Id, MergeSnapshotKind.DuplicateMerge, null,
+            new SnapshotBefore(
+                rowsBefore, new Dictionary<Guid, long>(_deltas), null, references.QrIntents, references.DraftRefunds, references.DuplicateLinks,
+                anomalies, receiptMoves),
+            now));
         await SaveAsync(command.UserId, survivor, loser, ct);
 
         var corrected = survivor.Category?.Slug;
@@ -136,6 +185,77 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
             survivor,
             effects,
             feedback is not null && feedback.PredictedSlug != corrected ? feedback with { TransactionId = survivor.Id, CorrectedSlug = corrected } : null);
+    }
+
+    /// <summary>
+    /// Phase 83 (BR-TRF-06, D8, D9): thông báo của ngân hàng về một Transfer người dùng đã ghi tay. Transfer giữ nguyên ví, số tiền, không danh mục;
+    /// chỉ nhận giờ và số dư ngân hàng báo từ chiều tiền ra (chiều tiền vào chỉ đặt giờ khi chưa có thông báo nào gộp vào). Thông báo đã xác nhận thì
+    /// tiền của nó được trả lại ví; tiền ra lớn hơn số chuyển thì phần chênh thành khoản phí, nên ví nguồn kết thúc đúng như ngân hàng báo.
+    /// </summary>
+    private async Task<Outcome> MergeIntoTransferAsync(
+        Guid userId, Transaction transfer, Transaction notice, QrTransferIntent? noticeQr, QrTransferIntent? transferQr, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var before = new[] { transfer, notice }.Where(t => t.Status == TransactionStatus.Confirmed).Select(RefundScopeSnapshot.Of).ToList();
+        var rowsBefore = new[] { transfer, notice }.Select(SnapshotRow.Of).ToList();
+        var receiptMoves = await _receipts.GetLinkedScanIdAsync(notice.Id, userId, ct) is not null
+            && await _receipts.GetLinkedScanIdAsync(transfer.Id, userId, ct) is null;
+
+        if (notice.Status == TransactionStatus.Confirmed)
+        {
+            await AdjustAsync(userId, notice.FinancialAccountId, -Signed(notice), now, ct);
+        }
+
+        Transaction? fee = null;
+        if (notice.TransactionType == TransactionType.Debit)
+        {
+            var feeCents = notice.AmountCents - transfer.AmountCents;
+            if (feeCents > 0)
+            {
+                fee = TransferFee.Build(
+                    userId, transfer.Id, notice, transfer.FinancialAccountId, feeCents, await _categories.GetSystemBySlugAsync(TransferFee.CategorySlug, ct), now);
+                await AdjustAsync(userId, transfer.FinancialAccountId, -feeCents, now, ct);
+            }
+
+            transfer.TransactedAt = notice.TransactedAt;
+            transfer.BalanceAfterCents = fee is null ? notice.BalanceAfterCents : null;
+        }
+        else if (transfer.MergedSources?.Contains("notification") != true)
+        {
+            transfer.TransactedAt = notice.TransactedAt;
+        }
+
+        transfer.MergedSources = MergePolicy.MergedSources(transfer, notice);
+        if (transfer.DuplicateOfTransactionId == notice.Id)
+        {
+            transfer.DuplicateOfTransactionId = null;
+            transfer.DuplicateStatus = null;
+        }
+
+        transfer.UpdatedAt = now;
+        var anomalies = await AnomaliesToRemoveAsync(userId, transfer, notice, survivorMoved: false, ct);
+        var references = await MoveReferencesAsync(userId, transfer, notice, noticeQr, transferQr, survivorMoved: false, now, ct);
+        notice.DeletedAt = now;
+        notice.MergedIntoTransactionId = transfer.Id;
+        notice.DuplicateOfTransactionId = null;
+        notice.DuplicateStatus = null;
+        notice.UpdatedAt = now;
+
+        var pending = fee is null ? new List<Transaction> { transfer, notice } : [transfer, notice, fee];
+        var effects = await _ledger.RecomputeAsync(userId, pending, before, ct);
+        _snapshots?.Add(MergeSnapshotFactory.Create(
+            userId, transfer.Id, notice.Id, MergeSnapshotKind.DuplicateMerge, null,
+            new SnapshotBefore(
+                rowsBefore, new Dictionary<Guid, long>(_deltas), fee?.Id, references.QrIntents, references.DraftRefunds, references.DuplicateLinks,
+                anomalies, receiptMoves),
+            now));
+        if (fee is not null)
+        {
+            await _transactions.AddAsync(fee, ct);
+        }
+
+        await SaveAsync(userId, transfer, notice, ct);
+        return new Outcome(transfer, effects, null, fee);
     }
 
     /// <summary>Cặp này đã gộp xong (một bản trỏ <c>merged_into</c> tới bản kia): trả survivor nếu nó còn sống.</summary>
@@ -208,6 +328,7 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
     private async Task<FinancialAccount> AdjustAsync(Guid userId, Guid accountId, long delta, DateTimeOffset now, CancellationToken ct)
     {
         var account = await _accounts.GetByIdAsync(accountId, userId, ct) ?? throw new NotFoundException("FinancialAccount", accountId);
+        _deltas[accountId] = _deltas.GetValueOrDefault(accountId) + delta;
         account.BalanceCents += delta;
         account.UpdatedAt = now;
         return account;
@@ -241,15 +362,25 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         return moved;
     }
 
+    /// <summary>Id các đánh dấu bất thường sắp bị bỏ (D10), ghi vào ảnh chụp trước khi bỏ.</summary>
+    private async Task<List<Guid>> AnomaliesToRemoveAsync(Guid userId, Transaction survivor, Transaction loser, bool survivorMoved, CancellationToken ct)
+        => (await _anomalies.GetForTransactionsAsync(userId, [survivor.Id, loser.Id], ct))
+            .Where(a => a.TransactionId == loser.Id || (survivorMoved && a.Resolution is null))
+            .Select(a => a.Id)
+            .ToList();
+
     /// <summary>Chuyển mọi thứ đang trỏ tới bản bị gộp sang survivor (bảng tham chiếu trong kế hoạch Phase 82; D6, D7, D9, D10).</summary>
-    private async Task MoveReferencesAsync(
+    private async Task<MovedReferences> MoveReferencesAsync(
         Guid userId, Transaction survivor, Transaction loser, QrTransferIntent? loserQr, QrTransferIntent? survivorQr, bool survivorMoved, DateTimeOffset now, CancellationToken ct)
     {
+        var moved = new MovedReferences([], [], []);
+
         // D6: ý định QR khớp với bản bị gộp đi theo survivor; danh mục người dùng chọn lúc quét chỉ dùng khi survivor chưa có danh mục.
         if (loserQr is not null && survivorQr is null)
         {
+            moved.QrIntents.Add(loserQr.Id);
             loserQr.MatchedTransactionId = survivor.Id;
-            if (survivor.CategoryId is null && loserQr.CategoryId is { } qrCategory)
+            if (survivor.CategoryId is null && survivor.TransactionType != TransactionType.Transfer && loserQr.CategoryId is { } qrCategory)
             {
                 survivor.CategoryId = qrCategory;
                 survivor.Category = await _categories.GetByIdAsync(qrCategory, ct);
@@ -261,6 +392,7 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         {
             draft.RelatedTransactionId = survivor.Id;
             draft.UpdatedAt = now;
+            moved.DraftRefunds.Add(draft.Id);
         }
 
         // D9: các bản khác đang nghi trùng / đã bác với bản bị gộp → trỏ sang survivor; thành tự trỏ thì bỏ liên kết.
@@ -277,6 +409,7 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
             }
 
             linked.UpdatedAt = now;
+            moved.DuplicateLinks.Add(linked.Id);
         }
 
         // D10: bỏ đánh dấu bất thường của bản bị gộp; survivor đổi ví/ngày thì bỏ đánh dấu đang mở để lượt quét sau xét lại.
@@ -285,6 +418,8 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         {
             await _anomalies.RemoveForTransactionAsync(userId, survivor.Id, openOnly: true, ct);
         }
+
+        return moved;
     }
 
     /// <summary>

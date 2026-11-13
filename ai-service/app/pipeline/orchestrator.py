@@ -33,7 +33,11 @@ from app.pipeline.stages import duplicate_detector
 from app.pipeline.stages.ai_categorizer import AiDeps, categorize_with_ai
 from app.pipeline.stages.categorizer import Categorizer
 from app.pipeline.stages.classifier import MANUAL_ENTRY_PACKAGE, Classifier
-from app.pipeline.stages.extractor import Extractor, relation_hint_for
+from app.pipeline.stages.extractor import (
+    Extractor,
+    relation_hint_for,
+    transfer_kind_for,
+)
 from app.schemas.request import AnalyzeRequest
 from app.schemas.response import (
     AnalyzeResponse,
@@ -209,9 +213,9 @@ class Pipeline:
             row.balance_after_cents = extraction.balance_after_cents
             row.extraction_confidence = extraction.confidence
             row.extraction_method = extraction.method.value
-            row.relation_hint = relation_hint_for(
-                " ".join(part for part in (request.notification_title, request.notification_body) if part), extraction.transaction_type
-            )
+            full_text = " ".join(part for part in (request.notification_title, request.notification_body) if part)
+            row.relation_hint = relation_hint_for(full_text, extraction.transaction_type)
+            row.transfer_kind = transfer_kind_for(full_text, extraction.transaction_type) if row.relation_hint == "transfer" else None
             row.matched_pattern_name = extraction.matched_pattern_name
             row.pattern_id = extraction.pattern_id
             row.extra_fields = extraction.extra_fields
@@ -284,6 +288,7 @@ def _response_from_row(
             balance_after_cents=row.balance_after_cents,
             confidence=row.extraction_confidence,
             relation_hint=row.relation_hint,
+            transfer_kind=row.transfer_kind,
         )
 
     categorization = None

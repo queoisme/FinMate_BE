@@ -137,4 +137,51 @@ public class AnalyzeNotificationDuplicateTests
         _pushData["suggestionCount"].Should().Be("2");
         _logStatuses.Last().Should().Be(NotificationLogStatus.Processed);
     }
+
+    // ---- Phase 83 ----
+
+    [Fact]
+    public async Task ATransferSuggestion_IsPushedAsReviewTransfer()
+    {
+        AiSays(aiDuplicate: false);
+        DetectorReturns(DuplicateMatch.None, marks: false);
+        var transfers = new Mock<FinMate.Application.Transactions.Transfers.ITransferSuggestions>();
+        transfers.Setup(t => t.ForOneAsync(It.IsAny<Guid>(), It.IsAny<Transaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FinMate.Application.Transactions.Transfers.TransferSuggestion(
+                TransferKind.AtmWithdrawal, TransferKind.AtmWithdrawal, null, _account.Id, null, 50_000, null, [Guid.NewGuid()]));
+        var handler = new AnalyzeNotificationCommandHandler(
+            _accounts.Object, _logs.Object, _categories.Object, _transactions.Object, _ai.Object, _push.Object,
+            new AnalyzeNotificationCommandValidator(), duplicates: _duplicates.Object, transfers: transfers.Object);
+
+        await handler.HandleAsync(Command());
+
+        _pushData!["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewTransfer);
+        _pushData["transferKind"].Should().Be("AtmWithdrawal");
+    }
+
+    [Fact]
+    public async Task TheAiTransferHint_IsStoredForBothDirections()
+    {
+        AiResult? stored = null;
+        _logs.Setup(r => r.AddAiResultAsync(It.IsAny<AiResult>(), It.IsAny<CancellationToken>()))
+            .Callback<AiResult, CancellationToken>((r, _) => stored = r)
+            .Returns(Task.CompletedTask);
+        _ai.Setup(c => c.AnalyzeAsync(It.IsAny<AnalyzeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AnalyzeResponse(
+                "financial",
+                new ClassifierResult("financial", 0.97),
+                new ExtractionResult(2_000_000, "debit", null, "RUT TIEN ATM", DateTimeOffset.UtcNow, 500_000, 0.95, "transfer", "atm_withdrawal"),
+                new CategorizationResult("other", 0.9),
+                new DuplicateResult(false, null),
+                new ModelVersions("1", "1", "1"),
+                20));
+        DetectorReturns(DuplicateMatch.None, marks: false);
+
+        var result = await Handler().HandleAsync(Command());
+
+        stored!.RelationHint.Should().Be(NotificationRelationHint.Transfer);
+        stored.TransferKind.Should().Be(TransferKind.AtmWithdrawal);
+        result.RelationHint.Should().BeNull("relationHint của analyze vẫn chỉ nói hoàn/đảo như Phase 81");
+    }
 }
+

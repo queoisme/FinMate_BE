@@ -33,6 +33,17 @@ public sealed class RetryingMergeTransactionsCommandHandler(IMergeTransactionsCo
 {
     public Task<TransactionDto> HandleAsync(MergeTransactionsCommand command, CancellationToken ct = default)
         => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+
+    public Task<TransactionPreviewDto> PreviewAsync(MergeTransactionsCommand command, CancellationToken ct = default) => inner.PreviewAsync(command, ct);
+}
+
+public sealed class RetryingConvertToTransferCommandHandler(IConvertToTransferCommandHandler inner, IConcurrencyRetry retry)
+    : IConvertToTransferCommandHandler
+{
+    public Task<TransferConversionDto> HandleAsync(ConvertToTransferCommand command, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.HandleAsync(command, token), ct);
+
+    public Task<TransactionPreviewDto> PreviewAsync(ConvertToTransferCommand command, CancellationToken ct = default) => inner.PreviewAsync(command, ct);
 }
 
 public sealed class RetryingLinkRelatedTransactionCommandHandler(ILinkRelatedTransactionCommandHandler inner, IConcurrencyRetry retry)
