@@ -38,6 +38,18 @@ thì hỏi user, đừng tự chọn.
 - Thao tác có dính hoàn/đảo **tính lại** kỳ ngân sách (không cộng delta rồi chặn ở 0, vì như vậy số bị lệch) và chạy dưới khoá
   `SELECT … FOR UPDATE` dòng khoản gốc, thứ tự khoá cố định: khoản gốc → ví → kỳ ngân sách. Chi tiết: `docs/transactions-refund-api.md`.
 
+**Nguyên tắc bản trùng có liên kết (Phase 82, 2026-11-13):**
+
+- **Backend quyết trùng, AI chỉ là tín hiệu.** Chỉ backend thấy cùng lúc giao dịch nhập tay, chat, giọng nói, hoá đơn và thông báo,
+  nên `DuplicateMatcher` (Application) là nơi duy nhất quyết định một giao dịch có nghi trùng hay không. Cờ `is_potential_duplicate`
+  của AI Service chỉ được dùng để phân định khi các ứng viên ngang nhau, **không bao giờ** làm backend bỏ một thông báo. Thông báo
+  chỉ bị bỏ âm thầm trong hai trường hợp: trùng `contentHash` (FR-TXN-02), hoặc cùng provider, cùng số tiền, cùng số dư sau giao dịch
+  trong cửa sổ ngắn (log `duplicate`).
+- Nghi trùng không làm mất giao dịch: bản mới vẫn được tạo, mang `duplicate_status = 'suspected'` và trỏ tới ứng viên hạng 1. Người
+  dùng gộp (`merge`) hoặc bác (`not-duplicate`). Bản bị gộp **xoá mềm** kèm `merged_into_transaction_id`, nên mọi truy vấn đang lọc
+  `deleted_at` tự loại nó. Gộp tính lại ngân sách bằng bộ máy của Phase 81 và khoá hai dòng theo id tăng dần → ví → kỳ ngân sách.
+  Chi tiết: `docs/superpowers/plans/2026-11-13-linked-duplicates.md`.
+
 ---
 
 ## 1. Tổng quan hệ thống
