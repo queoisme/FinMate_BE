@@ -38,9 +38,12 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
             .OrderByDescending(g => g.Key)
             .Select(g => new TimelineDayDto(
                 g.Key,
-                // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày.
-                g.Sum(t => t.TransactionType == TransactionType.Debit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
-                g.Sum(t => t.TransactionType == TransactionType.Credit && t.Category?.Slug != Category.LoanSlug ? t.AmountCents : 0L),
+                // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày. Hoàn/đảo theo NetFlow
+                // (Phase 81): hoàn trừ vào chi, không vào thu; cặp đảo vẫn hiện trong danh sách nhưng không vào tổng.
+                g.Where(t => t.Category?.Slug != Category.LoanSlug)
+                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).SpentCents),
+                g.Where(t => t.Category?.Slug != Category.LoanSlug)
+                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).IncomeCents),
                 g.Select(t => TransactionMapper.ToDto(t)).ToList()))
             .ToList();
 

@@ -23,7 +23,9 @@ public sealed record GroupReportRow(
     string? GroupCategoryName,
     Guid? CategoryId,
     string? CategoryName,
-    bool CategoryIsSystem);
+    bool CategoryIsSystem,
+    TransactionRelation? Relation = null,
+    bool IsReversed = false);
 
 /// <summary>Dữ liệu tài chính của nhóm. Không kiểm quyền: mọi lời gọi phải đi sau <c>IGroupAccessService</c>.</summary>
 public interface IGroupFinanceRepository

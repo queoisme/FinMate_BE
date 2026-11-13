@@ -118,7 +118,9 @@ public class GroupFinanceRepository : IGroupFinanceRepository
                 t.GroupCategory != null ? t.GroupCategory.Name : null,
                 t.CategoryId,
                 t.Category != null ? t.Category.Name : null,
-                t.Category != null && t.Category.IsSystem))
+                t.Category != null && t.Category.IsSystem,
+                t.Relation,
+                t.IsReversed))
             .ToListAsync(ct);
 
     public Task<Transaction?> GetSharedTransactionAsync(Guid groupId, Guid transactionId, CancellationToken ct = default)

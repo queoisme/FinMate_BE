@@ -1,3 +1,4 @@
+using FinMate.Application.Reports;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Enums;
@@ -14,7 +15,8 @@ public sealed record GroupMonthlyReportDto(
     long TotalSpentCents,
     long TotalIncomeCents,
     IReadOnlyList<GroupCategorySpendDto> ByCategory,
-    IReadOnlyList<GroupMemberTotalsDto> ByMember);
+    IReadOnlyList<GroupMemberTotalsDto> ByMember,
+    long RefundedCents = 0);
 
 public interface IGroupReportService
 {
@@ -38,27 +40,31 @@ public class GroupReportService : IGroupReportService
         await _access.RequireAsync(groupId, userId, GroupPermission.ViewOverview, ct);
         var (start, end) = VietnamTime.MonthRange(year, month);
         var rows = await _finance.ListReportRowsAsync(groupId, start, end, ct);
-        var spending = rows.Where(r => r.Type == TransactionType.Debit).ToList();
+        // Phase 81 (NetFlow): chi ròng = chi − hoàn (khoản hoàn đi cùng danh mục nhóm của khoản gốc), thu không gồm hoàn, cặp đảo không vào đâu.
+        var flows = rows.Select(r => (Row: r, Parts: NetFlow.Of(r.Type, r.Relation, r.IsReversed, r.AmountCents))).ToList();
+        var spending = flows.Where(f => f.Parts.SpentCents != 0).ToList();
 
         return new GroupMonthlyReportDto(
             year,
             month,
-            spending.Sum(r => r.AmountCents),
-            rows.Where(r => r.Type == TransactionType.Credit).Sum(r => r.AmountCents),
+            Math.Max(0, spending.Sum(f => f.Parts.SpentCents)),
+            flows.Sum(f => f.Parts.IncomeCents),
             spending
-                .GroupBy(r => (r.GroupCategoryId, CategoryId: r.GroupCategoryId is null && r.CategoryIsSystem ? r.CategoryId : null))
-                .Select(g => new GroupCategorySpendDto(g.Key.CategoryId, g.Key.GroupCategoryId, CategoryNameOf(g.First()), g.Sum(r => r.AmountCents)))
+                .GroupBy(f => (f.Row.GroupCategoryId, CategoryId: f.Row.GroupCategoryId is null && f.Row.CategoryIsSystem ? f.Row.CategoryId : null))
+                .Select(g => new GroupCategorySpendDto(g.Key.CategoryId, g.Key.GroupCategoryId, CategoryNameOf(g.First().Row), g.Sum(f => f.Parts.SpentCents)))
+                .Where(c => c.SpentCents > 0)
                 .OrderByDescending(c => c.SpentCents)
                 .ToList(),
-            rows
-                .GroupBy(r => r.UserId)
+            flows
+                .GroupBy(f => f.Row.UserId)
                 .Select(g => new GroupMemberTotalsDto(
                     g.Key,
-                    g.First().IsUserActive ? g.First().MemberName : GroupMemberService.InactiveMemberName,
-                    g.Where(r => r.Type == TransactionType.Debit).Sum(r => r.AmountCents),
-                    g.Where(r => r.Type == TransactionType.Credit).Sum(r => r.AmountCents)))
+                    g.First().Row.IsUserActive ? g.First().Row.MemberName : GroupMemberService.InactiveMemberName,
+                    Math.Max(0, g.Sum(f => f.Parts.SpentCents)),
+                    g.Sum(f => f.Parts.IncomeCents)))
                 .OrderByDescending(m => m.SpentCents)
-                .ToList());
+                .ToList(),
+            flows.Sum(f => f.Parts.RefundedCents));
     }
 
     private static string CategoryNameOf(GroupReportRow row)
