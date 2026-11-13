@@ -11,7 +11,8 @@ internal static class TransactionMapper
         Transaction transaction,
         long? refundedCents = null,
         IReadOnlyList<RefundSuggestionDto>? suggestions = null,
-        DuplicateView? duplicates = null) => new(
+        DuplicateView? duplicates = null,
+        TransferSuggestionDto? transfer = null) => new(
         transaction.Id,
         transaction.FinancialAccountId,
         transaction.CounterAccountId,
@@ -36,5 +37,6 @@ internal static class TransactionMapper
         transaction.DuplicateStatus?.ToString(),
         duplicates?.Of,
         duplicates?.Suggested,
-        transaction.MergedSources);
+        transaction.MergedSources,
+        transfer);
 }

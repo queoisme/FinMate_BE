@@ -31,6 +31,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì giao dịch chỉ dựa vào AI như trước
     private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
     private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
+    private readonly Transactions.Transfers.ITransferSuggestions? _transfers;  // null: không gợi ý chuyển ví (test cũ)
 
     public AnalyzeNotificationCommandHandler(
         IFinancialAccountRepository financialAccountRepository,
@@ -43,10 +44,12 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IAiConsentReader? consent = null,
         IQrTransferLinker? qrLinker = null,
         Transactions.Refunds.IRefundSuggestions? refundSuggestions = null,
-        IDuplicateDetector? duplicates = null)
+        IDuplicateDetector? duplicates = null,
+        Transactions.Transfers.ITransferSuggestions? transfers = null)
     {
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
+        _transfers = transfers;
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
         _categoryRepository = categoryRepository;
@@ -244,6 +247,9 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
         }
 
+        // Phase 83: nháp đang nghi trùng không bao giờ mang gợi ý chuyển ví (BR-TRF-04); TransferMatcher tự loại nó.
+        var transfer = _transfers is null ? null : await _transfers.ForOneAsync(command.UserId, transaction, ct);
+
         // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách khác nhau tuỳ mức tin cậy; nghi trùng thì hỏi gộp trước (D15).
         var review = TransactionReviewPushBuilder.Build(
             transaction,
@@ -251,7 +257,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             TransactionReviewPushBuilder.ReviewConfidence(aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
             aiResult.RelationHint.AsRefundRelation(),
             suggestions?.Count ?? 0,
-            duplicates.Candidates.Count(c => c.MarksSuspected));
+            duplicates.Candidates.Count(c => c.MarksSuspected),
+            transfer);
 
         await _pushNotificationService.NotifyAsync(command.UserId, review.Title, review.Body, review.Data, ct);
         return new DraftOutcome(transaction, suggestions, null);

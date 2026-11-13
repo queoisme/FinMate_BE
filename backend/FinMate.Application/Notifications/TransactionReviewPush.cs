@@ -45,6 +45,12 @@ public static class TransactionReviewPushBuilder
     public const string ActionReviewDuplicate = "review_duplicate";
 
     /// <summary>
+    /// Phase 83 (BR-TRF-05, D20): có thể là tiền chuyển giữa các ví của chính người dùng. Sau <see cref="ActionReviewDuplicate"/>, trước mọi nhánh
+    /// khác: xác nhận nhanh lúc này là ghi một lần nạp ví thành chi tiêu.
+    /// </summary>
+    public const string ActionReviewTransfer = "review_transfer";
+
+    /// <summary>
     /// Mức tin cậy quyết định nhánh: THẤP NHẤT giữa bóc số và phân loại.
     ///
     /// Không lấy riêng điểm phân loại: một chạm xác nhận TOÀN BỘ bản ghi — số tiền, loại,
@@ -85,7 +91,8 @@ public static class TransactionReviewPushBuilder
         double? confidence,
         TransactionRelation? relationHint = null,
         int suggestionCount = 0,
-        int duplicateCandidateCount = 0)
+        int duplicateCandidateCount = 0,
+        Transactions.Transfers.TransferSuggestion? transfer = null)
     {
         var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
         var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
@@ -121,6 +128,22 @@ public static class TransactionReviewPushBuilder
             return new TransactionReviewPush(
                 "Có thể đã ghi rồi",
                 $"Bạn vừa {verb} {amount}{at}. Khoản này có thể trùng với một giao dịch đã ghi. Chạm để gộp hoặc giữ cả hai.",
+                data);
+        }
+
+        if (transfer is not null)
+        {
+            data["action"] = ActionReviewTransfer;
+            data["transferKind"] = transfer.Kind.ToString();
+            data["candidateCount"] = transfer.CandidateAccountIds.Count.ToString(CultureInfo.InvariantCulture);
+            if (transfer.PairedId is { } paired)
+            {
+                data["pairedTransactionId"] = paired.ToString();
+            }
+
+            return new TransactionReviewPush(
+                "Có thể là chuyển tiền giữa ví của bạn",
+                $"Bạn vừa {verb} {amount}{at}. Đây có phải tiền chuyển giữa các ví của bạn không? Chạm để xem.",
                 data);
         }
 

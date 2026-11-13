@@ -31,6 +31,12 @@ public sealed record DuplicateCandidateRow(
     Guid? DuplicateOfTransactionId,
     DuplicateStatus? DuplicateStatus);
 
+/// <summary>
+/// Giao dịch để xét chuyển ví (Phase 83): theo khoảng thời gian (mọi khoản chi/thu còn sống của user), hoặc theo id (kể cả đã xoá mềm, để lượt
+/// chuyển đổi đọc được). Luôn lọc theo user.
+/// </summary>
+public sealed record TransferProbeQuery(Guid UserId, DateTimeOffset? From = null, DateTimeOffset? To = null, IReadOnlyCollection<Guid>? Ids = null);
+
 /// <summary>Một khoản chi có thể là gốc của khoản hoàn đang xét (Phase 81). Chỉ để GỢI Ý; người dùng mới là người liên kết.</summary>
 public sealed record RefundCandidate(Transaction Original, long RefundedCents, long RemainingRefundableCents);
 
@@ -117,6 +123,11 @@ public interface ITransactionRepository
 
     /// <summary>Các giao dịch (có theo dõi thay đổi) đang trỏ <c>duplicate_of_transaction_id</c> tới <paramref name="transactionId"/>. Lọc theo user.</summary>
     Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ảnh chụp để xét chuyển ví (Phase 83), kèm gợi ý/loại của AI, đã khớp QR chưa, có khoản hoàn đã xác nhận chưa. Chỉ <c>Debit</c>/<c>Credit</c>.
+    /// </summary>
+    Task<IReadOnlyList<Transactions.Transfers.TransferProbe>> ListTransferProbesAsync(TransferProbeQuery query, CancellationToken ct = default);
 
     /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
     Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);

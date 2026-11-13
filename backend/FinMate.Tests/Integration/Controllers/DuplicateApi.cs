@@ -48,7 +48,7 @@ internal sealed class DuplicateApi
         RefundApi.Session s, long amount, DateTimeOffset at,
         TransactionSource source = TransactionSource.Notification, TransactionStatus status = TransactionStatus.Draft,
         Guid? account = null, Guid? category = null, Guid? duplicateOf = null, DuplicateStatus? duplicateStatus = null,
-        TransactionType type = TransactionType.Debit, string? merchant = null)
+        TransactionType type = TransactionType.Debit, string? merchant = null, string? description = null)
         => _api.WithDbAsync(async db =>
         {
             var userId = await db.FinancialAccounts.Where(a => a.Id == s.Account).Select(a => a.UserId).SingleAsync();
@@ -56,7 +56,7 @@ internal sealed class DuplicateApi
             var tx = new Transaction
             {
                 Id = Guid.NewGuid(), UserId = userId, FinancialAccountId = account ?? s.Account, CategoryId = category, AmountCents = amount,
-                TransactionType = type, Source = source, Status = status, MerchantName = merchant, TransactedAt = at,
+                TransactionType = type, Source = source, Status = status, MerchantName = merchant, Description = description, TransactedAt = at,
                 DuplicateOfTransactionId = duplicateOf, DuplicateStatus = duplicateStatus, CreatedAt = now, UpdatedAt = now,
             };
             db.Transactions.Add(tx);

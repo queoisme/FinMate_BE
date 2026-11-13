@@ -5,6 +5,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
 using FinMate.Application.Transactions.Duplicates;
+using FinMate.Application.Transactions.Transfers;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -262,6 +263,46 @@ public class TransactionRepository : ITransactionRepository
         => await _context.Transactions
             .Where(t => t.UserId == userId && t.DuplicateOfTransactionId == transactionId)
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<TransferProbe>> ListTransferProbesAsync(TransferProbeQuery query, CancellationToken ct = default)
+    {
+        var rows = query.Ids is { } ids ? _context.Transactions.IgnoreQueryFilters().Where(t => ids.Contains(t.Id)) : _context.Transactions;
+        rows = rows.Where(t => t.UserId == query.UserId
+            && (t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit));
+        if (query.From is { } from)
+        {
+            rows = rows.Where(t => t.TransactedAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            rows = rows.Where(t => t.TransactedAt <= to);
+        }
+
+        return await rows
+            .AsNoTracking()
+            .Select(t => new TransferProbe(
+                t.Id,
+                t.TransactionType,
+                t.Status,
+                t.AmountCents,
+                t.TransactedAt,
+                t.CreatedAt,
+                t.FinancialAccountId,
+                t.MerchantName,
+                t.Description,
+                _context.AiResults.Where(r => r.NotificationLogId == t.NotificationLogId).Select(r => r.RelationHint).FirstOrDefault(),
+                _context.AiResults.Where(r => r.NotificationLogId == t.NotificationLogId).Select(r => r.TransferKind).FirstOrDefault(),
+                t.Relation,
+                t.IsReversed,
+                t.DeletedAt != null || t.MergedIntoTransactionId != null,
+                t.DuplicateStatus,
+                t.GroupId,
+                _context.QrTransferIntents.Any(i => i.MatchedTransactionId == t.Id && i.UserId == query.UserId),
+                _context.Transactions.Any(r => r.RelatedTransactionId == t.Id && r.Relation != null && r.Status == TransactionStatus.Confirmed),
+                t.TransferDismissedAt))
+            .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default)
     {

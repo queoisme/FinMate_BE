@@ -169,4 +169,47 @@ public class TransactionReviewPushBuilderTests
 
         TransactionReviewPushBuilder.Build(tx, "Ăn uống", 0.99).Data["action"].Should().Be(TransactionReviewPushBuilder.ActionOneTap);
     }
+
+    // ------------------------------------------------------------ Phase 83: chuyển ví
+
+    private static FinMate.Application.Transactions.Transfers.TransferSuggestion Transfer(Guid? paired = null)
+        => new(TransferKind.WalletTopup, TransferKind.WalletTopup, paired, Guid.NewGuid(), paired is null ? null : Guid.NewGuid(), 500_000, paired is null ? null : 0, paired is null ? [Guid.NewGuid()] : []);
+
+    [Fact]
+    public void TransferSuggestion_AsksToReviewTheTransfer_EvenAtHighConfidence()
+    {
+        var paired = Guid.NewGuid();
+
+        var push = TransactionReviewPushBuilder.Build(Draft(), "Ăn uống", 0.99, transfer: Transfer(paired));
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewTransfer);
+        push.Data["transferKind"].Should().Be("WalletTopup");
+        push.Data["pairedTransactionId"].Should().Be(paired.ToString());
+    }
+
+    [Fact]
+    public void OneSidedTransfer_CarriesTheCandidateCount_AndNoPair()
+    {
+        var push = TransactionReviewPushBuilder.Build(Draft(), null, 0.5, transfer: Transfer());
+
+        push.Data["candidateCount"].Should().Be("1");
+        push.Data.Should().NotContainKey("pairedTransactionId");
+    }
+
+    [Fact]
+    public void SuspectedDuplicate_StillWinsOverATransfer()
+    {
+        var push = TransactionReviewPushBuilder.Build(Suspected(), null, 0.5, transfer: Transfer());
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewDuplicate);
+    }
+
+    [Fact]
+    public void Transfer_WinsOverARefundHint()
+    {
+        var push = TransactionReviewPushBuilder.Build(Draft(type: TransactionType.Credit), null, 0.5, TransactionRelation.Refund, 1, transfer: Transfer());
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewTransfer);
+    }
 }
+
