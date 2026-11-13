@@ -196,3 +196,24 @@ Thứ tự: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 1
 - Trước khi xin gộp: toàn bộ `dotnet test` và `pytest`, so với mốc ở Task 0.
 - Bắt buộc phải pass: kịch bản (a)–(d) ở Task 13, ba test đồng thời ở Task 9, mỗi BR-DUP-01…14 có ít nhất một test (ghi bảng BR → test vào file kế hoạch trong repo).
 - `dotnet ef migrations script` áp được lên DB thử của Testcontainers.
+
+## Bảng BR → test (sau khi làm)
+
+| BR / D | Test |
+|---|---|
+| BR-DUP-01 (contentHash giữ nguyên) | `AnalyzeNotificationCommandHandlerTests.HandleAsync_DuplicateWithinWindow_*` (có sẵn, vẫn qua) |
+| BR-DUP-02 (cờ AI không bỏ thông báo) | `AnalyzeNotificationDuplicateTests.AiFlagAlone_NoLongerDropsTheNotification`, `RetryFailedNotificationDuplicateTests.AiFlagAlone_StillCreatesTheDraft` |
+| BR-DUP-03 (ứng viên, cửa sổ theo cặp) | `DuplicateMatcherTests` (khác chiều/số tiền, đã xoá/gộp, hoàn/đảo, đã bác, nhập tay↔nhập tay, `Window_DependsOnTheSourcePair`), `TransactionDuplicateQueriesTests` |
+| BR-DUP-04 (xếp hạng, tối đa 3) | `DuplicateMatcherTests.Ranking_*`, `OtherWallet_IsStillACandidate`, `EqualRank_PrefersTheEarlierCreated` |
+| BR-DUP-05 (số dư sau) | `DuplicateMatcherTests.SameProvider*`, `MissingBalance_*`, `SameBalance_*`, `BalanceOfAHandEnteredRow_IsIgnored`; kịch bản (b), (c) |
+| BR-DUP-06 (nháp nghi trùng, push, chat) | `AnalyzeNotificationDuplicateTests.Candidate_*`, `TransactionReviewPushBuilderTests.SuspectedDuplicate_*`, `InputDuplicateTests.Chat_*`, `Manual_WithACandidate_*`; kịch bản (a) |
+| BR-DUP-07 (không trùng) | `TransactionDuplicateControllerTests.NotDuplicate_*`; kịch bản (d) |
+| BR-DUP-08 (ứng viên bị xoá) | `TransactionDuplicateControllerTests.DeletingTheTransactionADraftPointsAt_*`, `DeletingTheOtherHalfOfADismissedPair_*` |
+| BR-DUP-09/10 (survivor, trường) | `MergePolicyTests`, `TransactionMergeControllerTests.ChatAndBank_*`, `TwoDrafts_*` |
+| BR-DUP-11 (xoá mềm, số dư, tính lại, daily summary) | `TransactionMergeControllerTests.ChatAndBank_*`, `MergeAggregatesTests` (báo cáo, đổi tháng, nhóm, dự báo) |
+| BR-DUP-12 (từ chối 422, 404) | `MergePolicyTests.*Refused`, `TransactionMergeControllerTests.DifferentAmount_Is422`, `ConfirmedLoserWithARefund_Is422`, `AlreadyMergedIntoAThirdTransaction_Is422`, `SomeoneElsesOrUnknown_Is404` |
+| BR-DUP-13 (bất thường) | `AnomalyDetectorTests.APairTheUserAlreadyReviewed*`, `MergeAggregatesTests.TheLosersAnomaly_IsRemoved`; kịch bản (d) 350k |
+| BR-DUP-14 (khoá, idempotent) | `TransactionMergeControllerTests.MergingTheSamePairAgain_*`, `TwoMergesOfTheSamePairAtOnce_*`, `CrossedMerges_*`, `MergeRacingAConfirmOfTheLoser_*`, `TransactionDuplicateQueriesTests.Lock_*` |
+| D6/D7/D8/D9 (tham chiếu đi theo survivor) | `MergeAggregatesTests.QrIntentReceiptLinkAndDraftRefunds_FollowTheSurvivor`, `TransactionMergeControllerTests.OtherSuspectedDraftsPointingAtTheLoser_*` |
+| D17 (thống kê admin) | `AiStatsDuplicateTests` |
+| Schema, xoá cứng | `DuplicateLinkSchemaTests` |
