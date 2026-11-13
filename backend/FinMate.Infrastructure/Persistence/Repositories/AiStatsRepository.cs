@@ -106,7 +106,51 @@ public class AiStatsRepository : IAiStatsRepository
             totals?.AvgCategorization,
             totals?.AvgProcessing,
             totals?.MaxProcessing,
-            await GetDuplicateOutcomesAsync(from, to, ct));
+            await GetDuplicateOutcomesAsync(from, to, ct),
+            await GetTransferOutcomesAsync(from, to, ct));
+    }
+
+    private const string Unhinted = "unhinted";
+
+    /// <summary>Phase 83 (D19): chuyển ví theo loại. Chỉ số đếm gộp.</summary>
+    private async Task<TransferOutcomeStats> GetTransferOutcomesAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
+    {
+        var suggested = await _context.AiResults
+            .AsNoTracking()
+            .Where(r => r.RelationHint == NotificationRelationHint.Transfer && r.CreatedAt >= from && r.CreatedAt < to)
+            .GroupBy(r => r.TransferKind)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var accepted = await _context.TransactionMergeSnapshots
+            .AsNoTracking()
+            .Where(s => (s.Kind == MergeSnapshotKind.TransferPair || s.Kind == MergeSnapshotKind.TransferConvert) && s.CreatedAt >= from && s.CreatedAt < to)
+            .GroupBy(s => s.TransferKind)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var rejected = await _context.Transactions
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(t => t.TransferDismissedAt != null && t.TransferDismissedAt >= from && t.TransferDismissedAt < to)
+            .Select(t => _context.AiResults.Where(r => r.NotificationLogId == t.NotificationLogId && r.RelationHint == NotificationRelationHint.Transfer)
+                .Select(r => r.TransferKind).FirstOrDefault())
+            .GroupBy(k => k)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var byKind = new Dictionary<string, TransferKindCounts>();
+        void Add(TransferKind? kind, int s, int a, int r)
+        {
+            var key = kind is { } k ? TransferKindColumn.ToColumn(k) : Unhinted;
+            var current = byKind.GetValueOrDefault(key) ?? new TransferKindCounts(0, 0, 0);
+            byKind[key] = new TransferKindCounts(current.Suggested + s, current.Accepted + a, current.Rejected + r);
+        }
+
+        suggested.ForEach(x => Add(x.Key, x.Count, 0, 0));
+        accepted.ForEach(x => Add(x.Key, 0, x.Count, 0));
+        rejected.ForEach(x => Add(x.Key, 0, 0, x.Count));
+        return new TransferOutcomeStats(byKind);
     }
 
     /// <summary>
