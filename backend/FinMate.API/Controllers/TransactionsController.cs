@@ -258,6 +258,14 @@ public class TransactionsController : ControllerBase
         return Ok(ApiResponse<TransferConversionDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Phase 85 (D24, S3): người quản lý đã xoá dòng quỹ tạo từ khoản chi này; đưa giao dịch về lại khoản chi với danh mục gốc. Không cần cờ quỹ: đây là
+    /// sổ cá nhân của chính người gọi. Lỗi: 404, 422 <c>TRANSACTION_GROUP_FUND_LINKED</c> (dòng quỹ còn đó hoặc không phải khoản chuyển đổi).
+    /// </summary>
+    [HttpPost("{id:guid}/restore-from-fund")]
+    public async Task<IActionResult> RestoreFromFund(Guid id, [FromServices] FinMate.Application.Groups.Funds.IGroupFundEntryService funds, CancellationToken ct)
+        => Ok(ApiResponse<TransactionDto>.Ok(await funds.RestoreFromFundAsync(CurrentUserId, id, ct)));
+
     /// <summary>Xem trước <c>convert-to-transfer</c> (Phase 83): giao dịch còn lại, khoản phí, số dư từng ví trước/sau. Không ghi gì.</summary>
     [HttpPost("{id:guid}/convert-to-transfer/preview")]
     public async Task<IActionResult> PreviewConvertToTransfer(

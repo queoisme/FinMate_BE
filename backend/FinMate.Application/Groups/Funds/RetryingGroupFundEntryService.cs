@@ -17,6 +17,9 @@ public sealed class RetryingGroupFundEntryService(GroupFundEntryService inner, I
     public Task<GroupFundEntryResult> UpdateAsync(UpdateGroupFundEntryCommand command, CancellationToken ct = default)
         => retry.ExecuteAsync(token => inner.UpdateAsync(command, token), ct);
 
+    public Task<Common.Models.TransactionDto> RestoreFromFundAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => retry.ExecuteAsync(token => inner.RestoreFromFundAsync(userId, transactionId, token), ct);
+
     public Task<GroupFundDto> DeleteAsync(Guid groupId, Guid userId, Guid fundId, Guid entryId, CancellationToken ct = default)
         => retry.ExecuteAsync(token => inner.DeleteAsync(groupId, userId, fundId, entryId, token), ct);
 }

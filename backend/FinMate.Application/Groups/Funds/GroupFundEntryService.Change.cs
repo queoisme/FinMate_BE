@@ -41,11 +41,16 @@ public partial class GroupFundEntryService
         }
 
         var personal = isOwner ? await _funds.GetPersonalTransactionAsync(entry.Id, userId, ct: ct) : null;
-        var alerts = personal is null
+        var (alerts, effects) = personal is null
             ? await ApplyDeleteAsync(fund, entry, null, userId, isOwner, ct)
             : await _transactions.RunWithTransactionsLockedAsync(userId, [personal.Id], rows => ApplyDeleteAsync(fund, entry, rows[personal.Id], userId, isOwner, ct), ct);
 
         await AfterSaveAsync(userId, alerts, ct);
+        if (effects is not null)
+        {
+            await _converter.AfterSaveAsync(userId, effects, ct);
+        }
+
         if (!isOwner)
         {
             await _audit.LogAsync(AuditEvents.GroupFundEntryDeleted, userId, metadata: new { GroupId = groupId, FundId = fundId, EntryId = entryId }, ct: ct);
@@ -77,9 +82,10 @@ public partial class GroupFundEntryService
         return alerts;
     }
 
-    private async Task<IReadOnlyList<GroupBudgetAlert>> ApplyDeleteAsync(
+    private async Task<(IReadOnlyList<GroupBudgetAlert> Alerts, Transactions.Refunds.RefundEffects? Effects)> ApplyDeleteAsync(
         GroupFund fund, GroupFundEntry entry, Transaction? personal, Guid userId, bool isOwner, CancellationToken ct)
     {
+        Transactions.Refunds.RefundEffects? effects = null;
         var now = DateTimeOffset.UtcNow;
         var touch = GroupScopeTouch.Of(entry);
         GroupFundMath.Apply(fund, -GroupFundMath.Signed(entry), now);
@@ -87,7 +93,12 @@ public partial class GroupFundEntryService
         entry.DeletedByUserId = userId;
         entry.UpdatedAt = now;
 
-        if (personal is { DeletedAt: null })
+        // D24: khoản chi lấy từ giao dịch ngân hàng về lại khoản chi cá nhân; khoản tạo mới thì bị xoá mềm và hoàn ví (BR-FUND-09).
+        if (personal is { DeletedAt: null } && entry.Origin == GroupFundEntryOrigin.Converted)
+        {
+            effects = await _converter.RestoreAsync(userId, personal, entry, ct);
+        }
+        else if (personal is { DeletedAt: null })
         {
             await RemovePersonalAsync(entry, personal, userId, now, ct);
         }
@@ -99,7 +110,7 @@ public partial class GroupFundEntryService
 
         var alerts = await RecomputeGroupBudgetsAsync([entry], [touch], ct);
         await _groups.SaveChangesAsync(ct);
-        return alerts;
+        return (alerts, effects);
     }
 
     /// <summary>
@@ -108,6 +119,11 @@ public partial class GroupFundEntryService
     /// </summary>
     private async Task SyncPersonalAsync(GroupFundEntry entry, Transaction? personal, UpdateGroupFundEntryCommand command, DateTimeOffset now, CancellationToken ct)
     {
+        if (entry.Origin == GroupFundEntryOrigin.Converted)
+        {
+            return;   // D24: giao dịch ngân hàng giữ nguyên số tiền, ngày, ví và mô tả của nó
+        }
+
         var live = personal is { DeletedAt: null } ? personal : null;
         if (command.RemoveFinancialAccount)
         {

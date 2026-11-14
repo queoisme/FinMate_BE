@@ -66,4 +66,7 @@ public static class TransactionErrorCodes
 
     /// <summary>422: hai chiều không ghép được (cùng chiều, cùng ví, ví đích không phải ví chiều kia, phí ngoài giới hạn).</summary>
     public const string TransferPairMismatch = "TRANSFER_PAIR_MISMATCH";
+
+    /// <summary>422 (Phase 85, D9): giao dịch gắn quỹ nhóm chỉ đổi qua dòng quỹ; hoặc khôi phục khi dòng quỹ chưa bị xoá.</summary>
+    public const string GroupFundLinked = "TRANSACTION_GROUP_FUND_LINKED";
 }

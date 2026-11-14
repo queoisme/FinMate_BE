@@ -32,6 +32,9 @@ public interface IGroupFundRepository
     /// <summary>Dòng của quỹ, kể cả đã xoá mềm (để đọc liên kết của giao dịch cá nhân).</summary>
     Task<GroupFundEntry?> GetEntryAsync(Guid fundId, Guid entryId, CancellationToken ct = default);
 
+    /// <summary>Theo id, kể cả đã xoá mềm. Chỉ dùng khi đã có giao dịch cá nhân của người gọi trỏ tới dòng này.</summary>
+    Task<GroupFundEntry?> GetEntryByIdAsync(Guid entryId, CancellationToken ct = default);
+
     Task<GroupFundEntry?> GetEntryByClientRequestAsync(Guid fundId, Guid memberUserId, Guid clientRequestId, CancellationToken ct = default);
 
     /// <summary>

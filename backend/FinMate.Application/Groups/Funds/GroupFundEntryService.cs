@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Transactions;
+using FinMate.Application.Transactions.Refunds;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -27,6 +28,9 @@ public interface IGroupFundEntryService
     /// khác thì CHỈ xoá dòng quỹ; giao dịch cá nhân của chủ dòng giữ nguyên và chủ dòng được báo (S3).
     /// </summary>
     Task<GroupFundDto> DeleteAsync(Guid groupId, Guid userId, Guid fundId, Guid entryId, CancellationToken ct = default);
+
+    /// <summary><c>POST /transactions/{id}/restore-from-fund</c> (D24): về lại khoản chi sau khi người quản lý đã xoá dòng quỹ tạo từ giao dịch này.</summary>
+    Task<Common.Models.TransactionDto> RestoreFromFundAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 }
 
 public partial class GroupFundEntryService : IGroupFundEntryService
@@ -45,6 +49,7 @@ public partial class GroupFundEntryService : IGroupFundEntryService
     private readonly ITransactionRepository _transactions;
     private readonly IGroupFundNotifier _notifier;
     private readonly IAuditLogService _audit;
+    private readonly IGroupFundSourceConverter _converter;
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public GroupFundEntryService(
@@ -59,8 +64,10 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         ITransactionRepository transactions,
         IGroupFundNotifier notifier,
         IAuditLogService audit,
+        IGroupFundSourceConverter converter,
         IForecastAlertTrigger? forecastAlerts = null)
     {
+        _converter = converter;
         _transactions = transactions;
         _notifier = notifier;
         _audit = audit;
@@ -99,11 +106,32 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         }
 
         await EnsureCategoriesAsync(command.GroupId, command.Kind, command.CategoryId, command.GroupCategoryId, ct);
+
+        // S4a: giao dịch nguồn bị khoá dòng trước (thứ tự giao dịch → quỹ → ví → kỳ ngân sách), như mọi lệnh đổi giao dịch từ Phase 82.
+        var (entry, alerts, effects) = command.FromTransactionId is { } sourceId
+            ? await _transactions.RunWithTransactionsLockedAsync(command.UserId, [sourceId], rows => CreateCoreAsync(command, fund, rows[sourceId], ct), ct)
+            : await CreateCoreAsync(command, fund, null, ct);
+
+        await AfterSaveAsync(command.UserId, alerts, ct);
+        if (effects is not null)
+        {
+            await _converter.AfterSaveAsync(command.UserId, effects, ct);
+        }
+
+        return await ResultAsync(fund, entry.Id, command.UserId, alreadyExisted: false, ct);
+    }
+
+    private async Task<(GroupFundEntry Entry, IReadOnlyList<GroupBudgetAlert> Alerts, RefundEffects? Effects)> CreateCoreAsync(
+        CreateGroupFundEntryCommand command, GroupFund fund, Transaction? source, CancellationToken ct)
+    {
         var now = DateTimeOffset.UtcNow;
         var entry = NewEntry(command, now);
-        if (command.FromTransactionId is { } sourceId)
+        RefundEffects? effects = null;
+        if (source is not null)
         {
-            await ConvertSourceAsync(entry, sourceId, command, now, ct);
+            await _converter.EnsureEligibleAsync(command.UserId, source, ct);
+            TakeFromSource(entry, source, command);
+            effects = await _converter.ConvertAsync(command.UserId, source, entry, now, ct);
         }
 
         GroupFundMath.Apply(fund, GroupFundMath.Signed(entry), now);
@@ -116,9 +144,7 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         var alerts = await RecomputeGroupBudgetsAsync([entry], [GroupScopeTouch.Of(entry)], ct);
         AddActivity(entry, command.UserId, now);
         await _groups.SaveChangesAsync(ct);
-
-        await AfterSaveAsync(command.UserId, alerts, ct);
-        return await ResultAsync(fund, entry.Id, command.UserId, alreadyExisted: false, ct);
+        return (entry, alerts, effects);
     }
 
     private static GroupFundEntry NewEntry(CreateGroupFundEntryCommand command, DateTimeOffset now) => new()

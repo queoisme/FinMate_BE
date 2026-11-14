@@ -60,6 +60,9 @@ public class GroupFundRepository : IGroupFundRepository
     public Task<GroupFundEntry?> GetEntryAsync(Guid fundId, Guid entryId, CancellationToken ct = default)
         => _context.GroupFundEntries.FirstOrDefaultAsync(e => e.Id == entryId && e.FundId == fundId, ct);
 
+    public Task<GroupFundEntry?> GetEntryByIdAsync(Guid entryId, CancellationToken ct = default)
+        => _context.GroupFundEntries.FirstOrDefaultAsync(e => e.Id == entryId, ct);
+
     public Task<GroupFundEntry?> GetEntryByClientRequestAsync(Guid fundId, Guid memberUserId, Guid clientRequestId, CancellationToken ct = default)
         => _context.GroupFundEntries.FirstOrDefaultAsync(
             e => e.FundId == fundId && e.MemberUserId == memberUserId && e.ClientRequestId == clientRequestId, ct);
