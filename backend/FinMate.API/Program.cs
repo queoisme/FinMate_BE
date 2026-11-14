@@ -594,6 +594,7 @@ public class Program
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        builder.Services.AddScoped<IListenerHealthRepository, ListenerHealthRepository>();
         builder.Services.AddScoped<IQrTransferRepository, QrTransferRepository>();
         builder.Services.AddScoped<IQrTransferService, QrTransferService>();
         builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();
@@ -660,6 +661,7 @@ public class Program
         builder.Services.AddScoped<IConsentCommandHandler, ConsentCommandHandler>();
 
         builder.Services.AddScoped<IRegisterDeviceTokenCommandHandler, RegisterDeviceTokenCommandHandler>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IReportListenerStatusCommandHandler, FinMate.Application.ListenerHealth.ReportListenerStatusCommandHandler>();
         builder.Services.AddScoped<IUnregisterDeviceTokenCommandHandler, UnregisterDeviceTokenCommandHandler>();
 
         builder.Services.AddScoped<ICreateFinancialAccountCommandHandler, CreateFinancialAccountCommandHandler>();
