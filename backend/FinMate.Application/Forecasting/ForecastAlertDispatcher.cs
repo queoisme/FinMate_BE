@@ -185,6 +185,7 @@ public static class ForecastAlertKinds
         ForecastAlertKind.GroupBudget => "group_budget",
         ForecastAlertKind.GroupGoal => "group_goal",
         ForecastAlertKind.MarketChange => "market_change",
+        ForecastAlertKind.ListenerHealth => "listener_health",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

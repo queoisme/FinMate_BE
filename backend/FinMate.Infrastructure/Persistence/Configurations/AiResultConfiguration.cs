@@ -92,6 +92,9 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
             .IsUnique()
             .HasDatabaseName("uq_ai_results_notification_log_id");
 
+        // Phase 84 (BR-LH-10): đếm theo provider trong 8 ngày gần nhất, mỗi giờ một lần.
+        builder.HasIndex(a => a.CreatedAt).HasDatabaseName("ix_ai_results_created_at");
+
         builder.HasOne(a => a.NotificationLog)
             .WithOne(n => n.AiResult)
             .HasForeignKey<AiResult>(a => a.NotificationLogId)

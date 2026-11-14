@@ -21,4 +21,7 @@ public enum ForecastAlertKind
 
     /// <summary>Giá tăng ảnh hưởng tới danh mục đang căng.</summary>
     MarketChange,
+
+    /// <summary>Dịch vụ đọc thông báo có vẻ ngừng: mất quyền hoặc ví im lặng bất thường (Phase 84). Không mang số tiền.</summary>
+    ListenerHealth,
 }

@@ -13,6 +13,9 @@ public class FinMateDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<DeviceListenerStatus> DeviceListenerStatuses => Set<DeviceListenerStatus>();
+    public DbSet<DeviceListenerDay> DeviceListenerDays => Set<DeviceListenerDay>();
+    public DbSet<ListenerUploadGapDaily> ListenerUploadGapDaily => Set<ListenerUploadGapDaily>();
     public DbSet<ReceiptScan> ReceiptScans => Set<ReceiptScan>();
     public DbSet<ReceiptScanItem> ReceiptScanItems => Set<ReceiptScanItem>();
     public DbSet<ReceiptScanLink> ReceiptScanLinks => Set<ReceiptScanLink>();

@@ -52,6 +52,11 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
         builder.HasIndex(n => new { n.Status, n.RetryCount })
             .HasDatabaseName("idx_notification_logs_status_retry_count");
 
+        // Phase 84 (BR-LH-03): lịch sử thông báo của từng ví trong 30 ngày, đọc mỗi sáng cho mọi ví đang theo dõi.
+        builder.HasIndex(n => new { n.FinancialAccountId, n.ReceivedAt })
+            .HasFilter("financial_account_id IS NOT NULL")
+            .HasDatabaseName("ix_notification_logs_account_received");
+
         builder.HasOne(n => n.User)
             .WithMany()
             .HasForeignKey(n => n.UserId)
