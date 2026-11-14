@@ -95,7 +95,7 @@ public class ListenerHealthSchemaTests : IClassFixture<ReceiptScanDbFixture>
     }
 
     [Fact]
-    public async Task DeletingTheUser_RemovesStatusAndDailyRows()
+    public async Task HardDeletingTheUser_RemovesStatusAndDailyRows()
     {
         await using var db = _fixture.NewContext();
         var user = await SeedUserAsync(db);
@@ -106,7 +106,8 @@ public class ListenerHealthSchemaTests : IClassFixture<ReceiptScanDbFixture>
             VALUES ({status}, DATE '2026-11-14', {user}, false, true, true, now(), 1)
             """);
 
-        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM users WHERE id = {user}");
+        // DataDeletionJob đi qua UserHardDeleter: chỉ xoá dòng users, hai bảng mới đi theo khoá ngoại cascade (listener_upload_gap_daily không có user).
+        await new FinMate.Infrastructure.Persistence.Repositories.UserHardDeleter(db).HardDeleteAsync(user);
 
         (await db.DeviceListenerStatuses.CountAsync(s => s.UserId == user)).Should().Be(0);
         (await db.DeviceListenerDays.CountAsync(d => d.UserId == user)).Should().Be(0);
