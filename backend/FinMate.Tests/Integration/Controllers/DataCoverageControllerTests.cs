@@ -204,4 +204,22 @@ public class DataCoverageControllerTests : IClassFixture<AuthApiFactory>
         body.Level.Should().Be("poor");
         body.Devices.Should().ContainSingle().Which.InstallationId.Should().Be(installation);
     }
+
+    [Theory]
+    [InlineData("/api/v1/forecast/cashflow")]
+    [InlineData("/api/v1/forecast/spendable")]
+    public async Task ForecastResponses_CarryDataCoverage_UnknownBeforeAnyReport(string url)
+    {
+        var (token, userId) = await RegisterAndLoginAsync();
+        await AddAccountAsync(userId, "VCB", "com.VCB");
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var json = JsonDocument.Parse(await (await _client.SendAsync(request)).Content.ReadAsStringAsync());
+
+        var coverage = json.RootElement.GetProperty("data").GetProperty("dataCoverage");
+        coverage.GetProperty("level").GetString().Should().Be("unknown");
+        coverage.GetProperty("windowDays").GetInt32().Should().Be(90);
+        coverage.GetProperty("percent").ValueKind.Should().Be(JsonValueKind.Null);
+    }
 }

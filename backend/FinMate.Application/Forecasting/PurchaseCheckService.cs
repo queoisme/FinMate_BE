@@ -33,7 +33,11 @@ public sealed record PurchaseCheckDto(
     IReadOnlyList<PurchaseWarningDto> Warnings,
     string Confidence,
     DateTimeOffset? BalanceAsOf,
-    DateTimeOffset ComputedAt);
+    DateTimeOffset ComputedAt)
+{
+    /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu; <c>poor</c> thì không bao giờ <c>fits_plan</c>.</summary>
+    public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
+}
 
 public interface IPurchaseCheckService
 {
@@ -59,6 +63,7 @@ public class PurchaseCheckService : IPurchaseCheckService
     private readonly IUserRepository _users;
     private readonly ICategoryRepository _categories;
     private readonly ISystemConfigProvider _config;
+    private readonly ListenerHealth.IDataCoverageService? _coverage;   // null: không gắn độ phủ (test cũ)
     private readonly Func<DateTimeOffset> _now;
 
     public PurchaseCheckService(
@@ -69,8 +74,9 @@ public class PurchaseCheckService : IPurchaseCheckService
         IGoalPlanningService goals,
         IUserRepository users,
         ICategoryRepository categories,
-        ISystemConfigProvider config)
-        : this(forecast, accounts, items, budgets, goals, users, categories, config, () => DateTimeOffset.UtcNow)
+        ISystemConfigProvider config,
+        ListenerHealth.IDataCoverageService? coverage = null)
+        : this(forecast, accounts, items, budgets, goals, users, categories, config, () => DateTimeOffset.UtcNow, coverage)
     {
     }
 
@@ -83,8 +89,10 @@ public class PurchaseCheckService : IPurchaseCheckService
         IUserRepository users,
         ICategoryRepository categories,
         ISystemConfigProvider config,
-        Func<DateTimeOffset> now)
+        Func<DateTimeOffset> now,
+        ListenerHealth.IDataCoverageService? coverage = null)
     {
+        _coverage = coverage;
         _forecast = forecast;
         _accounts = accounts;
         _items = items;
@@ -112,6 +120,7 @@ public class PurchaseCheckService : IPurchaseCheckService
             new CashflowScenarioCommand(command.UserId, command.AccountId, windowEnd, [new ScenarioItem(purchaseDate, command.AmountCents, RecurringDirection.Outflow, label)]), ct);
 
         var accounts = await AccountsAsync(command, ct);
+        var coverage = _coverage is null ? null : await _coverage.GetForecastSummaryAsync(command.UserId, ct);
         var days = baseline.Days.Zip(withPurchase.Days, (b, a) => new PurchaseDay(b.Date, b.ExpectedBalanceCents, a.ExpectedBalanceCents, a.LowBalanceCents)).ToList();
         var incomeDates = baseline.Days.Where(d => d.Events.Any(e => e.Kind == CashflowEventKinds.RecurringInflow)).Select(d => d.Date).ToList();
         var horizon = command.HorizonDays ?? settings.PurchaseDefaultHorizonDays;
@@ -119,7 +128,7 @@ public class PurchaseCheckService : IPurchaseCheckService
 
         var input = new PurchaseVerdictInput(
             today, purchaseDate, command.AmountCents, user.LowBalanceThresholdCents ?? 0, period, days, incomeDates, horizon,
-            QualityOf(command, baseline, period, accounts, today, settings),
+            QualityOf(command, baseline, period, accounts, today, settings) with { PoorCoverageWarning = coverage is { IsPoor: true } ? coverage.Warning : null },
             await BudgetImpactAsync(command, purchaseDate, today, ct),
             await PlanImpactAsync(command, purchaseDate, today, ct));
         var result = PurchaseVerdict.Evaluate(input);
@@ -128,8 +137,12 @@ public class PurchaseCheckService : IPurchaseCheckService
             result.Status, result.Verdict, PurchaseVerdict.Summary(input, result, command.Item), command.AmountCents, purchaseDate, command.Item?.Trim(),
             period, result.LowestBefore, result.LowestAfter, result.ConservativeLowestAfterCents, input.BufferCents, result.ShortfallCents,
             input.Budget, input.Plan, result.MaxAffordableCents, result.EarliestSafeDate,
-            await LinesAsync(command.UserId, withPurchase, period, today, ct), result.Warnings, baseline.Confidence,
-            accounts.Count == 0 ? null : accounts.Max(a => a.UpdatedAt), now);
+            await LinesAsync(command.UserId, withPurchase, period, today, ct), result.Warnings,
+            coverage is { IsPoor: true } ? ListenerHealth.ForecastCoverage.LowConfidence : baseline.Confidence,
+            accounts.Count == 0 ? null : accounts.Max(a => a.UpdatedAt), now)
+        {
+            DataCoverage = coverage,
+        };
     }
 
     private static DateOnly Validate(PurchaseCheckCommand command, ForecastSettings settings, DateOnly today)

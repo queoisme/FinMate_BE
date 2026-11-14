@@ -32,10 +32,21 @@ public sealed record DataCoverageDto(
     IReadOnlyList<AccountCoverageDto> Accounts,
     IReadOnlyList<DeviceCoverageDto> Devices);
 
+/// <summary>
+/// Độ phủ gắn vào dự báo (BR-LH-08, S7): <c>{percent, level, windowDays, warning}</c>. <paramref name="Warning"/> là câu mẫu của backend, chỉ có khi <c>poor</c>.
+/// </summary>
+public sealed record DataCoverageSummaryDto(int? Percent, string Level, int WindowDays, string? Warning)
+{
+    public bool IsPoor => Level == "poor";
+}
+
 public interface IDataCoverageService
 {
     /// <summary>BR-LH-07: độ phủ trong <paramref name="days"/> ngày (7–90), từng ví đang theo dõi và từng thiết bị.</summary>
     Task<DataCoverageDto> GetAsync(Guid userId, int days, CancellationToken ct = default);
+
+    /// <summary>BR-LH-08/S7: độ phủ trên cửa sổ <c>forecast.historyWindowDays</c> (kẹp 7–90), cache 10 phút; <c>PUT listener-status</c> xoá cache (S6).</summary>
+    Task<DataCoverageSummaryDto> GetForecastSummaryAsync(Guid userId, CancellationToken ct = default);
 }
 
 public class DataCoverageService : IDataCoverageService
@@ -45,19 +56,49 @@ public class DataCoverageService : IDataCoverageService
     private readonly IListenerHealthReader _reader;
     private readonly IListenerHealthRepository _repository;
     private readonly ISystemConfigProvider _config;
+    private readonly IFinancialAccountRepository _accounts;
+    private readonly ICacheService _cache;
     private readonly Func<DateTimeOffset> _now;
 
-    public DataCoverageService(IListenerHealthReader reader, IListenerHealthRepository repository, ISystemConfigProvider config)
-        : this(reader, repository, config, () => DateTimeOffset.UtcNow)
+    public DataCoverageService(
+        IListenerHealthReader reader, IListenerHealthRepository repository, ISystemConfigProvider config, IFinancialAccountRepository accounts, ICacheService cache)
+        : this(reader, repository, config, accounts, cache, () => DateTimeOffset.UtcNow)
     {
     }
 
-    internal DataCoverageService(IListenerHealthReader reader, IListenerHealthRepository repository, ISystemConfigProvider config, Func<DateTimeOffset> now)
+    internal DataCoverageService(
+        IListenerHealthReader reader, IListenerHealthRepository repository, ISystemConfigProvider config, IFinancialAccountRepository accounts, ICacheService cache,
+        Func<DateTimeOffset> now)
     {
         _reader = reader;
         _repository = repository;
         _config = config;
+        _accounts = accounts;
+        _cache = cache;
         _now = now;
+    }
+
+    public async Task<DataCoverageSummaryDto> GetForecastSummaryAsync(Guid userId, CancellationToken ct = default)
+    {
+        var document = (await _config.GetAsync(ct)).Document;
+        var days = DataCoverageCache.ForecastWindowDays(document.Forecast);
+        var key = DataCoverageCache.Key(userId, days);
+        if (await _cache.GetAsync<DataCoverageSummaryDto>(key, ct) is { } cached)
+        {
+            return cached;
+        }
+
+        // Không cần lịch sử thông báo ở đây: độ phủ chỉ dựa vào ngày tạo ví theo dõi đầu tiên và các dòng theo ngày của thiết bị.
+        var watched = (await _accounts.GetListByUserAsync(userId, ct)).Where(ListenerHealthReader.IsWatched).ToList();
+        var now = _now();
+        var devices = (await _repository.GetStatusesAsync(userId, ct))
+            .Select(s => new DeviceHealth(s, DeviceHealthEvaluator.Evaluate(s, now, document.ListenerHealth), []))
+            .ToList();
+        var snapshot = new ListenerHealthSnapshot([], devices, watched.Count == 0 ? null : watched.Min(a => a.CreatedAt));
+        var coverage = await CoverageAsync(snapshot, userId, VietnamTime.DateOf(now), days, document, ct);
+        var summary = ForecastCoverage.Summarize(coverage);
+        await _cache.SetAsync(key, summary, DataCoverageCache.Ttl, ct);
+        return summary;
     }
 
     public async Task<DataCoverageDto> GetAsync(Guid userId, int days, CancellationToken ct = default)
