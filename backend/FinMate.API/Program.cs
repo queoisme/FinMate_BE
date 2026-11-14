@@ -571,6 +571,7 @@ public class Program
         builder.Services.AddScoped<IGroupReportService, GroupReportService>();
         builder.Services.AddScoped<IGroupFundRepository, GroupFundRepository>();
         builder.Services.AddScoped<IGroupFundService, GroupFundService>();
+        builder.Services.AddScoped<IGroupFundNotifier, GroupFundNotifier>();
         builder.Services.AddScoped<GroupFundEntryService>();
         builder.Services.AddScoped<IGroupFundEntryService>(sp => new RetryingGroupFundEntryService(sp.GetRequiredService<GroupFundEntryService>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();

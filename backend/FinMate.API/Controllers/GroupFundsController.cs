@@ -73,11 +73,35 @@ public class GroupFundsController : ControllerBase
         var body = ApiResponse<GroupFundEntryResult>.Ok(result);
         return result.AlreadyExisted ? Ok(body) : StatusCode(StatusCodes.Status201Created, body);
     }
+
+    /// <summary>Trường bỏ trống là giữ nguyên. <c>removeFinancialAccount</c>: bỏ liên kết ví (giao dịch cá nhân bị xoá mềm, ví được hoàn).</summary>
+    [HttpPatch("{fundId:guid}/entries/{entryId:guid}")]
+    public async Task<IActionResult> UpdateEntry(Guid groupId, Guid fundId, Guid entryId, [FromBody] UpdateGroupFundEntryRequest request, CancellationToken ct)
+        => Ok(ApiResponse<GroupFundEntryResult>.Ok(await _entries.UpdateAsync(
+            new UpdateGroupFundEntryCommand(
+                CurrentUserId, groupId, fundId, entryId, request.AmountCents, request.TransactedAt, request.CategoryId, request.GroupCategoryId, request.Note,
+                request.MerchantName, request.FinancialAccountId, request.RemoveFinancialAccount ?? false),
+            ct)));
+
+    /// <summary>Trả quỹ sau khi xoá.</summary>
+    [HttpDelete("{fundId:guid}/entries/{entryId:guid}")]
+    public async Task<IActionResult> DeleteEntry(Guid groupId, Guid fundId, Guid entryId, CancellationToken ct)
+        => Ok(ApiResponse<GroupFundDto>.Ok(await _entries.DeleteAsync(groupId, CurrentUserId, fundId, entryId, ct)));
 }
 
 public record CreateGroupFundRequest(string? Name, string? Note);
 
 public record UpdateGroupFundRequest(string? Name, string? Note);
+
+public record UpdateGroupFundEntryRequest(
+    long? AmountCents,
+    DateTimeOffset? TransactedAt,
+    Guid? CategoryId,
+    Guid? GroupCategoryId,
+    string? Note,
+    string? MerchantName,
+    Guid? FinancialAccountId,
+    bool? RemoveFinancialAccount);
 
 public record CreateGroupFundEntryRequest(
     GroupFundEntryKind Kind,

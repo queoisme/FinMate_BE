@@ -34,8 +34,11 @@ public interface IGroupFundRepository
 
     Task<GroupFundEntry?> GetEntryByClientRequestAsync(Guid fundId, Guid memberUserId, Guid clientRequestId, CancellationToken ct = default);
 
-    /// <summary>Giao dịch cá nhân (chưa xoá) của <paramref name="userId"/> gắn với dòng quỹ; null nếu không có hoặc của người khác.</summary>
-    Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, CancellationToken ct = default);
+    /// <summary>
+    /// Giao dịch cá nhân của <paramref name="userId"/> gắn với dòng quỹ; null nếu không có hoặc của người khác. <paramref name="includeDeleted"/>: kể cả
+    /// bản đã xoá mềm (mỗi dòng quỹ chỉ có một giao dịch, nên gắn lại ví thì dùng lại đúng dòng đó).
+    /// </summary>
+    Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, bool includeDeleted = false, CancellationToken ct = default);
 
     void AddEntry(GroupFundEntry entry);
 

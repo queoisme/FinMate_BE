@@ -64,8 +64,9 @@ public class GroupFundRepository : IGroupFundRepository
         => _context.GroupFundEntries.FirstOrDefaultAsync(
             e => e.FundId == fundId && e.MemberUserId == memberUserId && e.ClientRequestId == clientRequestId, ct);
 
-    public Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, CancellationToken ct = default)
-        => _context.Transactions.FirstOrDefaultAsync(t => t.GroupFundEntryId == entryId && t.UserId == userId, ct);
+    public Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, bool includeDeleted = false, CancellationToken ct = default)
+        => (includeDeleted ? _context.Transactions.IgnoreQueryFilters() : _context.Transactions)
+            .FirstOrDefaultAsync(t => t.GroupFundEntryId == entryId && t.UserId == userId, ct);
 
     public void AddEntry(GroupFundEntry entry) => _context.GroupFundEntries.Add(entry);
 
@@ -81,5 +82,6 @@ public class GroupFundRepository : IGroupFundRepository
                u != null ? u.DisplayName : null,
                u != null && u.DeletedAt == null,
                e.GroupCategory != null ? e.GroupCategory.Name : e.Category != null ? e.Category.Name : null,
-               _context.Transactions.Any(t => t.GroupFundEntryId == e.Id));
+               // DeletedAt tường minh: IgnoreQueryFilters ở trên áp cho CẢ câu truy vấn, nên bộ lọc xoá mềm của Transactions cũng tắt.
+               _context.Transactions.Any(t => t.GroupFundEntryId == e.Id && t.DeletedAt == null));
 }

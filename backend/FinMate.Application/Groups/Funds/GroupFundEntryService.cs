@@ -15,6 +15,18 @@ public interface IGroupFundEntryService
 {
     Task<GroupFundEntryListResult> ListAsync(Guid groupId, Guid userId, GroupFundEntryQuery query, CancellationToken ct = default);
     Task<GroupFundEntryResult> CreateAsync(CreateGroupFundEntryCommand command, CancellationToken ct = default);
+
+    /// <summary>
+    /// BR-FUND-05, D5: chủ dòng sửa mọi trường trừ loại; người có <c>ManageFunds</c> chỉ sửa danh mục và ghi chú dòng của người khác. Không ai sửa
+    /// số tiền dòng của người khác (403).
+    /// </summary>
+    Task<GroupFundEntryResult> UpdateAsync(UpdateGroupFundEntryCommand command, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chủ dòng xoá thì giao dịch cá nhân gắn với dòng cũng bị xoá mềm và ví được hoàn (BR-FUND-09). Người có <c>ManageFunds</c> xoá dòng của người
+    /// khác thì CHỈ xoá dòng quỹ; giao dịch cá nhân của chủ dòng giữ nguyên và chủ dòng được báo (S3).
+    /// </summary>
+    Task<GroupFundDto> DeleteAsync(Guid groupId, Guid userId, Guid fundId, Guid entryId, CancellationToken ct = default);
 }
 
 public partial class GroupFundEntryService : IGroupFundEntryService
@@ -30,6 +42,9 @@ public partial class GroupFundEntryService : IGroupFundEntryService
     private readonly IFinancialAccountRepository _accounts;
     private readonly ICategoryRepository _categories;
     private readonly IValidator<CreateGroupFundEntryCommand> _createValidator;
+    private readonly ITransactionRepository _transactions;
+    private readonly IGroupFundNotifier _notifier;
+    private readonly IAuditLogService _audit;
     private readonly IForecastAlertTrigger? _forecastAlerts;
 
     public GroupFundEntryService(
@@ -41,8 +56,14 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         IFinancialAccountRepository accounts,
         ICategoryRepository categories,
         IValidator<CreateGroupFundEntryCommand> createValidator,
+        ITransactionRepository transactions,
+        IGroupFundNotifier notifier,
+        IAuditLogService audit,
         IForecastAlertTrigger? forecastAlerts = null)
     {
+        _transactions = transactions;
+        _notifier = notifier;
+        _audit = audit;
         _funds = funds;
         _groups = groups;
         _finance = finance;
