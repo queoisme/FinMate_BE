@@ -756,6 +756,7 @@ public class Program
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
+        builder.Services.AddScoped<ListenerHealthDailyJob>();
         builder.Services.AddScoped<ForecastAlertDispatchJob>();
         builder.Services.AddScoped<ForecastUserCheckJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
@@ -957,6 +958,12 @@ public class Program
             "forecast-daily-alerts",
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
+
+        // 02:00 UTC = 09:00 VN (BR-LH-05): nhắc khi app không còn đọc được thông báo ngân hàng, sau lượt cảnh báo dự báo lúc 08:00.
+        RecurringJob.AddOrUpdate<ListenerHealthDailyJob>(
+            "listener-health-daily",
+            job => job.RunAsync(CancellationToken.None),
+            "0 2 * * *");
 
         RecurringJob.AddOrUpdate<ForecastAlertDispatchJob>(
             "forecast-alert-dispatch",

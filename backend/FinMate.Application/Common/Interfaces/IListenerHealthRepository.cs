@@ -45,4 +45,13 @@ public interface IListenerHealthRepository
     /// <summary>BR-LH-07: số ngày (giờ VN) có ít nhất một thông báo của mỗi ví, từ <paramref name="fromDay"/> tới hết hôm nay.</summary>
     Task<IReadOnlyDictionary<Guid, int>> GetNotificationDayCountsAsync(
         Guid userId, IReadOnlyCollection<Guid> accountIds, DateOnly fromDay, CancellationToken ct = default);
+
+    /// <summary>Trang kế tiếp (theo id tăng dần, sau <paramref name="afterUserId"/>) các user có ít nhất một ví đang theo dõi thông báo (BR-LH-05/06).</summary>
+    Task<IReadOnlyList<Guid>> ListWatchedUserIdsAsync(Guid? afterUserId, int limit, CancellationToken ct = default);
+
+    /// <summary>S2: thay toàn bộ số ca <c>upload_gap</c> của ngày đó bằng số mới (chạy lại job trong ngày không cộng dồn).</summary>
+    Task ReplaceUploadGapCountsAsync(DateOnly day, IReadOnlyDictionary<string, int> countsByAppVersion, CancellationToken ct = default);
+
+    /// <summary>D20: xoá tối đa <paramref name="batchSize"/> dòng theo ngày (thiết bị và upload gap) cũ hơn <paramref name="cutoff"/>. Trả số dòng đã xoá.</summary>
+    Task<int> PurgeDailyRowsBeforeAsync(DateOnly cutoff, int batchSize, CancellationToken ct = default);
 }

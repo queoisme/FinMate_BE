@@ -113,6 +113,44 @@ public class ListenerHealthRepository : IListenerHealthRepository
         return rows.ToDictionary(r => r.AccountId, r => r.Days);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListWatchedUserIdsAsync(Guid? afterUserId, int limit, CancellationToken ct = default)
+    {
+        var query = _context.FinancialAccounts
+            .Where(a => a.IsMonitored && a.PackageName != null)
+            .Select(a => a.UserId)
+            .Distinct();
+        if (afterUserId is { } after)
+        {
+            query = query.Where(id => id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(id => id).Take(limit).ToListAsync(ct);
+    }
+
+    public async Task ReplaceUploadGapCountsAsync(DateOnly day, IReadOnlyDictionary<string, int> countsByAppVersion, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        await _context.ListenerUploadGapDaily.Where(g => g.Day == day).ExecuteDeleteAsync(ct);
+        foreach (var (version, count) in countsByAppVersion)
+        {
+            _context.ListenerUploadGapDaily.Add(new ListenerUploadGapDaily { Day = day, AppVersion = version, Count = count });
+        }
+
+        await _context.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
+    public async Task<int> PurgeDailyRowsBeforeAsync(DateOnly cutoff, int batchSize, CancellationToken ct = default)
+    {
+        var devices = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            DELETE FROM device_listener_daily WHERE ctid IN (SELECT ctid FROM device_listener_daily WHERE day < {cutoff} LIMIT {batchSize})
+            """, ct);
+        var gaps = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            DELETE FROM listener_upload_gap_daily WHERE ctid IN (SELECT ctid FROM listener_upload_gap_daily WHERE day < {cutoff} LIMIT {batchSize})
+            """, ct);
+        return devices + gaps;
+    }
+
     private sealed class NotificationTimeRow
     {
         public Guid AccountId { get; set; }
