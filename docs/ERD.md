@@ -180,6 +180,8 @@ erDiagram
 | **FinanceMethod** | `finance_methods` |  | Phương pháp quản lý tài chính (13 cách): tham số, điều kiện phù hợp, bố cục màn hình chính, phiên bản. |
 | **FinancialAccount** | `financial_accounts` | ✓ | Ví của người dùng (ngân hàng, ví điện tử, tiền mặt); `balance_cents` là số dư tính sẵn; `include_in_forecast` cho dự báo. |
 | **ForecastAlert** | `forecast_alerts` | ✓ | Hộp thư cảnh báo dự báo: chống lặp theo `(user_id, kind, dedup_key)`, hẹn giờ gửi, phản hồi "không chính xác". |
+| **GroupFund** | `group_funds` |  | Phase 85: quỹ chung của nhóm (sổ ảo). `balance_cents` là số dư tính sẵn, khoá `xmin`, âm được; chỉ lưu trữ khi bằng 0. |
+| **GroupFundEntry** | `group_fund_entries` | ✓ (`member_user_id`, SET NULL) | Phase 85: một dòng sổ quỹ (góp, chi, rút, điều chỉnh). Thuộc về nhóm: xoá cứng tài khoản chỉ ẩn danh dòng. |
 | **GoalContribution** | `goal_contributions` | ✓ (không FK) | Khoản góp vào mục tiêu. `user_id` lặp lại để lọc theo người dùng (không có FK riêng; xóa theo mục tiêu). |
 | **GoalTemplate** | `goal_templates` |  | Mẫu mục tiêu do quản trị viên quản lý. |
 | **MethodGoalTemplate** | `method_goal_templates` |  | Bảng nối phương pháp ↔ mẫu mục tiêu. |
@@ -817,6 +819,8 @@ Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). 
 | 27 | `merged_into_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: survivor; chỉ có trên dòng đã xoá mềm) |
 | 28 | `merged_sources` | text[] | có |  | Phase 82: các kênh đã góp vào survivor (`notification` = ngân hàng đã xác thực) |
 | 29 | `transfer_dismissed_at` | timestamptz | có |  | Phase 83: người dùng nói "không phải chuyển ví"; chỉ tắt gợi ý, chuyển đổi tay xoá cột này |
+| 30 | `group_fund_entry_id` | uuid | có |  | FK → `group_fund_entries.id` (Phase 85: giao dịch này ghi lại một dòng quỹ nhóm ở sổ cá nhân; luôn là `transfer` không ví đích) |
+| 31 | `group_fund_direction` | varchar(3) | có |  | Phase 85: `out` / `in` so với ví; chỉ `TransferLegs` đọc |
 
 Khóa ngoại:
 - `related_transaction_id` → `transactions(id)` ON DELETE NO ACTION (kiểm ở cuối câu lệnh, nên xoá cứng cả user một lần không vướng thứ tự)
@@ -827,8 +831,10 @@ Khóa ngoại:
 - `notification_log_id` → `notification_logs(id)` ON DELETE SET NULL
 - `saving_goal_id` → `saving_goals(id)` ON DELETE SET NULL
 - `user_id` → `users(id)` ON DELETE CASCADE
+- `group_fund_entry_id` → `group_fund_entries(id)` ON DELETE RESTRICT (Phase 85; dòng quỹ chỉ xoá mềm)
 
 Ràng buộc:
+- CHECK `chk_transactions_group_fund_link` (Phase 85): `(group_fund_entry_id IS NULL) = (group_fund_direction IS NULL) AND (group_fund_direction IS NULL OR group_fund_direction IN ('out','in')) AND (group_fund_entry_id IS NULL OR (transaction_type = 'transfer' AND counter_account_id IS NULL AND group_id IS NULL AND status = 'confirmed'))`
 - CHECK `chk_transactions_relation`: `relation IS NULL OR relation IN ('refund','reversal')`
 - CHECK `chk_transactions_relation_money_in`: `relation IS NULL OR transaction_type = 'credit'`
 - CHECK `chk_transactions_related_has_relation`: `related_transaction_id IS NULL OR relation IS NOT NULL`
@@ -845,7 +851,7 @@ Ràng buộc:
 - CHECK `chk_transactions_source`: `source IN ('notification', 'manual', 'voice', 'receipt')`
 - CHECK `chk_transactions_status`: `status IN ('draft', 'confirmed')`
 - CHECK `chk_transactions_transaction_type`: `transaction_type IN ('debit', 'credit', 'transfer')`
-- CHECK `chk_transactions_transfer_shape`: `((transaction_type = 'transfer') AND (counter_account_id IS NOT NULL) AND (counter_account_id <> financial_account_id) AND (category_id IS NULL)) OR ((transaction_type <> 'transfer') AND (counter_account_id IS NULL))`
+- CHECK `chk_transactions_transfer_shape`: `((transaction_type = 'transfer') AND (counter_account_id IS NOT NULL) AND (counter_account_id <> financial_account_id) AND (category_id IS NULL)) OR ((transaction_type = 'transfer') AND (counter_account_id IS NULL) AND (category_id IS NULL) AND (group_fund_entry_id IS NOT NULL)) OR ((transaction_type <> 'transfer') AND (counter_account_id IS NULL))` (nhánh giữa thêm ở Phase 85, chỉ mở khi có liên kết quỹ)
 
 Index:
 - UNIQUE `IX_transactions_notification_log_id` `(notification_log_id)`
@@ -858,6 +864,7 @@ Index:
 - `idx_transactions_financial_account_id` `(financial_account_id)`
 - `idx_transactions_user_transacted_at` `(user_id, transacted_at, id)`
 - UNIQUE `uq_transactions_user_client_request_id` `(user_id, client_request_id) WHERE client_request_id IS NOT NULL`
+- UNIQUE `uq_transactions_group_fund_entry_id` `(group_fund_entry_id) WHERE group_fund_entry_id IS NOT NULL` (Phase 85)
 
 ##### `notification_logs` — NotificationLog
 
@@ -1888,7 +1895,7 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_forecast_alerts_feedback`: `(feedback IS NULL) OR (feedback = 'inaccurate')`
-- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly', 'group_budget', 'group_goal', 'market_change', 'listener_health')` (`group_*`, `market_change` thêm sau ngày sinh tài liệu; `listener_health` ở Phase 84)
+- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly', 'group_budget', 'group_goal', 'market_change', 'listener_health', 'group_fund_negative', 'group_fund_removed')` (`group_*`, `market_change` thêm sau ngày sinh tài liệu; `listener_health` ở Phase 84; `group_fund_*` ở Phase 85)
 - CHECK `chk_forecast_alerts_sent_at`: `(status = 'sent') = (sent_at IS NOT NULL)`
 - CHECK `chk_forecast_alerts_status`: `status IN ('pending', 'sent')`
 
@@ -1953,7 +1960,7 @@ Khóa ngoại:
 - `user_id` → `users(id)` ON DELETE CASCADE
 
 Ràng buộc:
-- CHECK `chk_transaction_merge_snapshots_kind`: `kind IN ('duplicate_merge','transfer_pair','transfer_convert')`
+- CHECK `chk_transaction_merge_snapshots_kind`: `kind IN ('duplicate_merge','transfer_pair','transfer_convert','group_fund_expense')` (`group_fund_expense` ở Phase 85)
 - CHECK `chk_transaction_merge_snapshots_transfer_kind`: `transfer_kind IS NULL OR transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account')`
 - CHECK `chk_transaction_merge_snapshots_before`: `jsonb_typeof(before) = 'object'`
 
@@ -2059,6 +2066,88 @@ Index: `ix_device_listener_daily_user_day` `(user_id, day)`; `ix_device_listener
 | 3 | `count` | integer |  |  |  |
 
 Ràng buộc: CHECK `chk_listener_upload_gap_daily_count`: `count >= 0`
+
+#### Quỹ chung của nhóm (Phase 85, migration `AddGroupFunds`)
+
+Viết tay theo migration, chưa dựng lại từ catalog. Các bảng nhóm (`groups`, `group_members`, `group_categories`…) cũng chưa có trong tài liệu này
+(sinh trước Phase 57). Cùng migration: hai cột và hai CHECK ở `transactions`, kind `group_fund_negative`/`group_fund_removed` của `forecast_alerts`,
+kind `group_fund_expense` của `transaction_merge_snapshots`, sáu loại hoạt động mới trong CHECK `chk_group_activities_type`.
+
+```mermaid
+erDiagram
+    groups ||--o{ group_funds : "có"
+    group_funds ||--o{ group_fund_entries : "gồm"
+    users |o--o{ group_fund_entries : "ghi (null = thành viên cũ)"
+    group_fund_entries |o--o| transactions : "ghi lại ở sổ cá nhân"
+    categories |o--o{ group_fund_entries : "danh mục chi"
+    group_categories |o--o{ group_fund_entries : "danh mục nhóm"
+```
+
+##### `group_funds` — GroupFund
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `group_id` | uuid |  |  | FK → `groups.id` |
+| 3 | `name` | varchar(100) |  |  |  |
+| 4 | `note` | varchar(500) | có |  |  |
+| 5 | `balance_cents` | bigint |  | `0` | Tính sẵn = Σ dòng còn sống có dấu; âm được |
+| 6 | `negative_episode` | integer |  | `0` | Số lần chuyển sang âm; nằm trong khoá chống lặp của push |
+| 7 | `created_by_user_id` | uuid | có |  | FK → `users.id` |
+| 8 | `archived_at` | timestamptz | có |  |  |
+| 9 | `created_at` | timestamptz |  |  |  |
+| 10 | `updated_at` | timestamptz |  |  |  |
+| — | `xmin` | xid |  |  | Cột hệ thống, khoá lạc quan |
+
+Khóa ngoại: `group_id` → `groups(id)` ON DELETE RESTRICT; `created_by_user_id` → `users(id)` ON DELETE SET NULL
+
+Ràng buộc:
+- CHECK `chk_group_funds_name`: `char_length(name) BETWEEN 1 AND 100`
+- CHECK `chk_group_funds_archived_settled`: `archived_at IS NULL OR balance_cents = 0`
+- CHECK `chk_group_funds_negative_episode`: `negative_episode >= 0`
+
+Index: `ix_group_funds_group_active` `(group_id) WHERE archived_at IS NULL`
+
+##### `group_fund_entries` — GroupFundEntry
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `fund_id` | uuid |  |  | FK → `group_funds.id` |
+| 3 | `group_id` | uuid |  |  | FK → `groups.id` (lặp lại để lọc ngân sách, báo cáo) |
+| 4 | `member_user_id` | uuid | có |  | FK → `users.id`; người ghi; null = đã ẩn danh |
+| 5 | `kind` | varchar(20) |  |  | `contribution` / `expense` / `withdrawal` / `adjustment` |
+| 6 | `amount_cents` | bigint |  |  | > 0; có dấu (≠ 0) với `adjustment` |
+| 7 | `transacted_at` | timestamptz |  |  |  |
+| 8 | `category_id` | uuid | có |  | FK → `categories.id`; chỉ với chi, danh mục hệ thống |
+| 9 | `group_category_id` | uuid | có |  | FK → `group_categories.id`; chỉ với chi |
+| 10 | `note` | varchar(500) | có |  | Bắt buộc với `adjustment` |
+| 11 | `merchant_name` | varchar(200) | có |  | Chỉ với chi |
+| 12 | `client_request_id` | uuid | có |  | Chống gửi lại |
+| 13 | `origin` | varchar(10) |  | `'created'` | `created` / `converted` (chi lấy từ một giao dịch có sẵn) |
+| 14 | `origin_category_id` | uuid | có |  | FK → `categories.id`; danh mục gốc để khôi phục |
+| 15 | `created_at` | timestamptz |  |  |  |
+| 16 | `updated_at` | timestamptz |  |  |  |
+| 17 | `deleted_at` | timestamptz | có |  | Xoá mềm |
+| 18 | `deleted_by_user_id` | uuid | có |  | FK → `users.id` |
+
+Khóa ngoại: `fund_id` → `group_funds(id)` RESTRICT; `group_id` → `groups(id)` RESTRICT; `member_user_id`, `deleted_by_user_id` → `users(id)` SET NULL;
+`category_id` → `categories(id)` RESTRICT; `group_category_id` → `group_categories(id)` RESTRICT; `origin_category_id` → `categories(id)` SET NULL
+
+Ràng buộc:
+- CHECK `chk_group_fund_entries_kind`: `kind IN ('contribution','expense','withdrawal','adjustment')`
+- CHECK `chk_group_fund_entries_origin`: `origin IN ('created','converted')`
+- CHECK `chk_group_fund_entries_amount`: `(kind = 'adjustment' AND amount_cents <> 0 AND note IS NOT NULL) OR (kind <> 'adjustment' AND amount_cents > 0)`
+- CHECK `chk_group_fund_entries_expense_fields`: `kind = 'expense' OR (category_id IS NULL AND group_category_id IS NULL AND merchant_name IS NULL)`
+- CHECK `chk_group_fund_entries_expense_category`: `kind <> 'expense' OR category_id IS NOT NULL OR group_category_id IS NOT NULL`
+- CHECK `chk_group_fund_entries_origin_kind`: `origin = 'created' OR kind = 'expense'`
+- CHECK `chk_group_fund_entries_origin_category`: `origin_category_id IS NULL OR origin = 'converted'`
+
+Index:
+- `ix_group_fund_entries_fund_transacted` `(fund_id, transacted_at DESC, id DESC) WHERE deleted_at IS NULL`
+- `ix_group_fund_entries_group_kind_transacted` `(group_id, kind, transacted_at) WHERE deleted_at IS NULL`
+- UNIQUE `uq_group_fund_entries_client_request` `(fund_id, member_user_id, client_request_id) WHERE client_request_id IS NOT NULL`
+- Index theo FK do EF tạo: `IX_group_fund_entries_category_id`, `_deleted_by_user_id`, `_group_category_id`, `_member_user_id`, `_origin_category_id`; `IX_group_funds_created_by_user_id`
 
 #### 3.1.7 Cấu hình hệ thống
 

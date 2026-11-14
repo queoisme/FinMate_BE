@@ -1,6 +1,6 @@
 # Phase 85 — Quỹ chung của nhóm
 
-> Trạng thái: **đã duyệt** (2026-11-14), phương án A. D1–D22 theo đề xuất, kèm S1–S7 bên dưới (S thắng D khi mâu thuẫn). Nhánh `feat/group-fund` tạo từ `main` @ `4601e1f` (đã có Phase 81–84, PR #30–#33).
+> Trạng thái: **đã làm xong** (2026-11-15), chờ duyệt merge. Đã duyệt 2026-11-14, phương án A. D1–D22 theo đề xuất, kèm S1–S7 bên dưới (S thắng D khi mâu thuẫn). Nhánh `feat/group-fund` tạo từ `main` @ `4601e1f` (đã có Phase 81–84, PR #30–#33).
 
 ## Đã duyệt (2026-11-14): điều chỉnh S1–S7
 
@@ -384,4 +384,37 @@ Không số tiền, không log tên quỹ, tên người hay ghi chú.
 
 ## Bảng BR → test
 
-Điền sau khi làm.
+Lớp test nằm ở `backend/FinMate.Tests/Integration/Controllers/` trừ khi ghi khác.
+
+| BR / quyết định | Test |
+|---|---|
+| S2 (Task 0) | `LoanExclusionTests` |
+| BR-FUND-01 | `GroupFundsControllerTests` (tạo, quyền theo vai trò và ghi đè, giới hạn 3 quỹ, tên) |
+| BR-FUND-02 | `GroupFundEntriesControllerTests.AWithdrawalIntoAWallet_…`, `GroupFundEntryChangeTests.ManyChanges_…` (bất biến Σ dòng = số dư), `GroupFundConcurrencyTests` |
+| BR-FUND-03 | `GroupFundsControllerTests.ArchivingNeedsAZeroBalance`, `.DeletingAGroup_…`, `GroupFundSchemaTests.ArchivedFund_MustBeSettled` |
+| BR-FUND-04 | `GroupFundEntriesControllerTests.RecordingNeedsRecordFundEntries`, `.RecordFundEntries_FollowsOverrides`, `.Adjustments_…` |
+| BR-FUND-05, D5 | `GroupFundEntryChangeTests.NobodyChangesTheAmountOfSomeoneElsesEntry_…` |
+| BR-FUND-06, D10 | `GroupFundEntriesControllerTests.ExpenseShape_IsChecked`, `GroupFundSchemaTests.Expense_NeedsACategory_…` |
+| BR-FUND-07, S4 | `GroupFundEntriesControllerTests.AContributionFromAWallet_…`, `.AFundExpensePaidFromAWallet_…`, `GroupFundExpenseFromTransactionTests` |
+| BR-FUND-08, D1 | `GroupFundSchemaTests` (CHECK), `GroupFundPersonalExclusionTests`, `GroupFundTransferLegsTests`, `Unit/…/TransferLegsTests` |
+| BR-FUND-09, S3, D7, D8 | `GroupFundEntryChangeTests.TheOwnerDeleting…`, `.AManagerDeletingSomeoneElsesEntry_…`, `GroupFundPersonalSyncTests` |
+| BR-FUND-10, D13 | `Unit/…/GroupFundSpendScopeTests`, `GroupFundBudgetScopeTests`, `GroupFundEntriesControllerTests.AFundExpense_CountsForTheGroupBudget_…`, `GroupFundEntryChangeTests.EditingAnExpense_…` |
+| BR-FUND-11 | `GroupFundEntriesControllerTests.AFundExpense_…` (báo cáo cá nhân của người ghi), `GroupFundPersonalExclusionTests` |
+| BR-FUND-12 | `GroupFundReportTests.TheFundSummary_…` |
+| BR-FUND-13 | `GroupFundMembershipTests.LeavingOrBeingRemoved_…` |
+| BR-FUND-14, D12 | `GroupFundMembershipTests.AMemberAwaitingDeletion_…`, `.HardDeletingAMember_…`, `GroupFundSchemaTests.HardDeletingTheMember_…` |
+| BR-FUND-15 | `GroupFundSchemaTests.HardDeletingTheMember_…` (cột nullable, SET NULL) |
+| BR-FUND-16, D18 | `GroupFundNegativeAlertTests` |
+| D9 | `GroupFundPersonalSyncTests.APersonalFundTransaction_IsOnlyChangedThroughItsFundLine` |
+| D11 | `GroupFundPersonalSyncTests.ABankNoticeOfTheContribution_…`, `Unit/…/MergePolicyTests`, `Unit/…/DuplicateMatcherTests` (phần Phase 85) |
+| D14 / S5 | `GroupFundReportTests.TheGroupMonthlyReport_…`, `GroupFundMembershipTests.HardDeletingAMember_…` (`formerMembers`) |
+| D15 | `GroupFundEntriesControllerTests.TheLedger_IsVisibleToEveryMember_…` |
+| D16 | `GroupFundEntriesControllerTests.AnArchivedFund_…`, `GroupFundEntryChangeTests.AnArchivedFund_CannotBeEdited` |
+| D19 | `GroupFundEntriesControllerTests.ResendingWithTheSameClientRequestId_…`, `GroupFundConcurrencyTests.ResendingTheSameEntryAtOnce_…` |
+| D20 | `GroupFundApiSurfaceTests.TheFundLink_StaysAfterLeaving_…` |
+| D22 | `GroupFundEntriesControllerTests.RecordingWritesActivities_…` |
+| D23, D24 | `GroupFundExpenseFromTransactionTests` |
+| S6 | Bảng S6 ở trên: `GroupFundTransferLegsTests` (#1, 12, 14, 15), `MergePolicyTests` (#8), `DuplicateMatcherTests` (#10), `GroupFundPersonalSyncTests` (#2, 3, 5, 9), `SupportConsentedAccessTests.TransactionView_ShowsTheMoneyDirection_…` (#17), `GroupFundApiSurfaceTests` (#16), `Unit/Architecture/GroupFundDirectionUsageTests` |
+| Cờ, quyền, DTO | `GroupFundApiSurfaceTests` |
+| Kịch bản (a)–(i) | `Integration/Scenarios/GroupFundScenarioTests` |
+| Lỗi sẵn có tìm ra | `GroupDeletedSharedTransactionTests` |
