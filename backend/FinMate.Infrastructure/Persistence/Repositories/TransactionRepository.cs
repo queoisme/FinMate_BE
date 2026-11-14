@@ -4,6 +4,7 @@ using FinMate.Application.Budgets;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
 using FinMate.Application.Transactions.Duplicates;
 using FinMate.Application.Transactions.Transfers;
 using FinMate.Domain.Entities;
@@ -100,7 +101,7 @@ public class TransactionRepository : ITransactionRepository
 
         if (filter.ExcludeLoans)
         {
-            query = query.Where(t => t.Category == null || t.Category.Slug != Category.LoanSlug);
+            query = query.Where(LoanExclusion.NotLoan);
         }
 
         if (filter.FromDate is not null)
@@ -408,11 +409,11 @@ public class TransactionRepository : ITransactionRepository
             .AsNoTracking()
             .Include(t => t.Category)
             .Include(t => t.FinancialAccount)
+            .Where(LoanExclusion.NotLoan)
             .Where(t => t.UserId == query.UserId
                 && t.TransactionType == TransactionType.Debit
                 && t.Status == TransactionStatus.Confirmed
                 && !t.IsReversed
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
                 && t.AmountCents >= query.AmountCents
                 && t.TransactedAt >= from
                 && t.TransactedAt <= query.At

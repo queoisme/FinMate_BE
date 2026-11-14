@@ -1,4 +1,6 @@
 using System.Linq.Expressions;
+using FinMate.Application.Common;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -16,11 +18,11 @@ public static class BudgetSpendScope
     /// Có tham gia tổng chi không: đã xác nhận, không phải cho vay/mượn, và là khoản chi chưa bị đảo hoặc một khoản hoàn. Đảo (reversal)
     /// không có tác động riêng; khoản gốc của nó đã bị loại nhờ <c>IsReversed</c>, nên cả cặp ròng bằng 0 (BR-RF-08).
     /// </summary>
-    public static readonly Expression<Func<Transaction, bool>> Counts = t =>
-        t.Status == TransactionStatus.Confirmed
-        && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-        && ((t.TransactionType == TransactionType.Debit && !t.IsReversed)
-            || (t.TransactionType == TransactionType.Credit && t.Relation == TransactionRelation.Refund));
+    public static readonly Expression<Func<Transaction, bool>> Counts = Predicates.And(
+        LoanExclusion.NotLoan,
+        t => t.Status == TransactionStatus.Confirmed
+            && ((t.TransactionType == TransactionType.Debit && !t.IsReversed)
+                || (t.TransactionType == TransactionType.Credit && t.Relation == TransactionRelation.Refund)));
 
     /// <summary>Số có dấu: chi +, hoàn −. Chỉ có nghĩa với giao dịch đã qua <see cref="Counts"/>.</summary>
     public static readonly Expression<Func<Transaction, long>> Signed = t =>

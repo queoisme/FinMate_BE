@@ -2,6 +2,7 @@ using FinMate.Application.Budgets;
 using FinMate.Application.Common;
 using FinMate.Application.Reports;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -56,9 +57,9 @@ public class ReportRepository : IReportRepository
         // không dịch được sang SQL đáng tin cậy qua EF/Npgsql. Chỉ kéo về 3 cột cần dùng và
         // khoảng thời gian luôn bị chặn (vài tháng của MỘT user), nên chi phí không đáng kể.
         var rows = await _context.Transactions
+            .Where(LoanExclusion.NotLoan)  // cho vay/mượn không phải chi tiêu hay thu nhập
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)  // cho vay/mượn không phải chi tiêu hay thu nhập
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType, t.Relation, t.IsReversed })
@@ -179,11 +180,11 @@ public class ReportRepository : IReportRepository
 
         return _context.Transactions
             .Include(t => t.Category)
+            .Where(LoanExclusion.NotLoan)
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType == TransactionType.Debit
                 && !t.IsReversed
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
                 // Khoản đã được hoàn 100% không phải chi tiêu thật (Phase 81, BR-RF-07).

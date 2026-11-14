@@ -182,7 +182,7 @@ public class GroupLedger : IGroupLedger
     internal static bool IsShareable(Transaction transaction, Category? category)
         => transaction.Status == TransactionStatus.Confirmed
             && transaction.TransactionType != TransactionType.Transfer
-            && category?.Slug != Category.LoanSlug;
+            && !LoanExclusion.IsLoan(category);
 
     internal static void EnsureShareable(Transaction transaction, Category? category)
     {

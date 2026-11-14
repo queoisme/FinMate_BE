@@ -57,7 +57,7 @@ public static class RefundPolicy
     /// </summary>
     public static void EnsureOrphanCategory(Category? category)
     {
-        if (category is null || category.Slug is IncomeSlug or Category.LoanSlug)
+        if (category is null || category.Slug == IncomeSlug || LoanExclusion.IsLoan(category))
         {
             throw new BusinessRuleException(
                 TransactionErrorCodes.RefundNotLinkable,
@@ -71,7 +71,7 @@ public static class RefundPolicy
         => original.TransactionType == TransactionType.Debit
             && original.Status == TransactionStatus.Confirmed
             && !original.IsReversed
-            && original.Category?.Slug != Category.LoanSlug;
+            && !LoanExclusion.IsLoan(original.Category);
 
     /// <summary>Phần còn hoàn được. Khoản đã đảo thì 0. Không âm kể cả khi dữ liệu cũ lệch.</summary>
     public static long RemainingRefundable(Transaction original, long alreadyRefundedCents)

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using FinMate.Application.Budgets;
+using FinMate.Application.Transactions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -101,13 +102,12 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     }
 
     public Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
-        => (from t in _context.Transactions
+        => (from t in _context.Transactions.Where(LoanExclusion.NotLoan)
             join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
             where t.GroupId == groupId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
             select new GroupReportRow(
                 t.UserId,
                 u.DisplayName,

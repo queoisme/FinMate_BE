@@ -1,6 +1,7 @@
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -61,10 +62,10 @@ public class ForecastDataRepository : IForecastDataRepository
         var (start, end) = VietnamTime.DayRange(from, to);
         var rows = await _context.Transactions
             .AsNoTracking()
+            .Where(LoanExclusion.NotLoan)   // cho vay/mượn không phải thu/chi thật
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType != TransactionType.Transfer
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)   // cho vay/mượn không phải thu/chi thật
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .Select(t => new
