@@ -571,6 +571,7 @@ public class Program
         builder.Services.AddScoped<IGroupReportService, GroupReportService>();
         builder.Services.AddScoped<IGroupFundRepository, GroupFundRepository>();
         builder.Services.AddScoped<IGroupFundService, GroupFundService>();
+        builder.Services.AddScoped<IGroupFundSummaryService, GroupFundSummaryService>();
         builder.Services.AddScoped<IGroupFundNotifier, GroupFundNotifier>();
         builder.Services.AddScoped<IGroupFundSourceConverter, GroupFundSourceConverter>();
         builder.Services.AddScoped<IGroupFundLinkSync, GroupFundLinkSync>();

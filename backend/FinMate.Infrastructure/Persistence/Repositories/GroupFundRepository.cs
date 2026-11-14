@@ -71,6 +71,32 @@ public class GroupFundRepository : IGroupFundRepository
         => (includeDeleted ? _context.Transactions.IgnoreQueryFilters() : _context.Transactions)
             .FirstOrDefaultAsync(t => t.GroupFundEntryId == entryId && t.UserId == userId, ct);
 
+    public Task<List<GroupFundExpenseRow>> ListExpenseRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
+        => (from e in _context.GroupFundEntries.AsNoTracking()
+            join u in _context.Users.IgnoreQueryFilters() on e.MemberUserId equals (Guid?)u.Id into members
+            from u in members.DefaultIfEmpty()
+            where e.GroupId == groupId && e.Kind == GroupFundEntryKind.Expense && e.DeletedAt == null && e.TransactedAt >= start && e.TransactedAt < end
+            select new GroupFundExpenseRow(
+                e.MemberUserId,
+                u != null ? u.DisplayName : null,
+                u != null && u.DeletedAt == null,
+                e.AmountCents,
+                e.GroupCategoryId,
+                e.GroupCategory != null ? e.GroupCategory.Name : null,
+                e.CategoryId,
+                e.Category != null ? e.Category.Name : null))
+            .ToListAsync(ct);
+
+    public Task<List<GroupFundEntryView>> ListEntriesInRangeAsync(Guid fundId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
+        => Views(_context.GroupFundEntries.AsNoTracking().Where(e => e.FundId == fundId && e.DeletedAt == null && e.TransactedAt >= start && e.TransactedAt < end))
+            .ToListAsync(ct);
+
+    // Cùng dấu với GroupFundMath.Signed: góp và điều chỉnh theo số của chính nó, chi và rút là trừ.
+    public async Task<long> SumBeforeAsync(Guid fundId, DateTimeOffset before, CancellationToken ct = default)
+        => await _context.GroupFundEntries
+            .Where(e => e.FundId == fundId && e.DeletedAt == null && e.TransactedAt < before)
+            .SumAsync(e => (long?)(e.Kind == GroupFundEntryKind.Contribution || e.Kind == GroupFundEntryKind.Adjustment ? e.AmountCents : -e.AmountCents), ct) ?? 0;
+
     public void AddEntry(GroupFundEntry entry) => _context.GroupFundEntries.Add(entry);
 
     public void AddPersonalTransaction(Transaction transaction) => _context.Transactions.Add(transaction);

@@ -216,12 +216,15 @@ public partial class GroupFundEntryService : IGroupFundEntryService
     internal static GroupFundEntryDto ToDto(GroupFundEntryView view, Guid viewerId)
     {
         var e = view.Entry;
-        var name = view.MemberName is null ? GroupMemberService.FormerMemberName
-            : view.IsMemberActive ? view.MemberName : GroupMemberService.InactiveMemberName;
+        var name = MemberNameOf(view.MemberName, view.IsMemberActive);
         return new GroupFundEntryDto(
             e.Id, e.FundId, e.Kind, e.AmountCents, e.TransactedAt, e.MemberUserId, name, e.CategoryId, e.GroupCategoryId, view.CategoryName, e.Note,
             e.MerchantName, e.Origin, e.MemberUserId == viewerId ? view.HasPersonalLink : null, e.CreatedAt, e.UpdatedAt);
     }
+
+    /// <summary>BR-FUND-14: chờ xoá tài khoản → tên thay thế như nơi khác trong nhóm; đã xoá cứng (null) → "Thành viên cũ".</summary>
+    internal static string MemberNameOf(string? name, bool isActive)
+        => name is null ? GroupMemberService.FormerMemberName : isActive ? name : GroupMemberService.InactiveMemberName;
 
     private static GroupPermission PermissionFor(GroupFundEntryKind kind)
         => kind == GroupFundEntryKind.Adjustment ? GroupPermission.ManageFunds : GroupPermission.RecordFundEntries;

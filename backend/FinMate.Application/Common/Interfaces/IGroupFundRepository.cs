@@ -10,6 +10,10 @@ public sealed record GroupFundEntryView(GroupFundEntry Entry, string? MemberName
 
 public sealed record GroupFundEntryPage(IReadOnlyList<GroupFundEntryView> Items, string? NextCursor);
 
+/// <summary>Một khoản chi từ quỹ (còn sống) cho báo cáo tháng của nhóm. <paramref name="MemberName"/> null là thành viên cũ đã ẩn danh.</summary>
+public sealed record GroupFundExpenseRow(
+    Guid? MemberUserId, string? MemberName, bool IsMemberActive, long AmountCents, Guid? GroupCategoryId, string? GroupCategoryName, Guid? CategoryId, string? CategoryName);
+
 public sealed record GroupFundEntryQuery(Guid FundId, GroupFundEntryKind? Kind, Guid? MemberUserId, string? Cursor, int Limit);
 
 /// <summary>Quỹ nhóm và dòng quỹ (Phase 85). Không kiểm quyền: mọi lời gọi phải đi sau <c>IGroupAccessService</c>. Lưu qua <c>IGroupRepository.SaveChangesAsync</c>.</summary>
@@ -42,6 +46,15 @@ public interface IGroupFundRepository
     /// bản đã xoá mềm (mỗi dòng quỹ chỉ có một giao dịch, nên gắn lại ví thì dùng lại đúng dòng đó).
     /// </summary>
     Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, bool includeDeleted = false, CancellationToken ct = default);
+
+    /// <summary>Khoản chi từ mọi quỹ của nhóm trong khoảng thời gian (BR-FUND-10), kể cả quỹ đã lưu trữ.</summary>
+    Task<List<GroupFundExpenseRow>> ListExpenseRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);
+
+    /// <summary>Dòng còn sống của một quỹ trong khoảng thời gian, kèm tên người và danh mục (BR-FUND-12).</summary>
+    Task<List<GroupFundEntryView>> ListEntriesInRangeAsync(Guid fundId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);
+
+    /// <summary>Số dư quỹ tính từ các dòng còn sống TRƯỚC <paramref name="before"/>: số đầu kỳ của báo cáo quỹ.</summary>
+    Task<long> SumBeforeAsync(Guid fundId, DateTimeOffset before, CancellationToken ct = default);
 
     void AddEntry(GroupFundEntry entry);
 

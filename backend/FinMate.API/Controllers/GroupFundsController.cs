@@ -19,11 +19,13 @@ public class GroupFundsController : ControllerBase
 {
     private readonly IGroupFundService _funds;
     private readonly IGroupFundEntryService _entries;
+    private readonly IGroupFundSummaryService _summaries;
 
-    public GroupFundsController(IGroupFundService funds, IGroupFundEntryService entries)
+    public GroupFundsController(IGroupFundService funds, IGroupFundEntryService entries, IGroupFundSummaryService summaries)
     {
         _funds = funds;
         _entries = entries;
+        _summaries = summaries;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -50,6 +52,14 @@ public class GroupFundsController : ControllerBase
     [HttpPost("{fundId:guid}/archive")]
     public async Task<IActionResult> Archive(Guid groupId, Guid fundId, CancellationToken ct)
         => Ok(ApiResponse<GroupFundDto>.Ok(await _funds.ArchiveAsync(groupId, CurrentUserId, fundId, ct)));
+
+    /// <summary>BR-FUND-12: đầu kỳ, góp theo người, chi theo danh mục, rút, điều chỉnh, cuối kỳ của một tháng (giờ VN). Mặc định tháng này.</summary>
+    [HttpGet("{fundId:guid}/summary")]
+    public async Task<IActionResult> Summary(Guid groupId, Guid fundId, [FromQuery] int? year, [FromQuery] int? month, CancellationToken ct)
+    {
+        var (currentYear, currentMonth) = FinMate.Application.Common.VietnamTime.YearMonthOf(DateTimeOffset.UtcNow);
+        return Ok(ApiResponse<GroupFundSummaryDto>.Ok(await _summaries.GetAsync(groupId, CurrentUserId, fundId, year ?? currentYear, month ?? currentMonth, ct)));
+    }
 
     /// <summary>Sổ quỹ, mới nhất trước, phân trang con trỏ. Lọc theo loại dòng hoặc theo người.</summary>
     [HttpGet("{fundId:guid}/entries")]
