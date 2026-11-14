@@ -266,4 +266,22 @@ public class PurchaseVerdictTests
     }
 
     private static string Vnd(long amount) => amount.ToString("N0", new System.Globalization.NumberFormatInfo { NumberGroupSeparator = "." }) + "đ";
+
+    [Fact]
+    public void PoorDataCoverage_NeverFitsPlan_AndSaysWhy()
+    {
+        var result = PurchaseVerdict.Evaluate(Input(D10, 500_000, buffer: 500_000, quality: Good with { PoorCoverageWarning = "Chỉ 50% số ngày…" }));
+
+        result.Status.Should().Be(PurchaseStatuses.Partial);
+        result.Verdict.Should().NotBe(PurchaseVerdicts.FitsPlan);
+        result.Warnings.Should().Contain(w => w.Code == PurchaseWarningCodes.DataCoveragePoor && w.Message == "Chỉ 50% số ngày…");
+    }
+
+    [Fact]
+    public void PoorDataCoverage_StillReportsAShortfall()
+    {
+        var result = PurchaseVerdict.Evaluate(Input(D10, 1_500_000, quality: Good with { PoorCoverageWarning = "x" }));
+
+        result.Verdict.Should().Be(PurchaseVerdicts.ShortfallRisk);
+    }
 }

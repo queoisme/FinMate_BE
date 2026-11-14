@@ -1571,3 +1571,40 @@ Nhánh `feat/self-transfer-pairing` (từ `main` sau PR #31). Kế hoạch, D1�
   - Rút ATM không có ví Tiền mặt → `candidateAccounts` rỗng: app mời tạo ví. `warnings: ["CASH_BALANCE_NEGATIVE"]` → nhắc kiểm tra ví Tiền mặt.
   - Màn gộp (Phase 82) nên gọi `merge/preview` để hiện số dư trước/sau. Chuyển khoản ghi tay rồi thông báo về: dùng màn gộp như Phase 82.
   - Lỗi mới: 422 `TRANSFER_SHARED_NOT_ALLOWED`, `TRANSFER_NOT_ALLOWED`, `TRANSFER_PAIR_MISMATCH`.
+
+## Phase 84 — Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (2026-11-14)
+Nhánh `feat/listener-health` (từ `main` sau PR #32). Kế hoạch, D1–D20 và S1–S7: `docs/superpowers/plans/2026-11-14-listener-health.md`. API: `docs/listener-health-api.md`; giám sát: `docs/ops-api.md`. FR-LH-01…11 ở `REQUIREMENTS.md` §6.11.
+- [x] Cấu hình `listenerHealth` (15 ngưỡng, có validator) và `forecast.goodCoveragePercent` (85) / `minCoveragePercent` (60).
+- [x] Migration `AddListenerHealth`: `device_listener_statuses`, `device_listener_daily`, `listener_upload_gap_daily`; `users.listener_health_alerts_enabled`; kind `listener_health`; nguồn sự cố `notification_format`; index lịch sử thông báo theo ví và `ai_results.created_at`.
+- [x] `SilenceDetector` (BR-LH-03, P90 nearest-rank, `upload_gap`), `DeviceHealthEvaluator` (BR-LH-04), `CoverageCalculator` (BR-LH-07, S3, S4, D7).
+- [x] `PUT /devices/listener-status` (một câu SQL gộp trạng thái và dòng ngày; xoá cache độ phủ), `GET /me/data-coverage`.
+- [x] `ListenerHealthReminderService` + `ListenerHealthDailyJob` 09:00 VN: nhắc qua `forecast_alerts`, đợt nằm trong `dedup_key`, chờ 3 ngày, tối đa 3 lần; đếm `upload_gap` theo phiên bản app; dọn dòng theo ngày.
+- [x] Công tắc `listenerHealthAlertsEnabled` (không phụ thuộc công tắc dự báo) trên `PATCH /users/me/notification-prefs` và `GET /users/me`.
+- [x] `dataCoverage` trên `cashflow`, `scenario`, `spendable`, `purchase-check`; `poor` hạ độ tin cậy, `purchase-check` không trả `fits_plan`. Engine và `ForecastAccuracyService` không đổi.
+- [x] Agent: bằng chứng `data_coverage` và câu cố định cuối câu trả lời khi `poor`; test qua bộ kiểm số thật của ai-service.
+- [x] `ProviderFormatMonitorJob` mỗi giờ (theo `MONITORING_ENABLED`): hai tín hiệu đổi mẫu tin, một sự cố `Normal` mỗi provider, tự đóng sau 24 lượt bình thường; `GET /admin/monitoring/provider-formats`.
+- [x] Xoá cứng tài khoản xoá hai bảng mới (cascade).
+- [x] Kịch bản (a)–(e) (`ListenerHealthScenarioTests`), kèm S1 (60% → 5% giao dịch).
+- [ ] Nới dải dự báo theo độ phủ; mốc bật theo dõi ví (`monitoring_enabled_at`) — §13.4.
+- [ ] Màn admin cho `provider-formats` (web ops) — ngoài repo này.
+- [ ] **Báo nhóm Flutter:**
+  - **Kiểm quyền mỗi lần mở app** (`NotificationManagerCompat.getEnabledListenerPackages`). Mất quyền thì hiện banner dẫn vào Cài đặt, rồi gọi `PUT /devices/listener-status` ngay khi quay lại app.
+  - **Mất kết nối** (`onListenerDisconnected`) thì gọi `requestRebind`, và báo trạng thái với `listenerConnected = false`, rồi `true` khi kết nối lại. Mất kết nối giữa ngày rồi có lại thì ngày đó vẫn được tính là ok.
+  - **Báo trạng thái bằng WorkManager** mỗi ngày một lần, và mỗi khi quyền đổi.
+    - Body: `{installationId, permissionGranted, listenerConnected, selectedPackages[{packageName, notificationsEnabled?, lastPostedAt?}], appVersion, manufacturer}`.
+    - `installationId` là UUID sinh một lần mỗi lần cài, lưu cục bộ; không dùng token FCM.
+    - `selectedPackages` chỉ gồm các app ngân hàng/ví user đã chọn. `lastPostedAt` là lần cuối listener thấy bất kỳ thông báo nào của app đó, kể cả thông báo bị lọc trên máy.
+    - Không gửi nội dung thông báo hay danh sách app khác.
+  - **Trang hướng dẫn tự khởi động / tối ưu pin theo hãng** (Xiaomi, Oppo, Samsung, Vivo…). Chọn trang theo `manufacturer` của máy, hoặc theo `data.manufacturer` của push `permission_lost`.
+  - **Push** `data.action = "forecast_alert"`, `data.kind = "listener_health"`:
+    - `reason = permission_lost`: mở màn bật quyền.
+    - `reason = account_silent`: mở màn hướng dẫn kèm `accountName`, `silentDays`.
+    - `hint = bank_notifications_off`: hướng dẫn bật thông báo của app ngân hàng.
+    - `hint = sync_pending`: mở app để đồng bộ hàng đợi offline.
+  - **Màn "Độ phủ dữ liệu"** từ `GET /me/data-coverage?days=30`:
+    - `level = unknown` nghĩa là app chưa báo trạng thái, không phải dữ liệu kém.
+    - Ví `silent` / `upload_gap` / `not_enough_data` hiển thị khác nhau.
+    - Thiết bị `permission_lost` / `unknown`.
+  - **Hiển thị `dataCoverage`** trên màn dự báo dòng tiền, số tiền có thể chi và "mua có ổn không". Khi `level = poor`, hiện `warning` (câu của backend) và đánh dấu dự báo kém tin cậy; `purchase-check` lúc đó trả `insufficient_data` thay cho `fits_plan`.
+  - **Cài đặt:** công tắc "Nhắc khi app không đọc được thông báo ngân hàng", gửi `listenerHealthAlertsEnabled` qua `PATCH /users/me/notification-prefs`.
+  - **Lỗi mới:** 422 `LISTENER_TOO_MANY_DEVICES`.

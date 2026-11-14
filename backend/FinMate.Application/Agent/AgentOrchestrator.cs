@@ -43,8 +43,16 @@ public static class AgentMessages
 /// <item>ai-service sập sau khi đã có bằng chứng thì trả câu mẫu dựng từ bằng chứng, không 500; sập trước khi có bằng chứng thì 503.</item>
 /// </list>
 /// </summary>
-public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null, AgentRunOptions? options = null) : IAgentOrchestrator
+public sealed class AgentOrchestrator(
+    IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null,
+    AgentRunOptions? options = null, ListenerHealth.IDataCoverageService? coverage = null) : IAgentOrchestrator
 {
+    /// <summary>Bằng chứng độ phủ dữ liệu (Phase 84, BR-LH-09).</summary>
+    public const string DataCoverageEvidenceId = "data_coverage";
+
+    /// <summary>Công cụ không đọc giao dịch của user: trả lời bằng chúng không cần nhắc dữ liệu có thể thiếu.</summary>
+    private static readonly HashSet<string> NonUserDataTools = ["search_knowledge", "get_assumptions"];
+
     public async Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default)
     {
         var traceId = Guid.NewGuid();
@@ -69,6 +77,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         trace.AddUsage(plan.Usage);
 
         var evidence = new List<Evidence>();
+        var usedUserData = false;
         var slots = new Dictionary<string, string>(state?.Slots ?? []);
         string? insufficient = null;
         for (var replan = 0; ; replan++)
@@ -87,6 +96,7 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
                 {
                     case ToolStatus.Ok:
                         evidence.AddRange(result.Evidence.Where(e => evidence.All(x => x.Id != e.Id)));
+                        usedUserData |= !NonUserDataTools.Contains(step.Tool);
                         Remember(slots, step);
                         break;
                     case ToolStatus.InsufficientData:
@@ -125,7 +135,20 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
             return true;
         });
 
+        // BR-LH-09: câu trả lời dựa trên giao dịch của user mà độ phủ kém thì PHẢI nói dữ liệu có thể thiếu. Bằng chứng đưa cho LLM thấy, còn câu cố định
+        // được ghép vào cuối (nếu chưa có mệnh đề nào trích nó) để LLM có lờ đi cũng không mất. Câu chỉ chứa phần trăm, không có số tiền, nên qua được bộ kiểm số (S5).
+        var coverageWarning = usedUserData ? await PoorCoverageWarningAsync(userId, ct) : null;
+        if (coverageWarning is not null)
+        {
+            evidence.Add(new Evidence(DataCoverageEvidenceId, DataCoverageEvidenceId, null, coverageWarning, "percent", EvidenceSource.Estimated, clock, 1.0));
+        }
+
         var (claims, usedTemplate) = await ComposeAsync(question, evidence, ct);
+        if (coverageWarning is not null && claims.All(c => !c.EvidenceIds.Contains(DataCoverageEvidenceId)))
+        {
+            claims = [.. claims, new AgentClaimDto(coverageWarning, [DataCoverageEvidenceId])];
+        }
+
         return new AgentAnswerDto(
             AgentStatus.Answered,
             null,
@@ -161,6 +184,18 @@ public sealed class AgentOrchestrator(IAgentAiClient ai, ToolExecutor tools, Inc
         }
 
         return (LocalTemplateComposer.Compose(evidence).Select(c => new AgentClaimDto(c.Text, c.EvidenceIds)).ToList(), true);
+    }
+
+    /// <summary>Câu cảnh báo khi độ phủ kém; null khi ổn, chưa biết, hoặc không đọc được độ phủ (trục trặc ở đây không được làm hỏng lượt hỏi).</summary>
+    private async Task<string?> PoorCoverageWarningAsync(Guid userId, CancellationToken ct)
+    {
+        if (coverage is null)
+        {
+            return null;
+        }
+
+        var summary = await TryAsync(() => coverage.GetForecastSummaryAsync(userId, ct));
+        return summary is { IsPoor: true } ? summary.Warning : null;
     }
 
     /// <summary>Ngữ cảnh và bộ nhớ chỉ giúp hiểu câu nối tiếp: Redis hay ai-service trục trặc ở đây không được làm hỏng lượt hỏi, chỉ mất phần tiện lợi.</summary>

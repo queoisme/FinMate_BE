@@ -274,10 +274,13 @@ Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom l�
 | Nhà cung cấp | Vision, Gemini, nhà cung cấp dự phòng, Brevo, Firebase | Lỗi `providerFailureThreshold` lần liên tiếp (mặc định 3) | Có một lần gọi thành công |
 | Lỗi ứng dụng | Log từ mức Error | Cùng một lỗi `errorCountThreshold` lần trong `errorWindowMinutes` (mặc định 10 lần trong 5 phút) | Không lặp lại trong `errorQuietMinutes` (mặc định 30 phút) |
 | Job | Hangfire | Thất bại sau mọi lần thử lại, hoặc quá giờ 10 phút chưa chạy | Lần chạy sau thành công, hoặc đã bắt kịp |
+| Mẫu thông báo (Phase 84) | Tỉ lệ đọc được theo `provider_key`, job `provider-format-monitor` mỗi giờ phút 05 | 24 giờ gần nhất có ít nhất `formatDriftMinSamples` (20) mẫu **và** một trong hai: tỉ lệ `extraction_failed` + `uncertain` ≥ `formatDriftMinRatePercent` (10%) và ≥ `formatDriftRatio` (3) lần 7 ngày trước đó (nền không thấp hơn `formatDriftBaselineFloorPercent`, 1%); hoặc tỉ lệ `financial` tụt dưới `formatFinancialShareDropRatio` (0,33) lần 7 ngày trước đó | `formatDriftRecoveryRuns` (24) lượt liên tiếp cả hai tín hiệu bình thường |
 
 Nhà cung cấp chỉ được đếm khi có lần gọi thật. Không có khách quét hóa đơn thì không có gì để đếm, nên sự cố Vision chỉ tự đóng sau lần quét thành công kế tiếp. Đổi key xong mà muốn đóng ngay thì đóng tay.
 
 Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Nhà cung cấp có trạng thái `Unknown` khi chưa đủ căn cứ: dịch vụ Python bản cũ chưa có API trạng thái, dịch vụ vừa khởi động lại chưa có lần gọi nào, hoặc không đọc được key. `Unknown` không mở sự cố và không đóng sự cố đang mở, nên khởi động lại dịch vụ không làm một sự cố thật tự đóng.
+
+**Mẫu thông báo.** Mỗi provider đúng một sự cố đang mở (fingerprint `notification_format:{provider_key}`), tiêu đề "Có thể {tên provider} đã đổi mẫu thông báo", mức `Normal`. `technicalDetail` (chỉ Admin) nêu tín hiệu nào đang vượt (`error_rate`, `financial_share`) và số đếm hai cửa sổ, không có nội dung thông báo hay người dùng. Kết quả `error` (AI service hỏng) không tính, vì đó là việc của nguồn Dịch vụ. 24 giờ qua chưa đủ mẫu thì trạng thái `Unknown`: không mở, không đóng. Trạng thái nằm trong `GET /status` với tên `format:{provider_key}`. Việc cần làm khi có sự cố: so mẫu tin thật với `provider_patterns` của ai-service rồi sửa regex qua `/admin/ai-rules`.
 
 Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ được ghi vào log, nên hệ thống không báo được cho ai. Hãy kiểm tra trạng thái này sau khi deploy.
 
@@ -287,13 +290,13 @@ Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ đư�
 |---|---|---|
 | `Critical` | Redis lỗi; lỗi ứng dụng gấp 5 lần ngưỡng | Admin và OpsManager ngay |
 | `High` | AI, OCR, STT, Vision, Gemini, Brevo, Firebase lỗi; lỗi ứng dụng vượt ngưỡng; job thất bại | Admin và OpsManager ngay |
-| `Normal` | nhà cung cấp dự phòng lỗi, job quá giờ | Chỉ Admin, gom một email lúc 08:00 giờ VN |
+| `Normal` | nhà cung cấp dự phòng lỗi, job quá giờ, provider có thể đã đổi mẫu thông báo | Chỉ Admin, gom một email lúc 08:00 giờ VN |
 
 - Chưa có người nhận thì nhắc lại mỗi `reminderMinutes` (mặc định 15 phút) trong giờ đầu, sau đó mỗi giờ. Sự cố nặng lên thì báo lại kể cả khi đã có người nhận.
 - Sự cố đã báo khi đóng sẽ có thêm một email báo đã khắc phục.
 - Email chỉ có dịch vụ, mức độ, ảnh hưởng, thời điểm; không có chi tiết kỹ thuật.
 
-Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config`. Tắt cả tính năng bằng `MONITORING_ENABLED=false`.
+Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config` (ngưỡng mẫu thông báo ở nhóm `listenerHealth`). Tắt cả tính năng bằng `MONITORING_ENABLED=false`.
 
 ### API: `/api/v1/ops/monitoring`, OpsManager trở lên
 
@@ -313,6 +316,10 @@ Các ngưỡng sửa được trong nhóm `monitoring` ở `/admin/system-config
 Lọc `service`, `exceptionType`, `from`, `to`; phân trang `offset`, `limit` (tối đa 200). Giữ 30 ngày (`errorRetentionDays`).
 
 Mỗi lỗi chỉ có loại exception, vị trí trong code, message template chưa điền giá trị, đường dẫn đã thay định danh bằng `{id}`, và `traceId`. Không có message của exception, stack trace hay giá trị tham số, vì chúng có thể chứa số tiền, token hoặc nội dung của khách. Cần chi tiết thì dùng `traceId` tra `docker logs`.
+
+### API: `GET /api/v1/admin/monitoring/provider-formats`, chỉ Admin
+
+Theo từng provider: số thông báo, tỉ lệ đọc được và tỉ lệ `financial` trong 24 giờ gần nhất và 7 ngày trước đó; kèm số ví `upload_gap` (listener thấy thông báo nhưng server không nhận) theo phiên bản app trong 7 ngày. Chỉ số đếm. Chi tiết ở `docs/listener-health-api.md`.
 
 ## Cập nhật số liệu kinh tế tự động (CPI)
 

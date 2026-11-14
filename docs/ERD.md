@@ -174,6 +174,9 @@ erDiagram
 | **DailySummary** | `daily_summaries` | ✓ | Tổng thu / chi theo ngày, tính sẵn bởi `DailySummaryJob`. |
 | **DataDeletionRequest** | `data_deletion_requests` | ✓ (không FK) | Yêu cầu xóa tài khoản; `DataDeletionJob` xóa cứng khi tới hạn. Không có FK tới `users` để bản ghi còn lại sau khi xóa cứng. |
 | **DeviceToken** | `device_tokens` | ✓ | Token FCM của thiết bị. Một token thuộc đúng một user (UNIQUE trên `token`). |
+| **DeviceListenerStatus** | `device_listener_statuses` | ✓ | Phase 84: trạng thái mới nhất của dịch vụ đọc thông báo trên một thiết bị, khoá `(user_id, installation_id)`; mốc mất quyền. |
+| **DeviceListenerDay** | `device_listener_daily` | ✓ | Phase 84: một dòng mỗi ngày (giờ VN) mỗi thiết bị, dùng tính độ phủ dữ liệu; giữ `listenerHealth.historyRetentionDays`. |
+| **ListenerUploadGapDaily** | `listener_upload_gap_daily` |  | Phase 84: số ví `upload_gap` theo phiên bản app mỗi ngày; không có user. |
 | **FinanceMethod** | `finance_methods` |  | Phương pháp quản lý tài chính (13 cách): tham số, điều kiện phù hợp, bố cục màn hình chính, phiên bản. |
 | **FinancialAccount** | `financial_accounts` | ✓ | Ví của người dùng (ngân hàng, ví điện tử, tiền mặt); `balance_cents` là số dư tính sẵn; `include_in_forecast` cho dự báo. |
 | **ForecastAlert** | `forecast_alerts` | ✓ | Hộp thư cảnh báo dự báo: chống lặp theo `(user_id, kind, dedup_key)`, hẹn giờ gửi, phản hồi "không chính xác". |
@@ -200,7 +203,7 @@ erDiagram
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
 | **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). |
 | **UserRoleAssignment** | `user_roles` | ✓ (PK) | Vai trò đang gán cho mỗi người: PK là `user_id` nên mỗi người đúng một vai trò; `role_id` → `roles`; `assigned_by_user_id` ghi Admin đã cấp. Xóa user kéo theo hàng này (cascade). `role_permissions.role_id` cũng trỏ tới `roles`. |
-| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, khóa tài khoản, xóa mềm (vai trò nằm ở `user_roles`); các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled` là value object `NotificationPreferences` nằm chung bảng. |
+| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, khóa tài khoản, xóa mềm (vai trò nằm ở `user_roles`); các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled`, `listener_health_alerts_enabled` (Phase 84) là value object `NotificationPreferences` nằm chung bảng. |
 | **UserMethod** | `user_methods` | ✓ | Phương pháp người dùng đang / đã dùng (vai trò chính / hỗ trợ, tham số riêng). |
 | **UserSurveyAnswer** | `user_survey_answers` | ✓ | Câu trả lời của người dùng, theo mã câu hỏi / mã lựa chọn. |
 | **VietQrBank** | `vietqr_banks` |  | Danh bạ ngân hàng VietQR, khóa tự nhiên là BIN 6 số. |
@@ -459,6 +462,7 @@ Tài khoản người dùng: đăng nhập email/Google, vai trò, khóa tài kh
 | 29 | `low_balance_threshold_cents` | bigint | có |  |  |
 | 30 | `quiet_hours_end_minute` | smallint | có |  |  |
 | 31 | `quiet_hours_start_minute` | smallint | có |  |  |
+| 32 | `listener_health_alerts_enabled` | boolean |  | `true` | Phase 84: nhắc khi app không còn đọc được thông báo ngân hàng |
 
 Ràng buộc:
 - CHECK `chk_users_alert_thresholds`: `((alert_t1_pct IS NULL) AND (alert_t2_pct IS NULL)) OR ((alert_t1_pct IS NOT NULL) AND (alert_t2_pct IS NOT NULL) AND (alert_t1_pct >= 1) AND (alert_t1_pct < alert_t2_pct) AND (alert_t2_pct <= 99))`
@@ -883,7 +887,7 @@ Ràng buộc:
 - CHECK `chk_notification_logs_status`: `status IN ('pending', 'processed', 'failed', 'ignored', 'duplicate')` (`duplicate` từ Phase 82: cùng sự kiện ngân hàng gửi lại)
 
 Index:
-- `IX_notification_logs_financial_account_id` `(financial_account_id)`
+- `ix_notification_logs_account_received` `(financial_account_id, received_at) WHERE financial_account_id IS NOT NULL` (Phase 84, thay `IX_notification_logs_financial_account_id`)
 - `idx_notification_logs_status_retry_count` `(status, retry_count)`
 - `idx_notification_logs_user_content_hash` `(user_id, content_hash)`
 
@@ -927,6 +931,7 @@ Ràng buộc:
 
 Index:
 - UNIQUE `uq_ai_results_notification_log_id` `(notification_log_id)`
+- `ix_ai_results_created_at` `(created_at)` (Phase 84: đếm theo provider mỗi giờ)
 
 ##### `counterparty_category_overrides` — CounterpartyCategoryOverride
 
@@ -1883,7 +1888,7 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_forecast_alerts_feedback`: `(feedback IS NULL) OR (feedback = 'inaccurate')`
-- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly')`
+- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly', 'group_budget', 'group_goal', 'market_change', 'listener_health')` (`group_*`, `market_change` thêm sau ngày sinh tài liệu; `listener_health` ở Phase 84)
 - CHECK `chk_forecast_alerts_sent_at`: `(status = 'sent') = (sent_at IS NOT NULL)`
 - CHECK `chk_forecast_alerts_status`: `status IN ('pending', 'sent')`
 
@@ -1955,6 +1960,105 @@ Ràng buộc:
 Index:
 - `ix_transaction_merge_snapshots_user_survivor` `(user_id, survivor_id)`
 - `ix_transaction_merge_snapshots_created_at` `(created_at)`
+
+#### Sức khoẻ dịch vụ đọc thông báo (Phase 84, migration `AddListenerHealth`)
+
+Viết tay theo migration, chưa dựng lại từ catalog. Cùng migration: `users.listener_health_alerts_enabled`, kind `listener_health` của `forecast_alerts`,
+nguồn sự cố `notification_format` của `ops_incidents`/`ops_error_events`, hai index ở `notification_logs` và `ai_results` (xem từng bảng).
+
+```mermaid
+erDiagram
+    users ||--o{ device_listener_statuses : "user_id"
+    device_listener_statuses ||--o{ device_listener_daily : "status_id"
+    users ||--o{ device_listener_daily : "user_id"
+    device_listener_statuses {
+        uuid id PK
+        uuid user_id FK
+        uuid installation_id
+        boolean permission_granted
+        boolean listener_connected
+        jsonb selected_packages
+        varchar(32) app_version "nullable"
+        varchar(64) manufacturer "nullable"
+        timestamptz permission_lost_since "nullable"
+        timestamptz first_reported_at
+        timestamptz last_reported_at
+    }
+    device_listener_daily {
+        uuid status_id PK
+        date day PK
+        uuid user_id FK
+        boolean any_permission_denied
+        boolean last_permission_granted
+        boolean last_listener_connected
+        timestamptz last_reported_at
+        integer report_count
+    }
+    listener_upload_gap_daily {
+        date day PK
+        varchar(32) app_version PK
+        integer count
+    }
+```
+
+##### `device_listener_statuses` — DeviceListenerStatus
+
+Trạng thái mới nhất mà app báo qua `PUT /devices/listener-status`. Thiết bị xác định bằng `installation_id` do app sinh khi cài, không bằng token FCM.
+`selected_packages` chỉ chứa package của ví user hoặc của provider đã biết; không có nội dung thông báo.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `user_id` | uuid |  |  | FK → `users.id` |
+| 3 | `installation_id` | uuid |  |  | Do app sinh, một lần mỗi lần cài |
+| 4 | `permission_granted` | boolean |  |  | Quyền Notification Access |
+| 5 | `listener_connected` | boolean |  |  | Service đang kết nối |
+| 6 | `selected_packages` | jsonb |  | `'[]'` | `[{packageName, notificationsEnabled?, lastPostedAt?}]` |
+| 7 | `app_version` | varchar(32) | có |  |  |
+| 8 | `manufacturer` | varchar(64) | có |  | Chữ thường |
+| 9 | `permission_lost_since` | timestamptz | có |  | Mốc của một đợt nhắc `permission_lost`; null khi còn quyền |
+| 10 | `first_reported_at` | timestamptz |  |  |  |
+| 11 | `last_reported_at` | timestamptz |  |  |  |
+
+Khóa ngoại: `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc: CHECK `chk_device_listener_statuses_packages`: `jsonb_typeof(selected_packages) = 'array'`
+
+Index: UNIQUE `uq_device_listener_statuses_user_installation` `(user_id, installation_id)`
+
+##### `device_listener_daily` — DeviceListenerDay
+
+Một dòng mỗi thiết bị mỗi ngày (giờ VN theo lúc server nhận). Ngày ok khi `NOT any_permission_denied AND last_listener_connected`.
+Xoá sau `listenerHealth.historyRetentionDays` (90) bởi `ListenerHealthDailyJob`.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `status_id` | uuid |  |  | PK, FK → `device_listener_statuses.id` |
+| 2 | `day` | date |  |  | PK |
+| 3 | `user_id` | uuid |  |  | FK → `users.id` |
+| 4 | `any_permission_denied` | boolean |  |  | Có lần báo mất quyền trong ngày |
+| 5 | `last_permission_granted` | boolean |  |  | Lần báo cuối |
+| 6 | `last_listener_connected` | boolean |  |  | Lần báo cuối |
+| 7 | `last_reported_at` | timestamptz |  |  |  |
+| 8 | `report_count` | integer |  |  |  |
+
+Khóa ngoại: `status_id` → `device_listener_statuses(id)` ON DELETE CASCADE; `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc: CHECK `chk_device_listener_daily_report_count`: `report_count >= 1`
+
+Index: `ix_device_listener_daily_user_day` `(user_id, day)`; `ix_device_listener_daily_day` `(day)`
+
+##### `listener_upload_gap_daily` — ListenerUploadGapDaily
+
+Ảnh chụp mỗi ngày số ví ở trạng thái `upload_gap` theo phiên bản app (`unknown` khi app không gửi). Không có user.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `day` | date |  |  | PK |
+| 2 | `app_version` | varchar(32) |  |  | PK |
+| 3 | `count` | integer |  |  |  |
+
+Ràng buộc: CHECK `chk_listener_upload_gap_daily_count`: `count >= 0`
 
 #### 3.1.7 Cấu hình hệ thống
 

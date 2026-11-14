@@ -3,6 +3,7 @@ using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
 using FinMate.Application.FinanceMethods;
+using FinMate.Application.ListenerHealth;
 using FinMate.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,9 +20,12 @@ public class MyFinanceController : ControllerBase
     private readonly IGoalPlanningService _planning;
     private readonly IAlertThresholdSettingsService _thresholds;
     private readonly IJarService _jars;
+    private readonly IDataCoverageService _coverage;
 
-    public MyFinanceController(IUserMethodService userMethods, IGoalPlanningService planning, IAlertThresholdSettingsService thresholds, IJarService jars)
+    public MyFinanceController(
+        IUserMethodService userMethods, IGoalPlanningService planning, IAlertThresholdSettingsService thresholds, IJarService jars, IDataCoverageService coverage)
     {
+        _coverage = coverage;
         _userMethods = userMethods;
         _planning = planning;
         _thresholds = thresholds;
@@ -29,6 +33,11 @@ public class MyFinanceController : ControllerBase
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    /// <summary>BR-LH-07: app có đang đọc đủ thông báo ngân hàng không: % số ngày có thiết bị ổn, từng ví theo dõi, từng thiết bị.</summary>
+    [HttpGet("data-coverage")]
+    public async Task<IActionResult> GetDataCoverage([FromQuery] int days = DataCoverageService.DefaultDays, CancellationToken ct = default)
+        => Ok(ApiResponse<DataCoverageDto>.Ok(await _coverage.GetAsync(CurrentUserId, days, ct)));
 
     [HttpGet("methods")]
     public async Task<IActionResult> GetMethods(CancellationToken ct)

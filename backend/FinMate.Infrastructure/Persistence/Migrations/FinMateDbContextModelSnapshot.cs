@@ -135,6 +135,9 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_ai_results_created_at");
+
                     b.HasIndex("NotificationLogId")
                         .IsUnique()
                         .HasDatabaseName("uq_ai_results_notification_log_id");
@@ -1032,6 +1035,119 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.DeviceListenerDay", b =>
+                {
+                    b.Property<Guid>("StatusId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("status_id");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<bool>("AnyPermissionDenied")
+                        .HasColumnType("boolean")
+                        .HasColumnName("any_permission_denied");
+
+                    b.Property<bool>("LastListenerConnected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("last_listener_connected");
+
+                    b.Property<bool>("LastPermissionGranted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("last_permission_granted");
+
+                    b.Property<DateTimeOffset>("LastReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_reported_at");
+
+                    b.Property<int>("ReportCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("report_count");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("StatusId", "Day");
+
+                    b.HasIndex("Day")
+                        .HasDatabaseName("ix_device_listener_daily_day");
+
+                    b.HasIndex("UserId", "Day")
+                        .HasDatabaseName("ix_device_listener_daily_user_day");
+
+                    b.ToTable("device_listener_daily", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_device_listener_daily_report_count", "report_count >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.DeviceListenerStatus", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("app_version");
+
+                    b.Property<DateTimeOffset>("FirstReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_reported_at");
+
+                    b.Property<Guid>("InstallationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("installation_id");
+
+                    b.Property<DateTimeOffset>("LastReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_reported_at");
+
+                    b.Property<bool>("ListenerConnected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("listener_connected");
+
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manufacturer");
+
+                    b.Property<bool>("PermissionGranted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("permission_granted");
+
+                    b.Property<DateTimeOffset?>("PermissionLostSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("permission_lost_since");
+
+                    b.Property<string>("SelectedPackages")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("selected_packages")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "InstallationId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_device_listener_statuses_user_installation");
+
+                    b.ToTable("device_listener_statuses", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_device_listener_statuses_packages", "jsonb_typeof(selected_packages) = 'array'");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.DeviceToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1453,7 +1569,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change')");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change','listener_health')");
 
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
@@ -2153,6 +2269,29 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("group_share_rules", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.ListenerUploadGapDaily", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("app_version");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer")
+                        .HasColumnName("count");
+
+                    b.HasKey("Day", "AppVersion");
+
+                    b.ToTable("listener_upload_gap_daily", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_listener_upload_gap_daily_count", "count >= 0");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.MarketDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2655,7 +2794,9 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FinancialAccountId");
+                    b.HasIndex("FinancialAccountId", "ReceivedAt")
+                        .HasDatabaseName("ix_notification_logs_account_received")
+                        .HasFilter("financial_account_id IS NOT NULL");
 
                     b.HasIndex("Status", "RetryCount")
                         .HasDatabaseName("idx_notification_logs_status_retry_count");
@@ -2834,7 +2975,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ops_error_events", null, t =>
                         {
-                            t.HasCheckConstraint("chk_ops_error_events_source", "source IN ('health','app_error','job','provider','payment')");
+                            t.HasCheckConstraint("chk_ops_error_events_source", "source IN ('health','app_error','job','provider','payment','notification_format')");
                         });
                 });
 
@@ -2956,7 +3097,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_ops_incidents_severity", "severity IN ('normal','high','critical')");
 
-                            t.HasCheckConstraint("chk_ops_incidents_source", "source IN ('health','app_error','job','provider','payment')");
+                            t.HasCheckConstraint("chk_ops_incidents_source", "source IN ('health','app_error','job','provider','payment','notification_format')");
 
                             t.HasCheckConstraint("chk_ops_incidents_status", "status IN ('open','acknowledged','resolved')");
                         });
@@ -5607,6 +5748,34 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.DeviceListenerDay", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.DeviceListenerStatus", "Status")
+                        .WithMany()
+                        .HasForeignKey("StatusId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Status");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.DeviceListenerStatus", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.DeviceToken", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", "User")
@@ -6334,6 +6503,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                                 .HasColumnType("boolean")
                                 .HasDefaultValue(true)
                                 .HasColumnName("forecast_alerts_enabled");
+
+                            b1.Property<bool>("ListenerHealthAlertsEnabled")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(true)
+                                .HasColumnName("listener_health_alerts_enabled");
 
                             b1.Property<bool>("PushEnabled")
                                 .HasColumnType("boolean")

@@ -24,6 +24,13 @@ public class ForecastAlertRepository : IForecastAlertRepository
     public Task<bool> AnyWithKeyPrefixSinceAsync(Guid userId, ForecastAlertKind kind, string dedupKeyPrefix, DateTimeOffset since, CancellationToken ct = default)
         => _context.ForecastAlerts.AnyAsync(a => a.UserId == userId && a.Kind == kind && a.CreatedAt >= since && a.DedupKey.StartsWith(dedupKeyPrefix), ct);
 
+    public async Task<IReadOnlyList<DateTimeOffset>> ListCreatedWithKeyPrefixAsync(Guid userId, ForecastAlertKind kind, string dedupKeyPrefix, CancellationToken ct = default)
+        => await _context.ForecastAlerts
+            .Where(a => a.UserId == userId && a.Kind == kind && a.DedupKey.StartsWith(dedupKeyPrefix))
+            .OrderBy(a => a.CreatedAt)
+            .Select(a => a.CreatedAt)
+            .ToListAsync(ct);
+
     public Task<bool> AnyMarkedInaccurateSinceAsync(Guid userId, ForecastAlertKind kind, DateTimeOffset since, CancellationToken ct = default)
         => _context.ForecastAlerts.AnyAsync(
             a => a.UserId == userId && a.Kind == kind && a.MarkedInaccurate == true && a.FeedbackAt >= since, ct);

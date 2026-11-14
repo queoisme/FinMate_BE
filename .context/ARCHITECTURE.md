@@ -502,6 +502,18 @@ OpsManager và Admin cấu hình gói, giá, chức năng; khách mua trên webs
 - Void: đơn đã trả chỉ bị hủy khi mã giao dịch khớp; đơn chưa ghi nhận tiền chuyển `NeedsReview`. **Giới hạn:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay; chưa biết `order/detail` trả gì sau void.
 - `user_id` của đơn về `SET NULL` khi xóa cứng, để giữ sổ tiền. Kỳ và lượt dùng xóa theo người dùng. Không lưu thông tin thẻ từ SePay.
 
+### 2.13 Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (thêm 2026-11-14, Phase 84)
+
+Server biết khi nào `NotificationListenerService` trên máy đã ngừng, để báo cáo và dự báo không lặng lẽ sai. API ở `docs/listener-health-api.md`, giám sát ở `docs/ops-api.md`, quyết định D1–D20 và S1–S7 ở `docs/superpowers/plans/2026-11-14-listener-health.md`. Mã ở `Application/ListenerHealth/`.
+
+- **Bảng** (migration `AddListenerHealth`): `device_listener_statuses` (mới nhất, khoá `(user_id, installation_id)`, không theo token FCM vì token xoay vòng), `device_listener_daily` (một dòng mỗi thiết bị mỗi ngày), `listener_upload_gap_daily` (số ca theo phiên bản app, không có user).
+- **Báo trạng thái:** `ReportListenerStatusCommandHandler` ghi trạng thái và gộp dòng ngày trong MỘT câu SQL (`INSERT … ON CONFLICT` có CTE), nên hai lần báo đồng thời không đụng unique. Ngày ok khi không lần nào mất quyền và lần báo cuối còn kết nối. Package lạ bị bỏ lặng lẽ.
+- **Hàm thuần:** `SilenceDetector` (ví im lặng: cửa sổ kết thúc ở thông báo cuối, P90 nearest-rank, `upload_gap` khi listener vẫn thấy app), `DeviceHealthEvaluator`, `CoverageCalculator` (ngày không báo kế thừa lần báo trước nếu cách trưa ngày ấy ≤ 36 giờ), `ProviderFormatEvaluator`.
+- **Một chỗ đọc:** `ListenerHealthReader` đọc ví đang theo dõi (có package, đang bật, chưa xoá) kèm kết luận im lặng và thiết bị kèm trạng thái; `/me/data-coverage` và job nhắc cùng dùng nó.
+- **Nhắc:** `ListenerHealthReminderService` đi qua `ForecastAlertDispatcher`, kind `listener_health`, theo công tắc riêng `listenerHealthAlertsEnabled`. Đợt nằm trong `dedup_key` (`listener_health:{device|account|upload}:{id}:{mốc}:{n}`), nên không có bảng đợt và chạy lại job không gửi trùng. `ListenerHealthDailyJob` 09:00 VN.
+- **Dự báo:** `ForecastCoverage.Apply` chỉ ở `ForecastController`, `PurchaseCheckService` và `AgentOrchestrator`; engine và `ForecastAccuracyService` không đi qua, để thống kê độ chính xác vẫn đo độ tin cậy của engine. `poor` hạ độ tin cậy và thêm câu mẫu; không đổi con số. Cửa sổ = `forecast.historyWindowDays` kẹp 7–90, cache 10 phút, `PUT listener-status` xoá cache.
+- **Đổi mẫu tin:** `ProviderFormatMonitorJob` mỗi giờ (theo `MONITORING_ENABLED`) đếm `ai_results` theo provider trong một câu GROUP BY, không tính `error`. Trạng thái ở `ops_service_status` (`format:{key}`), sự cố qua `IIncidentService` (`notification_format:{key}`), email qua `IIncidentNotifier` như mọi nguồn khác.
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service

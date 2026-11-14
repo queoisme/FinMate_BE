@@ -419,6 +419,12 @@ public sealed record ForecastSettings
 
     /// <summary>BR-08.1: tốc độ góp mục tiêu tính từ tối đa chừng này tháng gần nhất.</summary>
     public int GoalRateMonths { get; init; } = 6;
+
+    /// <summary>BR-LH-08 (Phase 84): độ phủ dữ liệu từ mức này trở lên là <c>good</c>.</summary>
+    public int GoodCoveragePercent { get; init; } = 85;
+
+    /// <summary>BR-LH-08: độ phủ từ mức này tới dưới <see cref="GoodCoveragePercent"/> là <c>partial</c>; thấp hơn là <c>poor</c> (độ tin cậy thấp kèm câu cảnh báo).</summary>
+    public int MinCoveragePercent { get; init; } = 60;
 }
 
 /// <summary>
@@ -532,6 +538,60 @@ public sealed record SnapshotSettings
     public int RetentionDays { get; init; } = 365;
 }
 
+/// <summary>
+/// Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (Phase 84, BR-LH-*). Mặc định do chủ dự án duyệt ngày 2026-11-14.
+/// </summary>
+public sealed record ListenerHealthSettings
+{
+    /// <summary>BR-LH-02: giữ dòng trạng thái theo ngày của thiết bị (và số ca <c>upload_gap</c>) chừng này ngày rồi xoá.</summary>
+    public int HistoryRetentionDays { get; init; } = 90;
+
+    /// <summary>BR-LH-03: cửa sổ lịch sử thông báo của một ví dùng để ước lượng khoảng im lặng bình thường.</summary>
+    public int HistoryDays { get; init; } = 30;
+
+    /// <summary>BR-LH-03: ít hơn chừng này thông báo trong cửa sổ thì ví không bị xét (ví ít dùng, im lặng là bình thường).</summary>
+    public int MinNotificationsForBaseline { get; init; } = 8;
+
+    /// <summary>BR-LH-03: khoảng im lặng cho phép không bao giờ ngắn hơn chừng này giờ.</summary>
+    public int MinSilenceHours { get; init; } = 48;
+
+    /// <summary>BR-LH-03: khoảng im lặng cho phép = hệ số này × phân vị 90 của khoảng cách giữa hai thông báo liên tiếp (nếu lớn hơn sàn).</summary>
+    public double SilenceMultiplier { get; init; } = 3;
+
+    /// <summary>BR-LH-04: thiết bị không báo trạng thái quá chừng này giờ thì là <c>unknown</c>.</summary>
+    public int StaleReportHours { get; init; } = 72;
+
+    /// <summary>S4: một ngày không có lần báo nào kế thừa trạng thái của lần báo gần nhất nếu lần đó cách không quá chừng này giờ.</summary>
+    public int CoverageInheritHours { get; init; } = 36;
+
+    /// <summary>BR-LH-05: mỗi ví/thiết bị nhắc cách nhau ít nhất chừng này ngày lịch (giờ VN).</summary>
+    public int CooldownDays { get; init; } = 3;
+
+    /// <summary>BR-LH-05: tối đa chừng này lần nhắc cho một đợt im lặng / mất quyền.</summary>
+    public int MaxRemindersPerEpisode { get; init; } = 3;
+
+    /// <summary>D1: mỗi user báo trạng thái cho tối đa chừng này thiết bị.</summary>
+    public int MaxDevicesPerUser { get; init; } = 10;
+
+    /// <summary>BR-LH-10: tỉ lệ đọc lỗi 24 giờ gấp ít nhất chừng này lần 7 ngày trước đó thì nghi ngân hàng đổi mẫu tin.</summary>
+    public double FormatDriftRatio { get; init; } = 3;
+
+    /// <summary>BR-LH-10: cần ít nhất chừng này thông báo trong 24 giờ mới xét.</summary>
+    public int FormatDriftMinSamples { get; init; } = 20;
+
+    /// <summary>D14: tỉ lệ đọc lỗi 24 giờ phải ít nhất chừng này phần trăm, để một lỗi lẻ không mở sự cố.</summary>
+    public int FormatDriftMinRatePercent { get; init; } = 10;
+
+    /// <summary>D14: tỉ lệ nền dùng để so không thấp hơn chừng này phần trăm (nền 0% không cho tỉ số vô cực).</summary>
+    public int FormatDriftBaselineFloorPercent { get; init; } = 1;
+
+    /// <summary>D15: số lượt kiểm (mỗi giờ một lượt) liên tiếp bình thường để tự đóng sự cố.</summary>
+    public int FormatDriftRecoveryRuns { get; init; } = 24;
+
+    /// <summary>S1: tỉ lệ thông báo <c>Financial</c> 24 giờ tụt dưới chừng này lần so với 7 ngày trước đó cũng là dấu hiệu đổi mẫu tin.</summary>
+    public double FormatFinancialShareDropRatio { get; init; } = 0.33;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -555,6 +615,7 @@ public sealed record SystemConfigDocument
     public DuplicateSettings Duplicates { get; init; } = new();
     public TransferSettings Transfers { get; init; } = new();
     public SnapshotSettings Snapshots { get; init; } = new();
+    public ListenerHealthSettings ListenerHealth { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

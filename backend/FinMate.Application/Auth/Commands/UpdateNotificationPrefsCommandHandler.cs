@@ -22,6 +22,11 @@ public class UpdateNotificationPrefsCommandHandler : IUpdateNotificationPrefsCom
 
         user.NotificationPrefs.PushEnabled = command.PushEnabled;
         user.NotificationPrefs.BudgetAlertsEnabled = command.BudgetAlertsEnabled;
+        if (command.ListenerHealthAlertsEnabled is { } listenerHealth)
+        {
+            user.NotificationPrefs.ListenerHealthAlertsEnabled = listenerHealth;
+        }
+
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 

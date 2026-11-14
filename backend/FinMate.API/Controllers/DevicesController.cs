@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FinMate.Application.Devices.Commands;
+using FinMate.Application.ListenerHealth;
 using FinMate.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,13 +18,16 @@ public class DevicesController : ControllerBase
 {
     private readonly IRegisterDeviceTokenCommandHandler _registerHandler;
     private readonly IUnregisterDeviceTokenCommandHandler _unregisterHandler;
+    private readonly IReportListenerStatusCommandHandler _listenerStatusHandler;
 
     public DevicesController(
         IRegisterDeviceTokenCommandHandler registerHandler,
-        IUnregisterDeviceTokenCommandHandler unregisterHandler)
+        IUnregisterDeviceTokenCommandHandler unregisterHandler,
+        IReportListenerStatusCommandHandler listenerStatusHandler)
     {
         _registerHandler = registerHandler;
         _unregisterHandler = unregisterHandler;
+        _listenerStatusHandler = listenerStatusHandler;
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -48,7 +52,29 @@ public class DevicesController : ControllerBase
             new UnregisterDeviceTokenCommand(CurrentUserId, request.Token), ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// BR-LH-01: app báo trạng thái dịch vụ đọc thông báo mỗi ngày một lần và mỗi khi quyền thay đổi. Thiết bị xác định bằng
+    /// <c>installationId</c> do app sinh khi cài (D1), không bằng token FCM. Không nhận nội dung thông báo hay danh sách app khác.
+    /// </summary>
+    [HttpPut("listener-status")]
+    public async Task<IActionResult> ReportListenerStatus([FromBody] ListenerStatusRequest request, CancellationToken ct)
+    {
+        await _listenerStatusHandler.HandleAsync(
+            new ReportListenerStatusCommand(
+                CurrentUserId, request.InstallationId, request.PermissionGranted, request.ListenerConnected,
+                request.SelectedPackages, request.AppVersion, request.Manufacturer), ct);
+        return NoContent();
+    }
 }
+
+public record ListenerStatusRequest(
+    Guid? InstallationId,
+    bool? PermissionGranted,
+    bool? ListenerConnected,
+    List<ListenerPackageReport>? SelectedPackages,
+    string? AppVersion,
+    string? Manufacturer);
 
 public record RegisterDeviceRequest(string Token, DevicePlatform Platform);
 public record UnregisterDeviceRequest(string Token);

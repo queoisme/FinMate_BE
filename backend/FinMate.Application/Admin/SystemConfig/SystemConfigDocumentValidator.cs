@@ -33,6 +33,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Duplicates).NotNull().SetValidator(new DuplicateValidator());
         RuleFor(x => x.Transfers).NotNull().SetValidator(new TransferValidator());
         RuleFor(x => x.Snapshots).NotNull().SetValidator(new SnapshotValidator());
+        RuleFor(x => x.ListenerHealth).NotNull().SetValidator(new ListenerHealthValidator());
     }
 
     private static bool IsHttps(string value)
@@ -203,6 +204,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.HistoryWindowDays).InclusiveBetween(30, 365).WithMessage("Cửa sổ lịch sử phải từ 30 đến 365 ngày.");
             RuleFor(x => x).Must(x => x.MinHistoryDays >= 1 && x.MinHistoryDays <= x.HistoryWindowDays)
                 .WithName(nameof(ForecastSettings.MinHistoryDays)).WithMessage("Số ngày dữ liệu tối thiểu phải từ 1 đến độ dài cửa sổ lịch sử.");
+            RuleFor(x => x).Must(x => x.MinCoveragePercent >= 0 && x.MinCoveragePercent <= x.GoodCoveragePercent && x.GoodCoveragePercent <= 100)
+                .WithName(nameof(ForecastSettings.GoodCoveragePercent)).WithMessage("Ngưỡng độ phủ phải nằm trong 0–100% và mức tối thiểu không lớn hơn mức tốt.");
             RuleFor(x => x.ReservePercentOfIncome).InclusiveBetween(0, 50).WithMessage("Dự phòng mặc định phải từ 0 đến 50% thu nhập.");
             RuleFor(x => x.MaxHorizonDays).InclusiveBetween(7, 365).WithMessage("Kỳ dự báo tối đa phải từ 7 đến 365 ngày.");
             RuleFor(x => x.AmountTolerancePercent).InclusiveBetween(0, 50).WithMessage("Độ lệch số tiền của khoản định kỳ phải từ 0 đến 50%.");
@@ -282,6 +285,29 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.ProviderAliases).NotNull()
                 .Must(map => map.All(p => !string.IsNullOrWhiteSpace(p.Key) && p.Value is not null && p.Value.All(a => a is not null && a.Trim().Length >= 2)))
                 .WithMessage("Mỗi bí danh của ví phải có ít nhất 2 ký tự.");
+        }
+    }
+
+    private sealed class ListenerHealthValidator : AbstractValidator<ListenerHealthSettings>
+    {
+        public ListenerHealthValidator()
+        {
+            RuleFor(x => x.HistoryRetentionDays).InclusiveBetween(7, 365).WithMessage("Thời hạn lưu trạng thái thiết bị phải từ 7 đến 365 ngày.");
+            RuleFor(x => x.HistoryDays).InclusiveBetween(7, 90).WithMessage("Cửa sổ lịch sử thông báo phải từ 7 đến 90 ngày.");
+            RuleFor(x => x.MinNotificationsForBaseline).InclusiveBetween(2, 1000).WithMessage("Số thông báo tối thiểu để xét im lặng phải từ 2 đến 1000.");
+            RuleFor(x => x.MinSilenceHours).InclusiveBetween(1, 720).WithMessage("Khoảng im lặng tối thiểu phải từ 1 đến 720 giờ.");
+            RuleFor(x => x.SilenceMultiplier).InclusiveBetween(1, 20).WithMessage("Hệ số im lặng phải từ 1 đến 20.");
+            RuleFor(x => x.StaleReportHours).InclusiveBetween(12, 720).WithMessage("Thời gian coi thiết bị là không rõ trạng thái phải từ 12 đến 720 giờ.");
+            RuleFor(x => x.CoverageInheritHours).InclusiveBetween(12, 72).WithMessage("Thời gian kế thừa trạng thái cho ngày không báo phải từ 12 đến 72 giờ.");
+            RuleFor(x => x.CooldownDays).InclusiveBetween(1, 30).WithMessage("Khoảng cách giữa hai lần nhắc phải từ 1 đến 30 ngày.");
+            RuleFor(x => x.MaxRemindersPerEpisode).InclusiveBetween(1, 10).WithMessage("Số lần nhắc tối đa mỗi đợt phải từ 1 đến 10.");
+            RuleFor(x => x.MaxDevicesPerUser).InclusiveBetween(1, 50).WithMessage("Số thiết bị tối đa mỗi người dùng phải từ 1 đến 50.");
+            RuleFor(x => x.FormatDriftRatio).InclusiveBetween(1.1, 100).WithMessage("Hệ số tăng tỉ lệ đọc lỗi phải từ 1,1 đến 100.");
+            RuleFor(x => x.FormatDriftMinSamples).InclusiveBetween(1, 10_000).WithMessage("Số mẫu tối thiểu phải từ 1 đến 10.000.");
+            RuleFor(x => x.FormatDriftMinRatePercent).InclusiveBetween(0, 100).WithMessage("Tỉ lệ đọc lỗi tối thiểu phải từ 0 đến 100%.");
+            RuleFor(x => x.FormatDriftBaselineFloorPercent).InclusiveBetween(0, 100).WithMessage("Sàn tỉ lệ nền phải từ 0 đến 100%.");
+            RuleFor(x => x.FormatDriftRecoveryRuns).InclusiveBetween(1, 168).WithMessage("Số lượt bình thường để tự đóng sự cố phải từ 1 đến 168.");
+            RuleFor(x => x.FormatFinancialShareDropRatio).InclusiveBetween(0.01, 1).WithMessage("Hệ số tụt tỉ lệ giao dịch phải từ 0,01 đến 1.");
         }
     }
 

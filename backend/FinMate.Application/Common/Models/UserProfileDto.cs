@@ -15,7 +15,8 @@ public record UserProfileDto(
     bool TrainingConsentGranted,
     bool SurveyAiConsentGranted = false,
     string OnboardingStatus = "pending",
-    bool CommunityConsentGranted = false)
+    bool CommunityConsentGranted = false,
+    bool ListenerHealthAlertsEnabled = true)
 {
     public static UserProfileDto From(User user) => new(
         user.Id,
@@ -30,5 +31,6 @@ public record UserProfileDto(
         user.TrainingConsentGranted,
         user.SurveyAiConsentGranted,
         user.OnboardingStatus.ToString().ToLowerInvariant(),
-        user.CommunityConsentGranted);
+        user.CommunityConsentGranted,
+        user.NotificationPrefs.ListenerHealthAlertsEnabled);
 }
