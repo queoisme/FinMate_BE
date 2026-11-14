@@ -123,4 +123,30 @@ internal sealed class GroupFundApi
 
     public Task<long> BalanceAsync(Guid accountId)
         => WithDbAsync(db => db.FinancialAccounts.Where(a => a.Id == accountId).Select(a => a.BalanceCents).SingleAsync());
+
+    public sealed record EntryData(
+        Guid Id, Guid FundId, string Kind, long AmountCents, DateTimeOffset TransactedAt, Guid? MemberUserId, string MemberName, Guid? CategoryId,
+        Guid? GroupCategoryId, string? CategoryName, string? Note, string? MerchantName, string Origin, bool? HasPersonalLink);
+
+    public sealed record EntryResult(EntryData Entry, FundData Fund, bool AlreadyExisted);
+
+    public sealed record MonthlySummary(long TotalSpentCents, long TotalIncomeCents);
+
+    public static string Entries(Guid groupId, Guid fundId) => $"{Funds(groupId)}/{fundId}/entries";
+
+    public Task<EntryResult> RecordAsync(User user, Guid groupId, Guid fundId, object body)
+        => ReadAsync<EntryResult>(HttpMethod.Post, Entries(groupId, fundId), user.Token, body);
+
+    public Task<EntryResult> ContributeAsync(User user, Guid groupId, Guid fundId, long amount, bool fromWallet = true)
+        => RecordAsync(user, groupId, fundId, new { kind = "Contribution", amountCents = amount, financialAccountId = fromWallet ? user.AccountId : (Guid?)null });
+
+    public Task<EntryResult> SpendAsync(User user, Guid groupId, Guid fundId, long amount, Guid categoryId, Guid? accountId = null, string merchant = "EVN")
+        => RecordAsync(user, groupId, fundId, new { kind = "Expense", amountCents = amount, categoryId, merchantName = merchant, financialAccountId = accountId });
+
+    public Task<MonthlySummary> MonthlySummaryAsync(User user)
+        => ReadAsync<MonthlySummary>(HttpMethod.Get, "/api/v1/reports/monthly-summary", user.Token);
+
+    /// <summary>Giao dịch cá nhân (chưa xoá) gắn với một dòng quỹ, đọc thẳng DB.</summary>
+    public Task<FinMate.Domain.Entities.Transaction?> PersonalLinkAsync(Guid entryId)
+        => WithDbAsync(db => db.Transactions.AsNoTracking().FirstOrDefaultAsync(t => t.GroupFundEntryId == entryId));
 }

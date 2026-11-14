@@ -14,6 +14,9 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
     private const string DeadlockDetected = "40P01";
     private const string BudgetPeriodUniqueIndex = "uq_budget_periods_budget_start";
 
+    /// <summary>Phase 85 (D19): hai lần gửi cùng một dòng quỹ cùng lúc. Lượt chạy lại tìm thấy dòng của lượt thắng và trả về nó.</summary>
+    private const string GroupFundEntryClientRequestIndex = "uq_group_fund_entries_client_request";
+
     private readonly FinMateDbContext _context;
 
     public EfConcurrencyRetry(FinMateDbContext context)
@@ -49,8 +52,11 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
     /// </summary>
     private static bool IsLostMoneyRace(Exception ex) => ex switch
     {
-        DbUpdateConcurrencyException conflict => conflict.Entries.Any(e => e.Entity is FinancialAccount or BudgetPeriod or SavingGoal),
-        DbUpdateException update => update.InnerException is PostgresException { SqlState: UniqueViolation, ConstraintName: BudgetPeriodUniqueIndex },
+        DbUpdateConcurrencyException conflict => conflict.Entries.Any(e => e.Entity is FinancialAccount or BudgetPeriod or SavingGoal or GroupFund),
+        DbUpdateException update => update.InnerException is PostgresException
+        {
+            SqlState: UniqueViolation, ConstraintName: BudgetPeriodUniqueIndex or GroupFundEntryClientRequestIndex,
+        },
         _ => false,
     };
 

@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -27,4 +28,58 @@ public class GroupFundRepository : IGroupFundRepository
         => _context.GroupFunds.CountAsync(f => f.GroupId == groupId && f.ArchivedAt == null, ct);
 
     public void Add(GroupFund fund) => _context.GroupFunds.Add(fund);
+
+    public async Task<GroupFundEntryPage> ListEntriesAsync(GroupFundEntryQuery query, CancellationToken ct = default)
+    {
+        var entries = _context.GroupFundEntries.AsNoTracking()
+            .Where(e => e.FundId == query.FundId && e.DeletedAt == null)
+            .Where(e => query.Kind == null || e.Kind == query.Kind)
+            .Where(e => query.MemberUserId == null || e.MemberUserId == query.MemberUserId);
+
+        if (KeysetCursor.TryDecode(query.Cursor, out var cursorAt, out var cursorId))
+        {
+            entries = entries.Where(e => e.TransactedAt < cursorAt || (e.TransactedAt == cursorAt && e.Id.CompareTo(cursorId) < 0));
+        }
+
+        var rows = await Views(entries.OrderByDescending(e => e.TransactedAt).ThenByDescending(e => e.Id).Take(query.Limit + 1)).ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (rows.Count > query.Limit)
+        {
+            var last = rows[query.Limit - 1].Entry;
+            nextCursor = KeysetCursor.Encode(last.TransactedAt, last.Id);
+            rows = rows.Take(query.Limit).ToList();
+        }
+
+        return new GroupFundEntryPage(rows, nextCursor);
+    }
+
+    public Task<GroupFundEntryView?> GetEntryViewAsync(Guid fundId, Guid entryId, CancellationToken ct = default)
+        => Views(_context.GroupFundEntries.AsNoTracking().Where(e => e.Id == entryId && e.FundId == fundId && e.DeletedAt == null)).FirstOrDefaultAsync(ct);
+
+    public Task<GroupFundEntry?> GetEntryAsync(Guid fundId, Guid entryId, CancellationToken ct = default)
+        => _context.GroupFundEntries.FirstOrDefaultAsync(e => e.Id == entryId && e.FundId == fundId, ct);
+
+    public Task<GroupFundEntry?> GetEntryByClientRequestAsync(Guid fundId, Guid memberUserId, Guid clientRequestId, CancellationToken ct = default)
+        => _context.GroupFundEntries.FirstOrDefaultAsync(
+            e => e.FundId == fundId && e.MemberUserId == memberUserId && e.ClientRequestId == clientRequestId, ct);
+
+    public Task<Transaction?> GetPersonalTransactionAsync(Guid entryId, Guid userId, CancellationToken ct = default)
+        => _context.Transactions.FirstOrDefaultAsync(t => t.GroupFundEntryId == entryId && t.UserId == userId, ct);
+
+    public void AddEntry(GroupFundEntry entry) => _context.GroupFundEntries.Add(entry);
+
+    public void AddPersonalTransaction(Transaction transaction) => _context.Transactions.Add(transaction);
+
+    // IgnoreQueryFilters trên Users: người đang chờ xoá tài khoản vẫn hiện (dưới tên thay thế). member_user_id null là người đã bị ẩn danh.
+    private IQueryable<GroupFundEntryView> Views(IQueryable<GroupFundEntry> entries)
+        => from e in entries
+           join u in _context.Users.IgnoreQueryFilters() on e.MemberUserId equals (Guid?)u.Id into members
+           from u in members.DefaultIfEmpty()
+           select new GroupFundEntryView(
+               e,
+               u != null ? u.DisplayName : null,
+               u != null && u.DeletedAt == null,
+               e.GroupCategory != null ? e.GroupCategory.Name : e.Category != null ? e.Category.Name : null,
+               _context.Transactions.Any(t => t.GroupFundEntryId == e.Id));
 }
