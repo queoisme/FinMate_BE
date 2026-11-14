@@ -26,6 +26,7 @@ public class TransactionRepository : ITransactionRepository
         => _context.Transactions
             .Include(t => t.Category)
             .Include(t => t.FinancialAccount)
+            .Include(t => t.GroupFundEntry).ThenInclude(e => e!.Fund)   // Phase 85: groupFundLink trong TransactionDto
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
     public Task<Guid?> FindPossibleDuplicateAsync(
         Guid userId,
@@ -67,6 +68,7 @@ public class TransactionRepository : ITransactionRepository
     {
         var query = _context.Transactions
             .Include(t => t.Category)
+            .Include(t => t.GroupFundEntry).ThenInclude(e => e!.Fund)   // Phase 85: groupFundLink trong TransactionDto
             .Where(t => t.UserId == filter.UserId);
 
         if (filter.FinancialAccountId is not null)

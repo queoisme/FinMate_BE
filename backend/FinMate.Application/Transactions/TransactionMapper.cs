@@ -38,5 +38,13 @@ internal static class TransactionMapper
         duplicates?.Of,
         duplicates?.Suggested,
         transaction.MergedSources,
-        transfer);
+        transfer,
+        FundLinkOf(transaction));
+
+    /// <summary>Null khi giao dịch không gắn quỹ hoặc truy vấn không nạp kèm dòng quỹ (chỉ <c>GetByIdAsync</c> và <c>GetListAsync</c> nạp).</summary>
+    private static GroupFundLinkDto? FundLinkOf(Transaction transaction)
+        => transaction.GroupFundEntry is { Fund: { } fund } entry
+            ? new GroupFundLinkDto(
+                entry.GroupId, fund.Id, fund.Name, entry.Kind.ToString(), TransferLegs.DirectionOf(transaction).ToString().ToLowerInvariant(), entry.DeletedAt is not null)
+            : null;
 }
