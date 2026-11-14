@@ -1,6 +1,6 @@
 # Phase 84 — Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu
 
-> Trạng thái: **chờ duyệt** (2026-11-14). Chưa có dòng code nào. Nhánh `feat/listener-health` tạo từ `main` @ `d589097` (đã có Phase 81–83, PR #30–#32).
+> Trạng thái: **đã duyệt** (2026-11-14). D1–D20 theo đề xuất, kèm S1–S7 bên dưới (S thắng D khi mâu thuẫn). Nhánh `feat/listener-health` tạo từ `main` @ `d589097` (đã có Phase 81–83, PR #30–#32).
 
 ## Context
 
@@ -12,6 +12,31 @@ Phía server hiện chưa có gì cho chuyện này. `REQUIREMENTS.md` §2.3 gia
 - **Nhắc user:** `ForecastAlertDispatcher` (outbox `forecast_alerts`: chống lặp theo `(user, kind, dedup_key)`, `HonorQuietHours`, `Wants()` theo công tắc của user), rồi tới `FcmPushNotificationService`, nơi chặn `PushEnabled`.
 - **Giám sát:** `IIncidentService.RaiseAsync/ResolveAsync` (một sự cố đang mở cho mỗi fingerprint), `OpsServiceStatus` để đếm lần liên tiếp, `IIncidentNotifier`. Sự cố mức Normal đi vào email tổng hợp lúc 08:00.
 - **Cấu hình:** `SystemConfigDocument` thêm một nhóm mới, có validator. Tài liệu cấu hình cũ đọc lên tự nhận giá trị mặc định.
+
+## Đã duyệt (2026-11-14): điều chỉnh S1–S7
+
+- **S1 (bổ sung D13).** Thêm tín hiệu thứ hai cho việc ngân hàng đổi mẫu tin.
+  - Tỉ lệ `Financial` / (tổng trừ `Error`) của provider trong 24 giờ tụt dưới `formatFinancialShareDropRatio` (0,33) lần so với 7 ngày trước đó, với cùng điều kiện đủ mẫu.
+  - Cùng loại sự cố, **cùng fingerprint** `notificationformat:{provider_key}`. `TechnicalDetail` nêu tín hiệu nào đang vượt (`error_rate`, `financial_share`, hoặc cả hai).
+  - "Bình thường" (để đếm 24 lần liên tiếp rồi đóng) nghĩa là **cả hai** tín hiệu đều ổn. Thiếu mẫu thì `Unknown`.
+  - Nền `Financial` bằng 0 thì tín hiệu này không xét.
+  - Test: 60% Financial → 5% Financial, tỉ lệ lỗi ~0%, mở sự cố.
+- **S2 (sửa D5).** Ví có `lastPostedAt` gần mà server im quá mức cho phép thì **không** báo `silent`, mà mang trạng thái `upload_gap` trong `/me/data-coverage`.
+  - Đếm số ca `upload_gap` theo `app_version` của thiết bị báo `lastPostedAt` đó (không theo user). Số này thêm vào response `GET /admin/monitoring/provider-formats` dưới khoá `uploadGapsByAppVersion`.
+  - Số đếm là ảnh chụp do job 09:00 ghi: bảng `listener_upload_gap_daily (day, app_version, count)`, không có `user_id`, dọn theo `historyRetentionDays`.
+  - Push tuỳ chọn `reason = account_silent`, `hint = "sync_pending"`, nội dung "Mở app để đồng bộ", cùng chống lặp D17 (khoá `listener_health:upload:{accountId}:{mốc server}:{n}`).
+  - Không nhắc `permission`. D9 vẫn áp dụng: thiết bị mất quyền thì chỉ gửi `permission_lost`.
+- **S3 (thay D3).** Ngày có `permission_ok = false` khi có **bất kỳ** lần báo `permissionGranted = false`, **hoặc** lần báo **cuối** của ngày có `listenerConnected = false`. Mất kết nối giữa ngày rồi có lại thì ngày vẫn ok.
+  - Bảng ngày lưu `any_permission_denied` và `last_listener_connected`. `permission_ok` tính khi đọc (hoặc cột sinh ra).
+  - Test: `connected=false` rồi `connected=true` cùng ngày → ok.
+- **S4 (sửa D4).** Kế thừa dùng khoá riêng `listenerHealth.coverageInheritHours` (36, khoảng 12–72). `staleReportHours` (72) chỉ dùng cho trạng thái `unknown`.
+- **S5 (sửa D12).** Câu cố định phải qua được bộ kiểm số của Agent.
+  - Evidence `data_coverage` mang đúng giá trị phần trăm như trong câu, hoặc câu không có số.
+  - Test chạy qua verifier thật, không chỉ composer giả. Kiểm lại ở task 13: verifier hiện nằm phía ai-service (`ComposeAsync(skipVerifier)`). Nếu câu được ghép **sau** compose thì test phải chứng minh câu đó qua được đúng luật kiểm số; khi cần thì thêm test phía ai-service.
+- **S6 (bổ sung D10).** `PUT /devices/listener-status` xoá cache độ phủ của user đó.
+- **S7 (bổ sung D10/D11).** Khi gắn vào dự báo (`ForecastCoverage.Apply`, purchase-check, Agent), cửa sổ độ phủ = `forecast.historyWindowDays` kẹp về 7–90 (mặc định 90 → 90). `/me/data-coverage` vẫn mặc định 30. Mọi response có độ phủ ghi `windowDays`. Cache theo `(user, windowDays)`.
+
+Hệ quả cho cấu hình: `listenerHealth` thêm `coverageInheritHours` (36; 12–72) và `formatFinancialShareDropRatio` (0,33; 0,01–1). `dataCoverage = { percent, level, windowDays, warning }`.
 
 ## Kết quả kiểm code (những điểm quyết định thiết kế)
 
@@ -174,6 +199,7 @@ Bước cuối của job 09:00 xoá các dòng cũ hơn `historyRetentionDays`, 
 | `minSilenceHours` | 48 | 1–720 |
 | `silenceMultiplier` | 3 | 1–20 (double) |
 | `staleReportHours` | 72 | 12–720 |
+| `coverageInheritHours` | 36 | 12–72 (S4) |
 | `cooldownDays` | 3 | 1–30 |
 | `maxRemindersPerEpisode` | 3 | 1–10 |
 | `maxDevicesPerUser` | 10 | 1–50 |
@@ -182,6 +208,7 @@ Bước cuối của job 09:00 xoá các dòng cũ hơn `historyRetentionDays`, 
 | `formatDriftMinRatePercent` | 10 | 0–100 |
 | `formatDriftBaselineFloorPercent` | 1 | 0–100 |
 | `formatDriftRecoveryRuns` | 24 | 1–168 |
+| `formatFinancialShareDropRatio` | 0,33 | 0,01–1 (S1) |
 
 `forecast`:
 - `goodCoveragePercent` = 85;
