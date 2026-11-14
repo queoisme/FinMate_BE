@@ -26,4 +26,22 @@ public static class GroupErrorCodes
 
     /// <summary>Mã mời sai, hết hạn, đã dùng hoặc không dành cho tài khoản này. Cố ý chỉ một mã: không tiết lộ lý do cho người cầm mã đoán.</summary>
     public const string InvitationInvalid = "GROUP_INVITATION_INVALID";
+
+    // Quỹ nhóm (Phase 85).
+    public const string FundsDisabled = "GROUP_FUNDS_DISABLED";
+    public const string TooManyFunds = "GROUP_TOO_MANY_FUNDS";
+
+    /// <summary>Lưu trữ quỹ khi số dư khác 0, hoặc xoá nhóm khi còn quỹ chưa lưu trữ (BR-FUND-03).</summary>
+    public const string FundNotSettled = "GROUP_FUND_NOT_SETTLED";
+
+    public const string FundArchived = "GROUP_FUND_ARCHIVED";
+
+    /// <summary>Dòng quỹ sai hình dạng: điều chỉnh thiếu ghi chú, chi thiếu danh mục, loại không nhận ví mà gửi ví, v.v.</summary>
+    public const string FundEntryInvalid = "GROUP_FUND_ENTRY_INVALID";
+
+    /// <summary>Dòng chi tạo từ một giao dịch ngân hàng: số tiền, thời điểm, ví là sự thật ngân hàng nên không sửa được (D24).</summary>
+    public const string FundEntryLocked = "GROUP_FUND_ENTRY_LOCKED";
+
+    /// <summary>Giao dịch không đủ điều kiện để chuyển thành khoản chi từ quỹ (D23).</summary>
+    public const string FundSourceNotEligible = "GROUP_FUND_SOURCE_NOT_ELIGIBLE";
 }

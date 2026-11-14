@@ -41,6 +41,12 @@ public enum GroupPermission
     ManageCategories = 256,
     InviteMembers = 512,
     RemoveMembers = 1024,
+
+    /// <summary>Tạo, sửa, lưu trữ quỹ nhóm; ghi dòng điều chỉnh; xoá dòng quỹ của người khác (Phase 85).</summary>
+    ManageFunds = 2048,
+
+    /// <summary>Ghi dòng góp, chi, rút vào quỹ nhóm, luôn đứng tên chính mình (Phase 85, BR-FUND-04).</summary>
+    RecordFundEntries = 4096,
 }
 
 public enum GroupActivityType
