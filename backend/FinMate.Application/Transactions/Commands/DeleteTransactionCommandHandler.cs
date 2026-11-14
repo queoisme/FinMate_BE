@@ -111,7 +111,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         }
 
-        if (_fundSync is not null && fundAlerts.Count > 0)
+        if (_fundSync is not null && transaction.GroupFundEntryId is not null)
         {
             await _fundSync.AfterSaveAsync(fundAlerts, ct);
         }

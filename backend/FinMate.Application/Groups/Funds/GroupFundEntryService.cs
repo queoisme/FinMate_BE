@@ -106,6 +106,7 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         }
 
         await EnsureCategoriesAsync(command.GroupId, command.Kind, command.CategoryId, command.GroupCategoryId, ct);
+        var episode = fund.NegativeEpisode;
 
         // S4a: giao dịch nguồn bị khoá dòng trước (thứ tự giao dịch → quỹ → ví → kỳ ngân sách), như mọi lệnh đổi giao dịch từ Phase 82.
         var (entry, alerts, effects) = command.FromTransactionId is { } sourceId
@@ -113,6 +114,7 @@ public partial class GroupFundEntryService : IGroupFundEntryService
             : await CreateCoreAsync(command, fund, null, ct);
 
         await AfterSaveAsync(command.UserId, alerts, ct);
+        await NotifyIfWentNegativeAsync(fund, episode, ct);
         if (effects is not null)
         {
             await _converter.AfterSaveAsync(command.UserId, effects, ct);
@@ -183,6 +185,10 @@ public partial class GroupFundEntryService : IGroupFundEntryService
         var touched = touches.OfType<GroupScopeTouch>().Distinct().ToList();
         return touched.Count == 0 ? Task.FromResult<IReadOnlyList<GroupBudgetAlert>>([]) : _ledger.RecomputeAsync([], pending, touched, ct);
     }
+
+    /// <summary>BR-FUND-16: số đợt âm tăng trong lượt vừa lưu nghĩa là quỹ vừa chuyển sang âm.</summary>
+    private Task NotifyIfWentNegativeAsync(GroupFund fund, int episodeBefore, CancellationToken ct)
+        => fund.NegativeEpisode > episodeBefore ? _notifier.FundWentNegativeAsync(fund, ct) : Task.CompletedTask;
 
     private async Task AfterSaveAsync(Guid userId, IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct)
     {

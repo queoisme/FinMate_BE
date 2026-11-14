@@ -14,6 +14,12 @@ public interface IGroupFundNotifier
 {
     /// <summary>S3: người quản lý xoá dòng của <paramref name="entry"/>.MemberUserId; báo cho đúng người đó.</summary>
     Task EntryRemovedAsync(GroupFund fund, GroupFundEntry entry, CancellationToken ct = default);
+
+    /// <summary>
+    /// BR-FUND-16, D18: quỹ vừa chuyển từ ≥ 0 sang âm. Báo mỗi người đang có <c>ManageFunds</c> và bật cảnh báo nhóm, một lần cho mỗi đợt âm: khoá chống lặp
+    /// có <see cref="GroupFund.NegativeEpisode"/>, nên về ≥ 0 rồi âm lại thì được báo lại.
+    /// </summary>
+    Task FundWentNegativeAsync(GroupFund fund, CancellationToken ct = default);
 }
 
 public class GroupFundNotifier : IGroupFundNotifier
@@ -65,6 +71,42 @@ public class GroupFundNotifier : IGroupFundNotifier
                     $"Người quản lý đã xoá một dòng của bạn trong quỹ {fund.Name}. Giao dịch trong sổ cá nhân của bạn vẫn còn, bạn có thể tự xoá nếu muốn.",
                     data),
                 ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Group fund push could not be sent for {FundId}: {ExceptionType}", fund.Id, ex.GetType().Name);
+        }
+    }
+
+    public async Task FundWentNegativeAsync(GroupFund fund, CancellationToken ct = default)
+    {
+        try
+        {
+            var group = await _groups.GetByIdAsync(fund.GroupId, ct);
+            if (group is null || !await IsEnabledAsync(ct))
+            {
+                return;
+            }
+
+            var data = new Dictionary<string, string> { [DataGroupId] = fund.GroupId.ToString(), [DataFundId] = fund.Id.ToString() };
+            foreach (var view in await _groups.ListActiveMembersAsync(fund.GroupId, ct))
+            {
+                var member = view.Member;
+                var manages = GroupPermissions.Effective(member.Role, group.TransactionVisibility, member.PermissionsGranted, member.PermissionsRevoked)
+                    .HasFlag(GroupPermission.ManageFunds);
+                if (view.IsUserActive && member.AlertsEnabled && manages)
+                {
+                    await _dispatcher.RaiseAsync(
+                        new ForecastAlertRequest(
+                            member.UserId,
+                            ForecastAlertKind.GroupFundNegative,
+                            $"group_fund_negative:{fund.Id}:{fund.NegativeEpisode}",
+                            "Quỹ nhóm đang âm",
+                            $"Quỹ {fund.Name} đang âm: có người đang ứng trước cho quỹ.",
+                            data),
+                        ct);
+                }
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {

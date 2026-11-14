@@ -13,6 +13,7 @@ public interface IGroupFundLinkSync
     /// <summary>Gọi TRƯỚC khi lệnh xoá lưu. Chỉ đổi dữ liệu đang theo dõi. Trả cảnh báo ngân sách nhóm để gửi sau khi lưu.</summary>
     Task<IReadOnlyList<GroupBudgetAlert>> OnPersonalDeletedAsync(Guid userId, Transaction personal, DateTimeOffset now, CancellationToken ct = default);
 
+    /// <summary>Gửi cảnh báo ngân sách nhóm và, nếu quỹ vừa âm, push BR-FUND-16. Không ném.</summary>
     Task AfterSaveAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default);
 }
 
@@ -21,16 +22,21 @@ public class GroupFundLinkSync : IGroupFundLinkSync
     private readonly IGroupFundRepository _funds;
     private readonly IGroupRepository _groups;
     private readonly IGroupLedger _ledger;
+    private readonly IGroupFundNotifier _notifier;
+    private readonly List<GroupFund> _wentNegative = [];
 
-    public GroupFundLinkSync(IGroupFundRepository funds, IGroupRepository groups, IGroupLedger ledger)
+    public GroupFundLinkSync(IGroupFundRepository funds, IGroupRepository groups, IGroupLedger ledger, IGroupFundNotifier notifier)
     {
         _funds = funds;
         _groups = groups;
         _ledger = ledger;
+        _notifier = notifier;
     }
 
     public async Task<IReadOnlyList<GroupBudgetAlert>> OnPersonalDeletedAsync(Guid userId, Transaction personal, DateTimeOffset now, CancellationToken ct = default)
     {
+        _wentNegative.Clear();   // lệnh xoá có thể được chạy lại sau xung đột: chỉ giữ kết quả của lượt cuối
+
         if (personal.GroupFundEntryId is not { } entryId || await _funds.GetEntryByIdAsync(entryId, ct) is not { DeletedAt: null } entry)
         {
             return [];
@@ -47,12 +53,25 @@ public class GroupFundLinkSync : IGroupFundLinkSync
         }
 
         var touch = GroupScopeTouch.Of(entry);
-        GroupFundMath.Apply(fund, -GroupFundMath.Signed(entry), now);
+        if (GroupFundMath.Apply(fund, -GroupFundMath.Signed(entry), now))
+        {
+            _wentNegative.Add(fund);
+        }
+
         entry.DeletedAt = now;
         entry.DeletedByUserId = userId;
         entry.UpdatedAt = now;
         return touch is null ? [] : await _ledger.RecomputeAsync([], [entry], [touch], ct);
     }
 
-    public Task AfterSaveAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default) => _ledger.SendAlertsAsync(alerts, ct);
+    public async Task AfterSaveAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default)
+    {
+        await _ledger.SendAlertsAsync(alerts, ct);
+        foreach (var fund in _wentNegative)
+        {
+            await _notifier.FundWentNegativeAsync(fund, ct);
+        }
+
+        _wentNegative.Clear();
+    }
 }

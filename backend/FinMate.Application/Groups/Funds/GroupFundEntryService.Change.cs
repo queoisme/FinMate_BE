@@ -12,6 +12,7 @@ public partial class GroupFundEntryService
         var access = await _access.RequireMemberAsync(command.GroupId, command.UserId, ct);
         var fund = await RequireWritableFundAsync(command.GroupId, command.FundId, ct);
         var entry = await RequireLiveEntryAsync(fund.Id, command.EntryId, ct);
+        var episode = fund.NegativeEpisode;
         EnsureMayUpdate(access, entry, command);
         EnsureUpdateShape(entry, command);
         await EnsureCategoriesAsync(command.GroupId, entry.Kind, command.CategoryId, command.GroupCategoryId, ct);
@@ -26,6 +27,7 @@ public partial class GroupFundEntryService
                 command.UserId, [personal.Id], rows => ApplyUpdateAsync(fund, entry, rows[personal.Id], command, ct), ct);
 
         await AfterSaveAsync(command.UserId, alerts, ct);
+        await NotifyIfWentNegativeAsync(fund, episode, ct);
         return await ResultAsync(fund, entry.Id, command.UserId, alreadyExisted: false, ct);
     }
 
@@ -34,6 +36,7 @@ public partial class GroupFundEntryService
         var access = await _access.RequireMemberAsync(groupId, userId, ct);
         var fund = await RequireWritableFundAsync(groupId, fundId, ct);
         var entry = await RequireLiveEntryAsync(fund.Id, entryId, ct);
+        var episode = fund.NegativeEpisode;
         var isOwner = entry.MemberUserId == userId;
         if (!access.Has(isOwner ? PermissionFor(entry.Kind) : GroupPermission.ManageFunds))
         {
@@ -46,6 +49,7 @@ public partial class GroupFundEntryService
             : await _transactions.RunWithTransactionsLockedAsync(userId, [personal.Id], rows => ApplyDeleteAsync(fund, entry, rows[personal.Id], userId, isOwner, ct), ct);
 
         await AfterSaveAsync(userId, alerts, ct);
+        await NotifyIfWentNegativeAsync(fund, episode, ct);
         if (effects is not null)
         {
             await _converter.AfterSaveAsync(userId, effects, ct);
