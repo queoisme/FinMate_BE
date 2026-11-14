@@ -595,6 +595,8 @@ public class Program
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IListenerHealthRepository, ListenerHealthRepository>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReader, FinMate.Application.ListenerHealth.ListenerHealthReader>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IDataCoverageService, FinMate.Application.ListenerHealth.DataCoverageService>();
         builder.Services.AddScoped<IQrTransferRepository, QrTransferRepository>();
         builder.Services.AddScoped<IQrTransferService, QrTransferService>();
         builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();

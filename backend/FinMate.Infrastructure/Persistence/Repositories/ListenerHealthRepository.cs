@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -28,8 +29,10 @@ public class ListenerHealthRepository : IListenerHealthRepository
         return accounts.Concat(providers).ToHashSet(StringComparer.Ordinal);
     }
 
-    public Task RecordReportAsync(ListenerReport r, CancellationToken ct = default)
-        => _context.Database.ExecuteSqlInterpolatedAsync($"""
+    public Task RecordReportAsync(ListenerReport report, CancellationToken ct = default)
+    {
+        var r = report with { ReceivedAt = report.ReceivedAt.ToUniversalTime() };
+        return _context.Database.ExecuteSqlInterpolatedAsync($"""
             WITH s AS (
                 INSERT INTO device_listener_statuses
                     (id, user_id, installation_id, permission_granted, listener_connected, selected_packages, app_version, manufacturer,
@@ -60,4 +63,65 @@ public class ListenerHealthRepository : IListenerHealthRepository
                 last_reported_at = GREATEST(device_listener_daily.last_reported_at, EXCLUDED.last_reported_at),
                 report_count = device_listener_daily.report_count + 1
             """, ct);
+    }
+
+    public async Task<IReadOnlyList<DeviceListenerStatus>> GetStatusesAsync(Guid userId, CancellationToken ct = default)
+        => await _context.DeviceListenerStatuses.AsNoTracking().Where(s => s.UserId == userId).OrderBy(s => s.FirstReportedAt).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<DeviceListenerDay>> GetDaysAsync(Guid userId, DateOnly fromDay, CancellationToken ct = default)
+        => await _context.DeviceListenerDays.AsNoTracking().Where(d => d.UserId == userId && d.Day >= fromDay).ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, List<DateTimeOffset>>> GetNotificationTimesAsync(
+        Guid userId, IReadOnlyCollection<Guid> accountIds, int historyDays, DateTimeOffset now, CancellationToken ct = default)
+    {
+        if (accountIds.Count == 0)
+        {
+            return new Dictionary<Guid, List<DateTimeOffset>>();
+        }
+
+        var ids = accountIds.ToArray();
+        now = now.ToUniversalTime();
+        var rows = await _context.Database.SqlQuery<NotificationTimeRow>($"""
+            SELECT x.account_id AS "AccountId", x.at AS "At"
+            FROM (
+                SELECT financial_account_id AS account_id, LEAST(received_at, {now}) AS at,
+                       max(LEAST(received_at, {now})) OVER (PARTITION BY financial_account_id) AS last_at
+                FROM notification_logs
+                WHERE user_id = {userId} AND financial_account_id = ANY({ids})
+            ) x
+            WHERE x.at >= x.last_at - make_interval(days => {historyDays})
+            """).ToListAsync(ct);
+        return rows.GroupBy(r => r.AccountId).ToDictionary(g => g.Key, g => g.Select(r => r.At).ToList());
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetNotificationDayCountsAsync(
+        Guid userId, IReadOnlyCollection<Guid> accountIds, DateOnly fromDay, CancellationToken ct = default)
+    {
+        if (accountIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var ids = accountIds.ToArray();
+        var from = new DateTimeOffset(fromDay.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime();
+        var rows = await _context.Database.SqlQuery<NotificationDayCountRow>($"""
+            SELECT financial_account_id AS "AccountId", count(DISTINCT (received_at AT TIME ZONE INTERVAL '+07:00')::date)::int AS "Days"
+            FROM notification_logs
+            WHERE user_id = {userId} AND financial_account_id = ANY({ids}) AND received_at >= {from}
+            GROUP BY financial_account_id
+            """).ToListAsync(ct);
+        return rows.ToDictionary(r => r.AccountId, r => r.Days);
+    }
+
+    private sealed class NotificationTimeRow
+    {
+        public Guid AccountId { get; set; }
+        public DateTimeOffset At { get; set; }
+    }
+
+    private sealed class NotificationDayCountRow
+    {
+        public Guid AccountId { get; set; }
+        public int Days { get; set; }
+    }
 }
