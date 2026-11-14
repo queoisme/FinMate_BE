@@ -287,3 +287,27 @@ Bước cuối của job 09:00 xoá các dòng cũ hơn `historyRetentionDays`, 
 - Nới dải dự báo theo độ phủ (ghi §13.4).
 - Phía app (Flutter): ghi ở mục "Báo nhóm Flutter" của TASKS.md.
 - ai-service không đổi (BR-LH-10 chỉ đọc `ai_results` của backend).
+
+## Bảng BR → test (sau khi làm)
+
+| BR / quyết định | Test |
+|---|---|
+| BR-LH-01, D1, D2, D5, S6 | `ReportListenerStatusCommandHandlerTests`, `ListenerStatusControllerTests` |
+| BR-LH-02, S3 | `ListenerStatusControllerTests` (ngày AND, lần báo cuối), `CoverageCalculatorTests` |
+| BR-LH-03, D19, S2 | `SilenceDetectorTests` (đều, thưa, rỗng, biên 8, P90, `upload_gap`, tương lai, im lặng dài) |
+| BR-LH-04, D8 | `DeviceHealthEvaluatorTests` |
+| BR-LH-05, D6, D9, D17, D18 | `ListenerHealthReminderServiceTests`, `ForecastAlertDispatcherTests`, `ListenerHealthPrefsTests`, `ListenerHealthJobTests` (chạy hai lần → một nhắc) |
+| BR-LH-06 | `DataCoverageControllerTests.AccountStatuses_OnlyForWatchedAccountsOfThisUser` |
+| BR-LH-07, S4, D7 | `CoverageCalculatorTests` (nhiều thiết bị, kế thừa, mốc đầu, `unknown`, biên mức), `DataCoverageControllerTests` |
+| BR-LH-08, D10, D11, S7 | `ForecastCoverageTests`, `PurchaseVerdictTests.PoorDataCoverage_*`, `DataCoverageControllerTests.ForecastResponses_*` |
+| BR-LH-09, S5 | `AgentOrchestratorTests.*coverage*`, ai-service `test_agent_verifier.py::test_the_fixed_data_coverage_sentence_passes_the_verifier` |
+| BR-LH-10, D13–D16, S1 | `ProviderFormatMonitorTests` |
+| BR-LH-11 | `ProviderFormatsControllerTests` |
+| D20 | `ListenerHealthDailyJobTests`, `ListenerHealthJobTests.OldDailyRows_*`, `ListenerHealthSchemaTests.HardDeletingTheUser_*` |
+| Kịch bản (a)–(e) | `ListenerHealthScenarioTests` |
+
+Ghi chú khi làm:
+- **Cửa sổ của BR-LH-03** kết thúc ở thông báo cuối, không ở hiện tại. Nếu kết thúc ở hiện tại thì sau khoảng ba tuần im lặng, ví sẽ tụt từ `silent` xuống `not_enough_data`.
+- **D9 khi thiết bị mất quyền không báo `selectedPackages`:** coi như thiết bị đó giải thích sự im lặng của mọi ví.
+- **D20 không cần sửa code:** `UserHardDeleter` chỉ xoá dòng `users`, còn hai bảng mới tự xoá theo khoá ngoại cascade.
+- **BR-LH-09 thêm độ phủ ở `AgentOrchestrator`, không ở từng công cụ.** Mỗi lượt hỏi chỉ đọc độ phủ một lần, và chỉ đọc khi có ít nhất một công cụ dữ liệu trả `Ok`.

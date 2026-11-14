@@ -88,7 +88,7 @@ Chuyển khoản nội bộ đi qua `POST /transactions/transfer`. Form nhập t
 | Đặc tả | Yêu cầu phía app | Hệ quả với server |
 | --- | --- | --- |
 | Flow 1, bước 1.3–1.4 | Hướng dẫn bật thông báo ngân hàng và cấp quyền Notification Access | Không có |
-| Flow 1, bước 2.2 | Heartbeat `NotificationListenerService`; hướng dẫn Auto-start / whitelist | Không có |
+| Flow 1, bước 2.2 | Heartbeat `NotificationListenerService`; hướng dẫn Auto-start / whitelist | Phase 84: app báo trạng thái qua `PUT /devices/listener-status`; server lưu, tự suy ví im lặng bất thường, nhắc user, tính độ phủ dữ liệu cho dự báo (mục 6.11). Hướng dẫn theo hãng vẫn ở app |
 | Flow 1, bước 3.1 | Lọc 3 tầng trên thiết bị (Package → Keyword/Regex → TFLite) | Classifier phía server vẫn giữ làm lớp phòng vệ thứ hai (FR-AI-01) |
 | Flow 1, bước 5.3 | Draft không được phản hồi trước timeout → hàng đợi Chờ duyệt | Draft giữ nguyên trạng thái (FR-TXN-09) |
 | Flow 1, bước 6.1 · Flow 2, bước 10 | Lưu vào hàng đợi cục bộ khi mất mạng, đồng bộ khi có mạng | Chống trùng khi đồng bộ (FR-TXN-02, FR-TXN-12, NFR-REL-04) |
@@ -438,6 +438,24 @@ Sau cờ `features.community`, mặc định tắt. API ở `docs/community-api.
 | FR-COM-07 | Hỏi chia sẻ sau giao dịch | Could | App gọi sau khi lưu, chỉ với chi tiêu ăn uống, có giới hạn tần suất. Không đăng tự động |
 | FR-COM-08 | Đồng ý riêng | Must | Đồng ý khi đăng lần đầu, không tăng phiên bản Điều khoản |
 
+### 6.11 Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu **[Ngoài đặc tả]**
+
+Phase 84, 2026-11-14. API ở `docs/listener-health-api.md`, giám sát ở mục Giám sát của `docs/ops-api.md`, kế hoạch và quyết định D1–D20, S1–S7 ở `docs/superpowers/plans/2026-11-14-listener-health.md`. Ngưỡng ở nhóm cấu hình `listenerHealth` và `forecast.goodCoveragePercent`/`minCoveragePercent`.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-LH-01 | App báo trạng thái listener | Must | `PUT /devices/listener-status` mỗi ngày và khi quyền đổi. Thiết bị theo `installationId` app tự sinh, không theo token FCM. Chỉ package ví của user hoặc provider đã biết được lưu; không nội dung thông báo, không danh sách app khác. Thiếu cờ → 400; quá `maxDevicesPerUser` thiết bị → 422 |
+| FR-LH-02 | Lưu trạng thái theo ngày | Must | Một dòng mỗi thiết bị mỗi ngày (giờ VN theo lúc server nhận). Ngày ok khi không lần báo nào mất quyền và lần báo cuối còn kết nối. Giữ `historyRetentionDays` (90) |
+| FR-LH-03 | Phát hiện ví im lặng bất thường | Must | Ví đang theo dõi, ≥ 8 thông báo trong 30 ngày tính tới thông báo cuối; im lâu hơn max(48 giờ, 3 × P90 khoảng cách) → `silent`. Ít hơn → `not_enough_data`. Listener vẫn thấy app đó gần đây → `upload_gap` |
+| FR-LH-04 | Trạng thái thiết bị | Must | Báo mất quyền → `permission_lost`; quá 72 giờ không báo → `unknown` |
+| FR-LH-05 | Nhắc user | Must | Job 09:00 VN, push `listener_health` qua `forecast_alerts`, lý do `permission_lost` / `account_silent` (gợi ý `bank_notifications_off`, `sync_pending`), không số tiền. Mỗi ví/thiết bị cách nhau ≥ 3 ngày, tối đa 3 lần một đợt; thông báo mới hoặc quyền có lại thì hết đợt. Mất quyền thắng im lặng nó giải thích; `unknown` không nhắc. Theo công tắc push và `listenerHealthAlertsEnabled` (mặc định bật), tôn trọng giờ yên lặng |
+| FR-LH-06 | Ví tắt theo dõi không bị xét | Must | Ví tắt theo dõi, không có package hoặc đã xoá không xuất hiện ở đâu |
+| FR-LH-07 | `GET /me/data-coverage` | Must | `days` 7–90; % số ngày có thiết bị ok, không tính ngày trước ví theo dõi đầu tiên và trước lần báo đầu tiên; chưa báo lần nào → `unknown`, không phải `poor`. Từng ví và từng thiết bị |
+| FR-LH-08 | Độ phủ trên dự báo | Must | `cashflow`, `scenario`, `spendable`, `purchase-check` có `dataCoverage {percent, level, windowDays, warning}`, cửa sổ = `forecast.historyWindowDays` kẹp 7–90. `poor` → `confidence = low` và câu mẫu backend; con số và dải không đổi; `purchase-check` không trả `fits_plan` |
+| FR-LH-09 | Agent nêu dữ liệu có thể thiếu | Must | Câu trả lời dựa trên giao dịch của user khi độ phủ `poor` có bằng chứng `data_coverage` và mệnh đề cuối là câu mẫu; câu chỉ có phần trăm nên qua bộ kiểm số |
+| FR-LH-10 | Giám sát đổi mẫu tin | Must | Mỗi giờ theo provider: tỉ lệ `extraction_failed` + `uncertain` 24 giờ ≥ 3 lần 7 ngày trước (sàn nền 1%, tối thiểu 10%), hoặc tỉ lệ `financial` tụt dưới 0,33 lần; đủ 20 mẫu → một sự cố `Normal` mỗi provider; 24 lượt bình thường liên tiếp thì tự đóng. Không tính `error`; chỉ số đếm |
+| FR-LH-11 | `GET /admin/monitoring/provider-formats` | Should | Chỉ Admin; tỉ lệ đọc được và tỉ lệ `financial` 24 giờ / 7 ngày theo provider; số ca `upload_gap` theo phiên bản app |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -624,7 +642,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-MNT-01 | Phân tầng API → Application → Domain ← Infrastructure | `ARCHITECTURE.md` §2.3 |
 | NFR-MNT-02 | CQRS tự viết, không MediatR | Review |
 | NFR-MNT-03 | Backend và AI Service không chia sẻ CSDL; `ocr-service` không nối DB | Review |
-| NFR-MNT-04 | Backend: unit + integration (Testcontainers). 2026-11-02: 1352/1353 qua (1 đỏ, FR-FIN-07). 2026-11-13 (Phase 81): 2717/2718 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-13 (Phase 82): 2862/2863 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-14 (Phase 83): 3012/3013 qua, vẫn chỉ FR-FIN-07 đỏ; ai-service 2477/2477 kể cả tích hợp trên Postgres; ai-service 2003 qua / 453 bỏ qua không Postgres, tích hợp 453/453 trên Postgres | `dotnet test` |
+| NFR-MNT-04 | Backend: unit + integration (Testcontainers). 2026-11-02: 1352/1353 qua (1 đỏ, FR-FIN-07). 2026-11-13 (Phase 81): 2717/2718 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-13 (Phase 82): 2862/2863 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-14 (Phase 83): 3012/3013 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-14 (Phase 84): 3207/3208 qua, vẫn chỉ FR-FIN-07 đỏ, ai-service 2025 qua / 457 bỏ qua không Postgres; ai-service 2477/2477 kể cả tích hợp trên Postgres; ai-service 2003 qua / 453 bỏ qua không Postgres, tích hợp 453/453 trên Postgres | `dotnet test` |
 | NFR-MNT-05 | AI Service: pytest. 2026-11-02: 1562 qua, 423 bỏ qua (cần Postgres). `ocr-service`, `stt-service` có pytest riêng (engine giả) | `pytest` |
 | NFR-MNT-06 | Python đạt `black`, `ruff`, `isort` | Chạy công cụ |
 | NFR-MNT-07 | Định danh bất biến: `provider_key`, `slug`, mã phương pháp, mã câu/đáp án khảo sát | Test API sửa bị từ chối |
@@ -696,6 +714,8 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] Kiểm `package_name` của các provider đang tắt trên thông báo thật rồi bật lên.
 - [ ] Gói trả phí cho Gemini/OpenRouter trước khi phát hành.
 - [ ] **Danh mục phí riêng (Phase 83).** Khoản "Phí giao dịch" sinh ra khi chuyển ví đang vào danh mục `other`. Thêm danh mục `fees` sẽ đụng tới bộ 11 slug mà AI Service dùng (từ điển, mô hình, tài liệu cấu hình), nên cần chủ sản phẩm quyết.
+- [ ] **Nới dải dự báo theo độ phủ (Phase 84, BR-LH-08).** Hiện độ phủ `poor` chỉ hạ độ tin cậy và thêm câu cảnh báo; con số và độ rộng dải giữ nguyên. Có nên nới dải (hoặc ước lượng phần giao dịch bị thiếu) khi độ phủ thấp không.
+- [ ] **Mốc bật theo dõi ví (Phase 84, D7).** Độ phủ không tính những ngày trước khi tạo ví theo dõi đầu tiên, lấy theo `financial_accounts.created_at`; ví tắt rồi bật lại theo dõi vẫn dùng ngày tạo. Có cần cột `monitoring_enabled_at` không.
 - [ ] **4 số đuôi tài khoản (Phase 83, D21).** Giúp ghép chuyển khoản giữa hai ngân hàng chính chủ (`own_account`), không giúp nạp/rút ví hay ATM. Chưa thêm; quyết sau khi đo số lần `own_account` bị bỏ lỡ qua `/admin/ai-stats`.
 
 ### 13.5 Truy vết yêu cầu → nguồn
@@ -733,4 +753,5 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-02 | **Dự báo tài chính đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu** | Chủ sản phẩm duyệt kế hoạch (bảng đánh dấu riêng, quét trong lượt kiểm tra sau giao dịch, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu) | FR-FCST-14…16 xong. Migration `AddTransactionAnomalies`: bảng `transaction_anomalies`, thêm `anomaly` vào CHECK `forecast_alerts.kind`. API mới: `/forecast/anomalies`, `/forecast/categories`, `/forecast/categories/apply`, `/forecast/goals/{id}`. Insight `UnusualSpending` ngừng sinh. Ngưỡng outlier dùng trung vị + 3·MAD có sẵn (`Statistics`) thay vì Q3 + 1,5·IQR ghi trong kế hoạch |
 | 2026-11-07 | **Thêm gói đăng ký trả qua SePay**, sau cờ `features.subscriptions` | Chủ sản phẩm duyệt kế hoạch: OpsManager cấu hình gói; web app riêng; trả trước, tự gia hạn tay vì SePay chưa có thanh toán định kỳ; chỉ thu phí nhập bằng AI; đổi gói chạy sau khi gói cũ hết; người đã mua giữ quyền lợi đến hết kỳ | API ở `docs/subscription-api.md`; việc còn lại ở 13.4 |
 | 2026-11-13 | **Bản trùng có liên kết (Phase 82)**: backend quyết trùng, AI chỉ là tín hiệu; nghi trùng thành nháp có liên kết, người dùng gộp hoặc bác | Chủ sản phẩm duyệt kế hoạch và D0–D19 theo đề xuất (`docs/superpowers/plans/2026-11-13-linked-duplicates.md`) | FR-TXN-17 xong, FR-TXN-31/32 mới, FR-AI-04/FR-CHAT-02/FR-SCAN-07 cập nhật. Migration `AddLinkedDuplicates`. Chưa có unmerge; ghép cặp chuyển ví là phase sau (13.1) |
+| 2026-11-14 | **Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (Phase 84)** | Chủ sản phẩm duyệt kế hoạch, D1–D20 theo đề xuất kèm S1–S7 (`docs/superpowers/plans/2026-11-14-listener-health.md`) | FR-LH-01…11 mới (mục 6.11); §2.3 sửa dòng heartbeat; nguồn sự cố `notification_format`. Migration `AddListenerHealth`. Nới dải theo độ phủ và mốc bật theo dõi chờ quyết (13.4) |
 | 2026-11-14 | **Ghép cặp chuyển tiền giữa các ví của chính mình (Phase 83)** | Chủ sản phẩm duyệt kế hoạch, D1–D22 theo đề xuất kèm S1–S6 (`docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`) | FR-TXN-18 phần chuyển ví xong; FR-TXN-33…35 mới; FR-AI-04, FR-FCST-07 cập nhật; quyết định #1 trong `ARCHITECTURE.md` sửa cho chuyển khoản vượt ranh giới ví được tính. Migration `AddSelfTransferPairing`, alembic `0038`. Hoàn tác chưa có (13.1); danh mục phí riêng và 4 số đuôi tài khoản chờ quyết (13.4) |
