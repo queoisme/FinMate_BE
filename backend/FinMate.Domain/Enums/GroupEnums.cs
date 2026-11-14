@@ -67,4 +67,12 @@ public enum GroupActivityType
     GoalChanged,
     GoalContributed,
     CategoryChanged,
+    FundCreated,
+    FundUpdated,
+    FundArchived,
+    FundContributed,
+    FundWithdrawn,
+
+    /// <summary>Người có <c>ManageFunds</c> xoá dòng quỹ của người khác (S3).</summary>
+    FundEntryDeleted,
 }

@@ -88,6 +88,16 @@ public class Transaction
     /// </summary>
     public DateTimeOffset? TransferDismissedAt { get; set; }
 
+    /// <summary>
+    /// Dòng quỹ nhóm mà giao dịch này ghi lại phía sổ cá nhân (Phase 85, BR-FUND-08). Khi có: <see cref="TransactionType"/> là Transfer,
+    /// <see cref="CounterAccountId"/> null (đầu kia là quỹ, không phải ví), không chi, không thu, không chia sẻ nhóm được.
+    /// Dòng quỹ có thể đã xoá mềm (S3); liên kết vẫn giữ.
+    /// </summary>
+    public Guid? GroupFundEntryId { get; set; }
+
+    /// <summary>Đi cùng <see cref="GroupFundEntryId"/>. Chỉ <c>TransferLegs</c> đọc để biết tiền ra hay vào ví.</summary>
+    public GroupFundDirection? GroupFundDirection { get; set; }
+
     /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
     public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -103,4 +113,5 @@ public class Transaction
     public GroupCategory? GroupCategory { get; set; }
     public Transaction? RelatedTransaction { get; set; }
     public Transaction? DuplicateOf { get; set; }
+    public GroupFundEntry? GroupFundEntry { get; set; }
 }

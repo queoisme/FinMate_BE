@@ -11,4 +11,7 @@ public enum MergeSnapshotKind
 
     /// <summary>Đổi một chiều thành Transfer tới ví người dùng chọn.</summary>
     TransferConvert,
+
+    /// <summary>Đổi một khoản chi thành khoản chi từ quỹ nhóm (Phase 85, S4a). Chỉ để vận hành tra lại; khôi phục đọc từ dòng quỹ (D24).</summary>
+    GroupFundExpense,
 }

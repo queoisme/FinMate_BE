@@ -157,7 +157,8 @@ Như vậy "người ghi" và "người gắn với dòng" là một cột: `mem
 
 **D7. Người đã rời nhóm xoá giao dịch cá nhân gắn quỹ (BR-FUND-09 nửa sau và BR-FUND-13 mâu thuẫn).** Luật 09 nói xoá giao dịch thì xoá dòng quỹ; luật 13 nói người đã rời không xoá được dòng.
 - Đề xuất: còn là thành viên thì xoá cả dòng quỹ (luật 09).
-- Đã rời, hoặc nhóm đã xoá mềm: xoá giao dịch cá nhân và hoàn ví, **dòng quỹ ở lại** và chỉ mất liên kết (`transactions.group_fund_entry_id` xoá cùng lúc). Số dư quỹ không đổi.
+- Đã rời, hoặc nhóm đã xoá mềm: xoá mềm giao dịch cá nhân và hoàn ví, **dòng quỹ ở lại**. Số dư quỹ không đổi.
+- *Sửa khi làm Task 2:* `transactions.group_fund_entry_id` **không** bị xoá trên giao dịch đã xoá mềm. CHECK `chk_transactions_transfer_shape` cần cột này cho mọi transfer không có ví đích, và mọi truy vấn đã lọc `deleted_at`, nên liên kết trên dòng đã xoá mềm vô hại. Liên kết chỉ được xoá khi giao dịch về lại `Debit` (D24).
 - Response giao dịch không đổi. Activity của nhóm không ghi gì.
 
 **D8. Cờ tắt mà người dùng xoá giao dịch gắn quỹ.** Giống luật hiện có của giao dịch chia sẻ: vẫn đồng bộ xoá dòng quỹ, kèm số dư quỹ và ngân sách nhóm, để số của nhóm không lệch. API quỹ thì 422 `GROUP_FUNDS_DISABLED` (hoặc `GROUPS_DISABLED` nếu cờ nhóm tắt). Khoản chi từ quỹ vẫn được tính vào ngân sách nhóm khi cờ tắt; cảnh báo tạm dừng như cảnh báo nhóm hiện nay.
