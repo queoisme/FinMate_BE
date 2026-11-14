@@ -102,3 +102,18 @@ public class ListenerHealthDailyJob
         }
     }
 }
+
+/// <summary>Mỗi giờ, phút 05 (BR-LH-10, D16): nghi ngân hàng đổi mẫu thông báo. Email do <c>SystemMonitorJob</c> gửi ở lượt phút kế tiếp như mọi sự cố khác.</summary>
+public class ProviderFormatMonitorJob
+{
+    private readonly IProviderFormatMonitor _monitor;
+
+    public ProviderFormatMonitorJob(IProviderFormatMonitor monitor)
+    {
+        _monitor = monitor;
+    }
+
+    [DisableConcurrentExecution(timeoutInSeconds: 0)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    public Task RunAsync(CancellationToken ct = default) => _monitor.RunAsync(DateTimeOffset.UtcNow, ct);
+}

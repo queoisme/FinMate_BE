@@ -595,6 +595,8 @@ public class Program
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IListenerHealthRepository, ListenerHealthRepository>();
+        builder.Services.AddScoped<IProviderFormatRepository, ProviderFormatRepository>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IProviderFormatMonitor, FinMate.Application.ListenerHealth.ProviderFormatMonitor>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReader, FinMate.Application.ListenerHealth.ListenerHealthReader>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IDataCoverageService, FinMate.Application.ListenerHealth.DataCoverageService>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReminderService, FinMate.Application.ListenerHealth.ListenerHealthReminderService>();
@@ -757,6 +759,7 @@ public class Program
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
+        builder.Services.AddScoped<ProviderFormatMonitorJob>();
         builder.Services.AddScoped<ForecastAlertDispatchJob>();
         builder.Services.AddScoped<ForecastUserCheckJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
@@ -894,11 +897,15 @@ public class Program
         {
             RecurringJob.AddOrUpdate<SystemMonitorJob>("system-monitor", job => job.RunAsync(CancellationToken.None), "* * * * *");
             RecurringJob.AddOrUpdate<MonitoringDigestJob>("monitoring-digest", job => job.RunAsync(CancellationToken.None), "0 1 * * *");
+
+            // Mỗi giờ phút 05 (BR-LH-10): tỉ lệ đọc lỗi / tỉ lệ giao dịch theo provider, nghi ngân hàng đổi mẫu thông báo.
+            RecurringJob.AddOrUpdate<ProviderFormatMonitorJob>("provider-format-monitor", job => job.RunAsync(CancellationToken.None), "5 * * * *");
         }
         else
         {
             RecurringJob.RemoveIfExists("system-monitor");
             RecurringJob.RemoveIfExists("monitoring-digest");
+            RecurringJob.RemoveIfExists("provider-format-monitor");
         }
 
         // Mỗi 3 giờ, lệch phút 5 để không dồn vào đầu giờ của các trang nguồn.
