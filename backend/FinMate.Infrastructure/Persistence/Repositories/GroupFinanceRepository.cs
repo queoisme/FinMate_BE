@@ -79,6 +79,7 @@ public class GroupFinanceRepository : IGroupFinanceRepository
         var query = from t in _context.Transactions.AsNoTracking().Include(x => x.Category).Include(x => x.GroupCategory)
                     join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
                     where t.GroupId == groupId
+                        && t.DeletedAt == null   // tường minh: IgnoreQueryFilters ở trên tắt bộ lọc xoá mềm của CẢ câu truy vấn
                         && t.Status == TransactionStatus.Confirmed
                         && t.TransactedAt >= start
                         && t.TransactedAt < end
@@ -112,6 +113,7 @@ public class GroupFinanceRepository : IGroupFinanceRepository
         => (from t in _context.Transactions.Where(LoanExclusion.NotLoan)
             join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
             where t.GroupId == groupId
+                && t.DeletedAt == null   // tường minh: IgnoreQueryFilters trên Users tắt bộ lọc xoá mềm của CẢ câu truy vấn
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
