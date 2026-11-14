@@ -70,7 +70,8 @@ public class UsersController : ControllerBase
             new UpdateNotificationPrefsCommand(
                 CurrentUserId,
                 request.PushEnabled,
-                request.BudgetAlertsEnabled),
+                request.BudgetAlertsEnabled,
+                request.ListenerHealthAlertsEnabled),
             ct);
         return NoContent();
     }
@@ -81,4 +82,4 @@ public class UsersController : ControllerBase
 /// </param>
 public record UpdateProfileRequest(string DisplayName, long? MonthlyIncomeCents = null);
 public record AcceptConsentRequest(ConsentKind Kind, int Version);
-public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled);
+public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled, bool? ListenerHealthAlertsEnabled = null);

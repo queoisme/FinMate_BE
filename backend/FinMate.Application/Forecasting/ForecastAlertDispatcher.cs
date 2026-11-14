@@ -129,11 +129,12 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
         return due.Count;
     }
 
-    /// <summary>Cảnh báo vượt ngân sách sớm theo công tắc cảnh báo ngân sách; mọi loại còn lại theo công tắc cảnh báo dự báo.</summary>
+    /// <summary>Cảnh báo vượt ngân sách sớm theo công tắc cảnh báo ngân sách; sức khoẻ listener theo công tắc riêng; mọi loại còn lại theo công tắc cảnh báo dự báo.</summary>
     private static bool Wants(User user, ForecastAlertKind kind) => kind switch
     {
         ForecastAlertKind.BudgetRisk or ForecastAlertKind.GroupBudget => user.NotificationPrefs.BudgetAlertsEnabled,
         ForecastAlertKind.GroupGoal => true,   // nhắc mục tiêu cá nhân cũng chỉ theo công tắc push; IPushNotificationService tự chặn
+        ForecastAlertKind.ListenerHealth => user.NotificationPrefs.ListenerHealthAlertsEnabled,   // D18: không phụ thuộc công tắc dự báo
         _ => user.NotificationPrefs.ForecastAlertsEnabled,
     };
 
