@@ -17,6 +17,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly Refunds.IRefundLedger? _refunds;
     private readonly IBudgetAlertNotifier? _budgetAlerts;
     private readonly IDailySummaryRefresher? _summaries;
+    private readonly Groups.Funds.IGroupFundLinkSync? _fundSync;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -27,8 +28,10 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         IGroupLedger? groupLedger = null,
         Refunds.IRefundLedger? refunds = null,
         IBudgetAlertNotifier? budgetAlerts = null,
-        IDailySummaryRefresher? summaries = null)
+        IDailySummaryRefresher? summaries = null,
+        Groups.Funds.IGroupFundLinkSync? fundSync = null)
     {
+        _fundSync = fundSync;
         _groupLedger = groupLedger;
         _refunds = refunds;
         _budgetAlerts = budgetAlerts;
@@ -88,6 +91,13 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
             await _groupLedger.ApplyAsync(transaction, transaction.Category, -1, ct);
         }
 
+        // Phase 85 (BR-FUND-09, D7): xoá giao dịch gắn quỹ thì dòng quỹ đi theo, cùng lượt lưu. Ví hoàn ở nhánh chung bên dưới qua TransferLegs.
+        IReadOnlyList<GroupBudgetAlert> fundAlerts = [];
+        if (_fundSync is not null && transaction.GroupFundEntryId is not null)
+        {
+            fundAlerts = await _fundSync.OnPersonalDeletedAsync(command.UserId, transaction, now, ct);
+        }
+
         transaction.DeletedAt = now;
         transaction.UpdatedAt = now;
         await ReleaseSuspectedLinksAsync(command.UserId, transaction.Id, now, ct);
@@ -100,6 +110,12 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         {
             await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
         }
+
+        if (_fundSync is not null && fundAlerts.Count > 0)
+        {
+            await _fundSync.AfterSaveAsync(fundAlerts, ct);
+        }
+
         await NotifyForecastAsync(command.UserId, ct);
     }
 

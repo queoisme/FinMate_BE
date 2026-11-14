@@ -70,6 +70,7 @@ public class GroupTransactionService : IGroupTransactionService
             async token =>
             {
                 var transaction = await RequireOwnAsync(userId, transactionId, token);
+                Transactions.GroupFundGuard.EnsureNotLinked(transaction);
                 var target = await _ledger.ResolveAsync(userId, groupId, groupCategoryId, transaction, transaction.Category, token);
                 var now = DateTimeOffset.UtcNow;
 

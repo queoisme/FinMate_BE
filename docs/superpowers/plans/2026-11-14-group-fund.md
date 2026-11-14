@@ -248,6 +248,16 @@ Ngược lại, người giữ quỹ nhận +500k vào tài khoản của họ t
   - chủ dòng xoá giao dịch cá nhân → xoá dòng quỹ như D7 (không khôi phục, vì chính giao dịch bị xoá).
 - Dòng `created` (S4b) xoá theo luật thường: chủ dòng xoá thì giao dịch cá nhân bị xoá mềm và ví được hoàn.
 
+### Phát sinh khi làm (ghi lại để anh xem, đều theo tinh thần D đã duyệt)
+
+- **D7 mở rộng (Task 8).** Xoá giao dịch cá nhân gắn quỹ khi **quỹ đã lưu trữ** cũng đi như trường hợp đã rời nhóm: giao dịch xoá được, ví được hoàn, dòng quỹ ở lại. Nếu xoá dòng thì số dư quỹ lưu trữ khác 0, trái BR-FUND-03 (và CHECK `chk_group_funds_archived_settled`).
+- **D9 (Task 8).** Chốt chung `GroupFundGuard.EnsureNotLinked` gắn ở: sửa giao dịch, chuyển ví (cả hai chiều), bên thua khi gộp, tạo hoàn, liên kết hoàn/đảo, chia sẻ nhóm. Hoàn và chia sẻ trước đây cũng đã bị chặn vì là `Transfer`, nhưng với mã lỗi khác; nay đều là `TRANSACTION_GROUP_FUND_LINKED`.
+- **Task 9 gộp vào Task 3 và 8.** `DuplicateMatcher` và `MergePolicy` đọc vế qua `TransferLegs` (test bảng ở Task 3); test đầu-cuối thông báo ngân hàng gộp vào giao dịch góp quỹ (bên thắng giữ liên kết) ở `GroupFundPersonalSyncTests`.
+- **D23 (Task 7b).** Bất thường đang mở của giao dịch nguồn được đóng với lý do `transfer` có sẵn (không thêm lý do mới, để khỏi đổi CHECK).
+- **D24 (Task 7b).** Sửa ghi chú của dòng chuyển đổi không ghi đè mô tả của giao dịch ngân hàng.
+- **Thông báo S3 (Task 7).** Kind `group_fund_removed` (cột `kind` tối đa 20 ký tự). Gửi khi chủ dòng còn là thành viên và đang bật cảnh báo nhóm; cờ nhóm hoặc cờ quỹ tắt thì không gửi.
+- **Lỗi có sẵn nghi ngờ (Task 7).** `GroupFinanceRepository.ListReportRowsAsync` và `ListSharedTransactionsAsync` dùng `IgnoreQueryFilters()` cho bảng người dùng. Trong EF Core lệnh này tắt bộ lọc của **cả** câu truy vấn, nên giao dịch chia sẻ đã xoá mềm có thể vẫn vào báo cáo và danh sách của nhóm. Sẽ kiểm bằng test và sửa ở Task 13, commit riêng.
+
 ---
 
 ## Thiết kế
@@ -359,6 +369,7 @@ Không số tiền, không log tên quỹ, tên người hay ghi chú.
   - 1352/1353 trong bản nháp chép từ CLAUDE.md, là số của 2026-11-02 (Phase 1–51), đã cũ.
   - 3012/3013 là mốc Phase 84 đo **trước** khi làm Phase 84 (`d589097`). Phase 84 thêm 195 test case: 19 file test, 163 dòng `[Fact]`/`[InlineData]` mới, phần còn lại là case `MemberData`. 3013 + 195 = 3208.
   - Lệnh chạy không thiếu project hay bộ lọc.
+- **Test đỏ phụ thuộc giờ (phát hiện 2026-11-15 01:03 giờ VN):** `ListenerHealthScenarioTests.D_FifteenOfThirtyDaysWithoutAnOkDevice_…` ra 48% thay vì 50% khi chạy sau nửa đêm giờ VN. Trên `main` (`4601e1f`) cùng giờ cũng đỏ y hệt, nên là lỗi có sẵn của Phase 84 (cửa sổ 30 ngày tính lệch một ngày quanh 00:00 VN), không do Phase 85. Chưa sửa; báo ở phần kết.
 - Trước khi xin merge: toàn bộ backend như trên. Không được có thêm test đỏ nào so với mốc.
 - `dotnet build` không cảnh báo mới.
 

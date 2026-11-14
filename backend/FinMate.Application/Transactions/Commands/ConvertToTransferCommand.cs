@@ -116,6 +116,8 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
     {
         var subject = rows[command.TransactionId];
         var other = command.PairedTransactionId is { } pairedId ? rows[pairedId] : null;
+        GroupFundGuard.EnsureNotLinked(subject);
+        GroupFundGuard.EnsureNotLinked(other);
         if (await AlreadyConvertedAsync(command, subject, other, ct) is { } done)
         {
             return done;   // gọi lại cùng input → kết quả cũ, không làm gì thêm

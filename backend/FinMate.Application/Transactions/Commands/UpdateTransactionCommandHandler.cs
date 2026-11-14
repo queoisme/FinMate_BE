@@ -75,6 +75,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
 
         var transaction = await _transactionRepository.GetByIdAsync(command.TransactionId, command.UserId, ct)
             ?? throw new NotFoundException("Transaction", command.TransactionId);
+        GroupFundGuard.EnsureNotLinked(transaction);
 
         // Phase 81: sửa một khoản hoàn/đảo đã xác nhận phải giữ khoá dòng khoản gốc tới lúc commit (BR-RF-02 khi đổi số tiền). Đọc, tính, lưu
         // trong khoá; mọi việc bên ngoài (push, AI, ghi nhớ) chạy SAU khi đã commit.
