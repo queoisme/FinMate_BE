@@ -153,20 +153,14 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             // ví đích cũng phải được trả về trạng thái cũ trước khi cộng theo giá trị mới.
             var accounts = new Dictionary<Guid, FinancialAccount>();
 
-            await ApplyBalanceAsync(accounts, command.UserId, transaction.FinancialAccountId,
-                -SourceDelta(transaction.TransactionType, transaction.AmountCents), now, ct);
-            if (transaction.CounterAccountId is not null)
+            foreach (var leg in TransferLegs.Of(transaction))
             {
-                await ApplyBalanceAsync(accounts, command.UserId, transaction.CounterAccountId.Value,
-                    -transaction.AmountCents, now, ct);
+                await ApplyBalanceAsync(accounts, command.UserId, leg.AccountId, -leg.DeltaCents, now, ct);
             }
 
-            await ApplyBalanceAsync(accounts, command.UserId, command.FinancialAccountId,
-                SourceDelta(command.TransactionType, command.AmountCents), now, ct);
-            if (command.CounterAccountId is not null)
+            foreach (var leg in TransferLegs.Of(command.TransactionType, command.FinancialAccountId, command.CounterAccountId, command.AmountCents))
             {
-                await ApplyBalanceAsync(accounts, command.UserId, command.CounterAccountId.Value,
-                    command.AmountCents, now, ct);
+                await ApplyBalanceAsync(accounts, command.UserId, leg.AccountId, leg.DeltaCents, now, ct);
             }
 
             // Luôn là số dư ví NGUỒN, thống nhất với lúc tạo.
@@ -396,13 +390,6 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             return true;
         }
     }
-
-    /// <summary>
-    /// Tác động của giao dịch lên số dư ví NGUỒN. Credit là tiền vào (+); Debit và Transfer
-    /// đều là tiền rời ví nguồn (−) — với Transfer thì phần (+) nằm ở ví đích, xử lý riêng.
-    /// </summary>
-    private static long SourceDelta(TransactionType type, long amountCents)
-        => type == TransactionType.Credit ? amountCents : -amountCents;
 
     /// <summary>
     /// Cộng dồn delta vào ví, nhớ lại ví đã nạp trong lượt này. Một lượt update có thể chạm

@@ -341,7 +341,8 @@ public class TransactionRepository : ITransactionRepository
                     t.MergedIntoTransactionId != null,
                     t.MergedSources,
                     t.NotificationLogId,
-                    t.CounterAccountId),
+                    t.CounterAccountId,
+                    t.GroupFundDirection),
                 t.DuplicateOfTransactionId,
                 t.DuplicateStatus))
             .ToListAsync(ct);

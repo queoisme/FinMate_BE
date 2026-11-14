@@ -314,5 +314,49 @@ public class MergePolicyTests
             act.Should().Throw<BusinessRuleException>().Which.ErrorCode.Should().Be(TransactionErrorCodes.MergeNotAllowed);
         }
     }
-}
 
+    // ---- Phase 85, S6 #8: transfer gắn quỹ nhóm (không ví đích) ----
+
+    private static Transaction FundTransfer(GroupFundDirection direction)
+    {
+        var t = Tx(TransactionSource.Manual, TransactionStatus.Confirmed, created: TimeSpan.FromMinutes(5), account: Vcb, amount: 500_000, type: TransactionType.Transfer);
+        t.GroupFundEntryId = Guid.NewGuid();
+        t.GroupFundDirection = direction;
+        return t;
+    }
+
+    [Theory]
+    [InlineData(GroupFundDirection.Out, TransactionType.Debit, "vcb", 500_000, true)]
+    [InlineData(GroupFundDirection.Out, TransactionType.Debit, "vcb", 503_300, true)]
+    [InlineData(GroupFundDirection.Out, TransactionType.Debit, "cash", 500_000, false)]
+    [InlineData(GroupFundDirection.Out, TransactionType.Credit, "vcb", 500_000, false)]
+    [InlineData(GroupFundDirection.In, TransactionType.Credit, "vcb", 500_000, true)]
+    [InlineData(GroupFundDirection.In, TransactionType.Credit, "vcb", 499_000, false)]
+    [InlineData(GroupFundDirection.In, TransactionType.Credit, "cash", 500_000, false)]
+    [InlineData(GroupFundDirection.In, TransactionType.Debit, "vcb", 500_000, false)]
+    public void ANotification_FitsAFundTransferOnlyInItsDirection(GroupFundDirection direction, TransactionType type, string wallet, long amount, bool fits)
+    {
+        var transfer = FundTransfer(direction);
+        var bank = Tx(TransactionSource.Notification, TransactionStatus.Draft, account: wallet == "vcb" ? Vcb : Cash, amount: amount, type: type);
+
+        var act = () => MergePolicy.EnsureMergeable(bank, transfer, transfer, Facts());
+
+        if (fits)
+        {
+            act.Should().NotThrow();
+        }
+        else
+        {
+            act.Should().Throw<BusinessRuleException>().Which.ErrorCode.Should().Be(TransactionErrorCodes.MergeNotAllowed);
+        }
+    }
+
+    [Fact]
+    public void AFundTransfer_IsAlwaysTheSurvivor()
+    {
+        var transfer = FundTransfer(GroupFundDirection.Out);
+        var bank = Tx(TransactionSource.Notification, TransactionStatus.Confirmed, account: Vcb, amount: 500_000);
+
+        MergePolicy.ChooseSurvivor(bank, transfer).Should().BeSameAs(transfer, "D11: bên thắng giữ liên kết quỹ");
+    }
+}

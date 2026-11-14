@@ -24,7 +24,8 @@ public sealed record DuplicateProbe(
     bool IsMerged,
     string[]? MergedSources,
     Guid? NotificationLogId,
-    Guid? CounterAccountId = null);   // Phase 83: ví đích của một Transfer
+    Guid? CounterAccountId = null,   // Phase 83: ví đích của một Transfer
+    GroupFundDirection? FundDirection = null);   // Phase 85: transfer gắn quỹ nhóm (không ví đích)
 
 /// <summary>Cặp nguồn của hai giao dịch được so. Mỗi cặp có cửa sổ thời gian riêng (<see cref="DuplicateSettings"/>).</summary>
 public enum DuplicatePair
@@ -145,13 +146,15 @@ public static class DuplicateMatcher
             return false;
         }
 
+        // Vế số dư qua TransferLegs (Phase 85, S6): transfer gắn quỹ chiều vào có vế (+) ở chính ví của nó, không có ví đích.
+        var legs = TransferLegs.Of(TransactionType.Transfer, transfer.AccountId, transfer.CounterAccountId, transfer.AmountCents, transfer.FundDirection);
         if (subject.Type == TransactionType.Credit)
         {
-            return transfer.CounterAccountId == subject.AccountId && subject.AmountCents == transfer.AmountCents;
+            return legs.Any(l => l.AccountId == subject.AccountId && l.DeltaCents > 0) && subject.AmountCents == transfer.AmountCents;
         }
 
         var fee = subject.AmountCents - transfer.AmountCents;
-        return transfer.AccountId == subject.AccountId
+        return legs.Any(l => l.AccountId == subject.AccountId && l.DeltaCents < 0)
                && fee >= 0 && fee <= transfers.MaxFeeCents && fee * 100 <= transfer.AmountCents * transfers.MaxFeePercent;
     }
 

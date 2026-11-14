@@ -63,20 +63,13 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
 
         if (wasConfirmed)
         {
-            var account = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
-                ?? throw new NotFoundException("FinancialAccount", transaction.FinancialAccountId);
-            account.BalanceCents -= transaction.TransactionType == TransactionType.Credit
-                ? transaction.AmountCents
-                : -transaction.AmountCents;
-            account.UpdatedAt = now;
-
-            // Transfer đã cộng tiền vào ví đích lúc tạo — không trả lại thì tiền tự sinh ra.
-            if (transaction.CounterAccountId is not null)
+            // Hoàn MỌI vế số dư (Phase 85, S6): transfer thường trả cả ví đích, transfer gắn quỹ theo đúng hướng của nó.
+            foreach (var leg in TransferLegs.Of(transaction))
             {
-                var counter = await _financialAccountRepository.GetByIdAsync(transaction.CounterAccountId.Value, command.UserId, ct)
-                    ?? throw new NotFoundException("FinancialAccount", transaction.CounterAccountId.Value);
-                counter.BalanceCents -= transaction.AmountCents;
-                counter.UpdatedAt = now;
+                var account = await _financialAccountRepository.GetByIdAsync(leg.AccountId, command.UserId, ct)
+                    ?? throw new NotFoundException("FinancialAccount", leg.AccountId);
+                account.BalanceCents -= leg.DeltaCents;
+                account.UpdatedAt = now;
             }
 
             // Xoá chỉ sinh delta ÂM nên không bao giờ chạm ngưỡng cảnh báo — bỏ qua giá trị
