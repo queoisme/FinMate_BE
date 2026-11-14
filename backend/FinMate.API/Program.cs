@@ -596,6 +596,7 @@ public class Program
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IListenerHealthRepository, ListenerHealthRepository>();
         builder.Services.AddScoped<IProviderFormatRepository, ProviderFormatRepository>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IProviderFormatStatsService, FinMate.Application.ListenerHealth.ProviderFormatStatsService>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IProviderFormatMonitor, FinMate.Application.ListenerHealth.ProviderFormatMonitor>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReader, FinMate.Application.ListenerHealth.ListenerHealthReader>();
         builder.Services.AddScoped<FinMate.Application.ListenerHealth.IDataCoverageService, FinMate.Application.ListenerHealth.DataCoverageService>();
