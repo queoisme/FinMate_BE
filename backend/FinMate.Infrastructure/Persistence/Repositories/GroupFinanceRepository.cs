@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using FinMate.Application.Budgets;
-using FinMate.Application.Transactions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -53,17 +53,24 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     public void AddBudget(Budget budget) => _context.Budgets.Add(budget);
 
     public async Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default)
-        => Math.Max(0, await SumSharedNetSpendAsync(BudgetSpendScope.Group(groupId, systemCategoryId, groupCategoryId, from, to), [], ct));
+        => Math.Max(0, await SumGroupNetSpendAsync(BudgetSpendScope.GroupAll(groupId, systemCategoryId, groupCategoryId, from, to), [], [], ct));
 
-    public async Task<long> SumSharedNetSpendAsync(Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default)
+    public async Task<long> SumGroupNetSpendAsync(
+        GroupSpendScope scope, IReadOnlyCollection<Guid> excludeTransactionIds, IReadOnlyCollection<Guid> excludeEntryIds, CancellationToken ct = default)
     {
-        var query = _context.Transactions.Where(scope).Where(BudgetSpendScope.Counts);
+        var shared = _context.Transactions.Where(scope.Shared).Where(BudgetSpendScope.Counts);
         if (excludeTransactionIds.Count > 0)
         {
-            query = query.Where(t => !excludeTransactionIds.Contains(t.Id));
+            shared = shared.Where(t => !excludeTransactionIds.Contains(t.Id));
         }
 
-        return await query.Select(BudgetSpendScope.Signed).SumAsync(ct);
+        var fund = _context.GroupFundEntries.Where(scope.Fund);
+        if (excludeEntryIds.Count > 0)
+        {
+            fund = fund.Where(e => !excludeEntryIds.Contains(e.Id));
+        }
+
+        return await shared.Select(BudgetSpendScope.Signed).SumAsync(ct) + await fund.SumAsync(e => e.AmountCents, ct);
     }
 
     // IgnoreQueryFilters trên Users: người đã yêu cầu xóa tài khoản vẫn còn giao dịch tới lúc xóa cứng.

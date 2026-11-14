@@ -38,13 +38,17 @@ public interface IGroupFinanceRepository
     void AddBudget(Budget budget);
 
     /// <summary>
-    /// Chi ròng đã xác nhận, đã chia sẻ, khớp đúng phạm vi ngân sách (<see cref="Budgets.BudgetSpendScope.Group"/>): chi − hoàn, bỏ cặp đảo và
-    /// cho vay/mượn, chặn dưới ở 0. Không truyền danh mục là ngân sách tổng.
+    /// Chi tiêu nhóm khớp đúng phạm vi ngân sách: giao dịch đã xác nhận, đã chia sẻ (<see cref="Budgets.BudgetSpendScope.Group"/>: chi − hoàn, bỏ cặp
+    /// đảo và cho vay/mượn) cộng khoản chi từ quỹ (<see cref="Budgets.BudgetSpendScope.GroupFund"/>), chặn dưới ở 0. Không truyền danh mục là ngân sách tổng.
     /// </summary>
     Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
 
-    /// <summary>Như trên nhưng KHÔNG chặn ở 0 và bỏ các giao dịch đang sửa trong bộ nhớ (caller tự cộng phần của chúng). Phase 81, D2.</summary>
-    Task<long> SumSharedNetSpendAsync(System.Linq.Expressions.Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default);
+    /// <summary>
+    /// Chi tiêu nhóm ròng của một phạm vi = phần giao dịch đã chia sẻ (như trên, KHÔNG chặn ở 0) + phần chi từ quỹ (Phase 85, D13). Bỏ các giao dịch
+    /// và dòng quỹ đang sửa trong bộ nhớ: caller tự cộng phần của chúng. Đây là chỗ duy nhất cộng hai nguồn; mọi nơi tính lại ngân sách nhóm đi qua đây.
+    /// </summary>
+    Task<long> SumGroupNetSpendAsync(
+        Budgets.GroupSpendScope scope, IReadOnlyCollection<Guid> excludeTransactionIds, IReadOnlyCollection<Guid> excludeEntryIds, CancellationToken ct = default);
 
     Task<SharedTransactionPage> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, string? cursor, int limit, CancellationToken ct = default);
     Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);

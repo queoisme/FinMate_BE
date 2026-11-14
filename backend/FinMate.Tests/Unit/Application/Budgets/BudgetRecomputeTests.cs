@@ -177,7 +177,7 @@ public class BudgetRecomputeTests
         var budget = new Budget { Id = Guid.NewGuid(), GroupId = groupId, CategoryId = _shopping.Id, LimitCents = 2_000_000 };
         var period = new BudgetPeriod { Id = Guid.NewGuid(), BudgetId = budget.Id, LimitCents = 2_000_000, SpentCents = 1_400_000 };
         h.Finance.Setup(f => f.GetMatchingBudgetsAsync(groupId, _shopping.Id, null, It.IsAny<CancellationToken>())).ReturnsAsync([budget]);
-        h.Finance.Setup(f => f.SumSharedNetSpendAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Transaction, bool>>>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+        h.Finance.Setup(f => f.SumGroupNetSpendAsync(It.IsAny<GroupSpendScope>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(500_000);   // các khoản khác của nhóm trong tháng 10
         h.Budgets.Setup(b => b.GetPeriodAsync(budget.Id, new DateTimeOffset(2026, 9, 30, 17, 0, 0, TimeSpan.Zero), It.IsAny<CancellationToken>())).ReturnsAsync(period);
 
@@ -212,4 +212,34 @@ public class BudgetRecomputeTests
         alerts.Should().BeEmpty();
         h.Alerts.Verify(a => a.EvaluateAndMarkAsync(It.IsAny<Budget>(), It.IsAny<BudgetPeriod>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task APendingFundExpense_IsCountedOnce_AndExcludedFromTheStoredSum()
+    {
+        // Phase 85, D13: dòng quỹ đang sửa trong bộ nhớ được loại khỏi tổng trong DB rồi cộng theo giá trị mới; vượt ngưỡng thì vẫn cảnh báo như cũ.
+        var h = new GroupHarness();
+        var groupId = Guid.NewGuid();
+        var budget = new Budget { Id = Guid.NewGuid(), GroupId = groupId, LimitCents = 1_000_000 };
+        var period = new BudgetPeriod { Id = Guid.NewGuid(), BudgetId = budget.Id, LimitCents = 1_000_000, SpentCents = 0 };
+        var entry = new GroupFundEntry
+        {
+            Id = Guid.NewGuid(), GroupId = groupId, Kind = GroupFundEntryKind.Expense, AmountCents = 800_000, CategoryId = _shopping.Id, TransactedAt = Nov13,
+        };
+        IReadOnlyCollection<Guid>? excluded = null;
+        h.Finance.Setup(f => f.GetMatchingBudgetsAsync(groupId, _shopping.Id, null, It.IsAny<CancellationToken>())).ReturnsAsync([budget]);
+        h.Finance.Setup(f => f.SumGroupNetSpendAsync(It.IsAny<GroupSpendScope>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .Callback<GroupSpendScope, IReadOnlyCollection<Guid>, IReadOnlyCollection<Guid>, CancellationToken>((_, _, entries, _) => excluded = entries)
+            .ReturnsAsync(0);
+        h.Budgets.Setup(b => b.GetPeriodAsync(budget.Id, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>())).ReturnsAsync(period);
+
+        await h.Ledger().RecomputeAsync([], [entry], [GroupScopeTouch.Of(entry)!]);
+
+        period.SpentCents.Should().Be(800_000);
+        excluded.Should().Equal(entry.Id);
+        h.Alerts.Verify(a => a.EvaluateAndMarkAsync(budget, period, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void AFundContribution_TouchesNoBudget()
+        => GroupScopeTouch.Of(new GroupFundEntry { Kind = GroupFundEntryKind.Contribution, AmountCents = 500_000 }).Should().BeNull();
 }
