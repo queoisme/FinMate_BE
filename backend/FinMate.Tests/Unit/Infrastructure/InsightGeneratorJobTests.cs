@@ -27,7 +27,7 @@ public class InsightGeneratorJobTests
                 It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Guid> { _userId });
         _reportRepository.Setup(r => r.GetDailySpendAsync(
-                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<DailySpendPoint>());
         _reportRepository.Setup(r => r.GetConfirmedDebitsAsync(
                 It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -41,7 +41,7 @@ public class InsightGeneratorJobTests
     }
 
     private void SetupMonthSpend(DateOnly from, DateOnly to, long spent)
-        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>()))
+        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<DailySpendPoint> { new(from, spent, 0, 1) });
 
     private void SetupDebits(params Transaction[] transactions)

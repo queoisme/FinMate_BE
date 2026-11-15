@@ -19,7 +19,7 @@ def test_pattern_branch_fills_every_field(matcher, now):
     assert outcome.merchant_name == "HIGHLANDS COFFEE"
     assert outcome.balance_after_cents == 2_500_000
     assert outcome.transacted_at == datetime(2026, 9, 9, 10, 28, tzinfo=VIETNAM_TZ)
-    assert outcome.matched_pattern_name == "mb_qr_v1"
+    assert outcome.matched_pattern_name == "mb_qr_v2"
     assert outcome.method == ExtractionMethod.RULE
     assert outcome.confidence >= 0.95
 

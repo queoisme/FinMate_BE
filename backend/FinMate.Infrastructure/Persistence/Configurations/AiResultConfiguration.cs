@@ -54,6 +54,7 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
         builder.Property(a => a.Description).HasColumnName("description").HasMaxLength(500);
         builder.Property(a => a.TransactedAt).HasColumnName("transacted_at");
         builder.Property(a => a.BalanceAfterCents).HasColumnName("balance_after_cents");
+        builder.Property(a => a.ProviderReference).HasColumnName("provider_reference").HasMaxLength(64);
         builder.Property(a => a.ExtractionConfidence).HasColumnName("extraction_confidence");
 
         builder.Property(a => a.CategorySlug).HasColumnName("category_slug").HasMaxLength(100);

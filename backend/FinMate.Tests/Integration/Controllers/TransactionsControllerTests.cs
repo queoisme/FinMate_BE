@@ -155,11 +155,12 @@ public class TransactionsControllerTests : IClassFixture<AuthApiFactory>
         var accountResponse = await _client.SendAsync(createAccountRequest);
         var accountId = (await accountResponse.Content.ReadFromJsonAsync<FinancialAccountBody>(JsonOptions))!.Data.Id;
 
+        // Confidence dưới OneTapThreshold (0.85) để test đúng luồng Draft -> Confirm tay (Auto-commit có test riêng).
         FakeAIServiceClient.SetScenario("vn.com.vng.zalopay", new AnalyzeResponse(
             "financial",
             new ClassifierResult("financial", 0.95),
-            new ExtractionResult(60_000, "debit", "Shopee", "Thanh toan don hang", DateTimeOffset.UtcNow, 440_000, 0.9),
-            new CategorizationResult("shopping", 0.85),
+            new ExtractionResult(60_000, "debit", "Shopee", "Thanh toan don hang", DateTimeOffset.UtcNow, 440_000, 0.7),
+            new CategorizationResult("shopping", 0.7),
             new DuplicateResult(false, null),
             new ModelVersions("1.0", "1.0", "1.0"),
             80));

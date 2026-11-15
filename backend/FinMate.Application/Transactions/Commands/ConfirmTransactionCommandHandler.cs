@@ -2,8 +2,8 @@ using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
-using FinMate.Application.Forecasting;
-using FinMate.Application.Notifications;
+using FinMate.Application.Admin.SystemConfig;
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -12,38 +12,35 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
 {
     private readonly ITransactionRepository _transactionRepository;
     private readonly IFinancialAccountRepository _financialAccountRepository;
-    private readonly IBudgetPeriodService _budgetPeriodService;
-    private readonly IBudgetAlertNotifier _budgetAlertNotifier;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IAIServiceClient _aiServiceClient;
-    private readonly ICacheService _cache;
+    private readonly ITransactionConfirmationEffects _confirmationEffects;
+    private readonly ISystemConfigProvider _config;
+    private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
     private readonly IForecastAlertTrigger? _forecastAlerts;
-    private readonly IUserNotificationService? _userNotifications;
 
     private readonly IGroupLedger? _groupLedger;
 
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
-        IBudgetPeriodService budgetPeriodService,
-        IBudgetAlertNotifier budgetAlertNotifier,
         ICategoryRepository categoryRepository,
         IAIServiceClient aiServiceClient,
-        ICacheService cache,
+        ITransactionConfirmationEffects confirmationEffects,
+        ISystemConfigProvider config,
+        IMerchantCategoryOverrideRepository merchantCategoryOverrides,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null,
-        IUserNotificationService? userNotifications = null)
+        IGroupLedger? groupLedger = null)
     {
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
-        _budgetPeriodService = budgetPeriodService;
-        _budgetAlertNotifier = budgetAlertNotifier;
         _categoryRepository = categoryRepository;
         _aiServiceClient = aiServiceClient;
-        _cache = cache;
+        _confirmationEffects = confirmationEffects;
+        _config = config;
+        _merchantCategoryOverrides = merchantCategoryOverrides;
         _forecastAlerts = forecastAlerts;
-        _userNotifications = userNotifications;
     }
 
     public async Task<TransactionDto> HandleAsync(ConfirmTransactionCommand command, CancellationToken ct = default)
@@ -56,6 +53,25 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             throw new BusinessRuleException(
                 TransactionErrorCodes.NotDraft,
                 "Giao dịch đã được xác nhận hoặc không còn ở trạng thái nháp.");
+        }
+
+        // §8: trùng nghiệp vụ có thể xuất hiện SAU khi Draft được tạo (vd user nhập tay 1 giao
+        // dịch trùng trong lúc Draft còn chờ xác nhận) — phải chặn ở đây lại, không được âm thầm
+        // bỏ qua hay tự ý commit: trả lỗi để client quyết định.
+        var pipelineSettings = (await _config.GetAsync(ct)).Document.NotificationPipeline;
+        var isDuplicate = await _transactionRepository.HasAuthoritativeDuplicateAsync(
+            transaction.FinancialAccountId,
+            transaction.AmountCents,
+            transaction.TransactionType,
+            transaction.TransactedAt,
+            TimeSpan.FromMinutes(pipelineSettings.BusinessDuplicateWindowMinutes),
+            transaction.Id,
+            ct);
+        if (isDuplicate)
+        {
+            throw new ConflictException(
+                TransactionErrorCodes.PossibleDuplicateOnConfirm,
+                "Giao dịch này trùng với một giao dịch khác đã có trong ví. Vui lòng kiểm tra lại trước khi xác nhận.");
         }
 
         var account = await _financialAccountRepository.GetByIdAsync(transaction.FinancialAccountId, command.UserId, ct)
@@ -81,20 +97,11 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }
 
         var now = DateTimeOffset.UtcNow;
-        account.BalanceCents += transaction.TransactionType == TransactionType.Credit
-            ? transaction.AmountCents
-            : -transaction.AmountCents;
-        account.UpdatedAt = now;
 
-        transaction.Status = TransactionStatus.Confirmed;
-        transaction.UpdatedAt = now;
-
-        var budgetAlerts = await _budgetPeriodService.ApplyDeltaAsync(
-            command.UserId,
-            transaction.CategoryId,
-            TransactionBudgetDelta.Spend(transaction.TransactionType, transaction.AmountCents, transaction.Category),
-            transaction.TransactedAt,
-            ct);
+        // Balance + budget: logic dùng chung với nhánh Auto-commit của
+        // AnalyzeNotificationCommandHandler (§7/§16.1), xem ITransactionConfirmationEffects.
+        // KHÔNG gọi SaveChangesAsync ở đây — chỉ mutate, lưu 1 lần duy nhất ở UpdateAsync bên dưới.
+        var budgetAlerts = await _confirmationEffects.ApplyAsync(transaction, account, ct);
 
         // account và budget period đều đã được EF Core track (cùng DbContext
         // scoped với ITransactionRepository) — UpdateAsync bên dưới gọi SaveChangesAsync 1 lần
@@ -110,17 +117,13 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
 
         await _transactionRepository.UpdateAsync(transaction, ct);
 
-        await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, command.UserId, transaction.TransactedAt, ct);
-
         // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
         // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
-        await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        await _confirmationEffects.NotifyAsync(transaction, budgetAlerts, ct);
         if (_groupLedger is not null)
         {
             await _groupLedger.SendAlertsAsync(groupAlerts, ct);
         }
-
-        await NotifyBalanceChangeAsync(transaction, ct);
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
         {
@@ -137,6 +140,32 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
                     transaction.Category?.Slug,
                     "category_correction"),
                 ct);
+
+            // §7 Mapping-trigger rule + §16.5: chỉ ghi override khi user TỰ chọn danh mục, không
+            // ghi khi chỉ chấp nhận gợi ý AI nguyên vẹn (categoryChanged đã đảm bảo đúng điều này).
+            if (!string.IsNullOrWhiteSpace(transaction.MerchantName))
+            {
+                var key = MerchantCategoryKey.Normalize(transaction.MerchantName);
+                var existingOverride = await _merchantCategoryOverrides.GetAsync(command.UserId, key, ct);
+                if (existingOverride is null)
+                {
+                    await _merchantCategoryOverrides.AddAsync(new MerchantCategoryOverride
+                    {
+                        UserId = command.UserId,
+                        MerchantKey = key,
+                        DisplayName = transaction.MerchantName,
+                        CategoryId = transaction.CategoryId!.Value,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                    }, ct);
+                }
+                else
+                {
+                    existingOverride.CategoryId = transaction.CategoryId!.Value;
+                    existingOverride.UpdatedAt = now;
+                    await _merchantCategoryOverrides.UpdateAsync(existingOverride, ct);
+                }
+            }
         }
         await NotifyForecastAsync(command.UserId, ct);
 
@@ -146,24 +175,4 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
-
-    /// <summary>Ghi vào hộp thư trong app (tab "Biến động") rằng giao dịch này vừa đổi số dư. Gọi SAU khi đã lưu.</summary>
-    private Task NotifyBalanceChangeAsync(FinMate.Domain.Entities.Transaction transaction, CancellationToken ct)
-    {
-        if (_userNotifications is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        var verb = transaction.TransactionType == TransactionType.Credit ? "Nhận" : "Chi";
-        return _userNotifications.CreateAsync(
-            transaction.UserId,
-            UserNotificationType.BalanceChange,
-            "Giao dịch mới",
-            $"{verb} {ForecastText.Money(transaction.AmountCents)}"
-            + (transaction.MerchantName is { Length: > 0 } merchant ? $" tại {merchant}" : string.Empty),
-            "Transaction",
-            transaction.Id,
-            ct);
-    }
 }

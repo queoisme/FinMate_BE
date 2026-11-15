@@ -17,8 +17,13 @@ public interface IReportRepository
     Task<List<DailySummary>> GetDailySummariesAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
     Task UpsertDailySummaryAsync(DailySummary summary, CancellationToken ct = default);
 
-    /// <summary>Tổng hợp live từ transactions cho một khoảng ngày (giờ VN).</summary>
-    Task<List<DailySpendPoint>> GetDailySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
+    /// <summary>
+    /// Tổng hợp live từ transactions cho một khoảng ngày (giờ VN). <paramref name="financialAccountId"/>
+    /// null = mọi ví (đường mặc định, vẫn dùng <c>daily_summaries</c> làm cache ở caller như trước);
+    /// có giá trị = chỉ ví đó — <c>daily_summaries</c> không có chiều theo ví nên caller phải luôn
+    /// tính live cho trường hợp này, không có cache để dùng (Issue D, 2026-11-13).
+    /// </summary>
+    Task<List<DailySpendPoint>> GetDailySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null);
 
     Task<List<CategorySpend>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
 

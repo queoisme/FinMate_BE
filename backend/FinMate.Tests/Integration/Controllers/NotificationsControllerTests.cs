@@ -32,6 +32,8 @@ public class NotificationsControllerTests : IClassFixture<AuthApiFactory>
     private record FinancialAccountData(Guid Id);
     private record AnalysisBody(bool Success, AnalysisData Data);
     private record AnalysisData(Guid NotificationLogId, string Status, Guid? DraftTransactionId);
+    private record TransactionBody(bool Success, TransactionData Data);
+    private record TransactionData(Guid Id, string Status);
     private record ErrorBody(bool Success, ErrorData Error);
     private record ErrorData(string Code);
 
@@ -156,6 +158,52 @@ public class NotificationsControllerTests : IClassFixture<AuthApiFactory>
         var body = await response.Content.ReadFromJsonAsync<AnalysisBody>(JsonOptions);
         body!.Data.Status.Should().Be("Processed");
         body.Data.DraftTransactionId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var accountId = await CreateBankAccountAsync(accessToken, "mb_bank");
+
+        // min(0.95, 0.90) = 0.90 >= OneTapThreshold (0.85) — phải tự động Confirmed ngay (§7/§16.1).
+        FakeAIServiceClient.SetScenario("com.mbmobile", new AnalyzeResponse(
+            "financial",
+            new ClassifierResult("financial", 0.97),
+            new ExtractionResult(75_000, "debit", "Highlands Coffee", "Thanh toan", DateTimeOffset.UtcNow, 2_500_000, 0.95),
+            new CategorizationResult("food", 0.90),
+            new DuplicateResult(false, null),
+            new ModelVersions("1.0", "1.0", "1.0"),
+            123));
+
+        var request = AuthedRequest(HttpMethod.Post, "/api/v1/notifications/analyze", accessToken);
+        request.Content = JsonContent.Create(new
+        {
+            packageName = "com.mbmobile",
+            notificationTitle = "Thong bao giao dich",
+            notificationBody = "TK 123: -75,000VND tai Highlands Coffee",
+            receivedAt = DateTimeOffset.UtcNow,
+        });
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AnalysisBody>(JsonOptions);
+        body!.Data.DraftTransactionId.Should().NotBeNull();
+
+        var transactionResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Get, $"/api/v1/transactions/{body.Data.DraftTransactionId}", accessToken));
+        var transactionBody = await transactionResponse.Content.ReadFromJsonAsync<TransactionBody>(JsonOptions);
+        transactionBody!.Data.Status.Should().Be("Confirmed");
+
+        var balanceResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Get, $"/api/v1/financial-accounts/{accountId}/balance", accessToken));
+        (await balanceResponse.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("data").GetProperty("balanceCents").GetInt64().Should().Be(-75_000);
+
+        // Auto-commit rồi thì không còn gì để xác nhận tay nữa.
+        var confirmResponse = await _client.SendAsync(
+            AuthedRequest(HttpMethod.Post, $"/api/v1/transactions/{body.Data.DraftTransactionId}/confirm", accessToken));
+        confirmResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]

@@ -45,7 +45,7 @@ def test_mb_qr_pattern_wins_over_generic_by_priority(matcher: PatternMatcher):
         "com.mbmobile",
         "TK 0123456789|GD: -75,000VND 09/09/2026 10:28|SD: 2,500,000VND|ND: TT QR HIGHLANDS COFFEE",
     )
-    assert matched.pattern_name == "mb_qr_v1"
+    assert matched.pattern_name == "mb_qr_v2"
     assert matched.merchant_name == "HIGHLANDS COFFEE"
 
 
@@ -133,3 +133,89 @@ def test_accented_bidv_narrative_keeps_its_accents(matcher: PatternMatcher):
     )
     assert (matched.pattern_name, matched.amount_cents) == ("bidv_v1", 50_000)
     assert matched.description == "Chuyển tiền ăn trưa"
+
+
+def test_real_vietinbank_debit_notification(matcher: PatternMatcher):
+    """§16.2 — mẫu thật trên máy: SDC (số dư) không được lẫn vào amount, và tiền tố 'CT DI:<số>'
+    trước tên người nhận phải bị lọc khỏi merchant."""
+    matched = matcher.match(
+        "com.vietinbank.ipay",
+        "VietinBank:08/10/2026 11:08\nTK:107876452515\nGD:-5,000 VND\nSDC:2,860,075 VND\n"
+        "ND:CT DI:628111031960 LE XUAN THO Chuyen tien; tai iPay",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "vietinbank_v3", 5_000, 2_860_075,
+    )
+    assert matched.transaction_type.value == "debit"
+    assert matched.merchant_name == "LE XUAN THO Chuyen tien; tai iPay"
+
+
+def test_real_vietinbank_credit_notification_has_no_ct_di_prefix(matcher: PatternMatcher):
+    """Credit không có tiền tố 'CT DI:' — regex vẫn phải khớp và không lẫn SDC vào amount.
+    Đây CHÍNH LÀ residual gap đã biết (§16.8): không có 'CT DI:'/'CT DEN:' nào để lọc nên
+    tham chiếu alphanumeric vẫn còn dính trong merchant — chấp nhận, không xử lý thêm."""
+    matched = matcher.match(
+        "com.vietinbank.ipay",
+        "VietinBank:19/10/2026 14:34\nTK:107876452515\nGD:+5,000 VND\nSDC:78,975 VND\n"
+        "ND:504D610198WKW4EV LE XUAN THO chuyen tien (0889341474)",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "vietinbank_v3", 5_000, 78_975,
+    )
+    assert matched.transaction_type.value == "credit"
+    assert matched.merchant_name == "504D610198WKW4EV LE XUAN THO chuyen tien (0889341474)"
+
+
+def test_real_vietinbank_qr_debit_notification_strips_alphanumeric_reference_and_qr_dash(matcher: PatternMatcher):
+    """§16.8 — biến thể QR: tham chiếu alphanumeric (không chỉ số) + token 'QR - ' phải bị lọc."""
+    matched = matcher.match(
+        "com.vietinbank.ipay",
+        "VietinBank:09/09/2026 11:08\nTK:107876452515\nGD:-5,000 VND\nSDC:2,860,075 VND\n"
+        "ND:CT DI:504K26B0LGD04NYZ QR - LE XUAN THO Chuyen tien; tai iPay",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "vietinbank_v3", 5_000, 2_860_075,
+    )
+    assert matched.merchant_name == "LE XUAN THO Chuyen tien; tai iPay"
+
+
+def test_real_vietinbank_credit_with_ct_den_prefix(matcher: PatternMatcher):
+    """§16.8 — credit có thể mang tiền tố 'CT DEN:' song song với 'CT DI:' của debit."""
+    matched = matcher.match(
+        "com.vietinbank.ipay",
+        "VietinBank:19/10/2026 14:34\nTK:107876452515\nGD:+5,000 VND\nSDC:78,975 VND\n"
+        "ND:CT DEN:504T26B0LG7RAJFF LE XUAN THO chuyen tien",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "vietinbank_v3", 5_000, 78_975,
+    )
+    assert matched.transaction_type.value == "credit"
+    assert matched.merchant_name == "LE XUAN THO chuyen tien"
+
+
+def test_mb_debit_notification_with_den_segment_strips_it_from_merchant(matcher: PatternMatcher):
+    """§16.7 — MB thật chèn |DEN: (debit) hoặc |TU: (credit) giữa SD: và ND:; không có group
+    cho đoạn này thì toàn bộ ND: (gồm cả DEN:/TU:) sẽ lẫn vào description/merchant."""
+    matched = matcher.match(
+        "com.mbmobile",
+        "TK 00xxx130|GD: -5,000VND 19/10/26 14:34 |SD: 95,894VND|DEN: LE XUAN THO - 0889341474|"
+        "ND: MBCT LE XUAN THO chuyen tien DLLWIF57/844935",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "mb_generic_v2", 5_000, 95_894,
+    )
+    assert matched.transaction_type.value == "debit"
+    assert matched.description == "MBCT LE XUAN THO chuyen tien DLLWIF57/844935"
+
+
+def test_mb_credit_notification_with_tu_segment_strips_it_from_merchant(matcher: PatternMatcher):
+    matched = matcher.match(
+        "com.mbmobile",
+        "TK 00xxx130|GD: +5,000VND 08/10/26 11:08 |SD: 3,465,980VND|TU: LE XUAN THO - 107876452515|"
+        "ND: LE XUAN THO Chuyen tien cJI1SU2A/031960",
+    )
+    assert (matched.pattern_name, matched.amount_cents, matched.balance_after_cents) == (
+        "mb_generic_v2", 5_000, 3_465_980,
+    )
+    assert matched.transaction_type.value == "credit"
+    assert matched.description == "LE XUAN THO Chuyen tien cJI1SU2A/031960"

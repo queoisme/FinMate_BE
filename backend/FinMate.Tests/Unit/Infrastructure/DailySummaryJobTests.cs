@@ -23,7 +23,7 @@ public class DailySummaryJobTests
     {
         _reportRepository.Setup(r => r.GetUserIdsWithActivityAsync(Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Guid> { userId });
-        _reportRepository.Setup(r => r.GetDailySpendAsync(userId, Date, Date, It.IsAny<CancellationToken>()))
+        _reportRepository.Setup(r => r.GetDailySpendAsync(userId, Date, Date, It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(point is null ? new List<DailySpendPoint>() : new List<DailySpendPoint> { point });
         _reportRepository.Setup(r => r.GetCategorySpendAsync(userId, Date, Date, It.IsAny<CancellationToken>()))
             .ReturnsAsync(categories.ToList());

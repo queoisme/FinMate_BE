@@ -43,6 +43,54 @@ public class TransactionRepository : ITransactionRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public Task<bool> HasAuthoritativeDuplicateAsync(
+        Guid financialAccountId,
+        long amountCents,
+        TransactionType transactionType,
+        DateTimeOffset at,
+        TimeSpan window,
+        Guid? excludeTransactionId = null,
+        CancellationToken ct = default,
+        string? providerReference = null)
+    {
+        var from = at - window;
+        var to = at + window;
+        return _context.Transactions.AnyAsync(t =>
+            t.FinancialAccountId == financialAccountId
+            && t.TransactionType == transactionType
+            && t.AmountCents == amountCents
+            && t.TransactedAt >= from
+            && t.TransactedAt <= to
+            && (excludeTransactionId == null || t.Id != excludeTransactionId)
+            // 2026-11-13: cả 2 bên có mã tham chiếu và khác nhau -> chắc chắn không phải cùng 1
+            // giao dịch, không tính là trùng. Thiếu mã ở 1 trong 2 bên vẫn giữ hành vi cũ.
+            && (providerReference == null || t.ProviderReference == null || t.ProviderReference == providerReference), ct);
+    }
+
+    public Task<Transaction?> FindMergeCandidateAsync(
+        Guid userId,
+        long amountCents,
+        TransactionType oppositeType,
+        Guid excludeFinancialAccountId,
+        DateTimeOffset at,
+        TimeSpan window,
+        CancellationToken ct = default)
+    {
+        var from = at - window;
+        var to = at + window;
+        return _context.Transactions
+            .Include(t => t.Category)
+            .Where(t => t.UserId == userId
+                && (t.Status == TransactionStatus.Draft || t.Status == TransactionStatus.Confirmed)
+                && t.TransactionType == oppositeType
+                && t.FinancialAccountId != excludeFinancialAccountId
+                && t.AmountCents == amountCents
+                && t.TransactedAt >= from
+                && t.TransactedAt <= to)
+            .OrderByDescending(t => t.TransactedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public Task<Transaction?> GetByNotificationLogIdAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default)
         => _context.Transactions
             .Include(t => t.Category)

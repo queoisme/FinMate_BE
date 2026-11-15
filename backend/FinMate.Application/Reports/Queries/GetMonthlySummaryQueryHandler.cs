@@ -24,11 +24,11 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
         var monthFirst = new DateOnly(year, month, 1);
         var monthLast = monthFirst.AddMonths(1).AddDays(-1);
 
-        var (spent, income, count) = await ReadRangeAsync(query.UserId, monthFirst, monthLast, ct);
+        var (spent, income, count) = await ReadRangeAsync(query.UserId, monthFirst, monthLast, query.AccountId, ct);
 
         var prevFirst = monthFirst.AddMonths(-1);
         var prevLast = monthFirst.AddDays(-1);
-        var (prevSpent, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, ct);
+        var (prevSpent, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, query.AccountId, ct);
 
         double? changePercent = prevSpent > 0
             ? Math.Round((spent - prevSpent) * 100.0 / prevSpent, 1)
@@ -59,8 +59,18 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
     /// <c>(user_id, transacted_at, id)</c>) — rẻ hơn nhiều so với một con số sai.
     /// </summary>
     private async Task<(long Spent, long Income, int Count)> ReadRangeAsync(
-        Guid userId, DateOnly from, DateOnly to, CancellationToken ct)
+        Guid userId, DateOnly from, DateOnly to, Guid? accountId, CancellationToken ct)
     {
+        // Issue D (2026-11-13): daily_summaries chỉ khóa theo (UserId, SummaryDate), không có
+        // chiều theo ví — lọc theo accountId thì KHÔNG có cache nào để dùng, phải tính live toàn
+        // bộ khoảng ngày. Phạm vi vẫn bị chặn (tối đa khoảng 2 tháng của 1 user), giống đường live-
+        // fallback đã dùng cho ngày chưa có summary ở nhánh mặc định dưới đây.
+        if (accountId is not null)
+        {
+            var points = await _reportRepository.GetDailySpendAsync(userId, from, to, ct, accountId);
+            return (points.Sum(p => p.SpentCents), points.Sum(p => p.IncomeCents), points.Sum(p => p.TransactionCount));
+        }
+
         var summaries = await _reportRepository.GetDailySummariesAsync(userId, from, to, ct);
         var summarisedDates = summaries.Select(s => s.SummaryDate).ToHashSet();
 

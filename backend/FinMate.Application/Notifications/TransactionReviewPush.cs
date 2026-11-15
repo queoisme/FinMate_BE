@@ -115,4 +115,33 @@ public static class TransactionReviewPushBuilder
             $"Bạn vừa {verb} {amount}{at}. Chạm để chọn danh mục.",
             data);
     }
+
+    /// <summary>
+    /// Push cho nhánh Auto-commit (§7/§16.1) — KHÁC nội dung với <see cref="Build"/>: tiền đã bị
+    /// trừ/cộng tự động rồi, không phải "chờ duyệt" nữa. Không im lặng vì minh bạch với người
+    /// dùng về một thay đổi số dư họ không tự tay bấm xác nhận.
+    /// </summary>
+    public static TransactionReviewPush BuildAutoCommittedPush(Transaction transaction, string? categoryName)
+    {
+        var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
+        var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
+            ? null
+            : transaction.MerchantName.Trim();
+        var verb = transaction.TransactionType == TransactionType.Credit ? "nhận" : "chi";
+        var at = merchant is null ? "" : $" tại {merchant}";
+        var scope = categoryName is null ? "" : $" ({categoryName})";
+
+        var data = new Dictionary<string, string>
+        {
+            ["type"] = "transaction_auto_committed",
+            ["transactionId"] = transaction.Id.ToString(),
+            ["amountCents"] = transaction.AmountCents.ToString(),
+            ["transactionType"] = transaction.TransactionType.ToString(),
+        };
+
+        return new TransactionReviewPush(
+            "Đã tự động ghi nhận",
+            $"Đã tự động ghi nhận: {verb} {amount}{at}{scope}.",
+            data);
+    }
 }

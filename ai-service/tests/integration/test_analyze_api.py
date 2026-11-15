@@ -251,7 +251,7 @@ async def test_every_run_is_logged_with_an_anonymised_sample(
             )
         )
     ).scalar_one()
-    assert row.matched_pattern_name == "mb_qr_v1"
+    assert row.matched_pattern_name == "mb_qr_v2"
     assert row.raw_sample_id is not None
 
     sample = (

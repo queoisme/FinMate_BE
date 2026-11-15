@@ -41,6 +41,14 @@ public class Transaction
     public DateTimeOffset TransactedAt { get; set; }
     public long? BalanceAfterCents { get; set; }
 
+    /// <summary>
+    /// Mã tham chiếu ngân hàng của chính giao dịch này khi provider bắt được, có thể đã bị ẩn
+    /// một phần — null khi không có. Dùng trong <c>HasAuthoritativeDuplicateAsync</c> để không
+    /// coi 2 giao dịch THẬT khác nhau cùng ví+số tiền+chiều tiền trong cửa sổ kiểm tra trùng là
+    /// một giao dịch bị gửi lặp (2026-11-13).
+    /// </summary>
+    public string? ProviderReference { get; set; }
+
     /// <summary>Không dùng giao dịch này làm dữ liệu thói quen chi tiêu cho dự báo (chi một lần, user tự loại). Số dư vẫn bị ảnh hưởng bình thường.</summary>
     public bool ExcludeFromForecast { get; set; }
     public ForecastExclusionReason? ForecastExclusionReason { get; set; }

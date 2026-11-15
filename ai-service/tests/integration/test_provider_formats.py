@@ -70,7 +70,7 @@ async def test_matcher_uses_only_active_formats_and_records_which_pattern_matche
     await session.commit()
 
     matched = PatternMatcher(await provider_formats.load_specs(session)).match(MB, MB_QR)
-    pattern = await one(session, select(ProviderPattern).where(ProviderPattern.format_id == v1.id, ProviderPattern.pattern_name == "mb_qr_v1"))
+    pattern = await one(session, select(ProviderPattern).where(ProviderPattern.format_id == v1.id, ProviderPattern.pattern_name == "mb_qr_v2"))
     assert matched.pattern_id == pattern.id  # chỉ bản v1 active; bản draft cùng tên pattern không bị lẫn vào
 
     await provider_formats.archive(session, v1.id, actor_hash=ADMIN)
@@ -110,7 +110,7 @@ async def test_activation_passes_when_every_sample_matches_and_is_audited(seeded
 async def test_activation_is_refused_with_every_reason_when_a_sample_no_longer_matches(seeded_session):
     session = seeded_session
     draft = await provider_formats.clone(session, MB, actor_hash=ADMIN)
-    broken = await one(session, select(ProviderPattern).where(ProviderPattern.format_id == draft.id, ProviderPattern.pattern_name == "mb_qr_v1"))
+    broken = await one(session, select(ProviderPattern).where(ProviderPattern.format_id == draft.id, ProviderPattern.pattern_name == "mb_qr_v2"))
     broken.regex = r"(?P<amount>ZZZ\d+)"  # sửa regex làm hỏng mẫu cũ: đúng lỗi mà cổng sinh ra để bắt
     wrong = (await session.execute(select(ProviderFormatSample).where(ProviderFormatSample.format_id == draft.id))).scalars().first()
     wrong.expected_fields = {**wrong.expected_fields, "amount_cents": 1}
@@ -181,7 +181,7 @@ async def test_the_analyze_log_records_the_pattern_and_extra_fields(seeded_sessi
     assert response.status_code == 200
 
     row = (await session.execute(text("SELECT pattern_id, extra_fields FROM ops_analyze_log WHERE backend_request_id = :r"), {"r": request_id})).one()
-    pattern = await one(session, select(ProviderPattern).where(ProviderPattern.pattern_name == "mb_qr_v1"))
+    pattern = await one(session, select(ProviderPattern).where(ProviderPattern.pattern_name == "mb_qr_v2"))
     assert row.pattern_id == pattern.id and row.extra_fields is None  # định dạng mặc định không khai báo trường phụ: SQL NULL, không phải JSON null
 
 
@@ -223,7 +223,7 @@ async def test_a_format_that_still_has_patterns_cannot_be_deleted_but_children_f
 
 async def test_the_same_pattern_name_may_exist_in_two_versions_but_not_twice_in_one(seeded_session):
     session = seeded_session
-    draft = await provider_formats.clone(session, MB, actor_hash=ADMIN)  # bản sao có lại mb_qr_v1
+    draft = await provider_formats.clone(session, MB, actor_hash=ADMIN)  # bản sao có lại mb_qr_v2
     await session.commit()
-    dup = "INSERT INTO kb_provider_patterns (format_id, pattern_name, regex) VALUES (:f, 'mb_qr_v1', 'x')"
+    dup = "INSERT INTO kb_provider_patterns (format_id, pattern_name, regex) VALUES (:f, 'mb_qr_v2', 'x')"
     assert await rejected(session, dup, f=draft.id)

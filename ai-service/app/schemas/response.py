@@ -26,6 +26,12 @@ class ExtractionResult(BaseModel):
     balance_after_cents: int | None = None
     confidence: float | None = None
 
+    # Mã tham chiếu của ngân hàng cho giao dịch này (vd "CT DI:628111031960"), khi định dạng
+    # provider có bắt được — hiện chỉ VietinBank. Dùng để phân biệt 2 giao dịch THẬT khác
+    # nhau nhưng trùng ví+số tiền+chiều tiền trong cùng cửa sổ kiểm tra trùng (Issue, 2026-11-13:
+    # 2 lần quét QR 2.000đ cho 2 người khác nhau trong vòng 5 phút bị hiểu lầm là trùng).
+    provider_reference: str | None = None
+
 
 class CategorizationResult(BaseModel):
     category_slug: str | None = None

@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace FinMate.Application.QrTransfers;
 
@@ -16,6 +17,13 @@ public interface IQrTransferLinker
     Task LinkAsync(QrTransferIntent intent, Guid transactionId, CancellationToken ct = default);
 
     /// <summary>
+    /// Tên hiển thị người dùng đã lưu/đổi cho người nhận này (màn "Đã lưu người nhận"), hoặc null
+    /// nếu chưa có — đáng tin hơn <see cref="QrTransferIntent.ReceiverName"/> của riêng lần quét
+    /// này, vì tên đó chỉ là tên gốc đọc từ mã QR (Issue B).
+    /// </summary>
+    Task<string?> GetSavedDisplayNameAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default);
+
+    /// <summary>
     /// Người dùng vừa SỬA TAY danh mục của một giao dịch: nếu giao dịch đó đã khớp một lần quét QR thì ghi nhớ danh mục cho người nhận. Không làm ở bước xác nhận vì ở đó không phân biệt được
     /// "người dùng chủ động chọn" với "chỉ chấp nhận gợi ý của AI".
     /// </summary>
@@ -26,11 +34,19 @@ public class QrTransferLinker : IQrTransferLinker
 {
     private readonly IQrTransferRepository _repository;
     private readonly ISystemConfigProvider _config;
+    private readonly IMerchantCategoryOverrideRepository _merchantCategoryOverrides;
+    private readonly ILogger<QrTransferLinker> _logger;
 
-    public QrTransferLinker(IQrTransferRepository repository, ISystemConfigProvider config)
+    public QrTransferLinker(
+        IQrTransferRepository repository,
+        ISystemConfigProvider config,
+        IMerchantCategoryOverrideRepository merchantCategoryOverrides,
+        ILogger<QrTransferLinker> logger)
     {
         _repository = repository;
         _config = config;
+        _merchantCategoryOverrides = merchantCategoryOverrides;
+        _logger = logger;
     }
 
     public async Task<QrTransferIntent?> FindMatchAsync(Guid userId, string packageName, DateTimeOffset receivedAt, long amountCents, CancellationToken ct = default)
@@ -58,6 +74,9 @@ public class QrTransferLinker : IQrTransferLinker
         await _repository.UpdateIntentAsync(intent, ct);
     }
 
+    public async Task<string?> GetSavedDisplayNameAsync(Guid userId, string bankBin, string accountNumber, CancellationToken ct = default)
+        => (await _repository.GetOverrideAsync(userId, bankBin, accountNumber, ct))?.DisplayName;
+
     public async Task LearnCategoryAsync(Guid userId, Guid transactionId, Guid categoryId, CancellationToken ct = default)
     {
         var intent = await _repository.GetIntentByTransactionAsync(transactionId, userId, ct);
@@ -80,11 +99,14 @@ public class QrTransferLinker : IQrTransferLinker
                 CreatedAt = now,
                 UpdatedAt = now,
             }, ct);
-            return;
+        }
+        else
+        {
+            existing.CategoryId = categoryId;
+            existing.UpdatedAt = now;
+            await _repository.UpdateOverrideAsync(existing, ct);
         }
 
-        existing.CategoryId = categoryId;
-        existing.UpdatedAt = now;
-        await _repository.UpdateOverrideAsync(existing, ct);
+        await CounterpartyMerchantSync.UpsertAsync(_merchantCategoryOverrides, _logger, userId, intent.ReceiverName, categoryId, now, ct);
     }
 }

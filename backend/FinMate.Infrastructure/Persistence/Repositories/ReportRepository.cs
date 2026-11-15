@@ -45,19 +45,27 @@ public class ReportRepository : IReportRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task<List<DailySpendPoint>> GetDailySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    public async Task<List<DailySpendPoint>> GetDailySpendAsync(
+        Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null)
     {
         var (start, end) = VietnamTime.DayRange(from, to);
 
         // Gom theo ngày giờ VN phải làm trong bộ nhớ: biểu thức cắt ngày theo offset +07
         // không dịch được sang SQL đáng tin cậy qua EF/Npgsql. Chỉ kéo về 3 cột cần dùng và
         // khoảng thời gian luôn bị chặn (vài tháng của MỘT user), nên chi phí không đáng kể.
+        // 2026-11-13: KHÔNG loại "Cho vay/Mượn" ở đây nữa — Thu nhập/Chi tiêu (và dự báo, insight
+        // đọc từ hàm này) phản ánh dòng tiền THẬT ra/vào ví, không phải kế hoạch chi tiêu theo
+        // danh mục. Cho mượn là tiền thật rời ví (Debit), được trả là tiền thật về (Credit); gắn
+        // danh mục nào không thay đổi sự thật đó. Việc "không ăn vào hạn mức ngân sách" là chuyện
+        // khác, tách riêng — vẫn giữ nguyên ở TransactionBudgetDelta.Spend, không đụng ở đây.
+        // TransactionType.Transfer (chuyển khoản nội bộ) không cần lọc riêng: nó không khớp nhánh
+        // Debit/Credit ở Select dưới nên tự động góp 0 vào cả 2 tổng.
         var rows = await _context.Transactions
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)  // cho vay/mượn không phải chi tiêu hay thu nhập
                 && t.TransactedAt >= start
-                && t.TransactedAt < end)
+                && t.TransactedAt < end
+                && (financialAccountId == null || t.FinancialAccountId == financialAccountId))
             .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType })
             .ToListAsync(ct);
 
