@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FinMate.API.Controllers;
 using FinMate.Application.Common;
+using FinMate.Application.Common.Interfaces;
 using FinMate.Application.ListenerHealth;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -11,8 +12,10 @@ using FinMate.Infrastructure.BackgroundJobs;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Tests.Integration.Controllers;
 using FluentAssertions;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace FinMate.Tests.Integration.Scenarios;
@@ -97,7 +100,10 @@ public class ListenerHealthScenarioTests : IClassFixture<AuthApiFactory>
     private Task<int> RemindAsync(Guid userId, DateTimeOffset now)
         => WithAsync<IListenerHealthReminderService, int>(async s => (await s.RunForUserAsync(userId, now)).RemindersRaised);
 
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)
+        => SendAsync(_client, method, url, token, body);
+
+    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string url, string token, object? body = null)
     {
         var request = new HttpRequestMessage(method, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -106,7 +112,7 @@ public class ListenerHealthScenarioTests : IClassFixture<AuthApiFactory>
             request.Content = JsonContent.Create(body, options: JsonOptions);
         }
 
-        return await _client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     private async Task<JsonElement> DataAsync(HttpResponseMessage response)
@@ -186,11 +192,15 @@ public class ListenerHealthScenarioTests : IClassFixture<AuthApiFactory>
         await AddAccountAsync(userId, "VCB", "com.VCB", balance: 50_000_000);
         (await SendAsync(HttpMethod.Put, "/api/v1/devices/listener-status", token,
             new { installationId = Guid.NewGuid(), permissionGranted = true, listenerConnected = true })).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        var today = VietnamTime.Today();
+
+        // Đồng hồ giả: 12:00 giờ VN của hôm nay, để cửa sổ 30 ngày không phụ thuộc giờ chạy thật (trước đây đỏ khi chạy sau nửa đêm giờ VN).
+        var now = new DateTimeOffset(VietnamTime.Today().ToDateTime(new TimeOnly(12, 0)), VietnamTime.Offset);
+        var today = VietnamTime.DateOf(now);
+        var client = ClientAt(now);
         await InDbAsync(async db =>
         {
             var status = await db.DeviceListenerStatuses.SingleAsync(s => s.UserId == userId);
-            status.FirstReportedAt = DateTimeOffset.UtcNow.AddDays(-29).AddHours(-12);
+            status.FirstReportedAt = now.AddDays(-29).AddHours(-12);
             db.DeviceListenerDays.RemoveRange(db.DeviceListenerDays.Where(d => d.StatusId == status.Id));
             for (var i = 0; i < 30; i++)
             {
@@ -206,21 +216,35 @@ public class ListenerHealthScenarioTests : IClassFixture<AuthApiFactory>
             return await db.SaveChangesAsync();
         });
 
-        var coverage = await DataAsync(await SendAsync(HttpMethod.Get, "/api/v1/me/data-coverage?days=30", token));
+        var coverage = await DataAsync(await SendAsync(client, HttpMethod.Get, "/api/v1/me/data-coverage?days=30", token));
         coverage.GetProperty("coveragePercent").GetInt32().Should().Be(50);
 
-        var cashflow = await DataAsync(await SendAsync(HttpMethod.Get, "/api/v1/forecast/cashflow", token));
+        var cashflow = await DataAsync(await SendAsync(client, HttpMethod.Get, "/api/v1/forecast/cashflow", token));
         cashflow.GetProperty("dataCoverage").GetProperty("level").GetString().Should().Be("poor");
         cashflow.GetProperty("confidence").GetString().Should().Be("low");
         cashflow.GetProperty("dataCoverage").GetProperty("warning").GetString().Should().Contain("50%");
 
-        var purchase = await DataAsync(await SendAsync(HttpMethod.Post, "/api/v1/forecast/purchase-check", token,
+        var purchase = await DataAsync(await SendAsync(client, HttpMethod.Post, "/api/v1/forecast/purchase-check", token,
             new PurchaseCheckRequest(100_000, null, "Cà phê", null, null, null)));
         purchase.GetProperty("verdict").GetString().Should().NotBe("fits_plan");
         purchase.GetProperty("confidence").GetString().Should().Be("low");
         purchase.GetProperty("warnings").EnumerateArray().Select(w => w.GetProperty("code").GetString()).Should().Contain("data_coverage_poor");
         purchase.GetProperty("dataCoverage").GetProperty("level").GetString().Should().Be("poor");
     }
+
+    /// <summary>Client mà độ phủ dữ liệu (endpoint và dự báo) đọc giờ từ <paramref name="now"/> thay cho giờ thật.</summary>
+    private HttpClient ClientAt(DateTimeOffset now)
+        => _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IDataCoverageService>();
+            services.AddScoped<IDataCoverageService>(sp => new DataCoverageService(
+                sp.GetRequiredService<IListenerHealthReader>(),
+                sp.GetRequiredService<IListenerHealthRepository>(),
+                sp.GetRequiredService<ISystemConfigProvider>(),
+                sp.GetRequiredService<IFinancialAccountRepository>(),
+                sp.GetRequiredService<ICacheService>(),
+                () => now));
+        })).CreateClient();
 
     private async Task<string> SeedProviderAsync(int baselineTotal, int baselineFailed, int baselineFinancial, int recentTotal, int recentFailed, int recentFinancial)
     {

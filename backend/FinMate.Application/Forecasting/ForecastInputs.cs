@@ -3,7 +3,8 @@ using FinMate.Domain.Enums;
 namespace FinMate.Application.Forecasting;
 
 /// <summary>
-/// Một giao dịch đã xác nhận dùng làm dữ liệu dự báo. Không gồm chuyển khoản nội bộ và cho vay/mượn (không phải thu/chi thật).
+/// Một giao dịch đã xác nhận dùng làm dữ liệu dự báo. Không gồm chuyển khoản nội bộ. Dữ liệu thói quen không gồm cho vay/mượn (không phải
+/// thu/chi thật); dữ liệu thô để dựng lại số dư thì có, đánh dấu bằng <paramref name="IsLoan"/> (Phase 86, D23).
 /// <paramref name="CounterpartyKey"/> đã chuẩn hóa từ tên người nhận/cửa hàng.
 /// </summary>
 public sealed record ForecastTransaction(
@@ -20,7 +21,8 @@ public sealed record ForecastTransaction(
     TransactionRelation? Relation = null,
     Guid? RelatedTransactionId = null,
     bool IsReversed = false,
-    Guid? DuplicateOfTransactionId = null);  // Phase 82: liên kết trùng (nghi trùng hoặc đã bác), để phát hiện bất thường không gắn cờ lại cặp này
+    Guid? DuplicateOfTransactionId = null,  // Phase 82: liên kết trùng (nghi trùng hoặc đã bác), để phát hiện bất thường không gắn cờ lại cặp này
+    bool IsLoan = false);
 
 /// <summary>Bản rút gọn của khoản định kỳ mà các bộ tính toán cần (không kéo entity EF vào hàm thuần).</summary>
 public sealed record RecurringItemView(
