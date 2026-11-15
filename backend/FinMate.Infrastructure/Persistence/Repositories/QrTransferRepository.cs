@@ -39,7 +39,7 @@ public class QrTransferRepository : IQrTransferRepository
     public Task<QrTransferIntent?> GetIntentAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.QrTransferIntents.FirstOrDefaultAsync(i => i.Id == id && i.UserId == userId, ct);
 
-    public async Task<IReadOnlyList<QrTransferIntent>> ListIntentsAsync(Guid userId, QrTransferStatus? status, int limit, CancellationToken ct = default)
+    public async Task<QrTransferIntentPage> ListIntentsAsync(Guid userId, QrTransferStatus? status, string? cursor, int limit, CancellationToken ct = default)
     {
         var query = _context.QrTransferIntents.AsNoTracking().Where(i => i.UserId == userId);
         if (status is { } wanted)
@@ -47,7 +47,27 @@ public class QrTransferRepository : IQrTransferRepository
             query = query.Where(i => i.Status == wanted);
         }
 
-        return await query.OrderByDescending(i => i.ScannedAt).Take(limit).ToListAsync(ct);
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(i =>
+                i.ScannedAt < cursorAt || (i.ScannedAt == cursorAt && i.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
+            .OrderByDescending(i => i.ScannedAt)
+            .ThenByDescending(i => i.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.ScannedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new QrTransferIntentPage(items, nextCursor);
     }
 
     public Task<QrTransferIntent?> FindPendingAsync(

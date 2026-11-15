@@ -21,10 +21,21 @@ public sealed record CheckoutFormDto(string ActionUrl, IReadOnlyDictionary<strin
 
 public sealed record SubscriptionOrderDto(string InvoiceNumber, string PlanCode, string PlanName, SubscriptionCycle Cycle, long AmountCents, SubscriptionOrderStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt);
 
+public sealed record SubscriptionOrderListResult(IReadOnlyList<SubscriptionOrderDto> Items, string? NextCursor);
+
+/// <summary>Giới hạn trang cho các danh sách phân trang kiểu con trỏ trong tính năng đăng ký gói.</summary>
+public static class SubscriptionPaging
+{
+    public const int DefaultLimit = 20;
+    public const int MaxLimit = 100;
+
+    public static int Clamp(int limit) => limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
+}
+
 public interface ISubscriptionCheckoutService
 {
     Task<IReadOnlyList<PublicPlanDto>> ListPlansAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<SubscriptionOrderDto>> ListMyOrdersAsync(Guid userId, CancellationToken ct = default);
+    Task<SubscriptionOrderListResult> ListMyOrdersAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
     Task<WebSessionLinkDto> CreateWebSessionAsync(Guid userId, Guid? planId, CancellationToken ct = default);
     Task<BillingSessionDto> ExchangeCodeAsync(string code, CancellationToken ct = default);
     Task<CheckoutFormDto> CheckoutAsync(Guid userId, Guid planId, SubscriptionCycle cycle, CancellationToken ct = default);
@@ -35,7 +46,6 @@ public interface ISubscriptionCheckoutService
 public sealed class SubscriptionCheckoutService : ISubscriptionCheckoutService
 {
     private const int MaxPendingOrders = 10;
-    private const int MyOrdersLimit = 50;
     private const string InvoicePrefix = "FM";
     private const string Operation = "PURCHASE";
     private static readonly TimeSpan OrderLifetime = TimeSpan.FromHours(24);
@@ -72,8 +82,11 @@ public sealed class SubscriptionCheckoutService : ISubscriptionCheckoutService
     public async Task<IReadOnlyList<PublicPlanDto>> ListPlansAsync(CancellationToken ct = default)
         => (await _repository.ListPlansAsync(activeOnly: true, ct)).Select(ToPublic).ToList();
 
-    public async Task<IReadOnlyList<SubscriptionOrderDto>> ListMyOrdersAsync(Guid userId, CancellationToken ct = default)
-        => (await _repository.ListUserOrdersAsync(userId, MyOrdersLimit, ct)).Select(ToDto).ToList();
+    public async Task<SubscriptionOrderListResult> ListMyOrdersAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var page = await _repository.ListUserOrdersAsync(userId, cursor, SubscriptionPaging.Clamp(limit), ct);
+        return new SubscriptionOrderListResult(page.Items.Select(ToDto).ToList(), page.NextCursor);
+    }
 
     public async Task<WebSessionLinkDto> CreateWebSessionAsync(Guid userId, Guid? planId, CancellationToken ct = default)
     {

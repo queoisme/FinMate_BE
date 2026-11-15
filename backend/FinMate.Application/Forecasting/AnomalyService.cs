@@ -29,6 +29,8 @@ public sealed record DetectedAnomaly(TransactionAnomaly Anomaly, string? Merchan
 /// <param name="Guidance">Chỉ có khi phản hồi là "giao dịch lạ": hướng dẫn liên hệ ngân hàng.</param>
 public sealed record AnomalyFeedbackResultDto(AnomalyDto Anomaly, string? Guidance);
 
+public sealed record AnomalyListResult(IReadOnlyList<AnomalyDto> Items, string? NextCursor);
+
 public interface IAnomalyService
 {
     /// <summary>
@@ -37,7 +39,7 @@ public interface IAnomalyService
     /// </summary>
     Task<IReadOnlyList<DetectedAnomaly>> ScanAsync(Guid userId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<AnomalyDto>> ListAsync(Guid userId, bool openOnly, int limit, CancellationToken ct = default);
+    Task<AnomalyListResult> ListAsync(Guid userId, bool openOnly, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>Phản hồi: <c>normal</c> | <c>one_off</c> | <c>wrong_entry</c> | <c>suspicious</c>. Đổi ý được (phản hồi sau thay phản hồi trước).</summary>
     Task<AnomalyFeedbackResultDto> SetFeedbackAsync(Guid userId, Guid anomalyId, string? resolution, CancellationToken ct = default);
@@ -125,8 +127,11 @@ public class AnomalyService : IAnomalyService
         return open;
     }
 
-    public async Task<IReadOnlyList<AnomalyDto>> ListAsync(Guid userId, bool openOnly, int limit, CancellationToken ct = default)
-        => (await _anomalies.ListAsync(userId, openOnly, Math.Clamp(limit, 1, MaxListLimit), ct)).Select(ToDto).ToList();
+    public async Task<AnomalyListResult> ListAsync(Guid userId, bool openOnly, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var page = await _anomalies.ListAsync(userId, openOnly, cursor, ForecastPaging.Clamp(limit, MaxListLimit), ct);
+        return new AnomalyListResult(page.Items.Select(ToDto).ToList(), page.NextCursor);
+    }
 
     public async Task<AnomalyFeedbackResultDto> SetFeedbackAsync(Guid userId, Guid anomalyId, string? resolution, CancellationToken ct = default)
     {

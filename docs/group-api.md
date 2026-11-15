@@ -4,6 +4,8 @@ Dành cho nhóm Flutter. Mọi route nằm dưới `/api/v1`, cần JWT, trả v
 
 Công tắc: `config.features.groups` ở `GET /app-config`, mặc định `false`. App dùng nó để ẩn tính năng, và server cũng chặn thật: khi tắt, mọi API nhóm, `/group-invitations/*` và `PUT|DELETE /transactions/{id}/group` trả 422 `GROUPS_DISABLED`; tạo hoặc xác nhận giao dịch có `groupId` cũng vậy. Giao dịch không có `groupId` vẫn lưu bình thường và bỏ qua quy tắc tự chia sẻ. Sửa hoặc xóa giao dịch đã chia sẻ vẫn cập nhật số của nhóm. Cảnh báo nhóm tạm dừng và được gửi khi bật lại. Dữ liệu nhóm không mất.
 
+**Phân trang con trỏ** (hoạt động, giao dịch chung, đóng góp mục tiêu): `limit` mặc định 20; `data` là mảng một trang, mới nhất trước; còn trang sau thì `meta.cursor` có giá trị, gửi lại nguyên văn qua `?cursor=` để lấy tiếp, hết thì `meta.cursor` là `null`. Con trỏ hỏng không báo lỗi mà trả trang đầu. App cũ chỉ đọc `data` sẽ chỉ thấy 20 dòng đầu.
+
 ## Vai trò và quyền
 
 | Quyền | Owner | Manager | Member | Viewer |
@@ -31,7 +33,7 @@ Công tắc: `config.features.groups` ở `GET /app-config`, mặc định `fals
 | `GET /groups/{id}` | Thành viên | |
 | `PATCH /groups/{id}` `{name?, transactionVisibility?}` | Owner | `transactionVisibility`: `Full` hoặc `Summary` |
 | `DELETE /groups/{id}` | Owner | Xóa mềm, 204 |
-| `GET /groups/{id}/activities?limit=` | `ViewActivity` | Mới nhất trước, tối đa 100 |
+| `GET /groups/{id}/activities?cursor=&limit=` | `ViewActivity` | Mới nhất trước, phân trang con trỏ (xem dưới) |
 
 ## Thành viên
 
@@ -64,7 +66,7 @@ Ví và số dư không đổi; khoản đã chia sẻ vẫn tính vào ngân s�
 | `POST /transactions`, `POST /transactions/{id}/confirm` thêm `groupId?`, `groupCategoryId?` | `ShareTransactions` | Không gửi `groupId` thì áp quy tắc tự chia sẻ |
 | `PUT /transactions/{id}/group` `{groupId, groupCategoryId?}` | Chủ giao dịch + `ShareTransactions` | Cũng dùng để chuyển nhóm hoặc đổi danh mục nhóm |
 | `DELETE /transactions/{id}/group` | Chủ giao dịch, còn là thành viên | Người đã rời nhóm chỉ xóa được hẳn giao dịch |
-| `GET /groups/{id}/transactions?year=&month=&limit=` | `ViewOverview` | Mặc định tháng này, tối đa 200. Thiếu `ViewMemberTransactions` thì chỉ trả khoản của chính mình |
+| `GET /groups/{id}/transactions?year=&month=&cursor=&limit=` | `ViewOverview` | Mặc định tháng này, phân trang con trỏ (tối đa 200 một trang). Thiếu `ViewMemberTransactions` thì chỉ trả khoản của chính mình |
 | `PATCH /groups/{id}/transactions/{transactionId}` `{groupCategoryId}` | `ManageSharedTransactions` | Không đổi dữ liệu cá nhân |
 | `DELETE /groups/{id}/transactions/{transactionId}` | `ManageSharedTransactions` | Gỡ khỏi nhóm; giao dịch vẫn còn ở phía chủ |
 | `GET/POST /groups/{id}/share-rules` `{financialAccountId?, categoryId?}`, `DELETE .../{ruleId}` | Của chính mình; tạo cần `ShareTransactions` | Bỏ trống cả hai là chia sẻ mọi khoản. Rời nhóm thì quy tắc tắt |
@@ -80,7 +82,7 @@ Ví và số dư không đổi; khoản đã chia sẻ vẫn tính vào ngân s�
 | `GET /groups/{id}/budgets` | `ViewOverview` | Số liệu tháng này |
 | `POST /groups/{id}/budgets` `{categoryId?, groupCategoryId?, limitCents}` | `ManageBudgets` | Bỏ trống cả hai là ngân sách tổng. `categoryId` chỉ nhận danh mục hệ thống |
 | `PATCH /groups/{id}/budgets/{budgetId}` `{limitCents}`, `DELETE ...` | `ManageBudgets` | |
-| `GET /groups/{id}/goals`, `GET .../{goalId}/contributions` | `ViewOverview` | |
+| `GET /groups/{id}/goals`, `GET .../{goalId}/contributions?cursor=&limit=` | `ViewOverview` | Đóng góp: phân trang con trỏ |
 | `POST /groups/{id}/goals` `{name, targetCents, deadline?}`, `PATCH .../{goalId}`, `POST .../{goalId}/cancel` | `ManageGoals` | |
 | `POST /groups/{id}/goals/{goalId}/contribute` `{amountCents, note?}` | `ContributeGoals` | Chỉ ghi sổ, không trừ ví |
 | `PUT /groups/{id}/alerts` `{enabled}` | Thành viên | Tự bật hoặc tắt cảnh báo của nhóm này cho mình |

@@ -43,8 +43,11 @@ public class QrTransfersController : ControllerBase
     }
 
     [HttpGet("transfers")]
-    public async Task<IActionResult> List([FromQuery] QrTransferStatus? status, [FromQuery] int limit = 50, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<QrTransferDto>>.Ok(await _service.ListAsync(CurrentUserId, status, limit, ct)));
+    public async Task<IActionResult> List([FromQuery] QrTransferStatus? status, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _service.ListAsync(CurrentUserId, status, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<QrTransferDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     /// <summary>Hủy một lần quét còn chờ (quét nhầm, hoặc không mở được app ngân hàng). Đã khớp giao dịch thật thì 409. Gọi lại với bản đã hủy vẫn 200.</summary>
     [HttpPost("transfers/{id:guid}/cancel")]

@@ -4,6 +4,8 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
+public sealed record SubscriptionOrderPage(IReadOnlyList<SubscriptionOrder> Items, string? NextCursor);
+
 public interface ISubscriptionRepository
 {
     Task<List<SubscriptionPlan>> ListPlansAsync(bool activeOnly, CancellationToken ct = default);
@@ -18,7 +20,7 @@ public interface ISubscriptionRepository
     void AddOrder(SubscriptionOrder order);
     Task<SubscriptionOrder?> GetOrderByInvoiceAsync(string invoiceNumber, CancellationToken ct = default);
     Task<SubscriptionOrder?> GetUserOrderByInvoiceAsync(Guid userId, string invoiceNumber, CancellationToken ct = default);
-    Task<List<SubscriptionOrder>> ListUserOrdersAsync(Guid userId, int limit, CancellationToken ct = default);
+    Task<SubscriptionOrderPage> ListUserOrdersAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
     Task<(List<SubscriptionOrder> Items, int Total)> ListOrdersAsync(SubscriptionOrderStatus? status, int offset, int limit, CancellationToken ct = default);
     Task<int> CountPendingOrdersAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default);
 

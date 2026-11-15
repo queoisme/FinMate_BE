@@ -24,6 +24,17 @@ public record SupportAccessRequestDto(
 
 public record SupportAccessLogDto(Guid TicketId, string Scope, DateTimeOffset ViewedAt);
 
+public record SupportAccessLogListResult(IReadOnlyList<SupportAccessLogDto> Items, string? NextCursor);
+
+/// <summary>Giới hạn trang cho các danh sách phân trang kiểu con trỏ trong tính năng hỗ trợ.</summary>
+public static class SupportPaging
+{
+    public const int DefaultLimit = 20;
+    public const int MaxLimit = 100;
+
+    public static int Clamp(int limit) => limit <= 0 ? DefaultLimit : Math.Min(limit, MaxLimit);
+}
+
 /// <summary>Các DTO dưới đây tách riêng để không mang theo trường riêng tư như <c>NotificationLogId</c>, <c>ClientRequestId</c> hay số dư sau giao dịch.</summary>
 public record CustomerAccountDto(Guid Id, string AccountName, string AccountType, long BalanceCents, bool IsMonitored);
 
@@ -61,7 +72,7 @@ public interface ISupportAccessService
     Task<SupportAccessRequestDto> ApproveAsync(Guid userId, Guid ticketId, Guid requestId, Guid? financialAccountId, CancellationToken ct = default);
     Task<SupportAccessRequestDto> DenyAsync(Guid userId, Guid ticketId, Guid requestId, CancellationToken ct = default);
     Task<SupportAccessRequestDto> RevokeAsync(Guid userId, Guid ticketId, Guid requestId, CancellationToken ct = default);
-    Task<IReadOnlyList<SupportAccessLogDto>> AccessLogAsync(Guid userId, CancellationToken ct = default);
+    Task<SupportAccessLogListResult> AccessLogAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -186,10 +197,13 @@ public sealed class SupportAccessService : ISupportAccessService
         return SupportAccessRules.ToDto(grant);
     }
 
-    public async Task<IReadOnlyList<SupportAccessLogDto>> AccessLogAsync(Guid userId, CancellationToken ct = default)
-        => (await _support.ListAccessLogsAsync(userId, ct))
-            .Select(l => new SupportAccessLogDto(l.TicketId, l.Scope.ToString(), l.CreatedAt))
-            .ToList();
+    public async Task<SupportAccessLogListResult> AccessLogAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var page = await _support.ListAccessLogsAsync(userId, cursor, SupportPaging.Clamp(limit), ct);
+        return new SupportAccessLogListResult(
+            page.Items.Select(l => new SupportAccessLogDto(l.TicketId, l.Scope.ToString(), l.CreatedAt)).ToList(),
+            page.NextCursor);
+    }
 }
 
 public sealed class OpsCustomerDataService : IOpsCustomerDataService

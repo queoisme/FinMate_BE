@@ -7,6 +7,8 @@ public sealed record GroupMemberView(GroupMember Member, string DisplayName, boo
 
 public sealed record GroupWithMembership(Group Group, GroupMember Member, int MemberCount);
 
+public sealed record GroupActivityPage(IReadOnlyList<GroupActivity> Items, string? NextCursor);
+
 /// <summary>Truy cập nhóm cố ý nằm tách khỏi các repository theo <c>userId</c>: quyền được kiểm ở <c>IGroupAccessService</c> trước khi gọi vào đây.</summary>
 public interface IGroupRepository
 {
@@ -32,7 +34,7 @@ public interface IGroupRepository
     Task<List<GroupInvitation>> ListPendingInvitationsAsync(Guid groupId, DateTimeOffset now, CancellationToken ct = default);
     Task<int> CountPendingInvitationsAsync(Guid groupId, DateTimeOffset now, CancellationToken ct = default);
 
-    Task<List<GroupActivity>> ListActivitiesAsync(Guid groupId, int limit, CancellationToken ct = default);
+    Task<GroupActivityPage> ListActivitiesAsync(Guid groupId, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>Hạ chủ cũ và nâng chủ mới trong một DB transaction, theo đúng thứ tự: chỉ mục "một chủ" không cho phép có hai chủ dù chỉ một câu lệnh.</summary>
     Task TransferOwnershipAsync(GroupMember currentOwner, GroupMember newOwner, CancellationToken ct = default);

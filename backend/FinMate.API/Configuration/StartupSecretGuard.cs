@@ -1,3 +1,4 @@
+using FinMate.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
 
 namespace FinMate.API.Configuration;
@@ -15,8 +16,8 @@ public static class StartupSecretGuard
 
     /// <summary>Những biến mà giá trị mẫu là rủi ro bảo mật thật, không chỉ là cấu hình sai.</summary>
     public static readonly string[] GuardedKeys =
-        ["JWT_SECRET", "AI_SERVICE_API_KEY", "OCR_SERVICE_API_KEY", "ADMIN_SEED_PASSWORD", "HANGFIRE_DASHBOARD_PASS",
-         "BREVO_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
+        ["JWT_SECRET", "AI_SERVICE_API_KEY", "OCR_SERVICE_API_KEY", "STT_SERVICE_API_KEY", "ADMIN_SEED_PASSWORD", "HANGFIRE_DASHBOARD_PASS",
+         "BREVO_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SECRETS_MASTER_KEY"];
 
     /// <summary>Tên các biến còn giữ giá trị mẫu, theo đúng thứ tự khai báo.</summary>
     public static IReadOnlyList<string> FindUnchanged(IConfiguration configuration)
@@ -56,6 +57,24 @@ public static class StartupSecretGuard
         throw new InvalidOperationException(
             $"Refusing to start in {environmentName}: these still hold the placeholder value "
             + $"from .env.example — {string.Join(", ", unchanged)}.");
+    }
+
+    /// <summary>
+    /// <c>SECRETS_MASTER_KEY</c> trống là hợp lệ: kho key trong DB là tùy chọn và log khởi động đã nói đang tắt. Nhưng có giá trị mà không phải
+    /// 32 byte base64 thì <see cref="SecretCipher"/> cũng tắt kho key, hoàn toàn im lặng — người triển khai tưởng đã bật, admin lưu key thì bị từ chối,
+    /// còn key đã lưu trước đó thì không giải mã được nữa. Bắt ngay lúc khởi động. Thông báo không chứa giá trị khóa.
+    /// </summary>
+    public static void ThrowIfMasterKeyInvalid(IConfiguration configuration, string environmentName)
+    {
+        var value = configuration["SECRETS_MASTER_KEY"];
+        if (string.IsNullOrWhiteSpace(value) || new SecretCipher(value).Available)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Refusing to start in {environmentName}: SECRETS_MASTER_KEY is set but is not 32 random bytes in base64. "
+            + "Leave it empty to turn database key storage off.");
     }
 
     /// <summary>

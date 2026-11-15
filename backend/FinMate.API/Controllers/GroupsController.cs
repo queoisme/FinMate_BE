@@ -15,8 +15,6 @@ namespace FinMate.API.Controllers;
 [RequireGroupsEnabled]
 public class GroupsController : ControllerBase
 {
-    private const int DefaultActivityLimit = 50;
-
     private readonly IGroupService _groups;
     private readonly IGroupMemberService _members;
     private readonly IGroupInvitationService _invitations;
@@ -57,8 +55,11 @@ public class GroupsController : ControllerBase
     }
 
     [HttpGet("{id:guid}/activities")]
-    public async Task<IActionResult> Activities(Guid id, [FromQuery] int limit = DefaultActivityLimit, CancellationToken ct = default)
-        => Ok(ApiResponse<IReadOnlyList<GroupActivityDto>>.Ok(await _groups.ListActivitiesAsync(id, CurrentUserId, limit, ct)));
+    public async Task<IActionResult> Activities(Guid id, [FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _groups.ListActivitiesAsync(id, CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<GroupActivityDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     [HttpGet("{id:guid}/members")]
     public async Task<IActionResult> Members(Guid id, CancellationToken ct)

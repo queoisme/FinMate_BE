@@ -23,6 +23,10 @@ public sealed record SupportMessageRow(SupportTicketMessage Message, string? Aut
 
 public sealed record SupportAttachmentInfo(Guid Id, Guid MessageId, string ContentType, int SizeBytes, DateTimeOffset CreatedAt);
 
+public sealed record SupportAccessLogPage(IReadOnlyList<SupportDataAccessLog> Items, string? NextCursor);
+
+public sealed record SupportTicketPage(IReadOnlyList<SupportTicket> Items, string? NextCursor);
+
 public interface ISupportRepository
 {
     void AddTicket(SupportTicket ticket);
@@ -31,7 +35,7 @@ public interface ISupportRepository
 
     /// <summary>Đường của khách: luôn lọc theo người tạo.</summary>
     Task<SupportTicket?> GetForRequesterAsync(Guid ticketId, Guid userId, CancellationToken ct = default);
-    Task<List<SupportTicket>> ListForRequesterAsync(Guid userId, CancellationToken ct = default);
+    Task<SupportTicketPage> ListForRequesterAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default);
     Task<int> CountOpenForRequesterAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>Đường của đội vận hành: người gọi đã qua <c>IOpsAccessService</c>.</summary>
@@ -63,7 +67,7 @@ public interface ISupportRepository
 
     /// <summary>Chấm dứt quyền trên mọi ca của một khách, khi họ bị khóa hoặc yêu cầu xóa tài khoản và không còn tự thu hồi được.</summary>
     Task EndGrantsForRequesterAsync(Guid requesterUserId, DateTimeOffset now, CancellationToken ct = default);
-    Task<List<SupportDataAccessLog>> ListAccessLogsAsync(Guid customerUserId, CancellationToken ct = default);
+    Task<SupportAccessLogPage> ListAccessLogsAsync(Guid customerUserId, string? cursor, int limit, CancellationToken ct = default);
 
     /// <summary>Đóng ca, đặt hạn xóa ảnh và chấm dứt quyền xem dữ liệu trong cùng một DB transaction: lỗi giữa chừng không được để lại ảnh không bao giờ bị xóa.</summary>
     Task CloseTicketAsync(SupportTicket ticket, DateTimeOffset now, DateTimeOffset attachmentsDeleteAfter, CancellationToken ct = default);

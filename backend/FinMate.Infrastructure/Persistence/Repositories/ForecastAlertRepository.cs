@@ -51,12 +51,32 @@ public class ForecastAlertRepository : IForecastAlertRepository
             .Take(limit)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<ForecastAlert>> ListForUserAsync(Guid userId, int limit, CancellationToken ct = default)
-        => await _context.ForecastAlerts.AsNoTracking()
-            .Where(a => a.UserId == userId)
+    public async Task<ForecastAlertPage> ListForUserAsync(Guid userId, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var query = _context.ForecastAlerts.AsNoTracking().Where(a => a.UserId == userId);
+
+        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        {
+            query = query.Where(a =>
+                a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));
+        }
+
+        var items = await query
             .OrderByDescending(a => a.CreatedAt)
-            .Take(limit)
+            .ThenByDescending(a => a.Id)
+            .Take(limit + 1)
             .ToListAsync(ct);
+
+        string? nextCursor = null;
+        if (items.Count > limit)
+        {
+            var last = items[limit - 1];
+            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
+            items = items.Take(limit).ToList();
+        }
+
+        return new ForecastAlertPage(items, nextCursor);
+    }
 
     public Task<ForecastAlert?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.ForecastAlerts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);

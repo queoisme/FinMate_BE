@@ -6,7 +6,11 @@ namespace FinMate.Application.Common.Interfaces;
 /// <param name="MemberName">Tên hiện tại của người chia sẻ, kể cả người đã rời nhóm (lịch sử vẫn ghi tên).</param>
 public sealed record SharedTransactionView(Transaction Transaction, string MemberName, bool IsUserActive);
 
+public sealed record SharedTransactionPage(IReadOnlyList<SharedTransactionView> Items, string? NextCursor);
+
 public sealed record GroupContributionView(GoalContribution Contribution, string MemberName, bool IsUserActive);
+
+public sealed record GroupContributionPage(IReadOnlyList<GroupContributionView> Items, string? NextCursor);
 
 /// <summary>Một khoản thu chi đã chia sẻ, đã xác nhận, không gồm cho vay/mượn; chỉ có những gì báo cáo cần.</summary>
 public sealed record GroupReportRow(
@@ -34,7 +38,7 @@ public interface IGroupFinanceRepository
     /// <summary>Tổng khoản chi đã xác nhận, đã chia sẻ, khớp đúng phạm vi ngân sách; loại cho vay/mượn. Không truyền danh mục là ngân sách tổng.</summary>
     Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
 
-    Task<List<SharedTransactionView>> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, int limit, CancellationToken ct = default);
+    Task<SharedTransactionPage> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, string? cursor, int limit, CancellationToken ct = default);
     Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);
     Task<Transaction?> GetSharedTransactionAsync(Guid groupId, Guid transactionId, CancellationToken ct = default);
 
@@ -51,7 +55,7 @@ public interface IGroupFinanceRepository
 
     Task<List<SavingGoal>> ListGoalsAsync(Guid groupId, CancellationToken ct = default);
     Task<SavingGoal?> GetGoalAsync(Guid groupId, Guid goalId, CancellationToken ct = default);
-    Task<List<GroupContributionView>> ListContributionsAsync(Guid goalId, int limit, CancellationToken ct = default);
+    Task<GroupContributionPage> ListContributionsAsync(Guid goalId, string? cursor, int limit, CancellationToken ct = default);
     void AddGoal(SavingGoal goal);
     void AddContribution(GoalContribution contribution);
 }

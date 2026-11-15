@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.ValueObjects;
 using FinMate.Infrastructure.BackgroundJobs;
@@ -15,6 +16,7 @@ public class BudgetAlertJobTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPushNotificationService> _push = new();
     private readonly Mock<IAlertThresholdProvider> _thresholds = new();
+    private readonly Mock<IUserNotificationService> _userNotifications = new();
     private readonly BudgetAlertJob _job;
 
     public BudgetAlertJobTests()
@@ -29,7 +31,7 @@ public class BudgetAlertJobTests
             .ReturnsAsync(true);
         _job = new BudgetAlertJob(
             _budgetRepository.Object,
-            new BudgetAlertNotifier(_userRepository.Object, _push.Object),
+            new BudgetAlertNotifier(_userRepository.Object, _push.Object, _userNotifications.Object),
             _thresholds.Object);
     }
 

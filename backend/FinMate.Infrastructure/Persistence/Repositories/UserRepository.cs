@@ -1,8 +1,10 @@
 using FinMate.Application.Admin;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
 
@@ -27,10 +29,20 @@ public class UserRepository : IUserRepository
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default)
         => _context.Users.AnyAsync(u => u.Email == email, ct);
 
+    private const string UniqueViolation = "23505";
+
     public async Task AddAsync(User user, CancellationToken ct = default)
     {
         _context.Users.Add(user);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation, ConstraintName: "uq_users_email" })
+        {
+            _context.Entry(user).State = EntityState.Detached;
+            throw new ConflictException(AuthErrorCodes.EmailAlreadyExists, "Email đã được sử dụng.");
+        }
     }
 
     public async Task UpdateAsync(User user, CancellationToken ct = default)

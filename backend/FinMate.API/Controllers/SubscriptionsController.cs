@@ -32,8 +32,11 @@ public class SubscriptionsController : ControllerBase
         => Ok(ApiResponse<MySubscriptionDto>.Ok(await _entitlements.GetMineAsync(CurrentUserId, ct)));
 
     [HttpGet("orders")]
-    public async Task<IActionResult> Orders(CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<SubscriptionOrderDto>>.Ok(await _checkout.ListMyOrdersAsync(CurrentUserId, ct)));
+    public async Task<IActionResult> Orders([FromQuery] string? cursor, [FromQuery] int limit, CancellationToken ct = default)
+    {
+        var result = await _checkout.ListMyOrdersAsync(CurrentUserId, cursor, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<SubscriptionOrderDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
+    }
 
     /// <summary>Liên kết sang website, mang mã dùng một lần, không mang token đăng nhập.</summary>
     [HttpPost("web-session")]

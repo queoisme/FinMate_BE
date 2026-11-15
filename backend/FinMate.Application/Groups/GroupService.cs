@@ -19,6 +19,8 @@ public sealed record GroupDto(
 
 public sealed record GroupActivityDto(Guid Id, GroupActivityType Type, Guid? ActorUserId, Guid? SubjectId, DateTimeOffset CreatedAt);
 
+public sealed record GroupActivityListResult(IReadOnlyList<GroupActivityDto> Items, string? NextCursor);
+
 public sealed record CreateGroupCommand(Guid UserId, string Name, GroupType Type);
 
 /// <summary>Trường null = giữ nguyên.</summary>
@@ -57,7 +59,7 @@ public interface IGroupService
     Task<GroupDto> GetAsync(Guid groupId, Guid userId, CancellationToken ct = default);
     Task<GroupDto> UpdateAsync(UpdateGroupCommand command, CancellationToken ct = default);
     Task DeleteAsync(Guid groupId, Guid userId, CancellationToken ct = default);
-    Task<IReadOnlyList<GroupActivityDto>> ListActivitiesAsync(Guid groupId, Guid userId, int limit, CancellationToken ct = default);
+    Task<GroupActivityListResult> ListActivitiesAsync(Guid groupId, Guid userId, string? cursor, int limit, CancellationToken ct = default);
 }
 
 public class GroupService : IGroupService
@@ -157,11 +159,13 @@ public class GroupService : IGroupService
         await _audit.LogAsync(AuditEvents.GroupDeleted, userId, metadata: new { GroupId = groupId }, ct: ct);
     }
 
-    public async Task<IReadOnlyList<GroupActivityDto>> ListActivitiesAsync(Guid groupId, Guid userId, int limit, CancellationToken ct = default)
+    public async Task<GroupActivityListResult> ListActivitiesAsync(Guid groupId, Guid userId, string? cursor, int limit, CancellationToken ct = default)
     {
         await _access.RequireAsync(groupId, userId, GroupPermission.ViewActivity, ct);
-        var activities = await _groups.ListActivitiesAsync(groupId, Math.Clamp(limit, 1, GroupLimits.MaxActivities), ct);
-        return activities.Select(a => new GroupActivityDto(a.Id, a.Type, a.ActorUserId, a.SubjectId, a.CreatedAt)).ToList();
+        var page = await _groups.ListActivitiesAsync(groupId, cursor, GroupPaging.Clamp(limit, GroupLimits.MaxActivities), ct);
+        return new GroupActivityListResult(
+            page.Items.Select(a => new GroupActivityDto(a.Id, a.Type, a.ActorUserId, a.SubjectId, a.CreatedAt)).ToList(),
+            page.NextCursor);
     }
 
     internal static GroupActivity NewActivity(Guid groupId, Guid? actorUserId, GroupActivityType type, Guid? subjectId, DateTimeOffset now)

@@ -1,6 +1,8 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Forecasting;
+using FinMate.Application.Notifications;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -19,17 +21,20 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
     private readonly IFinancialAccountRepository _financialAccountRepository;
     private readonly IValidator<CreateTransferCommand> _validator;
     private readonly IForecastAlertTrigger? _forecastAlerts;
+    private readonly IUserNotificationService? _userNotifications;
 
     public CreateTransferCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
         IValidator<CreateTransferCommand> validator,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        IUserNotificationService? userNotifications = null)
     {
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
         _validator = validator;
         _forecastAlerts = forecastAlerts;
+        _userNotifications = userNotifications;
     }
 
     public async Task<TransactionCreationResult> HandleAsync(CreateTransferCommand command, CancellationToken ct = default)
@@ -93,6 +98,7 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
         // xem ghi chú trong ConfirmTransactionCommandHandler.
         await _transactionRepository.AddAsync(transaction, ct);
 
+        await NotifyBalanceChangeAsync(transaction, ct);
         await NotifyForecastAsync(command.UserId, ct);
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }
@@ -100,4 +106,22 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
+
+    /// <summary>Ghi vào hộp thư trong app (tab "Biến động") rằng vừa có chuyển khoản nội bộ. Gọi SAU khi đã lưu.</summary>
+    private Task NotifyBalanceChangeAsync(Transaction transaction, CancellationToken ct)
+    {
+        if (_userNotifications is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _userNotifications.CreateAsync(
+            transaction.UserId,
+            UserNotificationType.BalanceChange,
+            "Chuyển khoản nội bộ",
+            $"Đã chuyển {ForecastText.Money(transaction.AmountCents)} giữa 2 ví của bạn.",
+            "Transaction",
+            transaction.Id,
+            ct);
+    }
 }

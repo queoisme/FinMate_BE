@@ -1,1 +1,1 @@
-Hangfire jobs: BudgetAlertJob, DailySummaryJob, InsightGeneratorJob, GoalDeadlineCheckJob, RetryFailedNotificationJob, DataDeletionJob, AiCategorySyncJob.
+Hangfire jobs: BudgetAlertJob, DailySummaryJob, InsightGeneratorJob, GoalDeadlineCheckJob, RetryFailedNotificationJob, DataDeletionJob, NotificationBodyPurgeJob, AiCategorySyncJob. Danh sách đầy đủ và lịch chạy: `.context/ARCHITECTURE.md` §5.

@@ -118,6 +118,45 @@ public class StartupSecretGuardTests
     }
 
     [Fact]
+    public void TheSttKeyFromTheExampleFileIsRejected()
+    {
+        // Chính giá trị đang nằm trong backend/.env.example đã commit; trước đây biến này không có trong danh sách.
+        var configuration = Config(("STT_SERVICE_API_KEY", "change-me-min-32-chars-local-dev-stt-key"));
+
+        var act = () => StartupSecretGuard.ThrowIfPlaceholdersRemain(configuration, "Production");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*STT_SERVICE_API_KEY*");
+    }
+
+    [Theory]
+    [InlineData("change-me")]
+    [InlineData("not-base64-at-all!")]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA==")]   // base64 hợp lệ nhưng chỉ 16 byte
+    public void AMasterKeyThatIsSetButUnusableStopsTheProcessStarting(string value)
+    {
+        // Sai định dạng thì kho key tắt im lặng: người triển khai tưởng đã bật.
+        var act = () => StartupSecretGuard.ThrowIfMasterKeyInvalid(Config(("SECRETS_MASTER_KEY", value)), "Production");
+
+        act.Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().Contain("SECRETS_MASTER_KEY").And.NotContain(value);
+    }
+
+    [Fact]
+    public void AnEmptyMasterKeyIsAllowed_StorageIsOptional()
+    {
+        StartupSecretGuard.ThrowIfMasterKeyInvalid(Config(("SECRETS_MASTER_KEY", "")), "Production");
+        StartupSecretGuard.ThrowIfMasterKeyInvalid(Config(), "Production");
+    }
+
+    [Fact]
+    public void AValidMasterKeyStartsFine()
+    {
+        var key = Convert.ToBase64String(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+
+        StartupSecretGuard.ThrowIfMasterKeyInvalid(Config(("SECRETS_MASTER_KEY", key)), "Production");
+    }
+
+    [Fact]
     public void TheEvalFlagStopsTheProcessStartingOutsideDevelopment()
     {
         var act = () => StartupSecretGuard.ThrowIfEvalEnabled(Config(("AGENT_EVAL_ENABLED", "true")), "Production");
