@@ -137,6 +137,7 @@ public class RoleTablesTests : IClassFixture<AuthApiFactory>
 public class NormalizeRolesMigrationTests : IClassFixture<ReceiptScanDbFixture>
 {
     private const string MigrationBefore = "20261105202450_AddRolePermissions";
+    private const string MigrationAfter = "20261105212829_NormalizeRoles";
     private readonly ReceiptScanDbFixture _fixture;
 
     public NormalizeRolesMigrationTests(ReceiptScanDbFixture fixture)
@@ -168,7 +169,8 @@ public class NormalizeRolesMigrationTests : IClassFixture<ReceiptScanDbFixture>
         var manager = await InsertUserAsync(db, "opsmanager");
         await db.Database.ExecuteSqlRawAsync("INSERT INTO role_permissions (role, capabilities, updated_at) VALUES ('staff', 31, now()), ('opsmanager', 14335, now())");
 
-        await migrator.MigrateAsync();
+        // Chỉ tới NormalizeRoles: test này kiểm migration đó, và các migration sau có thể chủ ý đổi quyền (AddLegalVersions cấp thêm một quyền cho OpsManager).
+        await migrator.MigrateAsync(MigrationAfter);
 
         async Task<int> RoleIdOf(Guid id) => await db.Database.SqlQuery<int>($"""SELECT role_id AS "Value" FROM user_roles WHERE user_id = {id}""").SingleAsync();
         (await RoleIdOf(user)).Should().Be(0);

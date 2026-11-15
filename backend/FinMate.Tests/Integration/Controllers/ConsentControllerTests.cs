@@ -57,6 +57,9 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
         return (await response.Content.ReadFromJsonAsync<ProfileBody>(JsonOptions))!.Data;
     }
 
+    /// <summary>Bản seed của migration AddLegalVersions.</summary>
+    private const int SeededTerms = 4;
+
     private async Task<HttpResponseMessage> AcceptAsync(string token, string kind, int version) =>
         await SendAsync(token, HttpMethod.Post, "/api/v1/users/me/consents", new { kind, version });
 
@@ -69,7 +72,7 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
         fresh.TermsAccepted.Should().BeFalse();
         fresh.AiConsentGranted.Should().BeFalse();
 
-        (await AcceptAsync(token, "terms", ConsentVersions.Terms)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await AcceptAsync(token, "terms", SeededTerms)).StatusCode.Should().Be(HttpStatusCode.OK);
         var afterTerms = await ProfileAsync(token);
         afterTerms.TermsAccepted.Should().BeTrue("phải được lưu, không chỉ trả lại trong response");
         afterTerms.AiConsentGranted.Should().BeTrue("điều khoản chung đã nêu việc gửi tên món cho AI nên một lần đồng ý là đủ");
@@ -94,7 +97,7 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
     {
         var token = await RegisterAndLoginAsync();
 
-        var response = await AcceptAsync(token, "terms", ConsentVersions.Terms - 1);
+        var response = await AcceptAsync(token, "terms", SeededTerms - 1);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var profile = await ProfileAsync(token);
@@ -124,7 +127,7 @@ public class ConsentControllerTests : IClassFixture<AuthApiFactory>
     public async Task WithdrawingTheTerms_IsRefused()
     {
         var token = await RegisterAndLoginAsync();
-        await AcceptAsync(token, "terms", ConsentVersions.Terms);
+        await AcceptAsync(token, "terms", SeededTerms);
 
         var response = await SendAsync(token, HttpMethod.Delete, "/api/v1/users/me/consents/terms");
 

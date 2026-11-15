@@ -60,7 +60,15 @@ public class ChatCommandHandler : IChatCommandHandler
         _consent = consent;
     }
 
+    /// <summary>Gắn mốc thời gian của server vào MỌI kết quả (ghi ngay, nháp, tổng kết, trả lời...): backend không lưu tin nhắn, nên app dựng "Hôm nay • 12:45" từ đây.</summary>
     public async Task<ChatResultDto> HandleAsync(ChatCommand command, CancellationToken ct = default)
+    {
+        var receivedAt = DateTimeOffset.UtcNow;
+        var result = await HandleCoreAsync(command, ct);
+        return result with { ReceivedAt = receivedAt, RespondedAt = DateTimeOffset.UtcNow };
+    }
+
+    private async Task<ChatResultDto> HandleCoreAsync(ChatCommand command, CancellationToken ct)
     {
         await _validator.ValidateAndThrowAsync(command, ct);
 

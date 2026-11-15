@@ -493,6 +493,10 @@ public class Program
         builder.Services.AddSingleton(SubscriptionConfiguration.Read(builder.Configuration));
         builder.Services.AddHttpClient(SePayClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
         builder.Services.AddScoped<ISePayClient, SePayClient>();
+        builder.Services.AddScoped<FinMate.Application.Legal.ILegalRepository, LegalRepository>();
+        builder.Services.AddScoped<FinMate.Application.Legal.ILegalVersionProvider, FinMate.Application.Legal.LegalVersionProvider>();
+        builder.Services.AddScoped<FinMate.Application.Legal.ILegalDocumentService, FinMate.Application.Legal.LegalDocumentService>();
+        builder.Services.AddScoped<FinMate.Application.Legal.ILegalAdminService, FinMate.Application.Legal.LegalAdminService>();
         builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
         builder.Services.AddScoped<ISubscriptionEntitlementService, SubscriptionEntitlementService>();
         builder.Services.AddScoped<IOpsSubscriptionService, OpsSubscriptionService>();

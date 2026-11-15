@@ -15,9 +15,11 @@ public record UserProfileDto(
     bool TrainingConsentGranted,
     bool SurveyAiConsentGranted = false,
     string OnboardingStatus = "pending",
-    bool CommunityConsentGranted = false)
+    bool CommunityConsentGranted = false,
+    int? TermsVersion = null)
 {
-    public static UserProfileDto From(User user) => new(
+    /// <param name="termsVersion">Phiên bản Điều khoản hiện hành (từ <c>ILegalVersionProvider</c>).</param>
+    public static UserProfileDto From(User user, int termsVersion) => new(
         user.Id,
         user.Email,
         user.DisplayName,
@@ -25,10 +27,11 @@ public record UserProfileDto(
         user.MonthlyIncomeCents,
         user.NotificationPrefs.PushEnabled,
         user.NotificationPrefs.BudgetAlertsEnabled,
-        user.TermsAccepted,
+        user.HasAcceptedTerms(termsVersion),
         user.AiConsentGranted,
         user.TrainingConsentGranted,
         user.SurveyAiConsentGranted,
         user.OnboardingStatus.ToString().ToLowerInvariant(),
-        user.CommunityConsentGranted);
+        user.CommunityConsentGranted,
+        user.TermsVersion);
 }

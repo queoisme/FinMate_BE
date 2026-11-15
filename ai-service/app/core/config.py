@@ -60,7 +60,8 @@ class Settings(BaseSettings):
     chat_gemini_fallback_models: str = "gemini-3-flash-preview"
     chat_gemini_timeout_seconds: float = 3.5  # trần cho TỪNG model: model chậm bị bỏ để thử model kế
     chat_gemini_overall_seconds: float = 7.5  # trần cả chuỗi: quá thì chuỗi tự thất bại và cầu dao mở 30 giây (chat dùng luật, không ai phải chờ)
-    chat_ai_timeout_seconds: float = 9.0  # trần ngoài cùng của bước AI trong chat, lớn hơn hai trần trên để chuỗi tự thất bại trước
+    chat_rewrite_timeout_seconds: float = 4.0  # trần của bước Gemini sửa chính tả câu chat khi luật không hiểu: ngắn hơn bước phân loại sản phẩm vì chạy trước nó và người dùng đang chờ
+    chat_ai_timeout_seconds: float = 9.0 # trần ngoài cùng của bước AI trong chat, lớn hơn hai trần trên để chuỗi tự thất bại trước
     notification_ai_timeout_seconds: float = 8.0  # trần ngoài cùng của bước AI phân loại nội dung thông báo trong /analyze, phải lớn hơn chat_gemini_overall_seconds (7.5) để chuỗi Gemini tự thất bại và mở cầu dao trước khi wait_for hủy; quá hạn thì giữ kết quả luật ('other')
     # Dự phòng khi mọi model Gemini đều lỗi (OpenRouter). Để trống khóa thì tắt. Đo 2026-10-13: nemotron-3-super:free 6-16s, đúng 5-6/6; gemma-4 :free bị 429
     openrouter_api_key: str | None = None

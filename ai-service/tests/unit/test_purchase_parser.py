@@ -127,7 +127,30 @@ def test_a_missing_price_asks_for_the_amount():
         result = parse_purchase(text, NOW)
         assert result.draft is None and result.needs_amount, text
     parsed = parse_chat("mua laptop được không?", None, now=NOW)
-    assert parsed.intent == "needs_amount" and parsed.purchase is None and parsed.reply_text == replies()["needs_amount"]
+    assert parsed.intent == "purchase_needs_amount" and parsed.purchase is None and parsed.reply_text == replies()["purchase_needs_amount"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "tôi có nên mua điện thoại iphone duo ko ?",  # gõ sai "được": chỉ còn "có nên" mà vẫn phải hỏi lại giá chứ không "ngoài phạm vi"
+        "có nên mua vàng không",
+        "nên mua nhà hay thuê nhà",
+    ],
+)
+def test_an_advice_question_without_a_price_asks_for_the_amount(text):
+    result = parse_purchase(text, NOW)
+    assert result.draft is None and result.needs_amount, text
+    parsed = parse_chat(text, None, now=NOW)
+    assert parsed.intent == "purchase_needs_amount" and parsed.purchase is None and parsed.reply_text == replies()["purchase_needs_amount"]
+
+
+def test_the_question_joined_with_a_bare_price_is_a_purchase_to_assess():
+    # app ghép câu hỏi mua trước đó với tin kế tiếp chỉ có số tiền (server không nhớ gì giữa hai tin)
+    for question in ("tôi có nên mua điện thoại iphone được ko ?", "tôi có nên mua điện thoại iphone duo ko ?"):
+        parsed = parse_chat(f"{question} 15tr", None, now=NOW)
+        assert parsed.intent == "evaluate_purchase" and parsed.entries == (), question
+        assert parsed.purchase is not None and parsed.purchase.amount_cents == 15_000_000, question
 
 
 @pytest.mark.parametrize(
@@ -137,8 +160,6 @@ def test_a_missing_price_asks_for_the_amount():
         "hôm nay mua cái quần 800k",
         "ăn phở 45k được không",  # không có động từ mua
         "iphone 20 triệu có đáng mua không",  # hỏi giá trị món đồ, không phải túi tiền
-        "nên mua nhà hay thuê nhà",  # xin lời khuyên, không có giá
-        "có nên mua vàng không",
         "đặt mục tiêu mua laptop 25 triệu",
         "không mua quần 800k nữa",
         "mua nồi cơm điện 800k",  # bỏ dấu thì "mua nồi" trùng "mua nổi"
@@ -158,7 +179,7 @@ def test_ordinary_sentences_are_not_purchase_questions(text):
         ("hôm qua mua cái quần 800k", "add_expense"),
         ("đặt mục tiêu mua laptop 25 triệu trước 30/12", "create_goal"),
         ("iphone 20 triệu có đáng mua không", "out_of_scope"),
-        ("nên mua nhà hay thuê nhà", "out_of_scope"),
+        ("nên mua nhà hay thuê nhà", "purchase_needs_amount"),
         ("tháng này tôi mua quần hết bao nhiêu được không", "ask_spending"),
     ],
 )

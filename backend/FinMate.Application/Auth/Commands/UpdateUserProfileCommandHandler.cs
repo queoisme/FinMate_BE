@@ -2,6 +2,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Legal;
 using FluentValidation;
 
 namespace FinMate.Application.Auth.Commands;
@@ -11,15 +12,18 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
     private readonly IUserRepository _userRepository;
     private readonly ICacheService _cacheService;
     private readonly IValidator<UpdateUserProfileCommand> _validator;
+    private readonly ILegalVersionProvider _legal;
 
     public UpdateUserProfileCommandHandler(
         IUserRepository userRepository,
         ICacheService cacheService,
-        IValidator<UpdateUserProfileCommand> validator)
+        IValidator<UpdateUserProfileCommand> validator,
+        ILegalVersionProvider legal)
     {
         _userRepository = userRepository;
         _cacheService = cacheService;
         _validator = validator;
+        _legal = legal;
     }
 
     public async Task<UserProfileDto> HandleAsync(UpdateUserProfileCommand command, CancellationToken ct = default)
@@ -43,6 +47,6 @@ public class UpdateUserProfileCommandHandler : IUpdateUserProfileCommandHandler
 
         await _cacheService.RemoveAsync(CacheKeys.UserProfile(user.Id), ct);
 
-        return UserProfileDto.From(user);
+        return UserProfileDto.From(user, await _legal.CurrentTermsVersionAsync(ct));
     }
 }

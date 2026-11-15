@@ -138,6 +138,8 @@ public static class AuditEvents
     public const string OpsSubscriptionPlanUpdated = "Ops.SubscriptionPlan.Updated";
     public const string OpsSubscriptionPlanDeleted = "Ops.SubscriptionPlan.Deleted";
     public const string OpsSubscriptionPlanFeaturesUpdated = "Ops.SubscriptionPlan.FeaturesUpdated";
+    public const string LegalDraftSaved = "Ops.LegalDraft.Saved";
+    public const string LegalVersionPublished = "Admin.LegalVersion.Published";
     public const string SubscriptionOrderCreated = "Subscription.Order.Created";
     public const string SubscriptionOrderPaid = "Subscription.Order.Paid";
     public const string SubscriptionOrderVoided = "Subscription.Order.Voided";

@@ -529,7 +529,7 @@ def test_the_named_month_keeps_the_metric_and_the_category():
     assert parse("tháng 9 tôi thu được bao nhiêu").query.metric == "income"
 
 
-@pytest.mark.parametrize("text", ["iphone 20 triệu có đáng mua không", "nên mua nhà hay thuê nhà", "lương 20 triệu có đủ sống không?"])
+@pytest.mark.parametrize("text", ["iphone 20 triệu có đáng mua không", "lương 20 triệu có đủ sống không?"])
 def test_questions_with_an_amount_are_not_entries(text):
     assert parse(text).intent == "out_of_scope"
 

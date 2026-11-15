@@ -58,6 +58,38 @@ public class ChatCommandHandlerTests
     private void NothingWasCreated() => _create.Verify(
         c => c.HandleAsync(It.IsAny<CreateManualTransactionCommand>(), It.IsAny<CancellationToken>()), Times.Never);
 
+    // ------------------------------------------------------------ mốc thời gian
+
+    [Fact]
+    public async Task EveryKindOfResultCarriesTheServerTimesOfTheMessage()
+    {
+        // ghi ngay, hỏi lại (nhiều ví mà không chọn) và chỉ trả lời văn bản: app cần giờ cho cả ba loại bong bóng
+        var results = new List<ChatResultDto>();
+        var before = DateTimeOffset.UtcNow;
+
+        AiReturns(Entry());
+        results.Add(await _handler.HandleAsync(Command()));
+
+        _accounts
+            .Setup(a => a.GetListByUserAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<FinancialAccount> { new() { Id = _accountId }, new() { Id = Guid.NewGuid() } });
+        AiReturns(Entry());
+        results.Add(await _handler.HandleAsync(Command()));
+
+        AiReturns(new ChatParseResponse("greet", "Xin chào", null, null, 5));
+        results.Add(await _handler.HandleAsync(Command("xin chào")));
+        var after = DateTimeOffset.UtcNow;
+
+        results.Select(r => r.Action).Should().Equal(ChatActions.Saved, ChatActions.Confirm, ChatActions.Reply);
+        foreach (var result in results)
+        {
+            result.ReceivedAt.Should().NotBeNull();
+            result.RespondedAt.Should().NotBeNull();
+            result.ReceivedAt!.Value.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
+            result.RespondedAt!.Value.Should().BeOnOrAfter(result.ReceivedAt.Value).And.BeOnOrBefore(after);
+        }
+    }
+
     // ------------------------------------------------------------ ghi ngay
 
     [Fact]

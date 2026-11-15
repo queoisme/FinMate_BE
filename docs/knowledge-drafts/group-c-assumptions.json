@@ -1,0 +1,11 @@
+[
+  {
+    "_note": "Body của POST /api/v1/admin/assumptions (nhập ở trang Giả định kinh tế, KHÔNG gửi bằng script tri thức). rateBps = % x 100. Đây là CPI bình quân 10 tháng so với cùng kỳ, dùng làm số đại diện cho lạm phát hằng năm: bạn quyết định có dùng làm mặc định hay thay bằng dự báo cả năm.",
+    "key": "general_price_growth",
+    "rateBps": 457,
+    "unit": "pct_per_year",
+    "sourceName": "Cục Thống kê (Bộ Tài chính) — Chỉ số giá tiêu dùng tháng Mười và mười tháng năm 2026: CPI bình quân 10 tháng tăng 4,57% so với cùng kỳ năm trước",
+    "sourceUrl": "https://www.nso.gov.vn/?p=62845",
+    "asOf": "2026-11-03T00:00:00+07:00"
+  }
+]

@@ -97,7 +97,7 @@ Push mới: `data.kind` là `group_budget` (`groupId`, `budgetId`, `percent`) ho
 
 ## Điều khoản
 
-`ConsentVersions.Terms` là 4. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm. Bản 4 còn phải nêu hai việc: ảnh hóa đơn được gửi nguyên bản, chưa che dữ liệu cá nhân, tới Google Cloud Vision để đọc chữ; và việc lưu ảnh trong ticket, nhân viên xem dữ liệu khi người dùng đồng ý (xem `docs/ops-api.md`).
+Phiên bản Điều khoản (bảng `legal_versions`, do Admin xuất bản) là 4 tại thời điểm viết. Mọi người phải đồng ý lại, và đồng ý gửi `version = 3` bị từ chối (409 `AUTH_CONSENT_VERSION_OUTDATED`). App cần có câu chữ mới về việc giao dịch đã chia sẻ (số tiền, nơi chi, ghi chú, tên) hiện với thành viên nhóm và còn đó khi rời nhóm. Bản 4 còn phải nêu hai việc: ảnh hóa đơn được gửi nguyên bản, chưa che dữ liệu cá nhân, tới Google Cloud Vision để đọc chữ; và việc lưu ảnh trong ticket, nhân viên xem dữ liệu khi người dùng đồng ý (xem `docs/ops-api.md`).
 
 ## Mã lỗi
 

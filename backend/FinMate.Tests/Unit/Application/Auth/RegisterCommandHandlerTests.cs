@@ -1,6 +1,7 @@
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Legal;
 using FinMate.Domain.Entities;
 using FluentAssertions;
 using FluentValidation;
@@ -14,12 +15,14 @@ public class RegisterCommandHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IAuditLogService> _auditLogService = new();
+    private readonly Mock<ILegalVersionProvider> _legal = new();
     private readonly RegisterCommandHandler _handler;
 
     public RegisterCommandHandlerTests()
     {
+        _legal.Setup(l => l.CurrentTermsVersionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(4);
         _handler = new RegisterCommandHandler(
-            _userRepository.Object, _passwordHasher.Object, _auditLogService.Object, new RegisterCommandValidator());
+            _userRepository.Object, _passwordHasher.Object, _auditLogService.Object, new RegisterCommandValidator(), _legal.Object);
     }
 
     [Fact]

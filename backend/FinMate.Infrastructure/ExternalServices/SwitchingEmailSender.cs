@@ -37,7 +37,7 @@ public class SwitchingEmailSender : IEmailSender
     public async Task<bool> SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
     {
         var key = await _vault.GetAsync(BackendSecrets.BrevoApiKey, ct);
-        var senderEmail = _configuration["BREVO_SENDER_EMAIL"];
+        var senderEmail = await _vault.GetAsync(BackendSecrets.BrevoSenderEmail, ct);
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(senderEmail))
         {
             _failures?.RecordNotConfigured(MonitoredServices.Brevo.Key);

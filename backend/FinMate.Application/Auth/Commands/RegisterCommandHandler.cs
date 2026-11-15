@@ -2,6 +2,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Legal;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -14,17 +15,20 @@ public class RegisterCommandHandler : IRegisterCommandHandler
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<RegisterCommand> _validator;
+    private readonly ILegalVersionProvider _legal;
 
     public RegisterCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         IAuditLogService auditLogService,
-        IValidator<RegisterCommand> validator)
+        IValidator<RegisterCommand> validator,
+        ILegalVersionProvider legal)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _auditLogService = auditLogService;
         _validator = validator;
+        _legal = legal;
     }
 
     public async Task<UserProfileDto> HandleAsync(RegisterCommand command, CancellationToken ct = default)
@@ -50,6 +54,6 @@ public class RegisterCommandHandler : IRegisterCommandHandler
         await _userRepository.AddAsync(user, ct);
         await _auditLogService.LogAsync(AuditEvents.UserRegistered, user.Id, ct: ct);
 
-        return UserProfileDto.From(user);
+        return UserProfileDto.From(user, await _legal.CurrentTermsVersionAsync(ct));
     }
 }

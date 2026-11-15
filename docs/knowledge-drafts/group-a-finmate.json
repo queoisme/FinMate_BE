@@ -1,0 +1,227 @@
+[
+  {
+    "title": "Theo dõi chi tiêu tối giản (v1)",
+    "source_name": "FinMate — phương pháp Theo dõi chi tiêu tối giản",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Theo dõi chi tiêu tối giản là cách quản lý chỉ quan sát, chưa đặt hạn mức. Bạn chọn 3–5 nhóm chi chính để theo dõi, mặc định là 4 nhóm. FinMate ghi nhận giao dịch tự động và bạn chỉ sửa nhóm khi cần. Bạn xem tổng kết mỗi tuần. Sau 2–4 tuần quan sát, mặc định là 3 tuần, bạn có thể thử đặt hạn mức. Cách này hợp với người chưa rõ tiền đang đi đâu hoặc từng bỏ ghi chép giữa chừng. Bạn có thể đổi cách quản lý bất cứ lúc nào."
+  },
+  {
+    "title": "Quy tắc 50/30/20 (v1)",
+    "source_name": "FinMate — phương pháp Quy tắc 50/30/20",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Quy tắc 50/30/20 chia thu nhập thành ba phần. 50% cho nhu cầu thiết yếu, 30% cho mong muốn và 20% cho mục tiêu, gồm tiết kiệm và trả nợ. Đây là điểm xuất phát dễ nhớ, và bạn tự chỉnh ba tỷ lệ cho phù hợp với hoàn cảnh của mình. Bạn đặt hạn mức cho vài nhóm chi chính rồi xem chi thực tế mỗi tuần. Nếu hạn mức liên tục thiếu thực tế, hãy chỉnh lại thay vì bỏ cuộc. Cách này hợp với người có thu nhập ổn định, thường còn dư và thích hạn mức rõ ràng cho từng nhóm chi. Cách này cũng có ngưỡng cảnh báo T1 và T2."
+  },
+  {
+    "title": "Số tiền an toàn để chi — Safe-to-spend (v1)",
+    "source_name": "FinMate — phương pháp Số tiền an toàn để chi",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Safe-to-spend cho bạn một con số duy nhất: còn bao nhiêu tiền được chi. FinMate trừ các hóa đơn bắt buộc và khoản muốn để dành khỏi tiền sẵn có, rồi hiển thị phần còn lại. Bạn có thể đặt một khoản giữ lại cố định mỗi kỳ. Con số được tính lại khi thu nhập hoặc hóa đơn thay đổi. Cách này hợp với người muốn đơn giản thay vì nhiều hạn mức, hoặc không thích bị giới hạn từng nhóm chi. Bạn xem con số này mỗi khi cần chi và cập nhật khi thu nhập hay hóa đơn đổi."
+  },
+  {
+    "title": "Ngân sách theo dòng tiền — Cash Flow (v1)",
+    "source_name": "FinMate — phương pháp Ngân sách theo dòng tiền",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Ngân sách theo dòng tiền lập kế hoạch từ số tiền đã nhận và lịch hóa đơn đến hạn. Mục đích là biết số tiền an toàn có thể chi đến lần nhận tiền tiếp theo. Cách này dựa trên khoản đã nhận, không dựa vào thu nhập chưa chắc chắn. Mặc định FinMate lập kế hoạch theo 80% thu nhập, để thận trọng. FinMate nhắc hóa đơn trước 3 ngày, và bạn đổi được số ngày này. Cách này hợp với người có thu nhập thay đổi theo kỳ hoặc đôi khi thiếu tiền cuối tháng. Bạn cập nhật khoản thu mỗi khi nhận tiền và thêm hóa đơn sắp đến hạn."
+  },
+  {
+    "title": "Phương pháp phong bì — Envelope (v1)",
+    "source_name": "FinMate — phương pháp Phong bì",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Phương pháp phong bì chia tiền thành các phong bì cho vài nhóm chi dễ vượt. Hết phong bì nào thì dừng chi nhóm đó. Bạn không cần chia mọi khoản. FinMate cho chọn từ 1 đến 5 nhóm có phong bì, mặc định là 3 nhóm. Cách này hợp với người dễ chi vượt ở một vài khoản hằng ngày, ví dụ ăn uống ngoài hay mua sắm. Bạn đặt hạn mức riêng cho từng nhóm theo kỳ bạn muốn. Nếu hạn mức liên tục thiếu thực tế, hãy điều chỉnh thay vì bỏ cuộc. Phương pháp này dùng được làm cách chính hoặc cách bổ trợ."
+  },
+  {
+    "title": "Trả cho mình trước — Pay Yourself First (v1)",
+    "source_name": "FinMate — phương pháp Trả cho mình trước",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Trả cho mình trước nghĩa là tách khoản dành cho mục tiêu ngay khi có tiền vào, rồi mới chi tiêu. Nhờ vậy mục tiêu không bị chi tiêu hằng ngày lấn át. Mặc định FinMate để dành 10% thu nhập thực nhận, và bạn chỉnh được từ 1% đến 50%. Bạn chọn một mục tiêu và mức để dành mỗi kỳ, rồi theo dõi tiến độ và điều chỉnh khi cần. Mức đóng góp chỉ nên đặt sau khi đã xét chi thiết yếu và nghĩa vụ. Đây là phương pháp bổ trợ, đi kèm một cách quản lý chính. Người đang thiếu hụt dòng tiền thì không được gợi ý cách này."
+  },
+  {
+    "title": "Quỹ khẩn cấp — Emergency Fund trong FinMate (v1)",
+    "source_name": "FinMate — phương pháp Quỹ khẩn cấp",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Quỹ khẩn cấp trong FinMate là phương pháp bổ trợ: tích lũy nhỏ và đều cho khoản dự phòng. Bước đầu là quỹ đệm khởi đầu, mặc định bằng 1 tuần chi phí thiết yếu, chỉnh được từ 1 đến 4 tuần. FinMate đề xuất để dành 5% thu nhập cho quỹ, chỉnh được từ 1% đến 30%. Bạn nên tách quỹ khẩn cấp khỏi các khoản để dành khác. Bạn cũng có thể lập quỹ riêng cho chi phí đã biết nhưng không hằng tháng. Cách này giúp bạn không phải vay khi có chi bất ngờ."
+  },
+  {
+    "title": "Kế hoạch trả nợ (v1)",
+    "source_name": "FinMate — phương pháp Kế hoạch trả nợ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Kế hoạch trả nợ giúp bạn biết rõ từng khoản nợ. Bạn liệt kê dư nợ, lãi, số tiền tối thiểu và ngày đến hạn của từng khoản. Việc đầu tiên là trả đủ số tối thiểu đúng hạn. FinMate cho chọn hai thứ tự trả: lãi cao trước, hoặc dư nợ nhỏ trước. Dư nợ nhỏ trước còn gọi là tuyết lăn. Bạn cũng có thể đặt thêm một số tiền trả thêm mỗi kỳ. Hãy chọn thứ tự mà bạn duy trì được. FinMate chỉ cung cấp thông tin chung. Nếu nợ quá tải, hãy cân nhắc hỗ trợ từ người có chuyên môn."
+  },
+  {
+    "title": "Tự động hóa tài chính (v1)",
+    "source_name": "FinMate — phương pháp Tự động hóa tài chính",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Tự động hóa tài chính để FinMate làm phần lớn việc, bạn chỉ cần rất ít thao tác. Bạn chỉ theo dõi vài nhóm chi lớn nhất. FinMate nhắc ngắn và gửi thông báo quan trọng, mặc định tối đa 3 lần nhắc mỗi tuần. Chu kỳ tổng kết mặc định là 7 ngày, chỉnh được từ 7 đến 30 ngày. Nếu thông báo gây phiền, bạn giảm tần suất. Cách này hợp với người ít thời gian hoặc từng bỏ cuộc giữa chừng. Phương pháp này dùng được làm cách chính hoặc cách bổ trợ."
+  },
+  {
+    "title": "6 chiếc hũ — 6 Jars (v1)",
+    "source_name": "FinMate — phương pháp 6 chiếc hũ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Phương pháp 6 chiếc hũ chia thu nhập vào sáu hũ: thiết yếu, giáo dục, hưởng thụ, tự do tài chính, tiết kiệm dài hạn và cho đi. Mặc định tỷ lệ là 55%, 10%, 10%, 10%, 10% và 5%, và bạn chỉnh được. Mỗi hũ có phần trăm riêng nên bạn thấy ngay hũ nào sắp cạn. Khi bạn chi tiêu, FinMate tính vào hũ tương ứng với nhóm chi. Hũ tự do tài chính, tiết kiệm dài hạn và cho đi chưa gắn nhóm chi nào nên luôn hiển thị chưa chi. Bạn xem các hũ mỗi tuần và chỉnh phần trăm nếu một hũ liên tục thiếu hoặc dư."
+  },
+  {
+    "title": "Quy tắc 70/20/10 (v1)",
+    "source_name": "FinMate — phương pháp Quy tắc 70/20/10",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Quy tắc 70/20/10 chia thu nhập thành ba phần. 70% cho sinh hoạt, 20% cho tiết kiệm và 10% cho trả nợ hoặc mục tiêu khác. Cách này đơn giản hơn 50/30/20 vì chỉ có ba phần. Bạn chuyển phần tiết kiệm và phần trả nợ ngay khi nhận thu nhập. Bạn xem phần sinh hoạt mỗi tuần và chỉnh tỷ lệ nếu liên tục thiếu thực tế. Cách này hợp với người thích một công thức ngắn gọn và muốn vừa trả nợ vừa có mục tiêu khác."
+  },
+  {
+    "title": "Quy tắc 80/20 — tiết kiệm trước (v1)",
+    "source_name": "FinMate — phương pháp Quy tắc 80/20",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Quy tắc 80/20 là tiết kiệm 20% thu nhập ngay khi nhận. Phần 80% còn lại bạn chi thoải mái mà không cần theo dõi chi tiết từng khoản. Bạn chỉnh tỷ lệ tiết kiệm từ 1% đến 50%, mặc định là 20%. Bạn chuyển khoản tiết kiệm ngay khi nhận thu nhập, rồi chỉ cần xem tổng kết mỗi tháng. Cách này hợp với người không thích theo dõi chi tiết."
+  },
+  {
+    "title": "Ngân sách từ con số 0 — Zero-Based (v1)",
+    "source_name": "FinMate — phương pháp Ngân sách từ con số 0",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Ngân sách từ con số 0 gán một mục đích cụ thể cho mỗi đồng thu nhập, gồm chi tiêu, tiết kiệm và trả nợ, cho đến khi phần còn lại bằng 0. Bạn liệt kê mọi khoản thu và mọi khoản chi dự kiến của kỳ. Sau đó bạn gán mục đích cho đến khi thu nhập trừ kế hoạch bằng 0. Bạn rà soát kế hoạch theo chu kỳ, mặc định là 7 ngày, và chuyển tiền giữa các khoản khi cần. Cách này hợp với người muốn kiểm soát chặt và sẵn sàng dành thời gian mỗi ngày. Nhờ vậy không còn khoản bị mất dấu."
+  },
+  {
+    "title": "Cảnh báo ngân sách mốc T1 và T2",
+    "source_name": "FinMate — cảnh báo ngân sách",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "FinMate cảnh báo ngân sách theo ba mức. T1 là nhắc nhẹ, mặc định khi bạn đã dùng 70% hạn mức. T2 là cảnh báo mạnh, mặc định ở 90% hạn mức. Mức thứ ba là vượt hạn mức, cố định ở 100% và không chỉnh được. Bạn đổi T1 và T2 bất cứ lúc nào, miễn là T1 lớn hơn 0 và nhỏ hơn T2. Giá trị đang dùng lấy theo thứ tự: giá trị của phương pháp bạn đang dùng, rồi giá trị cá nhân của bạn, rồi mặc định của hệ thống. FinMate kiểm tra ngay sau mỗi giao dịch, và có thêm một lượt kiểm tra theo giờ để không sót. Mỗi mức chỉ báo một lần trong một kỳ ngân sách, và bạn tắt được thông báo cảnh báo."
+  },
+  {
+    "title": "Mục tiêu tiết kiệm được tính thế nào trong FinMate",
+    "source_name": "FinMate — mục tiêu tiết kiệm",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Mỗi mục tiêu tiết kiệm có số tiền cần đạt, số đã có và hạn chót. Phần còn thiếu bằng số cần đạt trừ số đã có. Số cần góp mỗi tháng bằng phần còn thiếu chia cho số tháng còn lại đến hạn, làm tròn lên. Khi bạn đã khai thu nhập, FinMate so sánh số cần góp với thu nhập và tổng hạn mức ngân sách để xem mục tiêu có khả thi không. Đây chỉ là cảnh báo kèm gợi ý, không từ chối việc tạo mục tiêu. Mỗi phương pháp có cách riêng để giữ chỗ cho mục tiêu trong tiền khả dụng."
+  },
+  {
+    "title": "Mục tiêu theo phần trăm thu nhập khác gì mục tiêu theo số tiền",
+    "source_name": "FinMate — mục tiêu tiết kiệm",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Mục tiêu theo số tiền có một số tiền cố định và một hạn chót. FinMate tính ra số cần góp mỗi tháng để kịp hạn. Mục tiêu theo phần trăm thu nhập là một tỷ lệ để dành, ví dụ tỷ lệ của phương pháp Trả cho mình trước hoặc Quy tắc 80/20. Khi thu nhập tăng hoặc giảm, số tiền để dành theo phần trăm tự đổi theo. Mục tiêu theo số tiền giữ nguyên số cần góp cho đến khi bạn sửa. Phần trăm dễ duy trì khi thu nhập thay đổi, còn số tiền phù hợp khi bạn có một khoản cụ thể cần đạt đúng hạn. Bạn có thể dùng cả hai cùng lúc."
+  },
+  {
+    "title": "Tiền khả dụng được tính thế nào",
+    "source_name": "FinMate — tiền khả dụng",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Tiền khả dụng trong tháng bằng thu nhập bạn đã khai, trừ số đã chi trong tháng, trừ phần đã đặt riêng cho mục tiêu. Nếu bạn chưa khai thu nhập, FinMate không tính con số này, vì chưa biết không có nghĩa là bằng 0. Cách đặt riêng cho mục tiêu phụ thuộc phương pháp bạn đang dùng. Với phương pháp tách trước hoặc phong bì, FinMate giữ trước phần cần góp mỗi tháng. Với phương pháp tiền an toàn để chi, chỉ trừ số bạn đã nạp vào mục tiêu. Với phương pháp chỉ theo dõi, mục tiêu không ảnh hưởng tiền khả dụng."
+  },
+  {
+    "title": "Dải dự báo thu nhập nghĩa là gì",
+    "source_name": "FinMate — dải dự báo",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Dải dự báo thu nhập là ba mốc thu nhập hằng tháng lấy từ các tháng đã trọn trong lịch sử của bạn. Mốc thấp là phân vị 10, mốc giữa là trung vị và mốc cao là phân vị 90. Người có lương cố định thì ba mốc gần như trùng nhau. Người có thu nhập thay đổi thì dải rộng hơn. FinMate cần ít nhất 3 tháng lịch sử và dùng các tháng gần nhất, tối đa 6 tháng. Dải chỉ cho thấy khoảng thu nhập thường gặp, nó không phải lời hứa về tương lai. Lịch sử càng ngắn thì dải càng kém chắc chắn."
+  },
+  {
+    "title": "Ba kịch bản khi dự báo mục tiêu",
+    "source_name": "FinMate — dự báo mục tiêu",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Khi bạn hỏi bao lâu nữa đủ tiền cho một mục tiêu, FinMate tính ba kịch bản. Kịch bản bảo thủ lấy thu nhập thấp trừ chi tiêu cao. Kịch bản cơ sở lấy thu nhập giữa trừ chi tiêu giữa. Kịch bản lạc quan lấy thu nhập cao trừ chi tiêu thấp. Mỗi kịch bản cho biết số tháng để đạt mục tiêu, hoặc còn thiếu bao nhiêu khi hết thời gian. Giá mục tiêu có thể tăng theo giả định kinh tế đã được duyệt, ví dụ lạm phát. Nếu chưa có giả định, FinMate giữ giá không đổi và nói rõ điều đó. Kết quả là một dải, không phải lời hứa."
+  },
+  {
+    "title": "Độ tin cậy của một dự báo trong FinMate",
+    "source_name": "FinMate — độ tin cậy",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Độ tin cậy cho biết dữ liệu đứng sau một con số đầy đủ và mới đến đâu. Đây không phải xác suất thống kê. Độ tin cậy bằng giá trị nhỏ hơn giữa trần theo nguồn và tích của độ đầy đủ với độ mới. Trần theo nguồn là 100% cho dữ liệu đã xác nhận hoặc theo tài liệu, 90% cho dữ liệu bạn tự nhập và 70% cho dữ liệu ước tính. Độ mới là 100% nếu dữ liệu không quá 2 ngày, 80% đến 7 ngày, 50% đến 30 ngày và 20% nếu cũ hơn. Mỗi con số trong câu trả lời đều ghi nguồn, ngày và độ tin cậy."
+  },
+  {
+    "title": "Số dư thấp nhất trong kỳ dùng để làm gì",
+    "source_name": "FinMate — kiểm tra mua một món",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Số dư thấp nhất trong kỳ cho biết bạn có nguy cơ hết tiền trước lần nhận tiền tiếp theo hay không. FinMate dự báo số dư từng ngày, có tính hóa đơn và khoản thu định kỳ đã theo dõi. Kỳ mặc định là 30 ngày và tối đa 90 ngày. Khi bạn hỏi mua một món có ổn không, FinMate so sánh số dư thấp nhất trước và sau khi mua. Nếu số dư thấp nhất còn đủ thì có thể mua, nếu sát mức an toàn thì cần cân nhắc, nếu âm thì khó đạt. Khi dữ liệu có phần ước tính, kết luận tối đa chỉ là cần cân nhắc."
+  },
+  {
+    "title": "Khả năng chịu đựng khi thu nhập giảm",
+    "source_name": "FinMate — kiểm tra chịu đựng",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "FinMate có ba phép tính về khả năng chịu đựng. Phép thứ nhất cho biết số dư hiện có đủ chi tiêu bao nhiêu tháng nếu thu nhập dừng lại. Số tháng bằng số dư chia cho chi tiêu của tháng cao, lấy phần nguyên. FinMate dùng chi tiêu cao để không hứa quá tay. Phép thứ hai là kiểm tra thu nhập giảm một tỷ lệ trong một số tháng, rồi xem số dư còn lại. Phép thứ ba là độ nhạy: yếu tố nào, gồm giá mục tiêu, thu nhập hay chi tiêu, làm kết luận mục tiêu đổi nhiều nhất. Nhóm thu nhập không ổn định dùng mức thu nhập thấp để lập kế hoạch an toàn."
+  },
+  {
+    "title": "Chọn và đổi phương pháp quản lý tài chính trong FinMate",
+    "source_name": "FinMate — chọn phương pháp",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Khi mới dùng, bạn có thể trả lời khảo sát 10 câu để FinMate gợi ý. FinMate gợi ý một phương pháp chính và tối đa một phương pháp bổ trợ, chỉ trong danh sách phương pháp đang bật. Đây chỉ là gợi ý, bạn quyết định có áp dụng hay không và có thể bỏ qua khảo sát. Người đang thiếu hụt dòng tiền hoặc trễ nghĩa vụ không được gợi ý tỷ lệ cứng hay mục tiêu tiết kiệm. Bạn đổi phương pháp bất cứ lúc nào. Khi đổi, các tham số được đặt lại về mặc định của phương pháp mới, gồm cả ngưỡng cảnh báo T1 và T2."
+  },
+  {
+    "title": "Chu kỳ ngân sách và nhắc nhở trong FinMate",
+    "source_name": "FinMate — chu kỳ ngân sách",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Hạn mức ngân sách trong FinMate tính theo chu kỳ tháng. Ngoài ra FinMate có tổng kết theo tuần và theo tháng, tùy phương pháp bạn dùng. Nhắc dự báo hằng ngày mặc định lúc 22:00 và bạn đổi được giờ này. Khi tạo hạn mức cho tháng sau, bạn có thể lưu dự báo theo nhóm chi làm hạn mức của tháng tới. Chu kỳ theo tuần dùng để rà soát và tổng kết, còn hạn mức thì đặt theo tháng."
+  },
+  {
+    "title": "Trợ lý AI của FinMate trả lời dựa trên gì và có giới hạn gì",
+    "source_name": "FinMate — trợ lý AI",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Trợ lý AI của FinMate chỉ trả lời về tài chính cá nhân của chính bạn. Mọi số tiền trong câu trả lời do hệ thống tính từ dữ liệu của bạn, mô hình AI không tự đưa ra con số. Mỗi con số đều kèm nguồn, ngày cập nhật và độ tin cậy. Khi thiếu dữ liệu, trợ lý nói rõ thiếu gì thay vì đoán. Dự báo cần ít nhất 3 tháng lịch sử. Trợ lý không tư vấn mua cổ phiếu, tiền mã hóa, vàng hay sản phẩm đầu tư cụ thể, và không trả lời về dữ liệu của người khác. Trợ lý chỉ đề xuất, không tự tạo giao dịch hay thay đổi dữ liệu của bạn."
+  }
+]

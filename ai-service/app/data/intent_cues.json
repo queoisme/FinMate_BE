@@ -561,7 +561,7 @@
     "purchase_ask_weak": {
       "on": "accented",
       "regex": "(?i)(?<!\\w)(?:<<purchase_ask_weak_phrases>>)(?!\\w)",
-      "doc": "Cách hỏi xin LỜI KHUYÊN ('có nên', 'nên', 'liệu'): chỉ tính khi có số tiền, kẻo 'nên mua nhà hay thuê nhà' bị hỏi lại số tiền. Khớp trên câu CÓ dấu vì bỏ dấu thì 'nên' trùng 'nến'/'nền' ('mua nến thơm 200k' là khoản chi); gõ không dấu thì chỉ các cách hỏi khả năng chi (purchase_ask_strong) còn nhận."
+      "doc": "Cách hỏi xin LỜI KHUYÊN ('có nên', 'nên', 'liệu'): câu thiếu số tiền thì hỏi lại số tiền (kể cả 'có nên mua iphone'); câu chọn món ('nên mua laptop nào dưới 20 triệu') vẫn ngoài phạm vi. Khớp trên câu CÓ dấu vì bỏ dấu thì 'nên' trùng 'nến'/'nền' ('mua nến thơm 200k' là khoản chi); gõ không dấu thì chỉ các cách hỏi khả năng chi (purchase_ask_strong) còn nhận."
     },
     "purchase_choice": {
       "on": "accented",
@@ -746,7 +746,9 @@
     "goal_needs_unit": "Bạn nhắn kèm đơn vị cho số tiền nhé, ví dụ \"20 triệu\".",
     "goal_past_deadline": "Hạn phải ở tương lai nhé. Bạn thử lại, ví dụ \"trong 2 tháng nữa\" hoặc \"trước 30/12\".",
     "goal_default_name": "Mục tiêu tiết kiệm",
-    "purchase": "Mình hiểu khoản định mua của bạn như thế này. Bạn kiểm tra rồi bấm Đánh giá nhé, mình không ghi khoản này vào chi tiêu.",
+    "purchase": "Mình đánh giá khoản định mua này dựa trên số dư và kế hoạch của bạn. Mình không ghi khoản này vào chi tiêu.",
+    "ai_rewrite_prompt": "Bạn sửa một câu chat tiếng Việt của ứng dụng quản lý chi tiêu cho đúng chính tả để bộ luật phía sau đọc được. Quy tắc: (1) Chỉ sửa lỗi gõ, thiếu dấu, viết tắt (ví dụ ko, k, hong = không; dc, duo, duoc = được; mik, tui = mình; ck = chuyển khoản; dt = điện thoại; wa = qua), chữ dính hoặc tách sai. (2) Giữ nguyên mọi ký hiệu dạng {1}, {2}, mỗi ký hiệu đúng một lần, không đổi thứ tự, không thay bằng số, không thêm số nào khác. Chữ đứng ngay sau ký hiệu (tr, k, triệu, nghìn, đ...) là đơn vị tiền: giữ lại, được viết đầy đủ (tr = triệu, k = nghìn) nhưng không được bỏ. (3) Không thêm, bớt hay đổi ý; không trả lời câu hỏi; không giải thích. (4) Nếu câu không liên quan tới tiền hay chi tiêu cá nhân, hoặc không cần sửa, trả lại đúng câu gốc. Chỉ trả JSON dạng {\"text\": \"câu đã sửa\"}.",
+    "purchase_needs_amount": "Bạn định mua với giá bao nhiêu? Nhắn kèm giá để mình đánh giá có nên mua không, ví dụ \"mua iphone 15tr được không?\". Mình không ghi khoản này vào chi tiêu.",
     "purchase_needs_unit": "Bạn nhắn kèm đơn vị cho giá nhé, ví dụ \"800k\" hoặc \"2 triệu\".",
     "purchase_bad_date": "Mình chưa hiểu ngày mua. Bạn thử \"hôm nay\", \"ngày mai\" hoặc \"ngày 16\" nhé.",
     "purchase_past": "Mình chỉ đánh giá khoản định mua từ hôm nay trở đi. Khoản đã mua thì bạn nhắn kiểu \"mua quần 800k\" để mình ghi chi tiêu nhé."

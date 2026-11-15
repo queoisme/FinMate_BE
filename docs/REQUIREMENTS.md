@@ -100,7 +100,7 @@ Chuyển khoản nội bộ đi qua `POST /transactions/transfer`. Form nhập t
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-AUTH-00 | **[Một phần]** Ghi nhận chấp thuận Điều khoản + Chính sách quyền riêng tư (Flow 1 bước 1.0) | Must | Đã có: `POST /users/me/consents` loại `terms` lưu `terms_version` + `terms_accepted_at`; `GET /users/me` trả `termsAccepted`; đổi `ConsentVersions.Terms` (hiện **4**) thì mọi đồng ý cũ hết hiệu lực. Còn thiếu: đăng ký **không** đòi đồng ý (không trả 400), việc chặn hoàn toàn do app |
+| FR-AUTH-00 | **[Một phần]** Ghi nhận chấp thuận Điều khoản + Chính sách quyền riêng tư (Flow 1 bước 1.0) | Must | Đã có: `POST /users/me/consents` loại `terms` lưu `terms_version` + `terms_accepted_at`; `GET /users/me` trả `termsAccepted`; xuất bản phiên bản mới của văn bản pháp lý (bảng `legal_versions`, hiện **4**; FR-CONS-07) thì mọi đồng ý cũ hết hiệu lực. Còn thiếu: đăng ký **không** đòi đồng ý (không trả 400), việc chặn hoàn toàn do app |
 | FR-AUTH-01 | Đăng ký bằng email, mật khẩu, tên hiển thị | Must | Email đúng định dạng, ≤ 320 ký tự, chưa tồn tại; mật khẩu ≥ 8 ký tự; tên ≤ 200 ký tự. Gửi OTP xác minh sau khi tạo |
 | FR-AUTH-02 | Xác minh email bằng OTP 6 chữ số (`verify-email`, `resend-verification`) | Must | Mã hết hạn sau 10 phút, dùng một lần, huỷ sau 5 lần sai; gửi lại cách nhau ≥ 60 giây. `REQUIRE_EMAIL_VERIFICATION` bật thì chưa xác minh không đăng nhập được |
 | FR-AUTH-03 | Đăng nhập email/mật khẩu | Must | Access token JWT (15 phút) + refresh token opaque (30 ngày). Tài khoản bị khoá hoặc đã yêu cầu xoá thì từ chối |
@@ -129,6 +129,7 @@ Bốn loại đồng ý, mỗi loại có phiên bản câu chữ trong `Consent
 | FR-CONS-04 | Rút đồng ý huấn luyện xoá dữ liệu đã đóng góp | Must | `DELETE /users/me/consents/training` gọi `POST /bill/samples/erase`; lỗi xoá → 503 (bấm lại), **không** nuốt lỗi |
 | FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Đã chốt 2026-11-05: giữ Vision và nêu rõ trong bản 4; app phải có câu chữ này trước khi phát hành |
 | FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment của `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ |
+| FR-CONS-07 | Điều khoản sử dụng và Chính sách quyền riêng tư đọc được từ server và do nhân sự cập nhật | Must | `GET /legal/terms`, `GET /legal/privacy` công khai, chỉ trả bản đã xuất bản (`{ version, updatedAt, sections[{ title, body }] }`). Hai văn bản chung một số phiên bản. Manager và Admin (`ManageLegalDocuments`) soạn nháp ở `/ops/legal`; **chỉ Admin** xuất bản (`POST /admin/legal/draft/publish`). Xuất bản luôn là phiên bản mới: `termsAccepted` về `false` cho mọi người (cả khi profile còn trong cache), đồng ý bản cũ bị 409. Server không dừng AI khi đó, vì đồng ý AI là phiên bản riêng. Bản 4 hiện là chữ tạm lấy từ app; bản đầy đủ (FR-CONS-05) cần người phụ trách pháp lý duyệt. Chi tiết: `docs/superpowers/specs/2026-11-13-legal-documents-design.md` |
 
 ## 4. FR — Tài khoản tài chính và danh mục
 

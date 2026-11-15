@@ -107,8 +107,11 @@ public class User
     /// <summary>Bị cấm đăng tới mốc này. Vẫn đọc được.</summary>
     public DateTimeOffset? CommunityMutedUntil { get; set; }
 
-    /// <summary>Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại.</summary>
-    public bool TermsAccepted => TermsVersion == ConsentVersions.Terms;
+    /// <summary>
+    /// Chỉ tính đồng ý ở đúng phiên bản hiện hành: câu chữ đã đổi thì phải đồng ý lại. Phiên bản hiện hành của Điều khoản nằm ở DB
+    /// (<c>legal_versions</c>, Admin xuất bản) nên nhận vào đây, không còn là hằng.
+    /// </summary>
+    public bool HasAcceptedTerms(int currentTermsVersion) => TermsVersion == currentTermsVersion;
     public bool AiConsentGranted => AiConsentVersion == ConsentVersions.Ai;
     public bool TrainingConsentGranted => TrainingConsentVersion == ConsentVersions.Training;
     public bool SurveyAiConsentGranted => SurveyAiConsentVersion == ConsentVersions.SurveyAi;

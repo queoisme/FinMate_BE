@@ -55,6 +55,7 @@ public class BackendSecretTester : ISecretTester
             return name switch
             {
                 BackendSecrets.BrevoApiKey => await TestBrevoAsync(value!, ct),
+                BackendSecrets.BrevoSenderEmail => new SecretTestResult(true, "Đã lưu. Gửi thử một mã OTP để biết Brevo có chấp nhận người gửi này."),
                 BackendSecrets.GoogleClientSecret => await TestGoogleAsync(value!, ct),
                 BackendSecrets.FcmCredentialsJson => await TestFirebaseAsync(ct),
                 BackendSecrets.SepaySecretKey => await TestSepayAsync(ct),

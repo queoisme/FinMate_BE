@@ -61,6 +61,7 @@ public class FinMateDbContext : DbContext
     public DbSet<CommunityComment> CommunityComments => Set<CommunityComment>();
     public DbSet<CommunityPostVote> CommunityPostVotes => Set<CommunityPostVote>();
     public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
+    public DbSet<LegalVersion> LegalVersions => Set<LegalVersion>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<SubscriptionPlanFeature> SubscriptionPlanFeatures => Set<SubscriptionPlanFeature>();
     public DbSet<SubscriptionOrder> SubscriptionOrders => Set<SubscriptionOrder>();

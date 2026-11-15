@@ -9,6 +9,7 @@ namespace FinMate.Application.Common;
 public static class BackendSecrets
 {
     public const string BrevoApiKey = "brevo_api_key";
+    public const string BrevoSenderEmail = "brevo_sender_email";
     public const string GoogleClientSecret = "google_client_secret";
     public const string FcmCredentialsJson = "fcm_credentials_json";
     public const string SepaySecretKey = "sepay_secret_key";
@@ -21,6 +22,7 @@ public static class BackendSecrets
     public static readonly IReadOnlyList<Definition> All =
     [
         new(BrevoApiKey, "Brevo API key (gửi email OTP)", "BREVO_API_KEY", ValidateToken),
+        new(BrevoSenderEmail, "Email người gửi Brevo (phải là email đã xác minh trên Brevo)", "BREVO_SENDER_EMAIL", ValidateEmail),
         new(GoogleClientSecret, "Google OAuth client secret (đăng nhập Google)", "GOOGLE_CLIENT_SECRET", ValidateToken),
         new(FcmCredentialsJson, "Firebase service account JSON (thông báo đẩy FCM)", "FCM_CREDENTIALS_JSON", ValidateServiceAccount, Multiline: true),
         new(SepaySecretKey, "SePay secret key (ký form, tra đơn)", "SEPAY_SECRET_KEY", ValidateToken),
@@ -32,6 +34,9 @@ public static class BackendSecrets
     /// <summary>Trả lý do từ chối (tiếng Việt, không chứa giá trị) hoặc null nếu hợp lệ.</summary>
     private static string? ValidateToken(string value)
         => value.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)) ? "Key không được chứa khoảng trắng hay ký tự điều khiển." : null;
+
+    private static string? ValidateEmail(string value)
+        => System.Net.Mail.MailAddress.TryCreate(value, out var a) && a.Address == value ? null : "Phải là một địa chỉ email hợp lệ.";
 
     private static string? ValidateServiceAccount(string value)
     {

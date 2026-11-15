@@ -20,7 +20,7 @@ from app.bill.classify_stats import ClassifyStatsRecorder
 from app.bill.gemini import LlmClient
 from app.bill.item_classifier import item_key
 from app.bill.knowledge import BillKnowledge
-from app.services.chat_ai import apply_ai_categories
+from app.services.chat_ai import apply_ai_categories, apply_ai_rewrite
 from app.services.intent_classifier import IntentClassifier, shared_classifier
 from app.services.transaction_parser import VN, ChatParse, parse_chat
 from app.services.vi_text import clean_text
@@ -164,6 +164,12 @@ async def chat_parse(
         auto_save_below=settings.chat_auto_save_below,
     )
     ai_stats: dict[str, int] = {}
+
+    async def reparse(fixed: str) -> ChatParse:
+        fixed_nlu = await classifier.parse(fixed) if classifier else None
+        return parse_chat(fixed, fixed_nlu, now=datetime.now(VN), auto_save_below=settings.chat_auto_save_below)
+
+    parsed = await apply_ai_rewrite(text, parsed, reparse, gemini, body.allow_ai, stats=ai_stats)  # luật không hiểu câu gõ sai: Gemini sửa chính tả rồi luật đọc lại (khi đã đồng ý AI)
     parsed = await apply_ai_categories(parsed, knowledge, gemini, instruction, body.allow_ai, stats=ai_stats)  # AI quyết trước (khi đã đồng ý), luật dự phòng
     parsed = await _with_cached_categories(parsed, knowledge)  # phần còn chưa rõ nhóm: gợi ý từ bảng nhớ
     if body.allow_ai and ai_stats:

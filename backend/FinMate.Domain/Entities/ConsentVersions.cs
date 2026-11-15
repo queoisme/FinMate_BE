@@ -6,13 +6,14 @@ namespace FinMate.Domain.Entities;
 /// </summary>
 public static class ConsentVersions
 {
-    /// <summary>
-    /// Điều khoản sử dụng + Chính sách quyền riêng tư. Bản 2: nêu rõ việc gửi tên món / cụm sản phẩm cho dịch vụ AI bên thứ ba, nên đồng ý bản này
-    /// cũng bật phân loại bằng AI (người dùng không bị hỏi thêm; có thể tắt trong Hồ sơ). Đồng ý đóng góp dữ liệu huấn luyện thì KHÔNG đi kèm.
-    /// Bản 3: thêm đọc thông báo từ app ngân hàng/ví và đăng nhập Google, để một lần đồng ý bao trùm toàn bộ.
-    /// Bản 4: thêm chia sẻ với nhóm: giao dịch người dùng chủ động chia sẻ (số tiền, nơi chi, ghi chú, tên họ) hiện với thành viên nhóm và còn đó khi họ rời nhóm. Đồng thời nêu việc hỗ trợ: ảnh gửi vào yêu cầu hỗ trợ được lưu có thời hạn, và nhân viên chỉ xem dữ liệu khi người dùng đồng ý theo từng yêu cầu. Cũng nêu rõ ảnh hóa đơn được gửi nguyên bản, chưa che dữ liệu cá nhân, tới Google Cloud Vision để đọc chữ.
-    /// </summary>
-    public const int Terms = 4;
+    // Điều khoản sử dụng + Chính sách quyền riêng tư KHÔNG còn là hằng ở đây: phiên bản hiện hành là dòng đã xuất bản mới nhất của bảng
+    // legal_versions (Admin xuất bản; đọc qua ILegalVersionProvider). Lịch sử trước khi chuyển sang DB, để biết mỗi bản đã nói gì:
+    //   Bản 2: nêu rõ việc gửi tên món / cụm sản phẩm cho dịch vụ AI bên thứ ba, nên đồng ý bản này cũng bật phân loại bằng AI
+    //          (người dùng không bị hỏi thêm; có thể tắt trong Hồ sơ). Đồng ý đóng góp dữ liệu huấn luyện thì KHÔNG đi kèm.
+    //   Bản 3: thêm đọc thông báo từ app ngân hàng/ví và đăng nhập Google, để một lần đồng ý bao trùm toàn bộ.
+    //   Bản 4: thêm chia sẻ với nhóm (giao dịch người dùng chủ động chia sẻ hiện với thành viên nhóm và còn đó khi họ rời nhóm), việc hỗ trợ
+    //          (ảnh gửi vào yêu cầu hỗ trợ được lưu có thời hạn; nhân viên chỉ xem dữ liệu khi người dùng đồng ý theo từng yêu cầu), và việc ảnh
+    //          hóa đơn được gửi nguyên bản, chưa che dữ liệu cá nhân, tới Google Cloud Vision để đọc chữ.
 
     /// <summary>
     /// Giá trị của <c>AiConsentVersion</c> khi người dùng CHỦ ĐỘNG tắt AI trong Hồ sơ. Khác với <c>null</c> (chưa bao giờ quyết định): đồng ý điều khoản mới

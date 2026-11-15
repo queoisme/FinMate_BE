@@ -117,6 +117,24 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task EveryChatResponseCarriesTheServerTimesInUtcForTheTimestampsShownInChat()
+    {
+        const string text = "chat-test: thời gian 150k";
+        FakeAIServiceClient.SetChat(text, Expense(text, 150_000, auto: false));
+        var token = await RegisterAndLoginAsync();
+        var before = DateTimeOffset.UtcNow;
+
+        var data = await ChatAsync(token, text);
+
+        var after = DateTimeOffset.UtcNow;
+        var received = data.GetProperty("receivedAt").GetDateTimeOffset();
+        var responded = data.GetProperty("respondedAt").GetDateTimeOffset();
+        received.Offset.Should().Be(TimeSpan.Zero);
+        received.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
+        responded.Should().BeOnOrAfter(received).And.BeOnOrBefore(after);
+    }
+
+    [Fact]
     public async Task SeveralEntriesInOneSentenceComeBackAsDraftsAndChargeNothing()
     {
         const string text = "chat-test: ăn cơm 20k, uống nước 10k";

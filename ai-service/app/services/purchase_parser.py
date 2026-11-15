@@ -3,8 +3,8 @@
 Chỉ ĐỌC câu và trả (tên món, giá, ngày định mua, danh mục); backend tính kết luận ở ``POST /forecast/purchase-check`` bằng số liệu của nó. AI ở đây không bao giờ
 tính số dư hay đưa kết luận, và không ghi giao dịch nào.
 
-Kích hoạt hẹp có chủ ý: cần ĐỦ CẢ động từ mua LẪN cách hỏi khả năng chi ("được không", "ổn không", "đủ tiền"...). "mua cà phê 45k" vẫn là khoản chi;
-"iphone 20 triệu có đáng mua không" (hỏi giá trị món đồ) và "nên mua nhà hay thuê nhà" (xin lời khuyên, không giá) vẫn ngoài phạm vi.
+Kích hoạt hẹp có chủ ý: cần ĐỦ CẢ động từ mua LẪN cách hỏi ("được không", "ổn không", "đủ tiền"... hoặc xin lời khuyên "có nên", "nên", "liệu"). "mua cà phê 45k" vẫn là khoản chi;
+"iphone 20 triệu có đáng mua không" (hỏi giá trị món đồ) vẫn ngoài phạm vi. Câu thiếu giá thì hỏi lại giá, kể cả "có nên mua X" (từ 2026-11-13).
 
 Ngày định mua (giờ Việt Nam) chỉ từ hôm nay trở đi, khác ``dates.parse_when`` vốn từ chối ngày tương lai:
   "hôm nay", "ngày mai", "ngày kia"; "ngày 16" = 16 tháng này, hoặc tháng sau nếu đã qua 16; "ngày 16/11", "ngày 16 tháng 11" (đã qua thì bị từ chối).
@@ -106,6 +106,11 @@ def _name_from(nfc: str, norm: str, removed: list[tuple[int, int]]) -> str | Non
     return name[:_MAX_ITEM].strip() if len(name) >= 2 else None
 
 
+def mentions_buying(norm: str) -> bool:
+    """Câu (đã bỏ dấu) có động từ mua: một trong các dấu hiệu "câu này nói chuyện tiền" cho bước Gemini sửa chính tả."""
+    return bool(_BUY.search(norm))
+
+
 def parse_purchase(text: str, now: datetime) -> PurchaseResult | None:
     """None nếu câu không phải hỏi trước khi mua; còn lại là bản nháp hoặc câu hỏi lại (thiếu/mơ hồ giá, ngày không hiểu, khoản đã mua)."""
     nfc = unicodedata.normalize("NFC", text).strip()
@@ -129,7 +134,7 @@ def parse_purchase(text: str, now: datetime) -> PurchaseResult | None:
     masked = "".join(" " if any(start <= i < end for start, end in removed) else c for i, c in enumerate(norm))
     match = parse_amount(masked)
     if match is None:
-        return PurchaseResult(None, needs_amount=True) if strong else None  # 'nên mua nhà hay thuê nhà' không giá: xin lời khuyên, ngoài phạm vi
+        return PurchaseResult(None, replies["purchase_needs_amount"], needs_amount=True)  # cả "được không" lẫn "có nên mua X" không giá đều hỏi lại giá (người dùng gõ sai chữ vẫn có lời hỏi thay vì "ngoài phạm vi")
     if match.assumed:
         return PurchaseResult(None, replies["purchase_needs_unit"])
 

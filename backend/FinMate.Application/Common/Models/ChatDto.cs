@@ -91,6 +91,8 @@ public record ChatSummaryDto(
     bool TransactionsHasMore = false);
 
 /// <param name="Intent">Ý định AI Service hiểu được (add_expense, ask_spending, greet...).</param>
+/// <param name="ReceivedAt">Lúc backend nhận tin của người dùng (UTC). App dùng làm giờ của bong bóng người dùng và nhãn ngày ("Hôm nay", "Hôm qua") theo múi giờ máy; luôn có trong phản hồi của <c>POST /transactions/chat</c> và <c>/transactions/voice</c>.</param>
+/// <param name="RespondedAt">Lúc backend trả lời xong (UTC): giờ của bong bóng trả lời. Luôn ≥ <paramref name="ReceivedAt"/>.</param>
 public record ChatResultDto(
     string Action,
     string Intent,
@@ -100,4 +102,6 @@ public record ChatResultDto(
     ChatSummaryDto? Summary,
     IReadOnlyList<ChatDraftDto>? Drafts = null,
     ChatGoalDraftDto? Goal = null,
-    ChatPurchaseDraftDto? Purchase = null);
+    ChatPurchaseDraftDto? Purchase = null,
+    DateTimeOffset? ReceivedAt = null,
+    DateTimeOffset? RespondedAt = null);

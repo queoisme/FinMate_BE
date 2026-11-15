@@ -20,7 +20,7 @@ from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
-from app.services.purchase_parser import PurchaseDraft, parse_purchase
+from app.services.purchase_parser import PurchaseDraft, mentions_buying, parse_purchase
 from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
 from app.services.clauses import apply_cancellations, extract_total, has_unresolved_cancel, split_amountless, split_clauses, split_on_amounts
@@ -79,6 +79,7 @@ intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.appl
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
 PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; bộ phân loại ý định cũng có thể đoán tên này
+PURCHASE_ASK_INTENT = "purchase_needs_amount"  # vừa hỏi giá một khoản định mua: app nhớ câu hỏi và ghép với tin kế tiếp nếu tin đó chỉ có số tiền (server không giữ trạng thái)
 
 
 @dataclass(frozen=True)
@@ -429,6 +430,13 @@ def _is_detail(norm: str) -> bool:
     return bool(_DETAIL_Q.search(norm) and not _DETAIL_NOT.search(norm) and (_mentions_period(norm) or _SPEND_Q.search(norm) or "khoan" in norm))
 
 
+def has_money_signal(text: str) -> bool:
+    """Câu có dấu hiệu nói chuyện tiền (có chữ số, từ chỉ tiền, động từ chi, động từ mua): đủ để đáng thử sửa chính tả bằng AI khi luật không hiểu.
+    Cố ý rộng: bước AI vẫn bị chặn bởi sự đồng ý của người dùng và trần thời gian."""
+    norm = normalize(text)
+    return bool(re.search(r"\d", norm) or _MONEY_WORD.search(norm) or _EXPENSE_VERB.match(norm) or mentions_buying(norm))
+
+
 def is_question(text: str, norm: str) -> bool:
     """Câu hỏi, không phải khoản ghi: kết thúc bằng dấu hỏi hoặc tiểu từ hỏi, hoặc mở đầu bằng "có nên", "nên", "liệu", "có phải"."""
     return text.rstrip().endswith("?") or norm.endswith(_QUESTION_PARTICLES) or bool(_QUESTION_LEAD.match(norm))
@@ -669,7 +677,7 @@ def parse_chat(
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
     if (check := parse_purchase(text, now)) is not None and not is_query(norm):  # trước _resolve_intent: "…được không?" nếu không sẽ thành out_of_scope qua _is_social_question
         if check.needs_amount:
-            return result("needs_amount", reply_text=_REPLIES["needs_amount"])
+            return result(PURCHASE_ASK_INTENT, reply_text=check.reply or _REPLIES["needs_amount"])  # lời hỏi giá của khoản định mua nói đúng việc đang hỏi, không phải ví dụ ghi chi tiêu
         return result(PURCHASE_INTENT, purchase=check.draft, reply_text=check.reply or _REPLIES["purchase"])
     intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)

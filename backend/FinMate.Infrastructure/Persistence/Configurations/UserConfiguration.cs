@@ -95,7 +95,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.CommunityConsentAt).HasColumnName("community_consent_at");
         builder.Property(u => u.CommunityMutedUntil).HasColumnName("community_muted_until");
         builder.Ignore(u => u.TrainingConsentGranted);
-        builder.Ignore(u => u.TermsAccepted);
         builder.Ignore(u => u.AiConsentGranted);
         builder.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");
 

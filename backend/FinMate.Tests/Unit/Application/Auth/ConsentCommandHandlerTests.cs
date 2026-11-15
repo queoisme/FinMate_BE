@@ -1,6 +1,7 @@
 using FinMate.Application.Auth.Commands;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Legal;
 using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FluentAssertions;
@@ -15,20 +16,25 @@ public class ConsentCommandHandlerTests
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<ICacheService> _cache = new();
     private readonly Mock<ITrainingSampleService> _training = new();
+    private readonly Mock<ILegalVersionProvider> _legal = new();
     private readonly ConsentCommandHandler _handler;
+
+    /// <summary>Bản seed của migration AddLegalVersions; phiên bản hiện hành giờ do ILegalVersionProvider trả về.</summary>
+    private const int CurrentTerms = 4;
     private readonly User _user = new() { Id = Guid.NewGuid(), Email = "a@finmate.local", DisplayName = "A" };
 
     public ConsentCommandHandlerTests()
     {
         _users.Setup(r => r.GetByIdAsync(_user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
         _training.Setup(t => t.EraseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _handler = new ConsentCommandHandler(_users.Object, _cache.Object, _training.Object);
+        _legal.Setup(l => l.CurrentTermsVersionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(CurrentTerms);
+        _handler = new ConsentCommandHandler(_users.Object, _cache.Object, _legal.Object, _training.Object);
     }
 
     [Fact]
     public void NewUser_HasAgreedToNothing()
     {
-        _user.TermsAccepted.Should().BeFalse();
+        _user.HasAcceptedTerms(CurrentTerms).Should().BeFalse();
         _user.AiConsentGranted.Should().BeFalse();
         _user.TrainingConsentGranted.Should().BeFalse();
     }
@@ -51,12 +57,12 @@ public class ConsentCommandHandlerTests
     [Fact]
     public async Task AcceptTerms_RecordsVersionAndTime_AndTurnsAiOn_BecauseTheTermsTextDisclosesIt()
     {
-        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
 
         dto.TermsAccepted.Should().BeTrue();
         dto.AiConsentGranted.Should().BeTrue();
         dto.TrainingConsentGranted.Should().BeFalse("đóng góp dữ liệu huấn luyện không bao giờ đi kèm điều khoản");
-        _user.TermsVersion.Should().Be(ConsentVersions.Terms);
+        _user.TermsVersion.Should().Be(CurrentTerms);
         _user.TermsAcceptedAt.Should().NotBeNull();
         _user.AiConsentVersion.Should().Be(ConsentVersions.Ai);
         _user.AiConsentAt.Should().NotBeNull();
@@ -67,7 +73,7 @@ public class ConsentCommandHandlerTests
     {
         _user.AiConsentVersion = ConsentVersions.Ai - 1;  // đã từng đồng ý bản cũ
 
-        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
 
         dto.AiConsentGranted.Should().BeTrue();
     }
@@ -75,12 +81,12 @@ public class ConsentCommandHandlerTests
     [Fact]
     public async Task AcceptTerms_NeverTurnsAiBackOn_ForSomeoneWhoSwitchedItOff()
     {
-        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
         await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
 
         // Điều khoản đổi phiên bản sau này: người đã chủ động tắt AI không bị bật lại ngầm
-        _user.TermsVersion = ConsentVersions.Terms - 1;
-        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        _user.TermsVersion = CurrentTerms - 1;
+        var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
 
         dto.TermsAccepted.Should().BeTrue();
         dto.AiConsentGranted.Should().BeFalse();
@@ -90,7 +96,7 @@ public class ConsentCommandHandlerTests
     [Fact]
     public async Task AcceptAi_AfterSwitchingItOff_TurnsItBackOn()
     {
-        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
         await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);
 
         var dto = await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
@@ -124,21 +130,32 @@ public class ConsentCommandHandlerTests
     }
 
     [Fact]
+    public async Task AcceptTerms_WhenAdminPublishedANewVersion_RefusesTheOldOneWith409()
+    {
+        _legal.Setup(l => l.CurrentTermsVersionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(CurrentTerms + 1);
+
+        var act = () => _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
+
+        (await act.Should().ThrowAsync<ConflictException>()).Which.ErrorCode.Should().Be(AuthErrorCodes.ConsentVersionOutdated);
+        _users.Verify(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public void ConsentGivenToAnOlderVersion_NoLongerCounts()
     {
         _user.AiConsentVersion = ConsentVersions.Ai - 1;
-        _user.TermsVersion = ConsentVersions.Terms - 1;
+        _user.TermsVersion = CurrentTerms - 1;
         _user.TrainingConsentVersion = ConsentVersions.Training - 1;
 
         _user.AiConsentGranted.Should().BeFalse();
-        _user.TermsAccepted.Should().BeFalse();
+        _user.HasAcceptedTerms(CurrentTerms).Should().BeFalse();
         _user.TrainingConsentGranted.Should().BeFalse();
     }
 
     [Fact]
     public async Task WithdrawAi_ClearsOnlyTheAiConsent()
     {
-        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, ConsentVersions.Terms));
+        await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Terms, CurrentTerms));
         await _handler.AcceptAsync(new AcceptConsentCommand(_user.Id, ConsentKind.Ai, ConsentVersions.Ai));
 
         var dto = await _handler.WithdrawAsync(_user.Id, ConsentKind.Ai);

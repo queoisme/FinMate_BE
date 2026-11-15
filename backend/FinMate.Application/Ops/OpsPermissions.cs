@@ -30,6 +30,9 @@ public enum OpsCapability
 
     /// <summary>Thêm, sửa, xóa gói đăng ký, đặt giá và chọn chức năng của gói; xem đơn mua.</summary>
     ManageSubscriptionPlans = 1 << 16,
+
+    /// <summary>Soạn bản nháp Điều khoản và Chính sách quyền riêng tư, xem lịch sử phiên bản. Xuất bản cần <see cref="ManageSystem"/> (chỉ Admin).</summary>
+    ManageLegalDocuments = 1 << 17,
 }
 
 public static class OpsPermissions
@@ -53,7 +56,8 @@ public static class OpsPermissions
         | OpsCapability.ViewMonitoring
         | OpsCapability.ManageIncidents
         | OpsCapability.MuteCommunityAuthors
-        | OpsCapability.ManageSubscriptionPlans;
+        | OpsCapability.ManageSubscriptionPlans
+        | OpsCapability.ManageLegalDocuments;
 
     public static OpsCapability For(UserRole role) => role switch
     {

@@ -2,6 +2,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Legal;
 using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 
@@ -11,12 +12,15 @@ public class ConsentCommandHandler : IConsentCommandHandler
 {
     private readonly IUserRepository _userRepository;
     private readonly ICacheService _cacheService;
+    private readonly ILegalVersionProvider _legal;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu thì không có gì để xóa
 
-    public ConsentCommandHandler(IUserRepository userRepository, ICacheService cacheService, ITrainingSampleService? trainingSamples = null)
+    public ConsentCommandHandler(
+        IUserRepository userRepository, ICacheService cacheService, ILegalVersionProvider legal, ITrainingSampleService? trainingSamples = null)
     {
         _userRepository = userRepository;
         _cacheService = cacheService;
+        _legal = legal;
         _trainingSamples = trainingSamples;
     }
 
@@ -24,7 +28,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
     {
         var current = command.Kind switch
         {
-            ConsentKind.Terms => ConsentVersions.Terms,
+            ConsentKind.Terms => await _legal.CurrentTermsVersionAsync(ct),
             ConsentKind.Ai => ConsentVersions.Ai,
             ConsentKind.Training => ConsentVersions.Training,
             ConsentKind.SurveyAi => ConsentVersions.SurveyAi,
@@ -132,6 +136,6 @@ public class ConsentCommandHandler : IConsentCommandHandler
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
         await _cacheService.RemoveAsync(CacheKeys.UserProfile(user.Id), ct);
-        return UserProfileDto.From(user);
+        return UserProfileDto.From(user, await _legal.CurrentTermsVersionAsync(ct));
     }
 }

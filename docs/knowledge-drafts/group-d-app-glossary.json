@@ -1,0 +1,47 @@
+[
+  {
+    "title": "Cách đọc nhãn nguồn của một con số trong FinMate",
+    "source_name": "FinMate — thuật ngữ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Mỗi con số trợ lý đưa ra đều có một nhãn nguồn. Đã xác nhận nghĩa là dữ liệu đã được xác nhận trong app, ví dụ giao dịch bạn đã duyệt. Bạn nhập nghĩa là chính bạn khai, ví dụ thu nhập dự kiến. Ước tính nghĩa là FinMate suy ra từ lịch sử, nên chắc chắn thấp hơn dữ liệu đã xác nhận. Theo tài liệu nghĩa là lấy từ một tài liệu hoặc giả định đã được duyệt, kèm tên nguồn và ngày. Con số ước tính hoặc do bạn tự nhập luôn có độ tin cậy tối đa thấp hơn dữ liệu đã xác nhận."
+  },
+  {
+    "title": "Cách đọc kết luận khả thi, cần cân nhắc, khó đạt",
+    "source_name": "FinMate — thuật ngữ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Với câu hỏi về mục tiêu, mua một món hay chịu đựng khi thu nhập giảm, trợ lý có thể đưa ra một kết luận. Khả thi nghĩa là theo dữ liệu hiện có thì làm được. Cần cân nhắc nghĩa là làm được nhưng sát giới hạn, hoặc kết luận dựa một phần vào số ước tính. Khó đạt nghĩa là theo dữ liệu hiện có thì chưa đủ. Đây là nhận định dựa trên lịch sử của bạn, không phải lời hứa hay lời khuyên mua. Trợ lý không dùng các từ như chắc chắn hay nên mua."
+  },
+  {
+    "title": "Dòng tiền là gì",
+    "source_name": "FinMate — thuật ngữ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Dòng tiền là tiền vào và tiền ra của bạn theo thời gian. Tiền vào gồm lương và các khoản thu khác. Tiền ra gồm chi tiêu, hóa đơn và các khoản trả nợ. Cùng một mức thu nhập, người có dòng tiền đều đặn dễ lập kế hoạch hơn người có dòng tiền lúc dồn lúc thưa. Vì vậy FinMate xem lịch hóa đơn đến hạn và ngày nhận tiền để dự báo số dư từng ngày."
+  },
+  {
+    "title": "Hạn mức và kỳ ngân sách là gì",
+    "source_name": "FinMate — thuật ngữ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "Hạn mức là mức chi tối đa bạn tự đặt cho một nhóm chi, hoặc cho toàn bộ chi tiêu. Kỳ ngân sách là khoảng thời gian áp dụng hạn mức đó, trong FinMate là một tháng. Khi bạn chi đến một tỷ lệ nhất định của hạn mức, FinMate nhắc bạn theo các mốc T1 và T2, và báo khi vượt hạn mức. Sang kỳ mới thì mức đã chi của hạn mức được tính lại từ đầu."
+  },
+  {
+    "title": "Thu nhập ổn định và không ổn định trong FinMate",
+    "source_name": "FinMate — thuật ngữ",
+    "source_url": null,
+    "as_of": "2026-11-09T00:00:00+07:00",
+    "effective_from": "2026-11-09T00:00:00+07:00",
+    "effective_to": null,
+    "text": "FinMate xếp bạn vào nhóm thu nhập ổn định hoặc không ổn định dựa trên mức dao động của thu nhập các tháng trước. Khi dao động lớn, từ khoảng 25% trở lên so với mức trung bình, bạn thuộc nhóm không ổn định. Nhóm này có dải dự báo rộng hơn và dùng mức thu nhập thấp để lập kế hoạch an toàn. Bạn cũng có thể tự chọn nhóm của mình, và lựa chọn của bạn được ưu tiên. Cần ít nhất 3 tháng lịch sử thì FinMate mới kết luận được nhóm."
+  }
+]

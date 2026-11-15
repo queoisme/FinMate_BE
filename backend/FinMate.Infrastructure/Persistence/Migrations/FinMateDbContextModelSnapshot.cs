@@ -2133,6 +2133,68 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("group_share_rules", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.LegalVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("PrivacySections")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("privacy_sections");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TermsSections")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("terms_sections");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .IsUnique()
+                        .HasDatabaseName("uq_legal_versions_single_draft")
+                        .HasFilter("status = 'draft'");
+
+                    b.HasIndex("Version")
+                        .IsUnique()
+                        .HasDatabaseName("uq_legal_versions_version");
+
+                    b.ToTable("legal_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_legal_versions_version_iff_published", "(status = 'published') = (version IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.MarketDocument", b =>
                 {
                     b.Property<Guid>("Id")

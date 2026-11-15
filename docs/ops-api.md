@@ -35,6 +35,7 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `ModerateCommunity` | ✅ | ✅ | ✅ |
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 | `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
+| `ManageLegalDocuments` (soạn nháp văn bản pháp lý; xuất bản cần `ManageSystem`) | ❌ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -352,6 +353,25 @@ Cần `ManageSubscriptionPlans`, tức OpsManager hoặc Admin. Chạy cả khi 
 Giá tính bằng đồng. Gói miễn phí có sẵn, không có giá, không tắt và không xóa được; hạn mức của nó áp dụng ngay cho mọi người chưa mua. Sửa gói trả phí không ảnh hưởng người đã mua, vì đơn giữ bản chụp giá và quyền lợi.
 
 Đơn `NeedsReview` là tiền đã về nhưng chưa cấp được gói. Mỗi đơn mở một sự cố `subscription_payments`, xử lý theo `docs/ops-runbook.md`.
+
+## Văn bản pháp lý: `/api/v1/ops/legal` và `/api/v1/admin/legal`
+
+Điều khoản sử dụng và Chính sách quyền riêng tư đọc công khai ở `GET /api/v1/legal/terms` và `GET /api/v1/legal/privacy` (`{ version, updatedAt, sections[{ title, body }] }`, chỉ bản đã xuất bản). Hai văn bản chung một số phiên bản vì được đồng ý cùng lúc. `body` là văn bản thuần: app không được hiển thị như HTML.
+
+Manager và Admin soạn nháp, **chỉ Admin xuất bản**. Quyền soạn đọc từ DB mỗi lần gọi (`ManageLegalDocuments`); xuất bản cần `ManageSystem`. Mọi thao tác ghi vào `audit_logs` (chỉ id nháp và số phiên bản, không ghi nội dung).
+
+| API | Quyền | Việc |
+|---|---|---|
+| `GET /ops/legal/versions` | `ManageLegalDocuments` | Lịch sử: số phiên bản, trạng thái, ngày và người xuất bản; kèm nháp nếu có |
+| `GET /ops/legal/draft` | `ManageLegalDocuments` | Nháp hiện có. Chưa có thì trả bản hiện hành với `isDraft: false`, `updatedAt: null` để làm điểm xuất phát |
+| `PUT /ops/legal/draft` `{ termsSections, privacySections, baseUpdatedAt }` | `ManageLegalDocuments` | Tạo hoặc thay toàn bộ nháp (tối đa một nháp). Đã có nháp thì `baseUpdatedAt` phải là `updatedAt` client nhận lần trước, nếu không 409 `legal_draft_stale` |
+| `POST /admin/legal/draft/publish` | `ManageSystem` (chỉ Admin) | Biến nháp thành phiên bản mới (lớn nhất đã xuất bản + 1) |
+
+Mỗi văn bản 1 đến 50 mục; `title` tối đa 200 ký tự, `body` tối đa 20 000, đều không rỗng (sai thì 400 `VALIDATION_ERROR`). Lỗi xuất bản: 422 `legal_no_draft` (không có nháp), 422 `legal_draft_unchanged` (nháp giống hệt bản hiện hành), 409 `legal_draft_stale` (người khác vừa xuất bản hoặc sửa nháp).
+
+Xuất bản luôn tạo phiên bản mới, kể cả sửa chính tả. Hậu quả: `termsAccepted` về `false` cho mọi người ngay (kể cả khi profile còn trong cache), và đồng ý gửi phiên bản cũ bị 409 `AUTH_CONSENT_VERSION_OUTDATED`, nên app phải đọc `version` từ `GET /legal/...` thay vì viết cứng. Server **không** dừng AI khi đó: đồng ý AI là một phiên bản riêng và không nơi nào ở server chặn theo `termsAccepted`; việc chặn dùng app do app làm.
+
+Migration `AddLegalVersions` cấp quyền `ManageLegalDocuments` cho các hàng OpsManager đã có trong `role_permissions` (bộ seed không bao giờ cập nhật hàng đã có). Staff không có; Admin gán thêm được ở `PUT /admin/role-permissions/Staff`. Bản 4 trong bảng là chữ tạm lấy từ màn đọc văn bản ở app; bản đầy đủ (Google Vision, nhóm, hỗ trợ) do Admin soạn và xuất bản thành bản 5 sau khi người phụ trách pháp lý duyệt chữ.
 
 ## Chất lượng dự báo: độ chính xác và phản hồi "dự báo sai"
 

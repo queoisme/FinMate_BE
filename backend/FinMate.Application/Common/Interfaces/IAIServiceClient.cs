@@ -140,7 +140,7 @@ public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, D
 /// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
 public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | empty.</param>
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,

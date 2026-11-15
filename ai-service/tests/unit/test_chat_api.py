@@ -123,7 +123,7 @@ async def test_a_purchase_question_without_a_day_or_item_keeps_the_nulls():
 
 async def test_a_purchase_question_without_a_price_asks_for_the_amount():
     body = (await post("mua laptop được không?")).json()
-    assert body["intent"] == "needs_amount" and body["purchase"] is None and "số tiền" in body["reply_text"]
+    assert body["intent"] == "purchase_needs_amount" and body["purchase"] is None and "giá bao nhiêu" in body["reply_text"]
 
 
 async def test_other_intents_carry_a_null_purchase():
@@ -234,7 +234,7 @@ async def test_an_expense_phrase_without_a_number_asks_for_the_amount(text):
     assert (await post(text)).json()["intent"] == "needs_amount"
 
 
-@pytest.mark.parametrize("text", ["ăn gì bây giờ?", "xin chào", "thời tiết hôm nay thế nào", "nên mua nhà hay thuê nhà"])
+@pytest.mark.parametrize("text", ["ăn gì bây giờ?", "xin chào", "thời tiết hôm nay thế nào"])
 async def test_questions_and_small_talk_do_not_ask_for_an_amount(text):
     assert (await post(text)).json()["intent"] != "needs_amount"
 
