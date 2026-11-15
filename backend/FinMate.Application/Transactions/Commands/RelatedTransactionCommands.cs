@@ -57,6 +57,7 @@ public class RelatedTransactionCommandHandler : ILinkRelatedTransactionCommandHa
     {
         var transaction = await _transactions.GetByIdAsync(command.TransactionId, command.UserId, ct)
             ?? throw new NotFoundException("Transaction", command.TransactionId);
+        GroupFundGuard.EnsureNotLinked(transaction);
         var before = transaction.Status == TransactionStatus.Confirmed ? RefundScopeSnapshot.Of(transaction) : null;
 
         RefundEffects effects;

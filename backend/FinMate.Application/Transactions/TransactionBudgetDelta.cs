@@ -29,7 +29,7 @@ internal static class TransactionBudgetDelta
         TransactionRelation? relation = null,
         bool isReversed = false)
     {
-        if (category?.Slug == Category.LoanSlug)
+        if (LoanExclusion.IsLoan(category))
         {
             return 0;  // cho vay/mượn không phải chi tiêu, và trả lại tiền mượn cũng không phải hoàn
         }

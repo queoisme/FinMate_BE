@@ -46,6 +46,10 @@ public sealed record FeatureSettings
 
     /// <summary>Gói đăng ký. Mặc định tắt: tắt thì không chặn, không đếm lượt, không tạo đơn mới. Tiền đã trả vẫn được ghi nhận khi tắt.</summary>
     public bool Subscriptions { get; init; }
+
+    /// <summary>Quỹ chung của nhóm (Phase 85). Mặc định tắt; chỉ có tác dụng khi <see cref="Groups"/> cũng bật. Tắt thì API quỹ trả 422, nhưng
+    /// xoá giao dịch cá nhân gắn quỹ vẫn đồng bộ dòng quỹ và chi từ quỹ vẫn tính vào ngân sách nhóm, để số của nhóm không lệch.</summary>
+    public bool GroupFunds { get; init; }
 }
 
 public sealed record GroupSettings
@@ -54,6 +58,9 @@ public sealed record GroupSettings
     public int MaxGroupsPerUser { get; init; } = 5;
     public int MaxPendingInvitations { get; init; } = 20;
     public int InvitationTtlDays { get; init; } = 7;
+
+    /// <summary>Số quỹ CHƯA lưu trữ tối đa của một nhóm (BR-FUND-01, D16).</summary>
+    public int MaxFundsPerGroup { get; init; } = 3;
 }
 
 /// <summary>Hạn SLA tính bằng phút kể từ lúc tạo ticket, và các giới hạn của ticket.</summary>

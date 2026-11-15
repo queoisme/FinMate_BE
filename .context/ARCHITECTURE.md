@@ -425,7 +425,7 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 
 ### 2.7 Tài chính nhóm / gia đình (thêm 2026-11-05)
 
-Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ. Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
+Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ, cộng các quỹ chung của nhóm (sổ ảo, Phase 85). Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
 
 - **Cổng quyền duy nhất:** `IGroupAccessService`, gọi trong service và đọc DB mỗi request (không để trong JWT). Không phải thành viên → 404, thiếu quyền → 403. **Không** thêm điều kiện "hoặc cùng nhóm" vào repository theo `userId`: truy cập nhóm đi qua `IGroupRepository`, nên các truy vấn cá nhân không thể thấy dữ liệu nhóm.
 - **Quyền:** `GroupPermissions.Effective = (mặc định theo vai trò | cấp thêm) & ~thu hồi`, hàm thuần. Việc chỉ chủ nhóm làm được (đổi vai trò, chỉnh quyền, đổi cài đặt, chuyển chủ, xóa nhóm) cố ý không có trong enum `GroupPermission`, nên không cấp được cho ai.
@@ -437,6 +437,7 @@ Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần đư�
 - **Cảnh báo nhóm** đi qua hộp thư `forecast_alerts`, mỗi thành viên một dòng; `IGroupAlertNotifier` không ném sau khi tiền đã lưu.
 - **Xóa tài khoản:** yêu cầu xóa chuyển chủ nhóm ngay (`IGroupOwnershipHandover`), vì người đó không đăng nhập được nữa. Xóa cứng (`UserHardDeleter`) dùng một DB transaction: khóa ngoại xóa giao dịch và tư cách thành viên, code xóa khoản góp (bảng này không có khóa ngoại theo người góp), rồi tính lại `spent_cents`, `saved_cents`. `ExecuteDelete` bỏ qua handler, nên thêm số tính sẵn mới cho nhóm thì phải tính lại ở đây.
 - **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
+- **Quỹ chung (Phase 85): quỹ là sổ của nhóm, chi từ quỹ chỉ tính cho nhóm.** `group_funds` (số dư lưu sẵn + `xmin`) và `group_fund_entries` là dữ liệu NHÓM; không chia sẻ ví nào. Khoản chi từ quỹ vào ngân sách và báo cáo nhóm qua `BudgetSpendScope.GroupFund` (đặt cạnh `Group`, cùng luật khớp) và `SumGroupNetSpendAsync` (chỗ duy nhất cộng hai nguồn), không bao giờ vào sổ chi tiêu cá nhân. Góp/rút/chi có kèm ví thì sổ cá nhân có một `Transfer` **không ví đích**, gắn `group_fund_entry_id` và `group_fund_direction`: chọn `Transfer` vì mọi tổng chi/thu và việc chia sẻ nhóm đã loại nó sẵn, nên "không là chi, không là thu" đúng nhờ cấu trúc chứ không nhờ nhớ thêm điều kiện ở 20 chỗ. Cái giá là hướng tiền: `TransferLegs` là chỗ **duy nhất** đọc tác động số dư của transfer (test kiến trúc chặn đọc hướng ở nơi khác); code mới đọc số dư của transfer phải đi qua nó. Giao dịch gắn quỹ chỉ đổi qua dòng quỹ (`GroupFundGuard`); xoá thì dòng quỹ xoá theo trong cùng lượt lưu (`IGroupFundLinkSync`), trừ khi người đó đã rời nhóm hoặc quỹ đã lưu trữ. Xoá cứng tài khoản **ẩn danh** dòng quỹ (FK SET NULL) chứ không xoá như giao dịch chia sẻ (FR-GRP-16), vì số dư quỹ cả nhóm dựa vào nó. Chi tiết: `docs/superpowers/plans/2026-11-14-group-fund.md`.
 
 ### 2.8 Vận hành nội bộ (thêm 2026-11-05)
 

@@ -136,6 +136,7 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
 
         var survivor = MergePolicy.ChooseSurvivor(a, b);
         var loser = ReferenceEquals(survivor, a) ? b : a;
+        GroupFundGuard.EnsureNotLinked(loser);   // D11: giao dịch gắn quỹ chỉ được làm bên thắng
         var qrA = await _qr.GetIntentByTransactionAsync(a.Id, command.UserId, ct);
         var qrB = await _qr.GetIntentByTransactionAsync(b.Id, command.UserId, ct);
         var loserRefunded = loser.Status == TransactionStatus.Confirmed

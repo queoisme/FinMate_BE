@@ -18,6 +18,12 @@ public sealed record GroupScopeTouch(Guid GroupId, Guid? SystemCategoryId, Guid?
         => transaction.GroupId is { } groupId
             ? new GroupScopeTouch(groupId, category is { IsSystem: true } ? category.Id : null, transaction.GroupCategoryId, transaction.TransactedAt)
             : null;
+
+    /// <summary>Phạm vi mà một khoản chi từ quỹ đang chạm (Phase 85). Dòng không phải chi thì không chạm ngân sách nào.</summary>
+    public static GroupScopeTouch? Of(GroupFundEntry entry)
+        => entry.Kind == GroupFundEntryKind.Expense
+            ? new GroupScopeTouch(entry.GroupId, entry.CategoryId, entry.GroupCategoryId, entry.TransactedAt)
+            : null;
 }
 
 /// <summary>
@@ -41,6 +47,10 @@ public interface IGroupLedger
     /// <c>IBudgetPeriodService.RecomputeAsync</c>. Cảnh báo chỉ đánh giá khi số tăng và cờ <c>features.groups</c> đang bật. Không lưu.
     /// </summary>
     Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default);
+
+    /// <summary>Như trên, kèm các dòng quỹ đang sửa trong bộ nhớ (Phase 85, D13): chi từ quỹ cùng tính vào ngân sách nhóm.</summary>
+    Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+        IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default);
 
     Task SendAlertsAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default);
 }
@@ -138,10 +148,15 @@ public class GroupLedger : IGroupLedger
         return alerts;
     }
 
-    public async Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+    public Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
         IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
+        => RecomputeAsync(pending, [], touched, ct);
+
+    public async Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+        IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
     {
         var pendingIds = pending.Select(t => t.Id).Where(id => id != Guid.Empty).ToList();
+        var pendingEntryIds = pendingEntries.Select(e => e.Id).Where(id => id != Guid.Empty).ToList();
         var now = DateTimeOffset.UtcNow;
         var alerts = new List<GroupBudgetAlert>();
         var done = new HashSet<(Guid BudgetId, DateTimeOffset Start)>();
@@ -157,8 +172,10 @@ public class GroupLedger : IGroupLedger
                     continue;
                 }
 
-                var scope = BudgetSpendScope.Group(touch.GroupId, budget.CategoryId, budget.GroupCategoryId, periodStart, periodEnd);
-                var spent = await _finance.SumSharedNetSpendAsync(scope, pendingIds, ct) + pending.Sum(t => BudgetSpendScope.ContributionOf(t, scope));
+                var scope = BudgetSpendScope.GroupAll(touch.GroupId, budget.CategoryId, budget.GroupCategoryId, periodStart, periodEnd);
+                var spent = await _finance.SumGroupNetSpendAsync(scope, pendingIds, pendingEntryIds, ct)
+                    + pending.Sum(t => BudgetSpendScope.ContributionOf(t, scope.Shared))
+                    + pendingEntries.Sum(e => BudgetSpendScope.ContributionOf(e, scope.Fund));
                 var period = await _budgets.GetPeriodAsync(budget.Id, periodStart, ct) ?? AddPeriod(budget, periodStart, periodEnd, now);
                 var before = period.SpentCents;
                 period.SpentCents = Math.Max(0, spent);
@@ -182,7 +199,7 @@ public class GroupLedger : IGroupLedger
     internal static bool IsShareable(Transaction transaction, Category? category)
         => transaction.Status == TransactionStatus.Confirmed
             && transaction.TransactionType != TransactionType.Transfer
-            && category?.Slug != Category.LoanSlug;
+            && !LoanExclusion.IsLoan(category);
 
     internal static void EnsureShareable(Transaction transaction, Category? category)
     {

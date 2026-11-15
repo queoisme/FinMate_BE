@@ -1608,3 +1608,39 @@ Nhánh `feat/listener-health` (từ `main` sau PR #32). Kế hoạch, D1–D20 v
   - **Hiển thị `dataCoverage`** trên màn dự báo dòng tiền, số tiền có thể chi và "mua có ổn không". Khi `level = poor`, hiện `warning` (câu của backend) và đánh dấu dự báo kém tin cậy; `purchase-check` lúc đó trả `insufficient_data` thay cho `fits_plan`.
   - **Cài đặt:** công tắc "Nhắc khi app không đọc được thông báo ngân hàng", gửi `listenerHealthAlertsEnabled` qua `PATCH /users/me/notification-prefs`.
   - **Lỗi mới:** 422 `LISTENER_TOO_MANY_DEVICES`.
+
+## Phase 85 — Quỹ chung của nhóm (2026-11-14 → 2026-11-15)
+Nhánh `feat/group-fund` (từ `main` @ `4601e1f`, sau PR #33). Kế hoạch phương án A, D1–D25 và S1–S7: `docs/superpowers/plans/2026-11-14-group-fund.md`. API: `docs/group-api.md` mục Quỹ chung. FR-FUND-01…16 ở `REQUIREMENTS.md` §6.6.
+- [x] Task 0 (S2): cho vay/mượn bị tính vào `/me/spendable` và kế hoạch tháng của Agent; 12 chỗ loại trừ viết rời gom về `LoanExclusion` + `Predicates.And`.
+- [x] Quyền `ManageFunds` (2048), `RecordFundEntries` (4096); cờ `features.groupFunds`; `groups.maxFundsPerGroup`; `RequireGroupFundsEnabled`.
+- [x] Migration `AddGroupFunds`: `group_funds` (số dư lưu sẵn + `xmin`, `negative_episode`), `group_fund_entries` (người gắn nullable, SET NULL khi xoá cứng); `transactions.group_fund_entry_id` + `group_fund_direction`; `chk_transactions_transfer_shape` thêm đúng một nhánh mở khi có liên kết quỹ.
+- [x] `TransferLegs`: chỗ duy nhất đọc tác động số dư của transfer (xoá, sửa, ghép trùng, gộp, ranh giới dự báo, dữ liệu khách của Ops); test kiến trúc chặn đọc hướng ở nơi khác.
+- [x] `BudgetSpendScope.GroupFund` cạnh `BudgetSpendScope.Group` (test bảng giữ hai luật đi cùng); `SumGroupNetSpendAsync` là chỗ duy nhất cộng chi chia sẻ + chi từ quỹ (tạo ngân sách, `GroupLedger.RecomputeAsync`, `UserHardDeleter`).
+- [x] Quỹ: tạo, sửa, liệt kê, lưu trữ (chỉ khi số dư 0); xoá nhóm còn quỹ chưa lưu trữ → 422.
+- [x] Dòng quỹ: ghi, sửa, xoá; kèm ví (góp/chi ra, rút vào); điều chỉnh; `clientRequestId`; quản lý xoá dòng người khác chỉ xoá dòng (S3) và báo chủ dòng.
+- [x] Chi từ quỹ lấy từ một khoản chi có sẵn (`fromTransactionId`, S4a); khôi phục khi chủ dòng xoá hoặc `POST /transactions/{id}/restore-from-fund`.
+- [x] Phía sổ cá nhân: xoá giao dịch gắn quỹ thì xoá dòng (D7, D8); `GroupFundGuard` chặn sửa, chuyển ví, hoàn, chia sẻ, thua khi gộp (D9); thông báo ngân hàng gộp vào giao dịch góp quỹ (D11).
+- [x] Đồng thời: `RetryingGroupFundEntryService`, test ba người ghi cùng lúc, gửi lại cùng lúc, sửa và góp cùng lúc.
+- [x] Loại trừ khỏi số liệu cá nhân: test so báo cáo, ngân sách, hũ, `/me/spendable`, dự báo danh mục, thu nhập, bất thường, chi linh hoạt trước/sau.
+- [x] Báo cáo tháng nhóm cộng chi từ quỹ (`fundSpentCents`, `formerMembers`, S5); `GET .../funds/{fundId}/summary`.
+- [x] Rời nhóm, chờ xoá, xoá cứng (ẩn danh "Thành viên cũ", số của nhóm không đổi).
+- [x] Push `group_fund_negative` (một lần mỗi đợt âm), `group_fund_removed`.
+- [x] `groupFundLink` trong `TransactionDto`; `moneyDirection` trong dữ liệu khách của Ops.
+- [x] Kịch bản (a)–(i) (`GroupFundScenarioTests`).
+- [x] Sửa lỗi sẵn có: giao dịch chia sẻ đã xoá vẫn vào báo cáo và danh sách nhóm (`IgnoreQueryFilters`).
+- [ ] Ghép tiền góp vào tài khoản người giữ quỹ với dòng góp (hiện là thu nhập của người giữ quỹ) — phase sau, §13.4.
+- [ ] Chia tiền / công nợ giữa thành viên; ẩn danh khi rút dữ liệu (Phase 87) — §13.4.
+- [ ] Câu chữ Điều khoản về dữ liệu quỹ khi rời nhóm, khi xoá tài khoản — §13.4.
+- [ ] Lỗi sẵn có của Phase 84: `ListenerHealthScenarioTests` kịch bản D đỏ sau 00:00 giờ VN — §13.1.
+- [ ] **Báo nhóm Flutter:**
+  - **Cờ:** `config.features.groupFunds` ở `GET /app-config` (cần cả `features.groups`). Tắt thì ẩn màn quỹ; API trả 422 `GROUP_FUNDS_DISABLED`.
+  - **Quyền:** `myPermissions` có thêm `ManageFunds` (tạo/sửa/lưu trữ quỹ, điều chỉnh, xoá dòng người khác) và `RecordFundEntries` (góp, chi, rút). Ẩn/hiện nút theo đó, đừng suy từ vai trò.
+  - **Màn quỹ:** danh sách quỹ (`isNegative` → hiện "Có người đang ứng trước"), sổ quỹ phân trang con trỏ (lọc `kind`, `memberId`), báo cáo tháng (`/summary`). Sổ quỹ hiện với mọi thành viên kể cả chế độ `Summary`.
+  - **Ghi dòng:** chọn loại; góp/rút/chi cho chọn ví (không bắt buộc); chi bắt buộc danh mục (chỉ danh mục hệ thống hoặc danh mục nhóm). Gửi `clientRequestId` để gửi lại an toàn (201 lần đầu, 200 khi gửi lại).
+  - **Chi từ một giao dịch có sẵn:** từ chi tiết một khoản chi đã xác nhận, nút "Chi từ quỹ nhóm" gọi `POST .../entries {kind: "Expense", fromTransactionId}`. Lỗi `GROUP_FUND_SOURCE_NOT_ELIGIBLE` thì báo vì sao không được.
+  - **Giao dịch cá nhân gắn quỹ:** `transactionType = Transfer`, `counterAccountId = null`, có `groupFundLink {groupId, fundId, fundName, kind, direction, entryDeleted}`. Hiện "Góp quỹ {fundName}" / "Nhận từ quỹ" / "Chi từ quỹ", **không** như chuyển khoản; không cộng vào chi hay thu khi tính cục bộ. Nút sửa dẫn sang dòng quỹ (sửa qua API giao dịch → 422 `TRANSACTION_GROUP_FUND_LINKED`). Xoá thì dòng quỹ cũng bị xoá (trừ khi đã rời nhóm).
+  - **`entryDeleted = true`:** người quản lý đã xoá dòng quỹ; hiện nút "Xoá" và, với khoản chi lấy từ giao dịch, "Khôi phục thành khoản chi" (`POST /transactions/{id}/restore-from-fund`).
+  - **Báo cáo tháng nhóm:** trường mới tuỳ chọn `fundSpentCents` (tổng và từng người), `formerMembers` (có thể `null`).
+  - **Push:** `data.kind = group_fund_negative` (`groupId`, `fundId`) và `group_fund_removed` (`groupId`, `fundId`, `entryId`).
+  - **Lỗi mới:** `GROUP_FUNDS_DISABLED`, `GROUP_TOO_MANY_FUNDS`, `GROUP_FUND_NOT_SETTLED`, `GROUP_FUND_ARCHIVED`, `GROUP_FUND_ENTRY_INVALID`, `GROUP_FUND_ENTRY_LOCKED`, `GROUP_FUND_SOURCE_NOT_ELIGIBLE`, `TRANSACTION_GROUP_FUND_LINKED`.
+  - **Hạn chế cần nói với người dùng:** người giữ quỹ nhận tiền góp qua ngân hàng sẽ thấy khoản đó là thu nhập; tạm thời tự chuyển nó thành chuyển ví hoặc xoá.

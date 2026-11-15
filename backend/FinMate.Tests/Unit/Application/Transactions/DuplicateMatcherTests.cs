@@ -360,5 +360,24 @@ public class DuplicateMatcherTests
     {
         MatchWithTransfers(Probe(TransactionSource.Manual, account: Vcb), ManualTransfer()).Candidates.Should().BeEmpty();
     }
-}
 
+    // ---- Phase 85, S6 #10: transfer gắn quỹ nhóm (không ví đích) ----
+
+    private static DuplicateProbe FundTransfer(GroupFundDirection direction)
+        => Probe(TransactionSource.Manual, TransactionType.Transfer, 50_000, TimeSpan.FromMinutes(-5), account: Vcb) with { FundDirection = direction };
+
+    [Fact]
+    public void BankDebit_MatchesAnOutgoingFundTransfer_OnItsWallet()
+    {
+        MatchWithTransfers(Probe(account: Vcb), FundTransfer(GroupFundDirection.Out)).Candidates.Should().ContainSingle();
+        MatchWithTransfers(Probe(type: TransactionType.Credit, account: Vcb), FundTransfer(GroupFundDirection.Out)).Candidates.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void BankCredit_MatchesAnIncomingFundTransfer_OnItsWallet()
+    {
+        MatchWithTransfers(Probe(type: TransactionType.Credit, account: Vcb), FundTransfer(GroupFundDirection.In)).Candidates.Should().ContainSingle();
+        MatchWithTransfers(Probe(account: Vcb), FundTransfer(GroupFundDirection.In)).Candidates.Should().BeEmpty("tiền rút từ quỹ là tiền vào, không phải tiền ra");
+        MatchWithTransfers(Probe(type: TransactionType.Credit, account: Momo), FundTransfer(GroupFundDirection.In)).Candidates.Should().BeEmpty();
+    }
+}

@@ -19,6 +19,23 @@ public class SystemConfigDocumentValidatorTests
     }
 
     [Fact]
+    public void Defaults_GroupFundsOff_ThreeFundsPerGroup()
+    {
+        var doc = new SystemConfigDocument();
+
+        doc.Features.GroupFunds.Should().BeFalse("quỹ nhóm chỉ bật khi app đã có màn hình");
+        doc.Groups.MaxFundsPerGroup.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(20, true)]
+    [InlineData(0, false)]
+    [InlineData(21, false)]
+    public void Groups_MaxFundsPerGroup_IsBounded(int max, bool valid)
+        => _validator.Validate(new SystemConfigDocument { Groups = new GroupSettings { MaxFundsPerGroup = max } }).IsValid.Should().Be(valid);
+
+    [Fact]
     public void Forecast_SuggestThresholdAboveAutoActivate_IsRejected()
     {
         var doc = new SystemConfigDocument { Forecast = new ForecastSettings { SuggestMinOccurrences = 4, AutoActivateOccurrences = 3 } };

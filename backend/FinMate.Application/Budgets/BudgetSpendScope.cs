@@ -1,4 +1,6 @@
 using System.Linq.Expressions;
+using FinMate.Application.Common;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -16,11 +18,11 @@ public static class BudgetSpendScope
     /// Có tham gia tổng chi không: đã xác nhận, không phải cho vay/mượn, và là khoản chi chưa bị đảo hoặc một khoản hoàn. Đảo (reversal)
     /// không có tác động riêng; khoản gốc của nó đã bị loại nhờ <c>IsReversed</c>, nên cả cặp ròng bằng 0 (BR-RF-08).
     /// </summary>
-    public static readonly Expression<Func<Transaction, bool>> Counts = t =>
-        t.Status == TransactionStatus.Confirmed
-        && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-        && ((t.TransactionType == TransactionType.Debit && !t.IsReversed)
-            || (t.TransactionType == TransactionType.Credit && t.Relation == TransactionRelation.Refund));
+    public static readonly Expression<Func<Transaction, bool>> Counts = Predicates.And(
+        LoanExclusion.NotLoan,
+        t => t.Status == TransactionStatus.Confirmed
+            && ((t.TransactionType == TransactionType.Debit && !t.IsReversed)
+                || (t.TransactionType == TransactionType.Credit && t.Relation == TransactionRelation.Refund)));
 
     /// <summary>Số có dấu: chi +, hoàn −. Chỉ có nghĩa với giao dịch đã qua <see cref="Counts"/>.</summary>
     public static readonly Expression<Func<Transaction, long>> Signed = t =>
@@ -54,7 +56,40 @@ public static class BudgetSpendScope
         return t => t.GroupId == groupId && t.TransactedAt >= from && t.TransactedAt < to;
     }
 
+    /// <summary>
+    /// Khoản chi từ QUỸ nhóm (Phase 85, BR-FUND-10, D13) khớp đúng phạm vi ngân sách nhóm, theo CÙNG luật với <see cref="Group"/>: danh mục nhóm
+    /// thắng, ngân sách theo danh mục hệ thống chỉ đếm dòng chưa có danh mục nhóm, cả hai null là ngân sách tổng. Chỉ dòng chi chưa xoá.
+    /// Hai biểu thức phải đi cùng nhau: test bảng chạy cùng bộ ca qua cả hai.
+    /// </summary>
+    public static Expression<Func<GroupFundEntry, bool>> GroupFund(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to)
+    {
+        if (groupCategoryId is { } groupCategory)
+        {
+            return e => e.GroupId == groupId && e.Kind == GroupFundEntryKind.Expense && e.DeletedAt == null
+                && e.GroupCategoryId == groupCategory && e.TransactedAt >= from && e.TransactedAt < to;
+        }
+
+        if (systemCategoryId is { } systemCategory)
+        {
+            return e => e.GroupId == groupId && e.Kind == GroupFundEntryKind.Expense && e.DeletedAt == null
+                && e.GroupCategoryId == null && e.CategoryId == systemCategory && e.TransactedAt >= from && e.TransactedAt < to;
+        }
+
+        return e => e.GroupId == groupId && e.Kind == GroupFundEntryKind.Expense && e.DeletedAt == null && e.TransactedAt >= from && e.TransactedAt < to;
+    }
+
+    /// <summary>Cả hai phần của chi tiêu nhóm cho một phạm vi ngân sách: giao dịch cá nhân đã chia sẻ và khoản chi từ quỹ.</summary>
+    public static GroupSpendScope GroupAll(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to)
+        => new(Group(groupId, systemCategoryId, groupCategoryId, from, to), GroupFund(groupId, systemCategoryId, groupCategoryId, from, to));
+
+    /// <summary>Phần của MỘT dòng quỹ (đang ở trong bộ nhớ) vào một phạm vi: số tiền chi nếu khớp, ngược lại 0.</summary>
+    public static long ContributionOf(GroupFundEntry entry, Expression<Func<GroupFundEntry, bool>> scope)
+        => scope.Compile()(entry) ? entry.AmountCents : 0;
+
     /// <summary>Phần đóng góp có dấu của MỘT giao dịch (đang ở trong bộ nhớ) vào một phạm vi; 0 nếu nó không thuộc phạm vi hoặc không được tính.</summary>
     public static long ContributionOf(Transaction transaction, Expression<Func<Transaction, bool>> scope)
         => transaction.DeletedAt is null && CountsCompiled(transaction) && scope.Compile()(transaction) ? SignedCompiled(transaction) : 0;
 }
+
+/// <summary>Phạm vi một ngân sách nhóm trên hai nguồn chi (Phase 85, D13).</summary>
+public sealed record GroupSpendScope(Expression<Func<Transaction, bool>> Shared, Expression<Func<GroupFundEntry, bool>> Fund);

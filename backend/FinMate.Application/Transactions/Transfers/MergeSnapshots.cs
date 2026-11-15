@@ -32,7 +32,9 @@ public sealed record SnapshotRow(
     string[]? MergedSources,
     bool ExcludeFromForecast,
     string? ForecastExclusionReason,
-    DateTimeOffset? TransferDismissedAt)
+    DateTimeOffset? TransferDismissedAt,
+    Guid? GroupFundEntryId = null,
+    string? GroupFundDirection = null)
 {
     public static SnapshotRow Of(Transaction t) => new(
         t.Id,
@@ -52,7 +54,9 @@ public sealed record SnapshotRow(
         t.MergedSources,
         t.ExcludeFromForecast,
         t.ForecastExclusionReason?.ToString(),
-        t.TransferDismissedAt);
+        t.TransferDismissedAt,
+        t.GroupFundEntryId,
+        t.GroupFundDirection?.ToString());
 }
 
 /// <summary>Toàn bộ nội dung cột <c>before</c>. Danh sách tham chiếu là id đã chuyển hoặc đã gỡ, để hoàn tác biết phải trả gì về đâu.</summary>

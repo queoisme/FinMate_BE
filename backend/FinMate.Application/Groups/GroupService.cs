@@ -70,6 +70,7 @@ public class GroupService : IGroupService
     private readonly IAuditLogService _audit;
     private readonly IValidator<CreateGroupCommand> _createValidator;
     private readonly IValidator<UpdateGroupCommand> _updateValidator;
+    private readonly IGroupFundRepository? _funds;
 
     public GroupService(
         IGroupRepository groups,
@@ -77,8 +78,10 @@ public class GroupService : IGroupService
         ISystemConfigProvider config,
         IAuditLogService audit,
         IValidator<CreateGroupCommand> createValidator,
-        IValidator<UpdateGroupCommand> updateValidator)
+        IValidator<UpdateGroupCommand> updateValidator,
+        IGroupFundRepository? funds = null)
     {
+        _funds = funds;
         _groups = groups;
         _access = access;
         _config = config;
@@ -152,6 +155,13 @@ public class GroupService : IGroupService
     public async Task DeleteAsync(Guid groupId, Guid userId, CancellationToken ct = default)
     {
         var access = await _access.RequireOwnerAsync(groupId, userId, ct);
+
+        // BR-FUND-03 (D17): quỹ chưa lưu trữ là tiền các thành viên đang giữ hộ nhau; xoá nhóm thì sổ đó không còn ai xem được.
+        if (_funds is not null && await _funds.CountActiveAsync(groupId, ct) > 0)
+        {
+            throw new BusinessRuleException(GroupErrorCodes.FundNotSettled, "Nhóm còn quỹ chưa lưu trữ. Hãy đưa các quỹ về 0 và lưu trữ trước khi xoá nhóm.");
+        }
+
         var now = DateTimeOffset.UtcNow;
         access.Group.DeletedAt = now;
         access.Group.UpdatedAt = now;

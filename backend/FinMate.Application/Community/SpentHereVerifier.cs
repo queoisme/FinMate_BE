@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -34,7 +35,7 @@ public sealed class SpentHereVerifier : ISpentHereVerifier
             && transaction.TransactionType == TransactionType.Debit
             && transaction.Status == TransactionStatus.Confirmed
             && !transaction.IsReversed   // giao dịch lỗi đã bị đảo thì không phải "đã chi ở đây" (Phase 81)
-            && transaction.Category?.Slug != Category.LoanSlug
+            && !LoanExclusion.IsLoan(transaction.Category)
             && transaction.TransactedAt >= DateTimeOffset.UtcNow.AddDays(-lookbackDays)
             && NamesMatch(CounterpartyKey.From(transaction.MerchantName), placeNameKey);
     }

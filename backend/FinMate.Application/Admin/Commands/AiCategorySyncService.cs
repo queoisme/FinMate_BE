@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
@@ -65,7 +66,7 @@ public class AiCategorySyncService : IAiCategorySyncService
         foreach (var category in await _categories.GetSystemListAsync(includeInactive: true, ct))
         {
             // "Cho vay / Mượn" không phải khoản chi hay thu thông thường (không tính vào tổng chi, tổng thu, ngân sách); AI Service cố ý không giữ nó trong các bảng học.
-            if (category.Slug == Category.LoanSlug)
+            if (LoanExclusion.IsLoan(category))
             {
                 continue;
             }

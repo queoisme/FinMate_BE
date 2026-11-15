@@ -11,7 +11,7 @@ public class TransactionMergeSnapshotConfiguration : IEntityTypeConfiguration<Tr
     {
         builder.ToTable("transaction_merge_snapshots", t =>
         {
-            t.HasCheckConstraint("chk_transaction_merge_snapshots_kind", "kind IN ('duplicate_merge','transfer_pair','transfer_convert')");
+            t.HasCheckConstraint("chk_transaction_merge_snapshots_kind", "kind IN ('duplicate_merge','transfer_pair','transfer_convert','group_fund_expense')");
             t.HasCheckConstraint(
                 "chk_transaction_merge_snapshots_transfer_kind",
                 "transfer_kind IS NULL OR transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account')");
@@ -25,9 +25,7 @@ public class TransactionMergeSnapshotConfiguration : IEntityTypeConfiguration<Tr
         builder.Property(s => s.MergedId).HasColumnName("merged_id");
         builder.Property(s => s.Kind)
             .HasColumnName("kind")
-            .HasConversion(
-                v => v == MergeSnapshotKind.DuplicateMerge ? "duplicate_merge" : v == MergeSnapshotKind.TransferPair ? "transfer_pair" : "transfer_convert",
-                v => v == "duplicate_merge" ? MergeSnapshotKind.DuplicateMerge : v == "transfer_pair" ? MergeSnapshotKind.TransferPair : MergeSnapshotKind.TransferConvert)
+            .HasConversion(v => MergeSnapshotKindColumn.ToColumn(v), v => MergeSnapshotKindColumn.FromColumn(v))
             .HasMaxLength(20)
             .IsRequired();
         builder.Property(s => s.TransferKind)
@@ -44,4 +42,21 @@ public class TransactionMergeSnapshotConfiguration : IEntityTypeConfiguration<Tr
         builder.HasIndex(s => new { s.UserId, s.SurvivorId }).HasDatabaseName("ix_transaction_merge_snapshots_user_survivor");
         builder.HasIndex(s => s.CreatedAt).HasDatabaseName("ix_transaction_merge_snapshots_created_at");
     }
+}
+
+internal static class MergeSnapshotKindColumn
+{
+    private static readonly Dictionary<MergeSnapshotKind, string> ToText = new()
+    {
+        [MergeSnapshotKind.DuplicateMerge] = "duplicate_merge",
+        [MergeSnapshotKind.TransferPair] = "transfer_pair",
+        [MergeSnapshotKind.TransferConvert] = "transfer_convert",
+        [MergeSnapshotKind.GroupFundExpense] = "group_fund_expense",
+    };
+
+    private static readonly Dictionary<string, MergeSnapshotKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
+
+    public static string ToColumn(MergeSnapshotKind value) => ToText[value];
+
+    public static MergeSnapshotKind FromColumn(string value) => FromText[value];
 }

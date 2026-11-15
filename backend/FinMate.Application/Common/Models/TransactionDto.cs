@@ -28,7 +28,15 @@ public record TransactionDto(
     DuplicateSummaryDto? DuplicateOf = null,
     IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null,
     IReadOnlyList<string>? MergedSources = null,
-    TransferSuggestionDto? TransferSuggestion = null);
+    TransferSuggestionDto? TransferSuggestion = null,
+    GroupFundLinkDto? GroupFundLink = null);
+
+/// <summary>
+/// Phase 85: giao dịch này ghi lại một dòng quỹ nhóm ở sổ cá nhân (Transfer không ví đích; không là chi, không là thu). <c>Kind</c>: <c>Contribution</c>,
+/// <c>Expense</c>, <c>Withdrawal</c>. <c>Direction</c>: <c>out</c> (tiền ra khỏi ví) hoặc <c>in</c>. <c>EntryDeleted</c>: người quản lý đã xoá dòng quỹ (S3);
+/// giao dịch vẫn ở sổ cá nhân, người dùng tự xoá hoặc (với khoản chi lấy từ giao dịch) gọi <c>restore-from-fund</c>. Vẫn trả sau khi rời nhóm (D20).
+/// </summary>
+public record GroupFundLinkDto(Guid GroupId, Guid FundId, string FundName, string Kind, string Direction, bool EntryDeleted);
 
 /// <summary>
 /// Phase 83: gợi ý "đây có thể là tiền chuyển giữa các ví của bạn". Tính khi đọc. <c>PairedTransaction</c> có khi đã tìm thấy chiều bên kia (gọi

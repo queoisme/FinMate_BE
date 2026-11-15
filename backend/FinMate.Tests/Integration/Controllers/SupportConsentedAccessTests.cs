@@ -203,6 +203,24 @@ public class SupportConsentedAccessTests : IClassFixture<AuthApiFactory>, IAsync
     }
 
     [Fact]
+    public async Task TransactionView_ShowsTheMoneyDirection_EvenForAFundTransferWithoutACounterWallet()
+    {
+        var c = await CaseAsync();
+        GroupFundSeed.Seeded fund;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            fund = await GroupFundSeed.FundTransferAsync(scope.ServiceProvider.GetRequiredService<FinMateDbContext>(), c.Customer.Id, c.WalletId, GroupFundDirection.In);
+        }
+
+        await GrantAsync(c, SupportAccessScope.Transactions);
+        var items = (await DataAsync(await ReadAsync(c, "transactions"))).GetProperty("items").EnumerateArray().ToList();
+
+        // Phase 85, S6 #17: hướng lấy từ TransferLegs; khoản rút từ quỹ là tiền VÀO dù là Transfer không ví đích.
+        items.Single(i => i.GetProperty("id").GetGuid() == fund.TransactionId).GetProperty("moneyDirection").GetString().Should().Be("in");
+        items.Single(i => i.GetProperty("merchantName").GetString() == "Quán cà phê").GetProperty("moneyDirection").GetString().Should().Be("out");
+    }
+
+    [Fact]
     public async Task EveryViewIsLoggedForTheCustomerAndInTheAuditTrailWithoutAmounts()
     {
         var c = await CaseAsync();

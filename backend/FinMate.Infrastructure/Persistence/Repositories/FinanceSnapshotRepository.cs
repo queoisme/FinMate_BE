@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,9 +16,10 @@ public class FinanceSnapshotRepository : IFinanceSnapshotRepository
 
     public async Task<long> GetDebitTotalAsync(Guid userId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
         => await _context.Transactions
+            .Where(LoanExclusion.NotLoan)   // Phase 85 (S2): trước đây sót, khoản cho mượn bị trừ vào /me/spendable
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
-                // Chi ròng (Phase 81): chi chưa bị đảo trừ hoàn; loại chuyển khoản nội bộ (ARCHITECTURE.md §4.3). Cho vay/mượn giữ nguyên như trước.
+                // Chi ròng (Phase 81): chi chưa bị đảo trừ hoàn; loại chuyển khoản nội bộ (ARCHITECTURE.md §4.3).
                 && ((t.TransactionType == TransactionType.Debit && !t.IsReversed)
                     || (t.TransactionType == TransactionType.Credit && t.Relation == TransactionRelation.Refund))
                 && t.TransactedAt >= start

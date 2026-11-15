@@ -108,9 +108,11 @@ public static class MergePolicy
             throw Refuse("Không gộp hai chuyển khoản với nhau.");
         }
 
+        // Vế số dư qua TransferLegs (Phase 85, S6): transfer gắn quỹ chiều vào nhận tiền ở chính ví của nó, chiều ra chỉ có ví nguồn.
+        var legs = TransferLegs.Of(transfer);
         if (other.TransactionType == TransactionType.Credit)
         {
-            if (other.FinancialAccountId != transfer.CounterAccountId || other.AmountCents != transfer.AmountCents)
+            if (!legs.Any(l => l.AccountId == other.FinancialAccountId && l.DeltaCents > 0) || other.AmountCents != transfer.AmountCents)
             {
                 throw Refuse("Khoản tiền vào phải ở ví đích của chuyển khoản và bằng đúng số tiền.");
             }
@@ -119,7 +121,7 @@ public static class MergePolicy
         }
 
         var fee = other.AmountCents - transfer.AmountCents;
-        if (other.FinancialAccountId != transfer.FinancialAccountId
+        if (!legs.Any(l => l.AccountId == other.FinancialAccountId && l.DeltaCents < 0)
             || fee < 0 || fee > facts.MaxFeeCents || fee * 100 > transfer.AmountCents * facts.MaxFeePercent)
         {
             throw Refuse("Khoản tiền ra phải ở ví nguồn của chuyển khoản, bằng số tiền chuyển hoặc chỉ chênh phí.");

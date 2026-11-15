@@ -60,6 +60,7 @@ public class CreateRefundCommandHandler : ICreateRefundCommandHandler
 
     private async Task<(TransactionCreationResult, RefundEffects)> CreateAsync(CreateRefundCommand command, Transaction original, CancellationToken ct)
     {
+        GroupFundGuard.EnsureNotLinked(original);
         // Kiểm gửi lại SAU khi đã khoá: hai lần gửi cùng clientRequestId cùng lúc xếp hàng ở đây, lần sau thấy bản của lần trước.
         if (command.ClientRequestId is { } clientRequestId
             && await _transactions.GetByClientRequestIdAsync(command.UserId, clientRequestId, ct) is { } existing)

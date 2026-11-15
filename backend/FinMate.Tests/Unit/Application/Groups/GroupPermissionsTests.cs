@@ -27,6 +27,14 @@ public class GroupPermissionsTests
     [InlineData(GroupRole.Viewer, GroupPermission.ViewActivity, false)]
     [InlineData(GroupRole.Viewer, GroupPermission.ShareTransactions, false)]
     [InlineData(GroupRole.Viewer, GroupPermission.ContributeGoals, false)]
+    [InlineData(GroupRole.Owner, GroupPermission.ManageFunds, true)]
+    [InlineData(GroupRole.Owner, GroupPermission.RecordFundEntries, true)]
+    [InlineData(GroupRole.Manager, GroupPermission.ManageFunds, true)]
+    [InlineData(GroupRole.Manager, GroupPermission.RecordFundEntries, true)]
+    [InlineData(GroupRole.Member, GroupPermission.RecordFundEntries, true)]
+    [InlineData(GroupRole.Member, GroupPermission.ManageFunds, false)]
+    [InlineData(GroupRole.Viewer, GroupPermission.RecordFundEntries, false)]
+    [InlineData(GroupRole.Viewer, GroupPermission.ManageFunds, false)]
     public void RoleDefaultsFollowTheMatrix(GroupRole role, GroupPermission permission, bool expected)
         => For(role).HasFlag(permission).Should().Be(expected);
 
@@ -52,6 +60,23 @@ public class GroupPermissionsTests
         For(GroupRole.Member, revoked: GroupPermission.ShareTransactions).HasFlag(GroupPermission.ShareTransactions).Should().BeFalse();
         For(GroupRole.Member, granted: GroupPermission.ManageGoals, revoked: GroupPermission.ManageGoals).HasFlag(GroupPermission.ManageGoals).Should().BeFalse();
         For(GroupRole.Member, Summary, granted: GroupPermission.ViewMemberTransactions).HasFlag(GroupPermission.ViewMemberTransactions).Should().BeTrue();
+    }
+
+    [Fact]
+    public void FundPermissions_FollowOverrides()
+    {
+        For(GroupRole.Member, granted: GroupPermission.ManageFunds).HasFlag(GroupPermission.ManageFunds).Should().BeTrue();
+        For(GroupRole.Member, revoked: GroupPermission.RecordFundEntries).HasFlag(GroupPermission.RecordFundEntries).Should().BeFalse();
+        For(GroupRole.Viewer, granted: GroupPermission.RecordFundEntries).HasFlag(GroupPermission.RecordFundEntries).Should().BeTrue();
+        For(GroupRole.Manager, revoked: GroupPermission.ManageFunds).HasFlag(GroupPermission.ManageFunds).Should().BeFalse();
+    }
+
+    [Fact]
+    public void FundPermissionValues_AreStable()
+    {
+        // Lưu trong DB (group_members.permissions_granted/revoked): không được đổi số.
+        ((int)GroupPermission.ManageFunds).Should().Be(2048);
+        ((int)GroupPermission.RecordFundEntries).Should().Be(4096);
     }
 
     [Fact]

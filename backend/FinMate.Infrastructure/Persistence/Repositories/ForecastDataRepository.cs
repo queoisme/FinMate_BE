@@ -1,6 +1,7 @@
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -46,14 +47,46 @@ public class ForecastDataRepository : IForecastDataRepository
             })
             .ToListAsync(ct);
 
-        return rows.Select(r =>
+        var walletToWallet = rows.Select(r =>
         {
             var outgoing = counted.Contains(r.FinancialAccountId);
             var name = r.MerchantName ?? (outgoing ? r.CounterName : r.SourceName);
             return new ForecastTransaction(
                 r.Id, outgoing ? r.FinancialAccountId : r.CounterAccountId, null, r.AmountCents, outgoing ? TransactionType.Debit : TransactionType.Credit,
                 r.TransactedAt, VietnamTime.DateOf(r.TransactedAt), name, CounterpartyKey.From(name), false);
-        }).ToList();
+        });
+
+        return walletToWallet.Concat(await GetGroupFundBoundaryAsync(userId, counted, start, end, ct)).ToList();
+    }
+
+    /// <summary>
+    /// Phase 85 (BR-FUND-08): giao dịch gắn quỹ nhóm có đầu kia là QUỸ, không phải ví, nên luôn vượt ranh giới khi ví của nó được tính. Hướng lấy qua
+    /// <see cref="TransferLegs"/> (không đọc cột hướng ở đây); tên là tên quỹ, để bộ khoản định kỳ nhận ra "góp quỹ hằng tháng".
+    /// </summary>
+    private async Task<IEnumerable<ForecastTransaction>> GetGroupFundBoundaryAsync(
+        Guid userId, List<Guid> counted, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    {
+        var rows = await _context.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId
+                && t.Status == TransactionStatus.Confirmed
+                && t.TransactionType == TransactionType.Transfer
+                && t.CounterAccountId == null
+                && t.GroupFundEntryId != null
+                && counted.Contains(t.FinancialAccountId)
+                && t.TransactedAt >= start
+                && t.TransactedAt < end)
+            .Select(t => new { Transaction = t, FundName = t.GroupFundEntry!.Fund!.Name })
+            .ToListAsync(ct);
+
+        return rows.Select(r =>
+        {
+            var leg = TransferLegs.Of(r.Transaction).Single();
+            var name = r.FundName;
+            return new ForecastTransaction(
+                r.Transaction.Id, leg.AccountId, null, r.Transaction.AmountCents, leg.DeltaCents < 0 ? TransactionType.Debit : TransactionType.Credit,
+                r.Transaction.TransactedAt, VietnamTime.DateOf(r.Transaction.TransactedAt), name, CounterpartyKey.From(name), false);
+        });
     }
 
     public async Task<IReadOnlyList<ForecastTransaction>> GetRawTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -61,10 +94,10 @@ public class ForecastDataRepository : IForecastDataRepository
         var (start, end) = VietnamTime.DayRange(from, to);
         var rows = await _context.Transactions
             .AsNoTracking()
+            .Where(LoanExclusion.NotLoan)   // cho vay/mượn không phải thu/chi thật
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType != TransactionType.Transfer
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)   // cho vay/mượn không phải thu/chi thật
                 && t.TransactedAt >= start
                 && t.TransactedAt < end)
             .Select(t => new

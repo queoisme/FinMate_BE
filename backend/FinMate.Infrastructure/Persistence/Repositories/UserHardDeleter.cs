@@ -73,13 +73,15 @@ public class UserHardDeleter : IUserHardDeleter
         => _context.GroupMembers.Where(m => m.UserId == userId).Select(m => m.GroupId).ToListAsync(ct);
 
     /// <summary>
-    /// Cùng định nghĩa với <c>GroupFinanceRepository.SumSharedSpendAsync</c> (<see cref="BudgetSpendScope"/>: chi − hoàn, bỏ cặp đảo, chặn ở 0);
+    /// Đi qua <c>GroupFinanceRepository.SumGroupNetSpendAsync</c>, chỗ duy nhất cộng giao dịch chia sẻ và chi từ quỹ (<see cref="BudgetSpendScope"/>: chi − hoàn, bỏ cặp đảo, chặn ở 0);
     /// không cộng trừ dần nên chạy lại vẫn đúng. Cặp gốc–hoàn của người bị xoá đi cùng nhau nên không để lại khoản hoàn lẻ.
     /// </summary>
     private async Task RecalculateSpentAsync(AffectedPeriod period, CancellationToken ct)
     {
-        var scope = BudgetSpendScope.Group(period.GroupId, period.CategoryId, period.GroupCategoryId, period.Start, period.End);
-        var spent = Math.Max(0, await _context.Transactions.Where(scope).Where(BudgetSpendScope.Counts).Select(BudgetSpendScope.Signed).SumAsync(ct));
+        // Phase 85 (D13, kịch bản h): cộng cả khoản chi từ quỹ. Dòng quỹ của người bị xoá ở lại (chỉ mất tên), nên nếu chỉ cộng giao dịch thì kỳ này
+        // mất luôn phần chi từ quỹ của cả nhóm.
+        var scope = BudgetSpendScope.GroupAll(period.GroupId, period.CategoryId, period.GroupCategoryId, period.Start, period.End);
+        var spent = Math.Max(0, await new GroupFinanceRepository(_context).SumGroupNetSpendAsync(scope, [], [], ct));
         await _context.BudgetPeriods.Where(p => p.Id == period.PeriodId)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.SpentCents, spent).SetProperty(p => p.UpdatedAt, DateTimeOffset.UtcNow), ct);
     }
