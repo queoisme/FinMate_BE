@@ -35,6 +35,7 @@ from app.pipeline.stages.categorizer import Categorizer
 from app.pipeline.stages.classifier import MANUAL_ENTRY_PACKAGE, Classifier
 from app.pipeline.stages.extractor import (
     Extractor,
+    debt_hint_strength_for,
     relation_hint_for,
     transfer_kind_for,
 )
@@ -216,6 +217,7 @@ class Pipeline:
             full_text = " ".join(part for part in (request.notification_title, request.notification_body) if part)
             row.relation_hint = relation_hint_for(full_text, extraction.transaction_type)
             row.transfer_kind = transfer_kind_for(full_text, extraction.transaction_type) if row.relation_hint == "transfer" else None
+            row.debt_hint_strength = debt_hint_strength_for(full_text, extraction.transaction_type) if row.relation_hint == "debt_repayment" else None
             row.matched_pattern_name = extraction.matched_pattern_name
             row.pattern_id = extraction.pattern_id
             row.extra_fields = extraction.extra_fields
@@ -290,6 +292,7 @@ def _response_from_row(
             provider_reference=(row.extra_fields or {}).get("provider_reference"),
             relation_hint=row.relation_hint,
             transfer_kind=row.transfer_kind,
+            debt_hint_strength=row.debt_hint_strength,
         )
 
     categorization = None
