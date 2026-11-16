@@ -181,14 +181,15 @@ async def _classify_personal(
     """Phân loại vào danh mục của CHÍNH người dùng (thiết kế 2026-11-16, mục 5.2). Không ghi gì vào bảng nhớ dùng chung.
 
     Thứ tự: bảng nhớ riêng → (chưa cho phép AI) luật → bảng nhớ chung → Gemini chọn trong danh sách → luật / nhóm mặc định cửa hàng (chỉ khi AI không lỗi).
-    Slug hệ thống ``S`` từ luật/bảng nhớ chung/cửa hàng chỉ ánh xạ được sang danh mục hệ thống ``S`` trong danh sách, và KHÔNG khi người dùng có
-    danh mục riêng nào nằm dưới ``S`` (mơ hồ: không đoán "Ăn" hay "Uống")."""
+    Slug hệ thống ``S`` từ luật/bảng nhớ chung/cửa hàng chỉ ánh xạ được sang danh mục hệ thống ``S`` trong danh sách (không có thì unknown), kể cả khi người
+    dùng có danh mục riêng nằm dưới ``S``: không bao giờ đoán "Ăn" hay "Uống". "Mơ hồ" (có danh mục riêng dưới ``S``) chỉ quyết việc nhận kết quả của bảng
+    nhớ chung TRƯỚC Gemini: mơ hồ thì để Gemini chọn, Gemini không quyết mới dùng đến nó như dự phòng."""
     by_id = {c.id: c for c in categories}
     system = {c.slug: c for c in categories if c.is_system}
     ambiguous = {c.parent_slug for c in categories if c.parent_slug}
 
     def to_user(slug: str | None) -> UserCategoryIn | None:
-        return None if slug is None or slug in ambiguous else system.get(slug)
+        return system.get(slug) if slug else None
 
     top = [i for i, item in enumerate(items) if item.parent is None]
     rules = {i: resolve(items[i].name).slug for i in top}
@@ -209,11 +210,11 @@ async def _classify_personal(
             if results[i] is None and (chosen := to_user(rules[i])):
                 results[i] = (chosen, "rule")
     open_ = [i for i in top if results[i] is None and keys[i]]
-    if open_:
-        cached = await knowledge.cached_items(sorted({keys[i] for i in open_}))
-        for i in open_:
-            if category_registry.is_spend(cached.get(keys[i])) and (chosen := to_user(cached[keys[i]])):
-                results[i] = (chosen, "cache")
+    cached = await knowledge.cached_items(sorted({keys[i] for i in open_})) if open_ else {}
+    for i in open_:
+        slug = cached.get(keys[i])
+        if category_registry.is_spend(slug) and slug not in ambiguous and (chosen := to_user(slug)):
+            results[i] = (chosen, "cache")
 
     # 3. Gemini chọn trong danh sách đánh số của người dùng, tối đa 20 món chưa quyết đầu tiên. Câu trả lời không ghi vào bảng nhớ nào.
     labels = [f"{c.name} (thuộc nhóm {system[c.parent_slug].name})" if c.parent_slug in system else c.name for c in categories]
@@ -236,12 +237,14 @@ async def _classify_personal(
                 if index is not None and 0 <= index < len(categories):
                     results[i] = (categories[index], "ai")
 
-    # 4. Dự phòng cho món chưa quyết: luật, rồi nhóm mặc định của cửa hàng (không áp khi AI được phép mà lỗi, như đường cũ).
+    # 4. Dự phòng cho món chưa quyết: luật, bảng nhớ chung (kể cả khi mơ hồ), rồi nhóm mặc định của cửa hàng (không áp khi AI được phép mà lỗi, như đường cũ).
     default = None if ai_failed else to_user(_merchant_default(merchant))
     for i in top:
         if results[i] is None:
             if chosen := to_user(rules[i]):
                 results[i] = (chosen, "rule")
+            elif (slug := cached.get(keys[i])) and category_registry.is_spend(slug) and (chosen := to_user(slug)):
+                results[i] = (chosen, "cache")
             elif default:
                 results[i] = (default, "merchant")
 

@@ -519,23 +519,26 @@ async def test_personal_answers_are_never_written_to_the_shared_cache():
 
 async def test_shared_cache_hit_is_used_only_when_no_custom_category_sits_under_that_slug():
     gemini = FakeGemini()  # trả unknown
+    out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "food"}))
+    # food có Ăn/Uống dưới nó: mơ hồ nên Gemini quyết trước; Gemini không quyết thì dùng bảng nhớ chung như dự phòng, ra danh mục hệ thống
+    assert out == [(0, "food", "cache")] and full[0].category_id == FOOD.id and len(gemini.among_calls) == 1
+    gemini = FakeGemini(among=pick("Uống"))
     out, _, _ = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "food"}))
-    assert out == [(0, None, "unknown")] and len(gemini.among_calls) == 1  # food có Ăn/Uống dưới nó: mơ hồ, để Gemini quyết
+    assert out == [(0, "uong", "ai")]
     gemini = FakeGemini()
     out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "shopping"}))
     assert out == [(0, "shopping", "cache")] and full[0].category_id == SHOP.id and gemini.among_calls == []
 
 
 async def test_ai_off_and_rule_gives_food_maps_to_the_system_category_not_a_guess():
-    out, _, full = await prun(items("Gạo ST25"), cats=[FOOD, SHOP], allow_ai=False)
+    out, _, full = await prun(items("Gạo ST25"), allow_ai=False)  # danh sách đầy đủ: có Ăn/Uống dưới food
     assert out == [(0, "food", "rule")] and full[0].category_id == FOOD.id
-    # có "Ăn"/"Uống" dưới food thì mơ hồ: không đoán một trong hai
-    out, _, _ = await prun(items("Gạo ST25"), allow_ai=False)
-    assert out == [(0, None, "unknown")]
 
 
 async def test_system_slug_missing_from_the_users_list_becomes_unknown():
     out, _, _ = await prun(items("Gạo ST25"), cats=[SHOP], allow_ai=False)
+    assert out == [(0, None, "unknown")]
+    out, _, _ = await prun(items("Gạo ST25"), cats=[SHOP, AN, UONG], allow_ai=False)  # Ăn/Uống không thay được food hệ thống vắng mặt
     assert out == [(0, None, "unknown")]
 
 
