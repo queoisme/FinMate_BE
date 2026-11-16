@@ -26,7 +26,7 @@ public class RepositoryFinancialDataSourceTests
         Mock<IReportRepository>? report = null)
     {
         report ??= new Mock<IReportRepository>();
-        report.Setup(r => r.GetDailySpendAsync(UserId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+        report.Setup(r => r.GetDailySpendAsync(UserId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(points.ToList());
 
         var accountRepo = new Mock<IFinancialAccountRepository>();
@@ -47,7 +47,7 @@ public class RepositoryFinancialDataSourceTests
 
         await source.GetMonthlySeriesAsync(UserId, 6, Now);
 
-        report.Verify(r => r.GetDailySpendAsync(UserId, new DateOnly(2026, 5, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>()), Times.Once);
+        report.Verify(r => r.GetDailySpendAsync(UserId, new DateOnly(2026, 5, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()), Times.Once);
     }
 
     [Fact]
