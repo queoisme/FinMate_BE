@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services import category_registry
 
@@ -183,14 +183,6 @@ class ClassifyItemOut(BaseModel):
     category_id: uuid.UUID | None = None
     source: Literal["rule", "cache", "inherit", "merchant", "ai", "item_memory", "unknown"]
 
-    @model_serializer(mode="wrap")
-    def _omit_empty_category_id(self, handler):
-        # Đường cũ (không gửi ``categories``) giữ nguyên dạng phản hồi: không có khóa category_id.
-        data = handler(self)
-        if data.get("category_id") is None:
-            data.pop("category_id", None)
-        return data
-
 
 class BillClassifyItemsResponse(BaseModel):
     items: list[ClassifyItemOut]
@@ -207,7 +199,7 @@ class ItemMemoryEntry(BaseModel):
 
 
 class BillItemMemoryRequest(BaseModel):
-    """``POST /api/v1/bill/item-memory``: ghi nhớ nhóm người dùng đã chọn cho từng món."""
+    """``POST /api/v1/bill/items/memory``: ghi nhớ nhóm người dùng đã chọn cho từng món."""
 
     user_id_hash: str = Field(min_length=64, max_length=64)
     items: list[ItemMemoryEntry] = Field(min_length=1, max_length=60)
@@ -218,7 +210,7 @@ class BillItemMemoryResponse(BaseModel):
 
 
 class BillItemMemoryEraseRequest(BaseModel):
-    """``POST /api/v1/bill/item-memory/erase``: xóa toàn bộ bộ nhớ món của một người dùng."""
+    """``POST /api/v1/bill/items/memory/erase``: xóa toàn bộ bộ nhớ món của một người dùng."""
 
     user_id_hash: str = Field(min_length=64, max_length=64)
 

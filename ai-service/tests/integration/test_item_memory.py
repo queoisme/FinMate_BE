@@ -2,11 +2,16 @@
 
 import uuid
 
+import httpx
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.api.v1.bill import get_session_factory
 from app.bill import item_memory
 from app.core.anonymizer import sha256_hex
+from app.core.config import settings
+from app.main import app
 
 USER = sha256_hex("user-1")
 OTHER = sha256_hex("user-2")
@@ -124,3 +129,75 @@ async def test_lookup_and_delete_are_scoped_to_the_user_hash(session):
 
     assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {}
     assert await item_memory.lookup(session, OTHER, ["ca phe sua"]) == {"ca phe sua": theirs}
+
+
+# ---- route
+
+@pytest_asyncio.fixture
+async def bill_client(engine):
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app.dependency_overrides[get_session_factory] = lambda: factory
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"Authorization": f"Bearer {settings.internal_api_key}"}) as c:
+        yield c
+    app.dependency_overrides.pop(get_session_factory, None)
+
+
+def entry(name: str, category: uuid.UUID, kind: str = "accepted") -> dict:
+    return {"name": name, "category_id": str(category), "kind": kind}
+
+
+async def test_memory_route_records_and_erase_route_deletes(bill_client, session):
+    tea, rice = uuid.uuid4(), uuid.uuid4()
+    body = {"user_id_hash": USER, "items": [entry("Trà sữa", tea, "corrected"), entry("Gạo ST25", rice)]}
+
+    recorded = await bill_client.post("/api/v1/bill/items/memory", json=body)
+    assert recorded.status_code == 200 and recorded.json() == {"recorded": 2}
+    assert await item_memory.lookup(session, USER, ["tra sua", "gao st25"]) == {"tra sua": tea, "gao st25": rice}
+
+    assert (await bill_client.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": OTHER})).json() == {"deleted": 0}
+    erased = await bill_client.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": USER})
+    assert erased.status_code == 200 and erased.json() == {"deleted": 2}
+    assert await item_memory.lookup(session, USER, ["tra sua", "gao st25"]) == {}
+
+
+async def test_memory_route_reports_only_rows_actually_written(bill_client):
+    await bill_client.post("/api/v1/bill/items/memory", json={"user_id_hash": USER, "items": [entry("Trà sữa", uuid.uuid4(), "corrected")]})
+
+    blocked = await bill_client.post("/api/v1/bill/items/memory", json={"user_id_hash": USER, "items": [entry("Trà sữa", uuid.uuid4())]})
+
+    assert blocked.json() == {"recorded": 0}
+
+
+async def test_memory_route_swallows_db_errors_but_erase_lets_them_out(monkeypatch, engine):
+    async def broken(*args, **kwargs):
+        raise RuntimeError("db down")
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app.dependency_overrides[get_session_factory] = lambda: factory
+    monkeypatch.setattr(item_memory, "record", broken)
+    monkeypatch.setattr(item_memory, "delete_by_user_hash", broken)
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"Authorization": f"Bearer {settings.internal_api_key}"}) as c:
+            ok = await c.post("/api/v1/bill/items/memory", json={"user_id_hash": USER, "items": [entry("Trà sữa", uuid.uuid4())]})
+            erased = await c.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": USER})
+    finally:
+        app.dependency_overrides.pop(get_session_factory, None)
+
+    assert ok.status_code == 200 and ok.json() == {"recorded": 0}
+    assert erased.status_code == 500
+
+
+async def test_memory_routes_validate_the_request(bill_client):
+    one = entry("Trà sữa", uuid.uuid4())
+    for items in ([], [one] * 61, [{**one, "kind": "other"}]):
+        assert (await bill_client.post("/api/v1/bill/items/memory", json={"user_id_hash": USER, "items": items})).status_code == 422
+    assert (await bill_client.post("/api/v1/bill/items/memory", json={"user_id_hash": "short", "items": [one]})).status_code == 422
+    assert (await bill_client.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": "short"})).status_code == 422
+
+
+async def test_memory_routes_require_the_internal_key():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as anonymous:
+        assert (await anonymous.post("/api/v1/bill/items/memory", json={"user_id_hash": USER, "items": [entry("Trà sữa", uuid.uuid4())]})).status_code == 401
+        assert (await anonymous.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": USER})).status_code == 401

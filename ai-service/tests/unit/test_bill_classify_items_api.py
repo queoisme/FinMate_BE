@@ -1,6 +1,7 @@
 """``POST /api/v1/bill/classify-items``: khóa nội bộ, kiểm tra đầu vào, không log tên món."""
 
 import json
+import uuid
 
 import httpx
 import pytest
@@ -23,16 +24,24 @@ class FakeKnowledge:
     async def remember_items(self, answers):
         return None
 
+    async def user_item_memory(self, user_id_hash, keys):
+        return {}
+
 
 class FakeGemini:
     available = True
 
     def __init__(self):
         self.calls = []
+        self.among_calls = []
 
     async def classify(self, names, instruction):
         self.calls.append(list(names))
         return ["shopping"] * len(names)
+
+    async def classify_among(self, names, choices, instruction):
+        self.among_calls.append((list(names), list(choices)))
+        return [len(choices) - 1] * len(names)  # luôn chọn danh mục cuối trong danh sách
 
 
 @pytest.fixture(autouse=True)
@@ -63,9 +72,9 @@ async def test_api_classifies_items():
                                 {"name": "+ zz", "parent": 1}], "merchant_name": None})
     assert res.status_code == 200
     assert res.json() == {"ai_used": True, "items": [
-        {"index": 0, "category_slug": "shopping", "source": "ai"},  # AI quyết trước luật
-        {"index": 1, "category_slug": "shopping", "source": "ai"},
-        {"index": 2, "category_slug": "shopping", "source": "inherit"},
+        {"index": 0, "category_slug": "shopping", "category_id": None, "source": "ai"},  # AI quyết trước luật
+        {"index": 1, "category_slug": "shopping", "category_id": None, "source": "ai"},
+        {"index": 2, "category_slug": "shopping", "category_id": None, "source": "inherit"},
     ]}
 
 
@@ -93,6 +102,50 @@ async def test_api_never_logs_item_names(gemini):
     assert logs
     dump = json.dumps(logs, default=str)
     for secret in ("TENMONBIMAT", "CUAHANGBIMAT", "INSTR-BIMAT", "shopping"):
+        assert secret not in dump
+
+
+FOOD, MILK_TEA = uuid.uuid4(), uuid.uuid4()
+CATEGORIES = [
+    {"id": str(FOOD), "name": "Ăn uống", "slug": "food", "is_system": True},
+    {"id": str(MILK_TEA), "name": "TENDANHMUCBIMAT", "slug": "custom-1", "is_system": False, "parent_slug": "food"},
+]
+
+
+async def test_api_passes_categories_and_returns_category_id(gemini):
+    res = await post({"items": [{"name": "Qwerty", "parent": None}, {"name": "+ zz", "parent": 0}], "categories": CATEGORIES})
+
+    assert res.status_code == 200
+    assert res.json() == {"ai_used": True, "items": [
+        {"index": 0, "category_slug": "custom-1", "category_id": str(MILK_TEA), "source": "ai"},
+        {"index": 1, "category_slug": "custom-1", "category_id": str(MILK_TEA), "source": "inherit"},
+    ]}
+    assert gemini.calls == [] and [names for names, _ in gemini.among_calls] == [["Qwerty"]]
+
+
+async def test_api_rejects_more_than_60_categories():
+    many = [{"id": str(uuid.uuid4()), "name": f"c{i}", "slug": f"custom-{i}", "is_system": False} for i in range(61)]
+    assert (await post({"items": [{"name": "Gạo", "parent": None}], "categories": many})).status_code == 422
+
+
+async def test_api_without_categories_still_uses_the_old_path(gemini):
+    res = await post({"items": [{"name": "Qwerty", "parent": None}]})
+    assert res.status_code == 200 and gemini.calls == [["Qwerty"]] and gemini.among_calls == []
+
+
+async def test_api_response_always_carries_the_category_id_key():
+    # Không có id (đường cũ, hoặc món không nhận ra) thì khóa vẫn có, giá trị null: backend không phải đoán khóa thiếu.
+    res = await post({"items": [{"name": "Qwerty", "parent": None}], "allow_ai": False})
+    assert res.status_code == 200 and res.json()["items"] == [{"index": 0, "category_slug": None, "category_id": None, "source": "unknown"}]
+
+
+async def test_api_never_logs_item_or_category_names(gemini):
+    with structlog.testing.capture_logs() as logs:
+        res = await post({"items": [{"name": "TENMONBIMAT", "parent": None}], "merchant_name": "CUAHANGBIMAT", "categories": CATEGORIES})
+    assert res.status_code == 200 and [names for names, _ in gemini.among_calls] == [["TENMONBIMAT"]]
+    assert logs
+    dump = json.dumps(logs, default=str)
+    for secret in ("TENMONBIMAT", "CUAHANGBIMAT", "TENDANHMUCBIMAT", "INSTR-BIMAT", str(MILK_TEA)):
         assert secret not in dump
 
 
