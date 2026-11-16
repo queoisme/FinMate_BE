@@ -41,7 +41,7 @@ public class ItemMemoryService : IItemMemoryService
     {
         try
         {
-            await LearnAsync(userId, scanId, group, finalCategory, ct);
+            await LearnAsync(userId, scanId, group, finalCategory, null, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -59,7 +59,9 @@ public class ItemMemoryService : IItemMemoryService
                 return;
             }
 
-            await LearnAsync(userId, link.Value.ScanId, link.Value.Group, newCategory, ct);
+            // Sửa SAU khi lưu luôn là lựa chọn rõ ràng của người dùng, kể cả khi đổi lại đúng slug AI đề xuất:
+            // gửi Accepted thì ai-service không đè được dòng "corrected" cũ và bộ nhớ giữ danh mục sai.
+            await LearnAsync(userId, link.Value.ScanId, link.Value.Group, newCategory, ItemMemoryKinds.Corrected, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -81,7 +83,7 @@ public class ItemMemoryService : IItemMemoryService
         }
     }
 
-    private async Task LearnAsync(Guid userId, Guid scanId, string group, Category? finalCategory, CancellationToken ct)
+    private async Task LearnAsync(Guid userId, Guid scanId, string group, Category? finalCategory, string? forcedKind, CancellationToken ct)
     {
         // Thu nhập và cho vay nhận diện theo slug (Category chưa có cột loại); danh mục của chính người dùng (UserId != null) thì được học.
         if (finalCategory is null || finalCategory.Slug == TrainingSampleService.IncomeSlug || finalCategory.Slug == Category.LoanSlug)
@@ -95,8 +97,11 @@ public class ItemMemoryService : IItemMemoryService
         }
 
         // Nhóm "unknown" không phải danh mục AI đề xuất nên luôn là Corrected, kể cả khi slug danh mục cuối trùng chữ.
-        var kind = group != ReceiptScanLink.UnknownGroup && finalCategory.Slug == group ? ItemMemoryKinds.Accepted : ItemMemoryKinds.Corrected;
+        var kind = forcedKind
+            ?? (group != ReceiptScanLink.UnknownGroup && finalCategory.Slug == group ? ItemMemoryKinds.Accepted : ItemMemoryKinds.Corrected);
+        // Tên rỗng làm cả lô bị ai-service từ chối (422, lỗi bị nuốt) nên lọc TRƯỚC khi cắt 60.
         var items = (await _receiptScans.GetGroupItemsAsync(scanId, userId, group, ct))
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
             .OrderBy(i => i.Position)
             .Take(MaxItemsPerCall)
             .Select(i => new LearnItemEntry(i.Name, finalCategory.Id, kind))

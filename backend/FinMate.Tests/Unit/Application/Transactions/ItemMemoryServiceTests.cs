@@ -138,12 +138,46 @@ public class ItemMemoryServiceTests
     {
         ScanIs(true, Item(0, "Sữa tươi"));
         _scans.Setup(r => r.GetLinkedGroupAsync(_transactionId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync((_scanId, "food"));
-        var accepted = Cat("food");
+        var household = Cat("household");
 
-        await Service().LearnFromCorrectionAsync(_userId, _transactionId, accepted);
+        await Service().LearnFromCorrectionAsync(_userId, _transactionId, household);
 
         _scans.Verify(r => r.GetGroupItemsAsync(_scanId, _userId, "food", It.IsAny<CancellationToken>()), Times.Once);
-        VerifySent(r => r.Items[0].Kind == ItemMemoryKinds.Accepted && r.Items[0].CategoryId == accepted.Id);
+        VerifySent(r => r.Items[0].Kind == ItemMemoryKinds.Corrected && r.Items[0].CategoryId == household.Id);
+    }
+
+    [Fact]
+    public async Task LearnFromCorrection_BackToTheGroupSlug_StillSendsCorrected()
+    {
+        // Sửa SAU khi lưu luôn là lựa chọn rõ ràng: đổi lại đúng slug AI đề xuất vẫn phải đè dòng "corrected" cũ (accepted không đè được).
+        ScanIs(true, Item(0, "Sữa tươi"));
+        _scans.Setup(r => r.GetLinkedGroupAsync(_transactionId, _userId, It.IsAny<CancellationToken>())).ReturnsAsync((_scanId, "food"));
+        var food = Cat("food");
+
+        await Service().LearnFromCorrectionAsync(_userId, _transactionId, food);
+
+        VerifySent(r => r.Items[0].Kind == ItemMemoryKinds.Corrected && r.Items[0].CategoryId == food.Id);
+    }
+
+    [Fact]
+    public async Task Learn_SkipsBlankNamesBeforeTheCap()
+    {
+        // ai-service đòi tên dài >= 1: một tên rỗng làm cả lô bị 422 và lỗi bị nuốt. Lọc trước khi cắt 60.
+        ScanIs(true, Item(0, ""), Item(1, "   "), Item(2, "Sữa tươi"), Item(3, "Bánh mì"));
+
+        await Service().LearnFromSavedGroupAsync(_userId, _scanId, "food", Cat("household"));
+
+        VerifySent(r => r.Items.Count == 2 && r.Items[0].Name == "Sữa tươi" && r.Items[1].Name == "Bánh mì");
+    }
+
+    [Fact]
+    public async Task Learn_SendsNothingWhenEveryNameIsBlank()
+    {
+        ScanIs(true, Item(0, ""), Item(1, " "));
+
+        await Service().LearnFromSavedGroupAsync(_userId, _scanId, "food", Cat("household"));
+
+        VerifyNothingSent();
     }
 
     [Fact]
