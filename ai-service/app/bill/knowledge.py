@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 import structlog
 from sqlalchemy import text
@@ -24,6 +24,13 @@ from app.db.session import AsyncSessionLocal
 logger = structlog.get_logger(__name__)
 
 _DEFAULT_TTL_SECONDS = 60.0
+
+
+class MemoryHit(NamedTuple):
+    """Một dòng ``user_item_memory``: id danh mục người dùng đã chốt cho món và nguồn (``corrected`` / ``accepted``)."""
+
+    category_id: uuid.UUID
+    source: str
 
 _BRANDS_SQL = text("SELECT brand_key, category_slug, display_name, whole_word FROM kb_brands WHERE is_active ORDER BY brand_key")
 # Đã sắp theo category_priority: giữ đúng thứ tự ưu tiên giữa các nhóm như trong code.
@@ -73,8 +80,8 @@ class BillKnowledge(Protocol):
         """Ghi các câu trả lời của Gemini (khóa -> slug). Không gắn người dùng. Lỗi DB chỉ cảnh báo."""
         ...
 
-    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, uuid.UUID]:
-        """Id danh mục người dùng này đã chốt cho từng khóa tên món (``user_item_memory``); khóa chưa có thì vắng mặt. Lỗi DB thì trả {}."""
+    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, MemoryHit]:
+        """Danh mục (id + nguồn) người dùng này đã chốt cho từng khóa tên món (``user_item_memory``); khóa chưa có thì vắng mặt. Lỗi DB thì trả {}."""
         ...
 
 
@@ -178,7 +185,7 @@ class DbBillKnowledge:
         except Exception as error:  # noqa: BLE001 - không nhớ được thì lần sau hỏi lại, không được làm hỏng kết quả
             logger.warning("bill_item_cache_write_failed", error=type(error).__name__)
 
-    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, uuid.UUID]:
+    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, MemoryHit]:
         from app.bill import item_memory  # nhập muộn: item_memory nhập item_classifier, mà item_classifier nhập module này
 
         try:
@@ -207,5 +214,5 @@ class NoBillKnowledge:
     async def remember_items(self, answers: dict[str, str]) -> None:
         return None
 
-    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, uuid.UUID]:
+    async def user_item_memory(self, user_id_hash: str, keys: list[str]) -> dict[str, MemoryHit]:
         return {}

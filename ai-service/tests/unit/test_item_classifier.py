@@ -7,13 +7,15 @@ import httpx
 
 from app.bill.gemini import LlmClient, GeminiFailed
 from app.bill.item_classifier import classify_items
+from app.bill.knowledge import MemoryHit
 from app.schemas.bill import ClassifyItemIn, UserCategoryIn
 
 
 class FakeKnowledge:
     def __init__(self, cache=None, memory=None):
         self.refreshes = 0
-        self.memory: dict[str, uuid.UUID] = dict(memory or {})  # item_key -> id danh mục riêng (bảng nhớ theo người dùng)
+        # item_key -> (id danh mục, nguồn) của bảng nhớ theo người dùng; truyền id trần thì mặc định nguồn "accepted"
+        self.memory = {k: v if isinstance(v, MemoryHit) else MemoryHit(v, "accepted") for k, v in (memory or {}).items()}
         self.cache = dict(cache or {})  # item_key -> slug, đã có sẵn trong bảng nhớ
         self.remembered_items: dict[str, str] = {}  # những gì classify_items đã ghi thêm
 
@@ -494,6 +496,32 @@ async def test_memory_hit_wins_without_calling_gemini():
     out, used, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": UONG.id}))
     assert out == [(0, "uong", "item_memory")] and full[0].category_id == UONG.id
     assert gemini.calls == [] and gemini.among_calls == [] and used is False
+
+
+# FOOD hệ thống có Ăn/Uống nằm dưới nó nên "mơ hồ": lần chốt "accepted -> food" cũ không được chặn Gemini chọn Ăn/Uống.
+async def test_accepted_memory_on_an_ambiguous_system_category_is_ignored_and_gemini_decides():
+    gemini = FakeGemini(among=pick("Uống"))
+    out, used, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": MemoryHit(FOOD.id, "accepted")}))
+    assert out == [(0, "uong", "ai")] and full[0].category_id == UONG.id and used is True and len(gemini.among_calls) == 1
+
+
+async def test_accepted_memory_on_a_system_category_is_honoured_when_nothing_sits_under_it():
+    gemini = FakeGemini(among=pick("Uống"))
+    out, used, full = await prun(items("Qwerty"), cats=[FOOD, SHOP], gemini=gemini,
+                                 knowledge=FakeKnowledge(memory={"qwerty": MemoryHit(FOOD.id, "accepted")}))
+    assert out == [(0, "food", "item_memory")] and full[0].category_id == FOOD.id and gemini.among_calls == [] and used is False
+
+
+async def test_corrected_memory_on_an_ambiguous_system_category_is_always_honoured():
+    gemini = FakeGemini(among=pick("Uống"))
+    out, used, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": MemoryHit(FOOD.id, "corrected")}))
+    assert out == [(0, "food", "item_memory")] and full[0].category_id == FOOD.id and gemini.among_calls == [] and used is False
+
+
+async def test_accepted_memory_on_a_custom_category_is_honoured():
+    gemini = FakeGemini(among=pick("Ăn ("))
+    out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": MemoryHit(UONG.id, "accepted")}))
+    assert out == [(0, "uong", "item_memory")] and full[0].category_id == UONG.id and gemini.among_calls == []
 
 
 async def test_memory_id_missing_from_the_list_is_ignored_and_falls_to_gemini():

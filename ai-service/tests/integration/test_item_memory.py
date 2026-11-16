@@ -9,19 +9,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.api.v1.bill import get_session_factory
 from app.bill import item_memory
+from app.bill.knowledge import MemoryHit
 from app.core.anonymizer import sha256_hex
 from app.core.config import settings
 from app.main import app
 
 USER = sha256_hex("user-1")
 OTHER = sha256_hex("user-2")
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def empty_memory(engine):
-    # clean_tables (conftest dùng chung) chưa biết bảng này: tự dọn để mỗi test bắt đầu từ bảng rỗng.
-    async with engine.begin() as connection:
-        await connection.execute(text("TRUNCATE user_item_memory"))
 
 
 async def stored(session) -> dict[str, tuple[uuid.UUID, str]]:
@@ -34,7 +28,7 @@ async def test_record_then_lookup_returns_the_category_id(session):
 
     assert await item_memory.record(session, USER, [("Cà phê sữa", category, "accepted")]) == 1
 
-    assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {"ca phe sua": category}
+    assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {"ca phe sua": MemoryHit(category, "accepted")}
 
 
 async def test_lookup_of_unknown_keys_or_no_keys_is_empty(session):
@@ -122,13 +116,13 @@ async def test_lookup_and_delete_are_scoped_to_the_user_hash(session):
     await item_memory.record(session, USER, [("Cà phê sữa", mine, "corrected")])
     await item_memory.record(session, OTHER, [("Cà phê sữa", theirs, "corrected")])
 
-    assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {"ca phe sua": mine}
-    assert await item_memory.lookup(session, OTHER, ["ca phe sua"]) == {"ca phe sua": theirs}
+    assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {"ca phe sua": MemoryHit(mine, "corrected")}
+    assert await item_memory.lookup(session, OTHER, ["ca phe sua"]) == {"ca phe sua": MemoryHit(theirs, "corrected")}
 
     assert await item_memory.delete_by_user_hash(session, USER) == 1
 
     assert await item_memory.lookup(session, USER, ["ca phe sua"]) == {}
-    assert await item_memory.lookup(session, OTHER, ["ca phe sua"]) == {"ca phe sua": theirs}
+    assert await item_memory.lookup(session, OTHER, ["ca phe sua"]) == {"ca phe sua": MemoryHit(theirs, "corrected")}
 
 
 # ---- route
@@ -153,7 +147,7 @@ async def test_memory_route_records_and_erase_route_deletes(bill_client, session
 
     recorded = await bill_client.post("/api/v1/bill/items/memory", json=body)
     assert recorded.status_code == 200 and recorded.json() == {"recorded": 2}
-    assert await item_memory.lookup(session, USER, ["tra sua", "gao st25"]) == {"tra sua": tea, "gao st25": rice}
+    assert await item_memory.lookup(session, USER, ["tra sua", "gao st25"]) == {"tra sua": MemoryHit(tea, "corrected"), "gao st25": MemoryHit(rice, "accepted")}
 
     assert (await bill_client.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": OTHER})).json() == {"deleted": 0}
     erased = await bill_client.post("/api/v1/bill/items/memory/erase", json={"user_id_hash": USER})

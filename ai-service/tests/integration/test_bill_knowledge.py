@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.bill import brands, classifier
 from app.bill.classifier import classify_category_detailed
-from app.bill.knowledge import DbBillKnowledge, merchant_key
+from app.bill.knowledge import DbBillKnowledge, MemoryHit, merchant_key
 from app.services import category_resolver
 from app.db.bill_views import UNKNOWN_MERCHANTS_VIEW
 
@@ -229,5 +229,5 @@ async def test_user_item_memory_returns_this_users_category_ids_only(session, fa
     await execute(session, insert, u=OTHER, k="ca phe sua", c=theirs)
     knowledge = DbBillKnowledge(factory)
 
-    assert await knowledge.user_item_memory(USER, ["ca phe sua", "tra dao"]) == {"ca phe sua": mine}
+    assert await knowledge.user_item_memory(USER, ["ca phe sua", "tra dao"]) == {"ca phe sua": MemoryHit(mine, "accepted")}
     assert await knowledge.user_item_memory(USER, []) == {}

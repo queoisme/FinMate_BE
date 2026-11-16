@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bill.item_classifier import usable_item_key
+from app.bill.knowledge import MemoryHit
 from app.bill.samples import has_long_digit_run
 
 Kind = Literal["corrected", "accepted"]
@@ -34,15 +35,15 @@ _TRIM_SQL = text(
 )
 
 
-async def lookup(session: AsyncSession, user_id_hash: str, keys: list[str]) -> dict[str, uuid.UUID]:
-    """``khóa món -> id danh mục`` cho những khóa người dùng này đã có; khóa chưa có thì vắng mặt."""
+async def lookup(session: AsyncSession, user_id_hash: str, keys: list[str]) -> dict[str, MemoryHit]:
+    """``khóa món -> (id danh mục, nguồn)`` cho những khóa người dùng này đã có; khóa chưa có thì vắng mặt."""
     if not keys:
         return {}
     rows = await session.execute(
-        text("SELECT item_key, category_id FROM user_item_memory WHERE user_id_hash = :user AND item_key = ANY(:keys)"),
+        text("SELECT item_key, category_id, source FROM user_item_memory WHERE user_id_hash = :user AND item_key = ANY(:keys)"),
         {"user": user_id_hash, "keys": list(keys)},
     )
-    return {key: category for key, category in rows.all()}
+    return {key: MemoryHit(category, source) for key, category, source in rows.all()}
 
 
 async def record(session: AsyncSession, user_id_hash: str, entries: list[tuple[str, uuid.UUID, Kind]]) -> int:

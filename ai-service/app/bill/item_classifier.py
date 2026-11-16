@@ -197,12 +197,16 @@ async def _classify_personal(
     keys = {i: item_key(item.name) for i, item in enumerate(items)}
     results: list[tuple[UserCategoryIn, str] | None] = [None] * len(items)
 
-    # 1. Bảng nhớ riêng: id không còn trong danh sách (xoá, tắt) thì bỏ qua.
+    # 1. Bảng nhớ riêng: id không còn trong danh sách (xoá, tắt) thì bỏ qua. Dòng "accepted" trỏ vào danh mục HỆ THỐNG mà nay đã có danh mục riêng nằm
+    # dưới nó (mơ hồ) cũng bỏ qua: đó chỉ là lần giữ nguyên gợi ý cũ, không phải chọn giữa Ăn/Uống nên để Gemini được thấy danh mục mới. "corrected" luôn được tôn trọng.
     wanted = sorted({keys[i] for i in top if keys[i]})
     remembered = await knowledge.user_item_memory(user_id_hash, wanted) if wanted else {}
     for i in top:
-        if (chosen := by_id.get(remembered.get(keys[i]))) is not None:
-            results[i] = (chosen, "item_memory")
+        if (hit := remembered.get(keys[i])) is None or (chosen := by_id.get(hit.category_id)) is None:
+            continue
+        if hit.source == "accepted" and chosen.is_system and chosen.slug in ambiguous:
+            continue
+        results[i] = (chosen, "item_memory")
 
     # 2. Chưa cho phép AI: luật quyết trước như đường cũ. Rồi bảng nhớ chung (đọc không gửi gì ra ngoài), chỉ khi ánh xạ được.
     if not allow_ai:
