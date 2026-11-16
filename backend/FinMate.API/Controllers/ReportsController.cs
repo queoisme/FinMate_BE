@@ -50,11 +50,12 @@ public class ReportsController : ControllerBase
         return Ok(ApiResponse<MonthlySummaryDto>.Ok(summary));
     }
 
+    /// <param name="type">"expense" (mặc định, tương thích ngược) hoặc "income" — F2 tab "Thu nhập".</param>
     [HttpGet("category-breakdown")]
-    public async Task<IActionResult> GetCategoryBreakdown([FromQuery] int? year, [FromQuery] int? month, CancellationToken ct)
+    public async Task<IActionResult> GetCategoryBreakdown([FromQuery] int? year, [FromQuery] int? month, [FromQuery] string type = "expense", CancellationToken ct = default)
     {
         var breakdown = await _breakdownHandler.HandleAsync(
-            new GetCategoryBreakdownQuery(CurrentUserId, year, month), ct);
+            new GetCategoryBreakdownQuery(CurrentUserId, year, month, type), ct);
         return Ok(ApiResponse<CategoryBreakdownDto>.Ok(breakdown));
     }
 

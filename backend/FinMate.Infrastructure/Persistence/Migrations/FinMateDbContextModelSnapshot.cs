@@ -114,6 +114,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("processing_ms");
 
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider_reference");
+
                     b.Property<string>("RelationHint")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
@@ -2797,6 +2802,52 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.MerchantCategoryOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("MerchantKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("merchant_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "MerchantKey")
+                        .IsUnique()
+                        .HasDatabaseName("uq_merchant_category_overrides_user_merchant");
+
+                    b.ToTable("merchant_category_overrides", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
                 {
                     b.Property<Guid>("MethodId")
@@ -5012,6 +5063,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("notification_log_id");
 
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider_reference");
+
                     b.Property<Guid?>("RelatedTransactionId")
                         .HasColumnType("uuid")
                         .HasColumnName("related_transaction_id");
@@ -5583,6 +5639,68 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_user_methods_role", "role IN ('primary','supporting')");
 
                             t.HasCheckConstraint("chk_user_methods_status", "status IN ('active','ended')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid?>("RelatedEntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("related_entity_type");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_user_notifications_user_created");
+
+                    b.HasIndex("UserId", "Type")
+                        .HasDatabaseName("ix_user_notifications_user_type");
+
+                    b.ToTable("user_notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_user_notifications_type", "type IN ('budget_threshold','balance_change','anomaly_detected','recurring_bill_due','forecast_ready','goal_milestone')");
                         });
                 });
 
@@ -6270,6 +6388,25 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.MerchantCategoryOverride", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.MethodGoalTemplate", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.FinanceMethod", null)
@@ -6830,6 +6967,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserNotification", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.UserRoleAssignment", b =>

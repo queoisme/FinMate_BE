@@ -107,6 +107,25 @@ public class ReportRepository : IReportRepository
         return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();
     }
 
+    public async Task<List<CategorySpend>> GetCategoryIncomeAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var (start, end) = VietnamTime.DayRange(from, to);
+
+        // Cùng pattern với GetCategorySpendAsync, đổi Debit → Credit: thu ròng theo danh mục.
+        var rows = await _context.Transactions
+            .Where(BudgetSpendScope.Personal(userId, null, start, end))
+            .Where(BudgetSpendScope.Counts)
+            .GroupBy(t => new { t.CategoryId, Name = t.Category!.Name, Slug = t.Category!.Slug })
+            .Select(g => new CategorySpend(
+                g.Key.CategoryId,
+                g.Key.Name,
+                g.Key.Slug,
+                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : -t.AmountCents)))
+            .ToListAsync(ct);
+
+        return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();
+    }
+
     public async Task<long> GetCrossPeriodRefundsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var (start, end) = VietnamTime.DayRange(from, to);

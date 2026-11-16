@@ -31,6 +31,9 @@ public interface IReportRepository
 
     Task<List<CategorySpend>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
 
+    /// <summary>Như <see cref="GetCategorySpendAsync"/> nhưng gom thu (Credit) thay vì chi (Debit) — F2 tab "Thu nhập".</summary>
+    Task<List<CategorySpend>> GetCategoryIncomeAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
+
     /// <summary>
     /// Phase 81, D3: phần hoàn nhận trong khoảng mà khoản chi gốc nằm NGOÀI khoảng (mua tháng trước, hoàn tháng này). Đây là phần làm tổng chi
     /// kỳ thấp hơn tổng các dòng danh mục; app dùng nó để giải thích chỗ chênh. Hoàn mồ côi không có khoản gốc nên không tính.

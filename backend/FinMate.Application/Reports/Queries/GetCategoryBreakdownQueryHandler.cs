@@ -28,7 +28,9 @@ public class GetCategoryBreakdownQueryHandler : IGetCategoryBreakdownQueryHandle
 
         // Tính live chứ không đọc daily_summaries: bảng đó chỉ giữ top category, không đủ để
         // dựng bản phân tích đầy đủ theo từng danh mục.
-        var spend = await _reportRepository.GetCategorySpendAsync(query.UserId, monthFirst, monthLast, ct);
+        var spend = query.Type == "income"
+            ? await _reportRepository.GetCategoryIncomeAsync(query.UserId, monthFirst, monthLast, ct)
+            : await _reportRepository.GetCategorySpendAsync(query.UserId, monthFirst, monthLast, ct);
         var total = spend.Sum(s => s.SpentCents);
 
         var items = spend
