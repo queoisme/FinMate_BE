@@ -629,9 +629,17 @@ POST /api/v1/analyze
     │                 balance_after_cents, provider_reference }
     │       provider_reference: mã tham chiếu NGÂN HÀNG của chính giao dịch này khi
     │       format provider bắt được (vd "628111031960" từ "CT DI:628111031960" của
-    │       VietinBank) — null khi không có. Dùng để Backend phân biệt 2 giao dịch
-    │       THẬT khác nhau khỏi 1 giao dịch bị gửi lặp khi cả hai trùng ví+số tiền+
-    │       chiều tiền trong cùng cửa sổ kiểm tra trùng (2026-11-13).
+    │       VietinBank) — null khi không có. Thêm 2026-11-13 trên `dev/tho` để Backend
+    │       phân biệt 2 giao dịch THẬT khác nhau khỏi 1 giao dịch bị gửi lặp qua
+    │       `HasAuthoritativeDuplicateAsync`. **SUPERSEDED 2026-11-16:** merge
+    │       `origin/main` mang vào `IDuplicateDetector`/`DuplicateMatcher` (Phase 82,
+    │       `main`) — phân biệt bằng so khớp `balance_after_cents` giữa 2 giao dịch
+    │       trong cùng cửa sổ thay vì mã tham chiếu text. `HasAuthoritativeDuplicateAsync`
+    │       đã bị xoá khỏi `ITransactionRepository`. Trường `provider_reference` VẪN
+    │       còn trong contract và được Backend lưu vào `Transaction.ProviderReference`/
+    │       `AiResult.ProviderReference` (migration giữ nguyên, không rollback) nhưng
+    │       KHÔNG còn được đọc để so trùng ở đâu cả — dữ liệu phụ, không phải cơ chế
+    │       chống trùng chính thức nữa. Xem `FLOW1_CURRENT_DECISIONS.md` §16.12.
     │       Fallback: rule-based extraction nếu model uncertain
     │
     ├─► [3. Categorizer]
