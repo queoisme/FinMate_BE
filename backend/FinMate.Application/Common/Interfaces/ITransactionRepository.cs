@@ -35,6 +35,8 @@ public interface ITransactionRepository
     /// được lấy dữ liệu của người dùng chỉ bằng id (`CLAUDE.md`).
     /// </summary>
     Task<Transaction?> GetByNotificationLogIdAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default);
+    /// <summary>Kết quả AI của thông báo đã sinh ra một giao dịch của <paramref name="userId"/>, hoặc null.</summary>
+    Task<AiResult?> GetNotificationAiResultAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default);
     Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default);
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);

@@ -1,3 +1,4 @@
+using FinMate.Application.Categories.Commands;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
@@ -197,7 +198,7 @@ public class PurchaseCheckService : IPurchaseCheckService
 
         var budgets = await _budgets.GetAsync(command.UserId, ct);
         var categoryId = command.CategoryId
-            ?? (string.IsNullOrWhiteSpace(command.CategorySlug) ? null : (await _categories.GetSystemBySlugAsync(command.CategorySlug.Trim(), ct))?.Id);
+            ?? (string.IsNullOrWhiteSpace(command.CategorySlug) ? null : (await _categories.GetVisibleSystemBySlugAsync(command.UserId, command.CategorySlug.Trim(), ct))?.Id);
         var match = (categoryId is { } id ? budgets.FirstOrDefault(b => b.CategoryId == id) : null)
             ?? budgets.FirstOrDefault(b => b.CategoryId is null);
         if (match is null)

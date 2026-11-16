@@ -32,6 +32,7 @@ public class FinMateDbContext : DbContext
     public DbSet<MerchantCategoryOverride> MerchantCategoryOverrides => Set<MerchantCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<UserHiddenCategory> UserHiddenCategories => Set<UserHiddenCategory>();
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();
     public DbSet<GoalContribution> GoalContributions => Set<GoalContribution>();
     public DbSet<Budget> Budgets => Set<Budget>();

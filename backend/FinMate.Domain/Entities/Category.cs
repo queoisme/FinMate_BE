@@ -13,6 +13,25 @@ public class Category
     public string Name { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;
     public string? IconName { get; set; }
+
+    public const string KindExpense = "expense";
+    public const string KindIncome = "income";
+
+    /// <summary>Màu nhận diện dạng <c>#RRGGBB</c> (chữ hoa), null = app dùng màu mặc định theo icon. Chọn từ bảng màu trong cấu hình hệ thống nhưng không bắt buộc nằm trong bảng.</summary>
+    public string? Color { get; set; }
+
+    /// <summary><see cref="KindExpense"/> hoặc <see cref="KindIncome"/>: để app lọc "Khoản chi tiêu / Khoản thu nhập". Chưa chặn việc dùng danh mục với loại giao dịch khác.</summary>
+    public string Kind { get; set; } = KindExpense;
+
+    /// <summary>Nhóm cha: luôn là một danh mục HỆ THỐNG (không lồng danh mục riêng vào nhau), để báo cáo gộp được theo nhóm.</summary>
+    public Guid? ParentCategoryId { get; set; }
+
+    /// <summary>Hạn mức ngân sách GỢI Ý mỗi tháng (đồng). Chỉ là gợi ý hiển thị: không tự tạo ngân sách.</summary>
+    public long? SuggestedBudgetCents { get; set; }
+
+    /// <summary>Đưa vào danh sách yêu thích của chủ danh mục. Chỉ có nghĩa với danh mục riêng (một người dùng); danh mục hệ thống dùng chung nên không đặt cờ này.</summary>
+    public bool IsFavorite { get; set; }
+
     public bool IsSystem { get; set; }
 
     /// <summary>
@@ -29,4 +48,5 @@ public class Category
     public DateTimeOffset? DeletedAt { get; set; }
 
     public User? User { get; set; }
+    public Category? ParentCategory { get; set; }
 }

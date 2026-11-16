@@ -9,9 +9,12 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
 {
     private readonly ITransactionRepository _transactionRepository;
 
-    public GetTransactionDetailQueryHandler(ITransactionRepository transactionRepository)
+    private readonly IReceiptScanRepository? _scans;
+
+    public GetTransactionDetailQueryHandler(ITransactionRepository transactionRepository, IReceiptScanRepository? scans = null)
     {
         _transactionRepository = transactionRepository;
+        _scans = scans;
     }
 
     public async Task<TransactionDto> HandleAsync(GetTransactionDetailQuery query, CancellationToken ct = default)
@@ -19,6 +22,20 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
         var transaction = await _transactionRepository.GetByIdAsync(query.TransactionId, query.UserId, ct)
             ?? throw new NotFoundException("Transaction", query.TransactionId);
 
-        return TransactionMapper.ToDto(transaction);
+        var dto = TransactionMapper.ToDto(transaction);
+        if (_scans is not null && transaction.Source == Domain.Enums.TransactionSource.Receipt
+            && await _scans.GetLinkedScanIdAsync(transaction.Id, query.UserId, ct) is { } scanId)
+        {
+            var scan = await _scans.GetByIdAsync(scanId, query.UserId, ct);
+            return dto with { ReceiptScanId = scanId, AiClassification = DraftInsights.ForScan(scan) };
+        }
+
+        if (transaction.NotificationLogId is { } logId)
+        {
+            var result = await _transactionRepository.GetNotificationAiResultAsync(query.UserId, logId, ct);
+            return dto with { AiClassification = DraftInsights.ForNotification(result) };
+        }
+
+        return dto;
     }
 }

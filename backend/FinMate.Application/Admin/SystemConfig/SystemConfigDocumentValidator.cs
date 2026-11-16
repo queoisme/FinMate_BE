@@ -30,6 +30,44 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
+        RuleFor(x => x.Categories).NotNull().SetValidator(new CategorySettingsValidator());
+        RuleFor(x => x.Assistant).NotNull().SetValidator(new AssistantValidator());
+    }
+
+    private sealed class AssistantValidator : AbstractValidator<AssistantSettings>
+    {
+        public AssistantValidator()
+        {
+            RuleFor(x => x.MaxSuggestions).InclusiveBetween(0, 10).WithMessage("Số câu gợi ý tối đa phải từ 0 đến 10.");
+            RuleFor(x => x.Suggestions).NotNull().WithMessage("Danh sách câu gợi ý không được thiếu.");
+            RuleForEach(x => x.Suggestions).ChildRules(s =>
+            {
+                s.RuleFor(t => t.Key).NotEmpty().MaximumLength(40).WithMessage("Mã câu gợi ý phải có và tối đa 40 ký tự.");
+                s.RuleFor(t => t.Text).NotEmpty().MaximumLength(120).WithMessage("Câu gợi ý phải có và tối đa 120 ký tự.");
+                s.RuleFor(t => t.When).Must(w => AssistantSettings.SuggestionContexts.Contains(w)).WithMessage("Ngữ cảnh câu gợi ý không hợp lệ.");
+            });
+            RuleFor(x => x.Suggestions).Must(l => l.Select(t => t.Key).Distinct().Count() == l.Count).WithMessage("Mã câu gợi ý bị trùng.");
+            RuleFor(x => x.CategorySourceConfidence).NotNull().Must(d => d.Values.All(v => v is >= 0 and <= 1)).WithMessage("Độ tin cậy theo nguồn phải nằm trong khoảng 0 đến 1.");
+        }
+    }
+
+    private sealed class CategorySettingsValidator : AbstractValidator<CategorySettings>
+    {
+        private static readonly Regex ColorKey = new("^[a-z0-9_-]{1,24}$", RegexOptions.Compiled);
+
+        public CategorySettingsValidator()
+        {
+            RuleFor(x => x.Palette).NotNull().Must(p => p is { Count: >= 1 and <= 24 })
+                .WithMessage("Bảng màu danh mục phải có từ 1 đến 24 màu.");
+            RuleFor(x => x.Palette).Must(p => p is null || p.Select(c => c.Key).Distinct().Count() == p.Count)
+                .WithMessage("Mã (key) của các màu trong bảng màu không được trùng nhau.");
+            RuleForEach(x => x.Palette).ChildRules(color =>
+            {
+                color.RuleFor(c => c.Key).Must(k => k is not null && ColorKey.IsMatch(k)).WithMessage("Mã màu chỉ gồm chữ thường, số, gạch ngang hoặc gạch dưới (tối đa 24 ký tự).");
+                color.RuleFor(c => c.Hex).Must(h => h is not null && HexColor.IsMatch(h)).WithMessage("Giá trị màu phải có dạng #RRGGBB.");
+                color.RuleFor(c => c.Name).NotEmpty().MaximumLength(40).WithMessage("Tên màu không được để trống và tối đa 40 ký tự.");
+            });
+        }
     }
 
     private static bool IsHttps(string value)

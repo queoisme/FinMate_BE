@@ -28,10 +28,37 @@ public class UpdateCategoryCommandHandler : IUpdateCategoryCommandHandler
 
         category.Name = command.Name.Trim();
         category.IconName = command.IconName;
+
+        // Trường mới: null = giữ nguyên (xem UpdateCategoryCommand); Guid.Empty / 0 = bỏ nhóm cha / hạn mức.
+        if (command.Color is not null)
+        {
+            category.Color = CategoryRules.NormalizeColor(command.Color);
+        }
+
+        if (command.Kind is not null)
+        {
+            category.Kind = command.Kind;
+        }
+
+        if (command.ParentCategoryId is { } parentId)
+        {
+            category.ParentCategoryId = parentId == Guid.Empty ? null : await CategoryRules.ResolveParentAsync(_categoryRepository, parentId, ct);
+        }
+
+        if (command.SuggestedBudgetCents is { } budget)
+        {
+            category.SuggestedBudgetCents = budget == 0 ? null : budget;
+        }
+
+        if (command.IsFavorite is { } favorite)
+        {
+            category.IsFavorite = favorite;
+        }
+
         category.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _categoryRepository.UpdateAsync(category, ct);
 
-        return new CategoryDto(category.Id, category.Name, category.Slug, category.IconName, category.IsSystem, category.CreatedAt);
+        return CategoryDto.From(category);
     }
 }

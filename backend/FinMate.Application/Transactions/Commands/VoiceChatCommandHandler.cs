@@ -1,3 +1,4 @@
+using FinMate.Application.Transactions;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
@@ -41,6 +42,15 @@ public class VoiceChatCommandHandler(ISttServiceClient stt, IChatCommandHandler 
         }
 
         var result = await chat.HandleAsync(new ChatCommand(command.UserId, text, command.FinancialAccountId, command.ClientRequestId), ct);
+        var voice = DraftInsights.Voice;
+        if (result.Draft is not null || result.Drafts is not null)
+        {
+            result = result with
+            {
+                Draft = result.Draft is null ? null : result.Draft with { SourceDetail = voice },
+                Drafts = result.Drafts?.Select(d => d with { SourceDetail = voice }).ToList(),
+            };
+        }
         return new VoiceChatResultDto(text, result);
     }
 

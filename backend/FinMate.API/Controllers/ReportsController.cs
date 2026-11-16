@@ -50,6 +50,17 @@ public class ReportsController : ControllerBase
         return Ok(ApiResponse<MonthlySummaryDto>.Ok(summary));
     }
 
+    /// <summary>
+    /// Tổng chi / tổng thu cho khoảng ngày bất kỳ (gồm cả hai đầu, giờ VN), kể cả năm trước: màn lịch sử chọn "từ ngày … đến ngày …".
+    /// <c>fromDate</c>/<c>toDate</c> dạng <c>yyyy-MM-dd</c>. Tối đa 1100 ngày một lần gọi.
+    /// </summary>
+    [HttpGet("period-summary")]
+    public async Task<IActionResult> GetPeriodSummary(
+        [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, [FromQuery] Guid? accountId,
+        [FromServices] IGetPeriodSummaryQueryHandler handler, CancellationToken ct)
+        => Ok(ApiResponse<PeriodSummaryDto>.Ok(
+            await handler.HandleAsync(new GetPeriodSummaryQuery(CurrentUserId, fromDate, toDate, accountId), ct)));
+
     [HttpGet("category-breakdown")]
     public async Task<IActionResult> GetCategoryBreakdown([FromQuery] int? year, [FromQuery] int? month, CancellationToken ct)
     {

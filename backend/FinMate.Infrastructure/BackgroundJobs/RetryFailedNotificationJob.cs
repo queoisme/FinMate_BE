@@ -1,3 +1,4 @@
+using FinMate.Application.Categories.Commands;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
@@ -77,7 +78,7 @@ public class RetryFailedNotificationJob
                 {
                     var category = aiResult.CategorySlug is null
                         ? null
-                        : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
+                        : await _categoryRepository.GetVisibleSystemBySlugAsync(log.UserId, aiResult.CategorySlug, ct);
 
                     var now = DateTimeOffset.UtcNow;
                     await _transactionRepository.AddAsync(new Transaction

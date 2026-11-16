@@ -59,6 +59,132 @@ public class CategoriesControllerTests : IClassFixture<AuthApiFactory>
         body.Data.Select(c => c.Slug).Should().Contain(new[] { "food", "income", "loan", "other" });
     }
 
+    private record FullCategoryData(
+        Guid Id, string Name, string Slug, string? IconName, bool IsSystem, string? Color, string Kind, Guid? ParentCategoryId, long? SuggestedBudgetCents, bool IsFavorite);
+    private record FullCategoryBody(bool Success, FullCategoryData Data);
+    private record FullCategoryListBody(bool Success, List<FullCategoryData> Data);
+    private record ColorData(string Key, string Hex, string Name);
+    private record OptionsData(List<ColorData> Palette, List<string> Kinds);
+    private record OptionsBody(bool Success, OptionsData Data);
+
+    private async Task<Guid> SystemCategoryIdAsync(string accessToken, string slug)
+    {
+        var list = await _client.SendAsync(AuthedRequest(HttpMethod.Get, "/api/v1/categories", accessToken));
+        var body = await list.Content.ReadFromJsonAsync<FullCategoryListBody>(JsonOptions);
+        return body!.Data.Single(c => c.IsSystem && c.Slug == slug).Id;
+    }
+
+    [Fact]
+    public async Task Options_ReturnsThePaletteFromSystemConfigAndTheKinds()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+
+        var response = await _client.SendAsync(AuthedRequest(HttpMethod.Get, "/api/v1/categories/options", accessToken));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<OptionsBody>(JsonOptions);
+        body!.Data.Palette.Should().HaveCount(8);
+        body.Data.Palette.Should().Contain(c => c.Key == "honey" && c.Hex == "#F0C8A0" && c.Name == "Cam mật ong");
+        body.Data.Kinds.Should().Equal("expense", "income");
+    }
+
+    [Fact]
+    public async Task Options_RequiresAuthentication()
+    {
+        var response = await _client.GetAsync("/api/v1/categories/options");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task SystemIncomeCategoryIsOfKindIncomeAndTheRestAreExpense()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+
+        var list = await _client.SendAsync(AuthedRequest(HttpMethod.Get, "/api/v1/categories", accessToken));
+        var body = await list.Content.ReadFromJsonAsync<FullCategoryListBody>(JsonOptions);
+
+        body!.Data.Single(c => c.IsSystem && c.Slug == "income").Kind.Should().Be("income");
+        body.Data.Where(c => c.IsSystem && c.Slug != "income").Should().OnlyContain(c => c.Kind == "expense");
+    }
+
+    [Fact]
+    public async Task CreateWithAppearance_IsReturnedByTheListAndCanBeEditedAndCleared()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var foodId = await SystemCategoryIdAsync(accessToken, "food");
+
+        var create = AuthedRequest(HttpMethod.Post, "/api/v1/categories", accessToken);
+        create.Content = JsonContent.Create(new
+        {
+            name = "Cà phê & Gặp gỡ", iconName = "coffee", color = "#f0c8a0", kind = "expense", parentCategoryId = foodId, suggestedBudgetCents = 1_500_000, isFavorite = true,
+        });
+        var created = await _client.SendAsync(create);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var createdBody = (await created.Content.ReadFromJsonAsync<FullCategoryBody>(JsonOptions))!.Data;
+        createdBody.Color.Should().Be("#F0C8A0");
+        createdBody.ParentCategoryId.Should().Be(foodId);
+        createdBody.SuggestedBudgetCents.Should().Be(1_500_000);
+        createdBody.IsFavorite.Should().BeTrue();
+
+        var list = await _client.SendAsync(AuthedRequest(HttpMethod.Get, "/api/v1/categories", accessToken));
+        var listed = (await list.Content.ReadFromJsonAsync<FullCategoryListBody>(JsonOptions))!.Data.Single(c => c.Id == createdBody.Id);
+        listed.Should().BeEquivalentTo(createdBody);
+
+        // Gửi chỉ tên và icon (app cũ): màu, nhóm, hạn mức, yêu thích giữ nguyên.
+        var rename = AuthedRequest(HttpMethod.Patch, $"/api/v1/categories/{createdBody.Id}", accessToken);
+        rename.Content = JsonContent.Create(new { name = "Cà phê", iconName = "coffee" });
+        var renamed = (await (await _client.SendAsync(rename)).Content.ReadFromJsonAsync<FullCategoryBody>(JsonOptions))!.Data;
+        renamed.Color.Should().Be("#F0C8A0");
+        renamed.ParentCategoryId.Should().Be(foodId);
+        renamed.IsFavorite.Should().BeTrue();
+
+        // Bỏ nhóm cha và hạn mức, đổi màu, tắt yêu thích.
+        var edit = AuthedRequest(HttpMethod.Patch, $"/api/v1/categories/{createdBody.Id}", accessToken);
+        edit.Content = JsonContent.Create(new
+        {
+            name = "Cà phê", iconName = "coffee", color = "#8FB3E0", parentCategoryId = Guid.Empty, suggestedBudgetCents = 0, isFavorite = false,
+        });
+        var edited = (await (await _client.SendAsync(edit)).Content.ReadFromJsonAsync<FullCategoryBody>(JsonOptions))!.Data;
+        edited.Color.Should().Be("#8FB3E0");
+        edited.ParentCategoryId.Should().BeNull();
+        edited.SuggestedBudgetCents.Should().BeNull();
+        edited.IsFavorite.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CreateWithAParentThatIsAnotherCustomCategory_IsRejected()
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var first = AuthedRequest(HttpMethod.Post, "/api/v1/categories", accessToken);
+        first.Content = JsonContent.Create(new { name = "Cha riêng", iconName = (string?)null });
+        var firstBody = (await (await _client.SendAsync(first)).Content.ReadFromJsonAsync<FullCategoryBody>(JsonOptions))!.Data;
+
+        var second = AuthedRequest(HttpMethod.Post, "/api/v1/categories", accessToken);
+        second.Content = JsonContent.Create(new { name = "Con", iconName = (string?)null, parentCategoryId = firstBody.Id });
+        var response = await _client.SendAsync(second);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("CATEGORY_PARENT_INVALID");
+    }
+
+    [Theory]
+    [InlineData("color", "red")]
+    [InlineData("kind", "transfer")]
+    [InlineData("suggestedBudgetCents", -5)]
+    public async Task CreateWithInvalidAppearanceValue_IsRejectedAndSavesNothing(string field, object value)
+    {
+        var accessToken = await RegisterAndLoginAsync();
+        var request = AuthedRequest(HttpMethod.Post, "/api/v1/categories", accessToken);
+        request.Content = JsonContent.Create(new Dictionary<string, object?> { ["name"] = "Sai giá trị", ["iconName"] = null, [field] = value });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.UnprocessableEntity);
+        var list = await _client.SendAsync(AuthedRequest(HttpMethod.Get, "/api/v1/categories", accessToken));
+        (await list.Content.ReadFromJsonAsync<FullCategoryListBody>(JsonOptions))!.Data.Should().NotContain(c => c.Name == "Sai giá trị");
+    }
+
     [Fact]
     public async Task CreateUpdateDelete_CustomCategory_FullFlowSucceeds()
     {

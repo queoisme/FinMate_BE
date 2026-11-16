@@ -20,5 +20,8 @@ internal static class TransactionMapper
         transaction.TransactedAt,
         transaction.BalanceAfterCents,
         transaction.CreatedAt,
-        transaction.GroupId);
+        transaction.GroupId,
+        transaction.SavingGoalId,
+        transaction.SavingGoal?.Name,
+        SourceDetail: DraftInsights.Of(transaction.Source));
 }

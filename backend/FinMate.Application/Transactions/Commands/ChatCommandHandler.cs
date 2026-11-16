@@ -1,4 +1,7 @@
+using FinMate.Application.Categories.Commands;
+using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -38,6 +41,7 @@ public class ChatCommandHandler : IChatCommandHandler
     private readonly IReportRepository _reportRepository;
     private readonly ITransactionRepository _transactionRepository;
     private readonly IValidator<ChatCommand> _validator;
+    private readonly ISystemConfigProvider? _config;  // null (test cũ): dùng cấu hình trợ lý mặc định
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý (test cũ) thì không gửi gì ra bên thứ ba
 
     public ChatCommandHandler(
@@ -48,8 +52,10 @@ public class ChatCommandHandler : IChatCommandHandler
         IReportRepository reportRepository,
         ITransactionRepository transactionRepository,
         IValidator<ChatCommand> validator,
-        IAiConsentReader? consent = null)
+        IAiConsentReader? consent = null,
+        ISystemConfigProvider? config = null)
     {
+        _config = config;
         _aiServiceClient = aiServiceClient;
         _createHandler = createHandler;
         _financialAccountRepository = financialAccountRepository;
@@ -72,6 +78,7 @@ public class ChatCommandHandler : IChatCommandHandler
     {
         await _validator.ValidateAndThrowAsync(command, ct);
 
+        _assistant = _config is null ? new AssistantSettings() : (await _config.GetAsync(ct)).Document.Assistant;
         var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
         var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi), ct);
 
@@ -132,7 +139,7 @@ public class ChatCommandHandler : IChatCommandHandler
         {
             var category = entry.CategorySlug is null
                 ? null
-                : await _categoryRepository.GetSystemBySlugAsync(entry.CategorySlug, ct);
+                : await _categoryRepository.GetVisibleSystemBySlugAsync(command.UserId, entry.CategorySlug, ct);
             if (category is not null)
             {
                 var created = await _createHandler.HandleAsync(
@@ -186,7 +193,9 @@ public class ChatCommandHandler : IChatCommandHandler
                 command.UserId, entry.AmountCents, entry.OccurredAt ?? DateTimeOffset.UtcNow, DuplicateWindow, command.ClientRequestId, ct)
             : Task.FromResult<Guid?>(null);
 
-    private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null)
+    private AssistantSettings _assistant = new();
+
+    private ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null)
     {
         var missing = new List<string>();
         if (entry.Kind == TransferKind)
@@ -213,6 +222,7 @@ public class ChatCommandHandler : IChatCommandHandler
             _ => null,
         };
 
+        var insight = DraftInsights.ForChat(entry, _assistant);
         return new ChatDraftDto(
             entry.Kind,
             entry.AmountCents,
@@ -225,7 +235,10 @@ public class ChatCommandHandler : IChatCommandHandler
             entry.Kind == TransferKind ? null : accountId,
             missing,
             entry.OccurredAt,
-            duplicate);
+            duplicate,
+            DraftInsights.Chat,
+            insight.Explanation,
+            insight.Confidence);
     }
 
     /// <summary>Ví người dùng chọn, hoặc ví duy nhất của họ; nhiều ví mà không chọn thì null (không đoán).</summary>

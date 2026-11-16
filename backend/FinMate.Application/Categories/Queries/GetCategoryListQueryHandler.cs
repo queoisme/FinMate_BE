@@ -14,12 +14,13 @@ public class GetCategoryListQueryHandler : IGetCategoryListQueryHandler
 
     public async Task<IReadOnlyList<CategoryDto>> HandleAsync(GetCategoryListQuery query, CancellationToken ct = default)
     {
-        var categories = await _categoryRepository.GetListForUserAsync(query.UserId, ct);
+        var categories = await _categoryRepository.GetListForUserAsync(query.UserId, query.IncludeHidden, ct);
+        var hidden = query.IncludeHidden ? await _categoryRepository.GetHiddenIdsAsync(query.UserId, ct) : [];
 
         return categories
             .OrderByDescending(c => c.IsSystem)
             .ThenBy(c => c.Name)
-            .Select(c => new CategoryDto(c.Id, c.Name, c.Slug, c.IconName, c.IsSystem, c.CreatedAt))
+            .Select(c => CategoryDto.From(c).WithHidden(hidden.Contains(c.Id)))
             .ToList();
     }
 }

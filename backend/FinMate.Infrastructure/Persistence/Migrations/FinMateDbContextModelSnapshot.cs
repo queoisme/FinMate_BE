@@ -390,6 +390,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("Color")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("color");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -409,11 +414,25 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsFavorite")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_favorite");
+
                     b.Property<bool>("IsSystem")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_system");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("expense")
+                        .HasColumnName("kind");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -421,11 +440,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_category_id");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("slug");
+
+                    b.Property<long?>("SuggestedBudgetCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("suggested_budget_cents");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -437,6 +464,9 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParentCategoryId")
+                        .HasDatabaseName("ix_categories_parent_category_id");
+
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("uq_categories_system_slug")
@@ -447,7 +477,12 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("uq_categories_user_slug")
                         .HasFilter("user_id IS NOT NULL AND deleted_at IS NULL");
 
-                    b.ToTable("categories", (string)null);
+                    b.ToTable("categories", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_categories_kind", "kind IN ('expense', 'income')");
+
+                            t.HasCheckConstraint("ck_categories_suggested_budget", "suggested_budget_cents IS NULL OR suggested_budget_cents >= 0");
+                        });
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.CommunityComment", b =>
@@ -5095,6 +5130,27 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.UserHiddenCategory", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("UserId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("user_hidden_categories", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.UserMethod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5513,10 +5569,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FinMate.Domain.Entities.Category", b =>
                 {
+                    b.HasOne("FinMate.Domain.Entities.Category", "ParentCategory")
+                        .WithMany()
+                        .HasForeignKey("ParentCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("FinMate.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("ParentCategory");
 
                     b.Navigation("User");
                 });
@@ -6369,6 +6432,21 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("NotificationPrefs")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.UserHiddenCategory", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

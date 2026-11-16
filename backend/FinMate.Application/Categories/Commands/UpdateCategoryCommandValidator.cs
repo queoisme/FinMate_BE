@@ -12,5 +12,9 @@ public class UpdateCategoryCommandValidator : AbstractValidator<UpdateCategoryCo
 
         RuleFor(x => x.IconName)
             .MaximumLength(50).WithMessage("Tên icon tối đa 50 ký tự.");
+
+        RuleFor(x => x.Color).ColorRule();
+        RuleFor(x => x.Kind).KindRule();
+        RuleFor(x => x.SuggestedBudgetCents).SuggestedBudgetRule();
     }
 }

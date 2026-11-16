@@ -57,7 +57,10 @@ public record ChatDraftDto(
     Guid? SuggestedFinancialAccountId,
     IReadOnlyList<string> MissingFields,
     DateTimeOffset? OccurredAt = null,
-    Guid? PossibleDuplicateTransactionId = null);
+    Guid? PossibleDuplicateTransactionId = null,
+    SourceDetailDto? SourceDetail = null,
+    string? AiExplanation = null,
+    DraftConfidenceDto? Confidence = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 

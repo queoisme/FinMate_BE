@@ -189,7 +189,9 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task LoanTransactions_AreNotCountedAsSpendOrIncome_ButStayInTheTimelineList()
+    // Từ 2026-11-13 (ReportRepository.GetDailySpendAsync): Thu nhập/Chi tiêu và dòng thời gian phản ánh dòng tiền THẬT ra/vào ví, nên cho mượn
+    // (Debit) và được trả nợ (Credit) đều được tính. Riêng category-breakdown vẫn loại "Cho vay / Mượn" vì đó là cơ cấu chi theo danh mục.
+    public async Task LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown()
     {
         var token = await RegisterAndLoginAsync();
         var accountId = await CashAccountAsync(token);
@@ -203,8 +205,8 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
 
         var summary = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/monthly-summary", token)))
             .Content.ReadFromJsonAsync<MonthlySummaryBody>(JsonOptions))!.Data;
-        summary.TotalSpentCents.Should().Be(300_000);
-        summary.TotalIncomeCents.Should().Be(0);
+        summary.TotalSpentCents.Should().Be(5_300_000);   // 300.000 ăn uống + 5.000.000 cho mượn (tiền thật rời ví)
+        summary.TotalIncomeCents.Should().Be(2_000_000);  // bạn trả nợ (tiền thật về ví)
 
         var breakdown = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/category-breakdown", token)))
             .Content.ReadFromJsonAsync<BreakdownBody>(JsonOptions))!.Data;
@@ -213,9 +215,10 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
 
         var day = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/timeline?limit=50", token)))
             .Content.ReadFromJsonAsync<TimelineBody>(JsonOptions))!.Data.Single();
-        day.TotalSpentCents.Should().Be(300_000);
-        day.TotalIncomeCents.Should().Be(0);
-        day.Transactions.Should().HaveCount(3);  // vẫn hiện trong lịch sử
+        // Tổng theo ngày của timeline cùng cách tính với monthly-summary (thống nhất theo yêu cầu 2026-11-16).
+        day.TotalSpentCents.Should().Be(5_300_000);
+        day.TotalIncomeCents.Should().Be(2_000_000);
+        day.Transactions.Should().HaveCount(3);  // và khoản vay vẫn hiện trong danh sách của ngày
     }
 
     [Fact]

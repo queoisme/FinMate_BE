@@ -43,6 +43,7 @@ public static class CategorySeeder
                 Name = category.Name,
                 Slug = category.Slug,
                 IconName = category.IconName,
+                Kind = category.Slug == "income" ? Category.KindIncome : Category.KindExpense,
                 IsSystem = true,
                 IsActive = true,
                 CreatedAt = now,

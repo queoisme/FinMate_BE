@@ -38,6 +38,11 @@ public class RecurringItemsController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(created));
     }
 
+    /// <summary>Tạo khoản định kỳ từ một giao dịch đã có (tên, số tiền, danh mục, ví lấy từ giao dịch). Body có thể bỏ trống: chu kỳ mặc định hằng tháng.</summary>
+    [HttpPost("from-transaction/{transactionId:guid}")]
+    public async Task<IActionResult> FromTransaction(Guid transactionId, [FromBody] FromTransactionRequest? request, [FromServices] FinMate.Application.Transactions.ITransactionExtrasService extras, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(await extras.CreateRecurringAsync(CurrentUserId, transactionId, request?.Cadence, ct)));
+
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRecurringItemRequest request, CancellationToken ct)
         => Ok(ApiResponse<RecurringItemDto>.Ok(await _service.UpdateAsync(
@@ -87,3 +92,5 @@ public record UpdateRecurringItemRequest(
     DateOnly? NextDueDate,
     Guid? CategoryId,
     Guid? FinancialAccountId);
+
+public record FromTransactionRequest(RecurringCadence? Cadence);

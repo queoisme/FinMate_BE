@@ -15,9 +15,14 @@ public class TransactionRepository : ITransactionRepository
         _context = context;
     }
 
+    public Task<AiResult?> GetNotificationAiResultAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default)
+        => _context.AiResults.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.NotificationLogId == notificationLogId && r.NotificationLog!.UserId == userId, ct);
+
     public Task<Transaction?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.Transactions
             .Include(t => t.Category)
+            .Include(t => t.SavingGoal)
             .Include(t => t.FinancialAccount)
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
     public Task<Guid?> FindPossibleDuplicateAsync(

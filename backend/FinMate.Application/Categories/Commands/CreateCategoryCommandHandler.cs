@@ -30,6 +30,8 @@ public class CreateCategoryCommandHandler : ICreateCategoryCommandHandler
                 "Bạn đã có danh mục khác trùng tên.");
         }
 
+        var parentId = await CategoryRules.ResolveParentAsync(_categoryRepository, command.ParentCategoryId, ct);
+
         var now = DateTimeOffset.UtcNow;
         var category = new Category
         {
@@ -37,6 +39,11 @@ public class CreateCategoryCommandHandler : ICreateCategoryCommandHandler
             Name = command.Name.Trim(),
             Slug = slug,
             IconName = command.IconName,
+            Color = CategoryRules.NormalizeColor(command.Color),
+            Kind = command.Kind ?? Category.KindExpense,
+            ParentCategoryId = parentId,
+            SuggestedBudgetCents = command.SuggestedBudgetCents is > 0 ? command.SuggestedBudgetCents : null,
+            IsFavorite = command.IsFavorite,
             IsSystem = false,
             CreatedAt = now,
             UpdatedAt = now,
@@ -44,6 +51,6 @@ public class CreateCategoryCommandHandler : ICreateCategoryCommandHandler
 
         await _categoryRepository.AddAsync(category, ct);
 
-        return new CategoryDto(category.Id, category.Name, category.Slug, category.IconName, category.IsSystem, category.CreatedAt);
+        return CategoryDto.From(category);
     }
 }

@@ -17,7 +17,12 @@ public record TransactionDto(
     DateTimeOffset TransactedAt,
     long? BalanceAfterCents,
     DateTimeOffset CreatedAt,
-    Guid? GroupId = null);
+    Guid? GroupId = null,
+    Guid? GoalId = null,
+    string? GoalName = null,
+    Guid? ReceiptScanId = null,
+    AiClassificationDto? AiClassification = null,
+    SourceDetailDto? SourceDetail = null);
 
 public record TransactionListDto(IReadOnlyList<TransactionDto> Items, string? NextCursor);
 
@@ -27,7 +32,10 @@ public record ParsedTransactionDto(
     string? MerchantName,
     string? Description,
     DateTimeOffset? TransactedAt,
-    string? CategorySlug);
+    string? CategorySlug,
+    SourceDetailDto? SourceDetail = null,
+    string? AiExplanation = null,
+    DraftConfidenceDto? Confidence = null);
 
 /// <param name="OcrResult">
 /// <c>"success"</c>, <c>"no_amount"</c> (đọc được chữ nhưng không thấy tổng tiền) hay
@@ -60,7 +68,19 @@ public record ScannedReceiptDto(
     Guid? PossibleDuplicateTransactionId = null,
     bool NeedsReview = false,
     IReadOnlyList<ScannedOrder>? Orders = null,
-    int IncompleteOrders = 0);
+    int IncompleteOrders = 0,
+    SourceDetailDto? SourceDetail = null,
+    string? AiExplanation = null,
+    DraftConfidenceDto? FieldConfidence = null);
 
 /// <summary>Một đơn trong ảnh chụp màn hình danh sách đơn hàng; app hiện mỗi đơn một bản nháp để người dùng xác nhận từng đơn.</summary>
 public record ScannedOrder(string? MerchantName, long AmountCents, string? Description, string? CategorySlug);
+
+/// <summary>Kênh nhập giao dịch để hiển thị. <paramref name="Channel"/>: Chat | Voice | Receipt | Notification | Manual | Support.</summary>
+public record SourceDetailDto(string Channel, string Label);
+
+/// <summary>AI đã phân loại giao dịch này thế nào. <paramref name="Confidence"/> 0–1; <paramref name="Model"/> là phiên bản mô hình/bộ đọc, null nếu không rõ.</summary>
+public record AiClassificationDto(double Confidence, string Reason, string? Model);
+
+/// <summary>Độ tin cậy 0–1 của bản nháp; trường nào hệ thống không có căn cứ thì null (không bịa số).</summary>
+public record DraftConfidenceDto(double? Overall, double? Amount, double? Category, double? Merchant, double? OccurredAt);

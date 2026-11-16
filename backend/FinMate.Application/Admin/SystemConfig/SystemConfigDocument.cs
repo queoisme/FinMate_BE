@@ -470,6 +470,59 @@ public sealed record AgentSettings
     public string BudgetTemplate { get; init; } = string.Empty;
 }
 
+/// <summary>Một màu nhận diện trong bảng màu danh mục: <paramref name="Key"/> ổn định để tham chiếu, <paramref name="Hex"/> dạng <c>#RRGGBB</c>, <paramref name="Name"/> hiện cho người dùng.</summary>
+public sealed record CategoryColor(string Key, string Hex, string Name);
+
+/// <summary>Danh mục: bảng màu pastel của màn "Thêm danh mục mới" (Figma H13). Admin đổi được mà không phát hành lại app.</summary>
+public sealed record CategorySettings
+{
+    public IReadOnlyList<CategoryColor> Palette { get; init; } =
+    [
+        new("coral", "#F4A5A5", "Hồng san hô"),
+        new("honey", "#F0C8A0", "Cam mật ong"),
+        new("sky", "#8FB3E0", "Xanh trời"),
+        new("blush", "#E5AFC4", "Hồng phấn"),
+        new("mint", "#8EDDB4", "Xanh bạc hà"),
+        new("lavender", "#D5CBF5", "Tím oải hương"),
+        new("navy", "#4B5F8F", "Xanh navy"),
+        new("butter", "#F5E27E", "Vàng bơ"),
+    ];
+}
+
+/// <summary>Một câu gợi ý trong khung chat. <paramref name="When"/>: <c>always</c> | <c>noTransactionToday</c> | <c>hasBudget</c> | <c>hasGoal</c> (xem <see cref="AssistantSettings.SuggestionContexts"/>).</summary>
+public sealed record AssistantSuggestion(string Key, string Text, string When = "always");
+
+/// <summary>Trợ lý chat: câu gợi ý theo ngữ cảnh và độ tin cậy gán cho danh mục theo nguồn AI dùng. Admin đổi được mà không phát hành lại app.</summary>
+public sealed record AssistantSettings
+{
+    public static readonly IReadOnlyList<string> SuggestionContexts = ["always", "noTransactionToday", "hasBudget", "hasGoal"];
+
+    /// <summary>Tối đa bao nhiêu câu trả về một lần.</summary>
+    public int MaxSuggestions { get; init; } = 4;
+
+    public IReadOnlyList<AssistantSuggestion> Suggestions { get; init; } =
+    [
+        new("add_coffee", "Hôm nay mình uống cà phê 35k", "noTransactionToday"),
+        new("spent_month", "Tháng này mình đã chi bao nhiêu?"),
+        new("spent_today", "Chi tiêu hôm nay của mình"),
+        new("budget_left", "Ngân sách còn lại bao nhiêu?", "hasBudget"),
+        new("goal_progress", "Mục tiêu tiết kiệm của mình đến đâu rồi?", "hasGoal"),
+    ];
+
+    /// <summary>
+    /// Độ tin cậy (0–1) của danh mục theo <c>categorySource</c> mà AI Service trả (memory = người dùng từng chốt, brand, keyword, product, model).
+    /// Chat không có điểm số thật từ AI nên đây là bảng quy đổi do admin chỉnh; nguồn không có trong bảng thì không báo độ tin cậy.
+    /// </summary>
+    public IReadOnlyDictionary<string, double> CategorySourceConfidence { get; init; } = new Dictionary<string, double>
+    {
+        ["memory"] = 0.95,
+        ["brand"] = 0.9,
+        ["keyword"] = 0.85,
+        ["product"] = 0.8,
+        ["model"] = 0.7,
+    };
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -490,6 +543,8 @@ public sealed record SystemConfigDocument
     public EconomicFeedsSettings EconomicFeeds { get; init; } = new();
     public MarketDataSettings MarketData { get; init; } = new();
     public CommunitySettings Community { get; init; } = new();
+    public CategorySettings Categories { get; init; } = new();
+    public AssistantSettings Assistant { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

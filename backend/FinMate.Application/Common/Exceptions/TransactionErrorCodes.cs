@@ -25,6 +25,12 @@ public static class TransactionErrorCodes
     /// <summary>Không nghe ra lời nào (im lặng hoặc quá nhiễu): người dùng nên ghi lại hoặc gõ tay.</summary>
     public const string VoiceNoSpeech = "TRANSACTION_VOICE_NO_SPEECH";
 
+    /// <summary>Chuyển tiền giữa hai ví không gắn được vào mục tiêu tiết kiệm.</summary>
+    public const string GoalLinkNotAllowed = "TRANSACTION_GOAL_LINK_NOT_ALLOWED";
+
+    /// <summary>Chỉ giao dịch thu/chi đã xác nhận, có tên nơi nhận hoặc mô tả, mới tạo được khoản định kỳ.</summary>
+    public const string RecurringNotAllowed = "TRANSACTION_RECURRING_NOT_ALLOWED";
+
     /// <summary>Dữ liệu tại thời điểm xác nhận trùng với 1 giao dịch khác — user phải tự quyết, không bị hệ thống chặn im lặng (§8).</summary>
     public const string PossibleDuplicateOnConfirm = "TRANSACTION_POSSIBLE_DUPLICATE_ON_CONFIRM";
 }

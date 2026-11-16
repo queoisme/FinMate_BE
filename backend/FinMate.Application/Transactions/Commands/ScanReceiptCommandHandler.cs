@@ -252,7 +252,15 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         Guid userId, ScannedReceiptDto dto, string? categorySource, bool needsReview, CancellationToken ct)
     {
         var scan = await RecordScanAsync(userId, dto, categorySource, needsReview, ct);
-        return dto with { ScanId = scan.Id, NeedsReview = needsReview };
+        var (explanation, confidence) = DraftInsights.ForReceipt(dto, categorySource);
+        return dto with
+        {
+            ScanId = scan.Id,
+            NeedsReview = needsReview,
+            SourceDetail = DraftInsights.Receipt,
+            AiExplanation = explanation,
+            FieldConfidence = confidence,
+        };
     }
 
     private async Task<ReceiptScan> RecordScanAsync(

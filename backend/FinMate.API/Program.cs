@@ -462,6 +462,7 @@ public class Program
         });
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+        builder.Services.AddScoped<ISetCategoryHiddenCommandHandler, SetCategoryHiddenCommandHandler>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
         builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
         builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
@@ -587,6 +588,8 @@ public class Program
         builder.Services.AddScoped<IForecastService, ForecastService>();
         builder.Services.AddScoped<IPurchaseCheckService, PurchaseCheckService>();
         builder.Services.AddScoped<IRecurringItemService, RecurringItemService>();
+        builder.Services.AddScoped<ITransactionExtrasService, TransactionExtrasService>();
+        builder.Services.AddScoped<IAssistantSuggestionService, AssistantSuggestionService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
         builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
@@ -721,6 +724,7 @@ public class Program
         builder.Services.AddScoped<IGetGoalProgressQueryHandler, GetGoalProgressQueryHandler>();
 
         builder.Services.AddScoped<IGetMonthlySummaryQueryHandler, GetMonthlySummaryQueryHandler>();
+        builder.Services.AddScoped<IGetPeriodSummaryQueryHandler, GetPeriodSummaryQueryHandler>();
         builder.Services.AddScoped<IGetCategoryBreakdownQueryHandler, GetCategoryBreakdownQueryHandler>();
         builder.Services.AddScoped<IGetTransactionTimelineQueryHandler, GetTransactionTimelineQueryHandler>();
         builder.Services.AddScoped<IGetSpendingForecastQueryHandler, GetSpendingForecastQueryHandler>();

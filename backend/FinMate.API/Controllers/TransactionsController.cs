@@ -4,6 +4,7 @@ using System.Security.Claims;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Subscriptions;
+using FinMate.Application.Transactions;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Queries;
 using FinMate.Domain.Enums;
@@ -183,6 +184,20 @@ public class TransactionsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Gắn giao dịch vào một mục tiêu tiết kiệm của mình (chỉ là nhãn: không đổi số dư hay tiến độ mục tiêu). Trả giao dịch đã cập nhật.</summary>
+    [HttpPut("{id:guid}/goal")]
+    public async Task<IActionResult> AttachGoal(Guid id, [FromBody] AttachGoalRequest request, [FromServices] ITransactionExtrasService extras, CancellationToken ct)
+        => Ok(ApiResponse<TransactionDto>.Ok(await extras.AttachGoalAsync(CurrentUserId, id, request.GoalId, ct)));
+
+    [HttpDelete("{id:guid}/goal")]
+    public async Task<IActionResult> DetachGoal(Guid id, [FromServices] ITransactionExtrasService extras, CancellationToken ct)
+        => Ok(ApiResponse<TransactionDto>.Ok(await extras.DetachGoalAsync(CurrentUserId, id, ct)));
+
+    /// <summary>Văn bản biên lai để app mở khung chia sẻ của máy. Không tạo link công khai.</summary>
+    [HttpPost("{id:guid}/share-receipt")]
+    public async Task<IActionResult> ShareReceipt(Guid id, [FromServices] ITransactionExtrasService extras, CancellationToken ct)
+        => Ok(ApiResponse<ShareReceiptDto>.Ok(await extras.ShareReceiptAsync(CurrentUserId, id, ct)));
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
@@ -313,6 +328,7 @@ public record UpdateTransactionRequest(
     string? Description);
 
 public record ConfirmTransactionRequest(Guid? CategoryId, Guid? GroupId = null, Guid? GroupCategoryId = null);
+public record AttachGoalRequest(Guid GoalId);
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 

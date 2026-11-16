@@ -27,10 +27,40 @@ public class CategoryRepository : ICategoryRepository
         => _context.Categories.FirstOrDefaultAsync(
             c => c.UserId == null && c.Slug == slug && c.IsActive, ct);
 
+    // Mặc định (đường nội bộ: báo cáo, QR, dự báo) vẫn trả cả danh mục đã ẩn để tên của giao dịch cũ không mất.
     public Task<List<Category>> GetListForUserAsync(Guid userId, CancellationToken ct = default)
+        => GetListForUserAsync(userId, includeHidden: true, ct);
+
+    public Task<List<Category>> GetListForUserAsync(Guid userId, bool includeHidden, CancellationToken ct = default)
         => _context.Categories
-            .Where(c => (c.UserId == null || c.UserId == userId) && c.IsActive)
+            .Where(c => (c.UserId == null || c.UserId == userId) && c.IsActive
+                && (includeHidden || !_context.UserHiddenCategories.Any(h => h.UserId == userId && h.CategoryId == c.Id)))
             .ToListAsync(ct);
+
+    public async Task<HashSet<Guid>> GetHiddenIdsAsync(Guid userId, CancellationToken ct = default)
+        => (await _context.UserHiddenCategories.Where(h => h.UserId == userId).Select(h => h.CategoryId).ToListAsync(ct)).ToHashSet();
+
+    public Task<bool> IsHiddenAsync(Guid userId, Guid categoryId, CancellationToken ct = default)
+        => _context.UserHiddenCategories.AnyAsync(h => h.UserId == userId && h.CategoryId == categoryId, ct);
+
+    public async Task SetHiddenAsync(Guid userId, Guid categoryId, bool hidden, CancellationToken ct = default)
+    {
+        var existing = await _context.UserHiddenCategories.FirstOrDefaultAsync(h => h.UserId == userId && h.CategoryId == categoryId, ct);
+        if (hidden && existing is null)
+        {
+            _context.UserHiddenCategories.Add(new UserHiddenCategory { UserId = userId, CategoryId = categoryId, CreatedAt = DateTimeOffset.UtcNow });
+        }
+        else if (!hidden && existing is not null)
+        {
+            _context.UserHiddenCategories.Remove(existing);
+        }
+        else
+        {
+            return;
+        }
+
+        await _context.SaveChangesAsync(ct);
+    }
 
     public Task<List<Category>> GetSystemListAsync(bool includeInactive, CancellationToken ct = default)
         => _context.Categories

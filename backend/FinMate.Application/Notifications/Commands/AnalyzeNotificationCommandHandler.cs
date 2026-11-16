@@ -1,3 +1,4 @@
+using FinMate.Application.Categories.Commands;
 using System.Security.Cryptography;
 using System.Text;
 using FinMate.Application.Admin.SystemConfig;
@@ -247,7 +248,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
                 {
                     Category? category = aiResult.CategorySlug is null
                         ? null
-                        : await _categoryRepository.GetSystemBySlugAsync(aiResult.CategorySlug, ct);
+                        : await _categoryRepository.GetVisibleSystemBySlugAsync(command.UserId, aiResult.CategorySlug, ct);
 
                     // Issue B: tên hiển thị người dùng đã lưu/đổi tay cho người nhận này (nếu có)
                     // đáng tin hơn tên thô trong thông báo/mã QR — chuỗi dự phòng cuối cùng là

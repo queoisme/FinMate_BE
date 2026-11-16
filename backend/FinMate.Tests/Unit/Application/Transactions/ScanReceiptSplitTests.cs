@@ -94,7 +94,7 @@ public class ScanReceiptSplitTests
 
     private void ShouldBeOldPath(ScannedReceiptDto dto, ScannedReceiptDto expected)
     {
-        dto.Should().BeEquivalentTo(expected, o => o.Excluding(d => d.ScanId));
+        dto.Should().BeEquivalentTo(expected, o => o.Excluding(d => d.ScanId).Excluding(d => d.SourceDetail).Excluding(d => d.AiExplanation).Excluding(d => d.FieldConfidence));
         dto.Groups.Should().BeNull();
         dto.ScanId.Should().Be(_saved.Single().Id);
         _saved.Single().CategorySource.Should().Be("brand");
@@ -250,7 +250,7 @@ public class ScanReceiptSplitTests
 
         var dto = await Handler().HandleAsync(Command());
 
-        dto.Should().BeEquivalentTo(OldPathOfMixedBill, o => o.Excluding(d => d.ScanId));
+        dto.Should().BeEquivalentTo(OldPathOfMixedBill, o => o.Excluding(d => d.ScanId).Excluding(d => d.SourceDetail).Excluding(d => d.AiExplanation).Excluding(d => d.FieldConfidence));
         dto.Groups.Should().BeNull();
         _saved.Single().CategorySource.Should().Be("item_vote");  // không phải "items": nguồn đó nghĩa là bill đã tách và có dòng món
         _savedItems.Should().BeEmpty();
@@ -471,7 +471,7 @@ public class ScanReceiptSplitTests
 
         var dto = await Handler().HandleAsync(Command());
 
-        dto.Should().BeEquivalentTo(flagOff, o => o.Excluding(d => d.ScanId));
+        dto.Should().BeEquivalentTo(flagOff, o => o.Excluding(d => d.ScanId).Excluding(d => d.SourceDetail).Excluding(d => d.AiExplanation).Excluding(d => d.FieldConfidence));
         dto.CategorySlug.Should().Be("food");
         ShouldBeOldPath(dto, OldPathOfMixedBill);
         _classifyRequests.Should().ContainSingle();

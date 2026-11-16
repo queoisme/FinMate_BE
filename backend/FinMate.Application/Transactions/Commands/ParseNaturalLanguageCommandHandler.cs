@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Transactions;
 using FluentValidation;
 
 namespace FinMate.Application.Transactions.Commands;
@@ -29,12 +30,16 @@ public class ParseNaturalLanguageCommandHandler : IParseNaturalLanguageCommandHa
             new AnalyzeRequest(Guid.NewGuid(), command.UserId, ManualEntryPackageName, null, command.Text, DateTimeOffset.UtcNow),
             ct);
 
+        var (explanation, confidence) = DraftInsights.ForAnalyze(response);
         return new ParsedTransactionDto(
             response.Extraction?.AmountCents,
             response.Extraction?.TransactionType,
             response.Extraction?.MerchantName,
             response.Extraction?.Description,
             response.Extraction?.TransactedAt,
-            response.Categorization?.CategorySlug);
+            response.Categorization?.CategorySlug,
+            DraftInsights.Chat,
+            explanation,
+            confidence);
     }
 }
