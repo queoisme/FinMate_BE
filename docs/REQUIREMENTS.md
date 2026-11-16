@@ -14,7 +14,6 @@ Tài liệu này liệt kê các yêu cầu chức năng (FR) và phi chức nă
 | AI Service | Python 3.11 FastAPI, PostgreSQL 16 (`finmate_ai`) | Hiểu thông báo, câu chat, tên món; chọn phương pháp tài chính; kho kiến thức và vòng học |
 | `ocr-service` | Python 3.10, PaddleOCR + VietOCR ONNX, Google Cloud Vision (tuỳ chọn) | Đọc ảnh hoá đơn, lọc dữ liệu cá nhân, tách món. Không có DB, ghi qua API của AI Service |
 | `stt-service` | Python, GIPFormer 1.5 ONNX (CPU) | Giọng nói → chữ |
-| `rasa` | Rasa 3.6 NLU | Ý định và thực thể của câu chat; chỉ AI Service gọi |
 
 Client là app **Flutter** ở repo riêng `FinMate_FE` (tài liệu cũ ghi `android/` Kotlin — đã đổi). Client nằm ngoài phạm vi; các yêu cầu đặc tả giao cho app được gom ở mục 2.3 để truy vết.
 
@@ -50,9 +49,9 @@ Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 | Tác nhân | Loại | Tương tác với hệ thống |
 | --- | --- | --- |
 | User | Người dùng cuối qua app Flutter | Ví, giao dịch, chat/giọng nói/quét bill, QR chuyển khoản, ngân sách, mục tiêu, phương pháp tài chính, báo cáo |
-| Admin | Nhân sự vận hành, vai trò `Admin` trong JWT | Người dùng, provider và định dạng thông báo, danh mục, phương pháp/khảo sát/mẫu mục tiêu, kiến thức AI, Rasa, cấu hình hệ thống, key bên thứ ba, audit |
+| Admin | Nhân sự vận hành, vai trò `Admin` trong JWT | Người dùng, provider và định dạng thông báo, danh mục, phương pháp/khảo sát/mẫu mục tiêu, kiến thức AI, cấu hình hệ thống, key bên thứ ba, audit |
 | Android OS | Nguồn sự kiện, chuyển qua app | Thông báo biến động số dư từ app ngân hàng / ví được chọn. FinMate **không** kết nối tài khoản ngân hàng |
-| AI Service, `ocr-service`, `stt-service`, `rasa` | Dịch vụ nội bộ, Bearer key riêng, không mở cổng ra máy chủ | Xem mục 1 |
+| AI Service, `ocr-service`, `stt-service` | Dịch vụ nội bộ, Bearer key riêng, không mở cổng ra máy chủ | Xem mục 1 |
 | Google | OAuth 2.0 / OIDC; Cloud Vision; Gemini | Đăng nhập; đọc chữ ảnh hoá đơn (tuỳ chọn); phân loại tên món / cụm sản phẩm và chọn phương pháp (khi được đồng ý) |
 | OpenRouter | LLM dự phòng (model `:free`, `data_collection = deny`) | Dự phòng khi Gemini lỗi |
 | VietQR (`dl.vietqr.io`) | Liên kết mở app ngân hàng | Client mở app ngân hàng với số tài khoản/số tiền/nội dung đã điền |
@@ -77,7 +76,7 @@ Toàn bộ các mục mang nhãn được tổng hợp ở mục 13.1.
 | Kênh | Core Flow | Đường vào server | Ai tạo giá trị tiền |
 | --- | --- | --- | --- |
 | Thông báo ngân hàng / ví | Flow 1 | `POST /notifications/analyze` | Định dạng thông báo theo provider (regex trong DB của AI Service) |
-| Chat (gõ câu tự nhiên) | Flow 2 | `POST /transactions/chat` (lưu được) · `POST /transactions/parse` và `POST /chat/analyze` (chỉ phân tích) | Luật số tiền của AI Service ("75k", "1.5tr", số bằng chữ); Rasa chỉ hỗ trợ khi luật không thấy số |
+| Chat (gõ câu tự nhiên) | Flow 2 | `POST /transactions/chat` (lưu được) · `POST /transactions/parse` và `POST /chat/analyze` (chỉ phân tích) | Luật số tiền của AI Service ("75k", "1.5tr", số bằng chữ); bộ phân loại ý định chỉ hỗ trợ khi luật không thấy số |
 | Giọng nói | Flow 2 | `POST /transactions/voice` · `POST /chat/analyze-voice` (file âm thanh) | `stt-service` ra chữ, rồi như kênh chat |
 | Ảnh hoá đơn | Flow 2 | `POST /transactions/scan-receipt` | `ocr-service` bóc tổng tiền; luôn cần user rà soát |
 | Form nhập tay | Flow 2 | `POST /transactions` | User |
@@ -89,7 +88,7 @@ Chuyển khoản nội bộ đi qua `POST /transactions/transfer`. Form nhập t
 | Đặc tả | Yêu cầu phía app | Hệ quả với server |
 | --- | --- | --- |
 | Flow 1, bước 1.3–1.4 | Hướng dẫn bật thông báo ngân hàng và cấp quyền Notification Access | Không có |
-| Flow 1, bước 2.2 | Heartbeat `NotificationListenerService`; hướng dẫn Auto-start / whitelist | Không có |
+| Flow 1, bước 2.2 | Heartbeat `NotificationListenerService`; hướng dẫn Auto-start / whitelist | Phase 84: app báo trạng thái qua `PUT /devices/listener-status`; server lưu, tự suy ví im lặng bất thường, nhắc user, tính độ phủ dữ liệu cho dự báo (mục 6.11). Hướng dẫn theo hãng vẫn ở app |
 | Flow 1, bước 3.1 | Lọc 3 tầng trên thiết bị (Package → Keyword/Regex → TFLite) | Classifier phía server vẫn giữ làm lớp phòng vệ thứ hai (FR-AI-01) |
 | Flow 1, bước 5.3 | Draft không được phản hồi trước timeout → hàng đợi Chờ duyệt | Draft giữ nguyên trạng thái (FR-TXN-09) |
 | Flow 1, bước 6.1 · Flow 2, bước 10 | Lưu vào hàng đợi cục bộ khi mất mạng, đồng bộ khi có mạng | Chống trùng khi đồng bộ (FR-TXN-02, FR-TXN-12, NFR-REL-04) |
@@ -129,7 +128,7 @@ Bốn loại đồng ý, mỗi loại có phiên bản câu chữ trong `Consent
 | FR-CONS-03 | Đồng ý đóng góp dữ liệu huấn luyện (`training`, bản 1) là lựa chọn riêng, không bao giờ đi kèm Điều khoản | Must | Chỉ khi đang đồng ý mới gửi chữ hoá đơn **đã lọc** sang AI Service; nhãn chỉ từ user, không từ Gemini; mẫu chưa nhãn bị xoá sau 7 ngày |
 | FR-CONS-04 | Rút đồng ý huấn luyện xoá dữ liệu đã đóng góp | Must | `DELETE /users/me/consents/training` gọi `POST /bill/samples/erase`; lỗi xoá → 503 (bấm lại), **không** nuốt lỗi |
 | FR-CONS-05 | **[Đổi]** Câu chữ đồng ý phải nêu đúng mọi luồng gửi dữ liệu ra bên thứ ba | Must | Ảnh hoá đơn **luôn** được gửi nguyên (chưa che dữ liệu cá nhân) tới Google Cloud Vision khi có key (NFR-SEC-24), nhưng Điều khoản bản 3 không nhắc tới. Đã chốt 2026-11-05: giữ Vision và nêu rõ trong bản 4; app phải có câu chữ này trước khi phát hành |
-| FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment của `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ |
+| FR-CONS-06 | Đồng ý khảo sát-AI (`surveyAi`, bản 2) | Could | Từ 2026-11-01 không còn được kiểm khi gợi ý phương pháp (signals ẩn danh luôn được gửi). Endpoint còn nhưng không có tác dụng; comment `ConsentVersions.SurveyAi` đã sửa theo hành vi này (2026-11-12). Gỡ hay khôi phục: §13.4 |
 
 ## 4. FR — Tài khoản tài chính và danh mục
 
@@ -166,14 +165,16 @@ stateDiagram-v2
     Pending --> Ignored: ví không theo dõi / không phải giao dịch
     Pending --> Failed: AI Service lỗi
     Failed --> Pending: RetryFailedNotificationJob
-    Pending --> Duplicate: trùng giao dịch đã có
-    Pending --> Draft: luôn (hiện tại)
+    Pending --> Duplicate: cùng sự kiện ngân hàng gửi lại (cùng provider, số tiền, số dư sau)
+    Pending --> Draft: còn lại (có ứng viên trùng → nháp mang Suspected)
     Draft --> Confirmed: POST /transactions/{id}/confirm
+    Draft --> Merged: POST /transactions/{id}/merge (bản bị gộp)
+    Confirmed --> Merged: POST /transactions/{id}/merge (bản bị gộp)
     Draft --> [*]: xoá
     Confirmed --> [*]: xoá (hoàn số dư và ngân sách)
 ```
 
-Vòng đời hiện tại của một thông báo ngân hàng. Đặc tả muốn thêm nhánh `Pending → Confirmed` (auto-commit, FR-TXN-05) và lưu bản trùng có liên kết (FR-TXN-17) — cả hai là **[Đổi]**, chưa làm.
+Vòng đời hiện tại của một thông báo ngân hàng. `Merged` không phải giá trị của `status`: bản bị gộp được xoá mềm kèm `merged_into_transaction_id` (Phase 82). Đặc tả muốn thêm nhánh `Pending → Confirmed` (auto-commit, FR-TXN-05) — vẫn là **[Đổi]**, chưa làm.
 
 ### 5.1 Flow 1 — Từ thông báo ngân hàng
 
@@ -189,8 +190,14 @@ Vòng đời hiện tại của một thông báo ngân hàng. Đặc tả muố
 | FR-TXN-07 | Xác nhận nháp (`POST /transactions/{id}/confirm`), kèm `categoryId` tuỳ chọn | Must | Áp danh mục **trước** khi cộng ngân sách; cập nhật số dư và ngân sách. Danh mục bị sửa → gửi `category_correction` về AI |
 | FR-TXN-08 | Tab "Chờ duyệt" (`GET /transactions?status=Draft`) | Must | Chỉ nháp của user hiện tại |
 | FR-TXN-09 | Draft không phản hồi nằm lại hàng đợi | Must | Server không tự huỷ hay tự xác nhận Draft |
-| FR-TXN-17 | **[Đổi]** Bản trùng được ghi lại và liên kết tới giao dịch gốc | Must | Hiện tại: AI trả `is_potential_duplicate` + `duplicate_request_id`, backend không tạo nháp và không lưu liên kết tới giao dịch gốc |
-| FR-TXN-18 | **[Mới]** Sự kiện liên quan: chuyển khoản nội bộ, nạp ví, hoàn tiền, đảo giao dịch | Should | Chưa có trong code (không có loại `refund`/`reversal`) |
+| FR-TXN-17 | Bản trùng được ghi lại và liên kết tới giao dịch gốc (Phase 82) | Must | Backend quyết trùng (`DuplicateMatcher`), cờ trùng của AI chỉ dùng để xếp hạng và không bao giờ làm mất thông báo. Ứng viên: cùng user, cùng chiều, đúng số tiền, chưa xoá/gộp, không phải chuyển khoản hay khoản hoàn/đảo, chưa bị bác với khoản đang xét; cửa sổ theo cặp nguồn trong cấu hình hệ thống nhóm `duplicates`: thông báo↔thông báo 10 phút, nhập tay/giọng nói/hỗ trợ↔thông báo 48 giờ, hoá đơn↔thông báo 12 giờ, hai khoản tự nhập không so. Xếp hạng: cùng ví > cùng nơi nhận chuẩn hoá > cờ AI > gần nhất, tối đa 3. Hai thông báo cùng provider có số dư sau: khác → hai giao dịch thật; bằng trong 10 phút → cùng sự kiện, bỏ âm thầm, log `duplicate`. Có ứng viên → giao dịch vẫn được tạo (thông báo: nháp), `duplicate_status = suspected` trỏ tới ứng viên hạng 1; nháp nghi trùng không bao giờ một chạm, push `review_duplicate`. Xoá giao dịch được trỏ tới → bỏ nghi trùng trong cùng lượt lưu |
+| FR-TXN-31 | **[Mới]** Gộp hai giao dịch (`POST /transactions/{id}/merge` `{withTransactionId, categoryId?}`) | Must | Bản giữ lại: đúng một bản đã xác nhận → bản đó; cả hai đã xác nhận → bản tạo trước; cả hai nháp → bản thông báo. Luôn được xác nhận sau gộp. Số tiền, thời điểm, ví, số dư ngân hàng lấy từ bản thông báo (rồi hoá đơn); danh mục, ghi chú, nơi chi lấy từ bản người dùng nhập; `categoryId` thắng tất cả; `mergedSources` ghi các kênh. Bản bị gộp xoá mềm kèm `merged_into_transaction_id`, số dư trả về ví nếu đã xác nhận; ngân sách cá nhân và nhóm được tính lại (đổi tháng không lệch), cảnh báo chỉ khi số tăng; chốt lại `daily_summaries`. Ý định QR, liên kết hoá đơn, nháp hoàn, liên kết trùng khác đi theo survivor; đánh dấu bất thường của bản bị gộp bị bỏ. Gộp lại cùng cặp → 200 với survivor cũ. 422 `MERGE_NOT_ALLOWED`: khác chiều/số tiền, chuyển khoản, khoản hoàn, bản bị gộp đã xác nhận có hoàn hoặc bị đảo, đã chia sẻ nhóm, cả hai đã khớp QR, đã gộp vào khoản khác. Người khác hoặc không tồn tại → 404. Khoá hai dòng theo id tăng dần → ví → kỳ ngân sách; xác nhận/sửa/xoá cũng khoá dòng của mình |
+| FR-TXN-33 | **[Mới]** Gợi ý và chuyển khoản chi/thu thành chuyển giữa các ví của chính mình (`POST /transactions/{id}/convert-to-transfer` `{counterAccountId, pairedTransactionId?, clientRequestId?}`, Phase 83) | Should | Gợi ý tính khi đọc (`transferSuggestion` trên giao dịch, chỉ nháp hoặc vừa tạo trong `transfers.pairWindowMinutes`), push `review_transfer`, không bao giờ tự chuyển. Ghép hai chiều khi: khoản chi ở ví X, khoản thu ở ví Y ≠ X, tiền vào đến sau tiền ra tối đa 30 phút (sớm hơn tối đa 2 phút), 0 ≤ chênh ≤ 20.000đ và ≤ 2%, **và** có tín hiệu: AI trả `relation_hint = transfer` ở một chiều, hoặc nội dung một chiều nhắc tên ví bên kia (`transfers.providerAliases`). Không tín hiệu thì không gợi ý. Một chiều có hint: rút/nộp ATM gợi ý ví Tiền mặt (không tự tạo ví), loại khác gợi ý mọi ví còn lại. Không gợi ý/chuyển: Transfer, khoản hoàn/đảo, đã gộp, đang nghi trùng, đã khớp QR, có khoản hoàn, đã chia sẻ nhóm (422 `TRANSFER_SHARED_NOT_ALLOWED`). Bất biến: sau chuyển đổi số dư mỗi ví bằng đúng số dư khi xác nhận hai thông báo như chi/thu thường, mọi tổ hợp nháp/đã xác nhận; chênh lệch thành khoản chi "Phí giao dịch" danh mục `other`. Bản giữ lại theo BR-DUP-09 (hai nháp: chiều tiền ra), chiều kia xoá mềm kèm `merged_into_transaction_id`; ngân sách tính lại, `daily_summaries` chốt lại, bất thường đóng với lý do `transfer`, bỏ loại khỏi dự báo. Gọi lại cùng input → 200. Ví Tiền mặt âm sau chuyển đổi → vẫn cho, kèm `warnings: ["CASH_BALANCE_NEGATIVE"]`. Thông báo về sau một Transfer ghi tay (chat): tiền ra ở ví nguồn (cho phép phí) hoặc tiền vào ở ví đích thành nháp nghi trùng trỏ vào Transfer; gộp thì Transfer luôn được giữ |
+| FR-TXN-34 | **[Mới]** "Không phải chuyển ví" (`POST /transactions/{id}/not-transfer`) | Should | Đặt `transfer_dismissed_at` cho giao dịch và chiều đang được gợi ý ghép cùng; chỉ tắt gợi ý, chuyển đổi tay vẫn được và khi đó cờ bị xoá. Gọi lại → 200 |
+| FR-TXN-35 | **[Mới]** Xem trước và ảnh chụp lúc gộp (`POST /transactions/{id}/merge/preview`, `…/convert-to-transfer/preview`) | Should | Trả giao dịch còn lại, khoản phí, số dư từng ví trước/sau, cùng lỗi 404/422 với lệnh thật; chạy đúng đường code của lệnh thật trong một DB transaction rồi rollback, nên không ghi gì. Mọi lượt gộp/chuyển đổi ghi `transaction_merge_snapshots` (trạng thái trước, tham chiếu đã chuyển, khoản phí, thay đổi số dư) trong cùng DB transaction, đủ để hoàn tác sau này; xoá sau `snapshots.retentionDays` (365) |
+| FR-TXN-32 | **[Mới]** "Không trùng" (`POST /transactions/{id}/not-duplicate`) và lọc `GET /transactions?duplicateStatus=Suspected` | Must | `duplicate_status = dismissed`, giữ liên kết để không gợi ý lại và để FR-FCST-14 không gắn cờ `duplicate` cho cặp này; gọi lại → 200; không có liên kết → 422 `NOT_SUSPECTED_DUPLICATE`. DTO giao dịch có `duplicateStatus`, `duplicateOf`, `suggestedDuplicates` (chỉ nháp, tính khi đọc), `mergedSources` |
+| FR-TXN-18 | Sự kiện liên quan: chuyển khoản nội bộ, nạp ví, hoàn tiền, đảo giao dịch | Should | Chuyển khoản/nạp ví: FR-TXN-16, và từ Phase 83 nhận ra từ thông báo rồi gợi ý chuyển thành `Transfer` (FR-TXN-33…35, API ở `docs/transactions-transfer-pairing-api.md`). Hoàn và đảo (Phase 81): khoản tiền vào (`Credit`) mang `relation` = `refund`/`reversal` và `relatedTransactionId` trỏ tới khoản chi gốc đã xác nhận của cùng user (người khác → 404). Không bao giờ là thu nhập; lấy danh mục (và nhóm) của khoản gốc; tổng hoàn ≤ số gốc (422 `REFUND_EXCEEDS_ORIGINAL`), cho hoàn nhiều lần; đảo phải bằng đúng số gốc (422 `REVERSAL_AMOUNT_MISMATCH`) và cả cặp bị loại khỏi mọi tổng hợp nhưng vẫn trong lịch sử. Chi tiết FR-TXN-27…30, API ở `docs/transactions-refund-api.md` |
+| FR-TXN-29 | **[Mới]** Gợi ý khoản chi gốc từ thông báo | Should | AI trả `relation_hint` (`refund`/`reversal`, từ khoá trong tài liệu `notification_vocab` ở DB; cashback là thu nhập). Nháp có hint kèm tối đa 3 khoản chi gốc (cùng user, `Debit` đã xác nhận, còn hoàn được ≥ số tiền, trong `refunds.matchWindowDays` = 60 hoặc `refunds.reversalMatchWindowDays` = 3; xếp cùng người nhận > cùng ví/nhà cung cấp > đúng số tiền > gần nhất), tính khi đọc. Push luôn `choose_refund_link`, không bao giờ một chạm. Hệ thống không tự liên kết hay tự xác nhận |
 | FR-TXN-26 | **[Ngoài đặc tả]** Tách phần nội dung chuyển khoản bằng nhãn (`ND:`…) và phân loại bằng AI khi từ điển không chắc | Should | Nhãn nằm trong DB (tài liệu `narrative_labels`); nội dung bị cắt ở trường kế tiếp; định danh bị che; nội dung không bao giờ được cache |
 
 ### 5.2 Flow 2 — Nhập thủ công và chuyển khoản
@@ -205,13 +212,16 @@ Vòng đời hiện tại của một thông báo ngân hàng. Đặc tả muố
 | FR-TXN-15 | Quét hoá đơn | Must | Xem mục 5.4 |
 | FR-TXN-16 | Chuyển khoản nội bộ (`POST /transactions/transfer`) | Must | Hai ví khác nhau cùng thuộc user; không danh mục; **không** tính vào chi tiêu, thu nhập, ngân sách, báo cáo, dự báo, hũ |
 | FR-TXN-19 | Báo trường bắt buộc còn thiếu | Must | Chat trả `missingFields` (`category`/`account`/`accounts`) hoặc `needs_amount`; `POST /transactions` từ chối khi thiếu |
+| FR-TXN-27 | **[Mới]** Ghi khoản hoàn/đảo từ khoản chi gốc (`POST /transactions/{id}/refunds`) | Should | Mặc định hoàn phần còn lại, vào ví gốc, ngày hiện tại; idempotent qua `clientRequestId` (201/200). Khoá dòng khoản gốc nên hai khoản hoàn đồng thời không vượt số gốc. Khoản gốc không hợp lệ (không phải chi đã xác nhận, cho vay/mượn, đã đảo) → 422 `REFUND_ORIGINAL_NOT_ELIGIBLE`. Liên kết tay không giới hạn thời gian |
+| FR-TXN-28 | **[Mới]** Liên kết, gỡ liên kết, hoàn không có khoản gốc | Should | `PUT /transactions/{id}/related` đổi một khoản tiền vào (nháp hoặc đã xác nhận) thành hoàn/đảo trong một lượt lưu, số dư không đổi; `DELETE …/related` trả về thu nhập thường; `confirm` nhận `relatedTransactionId`. Hoàn mồ côi: `relatedTransactionId = null` hoặc `POST /transactions` với `relation`, bắt buộc danh mục chi |
+| FR-TXN-30 | **[Mới]** Sửa/xoá khi có khoản hoàn | Should | Khoản gốc còn hoàn/đảo đã xác nhận: xoá hoặc đổi số tiền/loại → 409 `HAS_REFUNDS`; đổi danh mục → khoản hoàn đi theo; chia sẻ/bỏ chia sẻ nhóm → khoản hoàn đi theo (riêng khoản hoàn → 422 `REFUND_FOLLOWS_ORIGINAL`). Khoản hoàn đã liên kết không đổi danh mục (422 `REFUND_CATEGORY_LOCKED`). Xoá khoản hoàn/đảo hoàn tác như giao dịch thường |
 | FR-TXN-24 | Phân loại Chi tiêu / Thu nhập / Chuyển khoản nội bộ từ câu chat | Should | Chat nhận ý định `transfer_money` và trả bản nháp chuyển khoản (luôn qua xác nhận). Đã đáp ứng ở `/transactions/chat`; `/parse` cũ vẫn chỉ ra `Debit`/`Credit` |
 
 ### 5.3 Xem, sửa, xoá
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-TXN-20 | Danh sách có lọc và phân trang (`GET /transactions`) | Must | Lọc theo trạng thái, ví, danh mục, khoảng ngày |
+| FR-TXN-20 | Danh sách có lọc và phân trang (`GET /transactions`) | Must | Lọc theo trạng thái, ví, danh mục, khoảng ngày, `relation` (Phase 81) |
 | FR-TXN-21 | Xem chi tiết | Must | Giao dịch người khác → 404 |
 | FR-TXN-22 | Sửa giao dịch (`PATCH`) | Must | Đã xác nhận thì hoàn tác tác động cũ rồi áp tác động mới trong một lượt lưu. Đổi danh mục → `category_correction` (thông báo), dạy lại bộ nhớ cửa hàng (hoá đơn chưa tách), ghi nhớ người nhận (QR đã khớp) |
 | FR-TXN-23 | Xoá giao dịch | Must | Xoá mềm; đã xác nhận thì hoàn số dư (cả ví đích với chuyển khoản) và trừ ngân sách |
@@ -228,15 +238,15 @@ Vòng đời hiện tại của một thông báo ngân hàng. Đặc tả muố
 | FR-SCAN-04 | Mọi lần quét ghi `receipt_scans` (không ảnh, không chữ OCR) và trả `scanId` | Must | Không tạo giao dịch ở bước quét; app gửi `receiptScanId` khi bấm Lưu |
 | FR-SCAN-05 | Tách hoá đơn theo từng món thành nhiều giao dịch | Could | Chỉ khi cờ `Receipt:SplitByItemsEnabled` bật (mặc định **tắt**), ≥ 2 món chính, ≥ 2 nhóm có danh mục thật và tổng các nhóm bằng đúng tổng bill. Mỗi nhóm một giao dịch, `clientRequestId` = uuid v5 từ `scanId` + nhóm. Mọi lỗi → một nhóm như cũ |
 | FR-SCAN-06 | Ghi nhớ cửa hàng → danh mục | Should | Chỉ khi `source = Receipt`, có tên cửa hàng, danh mục hệ thống khác `income`, bill không bị tách. `/bill/learn` timeout 3 giây, lỗi bị nuốt |
-| FR-SCAN-07 | Cảnh báo trùng khi quét | Should | Có khoản Debit cùng số tiền gần thời điểm bill → trả `possibleDuplicateTransactionId` |
+| FR-SCAN-07 | Cảnh báo trùng khi quét | Should | Qua `DuplicateMatcher` (Phase 82): hoá đơn ↔ thông báo ngân hàng và hoá đơn ↔ khoản nhập tay trong `receiptWindowHours` (12 giờ) → `suggestedDuplicates` (tối đa 3) và `possibleDuplicateTransactionId` (hạng 1, giữ cho app cũ). Lưu hoá đơn khi có thông báo khớp → giao dịch mang nghi trùng; khoản nhập tay chỉ để cảnh báo |
 | FR-SCAN-08 | Tính năng bật/tắt từ xa | Should | Cờ `features.billScan` trong cấu hình hệ thống (FR-CFG-01) |
 
 ### 5.5 Chat và giọng nói **[Ngoài đặc tả: chi tiết]**
 
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
-| FR-CHAT-01 | `POST /transactions/chat` (`{text, financialAccountId?, clientRequestId?}`) | Must | Text 1–500 ký tự. AI Service (`/chat/parse` = Rasa tuỳ chọn + luật + Gemini khi có đồng ý) chỉ trả quyết định; backend quyết mọi hậu quả |
-| FR-CHAT-02 | Tự lưu khi đủ điều kiện, còn lại hỏi xác nhận | Must | Tự lưu (`action = saved`) chỉ khi: một khoản, `auto_save_ok`, là chi tiêu, chọn được ví (ví user chọn hoặc ví duy nhất), slug ra danh mục hệ thống, không có khoản Debit cùng số tiền trong ±10 phút. Thu nhập, chuyển khoản và câu nhiều khoản **luôn** `action = confirm` |
+| FR-CHAT-01 | `POST /transactions/chat` (`{text, financialAccountId?, clientRequestId?}`) | Must | Text 1–500 ký tự. AI Service (`/chat/parse` = bộ phân loại ý định (chạy trong tiến trình) + luật + Gemini khi có đồng ý) chỉ trả quyết định; backend quyết mọi hậu quả |
+| FR-CHAT-02 | Tự lưu khi đủ điều kiện, còn lại hỏi xác nhận | Must | Tự lưu (`action = saved`) chỉ khi: một khoản, `auto_save_ok`, là chi tiêu, chọn được ví (ví user chọn hoặc ví duy nhất), slug ra danh mục hệ thống, không có khoản Debit cùng số tiền trong ±10 phút, và không có thông báo ngân hàng nào có thể là cùng khoản (Phase 82, `suggestedDuplicates`). Thu nhập, chuyển khoản và câu nhiều khoản **luôn** `action = confirm` |
 | FR-CHAT-03 | Hỏi tổng chi/thu theo kỳ | Should | `action = summary`; backend tự cộng (AI Service không thấy số liệu); xin chi tiết thì kèm tối đa 20 khoản và `transactionsHasMore` |
 | FR-CHAT-04 | Ngày trong câu ("hôm qua") | Should | Dùng làm `transactedAt` |
 | FR-CHAT-05 | AI phân loại cụm sản phẩm khi có đồng ý | Should | Chỉ gửi cụm sản phẩm đã bỏ số tiền; thuốc/đồ y tế không gửi; AI khác luật thì không tự lưu; AI lỗi hoặc quá hạn → kết quả luật |
@@ -256,7 +266,7 @@ FinMate **không chạm vào tiền**: chỉ ghi "ý định chuyển tiền" r�
 
 ## 6. FR — Ngân sách, mục tiêu, phương pháp tài chính, báo cáo (Core Flow 3)
 
-Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số tổng hợp loại trừ chuyển khoản nội bộ.
+Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số tổng hợp loại trừ chuyển khoản nội bộ và cặp đảo giao dịch, và tính khoản hoàn là phần trừ vào chi chứ không phải thu nhập (Phase 81).
 
 ### 6.1 Giám sát ngân sách (phân luồng 3.1)
 
@@ -264,7 +274,7 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | --- | --- | --- | --- |
 | FR-BUD-01 | Tạo ngân sách tháng theo danh mục hoặc tổng | Must | Hạn mức > 0; trùng (user, danh mục, kỳ) → 409; `spent_cents` backfill khi tạo |
 | FR-BUD-02 | Xem, sửa, xoá ngân sách | Must | Cache tóm tắt 5 phút bị vô hiệu khi thay đổi |
-| FR-BUD-03 | Cảnh báo tức thì theo T1, T2 và mốc vượt 100% | Must | Đánh giá trong cùng thao tác tạo/xác nhận/sửa giao dịch; push gửi **sau** khi lưu. Cờ `alert_t1/t2/over_sent_at` |
+| FR-BUD-03 | Cảnh báo tức thì theo T1, T2 và mốc vượt 100% | Must | Đánh giá trong cùng thao tác tạo/xác nhận/sửa giao dịch; push gửi **sau** khi lưu. Cờ `alert_t1/t2/over_sent_at`. Khoản hoàn (Phase 81) làm giảm `spent_cents` ở kỳ của ngày hoàn (đảo: ở kỳ của khoản gốc), kỳ được tính lại chứ không cộng delta, không xuống dưới 0, không gửi lại cảnh báo và không reset cờ |
 | FR-BUD-04 | Mỗi ngưỡng báo đúng một lần mỗi kỳ | Must | Vượt thẳng lên mốc cao chỉ báo mốc cao nhất; user tắt cảnh báo thì **không** đóng cờ |
 | FR-BUD-05 | Lưới vét `BudgetAlertJob` mỗi giờ | Should | Hạ hạn mức, backfill, đổi ngưỡng |
 | FR-BUD-06 | Ngưỡng T1/T2 theo ba tầng | Must | Thứ tự: phương pháp đang dùng (`t1_pct`/`t2_pct`, user ghi đè được) → ngưỡng cá nhân (`GET/PUT/DELETE /me/alert-thresholds`) → mặc định hệ thống 70/90 (FR-CFG-01). Ràng buộc `1 ≤ T1 < T2 ≤ 99` (đặc tả ghi `0 < T1 < T2 ≤ 100`); sai → 422 `ALERT_THRESHOLD_INVALID`; mốc vượt luôn 100% |
@@ -287,7 +297,7 @@ Cảnh báo ngân sách tới ngay khi giao dịch được lưu; mọi con số
 | Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
 | --- | --- | --- | --- |
 | FR-RPT-01 | **[Một phần]** Tóm tắt kỳ | Must | Có so với tháng trước, theo giờ VN. Chưa so với tuần trước |
-| FR-RPT-02 | Cơ cấu chi theo danh mục | Must | Chỉ `Confirmed`, `Debit`; "Chưa phân loại" dòng riêng; loại khoản vay/mượn và chuyển khoản |
+| FR-RPT-02 | Cơ cấu chi theo danh mục | Must | Chỉ `Confirmed`, `Debit`; "Chưa phân loại" dòng riêng; loại khoản vay/mượn và chuyển khoản. Phase 81: chi RÒNG (chi − hoàn, hoàn mang danh mục khoản gốc), bỏ cặp đảo; danh mục ròng ≤ 0 không có dòng. Tóm tắt kỳ có `refundedCents` (thu không gồm hoàn) và `crossPeriodRefundCents` (hoàn trong kỳ cho món mua kỳ khác — lý do tổng chi có thể thấp hơn tổng các danh mục); tổng chi kỳ chặn dưới ở 0 |
 | FR-RPT-03 | Dòng tiền theo ngày | Must | Từ `daily_summaries` (`DailySummaryJob` 00:05) |
 | FR-RPT-04 | Dự phóng số dư cuối kỳ | Should | Thay bằng FR-FCST-01 (đường số dư theo ngày, có khoản định kỳ). `/reports/forecast` (dự báo tổng chi tháng) vẫn chạy cho app cũ |
 | FR-RPT-05 | **[Một phần]** Insight hành vi | Should | `InsightGeneratorJob` 02:00 nay chỉ sinh `VsLastMonth`: khoản định kỳ chuyển sang `recurring_items` (FR-FCST-09), chi tiêu bất thường sang FR-FCST-14. Insight cũ hai loại kia vẫn đọc được. Chưa có cuối tuần/ngày thường, tỉ trọng nhóm con |
@@ -318,20 +328,21 @@ Các mã BR của sơ đồ chưa có định nghĩa; số mặc định thay th
 | --- | --- | --- | --- |
 | FR-FCST-01 | Dòng tiền / số dư cuối kỳ (`GET /forecast/cashflow?accountId=&to=`) | Must | Số dư hiện tại của các ví được tính (hoặc một ví) → số dư dự kiến từng ngày tới `to` (mặc định cuối tháng, còn < 7 ngày thì cuối tháng sau, tối đa `forecast.maxHorizonDays`) kèm khoảng thận trọng/lạc quan (phân vị 75/25 của chi linh hoạt), số dư cuối kỳ, ngày thấp nhất, tối đa 3 nguyên nhân chính. Phần đã chi hôm nay không bị trừ lại |
 | FR-FCST-02 | Thử kịch bản (`POST /forecast/cashflow/scenario`) | Should | 1–`forecast.maxScenarioItems` khoản giả định trong kỳ; tính lại, **không lưu** gì |
-| FR-FCST-03 | Thói quen chi tiêu linh hoạt | Must | Trung vị theo thứ trong tuần trên `forecast.historyWindowDays` ngày gần nhất (không gồm hôm nay), đã cắt ngoại lai; loại chuyển khoản, cho vay/mượn, giao dịch user loại khỏi dự báo và giao dịch khớp khoản định kỳ đang theo dõi (tránh trừ hai lần). Dưới `forecast.minHistoryDays` ngày có giao dịch → hạn mức tổng (nếu có, không thì tổng hạn mức danh mục) / số ngày trong tháng → trung bình dữ liệu đang có → 0; cờ `confidence = low` |
+| FR-FCST-03 | Thói quen chi tiêu linh hoạt | Must | Trung vị theo thứ trong tuần trên `forecast.historyWindowDays` ngày gần nhất (không gồm hôm nay), đã cắt ngoại lai; loại chuyển khoản, cho vay/mượn, giao dịch user loại khỏi dự báo và giao dịch khớp khoản định kỳ đang theo dõi (tránh trừ hai lần). Dưới `forecast.minHistoryDays` ngày có giao dịch → hạn mức tổng (nếu có, không thì tổng hạn mức danh mục) / số ngày trong tháng → trung bình dữ liệu đang có → 0; cờ `confidence = low`. Phase 81: khoản chi hoàn 100% và cặp đảo bị loại; hoàn một phần dùng số ròng ở ngày của khoản chi |
 | FR-FCST-04 | Ngày lễ/Tết | Could | Hệ số % trong `forecast.holidays` nhân vào chi linh hoạt các ngày trong khoảng; mặc định rỗng |
 | FR-FCST-05 | Số tiền có thể chi (`GET /forecast/spendable`) | Must | Kỳ tính: hôm nay → trước lần thu nhập định kỳ kế tiếp (≤ 45 ngày), không thì cuối tháng. Kết quả = số dư ví được tính + thu định kỳ trong kỳ − chi định kỳ chưa trả trong kỳ − để dành mục tiêu (cùng công thức `/me/spendable`) − dự phòng. ≤ 0 → 0 + `shortfallCents`; > 0 → chia số ngày còn lại. Trả kèm bảng cách tính. `/me/spendable` (công thức cũ) giữ nguyên cho app hiện tại |
 | FR-FCST-06 | Dự phòng | Must | `users.forecast_reserve_cents` nếu user đặt (`PUT /me/forecast-settings`), không thì `forecast.reservePercentOfIncome`% thu nhập dự kiến; chưa khai thu nhập → 0 |
-| FR-FCST-07 | Ví được tính (`PATCH /financial-accounts/{id}/forecast-inclusion`) | Must | Mặc định mọi ví được tính; ví tắt không vào tổng nhưng vẫn xem riêng được |
+| FR-FCST-07 | Ví được tính (`PATCH /financial-accounts/{id}/forecast-inclusion`) | Must | Mặc định mọi ví được tính; ví tắt không vào tổng nhưng vẫn xem riêng được. Phase 83: chuyển khoản giữa một ví được tính và một ví bị loại là tiền ra/vào của tập được tính: vào số thực tế của độ chính xác dự báo và (chỉ tiền ra) vào việc phát hiện, theo dõi, nhắc hạn khoản định kỳ; không bao giờ vào thói quen chi, thu nhập, bất thường. Chuyển khoản giữa hai ví được tính không vào đâu |
 | FR-FCST-08 | Loại giao dịch khỏi dự báo (`PATCH /transactions/{id}/forecast-exclusion`) | Must | Lý do `one_off`/`user_marked`; số dư không đổi; CHECK ở DB bảo đảm có lý do khi bị loại |
 | FR-FCST-09 | Khoản định kỳ (`/recurring-items`): xem, thêm tay, sửa, xác nhận, từ chối, tạm dừng, tiếp tục, hủy | Must | Gộp hóa đơn định kỳ và thu nhập đều đặn (chiều `inflow`/`outflow`). Duy nhất theo (user, chiều, người nhận đã chuẩn hóa) → trùng 409; người nhận từng bị từ chối/hủy thì dùng lại dòng cũ. Hủy giữ dòng để không bị đề xuất lại. Khoản quá hạn chưa thấy trả vẫn tính trong `forecast.overdueGraceDays` ngày |
 | FR-FCST-09a | Nhận diện khoản định kỳ (`RecurringDetectionJob`, 01:30 VN) | Must | Cùng người nhận, cùng chiều, số tiền lệch ≤ `amountTolerancePercent`%, cách nhau đúng chu kỳ tuần/tháng: ≥ `suggestMinOccurrences` lần → đề xuất, ≥ `autoActivateOccurrences` → tự ghi nhận; thấy thanh toán thì đẩy ngày đến hạn. Thay insight `RecurringDetected` (không còn sinh) |
 | FR-FCST-10 | Cảnh báo số dư thấp (trang 1) | Should | Ngưỡng của user (`lowBalanceThresholdCents`, null = tắt); nhìn trước `forecast.lowBalanceHorizonDays` ngày; báo ngày dự kiến thiếu, số dư lúc đó, khoản lớn nhất, **mức chi tối đa/ngày** = (E + F − T)/d. Chống lặp: cùng ngày thiếu chỉ báo một lần và cách nhau ≥ `lowBalanceCooldownDays`; phản hồi "không chính xác" (`POST /forecast/alerts/{id}/feedback`) tắt loại này `inaccurateSuppressDays` ngày. **Chỉ loại này** tôn trọng giờ yên lặng (mặc định 22:00–07:00, user đặt riêng) |
 | FR-FCST-11 | Dự báo vượt ngân sách sớm + chuyển hạn mức (trang 6) | Should | `GET /forecast/budgets`: đã chi, dự kiến cuối kỳ (nhịp chi tháng này khi đã qua ≥ `budgetRiskMinElapsedDays` ngày, không thì thói quen 90 ngày; cộng khoản định kỳ của danh mục còn chưa trả), trạng thái `ok/at_risk/over`, mức tối đa/ngày. Báo sớm (BR-04.2) khi `at_risk` và còn ≥ `budgetRiskMinDaysRemaining` ngày, một lần mỗi ngân sách mỗi tháng; theo công tắc cảnh báo ngân sách. `POST /budgets/transfer` chỉ chuyển phần chưa chi, giữa hai ngân sách danh mục |
 | FR-FCST-12 | Nhắc hạn, tạm ngừng hóa đơn; đổi giá (trang 7 + 8) | Should | Hằng ngày 08:00: khoản chi chưa trả đến hạn trong `billReminderDaysBefore` ngày → nhắc; quá hạn quá `overdueGraceDays` → chuyển `paused` + hỏi "còn dùng không?" (trả lời bằng `resume`/`DELETE` có sẵn). Trả cùng người nhận trong cửa sổ nhưng lệch quá dung sai = lần trả với giá mới: cập nhật số tiền (kể cả khoản thêm tay), báo đổi giá lúc 08:00, và không bị coi là chưa trả |
-| FR-FCST-13 | Dự báo thu nhập (trang 5) | Should | `GET /forecast/income`: lịch thu định kỳ 60 ngày, khoản thu trễ (quá `incomeLateDays` ngày, BR-07.4, có cảnh báo), thu không đều: thận trọng = phân vị 25 / trung bình theo tháng trọn vẹn (`irregularIncomeMonths`, BR-07.2). Khai báo nguồn thu = `POST /recurring-items` chiều `Inflow`. Thu quá hạn chưa nhận **không** được cộng vào dự báo. Số tiền có thể chi cộng thu không đều mức thận trọng khi không có khoản thu định kỳ. **Chưa làm**: thu theo mùa (BR-07.3) |
-| FR-FCST-14 | **[Mới]** Phát hiện chi tiêu bất thường có phản hồi (trang 9) | Should | Quét các khoản chi `anomalyScanDays` (3) ngày gần nhất sau mỗi giao dịch và lúc 08:00; mỗi giao dịch xét một lần (`transaction_anomalies`, UNIQUE theo giao dịch). Loại: `duplicate` (cùng ví + số tiền + nơi nhận trong `duplicateWindowMinutes` = 10 phút; chỉ khoản sau), `merchant_spike` (≥ 3 lần trước ở cùng nơi nhận, gấp ≥ 300% trung vị), `category_spike` (BR-11.1: ≥ 5 khoản cùng danh mục trong 90 ngày; BR-11.2: gấp ≥ 300% trung vị **và** vượt trung vị + 3·MAD). Khoản < 200.000đ, khoản khớp khoản định kỳ (đổi giá có cảnh báo riêng), khoản đã loại khỏi dự báo: không xét. BR-11.3: gấp ≥ 500% hoặc trùng → mức cao → thông báo (kind `anomaly`, một lần mỗi giao dịch); mức thường chỉ đánh dấu trong app. BR-11.4: đã xác nhận bình thường cùng danh mục + nơi nhận với số tiền ≥ 80% → không báo. `GET /forecast/anomalies?status=open\|all`, `POST /forecast/anomalies/{id}/feedback` `normal\|one_off\|wrong_entry\|suspicious`: `one_off` đặt FR-FCST-08 (đổi ý thì trả lại), `suspicious` trả hướng dẫn liên hệ ngân hàng (chung chung), `wrong_entry` để app gọi sửa/xóa giao dịch. Insight `UnusualSpending` ngừng sinh |
-| FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | `GET /forecast/categories?month=yyyy-MM` (tháng tới hoặc tháng sau nữa; trả `availableMonths`): từng danh mục có mức dự kiến, tháng trước, hạn mức hiện tại, % thay đổi, cờ "thay đổi nhiều" (≥ 20%), hạn mức đề xuất (làm tròn lên 10.000đ). Xu hướng = trung bình trọng số 3:2:1 của 3 tháng trọn vẹn, chỉ tính từ tháng đầu tiên có dữ liệu. Loại khoản chi một lần và khoản bất thường chưa xác nhận bình thường. BR-06.1: < 2 tháng có dữ liệu → hạn mức ngân sách, không có thì trung bình theo ngày quy ra tháng, `confidence = low`. `POST /forecast/categories/apply`: danh mục đã có ngân sách → hạn mức mới áp **từ tháng sau** (tháng này giữ snapshot cũ); chưa có → tạo ngân sách, áp ngay. **Chưa làm**: điều chỉnh mùa vụ (`seasonalAdjusted` luôn false) |
+| FR-FCST-13 | Dự báo thu nhập (trang 5) | Should | `GET /forecast/income`: lịch thu định kỳ 60 ngày, khoản thu trễ (quá `incomeLateDays` ngày, BR-07.4, có cảnh báo), thu không đều: thận trọng = phân vị 25 / trung bình theo tháng trọn vẹn (`irregularIncomeMonths`, BR-07.2). Khai báo nguồn thu = `POST /recurring-items` chiều `Inflow`. Thu quá hạn chưa nhận **không** được cộng vào dự báo. Số tiền có thể chi cộng thu không đều mức thận trọng khi không có khoản thu định kỳ. **Chưa làm**: thu theo mùa (BR-07.3). Phase 81: khoản hoàn không bao giờ vào dự báo thu nhập |
+| FR-FCST-14 | **[Mới]** Phát hiện chi tiêu bất thường có phản hồi (trang 9) | Should | Quét các khoản chi `anomalyScanDays` (3) ngày gần nhất sau mỗi giao dịch và lúc 08:00; mỗi giao dịch xét một lần (`transaction_anomalies`, UNIQUE theo giao dịch). Loại: `duplicate` (cùng ví + số tiền + nơi nhận trong `duplicateWindowMinutes` = 10 phút; chỉ khoản sau), `merchant_spike` (≥ 3 lần trước ở cùng nơi nhận, gấp ≥ 300% trung vị), `category_spike` (BR-11.1: ≥ 5 khoản cùng danh mục trong 90 ngày; BR-11.2: gấp ≥ 300% trung vị **và** vượt trung vị + 3·MAD). Khoản < 200.000đ, khoản khớp khoản định kỳ (đổi giá có cảnh báo riêng), khoản đã loại khỏi dự báo: không xét. BR-11.3: gấp ≥ 500% hoặc trùng → mức cao → thông báo (kind `anomaly`, một lần mỗi giao dịch); mức thường chỉ đánh dấu trong app. BR-11.4: đã xác nhận bình thường cùng danh mục + nơi nhận với số tiền ≥ 80% → không báo. `GET /forecast/anomalies?status=open\|all`, `POST /forecast/anomalies/{id}/feedback` `normal\|one_off\|wrong_entry\|suspicious`: `one_off` đặt FR-FCST-08 (đổi ý thì trả lại), `suspicious` trả hướng dẫn liên hệ ngân hàng (chung chung), `wrong_entry` để app gọi sửa/xóa giao dịch. Insight `UnusualSpending` ngừng sinh. Phase 81: khoản chi được hoàn 100% hoặc bị đảo tự đóng đánh dấu với lý do `refunded`/`reversed`, không thông báo; app không gửi được hai giá trị này. Phase 82: cặp đã có liên kết trùng (đang nghi trùng hoặc người dùng đã bác) không bị gắn cờ `duplicate`; gộp xong thì đánh dấu của bản bị gộp bị bỏ |
+| FR-FCST-15 | **[Mới]** Chi theo danh mục → ngân sách kỳ tới (trang 2) | Could | `GET /forecast/categories?month=yyyy-MM` (tháng tới hoặc tháng sau nữa; trả `availableMonths`): từng danh mục có mức dự kiến, tháng trước, hạn mức hiện tại, % thay đổi, cờ "thay đổi nhiều" (≥ 20%), hạn mức đề xuất (làm tròn lên 10.000đ). Xu hướng = trung bình trọng số 3:2:1 của 3 tháng trọn vẹn, chỉ tính từ tháng đầu tiên có dữ liệu. Loại khoản chi một lần và khoản bất thường chưa xác nhận bình thường. BR-06.1: < 2 tháng có dữ liệu → hạn mức ngân sách, không có thì trung bình theo ngày quy ra tháng, `confidence = low`. `POST /forecast/categories/apply`: danh mục đã có ngân sách → hạn mức mới áp **từ tháng sau** (tháng này giữ snapshot cũ); chưa có → tạo ngân sách, áp ngay. **Chưa làm**: điều chỉnh mùa vụ (`seasonalAdjusted` luôn false). Phase 81: xu hướng dùng số ròng, bỏ khoản hoàn đủ và cặp đảo |
+| FR-FCST-17 | **[Mới]** Đánh giá khoản mua "Mua món này có ổn không?" (`POST /forecast/purchase-check`) | Should | Chỉ đọc, không tạo giao dịch. Chạy engine dòng tiền hai lần (không mua / có khoản mua) và so điểm số dư thấp nhất trong kỳ tới ngày trước kỳ thu nhập kế tiếp sau ngày mua; chưa biết kỳ thu nhập thì dùng mốc người dùng chọn hoặc `forecast.purchaseDefaultHorizonDays`. Kết luận `shortfall_risk` / `consider` (dưới vùng đệm của user) / `off_plan` (vượt ngân sách hoặc kế hoạch tháng) / `fits_plan` / `insufficient_data`; dữ liệu chỉ một phần thì không bao giờ trả "phù hợp". Trả kèm giá tối đa mua được, ngày mua sớm nhất an toàn, bảng giải thích có nguồn (`confirmed`/`user_entered`/`estimated`) và cảnh báo. Câu chữ do backend sinh bằng mẫu, không qua AI. Chi tiết: `docs/flows/flow-6-purchase-decision-assistant.md` §13. **Chưa làm**: trả góp, lưu món/nhắc lại/đối chiếu giao dịch (M4), diễn giải bằng AI |
 | FR-FCST-16 | **[Mới]** Ngày đạt mục tiêu tiết kiệm (trang 4) | Could | `GET /forecast/goals/{goalId}?monthlyContributionCents=`: BR-08.1 tốc độ góp theo tháng từ khoản góp vào chính mục tiêu (tối đa `goalRateMonths` = 6 tháng trọn vẹn từ tháng tạo; chưa có tháng trọn vẹn thì dùng tháng này, độ tin cậy thấp) — trung bình và thận trọng (phân vị 25). BR-08.2 hai ngày dự kiến. BR-08.3 kịp hạn = ngày thận trọng ≤ hạn chót; không kịp → mức cần góp/tháng. Trạng thái `reached\|unreachable\|no_deadline\|on_track\|behind`. Tham số `monthlyContributionCents` là thử kịch bản, không lưu; đổi số tiền / hạn chót dùng `PATCH /saving-goals/{id}` |
 
 ### 6.6 Tài chính nhóm / gia đình **[Mới so với đặc tả Core Flows]**
@@ -355,7 +366,30 @@ Ví, số dư và dự báo vẫn là của từng người. Nhóm chỉ nhìn t
 | FR-GRP-13 | Mục tiêu nhóm | Should | Góp chỉ là ghi sổ, không trừ ví. Hoàn thành hoặc quá hạn thì báo từng thành viên |
 | FR-GRP-14 | Báo cáo tháng của nhóm: tổng, theo danh mục, theo thành viên | Should | Chỉ khoản đã xác nhận, đã chia sẻ; loại cho vay/mượn. Chế độ `Summary` vẫn hiện tổng |
 | FR-GRP-15 | Yêu cầu xóa tài khoản không bị nhóm chặn | Must | Chủ nhóm được tự chuyển quyền cho quản lý lâu năm nhất, rồi đến thành viên, rồi người chỉ xem. Tên người đó không còn hiện trong nhóm. Admin hủy yêu cầu thì tư cách thành viên còn nguyên nhưng không được trả lại quyền chủ |
-| FR-GRP-16 | Xóa cứng tài khoản xóa cả dữ liệu đã chia sẻ | Must | Giao dịch và khoản góp của người đó bị xóa; `spent_cents`, `saved_cents` được tính lại trong cùng DB transaction. Mục tiêu đã hoàn thành giữ trạng thái. Nhóm không còn ai thì xóa mềm |
+| FR-GRP-16 | Xóa cứng tài khoản xóa cả dữ liệu đã chia sẻ | Must | Giao dịch và khoản góp của người đó bị xóa; `spent_cents`, `saved_cents` được tính lại trong cùng DB transaction. Mục tiêu đã hoàn thành giữ trạng thái. Nhóm không còn ai thì xóa mềm. Dòng quỹ nhóm thì không xoá mà ẩn danh (FR-FUND-14) |
+
+#### Quỹ chung của nhóm (Phase 85, 2026-11-15) **[Mới]**
+
+Quỹ là một sổ quỹ ẢO thuộc về nhóm: FinMate không giữ tiền, chỉ ghi sổ; ví cá nhân không bị chia sẻ. Công tắc `features.groupFunds` (mặc định tắt) cùng với `features.groups`. Kế hoạch và quyết định D1–D25, S1–S7: `docs/superpowers/plans/2026-11-14-group-fund.md`; API: `docs/group-api.md` mục Quỹ chung.
+
+| Mã | Yêu cầu | Ưu tiên | Tiêu chí chấp nhận |
+| --- | --- | --- | --- |
+| FR-FUND-01 | Tạo, sửa, lưu trữ quỹ | Must | Tối đa `groups.maxFundsPerGroup` (mặc định 3) quỹ chưa lưu trữ; tên 1–100, ghi chú. Cần quyền `ManageFunds` (mặc định Owner, Manager). Xem cần `ViewOverview` ở mọi chế độ hiển thị |
+| FR-FUND-02 | Số dư quỹ | Must | Lưu sẵn, khoá `xmin`; luôn bằng Σ góp − Σ chi − Σ rút ± điều chỉnh của các dòng còn sống. Âm được, có cờ `isNegative` |
+| FR-FUND-03 | Lưu trữ và xoá nhóm | Must | Lưu trữ chỉ khi số dư = 0 (422 `GROUP_FUND_NOT_SETTLED`, cả CHECK ở DB); quỹ lưu trữ chỉ đọc. Xoá nhóm còn quỹ chưa lưu trữ → 422 cùng mã |
+| FR-FUND-04 | Ghi dòng quỹ | Must | `Contribution`, `Expense`, `Withdrawal` cần `RecordFundEntries` (Owner, Manager, Member; Viewer không), luôn đứng tên người gọi. `Adjustment` cần `ManageFunds`, mang dấu, bắt buộc ghi chú. Gửi lại cùng `clientRequestId` trả 200 với dòng cũ |
+| FR-FUND-05 | Sửa, xoá dòng | Must | Chủ dòng sửa mọi trường trừ loại. Người có `ManageFunds` chỉ sửa danh mục, ghi chú dòng của người khác. Không ai sửa số tiền dòng của người khác (403) |
+| FR-FUND-06 | Khoản chi từ quỹ | Must | Danh mục hệ thống (không phải cho vay/mượn) và/hoặc danh mục nhóm; thời điểm, ghi chú, nơi chi |
+| FR-FUND-07 | Kèm ví cá nhân | Must | Góp, chi kèm ví → giao dịch cá nhân tiền ra; rút kèm ví → tiền vào. Chi còn có thể lấy từ một khoản chi đã xác nhận của người ghi (`fromTransactionId`, chuyển thành giao dịch gắn quỹ, ví không đổi, ngân sách cá nhân tính lại) |
+| FR-FUND-08 | Giao dịch cá nhân gắn quỹ | Must | `Transfer` không ví đích, kèm `group_fund_entry_id` và hướng. Đổi số dư ví; không là chi, không là thu ở bất cứ đâu (báo cáo, ngân sách, hũ, thói quen chi, thu nhập dự báo, bất thường); dự báo thấy nó như tiền ra/vào khỏi tập ví được tính. Không sửa, chuyển ví, hoàn, chia sẻ được qua đường giao dịch (422 `TRANSACTION_GROUP_FUND_LINKED`). DTO có `groupFundLink` |
+| FR-FUND-09 | Xoá hai chiều | Must | Chủ dòng xoá dòng → giao dịch cá nhân xoá mềm, ví hoàn (khoản chi lấy từ giao dịch thì về lại khoản chi cũ). Người quản lý xoá dòng của người khác → chỉ xoá dòng, giao dịch cá nhân giữ nguyên (`entryDeleted`), chủ dòng được báo. Chủ xoá giao dịch cá nhân → dòng quỹ xoá theo, kể cả khi cờ tắt; đã rời nhóm hoặc quỹ đã lưu trữ thì dòng ở lại |
+| FR-FUND-10 | Chi từ quỹ tính cho nhóm | Must | Vào ngân sách nhóm theo cùng luật khớp với giao dịch chia sẻ, và báo cáo tháng của nhóm (`byMember` = người ghi, `fundSpentCents`) |
+| FR-FUND-11 | Chi từ quỹ không tính cho cá nhân | Must | Không vào ngân sách, báo cáo cá nhân của người ghi. Góp không là chi ở đâu cả |
+| FR-FUND-12 | Báo cáo quỹ | Should | `GET .../funds/{fundId}/summary?year=&month=`: đầu kỳ, góp theo người, chi theo danh mục, rút, điều chỉnh, cuối kỳ |
+| FR-FUND-13 | Rời nhóm | Must | Dòng quỹ ở lại, vẫn ghi tên. Người đã rời nhận 404 ở mọi API quỹ; giao dịch cá nhân vẫn ở sổ của họ |
+| FR-FUND-14 | Xoá tài khoản | Must | Chờ xoá: tên thay thế như nơi khác trong nhóm. Xoá cứng: dòng quỹ ẩn danh ("Thành viên cũ"), không xoá; số dư quỹ, ngân sách nhóm, báo cáo không đổi (phần của họ vào `formerMembers`) |
+| FR-FUND-15 | Sẵn cho rút dữ liệu khi rời nhóm (Phase 87) | Must | Cột người gắn với dòng nullable, cách hiện "Thành viên cũ" có sẵn |
+| FR-FUND-16 | Thông báo | Should | Quỹ chuyển sang âm → push một lần mỗi đợt âm cho người có `ManageFunds`, không số tiền. Hoạt động nhóm ghi tạo/sửa/lưu trữ quỹ, góp, rút và việc quản lý xoá dòng người khác |
 
 ### 6.7 Vận hành nội bộ: Staff, OpsManager, Admin **[Ngoài đặc tả]**
 
@@ -394,7 +428,7 @@ Chi tiết ở mục "Giám sát hệ thống" của `docs/ops-api.md`. Không t
 | FR-MON-04 | Mức thường chỉ gom một email cho Admin lúc 08:00 giờ VN | Should | OpsManager không nhận |
 | FR-MON-05 | Theo dõi lỗi ứng dụng | Must | Từ mức Error; chỉ lưu loại lỗi, vị trí, template, đường dẫn đã bỏ định danh, `traceId`; không làm chậm request; giữ 30 ngày |
 | FR-MON-06 | Theo dõi job Hangfire | Should | Thất bại sau mọi lần thử mở sự cố `High`; quá giờ 10 phút mở sự cố `Normal` |
-| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase, Rasa | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
+| FR-MON-07 | Theo dõi Google Vision, Gemini, Brevo, Firebase | Must | Phát hiện được key hết hạn mức dù OCR vẫn chạy bằng đọc cục bộ; dịch vụ bản cũ không báo động giả |
 | FR-MON-08 | Chỉ số OCR 24 giờ và 7 ngày | Should | Tỉ lệ đọc được, tỉ lệ phải đọc cục bộ; không có dữ liệu từng người dùng |
 | FR-MON-09 | API trạng thái, sự cố, danh sách lỗi | Must | Staff bị chặn; `technicalDetail` và danh sách lỗi chỉ Admin thấy |
 
@@ -427,6 +461,24 @@ Sau cờ `features.community`, mặc định tắt. API ở `docs/community-api.
 | FR-COM-07 | Hỏi chia sẻ sau giao dịch | Could | App gọi sau khi lưu, chỉ với chi tiêu ăn uống, có giới hạn tần suất. Không đăng tự động |
 | FR-COM-08 | Đồng ý riêng | Must | Đồng ý khi đăng lần đầu, không tăng phiên bản Điều khoản |
 
+### 6.11 Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu **[Ngoài đặc tả]**
+
+Phase 84, 2026-11-14. API ở `docs/listener-health-api.md`, giám sát ở mục Giám sát của `docs/ops-api.md`, kế hoạch và quyết định D1–D20, S1–S7 ở `docs/superpowers/plans/2026-11-14-listener-health.md`. Ngưỡng ở nhóm cấu hình `listenerHealth` và `forecast.goodCoveragePercent`/`minCoveragePercent`.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-LH-01 | App báo trạng thái listener | Must | `PUT /devices/listener-status` mỗi ngày và khi quyền đổi. Thiết bị theo `installationId` app tự sinh, không theo token FCM. Chỉ package ví của user hoặc provider đã biết được lưu; không nội dung thông báo, không danh sách app khác. Thiếu cờ → 400; quá `maxDevicesPerUser` thiết bị → 422 |
+| FR-LH-02 | Lưu trạng thái theo ngày | Must | Một dòng mỗi thiết bị mỗi ngày (giờ VN theo lúc server nhận). Ngày ok khi không lần báo nào mất quyền và lần báo cuối còn kết nối. Giữ `historyRetentionDays` (90) |
+| FR-LH-03 | Phát hiện ví im lặng bất thường | Must | Ví đang theo dõi, ≥ 8 thông báo trong 30 ngày tính tới thông báo cuối; im lâu hơn max(48 giờ, 3 × P90 khoảng cách) → `silent`. Ít hơn → `not_enough_data`. Listener vẫn thấy app đó gần đây → `upload_gap` |
+| FR-LH-04 | Trạng thái thiết bị | Must | Báo mất quyền → `permission_lost`; quá 72 giờ không báo → `unknown` |
+| FR-LH-05 | Nhắc user | Must | Job 09:00 VN, push `listener_health` qua `forecast_alerts`, lý do `permission_lost` / `account_silent` (gợi ý `bank_notifications_off`, `sync_pending`), không số tiền. Mỗi ví/thiết bị cách nhau ≥ 3 ngày, tối đa 3 lần một đợt; thông báo mới hoặc quyền có lại thì hết đợt. Mất quyền thắng im lặng nó giải thích; `unknown` không nhắc. Theo công tắc push và `listenerHealthAlertsEnabled` (mặc định bật), tôn trọng giờ yên lặng |
+| FR-LH-06 | Ví tắt theo dõi không bị xét | Must | Ví tắt theo dõi, không có package hoặc đã xoá không xuất hiện ở đâu |
+| FR-LH-07 | `GET /me/data-coverage` | Must | `days` 7–90; % số ngày có thiết bị ok, không tính ngày trước ví theo dõi đầu tiên và trước lần báo đầu tiên; chưa báo lần nào → `unknown`, không phải `poor`. Từng ví và từng thiết bị |
+| FR-LH-08 | Độ phủ trên dự báo | Must | `cashflow`, `scenario`, `spendable`, `purchase-check` có `dataCoverage {percent, level, windowDays, warning}`, cửa sổ = `forecast.historyWindowDays` kẹp 7–90. `poor` → `confidence = low` và câu mẫu backend; con số và dải không đổi; `purchase-check` không trả `fits_plan` |
+| FR-LH-09 | Agent nêu dữ liệu có thể thiếu | Must | Câu trả lời dựa trên giao dịch của user khi độ phủ `poor` có bằng chứng `data_coverage` và mệnh đề cuối là câu mẫu; câu chỉ có phần trăm nên qua bộ kiểm số |
+| FR-LH-10 | Giám sát đổi mẫu tin | Must | Mỗi giờ theo provider: tỉ lệ `extraction_failed` + `uncertain` 24 giờ ≥ 3 lần 7 ngày trước (sàn nền 1%, tối thiểu 10%), hoặc tỉ lệ `financial` tụt dưới 0,33 lần; đủ 20 mẫu → một sự cố `Normal` mỗi provider; 24 lượt bình thường liên tiếp thì tự đóng. Không tính `error`; chỉ số đếm |
+| FR-LH-11 | `GET /admin/monitoring/provider-formats` | Should | Chỉ Admin; tỉ lệ đọc được và tỉ lệ `financial` 24 giờ / 7 ngày theo provider; số ca `upload_gap` theo phiên bản app |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -450,7 +502,7 @@ AI Service chỉ phân tích: trích xuất, phân loại, tính độ tin cậy
 | FR-AI-01 | Phân loại thông báo `financial` / `non_financial` / `uncertain` | Must | Không phải `financial` → dừng pipeline. Từ khoá classifier nằm trong tài liệu cấu hình `notification_vocab` |
 | FR-AI-02 | Trích xuất số tiền, chiều, merchant, mô tả, thời điểm, số dư kèm `extraction_confidence` | Must | Định dạng thông báo theo provider (bảng `provider_formats` + trường + mẫu + mẫu thử) quản trị qua admin; khớp chịu được dấu tiếng Việt; nhãn số dư chỉ áp cho số ngay sau nó; số tài khoản không bị nhận nhầm là số dư. Nhánh generic luôn < 0,85 |
 | FR-AI-03 | Gán danh mục `category_slug` kèm `categorization_confidence` | Must | Từ điển → 0,90; chưa có mô hình được promote → luật. Từ điển không chắc và user đồng ý AI → AI phân loại nội dung (FR-TXN-26) |
-| FR-AI-04 | **[Một phần]** Phát hiện trùng và sự kiện liên quan | Must | Hiện chỉ so user hash + số tiền + cửa sổ 5 phút, trả `is_potential_duplicate`. Đặc tả cần thêm provider, tài khoản, chiều, merchant, mã tham chiếu, event hash, loại quan hệ |
+| FR-AI-04 | **[Một phần]** Phát hiện trùng và sự kiện liên quan | Must | Sự kiện liên quan: `extraction.relation_hint` = `refund`/`reversal` cho tiền vào (Phase 81, FR-TXN-29); cashback không phải hoàn. Trùng: AI Service vẫn so user hash + số tiền + 5 phút và trả `is_potential_duplicate`, nhưng từ Phase 82 đó chỉ là tín hiệu xếp hạng; backend quyết trùng với cả giao dịch nhập tay, chat, giọng nói, hoá đơn (FR-TXN-17) và dùng `balance_after_cents` AI đã trả. Chuyển ví (Phase 83): `relation_hint = transfer` cho cả hai chiều kèm `transfer_kind` (`atm_withdrawal`, `atm_deposit`, `wallet_topup`, `wallet_withdrawal`, `own_account`) theo cụm dài nhất trong tài liệu `notification_vocab`; nhóm loại trừ (nạp điện thoại, data, thẻ, game, VETC, ePass, thanh toán hoá đơn) thắng mọi nhóm chuyển ví; hoàn tiền thắng chuyển ví. Chưa có: mã tham chiếu ngân hàng, event hash |
 | FR-AI-05 | **[Đổi]** OCR hoá đơn | Must | Đường chính là `ocr-service` (FR-SCAN-*). `POST /api/v1/ocr` của AI Service vẫn còn: có `OCR_SERVICE_URL` thì chuyển tiếp sang `ocr-service`, không thì Tesseract `--psm 6` (bản cũ) |
 | FR-AI-06 | Nhận phản hồi (`POST /api/v1/feedback`) | Must | Lưu `category_correction` |
 | FR-AI-07 | Thống kê mô hình (`GET /api/v1/stats`) | Must | Không chứa dữ liệu theo user |
@@ -458,10 +510,18 @@ AI Service chỉ phân tích: trích xuất, phân loại, tính độ tin cậy
 | FR-AI-09 | Dọn dữ liệu | Should | Script cron ngoài: mẫu thô chưa nhãn, `pipeline_requests` > 90 ngày, `bill_unknown_scans` > 90 ngày; mẫu bill chưa nhãn > 7 ngày (`purge_loop` trong service) |
 | FR-AI-10 | A/B testing mô hình (bảng `ab_*`) | Won't (MVP) | Hoãn |
 | FR-AI-11 | **[Ngoài đặc tả]** Phân loại hoá đơn (`/bill/classify`, `/bill/classify-items`) | Should | Bộ nhớ user → luật/thương hiệu → Gemini (nếu đồng ý, ≤ 20 món mỗi lần, chỉ tên món đã bỏ giá) → `unknown`; câu trả lời Gemini cache dùng chung theo tên món; đếm theo ngày không kèm tên món/user |
-| FR-AI-12 | **[Ngoài đặc tả]** Hiểu câu chat (`/chat/parse`) | Must | Rasa (10 intent, timeout 2 giây, cầu dao 30 giây) + luật trong `intent_cues.json`; số tiền và danh mục luôn do luật; Gemini cho chat có client và cầu dao riêng (3,5 s mỗi model < 7,5 s cả chuỗi < 9 s bước AI) |
+| FR-AI-12 | **[Ngoài đặc tả]** Hiểu câu chat (`/chat/parse`) | Must | bộ phân loại ý định TF-IDF + hồi quy logistic huấn luyện từ `ai-service/data/intent/examples.jsonl` + luật trong `intent_cues.json`; số tiền và danh mục luôn do luật; Gemini cho chat có client và cầu dao riêng (3,5 s mỗi model < 7,5 s cả chuỗi < 9 s bước AI) |
 | FR-AI-13 | **[Ngoài đặc tả]** Chọn phương pháp tài chính (`/finance-methods/recommend`) | Should | Tự kiểm đầu ra (mã trong danh sách, lý do 1–240 ký tự); chỉ dẫn ở `kb_method_prompts` (có phiên bản, một dòng active); OpenRouter dự phòng, trần route 24 giây |
-| FR-AI-14 | **[Ngoài đặc tả]** Vòng học hoá đơn và Rasa | Could | Mẫu bill đã lọc + nhãn user; phiếu bầu món; mô hình bill và mô hình Rasa có phiên bản, đánh giá và chặn bản tệ hơn trước khi promote (`scripts/nlu_model.py train|eval|promote`) |
+| FR-AI-14 | **[Ngoài đặc tả]** Vòng học hoá đơn | Could | Mẫu bill đã lọc + nhãn user; phiếu bầu món; mô hình bill có phiên bản, đánh giá và chặn bản tệ hơn trước khi promote (`scripts/nlu_model.py train|eval|promote`) |
 | FR-AI-15 | **[Ngoài đặc tả]** Kho dữ liệu cho `ocr-service` (`/api/v1/ocr-store/*`) | Must | `ocr-service` không nối DB; mọi đọc/ghi kiến thức và bộ nhớ cửa hàng đi qua API này |
+| FR-AI-16 | **[Mới]** Hỏi AI Financial Agent (`POST /api/v1/agent/ask`) | Must | Vòng Gate → Plan → Execute → Compose → Verify. `userId` chỉ từ JWT; trả `answered` / `clarify` / `refused` / `insufficient_data`. Mọi số tiền trong câu trả lời bằng đúng số nguyên đồng của bằng chứng được trích dẫn (bộ kiểm chứng thuần Python), mỗi bằng chứng có nguồn, ngày và độ tin cậy. LLM không bao giờ sinh số tiền. Xem `docs/agent-api.md` |
+| FR-AI-17 | **[Mới]** Dự báo mục tiêu theo hai nhóm thu nhập | Must | Dải Q10/Q50/Q90 từ lịch sử đã trọn; nhóm ổn định / không ổn định tự suy (hệ số biến thiên) hoặc do người dùng chọn; ba kịch bản; dưới 3 tháng lịch sử thì `insufficient_data`, không đoán |
+| FR-AI-18 | **[Mới]** Công cụ của agent nằm trong danh sách cho phép | Must | `forecast_goal`, `get_assumptions`, `search_knowledge`, `simulate_purchase`, `runway`, `stress_test`, `sensitivity`. Công cụ lạ hay tham số lạ (kể cả `user_id`) bị từ chối trước khi đọc dữ liệu |
+| FR-AI-19 | **[Mới]** Giả định kinh tế có nguồn, có duyệt | Must | `economic_assumptions` đi Draft → Approved → Retired; mỗi giả định có nguồn, đường dẫn và ngày số liệu; chỉ bản đã duyệt được dùng |
+| FR-AI-20 | **[Mới]** Kho tri thức RAG có người duyệt | Should | pgvector + full-text gộp RRF, chỉ tài liệu Approved còn hiệu lực; câu hỏi chưa trả lời được chỉ lưu mã băm và số lần gặp, không bao giờ tự vào kho |
+| FR-AI-21 | **[Mới]** Khoản định kỳ và mô phỏng khoản mua (Flow 6) | Should | Khoản định kỳ lấy từ `recurring_items` (đang chạy = Confirmed, đề xuất = Estimated); sổ dòng tiền theo ngày; kết luận `feasible` / `tight` / `infeasible` kèm ngày và số thiếu |
+| FR-AI-22 | **[Mới]** Bộ nhớ và ngữ cảnh của agent | Should | Ngữ cảnh ngắn hạn (Redis, 30 phút, tối đa 6 lượt, chỉ các ô có cấu trúc); sở thích dài hạn do người dùng xem/sửa/xóa (`/agent/memory`) |
+| FR-AI-23 | **[Mới]** Bộ đánh giá agent | Should | `agent_eval`: hồ sơ giả lập có đáp án, bộ câu hỏi có nhãn, chỉ số (tỉ lệ mệnh đề không kiểm chứng, độ trung thực số, precision/recall từ chối, chi phí), cấu hình cắt bỏ. Endpoint đánh giá chỉ tồn tại ở Development |
 
 ## 9. FR — Quản trị (Admin Flow, hỗ trợ)
 
@@ -481,7 +541,6 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-ADM-11 | Quản trị định dạng thông báo (`/admin/provider-formats`, 17 route) | Should | Tạo/sửa/clone/archive/activate định dạng, trường, mẫu regex, mẫu thử; `try`/`check` chạy thử trước khi bật |
 | FR-ADM-12 | **[Ngoài đặc tả]** Quản trị kiến thức AI (`/admin/ai-rules`, `/admin/ai-config`) | Should | Thương hiệu, từ khoá, bộ nhớ cửa hàng, cache món, chỉ dẫn Gemini, mẫu đã nhãn, mô hình; tài liệu cấu hình có phiên bản, bản nháp, xem trước, kích hoạt, lịch sử và hoàn tác |
 | FR-ADM-13 | **[Ngoài đặc tả]** Quản trị phương pháp tài chính | Should | `/admin/finance-methods` (kèm `activeUserCount` trước khi tắt), `/admin/survey-questions`, `/admin/goal-templates`, `/admin/finance-method-prompts`; bố cục trang chủ và hũ |
-| FR-ADM-14 | **[Ngoài đặc tả]** Quản trị Rasa (`/admin/rasa`) | Could | Trạng thái, danh sách phiên bản model, chọn phiên bản |
 
 ### 9.1 Cấu hình hệ thống và key bên thứ ba **[Ngoài đặc tả]**
 
@@ -490,6 +549,7 @@ Mọi endpoint `/api/v1/admin/*` (18 controller) kế thừa `AdminControllerBas
 | FR-CFG-01 | Cấu hình hệ thống có phiên bản (`/admin/system-config`) | Must | Một tài liệu JSON đã kiểm hợp lệ: bảo trì, phiên bản app tối thiểu / bắt buộc cập nhật, cờ tính năng (`chatAi`, `voice`, `billScan`, `notificationReading`), ngưỡng T1/T2 mặc định, retry thông báo, QR, phương pháp tài chính, dự báo (`forecast`, FR-FCST). Hằng số nghiệp vụ không viết cứng trong code |
 | FR-CFG-02 | Chế độ bảo trì và cấu hình công khai | Must | `MaintenanceMiddleware` chặn API khi bật; `GET /app-config` (ẩn danh) cho app biết bảo trì, phiên bản tối thiểu, cờ tính năng |
 | FR-CFG-03 | Kho key bên thứ ba (`/admin/secrets`) | Must | Mọi key (Gemini, OpenRouter, Google Vision, Brevo, Google OAuth, FCM) sửa trên trang admin, đọc lúc gọi (không cần khởi động lại). Mã hoá AES-256-GCM, khoá chủ `SECRETS_MASTER_KEY`, tên key làm AAD; key không bao giờ trả về nguyên văn. Thiếu khoá chủ thì kho tắt và chỉ dùng biến môi trường |
+| FR-ADM-15 | **[Mới]** Quản lý giả định kinh tế và kho tri thức của agent | Should | `/admin/assumptions`, `/admin/knowledge`; duyệt/gỡ chỉ Manager trở lên (OpsManager, Admin); mỗi thao tác ghi để lại audit log (không nội dung) |
 
 ## 10. NFR — Bảo mật và quyền riêng tư
 
@@ -505,7 +565,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-04 | Mọi endpoint `[Authorize]` trừ `/auth/*`, `/app-config` và health | Test không token → 401 |
 | NFR-SEC-05 | Admin controller kế thừa `AdminControllerBase` | User thường → 403 |
 | NFR-SEC-06 | Repository lọc theo `userId` từ JWT. Dữ liệu nhóm đi qua `IGroupAccessService`: không phải thành viên → 404, thiếu quyền → 403, quyền đọc từ DB mỗi request | Test cross-user và cross-group → 404 |
-| NFR-SEC-07 | AI Service, `ocr-service`, `stt-service`, `rasa` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
+| NFR-SEC-07 | AI Service, `ocr-service`, `stt-service` không mở cổng ra máy chủ; mỗi service có Bearer key riêng, so bằng hằng thời gian; `ocr-service` thiếu key → từ chối mọi request (503) | Gọi thiếu/sai key → 401/503 |
 | NFR-SEC-08 | Client ↔ server qua TLS | TLS ở reverse proxy |
 
 ### 10.2 Chống lạm dụng
@@ -526,11 +586,12 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-20 | Không log mật khẩu, token, key, `amount_cents`, `notification_body`, payload push | Review log |
 | NFR-SEC-21 | CSDL AI chỉ lưu `SHA-256(user_id)` (cùng hàm `UserIdHasher` cho AI Service và `ocr-service`), không FK sang backend | Kiểm schema |
 | NFR-SEC-22 | Nội dung thông báo vào tập huấn luyện đã che số tài khoản, thẻ, SĐT, email; chữ hoá đơn đã lọc dữ liệu cá nhân trước khi rời `ocr-service`; chuỗi ≥ 9 chữ số liền bị từ chối | Unit test `anonymizer`, `privacy.sanitize_lines` |
-| NFR-SEC-23 | **[Sai lệch]** `notification_body` gốc bị xoá sau 90 ngày | Tài liệu cũ ghi `DataCleanupJob` đáp ứng, nhưng **job này chưa từng có trong code** (chỉ có trong skeleton ban đầu); không có job nào xoá `notification_logs.notification_body` |
+| NFR-SEC-32 | Ảnh chụp lúc gộp/chuyển đổi chỉ giữ có hạn (Phase 83) | `transaction_merge_snapshots` chứa trạng thái giao dịch trước thao tác (số tiền, ví, thời điểm, nơi chi) để hoàn tác sau này; giữ quá lâu là giữ dữ liệu tài chính không cần nữa (tối thiểu hoá dữ liệu). `NotificationBodyPurgeJob` (03:15) xoá dòng quá `snapshots.retentionDays` (mặc định 365, 30–3650); xoá cứng tài khoản xoá theo user |
+| NFR-SEC-23 | `notification_body` gốc bị xoá sau 90 ngày | `NotificationBodyPurgeJob` (2026-11-12) chạy 03:15 giờ VN, đặt `notification_body = NULL` cho log có `created_at` quá 90 ngày. Tiêu đề, `content_hash` (dedup), trạng thái, kết quả AI và giao dịch giữ nguyên. Trước đó tài liệu ghi `DataCleanupJob` nhưng job này chưa từng có |
 | NFR-SEC-24 | **[Đổi]** Ảnh quét hoá đơn và âm thanh chỉ xử lý trong bộ nhớ, không ghi đĩa, blob hay DB. Ngoại lệ duy nhất: ảnh khách chủ động gửi vào ticket hỗ trợ, được mã hóa và tự xóa sau khi ca đóng (FR-OPS-10) | Đúng với FinMate. Nhưng khi có key Google Vision, **ảnh gốc chưa che** được gửi sang Google (`ocr-service/reading/ocr.py`). Phải được nêu trong câu chữ đồng ý (FR-CONS-05) |
 | NFR-SEC-25 | Quyền được xoá: xoá cứng sau 30 ngày, kèm mẫu huấn luyện ở AI Service | Test `DataDeletionJob`; lỗi xoá ở AI Service → giữ user lại thử đêm sau |
 | NFR-SEC-26 | Production không trả stack trace | Middleware + test |
-| NFR-SEC-27 | **[Một phần]** Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Chưa có `STT_SERVICE_API_KEY` và `SECRETS_MASTER_KEY` (thiếu khoá chủ thì kho key tắt âm thầm) |
+| NFR-SEC-27 | Ngoài Development, từ chối khởi động nếu bí mật còn `change-me` | `StartupSecretGuard` kiểm `JWT_SECRET`, `AI_SERVICE_API_KEY`, `OCR_SERVICE_API_KEY`, `STT_SERVICE_API_KEY`, `ADMIN_SEED_PASSWORD`, `HANGFIRE_DASHBOARD_PASS`, `BREVO_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SECRETS_MASTER_KEY`. `SECRETS_MASTER_KEY` trống vẫn được (kho key tùy chọn), có giá trị mà không phải 32 byte base64 thì từ chối khởi động thay vì tắt kho key âm thầm |
 | NFR-SEC-28 | Chỉ xử lý thông báo của package gắn với tài khoản đang theo dõi | Package lạ → `Ignored` |
 | NFR-SEC-29 | **[Một phần]** Bằng chứng đồng ý lưu lâu dài kể cả khi user yêu cầu xoá dữ liệu | Hiện lưu ở cột của `users`, bị xoá cùng user khi xoá cứng |
 | NFR-SEC-30 | Gửi dữ liệu tới LLM bên thứ ba chỉ khi có đồng ý và chỉ phần tối thiểu | Tên món / cụm sản phẩm đã bỏ số tiền; signals khảo sát ẩn danh; OpenRouter luôn `data_collection = deny` |
@@ -560,13 +621,13 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | Mã | Yêu cầu | Cách kiểm chứng |
 | --- | --- | --- |
 | NFR-REL-01 | AI Service chết không làm sập backend | Tắt container AI rồi gọi API |
-| NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Rasa tắt, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
+| NFR-REL-02 | Mọi bước AI có đường lui bằng luật (mô hình chưa promote, Gemini/OpenRouter lỗi hoặc hết hạn mức) | Tắt từng phụ thuộc |
 | NFR-REL-03 | FCM, Brevo, `/bill/learn` lỗi không làm hỏng thao tác gốc | Client giả ném lỗi |
 | NFR-REL-04 | Chịu được đồng bộ hàng loạt từ hàng đợi offline | Replay hai lần |
 | NFR-REL-05 | Job nền bền qua khởi động lại; 10 job định kỳ: `BudgetAlertJob`, `DailySummaryJob`, `InsightGeneratorJob`, `GoalDeadlineCheckJob`, `RetryFailedNotificationJob`, `DataDeletionJob`, `AiCategorySyncJob`, `RecurringDetectionJob`, `ForecastDailyAlertJob`, `ForecastAlertDispatchJob` (thêm `ForecastUserCheckJob` xếp hàng sau mỗi giao dịch) | Restart giữa lúc job chạy |
 | NFR-REL-06 | `/health/live` và `/health/ready` tách biệt | Tắt Postgres → ready lỗi, live OK |
 | NFR-REL-07 | Khả dụng 99,5%/tháng (đề xuất) | Cần đăng ký dịch vụ theo dõi bên ngoài gọi `/health/ready` (`docs/ops-runbook.md`); chưa đăng ký |
-| NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Rasa 30 giây; Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
+| NFR-REL-08 | Cầu dao cho phụ thuộc ngoài: Gemini chat, Gemini bill, route phương pháp có cầu dao riêng | Unit test |
 
 ### 11.3 Hiệu năng (đề xuất, chưa đo)
 
@@ -578,7 +639,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-PERF-04 | Cảnh báo ngân sách ≤ 10 s sau khi lưu | Đo log → FCM |
 | NFR-PERF-05 | Cache Redis cho dữ liệu đọc nhiều | Review `CacheKeys` |
 | NFR-PERF-06 | Danh sách phân trang; báo cáo đọc bảng tổng hợp | Review query |
-| NFR-PERF-07 | **[Một phần]** Mọi lời gọi ra ngoài có timeout tường minh | Có: `ocr-service` 60 s, `stt-service` 60 s, chọn phương pháp 30 s, admin rules 15 s, `/bill/learn` 3 s. **Chưa có**: client Refit chính (`/analyze`, `/chat/parse`, `/bill/classify*`) dùng mặc định 100 s (`Program.cs`) |
+| NFR-PERF-07 | Mọi lời gọi ra ngoài có timeout tường minh | `ocr-service` 60 s, `stt-service` 60 s, client Refit chính tới ai-service (`/analyze`, `/chat/parse`, `/ocr`, `/bill/classify*`) 35 s (trần chuyển tiếp OCR của ai-service 30 s + dư), chọn phương pháp 30 s, admin rules 15 s, `/bill/learn` 3 s |
 
 ## 12. NFR — Triển khai, vận hành, bảo trì
 
@@ -587,14 +648,14 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | Mã | Yêu cầu | Cách kiểm chứng |
 | --- | --- | --- |
 | NFR-OPS-01 | Image backend multi-stage, user không root | `docker image ls` |
-| NFR-OPS-02 | Stack: PostgreSQL × 2, Redis, backend, AI Service, `ocr-service`, `stt-service`, `rasa` | `docker compose ps` |
+| NFR-OPS-02 | Stack: PostgreSQL × 2, Redis, backend, AI Service, `ocr-service`, `stt-service` | `docker compose ps` |
 | NFR-OPS-03 | Cấu hình qua biến môi trường và cấu hình hệ thống trong DB; key bên thứ ba qua kho key | Grep repo |
 | NFR-OPS-04 | Log Serilog ra stdout | `docker logs` |
 | NFR-OPS-05 | Log khởi động nêu chế độ thật/dự phòng của push, email, OCR, STT | Log lúc boot |
 | NFR-OPS-10 | Có giám sát và cảnh báo tự động (FR-MON). Backend hoặc Postgres sập phải được theo dõi từ bên ngoài | Runbook; `/health/ready` |
 | NFR-OPS-06 | Hangfire dashboard có mật khẩu riêng | Không mật khẩu → 401 |
 | NFR-OPS-07 | Migration: EF Core (30) và Alembic (32); không sửa migration đã phát hành | Review |
-| NFR-OPS-08 | Model không nằm trong git, phải tải riêng: Rasa (`ai-service/rasa/models/active.tar.gz`), GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
+| NFR-OPS-08 | Model không nằm trong git, phải tải riêng: GIPFormer (`stt-service/models/`), VietOCR (`ocr-service/models/`); PaddleOCR tải lúc build image | README từng service |
 | NFR-OPS-09 | Build backend cần cả thư mục `ocr-service/data/` (embed `shared_words.json`) | `dotnet build` từ gốc repo |
 
 ### 12.2 Bảo trì và kiểm thử
@@ -604,7 +665,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-MNT-01 | Phân tầng API → Application → Domain ← Infrastructure | `ARCHITECTURE.md` §2.3 |
 | NFR-MNT-02 | CQRS tự viết, không MediatR | Review |
 | NFR-MNT-03 | Backend và AI Service không chia sẻ CSDL; `ocr-service` không nối DB | Review |
-| NFR-MNT-04 | Backend: unit + integration (Testcontainers). 2026-11-02: 1352/1353 qua (1 đỏ, FR-FIN-07) | `dotnet test` |
+| NFR-MNT-04 | Backend: unit + integration (Testcontainers). 2026-11-02: 1352/1353 qua (1 đỏ, FR-FIN-07). 2026-11-13 (Phase 81): 2717/2718 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-13 (Phase 82): 2862/2863 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-14 (Phase 83): 3012/3013 qua, vẫn chỉ FR-FIN-07 đỏ; 2026-11-14 (Phase 84): 3207/3208 qua, vẫn chỉ FR-FIN-07 đỏ, ai-service 2025 qua / 457 bỏ qua không Postgres; ai-service 2477/2477 kể cả tích hợp trên Postgres; ai-service 2003 qua / 453 bỏ qua không Postgres, tích hợp 453/453 trên Postgres | `dotnet test` |
 | NFR-MNT-05 | AI Service: pytest. 2026-11-02: 1562 qua, 423 bỏ qua (cần Postgres). `ocr-service`, `stt-service` có pytest riêng (engine giả) | `pytest` |
 | NFR-MNT-06 | Python đạt `black`, `ruff`, `isort` | Chạy công cụ |
 | NFR-MNT-07 | Định danh bất biến: `provider_key`, `slug`, mã phương pháp, mã câu/đáp án khảo sát | Test API sửa bị từ chối |
@@ -628,14 +689,13 @@ Kiểm trên code ngày 2026-11-02.
 
 | Mã | Nhãn | Hiện trạng | Việc cần làm | Ảnh hưởng |
 | --- | --- | --- | --- | --- |
-| NFR-SEC-23 | Sai lệch | Không có job xoá `notification_body` | Viết job (hoặc thêm vào `DataDeletionJob`) xoá nội dung > 90 ngày | Trung bình — quyền riêng tư |
 | FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản bản 3 không nhắc | Đã chốt: nêu trong bản 4, chưa phát hành | Lớn — pháp lý |
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
-| NFR-PERF-07 | Một phần | Client Refit chính timeout 100 s | Đặt timeout tường minh | Nhỏ |
-| NFR-SEC-27 | Một phần | Thiếu 2 key trong guard | Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` | Nhỏ |
 | FR-TXN-05, 05a, 06 | Đổi | Luôn Draft + một chạm | Auto-commit theo trường cốt lõi và extraction | Lớn — đảo Phase 15, đổi hợp đồng push |
-| FR-TXN-17, FR-AI-04 | Đổi / Một phần | Bỏ bản trùng, không liên kết | Lưu bản trùng kèm liên kết; mở rộng khoá so khớp | Trung bình |
-| FR-TXN-18 | Mới | Không có | Sự kiện liên quan (hoàn tiền, đảo giao dịch…) | Lớn |
+| FR-TXN-31, 33 | Giới hạn (Phase 82, 83) | Chưa có hoàn tác gộp và hoàn tác chuyển đổi | Đã có ảnh chụp `transaction_merge_snapshots` (trạng thái trước, tham chiếu đã chuyển, khoản phí, số dư) để làm endpoint hoàn tác; ảnh chụp chỉ giữ 365 ngày | Trung bình |
+| FR-TXN-33 | Giới hạn (Phase 83) | Khoản định kỳ: chuyển khoản tiền VÀO tập ví được tính (rút từ ví tiết kiệm bị loại) không được phát hiện là định kỳ, để không thành "thu nhập định kỳ" | Nếu cần chiếu khoản rút đều đặn đó vào dòng tiền: thêm cờ "không phải thu nhập" cho khoản định kỳ | Nhỏ |
+| FR-CHAT-06 | Sai lệch nhỏ | Giọng nói tự lưu với `source = manual`, không phải `voice` | Truyền nguồn từ `VoiceChatCommandHandler`; cửa sổ trùng như nhau nên không ảnh hưởng Phase 82 | Nhỏ |
+| Daily summary (D7, Phase 81) | Lỗ hổng sẵn có | Sửa/xoá giao dịch thường ở một ngày đã chốt không chốt lại `daily_summaries` (đường hoàn/đảo thì có) | Gọi `IDailySummaryRefresher` từ handler sửa/xoá thường | Nhỏ |
 | FR-AUTH-00, NFR-SEC-29 | Một phần | Có lưu phiên bản; đăng ký không đòi; bằng chứng xoá theo user | Bắt buộc đồng ý khi đăng ký; lưu bằng chứng tách khỏi `users` | Nhỏ |
 | FR-BUD-07 | Một phần | `level` chỉ có ở hũ | Thêm `level` vào tóm tắt ngân sách | Nhỏ |
 | FR-GOAL-06 | Một phần | Có endpoint xem trước, không chặn | Chặn khi tạo/sửa | Nhỏ |
@@ -643,13 +703,16 @@ Kiểm trên code ngày 2026-11-02.
 | FR-FCST-13, 15 | Một phần | Đợt 1–3 (FR-FCST-01…16) xong | Mùa vụ: thu theo mùa (BR-07.3) và chi theo mùa (trang 2) — cần hơn một năm dữ liệu | Nhỏ |
 | FR-FCST-09 | Giới hạn | Ngày gốc trong tháng suy từ ngày đến hạn | Khoản đến hạn ngày 28 hằng tháng bị coi là "cuối tháng" sau tháng 2 (nhảy sang 31/3); sửa triệt để cần cột `anchor_day` | Nhỏ |
 | FR-RPT-05 | Một phần | 1 loại insight (`VsLastMonth`) | Cuối tuần / ngày thường, tỉ trọng nhóm con | Trung bình |
-| FR-CONS-06 | Một phần | Đồng ý khảo sát-AI không còn tác dụng | Gỡ hoặc sửa comment `ConsentVersions.SurveyAi` | Nhỏ |
+| FR-CONS-06 | Một phần | Đồng ý khảo sát-AI không còn tác dụng | Comment đã sửa (2026-11-12); gỡ hay khôi phục chờ §13.4 | Nhỏ |
+| FR-FUND (Phase 85) | Giới hạn | Tiền góp quỹ chuyển vào tài khoản của người giữ quỹ đi qua thông báo ngân hàng thành **thu nhập** của người đó | Ghép thông báo đó với dòng góp quỹ (phase sau); hiện người giữ quỹ có thể tự chuyển nó thành chuyển ví hoặc xoá | Trung bình |
+| FR-GRP-09, 14 | Đã sửa (2026-11-15) | Giao dịch chia sẻ đã xoá hoặc đã gộp vẫn vào báo cáo tháng và danh sách của nhóm (`IgnoreQueryFilters` tắt cả bộ lọc xoá mềm) | Đã lọc tường minh; cùng mẫu còn ở Community, Support, `GroupRepository` — nên rà | Nhỏ |
+| Phase 84, `ListenerHealthScenarioTests` | Lỗi sẵn có | Test kịch bản D đỏ khi chạy sau 00:00 giờ VN (48% thay vì 50%) | Cửa sổ 30 ngày tính lệch một ngày quanh nửa đêm VN; sửa phép lấy ngày hoặc cố định đồng hồ trong test | Nhỏ |
 
 **Đã đóng so với bản 2026-09-24:** ngưỡng T1/T2 theo user (FR-BUD-03, 06 — nay ba tầng), đề xuất chuyển khoản từ câu tự nhiên (FR-TXN-24, qua `/transactions/chat`), giao diện quản trị cấu hình AI (FR-ADM-11, 12).
 
 ### 13.2 Ràng buộc
 
-- Backend: ASP.NET Core 9, EF Core, PostgreSQL 16, Redis 7, Hangfire. AI Service: Python 3.11, FastAPI, SQLAlchemy, scikit-learn, Rasa 3.6. `ocr-service`: Python 3.10, PaddleOCR, VietOCR ONNX. `stt-service`: GIPFormer ONNX.
+- Backend: ASP.NET Core 9, EF Core, PostgreSQL 16, Redis 7, Hangfire. AI Service: Python 3.11, FastAPI, SQLAlchemy, scikit-learn. `ocr-service`: Python 3.10, PaddleOCR, VietOCR ONNX. `stt-service`: GIPFormer ONNX.
 - Đơn vị tiền duy nhất là VND; múi giờ nghiệp vụ duy nhất là UTC+7.
 - Ứng dụng Flutter do nhóm khác phát triển ở repo riêng.
 - LLM bên thứ ba (Gemini, OpenRouter) đang dùng gói miễn phí: Gemini trả 429 ở ~27 lượt/phút (đo 2026-10-17), nên chat hay rơi về luật khi tải cao. Cần gói trả phí trước khi có nhiều người dùng.
@@ -676,6 +739,14 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] Chốt chỉ tiêu hiệu năng và khả dụng, đo bằng load test.
 - [ ] Kiểm `package_name` của các provider đang tắt trên thông báo thật rồi bật lên.
 - [ ] Gói trả phí cho Gemini/OpenRouter trước khi phát hành.
+- [ ] **Danh mục phí riêng (Phase 83).** Khoản "Phí giao dịch" sinh ra khi chuyển ví đang vào danh mục `other`. Thêm danh mục `fees` sẽ đụng tới bộ 11 slug mà AI Service dùng (từ điển, mô hình, tài liệu cấu hình), nên cần chủ sản phẩm quyết.
+- [ ] **Nới dải dự báo theo độ phủ (Phase 84, BR-LH-08).** Hiện độ phủ `poor` chỉ hạ độ tin cậy và thêm câu cảnh báo; con số và độ rộng dải giữ nguyên. Có nên nới dải (hoặc ước lượng phần giao dịch bị thiếu) khi độ phủ thấp không.
+- [ ] **Mốc bật theo dõi ví (Phase 84, D7).** Độ phủ không tính những ngày trước khi tạo ví theo dõi đầu tiên, lấy theo `financial_accounts.created_at`; ví tắt rồi bật lại theo dõi vẫn dùng ngày tạo. Có cần cột `monitoring_enabled_at` không.
+- [ ] **Quỹ nhóm trong Điều khoản (Phase 85).** Câu chữ: dòng quỹ là dữ liệu của nhóm; rời nhóm thì dòng quỹ (số tiền, thời điểm, ghi chú, nơi chi, tên người ghi) ở lại với nhóm; xoá tài khoản thì dòng quỹ ở lại dưới tên "Thành viên cũ", ghi chú và nơi chi vẫn còn. Gộp vào bản Điều khoản kế tiếp.
+- [ ] **Chia tiền và công nợ giữa thành viên (sau Phase 85).** Ai đang ứng trước bao nhiêu cho quỹ, ai nợ ai. Phase 85 chỉ có số dư quỹ.
+- [ ] **Ẩn danh dòng quỹ khi rút dữ liệu khỏi nhóm (Phase 87).** Đặt `member_user_id = null` là đủ (schema sẵn); cần chốt có ẩn cả ghi chú và nơi chi không.
+- [ ] **Tiền góp vào tài khoản người giữ quỹ (Phase 85, D11/S7).** Thông báo ngân hàng phía người giữ quỹ hiện là thu nhập của họ; ghép với dòng góp ở phase sau.
+- [ ] **4 số đuôi tài khoản (Phase 83, D21).** Giúp ghép chuyển khoản giữa hai ngân hàng chính chủ (`own_account`), không giúp nạp/rút ví hay ATM. Chưa thêm; quyết sau khi đo số lần `own_account` bị bỏ lỡ qua `/admin/ai-stats`.
 
 ### 13.5 Truy vết yêu cầu → nguồn
 
@@ -708,6 +779,10 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-02 | **Giữ** trạng thái cảnh báo ngân sách (`ok/t1/t2/over`) mà đặc tả gọi là "trạng thái Mascot" | Đây là cảnh báo chi tiêu, không phải trò chơi | FR-BUD-07 giữ nguyên, đổi tên khỏi "Mascot" |
 | 2026-11-02 | **Thêm dự báo tài chính (Flow 6)**, làm theo đợt; đợt 1 = lõi + dòng tiền + số tiền có thể chi + khoản định kỳ | Chủ sản phẩm duyệt kế hoạch; swimlane giữ nguyên | Nhóm FR-FCST (6.5). FR-RPT-04/06/07 chuyển vào đây. Migration `AddForecastFoundation`: bảng `recurring_items`, cột `transactions.exclude_from_forecast`/`forecast_exclusion_reason`, `financial_accounts.include_in_forecast`, `users.forecast_reserve_cents` |
 | 2026-11-02 | **Dự báo tài chính đợt 2: cảnh báo** | Chủ sản phẩm duyệt kế hoạch (outbox, giờ yên lặng chỉ cho số dư thấp, thu quá hạn không cộng, chuyển chỉ phần chưa chi) | FR-FCST-10…13 xong. Migration `AddForecastAlerts`: bảng `forecast_alerts`, cột `users.low_balance_threshold_cents`, `quiet_hours_start/end_minute`, `forecast_alerts_enabled`. API mới: `/forecast/budgets`, `/forecast/income`, `/forecast/alerts`, `POST /budgets/transfer`; `PUT /me/forecast-settings` nay thay toàn bộ cài đặt |
-| 2026-11-05 | **Thêm tài chính nhóm / gia đình**, làm theo đợt | Chủ sản phẩm duyệt: một mô hình ưu tiên gia đình; giao dịch chia sẻ vẫn tính vào ngân sách cá nhân; mặc định thấy chi tiết giao dịch đã chia sẻ; rời nhóm giữ lịch sử, xóa tài khoản xóa hẳn rồi tính lại | Nhóm FR-GRP (6.6). Migration `AddGroups`: `groups`, `group_members`, `group_invitations`, `group_activities`. `AddGroupSharedFinance`: `group_categories`, `group_share_rules`; `transactions.group_id`, `group_category_id`, `shared_at`; `budgets`, `saving_goals`: `user_id` thành nullable, thêm `group_id`, CHECK một chủ. `ConsentVersions.Terms` lên 4. Chưa làm: ví chung, chia tiền và công nợ, dự báo cấp nhóm |
+| 2026-11-05 | **Thêm tài chính nhóm / gia đình**, làm theo đợt | Chủ sản phẩm duyệt: một mô hình ưu tiên gia đình; giao dịch chia sẻ vẫn tính vào ngân sách cá nhân; mặc định thấy chi tiết giao dịch đã chia sẻ; rời nhóm giữ lịch sử, xóa tài khoản xóa hẳn rồi tính lại | Nhóm FR-GRP (6.6). Migration `AddGroups`: `groups`, `group_members`, `group_invitations`, `group_activities`. `AddGroupSharedFinance`: `group_categories`, `group_share_rules`; `transactions.group_id`, `group_category_id`, `shared_at`; `budgets`, `saving_goals`: `user_id` thành nullable, thêm `group_id`, CHECK một chủ. `ConsentVersions.Terms` lên 4. Chưa làm: chia tiền và công nợ, dự báo cấp nhóm (ví chung: xem dòng 2026-11-15) |
 | 2026-11-02 | **Dự báo tài chính đợt 3: bất thường, chi theo danh mục, ngày đạt mục tiêu** | Chủ sản phẩm duyệt kế hoạch (bảng đánh dấu riêng, quét trong lượt kiểm tra sau giao dịch, ngân sách kỳ tới không đổi schema, kịch bản mục tiêu không lưu) | FR-FCST-14…16 xong. Migration `AddTransactionAnomalies`: bảng `transaction_anomalies`, thêm `anomaly` vào CHECK `forecast_alerts.kind`. API mới: `/forecast/anomalies`, `/forecast/categories`, `/forecast/categories/apply`, `/forecast/goals/{id}`. Insight `UnusualSpending` ngừng sinh. Ngưỡng outlier dùng trung vị + 3·MAD có sẵn (`Statistics`) thay vì Q3 + 1,5·IQR ghi trong kế hoạch |
 | 2026-11-07 | **Thêm gói đăng ký trả qua SePay**, sau cờ `features.subscriptions` | Chủ sản phẩm duyệt kế hoạch: OpsManager cấu hình gói; web app riêng; trả trước, tự gia hạn tay vì SePay chưa có thanh toán định kỳ; chỉ thu phí nhập bằng AI; đổi gói chạy sau khi gói cũ hết; người đã mua giữ quyền lợi đến hết kỳ | API ở `docs/subscription-api.md`; việc còn lại ở 13.4 |
+| 2026-11-13 | **Bản trùng có liên kết (Phase 82)**: backend quyết trùng, AI chỉ là tín hiệu; nghi trùng thành nháp có liên kết, người dùng gộp hoặc bác | Chủ sản phẩm duyệt kế hoạch và D0–D19 theo đề xuất (`docs/superpowers/plans/2026-11-13-linked-duplicates.md`) | FR-TXN-17 xong, FR-TXN-31/32 mới, FR-AI-04/FR-CHAT-02/FR-SCAN-07 cập nhật. Migration `AddLinkedDuplicates`. Chưa có unmerge; ghép cặp chuyển ví là phase sau (13.1) |
+| 2026-11-14 | **Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (Phase 84)** | Chủ sản phẩm duyệt kế hoạch, D1–D20 theo đề xuất kèm S1–S7 (`docs/superpowers/plans/2026-11-14-listener-health.md`) | FR-LH-01…11 mới (mục 6.11); §2.3 sửa dòng heartbeat; nguồn sự cố `notification_format`. Migration `AddListenerHealth`. Nới dải theo độ phủ và mốc bật theo dõi chờ quyết (13.4) |
+| 2026-11-14 | **Ghép cặp chuyển tiền giữa các ví của chính mình (Phase 83)** | Chủ sản phẩm duyệt kế hoạch, D1–D22 theo đề xuất kèm S1–S6 (`docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`) | FR-TXN-18 phần chuyển ví xong; FR-TXN-33…35 mới; FR-AI-04, FR-FCST-07 cập nhật; quyết định #1 trong `ARCHITECTURE.md` sửa cho chuyển khoản vượt ranh giới ví được tính. Migration `AddSelfTransferPairing`, alembic `0038`. Hoàn tác chưa có (13.1); danh mục phí riêng và 4 số đuôi tài khoản chờ quyết (13.4) |
+| 2026-11-15 | **Quỹ chung của nhóm (Phase 85)**: sổ quỹ ảo thuộc về nhóm, không chia sẻ ví cá nhân | Chủ sản phẩm duyệt kế hoạch phương án A, D1–D22 theo đề xuất kèm S1–S7 (`docs/superpowers/plans/2026-11-14-group-fund.md`) | FR-FUND-01…16 mới (6.6); giao dịch cá nhân gắn quỹ là `Transfer` không ví đích (`TransferLegs` là chỗ duy nhất đọc hướng); cờ `features.groupFunds`; quyền `ManageFunds`, `RecordFundEntries`. Migration `AddGroupFunds`. Kèm sửa lỗi sẵn có: cho vay/mượn bị tính vào `/me/spendable` (S2), giao dịch chia sẻ đã xoá vẫn vào báo cáo nhóm. Chia tiền/công nợ, ẩn danh khi rút dữ liệu (Phase 87), ghép tiền góp phía người giữ quỹ chờ quyết (13.4) |

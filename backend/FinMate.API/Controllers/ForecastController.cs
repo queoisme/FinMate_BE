@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FinMate.Application.Common.Models;
 using FinMate.Application.Forecasting;
+using FinMate.Application.ListenerHealth;
 using FinMate.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,23 +15,29 @@ namespace FinMate.API.Controllers;
 public class ForecastController : ControllerBase
 {
     private readonly IForecastService _forecast;
+    private readonly IPurchaseCheckService _purchases;
     private readonly IForecastAlertService _alerts;
     private readonly IBudgetForecastService _budgets;
     private readonly IIncomeForecastService _income;
     private readonly IAnomalyService _anomalies;
     private readonly ICategoryForecastService _categories;
     private readonly IGoalForecastService _goals;
+    private readonly IDataCoverageService _coverage;
 
     public ForecastController(
         IForecastService forecast,
+        IPurchaseCheckService purchases,
         IForecastAlertService alerts,
         IBudgetForecastService budgets,
         IIncomeForecastService income,
         IAnomalyService anomalies,
         ICategoryForecastService categories,
-        IGoalForecastService goals)
+        IGoalForecastService goals,
+        IDataCoverageService coverage)
     {
+        _coverage = coverage;
         _forecast = forecast;
+        _purchases = purchases;
         _alerts = alerts;
         _budgets = budgets;
         _income = income;
@@ -44,7 +51,10 @@ public class ForecastController : ControllerBase
     /// <summary>Số dư dự kiến từng ngày từ hôm nay tới <paramref name="to"/> (mặc định cuối tháng). Có <paramref name="accountId"/> thì chỉ xem ví đó.</summary>
     [HttpGet("cashflow")]
     public async Task<IActionResult> Cashflow([FromQuery] Guid? accountId, [FromQuery] DateOnly? to, CancellationToken ct)
-        => Ok(ApiResponse<CashflowForecastDto>.Ok(await _forecast.GetCashflowAsync(CurrentUserId, accountId, to, ct)));
+    {
+        var forecast = await _forecast.GetCashflowAsync(CurrentUserId, accountId, to, ct);
+        return Ok(ApiResponse<CashflowForecastDto>.Ok(ForecastCoverage.Apply(forecast, await _coverage.GetForecastSummaryAsync(CurrentUserId, ct))));
+    }
 
     /// <summary>Tính lại số dư với các khoản thu/chi giả định. Không lưu gì.</summary>
     [HttpPost("cashflow/scenario")]
@@ -52,13 +62,25 @@ public class ForecastController : ControllerBase
     {
         var items = (request.Items ?? []).Select(i => new ScenarioItem(i.Date, i.AmountCents, i.Direction, i.Label ?? string.Empty)).ToList();
         var result = await _forecast.RunScenarioAsync(new CashflowScenarioCommand(CurrentUserId, request.AccountId, request.To, items), ct);
-        return Ok(ApiResponse<CashflowForecastDto>.Ok(result));
+        return Ok(ApiResponse<CashflowForecastDto>.Ok(ForecastCoverage.Apply(result, await _coverage.GetForecastSummaryAsync(CurrentUserId, ct))));
     }
+
+    /// <summary>
+    /// "Mua món này có ổn không?": số dư thấp nhất trước/sau khoản mua trong kỳ tới kỳ thu nhập kế tiếp, tác động ngân sách và kế hoạch tháng,
+    /// phương án khác và bảng cách tính. Chỉ đọc, không tạo giao dịch.
+    /// </summary>
+    [HttpPost("purchase-check")]
+    public async Task<IActionResult> PurchaseCheck([FromBody] PurchaseCheckRequest request, CancellationToken ct)
+        => Ok(ApiResponse<PurchaseCheckDto>.Ok(await _purchases.CheckAsync(
+            new PurchaseCheckCommand(CurrentUserId, request.AmountCents, request.PurchaseDate, request.Item, request.CategoryId, request.AccountId, request.HorizonDays, request.CategorySlug), ct)));
 
     /// <summary>Số tiền có thể chi trong kỳ và mỗi ngày, kèm bảng cách tính.</summary>
     [HttpGet("spendable")]
     public async Task<IActionResult> Spendable(CancellationToken ct)
-        => Ok(ApiResponse<SafeToSpendDto>.Ok(await _forecast.GetSpendableAsync(CurrentUserId, ct)));
+    {
+        var spendable = await _forecast.GetSpendableAsync(CurrentUserId, ct);
+        return Ok(ApiResponse<SafeToSpendDto>.Ok(ForecastCoverage.Apply(spendable, await _coverage.GetForecastSummaryAsync(CurrentUserId, ct))));
+    }
 
     /// <summary>Tiến độ, mức chi dự kiến và trạng thái (<c>ok|at_risk|over</c>) của từng ngân sách tháng này.</summary>
     [HttpGet("budgets")]
@@ -127,5 +149,11 @@ public record ApplyCategoryBudgetsRequest(IReadOnlyList<CategoryBudgetItemReques
 public record AlertFeedbackRequest(string? Feedback);
 
 public record ScenarioItemRequest(DateOnly Date, long AmountCents, RecurringDirection Direction, string? Label);
+
+/// <param name="AmountCents">Giá bằng đồng VND (không chia 100).</param>
+/// <param name="HorizonDays">Chỉ dùng khi chưa biết kỳ thu nhập kế tiếp: đánh giá tới chừng này ngày sau ngày mua.</param>
+/// <param name="CategorySlug">Slug danh mục hệ thống (như chat trả về) khi app chưa có <c>CategoryId</c>.</param>
+public record PurchaseCheckRequest(
+    long AmountCents, DateOnly? PurchaseDate, string? Item, Guid? CategoryId, Guid? AccountId, int? HorizonDays, string? CategorySlug = null);
 
 public record CashflowScenarioRequest(Guid? AccountId, DateOnly? To, IReadOnlyList<ScenarioItemRequest>? Items);

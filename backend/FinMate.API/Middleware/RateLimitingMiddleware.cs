@@ -16,8 +16,12 @@ public static class RateLimitingMiddleware
 {
     public const string AuthPolicy = "auth";
 
+    /// <summary>Hạn mức riêng cho agent: mỗi lượt hỏi tốn token LLM nên chặt hơn mức chung; cộng dồn với GlobalLimiter như mọi policy.</summary>
+    public const string AgentPolicy = "agent";
+
     private const int DefaultPermitPerMinute = 120;
     private const int AuthPermitPerMinute = 10;
+    private const int AgentPermitPerMinute = 20;
 
     public static IServiceCollection AddFinMateRateLimiting(
         this IServiceCollection services, IConfiguration configuration)
@@ -26,6 +30,7 @@ public static class RateLimitingMiddleware
         // cần nới rộng ra để 449 test không tự chặn lẫn nhau.
         var defaultPermit = Read(configuration, "RATE_LIMIT_DEFAULT_PER_MINUTE", DefaultPermitPerMinute);
         var authPermit = Read(configuration, "RATE_LIMIT_AUTH_PER_MINUTE", AuthPermitPerMinute);
+        var agentPermit = Read(configuration, "RATE_LIMIT_AGENT_PER_MINUTE", AgentPermitPerMinute);
 
         services.AddRateLimiter(options =>
         {
@@ -54,6 +59,15 @@ public static class RateLimitingMiddleware
                     {
                         Window = TimeSpan.FromMinutes(1),
                         PermitLimit = authPermit,
+                    }));
+
+            options.AddPolicy(AgentPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: PartitionKeyFor(context), // đã đăng nhập thì theo NGƯỜI DÙNG: hạn mức này chặn chi phí LLM của từng người
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = agentPermit,
                     }));
         });
 

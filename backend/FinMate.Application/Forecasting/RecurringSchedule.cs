@@ -24,6 +24,15 @@ public static class RecurringSchedule
         _ => throw new ArgumentOutOfRangeException(nameof(cadence), cadence, null),
     };
 
+    /// <summary>Lần đến hạn TRƯỚC <paramref name="due"/>, nghịch đảo của <see cref="Next"/> (Phase 81, R1: hoàn tác một lần đẩy ngày khi khoản trả bị đảo).</summary>
+    public static DateOnly Previous(DateOnly due, RecurringCadence cadence, int? preferredDay = null) => cadence switch
+    {
+        RecurringCadence.Weekly => due.AddDays(-DaysPerWeek),
+        RecurringCadence.Monthly => OnDay(due.AddMonths(-1), preferredDay ?? due.Day),
+        RecurringCadence.Yearly => OnDay(due.AddYears(-1), preferredDay ?? due.Day),
+        _ => throw new ArgumentOutOfRangeException(nameof(cadence), cadence, null),
+    };
+
     /// <summary>Mọi lần đến hạn nằm trong <c>[from, to]</c>, tính từ <see cref="RecurringItemView.NextDueDate"/>.</summary>
     public static IEnumerable<DateOnly> Occurrences(RecurringItemView item, DateOnly from, DateOnly to)
     {

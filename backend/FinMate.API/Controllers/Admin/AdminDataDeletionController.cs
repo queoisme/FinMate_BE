@@ -35,10 +35,11 @@ public class AdminDataDeletionController : AdminControllerBase
         [FromQuery] DataDeletionStatus? status,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] string? search,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
-            new GetDataDeletionRequestListQuery(status, cursor, limit), ct);
+            new GetDataDeletionRequestListQuery(status, cursor, limit, search), ct);
 
         return Ok(ApiResponse<IReadOnlyList<DataDeletionRequestDto>>.Ok(
             result.Items, new ApiMeta(result.NextCursor)));

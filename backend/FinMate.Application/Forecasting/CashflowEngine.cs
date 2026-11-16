@@ -49,7 +49,11 @@ public sealed record CashflowForecastDto(
     string Confidence,
     string Basis,
     IReadOnlyList<CashflowDayDto> Days,
-    IReadOnlyList<CashflowCauseDto> MainCauses);
+    IReadOnlyList<CashflowCauseDto> MainCauses)
+{
+    /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu; chỉ API gắn vào, engine luôn để null.</summary>
+    public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
+}
 
 /// <summary>
 /// Đường số dư dự kiến theo ngày (sơ đồ "Dự báo dòng tiền / số dư cuối kỳ"). Hàm thuần: cùng input luôn ra cùng kết quả, nên thử kịch bản

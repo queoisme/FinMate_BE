@@ -17,7 +17,7 @@ public class GetDataDeletionRequestListQueryHandler : IGetDataDeletionRequestLis
         GetDataDeletionRequestListQuery query, CancellationToken ct = default)
     {
         var result = await _repository.GetPageAsync(
-            new DataDeletionRequestListFilter(query.Status, query.Cursor, AdminPaging.Clamp(query.Limit)),
+            new DataDeletionRequestListFilter(query.Status, query.Cursor, AdminPaging.Clamp(query.Limit), query.Search),
             ct);
 
         var now = DateTimeOffset.UtcNow;

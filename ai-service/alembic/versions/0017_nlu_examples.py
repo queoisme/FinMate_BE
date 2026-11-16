@@ -1,6 +1,6 @@
 """nlu examples
 
-Thêm ``nlu_examples``: câu mẫu của Rasa NLU (huấn luyện và đo) lưu trong DB, mỗi câu đúng một dòng (``text_key`` duy nhất) nên một câu không thể vừa ở tập
+Thêm ``nlu_examples``: câu mẫu của bộ NLU cũ (huấn luyện và đo) lưu trong DB, mỗi câu đúng một dòng (``text_key`` duy nhất) nên một câu không thể vừa ở tập
 train vừa ở tập test. CHỈ THÊM một bảng.
 
 Revision ID: 0017

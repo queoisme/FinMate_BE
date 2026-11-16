@@ -34,6 +34,9 @@ internal static class ForecastAlertKindColumn
         [ForecastAlertKind.GroupBudget] = "group_budget",
         [ForecastAlertKind.GroupGoal] = "group_goal",
         [ForecastAlertKind.MarketChange] = "market_change",
+        [ForecastAlertKind.ListenerHealth] = "listener_health",
+        [ForecastAlertKind.GroupFundNegative] = "group_fund_negative",
+        [ForecastAlertKind.GroupFundRemoved] = "group_fund_removed",
     };
 
     private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
@@ -67,6 +70,9 @@ internal static class AnomalyResolutionColumn
         [AnomalyResolution.OneOff] = "one_off",
         [AnomalyResolution.WrongEntry] = "wrong_entry",
         [AnomalyResolution.Suspicious] = "suspicious",
+        [AnomalyResolution.Refunded] = "refunded",
+        [AnomalyResolution.Reversed] = "reversed",
+        [AnomalyResolution.Transfer] = "transfer",
     };
 
     private static readonly Dictionary<string, AnomalyResolution> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);

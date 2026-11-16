@@ -43,6 +43,9 @@ public class GroupMemberService : IGroupMemberService
     /// <summary>Tên hiển thị thay cho người đã yêu cầu xóa tài khoản: họ đã rút khỏi hệ thống, tên không nên còn hiện ra.</summary>
     internal const string InactiveMemberName = "Thành viên không còn hoạt động";
 
+    /// <summary>Tên hiện trên dòng quỹ của người đã xoá cứng tài khoản (Phase 85, BR-FUND-14/15): dòng ở lại nhưng không còn biết là của ai.</summary>
+    internal const string FormerMemberName = "Thành viên cũ";
+
     private readonly IGroupRepository _groups;
     private readonly IGroupFinanceRepository _finance;
     private readonly IGroupAccessService _access;

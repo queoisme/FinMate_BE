@@ -94,6 +94,31 @@ public class AnomalyRepository : IAnomalyRepository
             .Include(a => a.Transaction)
             .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
 
+    public async Task<int> RemoveForTransactionAsync(Guid userId, Guid transactionId, bool openOnly, CancellationToken ct = default)
+    {
+        // IgnoreQueryFilters: bộ lọc ẩn đánh dấu của giao dịch đã xoá mềm, mà bản bị gộp bị xoá mềm trong cùng lượt lưu này.
+        var rows = await _context.TransactionAnomalies
+            .IgnoreQueryFilters()
+            .Where(a => a.UserId == userId && a.TransactionId == transactionId && (!openOnly || a.Resolution == null))
+            .ToListAsync(ct);
+        _context.TransactionAnomalies.RemoveRange(rows);
+        return rows.Count;
+    }
+
+    public async Task<int> ResolveOpenForTransactionAsync(Guid userId, Guid transactionId, AnomalyResolution resolution, DateTimeOffset at, CancellationToken ct = default)
+    {
+        var open = await _context.TransactionAnomalies
+            .Where(a => a.UserId == userId && a.TransactionId == transactionId && a.Resolution == null)
+            .ToListAsync(ct);
+        foreach (var anomaly in open)
+        {
+            anomaly.Resolution = resolution;
+            anomaly.ResolvedAt = at;
+        }
+
+        return open.Count;
+    }
+
     public async Task UpdateAsync(TransactionAnomaly anomaly, CancellationToken ct = default)
     {
         // Bản lấy từ GetAsync đã được theo dõi; Update() trên cả đồ thị sẽ đánh dấu luôn giao dịch kèm theo là đã sửa.

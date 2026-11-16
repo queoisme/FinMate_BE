@@ -291,9 +291,22 @@ async def delete_item_cache(session, name: str, *, actor: str, reason: str | Non
 
 # ---------------------------------------------------------- chỉ dẫn Gemini
 
+def ilike_contains(text: str) -> str:
+    """Mẫu ILIKE "chứa text": % và _ người dùng gõ là chữ, không phải ký tự đại diện (đi kèm ``escape="\\"``)."""
+    return "%" + text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
 async def list_instructions(session) -> list[dict]:
     rows = (await session.execute(select(BillAiInstruction).order_by(BillAiInstruction.updated_at.desc()))).scalars().all()
     return [_instruction(r) for r in rows]
+
+
+async def page_instructions(session, *, q: str | None = None, limit: int = 20, offset: int = 0):
+    """Một trang chỉ dẫn (mới sửa trước), lọc theo nội dung; trả (items, tổng khớp)."""
+    where = [BillAiInstruction.instruction_text.ilike(ilike_contains(q), escape="\\")] if q and q.strip() else []
+    query = select(BillAiInstruction).where(*where).order_by(BillAiInstruction.updated_at.desc(), BillAiInstruction.id)
+    rows, total = await _page(session, query, select(func.count()).select_from(BillAiInstruction).where(*where), limit, offset)
+    return [_instruction(r) for r in rows], total
 
 
 async def _deactivate_instructions(session: AsyncSession) -> str | None:
@@ -338,12 +351,15 @@ async def activate_instruction(session, instruction_id: uuid.UUID, *, actor: str
 
 # ------------------------------------------------------- lịch sử và hoàn tác
 
-async def list_history(session, *, resource: str | None = None, resource_key: str | None = None, limit: int = 50, offset: int = 0):
+async def list_history(session, *, resource: str | None = None, resource_key: str | None = None, q: str | None = None, limit: int = 50, offset: int = 0):
     where = []
     if resource:
-        where.append(BillRuleAudit.resource == resource)
+        kinds = [r.strip() for r in resource.split(",") if r.strip()]   # "brand,keyword": một danh sách chung, để trang admin không phải gộp nhiều danh sách ở trình duyệt
+        where.append(BillRuleAudit.resource.in_(kinds) if len(kinds) > 1 else BillRuleAudit.resource == (kinds[0] if kinds else resource))
     if resource_key:
         where.append(BillRuleAudit.resource_key == resource_key)
+    if q and q.strip():
+        where.append(BillRuleAudit.resource_key.ilike(ilike_contains(q), escape="\\"))
     query = select(BillRuleAudit).where(*where).order_by(BillRuleAudit.created_at.desc(), BillRuleAudit.id.desc())
     rows, total = await _page(session, query, select(func.count()).select_from(BillRuleAudit).where(*where), limit, offset)
     return [_history(r) for r in rows], total

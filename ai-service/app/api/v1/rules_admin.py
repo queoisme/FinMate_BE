@@ -128,9 +128,9 @@ async def delete_item_cache(name: Annotated[str, Query(max_length=200)], actor: 
 # ---------------------------------------------------------------- chỉ dẫn Gemini
 
 @router.get("/ai-instructions")
-async def list_instructions(session: Session) -> dict:
-    items = await rules.list_instructions(session)
-    return _page(items, len(items), len(items), 0)
+async def list_instructions(session: Session, q: str | None = None, limit: Limit = 20, offset: Offset = 0) -> dict:
+    items, total = await rules.page_instructions(session, q=q, limit=limit, offset=offset)
+    return _page(items, total, limit, offset)
 
 
 @router.post("/ai-instructions", status_code=status.HTTP_201_CREATED)
@@ -167,8 +167,8 @@ async def preview_rules(body: PreviewRequest, session: Session) -> dict:
 # ---------------------------------------------------------------- lịch sử và hoàn tác
 
 @router.get("/history")
-async def history(session: Session, resource: str | None = None, resource_key: str | None = None, limit: Limit = 50, offset: Offset = 0) -> dict:
-    items, total = await rules.list_history(session, resource=resource, resource_key=resource_key, limit=limit, offset=offset)
+async def history(session: Session, resource: str | None = None, resource_key: str | None = None, q: str | None = None, limit: Limit = 50, offset: Offset = 0) -> dict:
+    items, total = await rules.list_history(session, resource=resource, resource_key=resource_key, q=q, limit=limit, offset=offset)
     return _page(items, total, limit, offset)
 
 

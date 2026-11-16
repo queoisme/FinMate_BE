@@ -14,6 +14,9 @@ public static class CacheKeys
     /// <summary>Thói quen chi tiêu dùng cho dự báo, tính từ lịch sử KHÔNG gồm hôm nay nên chỉ đổi khi sang ngày mới hoặc khi user sửa dữ liệu dự báo.</summary>
     public static string ForecastBaseline(Guid userId, DateOnly date) => $"user:{userId}:forecast_baseline:{date:yyyy-MM-dd}";
 
+    /// <summary>Ngữ cảnh hội thoại ngắn hạn của agent (các "ô" có cấu trúc của lượt trước, không có văn bản thô). TTL: <c>AgentLimits.ConversationTtl</c>.</summary>
+    public static string AgentConversation(Guid userId) => $"user:{userId}:agent_conversation";
+
     public static readonly TimeSpan ForecastBaselineTtl = TimeSpan.FromHours(24);
 
     /// <summary>Đã hỏi chia sẻ lên cộng đồng trong ngày.</summary>

@@ -1,3 +1,4 @@
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -71,27 +72,16 @@ public class UserHardDeleter : IUserHardDeleter
     private Task<List<Guid>> FindGroupsAsync(Guid userId, CancellationToken ct)
         => _context.GroupMembers.Where(m => m.UserId == userId).Select(m => m.GroupId).ToListAsync(ct);
 
-    /// <summary>Cùng định nghĩa với <c>GroupFinanceRepository.SumSharedSpendAsync</c>; không cộng trừ dần nên chạy lại vẫn đúng.</summary>
+    /// <summary>
+    /// Đi qua <c>GroupFinanceRepository.SumGroupNetSpendAsync</c>, chỗ duy nhất cộng giao dịch chia sẻ và chi từ quỹ (<see cref="BudgetSpendScope"/>: chi − hoàn, bỏ cặp đảo, chặn ở 0);
+    /// không cộng trừ dần nên chạy lại vẫn đúng. Cặp gốc–hoàn của người bị xoá đi cùng nhau nên không để lại khoản hoàn lẻ.
+    /// </summary>
     private async Task RecalculateSpentAsync(AffectedPeriod period, CancellationToken ct)
     {
-        var query = _context.Transactions.Where(t =>
-            t.GroupId == period.GroupId
-            && t.Status == TransactionStatus.Confirmed
-            && t.TransactionType == TransactionType.Debit
-            && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-            && t.TransactedAt >= period.Start
-            && t.TransactedAt < period.End);
-
-        if (period.GroupCategoryId is { } groupCategoryId)
-        {
-            query = query.Where(t => t.GroupCategoryId == groupCategoryId);
-        }
-        else if (period.CategoryId is { } categoryId)
-        {
-            query = query.Where(t => t.GroupCategoryId == null && t.CategoryId == categoryId);
-        }
-
-        var spent = await query.SumAsync(t => (long?)t.AmountCents, ct) ?? 0;
+        // Phase 85 (D13, kịch bản h): cộng cả khoản chi từ quỹ. Dòng quỹ của người bị xoá ở lại (chỉ mất tên), nên nếu chỉ cộng giao dịch thì kỳ này
+        // mất luôn phần chi từ quỹ của cả nhóm.
+        var scope = BudgetSpendScope.GroupAll(period.GroupId, period.CategoryId, period.GroupCategoryId, period.Start, period.End);
+        var spent = Math.Max(0, await new GroupFinanceRepository(_context).SumGroupNetSpendAsync(scope, [], [], ct));
         await _context.BudgetPeriods.Where(p => p.Id == period.PeriodId)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.SpentCents, spent).SetProperty(p => p.UpdatedAt, DateTimeOffset.UtcNow), ct);
     }

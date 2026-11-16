@@ -18,7 +18,7 @@
 ## 1. Kết quả kiểm tra
 
 Hai database tách biệt hoàn toàn (không FK chéo, không dùng chung): **`finmate_main`** của backend và **`finmate_ai`** của ai-service.
-`ocr-service` không có database (đọc/ghi qua ai-service); `stt-service` và `rasa` cũng không có.
+`ocr-service` không có database (đọc/ghi qua ai-service); `stt-service` cũng không có.
 
 | | `finmate_main` (backend) | `finmate_ai` (ai-service) |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ Hai database tách biệt hoàn toàn (không FK chéo, không dùng chung): **`
 | Không có cột `timestamp without time zone` | Đạt — mọi mốc thời gian là `timestamptz` (ngày thuần dùng `date`) |
 | Tiền là `BIGINT` | Đạt — mọi cột `*_cents`, `*amount*`, `*balance*` là `bigint`. `double precision` chỉ dùng cho độ tin cậy và chỉ số đánh giá model |
 | Khóa chính là UUID | Đạt, trừ các **khóa tự nhiên có chủ ý**: `secret_store.name` (cả hai DB), `vietqr_banks.bin`; bên AI: `kb_categories.slug`, `kb_item_categories.item_key`, `ml_item_feedback(item_key, user_id_hash)`, `ops_usage_daily(day, metric)`. Không bảng nào dùng khóa số tự tăng |
-| AI DB không chứa `user_id` thật | Đạt — 8 bảng chỉ có `user_id_hash` (SHA-256); id giao dịch backend cũng chỉ ở dạng hash (`ml_user_feedback.backend_transaction_id_hash`); người sửa luật là `actor_hash` |
+| AI DB không chứa `user_id` thật | Đạt — 7 bảng chỉ có `user_id_hash` (SHA-256); id giao dịch backend cũng chỉ ở dạng hash (`ml_user_feedback.backend_transaction_id_hash`); người sửa luật là `actor_hash` |
 | Dữ liệu theo người dùng phải có `user_id` | Đạt — 22 bảng backend có `user_id`; 19 bảng có FK tới `users` với ON DELETE CASCADE (xóa cứng một user là một câu `DELETE`) |
 | Enum lưu TEXT + CHECK | Đạt gần hết. **Ngoại lệ:** `ai_results.transaction_type` là enum `TransactionType` trong code nhưng không có CHECK (lệch CONVENTIONS, rủi ro thấp vì chỉ backend ghi). `audit_logs.event_type`, `*.category_source`, các cột `source`/`reason` bên AI là chuỗi tự do, không phải enum |
 | FK có index | Backend: đạt, cả 50 FK. AI: **17 FK không có index ở cột đầu** — phần lớn trỏ tới `kb_categories(slug)` (bảng nhỏ, gần như không xóa), còn lại là `ml_label_events.feedback_id`, `ml_model_versions.training_job_id`, `ml_user_feedback.batch_id`, `ops_analyze_log.(pattern_id, raw_sample_id, duplicate_of_request_id)`. Không sai, chỉ chậm khi xóa / cập nhật dòng được trỏ tới |
@@ -174,9 +174,14 @@ erDiagram
 | **DailySummary** | `daily_summaries` | ✓ | Tổng thu / chi theo ngày, tính sẵn bởi `DailySummaryJob`. |
 | **DataDeletionRequest** | `data_deletion_requests` | ✓ (không FK) | Yêu cầu xóa tài khoản; `DataDeletionJob` xóa cứng khi tới hạn. Không có FK tới `users` để bản ghi còn lại sau khi xóa cứng. |
 | **DeviceToken** | `device_tokens` | ✓ | Token FCM của thiết bị. Một token thuộc đúng một user (UNIQUE trên `token`). |
+| **DeviceListenerStatus** | `device_listener_statuses` | ✓ | Phase 84: trạng thái mới nhất của dịch vụ đọc thông báo trên một thiết bị, khoá `(user_id, installation_id)`; mốc mất quyền. |
+| **DeviceListenerDay** | `device_listener_daily` | ✓ | Phase 84: một dòng mỗi ngày (giờ VN) mỗi thiết bị, dùng tính độ phủ dữ liệu; giữ `listenerHealth.historyRetentionDays`. |
+| **ListenerUploadGapDaily** | `listener_upload_gap_daily` |  | Phase 84: số ví `upload_gap` theo phiên bản app mỗi ngày; không có user. |
 | **FinanceMethod** | `finance_methods` |  | Phương pháp quản lý tài chính (13 cách): tham số, điều kiện phù hợp, bố cục màn hình chính, phiên bản. |
 | **FinancialAccount** | `financial_accounts` | ✓ | Ví của người dùng (ngân hàng, ví điện tử, tiền mặt); `balance_cents` là số dư tính sẵn; `include_in_forecast` cho dự báo. |
 | **ForecastAlert** | `forecast_alerts` | ✓ | Hộp thư cảnh báo dự báo: chống lặp theo `(user_id, kind, dedup_key)`, hẹn giờ gửi, phản hồi "không chính xác". |
+| **GroupFund** | `group_funds` |  | Phase 85: quỹ chung của nhóm (sổ ảo). `balance_cents` là số dư tính sẵn, khoá `xmin`, âm được; chỉ lưu trữ khi bằng 0. |
+| **GroupFundEntry** | `group_fund_entries` | ✓ (`member_user_id`, SET NULL) | Phase 85: một dòng sổ quỹ (góp, chi, rút, điều chỉnh). Thuộc về nhóm: xoá cứng tài khoản chỉ ẩn danh dòng. |
 | **GoalContribution** | `goal_contributions` | ✓ (không FK) | Khoản góp vào mục tiêu. `user_id` lặp lại để lọc theo người dùng (không có FK riêng; xóa theo mục tiêu). |
 | **GoalTemplate** | `goal_templates` |  | Mẫu mục tiêu do quản trị viên quản lý. |
 | **MethodGoalTemplate** | `method_goal_templates` |  | Bảng nối phương pháp ↔ mẫu mục tiêu. |
@@ -196,8 +201,11 @@ erDiagram
 | **SurveyQuestion** | `survey_questions` |  | Câu hỏi khảo sát đầu vào (`show_if` để hỏi có điều kiện). |
 | **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. |
 | **Transaction** | `transactions` | ✓ | Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). Nguồn: thông báo, nhập tay, giọng nói, hóa đơn, chat…; trạng thái nháp / đã xác nhận; `client_request_id` chống gửi lại; cờ loại khỏi dữ liệu dự báo. |
+| **TransactionMergeSnapshot** | `transaction_merge_snapshots` | ✓ | Phase 83: ảnh chụp trạng thái trước mỗi lượt gộp / chuyển thành Transfer, để hoàn tác sau này; có hạn lưu. |
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
-| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, vai trò, khóa tài khoản, xóa mềm; các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled` là value object `NotificationPreferences` nằm chung bảng. |
+| **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). |
+| **UserRoleAssignment** | `user_roles` | ✓ (PK) | Vai trò đang gán cho mỗi người: PK là `user_id` nên mỗi người đúng một vai trò; `role_id` → `roles`; `assigned_by_user_id` ghi Admin đã cấp. Xóa user kéo theo hàng này (cascade). `role_permissions.role_id` cũng trỏ tới `roles`. |
+| **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, khóa tài khoản, xóa mềm (vai trò nằm ở `user_roles`); các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled`, `listener_health_alerts_enabled` (Phase 84) là value object `NotificationPreferences` nằm chung bảng. |
 | **UserMethod** | `user_methods` | ✓ | Phương pháp người dùng đang / đã dùng (vai trò chính / hỗ trợ, tham số riêng). |
 | **UserSurveyAnswer** | `user_survey_answers` | ✓ | Câu trả lời của người dùng, theo mã câu hỏi / mã lựa chọn. |
 | **VietQrBank** | `vietqr_banks` |  | Danh bạ ngân hàng VietQR, khóa tự nhiên là BIN 6 số. |
@@ -273,9 +281,6 @@ erDiagram
 | **MlLabelEvent** | `ml_label_events` | Lịch sử từng lần gắn / sửa nhãn. |
 | **MlModel** | `ml_models` | Danh mục các model (mã, loại, nhà cung cấp). |
 | **ModelVersion** | `ml_model_versions` | Phiên bản model: đường dẫn artifact, trạng thái (candidate / active …), chỉ số. |
-| **NluCandidate** | `nlu_candidates` | Câu người dùng mà NLU chưa chắc, chờ duyệt để thành ví dụ. |
-| **NluExample** | `nlu_examples` | Câu ví dụ huấn luyện NLU (intent, split). |
-| **NluModelVersion** | `nlu_model_versions` | Phiên bản model Rasa và kết quả đánh giá. |
 | **PipelineRequest** | `ops_analyze_log` | Mỗi lần gọi `/analyze`: kết quả từng bước, độ tin cậy, phiên bản model / cấu hình. `backend_request_id` là id `notification_logs` bên backend. |
 | **ProviderFormat** | `kb_provider_formats` | Định dạng thông báo của từng ngân hàng / ví, có phiên bản và trạng thái. |
 | **ProviderFormatField** | `kb_provider_format_fields` | Trường cần bóc của một định dạng (map sang trường giao dịch, chuẩn hóa, cờ nhạy cảm). |
@@ -310,7 +315,7 @@ erDiagram
 
 | Phía backend | Phía AI | Cách nối |
 | --- | --- | --- |
-| `users.id` | `*.user_id_hash` (8 bảng) | SHA-256 của id; không đảo ngược được |
+| `users.id` | `*.user_id_hash` (7 bảng) | SHA-256 của id; không đảo ngược được |
 | `notification_logs.id` | `ops_analyze_log.backend_request_id` (UNIQUE) | Gửi kèm `POST /api/v1/analyze`; `ml_user_feedback.pipeline_request_id` cũng mang giá trị này |
 | `transactions.id` | `ml_user_feedback.backend_transaction_id_hash` | SHA-256, gửi kèm phản hồi sửa danh mục |
 | `receipt_scans.id` | `ml_training_samples.scan_id` (PK) | Chỉ khi người dùng đồng ý đóng góp dữ liệu |
@@ -332,7 +337,6 @@ erDiagram
         varchar(320) email UK
         text password_hash "nullable"
         varchar(200) display_name
-        varchar(20) role
         boolean push_enabled
         boolean budget_alerts_enabled
         boolean is_locked
@@ -409,7 +413,11 @@ erDiagram
     users ||--o{ saving_goals : "user_id"
     users ||--o{ spending_insights : "user_id"
     users ||--o{ transaction_anomalies : "user_id"
+    users ||--o{ transaction_merge_snapshots : "user_id"
     users ||--o{ transactions : "user_id"
+    transactions o|--o{ transactions : "related_transaction_id"
+    transactions o|--o{ transactions : "duplicate_of_transaction_id"
+    transactions o|--o{ transactions : "merged_into_transaction_id"
     users ||--o{ user_methods : "user_id"
     users ||--o{ user_survey_answers : "user_id"
     users o|..o{ audit_logs : "user_id (không FK)"
@@ -456,6 +464,7 @@ Tài khoản người dùng: đăng nhập email/Google, vai trò, khóa tài kh
 | 29 | `low_balance_threshold_cents` | bigint | có |  |  |
 | 30 | `quiet_hours_end_minute` | smallint | có |  |  |
 | 31 | `quiet_hours_start_minute` | smallint | có |  |  |
+| 32 | `listener_health_alerts_enabled` | boolean |  | `true` | Phase 84: nhắc khi app không còn đọc được thông báo ngân hàng |
 
 Ràng buộc:
 - CHECK `chk_users_alert_thresholds`: `((alert_t1_pct IS NULL) AND (alert_t2_pct IS NULL)) OR ((alert_t1_pct IS NOT NULL) AND (alert_t2_pct IS NOT NULL) AND (alert_t1_pct >= 1) AND (alert_t1_pct < alert_t2_pct) AND (alert_t2_pct <= 99))`
@@ -614,6 +623,13 @@ erDiagram
         uuid client_request_id "nullable"
         boolean exclude_from_forecast
         varchar(20) forecast_exclusion_reason "nullable"
+        uuid related_transaction_id FK "nullable"
+        varchar(20) relation "nullable"
+        boolean is_reversed
+        uuid duplicate_of_transaction_id FK "nullable"
+        varchar(20) duplicate_status "nullable"
+        uuid merged_into_transaction_id FK "nullable"
+        text_array merged_sources "nullable"
     }
     notification_logs {
         uuid id PK
@@ -795,30 +811,60 @@ Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). 
 | 19 | `client_request_id` | uuid | có |  |  |
 | 20 | `exclude_from_forecast` | boolean |  | `false` |  |
 | 21 | `forecast_exclusion_reason` | varchar(20) | có |  |  |
+| 22 | `related_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 81: khoản chi gốc của khoản hoàn/đảo) |
+| 23 | `relation` | varchar(20) | có |  | Phase 81: `refund` / `reversal`; có giá trị thì không phải thu nhập |
+| 24 | `is_reversed` | boolean |  | `false` | Phase 81: khoản chi đã bị đảo |
+| 25 | `duplicate_of_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: giao dịch mà khoản này có thể trùng; bản mới hơn trỏ tới bản cũ hơn) |
+| 26 | `duplicate_status` | varchar(20) | có |  | Phase 82: `suspected` / `dismissed`; luôn đi cùng `duplicate_of_transaction_id` |
+| 27 | `merged_into_transaction_id` | uuid | có |  | FK → `transactions.id` (Phase 82: survivor; chỉ có trên dòng đã xoá mềm) |
+| 28 | `merged_sources` | text[] | có |  | Phase 82: các kênh đã góp vào survivor (`notification` = ngân hàng đã xác thực) |
+| 29 | `transfer_dismissed_at` | timestamptz | có |  | Phase 83: người dùng nói "không phải chuyển ví"; chỉ tắt gợi ý, chuyển đổi tay xoá cột này |
+| 30 | `group_fund_entry_id` | uuid | có |  | FK → `group_fund_entries.id` (Phase 85: giao dịch này ghi lại một dòng quỹ nhóm ở sổ cá nhân; luôn là `transfer` không ví đích) |
+| 31 | `group_fund_direction` | varchar(3) | có |  | Phase 85: `out` / `in` so với ví; chỉ `TransferLegs` đọc |
 
 Khóa ngoại:
+- `related_transaction_id` → `transactions(id)` ON DELETE NO ACTION (kiểm ở cuối câu lệnh, nên xoá cứng cả user một lần không vướng thứ tự)
+- `duplicate_of_transaction_id`, `merged_into_transaction_id` → `transactions(id)` ON DELETE NO ACTION (cùng lý do)
 - `category_id` → `categories(id)` ON DELETE SET NULL
 - `counter_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
 - `financial_account_id` → `financial_accounts(id)` ON DELETE RESTRICT
 - `notification_log_id` → `notification_logs(id)` ON DELETE SET NULL
 - `saving_goal_id` → `saving_goals(id)` ON DELETE SET NULL
 - `user_id` → `users(id)` ON DELETE CASCADE
+- `group_fund_entry_id` → `group_fund_entries(id)` ON DELETE RESTRICT (Phase 85; dòng quỹ chỉ xoá mềm)
 
 Ràng buộc:
+- CHECK `chk_transactions_group_fund_link` (Phase 85): `(group_fund_entry_id IS NULL) = (group_fund_direction IS NULL) AND (group_fund_direction IS NULL OR group_fund_direction IN ('out','in')) AND (group_fund_entry_id IS NULL OR (transaction_type = 'transfer' AND counter_account_id IS NULL AND group_id IS NULL AND status = 'confirmed'))`
+- CHECK `chk_transactions_relation`: `relation IS NULL OR relation IN ('refund','reversal')`
+- CHECK `chk_transactions_relation_money_in`: `relation IS NULL OR transaction_type = 'credit'`
+- CHECK `chk_transactions_related_has_relation`: `related_transaction_id IS NULL OR relation IS NOT NULL`
+- CHECK `chk_transactions_related_not_self`: `related_transaction_id IS NULL OR related_transaction_id <> id`
+- CHECK `chk_transactions_reversal_has_original`: `relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL`
+- CHECK `chk_transactions_reversed_debit`: `is_reversed = false OR transaction_type = 'debit'`
+- CHECK `chk_transactions_duplicate_status`: `duplicate_status IS NULL OR duplicate_status IN ('suspected','dismissed')`
+- CHECK `chk_transactions_duplicate_link`: `(duplicate_status IS NULL) = (duplicate_of_transaction_id IS NULL)`
+- CHECK `chk_transactions_duplicate_not_self`: `duplicate_of_transaction_id IS NULL OR duplicate_of_transaction_id <> id`
+- CHECK `chk_transactions_merged_not_self`: `merged_into_transaction_id IS NULL OR merged_into_transaction_id <> id`
+- CHECK `chk_transactions_merged_deleted`: `merged_into_transaction_id IS NULL OR deleted_at IS NOT NULL`
+- CHECK `chk_transactions_merged_sources`: `merged_sources IS NULL OR merged_sources <@ ARRAY['notification','manual','voice','receipt','support']`
 - CHECK `chk_transactions_forecast_exclusion`: `((exclude_from_forecast = false) AND (forecast_exclusion_reason IS NULL)) OR ((exclude_from_forecast = true) AND forecast_exclusion_reason IN ('one_off', 'user_marked'))`
 - CHECK `chk_transactions_source`: `source IN ('notification', 'manual', 'voice', 'receipt')`
 - CHECK `chk_transactions_status`: `status IN ('draft', 'confirmed')`
 - CHECK `chk_transactions_transaction_type`: `transaction_type IN ('debit', 'credit', 'transfer')`
-- CHECK `chk_transactions_transfer_shape`: `((transaction_type = 'transfer') AND (counter_account_id IS NOT NULL) AND (counter_account_id <> financial_account_id) AND (category_id IS NULL)) OR ((transaction_type <> 'transfer') AND (counter_account_id IS NULL))`
+- CHECK `chk_transactions_transfer_shape`: `((transaction_type = 'transfer') AND (counter_account_id IS NOT NULL) AND (counter_account_id <> financial_account_id) AND (category_id IS NULL)) OR ((transaction_type = 'transfer') AND (counter_account_id IS NULL) AND (category_id IS NULL) AND (group_fund_entry_id IS NOT NULL)) OR ((transaction_type <> 'transfer') AND (counter_account_id IS NULL))` (nhánh giữa thêm ở Phase 85, chỉ mở khi có liên kết quỹ)
 
 Index:
 - UNIQUE `IX_transactions_notification_log_id` `(notification_log_id)`
+- `ix_transactions_related_transaction_id` `(related_transaction_id) WHERE related_transaction_id IS NOT NULL`
+- `ix_transactions_duplicate_of_transaction_id` `(duplicate_of_transaction_id) WHERE duplicate_of_transaction_id IS NOT NULL`
+- `ix_transactions_merged_into_transaction_id` `(merged_into_transaction_id) WHERE merged_into_transaction_id IS NOT NULL`
 - `IX_transactions_saving_goal_id` `(saving_goal_id)`
 - `idx_transactions_category_id` `(category_id)`
 - `idx_transactions_counter_account_id` `(counter_account_id)`
 - `idx_transactions_financial_account_id` `(financial_account_id)`
 - `idx_transactions_user_transacted_at` `(user_id, transacted_at, id)`
 - UNIQUE `uq_transactions_user_client_request_id` `(user_id, client_request_id) WHERE client_request_id IS NOT NULL`
+- UNIQUE `uq_transactions_group_fund_entry_id` `(group_fund_entry_id) WHERE group_fund_entry_id IS NOT NULL` (Phase 85)
 
 ##### `notification_logs` — NotificationLog
 
@@ -845,10 +891,10 @@ Khóa ngoại:
 - `user_id` → `users(id)` ON DELETE CASCADE
 
 Ràng buộc:
-- CHECK `chk_notification_logs_status`: `status IN ('pending', 'processed', 'failed', 'ignored')`
+- CHECK `chk_notification_logs_status`: `status IN ('pending', 'processed', 'failed', 'ignored', 'duplicate')` (`duplicate` từ Phase 82: cùng sự kiện ngân hàng gửi lại)
 
 Index:
-- `IX_notification_logs_financial_account_id` `(financial_account_id)`
+- `ix_notification_logs_account_received` `(financial_account_id, received_at) WHERE financial_account_id IS NOT NULL` (Phase 84, thay `IX_notification_logs_financial_account_id`)
 - `idx_notification_logs_status_retry_count` `(status, retry_count)`
 - `idx_notification_logs_user_content_hash` `(user_id, content_hash)`
 
@@ -879,15 +925,20 @@ Kết quả pipeline AI cho một thông báo (1–1 với `notification_logs`):
 | 19 | `categorizer_version` | varchar(20) | có |  |  |
 | 20 | `processing_ms` | integer | có |  |  |
 | 21 | `created_at` | timestamptz |  |  |  |
+| 22 | `relation_hint` | varchar(20) | có |  | Phase 81: `refund` / `reversal`, gợi ý của AI cho khoản tiền vào. Phase 83: thêm `transfer` (cả hai chiều) |
+| 23 | `transfer_kind` | varchar(24) | có |  | Phase 83: `atm_withdrawal` / `atm_deposit` / `wallet_topup` / `wallet_withdrawal` / `own_account`, chỉ khi `relation_hint = transfer` |
 
 Khóa ngoại:
 - `notification_log_id` → `notification_logs(id)` ON DELETE CASCADE
 
 Ràng buộc:
 - CHECK `chk_ai_results_pipeline_result`: `pipeline_result IN ('financial', 'non_financial', 'uncertain', 'extraction_failed', 'error')`
+- CHECK `chk_ai_results_relation_hint`: `relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')`
+- CHECK `chk_ai_results_transfer_kind`: `transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))`
 
 Index:
 - UNIQUE `uq_ai_results_notification_log_id` `(notification_log_id)`
+- `ix_ai_results_created_at` `(created_at)` (Phase 84: đếm theo provider mỗi giờ)
 
 ##### `counterparty_category_overrides` — CounterpartyCategoryOverride
 
@@ -1733,6 +1784,7 @@ Tổng thu / chi theo ngày, tính sẵn bởi `DailySummaryJob`.
 | 8 | `top_category_spent_cents` | bigint |  | `0` |  |
 | 9 | `created_at` | timestamptz |  |  |  |
 | 10 | `updated_at` | timestamptz |  |  |  |
+| 11 | `total_refunded_cents` | bigint |  | `0` | Phase 81: tổng hoàn trong ngày; đã trừ khỏi `total_spent_cents` (chi ròng), không nằm trong thu |
 
 Khóa ngoại:
 - `top_category_id` → `categories(id)` ON DELETE SET NULL
@@ -1843,7 +1895,7 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_forecast_alerts_feedback`: `(feedback IS NULL) OR (feedback = 'inaccurate')`
-- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly')`
+- CHECK `chk_forecast_alerts_kind`: `kind IN ('low_balance', 'budget_risk', 'bill_due', 'bill_status_check', 'income_late', 'price_change', 'anomaly', 'group_budget', 'group_goal', 'market_change', 'listener_health', 'group_fund_negative', 'group_fund_removed')` (`group_*`, `market_change` thêm sau ngày sinh tài liệu; `listener_health` ở Phase 84; `group_fund_*` ở Phase 85)
 - CHECK `chk_forecast_alerts_sent_at`: `(status = 'sent') = (sent_at IS NOT NULL)`
 - CHECK `chk_forecast_alerts_status`: `status IN ('pending', 'sent')`
 
@@ -1879,7 +1931,7 @@ Khóa ngoại:
 Ràng buộc:
 - CHECK `chk_transaction_anomalies_amounts`: `(amount_cents > 0) AND (typical_cents > 0) AND (ratio_percent > 0)`
 - CHECK `chk_transaction_anomalies_kind`: `kind IN ('category_spike', 'merchant_spike', 'duplicate')`
-- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious')`
+- CHECK `chk_transaction_anomalies_resolution`: `(resolution IS NULL) OR resolution IN ('normal', 'one_off', 'wrong_entry', 'suspicious', 'refunded', 'reversed', 'transfer')` (ba giá trị cuối do hệ thống đặt: khoản chi được hoàn đủ / bị đảo, Phase 81; chuyển thành Transfer, Phase 83)
 - CHECK `chk_transaction_anomalies_resolved_at`: `(resolution IS NULL) = (resolved_at IS NULL)`
 - CHECK `chk_transaction_anomalies_severity`: `severity IN ('normal', 'high')`
 
@@ -1887,6 +1939,215 @@ Index:
 - `ix_transaction_anomalies_user_created` `(user_id, created_at DESC)`
 - `ix_transaction_anomalies_user_normal` `(user_id, category_id) WHERE resolution = 'normal'`
 - UNIQUE `uq_transaction_anomalies_transaction` `(transaction_id)`
+
+#### `transaction_merge_snapshots` (Phase 83)
+
+Ảnh chụp trạng thái TRƯỚC mỗi lượt gộp bản trùng hoặc chuyển thành Transfer, ghi trong cùng DB transaction; đủ để hoàn tác sau này. Không có FK tới
+`transactions` (là lịch sử). Xoá sau `snapshots.retentionDays` (365) bởi `NotificationBodyPurgeJob`; xoá cứng tài khoản xoá theo user.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `user_id` | uuid |  |  | FK → `users.id` |
+| 3 | `survivor_id` | uuid |  |  | Giao dịch còn lại |
+| 4 | `merged_id` | uuid | có |  | Giao dịch bị gộp; null khi đổi một chiều thành Transfer |
+| 5 | `kind` | varchar(20) |  |  | `duplicate_merge` / `transfer_pair` / `transfer_convert` |
+| 6 | `transfer_kind` | varchar(24) | có |  | Loại chuyển ví AI nhận ra (thống kê); null với gộp bản trùng hoặc ghép chỉ nhờ tên ví |
+| 7 | `before` | jsonb |  |  | Các dòng trước thao tác, thay đổi số dư từng ví, khoản phí đã tạo, tham chiếu đã chuyển hoặc gỡ |
+| 8 | `created_at` | timestamptz |  |  |  |
+
+Khóa ngoại:
+- `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc:
+- CHECK `chk_transaction_merge_snapshots_kind`: `kind IN ('duplicate_merge','transfer_pair','transfer_convert','group_fund_expense')` (`group_fund_expense` ở Phase 85)
+- CHECK `chk_transaction_merge_snapshots_transfer_kind`: `transfer_kind IS NULL OR transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account')`
+- CHECK `chk_transaction_merge_snapshots_before`: `jsonb_typeof(before) = 'object'`
+
+Index:
+- `ix_transaction_merge_snapshots_user_survivor` `(user_id, survivor_id)`
+- `ix_transaction_merge_snapshots_created_at` `(created_at)`
+
+#### Sức khoẻ dịch vụ đọc thông báo (Phase 84, migration `AddListenerHealth`)
+
+Viết tay theo migration, chưa dựng lại từ catalog. Cùng migration: `users.listener_health_alerts_enabled`, kind `listener_health` của `forecast_alerts`,
+nguồn sự cố `notification_format` của `ops_incidents`/`ops_error_events`, hai index ở `notification_logs` và `ai_results` (xem từng bảng).
+
+```mermaid
+erDiagram
+    users ||--o{ device_listener_statuses : "user_id"
+    device_listener_statuses ||--o{ device_listener_daily : "status_id"
+    users ||--o{ device_listener_daily : "user_id"
+    device_listener_statuses {
+        uuid id PK
+        uuid user_id FK
+        uuid installation_id
+        boolean permission_granted
+        boolean listener_connected
+        jsonb selected_packages
+        varchar(32) app_version "nullable"
+        varchar(64) manufacturer "nullable"
+        timestamptz permission_lost_since "nullable"
+        timestamptz first_reported_at
+        timestamptz last_reported_at
+    }
+    device_listener_daily {
+        uuid status_id PK
+        date day PK
+        uuid user_id FK
+        boolean any_permission_denied
+        boolean last_permission_granted
+        boolean last_listener_connected
+        timestamptz last_reported_at
+        integer report_count
+    }
+    listener_upload_gap_daily {
+        date day PK
+        varchar(32) app_version PK
+        integer count
+    }
+```
+
+##### `device_listener_statuses` — DeviceListenerStatus
+
+Trạng thái mới nhất mà app báo qua `PUT /devices/listener-status`. Thiết bị xác định bằng `installation_id` do app sinh khi cài, không bằng token FCM.
+`selected_packages` chỉ chứa package của ví user hoặc của provider đã biết; không có nội dung thông báo.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `user_id` | uuid |  |  | FK → `users.id` |
+| 3 | `installation_id` | uuid |  |  | Do app sinh, một lần mỗi lần cài |
+| 4 | `permission_granted` | boolean |  |  | Quyền Notification Access |
+| 5 | `listener_connected` | boolean |  |  | Service đang kết nối |
+| 6 | `selected_packages` | jsonb |  | `'[]'` | `[{packageName, notificationsEnabled?, lastPostedAt?}]` |
+| 7 | `app_version` | varchar(32) | có |  |  |
+| 8 | `manufacturer` | varchar(64) | có |  | Chữ thường |
+| 9 | `permission_lost_since` | timestamptz | có |  | Mốc của một đợt nhắc `permission_lost`; null khi còn quyền |
+| 10 | `first_reported_at` | timestamptz |  |  |  |
+| 11 | `last_reported_at` | timestamptz |  |  |  |
+
+Khóa ngoại: `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc: CHECK `chk_device_listener_statuses_packages`: `jsonb_typeof(selected_packages) = 'array'`
+
+Index: UNIQUE `uq_device_listener_statuses_user_installation` `(user_id, installation_id)`
+
+##### `device_listener_daily` — DeviceListenerDay
+
+Một dòng mỗi thiết bị mỗi ngày (giờ VN theo lúc server nhận). Ngày ok khi `NOT any_permission_denied AND last_listener_connected`.
+Xoá sau `listenerHealth.historyRetentionDays` (90) bởi `ListenerHealthDailyJob`.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `status_id` | uuid |  |  | PK, FK → `device_listener_statuses.id` |
+| 2 | `day` | date |  |  | PK |
+| 3 | `user_id` | uuid |  |  | FK → `users.id` |
+| 4 | `any_permission_denied` | boolean |  |  | Có lần báo mất quyền trong ngày |
+| 5 | `last_permission_granted` | boolean |  |  | Lần báo cuối |
+| 6 | `last_listener_connected` | boolean |  |  | Lần báo cuối |
+| 7 | `last_reported_at` | timestamptz |  |  |  |
+| 8 | `report_count` | integer |  |  |  |
+
+Khóa ngoại: `status_id` → `device_listener_statuses(id)` ON DELETE CASCADE; `user_id` → `users(id)` ON DELETE CASCADE
+
+Ràng buộc: CHECK `chk_device_listener_daily_report_count`: `report_count >= 1`
+
+Index: `ix_device_listener_daily_user_day` `(user_id, day)`; `ix_device_listener_daily_day` `(day)`
+
+##### `listener_upload_gap_daily` — ListenerUploadGapDaily
+
+Ảnh chụp mỗi ngày số ví ở trạng thái `upload_gap` theo phiên bản app (`unknown` khi app không gửi). Không có user.
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `day` | date |  |  | PK |
+| 2 | `app_version` | varchar(32) |  |  | PK |
+| 3 | `count` | integer |  |  |  |
+
+Ràng buộc: CHECK `chk_listener_upload_gap_daily_count`: `count >= 0`
+
+#### Quỹ chung của nhóm (Phase 85, migration `AddGroupFunds`)
+
+Viết tay theo migration, chưa dựng lại từ catalog. Các bảng nhóm (`groups`, `group_members`, `group_categories`…) cũng chưa có trong tài liệu này
+(sinh trước Phase 57). Cùng migration: hai cột và hai CHECK ở `transactions`, kind `group_fund_negative`/`group_fund_removed` của `forecast_alerts`,
+kind `group_fund_expense` của `transaction_merge_snapshots`, sáu loại hoạt động mới trong CHECK `chk_group_activities_type`.
+
+```mermaid
+erDiagram
+    groups ||--o{ group_funds : "có"
+    group_funds ||--o{ group_fund_entries : "gồm"
+    users |o--o{ group_fund_entries : "ghi (null = thành viên cũ)"
+    group_fund_entries |o--o| transactions : "ghi lại ở sổ cá nhân"
+    categories |o--o{ group_fund_entries : "danh mục chi"
+    group_categories |o--o{ group_fund_entries : "danh mục nhóm"
+```
+
+##### `group_funds` — GroupFund
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `group_id` | uuid |  |  | FK → `groups.id` |
+| 3 | `name` | varchar(100) |  |  |  |
+| 4 | `note` | varchar(500) | có |  |  |
+| 5 | `balance_cents` | bigint |  | `0` | Tính sẵn = Σ dòng còn sống có dấu; âm được |
+| 6 | `negative_episode` | integer |  | `0` | Số lần chuyển sang âm; nằm trong khoá chống lặp của push |
+| 7 | `created_by_user_id` | uuid | có |  | FK → `users.id` |
+| 8 | `archived_at` | timestamptz | có |  |  |
+| 9 | `created_at` | timestamptz |  |  |  |
+| 10 | `updated_at` | timestamptz |  |  |  |
+| — | `xmin` | xid |  |  | Cột hệ thống, khoá lạc quan |
+
+Khóa ngoại: `group_id` → `groups(id)` ON DELETE RESTRICT; `created_by_user_id` → `users(id)` ON DELETE SET NULL
+
+Ràng buộc:
+- CHECK `chk_group_funds_name`: `char_length(name) BETWEEN 1 AND 100`
+- CHECK `chk_group_funds_archived_settled`: `archived_at IS NULL OR balance_cents = 0`
+- CHECK `chk_group_funds_negative_episode`: `negative_episode >= 0`
+
+Index: `ix_group_funds_group_active` `(group_id) WHERE archived_at IS NULL`
+
+##### `group_fund_entries` — GroupFundEntry
+
+| # | Cột | Kiểu | Null | Mặc định | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
+| 2 | `fund_id` | uuid |  |  | FK → `group_funds.id` |
+| 3 | `group_id` | uuid |  |  | FK → `groups.id` (lặp lại để lọc ngân sách, báo cáo) |
+| 4 | `member_user_id` | uuid | có |  | FK → `users.id`; người ghi; null = đã ẩn danh |
+| 5 | `kind` | varchar(20) |  |  | `contribution` / `expense` / `withdrawal` / `adjustment` |
+| 6 | `amount_cents` | bigint |  |  | > 0; có dấu (≠ 0) với `adjustment` |
+| 7 | `transacted_at` | timestamptz |  |  |  |
+| 8 | `category_id` | uuid | có |  | FK → `categories.id`; chỉ với chi, danh mục hệ thống |
+| 9 | `group_category_id` | uuid | có |  | FK → `group_categories.id`; chỉ với chi |
+| 10 | `note` | varchar(500) | có |  | Bắt buộc với `adjustment` |
+| 11 | `merchant_name` | varchar(200) | có |  | Chỉ với chi |
+| 12 | `client_request_id` | uuid | có |  | Chống gửi lại |
+| 13 | `origin` | varchar(10) |  | `'created'` | `created` / `converted` (chi lấy từ một giao dịch có sẵn) |
+| 14 | `origin_category_id` | uuid | có |  | FK → `categories.id`; danh mục gốc để khôi phục |
+| 15 | `created_at` | timestamptz |  |  |  |
+| 16 | `updated_at` | timestamptz |  |  |  |
+| 17 | `deleted_at` | timestamptz | có |  | Xoá mềm |
+| 18 | `deleted_by_user_id` | uuid | có |  | FK → `users.id` |
+
+Khóa ngoại: `fund_id` → `group_funds(id)` RESTRICT; `group_id` → `groups(id)` RESTRICT; `member_user_id`, `deleted_by_user_id` → `users(id)` SET NULL;
+`category_id` → `categories(id)` RESTRICT; `group_category_id` → `group_categories(id)` RESTRICT; `origin_category_id` → `categories(id)` SET NULL
+
+Ràng buộc:
+- CHECK `chk_group_fund_entries_kind`: `kind IN ('contribution','expense','withdrawal','adjustment')`
+- CHECK `chk_group_fund_entries_origin`: `origin IN ('created','converted')`
+- CHECK `chk_group_fund_entries_amount`: `(kind = 'adjustment' AND amount_cents <> 0 AND note IS NOT NULL) OR (kind <> 'adjustment' AND amount_cents > 0)`
+- CHECK `chk_group_fund_entries_expense_fields`: `kind = 'expense' OR (category_id IS NULL AND group_category_id IS NULL AND merchant_name IS NULL)`
+- CHECK `chk_group_fund_entries_expense_category`: `kind <> 'expense' OR category_id IS NOT NULL OR group_category_id IS NOT NULL`
+- CHECK `chk_group_fund_entries_origin_kind`: `origin = 'created' OR kind = 'expense'`
+- CHECK `chk_group_fund_entries_origin_category`: `origin_category_id IS NULL OR origin = 'converted'`
+
+Index:
+- `ix_group_fund_entries_fund_transacted` `(fund_id, transacted_at DESC, id DESC) WHERE deleted_at IS NULL`
+- `ix_group_fund_entries_group_kind_transacted` `(group_id, kind, transacted_at) WHERE deleted_at IS NULL`
+- UNIQUE `uq_group_fund_entries_client_request` `(fund_id, member_user_id, client_request_id) WHERE client_request_id IS NOT NULL`
+- Index theo FK do EF tạo: `IX_group_fund_entries_category_id`, `_deleted_by_user_id`, `_group_category_id`, `_member_user_id`, `_origin_category_id`; `IX_group_funds_created_by_user_id`
 
 #### 3.1.7 Cấu hình hệ thống
 
@@ -2492,6 +2753,8 @@ Mỗi lần gọi `/analyze`: kết quả từng bước, độ tin cậy, phiê
 | 30 | `pattern_id` | uuid | có |  | FK → `kb_provider_patterns.id` |
 | 31 | `config_versions` | jsonb | có |  |  |
 | 32 | `extra_fields` | jsonb | có |  |  |
+| 33 | `relation_hint` | varchar(16) | có |  | Phase 81 (alembic `0037`): `refund` / `reversal` cho khoản tiền vào; Phase 83 (alembic `0038`): thêm `transfer` |
+| 34 | `transfer_kind` | varchar(24) | có |  | Phase 83 (alembic `0038`): loại chuyển ví khi `relation_hint = transfer` |
 
 Khóa ngoại:
 - `pattern_id` → `kb_provider_patterns(id)` ON DELETE SET NULL
@@ -2501,6 +2764,8 @@ Khóa ngoại:
 
 Ràng buộc:
 - CHECK `chk_ops_analyze_log_amount`: `(amount_cents IS NULL) OR (amount_cents >= 0)`
+- CHECK `chk_ops_analyze_log_relation_hint`: `(relation_hint IS NULL) OR relation_hint IN ('refund', 'reversal', 'transfer')`
+- CHECK `chk_ops_analyze_log_transfer_kind`: `transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal', 'atm_deposit', 'wallet_topup', 'wallet_withdrawal', 'own_account'))`
 - CHECK `chk_ops_analyze_log_categorization_conf`: `(categorization_confidence IS NULL) OR ((categorization_confidence >= 0) AND (categorization_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_classifier_conf`: `(classifier_confidence IS NULL) OR ((classifier_confidence >= 0) AND (classifier_confidence <= 1))`
 - CHECK `chk_ops_analyze_log_extra_fields`: `(extra_fields IS NULL) OR (jsonb_typeof(extra_fields) = 'object')`
@@ -3065,7 +3330,7 @@ Danh mục các model (mã, loại, nhà cung cấp).
 | 6 | `created_at` | timestamptz |  | `now()` |  |
 
 Ràng buộc:
-- CHECK `chk_ml_models_kind`: `kind IN ('sklearn', 'rasa', 'llm', 'rules')`
+- CHECK `chk_ml_models_kind`: `kind IN ('sklearn', 'llm', 'rules')`
 - UNIQUE `uq_ml_models_code`: `code`
 
 ##### `ml_training_jobs` — TrainingJob
@@ -3205,123 +3470,7 @@ Index:
 - `idx_evaluation_predictions_labeled_sample` `(labeled_sample_id)`
 - `idx_evaluation_predictions_run` `(evaluation_run_id, is_correct)`
 
-#### 3.2.6 NLU (Rasa)
-
-```mermaid
-erDiagram
-    nlu_examples {
-        uuid id PK
-        text text
-        varchar(400) text_key UK
-        varchar(32) intent
-        varchar(16) split
-        varchar(40) tag "nullable"
-        varchar(32) source
-        boolean is_active
-        timestamptz created_at
-    }
-    nlu_candidates {
-        uuid id PK
-        varchar(64) user_id_hash
-        text text
-        varchar(400) text_key
-        varchar(32) predicted_intent "nullable"
-        float8 predicted_confidence "nullable"
-        varchar(24) unclear_reason
-        varchar(16) status
-        timestamptz created_at
-    }
-    nlu_model_versions {
-        uuid id PK
-        varchar(64) version UK
-        text artifact_path
-        varchar(16) status
-        varchar(64) dataset_hash
-        jsonb dataset_counts "nullable"
-        jsonb eval_raw "nullable"
-        jsonb eval_final "nullable"
-        text notes "nullable"
-        timestamptz created_at
-        timestamptz activated_at "nullable"
-    }
-```
-
-##### `nlu_examples` — NluExample
-
-Câu ví dụ huấn luyện NLU (intent, split).
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `text` | text |  |  |  |
-| 3 | `text_key` | varchar(400) |  |  | UK |
-| 4 | `intent` | varchar(32) |  |  |  |
-| 5 | `split` | varchar(16) |  |  |  |
-| 6 | `tag` | varchar(40) | có |  |  |
-| 7 | `source` | varchar(32) |  |  |  |
-| 8 | `is_active` | boolean |  | `true` |  |
-| 9 | `created_at` | timestamptz |  | `now()` |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_examples_source`: `source IN ('seed', 'user_feedback', 'human')`
-- CHECK `chk_nlu_examples_split`: `split IN ('train', 'val', 'test')`
-- CHECK `chk_nlu_examples_text_len`: `char_length(text) <= 200`
-- UNIQUE `uq_nlu_examples_text_key`: `text_key`
-
-Index:
-- `idx_nlu_examples_split_intent` `(split, intent)`
-
-##### `nlu_candidates` — NluCandidate
-
-Câu người dùng mà NLU chưa chắc, chờ duyệt để thành ví dụ.
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `user_id_hash` | varchar(64) |  |  |  |
-| 3 | `text` | text |  |  |  |
-| 4 | `text_key` | varchar(400) |  |  |  |
-| 5 | `predicted_intent` | varchar(32) | có |  |  |
-| 6 | `predicted_confidence` | float8 | có |  |  |
-| 7 | `unclear_reason` | varchar(24) |  |  |  |
-| 8 | `status` | varchar(16) |  | `'pending'::character varying` |  |
-| 9 | `created_at` | timestamptz |  | `now()` |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_candidates_status`: `status IN ('pending', 'rejected')`
-- CHECK `chk_nlu_candidates_user_hash`: `user_id_hash ~ '^[0-9a-f]{64}$'`
-- UNIQUE `uq_nlu_candidates_user_text`: `user_id_hash, text_key`
-
-Index:
-- `idx_nlu_candidates_status_created` `(status, created_at)`
-
-##### `nlu_model_versions` — NluModelVersion
-
-Phiên bản model Rasa và kết quả đánh giá.
-
-| # | Cột | Kiểu | NULL | Mặc định | Khóa |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
-| 2 | `version` | varchar(64) |  |  | UK |
-| 3 | `artifact_path` | text |  |  |  |
-| 4 | `status` | varchar(16) |  |  |  |
-| 5 | `dataset_hash` | varchar(64) |  |  |  |
-| 6 | `dataset_counts` | jsonb | có |  |  |
-| 7 | `eval_raw` | jsonb | có |  |  |
-| 8 | `eval_final` | jsonb | có |  |  |
-| 9 | `notes` | text | có |  |  |
-| 10 | `created_at` | timestamptz |  | `now()` |  |
-| 11 | `activated_at` | timestamptz | có |  |  |
-
-Ràng buộc:
-- CHECK `chk_nlu_model_versions_dataset_hash`: `(dataset_hash = 'unknown') OR (dataset_hash ~ '^[0-9a-f]{64}$')`
-- CHECK `chk_nlu_model_versions_status`: `status IN ('candidate', 'active', 'retired', 'rejected')`
-- UNIQUE `uq_nlu_model_versions_version`: `version`
-
-Index:
-- UNIQUE `uq_nlu_model_versions_active` `(status) WHERE status = 'active'`
-
-#### 3.2.7 View
+#### 3.2.6 View
 
 ##### `bill_unknown_merchants` (view)
 

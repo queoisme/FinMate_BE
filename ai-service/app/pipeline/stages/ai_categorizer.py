@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 
 import structlog
 
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.item_classifier import _strip_money, classify_items
 from app.bill.knowledge import BillKnowledge
 from app.core import confidence as table
@@ -30,7 +30,7 @@ logger = structlog.get_logger(__name__)
 
 @dataclass(frozen=True)
 class AiDeps:
-    gemini: GeminiClient
+    gemini: LlmClient
     knowledge: BillKnowledge
     instruction: str
 

@@ -13,6 +13,9 @@ public class FinMateDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<DeviceListenerStatus> DeviceListenerStatuses => Set<DeviceListenerStatus>();
+    public DbSet<DeviceListenerDay> DeviceListenerDays => Set<DeviceListenerDay>();
+    public DbSet<ListenerUploadGapDaily> ListenerUploadGapDaily => Set<ListenerUploadGapDaily>();
     public DbSet<ReceiptScan> ReceiptScans => Set<ReceiptScan>();
     public DbSet<ReceiptScanItem> ReceiptScanItems => Set<ReceiptScanItem>();
     public DbSet<ReceiptScanLink> ReceiptScanLinks => Set<ReceiptScanLink>();
@@ -26,6 +29,9 @@ public class FinMateDbContext : DbContext
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
+    public DbSet<TransactionMergeSnapshot> TransactionMergeSnapshots => Set<TransactionMergeSnapshot>();
+    public DbSet<ForecastSnapshot> ForecastSnapshots => Set<ForecastSnapshot>();
+    public DbSet<ForecastFeedback> ForecastFeedback => Set<ForecastFeedback>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
     public DbSet<MerchantCategoryOverride> MerchantCategoryOverrides => Set<MerchantCategoryOverride>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
@@ -48,11 +54,14 @@ public class FinMateDbContext : DbContext
     public DbSet<UserSurveyAnswer> UserSurveyAnswers => Set<UserSurveyAnswer>();
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
+    public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupFund> GroupFunds => Set<GroupFund>();
+    public DbSet<GroupFundEntry> GroupFundEntries => Set<GroupFundEntry>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
     public DbSet<CommunityPlace> CommunityPlaces => Set<CommunityPlace>();
     public DbSet<CommunityPost> CommunityPosts => Set<CommunityPost>();
@@ -72,6 +81,9 @@ public class FinMateDbContext : DbContext
     public DbSet<SupportDataAccessLog> SupportDataAccessLogs => Set<SupportDataAccessLog>();
     public DbSet<OpsApprovalRequest> OpsApprovalRequests => Set<OpsApprovalRequest>();
     public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
     public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
     public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();

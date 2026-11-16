@@ -61,6 +61,51 @@ public class Transaction
 
     public DateTimeOffset? SharedAt { get; set; }
 
+    /// <summary>
+    /// Khoản chi gốc mà khoản này hoàn lại hoặc đảo (Phase 81). Chỉ có khi <see cref="Relation"/> có giá trị; NULL với hoàn "mồ côi".
+    /// Cùng user với khoản này, mọi đường liên kết đều tra theo userId.
+    /// </summary>
+    public Guid? RelatedTransactionId { get; set; }
+
+    /// <summary>Hoàn tiền hay đảo giao dịch. Có giá trị thì giao dịch phải là <see cref="TransactionType.Credit"/> và KHÔNG được tính là thu nhập.</summary>
+    public TransactionRelation? Relation { get; set; }
+
+    /// <summary>Khoản chi gốc đã bị một lệnh <see cref="TransactionRelation.Reversal"/> đảo: vẫn hiện trong lịch sử nhưng bị loại khỏi mọi tổng hợp.</summary>
+    public bool IsReversed { get; set; }
+
+    /// <summary>
+    /// Giao dịch mà khoản này có thể trùng với (Phase 82). Luôn đi cùng <see cref="DuplicateStatus"/>; chỉ lưu ứng viên hạng 1,
+    /// danh sách đầy đủ tính khi đọc. Bản mới hơn trỏ tới bản cũ hơn.
+    /// </summary>
+    public Guid? DuplicateOfTransactionId { get; set; }
+
+    public DuplicateStatus? DuplicateStatus { get; set; }
+
+    /// <summary>Survivor mà khoản này đã được gộp vào. Chỉ có trên dòng đã xoá mềm.</summary>
+    public Guid? MergedIntoTransactionId { get; set; }
+
+    /// <summary>
+    /// Các kênh đã góp vào survivor sau khi gộp (giá trị của <see cref="TransactionSource"/>, chữ thường), ví dụ
+    /// <c>{manual, notification}</c>: có <c>notification</c> nghĩa là ngân hàng đã xác thực khoản này. NULL khi chưa từng gộp.
+    /// </summary>
+    public string[]? MergedSources { get; set; }
+
+    /// <summary>
+    /// Người dùng đã nói "không phải chuyển ví" (Phase 83, BR-TRF-12, S2): chỉ tắt GỢI Ý chuyển ví có dính giao dịch này. Chuyển đổi tay vẫn được,
+    /// và chuyển đổi thành công thì cột này được xoá.
+    /// </summary>
+    public DateTimeOffset? TransferDismissedAt { get; set; }
+
+    /// <summary>
+    /// Dòng quỹ nhóm mà giao dịch này ghi lại phía sổ cá nhân (Phase 85, BR-FUND-08). Khi có: <see cref="TransactionType"/> là Transfer,
+    /// <see cref="CounterAccountId"/> null (đầu kia là quỹ, không phải ví), không chi, không thu, không chia sẻ nhóm được.
+    /// Dòng quỹ có thể đã xoá mềm (S3); liên kết vẫn giữ.
+    /// </summary>
+    public Guid? GroupFundEntryId { get; set; }
+
+    /// <summary>Đi cùng <see cref="GroupFundEntryId"/>. Chỉ <c>TransferLegs</c> đọc để biết tiền ra hay vào ví.</summary>
+    public GroupFundDirection? GroupFundDirection { get; set; }
+
     /// <summary>Ticket đã sinh ra giao dịch nháp này, khi <see cref="Source"/> là <c>Support</c>.</summary>
     public Guid? SupportTicketId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -74,4 +119,7 @@ public class Transaction
     public NotificationLog? NotificationLog { get; set; }
     public SavingGoal? SavingGoal { get; set; }
     public GroupCategory? GroupCategory { get; set; }
+    public Transaction? RelatedTransaction { get; set; }
+    public Transaction? DuplicateOf { get; set; }
+    public GroupFundEntry? GroupFundEntry { get; set; }
 }

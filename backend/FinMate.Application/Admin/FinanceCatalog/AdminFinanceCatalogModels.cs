@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FinMate.Application.Common.Models;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -134,7 +135,8 @@ public record MethodTemplateLinkRequest(string TemplateCode, JsonElement? Condit
 /// <summary>Quản trị danh mục cách quản lý tài chính, khảo sát và mẫu mục tiêu. Mọi thao tác GHI để lại một dòng audit; không xóa cứng, tắt bằng activation.</summary>
 public interface IAdminFinanceCatalogService
 {
-    Task<IReadOnlyList<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, CancellationToken ct = default);
+    /// <summary>Danh sách theo trang: <paramref name="search"/> khớp mã, tên, mô tả (bỏ dấu, không phân biệt hoa thường); sắp theo thứ tự hiển thị rồi tên.</summary>
+    Task<PagedResult<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default);
     Task<AdminFinanceMethodDto> CreateMethodAsync(Guid adminId, string? ip, CreateFinanceMethodRequest request, CancellationToken ct = default);
     Task<AdminFinanceMethodDto> UpdateMethodAsync(Guid adminId, string? ip, Guid id, UpdateFinanceMethodRequest request, CancellationToken ct = default);
     Task<AdminFinanceMethodDto> SetMethodActiveAsync(Guid adminId, string? ip, Guid id, bool isActive, CancellationToken ct = default);
@@ -144,7 +146,7 @@ public interface IAdminFinanceCatalogService
     Task<IReadOnlyList<AdminMethodTemplateLinkDto>> ReplaceMethodTemplatesAsync(
         Guid adminId, string? ip, Guid methodId, IReadOnlyList<MethodTemplateLinkRequest> links, CancellationToken ct = default);
 
-    Task<IReadOnlyList<AdminSurveyQuestionDto>> ListQuestionsAsync(bool includeInactive, CancellationToken ct = default);
+    Task<PagedResult<AdminSurveyQuestionDto>> ListQuestionsAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default);
     Task<AdminSurveyQuestionDto> CreateQuestionAsync(Guid adminId, string? ip, CreateSurveyQuestionRequest request, CancellationToken ct = default);
     Task<AdminSurveyQuestionDto> UpdateQuestionAsync(Guid adminId, string? ip, Guid id, UpdateSurveyQuestionRequest request, CancellationToken ct = default);
     Task<AdminSurveyQuestionDto> SetQuestionActiveAsync(Guid adminId, string? ip, Guid id, bool isActive, CancellationToken ct = default);
@@ -154,7 +156,7 @@ public interface IAdminFinanceCatalogService
     Task<AdminSurveyQuestionDto> SetOptionActiveAsync(
         Guid adminId, string? ip, Guid questionId, Guid optionId, bool isActive, CancellationToken ct = default);
 
-    Task<IReadOnlyList<AdminGoalTemplateDto>> ListTemplatesAsync(bool includeInactive, CancellationToken ct = default);
+    Task<PagedResult<AdminGoalTemplateDto>> ListTemplatesAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default);
     Task<AdminGoalTemplateDto> CreateTemplateAsync(Guid adminId, string? ip, CreateGoalTemplateRequest request, CancellationToken ct = default);
     Task<AdminGoalTemplateDto> UpdateTemplateAsync(Guid adminId, string? ip, Guid id, UpdateGoalTemplateRequest request, CancellationToken ct = default);
     Task<AdminGoalTemplateDto> SetTemplateActiveAsync(Guid adminId, string? ip, Guid id, bool isActive, CancellationToken ct = default);

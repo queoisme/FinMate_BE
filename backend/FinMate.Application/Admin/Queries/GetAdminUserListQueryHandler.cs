@@ -22,7 +22,8 @@ public class GetAdminUserListQueryHandler : IGetAdminUserListQueryHandler
                 query.IsLocked,
                 query.IncludeDeleted,
                 query.Cursor,
-                AdminPaging.Clamp(query.Limit)),
+                AdminPaging.Clamp(query.Limit),
+                query.InternalOnly),
             ct);
 
         return new AdminUserListDto(

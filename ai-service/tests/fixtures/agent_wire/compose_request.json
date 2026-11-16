@@ -1,0 +1,27 @@
+{
+  "question": "Mình còn bao nhiêu tiền?",
+  "evidence": [
+    {
+      "id": "balance",
+      "key": "total_balance",
+      "value_vnd": 100000000,
+      "text": "Tổng số dư các tài khoản",
+      "unit": "VND",
+      "source": "confirmed",
+      "as_of": "2026-11-07T10:00:00+07:00",
+      "confidence": 1
+    },
+    {
+      "id": "verdict",
+      "key": "goal_verdict",
+      "text": "verdict: tight",
+      "unit": "label",
+      "source": "estimated",
+      "as_of": "2026-11-07T10:00:00+07:00",
+      "confidence": 0.5,
+      "source_name": "Tổng cục Thống kê",
+      "source_url": "https://www.gso.gov.vn/"
+    }
+  ],
+  "skip_verifier": false
+}

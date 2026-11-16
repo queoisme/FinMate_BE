@@ -39,6 +39,8 @@ public class ChatCommandHandler : IChatCommandHandler
     private readonly ITransactionRepository _transactionRepository;
     private readonly IValidator<ChatCommand> _validator;
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý (test cũ) thì không gửi gì ra bên thứ ba
+    private readonly Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc cho câu "được hoàn tiền"
+    private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: chỉ còn cảnh báo ±10 phút như trước Phase 82
 
     public ChatCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -48,8 +50,12 @@ public class ChatCommandHandler : IChatCommandHandler
         IReportRepository reportRepository,
         ITransactionRepository transactionRepository,
         IValidator<ChatCommand> validator,
-        IAiConsentReader? consent = null)
+        IAiConsentReader? consent = null,
+        Refunds.IRefundSuggestions? refundSuggestions = null,
+        Duplicates.IDuplicateDetector? duplicates = null)
     {
+        _refundSuggestions = refundSuggestions;
+        _duplicates = duplicates;
         _aiServiceClient = aiServiceClient;
         _createHandler = createHandler;
         _financialAccountRepository = financialAccountRepository;
@@ -75,6 +81,14 @@ public class ChatCommandHandler : IChatCommandHandler
                 new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText));
         }
 
+        if (parsed.Purchase is { } purchase)
+        {
+            // Hỏi trước khi mua: chỉ trả tham số. Không tạo giao dịch; app gọi POST /forecast/purchase-check để có đánh giá do backend tính.
+            return new ChatResultDto(
+                ChatActions.Purchase, parsed.Intent, parsed.ReplyText, null, null, null, null, null,
+                new ChatPurchaseDraftDto(purchase.Item, purchase.AmountCents, purchase.PurchaseDate, purchase.CategorySlug));
+        }
+
         if (parsed.Entries is { Count: > 1 } many)
         {
             // Nhiều khoản trong một câu: luôn qua bước xác nhận, không bao giờ ghi ngay (một câu sai là sai nhiều khoản cùng lúc).
@@ -82,7 +96,8 @@ public class ChatCommandHandler : IChatCommandHandler
             var drafts = new List<ChatDraftDto>();
             foreach (var e in many)
             {
-                drafts.Add(DraftOf(e, accountId, await FindDuplicateAsync(command, e, ct)));
+                var (recent, suggested) = await FindDuplicatesAsync(command, e, accountId, ct);
+                drafts.Add(await WithRefundSuggestionsAsync(command, e, DraftOf(e, accountId, recent, suggested), ct));
             }
 
             // Client cũ chỉ đọc `draft` (bản đầu): câu trả lời nói rõ có nhiều khoản để người dùng không im lặng mất các khoản sau.
@@ -109,10 +124,11 @@ public class ChatCommandHandler : IChatCommandHandler
         ChatCommand command, ChatParseResponse parsed, ChatParseEntry entry, CancellationToken ct)
     {
         var accountId = await ResolveAccountAsync(command, ct);
-        var duplicate = await FindDuplicateAsync(command, entry, ct);
+        var (duplicate, suggested) = await FindDuplicatesAsync(command, entry, accountId, ct);
 
         // Có thể trùng thì không ghi ngay: hỏi lại (kèm mã giao dịch có thể trùng), người dùng vẫn lưu được nếu đó là khoản thứ hai thật.
-        if (duplicate is null && entry.AutoSaveOk && entry.Kind == ExpenseKind && accountId is not null && entry.AmountCents > 0)
+        // Phase 82 (BR-DUP-06): khoản mà ngân hàng có thể đã báo (thông báo trong 48 giờ) cũng không tự lưu, vì lưu là thành nghi trùng.
+        if (duplicate is null && !suggested.MarksSuspected && entry.AutoSaveOk && entry.Kind == ExpenseKind && accountId is not null && entry.AmountCents > 0)
         {
             var category = entry.CategorySlug is null
                 ? null
@@ -136,7 +152,7 @@ public class ChatCommandHandler : IChatCommandHandler
             }
         }
 
-        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, WithNotes(parsed.ReplyText, parsed), null, DraftOf(entry, accountId, duplicate), null);
+        return new ChatResultDto(ChatActions.Confirm, parsed.Intent, WithNotes(parsed.ReplyText, parsed), null, await WithRefundSuggestionsAsync(command, entry, DraftOf(entry, accountId, duplicate, suggested), ct), null);
     }
 
     // Chạy được cả khi runtime ở chế độ globalization-invariant (không có culture vi-VN): tự đổi dấu phân cách nghìn sang dấu chấm.
@@ -164,13 +180,58 @@ public class ChatCommandHandler : IChatCommandHandler
         return notes.Count == 0 ? reply : string.Join(" ", new[] { reply }.Concat(notes).Where(t => !string.IsNullOrWhiteSpace(t)));
     }
 
-    private Task<Guid?> FindDuplicateAsync(ChatCommand command, ChatParseEntry entry, CancellationToken ct)
-        => entry.Kind == ExpenseKind && entry.AmountCents > 0
-            ? _transactionRepository.FindPossibleDuplicateAsync(
-                command.UserId, entry.AmountCents, entry.OccurredAt ?? DateTimeOffset.UtcNow, DuplicateWindow, command.ClientRequestId, ct)
-            : Task.FromResult<Guid?>(null);
+    /// <summary>
+    /// Hai lớp, giữ cả hai (D3): khoản chi cùng số tiền trong ±10 phút (gửi lại / bấm hai lần, không phân biệt nguồn) chỉ để chặn tự lưu;
+    /// ứng viên của <see cref="Duplicates.DuplicateMatcher"/> (chủ yếu thông báo ngân hàng trong 48 giờ) để app hiện và để chặn tự lưu.
+    /// </summary>
+    private async Task<(Guid? Recent, Duplicates.DuplicateSuggestion Suggested)> FindDuplicatesAsync(
+        ChatCommand command, ChatParseEntry entry, Guid? accountId, CancellationToken ct)
+    {
+        var at = entry.OccurredAt ?? DateTimeOffset.UtcNow;
+        var recent = entry.Kind == ExpenseKind && entry.AmountCents > 0
+            ? await _transactionRepository.FindPossibleDuplicateAsync(command.UserId, entry.AmountCents, at, DuplicateWindow, command.ClientRequestId, ct)
+            : null;
 
-    private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null)
+        var type = entry.Kind switch
+        {
+            ExpenseKind => TransactionType.Debit,
+            IncomeKind => TransactionType.Credit,
+            _ => (TransactionType?)null,
+        };
+        var suggested = _duplicates is null || type is null
+            ? Duplicates.DuplicateSuggestion.None
+            : await _duplicates.SuggestForInputAsync(
+                new Duplicates.DuplicateInput(command.UserId, TransactionSource.Manual, type.Value, entry.AmountCents, at, accountId, entry.MerchantName), ct);
+        return (recent, suggested);
+    }
+
+    /// <summary>
+    /// Phase 81 (D17): câu chat là nhận tiền hoàn (AI đoán <c>income_type = refund</c>) → kèm khoản chi gốc gợi ý. Chat không bao giờ tự lưu
+    /// thu nhập (FR-CHAT-02), nên không có đường lưu mới: app chọn khoản gốc rồi gọi <c>POST /transactions/{id}/refunds</c>.
+    /// </summary>
+    private async Task<ChatDraftDto> WithRefundSuggestionsAsync(ChatCommand command, ChatParseEntry entry, ChatDraftDto draft, CancellationToken ct)
+    {
+        if (_refundSuggestions is null || entry.Kind != IncomeKind || !string.Equals(entry.IncomeType, RefundIncomeType, StringComparison.OrdinalIgnoreCase))
+        {
+            return draft;
+        }
+
+        var probe = new Transaction
+        {
+            UserId = command.UserId,
+            FinancialAccountId = draft.SuggestedFinancialAccountId ?? Guid.Empty,
+            AmountCents = entry.AmountCents,
+            TransactionType = TransactionType.Credit,
+            MerchantName = entry.MerchantName,
+            TransactedAt = entry.OccurredAt ?? DateTimeOffset.UtcNow,
+        };
+        var suggestions = await _refundSuggestions.SuggestAsync(command.UserId, probe, TransactionRelation.Refund, ct);
+        return draft with { RelationHint = TransactionRelation.Refund.ToString(), SuggestedRelatedTransactions = suggestions };
+    }
+
+    private const string RefundIncomeType = "refund";
+
+    private static ChatDraftDto DraftOf(ChatParseEntry entry, Guid? accountId, Guid? duplicate = null, Duplicates.DuplicateSuggestion? suggested = null)
     {
         var missing = new List<string>();
         if (entry.Kind == TransferKind)
@@ -209,7 +270,8 @@ public class ChatCommandHandler : IChatCommandHandler
             entry.Kind == TransferKind ? null : accountId,
             missing,
             entry.OccurredAt,
-            duplicate);
+            duplicate ?? suggested?.Items.FirstOrDefault()?.Id,
+            SuggestedDuplicates: suggested is { Items.Count: > 0 } ? suggested.Items : null);
     }
 
     /// <summary>Ví người dùng chọn, hoặc ví duy nhất của họ; nhiều ví mà không chọn thì null (không đoán).</summary>

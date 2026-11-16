@@ -797,10 +797,7 @@
 | Phase 68 — Giám sát, đợt 1: sự cố, health probe, email | `[x]` | 4 / 4 |
 | Phase 69 — Giám sát, đợt 2: lỗi ứng dụng, job | `[x]` | 3 / 3 |
 | Phase 70 — Giám sát, đợt 3: nhà cung cấp, chỉ số OCR | `[ ]` | 3 / 4 *(còn: đăng ký dịch vụ theo dõi bên ngoài)* |
-| Phase 71 — Thị trường, đợt 1: nguồn, tải trang, bảng giá | `[x]` | 4 / 4 |
-| Phase 72 — Thị trường, đợt 2: AI đọc tin, admin duyệt | `[ ]` | 3 / 4 *(còn: thử với key Gemini thật)* |
-| Phase 73 — Thị trường, đợt 3: cảnh báo, giám sát | `[ ]` | 3 / 4 *(còn: báo người làm Flutter về `market_change`, kiểm tra điều khoản các nguồn trước khi phát hành)* |
-| Phase 74 — Thị trường: theo thói quen từng người, loại chi phí bằng cấu hình | `[ ]` | 3 / 4 *(còn: đo từ khóa trên giao dịch thật)* |
+| Phase 71 — Đánh giá khoản mua "Mua món này có ổn không?" | `[ ]` | 6 / 7 *(còn: app Flutter)* |
 | **Total** (không tính Backlog) | | **485 / 515** *(đếm lại 2026-11-05; bảng cũ dừng ở Phase 23 với 326 / 328)* |
 
 **Còn lại (2026-11-02):** 24 task `[ ]` trong MVP scope (9 rải ở Phase 19–51, 7 ở Phase 52, 1 ở Phase 53, 3 ở Phase 54, 2 ở Phase 55, 2 ở Phase 56), 2 task
@@ -1237,15 +1234,15 @@ trong REQUIREMENTS được kiểm lại trên code tại commit `b2e97b4` (khô
 - [x] Kiểm từng mục [Mới]/[Đổi]/[Một phần] của REQUIREMENTS trên code; đóng FR-BUD-03/06 (ngưỡng ba tầng), FR-TXN-24 (chuyển khoản qua `/transactions/chat`), FR-ADM-11 (giao diện quản trị AI).
 - [x] Viết lại `docs/REQUIREMENTS.md`: thêm nhóm CONS, SCAN, CHAT, QR, FIN, CFG cho Phase 19–51; thêm nhãn **[Ngoài đặc tả]** và **[Sai lệch]**; cập nhật NFR theo 5 dịch vụ.
 - [x] Cập nhật `CLAUDE.md` (Current state, repo layout) và bảng Progress Summary (đếm lại: 390 / 410).
-- [ ] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có.
+- [x] **[Sai lệch] Xóa `notification_logs.notification_body` sau 90 ngày** (NFR-SEC-23). `DataCleanupJob` chưa từng tồn tại (chỉ có trong skeleton `1e42940`); REQUIREMENTS và ARCHITECTURE §5 ghi như đã có. *2026-11-12: `NotificationBodyPurgeJob` 03:15 giờ VN, đặt `notification_body = NULL` cho log có `created_at` quá 90 ngày; tiêu đề, `content_hash`, trạng thái, kết quả AI và giao dịch giữ nguyên. Không thêm index (một câu UPDATE mỗi đêm).*
 - [ ] **Google Vision và đồng ý** (FR-CONS-05): ảnh gốc chưa che gửi Google khi có key, Điều khoản bản 3 không nhắc. Chờ chủ sản phẩm: sửa câu chữ + tăng `ConsentVersions.Terms`, hay tắt Vision.
 - [ ] **Test đỏ `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`** (FR-FIN-07): từ `b6f1c42`, luật gợi ý `rule_80_20` thay `cash_flow_budget`. Chờ chốt: chỉnh trọng số hay đổi kỳ vọng.
-- [ ] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`).
-- [ ] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27).
+- [x] Timeout tường minh cho client Refit `IAIServiceApi` (NFR-PERF-07; hiện mặc định 100 giây ở `Program.cs`). *2026-11-12: 35 giây = trần chuyển tiếp OCR của ai-service (30 giây) + dư.*
+- [x] Thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` vào `StartupSecretGuard` (NFR-SEC-27). *2026-11-12: cả hai vào `GuardedKeys`; thêm `ThrowIfMasterKeyInvalid` — khóa chủ trống vẫn được (kho key tùy chọn), có giá trị mà không phải 32 byte base64 thì từ chối khởi động.*
 - [x] Quyết định Mascot items (FR-GAME-06) — *2026-11-02: bỏ TOÀN BỘ gamification, giữ trạng thái cảnh báo ngân sách. Gỡ code ở Phase 53.*
-- [ ] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment.
+- [x] Đồng ý khảo sát-AI (FR-CONS-06): không còn được kiểm từ 2026-11-01 nhưng comment `ConsentVersions.SurveyAi` vẫn mô tả hành vi cũ. Gỡ loại đồng ý hoặc sửa comment. *2026-11-12: đã sửa comment; gỡ hẳn hay khôi phục vẫn chờ chủ sản phẩm (REQUIREMENTS §13.4).*
 - [x] Sửa bảng job ARCHITECTURE.md §5 *(làm cùng Phase 53)*: không có `ForecastJob`, `DataCleanupJob`; thiếu `GoalDeadlineCheckJob`, `DataDeletionJob`, `AiCategorySyncJob`; `RetryFailedNotificationJob` đọc khoảng chạy và số lần từ cấu hình hệ thống.
-- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06).
+- [ ] Tham số `forecast_minute` của phương pháp tài chính khai báo nhưng không code nào đọc (gắn với FR-RPT-06). *2026-11-12: cố ý chưa sửa — đọc nó nghĩa là làm lịch dự báo theo từng người (tính năng mới), và mặc định 1320 (22:00) trái với lịch cảnh báo 08:00 hiện có. Chờ quyết định FR-RPT-06.*
 
 ## Phase 53 — Gỡ toàn bộ gamification (quyết định 2026-11-02)
 Quyết định chủ sản phẩm: bỏ EXP, level, streak, nhiệm vụ, vật phẩm/trang phục Mascot, Honor Badge và quản trị nhiệm vụ (`docs/REQUIREMENTS.md` §13.6). **Giữ** trạng thái
@@ -1465,3 +1462,185 @@ Thiết kế: `.context/ARCHITECTURE.md` §2.7; yêu cầu: `docs/REQUIREMENTS.m
 
 **Rà soát Phase 76:** `security-review` không có lỗ hổng đạt ngưỡng. `code-review` mức cao có 10 phát hiện, sửa 9: gói bán khi chưa có chức năng làm người mua giữ gói rỗng đến hết kỳ (gói mới nay ở trạng thái chưa bán); một đơn SePay luôn báo lỗi chặn cả job và không ai được báo; void không kiểm tra đúng giao dịch và bị bỏ khi đơn chưa ghi nhận tiền; gửi lại với `clientRequestId` ăn thêm lượt hoặc bị từ chối (nay miễn một lần cho mỗi mã, vì handler vẫn gọi AI trước khi nhận ra gửi lại); ảnh không đọc được vẫn tính lượt; web không biết ngày kỳ mới bắt đầu (`GET /billing/web/me`); hỏi SePay không giãn cách và job chạy chồng (`next_check_at`, `DisableConcurrentExecution`); danh sách đơn cho Manager lộ id người dùng trái quy tắc `IOpsCustomerDataService`; `cycle` không được kiểm tra. Không sửa 1: mã handoff đọc rồi mới xóa, không nguyên tử, vì `ICacheService` chạy trên `IDistributedCache`; hai request đồng thời cùng mã chỉ tạo thêm một phiên hẹp của chính người đó, cùng mẫu với `GoogleOAuthStore`. **Giới hạn còn lại:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay.
 
+> Đánh số lại khi gộp `main` vào `dev/tuan` (2026-11-09): hai phase dưới đây được làm trên `dev/tuan` với tên Phase 71 và 72, trùng với Phase 71–76 của `main`.
+
+## Phase 77 — Đánh giá khoản mua "Mua món này có ổn không?" (2026-11-07)
+Đặc tả: `docs/flows/flow-6-purchase-decision-assistant.md` (§13 ghi phần đã làm); yêu cầu FR-FCST-17. Lớp mỏng trên engine dự báo Phase 54–56: **không đổi schema, không migration**. Trong code gọi là *purchase check* để không trùng "Flow 6" của dự báo.
+- [x] Cấu hình admin `forecast.purchaseDefaultHorizonDays` (14) và `purchaseStaleBalanceDays` (7) + validator; mã lỗi `PURCHASE_CHECK_INVALID`.
+- [x] `PurchaseVerdict` (hàm thuần): kỳ tính tới kỳ thu nhập kế tiếp sau ngày mua, bốn kiểm tra, giá tối đa mua được, ngày mua sớm nhất an toàn, câu kết luận mẫu. `PurchaseVerdictTests` gồm ví dụ −500.000đ của đặc tả.
+- [x] `PurchaseCheckService` + `POST /forecast/purchase-check` (chạy engine hai lần: không mua / có khoản mua; ngân sách qua `IBudgetForecastService`, kế hoạch tháng qua `IGoalPlanningService`; nhận `categorySlug`). `PurchaseCheckControllerTests` (401, ví dụ lương/tiền nhà, bảng giải thích, không đổi số dư, ví người khác 404, input sai 422, ngân sách vượt, chưa có ngân sách/thu nhập = chưa rõ).
+- [x] Hợp đồng chat BE: `ChatParsePurchase`/`purchase` ở `ChatParseResponse`, `ChatActions.Purchase`, `ChatPurchaseDraftDto`; `ChatCommandHandler` chỉ trả tham số, không tạo giao dịch. Test `APurchaseQuestionReturnsOnlyTheParametersAndCreatesNothing`.
+- [x] Tài liệu: đặc tả chép vào `docs/flows/`, REQUIREMENTS §6.5 (FR-FCST-17).
+- [x] AI service: ý định `evaluate_purchase` + `purchase_parser.py` (từ khóa chỉ trong `intent_cues.json`; `audit_overrides --strict` sạch: cứu 35, làm hỏng 2 ca "mua bitcoin bây giờ được không" nay là `needs_amount` thay vì `out_of_scope`); JSON mẫu sinh từ `model_dump_json()` đã ghim trong `ChatParseContractTests`; hợp đồng ghi ở `ARCHITECTURE.md` §3.3 (**cần chủ dự án duyệt** theo `AGENTS.md`). Chưa nhận: thứ trong tuần, "tuần sau", "cuối tháng".
+- [ ] Báo nhóm Flutter: `POST /forecast/purchase-check`, `ChatActions.Purchase`, thẻ đánh giá và nút "Thử một khoản mua".
+- [x] Rasa: ý định `evaluate_purchase` trong `domain.yml` + 347 câu (`seed/nlu_purchase.jsonl`, generator `rasa/tools/generate_purchase.py`), luật bỏ phiếu của Rasa khi không có bản nháp (`PURCHASE_INTENT` trong `transaction_parser.py`), test canh dữ liệu cập nhật. Huấn luyện 3 seed `finmate-nlu-v17-s1..s3` trên DB tạm: cổng promote **chặn cả ba** (sau luật 98,02 / 97,44 / 98,26 so với v11 98,37; seed 3 còn tụt `nlu_test_fresh2` 1 câu). Chưa nhập dữ liệu vào DB dev, chưa promote; số đo ở `docs/rasa-coverage-report.md` §6.
+- Giới hạn đã biết: độ mới số dư lấy từ `financial_accounts.updated_at` (chưa có `balance_updated_at`); người dùng mới luôn ở mức `partial` tới khi đủ `minHistoryDays` ngày dữ liệu; chưa hỗ trợ trả góp; M4 và diễn giải bằng AI chưa làm.
+
+## Phase 78 — AI Financial Agent (2026-11-07)
+Kế hoạch: `docs/superpowers/plans/2026-11-07-ai-financial-agent.md` (23 task). Hợp đồng API: `docs/agent-api.md`; đánh giá: `docs/agent-eval.md`; phân quyền dùng Staff/OpsManager của Phase 61–65.
+- [x] Task 1–9b: hạ tầng pgvector, bằng chứng + độ tin cậy, dải thu nhập hai nhóm, giả định kinh tế, công cụ + `ToolExecutor`, cổng LLM (Gemini / OpenRouter), cổng phạm vi + planner, composer + bộ kiểm chứng số, vòng điều phối `POST /agent/ask`, bộ nhớ + ngữ cảnh, vết `agent_runs`.
+- [x] Task 10–13: hồ sơ giả lập, 60 câu hỏi có nhãn, endpoint đánh giá (Development) + chỉ số + bộ chạy, backtest dải dự báo.
+- [x] Task 14–15: kho tri thức pgvector + truy xuất lai + bộ đệm; luồng duyệt tri thức; ứng viên chỉ lưu mã băm; công cụ `search_knowledge`.
+- [x] Task 16–17: sổ dòng tiền, `simulate_purchase` (đọc `recurring_items` của Phase 54), `runway`, `stress_test`, `sensitivity`.
+- [x] Task 20 (phần giữ lại): trợ lý gợi ý trả lời khiếu nại (`ticket_assist`, chỉ gợi ý, kiểm số tiền) gắn vào ticket của Phase 62. Vai trò Manager/SupportStaff/ContentStaff và luồng khiếu nại riêng của agent đã BỎ khi gộp nhánh để dùng bản của Phase 61–65.
+- [ ] **Task 18 (tuỳ chọn) hoãn:** nhập sao kê bằng Gemini đa phương thức (cần khóa thật để kiểm chứng).
+- [ ] **Chưa làm / chưa kiểm chứng:** chạy bộ đánh giá với LLM thật (bảng số cuối trong `docs/agent-eval.md` còn trống), chọn mô hình theo ngưỡng chi phí – chất lượng, FE cho thẻ kết quả, sơ đồ đã vẽ nhưng chưa rà với giảng viên.
+- Lưu ý vận hành: bật `AGENT_EVAL_ENABLED` ngoài Development làm backend từ chối khởi động; không dựng lại backend/ai-service dev dùng chung khi chưa kiểm tra DB đang ở migration nào.
+
+## Phase 79 — Bỏ Rasa, thay bằng bộ phân loại ý định trong tiến trình (2026-11-09)
+Nhánh `feat/replace-rasa-intent-classifier`. Quyết định của chủ dự án: bỏ hẳn Rasa; thành phần nào còn lại phải được giải thích và thật sự được dùng.
+- [x] Bộ phân loại ý định trong tiến trình `ai-service/app/services/intent_classifier.py` (TF-IDF + hồi quy logistic, học lười từ `ai-service/data/intent/examples.jsonl`) và `ai-service/scripts/eval_intent.py`; `nlu.source` ∈ `model | rules`.
+- [x] Gỡ Rasa: API admin Rasa, mục giám sát Rasa, endpoint "câu chưa rõ", biến `RASA_URL`, service `rasa` trong `docker-compose.yml`, thư mục `ai-service/rasa/`, `RasaNlu` và vòng huấn luyện NLU.
+- [x] Migration alembic `0036_drop_nlu_training_tables` bỏ ba bảng `nlu_examples`, `nlu_model_versions`, `nlu_candidates` (và loại `rasa` khỏi `ml_models.kind`).
+- [x] Viết lại tài liệu hiện hành: `.context/ARCHITECTURE.md` (§3.6), `.context/TECH_STACK.md`, `CLAUDE.md`, `docs/ERD.md`, `docs/ai-service-db-schema.txt`, `docs/ai-service-db-constraints-v5_1.md`, `docs/evaluation.md`.
+- [ ] Sinh lại `docs/scorecard.md` bằng `python scripts/scorecard.py` (bản 2026-10-22 còn số đo của Rasa) và ghi số đo của bộ phân loại vào `docs/evaluation.md` bằng `scripts/eval_intent.py`.
+
+## Phase 80 — Dọn lỗi kỹ thuật còn lại sau khi gộp `dev/tuan` và `dev/tho` (2026-11-12)
+Nhánh `fix/phase52-leftovers`. Bốn mục của Phase 52 không cần chủ sản phẩm quyết (đã tick ở đó) cộng hai mục phát sinh từ PR #28. Không đổi schema.
+- [x] `NotificationBodyPurgeJob` (NFR-SEC-23), timeout 35 giây cho `IAIServiceApi` (NFR-PERF-07), `StartupSecretGuard` thêm `STT_SERVICE_API_KEY`, `SECRETS_MASTER_KEY` và `ThrowIfMasterKeyInvalid` (NFR-SEC-27), comment `ConsentVersions.SurveyAi` (FR-CONS-06).
+- [x] `ITransactionRepository.GetByNotificationLogIdAsync` (thêm ở `cc5b879`) nhận và lọc theo `userId`, đúng quy tắc không lấy dữ liệu người dùng chỉ bằng id.
+- [x] Test cho 9 danh sách phân trang con trỏ của `dev/tho` (vốn không có test): `CursorPagingRepositoryTests` trên Postgres thật, mỗi danh sách 5 dòng có 2 dòng trùng mốc thời gian, cộng 1 dòng của chủ khác; kèm 2 test cho job xóa nội dung thông báo.
+- [x] Tài liệu API: `docs/group-api.md`, `docs/ops-api.md`, `docs/subscription-api.md` ghi `cursor`/`limit` và `meta.cursor` (không phải `nextCursor`).
+- [ ] Báo nhóm Flutter: 9 danh sách (`/forecast/alerts`, `/forecast/anomalies`, `/support/tickets`, `/support/access-log`, `/groups/{id}/transactions`, `/groups/{id}/goals/{goalId}/contributions`, `/groups/{id}/activities`, `/qr/transfers`, `/subscriptions/orders`) giờ trả 20 dòng một trang, trang sau qua `meta.cursor`.
+
+## Phase 81 — Hoàn tiền và đảo giao dịch (2026-11-13)
+Nhánh `feat/refund-reversal`. Kế hoạch và các quyết định D1–D19, R1–R4: `docs/superpowers/plans/2026-11-13-refund-reversal.md`. API cho app: `docs/transactions-refund-api.md`. Khoản hoàn là `Credit` mang `relation` (`refund`/`reversal`) và `related_transaction_id`; KHÔNG phải thu nhập, trừ vào chi tiêu của danh mục khoản gốc. Ba chốt chặn: `TransactionBudgetDelta.Spend` (ngân sách), `BudgetSpendScope` + `NetFlow` (báo cáo, Agent), `RefundNetting.ForHabits` (dự báo).
+- [x] Migration `AddTransactionRefundRelation`: `transactions.related_transaction_id` (FK tự tham chiếu NO ACTION, index một phần), `relation`, `is_reversed` + 6 CHECK; `ai_results.relation_hint`; `daily_summaries.total_refunded_cents`; `transaction_anomalies.resolution` thêm `refunded`/`reversed`. Alembic ai-service `0037`: `ops_analyze_log.relation_hint`.
+- [x] `RefundPolicy` (BR-RF-01/02/08, D4, D12), mã lỗi `REFUND_EXCEEDS_ORIGINAL`, `HAS_REFUNDS`, `REFUND_ORIGINAL_NOT_ELIGIBLE`, `REVERSAL_AMOUNT_MISMATCH`, `REFUND_CATEGORY_LOCKED`, `REFUND_NOT_LINKABLE`, `REFUND_FOLLOWS_ORIGINAL`.
+- [x] Khoá `SELECT … FOR UPDATE` dòng khoản gốc, thứ tự khoá gốc → ví → kỳ ngân sách (D19); test 10 khoản hoàn song song vào hai ví.
+- [x] Ngân sách cá nhân và nhóm TÍNH LẠI kỳ (không cộng delta) cho mọi thao tác dính hoàn/đảo (D2); đảo hoàn tác khoản gốc ở kỳ của nó, cả nhóm (D1, R4); không cảnh báo, không reset cờ (BR-RF-05).
+- [x] `POST /transactions/{id}/refunds`, `PUT/DELETE /transactions/{id}/related`, `confirm` nhận `relatedTransactionId`/`relation`, hoàn mồ côi qua `POST /transactions` với `relation` (D5).
+- [x] Sửa/xoá: 409 `HAS_REFUNDS`, khoản hoàn đi theo danh mục và nhóm của khoản gốc (BR-RF-10/11, D13, D18).
+- [x] Báo cáo, daily summary (chốt lại ngày đã chốt, D7), timeline, cơ cấu danh mục, hũ, `/me/spendable`, báo cáo nhóm, chat, insight, Agent, thị trường: chi ròng, thu không gồm hoàn, `refundedCents`, `crossPeriodRefundCents` (D3).
+- [x] Dự báo: thói quen, thu nhập, bất thường, xu hướng danh mục, định kỳ dùng dữ liệu đã trừ hoàn; đối chiếu số dư dùng dữ liệu thô (BR-RF-07). R1 (đảo → khoản định kỳ về chưa trả), R2 (bất thường tự đóng `refunded`/`reversed`).
+- [x] ai-service: nhóm từ khoá `refund_markers`/`reversal_markers`/`cashback_markers` trong tài liệu `notification_vocab`, `extraction.relation_hint`; cashback chuyển sang `other_income` (D10a).
+- [x] Gợi ý tối đa 3 khoản chi gốc cho nháp có hint (cấu hình `refunds.*`), push `choose_refund_link` (D16), chat trả gợi ý (D17), R3 (ý định QR giữ `Matched`), lọc `GET /transactions?relation=`.
+- [x] Kịch bản đầu-cuối: hoàn đủ, hoàn một phần 300.000đ, đảo giao dịch (`RefundScenarioTests`).
+- [ ] Lỗ hổng sẵn có, ngoài phạm vi (D7): sửa/xoá giao dịch THƯỜNG ở một ngày đã chốt vẫn không chốt lại `daily_summaries`.
+- [ ] "nhận cashback 20k" ở chat ra `add_expense` (bộ phân loại ý định), có từ trước; BR-RF-12 giữ nguyên hành vi nên không sửa ở đây.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/refunds` `{amountCents?, transactedAt?, financialAccountId?, relation?, clientRequestId?}` (201/200); `PUT /transactions/{id}/related` `{relatedTransactionId, relation, categoryId?}`; `DELETE /transactions/{id}/related`.
+  - `POST /transactions/{id}/confirm` nhận thêm `relatedTransactionId?`, `relation?`; `POST /transactions` nhận `relation: "Refund"` cho hoàn không có khoản gốc; `GET /transactions?relation=Refund|Reversal`.
+  - `TransactionDto` thêm `relation`, `relatedTransactionId`, `isReversed`, `refundedCents`, `remainingRefundableCents`, `suggestedRelatedTransactions` (chỉ nháp). Kết quả `POST /notifications/analyze` thêm `relationHint`, `suggestedRelatedTransactions`. Bản nháp chat thêm `relationHint`, `suggestedRelatedTransactions`.
+  - Push `data.action = "choose_refund_link"` (kèm `relationHint`, `suggestionCount`): mở màn chọn khoản chi gốc / "hoàn không có khoản gốc" / "thu nhập thường".
+  - Báo cáo tháng thêm `refundedCents`, `crossPeriodRefundCents`; báo cáo nhóm thêm `refundedCents`. Tổng chi giờ là chi ròng.
+  - Lỗi mới: 409 `HAS_REFUNDS`; 422 `REFUND_EXCEEDS_ORIGINAL`, `REFUND_ORIGINAL_NOT_ELIGIBLE`, `REVERSAL_AMOUNT_MISMATCH`, `REFUND_CATEGORY_LOCKED`, `REFUND_NOT_LINKABLE`, `REFUND_FOLLOWS_ORIGINAL`.
+
+## Phase 82 — Bản trùng có liên kết (2026-11-13)
+Nhánh `feat/linked-duplicates` (từ `main` sau PR #30). Kế hoạch và D0–D19: `docs/superpowers/plans/2026-11-13-linked-duplicates.md`. API cho app: `docs/transactions-duplicates-api.md`. Backend quyết trùng (`DuplicateMatcher`), cờ trùng của AI chỉ là tín hiệu xếp hạng; nghi trùng thành giao dịch mang `duplicate_status = suspected`, người dùng gộp hoặc bác.
+- [x] Migration `AddLinkedDuplicates`: `transactions.duplicate_of_transaction_id`, `duplicate_status`, `merged_into_transaction_id`, `merged_sources` (+ 6 CHECK, 2 FK tự tham chiếu NO ACTION); `notification_logs.status` thêm `duplicate`. Sửa `ReceiptScanRepository` nối được hoá đơn vào giao dịch đã xoá.
+- [x] Cấu hình hệ thống nhóm `duplicates` (10 phút / 48 giờ / 12 giờ); audit ghi thêm tên nhóm `forecast`, `refunds`, `duplicates`.
+- [x] `DuplicateMatcher` (BR-DUP-03/04/05) + `DuplicateDetector`; thông báo, job thử lại, chat (giữ chặn ±10 phút, D3), hoá đơn (D4), tạo tay (D1) đi chung một luật.
+- [x] Push `review_duplicate` (thắng `choose_refund_link` và một chạm, D15); analyze trả `status = Duplicate` khi cùng sự kiện ngân hàng.
+- [x] `POST /transactions/{id}/not-duplicate`, lọc `duplicateStatus`, DTO `duplicateStatus`/`duplicateOf`/`suggestedDuplicates`/`mergedSources`.
+- [x] `POST /transactions/{id}/merge`: `MergePolicy` (BR-DUP-09/10/12, D6, D12), khoá hai dòng id tăng dần, ngân sách cá nhân và nhóm tính lại bằng `RefundLedger`, chốt lại `daily_summaries`, tham chiếu đi theo survivor (D6–D10), gộp lại → 200. Xác nhận/sửa/xoá khoá dòng của mình (D11), deadlock được thử lại.
+- [x] Xoá giao dịch được trỏ tới → bỏ nghi trùng (BR-DUP-08); phát hiện bất thường bỏ qua cặp đã có liên kết trùng (BR-DUP-13).
+- [x] `/admin/ai-stats`: số nghi trùng / đã bác / đã gộp theo cặp nguồn, số thông báo bị bỏ vì trùng sự kiện.
+- [x] Kịch bản đầu-cuối (a)–(d) (`DuplicateScenarioTests`), test đồng thời (`TransactionMergeControllerTests`), tổng hợp sau gộp (`MergeAggregatesTests`).
+- [ ] Chưa có hoàn tác gộp (unmerge) — §13.1.
+- [ ] Ghép cặp chuyển giữa hai ví của mình (VCB → MoMo) thành `Transfer`: phase sau — §13.1.
+- [ ] Giọng nói tự lưu với `source = manual` (có từ trước, D18c) — §13.1.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/merge` `{withTransactionId, categoryId?, clientRequestId?}` → 200 + giao dịch giữ lại (bản giữ lại do server chọn, có thể là `withTransactionId`; mở lại theo `id` trả về). `POST /transactions/{id}/not-duplicate` → 200. `GET /transactions?duplicateStatus=Suspected`.
+  - `TransactionDto` thêm `duplicateStatus` (`Suspected`/`Dismissed`), `duplicateOf` `{id, amountCents, transactedAt, source, merchantName, categoryName, financialAccountName}`, `suggestedDuplicates` (chỉ nháp, tối đa 3, cùng dạng), `mergedSources` (vd `["manual","notification"]`).
+  - Push `data.action = "review_duplicate"` (kèm `transactionId`, `duplicateOfTransactionId`, `suggestionCount`): mở màn so hai giao dịch với hai nút "Gộp" / "Không trùng". Thắng `choose_refund_link` và `confirm_one_tap`.
+  - `POST /notifications/analyze` thêm `duplicateOfTransactionId`; `status` có thể là `Duplicate` (không có nháp mới: thông báo này là bản gửi lại của giao dịch đó).
+  - Bản nháp chat và kết quả quét hoá đơn (cả từng nhóm, từng đơn) thêm `suggestedDuplicates`; `possibleDuplicateTransactionId` giữ nguyên cho app cũ. Chat có thông báo ngân hàng khớp thì không tự lưu (`action = confirm`).
+  - Giao dịch đã gộp trả 404 khi mở lại: dùng giao dịch giữ lại trong response của merge.
+  - Lỗi mới: 422 `MERGE_NOT_ALLOWED` (lý do trong message), 422 `NOT_SUSPECTED_DUPLICATE`.
+
+## Phase 83 — Ghép cặp chuyển tiền giữa các ví của chính mình (2026-11-13 → 2026-11-14)
+Nhánh `feat/self-transfer-pairing` (từ `main` sau PR #31). Kế hoạch, D1–D22 và S1–S6: `docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`. API cho app: `docs/transactions-transfer-pairing-api.md`. Báo cáo: `docs/reports/2026-11-14-phase83-self-transfer-pairing-report.md`.
+- [x] ai-service: `relation_hint = transfer` cả hai chiều + `transfer_kind` (5 loại), nhóm loại trừ (nạp điện thoại, VETC, hoá đơn…), cụm dài nhất quyết loại, hoàn tiền thắng chuyển ví; alembic `0038`.
+- [x] Migration `AddSelfTransferPairing`: `ai_results.transfer_kind` + CHECK `relation_hint` có `transfer`; `transactions.transfer_dismissed_at`; lý do đóng bất thường `transfer`; bảng `transaction_merge_snapshots`.
+- [x] Cấu hình `transfers` (cửa sổ 30 phút, lệch giờ 2 phút, phí ≤ 20.000đ và ≤ 2%, bí danh ví) và `snapshots.retentionDays` (365).
+- [x] `TransferMatcher` (gợi ý, chỉ khi có tín hiệu) và `TransferConversion` (bất biến số dư cho mọi tổ hợp nháp/đã xác nhận).
+- [x] `POST /transactions/{id}/convert-to-transfer`, `/not-transfer`, hai `/preview`; push `review_transfer`; `transferSuggestion` trên giao dịch.
+- [x] Thông báo về sau một Transfer ghi tay → nghi trùng → gộp, Transfer luôn được giữ, phí thành khoản chi riêng (BR-TRF-06).
+- [x] Dự báo: chuyển khoản vượt ranh giới ví được tính vào số thực tế và bộ khoản định kỳ (chỉ tiền ra), không vào thói quen chi; hỏi "còn dùng không?" khi lần trả của khoản định kỳ thành chuyển khoản trong tập được tính (S3).
+- [x] Snapshot ở mọi đường gộp/chuyển đổi; dọn theo hạn lưu trong `NotificationBodyPurgeJob`.
+- [x] `/admin/ai-stats`: gợi ý / chấp nhận / từ chối theo loại.
+- [x] Sửa lỗi có từ Phase 81: liệt kê bất thường đã được hệ thống đóng (`refunded`/`reversed`) bị lỗi 500.
+- [x] Kịch bản (a)–(f) (`TransferScenarioTests`), test đồng thời, test tổng hợp, test dự báo.
+- [ ] Hoàn tác chuyển đổi / gộp (đã có snapshot) — §13.1.
+- [ ] Danh mục phí riêng, 4 số đuôi tài khoản — §13.4.
+- [ ] **Báo nhóm Flutter:**
+  - Endpoint mới: `POST /transactions/{id}/convert-to-transfer` `{counterAccountId, pairedTransactionId?, clientRequestId?}` → `{transfer, fee?, warnings?}`; `POST …/convert-to-transfer/preview` và `POST …/merge/preview` → `{survivor, fee?, balanceChanges[], warnings?}`; `POST /transactions/{id}/not-transfer`.
+  - `TransactionDto` thêm `transferSuggestion` `{kind, pairedTransaction?, candidateAccounts[], feeCents?}`.
+  - Push `data.action = "review_transfer"` (kèm `transferKind`, `candidateCount`, `pairedTransactionId?`). Thứ tự: `review_duplicate` > `review_transfer` > `choose_refund_link` > `confirm_one_tap`.
+  - Rút ATM không có ví Tiền mặt → `candidateAccounts` rỗng: app mời tạo ví. `warnings: ["CASH_BALANCE_NEGATIVE"]` → nhắc kiểm tra ví Tiền mặt.
+  - Màn gộp (Phase 82) nên gọi `merge/preview` để hiện số dư trước/sau. Chuyển khoản ghi tay rồi thông báo về: dùng màn gộp như Phase 82.
+  - Lỗi mới: 422 `TRANSFER_SHARED_NOT_ALLOWED`, `TRANSFER_NOT_ALLOWED`, `TRANSFER_PAIR_MISMATCH`.
+
+## Phase 84 — Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (2026-11-14)
+Nhánh `feat/listener-health` (từ `main` sau PR #32). Kế hoạch, D1–D20 và S1–S7: `docs/superpowers/plans/2026-11-14-listener-health.md`. API: `docs/listener-health-api.md`; giám sát: `docs/ops-api.md`. FR-LH-01…11 ở `REQUIREMENTS.md` §6.11.
+- [x] Cấu hình `listenerHealth` (15 ngưỡng, có validator) và `forecast.goodCoveragePercent` (85) / `minCoveragePercent` (60).
+- [x] Migration `AddListenerHealth`: `device_listener_statuses`, `device_listener_daily`, `listener_upload_gap_daily`; `users.listener_health_alerts_enabled`; kind `listener_health`; nguồn sự cố `notification_format`; index lịch sử thông báo theo ví và `ai_results.created_at`.
+- [x] `SilenceDetector` (BR-LH-03, P90 nearest-rank, `upload_gap`), `DeviceHealthEvaluator` (BR-LH-04), `CoverageCalculator` (BR-LH-07, S3, S4, D7).
+- [x] `PUT /devices/listener-status` (một câu SQL gộp trạng thái và dòng ngày; xoá cache độ phủ), `GET /me/data-coverage`.
+- [x] `ListenerHealthReminderService` + `ListenerHealthDailyJob` 09:00 VN: nhắc qua `forecast_alerts`, đợt nằm trong `dedup_key`, chờ 3 ngày, tối đa 3 lần; đếm `upload_gap` theo phiên bản app; dọn dòng theo ngày.
+- [x] Công tắc `listenerHealthAlertsEnabled` (không phụ thuộc công tắc dự báo) trên `PATCH /users/me/notification-prefs` và `GET /users/me`.
+- [x] `dataCoverage` trên `cashflow`, `scenario`, `spendable`, `purchase-check`; `poor` hạ độ tin cậy, `purchase-check` không trả `fits_plan`. Engine và `ForecastAccuracyService` không đổi.
+- [x] Agent: bằng chứng `data_coverage` và câu cố định cuối câu trả lời khi `poor`; test qua bộ kiểm số thật của ai-service.
+- [x] `ProviderFormatMonitorJob` mỗi giờ (theo `MONITORING_ENABLED`): hai tín hiệu đổi mẫu tin, một sự cố `Normal` mỗi provider, tự đóng sau 24 lượt bình thường; `GET /admin/monitoring/provider-formats`.
+- [x] Xoá cứng tài khoản xoá hai bảng mới (cascade).
+- [x] Kịch bản (a)–(e) (`ListenerHealthScenarioTests`), kèm S1 (60% → 5% giao dịch).
+- [ ] Nới dải dự báo theo độ phủ; mốc bật theo dõi ví (`monitoring_enabled_at`) — §13.4.
+- [ ] Màn admin cho `provider-formats` (web ops) — ngoài repo này.
+- [ ] **Báo nhóm Flutter:**
+  - **Kiểm quyền mỗi lần mở app** (`NotificationManagerCompat.getEnabledListenerPackages`). Mất quyền thì hiện banner dẫn vào Cài đặt, rồi gọi `PUT /devices/listener-status` ngay khi quay lại app.
+  - **Mất kết nối** (`onListenerDisconnected`) thì gọi `requestRebind`, và báo trạng thái với `listenerConnected = false`, rồi `true` khi kết nối lại. Mất kết nối giữa ngày rồi có lại thì ngày đó vẫn được tính là ok.
+  - **Báo trạng thái bằng WorkManager** mỗi ngày một lần, và mỗi khi quyền đổi.
+    - Body: `{installationId, permissionGranted, listenerConnected, selectedPackages[{packageName, notificationsEnabled?, lastPostedAt?}], appVersion, manufacturer}`.
+    - `installationId` là UUID sinh một lần mỗi lần cài, lưu cục bộ; không dùng token FCM.
+    - `selectedPackages` chỉ gồm các app ngân hàng/ví user đã chọn. `lastPostedAt` là lần cuối listener thấy bất kỳ thông báo nào của app đó, kể cả thông báo bị lọc trên máy.
+    - Không gửi nội dung thông báo hay danh sách app khác.
+  - **Trang hướng dẫn tự khởi động / tối ưu pin theo hãng** (Xiaomi, Oppo, Samsung, Vivo…). Chọn trang theo `manufacturer` của máy, hoặc theo `data.manufacturer` của push `permission_lost`.
+  - **Push** `data.action = "forecast_alert"`, `data.kind = "listener_health"`:
+    - `reason = permission_lost`: mở màn bật quyền.
+    - `reason = account_silent`: mở màn hướng dẫn kèm `accountName`, `silentDays`.
+    - `hint = bank_notifications_off`: hướng dẫn bật thông báo của app ngân hàng.
+    - `hint = sync_pending`: mở app để đồng bộ hàng đợi offline.
+  - **Màn "Độ phủ dữ liệu"** từ `GET /me/data-coverage?days=30`:
+    - `level = unknown` nghĩa là app chưa báo trạng thái, không phải dữ liệu kém.
+    - Ví `silent` / `upload_gap` / `not_enough_data` hiển thị khác nhau.
+    - Thiết bị `permission_lost` / `unknown`.
+  - **Hiển thị `dataCoverage`** trên màn dự báo dòng tiền, số tiền có thể chi và "mua có ổn không". Khi `level = poor`, hiện `warning` (câu của backend) và đánh dấu dự báo kém tin cậy; `purchase-check` lúc đó trả `insufficient_data` thay cho `fits_plan`.
+  - **Cài đặt:** công tắc "Nhắc khi app không đọc được thông báo ngân hàng", gửi `listenerHealthAlertsEnabled` qua `PATCH /users/me/notification-prefs`.
+  - **Lỗi mới:** 422 `LISTENER_TOO_MANY_DEVICES`.
+
+## Phase 85 — Quỹ chung của nhóm (2026-11-14 → 2026-11-15)
+Nhánh `feat/group-fund` (từ `main` @ `4601e1f`, sau PR #33). Kế hoạch phương án A, D1–D25 và S1–S7: `docs/superpowers/plans/2026-11-14-group-fund.md`. API: `docs/group-api.md` mục Quỹ chung. FR-FUND-01…16 ở `REQUIREMENTS.md` §6.6.
+- [x] Task 0 (S2): cho vay/mượn bị tính vào `/me/spendable` và kế hoạch tháng của Agent; 12 chỗ loại trừ viết rời gom về `LoanExclusion` + `Predicates.And`.
+- [x] Quyền `ManageFunds` (2048), `RecordFundEntries` (4096); cờ `features.groupFunds`; `groups.maxFundsPerGroup`; `RequireGroupFundsEnabled`.
+- [x] Migration `AddGroupFunds`: `group_funds` (số dư lưu sẵn + `xmin`, `negative_episode`), `group_fund_entries` (người gắn nullable, SET NULL khi xoá cứng); `transactions.group_fund_entry_id` + `group_fund_direction`; `chk_transactions_transfer_shape` thêm đúng một nhánh mở khi có liên kết quỹ.
+- [x] `TransferLegs`: chỗ duy nhất đọc tác động số dư của transfer (xoá, sửa, ghép trùng, gộp, ranh giới dự báo, dữ liệu khách của Ops); test kiến trúc chặn đọc hướng ở nơi khác.
+- [x] `BudgetSpendScope.GroupFund` cạnh `BudgetSpendScope.Group` (test bảng giữ hai luật đi cùng); `SumGroupNetSpendAsync` là chỗ duy nhất cộng chi chia sẻ + chi từ quỹ (tạo ngân sách, `GroupLedger.RecomputeAsync`, `UserHardDeleter`).
+- [x] Quỹ: tạo, sửa, liệt kê, lưu trữ (chỉ khi số dư 0); xoá nhóm còn quỹ chưa lưu trữ → 422.
+- [x] Dòng quỹ: ghi, sửa, xoá; kèm ví (góp/chi ra, rút vào); điều chỉnh; `clientRequestId`; quản lý xoá dòng người khác chỉ xoá dòng (S3) và báo chủ dòng.
+- [x] Chi từ quỹ lấy từ một khoản chi có sẵn (`fromTransactionId`, S4a); khôi phục khi chủ dòng xoá hoặc `POST /transactions/{id}/restore-from-fund`.
+- [x] Phía sổ cá nhân: xoá giao dịch gắn quỹ thì xoá dòng (D7, D8); `GroupFundGuard` chặn sửa, chuyển ví, hoàn, chia sẻ, thua khi gộp (D9); thông báo ngân hàng gộp vào giao dịch góp quỹ (D11).
+- [x] Đồng thời: `RetryingGroupFundEntryService`, test ba người ghi cùng lúc, gửi lại cùng lúc, sửa và góp cùng lúc.
+- [x] Loại trừ khỏi số liệu cá nhân: test so báo cáo, ngân sách, hũ, `/me/spendable`, dự báo danh mục, thu nhập, bất thường, chi linh hoạt trước/sau.
+- [x] Báo cáo tháng nhóm cộng chi từ quỹ (`fundSpentCents`, `formerMembers`, S5); `GET .../funds/{fundId}/summary`.
+- [x] Rời nhóm, chờ xoá, xoá cứng (ẩn danh "Thành viên cũ", số của nhóm không đổi).
+- [x] Push `group_fund_negative` (một lần mỗi đợt âm), `group_fund_removed`.
+- [x] `groupFundLink` trong `TransactionDto`; `moneyDirection` trong dữ liệu khách của Ops.
+- [x] Kịch bản (a)–(i) (`GroupFundScenarioTests`).
+- [x] Sửa lỗi sẵn có: giao dịch chia sẻ đã xoá vẫn vào báo cáo và danh sách nhóm (`IgnoreQueryFilters`).
+- [ ] Ghép tiền góp vào tài khoản người giữ quỹ với dòng góp (hiện là thu nhập của người giữ quỹ) — phase sau, §13.4.
+- [ ] Chia tiền / công nợ giữa thành viên; ẩn danh khi rút dữ liệu (Phase 87) — §13.4.
+- [ ] Câu chữ Điều khoản về dữ liệu quỹ khi rời nhóm, khi xoá tài khoản — §13.4.
+- [ ] Lỗi sẵn có của Phase 84: `ListenerHealthScenarioTests` kịch bản D đỏ sau 00:00 giờ VN — §13.1.
+- [ ] **Báo nhóm Flutter:**
+  - **Cờ:** `config.features.groupFunds` ở `GET /app-config` (cần cả `features.groups`). Tắt thì ẩn màn quỹ; API trả 422 `GROUP_FUNDS_DISABLED`.
+  - **Quyền:** `myPermissions` có thêm `ManageFunds` (tạo/sửa/lưu trữ quỹ, điều chỉnh, xoá dòng người khác) và `RecordFundEntries` (góp, chi, rút). Ẩn/hiện nút theo đó, đừng suy từ vai trò.
+  - **Màn quỹ:** danh sách quỹ (`isNegative` → hiện "Có người đang ứng trước"), sổ quỹ phân trang con trỏ (lọc `kind`, `memberId`), báo cáo tháng (`/summary`). Sổ quỹ hiện với mọi thành viên kể cả chế độ `Summary`.
+  - **Ghi dòng:** chọn loại; góp/rút/chi cho chọn ví (không bắt buộc); chi bắt buộc danh mục (chỉ danh mục hệ thống hoặc danh mục nhóm). Gửi `clientRequestId` để gửi lại an toàn (201 lần đầu, 200 khi gửi lại).
+  - **Chi từ một giao dịch có sẵn:** từ chi tiết một khoản chi đã xác nhận, nút "Chi từ quỹ nhóm" gọi `POST .../entries {kind: "Expense", fromTransactionId}`. Lỗi `GROUP_FUND_SOURCE_NOT_ELIGIBLE` thì báo vì sao không được.
+  - **Giao dịch cá nhân gắn quỹ:** `transactionType = Transfer`, `counterAccountId = null`, có `groupFundLink {groupId, fundId, fundName, kind, direction, entryDeleted}`. Hiện "Góp quỹ {fundName}" / "Nhận từ quỹ" / "Chi từ quỹ", **không** như chuyển khoản; không cộng vào chi hay thu khi tính cục bộ. Nút sửa dẫn sang dòng quỹ (sửa qua API giao dịch → 422 `TRANSACTION_GROUP_FUND_LINKED`). Xoá thì dòng quỹ cũng bị xoá (trừ khi đã rời nhóm).
+  - **`entryDeleted = true`:** người quản lý đã xoá dòng quỹ; hiện nút "Xoá" và, với khoản chi lấy từ giao dịch, "Khôi phục thành khoản chi" (`POST /transactions/{id}/restore-from-fund`).
+  - **Báo cáo tháng nhóm:** trường mới tuỳ chọn `fundSpentCents` (tổng và từng người), `formerMembers` (có thể `null`).
+  - **Push:** `data.kind = group_fund_negative` (`groupId`, `fundId`) và `group_fund_removed` (`groupId`, `fundId`, `entryId`).
+  - **Lỗi mới:** `GROUP_FUNDS_DISABLED`, `GROUP_TOO_MANY_FUNDS`, `GROUP_FUND_NOT_SETTLED`, `GROUP_FUND_ARCHIVED`, `GROUP_FUND_ENTRY_INVALID`, `GROUP_FUND_ENTRY_LOCKED`, `GROUP_FUND_SOURCE_NOT_ELIGIBLE`, `TRANSACTION_GROUP_FUND_LINKED`.
+  - **Hạn chế cần nói với người dùng:** người giữ quỹ nhận tiền góp qua ngân hàng sẽ thấy khoản đó là thu nhập; tạm thời tự chuyển nó thành chuyển ví hoặc xoá.

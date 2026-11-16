@@ -218,7 +218,7 @@ kb_categories                    So dang ky danh muc (giai doan 2, migration 002
     va ml_user_feedback (predicted_category, corrected_category) deu FK -> kb_categories.slug (UPDATE CASCADE, DELETE RESTRICT).
 
 ml_models                        Danh muc model (giai doan 3, migration 0023)
-  code UQ (= stage cu: classifier, categorizer, bill_slug, bill_category), kind sklearn|rasa|llm|rules, provider, notes
+  code UQ (= stage cu: classifier, categorizer, bill_slug, bill_category), kind sklearn|llm|rules, provider, notes
   - ml_model_versions / ml_training_jobs co model_id FK -> ml_models.id (thay cot stage); moi model dung mot ban active.
   - 6 bang bill_* da GOP: training_jobs/model_versions/evaluation_*/labeled_samples/ml_raw_samples gio chua ca du lieu hoa don
     (mau tho cua hoa don: source='receipt', package_name='bill_scan' neu do ocr-service ghi; trang thai phien ban: candidate|active|retired|rejected; split danh gia them 'cv').

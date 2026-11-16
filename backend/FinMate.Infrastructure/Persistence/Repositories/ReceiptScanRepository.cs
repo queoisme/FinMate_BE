@@ -39,11 +39,25 @@ public class ReceiptScanRepository : IReceiptScanRepository
             INSERT INTO receipt_scan_links (transaction_id, scan_id, group_category_slug)
             SELECT t.id, s.id, {groupCategorySlug}
             FROM receipt_scans s
-            JOIN transactions t ON t.id = {transactionId} AND t.user_id = {userId}
+            JOIN transactions t ON t.id = {transactionId} AND t.user_id = {userId} AND t.deleted_at IS NULL
             WHERE s.id = {scanId} AND s.user_id = {userId}
             ON CONFLICT DO NOTHING
             """, ct);
         return inserted == 1;
+    }
+
+    public async Task<bool> MoveLinkAsync(Guid userId, Guid fromTransactionId, Guid toTransactionId, CancellationToken ct = default)
+    {
+        // Một câu: chủ sở hữu của cả hai giao dịch nằm trong điều kiện; đích đã có liên kết thì không đổi gì (khoá chính là transaction_id).
+        var moved = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE receipt_scan_links l
+            SET transaction_id = {toTransactionId}
+            WHERE l.transaction_id = {fromTransactionId}
+              AND EXISTS (SELECT 1 FROM transactions f WHERE f.id = {fromTransactionId} AND f.user_id = {userId})
+              AND EXISTS (SELECT 1 FROM transactions t WHERE t.id = {toTransactionId} AND t.user_id = {userId})
+              AND NOT EXISTS (SELECT 1 FROM receipt_scan_links x WHERE x.transaction_id = {toTransactionId})
+            """, ct);
+        return moved == 1;
     }
 
     public Task<bool> IsSplitAsync(Guid scanId, Guid userId, CancellationToken ct = default)

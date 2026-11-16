@@ -13,9 +13,46 @@ public record TransactionListFilter(
     DateTimeOffset? ToDate,
     string? Cursor,
     int Limit,
-    bool ExcludeLoans = false);  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
+    bool ExcludeLoans = false,
+    TransactionRelation? Relation = null,
+    DuplicateStatus? DuplicateStatus = null);  // Phase 81: chỉ khoản hoàn hoặc chỉ khoản đảo  // cho vay/mượn không phải chi tiêu hay thu nhập (cùng quy ước với báo cáo): danh sách khoản của chat phải khớp với tổng
 
 public record TransactionListResult(IReadOnlyList<Transaction> Items, string? NextCursor);
+
+/// <summary>
+/// Ứng viên trùng thô (Phase 82): cùng user, chiều Debit/Credit, không có <c>relation</c>, chưa xoá, số tiền nằm trong <paramref name="AmountsCents"/>
+/// và thời điểm trong [<paramref name="From"/>, <paramref name="To"/>]. Phần còn lại của luật trùng do <c>DuplicateMatcher</c> quyết.
+/// </summary>
+/// <param name="TransferAmountMin">Phase 83: Transfer có số tiền trong [min, max] cũng là ứng viên (thông báo tiền ra có thể lớn hơn vì phí).</param>
+public sealed record DuplicateCandidateQuery(
+    Guid UserId, IReadOnlyCollection<long> AmountsCents, DateTimeOffset From, DateTimeOffset To, long? TransferAmountMin = null, long? TransferAmountMax = null);
+
+/// <summary>Một giao dịch có thể trùng, kèm liên kết trùng của chính nó để tính các cặp đã bị user bác.</summary>
+public sealed record DuplicateCandidateRow(
+    FinMate.Application.Transactions.Duplicates.DuplicateProbe Probe,
+    Guid? DuplicateOfTransactionId,
+    DuplicateStatus? DuplicateStatus);
+
+/// <summary>
+/// Giao dịch để xét chuyển ví (Phase 83): theo khoảng thời gian (mọi khoản chi/thu còn sống của user), hoặc theo id (kể cả đã xoá mềm, để lượt
+/// chuyển đổi đọc được). Luôn lọc theo user.
+/// </summary>
+public sealed record TransferProbeQuery(Guid UserId, DateTimeOffset? From = null, DateTimeOffset? To = null, IReadOnlyCollection<Guid>? Ids = null);
+
+/// <summary>Một khoản chi có thể là gốc của khoản hoàn đang xét (Phase 81). Chỉ để GỢI Ý; người dùng mới là người liên kết.</summary>
+public sealed record RefundCandidate(Transaction Original, long RefundedCents, long RemainingRefundableCents);
+
+/// <summary>Điều kiện tìm gốc cho một khoản hoàn. <paramref name="WindowDays"/> chỉ giới hạn GỢI Ý, không giới hạn liên kết tay (D12).</summary>
+public sealed record RefundCandidateQuery(
+    Guid UserId,
+    long AmountCents,
+    DateTimeOffset At,
+    int WindowDays,
+    Guid? FinancialAccountId,
+    Guid? ProviderConfigId,
+    string? CounterpartyKey,
+    int Limit,
+    Guid? ExcludeTransactionId = null);
 
 public interface ITransactionRepository
 {
@@ -31,9 +68,10 @@ public interface ITransactionRepository
     /// <summary>
     /// Giao dịch nháp đã tạo từ một thông báo ngân hàng cụ thể, hoặc null nếu thông báo đó
     /// không sinh ra giao dịch nào (không phải thông báo tài chính, hoặc nghi trùng).
-    /// notification_log_id là duy nhất nên không cần lọc theo userId.
+    /// Vẫn lọc theo <paramref name="userId"/> dù notification_log_id là duy nhất: không phương thức repository nào
+    /// được lấy dữ liệu của người dùng chỉ bằng id (`CLAUDE.md`).
     /// </summary>
-    Task<Transaction?> GetByNotificationLogIdAsync(Guid notificationLogId, CancellationToken ct = default);
+    Task<Transaction?> GetByNotificationLogIdAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default);
     Task<TransactionListResult> GetListAsync(TransactionListFilter filter, CancellationToken ct = default);
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);
@@ -41,9 +79,9 @@ public interface ITransactionRepository
     Task<bool> HasAnyForCategoryAsync(Guid categoryId, CancellationToken ct = default);
 
     /// <summary>
-    /// Tổng chi tiêu (chỉ Debit, chỉ Confirmed) trong nửa mở [from, to). <paramref name="categoryId"/>
-    /// null = mọi category. Dùng để backfill budget_periods.spent_cents khi user tạo budget giữa
-    /// chu kỳ — không có nó, budget mới luôn hiện 0 dù user đã tiêu trong tháng.
+    /// Chi ròng đã xác nhận (chi − hoàn, bỏ cặp đảo, chặn dưới ở 0) trong nửa mở [from, to), cùng định nghĩa với
+    /// <see cref="Budgets.BudgetSpendScope"/>. <paramref name="categoryId"/> null = mọi category. Dùng để backfill
+    /// budget_periods.spent_cents khi user tạo budget giữa chu kỳ — không có nó, budget mới luôn hiện 0 dù user đã tiêu trong tháng.
     /// </summary>
     Task<long> SumConfirmedSpendAsync(
         Guid userId,
@@ -57,6 +95,60 @@ public interface ITransactionRepository
     /// [<paramref name="at"/> − window, <paramref name="at"/> + window], hoặc null. Chỉ để CẢNH BÁO có thể trùng; không bao giờ chặn.
     /// <paramref name="exceptClientRequestId"/>: bỏ qua giao dịch của chính lần gửi này, để gửi lại cùng một yêu cầu vẫn nhận lại giao dịch cũ.
     /// </summary>
+    /// <summary>Tổng các khoản hoàn/đảo ĐÃ XÁC NHẬN, chưa xoá, trỏ tới <paramref name="originalId"/> (cùng user). <paramref name="excludeTransactionId"/>: bỏ chính khoản đang sửa.</summary>
+    Task<long> SumConfirmedRefundsAsync(Guid userId, Guid originalId, Guid? excludeTransactionId = null, CancellationToken ct = default);
+
+    /// <summary>Như trên cho cả một trang danh sách, một truy vấn. Khoản gốc không có khoản hoàn nào thì không có trong kết quả.</summary>
+    Task<IReadOnlyDictionary<Guid, long>> SumConfirmedRefundsAsync(Guid userId, IReadOnlyCollection<Guid> originalIds, CancellationToken ct = default);
+
+    /// <summary>Các khoản hoàn/đảo (kể cả nháp) đang trỏ tới khoản gốc, đã nạp danh mục. Để danh mục và nhóm đi theo khoản gốc (BR-RF-10/11).</summary>
+    Task<IReadOnlyList<Transaction>> ListRelatedAsync(Guid userId, Guid originalId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction tường minh, sau khi khoá dòng khoản gốc bằng <c>SELECT … FOR UPDATE</c>
+    /// (D19). <paramref name="work"/> tự lưu; commit khi nó trả về. Không thấy khoản gốc của user này → <c>NotFoundException</c> (404).
+    /// Thứ tự khoá CỐ ĐỊNH để hai luồng không chờ nhau vòng tròn: dòng khoản gốc → ví (xmin) → kỳ ngân sách (xmin).
+    /// </summary>
+    Task<T> RunWithOriginalLockedAsync<T>(Guid userId, Guid originalId, Func<Transaction, Task<T>> work, CancellationToken ct = default);
+
+    /// <summary>Tối đa <see cref="RefundCandidateQuery.Limit"/> khoản chi còn hoàn được, xếp hạng: cùng người nhận &gt; cùng ví/nhà cung cấp &gt; đúng số tiền &gt; gần nhất.</summary>
+    Task<IReadOnlyList<RefundCandidate>> FindRefundCandidatesAsync(RefundCandidateQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chi ròng (chi − hoàn, bỏ cặp đảo) trong một phạm vi ngân sách theo <see cref="Budgets.BudgetSpendScope"/>, KHÔNG chặn ở 0, bỏ các
+    /// giao dịch có id trong <paramref name="excludeTransactionIds"/> (chúng đang sửa trong bộ nhớ, caller tự cộng phần của chúng).
+    /// </summary>
+    Task<long> SumNetSpendAsync(System.Linq.Expressions.Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default);
+
+    /// <summary>Các giao dịch còn sống của user theo id, đã nạp danh mục và ví. Id lạ hoặc của người khác bị bỏ qua.</summary>
+    Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>Các giao dịch (có theo dõi thay đổi) đang trỏ <c>duplicate_of_transaction_id</c> tới <paramref name="transactionId"/>. Lọc theo user.</summary>
+    Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ảnh chụp để xét chuyển ví (Phase 83), kèm gợi ý/loại của AI, đã khớp QR chưa, có khoản hoàn đã xác nhận chưa. Chỉ <c>Debit</c>/<c>Credit</c>.
+    /// </summary>
+    Task<IReadOnlyList<Transactions.Transfers.TransferProbe>> ListTransferProbesAsync(TransferProbeQuery query, CancellationToken ct = default);
+
+    /// <summary>Ứng viên trùng thô cho một hoặc nhiều giao dịch (một truy vấn cho cả trang danh sách). Luôn lọc theo user.</summary>
+    Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction tường minh sau khi khoá các dòng giao dịch bằng <c>SELECT … FOR UPDATE</c> theo
+    /// <b>id tăng dần</b> (Phase 82, BR-DUP-14, D11). Dòng đã xoá mềm cũng được khoá và trả về (để gộp lại cùng cặp trả 200); caller tự quyết.
+    /// Id không thuộc user → <c>NotFoundException</c> (404). <paramref name="work"/> tự lưu; commit khi nó trả về.
+    /// Thứ tự khoá CỐ ĐỊNH: các dòng giao dịch (id tăng dần) → ví (xmin) → kỳ ngân sách (xmin).
+    /// </summary>
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction rồi LUÔN rollback và xoá theo dõi thay đổi (Phase 83, xem trước): cùng đường code với lệnh
+    /// thật nên kết quả xem trước không bao giờ lệch, mà không có gì được ghi. Khoá hàng mà <paramref name="work"/> lấy được nhả khi rollback.
+    /// </summary>
+    Task<T> RunPreviewAsync<T>(Func<Task<T>> work, CancellationToken ct = default);
+
+    Task<T> RunWithTransactionsLockedAsync<T>(
+        Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default);
+
     Task<Guid?> FindPossibleDuplicateAsync(
         Guid userId,
         long amountCents,
@@ -65,41 +157,4 @@ public interface ITransactionRepository
         Guid? exceptClientRequestId = null,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Quyết định trùng nghiệp vụ THẬT (§5.5) — khác <see cref="FindPossibleDuplicateAsync"/> (chỉ
-    /// cảnh báo, không bao giờ chặn, chỉ xét Debit, lọc theo UserId). Lọc theo FinancialAccountId +
-    /// AmountCents + TransactionType + TransactedAt trong 1 cửa sổ ngắn, xét cả Debit và Credit.
-    ///
-    /// <paramref name="providerReference"/> (2026-11-13): khi CẢ hai bên có mã tham chiếu và
-    /// chúng KHÁC nhau, không coi là trùng — bằng chứng cụ thể đây là 2 giao dịch THẬT khác nhau
-    /// (vd 2 lần quét QR cùng số tiền cho 2 người khác nhau trong cùng cửa sổ). Thiếu mã ở MỘT
-    /// trong hai bên (null) vẫn giữ hành vi cũ (coi là trùng) — không có gì để phân biệt thì thận
-    /// trọng vẫn hơn.
-    /// </summary>
-    Task<bool> HasAuthoritativeDuplicateAsync(
-        Guid financialAccountId,
-        long amountCents,
-        TransactionType transactionType,
-        DateTimeOffset at,
-        TimeSpan window,
-        Guid? excludeTransactionId = null,
-        CancellationToken ct = default,
-        string? providerReference = null);
-
-    /// <summary>
-    /// Vế đối ứng của 1 lần chuyển tiền nội bộ cùng user (§16.3): cùng số tiền, chiều ngược, ví
-    /// khác, trong cửa sổ. Khớp cả Draft VÀ Confirmed (Issue A, 2026-11-13) — caller phải tự đảo
-    /// ngược hiệu ứng số dư/ngân sách đã áp dụng nếu <c>Status == Confirmed</c> trước khi gộp
-    /// thành Transfer, xem <c>AnalyzeNotificationCommandHandler.MergeIntoTransferAsync</c>. Kèm
-    /// <c>Category</c> (navigation) vì hiệu ứng ngân sách cần biết <c>Category.Slug</c> có phải
-    /// "Cho vay/Mượn" không.
-    /// </summary>
-    Task<Transaction?> FindMergeCandidateAsync(
-        Guid userId,
-        long amountCents,
-        TransactionType oppositeType,
-        Guid excludeFinancialAccountId,
-        DateTimeOffset at,
-        TimeSpan window,
-        CancellationToken ct = default);
 }

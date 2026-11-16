@@ -83,23 +83,6 @@ class ModelStatus(StrEnum):
     REJECTED = "rejected"
 
 
-class NluModelStatus(StrEnum):
-    """Vòng đời một model Rasa NLU (bảng ``nlu_model_versions``). Tách khỏi ``ModelStatus``/``ModelStage``: các vòng lặp ở model_registry/health/stats
-    chạy qua ``ModelStage`` và sẽ cố nạp tệp .tar.gz của Rasa như một model sklearn."""
-
-    CANDIDATE = "candidate"
-    ACTIVE = "active"
-    RETIRED = "retired"
-    REJECTED = "rejected"
-
-
-class NluCandidateStatus(StrEnum):
-    """Câu chat chưa rõ đang chờ người duyệt (bảng ``nlu_candidates``). Câu được nhận thì chuyển sang ``nlu_examples`` rồi xóa khỏi bảng chờ, nên không có trạng thái "accepted"."""
-
-    PENDING = "pending"
-    REJECTED = "rejected"
-
-
 class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"

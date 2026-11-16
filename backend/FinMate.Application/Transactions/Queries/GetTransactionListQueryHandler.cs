@@ -10,10 +10,20 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
     private const int DefaultLimit = 20;
 
     private readonly ITransactionRepository _transactionRepository;
+    private readonly Refunds.IRefundSuggestions? _suggestions;
+    private readonly Duplicates.IDuplicateDetector? _duplicates;
+    private readonly Transfers.ITransferSuggestions? _transfers;
 
-    public GetTransactionListQueryHandler(ITransactionRepository transactionRepository)
+    public GetTransactionListQueryHandler(
+        ITransactionRepository transactionRepository,
+        Refunds.IRefundSuggestions? suggestions = null,
+        Duplicates.IDuplicateDetector? duplicates = null,
+        Transfers.ITransferSuggestions? transfers = null)
     {
         _transactionRepository = transactionRepository;
+        _suggestions = suggestions;
+        _duplicates = duplicates;
+        _transfers = transfers;
     }
 
     public async Task<TransactionListDto> HandleAsync(GetTransactionListQuery query, CancellationToken ct = default)
@@ -29,10 +39,32 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
             query.FromDate,
             query.ToDate,
             query.Cursor,
-            limit);
+            limit,
+            Relation: query.Relation,
+            DuplicateStatus: query.DuplicateStatus);
 
         var result = await _transactionRepository.GetListAsync(filter, ct);
 
-        return new TransactionListDto(result.Items.Select(TransactionMapper.ToDto).ToList(), result.NextCursor);
+        // Phase 81: tổng đã hoàn của các khoản chi đã xác nhận (một truy vấn cho cả trang) và gợi ý khoản chi gốc cho nháp có hint.
+        var refundable = result.Items.Where(GetTransactionDetailQueryHandler.RefundableShape).Select(t => t.Id).ToList();
+        var refunded = await _transactionRepository.SumConfirmedRefundsAsync(query.UserId, refundable, ct);
+        var suggestions = _suggestions is null
+            ? new Dictionary<Guid, (Domain.Enums.TransactionRelation, IReadOnlyList<RefundSuggestionDto>)>()
+            : await _suggestions.ForDraftsAsync(query.UserId, result.Items, ct);
+        var duplicates = _duplicates is null
+            ? new Dictionary<Guid, DuplicateView>()
+            : await _duplicates.ViewAsync(query.UserId, result.Items, ct);
+        var transfers = _transfers is null
+            ? new Dictionary<Guid, TransferSuggestionDto>()
+            : await _transfers.ForAsync(query.UserId, result.Items, ct);
+
+        return new TransactionListDto(
+            result.Items.Select(t => TransactionMapper.ToDto(
+                t,
+                GetTransactionDetailQueryHandler.RefundableShape(t) ? refunded.GetValueOrDefault(t.Id) : null,
+                suggestions.TryGetValue(t.Id, out var s) ? s.Items : null,
+                duplicates.GetValueOrDefault(t.Id),
+                transfers.GetValueOrDefault(t.Id))).ToList(),
+            result.NextCursor);
     }
 }

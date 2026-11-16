@@ -27,10 +27,11 @@ public class AdminProviderConfigsController : AdminControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
+    public async Task<IActionResult> GetList(
+        [FromQuery] bool includeInactive, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
     {
-        var configs = await _listHandler.HandleAsync(new GetProviderConfigListQuery(includeInactive), ct);
-        return Ok(ApiResponse<IReadOnlyList<ProviderConfigDto>>.Ok(configs));
+        var page = await _listHandler.HandleAsync(new GetProviderConfigListQuery(includeInactive, search, offset, limit), ct);
+        return Ok(ApiResponse<IReadOnlyList<ProviderConfigDto>>.Ok(page.Items, page.ToMeta()));
     }
 
     [HttpPost]

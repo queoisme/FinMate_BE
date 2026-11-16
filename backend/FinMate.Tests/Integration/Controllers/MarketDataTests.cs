@@ -550,7 +550,7 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
     [Fact]
     public async Task ThePublicConfigDoesNotRevealOperatingSettings()
     {
-        var adminId = await InDbAsync(db => db.Users.Where(u => u.Role == UserRole.Admin).Select(u => u.Id).FirstAsync());
+        var adminId = await InDbAsync(db => db.Users.Where(u => u.RoleAssignment!.RoleId == UserRole.Admin).Select(u => u.Id).FirstAsync());
         using (var scope = _factory.Services.CreateScope())
         {
             var config = scope.ServiceProvider.GetRequiredService<ISystemConfigService>();
@@ -809,7 +809,7 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 
     private async Task AddCostTypeAsync(MarketCostType type)
     {
-        var adminId = await InDbAsync(db => db.Users.Where(u => u.Role == UserRole.Admin).Select(u => u.Id).FirstAsync());
+        var adminId = await InDbAsync(db => db.Users.Where(u => u.RoleAssignment!.RoleId == UserRole.Admin).Select(u => u.Id).FirstAsync());
         using var scope = _factory.Services.CreateScope();
         var config = scope.ServiceProvider.GetRequiredService<ISystemConfigService>();
         var current = await config.GetActiveAsync();

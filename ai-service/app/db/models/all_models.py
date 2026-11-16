@@ -5,6 +5,8 @@ Dự án không dùng ``__init__.py`` (namespace package) nên alembic và các 
 """
 
 from app.db.base import Base
+from app.db.models.agent import AgentRefusalTemplate, AgentRun, AgentScopeCue, AgentUserMemory
+from app.db.models.agent_kb import AgentKbCandidate, AgentKbChunk, AgentKbDocument
 from app.db.models.bill import (
     BillAiInstruction,
     BillBrand,
@@ -30,9 +32,6 @@ from app.db.models.method_prompt import MethodPrompt
 from app.db.models.ml_model import MlModel
 from app.db.models.secret import SecretRow
 from app.db.models.model_version import ModelVersion, TrainingJob
-from app.db.models.nlu_candidate import NluCandidate
-from app.db.models.nlu_example import NluExample
-from app.db.models.nlu_model_version import NluModelVersion
 from app.db.models.pipeline_request import PipelineRequest
 from app.db.models.provider_format import ProviderFormat, ProviderFormatField, ProviderFormatSample
 from app.db.models.provider_pattern import ProviderPattern
@@ -41,6 +40,10 @@ from app.db.models.user_feedback import FeedbackBatchJob, UserFeedback
 
 __all__ = [
     "Base",
+    "AgentRefusalTemplate",
+    "AgentRun",
+    "AgentScopeCue",
+    "AgentUserMemory",
     "BillAiInstruction",
     "BillBrand",
     "BillKeyword",
@@ -60,9 +63,6 @@ __all__ = [
     "MlLabelEvent",
     "MlModel",
     "ModelVersion",
-    "NluCandidate",
-    "NluExample",
-    "NluModelVersion",
     "PipelineRequest",
     "ProviderFormat",
     "ProviderFormatField",

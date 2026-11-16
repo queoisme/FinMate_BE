@@ -1,4 +1,4 @@
-"""``POST /api/v1/finance-methods/recommend`` với mô hình giả (và với ``GeminiClient`` thật chạy trên ``MockTransport``): khóa nội bộ, hợp đồng, mã lỗi, không log dữ liệu."""
+"""``POST /api/v1/finance-methods/recommend`` với mô hình giả (và với ``LlmClient`` thật chạy trên ``MockTransport``): khóa nội bộ, hợp đồng, mã lỗi, không log dữ liệu."""
 
 import json
 
@@ -8,7 +8,7 @@ import structlog
 
 from app.api.v1.finance_methods import get_method_backup_picker, get_method_gemini_client, get_method_prompt
 from app.bill import gemini as gemini_module
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 from app.core.config import settings
 from app.main import app
 from app.services import method_backup
@@ -150,7 +150,7 @@ async def test_logs_never_contain_signals_methods_codes_or_reasons():
         assert secret not in dumped
 
 
-# ---- GeminiClient thật trên MockTransport: chuỗi model, thử lại, cầu dao, không đi nhà cung cấp dự phòng ----
+# ---- LlmClient thật trên MockTransport: chuỗi model, thử lại, cầu dao, không đi nhà cung cấp dự phòng ----
 
 
 @pytest.fixture
@@ -170,7 +170,7 @@ class Clock:
 
 
 def real(handler, clock=None, key="key"):
-    return use(GeminiClient(key, "m1", 5.0, transport=httpx.MockTransport(handler), clock=clock or Clock(), fallback_models=("m2",), backup_key="openrouter-key", backup_model="x/y"))
+    return use(LlmClient(key, "m1", 5.0, transport=httpx.MockTransport(handler), clock=clock or Clock(), fallback_models=("m2",), backup_key="openrouter-key", backup_model="x/y"))
 
 
 def reply(payload):

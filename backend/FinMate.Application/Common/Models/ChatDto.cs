@@ -17,7 +17,14 @@ public static class ChatActions
 
     /// <summary>Đặt mục tiêu tiết kiệm: client hiện <see cref="ChatResultDto.Goal"/> để xác nhận rồi tự gọi <c>POST /saving-goals</c>. Không bao giờ tự tạo.</summary>
     public const string Goal = "goal";
+
+    /// <summary>Hỏi "mua món này có ổn không": client hiện <see cref="ChatResultDto.Purchase"/> rồi gọi <c>POST /forecast/purchase-check</c> để lấy đánh giá. Không tạo giao dịch.</summary>
+    public const string Purchase = "purchase";
 }
+
+/// <summary>Khoản mua người dùng đang cân nhắc, từ câu chat. Chưa có kết luận: kết quả tính ở <c>POST /forecast/purchase-check</c>.</summary>
+/// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
+public record ChatPurchaseDraftDto(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
 /// <summary>Bản nháp mục tiêu tiết kiệm từ câu chat. Chưa tạo gì: tạo bằng <c>POST /saving-goals</c> sau khi người dùng xác nhận.</summary>
 /// <param name="NameIsDefault">Người dùng không nói tên nên <paramref name="Name"/> là tên mặc định; client cho sửa.</param>
@@ -38,6 +45,10 @@ public static class ChatMissingFields
 /// <param name="IncomeType">Loại thu nhập AI đoán được (lương, thưởng...); backend chỉ có một danh mục "income".</param>
 /// <param name="SuggestedFinancialAccountId">Ví đã tự chọn được (ví duy nhất của người dùng); null thì client hỏi.</param>
 /// <param name="MissingFields">"category" | "account" | "accounts" — việc client còn phải làm trước khi gọi POST /transactions.</param>
+/// <param name="RelationHint">Phase 81 (D17): <c>Refund</c> khi câu chat là nhận tiền hoàn; app cho chọn khoản chi gốc rồi gọi <c>POST /transactions/{id}/refunds</c>.</param>
+/// <param name="SuggestedRelatedTransactions">Tối đa 3 khoản chi gốc gợi ý khi có <paramref name="RelationHint"/>.</param>
+/// <param name="PossibleDuplicateTransactionId">Giữ cho app cũ: khoản cùng số tiền trong ±10 phút, hoặc ứng viên trùng hạng 1.</param>
+/// <param name="SuggestedDuplicates">Phase 82: tối đa 3 giao dịch đã ghi mà khoản này có thể trùng (hạng 1 trước). Lưu khoản này thì nó mang nghi trùng.</param>
 public record ChatDraftDto(
     string Kind,
     long AmountCents,
@@ -50,7 +61,10 @@ public record ChatDraftDto(
     Guid? SuggestedFinancialAccountId,
     IReadOnlyList<string> MissingFields,
     DateTimeOffset? OccurredAt = null,
-    Guid? PossibleDuplicateTransactionId = null);
+    Guid? PossibleDuplicateTransactionId = null,
+    string? RelationHint = null,
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
 
 public record ChatSummaryItemDto(string? CategorySlug, string CategoryName, long AmountCents, double Share);
 
@@ -92,4 +106,5 @@ public record ChatResultDto(
     ChatDraftDto? Draft,
     ChatSummaryDto? Summary,
     IReadOnlyList<ChatDraftDto>? Drafts = null,
-    ChatGoalDraftDto? Goal = null);
+    ChatGoalDraftDto? Goal = null,
+    ChatPurchaseDraftDto? Purchase = null);

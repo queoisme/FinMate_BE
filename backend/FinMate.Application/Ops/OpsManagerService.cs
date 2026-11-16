@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Admin.Queries;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
@@ -28,10 +29,10 @@ public record CannedReplyDto(Guid Id, string Title, string Body, bool IsActive, 
 public interface IOpsManagerService
 {
     Task<OpsDashboardDto> GetDashboardAsync(Guid actorId, CancellationToken ct = default);
-    Task<IReadOnlyList<CannedReplyDto>> ListCannedRepliesAsync(Guid actorId, bool includeInactive, CancellationToken ct = default);
+    Task<PagedResult<CannedReplyDto>> ListCannedRepliesAsync(Guid actorId, bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default);
     Task<CannedReplyDto> CreateCannedReplyAsync(Guid actorId, string? title, string? body, string? ip, CancellationToken ct = default);
     Task<CannedReplyDto> UpdateCannedReplyAsync(Guid actorId, Guid id, string? title, string? body, bool? isActive, string? ip, CancellationToken ct = default);
-    Task<AuditLogListDto> GetAuditLogsAsync(Guid actorId, string? eventType, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int limit, CancellationToken ct = default);
+    Task<AuditLogListDto> GetAuditLogsAsync(Guid actorId, string? eventType, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int limit, string? search = null, CancellationToken ct = default);
     Task<AiStatsDto> GetAiStatsAsync(Guid actorId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct = default);
 }
 
@@ -79,10 +80,12 @@ public sealed class OpsManagerService : IOpsManagerService
 
     private static double? Rate(int part, int total) => total == 0 ? null : (double)part / total;
 
-    public async Task<IReadOnlyList<CannedReplyDto>> ListCannedRepliesAsync(Guid actorId, bool includeInactive, CancellationToken ct = default)
+    public async Task<PagedResult<CannedReplyDto>> ListCannedRepliesAsync(Guid actorId, bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
     {
         await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
-        return (await _ops.ListCannedRepliesAsync(includeInactive, ct)).Select(ToDto).ToList();
+        var (skip, take) = AdminPaging.Normalize(offset, limit);
+        var (items, total) = await _ops.ListCannedRepliesAsync(includeInactive, search, skip, take, ct);
+        return new PagedResult<CannedReplyDto>(items.Select(ToDto).ToList(), total, skip, take);
     }
 
     public async Task<CannedReplyDto> CreateCannedReplyAsync(Guid actorId, string? title, string? body, string? ip, CancellationToken ct = default)
@@ -130,7 +133,7 @@ public sealed class OpsManagerService : IOpsManagerService
     }
 
     /// <summary>Chỉ sự kiện vận hành: nhật ký <c>Auth.*</c>, <c>Admin.*</c> có thông tin không thuộc phạm vi của Manager.</summary>
-    public async Task<AuditLogListDto> GetAuditLogsAsync(Guid actorId, string? eventType, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int limit, CancellationToken ct = default)
+    public async Task<AuditLogListDto> GetAuditLogsAsync(Guid actorId, string? eventType, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int limit, string? search = null, CancellationToken ct = default)
     {
         await _access.RequireAsync(actorId, OpsCapability.ViewOpsAudit, ct);
         if (eventType is not null && !eventType.StartsWith(OpsEventPrefix, StringComparison.Ordinal))
@@ -139,7 +142,7 @@ public sealed class OpsManagerService : IOpsManagerService
         }
 
         var result = await _auditLogs.GetPageAsync(
-            new AuditLogListFilter(null, eventType, from, to, cursor, Math.Clamp(limit, 1, 100), OpsEventPrefix), ct);
+            new AuditLogListFilter(null, eventType, from, to, cursor, Math.Clamp(limit, 1, 100), OpsEventPrefix, search), ct);
         return new AuditLogListDto(
             result.Items.Select(a => new AuditLogDto(a.Id, a.UserId, a.EventType, a.Metadata, a.IpAddress, a.CreatedAt)).ToList(),
             result.NextCursor);

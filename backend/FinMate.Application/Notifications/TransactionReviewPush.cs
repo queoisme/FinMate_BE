@@ -33,6 +33,24 @@ public static class TransactionReviewPushBuilder
     public const string ActionChooseCategory = "choose_category";
 
     /// <summary>
+    /// Phase 81 (D16): AI đoán nháp này là hoàn tiền / đảo giao dịch. Không bao giờ một chạm, kể cả khi tin cậy ≥ 85% và kể cả khi không có ứng viên
+    /// nào: người dùng phải chọn khoản chi gốc, "hoàn không có khoản gốc" hoặc "thu nhập thường" (BR-RF-13, hệ thống chỉ gợi ý).
+    /// </summary>
+    public const string ActionChooseRefundLink = "choose_refund_link";
+
+    /// <summary>
+    /// Phase 82 (BR-DUP-06, D15): nháp có thể trùng một giao dịch đã ghi. Thắng mọi nhánh khác, kể cả hoàn tiền và một chạm: người dùng phải
+    /// chọn Gộp hoặc Không trùng trước, xác nhận nhanh lúc này là ghi một khoản chi hai lần.
+    /// </summary>
+    public const string ActionReviewDuplicate = "review_duplicate";
+
+    /// <summary>
+    /// Phase 83 (BR-TRF-05, D20): có thể là tiền chuyển giữa các ví của chính người dùng. Sau <see cref="ActionReviewDuplicate"/>, trước mọi nhánh
+    /// khác: xác nhận nhanh lúc này là ghi một lần nạp ví thành chi tiêu.
+    /// </summary>
+    public const string ActionReviewTransfer = "review_transfer";
+
+    /// <summary>
     /// Mức tin cậy quyết định nhánh: THẤP NHẤT giữa bóc số và phân loại.
     ///
     /// Không lấy riêng điểm phân loại: một chạm xác nhận TOÀN BỘ bản ghi — số tiền, loại,
@@ -64,8 +82,17 @@ public static class TransactionReviewPushBuilder
         NumberGroupSizes = [3],
     };
 
+    /// <param name="relationHint">Gợi ý hoàn/đảo của AI; có giá trị thì luôn ra <see cref="ActionChooseRefundLink"/>.</param>
+    /// <param name="suggestionCount">Số khoản chi gốc gợi ý (0..3), đưa vào payload để app biết mở danh sách hay màn chọn tay.</param>
+    /// <param name="duplicateCandidateCount">Số giao dịch có thể trùng (1..3) khi nháp đang <c>Suspected</c>.</param>
     public static TransactionReviewPush Build(
-        Transaction transaction, string? categoryName, double? confidence)
+        Transaction transaction,
+        string? categoryName,
+        double? confidence,
+        TransactionRelation? relationHint = null,
+        int suggestionCount = 0,
+        int duplicateCandidateCount = 0,
+        Transactions.Transfers.TransferSuggestion? transfer = null)
     {
         var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
         var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
@@ -92,6 +119,45 @@ public static class TransactionReviewPushBuilder
         }
 
         var at = merchant is null ? "" : $" tại {merchant}";
+
+        if (transaction.DuplicateStatus == DuplicateStatus.Suspected && transaction.DuplicateOfTransactionId is { } duplicateOf)
+        {
+            data["action"] = ActionReviewDuplicate;
+            data["duplicateOfTransactionId"] = duplicateOf.ToString();
+            data["suggestionCount"] = duplicateCandidateCount.ToString(CultureInfo.InvariantCulture);
+            return new TransactionReviewPush(
+                "Có thể đã ghi rồi",
+                $"Bạn vừa {verb} {amount}{at}. Khoản này có thể trùng với một giao dịch đã ghi. Chạm để gộp hoặc giữ cả hai.",
+                data);
+        }
+
+        if (transfer is not null)
+        {
+            data["action"] = ActionReviewTransfer;
+            data["transferKind"] = transfer.Kind.ToString();
+            data["candidateCount"] = transfer.CandidateAccountIds.Count.ToString(CultureInfo.InvariantCulture);
+            if (transfer.PairedId is { } paired)
+            {
+                data["pairedTransactionId"] = paired.ToString();
+            }
+
+            return new TransactionReviewPush(
+                "Có thể là chuyển tiền giữa ví của bạn",
+                $"Bạn vừa {verb} {amount}{at}. Đây có phải tiền chuyển giữa các ví của bạn không? Chạm để xem.",
+                data);
+        }
+
+        if (relationHint is { } hint)
+        {
+            data["action"] = ActionChooseRefundLink;
+            data["relationHint"] = hint.ToString();
+            data["suggestionCount"] = suggestionCount.ToString(CultureInfo.InvariantCulture);
+            var what = hint == TransactionRelation.Reversal ? "giao dịch bị đảo" : "khoản hoàn tiền";
+            return new TransactionReviewPush(
+                "Có tiền hoàn về",
+                $"Bạn vừa nhận {amount}{at}, có vẻ là {what}. Chạm để chọn khoản chi gốc.",
+                data);
+        }
 
         if (confidence >= OneTapThreshold)
         {

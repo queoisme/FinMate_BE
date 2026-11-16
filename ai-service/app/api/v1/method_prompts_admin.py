@@ -4,7 +4,7 @@ Xem ``app.services.method_prompts``: không sửa tại chỗ, thêm phiên bả
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,9 +28,9 @@ class ActivatePromptBody(BaseModel):
 
 
 @router.get("")
-async def list_prompts(session: Session) -> dict:
-    """Mọi phiên bản chỉ dẫn (mới nhất trước), kèm bản đang dùng."""
-    return await method_prompts.list_prompts(session)
+async def list_prompts(session: Session, limit: Annotated[int, Query(ge=1, le=200)] = 20, offset: Annotated[int, Query(ge=0)] = 0) -> dict:
+    """Một trang phiên bản chỉ dẫn (mới nhất trước), kèm tổng và bản đang dùng."""
+    return await method_prompts.list_prompts(session, limit=limit, offset=offset)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

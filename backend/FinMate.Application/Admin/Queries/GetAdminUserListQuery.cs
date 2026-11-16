@@ -8,4 +8,5 @@ public record GetAdminUserListQuery(
     bool? IsLocked,
     bool IncludeDeleted,
     string? Cursor,
-    int Limit);
+    int Limit,
+    bool InternalOnly = false);

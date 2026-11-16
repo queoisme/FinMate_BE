@@ -1,0 +1,6 @@
+{
+  "summary": "Bạn bị trừ 150.000 đồng hai lần cho cùng một đơn.",
+  "suggested_reply": "Mình đã ghi nhận bạn bị trừ 150.000 đồng hai lần, bạn gửi giúp mình mã đơn nhé.",
+  "verified": true,
+  "usage": {"input_tokens": 300, "output_tokens": 60, "provider": "gemini", "model": "gemini-3.1-flash-lite"}
+}

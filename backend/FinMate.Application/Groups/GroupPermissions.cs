@@ -8,7 +8,8 @@ public static class GroupPermissions
     public static readonly GroupPermission All = Enum.GetValues<GroupPermission>().Aggregate(GroupPermission.None, (all, p) => all | p);
 
     private const GroupPermission MemberDefaults =
-        GroupPermission.ViewOverview | GroupPermission.ViewActivity | GroupPermission.ShareTransactions | GroupPermission.ContributeGoals;
+        GroupPermission.ViewOverview | GroupPermission.ViewActivity | GroupPermission.ShareTransactions | GroupPermission.ContributeGoals
+        | GroupPermission.RecordFundEntries;
 
     private const GroupPermission ViewerDefaults = GroupPermission.ViewOverview;
 

@@ -4,6 +4,6 @@ namespace FinMate.Application.Admin.Queries;
 
 public interface IGetProviderConfigListQueryHandler
 {
-    Task<IReadOnlyList<ProviderConfigDto>> HandleAsync(
+    Task<PagedResult<ProviderConfigDto>> HandleAsync(
         GetProviderConfigListQuery query, CancellationToken ct = default);
 }

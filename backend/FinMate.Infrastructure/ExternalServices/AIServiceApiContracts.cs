@@ -25,7 +25,9 @@ public record ExtractionApiResult(
     [property: JsonPropertyName("transacted_at")] DateTimeOffset? TransactedAt,
     [property: JsonPropertyName("balance_after_cents")] long? BalanceAfterCents,
     [property: JsonPropertyName("confidence")] double? Confidence,
-    [property: JsonPropertyName("provider_reference")] string? ProviderReference = null);
+    [property: JsonPropertyName("provider_reference")] string? ProviderReference = null,
+    [property: JsonPropertyName("relation_hint")] string? RelationHint = null,
+    [property: JsonPropertyName("transfer_kind")] string? TransferKind = null);
 
 public record CategorizationApiResult(
     [property: JsonPropertyName("category_slug")] string? CategorySlug,
@@ -123,6 +125,13 @@ public record ChatGoalApiResult(
     [property: JsonPropertyName("deadline")] DateTimeOffset? Deadline,
     [property: JsonPropertyName("deadline_text")] string? DeadlineText);
 
+/// <summary><c>purchase_date</c> đọc dạng chuỗi (ngày <c>yyyy-MM-dd</c> hoặc thời điểm đầy đủ) rồi đổi sang ngày ở <c>AIServiceClient</c>, để lệch định dạng nhỏ không làm hỏng cả câu trả lời.</summary>
+public record ChatPurchaseApiResult(
+    [property: JsonPropertyName("item")] string? Item,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("purchase_date")] string? PurchaseDate,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug);
+
 public record ChatParseApiResponse(
     [property: JsonPropertyName("intent")] string Intent,
     [property: JsonPropertyName("reply_text")] string? ReplyText,
@@ -133,7 +142,8 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("total_amount")] long? TotalAmount = null,
     [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
     [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null,
-    [property: JsonPropertyName("goal")] ChatGoalApiResult? Goal = null);
+    [property: JsonPropertyName("goal")] ChatGoalApiResult? Goal = null,
+    [property: JsonPropertyName("purchase")] ChatPurchaseApiResult? Purchase = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,

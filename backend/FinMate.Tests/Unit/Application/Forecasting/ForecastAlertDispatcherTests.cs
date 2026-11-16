@@ -72,6 +72,22 @@ public class ForecastAlertDispatcherTests
     }
 
     [Fact]
+    public async Task ListenerHealth_FollowsItsOwnSwitch_NotTheForecastOne()
+    {
+        _user.NotificationPrefs.ForecastAlertsEnabled = false;
+
+        (await Dispatcher().RaiseAsync(Request(ForecastAlertKind.ListenerHealth))).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ListenerHealthSwitchedOff_NothingIsRaised()
+    {
+        _user.NotificationPrefs.ListenerHealthAlertsEnabled = false;
+
+        (await Dispatcher().RaiseAsync(Request(ForecastAlertKind.ListenerHealth))).Should().BeNull();
+    }
+
+    [Fact]
     public async Task LowBalance_WithinCooldown_IsSkipped()
     {
         _alerts.Setup(r => r.AnyCreatedSinceAsync(_userId, ForecastAlertKind.LowBalance, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))

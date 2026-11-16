@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
@@ -16,7 +17,10 @@ public sealed record OpsTicketQuery(
     bool Overdue,
     Guid? ParentTicketId,
     int Offset,
-    int Limit);
+    int Limit,
+    string? Search = null);
+
+public sealed record OpsAssigneeDto(Guid Id, string DisplayName, UserRole Role);
 
 /// <summary>
 /// Phía đội vận hành. Hàng đợi chỉ hiện thông tin tóm tắt; đọc nội dung ca cần là người phụ trách, ca chưa ai nhận, hoặc có quyền điều phối.
@@ -31,6 +35,9 @@ public interface IOpsTicketService
     Task<OpsTicketDetailDto> SetStatusAsync(Guid actorId, Guid ticketId, SupportTicketStatus status, string? ip, CancellationToken ct = default);
     Task<OpsTicketDetailDto> EscalateAsync(Guid actorId, Guid ticketId, string? note, string? ip, CancellationToken ct = default);
     Task<OpsTicketDetailDto> AssignAsync(Guid actorId, Guid ticketId, Guid assigneeUserId, string? ip, CancellationToken ct = default);
+
+    /// <summary>Tìm người nhận ca (đang hoạt động, có quyền xử lý ca) theo tên hoặc email. Manager không gọi được /admin/users nên cần đường này; chỉ trả id, tên, vai trò.</summary>
+    Task<IReadOnlyList<OpsAssigneeDto>> ListAssigneesAsync(Guid actorId, string? search, int limit, CancellationToken ct = default);
     Task<OpsTicketDetailDto> SetPriorityAsync(Guid actorId, Guid ticketId, SupportTicketPriority priority, string? ip, CancellationToken ct = default);
     Task<SupportAttachmentContent> GetAttachmentAsync(Guid actorId, Guid ticketId, Guid attachmentId, string? ip, CancellationToken ct = default);
 
@@ -103,7 +110,7 @@ public sealed class OpsTicketService : IOpsTicketService
 
         var now = DateTimeOffset.UtcNow;
         var (items, total) = await _support.QueueAsync(
-            new OpsTicketFilter(actor.Id, now, query.Status, query.Priority, query.Category, assignee, unassigned, query.Overdue, query.ParentTicketId, offset, limit), ct);
+            new OpsTicketFilter(actor.Id, now, query.Status, query.Priority, query.Category, assignee, unassigned, query.Overdue, query.ParentTicketId, offset, limit, query.Search), ct);
         return new OpsTicketPageDto(items.Select(r => SupportMapper.ToOpsDto(r, now)).ToList(), total, offset, limit);
     }
 
@@ -114,7 +121,7 @@ public sealed class OpsTicketService : IOpsTicketService
         EnsureNotOwnTicket(actor, ticket);
         if (ticket.AssigneeUserId is not null)
         {
-            EnsureHandler(actor, ticket);
+            await EnsureHandlerAsync(actor, ticket, ct);
         }
 
         return await DetailAsync(ticketId, ct);
@@ -148,7 +155,7 @@ public sealed class OpsTicketService : IOpsTicketService
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
         var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
-        EnsureHandler(actor, ticket);
+        await EnsureHandlerAsync(actor, ticket, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
         var cleanBody = SupportTicketRules.RequireText(body, SupportTicketRules.MaxBodyLength, "nội dung");
 
@@ -190,7 +197,7 @@ public sealed class OpsTicketService : IOpsTicketService
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
         var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
-        EnsureHandler(actor, ticket);
+        await EnsureHandlerAsync(actor, ticket, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
 
         if (status is not (SupportTicketStatus.InProgress or SupportTicketStatus.WaitingCustomer or SupportTicketStatus.Resolved or SupportTicketStatus.Closed))
@@ -199,7 +206,7 @@ public sealed class OpsTicketService : IOpsTicketService
         }
 
         // Ca đã chuyển cấp đang chờ Manager rà soát; người xử lý không tự đưa nó ra khỏi hàng đợi đó được.
-        if (ticket.Status == SupportTicketStatus.Escalated && !OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets))
+        if (ticket.Status == SupportTicketStatus.Escalated && !await _access.HasAsync(actor.Role, OpsCapability.ManageTickets, ct))
         {
             throw new ForbiddenException("Yêu cầu đã chuyển cấp chỉ Manager mới đổi được trạng thái.");
         }
@@ -232,7 +239,7 @@ public sealed class OpsTicketService : IOpsTicketService
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
         var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
-        EnsureHandler(actor, ticket);
+        await EnsureHandlerAsync(actor, ticket, ct);
         SupportTicketRules.EnsureNotClosed(ticket);
         var cleanNote = SupportTicketRules.RequireText(note, SupportTicketRules.MaxBodyLength, "những gì đã thử");
 
@@ -254,6 +261,22 @@ public sealed class OpsTicketService : IOpsTicketService
         return await DetailAsync(ticketId, ct);
     }
 
+    public async Task<IReadOnlyList<OpsAssigneeDto>> ListAssigneesAsync(Guid actorId, string? search, int limit, CancellationToken ct = default)
+    {
+        await _access.RequireAsync(actorId, OpsCapability.ManageTickets, ct);
+        var page = await _users.GetPageAsync(new UserListFilter(search, null, false, false, null, AdminPaging.Clamp(limit), InternalOnly: true), ct);
+        var result = new List<OpsAssigneeDto>();
+        foreach (var user in page.Items)
+        {
+            if (await _access.HasAsync(user.Role, OpsCapability.HandleTickets, ct))
+            {
+                result.Add(new OpsAssigneeDto(user.Id, user.DisplayName, user.Role));
+            }
+        }
+
+        return result;
+    }
+
     public async Task<OpsTicketDetailDto> AssignAsync(Guid actorId, Guid ticketId, Guid assigneeUserId, string? ip, CancellationToken ct = default)
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.ManageTickets, ct);
@@ -262,7 +285,7 @@ public sealed class OpsTicketService : IOpsTicketService
         SupportTicketRules.EnsureNotClosed(ticket);
 
         var assignee = await _users.GetByIdAsync(assigneeUserId, ct);
-        if (assignee is null || assignee.IsLocked || !OpsPermissions.For(assignee.Role).HasFlag(OpsCapability.HandleTickets) || assignee.Id == ticket.RequesterUserId)
+        if (assignee is null || assignee.IsLocked || !await _access.HasAsync(assignee.Role, OpsCapability.HandleTickets, ct) || assignee.Id == ticket.RequesterUserId)
         {
             throw new BusinessRuleException(SupportErrorCodes.InvalidAssignee, "Không giao được yêu cầu này cho người đó.");
         }
@@ -317,7 +340,7 @@ public sealed class OpsTicketService : IOpsTicketService
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
         var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
-        EnsureHandler(actor, ticket);
+        await EnsureHandlerAsync(actor, ticket, ct);
 
         var attachment = await _support.GetAttachmentAsync(ticketId, attachmentId, ct)
             ?? throw new NotFoundException("SupportTicketAttachment", attachmentId);
@@ -455,10 +478,10 @@ public sealed class OpsTicketService : IOpsTicketService
     }
 
     /// <summary>Người đang phụ trách, hoặc người có quyền điều phối. Không phải ca của chính mình.</summary>
-    private static void EnsureHandler(User actor, SupportTicket ticket)
+    private async Task EnsureHandlerAsync(User actor, SupportTicket ticket, CancellationToken ct)
     {
         EnsureNotOwnTicket(actor, ticket);
-        if (ticket.AssigneeUserId != actor.Id && !OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets))
+        if (ticket.AssigneeUserId != actor.Id && !await _access.HasAsync(actor.Role, OpsCapability.ManageTickets, ct))
         {
             throw new ForbiddenException("Bạn không phụ trách yêu cầu này.");
         }

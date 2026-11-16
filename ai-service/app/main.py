@@ -7,7 +7,10 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from app.api.v1.agent import router as agent_router
+from app.api.v1.kb import router as kb_router
 from app.api.v1.bill import router as bill_router
+from app.agent import gate as agent_gate
 from app.bill import slug_model
 from app.bill.rules_admin import RuleError
 from app.bill.seed_defaults import seed_bill_knowledge
@@ -18,7 +21,7 @@ from app.api.v1.internal_status import router as internal_status_router
 from app.api.v1.market_data import router as market_data_router
 from app.api.v1.provider_formats_admin import router as provider_formats_admin_router
 from app.api.v1.method_prompts_admin import router as method_prompts_admin_router
-from app.api.v1.rasa_admin import router as rasa_admin_router
+from app.api.v1.learning_admin import router as learning_admin_router
 from app.api.v1.internal_secrets import router as internal_secrets_router
 from app.api.v1.secrets_admin import router as secrets_admin_router
 from app.api.v1.chat import router as chat_router
@@ -35,7 +38,7 @@ from app.core.logging import configure_logging
 from app.db.seed_patterns import seed
 from app.db.session import AsyncSessionLocal
 from app.pipeline.orchestrator import pipeline
-from app.services import category_registry, config_documents, config_runtime, nlu_candidates, retention, secret_store
+from app.services import category_registry, config_documents, config_runtime, retention, secret_store
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -79,6 +82,12 @@ async def lifespan(app: FastAPI):
     except Exception as error:  # noqa: BLE001
         logger.error("slug_model_startup_failed", error_type=type(error).__name__)
     await seed_config_documents()
+    try:  # cụm từ + câu từ chối mặc định của cổng phạm vi agent -> DB (chỉ thêm, DB thắng); lỗi thì cổng dùng bản mặc định trong image
+        if settings.seed_agent_scope:
+            async with AsyncSessionLocal() as session:
+                logger.info("agent_scope_seeded", **await agent_gate.seed_defaults(session))
+    except Exception as error:  # noqa: BLE001
+        logger.error("agent_scope_seed_failed", error_type=type(error).__name__)
     try:  # tài liệu cấu hình admin đã kích hoạt (từ vựng hiểu câu chat...): có thì áp dụng, DB trống hoặc lỗi thì dùng bản mặc định trong image
         logger.info("config_documents_loaded", applied=await config_runtime.refresh())
     except Exception as error:  # noqa: BLE001
@@ -95,7 +104,6 @@ async def lifespan(app: FastAPI):
     categories_task = asyncio.create_task(category_registry.watch(AsyncSessionLocal))  # bản chạy khác nhận danh mục mới trong vòng REFRESH_SECONDS
     purge_task = asyncio.create_task(purge_loop(AsyncSessionLocal))  # mẫu huấn luyện chưa nhãn quá 7 ngày bị xóa định kỳ
     config_task = asyncio.create_task(config_runtime.watch())  # instance khác thấy bản admin vừa kích hoạt trong vòng POLL_SECONDS
-    candidates_task = asyncio.create_task(nlu_candidates.purge_loop(AsyncSessionLocal))  # câu chat chưa duyệt hoặc bị loại quá hạn bị xóa định kỳ
     retention_task = (  # nhật ký phân tích, mẫu thô chưa nhãn, bill lạ quá hạn bị xóa định kỳ (tắt bằng RETENTION_ENABLED=false)
         asyncio.create_task(retention.retention_loop(AsyncSessionLocal, settings.retention_days, settings.retention_interval_hours * 3600))
         if settings.retention_enabled
@@ -105,7 +113,6 @@ async def lifespan(app: FastAPI):
     categories_task.cancel()
     purge_task.cancel()
     config_task.cancel()
-    candidates_task.cancel()
     if retention_task:
         retention_task.cancel()
 
@@ -128,11 +135,13 @@ app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(bill_router, prefix="/api/v1", tags=["bill"])
 app.include_router(finance_methods_router, prefix="/api/v1", tags=["finance-methods"])
+app.include_router(agent_router, prefix="/api/v1", tags=["agent"])
+app.include_router(kb_router, prefix="/api/v1", tags=["agent-kb"])
 app.include_router(rules_admin_router, prefix="/api/v1")
 app.include_router(config_admin_router, prefix="/api/v1")
 app.include_router(categories_admin_router, prefix="/api/v1")
 app.include_router(provider_formats_admin_router, prefix="/api/v1")
-app.include_router(rasa_admin_router, prefix="/api/v1")
+app.include_router(learning_admin_router, prefix="/api/v1")
 app.include_router(method_prompts_admin_router, prefix="/api/v1")
 app.include_router(secrets_admin_router, prefix="/api/v1")
 app.include_router(internal_secrets_router, prefix="/api/v1")

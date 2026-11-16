@@ -12,10 +12,14 @@ public class GetProviderConfigListQueryHandler : IGetProviderConfigListQueryHand
         _providerConfigRepository = providerConfigRepository;
     }
 
-    public async Task<IReadOnlyList<ProviderConfigDto>> HandleAsync(
+    public async Task<PagedResult<ProviderConfigDto>> HandleAsync(
         GetProviderConfigListQuery query, CancellationToken ct = default)
     {
         var configs = await _providerConfigRepository.GetListAsync(query.IncludeInactive, ct);
-        return configs.Select(AdminMapper.ToDto).ToList();
+        var matched = configs
+            .Where(c => AdminPaging.Matches(query.Search, c.DisplayName, c.ProviderKey, c.PackageName))
+            .OrderBy(c => c.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(c => c.Id);
+        return AdminPaging.Page(matched, query.Offset, query.Limit).Map(AdminMapper.ToDto);
     }
 }

@@ -11,7 +11,7 @@ import re
 from collections.abc import Sequence
 
 from app.bill.classifier import brand_backend_slug, classify_category_detailed
-from app.bill.gemini import MAX_NAMES, GeminiClient, GeminiFailed
+from app.bill.gemini import MAX_NAMES, LlmClient, GeminiFailed
 from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
@@ -77,7 +77,7 @@ async def classify_items(
     items: Sequence[ClassifyItemIn],
     merchant: str | None,
     knowledge: BillKnowledge,
-    gemini: GeminiClient,
+    gemini: LlmClient,
     instruction: str,
     allow_ai: bool,
     stats: dict[str, int] | None = None,
@@ -122,7 +122,7 @@ async def classify_items(
     if pending and instruction.strip():
         answers = None
         if gemini.available:
-            try:  # GeminiClient tự giới hạn tổng thời gian và khóa mạch khi mọi model đều lỗi
+            try:  # LlmClient tự giới hạn tổng thời gian và khóa mạch khi mọi model đều lỗi
                 answers = await gemini.classify([clean[i] for i in pending], instruction)
             except GeminiFailed:
                 answers = None  # không bao giờ ném lỗi ra cho client

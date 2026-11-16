@@ -16,8 +16,12 @@ public class AdminSurveyQuestionsController : AdminControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
-        => Ok(ApiResponse<IReadOnlyList<AdminSurveyQuestionDto>>.Ok(await _catalog.ListQuestionsAsync(includeInactive, ct)));
+    public async Task<IActionResult> GetList(
+        [FromQuery] bool includeInactive, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
+    {
+        var page = await _catalog.ListQuestionsAsync(includeInactive, search, offset, limit, ct);
+        return Ok(ApiResponse<IReadOnlyList<AdminSurveyQuestionDto>>.Ok(page.Items, page.ToMeta()));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSurveyQuestionRequest request, CancellationToken ct)

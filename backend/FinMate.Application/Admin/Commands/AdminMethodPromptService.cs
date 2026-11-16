@@ -14,7 +14,7 @@ public sealed record AdminMethodPromptActivate(Guid AdminId, string Version, Jso
 public interface IAdminMethodPromptService
 {
     /// <summary>Mọi phiên bản chỉ dẫn (mới nhất trước) và bản đang dùng. Chỉ đọc.</summary>
-    Task<JsonElement?> ListAsync(CancellationToken ct = default);
+    Task<JsonElement?> ListAsync(IReadOnlyDictionary<string, string?>? query = null, CancellationToken ct = default);
 
     /// <summary>Thêm một phiên bản (không sửa tại chỗ). CHỈ khi AI Service chấp nhận (201) mới ghi audit_logs (không kèm nội dung chỉ dẫn).</summary>
     Task<JsonElement?> CreateAsync(AdminMethodPromptCreate command, CancellationToken ct = default);
@@ -34,8 +34,8 @@ public class AdminMethodPromptService : IAdminMethodPromptService
         _auditLogService = auditLogService;
     }
 
-    public Task<JsonElement?> ListAsync(CancellationToken ct = default)
-        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, string.Empty, Area: AiRulesRequest.MethodPromptsArea), ct);
+    public Task<JsonElement?> ListAsync(IReadOnlyDictionary<string, string?>? query = null, CancellationToken ct = default)
+        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, string.Empty, query, Area: AiRulesRequest.MethodPromptsArea), ct);
 
     public async Task<JsonElement?> CreateAsync(AdminMethodPromptCreate command, CancellationToken ct = default)
     {

@@ -1,6 +1,6 @@
 """Request/response của ``POST /api/v1/bill/classify``.
 
-Route này chỉ NHẬN DIỆN và PHÂN LOẠI, giống Rasa: nhận chữ đã lọc dữ liệu cá nhân (tên cửa hàng, các dòng hàng) và trả danh mục.
+Route này chỉ NHẬN DIỆN và PHÂN LOẠI, giống bộ phân loại ý định: nhận chữ đã lọc dữ liệu cá nhân (tên cửa hàng, các dòng hàng) và trả danh mục.
 Không nhận ảnh, không nhận chữ gốc, không lưu gì. Người gọi (backend) giữ kết quả bóc tách và giao dịch.
 """
 

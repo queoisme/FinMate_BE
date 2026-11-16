@@ -81,7 +81,7 @@ def _resolve(source: str | Callable[[], str | None] | None) -> str | None:
     return source() if callable(source) else source
 
 
-class GeminiClient:
+class LlmClient:
     def __init__(
         self,
         api_key: str | Callable[[], str | None] | None,

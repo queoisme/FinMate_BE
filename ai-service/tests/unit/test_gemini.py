@@ -1,4 +1,4 @@
-"""GeminiClient: gọi bằng httpx MockTransport, không có mạng thật."""
+"""LlmClient: gọi bằng httpx MockTransport, không có mạng thật."""
 
 import asyncio
 import json
@@ -8,7 +8,7 @@ import pytest
 import structlog
 
 from app.bill import gemini as gemini_module
-from app.bill.gemini import GeminiClient, GeminiFailed
+from app.bill.gemini import LlmClient, GeminiFailed
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +26,7 @@ def _reply(entries):
 
 def _client(handler, clock=None):
     kw = {"clock": clock} if clock else {}
-    return GeminiClient("key", "m", 5.0, transport=httpx.MockTransport(handler), **kw)
+    return LlmClient("key", "m", 5.0, transport=httpx.MockTransport(handler), **kw)
 
 
 def _echo(cats):
@@ -177,7 +177,7 @@ async def test_long_name_is_truncated_to_60_chars():
 
 
 async def test_no_api_key_means_not_available_and_classify_raises():
-    c = GeminiClient(None, "m", 5.0, transport=httpx.MockTransport(lambda r: pytest.fail("network")))
+    c = LlmClient(None, "m", 5.0, transport=httpx.MockTransport(lambda r: pytest.fail("network")))
     assert not c.available
     with pytest.raises(GeminiFailed):
         await c.classify(["a"], "r")
@@ -201,7 +201,7 @@ async def test_hang_past_overall_limit_raises_and_opens_circuit():
         seen.append(1)
         await asyncio.Event().wait()  # không bao giờ trả lời (asyncio.sleep đã bị fixture thay)
 
-    c = GeminiClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
+    c = LlmClient("key", "m", 5.0, transport=httpx.MockTransport(hang), overall_timeout=0.05)
     with pytest.raises(GeminiFailed):
         await c.classify(["a"], "r")
     assert not c.available
@@ -237,7 +237,7 @@ def _by_model(handlers):
 
 def _fallback_client(handler, clock=None):
     kw = {"clock": clock} if clock else {}
-    return GeminiClient("key", "primary", 5.0, transport=httpx.MockTransport(handler), fallback_models=("backup",), **kw)
+    return LlmClient("key", "primary", 5.0, transport=httpx.MockTransport(handler), fallback_models=("backup",), **kw)
 
 
 async def test_overloaded_primary_falls_back_to_the_next_model():
@@ -275,7 +275,7 @@ def _or_reply(entries):
 
 def _backup_client(handler, key="gkey", clock=None):
     kw = {"clock": clock} if clock else {}
-    return GeminiClient(
+    return LlmClient(
         key, "primary", 5.0, transport=httpx.MockTransport(handler), fallback_models=("second",),
         backup_key="or-secret", backup_model="vendor/model:free", **kw,
     )
@@ -375,7 +375,7 @@ async def test_backup_alone_works_when_there_is_no_gemini_key():
 
 
 async def test_no_keys_at_all_means_unavailable():
-    c = GeminiClient(None, "m", 5.0, backup_key=None, backup_model="x")
+    c = LlmClient(None, "m", 5.0, backup_key=None, backup_model="x")
     assert not c.available
 
 

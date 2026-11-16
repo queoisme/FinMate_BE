@@ -1,6 +1,6 @@
 """nlu model versions
 
-Thêm ``nlu_model_versions``: sổ đăng ký model Rasa NLU (bản dữ liệu đã học, số đo thô và sau luật, bản đang chạy). CHỈ THÊM một bảng.
+Thêm ``nlu_model_versions``: sổ đăng ký model của bộ NLU cũ (bản dữ liệu đã học, số đo thô và sau luật, bản đang chạy). CHỈ THÊM một bảng.
 
 Revision ID: 0018
 Revises: 0017

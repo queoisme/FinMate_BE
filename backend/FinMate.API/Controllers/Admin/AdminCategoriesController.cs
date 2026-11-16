@@ -27,10 +27,11 @@ public class AdminCategoriesController : AdminControllerBase
 
     /// <summary>Chỉ danh mục hệ thống. Danh mục riêng của người dùng không thuộc phạm vi admin.</summary>
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] bool includeInactive, CancellationToken ct)
+    public async Task<IActionResult> GetList(
+        [FromQuery] bool includeInactive, [FromQuery] string? search, [FromQuery] int offset, [FromQuery] int limit, CancellationToken ct)
     {
-        var categories = await _listHandler.HandleAsync(new GetSystemCategoryListQuery(includeInactive), ct);
-        return Ok(ApiResponse<IReadOnlyList<AdminCategoryDto>>.Ok(categories));
+        var page = await _listHandler.HandleAsync(new GetSystemCategoryListQuery(includeInactive, search, offset, limit), ct);
+        return Ok(ApiResponse<IReadOnlyList<AdminCategoryDto>>.Ok(page.Items, page.ToMeta()));
     }
 
     [HttpPost]

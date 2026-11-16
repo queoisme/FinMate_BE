@@ -4,13 +4,13 @@
 
 | Nhóm | Kết quả |
 |---|---|
-| Chatbot | ĐẠT (27/27 chỉ tiêu) |
+| Chatbot | ĐẠT (6/6 chỉ tiêu) |
 | Speech | ĐẠT (5/5 chỉ tiêu) |
 | OCR | ĐẠT (6/6 chỉ tiêu) |
 
 ĐẠT trên bộ mẫu nhỏ là điều kiện cần, chưa đủ để kết luận khả thi: xem "Độ tin cậy" của từng khối.
 
-## Chatbot: Chat và món: luật + từ điển (không Rasa, không AI) — ĐẠT
+## Chatbot: Chat và món: luật + từ điển (không AI) — ĐẠT
 
 | Chỉ tiêu | Đo được | Ngưỡng | |
 |---|---|---|---|
@@ -41,67 +41,6 @@ Ca sai tiêu biểu:
 | Đọc số tiền trong câu chat/voice, bộ giữ riêng (71 câu) | 100.0% | ≥ 95.0% | ĐẠT |
 
 **Độ tin cậy:** Bộ giữ riêng ít bị tinh chỉnh theo hơn bộ chính, nhưng cũng do người viết luật gán nhãn.
-
-## Chatbot: Chat qua endpoint thật (Rasa đang chạy) — ĐẠT
-
-| Chỉ tiêu | Đo được | Ngưỡng | |
-|---|---|---|---|
-| Rasa + luật: đúng (66 câu) | 98.5% | ≥ 95.0% | ĐẠT |
-| Rasa + luật: sai mà vẫn tự tin | 1.5% | ≤ 2.0% | ĐẠT |
-| Rasa + luật: Rasa có trả lời | 100.0% | ≥ 95.0% | ĐẠT |
-| Rasa + luật: thời gian p95 | 34 ms | ≤ 500 ms | ĐẠT |
-
-**Độ tin cậy:** Cùng bộ câu với khối luật, nhưng đi đúng đường backend gọi. Khác biệt với khối luật chính là phần Rasa gây ra.
-
-Ca sai tiêu biểu:
-
-- 'mua đồ 1,5tr': muốn [('expense', 1500000, None)], ra [('expense', 1500000, 'shopping')]
-
-## Chatbot: Rasa NLU (ý định + số tiền) — ĐẠT
-
-| Chỉ tiêu | Đo được | Ngưỡng | |
-|---|---|---|---|
-| Rasa thô, ý định, câu viết tay (74 câu) | 97.3% | ≥ 90.0% | ĐẠT |
-| Rasa thô, đoán sai mà độ chắc ≥ 0,8, câu viết tay | 2.7% |  | — |
-| Rasa thô, cắt đúng số tiền, câu viết tay | 97.4% | ≥ 90.0% | ĐẠT |
-| Rasa thô, ý định, viết tay, món chưa từng thấy (67 câu) | 97.0% | ≥ 85.0% | ĐẠT |
-| Rasa thô, đoán sai mà độ chắc ≥ 0,8, viết tay, món chưa từng thấy | 3.0% |  | — |
-| Rasa thô, cắt đúng số tiền, viết tay, món chưa từng thấy | 98.0% | ≥ 90.0% | ĐẠT |
-| Rasa thô, ý định, viết tay, khung câu chưa từng thấy (72 câu) | 94.4% | ≥ 85.0% | ĐẠT |
-| Rasa thô, đoán sai mà độ chắc ≥ 0,8, viết tay, khung câu chưa từng thấy | 5.6% |  | — |
-| Rasa thô, cắt đúng số tiền, viết tay, khung câu chưa từng thấy | 98.1% | ≥ 90.0% | ĐẠT |
-| Rasa thô, ý định, ngoài chủ đề (MASSIVE) (129 câu) | 97.7% | ≥ 90.0% | ĐẠT |
-| Rasa thô, đoán sai mà độ chắc ≥ 0,8, ngoài chủ đề (MASSIVE) | 0.0% |  | — |
-| Rasa thô, ý định, tổng hợp, nhiều biến thể (315 câu) | 93.0% | ≥ 80.0% | ĐẠT |
-| Rasa thô, đoán sai mà độ chắc ≥ 0,8, tổng hợp, nhiều biến thể | 5.4% |  | — |
-| Rasa thô, cắt đúng số tiền, tổng hợp, nhiều biến thể | 97.1% | ≥ 90.0% | ĐẠT |
-| Thời gian p95 một câu | 17 ms | ≤ 200 ms | ĐẠT |
-| Sau luật, đúng ý định, câu viết tay (74 câu) | 98.6% | ≥ 90.0% | ĐẠT |
-| Sau luật, đúng ý định, viết tay, món chưa từng thấy (67 câu) | 100.0% | ≥ 90.0% | ĐẠT |
-| Sau luật, đúng ý định, viết tay, khung câu chưa từng thấy (72 câu) | 97.2% | ≥ 90.0% | ĐẠT |
-| Sau luật, đúng ý định, ngoài chủ đề (MASSIVE) (129 câu) | 99.2% | ≥ 90.0% | ĐẠT |
-| Sau luật, đúng ý định, tổng hợp, nhiều biến thể (315 câu) | 98.1% | ≥ 90.0% | ĐẠT |
-| Sau luật, sai mà KHÔNG nhắc xem lại (cả 657 câu) | 0.2% | ≤ 3.0% | ĐẠT |
-| Sau luật, sai mà bị TỰ LƯU không hỏi | 0 | ≤ 0 | ĐẠT |
-
-**Độ tin cậy:** Hai bộ viết tay 'món chưa từng thấy' (nlu_test_fresh) và 'khung câu chưa từng thấy' (nlu_test_fresh2) là bộ độc lập nhất: không được đưa vào data/ (generate_nlu.py chặn). Bộ 'tổng hợp' do máy sinh, món và mẫu câu tách khỏi bộ học nhưng cùng 'họ' (nạp thẻ, trả tiền...), nên lạc quan hơn. 'Sau luật' là thứ người dùng thấy; 'Rasa thô' chỉ để theo dõi model.
-
-Ca sai tiêu biểu:
-
-- [câu viết tay] 'gửi xe máy 3k': muốn add_expense, ra out_of_scope (1.00)
-- [câu viết tay] 'mình đi ngủ đây': muốn goodbye, ra out_of_scope (0.95)
-- [viết tay, món chưa từng thấy] 'nạp tiền điện thoại cho mẹ 100k': muốn add_expense, ra transfer_money (0.99)
-- [viết tay, món chưa từng thấy] 'ba cho 1 triệu đóng học': muốn add_income, ra add_expense (1.00)
-- [viết tay, khung câu chưa từng thấy] 'mua tập vở cho con 140k': muốn add_expense, ra transfer_money (0.93)
-- [viết tay, khung câu chưa từng thấy] 'mất 1tr2 tiền sửa máy giặt': muốn add_expense, ra out_of_scope (1.00)
-- [viết tay, khung câu chưa từng thấy] 'phí rút tiền atm 3k': muốn add_expense, ra transfer_money (1.00)
-- [ngoài chủ đề (MASSIVE)] 'ghi nhớ email này': muốn out_of_scope, ra confirm (0.70)
-- [ngoài chủ đề (MASSIVE)] 'im lặng': muốn out_of_scope, ra nlu_fallback (0.40)
-- [ngoài chủ đề (MASSIVE)] 'ô tô ở đâu rồi': muốn out_of_scope, ra nlu_fallback (0.40)
-- [tổng hợp, nhiều biến thể] 'ngày 3/10, khám nha khoa 140k': muốn add_expense, ra add_income (0.99)
-- [tổng hợp, nhiều biến thể] 'dong bao hiem xong het sau muoi nghin': muốn add_expense, ra nlu_fallback (0.40)
-- [tổng hợp, nhiều biến thể] "ghé Pizza 4P's khám nha khoa 1tr8": muốn add_expense, ra out_of_scope (1.00)
-- [sau luật] 'uống nước mía khoảng 2 lít 5': muốn add_expense, ra needs_amount (Rasa add_expense 1.0, KHÔNG nhắc xem lại)
 
 ## Speech: Giọng nói, phần chữ → số tiền/loại/danh mục — ĐẠT
 

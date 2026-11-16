@@ -13,14 +13,9 @@ public sealed record ProviderHealthBody(
 
 public sealed record OcrStatusBody([property: JsonPropertyName("vision")] ProviderHealthBody? Vision);
 
-public sealed record RasaStatusBody(
-    [property: JsonPropertyName("configured")] bool Configured,
-    [property: JsonPropertyName("available")] bool Available);
-
 public sealed record AiStatusBody(
     [property: JsonPropertyName("gemini")] ProviderHealthBody? Gemini,
-    [property: JsonPropertyName("gemini_backup")] ProviderHealthBody? GeminiBackup,
-    [property: JsonPropertyName("rasa")] RasaStatusBody? Rasa);
+    [property: JsonPropertyName("gemini_backup")] ProviderHealthBody? GeminiBackup);
 
 /// <summary>Đọc trạng thái nhà cung cấp từ các dịch vụ Python. Null nghĩa là chưa biết: dịch vụ bản cũ chưa có API này, hoặc đang không gọi được, việc đó health probe đã theo dõi riêng.</summary>
 public interface IProviderStatusClient

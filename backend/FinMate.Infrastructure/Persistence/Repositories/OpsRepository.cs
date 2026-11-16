@@ -1,3 +1,4 @@
+using FinMate.Application.Admin;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Ops;
@@ -45,7 +46,8 @@ public class OpsRepository : IOpsRepository
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, OpsApprovalStatus.Failed).SetProperty(a => a.FailureCode, failureCode), ct);
 
-    public async Task<OpsApprovalPage> ListApprovalsAsync(OpsApprovalStatus? status, Guid? requestedBy, string? cursor, int limit, CancellationToken ct = default)
+    public async Task<(List<OpsApprovalRequest> Items, int Total)> ListApprovalsAsync(
+        OpsApprovalStatus? status, Guid? requestedBy, string? search, int offset, int limit, CancellationToken ct = default)
     {
         var query = _context.OpsApprovalRequests.AsNoTracking();
         if (status is { } s)
@@ -58,34 +60,32 @@ public class OpsRepository : IOpsRepository
             query = query.Where(a => a.RequestedByUserId == r);
         }
 
-        if (KeysetCursor.TryDecode(cursor, out var cursorAt, out var cursorId))
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(a =>
-                a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));
+            var pattern = $"%{AdminPaging.EscapeLike(search.Trim())}%";
+            query = query.Where(a => EF.Functions.ILike(a.Reason, pattern, "\\")
+                || (a.DecisionNote != null && EF.Functions.ILike(a.DecisionNote, pattern, "\\")));
         }
 
-        var items = await query
-            .OrderByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .Take(limit + 1)
-            .ToListAsync(ct);
-
-        string? nextCursor = null;
-        if (items.Count > limit)
-        {
-            var last = items[limit - 1];
-            nextCursor = KeysetCursor.Encode(last.CreatedAt, last.Id);
-            items = items.Take(limit).ToList();
-        }
-
-        return new OpsApprovalPage(items, nextCursor);
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.Id).Skip(offset).Take(limit).ToListAsync(ct);
+        return (items, total);
     }
 
-    public Task<List<CannedReply>> ListCannedRepliesAsync(bool includeInactive, CancellationToken ct = default)
-        => _context.CannedReplies.AsNoTracking()
-            .Where(c => includeInactive || c.IsActive)
-            .OrderBy(c => c.Title)
-            .ToListAsync(ct);
+    public async Task<(List<CannedReply> Items, int Total)> ListCannedRepliesAsync(
+        bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
+    {
+        var query = _context.CannedReplies.AsNoTracking().Where(c => includeInactive || c.IsActive);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{AdminPaging.EscapeLike(search.Trim())}%";
+            query = query.Where(c => EF.Functions.ILike(c.Title, pattern, "\\") || EF.Functions.ILike(c.Body, pattern, "\\"));
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(c => c.Title).ThenBy(c => c.Id).Skip(offset).Take(limit).ToListAsync(ct);
+        return (items, total);
+    }
 
     public Task<CannedReply?> GetCannedReplyAsync(Guid id, CancellationToken ct = default)
         => _context.CannedReplies.FirstOrDefaultAsync(c => c.Id == id, ct);

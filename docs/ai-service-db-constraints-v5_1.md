@@ -47,7 +47,7 @@ Mức ưu tiên:
 
 | Bảng | Đã có | Cần thêm | Mức |
 |---|---|---|---|
-| `ml_models` (mới) | không | UQ `code`; CHECK `kind IN ('sklearn','rasa','llm','rules')` | P2 |
+| `ml_models` (mới) | không | UQ `code`; CHECK `kind IN ('sklearn','llm','rules')` | P2 |
 | `ml_model_versions` (`model_versions` + `bill_model_versions`) | UQ `(stage, version)`; UQ từng phần một bản active; CHECK `stage`, `status` | đổi sang UQ `(model_id, version)` và UQ từng phần `model_id WHERE status='active'`; FK `model_id` `ON DELETE RESTRICT`; chỉ mục `training_job_id`; CHECK `status IN ('candidate','active','retired','rejected')`; CHECK `prompt_hash` hex 64 khi không NULL; quy tắc ở code: `artifact_path` được NULL khi `ml_models.kind='llm'` (CHECK chéo bảng không làm được, cần trigger hoặc kiểm tra ở ứng dụng) | P1 |
 | `ml_training_jobs` (`training_jobs` + `bill_training_jobs`) | CHECK `stage`, `status`; chỉ mục `(stage, created_at)` | FK `model_id`; chỉ mục `(model_id, created_at)` thay cho chỉ mục theo `stage`; CHECK `sample_count >= 0`; CHECK `dataset_hash` hex 64; CHECK thời gian | P1 |
 | `ml_evaluation_runs` | FK `model_version_id` CASCADE; CHECK `split`; chỉ mục `(model_version_id, created_at)` | CHECK `accuracy` và `macro_f1` trong [0,1]; CHECK `sample_count >= 0` | P0 |
@@ -75,9 +75,6 @@ Mức ưu tiên:
 | Bảng | Đã có | Cần thêm | Mức |
 |---|---|---|---|
 | `config_documents` | UQ `(name, version)`; UQ từng phần một bản active; CHECK `status` | CHECK `version >= 1`; CHECK `name ~ '^[a-z_]+$'`; CHECK `jsonb_typeof(content) = 'object'`; CHECK `created_by` hex 64 | P0 |
-| `nlu_examples` | UQ `text_key`; chỉ mục; CHECK `split`, `source` | CHECK `char_length(text) <= 200` (khớp `MAX_TEXT_CHARS` trong code). Tên ý định nằm ở `domain.yml` nên giữ kiểm tra ở tầng ứng dụng | P0 |
-| `nlu_model_versions` (mới) | không | UQ `version`; UQ từng phần `WHERE status='active'`; CHECK `status`. Ứng viên gộp vào `ml_model_versions` | P2 |
-| `nlu_candidates` (mới) | không | UQ `(user_id_hash, text_key)`; chỉ mục `(status, created_at)`; CHECK `status`; CHECK `char_length(text) <= 500`; CHECK confidence [0,1]; **thời hạn lưu chưa chốt** (đề xuất dọn bản `pending` sau N ngày) | P2 |
 
 ## Việc nên làm trước, theo mức ưu tiên
 
@@ -93,7 +90,7 @@ Mức ưu tiên:
 **P2, theo tính năng:** các bảng và view mới.
 
 ## Đã làm thêm ở migration 0027-0029 (2026-10-26)
-- **0027:** CHECK mã băm SHA-256 hex 64 cho `user_merchant_memory`, `ml_training_samples`, `kb_audit_log.actor_hash`, `config_documents.created_by`, `nlu_candidates`, `nlu_model_versions.dataset_hash` (cho thêm `'unknown'`), `ops_analyze_log`, `ml_raw_samples` (hai cột), `ml_user_feedback` (hai cột); trigger chỉ-ghi-thêm cho `kb_audit_log`; FK `ops_analyze_log.pattern_id` SET NULL; F1-04 `NOT (is_sensitive AND maps_to IS NULL)`; F1-09 bỏ CHECK `transaction_type` và `extraction_method` của `ops_analyze_log` (tập đóng chỉ còn `pipeline_result`, `classifier_label`).
+- **0027:** CHECK mã băm SHA-256 hex 64 cho `user_merchant_memory`, `ml_training_samples`, `kb_audit_log.actor_hash`, `config_documents.created_by`, `ops_analyze_log`, `ml_raw_samples` (hai cột), `ml_user_feedback` (hai cột); trigger chỉ-ghi-thêm cho `kb_audit_log`; FK `ops_analyze_log.pattern_id` SET NULL; F1-04 `NOT (is_sensitive AND maps_to IS NULL)`; F1-09 bỏ CHECK `transaction_type` và `extraction_method` của `ops_analyze_log` (tập đóng chỉ còn `pipeline_result`, `classifier_label`).
 - **0028:** `ml_raw_samples.source` `bill_scan` thành `receipt`; bỏ `ml_training_samples.total_amount` và `label_kind`; bỏ `provider_key`, `package_name` khỏi `kb_provider_patterns`.
 - **0029:** `bill_user_merchant_category` và view `bill_merchant_votes` gộp vào `user_merchant_memory` rồi xóa. `bill_unknown_scans` GIỮ làm hàng đợi duyệt cửa hàng lạ, là bảng duy nhất ngoài ERD có chủ đích.
 

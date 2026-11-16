@@ -45,7 +45,11 @@ public sealed record SafeToSpendDto(
     IReadOnlyList<SpendableAccount> Accounts,
     IReadOnlyList<UpcomingItemDto> Incomes,
     IReadOnlyList<UpcomingItemDto> Bills,
-    IReadOnlyList<SpendableGoalDto> Goals);
+    IReadOnlyList<SpendableGoalDto> Goals)
+{
+    /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu. Công thức này không có độ tin cậy nên chỉ thêm trường này (D11).</summary>
+    public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
+}
 
 public static class SpendableCalculator
 {

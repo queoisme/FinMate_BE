@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 namespace FinMate.API.Controllers.Ops;
 
 [Route("api/v1/ops/monitoring")]
-[Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+[Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
 public class OpsMonitoringController : OpsControllerBase
 {
     private readonly IOpsMonitoringService _monitoring;

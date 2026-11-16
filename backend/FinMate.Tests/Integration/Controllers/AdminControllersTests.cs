@@ -156,7 +156,7 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         var activeList = await active.Content.ReadFromJsonAsync<ProviderConfigListBody>(JsonOptions);
         activeList!.Data.Should().NotContain(x => x.Id == config.Id);
 
-        var all = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/provider-configs?includeInactive=true", token));
+        var all = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/provider-configs?includeInactive=true&limit=100", token));   // danh sách phân trang: mặc định 20 dòng
         var allList = await all.Content.ReadFromJsonAsync<ProviderConfigListBody>(JsonOptions);
         allList!.Data.Should().Contain(x => x.Id == config.Id && !x.IsActive);
     }

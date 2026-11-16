@@ -2,6 +2,7 @@ using System.Text.Json;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Common.Models;
 using FinMate.Application.FinanceMethods;
 using FinMate.Domain.Entities;
 
@@ -43,13 +44,13 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
 
     // ================= cách quản lý =================
 
-    public async Task<IReadOnlyList<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, CancellationToken ct = default)
+    public async Task<PagedResult<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
     {
         var activeUsers = await _methods.CountActiveUsersAsync(ct);
-        return (await _methods.GetMethodsAsync(includeInactive, ct))
-            .OrderBy(m => m.SortOrder)
-            .Select(m => ToDto(m, activeUsers.GetValueOrDefault(m.Id)))
-            .ToList();
+        var matched = (await _methods.GetMethodsAsync(includeInactive, ct))
+            .Where(m => AdminPaging.Matches(search, m.Code, m.Name, m.Summary))
+            .OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ThenBy(m => m.Id);
+        return AdminPaging.Page(matched, offset, limit).Map(m => ToDto(m, activeUsers.GetValueOrDefault(m.Id)));
     }
 
     private async Task<int> ActiveUsersOfAsync(Guid methodId, CancellationToken ct)
@@ -239,13 +240,14 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
 
     // ================= khảo sát =================
 
-    public async Task<IReadOnlyList<AdminSurveyQuestionDto>> ListQuestionsAsync(bool includeInactive, CancellationToken ct = default)
+    public async Task<PagedResult<AdminSurveyQuestionDto>> ListQuestionsAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
     {
-        var questions = (await _surveys.GetQuestionsAsync(includeInactive, ct)).OrderBy(q => q.SortOrder).ToList();
+        var matched = (await _surveys.GetQuestionsAsync(includeInactive, ct))
+            .Where(q => AdminPaging.Matches(search, q.Code, q.GroupCode, q.Text))
+            .OrderBy(q => q.SortOrder).ThenBy(q => q.Code);
         var options = (await _surveys.GetOptionsAsync(includeInactive: true, ct)).ToLookup(o => o.QuestionId);
-        return questions
-            .Select(q => ToDto(q, options[q.Id].Where(o => includeInactive || o.IsActive)))
-            .ToList();
+        return AdminPaging.Page(matched, offset, limit)
+            .Map(q => ToDto(q, options[q.Id].Where(o => includeInactive || o.IsActive)));
     }
 
     public async Task<AdminSurveyQuestionDto> CreateQuestionAsync(
@@ -415,8 +417,13 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
 
     // ================= mẫu mục tiêu =================
 
-    public async Task<IReadOnlyList<AdminGoalTemplateDto>> ListTemplatesAsync(bool includeInactive, CancellationToken ct = default)
-        => (await _methods.GetTemplatesAsync(includeInactive, ct)).OrderBy(t => t.Code).Select(ToDto).ToList();
+    public async Task<PagedResult<AdminGoalTemplateDto>> ListTemplatesAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
+    {
+        var matched = (await _methods.GetTemplatesAsync(includeInactive, ct))
+            .Where(t => AdminPaging.Matches(search, t.Code, t.Name, t.Description))
+            .OrderBy(t => t.Code);
+        return AdminPaging.Page(matched, offset, limit).Map(ToDto);
+    }
 
     public async Task<AdminGoalTemplateDto> CreateTemplateAsync(
         Guid adminId, string? ip, CreateGoalTemplateRequest request, CancellationToken ct = default)

@@ -30,7 +30,11 @@ public static class ConsentVersions
     /// Gửi các signal suy ra từ câu trả lời khảo sát đầu vào (không kèm định danh) cho dịch vụ AI bên thứ ba để chọn cách quản lý tài chính phù hợp.
     /// Đồng ý RIÊNG, tách khỏi <see cref="Ai"/> (vốn chỉ nói về tên món): không đồng ý thì gợi ý chạy hoàn toàn bằng rule trong backend, không gọi AI.
     /// Bản 1 chỉ nêu Google Gemini. Bản 2 (2026-10-27) nêu thêm OpenRouter làm dự phòng khi Gemini lỗi — chỉ model miễn phí của bên cam kết không lưu/huấn luyện trên dữ liệu gửi đi.
-    /// Người đã đồng ý bản 1 không còn <see cref="User.SurveyAiConsentGranted"/> và phải đồng ý lại bản 2; trong lúc đó gợi ý của họ chạy bằng rule.
+    /// <para>
+    /// <b>Từ 2026-11-01 đồng ý này không còn chặn gì:</b> <c>MethodRecommendationService</c> luôn gửi signals ẩn danh cho AI rồi rơi về rule khi AI lỗi,
+    /// bất kể <see cref="User.SurveyAiConsentGranted"/>. Giá trị chỉ còn được ghi nhận khi người dùng cấp/rút qua <c>/users/me/consents</c>.
+    /// Gỡ hẳn loại đồng ý này hay khôi phục việc kiểm là quyết định của chủ sản phẩm (FR-CONS-06, REQUIREMENTS §13.4).
+    /// </para>
     /// </summary>
     public const int SurveyAi = 2;
 

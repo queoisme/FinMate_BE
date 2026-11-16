@@ -295,6 +295,31 @@ public class ScanReceiptViaOcrServiceTests
     }
 
     [Fact]
+    public async Task WithTheDuplicateDetector_TheBankNotificationIsSuggested_AndTheOldFieldKeepsWorking()
+    {
+        // Phase 82: hoá đơn so với thông báo ngân hàng qua DuplicateMatcher (cửa sổ receiptWindowHours), không còn quét mọi khoản chi ±3 giờ.
+        var bank = new FinMate.Application.Common.Models.DuplicateSummaryDto(Guid.NewGuid(), 16_000, BillDate, "Notification", null, null, "VCB");
+        var duplicates = new Mock<FinMate.Application.Transactions.Duplicates.IDuplicateDetector>();
+        FinMate.Application.Transactions.Duplicates.DuplicateInput? asked = null;
+        duplicates.Setup(d => d.SuggestForInputAsync(It.IsAny<FinMate.Application.Transactions.Duplicates.DuplicateInput>(), It.IsAny<CancellationToken>()))
+            .Callback<FinMate.Application.Transactions.Duplicates.DuplicateInput, CancellationToken>((i, _) => asked = i)
+            .ReturnsAsync(new FinMate.Application.Transactions.Duplicates.DuplicateSuggestion([bank], MarksSuspected: true));
+        var handler = new ScanReceiptCommandHandler(
+            _ai.Object, _ocr.Object, _scans.Object, new ReceiptOptions(false), new Mock<IUserRepository>().Object,
+            _transactions.Object, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScanReceiptCommandHandler>.Instance, duplicates: duplicates.Object);
+
+        var scanned = await handler.HandleAsync(new ScanReceiptCommand(Guid.NewGuid(), new byte[1024], "hoa-don.jpg", "image/jpeg"));
+
+        scanned.SuggestedDuplicates.Should().ContainSingle().Which.Id.Should().Be(bank.Id);
+        scanned.PossibleDuplicateTransactionId.Should().Be(bank.Id);
+        asked!.Source.Should().Be(FinMate.Domain.Enums.TransactionSource.Receipt);
+        asked.AmountCents.Should().Be(16_000);
+        asked.At.Should().Be(BillDate);
+        _transactions.Verify(t => t.FindPossibleDuplicateAsync(
+            It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<DateTimeOffset>(), It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task WithoutAMatchNothingIsFlagged()
     {
         var scanned = await _handler.HandleAsync(new ScanReceiptCommand(Guid.NewGuid(), new byte[1024], "hoa-don.jpg", "image/jpeg"));

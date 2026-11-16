@@ -28,9 +28,15 @@ public class OpsTicketsController : OpsControllerBase
         [FromQuery] bool overdue = false,
         [FromQuery] int offset = 0,
         [FromQuery] int limit = 50,
+        [FromQuery] string? search = null,
         CancellationToken ct = default)
         => Ok(ApiResponse<OpsTicketPageDto>.Ok(await _tickets.QueueAsync(
-            CurrentActorId, new OpsTicketQuery(status, priority, category, assignee, overdue, parentTicketId, offset, limit), ct)));
+            CurrentActorId, new OpsTicketQuery(status, priority, category, assignee, overdue, parentTicketId, offset, limit, search), ct)));
+
+    /// <summary>Người có thể nhận ca, tìm theo tên/email (tối đa 100). Cần quyền điều phối ca.</summary>
+    [HttpGet("assignees")]
+    public async Task<IActionResult> Assignees([FromQuery] string? search = null, [FromQuery] int limit = 20, CancellationToken ct = default)
+        => Ok(ApiResponse<IReadOnlyList<OpsAssigneeDto>>.Ok(await _tickets.ListAssigneesAsync(CurrentActorId, search, limit, ct)));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
@@ -54,28 +60,28 @@ public class OpsTicketsController : OpsControllerBase
         => Ok(ApiResponse<OpsTicketDetailDto>.Ok(await _tickets.EscalateAsync(CurrentActorId, id, request.Note, CurrentIpAddress, ct)));
 
     [HttpPatch("{id:guid}/assignee")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> Assign(Guid id, [FromBody] OpsTicketAssignRequest request, CancellationToken ct)
         => Ok(ApiResponse<OpsTicketDetailDto>.Ok(await _tickets.AssignAsync(CurrentActorId, id, request.AssigneeUserId, CurrentIpAddress, ct)));
 
     [HttpPatch("{id:guid}/priority")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> SetPriority(Guid id, [FromBody] OpsTicketPriorityRequest request, CancellationToken ct)
         => Ok(ApiResponse<OpsTicketDetailDto>.Ok(await _tickets.SetPriorityAsync(CurrentActorId, id, request.Priority, CurrentIpAddress, ct)));
 
     [HttpPost("{id:guid}/children")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> LinkChildren(Guid id, [FromBody] OpsTicketLinkRequest request, CancellationToken ct)
         => Ok(ApiResponse<OpsTicketDetailDto>.Ok(await _tickets.LinkChildrenAsync(CurrentActorId, id, request.TicketIds ?? [], CurrentIpAddress, ct)));
 
     [HttpDelete("{id:guid}/parent")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> UnlinkParent(Guid id, CancellationToken ct)
         => Ok(ApiResponse<OpsTicketDetailDto>.Ok(await _tickets.UnlinkParentAsync(CurrentActorId, id, CurrentIpAddress, ct)));
 
     /// <summary>Trả lời ca cha và mọi ca con chưa đóng. <c>resolve = true</c> thì chuyển chúng sang đã giải quyết.</summary>
     [HttpPost("{id:guid}/broadcast")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [Authorize(Policy = AuthorizationPolicies.StaffOrAbove)]
     public async Task<IActionResult> Broadcast(Guid id, [FromBody] OpsTicketBroadcastRequest request, CancellationToken ct)
         => Ok(ApiResponse<OpsTicketBroadcastResult>.Ok(new OpsTicketBroadcastResult(await _tickets.BroadcastAsync(CurrentActorId, id, request.Body, request.Resolve, CurrentIpAddress, ct))));
 

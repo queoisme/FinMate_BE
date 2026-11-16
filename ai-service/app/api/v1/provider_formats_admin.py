@@ -39,9 +39,9 @@ Offset = Annotated[int, Query(ge=0)]
 @router.get("")
 async def list_formats(
     session: Session, package_name: str | None = None, status_filter: Annotated[str | None, Query(alias="status", pattern="^(draft|active|archived)$")] = None,
-    limit: Limit = 50, offset: Offset = 0,
+    q: str | None = None, limit: Limit = 20, offset: Offset = 0,
 ) -> dict:
-    return await admin.list_formats(session, package_name=package_name, status=status_filter, limit=limit, offset=offset)
+    return await admin.list_formats(session, package_name=package_name, status=status_filter, limit=limit, offset=offset, q=q)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

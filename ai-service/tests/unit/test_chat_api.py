@@ -1,14 +1,16 @@
-"""``POST /api/v1/chat/parse``: xác thực, quy đổi sang slug backend, và Rasa tắt thì vẫn chạy bằng luật."""
+"""``POST /api/v1/chat/parse``: xác thực, quy đổi sang slug backend, và không có bộ phân loại thì vẫn chạy bằng luật."""
+
+from datetime import datetime
 
 import httpx
 import pytest
 
 from app.api.v1 import chat as chat_route
 from app.api.v1.bill import get_bill_knowledge
-from app.services.nlu import RasaNlu
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
 from app.main import app
+from app.services.transaction_parser import VN
 
 HASH = "a" * 64
 
@@ -30,7 +32,7 @@ class FakeKnowledge:
 
 
 @pytest.fixture(autouse=True)
-def no_rasa():
+def no_classifier():
     chat_route.set_nlu(None)
     app.dependency_overrides[get_bill_knowledge] = lambda: FakeKnowledge()  # test đơn vị không đụng DB
     yield
@@ -101,6 +103,35 @@ async def test_a_goal_sentence_without_an_amount_asks_back_with_no_draft():
     assert body["intent"] == "create_goal" and body["goal"] is None and "bao nhiêu" in body["reply_text"]
 
 
+async def test_a_purchase_question_returns_a_purchase_draft_and_no_entry():
+    body = (await post("Hôm nay mua cái quần 800.000đ được không?")).json()
+    assert body["intent"] == "evaluate_purchase" and body["entry"] is None and body["entries"] == [] and body["goal"] is None
+    assert body["purchase"] == {"item": "quần", "amount_cents": 800_000, "purchase_date": datetime.now(VN).date().isoformat(), "category_slug": None}
+    assert body["reply_text"]
+
+
+async def test_a_purchase_category_is_a_backend_slug():
+    purchase = (await post("ngày mai mua laptop 20 triệu có ổn không")).json()["purchase"]
+    assert (purchase["item"], purchase["category_slug"]) == ("laptop", "shopping") and purchase["category_slug"] in CATEGORY_SLUGS
+
+
+async def test_a_purchase_question_without_a_day_or_item_keeps_the_nulls():
+    body = (await post("mua 2 triệu được không")).json()
+    assert body["intent"] == "evaluate_purchase"
+    assert body["purchase"] == {"item": None, "amount_cents": 2_000_000, "purchase_date": None, "category_slug": None}
+
+
+async def test_a_purchase_question_without_a_price_asks_for_the_amount():
+    body = (await post("mua laptop được không?")).json()
+    assert body["intent"] == "needs_amount" and body["purchase"] is None and "số tiền" in body["reply_text"]
+
+
+async def test_other_intents_carry_a_null_purchase():
+    for text in ("đi ăn 200k", "đặt mục tiêu tiết kiệm 10 triệu", "tháng này tôi tiêu bao nhiêu"):
+        body = (await post(text)).json()
+        assert "purchase" in body and body["purchase"] is None
+
+
 async def test_transfer_has_no_category():
     entry = (await post("chuyển 2 triệu sang tiết kiệm")).json()["entry"]
     assert entry["kind"] == "transfer" and entry["category_slug"] is None
@@ -128,32 +159,22 @@ async def test_text_is_capped_and_hash_is_required():
     assert (await post("đi ăn 200k", user_id_hash="short")).status_code == 422
 
 
-async def test_rasa_is_used_when_available_and_ignored_when_down():
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"intent": {"name": "add_expense", "confidence": 0.97}, "entities": []})
+class FakeClassifier:
+    def __init__(self, result):
+        self.result = result
 
-    chat_route.set_nlu(RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(handler))))
+    async def parse(self, text):
+        return self.result
+
+
+async def test_classifier_is_used_when_present_and_ignored_when_it_returns_nothing():
+    chat_route.set_nlu(FakeClassifier({"intent": "add_expense", "confidence": 0.97, "entities": {}}))
     body = (await post("đi ăn 200k")).json()
-    assert body["nlu"] == {"source": "rasa", "intent": "add_expense", "confidence": 0.97}
+    assert body["nlu"] == {"source": "model", "intent": "add_expense", "confidence": 0.97}
 
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
-
-    chat_route.set_nlu(RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(down))))
+    chat_route.set_nlu(FakeClassifier(None))
     body = (await post("đi ăn 200k")).json()
     assert body["nlu"]["source"] == "rules" and body["entry"]["category_slug"] == "food"
-
-
-async def test_rasa_circuit_breaker_stops_calling_after_a_failure():
-    calls = []
-
-    def down(request: httpx.Request) -> httpx.Response:
-        calls.append(1)
-        raise httpx.ConnectError("down")
-
-    nlu = RasaNlu("http://rasa:5005", client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
-    assert await nlu.parse("a") is None and await nlu.parse("b") is None
-    assert len(calls) == 1
 
 
 async def test_response_carries_entries_and_the_date():

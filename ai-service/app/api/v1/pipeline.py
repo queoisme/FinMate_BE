@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, verify_internal_api_key
 from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client
-from app.bill.gemini import GeminiClient
+from app.bill.gemini import LlmClient
 from app.bill.knowledge import BillKnowledge
 from app.pipeline.orchestrator import pipeline
 from app.pipeline.stages.ai_categorizer import AiDeps
@@ -21,7 +21,7 @@ router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
 async def analyze(
     request: AnalyzeRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
-    gemini: Annotated[GeminiClient, Depends(get_chat_gemini_client)],
+    gemini: Annotated[LlmClient, Depends(get_chat_gemini_client)],
     knowledge: Annotated[BillKnowledge, Depends(get_bill_knowledge)],
     instruction: Annotated[str, Depends(get_ai_instruction)],
 ) -> AnalyzeResponse:

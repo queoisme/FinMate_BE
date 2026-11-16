@@ -5,4 +5,5 @@ namespace FinMate.Application.Admin.Queries;
 public record GetDataDeletionRequestListQuery(
     DataDeletionStatus? Status,
     string? Cursor,
-    int Limit);
+    int Limit,
+    string? Search = null);

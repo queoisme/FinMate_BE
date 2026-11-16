@@ -86,7 +86,8 @@ public class OpsTwoFactorTests : IClassFixture<AuthApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
-            await db.Users.Where(u => u.Email == email).ExecuteUpdateAsync(s => s.SetProperty(u => u.Role, role));
+            var userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+            await db.UserRoleAssignments.Where(a => a.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(a => a.RoleId, role));
         }
 
         var tokens = await LoginAsync(email);
@@ -236,7 +237,7 @@ public class OpsTwoFactorTests : IClassFixture<AuthApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
-            await db.Users.Where(u => u.Id == staff.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.Role, UserRole.User));
+            await db.UserRoleAssignments.Where(a => a.UserId == staff.Id).ExecuteUpdateAsync(s => s.SetProperty(a => a.RoleId, UserRole.User));
         }
 
         (await SendAsync(HttpMethod.Get, OpsMe, verified.AccessToken)).StatusCode.Should().Be(HttpStatusCode.Forbidden);

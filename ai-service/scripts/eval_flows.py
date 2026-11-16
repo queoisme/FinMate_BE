@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Chấm bộ kiểm thử cố định cho chat và phân loại món (tests/fixtures/eval/*.jsonl).
 
-Không dùng Rasa, DB hay Gemini thật: chat chạy bằng luật, món chạy với kiến thức rỗng và Gemini luôn trả "unknown",
+Không dùng DB hay Gemini thật: chat chạy bằng luật, món chạy với kiến thức rỗng và Gemini luôn trả "unknown",
 nên số đo là của lớp luật/từ điển. Nhãn kỳ vọng được viết trước khi sửa luật và không được sửa theo kết quả.
 
 Chạy:

@@ -83,7 +83,7 @@ Thiếu `cycle` hoặc sai giá trị trả 400.
 |---|---|
 | `GET plans` | Các gói đang bán |
 | `GET me` | Gói hiện tại, ngày hết hạn, kỳ đã xếp sau (`upcoming`), lượt đã dùng từng chức năng |
-| `GET orders` | 50 đơn gần nhất |
+| `GET orders?cursor=&limit=` | Đơn mới nhất trước, phân trang con trỏ: `limit` mặc định 20, tối đa 100; trang sau dùng `meta.cursor`, hết thì `null` |
 | `POST web-session` `{ "planId": "…" }` (`planId` tùy chọn) | Lấy liên kết sang web |
 
 Dùng Custom Tab, không dùng WebView: WebView để app đọc được trang thanh toán.

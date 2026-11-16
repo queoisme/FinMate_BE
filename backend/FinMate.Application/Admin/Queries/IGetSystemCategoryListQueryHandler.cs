@@ -4,6 +4,6 @@ namespace FinMate.Application.Admin.Queries;
 
 public interface IGetSystemCategoryListQueryHandler
 {
-    Task<IReadOnlyList<AdminCategoryDto>> HandleAsync(
+    Task<PagedResult<AdminCategoryDto>> HandleAsync(
         GetSystemCategoryListQuery query, CancellationToken ct = default);
 }

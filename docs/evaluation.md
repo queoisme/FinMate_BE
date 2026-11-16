@@ -1,11 +1,11 @@
 # Đánh giá luồng chat và phân loại món
 
-> **Bảng điểm toàn hệ thống** (chatbot + Rasa, Speech, OCR, một lệnh): `python scripts/scorecard.py` → `docs/scorecard.md`.
+> **Bảng điểm toàn hệ thống** (chatbot, Speech, OCR, một lệnh): `python scripts/scorecard.py` → `docs/scorecard.md`.
 > Mỗi phép đo chạy trong container của service tương ứng (cần `docker compose up`). `--skip ocr` để bỏ phần chậm nhất, `--ai` để đo thêm Gemini thật.
 > Phần dưới là số đo riêng của lớp luật chat/món ngày 2026-10-12.
 
 Bộ kiểm thử cố định: `ai-service/tests/fixtures/eval/{chat_cases,item_cases}.jsonl` (63 câu chat, 72 món). Chạy: `python scripts/eval_flows.py`.
-Chỉ đo lớp luật/từ điển (không Rasa, không DB, Gemini luôn trả "unknown"). Nhãn kỳ vọng viết trước khi sửa luật; không được sửa nhãn để qua.
+Chỉ đo lớp luật/từ điển (không bộ phân loại, không DB, Gemini luôn trả "unknown"). Nhãn kỳ vọng viết trước khi sửa luật; không được sửa nhãn để qua.
 
 ## Baseline 2026-10-12 (trước khi sửa)
 
@@ -63,8 +63,8 @@ Chỉ đo lớp luật/từ điển (không Rasa, không DB, Gemini luôn trả 
    - 'Giat ui @ None': muốn other, ra unknown
 ```
 
-Nhận xét: (1) cả 5 câu nhiều khoản chỉ ra một khoản, đúng như phân tích; (2) "ăn cơm", "mua nước", "đi ăn" ra `out_of_scope` khi không có Rasa
-(trả `needs_amount` hiện chỉ có khi Rasa nhận ra ý định); (3) `family` (tã, sữa bột) chưa có trong luật món nên ra `food` hoặc unknown;
+Nhận xét: (1) cả 5 câu nhiều khoản chỉ ra một khoản, đúng như phân tích; (2) "ăn cơm", "mua nước", "đi ăn" ra `out_of_scope` khi chưa có bộ phân loại ý định
+(trả `needs_amount` lúc đó chỉ có khi bộ phân loại nhận ra ý định); (3) `family` (tã, sữa bột) chưa có trong luật món nên ra `food` hoặc unknown;
 (4) 9 món ăn uống phổ biến (Sting, Pepsi, Oreo...) chưa có trong luật món.
 
 ## Sau khi sửa 2026-10-12
@@ -192,35 +192,13 @@ So với baseline cùng ngày (cùng bộ câu, cùng nhãn kỳ vọng):
 - Còn một ca lệch: **"hàng khác"**. Chat hiểu "khác" là tên danh mục Khác mà người dùng gõ; món trên bill gọi "hàng khác" thì chưa rõ. Giữ nguyên có chủ ý.
 - Tác dụng phụ đã gặp và xử lý: khớp gần đúng trên câu chat làm "hôm nay trời đẹp quá" thành mua sắm ("đẹp quá" ~ "dép quai"), nên chat tắt khớp gần đúng (chỉ dành cho lỗi OCR).
 
-## Rasa NLU: v3 (267 câu) so với v4 (thêm 1.100 câu tổng hợp), 2026-10-12
+## Bộ phân loại ý định của chat, 2026-11-09
 
-Đo bằng `rasa test nlu` (`ai-service/rasa/tools/summarize_report.py`). Bộ cũ = 74 câu viết tay; bộ mới `nlu_test_v2.yml` = 320 câu TỔNG HỢP, mẫu câu/món/cửa hàng/ngày khác hẳn bộ huấn luyện (script kiểm tra chống rò rỉ). Không có câu nào là chat thật của người dùng.
-
-| | v3 bộ cũ | v4 bộ cũ | v3 bộ mới | v4 bộ mới |
-|---|---|---|---|---|
-| Ý định đúng | 93,2% | 93,2% | 79,4% | **81,9%** |
-| F1 trung bình ý định | 0,924 | 0,935 | 0,740 | **0,787** |
-| `amount` F1 | 0,96 | **0,98** | 0,80 | **0,97** |
-| `merchant` F1 | 1,00 (n=3) | 0,86 (n=3) | 0,49 | **0,32** (recall 0,20) |
-| `date` F1 | chưa có | chưa có | 0,00 | **0,58** |
-| Ý định yếu nhất | out_of_scope 0,75 | out_of_scope 0,78 | add_income 0,55 | add_income 0,69 |
-
-Nhận xét: số tiền chính xác hơn rõ (0,80 → 0,97), ngày bắt đầu được nhận, ý định cải thiện vừa phải. `merchant` tệ hơn vì bộ sinh chỉ có 2 mẫu câu chứa cửa hàng (ít ví dụ) — cần thêm mẫu hoặc nhờ luật `_merchant_in` trong parser. Ý định vẫn chỉ ~82% trên câu lạ nên dữ liệu thật vẫn cần.
-
-## Rasa NLU v5: thêm 364 câu ngoài chủ đề từ MASSIVE vi-VN (CC BY 4.0), 2026-10-12
-
-Tải `amazon-massive-dataset-1.1.tar.gz` (40.251.390 byte; có LICENSE CC BY 4.0). `vi-VN.jsonl` có **16.521** dòng thật (11.514 train, 2.033 dev, 2.974 test; báo cáo Deep Research ghi 19.521 là sai số học). `rasa/tools/import_massive.py` chọn 13 chủ đề không liên quan chi tiêu, loại câu có từ tiền bạc/mua bán, đổi nhãn thành `out_of_scope`, giữ thực thể ngày. Train: 364 câu (phần train+dev của MASSIVE). Test giữ riêng: 129 câu (phần test của MASSIVE, loại câu trùng bộ train).
-
-| | v3 | v4 | v5 |
-|---|---|---|---|
-| Bộ cũ 74 câu: ý định đúng | 93,2% | 93,2% | **95,9%** |
-| Bộ tổng hợp 320 câu: ý định đúng | 79,4% | **81,9%** | 81,2% |
-| Bộ tổng hợp: `amount` F1 | 0,80 | **0,97** | 0,91 |
-| Bộ tổng hợp: `date` F1 | 0,00 | **0,58** | 0,42 |
-| Bộ tổng hợp: `merchant` F1 | 0,49 | 0,32 | 0,38 |
-| **129 câu ngoài chủ đề THẬT (MASSIVE test): nhận đúng `out_of_scope`** | 56,6% | 49,6% | **93,0%** |
-
-Nhận xét: đây là con số có ý nghĩa nhất trong cả đợt vì bộ test là câu do người thật viết (không do mình sinh). v3/v4 chỉ nhận đúng khoảng một nửa câu ngoài chủ đề; v5 nhận 120/129. Đổi lại `amount` F1 và `date` F1 trên bộ tổng hợp tụt nhẹ so với v4 (0,97→0,91; 0,58→0,42): thực thể ngày của MASSIVE ("hôm nay là thứ hai") làm Rasa gán nhãn ngày rộng hơn. `merchant` vẫn yếu (cần thêm mẫu câu). Rasa không đánh giá ý định khi file test chỉ có một ý định, nên số 93% đo bằng file ghép thêm một câu `add_expense` (chỉ để bật đánh giá, recall `out_of_scope` không đổi).
+Bộ phân loại chạy trong tiến trình (`ai-service/app/services/intent_classifier.py`, học từ `ai-service/data/intent/examples.jsonl`) thay cho dịch vụ NLU
+riêng trước đây; các phép đo cũ của dịch vụ đó đã bỏ vì không còn thành phần nào để đo. Đo bằng `python scripts/eval_intent.py` (trong `ai-service/`):
+huấn luyện trên split `train`, rồi đo split `test` của tệp ví dụ (thô, không qua luật) và hai bộ độc lập `tests/fixtures/eval/heldout_intent.jsonl`
+(138 câu) và `intent_coverage.jsonl` (212 câu) qua `parse_chat` (có luật). Mốc so sánh chỉ-luật cùng ngày trên hai bộ độc lập: **106/138 và 185/212**.
+Kết quả có bộ phân loại chưa ghi ở đây: chạy lại lệnh trên và ghi số đo vào mục này.
 
 ## Mô hình nhóm hóa đơn, baseline 2026-10-16
 

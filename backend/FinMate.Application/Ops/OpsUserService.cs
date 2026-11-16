@@ -60,7 +60,7 @@ public sealed class OpsUserService : IOpsUserService
     public async Task<OpsUserDto> GetUserAsync(Guid actorId, Guid userId, CancellationToken ct = default)
     {
         var actor = await _access.RequireAsync(actorId, OpsCapability.HandleTickets, ct);
-        var canSeeAnyone = OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets);
+        var canSeeAnyone = await _access.HasAsync(actor.Role, OpsCapability.ManageTickets, ct);
         if (!canSeeAnyone && !await _support.IsHandlingRequesterAsync(actor.Id, userId, ct))
         {
             throw new ForbiddenException("Bạn không phụ trách yêu cầu nào của tài khoản này.");
@@ -144,7 +144,7 @@ public sealed class OpsUserService : IOpsUserService
     {
         var ticket = await _support.GetByIdAsync(ticketId, ct) ?? throw new NotFoundException("SupportTicket", ticketId);
         if (ticket.RequesterUserId == actor.Id
-            || (ticket.AssigneeUserId != actor.Id && !OpsPermissions.For(actor.Role).HasFlag(OpsCapability.ManageTickets)))
+            || (ticket.AssigneeUserId != actor.Id && !await _access.HasAsync(actor.Role, OpsCapability.ManageTickets, ct)))
         {
             throw new ForbiddenException("Bạn không phụ trách yêu cầu này.");
         }

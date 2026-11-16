@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bill.rules_admin import RuleError
+from app.bill.rules_admin import RuleError, ilike_contains
 from app.db.models.bill import BillRuleAudit
 from app.db.models.provider_format import ProviderFormat, ProviderFormatField, ProviderFormatSample
 from app.db.models.provider_pattern import ProviderPattern
@@ -72,10 +72,13 @@ def _sample(s: ProviderFormatSample) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------ đọc
-async def list_formats(session: AsyncSession, *, package_name: str | None, status: str | None, limit: int, offset: int) -> dict[str, Any]:
+async def list_formats(session: AsyncSession, *, package_name: str | None, status: str | None, limit: int, offset: int, q: str | None = None) -> dict[str, Any]:
     where = []
     if package_name:
         where.append(ProviderFormat.package_name == package_name)
+    if q and q.strip():
+        pattern = ilike_contains(q)  # tìm theo gói hoặc tên nhà cung cấp, không phân biệt hoa thường
+        where.append(ProviderFormat.package_name.ilike(pattern, escape="\\") | ProviderFormat.provider_key.ilike(pattern, escape="\\"))
     if status:
         where.append(ProviderFormat.status == status)
     total = (await session.execute(select(func.count()).select_from(ProviderFormat).where(*where))).scalar_one()
@@ -91,7 +94,7 @@ async def list_formats(session: AsyncSession, *, package_name: str | None, statu
             for key, model in _CHILDREN.items()
         }
         items.append({**format_dict(fmt), **counts})
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 async def _get(session: AsyncSession, format_id: uuid.UUID) -> ProviderFormat:
