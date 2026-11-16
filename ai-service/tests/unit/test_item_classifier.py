@@ -1,17 +1,19 @@
 """Phân loại từng món. Được phép dùng AI: bảng nhớ → Gemini → luật (dự phòng) → nhóm mặc định → unknown. Chưa cho phép: luật → bảng nhớ → nhóm mặc định → unknown."""
 
 import asyncio
+import uuid
 
 import httpx
 
 from app.bill.gemini import LlmClient, GeminiFailed
 from app.bill.item_classifier import classify_items
-from app.schemas.bill import ClassifyItemIn
+from app.schemas.bill import ClassifyItemIn, UserCategoryIn
 
 
 class FakeKnowledge:
-    def __init__(self, cache=None):
+    def __init__(self, cache=None, memory=None):
         self.refreshes = 0
+        self.memory: dict[str, uuid.UUID] = dict(memory or {})  # item_key -> id danh mục riêng (bảng nhớ theo người dùng)
         self.cache = dict(cache or {})  # item_key -> slug, đã có sẵn trong bảng nhớ
         self.remembered_items: dict[str, str] = {}  # những gì classify_items đã ghi thêm
 
@@ -24,19 +26,29 @@ class FakeKnowledge:
     async def remember_items(self, answers):
         self.remembered_items.update(answers)
 
+    async def user_item_memory(self, user_id_hash, keys):
+        return {k: self.memory[k] for k in keys if k in self.memory}
+
 
 class FakeGemini:
     """``answer``: hàm tên -> nhóm; ``fail``: ném GeminiFailed."""
 
-    def __init__(self, answer=lambda name: "unknown", available=True, fail=False):
-        self.answer, self.available, self.fail = answer, available, fail
+    def __init__(self, answer=lambda name: "unknown", available=True, fail=False, among=lambda name, choices: None):
+        self.answer, self.available, self.fail, self.among = answer, available, fail, among
         self.calls: list[list[str]] = []
+        self.among_calls: list[tuple[list[str], list[str]]] = []  # (tên món, nhãn danh mục)
 
     async def classify(self, names, instruction):
         self.calls.append(list(names))
         if self.fail:
             raise GeminiFailed("boom")
         return [self.answer(n) for n in names]
+
+    async def classify_among(self, names, choices, instruction):
+        self.among_calls.append((list(names), list(choices)))
+        if self.fail:
+            raise GeminiFailed("boom")
+        return [self.among(n, list(choices)) for n in names]
 
 
 def items(*specs):
@@ -452,3 +464,119 @@ def test_instruction_keeps_phone_top_up_under_bills_with_an_example():
 
     assert "nạp tiền điện thoại" in _rule_row("bills")
     assert "| Nạp thẻ điện thoại Viettel 50.000 | `bills` |" in ITEM_RULES_TEXT
+
+
+# ---- Danh mục riêng của người dùng (nhánh cá nhân) ----
+
+def cat(slug, name, system=False, parent=None):
+    return UserCategoryIn(id=uuid.uuid4(), name=name, slug=slug, is_system=system, parent_slug=parent)
+
+
+FOOD, SHOP = cat("food", "Ăn uống", True), cat("shopping", "Mua sắm", True)
+AN, UONG = cat("an", "Ăn", parent="food"), cat("uong", "Uống", parent="food")
+CATS = [FOOD, SHOP, AN, UONG]
+USER = "u" * 64
+
+
+def pick(name):
+    """``among`` của FakeGemini: chọn danh mục có nhãn bắt đầu bằng ``name``."""
+    return lambda _item, choices: next(i for i, c in enumerate(choices) if c.startswith(name))
+
+
+async def prun(its, cats=CATS, merchant=None, gemini=None, allow_ai=True, knowledge=None, stats=None, user=USER):
+    out, used = await classify_items(its, merchant, knowledge or FakeKnowledge(), gemini or FakeGemini(), "LUAT", allow_ai,
+                                     stats=stats, user_id_hash=user, categories=cats)
+    return [(o.index, o.category_slug, o.source) for o in out], used, out
+
+
+async def test_memory_hit_wins_without_calling_gemini():
+    gemini = FakeGemini(among=pick("Ăn"))
+    out, used, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": UONG.id}))
+    assert out == [(0, "uong", "item_memory")] and full[0].category_id == UONG.id
+    assert gemini.calls == [] and gemini.among_calls == [] and used is False
+
+
+async def test_memory_id_missing_from_the_list_is_ignored_and_falls_to_gemini():
+    gemini = FakeGemini(among=pick("Ăn ("))
+    out, used, _ = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(memory={"qwerty": uuid.uuid4()}))
+    assert out == [(0, "an", "ai")] and used is True and len(gemini.among_calls) == 1
+
+
+async def test_gemini_choice_is_mapped_to_the_users_category_and_id():
+    gemini = FakeGemini(among=pick("Uống"))
+    out, used, full = await prun(items("Qwerty"), gemini=gemini)
+    assert out == [(0, "uong", "ai")] and full[0].category_id == UONG.id and used is True
+    names, labels = gemini.among_calls[0]
+    assert names == ["Qwerty"] and labels == ["Ăn uống", "Mua sắm", "Ăn (thuộc nhóm Ăn uống)", "Uống (thuộc nhóm Ăn uống)"]
+    assert gemini.calls == []  # không dùng đường classify dùng chung (có cache theo tên món)
+
+
+async def test_personal_answers_are_never_written_to_the_shared_cache():
+    knowledge = FakeKnowledge()
+    await prun(items("Qwerty"), gemini=FakeGemini(among=pick("Uống")), knowledge=knowledge)
+    assert knowledge.remembered_items == {}
+
+
+async def test_shared_cache_hit_is_used_only_when_no_custom_category_sits_under_that_slug():
+    gemini = FakeGemini()  # trả unknown
+    out, _, _ = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "food"}))
+    assert out == [(0, None, "unknown")] and len(gemini.among_calls) == 1  # food có Ăn/Uống dưới nó: mơ hồ, để Gemini quyết
+    gemini = FakeGemini()
+    out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "shopping"}))
+    assert out == [(0, "shopping", "cache")] and full[0].category_id == SHOP.id and gemini.among_calls == []
+
+
+async def test_ai_off_and_rule_gives_food_maps_to_the_system_category_not_a_guess():
+    out, _, full = await prun(items("Gạo ST25"), cats=[FOOD, SHOP], allow_ai=False)
+    assert out == [(0, "food", "rule")] and full[0].category_id == FOOD.id
+    # có "Ăn"/"Uống" dưới food thì mơ hồ: không đoán một trong hai
+    out, _, _ = await prun(items("Gạo ST25"), allow_ai=False)
+    assert out == [(0, None, "unknown")]
+
+
+async def test_system_slug_missing_from_the_users_list_becomes_unknown():
+    out, _, _ = await prun(items("Gạo ST25"), cats=[SHOP], allow_ai=False)
+    assert out == [(0, None, "unknown")]
+
+
+async def test_gemini_failure_falls_back_to_rules_then_leaves_merchant_default_off():
+    stats: dict[str, int] = {}
+    out, used, _ = await prun(items("Qwerty", "Gạo ST25"), cats=[FOOD, SHOP], merchant="Highlands Coffee",
+                              gemini=FakeGemini(fail=True), stats=stats)
+    assert out == [(0, None, "unknown"), (1, "food", "rule")] and used is False
+    assert stats == {"ai_candidates": 2, "ai_sent": 2, "ai_failed": 1}
+
+
+async def test_merchant_default_maps_to_the_system_category_when_gemini_does_not_answer():
+    out, used, _ = await prun(items("Qwerty"), cats=[FOOD, SHOP], merchant="Highlands Coffee")
+    assert out == [(0, "food", "merchant")] and used is True  # Gemini trả unknown (không lỗi) → nhóm mặc định
+
+
+async def test_topping_inherits_the_parents_user_category():
+    out, _, full = await prun(items("Qwerty", ("+ Thêm", 0)), knowledge=FakeKnowledge(memory={"qwerty": UONG.id}))
+    assert out == [(0, "uong", "item_memory"), (1, "uong", "inherit")] and full[1].category_id == UONG.id
+
+
+async def test_without_categories_nothing_changes():
+    gemini = FakeGemini(lambda n: "shopping", among=pick("Uống"))
+    out, used = await run(items("Qwerty"), gemini=gemini)
+    assert out == [(0, "shopping", "ai")] and used is True and gemini.among_calls == []
+    # có categories mà thiếu user_id_hash cũng là đường cũ
+    out, _ = await classify_items(items("Qwerty"), None, FakeKnowledge(), gemini, "LUAT", True, categories=CATS)
+    assert [(o.category_slug, o.source) for o in out] == [("shopping", "ai")] and gemini.among_calls == []
+
+
+async def test_db_knowledge_swallows_a_database_error_in_the_item_memory_lookup():
+    from app.bill.knowledge import DbBillKnowledge
+
+    class BrokenSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def execute(self, *args, **kwargs):
+            raise RuntimeError("db down")
+
+    assert await DbBillKnowledge(lambda: BrokenSession()).user_item_memory(USER, ["qwerty"]) == {}
