@@ -17,6 +17,7 @@ from app.db.models.bill import (
     BillUnknownScan,
     BillItemCache,
     BillUserMerchantChoice,
+    UserItemMemory,
 )
 from app.db.models.category import KbCategory
 from app.db.models.config_document import ConfigDocument
@@ -51,6 +52,7 @@ __all__ = [
     "BillUnknownScan",
     "BillItemCache",
     "BillUserMerchantChoice",
+    "UserItemMemory",
     "ConfigDocument",
     "EvaluationCategoryMetric",
     "EvaluationPrediction",

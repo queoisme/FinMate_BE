@@ -19,6 +19,7 @@ Tên lớp ORM và tên chỉ mục/ràng buộc cũ giữ nguyên (đổi tên 
 Các CHECK liệt kê slug (``category_slug IN (...)``) đã được thay bằng khóa ngoại ``kb_categories`` + trigger kiểm loại danh mục (``app.db.category_guard``, migration 0026).
 """
 
+import uuid
 from datetime import date
 
 from sqlalchemy import (
@@ -77,6 +78,29 @@ class BillUserMerchantChoice(Base):
         UniqueConstraint("user_id_hash", "merchant_key", name="uq_bill_user_merchant_choice"),
         CheckConstraint("merchant_key = lower(merchant_key)", name="chk_user_merchant_memory_key_lower"),
         CheckConstraint("user_id_hash ~ '^[0-9a-f]{64}$'", name="chk_user_merchant_memory_user_hash"),
+    )
+
+
+class UserItemMemory(Base):
+    """Danh mục người dùng đã chốt cho MỘT MÓN trên hóa đơn, theo ``user_id_hash`` (``app.bill.item_memory``).
+
+    Lưu id UUID danh mục của backend (danh mục hệ thống hay riêng của người dùng), không phải slug, nên không có khóa ngoại tới ``kb_categories``
+    và không cần ``category_guard``. ``source``: ``corrected`` (người dùng sửa, luôn đè) hay ``accepted`` (giữ nguyên gợi ý AI, không bao giờ đè ``corrected``).
+    """
+
+    __tablename__ = "user_item_memory"
+
+    user_id_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    item_key: Mapped[str] = mapped_column(Text, primary_key=True)  # cùng chuẩn hóa với kb_item_categories (usable_item_key)
+    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    updated_at: Mapped[timestamptz] = mapped_column(nullable=False, server_default=text("now()"))
+
+    __table_args__ = (
+        CheckConstraint("source IN ('corrected', 'accepted')", name="chk_user_item_memory_source"),
+        CheckConstraint("item_key = lower(item_key)", name="chk_user_item_memory_key_lower"),
+        CheckConstraint("char_length(item_key) BETWEEN 3 AND 60", name="chk_user_item_memory_key_len"),
+        CheckConstraint("user_id_hash ~ '^[0-9a-f]{64}$'", name="chk_user_item_memory_user_hash"),
     )
 
 
