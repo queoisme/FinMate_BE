@@ -27,11 +27,31 @@ public class ScanReceiptSplitTests
     private readonly List<ReceiptScan> _saved = new();
     private readonly List<(Guid ScanId, IReadOnlyList<ReceiptScanItem> Items)> _savedItems = new();
     private readonly List<ClassifyItemsRequest> _classifyRequests = new();
+    private readonly Mock<ICategoryRepository> _categories = new();
+    private readonly Mock<ITrainingSampleService> _training = new();
     private readonly Guid _userId = Guid.NewGuid();
+    private readonly Category _food = SystemCategory("food");
     private bool _consent;
+
+    private static Category SystemCategory(string slug) => new()
+    {
+        Id = Guid.NewGuid(), Slug = slug, Name = slug, IsSystem = true, Kind = Category.KindExpense, IsActive = true,
+    };
+
+    private Category OwnCategory(string slug, Category? parent = null, int ageDays = 0) => new()
+    {
+        Id = Guid.NewGuid(), UserId = _userId, Slug = slug, Name = slug, Kind = Category.KindExpense, IsActive = true,
+        ParentCategoryId = parent?.Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-ageDays),
+    };
+
+    // Mặc định người dùng chưa có danh mục riêng nên đường gửi danh mục không đổi hành vi nào của các test cũ.
+    private void UserSees(params Category[] own) => _categories
+        .Setup(c => c.GetListForUserAsync(_userId, It.IsAny<CancellationToken>()))
+        .ReturnsAsync([_food, SystemCategory("shopping"), SystemCategory("other"), .. own]);
 
     public ScanReceiptSplitTests()
     {
+        UserSees();
         _ocr.Setup(o => o.IsConfigured).Returns(true);
         _scans.Setup(r => r.AddAsync(It.IsAny<ReceiptScan>(), It.IsAny<CancellationToken>()))
             .Callback<ReceiptScan, CancellationToken>((scan, _) =>
@@ -53,7 +73,7 @@ public class ScanReceiptSplitTests
 
     private ScanReceiptCommandHandler Handler(bool enabled = true) => new(
         _ai.Object, _ocr.Object, _scans.Object, new ReceiptOptions(enabled), _users.Object,
-        _transactions.Object, NullLogger<ScanReceiptCommandHandler>.Instance);
+        _transactions.Object, NullLogger<ScanReceiptCommandHandler>.Instance, _training.Object, _categories.Object);
 
     private ScanReceiptCommand Command() => new(_userId, new byte[1024], "hoa-don.jpg", "image/jpeg");
 
@@ -686,5 +706,107 @@ public class ScanReceiptSplitTests
         var dto = await Handler(enabled: false).HandleAsync(Command());
 
         dto.NeedsReview.Should().BeFalse();
+    }
+
+    // ------------------------------------------------------------ danh mục riêng của người dùng
+
+    [Fact]
+    public async Task Split_SendsCategories_WhenUserHasOwnCategories()
+    {
+        UserSees(OwnCategory("uong", _food), OwnCategory("an", ageDays: 1));
+
+        await Handler().HandleAsync(Command());
+
+        var categories = _classifyRequests.Single().Categories;
+        categories.Should().NotBeNull();
+        categories!.Select(c => (c.Slug, c.IsSystem, c.ParentSlug)).Should().Equal(
+            ("food", true, null), ("shopping", true, null), ("other", true, null), ("uong", false, "food"), ("an", false, null));
+    }
+
+    [Fact]
+    public async Task Split_SendsNoCategories_WhenUserHasNone()
+    {
+        await Handler().HandleAsync(Command());
+
+        _classifyRequests.Single().Categories.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Split_GroupsByTheUsersOwnSlug()
+    {
+        UserSees(OwnCategory("uong", _food), OwnCategory("an"));
+        ClassifyItemsReturns(r => Classified(r, "uong", "uong", "an"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.Groups!.Select(g => (g.CategorySlug, g.AmountCents)).Should().Equal(("an", 47_000L), ("uong", 35_000L));
+        dto.Groups!.Sum(g => g.AmountCents).Should().Be(82_000);
+        _saved.Single().CategorySlug.Should().Be("an");
+        _savedItems.Single().Items.Select(i => i.CategorySlug).Should().Equal("uong", "uong", null, null, "an");
+    }
+
+    [Theory]
+    [InlineData("throws")]
+    [InlineData("null-list")]
+    public async Task Split_FallsBackToOldPathWhenFetchingCategoriesThrows(string kind)
+    {
+        _categories.Setup(c => c.GetListForUserAsync(_userId, It.IsAny<CancellationToken>()))
+            .Returns(kind == "throws" ? Task.FromException<List<Category>>(new InvalidOperationException("db down")) : Task.FromResult<List<Category>>(null!));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        _classifyRequests.Single().Categories.Should().BeNull();
+        dto.Groups.Should().HaveCount(2);  // lần quét vẫn tách như đường cũ
+    }
+
+    [Fact]
+    public async Task Split_DoesNotReadCategoriesWhenTheBillCannotBeSplit()
+    {
+        OcrReturns(MixedBill() with { Items = null });
+
+        await Handler().HandleAsync(Command());
+
+        _categories.Verify(c => c.GetListForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ------------------------------------------------------------ R10: mẫu huấn luyện chỉ nhận slug hệ thống
+
+    private void VerifyTrainingSampleSlug(string? expected, int times = 1) => _training.Verify(t => t.RecordAsync(
+        _userId, _saved.Single().Id, It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<long?>(),
+        expected, "item_vote", It.IsAny<CancellationToken>()), Times.Exactly(times));
+
+    [Fact]
+    public async Task TrainingSample_ACustomSlugIsSentAsItsSystemParent()
+    {
+        UserSees(OwnCategory("uong", _food));
+        ClassifyItemsReturns(r => Classified(r, "uong", "uong", "uong"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("uong");  // dto giữ slug riêng: app tra theo danh sách của người dùng
+        VerifyTrainingSampleSlug("food");
+    }
+
+    [Fact]
+    public async Task TrainingSample_ACustomSlugWithoutASystemParentIsSentAsNull()
+    {
+        UserSees(OwnCategory("rieng"));
+        ClassifyItemsReturns(r => Classified(r, "rieng", "rieng", "rieng"));
+
+        var dto = await Handler().HandleAsync(Command());
+
+        dto.CategorySlug.Should().Be("rieng");
+        VerifyTrainingSampleSlug(null);
+    }
+
+    [Fact]
+    public async Task TrainingSample_ASystemSlugIsSentUnchangedEvenWhenTheUserHasOwnCategories()
+    {
+        UserSees(OwnCategory("uong", _food));
+        ClassifyItemsReturns(r => Classified(r, "food", "food", "food"));
+
+        await Handler().HandleAsync(Command());
+
+        VerifyTrainingSampleSlug("food");
     }
 }
