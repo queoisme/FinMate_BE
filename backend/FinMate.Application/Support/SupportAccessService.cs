@@ -4,6 +4,7 @@ using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Notifications;
 using FinMate.Application.Ops;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -48,7 +49,8 @@ public record CustomerTransactionDto(
     string? CategoryName,
     string? MerchantName,
     string? Description,
-    DateTimeOffset TransactedAt);
+    DateTimeOffset TransactedAt,
+    string? MoneyDirection = null);   // Phase 85 (S6): out | in | move, từ TransferLegs; cần cho transfer gắn quỹ không có ví đích
 
 public record CustomerTransactionPageDto(IReadOnlyList<CustomerTransactionDto> Items, string? NextCursor);
 
@@ -396,7 +398,8 @@ public sealed class OpsCustomerDataService : IOpsCustomerDataService
                 t.Category?.Name,
                 t.MerchantName,
                 t.Description,
-                t.TransactedAt)).ToList(),
+                t.TransactedAt,
+                TransferLegs.DirectionOf(t).ToString().ToLowerInvariant())).ToList(),
             page.NextCursor);
     }
 

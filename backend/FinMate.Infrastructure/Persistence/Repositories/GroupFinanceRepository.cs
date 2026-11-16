@@ -1,4 +1,7 @@
+using System.Linq.Expressions;
+using FinMate.Application.Budgets;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -50,25 +53,24 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     public void AddBudget(Budget budget) => _context.Budgets.Add(budget);
 
     public async Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default)
+        => Math.Max(0, await SumGroupNetSpendAsync(BudgetSpendScope.GroupAll(groupId, systemCategoryId, groupCategoryId, from, to), [], [], ct));
+
+    public async Task<long> SumGroupNetSpendAsync(
+        GroupSpendScope scope, IReadOnlyCollection<Guid> excludeTransactionIds, IReadOnlyCollection<Guid> excludeEntryIds, CancellationToken ct = default)
     {
-        var query = _context.Transactions.Where(t =>
-            t.GroupId == groupId
-            && t.Status == TransactionStatus.Confirmed
-            && t.TransactionType == TransactionType.Debit
-            && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-            && t.TransactedAt >= from
-            && t.TransactedAt < to);
-
-        if (groupCategoryId is not null)
+        var shared = _context.Transactions.Where(scope.Shared).Where(BudgetSpendScope.Counts);
+        if (excludeTransactionIds.Count > 0)
         {
-            query = query.Where(t => t.GroupCategoryId == groupCategoryId);
-        }
-        else if (systemCategoryId is not null)
-        {
-            query = query.Where(t => t.GroupCategoryId == null && t.CategoryId == systemCategoryId);
+            shared = shared.Where(t => !excludeTransactionIds.Contains(t.Id));
         }
 
-        return await query.SumAsync(t => (long?)t.AmountCents, ct) ?? 0;
+        var fund = _context.GroupFundEntries.Where(scope.Fund);
+        if (excludeEntryIds.Count > 0)
+        {
+            fund = fund.Where(e => !excludeEntryIds.Contains(e.Id));
+        }
+
+        return await shared.Select(BudgetSpendScope.Signed).SumAsync(ct) + await fund.SumAsync(e => e.AmountCents, ct);
     }
 
     // IgnoreQueryFilters trên Users: người đã yêu cầu xóa tài khoản vẫn còn giao dịch tới lúc xóa cứng.
@@ -77,6 +79,7 @@ public class GroupFinanceRepository : IGroupFinanceRepository
         var query = from t in _context.Transactions.AsNoTracking().Include(x => x.Category).Include(x => x.GroupCategory)
                     join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
                     where t.GroupId == groupId
+                        && t.DeletedAt == null   // tường minh: IgnoreQueryFilters ở trên tắt bộ lọc xoá mềm của CẢ câu truy vấn
                         && t.Status == TransactionStatus.Confirmed
                         && t.TransactedAt >= start
                         && t.TransactedAt < end
@@ -107,13 +110,13 @@ public class GroupFinanceRepository : IGroupFinanceRepository
     }
 
     public Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
-        => (from t in _context.Transactions
+        => (from t in _context.Transactions.Where(LoanExclusion.NotLoan)
             join u in _context.Users.IgnoreQueryFilters() on t.UserId equals u.Id
             where t.GroupId == groupId
+                && t.DeletedAt == null   // tường minh: IgnoreQueryFilters trên Users tắt bộ lọc xoá mềm của CẢ câu truy vấn
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
             select new GroupReportRow(
                 t.UserId,
                 u.DisplayName,
@@ -124,7 +127,9 @@ public class GroupFinanceRepository : IGroupFinanceRepository
                 t.GroupCategory != null ? t.GroupCategory.Name : null,
                 t.CategoryId,
                 t.Category != null ? t.Category.Name : null,
-                t.Category != null && t.Category.IsSystem))
+                t.Category != null && t.Category.IsSystem,
+                t.Relation,
+                t.IsReversed))
             .ToListAsync(ct);
 
     public Task<Transaction?> GetSharedTransactionAsync(Guid groupId, Guid transactionId, CancellationToken ct = default)

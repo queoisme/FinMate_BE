@@ -8,7 +8,9 @@ public record MonthlySummaryDto(
     long NetCents,
     int TransactionCount,
     long PrevMonthSpentCents,
-    double? ChangePercent);
+    double? ChangePercent,
+    long RefundedCents = 0,
+    long? CrossPeriodRefundCents = null);
 
 public record CategoryBreakdownItemDto(
     Guid? CategoryId,

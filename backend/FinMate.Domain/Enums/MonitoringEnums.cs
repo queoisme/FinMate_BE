@@ -7,6 +7,9 @@ public enum IncidentSource
     Job,
     Provider,
     Payment,
+
+    /// <summary>Ngân hàng/ví có thể đã đổi mẫu thông báo (Phase 84, BR-LH-10).</summary>
+    NotificationFormat,
 }
 
 /// <summary>Thứ tự có nghĩa: số càng lớn càng nặng.</summary>

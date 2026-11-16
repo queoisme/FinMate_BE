@@ -35,4 +35,8 @@ public interface INotificationLogRepository
     Task AddAsync(NotificationLog log, CancellationToken ct = default);
     Task UpdateAsync(NotificationLog log, CancellationToken ct = default);
     Task AddAiResultAsync(AiResult result, CancellationToken ct = default);
+
+    /// <summary>Phase 81: gợi ý hoàn/đảo mà AI đã trả cho các thông báo này (chỉ của user này). Thông báo không có gợi ý thì không có trong kết quả.</summary>
+    Task<IReadOnlyDictionary<Guid, Domain.Enums.TransactionRelation>> GetRelationHintsAsync(
+        Guid userId, IReadOnlyCollection<Guid> notificationLogIds, CancellationToken ct = default);
 }

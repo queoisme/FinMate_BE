@@ -33,4 +33,10 @@ public interface IReceiptScanRepository
 
     /// <summary>Lọc theo <paramref name="userId"/> như mọi truy vấn khác: id một lần quét không được đủ để đọc bản ghi của người khác.</summary>
     Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 82 (D8): chuyển liên kết lần quét của <paramref name="fromTransactionId"/> sang <paramref name="toTransactionId"/> khi giao dịch đích
+    /// chưa nối với lần quét nào (mỗi giao dịch nối tối đa một lần quét). Cả hai giao dịch phải của <paramref name="userId"/>. Ghi ngay.
+    /// </summary>
+    Task<bool> MoveLinkAsync(Guid userId, Guid fromTransactionId, Guid toTransactionId, CancellationToken ct = default);
 }

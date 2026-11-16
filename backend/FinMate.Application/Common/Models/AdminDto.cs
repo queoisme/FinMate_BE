@@ -1,3 +1,4 @@
+using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Models;
@@ -94,7 +95,9 @@ public record AiProductionStatsDto(
     double? AvgExtractionConfidence,
     double? AvgCategorizationConfidence,
     double? AvgProcessingMs,
-    int? MaxProcessingMs);
+    int? MaxProcessingMs,
+    DuplicateOutcomeStats? Duplicates = null,  // Phase 82: kết quả của luồng bản trùng theo cặp nguồn
+    TransferOutcomeStats? Transfers = null);   // Phase 83: gợi ý / chấp nhận / từ chối chuyển ví theo loại
 
 public record AiModelStatusDto(
     string Stage,

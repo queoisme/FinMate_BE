@@ -1,4 +1,3 @@
-using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Transactions;
@@ -20,33 +19,20 @@ public class ConfirmTransactionCommandHandlerTests
     private readonly Mock<ICategoryRepository> _categoryRepository = new();
     private readonly Mock<IAIServiceClient> _aiServiceClient = new();
     private readonly Mock<ICacheService> _cache = new();
-    private readonly Mock<ISystemConfigProvider> _config = new();
     private readonly Mock<IMerchantCategoryOverrideRepository> _merchantCategoryOverrides = new();
     private readonly ConfirmTransactionCommandHandler _handler;
 
     public ConfirmTransactionCommandHandlerTests()
     {
-        // Real effects service, với các dependency bậc dưới vẫn mock được như trước khi tách —
-        // giữ nguyên hầu hết assertion cũ (balance, ApplyDeltaAsync) không cần sửa.
-        var confirmationEffects = new TransactionConfirmationEffects(
-            _budgetPeriodService.Object, _budgetAlertNotifier.Object, _cache.Object);
-
-        _config.Setup(c => c.GetAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SystemConfigSnapshot(0, new SystemConfigDocument(), null));
-        _transactionRepository
-            .Setup(r => r.HasAuthoritativeDuplicateAsync(
-                It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<TransactionType>(), It.IsAny<DateTimeOffset>(),
-                It.IsAny<TimeSpan>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
-            .ReturnsAsync(false);
-
         _handler = new ConfirmTransactionCommandHandler(
             _transactionRepository.Object,
             _financialAccountRepository.Object,
+            _budgetPeriodService.Object,
+            _budgetAlertNotifier.Object,
             _categoryRepository.Object,
             _aiServiceClient.Object,
-            confirmationEffects,
-            _config.Object,
-            _merchantCategoryOverrides.Object);
+            _cache.Object,
+            merchantCategoryOverrides: _merchantCategoryOverrides.Object);
     }
 
     private static (FinMate.Domain.Entities.Transaction Transaction, FinancialAccount Account) DraftDebit(Guid userId, long amount = 50_000)
@@ -181,30 +167,6 @@ public class ConfirmTransactionCommandHandlerTests
             r => r.UpdateAsync(It.IsAny<FinMate.Domain.Entities.Transaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task HandleAsync_DuplicateFoundOnConfirm_ThrowsConflictExceptionAndSavesNothing()
-    {
-        var userId = Guid.NewGuid();
-        var (transaction, account) = DraftDebit(userId, 50_000);
-        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction);
-        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(account);
-        _transactionRepository
-            .Setup(r => r.HasAuthoritativeDuplicateAsync(
-                account.Id, transaction.AmountCents, transaction.TransactionType, transaction.TransactedAt,
-                It.IsAny<TimeSpan>(), transaction.Id, It.IsAny<CancellationToken>(), It.IsAny<string?>()))
-            .ReturnsAsync(true);
-
-        var act = () => _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
-
-        await act.Should().ThrowAsync<ConflictException>()
-            .Where(e => e.ErrorCode == TransactionErrorCodes.PossibleDuplicateOnConfirm);
-        transaction.Status.Should().Be(TransactionStatus.Draft);
-        _transactionRepository.Verify(
-            r => r.UpdateAsync(It.IsAny<FinMate.Domain.Entities.Transaction>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
     // ------------------------------------- docx bước 5.3: chọn danh mục khi xác nhận
 
     private (FinMate.Domain.Entities.Transaction Transaction, Category Chosen) ArrangeCategoryChoice(
@@ -299,5 +261,50 @@ public class ConfirmTransactionCommandHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
         transaction.CategoryId.Should().Be(predicted, "bị từ chối thì không được đổi gì");
         transaction.Status.Should().Be(TransactionStatus.Draft);
+    }
+
+    [Fact]
+    public async Task ChoosingACategoryForANewMerchantSavesAnOverride()
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, chosen) = ArrangeCategoryChoice(userId);
+        transaction.MerchantName = "Highlands Coffee";
+        _merchantCategoryOverrides
+            .Setup(r => r.GetAsync(userId, MerchantCategoryKey.Normalize("Highlands Coffee"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((MerchantCategoryOverride?)null);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id, chosen.Id));
+
+        _merchantCategoryOverrides.Verify(
+            r => r.AddAsync(
+                It.Is<MerchantCategoryOverride>(o => o.UserId == userId && o.CategoryId == chosen.Id && o.DisplayName == "Highlands Coffee"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ChoosingACategoryForAKnownMerchantUpdatesTheExistingOverride()
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, chosen) = ArrangeCategoryChoice(userId);
+        transaction.MerchantName = "Highlands Coffee";
+        var existing = new MerchantCategoryOverride
+        {
+            UserId = userId,
+            MerchantKey = MerchantCategoryKey.Normalize("Highlands Coffee"),
+            DisplayName = "Highlands Coffee",
+            CategoryId = Guid.NewGuid(),
+        };
+        _merchantCategoryOverrides
+            .Setup(r => r.GetAsync(userId, MerchantCategoryKey.Normalize("Highlands Coffee"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id, chosen.Id));
+
+        existing.CategoryId.Should().Be(chosen.Id);
+        _merchantCategoryOverrides.Verify(
+            r => r.UpdateAsync(existing, It.IsAny<CancellationToken>()), Times.Once);
+        _merchantCategoryOverrides.Verify(
+            r => r.AddAsync(It.IsAny<MerchantCategoryOverride>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

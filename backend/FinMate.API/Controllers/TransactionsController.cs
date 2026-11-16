@@ -68,11 +68,13 @@ public class TransactionsController : ControllerBase
         [FromQuery] DateTimeOffset? toDate,
         [FromQuery] string? cursor,
         [FromQuery] int limit,
+        [FromQuery] TransactionRelation? relation,
+        [FromQuery] DuplicateStatus? duplicateStatus,
         CancellationToken ct)
     {
         var result = await _listHandler.HandleAsync(
             new GetTransactionListQuery(
-                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit),
+                CurrentUserId, accountId, categoryId, type, status, fromDate, toDate, cursor, limit, relation, duplicateStatus),
             ct);
         return Ok(ApiResponse<IReadOnlyList<TransactionDto>>.Ok(result.Items, new ApiMeta(result.NextCursor)));
     }
@@ -102,7 +104,8 @@ public class TransactionsController : ControllerBase
                 request.ReceiptScanId,
                 request.ReceiptGroup,
                 request.GroupId,
-                request.GroupCategoryId),
+                request.GroupCategoryId,
+                request.Relation),
             ct);
         return Created(result);
     }
@@ -198,12 +201,122 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> ShareReceipt(Guid id, [FromServices] ITransactionExtrasService extras, CancellationToken ct)
         => Ok(ApiResponse<ShareReceiptDto>.Ok(await extras.ShareReceiptAsync(CurrentUserId, id, ct)));
 
+    /// <summary>
+    /// Ghi tay một khoản hoàn (hoặc đảo) cho khoản chi <paramref name="id"/> (Phase 81). Mặc định hoàn phần còn lại, vào ví gốc, ngày hiện tại.
+    /// 201 khi tạo, 200 khi <c>clientRequestId</c> đã dùng. Khoản gốc hay ví của người khác → 404; vượt số gốc → 422 <c>REFUND_EXCEEDS_ORIGINAL</c>.
+    /// </summary>
+    [HttpPost("{id:guid}/refunds")]
+    public async Task<IActionResult> CreateRefund(
+        Guid id, [FromBody] CreateRefundRequest? request, [FromServices] ICreateRefundCommandHandler handler, CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(
+            new CreateRefundCommand(
+                CurrentUserId, id, request?.AmountCents, request?.TransactedAt, request?.FinancialAccountId, request?.Relation, request?.ClientRequestId),
+            ct);
+        return Created(result);
+    }
+
+    /// <summary>Liên kết khoản tiền vào <paramref name="id"/> làm hoàn/đảo của một khoản chi (Phase 81). Áp lại tác động trong một lượt lưu.</summary>
+    [HttpPut("{id:guid}/related")]
+    public async Task<IActionResult> LinkRelated(
+        Guid id, [FromBody] LinkRelatedTransactionRequest request, [FromServices] ILinkRelatedTransactionCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(
+            new LinkRelatedTransactionCommand(CurrentUserId, id, request.RelatedTransactionId, request.Relation, request.CategoryId), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>Gỡ liên kết: khoản đó trở lại thành thu nhập thường.</summary>
+    [HttpDelete("{id:guid}/related")]
+    public async Task<IActionResult> UnlinkRelated(Guid id, [FromServices] IUnlinkRelatedTransactionCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new UnlinkRelatedTransactionCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>
+    /// "Không trùng" (Phase 82): giữ liên kết với trạng thái <c>Dismissed</c> để cặp này không bị gợi ý lại. Nháp sau đó xác nhận như thường.
+    /// Gọi lại → 200 như cũ; giao dịch không nghi trùng → 422 <c>NOT_SUSPECTED_DUPLICATE</c>; của người khác → 404.
+    /// </summary>
+    [HttpPost("{id:guid}/not-duplicate")]
+    public async Task<IActionResult> NotDuplicate(Guid id, [FromServices] INotDuplicateCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new NotDuplicateCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
+    /// <summary>
+    /// Gộp hai giao dịch là một (Phase 82). Bản giữ lại do hệ thống chọn (đã xác nhận trước, rồi bản tạo trước / bản ngân hàng báo) và luôn được
+    /// xác nhận; trả về bản đó. Gộp lại cùng cặp → 200 với bản cũ. Khác chiều/số tiền, có khoản hoàn, đã chia sẻ nhóm… → 422 <c>MERGE_NOT_ALLOWED</c>;
+    /// giao dịch của người khác hoặc không tồn tại → 404.
+    /// </summary>
+    [HttpPost("{id:guid}/merge")]
+    public async Task<IActionResult> Merge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var survivor = await handler.HandleAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(survivor));
+    }
+
+    /// <summary>
+    /// Đổi khoản chi/thu thành chuyển tiền giữa hai ví của chính người dùng (Phase 83). Có <c>pairedTransactionId</c> → ghép hai chiều, phần chênh thành
+    /// khoản "Phí giao dịch". Gọi lại cùng input → 200 như cũ. Lỗi: 404 (giao dịch/ví của người khác), 422 <c>TRANSFER_SHARED_NOT_ALLOWED</c>,
+    /// <c>TRANSFER_NOT_ALLOWED</c>, <c>TRANSFER_PAIR_MISMATCH</c>, <c>TRANSACTION_TRANSFER_SAME_ACCOUNT</c>.
+    /// </summary>
+    [HttpPost("{id:guid}/convert-to-transfer")]
+    public async Task<IActionResult> ConvertToTransfer(
+        Guid id, [FromBody] ConvertToTransferRequest request, [FromServices] IConvertToTransferCommandHandler handler, CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(
+            new ConvertToTransferCommand(CurrentUserId, id, request.CounterAccountId, request.PairedTransactionId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransferConversionDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Phase 85 (D24, S3): người quản lý đã xoá dòng quỹ tạo từ khoản chi này; đưa giao dịch về lại khoản chi với danh mục gốc. Không cần cờ quỹ: đây là
+    /// sổ cá nhân của chính người gọi. Lỗi: 404, 422 <c>TRANSACTION_GROUP_FUND_LINKED</c> (dòng quỹ còn đó hoặc không phải khoản chuyển đổi).
+    /// </summary>
+    [HttpPost("{id:guid}/restore-from-fund")]
+    public async Task<IActionResult> RestoreFromFund(Guid id, [FromServices] FinMate.Application.Groups.Funds.IGroupFundEntryService funds, CancellationToken ct)
+        => Ok(ApiResponse<TransactionDto>.Ok(await funds.RestoreFromFundAsync(CurrentUserId, id, ct)));
+
+    /// <summary>Xem trước <c>convert-to-transfer</c> (Phase 83): giao dịch còn lại, khoản phí, số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/convert-to-transfer/preview")]
+    public async Task<IActionResult> PreviewConvertToTransfer(
+        Guid id, [FromBody] ConvertToTransferRequest request, [FromServices] IConvertToTransferCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new ConvertToTransferCommand(CurrentUserId, id, request.CounterAccountId, request.PairedTransactionId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
+    /// <summary>Xem trước <c>merge</c> (Phase 83): giao dịch còn lại sau gộp và số dư từng ví trước/sau. Không ghi gì.</summary>
+    [HttpPost("{id:guid}/merge/preview")]
+    public async Task<IActionResult> PreviewMerge(
+        Guid id, [FromBody] MergeTransactionsRequest request, [FromServices] IMergeTransactionsCommandHandler handler, CancellationToken ct)
+    {
+        var preview = await handler.PreviewAsync(
+            new MergeTransactionsCommand(CurrentUserId, id, request.WithTransactionId, request.CategoryId, request.ClientRequestId), ct);
+        return Ok(ApiResponse<TransactionPreviewDto>.Ok(preview));
+    }
+
+    /// <summary>"Không phải chuyển ví" (Phase 83): tắt gợi ý cho giao dịch này và chiều đang được gợi ý ghép cùng. Gọi lại → 200.</summary>
+    [HttpPost("{id:guid}/not-transfer")]
+    public async Task<IActionResult> NotTransfer(Guid id, [FromServices] INotTransferCommandHandler handler, CancellationToken ct)
+    {
+        var transaction = await handler.HandleAsync(new NotTransferCommand(CurrentUserId, id), ct);
+        return Ok(ApiResponse<TransactionDto>.Ok(transaction));
+    }
+
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(
         Guid id, [FromBody] ConfirmTransactionRequest? request, CancellationToken ct)
     {
         var transaction = await _confirmHandler.HandleAsync(
-            new ConfirmTransactionCommand(CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId), ct);
+            new ConfirmTransactionCommand(
+                CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId, request?.RelatedTransactionId, request?.Relation),
+            ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
 
@@ -304,7 +417,8 @@ public record CreateManualTransactionRequest(
     Guid? ReceiptScanId = null,
     string? ReceiptGroup = null,
     Guid? GroupId = null,
-    Guid? GroupCategoryId = null);
+    Guid? GroupCategoryId = null,
+    TransactionRelation? Relation = null);
 
 /// <param name="ClientRequestId">
 /// Id do client sinh để gửi lại không thành giao dịch trùng — xem <c>Transaction.ClientRequestId</c>.
@@ -327,8 +441,31 @@ public record UpdateTransactionRequest(
     string? MerchantName,
     string? Description);
 
-public record ConfirmTransactionRequest(Guid? CategoryId, Guid? GroupId = null, Guid? GroupCategoryId = null);
+public record CreateRefundRequest(
+    long? AmountCents = null,
+    DateTimeOffset? TransactedAt = null,
+    Guid? FinancialAccountId = null,
+    TransactionRelation? Relation = null,
+    Guid? ClientRequestId = null);
+
+public record ConfirmTransactionRequest(
+    Guid? CategoryId,
+    Guid? GroupId = null,
+    Guid? GroupCategoryId = null,
+    Guid? RelatedTransactionId = null,
+    TransactionRelation? Relation = null);
+
+/// <param name="RelatedTransactionId">Khoản chi gốc; null + <c>Refund</c> = hoàn không có khoản gốc, khi đó bắt buộc <paramref name="CategoryId"/>.</param>
+public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, TransactionRelation Relation = TransactionRelation.Refund, Guid? CategoryId = null);
+
+/// <summary>Phase 82: <c>WithTransactionId</c> là bản còn lại của cặp; <c>CategoryId</c> tuỳ chọn thắng mọi nguồn; <c>ClientRequestId</c> nhận nhưng không dùng (gộp lại cùng cặp đã trả về bản cũ).</summary>
+public record MergeTransactionsRequest(Guid WithTransactionId, Guid? CategoryId = null, Guid? ClientRequestId = null);
+
+/// <summary>Phase 83: <c>CounterAccountId</c> là ví còn lại (đích nếu giao dịch là khoản chi, nguồn nếu là khoản thu).</summary>
+public record ConvertToTransferRequest(Guid CounterAccountId, Guid? PairedTransactionId = null, Guid? ClientRequestId = null);
+
 public record AttachGoalRequest(Guid GoalId);
+
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 

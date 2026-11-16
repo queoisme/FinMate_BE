@@ -38,11 +38,13 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
             .OrderByDescending(g => g.Key)
             .Select(g => new TimelineDayDto(
                 g.Key,
-                // Tổng chi/thu của ngày là dòng tiền THẬT ra/vào ví, cùng cách tính với monthly-summary (ReportRepository.GetDailySpendAsync, 2026-11-13):
-                // cho mượn (Debit) và được trả nợ (Credit) đều được cộng. Chỉ category-breakdown mới loại "Cho vay / Mượn".
-                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : 0L),
-                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : 0L),
-                g.Select(TransactionMapper.ToDto).ToList()))
+                // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày. Hoàn/đảo theo NetFlow
+                // (Phase 81): hoàn trừ vào chi, không vào thu; cặp đảo vẫn hiện trong danh sách nhưng không vào tổng.
+                g.Where(t => !LoanExclusion.IsLoan(t.Category))
+                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).SpentCents),
+                g.Where(t => !LoanExclusion.IsLoan(t.Category))
+                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).IncomeCents),
+                g.Select(t => TransactionMapper.ToDto(t)).ToList()))
             .ToList();
 
         return new TimelineDto(days, result.NextCursor);

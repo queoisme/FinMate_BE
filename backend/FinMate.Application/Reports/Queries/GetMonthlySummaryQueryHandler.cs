@@ -24,11 +24,19 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
         var monthFirst = new DateOnly(year, month, 1);
         var monthLast = monthFirst.AddMonths(1).AddDays(-1);
 
-        var (spent, income, count) = await ReadRangeAsync(query.UserId, monthFirst, monthLast, query.AccountId, ct);
+        var (spent, income, count, refunded) = await ReadRangeAsync(query.UserId, monthFirst, monthLast, query.AccountId, ct);
 
         var prevFirst = monthFirst.AddMonths(-1);
         var prevLast = monthFirst.AddDays(-1);
-        var (prevSpent, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, query.AccountId, ct);
+        var (prevSpent, _, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, query.AccountId, ct);
+
+        // Phase 81, D3: phần hoàn trong tháng cho khoản mua tháng khác (giải thích vì sao tổng chi thấp hơn tổng các danh mục). 0 thì bỏ trống.
+        // Issue D: lọc theo accountId luôn đi qua đường live (xem ReadRangeAsync) nên khoản hoàn
+        // chéo kỳ chỉ có ý nghĩa khi xem TẤT CẢ tài khoản — GetCrossPeriodRefundsAsync không có
+        // tham số accountId (đúng với BudgetSpendScope.Personal dùng ở đó, không theo ví).
+        var crossPeriod = refunded > 0 && query.AccountId is null
+            ? await _reportRepository.GetCrossPeriodRefundsAsync(query.UserId, monthFirst, monthLast, ct)
+            : 0;
 
         double? changePercent = prevSpent > 0
             ? Math.Round((spent - prevSpent) * 100.0 / prevSpent, 1)
@@ -42,7 +50,9 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
             income - spent,
             count,
             prevSpent,
-            changePercent);
+            changePercent,
+            refunded,
+            crossPeriod > 0 ? crossPeriod : null);
     }
 
     /// <summary>
@@ -58,7 +68,8 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
     /// Cái giá là một truy vấn live có giới hạn (tối đa 31 ngày của MỘT user, đi qua index
     /// <c>(user_id, transacted_at, id)</c>) — rẻ hơn nhiều so với một con số sai.
     /// </summary>
-    private async Task<(long Spent, long Income, int Count)> ReadRangeAsync(
+    /// <remarks>Phase 81 (BR-RF-06): chi là chi RÒNG, chặn dưới ở 0 cho cả kỳ (một tháng chỉ có hoàn cho món mua tháng trước); hoàn đếm riêng.</remarks>
+    private async Task<(long Spent, long Income, int Count, long Refunded)> ReadRangeAsync(
         Guid userId, DateOnly from, DateOnly to, Guid? accountId, CancellationToken ct)
     {
         // Issue D (2026-11-13): daily_summaries chỉ khóa theo (UserId, SummaryDate), không có
@@ -68,7 +79,11 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
         if (accountId is not null)
         {
             var points = await _reportRepository.GetDailySpendAsync(userId, from, to, ct, accountId);
-            return (points.Sum(p => p.SpentCents), points.Sum(p => p.IncomeCents), points.Sum(p => p.TransactionCount));
+            return (
+                points.Sum(p => p.SpentCents),
+                points.Sum(p => p.IncomeCents),
+                points.Sum(p => p.TransactionCount),
+                points.Sum(p => p.RefundedCents));
         }
 
         var summaries = await _reportRepository.GetDailySummariesAsync(userId, from, to, ct);
@@ -79,14 +94,16 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
         var spent = summaries.Sum(s => s.TotalSpentCents);
         var income = summaries.Sum(s => s.TotalIncomeCents);
         var count = summaries.Sum(s => s.TransactionCount);
+        var refunded = summaries.Sum(s => s.TotalRefundedCents);
 
         foreach (var point in live.Where(p => !summarisedDates.Contains(p.Date)))
         {
             spent += point.SpentCents;
             income += point.IncomeCents;
             count += point.TransactionCount;
+            refunded += point.RefundedCents;
         }
 
-        return (spent, income, count);
+        return (Math.Max(0, spent), income, count, refunded);
     }
 }

@@ -1,5 +1,12 @@
+using System.Linq.Expressions;
 using System.Text;
+using FinMate.Application.Budgets;
+using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
+using FinMate.Application.Transactions.Duplicates;
+using FinMate.Application.Transactions.Transfers;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +31,7 @@ public class TransactionRepository : ITransactionRepository
             .Include(t => t.Category)
             .Include(t => t.SavingGoal)
             .Include(t => t.FinancialAccount)
+            .Include(t => t.GroupFundEntry).ThenInclude(e => e!.Fund)   // Phase 85: groupFundLink trong TransactionDto
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
     public Task<Guid?> FindPossibleDuplicateAsync(
         Guid userId,
@@ -48,54 +56,6 @@ public class TransactionRepository : ITransactionRepository
             .FirstOrDefaultAsync(ct);
     }
 
-    public Task<bool> HasAuthoritativeDuplicateAsync(
-        Guid financialAccountId,
-        long amountCents,
-        TransactionType transactionType,
-        DateTimeOffset at,
-        TimeSpan window,
-        Guid? excludeTransactionId = null,
-        CancellationToken ct = default,
-        string? providerReference = null)
-    {
-        var from = at - window;
-        var to = at + window;
-        return _context.Transactions.AnyAsync(t =>
-            t.FinancialAccountId == financialAccountId
-            && t.TransactionType == transactionType
-            && t.AmountCents == amountCents
-            && t.TransactedAt >= from
-            && t.TransactedAt <= to
-            && (excludeTransactionId == null || t.Id != excludeTransactionId)
-            // 2026-11-13: cả 2 bên có mã tham chiếu và khác nhau -> chắc chắn không phải cùng 1
-            // giao dịch, không tính là trùng. Thiếu mã ở 1 trong 2 bên vẫn giữ hành vi cũ.
-            && (providerReference == null || t.ProviderReference == null || t.ProviderReference == providerReference), ct);
-    }
-
-    public Task<Transaction?> FindMergeCandidateAsync(
-        Guid userId,
-        long amountCents,
-        TransactionType oppositeType,
-        Guid excludeFinancialAccountId,
-        DateTimeOffset at,
-        TimeSpan window,
-        CancellationToken ct = default)
-    {
-        var from = at - window;
-        var to = at + window;
-        return _context.Transactions
-            .Include(t => t.Category)
-            .Where(t => t.UserId == userId
-                && (t.Status == TransactionStatus.Draft || t.Status == TransactionStatus.Confirmed)
-                && t.TransactionType == oppositeType
-                && t.FinancialAccountId != excludeFinancialAccountId
-                && t.AmountCents == amountCents
-                && t.TransactedAt >= from
-                && t.TransactedAt <= to)
-            .OrderByDescending(t => t.TransactedAt)
-            .FirstOrDefaultAsync(ct);
-    }
-
     public Task<Transaction?> GetByNotificationLogIdAsync(Guid userId, Guid notificationLogId, CancellationToken ct = default)
         => _context.Transactions
             .Include(t => t.Category)
@@ -113,6 +73,7 @@ public class TransactionRepository : ITransactionRepository
     {
         var query = _context.Transactions
             .Include(t => t.Category)
+            .Include(t => t.GroupFundEntry).ThenInclude(e => e!.Fund)   // Phase 85: groupFundLink trong TransactionDto
             .Where(t => t.UserId == filter.UserId);
 
         if (filter.FinancialAccountId is not null)
@@ -135,9 +96,19 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.Status == filter.Status);
         }
 
+        if (filter.Relation is not null)
+        {
+            query = query.Where(t => t.Relation == filter.Relation);
+        }
+
+        if (filter.DuplicateStatus is not null)
+        {
+            query = query.Where(t => t.DuplicateStatus == filter.DuplicateStatus);
+        }
+
         if (filter.ExcludeLoans)
         {
-            query = query.Where(t => t.Category == null || t.Category.Slug != Category.LoanSlug);
+            query = query.Where(LoanExclusion.NotLoan);
         }
 
         if (filter.FromDate is not null)
@@ -201,22 +172,284 @@ public class TransactionRepository : ITransactionRepository
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken ct = default)
-    {
-        var query = _context.Transactions.Where(t =>
-            t.UserId == userId
-            && t.Status == TransactionStatus.Confirmed
-            && t.TransactionType == TransactionType.Debit
-            && (t.Category == null || t.Category.Slug != Category.LoanSlug)  // cho vay/mượn không tiêu hạn mức
-            && t.TransactedAt >= from
-            && t.TransactedAt < to);
+        => Math.Max(0, await SumNetSpendAsync(BudgetSpendScope.Personal(userId, categoryId, from, to), [], ct));
 
-        if (categoryId is not null)
+    public async Task<long> SumNetSpendAsync(Expression<Func<Transaction, bool>> scope, IReadOnlyCollection<Guid> excludeTransactionIds, CancellationToken ct = default)
+    {
+        var query = _context.Transactions.Where(scope).Where(BudgetSpendScope.Counts);
+        if (excludeTransactionIds.Count > 0)
         {
-            query = query.Where(t => t.CategoryId == categoryId);
+            query = query.Where(t => !excludeTransactionIds.Contains(t.Id));
         }
 
-        return await query.SumAsync(t => (long?)t.AmountCents, ct) ?? 0;
+        return await query.Select(BudgetSpendScope.Signed).SumAsync(ct);
     }
+
+    public Task<long> SumConfirmedRefundsAsync(Guid userId, Guid originalId, Guid? excludeTransactionId = null, CancellationToken ct = default)
+        => _context.Transactions
+            .Where(t => t.UserId == userId
+                && t.RelatedTransactionId == originalId
+                && t.Status == TransactionStatus.Confirmed
+                && t.Relation != null
+                && (excludeTransactionId == null || t.Id != excludeTransactionId))
+            .SumAsync(t => t.AmountCents, ct);
+
+    public async Task<IReadOnlyDictionary<Guid, long>> SumConfirmedRefundsAsync(Guid userId, IReadOnlyCollection<Guid> originalIds, CancellationToken ct = default)
+    {
+        if (originalIds.Count == 0)
+        {
+            return new Dictionary<Guid, long>();
+        }
+
+        return await _context.Transactions
+            .Where(t => t.UserId == userId
+                && t.RelatedTransactionId != null
+                && originalIds.Contains(t.RelatedTransactionId.Value)
+                && t.Status == TransactionStatus.Confirmed
+                && t.Relation != null)
+            .GroupBy(t => t.RelatedTransactionId!.Value)
+            .Select(g => new { Id = g.Key, Total = g.Sum(t => t.AmountCents) })
+            .ToDictionaryAsync(x => x.Id, x => x.Total, ct);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListRelatedAsync(Guid userId, Guid originalId, CancellationToken ct = default)
+        => await _context.Transactions
+            .Include(t => t.Category)
+            .Where(t => t.UserId == userId && t.RelatedTransactionId == originalId)
+            .ToListAsync(ct);
+
+    public async Task<T> RunWithOriginalLockedAsync<T>(Guid userId, Guid originalId, Func<Transaction, Task<T>> work, CancellationToken ct = default)
+    {
+        // Thứ tự khoá CỐ ĐỊNH (D19): dòng khoản gốc (FOR UPDATE, ở đây) → ví (xmin, khi work lưu) → kỳ ngân sách (xmin, khi work lưu).
+        // Mọi đường ghi một khoản hoàn/đảo đều vào đây trước tiên, nên hai khoản hoàn đồng thời của cùng một khoản gốc xếp hàng ở dòng
+        // gốc: khoản sau chỉ đọc tổng đã hoàn SAU KHI khoản trước đã commit, và BR-RF-02 không thể bị vượt dù hai khoản vào hai ví khác nhau
+        // (khoá xmin của ví chỉ bắt được trường hợp cùng ví). transactions không có cột xmin: thêm vào thì mọi lượt sửa giao dịch khác bắt đầu nhận 409.
+        // Có transaction ngoài (đang chạy trong một transaction khác) thì dùng luôn nó: khoá vẫn giữ tới khi transaction ngoài kết thúc.
+        var owns = _context.Database.CurrentTransaction is null;
+        await using var transaction = owns ? await _context.Database.BeginTransactionAsync(ct) : null;
+
+        // Lọc theo user NGAY trong câu khoá: id của người khác không khoá được gì và trả 404 như mọi chỗ khác.
+        var locked = await _context.Transactions
+            .FromSqlInterpolated($"SELECT * FROM transactions WHERE id = {originalId} AND user_id = {userId} AND deleted_at IS NULL FOR UPDATE")
+            .Select(t => t.Id)
+            .FirstOrDefaultAsync(ct);
+        if (locked == Guid.Empty)
+        {
+            throw new NotFoundException("Transaction", originalId);
+        }
+
+        // Đọc lại khoản gốc SAU khi đã khoá (kèm danh mục), để số tiền, trạng thái và cờ đảo là bản mới nhất.
+        var original = await _context.Transactions.Include(t => t.Category).FirstAsync(t => t.Id == originalId, ct);
+        await _context.Entry(original).ReloadAsync(ct);
+
+        var result = await work(original);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListByIdsAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var wanted = ids.Distinct().ToList();
+        return await _context.Transactions
+            .AsNoTracking()
+            .Include(t => t.Category)
+            .Include(t => t.FinancialAccount)
+            .Where(t => t.UserId == userId && wanted.Contains(t.Id))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListDuplicateLinksToAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => await _context.Transactions
+            .Where(t => t.UserId == userId && t.DuplicateOfTransactionId == transactionId)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<TransferProbe>> ListTransferProbesAsync(TransferProbeQuery query, CancellationToken ct = default)
+    {
+        var rows = query.Ids is { } ids ? _context.Transactions.IgnoreQueryFilters().Where(t => ids.Contains(t.Id)) : _context.Transactions;
+        rows = rows.Where(t => t.UserId == query.UserId
+            && (t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit));
+        if (query.From is { } from)
+        {
+            rows = rows.Where(t => t.TransactedAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            rows = rows.Where(t => t.TransactedAt <= to);
+        }
+
+        return await rows
+            .AsNoTracking()
+            .Select(t => new TransferProbe(
+                t.Id,
+                t.TransactionType,
+                t.Status,
+                t.AmountCents,
+                t.TransactedAt,
+                t.CreatedAt,
+                t.FinancialAccountId,
+                t.MerchantName,
+                t.Description,
+                _context.AiResults.Where(r => r.NotificationLogId == t.NotificationLogId).Select(r => r.RelationHint).FirstOrDefault(),
+                _context.AiResults.Where(r => r.NotificationLogId == t.NotificationLogId).Select(r => r.TransferKind).FirstOrDefault(),
+                t.Relation,
+                t.IsReversed,
+                t.DeletedAt != null || t.MergedIntoTransactionId != null,
+                t.DuplicateStatus,
+                t.GroupId,
+                _context.QrTransferIntents.Any(i => i.MatchedTransactionId == t.Id && i.UserId == query.UserId),
+                _context.Transactions.Any(r => r.RelatedTransactionId == t.Id && r.Relation != null && r.Status == TransactionStatus.Confirmed),
+                t.TransferDismissedAt))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<DuplicateCandidateRow>> ListDuplicateCandidatesAsync(DuplicateCandidateQuery query, CancellationToken ct = default)
+    {
+        if (query.AmountsCents.Count == 0)
+        {
+            return [];
+        }
+
+        var amounts = query.AmountsCents.Distinct().ToList();
+        var withTransfers = query.TransferAmountMin is not null && query.TransferAmountMax is not null;
+        var transferMin = query.TransferAmountMin ?? 0;
+        var transferMax = query.TransferAmountMax ?? 0;
+        return await _context.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == query.UserId
+                && t.Relation == null
+                && t.TransactedAt >= query.From
+                && t.TransactedAt <= query.To
+                && (((t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit) && amounts.Contains(t.AmountCents))
+                    || (withTransfers && t.TransactionType == TransactionType.Transfer && t.AmountCents >= transferMin && t.AmountCents <= transferMax)))
+            .Select(t => new DuplicateCandidateRow(
+                new DuplicateProbe(
+                    t.Id,
+                    t.Source,
+                    t.TransactionType,
+                    t.AmountCents,
+                    t.TransactedAt,
+                    t.CreatedAt,
+                    t.FinancialAccountId,
+                    t.MerchantName,
+                    t.BalanceAfterCents,
+                    t.NotificationLog != null ? t.NotificationLog.PackageName : null,
+                    t.Relation,
+                    t.DeletedAt != null,
+                    t.MergedIntoTransactionId != null,
+                    t.MergedSources,
+                    t.NotificationLogId,
+                    t.CounterAccountId,
+                    t.GroupFundDirection),
+                t.DuplicateOfTransactionId,
+                t.DuplicateStatus))
+            .ToListAsync(ct);
+    }
+
+    public async Task<T> RunPreviewAsync<T>(Func<Task<T>> work, CancellationToken ct = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        try
+        {
+            return await work();
+        }
+        finally
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _context.ChangeTracker.Clear();
+        }
+    }
+
+    public async Task<T> RunWithTransactionsLockedAsync<T>(
+        Guid userId, IReadOnlyCollection<Guid> ids, Func<IReadOnlyDictionary<Guid, Transaction>, Task<T>> work, CancellationToken ct = default)
+    {
+        // Thứ tự khoá CỐ ĐỊNH (Phase 82, BR-DUP-14): các dòng giao dịch theo id tăng dần (ORDER BY trước FOR UPDATE: Postgres khoá theo
+        // thứ tự đã sắp) → ví (xmin) → kỳ ngân sách (xmin). Hai lượt gộp chéo nhau (A,B) và (B,A) vì vậy không chờ nhau vòng tròn.
+        // Khác RunWithOriginalLockedAsync: dòng đã xoá mềm vẫn được khoá và trả về, để gộp lại cùng cặp trả về survivor cũ.
+        var distinct = ids.Distinct().ToArray();
+        var owns = _context.Database.CurrentTransaction is null;
+        await using var transaction = owns ? await _context.Database.BeginTransactionAsync(ct) : null;
+
+        var locked = await _context.Transactions
+            .FromSqlInterpolated($"SELECT * FROM transactions WHERE id = ANY({distinct}) AND user_id = {userId} ORDER BY id FOR UPDATE")
+            .IgnoreQueryFilters()
+            .Select(t => t.Id)
+            .ToListAsync(ct);
+        var missing = distinct.Where(id => !locked.Contains(id)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new NotFoundException("Transaction", missing[0]);
+        }
+
+        // Đọc lại SAU khi khoá, để trạng thái, ví và cờ xoá là bản mới nhất (ngữ cảnh có thể đang giữ bản cũ).
+        var rows = await _context.Transactions
+            .IgnoreQueryFilters()
+            .Include(t => t.Category)
+            .Where(t => distinct.Contains(t.Id) && t.UserId == userId)
+            .ToListAsync(ct);
+        foreach (var row in rows)
+        {
+            await _context.Entry(row).ReloadAsync(ct);
+        }
+
+        var result = await work(rows.ToDictionary(t => t.Id));
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<RefundCandidate>> FindRefundCandidatesAsync(RefundCandidateQuery query, CancellationToken ct = default)
+    {
+        var from = query.At.AddDays(-query.WindowDays);
+        var rows = await _context.Transactions
+            .AsNoTracking()
+            .Include(t => t.Category)
+            .Include(t => t.FinancialAccount)
+            .Where(LoanExclusion.NotLoan)
+            .Where(t => t.UserId == query.UserId
+                && t.TransactionType == TransactionType.Debit
+                && t.Status == TransactionStatus.Confirmed
+                && !t.IsReversed
+                && t.AmountCents >= query.AmountCents
+                && t.TransactedAt >= from
+                && t.TransactedAt <= query.At
+                && (query.ExcludeTransactionId == null || t.Id != query.ExcludeTransactionId))
+            .Select(t => new
+            {
+                Original = t,
+                Refunded = _context.Transactions
+                    .Where(r => r.RelatedTransactionId == t.Id && r.Status == TransactionStatus.Confirmed && r.Relation != null)
+                    .Sum(r => (long?)r.AmountCents) ?? 0,
+            })
+            .Where(x => x.Original.AmountCents - x.Refunded >= query.AmountCents)
+            .ToListAsync(ct);
+
+        // CounterpartyKey tính trong C# (bỏ dấu, gọn khoảng trắng) nên xếp hạng làm trong bộ nhớ; cửa sổ ngày và số tiền đã chặn số dòng.
+        return rows
+            .OrderByDescending(x => query.CounterpartyKey is not null && CounterpartyKey.From(x.Original.MerchantName) == query.CounterpartyKey)
+            .ThenByDescending(x => SameWalletOrProvider(x.Original, query))
+            .ThenByDescending(x => x.Original.AmountCents == query.AmountCents || x.Original.AmountCents - x.Refunded == query.AmountCents)
+            .ThenBy(x => (query.At - x.Original.TransactedAt).Duration())
+            .Take(query.Limit)
+            .Select(x => new RefundCandidate(x.Original, x.Refunded, x.Original.AmountCents - x.Refunded))
+            .ToList();
+    }
+
+    private static bool SameWalletOrProvider(Transaction original, RefundCandidateQuery query)
+        => (query.FinancialAccountId is not null && original.FinancialAccountId == query.FinancialAccountId)
+            || (query.ProviderConfigId is not null && original.FinancialAccount?.ProviderConfigId == query.ProviderConfigId);
 
     private static string EncodeCursor(DateTimeOffset transactedAt, DateTimeOffset createdAt)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes($"{transactedAt:O}|{createdAt:O}"));

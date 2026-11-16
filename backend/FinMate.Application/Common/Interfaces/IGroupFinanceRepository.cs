@@ -23,7 +23,9 @@ public sealed record GroupReportRow(
     string? GroupCategoryName,
     Guid? CategoryId,
     string? CategoryName,
-    bool CategoryIsSystem);
+    bool CategoryIsSystem,
+    TransactionRelation? Relation = null,
+    bool IsReversed = false);
 
 /// <summary>Dữ liệu tài chính của nhóm. Không kiểm quyền: mọi lời gọi phải đi sau <c>IGroupAccessService</c>.</summary>
 public interface IGroupFinanceRepository
@@ -35,8 +37,18 @@ public interface IGroupFinanceRepository
     Task<List<BudgetPeriod>> ListPeriodsAsync(Guid groupId, DateTimeOffset periodStart, CancellationToken ct = default);
     void AddBudget(Budget budget);
 
-    /// <summary>Tổng khoản chi đã xác nhận, đã chia sẻ, khớp đúng phạm vi ngân sách; loại cho vay/mượn. Không truyền danh mục là ngân sách tổng.</summary>
+    /// <summary>
+    /// Chi tiêu nhóm khớp đúng phạm vi ngân sách: giao dịch đã xác nhận, đã chia sẻ (<see cref="Budgets.BudgetSpendScope.Group"/>: chi − hoàn, bỏ cặp
+    /// đảo và cho vay/mượn) cộng khoản chi từ quỹ (<see cref="Budgets.BudgetSpendScope.GroupFund"/>), chặn dưới ở 0. Không truyền danh mục là ngân sách tổng.
+    /// </summary>
     Task<long> SumSharedSpendAsync(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chi tiêu nhóm ròng của một phạm vi = phần giao dịch đã chia sẻ (như trên, KHÔNG chặn ở 0) + phần chi từ quỹ (Phase 85, D13). Bỏ các giao dịch
+    /// và dòng quỹ đang sửa trong bộ nhớ: caller tự cộng phần của chúng. Đây là chỗ duy nhất cộng hai nguồn; mọi nơi tính lại ngân sách nhóm đi qua đây.
+    /// </summary>
+    Task<long> SumGroupNetSpendAsync(
+        Budgets.GroupSpendScope scope, IReadOnlyCollection<Guid> excludeTransactionIds, IReadOnlyCollection<Guid> excludeEntryIds, CancellationToken ct = default);
 
     Task<SharedTransactionPage> ListSharedTransactionsAsync(Guid groupId, Guid? onlyUserId, DateTimeOffset from, DateTimeOffset to, string? cursor, int limit, CancellationToken ct = default);
     Task<List<GroupReportRow>> ListReportRowsAsync(Guid groupId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default);

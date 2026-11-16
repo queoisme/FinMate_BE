@@ -1,5 +1,8 @@
+using FinMate.Application.Budgets;
 using FinMate.Application.Common;
+using FinMate.Application.Reports;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +39,7 @@ public class ReportRepository : IReportRepository
         {
             existing.TotalSpentCents = summary.TotalSpentCents;
             existing.TotalIncomeCents = summary.TotalIncomeCents;
+            existing.TotalRefundedCents = summary.TotalRefundedCents;
             existing.TransactionCount = summary.TransactionCount;
             existing.TopCategoryId = summary.TopCategoryId;
             existing.TopCategorySpentCents = summary.TopCategorySpentCents;
@@ -53,29 +57,32 @@ public class ReportRepository : IReportRepository
         // Gom theo ngày giờ VN phải làm trong bộ nhớ: biểu thức cắt ngày theo offset +07
         // không dịch được sang SQL đáng tin cậy qua EF/Npgsql. Chỉ kéo về 3 cột cần dùng và
         // khoảng thời gian luôn bị chặn (vài tháng của MỘT user), nên chi phí không đáng kể.
-        // 2026-11-13: KHÔNG loại "Cho vay/Mượn" ở đây nữa — Thu nhập/Chi tiêu (và dự báo, insight
-        // đọc từ hàm này) phản ánh dòng tiền THẬT ra/vào ví, không phải kế hoạch chi tiêu theo
-        // danh mục. Cho mượn là tiền thật rời ví (Debit), được trả là tiền thật về (Credit); gắn
-        // danh mục nào không thay đổi sự thật đó. Việc "không ăn vào hạn mức ngân sách" là chuyện
-        // khác, tách riêng — vẫn giữ nguyên ở TransactionBudgetDelta.Spend, không đụng ở đây.
-        // TransactionType.Transfer (chuyển khoản nội bộ) không cần lọc riêng: nó không khớp nhánh
-        // Debit/Credit ở Select dưới nên tự động góp 0 vào cả 2 tổng.
         var rows = await _context.Transactions
+            .Where(LoanExclusion.NotLoan)  // cho vay/mượn không phải chi tiêu hay thu nhập
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
+                // Issue D (2026-11-13): lọc theo 1 tài khoản cụ thể khi người dùng bấm chip tài
+                // khoản trên Home — null nghĩa là tất cả tài khoản (giữ hành vi cũ).
                 && (financialAccountId == null || t.FinancialAccountId == financialAccountId))
-            .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType })
+            .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType, t.Relation, t.IsReversed })
             .ToListAsync(ct);
 
+        // Hoàn tiền / đảo giao dịch (Phase 81): một quy tắc chung cho mọi báo cáo, xem NetFlow.
         return rows
             .GroupBy(t => VietnamTime.DateOf(t.TransactedAt))
-            .Select(g => new DailySpendPoint(
-                g.Key,
-                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : 0L),
-                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : 0L),
-                g.Count()))
+            .Select(g =>
+            {
+                var parts = g.Select(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents)).ToList();
+                return new DailySpendPoint(
+                    g.Key,
+                    parts.Sum(p => p.SpentCents),
+                    parts.Sum(p => p.IncomeCents),
+                    parts.Count(p => p.Counted),
+                    parts.Sum(p => p.RefundedCents));
+            })
+            .Where(p => p.TransactionCount > 0)
             .OrderBy(r => r.Date)
             .ToList();
     }
@@ -84,22 +91,51 @@ public class ReportRepository : IReportRepository
     {
         var (start, end) = VietnamTime.DayRange(from, to);
 
+        // Cùng định nghĩa với ngân sách (BudgetSpendScope): chi − hoàn theo danh mục (khoản hoàn mang danh mục của khoản gốc), bỏ cặp đảo và
+        // cho vay/mượn. Danh mục ròng ≤ 0 (chỉ có hoàn cho món mua kỳ trước) không có dòng: cơ cấu và phần trăm không nhận số âm (D3).
         var rows = await _context.Transactions
-            .Where(t => t.UserId == userId
-                && t.Status == TransactionStatus.Confirmed
-                && t.TransactionType == TransactionType.Debit
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
-                && t.TransactedAt >= start
-                && t.TransactedAt < end)
+            .Where(BudgetSpendScope.Personal(userId, null, start, end))
+            .Where(BudgetSpendScope.Counts)
             .GroupBy(t => new { t.CategoryId, Name = t.Category!.Name, Slug = t.Category!.Slug })
             .Select(g => new CategorySpend(
                 g.Key.CategoryId,
                 g.Key.Name,
                 g.Key.Slug,
-                g.Sum(t => t.AmountCents)))
+                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : -t.AmountCents)))
             .ToListAsync(ct);
 
-        return rows.OrderByDescending(r => r.SpentCents).ToList();
+        return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();
+    }
+
+    public async Task<List<CategorySpend>> GetCategoryIncomeAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var (start, end) = VietnamTime.DayRange(from, to);
+
+        // Cùng pattern với GetCategorySpendAsync, đổi Debit → Credit: thu ròng theo danh mục.
+        var rows = await _context.Transactions
+            .Where(BudgetSpendScope.Personal(userId, null, start, end))
+            .Where(BudgetSpendScope.Counts)
+            .GroupBy(t => new { t.CategoryId, Name = t.Category!.Name, Slug = t.Category!.Slug })
+            .Select(g => new CategorySpend(
+                g.Key.CategoryId,
+                g.Key.Name,
+                g.Key.Slug,
+                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : -t.AmountCents)))
+            .ToListAsync(ct);
+
+        return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();
+    }
+
+    public async Task<long> GetCrossPeriodRefundsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var (start, end) = VietnamTime.DayRange(from, to);
+        return await _context.Transactions
+            .Where(BudgetSpendScope.Personal(userId, null, start, end))
+            .Where(BudgetSpendScope.Counts)
+            .Where(t => t.Relation == TransactionRelation.Refund
+                && t.RelatedTransaction != null
+                && (t.RelatedTransaction.TransactedAt < start || t.RelatedTransaction.TransactedAt >= end))
+            .SumAsync(t => t.AmountCents, ct);
     }
 
     public Task<List<Guid>> GetUserIdsWithActivityAsync(DateOnly date, CancellationToken ct = default)
@@ -167,12 +203,17 @@ public class ReportRepository : IReportRepository
 
         return _context.Transactions
             .Include(t => t.Category)
+            .Where(LoanExclusion.NotLoan)
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType == TransactionType.Debit
-                && (t.Category == null || t.Category.Slug != Category.LoanSlug)
+                && !t.IsReversed
                 && t.TransactedAt >= start
-                && t.TransactedAt < end)
+                && t.TransactedAt < end
+                // Khoản đã được hoàn 100% không phải chi tiêu thật (Phase 81, BR-RF-07).
+                && (_context.Transactions
+                    .Where(r => r.RelatedTransactionId == t.Id && r.Status == TransactionStatus.Confirmed && r.Relation != null)
+                    .Sum(r => (long?)r.AmountCents) ?? 0) < t.AmountCents)
             .OrderBy(t => t.TransactedAt)
             .ToListAsync(ct);
     }

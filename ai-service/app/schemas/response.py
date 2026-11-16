@@ -25,6 +25,10 @@ class ExtractionResult(BaseModel):
     transacted_at: datetime | None = None
     balance_after_cents: int | None = None
     confidence: float | None = None
+    # Phase 81: "refund" | "reversal" | None. Thêm trường tuỳ chọn, client cũ bỏ qua được. Backend chỉ GỢI Ý liên kết theo nó.
+    relation_hint: str | None = None
+    # Phase 83: chỉ có khi relation_hint = "transfer": atm_withdrawal | atm_deposit | wallet_topup | wallet_withdrawal | own_account.
+    transfer_kind: str | None = None
 
     # Mã tham chiếu của ngân hàng cho giao dịch này (vd "CT DI:628111031960"), khi định dạng
     # provider có bắt được — hiện chỉ VietinBank. Dùng để phân biệt 2 giao dịch THẬT khác

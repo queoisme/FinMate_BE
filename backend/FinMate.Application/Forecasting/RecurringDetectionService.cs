@@ -19,10 +19,16 @@ public class RecurringDetectionService : IRecurringDetectionService
     private readonly ICacheService _cache;
     private readonly IForecastAlertDispatcher _alerts;
     private readonly Func<DateTimeOffset> _now;
+    private readonly IFinancialAccountRepository? _accounts;   // null: không xét chuyển khoản vượt ranh giới (test cũ)
 
     public RecurringDetectionService(
-        IRecurringItemRepository items, IForecastDataRepository data, ISystemConfigProvider config, ICacheService cache, IForecastAlertDispatcher alerts)
-        : this(items, data, config, cache, alerts, () => DateTimeOffset.UtcNow)
+        IRecurringItemRepository items,
+        IForecastDataRepository data,
+        ISystemConfigProvider config,
+        ICacheService cache,
+        IForecastAlertDispatcher alerts,
+        IFinancialAccountRepository? accounts = null)
+        : this(items, data, config, cache, alerts, () => DateTimeOffset.UtcNow, accounts)
     {
     }
 
@@ -32,8 +38,10 @@ public class RecurringDetectionService : IRecurringDetectionService
         ISystemConfigProvider config,
         ICacheService cache,
         IForecastAlertDispatcher alerts,
-        Func<DateTimeOffset> now)
+        Func<DateTimeOffset> now,
+        IFinancialAccountRepository? accounts = null)
     {
+        _accounts = accounts;
         _items = items;
         _data = data;
         _config = config;
@@ -47,7 +55,12 @@ public class RecurringDetectionService : IRecurringDetectionService
         var now = _now();
         var today = VietnamTime.DateOf(now);
         var rules = ForecastRules.From((await _config.GetAsync(ct)).Document.Forecast);
-        var history = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
+        var habits = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
+        var history = _accounts is null
+            ? habits
+            : BoundaryTransfers.ForRecurring(habits, await BoundaryTransfers.OutflowsAsync(
+                _data, userId, (await _accounts.GetListByUserAsync(userId, ct)).Where(a => a.IncludeInForecast).Select(a => a.Id).ToHashSet(),
+                today.AddDays(-rules.HistoryWindowDays), today, ct));
         var existing = await _items.ListAllTrackedAsync(userId, ct);
 
         var changed = false;

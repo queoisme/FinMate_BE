@@ -5,6 +5,7 @@ using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Forecasting;
+using FinMate.Application.Transactions;
 using FinMate.Application.MarketData;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -73,7 +74,7 @@ public sealed class CommunitySharePromptService : ICommunitySharePromptService
     private static bool IsEligible(Transaction transaction, CommunitySettings settings)
         => transaction.TransactionType == TransactionType.Debit
             && transaction.Status == TransactionStatus.Confirmed
-            && transaction.Category?.Slug != Category.LoanSlug
+            && !LoanExclusion.IsLoan(transaction.Category)
             && transaction.AmountCents <= settings.PromptMaxAmountCents
             && IsFood(transaction, settings);
 

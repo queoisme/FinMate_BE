@@ -33,4 +33,49 @@ public static class TransactionErrorCodes
 
     /// <summary>Dữ liệu tại thời điểm xác nhận trùng với 1 giao dịch khác — user phải tự quyết, không bị hệ thống chặn im lặng (§8).</summary>
     public const string PossibleDuplicateOnConfirm = "TRANSACTION_POSSIBLE_DUPLICATE_ON_CONFIRM";
+
+    // ---- Hoàn tiền / đảo giao dịch (Phase 81). Mã giữ đúng tên đã chốt trong đề bài, không thêm tiền tố TRANSACTION_. ----
+
+    /// <summary>422: tổng các khoản hoàn đã xác nhận sẽ vượt số tiền khoản gốc (BR-RF-02).</summary>
+    public const string RefundExceedsOriginal = "REFUND_EXCEEDS_ORIGINAL";
+
+    /// <summary>409: xoá, đổi số tiền hoặc đổi loại một khoản gốc còn khoản hoàn/đảo đã xác nhận (BR-RF-11).</summary>
+    public const string HasRefunds = "HAS_REFUNDS";
+
+    /// <summary>422: khoản gốc không nhận hoàn được: không phải chi đã xác nhận, là cho vay/mượn, hoặc đã bị đảo (D12).</summary>
+    public const string RefundOriginalNotEligible = "REFUND_ORIGINAL_NOT_ELIGIBLE";
+
+    /// <summary>422: lệnh đảo phải bằng đúng số tiền gốc và khoản gốc chưa được hoàn phần nào (D4).</summary>
+    public const string ReversalAmountMismatch = "REVERSAL_AMOUNT_MISMATCH";
+
+    /// <summary>422: danh mục của khoản hoàn đã liên kết đi theo khoản gốc, không sửa riêng được (D13).</summary>
+    public const string RefundCategoryLocked = "REFUND_CATEGORY_LOCKED";
+
+    /// <summary>422: giao dịch này không mang được quan hệ hoàn/đảo (không phải tiền vào, hoặc trỏ vào chính nó).</summary>
+    public const string RefundNotLinkable = "REFUND_NOT_LINKABLE";
+
+    /// <summary>422: khoản hoàn đi theo khoản gốc vào/ra nhóm, không chia sẻ hay bỏ chia sẻ riêng được (BR-RF-10).</summary>
+    public const string RefundFollowsOriginal = "REFUND_FOLLOWS_ORIGINAL";
+
+    // ---- Bản trùng có liên kết (Phase 82) ----
+
+    /// <summary>422: hai giao dịch không gộp được (khác chiều/số tiền, có khoản hoàn, đã chia sẻ nhóm, cả hai đã khớp QR, đã gộp vào khoản khác…); lý do nằm trong message.</summary>
+    public const string MergeNotAllowed = "MERGE_NOT_ALLOWED";
+
+    /// <summary>422: "Không trùng" cho một giao dịch không có liên kết nghi trùng nào.</summary>
+    public const string NotSuspectedDuplicate = "NOT_SUSPECTED_DUPLICATE";
+
+    // ---- Chuyển tiền giữa các ví của chính mình (Phase 83) ----
+
+    /// <summary>422: giao dịch đã chia sẻ vào nhóm; chuyển khoản nội bộ không chia sẻ được (FR-GRP-07), người dùng gỡ khỏi nhóm trước.</summary>
+    public const string TransferSharedNotAllowed = "TRANSFER_SHARED_NOT_ALLOWED";
+
+    /// <summary>422: giao dịch không chuyển thành Transfer được (khoản hoàn, đã đảo, đang nghi trùng, đã khớp QR, có khoản hoàn, đã gộp…); lý do trong message.</summary>
+    public const string TransferNotAllowed = "TRANSFER_NOT_ALLOWED";
+
+    /// <summary>422: hai chiều không ghép được (cùng chiều, cùng ví, ví đích không phải ví chiều kia, phí ngoài giới hạn).</summary>
+    public const string TransferPairMismatch = "TRANSFER_PAIR_MISMATCH";
+
+    /// <summary>422 (Phase 85, D9): giao dịch gắn quỹ nhóm chỉ đổi qua dòng quỹ; hoặc khôi phục khi dòng quỹ chưa bị xoá.</summary>
+    public const string GroupFundLinked = "TRANSACTION_GROUP_FUND_LINKED";
 }

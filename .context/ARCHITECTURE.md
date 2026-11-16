@@ -26,6 +26,44 @@ thì hỏi user, đừng tự chọn.
 - Transfer **không có category** — `category_id` phải NULL.
 - Mọi truy vấn cộng dồn chi tiêu đều phải lọc `transaction_type <> 'transfer'`. Thêm truy vấn
   tổng hợp mới ở bất kỳ đâu thì kiểm tra lại điều này trước.
+- **Sửa 2026-11-13 (Phase 83):** "không vào forecast" giờ chỉ đúng với transfer giữa hai ví CÙNG được tính. Transfer có đúng một ví
+  thuộc tập ví được tính (FR-FCST-07) là tiền ra/vào của tập đó: nó vào số thực tế của độ chính xác dự báo (`ForecastActuals`) và các
+  bộ khoản định kỳ, qua một truy vấn riêng `GetBoundaryTransfersAsync`. Nó vẫn **không bao giờ** vào thói quen chi, thu nhập, bất
+  thường hay dự báo theo danh mục. `GetRawTransactionsAsync` và `GetTransactionsAsync` giữ nguyên ngữ nghĩa.
+
+**Nguyên tắc hoàn tiền / đảo giao dịch (Phase 81, 2026-11-13) — dễ sai thứ hai:**
+
+- Khoản hoàn là `credit` mang `relation = 'refund'` (hoặc `'reversal'`) và `related_transaction_id` trỏ tới khoản chi gốc. Số dư
+  xử lý như mọi khoản tiền vào, nhưng nó **KHÔNG** phải thu nhập: mọi phép cộng thu nhập phải lọc `relation IS NULL`, và khoản hoàn
+  **trừ vào** chi tiêu của danh mục khoản gốc. Khoản gốc bị đảo có `is_reversed = true`; cả cặp bị loại khỏi mọi tổng hợp.
+- Không viết lại quy tắc ở chỗ mới. Ngân sách: `TransactionBudgetDelta.Spend` và `BudgetSpendScope` (một predicate dùng chung cho
+  backfill, tính lại kỳ, nhóm, xoá cứng). Báo cáo cộng trong bộ nhớ: `NetFlow`. Dự báo: `IForecastDataRepository.GetTransactionsAsync`
+  (đã qua `RefundNetting.ForHabits`); đối chiếu số dư dùng `GetRawTransactionsAsync`.
+- Thao tác có dính hoàn/đảo **tính lại** kỳ ngân sách (không cộng delta rồi chặn ở 0, vì như vậy số bị lệch) và chạy dưới khoá
+  `SELECT … FOR UPDATE` dòng khoản gốc, thứ tự khoá cố định: khoản gốc → ví → kỳ ngân sách. Chi tiết: `docs/transactions-refund-api.md`.
+
+**Nguyên tắc bản trùng có liên kết (Phase 82, 2026-11-13):**
+
+- **Backend quyết trùng, AI chỉ là tín hiệu.** Chỉ backend thấy cùng lúc giao dịch nhập tay, chat, giọng nói, hoá đơn và thông báo,
+  nên `DuplicateMatcher` (Application) là nơi duy nhất quyết định một giao dịch có nghi trùng hay không. Cờ `is_potential_duplicate`
+  của AI Service chỉ được dùng để phân định khi các ứng viên ngang nhau, **không bao giờ** làm backend bỏ một thông báo. Thông báo
+  chỉ bị bỏ âm thầm trong hai trường hợp: trùng `contentHash` (FR-TXN-02), hoặc cùng provider, cùng số tiền, cùng số dư sau giao dịch
+  trong cửa sổ ngắn (log `duplicate`).
+- Nghi trùng không làm mất giao dịch: bản mới vẫn được tạo, mang `duplicate_status = 'suspected'` và trỏ tới ứng viên hạng 1. Người
+  dùng gộp (`merge`) hoặc bác (`not-duplicate`). Bản bị gộp **xoá mềm** kèm `merged_into_transaction_id`, nên mọi truy vấn đang lọc
+  `deleted_at` tự loại nó. Gộp tính lại ngân sách bằng bộ máy của Phase 81 và khoá hai dòng theo id tăng dần → ví → kỳ ngân sách.
+  Chi tiết: `docs/superpowers/plans/2026-11-13-linked-duplicates.md`.
+
+**Nguyên tắc ghép cặp chuyển ví (Phase 83, 2026-11-13):**
+
+- Nạp/rút ví, rút/nộp ATM, chuyển giữa hai tài khoản của chính mình được nhận ra và **gợi ý** chuyển thành `transfer`. Gợi ý tính khi
+  đọc, không lưu; không bao giờ tự chuyển. Chỉ gợi ý khi có tín hiệu: từ khoá (`relation_hint = transfer` kèm `transfer_kind`, AI) hoặc
+  nội dung một chiều nhắc tên ví bên kia. Số tiền và thời gian khớp mà không có tín hiệu thì không gợi ý.
+- **Bất biến số dư:** sau khi chuyển đổi, số dư mỗi ví bằng đúng số dư nếu hai thông báo được xác nhận như chi/thu thường, bất kể
+  trước đó mỗi chiều là nháp hay đã xác nhận. Phần chênh (phí) thành một khoản chi riêng, danh mục `other`.
+- Ghép hai chiều đi theo đường gộp của Phase 82 (bản còn lại xoá mềm kèm `merged_into_transaction_id`). Mọi đường gộp/chuyển đổi ghi
+  một dòng `transaction_merge_snapshots` trong cùng DB transaction, đủ để hoàn tác sau này; dòng này có hạn lưu.
+  Chi tiết: `docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`.
 
 ---
 
@@ -387,7 +425,7 @@ CashflowEngine.RecurringEvents ─► CashflowEngine.Project ◄─────�
 
 ### 2.7 Tài chính nhóm / gia đình (thêm 2026-11-05)
 
-Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ. Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
+Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần được chia sẻ, cộng các quỹ chung của nhóm (sổ ảo, Phase 85). Code ở `FinMate.Application/Groups/`, API và ma trận quyền ở `docs/group-api.md`.
 
 - **Cổng quyền duy nhất:** `IGroupAccessService`, gọi trong service và đọc DB mỗi request (không để trong JWT). Không phải thành viên → 404, thiếu quyền → 403. **Không** thêm điều kiện "hoặc cùng nhóm" vào repository theo `userId`: truy cập nhóm đi qua `IGroupRepository`, nên các truy vấn cá nhân không thể thấy dữ liệu nhóm.
 - **Quyền:** `GroupPermissions.Effective = (mặc định theo vai trò | cấp thêm) & ~thu hồi`, hàm thuần. Việc chỉ chủ nhóm làm được (đổi vai trò, chỉnh quyền, đổi cài đặt, chuyển chủ, xóa nhóm) cố ý không có trong enum `GroupPermission`, nên không cấp được cho ai.
@@ -399,6 +437,7 @@ Ví, số dư và dự báo vẫn là cá nhân; nhóm chỉ thấy phần đư�
 - **Cảnh báo nhóm** đi qua hộp thư `forecast_alerts`, mỗi thành viên một dòng; `IGroupAlertNotifier` không ném sau khi tiền đã lưu.
 - **Xóa tài khoản:** yêu cầu xóa chuyển chủ nhóm ngay (`IGroupOwnershipHandover`), vì người đó không đăng nhập được nữa. Xóa cứng (`UserHardDeleter`) dùng một DB transaction: khóa ngoại xóa giao dịch và tư cách thành viên, code xóa khoản góp (bảng này không có khóa ngoại theo người góp), rồi tính lại `spent_cents`, `saved_cents`. `ExecuteDelete` bỏ qua handler, nên thêm số tính sẵn mới cho nhóm thì phải tính lại ở đây.
 - **Lời mời** chỉ lưu SHA-256 của mã; `xmin` đảm bảo hai người nhận cùng một mã thì một người thắng. Mã nằm trong body, không trong URL.
+- **Quỹ chung (Phase 85): quỹ là sổ của nhóm, chi từ quỹ chỉ tính cho nhóm.** `group_funds` (số dư lưu sẵn + `xmin`) và `group_fund_entries` là dữ liệu NHÓM; không chia sẻ ví nào. Khoản chi từ quỹ vào ngân sách và báo cáo nhóm qua `BudgetSpendScope.GroupFund` (đặt cạnh `Group`, cùng luật khớp) và `SumGroupNetSpendAsync` (chỗ duy nhất cộng hai nguồn), không bao giờ vào sổ chi tiêu cá nhân. Góp/rút/chi có kèm ví thì sổ cá nhân có một `Transfer` **không ví đích**, gắn `group_fund_entry_id` và `group_fund_direction`: chọn `Transfer` vì mọi tổng chi/thu và việc chia sẻ nhóm đã loại nó sẵn, nên "không là chi, không là thu" đúng nhờ cấu trúc chứ không nhờ nhớ thêm điều kiện ở 20 chỗ. Cái giá là hướng tiền: `TransferLegs` là chỗ **duy nhất** đọc tác động số dư của transfer (test kiến trúc chặn đọc hướng ở nơi khác); code mới đọc số dư của transfer phải đi qua nó. Giao dịch gắn quỹ chỉ đổi qua dòng quỹ (`GroupFundGuard`); xoá thì dòng quỹ xoá theo trong cùng lượt lưu (`IGroupFundLinkSync`), trừ khi người đó đã rời nhóm hoặc quỹ đã lưu trữ. Xoá cứng tài khoản **ẩn danh** dòng quỹ (FK SET NULL) chứ không xoá như giao dịch chia sẻ (FR-GRP-16), vì số dư quỹ cả nhóm dựa vào nó. Chi tiết: `docs/superpowers/plans/2026-11-14-group-fund.md`.
 
 ### 2.8 Vận hành nội bộ (thêm 2026-11-05)
 
@@ -463,6 +502,18 @@ OpsManager và Admin cấu hình gói, giá, chức năng; khách mua trên webs
 - Job đối soát hỏi SePay thưa dần theo tuổi đơn (`next_check_at`), đơn báo lỗi bị dời ra sau; lỗi SePay được đếm qua `IProviderFailureTracker` và mở sự cố `sepay`.
 - Void: đơn đã trả chỉ bị hủy khi mã giao dịch khớp; đơn chưa ghi nhận tiền chuyển `NeedsReview`. **Giới hạn:** IPN void bị mất thì kỳ vẫn còn hiệu lực, vì đơn `Paid` không được hỏi lại SePay; chưa biết `order/detail` trả gì sau void.
 - `user_id` của đơn về `SET NULL` khi xóa cứng, để giữ sổ tiền. Kỳ và lượt dùng xóa theo người dùng. Không lưu thông tin thẻ từ SePay.
+
+### 2.13 Sức khoẻ dịch vụ đọc thông báo và độ phủ dữ liệu (thêm 2026-11-14, Phase 84)
+
+Server biết khi nào `NotificationListenerService` trên máy đã ngừng, để báo cáo và dự báo không lặng lẽ sai. API ở `docs/listener-health-api.md`, giám sát ở `docs/ops-api.md`, quyết định D1–D20 và S1–S7 ở `docs/superpowers/plans/2026-11-14-listener-health.md`. Mã ở `Application/ListenerHealth/`.
+
+- **Bảng** (migration `AddListenerHealth`): `device_listener_statuses` (mới nhất, khoá `(user_id, installation_id)`, không theo token FCM vì token xoay vòng), `device_listener_daily` (một dòng mỗi thiết bị mỗi ngày), `listener_upload_gap_daily` (số ca theo phiên bản app, không có user).
+- **Báo trạng thái:** `ReportListenerStatusCommandHandler` ghi trạng thái và gộp dòng ngày trong MỘT câu SQL (`INSERT … ON CONFLICT` có CTE), nên hai lần báo đồng thời không đụng unique. Ngày ok khi không lần nào mất quyền và lần báo cuối còn kết nối. Package lạ bị bỏ lặng lẽ.
+- **Hàm thuần:** `SilenceDetector` (ví im lặng: cửa sổ kết thúc ở thông báo cuối, P90 nearest-rank, `upload_gap` khi listener vẫn thấy app), `DeviceHealthEvaluator`, `CoverageCalculator` (ngày không báo kế thừa lần báo trước nếu cách trưa ngày ấy ≤ 36 giờ), `ProviderFormatEvaluator`.
+- **Một chỗ đọc:** `ListenerHealthReader` đọc ví đang theo dõi (có package, đang bật, chưa xoá) kèm kết luận im lặng và thiết bị kèm trạng thái; `/me/data-coverage` và job nhắc cùng dùng nó.
+- **Nhắc:** `ListenerHealthReminderService` đi qua `ForecastAlertDispatcher`, kind `listener_health`, theo công tắc riêng `listenerHealthAlertsEnabled`. Đợt nằm trong `dedup_key` (`listener_health:{device|account|upload}:{id}:{mốc}:{n}`), nên không có bảng đợt và chạy lại job không gửi trùng. `ListenerHealthDailyJob` 09:00 VN.
+- **Dự báo:** `ForecastCoverage.Apply` chỉ ở `ForecastController`, `PurchaseCheckService` và `AgentOrchestrator`; engine và `ForecastAccuracyService` không đi qua, để thống kê độ chính xác vẫn đo độ tin cậy của engine. `poor` hạ độ tin cậy và thêm câu mẫu; không đổi con số. Cửa sổ = `forecast.historyWindowDays` kẹp 7–90, cache 10 phút, `PUT listener-status` xoá cache.
+- **Đổi mẫu tin:** `ProviderFormatMonitorJob` mỗi giờ (theo `MONITORING_ENABLED`) đếm `ai_results` theo provider trong một câu GROUP BY, không tính `error`. Trạng thái ở `ops_service_status` (`format:{key}`), sự cố qua `IIncidentService` (`notification_format:{key}`), email qua `IIncidentNotifier` như mọi nguồn khác.
 
 ## 3. AI Service — Pipeline Architecture
 
@@ -578,9 +629,17 @@ POST /api/v1/analyze
     │                 balance_after_cents, provider_reference }
     │       provider_reference: mã tham chiếu NGÂN HÀNG của chính giao dịch này khi
     │       format provider bắt được (vd "628111031960" từ "CT DI:628111031960" của
-    │       VietinBank) — null khi không có. Dùng để Backend phân biệt 2 giao dịch
-    │       THẬT khác nhau khỏi 1 giao dịch bị gửi lặp khi cả hai trùng ví+số tiền+
-    │       chiều tiền trong cùng cửa sổ kiểm tra trùng (2026-11-13).
+    │       VietinBank) — null khi không có. Thêm 2026-11-13 trên `dev/tho` để Backend
+    │       phân biệt 2 giao dịch THẬT khác nhau khỏi 1 giao dịch bị gửi lặp qua
+    │       `HasAuthoritativeDuplicateAsync`. **SUPERSEDED 2026-11-16:** merge
+    │       `origin/main` mang vào `IDuplicateDetector`/`DuplicateMatcher` (Phase 82,
+    │       `main`) — phân biệt bằng so khớp `balance_after_cents` giữa 2 giao dịch
+    │       trong cùng cửa sổ thay vì mã tham chiếu text. `HasAuthoritativeDuplicateAsync`
+    │       đã bị xoá khỏi `ITransactionRepository`. Trường `provider_reference` VẪN
+    │       còn trong contract và được Backend lưu vào `Transaction.ProviderReference`/
+    │       `AiResult.ProviderReference` (migration giữ nguyên, không rollback) nhưng
+    │       KHÔNG còn được đọc để so trùng ở đâu cả — dữ liệu phụ, không phải cơ chế
+    │       chống trùng chính thức nữa. Xem `FLOW1_CURRENT_DECISIONS.md` §16.12.
     │       Fallback: rule-based extraction nếu model uncertain
     │
     ├─► [3. Categorizer]
@@ -1244,6 +1303,7 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 - Enum → **TEXT + CHECK constraint**, không dùng PostgreSQL ENUM type
 - AI DB → **KHÔNG FK** sang Backend DB, dùng `_hash` fields để reference
 - `transaction_type='transfer'` → **luôn loại khỏi mọi phép cộng dồn chi tiêu/thu nhập** (budget, report, forecast, daily summary). Xem §0 quyết định #1
+- `relation IS NOT NULL` (hoàn/đảo, Phase 81) → **không bao giờ là thu nhập**; hoàn trừ vào chi tiêu, cặp đảo (`is_reversed` + `relation='reversal'`) bị loại. Xem §0 nguyên tắc hoàn tiền
 - `financial_accounts`, `budget_periods`, `saving_goals` có khóa lạc quan `xmin` (thêm 2026-11-05). Handler mới ghi tiền vào ba bảng này phải đọc, tính rồi lưu một lần **trước** mọi tác dụng phụ bên ngoài và đăng ký lớp bọc `Retrying*` (`Application/Common/RetryingMoneyHandlers.cs`); thiếu lớp bọc thì xung đột trả 409 thay vì tự chạy lại
 
 ---

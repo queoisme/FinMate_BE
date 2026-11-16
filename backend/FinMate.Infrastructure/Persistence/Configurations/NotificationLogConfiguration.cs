@@ -10,7 +10,7 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
     public void Configure(EntityTypeBuilder<NotificationLog> builder)
     {
         builder.ToTable("notification_logs", t => t.HasCheckConstraint(
-            "chk_notification_logs_status", "status IN ('pending','processed','failed','ignored')"));
+            "chk_notification_logs_status", "status IN ('pending','processed','failed','ignored','duplicate')"));
 
         builder.HasKey(n => n.Id);
         builder.Property(n => n.Id)
@@ -51,6 +51,11 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
 
         builder.HasIndex(n => new { n.Status, n.RetryCount })
             .HasDatabaseName("idx_notification_logs_status_retry_count");
+
+        // Phase 84 (BR-LH-03): lịch sử thông báo của từng ví trong 30 ngày, đọc mỗi sáng cho mọi ví đang theo dõi.
+        builder.HasIndex(n => new { n.FinancialAccountId, n.ReceivedAt })
+            .HasFilter("financial_account_id IS NOT NULL")
+            .HasDatabaseName("ix_notification_logs_account_received");
 
         builder.HasOne(n => n.User)
             .WithMany()

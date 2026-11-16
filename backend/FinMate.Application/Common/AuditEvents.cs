@@ -98,6 +98,9 @@ public static class AuditEvents
     public const string GroupInvitationCreated = "Group.Invitation.Created";
     public const string GroupInvitationRevoked = "Group.Invitation.Revoked";
 
+    /// <summary>Phase 85 (S3): người có ManageFunds xoá dòng quỹ của người khác. Chỉ ghi id, không số tiền.</summary>
+    public const string GroupFundEntryDeleted = "Group.Fund.Entry.Deleted";
+
     // Vận hành. Chỉ ghi id và trạng thái, không ghi nội dung ticket.
     public const string OpsTicketClaimed = "Ops.Ticket.Claimed";
     public const string OpsTicketAssigned = "Ops.Ticket.Assigned";

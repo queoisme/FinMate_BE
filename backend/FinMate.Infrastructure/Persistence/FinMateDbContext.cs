@@ -13,6 +13,9 @@ public class FinMateDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<DeviceListenerStatus> DeviceListenerStatuses => Set<DeviceListenerStatus>();
+    public DbSet<DeviceListenerDay> DeviceListenerDays => Set<DeviceListenerDay>();
+    public DbSet<ListenerUploadGapDaily> ListenerUploadGapDaily => Set<ListenerUploadGapDaily>();
     public DbSet<ReceiptScan> ReceiptScans => Set<ReceiptScan>();
     public DbSet<ReceiptScanItem> ReceiptScanItems => Set<ReceiptScanItem>();
     public DbSet<ReceiptScanLink> ReceiptScanLinks => Set<ReceiptScanLink>();
@@ -26,6 +29,7 @@ public class FinMateDbContext : DbContext
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
+    public DbSet<TransactionMergeSnapshot> TransactionMergeSnapshots => Set<TransactionMergeSnapshot>();
     public DbSet<ForecastSnapshot> ForecastSnapshots => Set<ForecastSnapshot>();
     public DbSet<ForecastFeedback> ForecastFeedback => Set<ForecastFeedback>();
     public DbSet<CounterpartyCategoryOverride> CounterpartyCategoryOverrides => Set<CounterpartyCategoryOverride>();
@@ -57,6 +61,8 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupFund> GroupFunds => Set<GroupFund>();
+    public DbSet<GroupFundEntry> GroupFundEntries => Set<GroupFundEntry>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();
     public DbSet<CommunityPlace> CommunityPlaces => Set<CommunityPlace>();
     public DbSet<CommunityPost> CommunityPosts => Set<CommunityPost>();

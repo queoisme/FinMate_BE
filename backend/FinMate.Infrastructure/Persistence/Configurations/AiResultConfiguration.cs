@@ -23,9 +23,16 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
 
     public void Configure(EntityTypeBuilder<AiResult> builder)
     {
-        builder.ToTable("ai_results", t => t.HasCheckConstraint(
-            "chk_ai_results_pipeline_result",
-            "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')"));
+        builder.ToTable("ai_results", t =>
+        {
+            t.HasCheckConstraint(
+                "chk_ai_results_pipeline_result",
+                "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
+            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')");
+            t.HasCheckConstraint(
+                "chk_ai_results_transfer_kind",
+                "transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))");
+        });
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id)
@@ -62,6 +69,18 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
 
         builder.Property(a => a.IsPotentialDuplicate).HasColumnName("is_potential_duplicate").HasDefaultValue(false);
         builder.Property(a => a.DuplicateRequestId).HasColumnName("duplicate_request_id");
+        builder.Property(a => a.RelationHint)
+            .HasColumnName("relation_hint")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<NotificationRelationHint>(v, true))
+            .HasMaxLength(20);
+        builder.Property(a => a.TransferKind)
+            .HasColumnName("transfer_kind")
+            .HasConversion(
+                v => v == null ? null : TransferKindColumn.ToColumn(v.Value),
+                v => v == null ? null : TransferKindColumn.FromColumn(v))
+            .HasMaxLength(24);
 
         builder.Property(a => a.ClassifierVersion).HasColumnName("classifier_version").HasMaxLength(20);
         builder.Property(a => a.ExtractorVersion).HasColumnName("extractor_version").HasMaxLength(20);
@@ -73,6 +92,9 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
         builder.HasIndex(a => a.NotificationLogId)
             .IsUnique()
             .HasDatabaseName("uq_ai_results_notification_log_id");
+
+        // Phase 84 (BR-LH-10): đếm theo provider trong 8 ngày gần nhất, mỗi giờ một lần.
+        builder.HasIndex(a => a.CreatedAt).HasDatabaseName("ix_ai_results_created_at");
 
         builder.HasOne(a => a.NotificationLog)
             .WithOne(n => n.AiResult)

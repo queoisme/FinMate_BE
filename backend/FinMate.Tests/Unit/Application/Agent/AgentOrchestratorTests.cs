@@ -127,13 +127,121 @@ public class AgentOrchestratorTests
     }
 
     private static (AgentOrchestrator Orchestrator, FakeAi Ai, RecordingSource Source) Build(
-        long[]? income = null, IncomeSegment? segmentOverride = null, FakeCache? cache = null, AgentTraceContext? trace = null)
+        long[]? income = null, IncomeSegment? segmentOverride = null, FakeCache? cache = null, AgentTraceContext? trace = null,
+        FinMate.Application.ListenerHealth.IDataCoverageService? coverage = null, bool withKnowledge = false)
     {
         var source = new RecordingSource(new InMemoryFinancialDataSource(income ?? Income, Spend.Take((income ?? Income).Length).ToArray(), 100_000_000, segmentOverride));
         var assumptions = new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>());
-        var registry = new ToolRegistry([new ForecastGoalTool(source, assumptions), new GetAssumptionsAgentTool(assumptions)]);
+        IAgentTool[] toolList = withKnowledge
+            ? [new ForecastGoalTool(source, assumptions), new GetAssumptionsAgentTool(assumptions), new FakeKnowledgeTool()]
+            : [new ForecastGoalTool(source, assumptions), new GetAssumptionsAgentTool(assumptions)];
+        var registry = new ToolRegistry(toolList);
         var ai = new FakeAi();
-        return (new AgentOrchestrator(ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(cache ?? new FakeCache()), trace ?? new AgentTraceContext(), () => Now), ai, source);
+        return (new AgentOrchestrator(
+            ai, new ToolExecutor(registry), new IncomeHistory(source), new ConversationStore(cache ?? new FakeCache()), trace ?? new AgentTraceContext(), () => Now,
+            coverage: coverage), ai, source);
+    }
+
+    private sealed class FakeKnowledgeTool : IAgentTool
+    {
+        public ToolSpec Spec { get; } = new("search_knowledge", "Tra tri thức.", [new ToolArg("query", "string", true)]);
+
+        public Task<ToolResult> RunAsync(ToolContext context, JsonElement args, CancellationToken ct = default)
+            => Task.FromResult(ToolResult.Ok([new Evidence("kb_1", "kb_1", null, "Quy tắc 50/30/20 chia thu nhập làm ba phần.", "text", EvidenceSource.Document, Now, 0.9)]));
+    }
+
+    private static FinMate.Application.ListenerHealth.IDataCoverageService Coverage(int? percent, string level)
+    {
+        var mock = new Mock<FinMate.Application.ListenerHealth.IDataCoverageService>();
+        mock.Setup(c => c.GetForecastSummaryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FinMate.Application.ListenerHealth.DataCoverageSummaryDto(
+                percent, level, 90, level == "poor" ? FinMate.Application.ListenerHealth.ForecastCoverage.Warning(percent ?? 0) : null));
+        return mock.Object;
+    }
+
+    private const string PoorSentence = "Chỉ 40% số ngày gần đây FinMate đọc được thông báo ngân hàng, nên dự báo có thể thiếu giao dịch.";
+
+    [Fact]
+    public async Task poor_data_coverage_ends_the_answer_with_the_fixed_sentence_even_when_the_llm_ignores_it()
+    {
+        var (orchestrator, _, _) = Build(coverage: Coverage(40, "poor"));
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.Claims[^1].Text.Should().Be(PoorSentence);
+        answer.Claims[^1].EvidenceIds.Should().Equal("data_coverage");
+        var evidence = answer.Evidence.Single(e => e.Id == "data_coverage");
+        evidence.Text.Should().Be(PoorSentence);
+        evidence.ValueVnd.Should().BeNull();
+        evidence.Unit.Should().Be("percent");
+    }
+
+    [Fact]
+    public async Task the_llm_sees_the_coverage_evidence()
+    {
+        var (orchestrator, ai, _) = Build(coverage: Coverage(40, "poor"));
+        IReadOnlyList<Evidence>? sent = null;
+        ai.Compose = evidence =>
+        {
+            sent = evidence;
+            return new AgentComposeResult([new AgentClaim("Dữ liệu có thể thiếu.", ["data_coverage"])], false, false, null);
+        };
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        sent.Should().Contain(e => e.Id == "data_coverage");
+        answer.Claims.Should().ContainSingle(c => c.EvidenceIds.Contains("data_coverage"));   // đã có mệnh đề trích nó thì không ghép thêm
+    }
+
+    [Fact]
+    public async Task when_ai_service_is_down_the_template_answer_still_says_data_may_be_missing_once()
+    {
+        var (orchestrator, ai, _) = Build(coverage: Coverage(40, "poor"));
+        ai.ComposeError = new AIServiceUnavailableException("down");
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.Claims.Where(c => c.EvidenceIds.Contains("data_coverage")).Should().ContainSingle()
+            .Which.Text.Should().Contain("40% số ngày");
+    }
+
+    [Theory]
+    [InlineData(90, "good")]
+    [InlineData(70, "partial")]
+    [InlineData(null, "unknown")]
+    public async Task coverage_that_is_not_poor_adds_nothing(int? percent, string level)
+    {
+        var (orchestrator, _, _) = Build(coverage: Coverage(percent, level));
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.Evidence.Should().NotContain(e => e.Id == "data_coverage");
+    }
+
+    [Fact]
+    public async Task a_knowledge_only_answer_does_not_mention_data_coverage()
+    {
+        var (orchestrator, ai, _) = Build(coverage: Coverage(40, "poor"), withKnowledge: true);
+        ai.Plan = _ => new AgentPlanResult("knowledge", [new AgentPlanStep("search_knowledge", Json("""{"query":"50/30/20"}"""))], null, null);
+        ai.Compose = _ => new AgentComposeResult([new AgentClaim("Quy tắc 50/30/20 chia thu nhập làm ba phần.", ["kb_1"])], false, false, null);
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "quy tắc 50/30/20 là gì");
+
+        answer.Evidence.Should().NotContain(e => e.Id == "data_coverage");
+        answer.Claims.Should().NotContain(c => c.EvidenceIds.Contains("data_coverage"));
+    }
+
+    [Fact]
+    public async Task a_broken_coverage_lookup_does_not_break_the_answer()
+    {
+        var coverage = new Mock<FinMate.Application.ListenerHealth.IDataCoverageService>();
+        coverage.Setup(c => c.GetForecastSummaryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ThrowsAsync(new TimeoutException());
+        var (orchestrator, _, _) = Build(coverage: coverage.Object);
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.Status.Should().Be(AgentStatus.Answered);
+        answer.Evidence.Should().NotContain(e => e.Id == "data_coverage");
     }
 
     [Fact]

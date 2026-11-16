@@ -32,6 +32,16 @@ public class CreateManualTransactionCommandValidator : AbstractValidator<CreateM
             .NotEqual(TransactionSource.Support)
             .WithMessage("Giao dịch do hỗ trợ tạo hộ không tạo được ở đây.");
 
+        // Phase 81, D5: hoàn "mồ côi" (không có khoản gốc trong app). Có khoản gốc thì dùng POST /transactions/{id}/refunds.
+        When(x => x.Relation is not null, () =>
+        {
+            RuleFor(x => x.Relation).Equal(TransactionRelation.Refund)
+                .WithMessage("Chỉ ghi được hoàn tiền không có khoản gốc ở đây; đảo giao dịch dùng POST /transactions/{id}/refunds.");
+            RuleFor(x => x.TransactionType).Equal(TransactionType.Credit).WithMessage("Khoản hoàn là tiền vào.");
+            RuleFor(x => x.CategoryId).NotNull().WithMessage("Khoản hoàn không có khoản gốc phải chọn danh mục chi tiêu.");
+            RuleFor(x => x.GroupId).Null().WithMessage("Khoản hoàn không có khoản gốc không chia sẻ vào nhóm được.");
+        });
+
         RuleFor(x => x.MerchantName).MaximumLength(200);
         RuleFor(x => x.Description).MaximumLength(500);
     }

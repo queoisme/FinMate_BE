@@ -26,4 +26,16 @@ public interface IAnomalyRepository
     Task<TransactionAnomaly?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
 
     Task UpdateAsync(TransactionAnomaly anomaly, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 81 (R2): đóng các đánh dấu bất thường CÒN MỞ của một giao dịch với lý do hệ thống (<c>Refunded</c>/<c>Reversed</c>). Chỉ đổi dữ liệu
+    /// đang được theo dõi, KHÔNG lưu: lưu cùng thao tác hoàn/đảo. Trả số dòng đã đóng.
+    /// </summary>
+    Task<int> ResolveOpenForTransactionAsync(Guid userId, Guid transactionId, Domain.Enums.AnomalyResolution resolution, DateTimeOffset at, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 82 (D10): bỏ đánh dấu bất thường của một giao dịch (bản bị gộp: mọi dòng; survivor đổi ví/ngày: chỉ dòng CÒN MỞ, để lượt quét sau
+    /// xét lại, giữ câu trả lời người dùng đã đưa). Chỉ đổi dữ liệu đang được theo dõi, KHÔNG lưu. Trả số dòng đã bỏ.
+    /// </summary>
+    Task<int> RemoveForTransactionAsync(Guid userId, Guid transactionId, bool openOnly, CancellationToken ct = default);
 }

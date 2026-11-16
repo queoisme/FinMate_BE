@@ -61,6 +61,18 @@ public class AnomalyService : IAnomalyService
         ["suspicious"] = AnomalyResolution.Suspicious,
     };
 
+    // Lý do hệ thống tự đóng (Phase 81, 83): client đọc được nhưng không gửi được, nên tách khỏi bảng nhận phản hồi ở trên.
+    private static readonly Dictionary<AnomalyResolution, string> ResolutionDisplay = new()
+    {
+        [AnomalyResolution.Normal] = "normal",
+        [AnomalyResolution.OneOff] = "one_off",
+        [AnomalyResolution.WrongEntry] = "wrong_entry",
+        [AnomalyResolution.Suspicious] = "suspicious",
+        [AnomalyResolution.Refunded] = "refunded",
+        [AnomalyResolution.Reversed] = "reversed",
+        [AnomalyResolution.Transfer] = "transfer",
+    };
+
     private readonly IAnomalyRepository _anomalies;
     private readonly IForecastDataRepository _data;
     private readonly IRecurringItemRepository _items;
@@ -187,7 +199,7 @@ public class AnomalyService : IAnomalyService
     };
 
     private static string? ResolutionText(AnomalyResolution? resolution)
-        => resolution is { } r ? ResolutionByText.First(p => p.Value == r).Key : null;
+        => resolution is { } r ? ResolutionDisplay[r] : null;
 
     private static AnomalyDto ToDto(TransactionAnomaly a) => new(
         a.Id,

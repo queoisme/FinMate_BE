@@ -18,11 +18,80 @@ public record TransactionDto(
     long? BalanceAfterCents,
     DateTimeOffset CreatedAt,
     Guid? GroupId = null,
+    string? Relation = null,
+    Guid? RelatedTransactionId = null,
+    bool IsReversed = false,
+    long? RefundedCents = null,
+    long? RemainingRefundableCents = null,
+    IReadOnlyList<RefundSuggestionDto>? SuggestedRelatedTransactions = null,
+    string? DuplicateStatus = null,
+    DuplicateSummaryDto? DuplicateOf = null,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null,
+    IReadOnlyList<string>? MergedSources = null,
+    TransferSuggestionDto? TransferSuggestion = null,
+    GroupFundLinkDto? GroupFundLink = null,
     Guid? GoalId = null,
     string? GoalName = null,
     Guid? ReceiptScanId = null,
     AiClassificationDto? AiClassification = null,
     SourceDetailDto? SourceDetail = null);
+
+/// <summary>
+/// Phase 85: giao dịch này ghi lại một dòng quỹ nhóm ở sổ cá nhân (Transfer không ví đích; không là chi, không là thu). <c>Kind</c>: <c>Contribution</c>,
+/// <c>Expense</c>, <c>Withdrawal</c>. <c>Direction</c>: <c>out</c> (tiền ra khỏi ví) hoặc <c>in</c>. <c>EntryDeleted</c>: người quản lý đã xoá dòng quỹ (S3);
+/// giao dịch vẫn ở sổ cá nhân, người dùng tự xoá hoặc (với khoản chi lấy từ giao dịch) gọi <c>restore-from-fund</c>. Vẫn trả sau khi rời nhóm (D20).
+/// </summary>
+public record GroupFundLinkDto(Guid GroupId, Guid FundId, string FundName, string Kind, string Direction, bool EntryDeleted);
+
+/// <summary>
+/// Phase 83: gợi ý "đây có thể là tiền chuyển giữa các ví của bạn". Tính khi đọc. <c>PairedTransaction</c> có khi đã tìm thấy chiều bên kia (gọi
+/// <c>convert-to-transfer</c> với <c>pairedTransactionId</c>); không thì người dùng chọn một ví trong <c>CandidateAccounts</c> (rỗng với rút ATM mà
+/// chưa có ví Tiền mặt: app mời tạo ví). <c>Kind</c>: <c>AtmWithdrawal</c>, <c>AtmDeposit</c>, <c>WalletTopup</c>, <c>WalletWithdrawal</c>, <c>OwnAccount</c>.
+/// </summary>
+public record TransferSuggestionDto(
+    string Kind,
+    TransferPairedDto? PairedTransaction,
+    IReadOnlyList<TransferAccountDto> CandidateAccounts,
+    long? FeeCents);
+
+/// <summary>
+/// Phase 83 (phần B): kết quả SẼ ra của một lượt gộp hoặc chuyển đổi, không ghi gì. <c>Survivor</c> là giao dịch còn lại sau thao tác, <c>Fee</c> là
+/// khoản phí sẽ tạo (nếu có), <c>BalanceChanges</c> là số dư từng ví trước và sau.
+/// </summary>
+public record TransactionPreviewDto(
+    TransactionDto Survivor, TransactionDto? Fee, IReadOnlyList<BalanceChangeDto> BalanceChanges, IReadOnlyList<string>? Warnings = null);
+
+public record BalanceChangeDto(Guid AccountId, string AccountName, long BalanceBeforeCents, long BalanceAfterCents);
+
+public record TransferPairedDto(Guid Id, long AmountCents, DateTimeOffset TransactedAt, Guid FinancialAccountId, string? FinancialAccountName);
+
+public record TransferAccountDto(Guid Id, string Name, string AccountType);
+
+/// <summary>
+/// Phase 82 trên mỗi giao dịch: <c>DuplicateStatus</c> (<c>Suspected</c>/<c>Dismissed</c>) và <c>DuplicateOf</c> (giao dịch nó có thể trùng)
+/// khi có liên kết; <c>SuggestedDuplicates</c> chỉ với NHÁP, tính khi đọc (tối đa 3, hạng 1 trước); <c>MergedSources</c> khi giao dịch là
+/// survivor của một lần gộp (có <c>notification</c> = ngân hàng đã xác thực). Trường nào không áp dụng thì null.
+/// </summary>
+public sealed record DuplicateView(DuplicateSummaryDto? Of, IReadOnlyList<DuplicateSummaryDto>? Suggested)
+{
+    public static readonly DuplicateView None = new(null, null);
+}
+
+/// <summary>
+/// Phase 81. Trên mỗi giao dịch: <c>Relation</c> (<c>Refund</c>/<c>Reversal</c>) và <c>RelatedTransactionId</c> khi đây là khoản hoàn/đảo;
+/// <c>RefundedCents</c>/<c>RemainingRefundableCents</c> chỉ có với khoản chi đã xác nhận; <c>IsReversed</c> khi khoản chi đã bị đảo;
+/// <c>SuggestedRelatedTransactions</c> chỉ có với NHÁP mà AI đoán là hoàn/đảo (tối đa 3, tốt nhất trước). Trường nào không áp dụng thì null.
+/// </summary>
+public record RefundSuggestionDto(
+    Guid TransactionId,
+    long AmountCents,
+    long RefundedCents,
+    long RemainingRefundableCents,
+    string? MerchantName,
+    Guid? CategoryId,
+    string? CategoryName,
+    Guid FinancialAccountId,
+    DateTimeOffset TransactedAt);
 
 public record TransactionListDto(IReadOnlyList<TransactionDto> Items, string? NextCursor);
 
@@ -71,10 +140,13 @@ public record ScannedReceiptDto(
     int IncompleteOrders = 0,
     SourceDetailDto? SourceDetail = null,
     string? AiExplanation = null,
-    DraftConfidenceDto? FieldConfidence = null);
+    DraftConfidenceDto? FieldConfidence = null,
+    IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
 
 /// <summary>Một đơn trong ảnh chụp màn hình danh sách đơn hàng; app hiện mỗi đơn một bản nháp để người dùng xác nhận từng đơn.</summary>
-public record ScannedOrder(string? MerchantName, long AmountCents, string? Description, string? CategorySlug);
+/// <param name="SuggestedDuplicates">Phase 82: giao dịch đã ghi mà đơn này có thể trùng (thường là thông báo ngân hàng).</param>
+public record ScannedOrder(
+    string? MerchantName, long AmountCents, string? Description, string? CategorySlug, IReadOnlyList<DuplicateSummaryDto>? SuggestedDuplicates = null);
 
 /// <summary>Kênh nhập giao dịch để hiển thị. <paramref name="Channel"/>: Chat | Voice | Receipt | Notification | Manual | Support.</summary>
 public record SourceDetailDto(string Channel, string Label);
@@ -84,3 +156,16 @@ public record AiClassificationDto(double Confidence, string Reason, string? Mode
 
 /// <summary>Độ tin cậy 0–1 của bản nháp; trường nào hệ thống không có căn cứ thì null (không bịa số).</summary>
 public record DraftConfidenceDto(double? Overall, double? Amount, double? Category, double? Merchant, double? OccurredAt);
+
+/// <summary>
+/// Một giao dịch có thể trùng (Phase 82), đủ để app hiện cạnh bản đang xét mà không phải gọi thêm. Chỉ dữ liệu của chính user.
+/// </summary>
+/// <param name="Source">Kênh đã ghi giao dịch (<c>Notification</c>, <c>Manual</c>…), để app nói "ngân hàng báo" hay "bạn đã nhập".</param>
+public record DuplicateSummaryDto(
+    Guid Id,
+    long AmountCents,
+    DateTimeOffset TransactedAt,
+    string Source,
+    string? MerchantName,
+    string? CategoryName,
+    string? FinancialAccountName);

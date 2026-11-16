@@ -49,6 +49,9 @@ public static class PurchaseWarningCodes
     public const string BudgetUnknown = "budget_unknown";
     public const string PlanOver = "plan_over";
     public const string PlanUnknown = "plan_unknown";
+
+    /// <summary>Phase 84 (BR-LH-08): app đọc thông báo ngân hàng ở dưới mức tối thiểu số ngày, giao dịch có thể bị thiếu.</summary>
+    public const string DataCoveragePoor = "data_coverage_poor";
 }
 
 public sealed record PurchasePointDto(DateOnly Day, long BalanceCents);
@@ -76,7 +79,8 @@ public sealed record PurchaseQuality(
     bool IncomeScheduleKnown,
     bool HorizonChosenByUser,
     int? BalanceAgeDays,
-    int StaleBalanceDays);
+    int StaleBalanceDays,
+    string? PoorCoverageWarning = null);
 
 public sealed record PurchaseVerdictInput(
     DateOnly Today,
@@ -180,6 +184,13 @@ public static class PurchaseVerdict
             warnings.Add(new PurchaseWarningDto(
                 PurchaseWarningCodes.NoIncomeSchedule,
                 $"Chưa biết ngày nhận thu nhập kế tiếp nên chỉ đánh giá trong {input.HorizonDays} ngày sau ngày mua. Hãy thêm khoản thu định kỳ để chính xác hơn."));
+            partial = true;
+        }
+
+        if (quality.PoorCoverageWarning is { } coverageWarning)
+        {
+            // Như "dữ liệu một phần": thiếu tiền vẫn báo, nhưng không bao giờ nói "phù hợp kế hoạch" khi giao dịch có thể bị thiếu.
+            warnings.Add(new PurchaseWarningDto(PurchaseWarningCodes.DataCoveragePoor, coverageWarning));
             partial = true;
         }
 

@@ -69,7 +69,7 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
     }
 
     /// <summary>Đổi cờ qua API admin, như cách vận hành thật. Cờ không truyền thì giữ nguyên.</summary>
-    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null, bool? subscriptions = null)
+    public async Task SetFeaturesAsync(bool? groups = null, bool? support = null, bool? subscriptions = null, bool? groupFunds = null)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FinMate.Infrastructure.Persistence.FinMateDbContext>();
@@ -84,8 +84,10 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         var features = current.GetProperty("content").GetProperty("features");
         var (oldGroups, oldSupport) = (features.GetProperty("groups").GetBoolean(), features.GetProperty("support").GetBoolean());
         var oldSubscriptions = features.GetProperty("subscriptions").GetBoolean();
+        var oldGroupFunds = features.GetProperty("groupFunds").GetBoolean();
         var (newGroups, newSupport, newSubscriptions) = (groups ?? oldGroups, support ?? oldSupport, subscriptions ?? oldSubscriptions);
-        if (newGroups == oldGroups && newSupport == oldSupport && newSubscriptions == oldSubscriptions)
+        var newGroupFunds = groupFunds ?? oldGroupFunds;
+        if (newGroups == oldGroups && newSupport == oldSupport && newSubscriptions == oldSubscriptions && newGroupFunds == oldGroupFunds)
         {
             return;
         }
@@ -93,13 +95,16 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
         var saved = await client.PutAsJsonAsync(url, new
         {
             expectedVersion = current.GetProperty("version").GetInt32(),
-            content = new { features = new { groups = newGroups, support = newSupport, subscriptions = newSubscriptions } },
+            content = new { features = new { groups = newGroups, support = newSupport, subscriptions = newSubscriptions, groupFunds = newGroupFunds } },
             note = "kiem thu",
         });
         saved.EnsureSuccessStatusCode();
     }
 
     public Task SetGroupsEnabledAsync(bool enabled) => SetFeaturesAsync(groups: enabled);
+
+    /// <summary>Quỹ nhóm cần cả hai cờ.</summary>
+    public Task SetGroupFundsEnabledAsync(bool enabled) => SetFeaturesAsync(groups: enabled ? true : null, groupFunds: enabled);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

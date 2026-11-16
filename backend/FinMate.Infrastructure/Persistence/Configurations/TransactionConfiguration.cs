@@ -17,11 +17,22 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             // chi tiêu nên không thuộc danh mục nào); debit/credit thì ngược lại, không được có
             // ví đích. Ràng ở DB chứ không chỉ ở validator: một transfer thiếu counter_account_id
             // sẽ trừ tiền ví nguồn mà không cộng vào đâu cả — mất tiền im lặng.
+            // Phase 85 thêm đúng một nhánh, chỉ mở khi có group_fund_entry_id: transfer gắn quỹ nhóm không có ví đích (đầu kia là quỹ,
+            // không phải ví). Transfer thường vẫn bắt buộc ví đích như trước.
             t.HasCheckConstraint(
                 "chk_transactions_transfer_shape",
                 "(transaction_type = 'transfer' AND counter_account_id IS NOT NULL "
                 + "AND counter_account_id <> financial_account_id AND category_id IS NULL) "
+                + "OR (transaction_type = 'transfer' AND counter_account_id IS NULL AND category_id IS NULL AND group_fund_entry_id IS NOT NULL) "
                 + "OR (transaction_type <> 'transfer' AND counter_account_id IS NULL)");
+
+            // Giao dịch gắn quỹ (BR-FUND-08): luôn là transfer không ví đích, đã xác nhận, không chia sẻ nhóm; hướng đi cùng liên kết.
+            t.HasCheckConstraint(
+                "chk_transactions_group_fund_link",
+                "(group_fund_entry_id IS NULL) = (group_fund_direction IS NULL) "
+                + "AND (group_fund_direction IS NULL OR group_fund_direction IN ('out','in')) "
+                + "AND (group_fund_entry_id IS NULL OR (transaction_type = 'transfer' AND counter_account_id IS NULL "
+                + "AND group_id IS NULL AND status = 'confirmed'))");
             t.HasCheckConstraint(
                 "chk_transactions_source",
                 "source IN ('notification','manual','voice','receipt','support')");
@@ -30,6 +41,29 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
             // Chuyển khoản nội bộ không phải chi tiêu nên không có gì để chia sẻ.
             t.HasCheckConstraint("chk_transactions_group_shareable", "group_id IS NULL OR transaction_type <> 'transfer'");
             t.HasCheckConstraint("chk_transactions_group_category", "group_category_id IS NULL OR group_id IS NOT NULL");
+
+            // Hoàn tiền / đảo giao dịch (Phase 81). Khoản mang quan hệ luôn là tiền VÀO, nên mọi nhánh số dư hiện có (credit → +)
+            // vẫn đúng mà không phải biết tới hoàn tiền; còn mọi phép cộng thu nhập phải loại nó ra (relation IS NULL).
+            t.HasCheckConstraint("chk_transactions_relation", "relation IS NULL OR relation IN ('refund','reversal')");
+            t.HasCheckConstraint("chk_transactions_relation_money_in", "relation IS NULL OR transaction_type = 'credit'");
+            t.HasCheckConstraint("chk_transactions_related_has_relation", "related_transaction_id IS NULL OR relation IS NOT NULL");
+            t.HasCheckConstraint("chk_transactions_related_not_self", "related_transaction_id IS NULL OR related_transaction_id <> id");
+
+            // Hoàn "mồ côi" (không có khoản gốc trong app) được phép; đảo thì luôn phải trỏ tới khoản bị đảo.
+            t.HasCheckConstraint("chk_transactions_reversal_has_original", "relation IS NULL OR relation <> 'reversal' OR related_transaction_id IS NOT NULL");
+            t.HasCheckConstraint("chk_transactions_reversed_debit", "is_reversed = false OR transaction_type = 'debit'");
+
+            // Bản trùng có liên kết (Phase 82). Trạng thái và liên kết luôn đi cùng nhau: bỏ nghi trùng là bỏ cả hai.
+            t.HasCheckConstraint("chk_transactions_duplicate_status", "duplicate_status IS NULL OR duplicate_status IN ('suspected','dismissed')");
+            t.HasCheckConstraint("chk_transactions_duplicate_link", "(duplicate_status IS NULL) = (duplicate_of_transaction_id IS NULL)");
+            t.HasCheckConstraint("chk_transactions_duplicate_not_self", "duplicate_of_transaction_id IS NULL OR duplicate_of_transaction_id <> id");
+            t.HasCheckConstraint("chk_transactions_merged_not_self", "merged_into_transaction_id IS NULL OR merged_into_transaction_id <> id");
+
+            // Bản bị gộp luôn xoá mềm, để mọi truy vấn đang lọc deleted_at tự loại nó mà không phải biết tới việc gộp.
+            t.HasCheckConstraint("chk_transactions_merged_deleted", "merged_into_transaction_id IS NULL OR deleted_at IS NOT NULL");
+            t.HasCheckConstraint(
+                "chk_transactions_merged_sources",
+                "merged_sources IS NULL OR merged_sources <@ ARRAY['notification','manual','voice','receipt','support']::text[]");
 
             // Lý do chỉ có khi đang bị loại khỏi dự báo, và bị loại thì phải có lý do.
             t.HasCheckConstraint(
@@ -102,6 +136,69 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.GroupCategoryId).HasColumnName("group_category_id");
         builder.Property(t => t.SharedAt).HasColumnName("shared_at");
         builder.Property(t => t.SupportTicketId).HasColumnName("support_ticket_id");
+
+        builder.Property(t => t.RelatedTransactionId).HasColumnName("related_transaction_id");
+        builder.Property(t => t.Relation)
+            .HasColumnName("relation")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<TransactionRelation>(v, true))
+            .HasMaxLength(20);
+        builder.Property(t => t.IsReversed).HasColumnName("is_reversed").HasDefaultValue(false);
+
+        // NO ACTION (không phải Restrict/Cascade): Postgres kiểm ở cuối câu lệnh, nên xoá cứng cả user (cascade xoá mọi giao dịch
+        // trong MỘT câu) không vướng thứ tự gốc/hoàn. Xoá mềm thì ứng dụng chặn bằng HAS_REFUNDS trước khi tới đây.
+        builder.HasOne(t => t.RelatedTransaction)
+            .WithMany()
+            .HasForeignKey(t => t.RelatedTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.RelatedTransactionId)
+            .HasFilter("related_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_related_transaction_id");
+
+        builder.Property(t => t.DuplicateOfTransactionId).HasColumnName("duplicate_of_transaction_id");
+        builder.Property(t => t.DuplicateStatus)
+            .HasColumnName("duplicate_status")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<DuplicateStatus>(v, true))
+            .HasMaxLength(20);
+        builder.Property(t => t.MergedIntoTransactionId).HasColumnName("merged_into_transaction_id");
+        builder.Property(t => t.MergedSources).HasColumnName("merged_sources");
+        builder.Property(t => t.TransferDismissedAt).HasColumnName("transfer_dismissed_at");
+        builder.Property(t => t.GroupFundEntryId).HasColumnName("group_fund_entry_id");
+        builder.Property(t => t.GroupFundDirection)
+            .HasColumnName("group_fund_direction")
+            .HasConversion(
+                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
+                v => v == null ? null : Enum.Parse<GroupFundDirection>(v, true))
+            .HasMaxLength(3);
+
+        // RESTRICT: dòng quỹ không bao giờ bị xoá cứng (chỉ xoá mềm, S3), nên liên kết luôn còn chỗ trỏ tới. Mỗi dòng quỹ có tối đa một giao dịch.
+        builder.HasOne(t => t.GroupFundEntry)
+            .WithMany()
+            .HasForeignKey(t => t.GroupFundEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(t => t.GroupFundEntryId)
+            .IsUnique()
+            .HasFilter("group_fund_entry_id IS NOT NULL")
+            .HasDatabaseName("uq_transactions_group_fund_entry_id");
+
+        // NO ACTION, cùng lý do với related_transaction_id: xoá cứng user xoá cả chuỗi trong một câu lệnh.
+        builder.HasOne(t => t.DuplicateOf)
+            .WithMany()
+            .HasForeignKey(t => t.DuplicateOfTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.DuplicateOfTransactionId)
+            .HasFilter("duplicate_of_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_duplicate_of_transaction_id");
+        builder.HasOne<Transaction>()
+            .WithMany()
+            .HasForeignKey(t => t.MergedIntoTransactionId)
+            .OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(t => t.MergedIntoTransactionId)
+            .HasFilter("merged_into_transaction_id IS NOT NULL")
+            .HasDatabaseName("ix_transactions_merged_into_transaction_id");
 
         builder.HasQueryFilter(t => t.DeletedAt == null);
 

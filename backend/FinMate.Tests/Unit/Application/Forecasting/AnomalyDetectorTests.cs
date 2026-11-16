@@ -79,6 +79,35 @@ public class AnomalyDetectorTests
         AnomalyDetector.Evaluate(first, history, [], [], Rules, AnomalyRules).Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void APairTheUserAlreadyReviewedAsDuplicates_IsNotFlaggedAgain(bool laterPointsAtEarlier)
+    {
+        // Phase 82 (BR-DUP-13, D10): cặp có liên kết trùng (đang nghi trùng hoặc người dùng đã bác) do luồng Gộp/Không trùng lo, không gắn cờ lần hai.
+        var first = Spend(0, 250_000, "Điện máy X", hour: 10, minute: 0);
+        var second = Spend(0, 250_000, "Điện máy X", hour: 10, minute: 4);
+        if (laterPointsAtEarlier)
+        {
+            second = second with { DuplicateOfTransactionId = first.Id };
+        }
+        else
+        {
+            first = first with { DuplicateOfTransactionId = second.Id };
+        }
+
+        AnomalyDetector.Evaluate(second, [first, second], [], [], Rules, AnomalyRules).Should().BeNull();
+    }
+
+    [Fact]
+    public void ALinkToSomeOtherTransaction_DoesNotHideARealTwin()
+    {
+        var first = Spend(0, 250_000, "Điện máy X", hour: 10, minute: 0);
+        var second = Spend(0, 250_000, "Điện máy X", hour: 10, minute: 4) with { DuplicateOfTransactionId = Guid.NewGuid() };
+
+        AnomalyDetector.Evaluate(second, [first, second], [], [], Rules, AnomalyRules)!.Kind.Should().Be(AnomalyKind.Duplicate);
+    }
+
     [Fact]
     public void SameAmountOnADifferentAccount_IsNotADuplicate()
     {

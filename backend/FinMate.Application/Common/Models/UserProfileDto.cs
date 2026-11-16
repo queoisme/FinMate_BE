@@ -16,6 +16,7 @@ public record UserProfileDto(
     bool SurveyAiConsentGranted = false,
     string OnboardingStatus = "pending",
     bool CommunityConsentGranted = false,
+    bool ListenerHealthAlertsEnabled = true,
     int? TermsVersion = null)
 {
     /// <param name="termsVersion">Phiên bản Điều khoản hiện hành (từ <c>ILegalVersionProvider</c>).</param>
@@ -33,5 +34,6 @@ public record UserProfileDto(
         user.SurveyAiConsentGranted,
         user.OnboardingStatus.ToString().ToLowerInvariant(),
         user.CommunityConsentGranted,
+        user.NotificationPrefs.ListenerHealthAlertsEnabled,
         user.TermsVersion);
 }

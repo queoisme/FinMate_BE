@@ -1007,3 +1007,19 @@ def test_changing_the_words_inside_a_group_changes_the_meaning_without_touching_
         assert parse("quý vừa rồi tôi tiêu bao nhiêu").query.period_label == "quý 3"
     finally:
         intent_cues.apply(intent_cues.CUES)
+
+
+# ---- Phase 81 (BR-RF-12): cashback khuyến mãi là thu nhập khác, không phải hoàn tiền ----
+@pytest.mark.parametrize(
+    "text,income_type",
+    [
+        ("được hoàn tiền 200k", "refund"),
+        ("shopee hoàn tiền đơn hàng 120k", "refund"),
+        ("nhận hoàn tiền khuyến mãi 50k", "other_income"),
+        ("nhận tiền thưởng hoàn 30k", "other_income"),
+    ],
+)
+def test_cashback_is_other_income_and_refund_stays_refund(text, income_type):
+    parsed = parse(text)
+    assert parsed.entry.kind == "income"
+    assert parsed.entry.income_type == income_type

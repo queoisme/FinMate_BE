@@ -34,6 +34,7 @@ using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Forecasting;
 using FinMate.Application.Groups;
+using FinMate.Application.Groups.Funds;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
 using FinMate.Application.Reports.Queries;
@@ -463,6 +464,7 @@ public class Program
         builder.Services.AddScoped<IProviderConfigRepository, ProviderConfigRepository>();
         builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
         builder.Services.AddScoped<ISetCategoryHiddenCommandHandler, SetCategoryHiddenCommandHandler>();
+        builder.Services.AddScoped<IMerchantCategoryOverrideRepository, MerchantCategoryOverrideRepository>();
         builder.Services.AddScoped<INotificationLogRepository, NotificationLogRepository>();
         builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
         builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
@@ -578,6 +580,14 @@ public class Program
         builder.Services.AddScoped<IGroupGoalService, GroupGoalService>();
         builder.Services.AddScoped<IGroupCategoryService, GroupCategoryService>();
         builder.Services.AddScoped<IGroupReportService, GroupReportService>();
+        builder.Services.AddScoped<IGroupFundRepository, GroupFundRepository>();
+        builder.Services.AddScoped<IGroupFundService, GroupFundService>();
+        builder.Services.AddScoped<IGroupFundSummaryService, GroupFundSummaryService>();
+        builder.Services.AddScoped<IGroupFundNotifier, GroupFundNotifier>();
+        builder.Services.AddScoped<IGroupFundSourceConverter, GroupFundSourceConverter>();
+        builder.Services.AddScoped<IGroupFundLinkSync, GroupFundLinkSync>();
+        builder.Services.AddScoped<GroupFundEntryService>();
+        builder.Services.AddScoped<IGroupFundEntryService>(sp => new RetryingGroupFundEntryService(sp.GetRequiredService<GroupFundEntryService>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IGroupOwnershipHandover, GroupOwnershipHandover>();
         builder.Services.AddScoped<IRecurringItemRepository, RecurringItemRepository>();
         builder.Services.AddScoped<IForecastDataRepository, ForecastDataRepository>();
@@ -606,6 +616,13 @@ public class Program
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        builder.Services.AddScoped<IListenerHealthRepository, ListenerHealthRepository>();
+        builder.Services.AddScoped<IProviderFormatRepository, ProviderFormatRepository>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IProviderFormatStatsService, FinMate.Application.ListenerHealth.ProviderFormatStatsService>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IProviderFormatMonitor, FinMate.Application.ListenerHealth.ProviderFormatMonitor>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReader, FinMate.Application.ListenerHealth.ListenerHealthReader>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IDataCoverageService, FinMate.Application.ListenerHealth.DataCoverageService>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IListenerHealthReminderService, FinMate.Application.ListenerHealth.ListenerHealthReminderService>();
         builder.Services.AddScoped<IQrTransferRepository, QrTransferRepository>();
         builder.Services.AddScoped<IQrTransferService, QrTransferService>();
         builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();
@@ -672,6 +689,7 @@ public class Program
         builder.Services.AddScoped<IConsentCommandHandler, ConsentCommandHandler>();
 
         builder.Services.AddScoped<IRegisterDeviceTokenCommandHandler, RegisterDeviceTokenCommandHandler>();
+        builder.Services.AddScoped<FinMate.Application.ListenerHealth.IReportListenerStatusCommandHandler, FinMate.Application.ListenerHealth.ReportListenerStatusCommandHandler>();
         builder.Services.AddScoped<IUnregisterDeviceTokenCommandHandler, UnregisterDeviceTokenCommandHandler>();
 
         builder.Services.AddScoped<ICreateFinancialAccountCommandHandler, CreateFinancialAccountCommandHandler>();
@@ -690,15 +708,33 @@ public class Program
         builder.Services.AddScoped<IAnalyzeNotificationCommandHandler, AnalyzeNotificationCommandHandler>();
 
         builder.Services.AddScoped<ConfirmTransactionCommandHandler>();
-        builder.Services.AddScoped<IConfirmTransactionCommandHandler>(sp => new RetryingConfirmTransactionCommandHandler(sp.GetRequiredService<ConfirmTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IConfirmTransactionCommandHandler>(sp => new RetryingConfirmTransactionCommandHandler(new RowLockedConfirmTransactionCommandHandler(sp.GetRequiredService<ConfirmTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateManualTransactionCommandHandler>();
         builder.Services.AddScoped<ICreateManualTransactionCommandHandler>(sp => new RetryingCreateManualTransactionCommandHandler(sp.GetRequiredService<CreateManualTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<CreateTransferCommandHandler>();
         builder.Services.AddScoped<ICreateTransferCommandHandler>(sp => new RetryingCreateTransferCommandHandler(sp.GetRequiredService<CreateTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundFollowUps, FinMate.Application.Transactions.Refunds.RefundFollowUps>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundSuggestions, FinMate.Application.Transactions.Refunds.RefundSuggestions>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Duplicates.IDuplicateDetector, FinMate.Application.Transactions.Duplicates.DuplicateDetector>();
+        builder.Services.AddScoped<INotDuplicateCommandHandler, NotDuplicateCommandHandler>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Transfers.ITransferSuggestions, FinMate.Application.Transactions.Transfers.TransferSuggestions>();
+        builder.Services.AddScoped<FinMate.Application.Transactions.Transfers.IMergeSnapshotRepository, MergeSnapshotRepository>();
+        builder.Services.AddScoped<INotTransferCommandHandler, NotTransferCommandHandler>();
+        builder.Services.AddScoped<ITransferRecurringCheck, FinMate.Application.Transactions.Transfers.TransferRecurringCheck>();
+        builder.Services.AddScoped<ConvertToTransferCommandHandler>();
+        builder.Services.AddScoped<IConvertToTransferCommandHandler>(sp => new RetryingConvertToTransferCommandHandler(sp.GetRequiredService<ConvertToTransferCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<MergeTransactionsCommandHandler>();
+        builder.Services.AddScoped<IMergeTransactionsCommandHandler>(sp => new RetryingMergeTransactionsCommandHandler(sp.GetRequiredService<MergeTransactionsCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<FinMate.Application.Transactions.Refunds.IRefundLedger, FinMate.Application.Transactions.Refunds.RefundLedger>();
+        builder.Services.AddScoped<CreateRefundCommandHandler>();
+        builder.Services.AddScoped<ICreateRefundCommandHandler>(sp => new RetryingCreateRefundCommandHandler(sp.GetRequiredService<CreateRefundCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<RelatedTransactionCommandHandler>();
+        builder.Services.AddScoped<ILinkRelatedTransactionCommandHandler>(sp => new RetryingLinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IUnlinkRelatedTransactionCommandHandler>(sp => new RetryingUnlinkRelatedTransactionCommandHandler(sp.GetRequiredService<RelatedTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<UpdateTransactionCommandHandler>();
-        builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IUpdateTransactionCommandHandler>(sp => new RetryingUpdateTransactionCommandHandler(new RowLockedUpdateTransactionCommandHandler(sp.GetRequiredService<UpdateTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<DeleteTransactionCommandHandler>();
-        builder.Services.AddScoped<IDeleteTransactionCommandHandler>(sp => new RetryingDeleteTransactionCommandHandler(sp.GetRequiredService<DeleteTransactionCommandHandler>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IDeleteTransactionCommandHandler>(sp => new RetryingDeleteTransactionCommandHandler(new RowLockedDeleteTransactionCommandHandler(sp.GetRequiredService<DeleteTransactionCommandHandler>(), sp.GetRequiredService<ITransactionRepository>()), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IParseNaturalLanguageCommandHandler, ParseNaturalLanguageCommandHandler>();
         // Tách bill theo món: mặc định TẮT, giá trị sai cũng coi là tắt (Receipt__SplitByItemsEnabled khi đặt qua biến môi trường).
         builder.Services.AddSingleton(new FinMate.Application.Transactions.ReceiptOptions(
@@ -741,10 +777,13 @@ public class Program
         builder.Services.AddScoped<RetryFailedNotificationJob>();
         builder.Services.AddScoped<BudgetAlertJob>();
         builder.Services.AddScoped<DailySummaryJob>();
+        builder.Services.AddScoped<IDailySummaryRefresher, DailySummaryRefresher>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
+        builder.Services.AddScoped<ListenerHealthDailyJob>();
+        builder.Services.AddScoped<ProviderFormatMonitorJob>();
         builder.Services.AddScoped<ForecastAlertDispatchJob>();
         builder.Services.AddScoped<ForecastUserCheckJob>();
         builder.Services.AddScoped<AiCategorySyncJob>();
@@ -882,11 +921,15 @@ public class Program
         {
             RecurringJob.AddOrUpdate<SystemMonitorJob>("system-monitor", job => job.RunAsync(CancellationToken.None), "* * * * *");
             RecurringJob.AddOrUpdate<MonitoringDigestJob>("monitoring-digest", job => job.RunAsync(CancellationToken.None), "0 1 * * *");
+
+            // Mỗi giờ phút 05 (BR-LH-10): tỉ lệ đọc lỗi / tỉ lệ giao dịch theo provider, nghi ngân hàng đổi mẫu thông báo.
+            RecurringJob.AddOrUpdate<ProviderFormatMonitorJob>("provider-format-monitor", job => job.RunAsync(CancellationToken.None), "5 * * * *");
         }
         else
         {
             RecurringJob.RemoveIfExists("system-monitor");
             RecurringJob.RemoveIfExists("monitoring-digest");
+            RecurringJob.RemoveIfExists("provider-format-monitor");
         }
 
         // Mỗi 3 giờ, lệch phút 5 để không dồn vào đầu giờ của các trang nguồn.
@@ -946,6 +989,12 @@ public class Program
             "forecast-daily-alerts",
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
+
+        // 02:00 UTC = 09:00 VN (BR-LH-05): nhắc khi app không còn đọc được thông báo ngân hàng, sau lượt cảnh báo dự báo lúc 08:00.
+        RecurringJob.AddOrUpdate<ListenerHealthDailyJob>(
+            "listener-health-daily",
+            job => job.RunAsync(CancellationToken.None),
+            "0 2 * * *");
 
         RecurringJob.AddOrUpdate<ForecastAlertDispatchJob>(
             "forecast-alert-dispatch",
