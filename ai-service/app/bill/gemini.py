@@ -1,6 +1,6 @@
 """Gọi Gemini để phân loại tên món trên hóa đơn khi luật/ML không chắc; mọi model Gemini đều lỗi thì thử nhà cung cấp dự phòng (OpenRouter).
 
-Chỉ gửi tên món (mảng JSON) + chỉ dẫn; không giá, không cửa hàng, không user. Tuyệt đối không log tên món hay chỉ dẫn.
+Chỉ gửi tên món (mảng JSON) + chỉ dẫn; đường chọn trong danh mục riêng của người dùng (``classify_among``, danh sách đánh số) gửi thêm TÊN danh mục do chính người dùng đặt; không giá, không cửa hàng, không user. Tuyệt đối không log tên món hay chỉ dẫn.
 """
 
 import asyncio
