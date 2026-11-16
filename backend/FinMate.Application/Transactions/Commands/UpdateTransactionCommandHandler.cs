@@ -27,6 +27,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IQrTransferLinker? _qrLinker;  // null: không có luồng quét QR thì sửa danh mục không ghi nhớ người nhận
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
+    private readonly IItemMemoryService? _itemMemory;  // null: không có dịch vụ bộ nhớ món (test cũ) thì bỏ qua
+
     private readonly IGroupLedger? _groupLedger;
 
     public UpdateTransactionCommandHandler(
@@ -43,8 +45,10 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         ITrainingSampleService? trainingSamples = null,
         IQrTransferLinker? qrLinker = null,
         IForecastAlertTrigger? forecastAlerts = null,
-        IGroupLedger? groupLedger = null)
+        IGroupLedger? groupLedger = null,
+        IItemMemoryService? itemMemory = null)
     {
+        _itemMemory = itemMemory;
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -222,6 +226,19 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         if (categoryChanged && transaction.Source == TransactionSource.Receipt && _trainingSamples is not null)
         {
             await RelabelTrainingSampleAsync(transaction.Id, command.UserId, newCategory, ct);
+        }
+
+        // Bộ nhớ món của người dùng: dịch vụ tự kiểm lần quét có tách không và lọc món; ở đây chỉ chặn lỗi để việc sửa đã lưu không thành 500.
+        if (categoryChanged && transaction.Source == TransactionSource.Receipt && _itemMemory is not null)
+        {
+            try
+            {
+                await _itemMemory.LearnFromCorrectionAsync(command.UserId, transaction.Id, newCategory, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Item memory correction failed after the category was corrected: {ExceptionType}", ex.GetType().Name);
+            }
         }
         await NotifyForecastAsync(command.UserId, ct);
 

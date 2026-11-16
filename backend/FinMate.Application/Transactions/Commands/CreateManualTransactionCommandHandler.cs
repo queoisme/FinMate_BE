@@ -27,6 +27,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly IUserNotificationService? _userNotifications;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
+    private readonly IItemMemoryService? _itemMemory;  // null: không có dịch vụ bộ nhớ món (test cũ) thì bỏ qua
+
     private readonly IGroupLedger? _groupLedger;
 
     public CreateManualTransactionCommandHandler(
@@ -43,8 +45,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         ITrainingSampleService? trainingSamples = null,
         IForecastAlertTrigger? forecastAlerts = null,
         IGroupLedger? groupLedger = null,
-        IUserNotificationService? userNotifications = null)
+        IUserNotificationService? userNotifications = null,
+        IItemMemoryService? itemMemory = null)
     {
+        _itemMemory = itemMemory;
         _groupLedger = groupLedger;
         _transactionRepository = transactionRepository;
         _financialAccountRepository = financialAccountRepository;
@@ -143,6 +147,9 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
 
         // Giao dịch điền từ ảnh hóa đơn: nối nó với bản ghi quét. Kết quả bị bỏ qua có chủ ý (xem ReceiptScanId ở command): mã sai không được làm hỏng việc lưu tiền.
         var scanWasSplit = false;
+        // Hai biến này ở ngoài try để bước học bộ nhớ món (sau cùng) biết liên kết có THỰC SỰ được tạo hay không (replay hoặc tra cứu lỗi thì không học).
+        var linked = false;
+        string? linkedGroup = null;
         if (command.ReceiptScanId is { } scanId && command.Source == TransactionSource.Receipt)
         {
             // Giao dịch đã lưu rồi: nối/kiểm tra lỗi (mất kết nối, v.v.) không được biến thành 500 để client bấm Lưu lại và tạo trùng.
@@ -167,7 +174,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
                     group = scan?.CategorySlug ?? ReceiptScanLink.UnknownGroup;
                 }
 
-                await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
+                linked = await _receiptScanRepository.LinkToTransactionAsync(scanId, command.UserId, transaction.Id, group, ct);
+                linkedGroup = group;
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
@@ -188,6 +196,20 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         {
             await _aiServiceClient.LearnMerchantAsync(
                 new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug), ct);
+        }
+
+        // Bộ nhớ món của người dùng: chỉ học khi liên kết vừa được tạo (không phải gửi lại) với lần quét đã tách. Giao dịch đã lưu rồi nên lỗi nào cũng không được thành 500 (client bấm Lưu lại sẽ tạo trùng); chỉ ghi tên loại lỗi.
+        if (_itemMemory is not null && linked && command.Source == TransactionSource.Receipt
+            && command.ReceiptScanId is { } learnedScan && linkedGroup is not null)
+        {
+            try
+            {
+                await _itemMemory.LearnFromSavedGroupAsync(command.UserId, learnedScan, linkedGroup, category, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Item memory learning failed after the transaction was saved: {ExceptionType}", ex.GetType().Name);
+            }
         }
         await NotifyForecastAsync(command.UserId, ct);
 
