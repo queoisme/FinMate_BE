@@ -45,6 +45,12 @@ public interface IAIServiceApi
     [Post("/api/v1/bill/classify-items")]
     Task<ClassifyItemsApiResponse> ClassifyItemsAsync([Body] ClassifyItemsApiRequest request, CancellationToken ct = default);
 
+    [Post("/api/v1/bill/items/memory")]
+    Task ItemMemoryLearnAsync([Body] LearnItemsApiRequest request, CancellationToken ct = default);
+
+    [Post("/api/v1/bill/items/memory/erase")]
+    Task ItemMemoryEraseAsync([Body] ItemMemoryEraseApiRequest request, CancellationToken ct = default);
+
     [Post("/api/v1/bill/classify")]
     Task<BillClassifyApiResponse> BillClassifyAsync([Body] BillClassifyApiRequest request, CancellationToken ct = default);
 }
