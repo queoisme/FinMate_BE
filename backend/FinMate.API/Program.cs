@@ -608,6 +608,7 @@ public class Program
         builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
+        builder.Services.AddScoped<IItemMemoryService, ItemMemoryService>();
         builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();

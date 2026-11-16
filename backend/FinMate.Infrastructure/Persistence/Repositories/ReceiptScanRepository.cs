@@ -83,6 +83,28 @@ public class ReceiptScanRepository : IReceiptScanRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<IReadOnlyList<ReceiptScanItem>> GetGroupItemsAsync(
+        Guid scanId, Guid userId, string groupCategorySlug, CancellationToken ct = default)
+    {
+        var isUnknown = groupCategorySlug == ReceiptScanLink.UnknownGroup;
+        return await _context.ReceiptScanItems.AsNoTracking()
+            // Lọc theo chủ sở hữu qua lần quét: id lần quét không đủ để đọc món của người khác.
+            .Where(i => i.ScanId == scanId && _context.ReceiptScans.Any(s => s.Id == scanId && s.UserId == userId))
+            .Where(i => i.CategorySource != "discount" && i.CategorySource != "surcharge" && i.ParentPosition == null)
+            .Where(i => isUnknown ? i.CategorySlug == null : i.CategorySlug == groupCategorySlug)
+            .OrderBy(i => i.Position)
+            .ToListAsync(ct);
+    }
+
+    public async Task<(Guid ScanId, string Group)?> GetLinkedGroupAsync(Guid transactionId, Guid userId, CancellationToken ct = default)
+    {
+        var link = await _context.ReceiptScanLinks.AsNoTracking()
+            .Where(l => l.TransactionId == transactionId && _context.ReceiptScans.Any(s => s.Id == l.ScanId && s.UserId == userId))
+            .Select(l => new { l.ScanId, l.GroupCategorySlug })
+            .FirstOrDefaultAsync(ct);
+        return link is null ? null : (link.ScanId, link.GroupCategorySlug);
+    }
+
     public Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default)
         => _context.ReceiptScans.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId, ct);
 }

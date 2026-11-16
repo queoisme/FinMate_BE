@@ -25,7 +25,8 @@ public interface ITrainingSampleService
 
 public class TrainingSampleService : ITrainingSampleService
 {
-    private const string IncomeSlug = "income";
+    // internal: ItemMemoryService dùng chung để nhận diện danh mục thu nhập theo slug.
+    internal const string IncomeSlug = "income";
     private const int MaxMerchantChars = 200;
     private const int MaxLines = 200;
 
