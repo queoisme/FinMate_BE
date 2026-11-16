@@ -85,8 +85,9 @@ public class ItemMemoryService : IItemMemoryService
 
     private async Task LearnAsync(Guid userId, Guid scanId, string group, Category? finalCategory, string? forcedKind, CancellationToken ct)
     {
-        // Thu nhập và cho vay nhận diện theo slug (Category chưa có cột loại); danh mục của chính người dùng (UserId != null) thì được học.
-        if (finalCategory is null || finalCategory.Slug == TrainingSampleService.IncomeSlug || finalCategory.Slug == Category.LoanSlug)
+        // Thu nhập nhận diện theo Kind (danh mục thu nhập tự tạo có slug bất kỳ) và theo slug hệ thống; cho vay theo slug. Danh mục chi tiêu riêng của người dùng thì được học.
+        if (finalCategory is null || finalCategory.Kind == Category.KindIncome
+            || finalCategory.Slug == TrainingSampleService.IncomeSlug || finalCategory.Slug == Category.LoanSlug)
         {
             return;
         }

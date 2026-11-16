@@ -97,6 +97,18 @@ public class ItemMemoryServiceTests
     }
 
     [Fact]
+    public async Task Learn_SkipsAnIncomeKindFinalCategoryWhateverItsSlug()
+    {
+        ScanIs(true, Item(0, "Sữa tươi"));
+        var income = Cat("thuong-tet", Guid.NewGuid());
+        income.Kind = Category.KindIncome;  // danh mục thu nhập tự tạo: slug không phải "income" nhưng Kind là thu nhập
+
+        await Service().LearnFromSavedGroupAsync(_userId, _scanId, "food", income);
+
+        VerifyNothingSent();
+    }
+
+    [Fact]
     public async Task Learn_SendsNothingWhenThereAreNoEligibleItems()
     {
         ScanIs(true);
