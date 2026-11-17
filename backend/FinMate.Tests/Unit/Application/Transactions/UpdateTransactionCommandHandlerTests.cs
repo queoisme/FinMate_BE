@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -340,5 +341,69 @@ public class UpdateTransactionCommandHandlerTests
             userId, It.IsAny<Guid?>(), It.Is<long>(d => d != 0),
             It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    // ------------------------------------------------------------ bộ nhớ món theo người dùng
+
+    private (UpdateTransactionCommandHandler Handler, FinMate.Domain.Entities.Transaction Transaction, Category NewCategory, Mock<IItemMemoryService> ItemMemory)
+        ItemMemorySetup(Guid userId, bool changeCategory)
+    {
+        var oldCategory = new Category { Id = Guid.NewGuid(), Slug = "food", Name = "Ăn uống" };
+        var newCategory = changeCategory ? new Category { Id = Guid.NewGuid(), Slug = "household", Name = "Gia dụng" } : oldCategory;
+        // Draft: không cộng trừ số dư hay ngân sách, thứ cần kiểm ở đây là việc ghi nhớ.
+        var transaction = new FinMate.Domain.Entities.Transaction
+        {
+            Id = Guid.NewGuid(), UserId = userId, FinancialAccountId = Guid.NewGuid(), CategoryId = oldCategory.Id, Category = oldCategory,
+            AmountCents = 16_000, TransactionType = TransactionType.Debit, Status = TransactionStatus.Draft,
+            Source = TransactionSource.Receipt, TransactedAt = DateTimeOffset.UtcNow,
+        };
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>())).ReturnsAsync(transaction);
+        _categoryRepository.Setup(r => r.GetByIdAsync(newCategory.Id, It.IsAny<CancellationToken>())).ReturnsAsync(newCategory);
+        var itemMemory = new Mock<IItemMemoryService>();
+        var handler = new UpdateTransactionCommandHandler(
+            _transactionRepository.Object, _financialAccountRepository.Object, _categoryRepository.Object, _aiServiceClient.Object,
+            _budgetPeriodService.Object, _budgetAlertNotifier.Object, _cache.Object, new Mock<IReceiptScanRepository>().Object,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<UpdateTransactionCommandHandler>.Instance,
+            new UpdateTransactionCommandValidator(), itemMemory: itemMemory.Object);
+        return (handler, transaction, newCategory, itemMemory);
+    }
+
+    private static UpdateTransactionCommand ItemMemoryCommand(Guid userId, FinMate.Domain.Entities.Transaction t, Category category)
+        => new(userId, t.Id, t.FinancialAccountId, null, category.Id, t.AmountCents, t.TransactionType, t.TransactedAt, null, null);
+
+    [Fact]
+    public async Task Update_CategoryChangeOnReceiptTransaction_TeachesCorrection()
+    {
+        var userId = Guid.NewGuid();
+        var (handler, transaction, newCategory, itemMemory) = ItemMemorySetup(userId, changeCategory: true);
+
+        await handler.HandleAsync(ItemMemoryCommand(userId, transaction, newCategory));
+
+        itemMemory.Verify(m => m.LearnFromCorrectionAsync(userId, transaction.Id, newCategory, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_NoCategoryChange_DoesNotTeach()
+    {
+        var userId = Guid.NewGuid();
+        var (handler, transaction, sameCategory, itemMemory) = ItemMemorySetup(userId, changeCategory: false);
+
+        await handler.HandleAsync(ItemMemoryCommand(userId, transaction, sameCategory));
+
+        itemMemory.Verify(m => m.LearnFromCorrectionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Update_StillSavesWhenItemMemoryThrows()
+    {
+        var userId = Guid.NewGuid();
+        var (handler, transaction, newCategory, itemMemory) = ItemMemorySetup(userId, changeCategory: true);
+        itemMemory.Setup(m => m.LearnFromCorrectionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        var result = await handler.HandleAsync(ItemMemoryCommand(userId, transaction, newCategory));
+
+        result.CategoryId.Should().Be(newCategory.Id);
+        _transactionRepository.Verify(r => r.UpdateAsync(transaction, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

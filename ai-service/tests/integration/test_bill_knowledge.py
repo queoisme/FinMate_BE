@@ -1,5 +1,7 @@
 """Kiến thức hóa đơn trên Postgres thật: nạp thương hiệu và từ khóa từ DB, nhớ cửa hàng theo người dùng, và các ràng buộc của bảng ``bill_*``."""
 
+import uuid
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
@@ -8,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.bill import brands, classifier
 from app.bill.classifier import classify_category_detailed
-from app.bill.knowledge import DbBillKnowledge, merchant_key
+from app.bill.knowledge import DbBillKnowledge, MemoryHit, merchant_key
 from app.services import category_resolver
 from app.db.bill_views import UNKNOWN_MERCHANTS_VIEW
 
@@ -218,3 +220,14 @@ async def test_database_keywords_reach_the_resolver_after_refresh(session, facto
     await DbBillKnowledge(factory).refresh_if_stale()
 
     assert category_resolver.resolve("zxqv thing").slug == "shopping"
+
+
+async def test_user_item_memory_returns_this_users_category_ids_only(session, factory):
+    mine, theirs = uuid.uuid4(), uuid.uuid4()
+    insert = "INSERT INTO user_item_memory (user_id_hash, item_key, category_id, source) VALUES (:u, :k, :c, 'accepted')"
+    await execute(session, insert, u=USER, k="ca phe sua", c=mine)
+    await execute(session, insert, u=OTHER, k="ca phe sua", c=theirs)
+    knowledge = DbBillKnowledge(factory)
+
+    assert await knowledge.user_item_memory(USER, ["ca phe sua", "tra dao"]) == {"ca phe sua": MemoryHit(mine, "accepted")}
+    assert await knowledge.user_item_memory(USER, []) == {}

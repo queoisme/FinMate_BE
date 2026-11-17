@@ -190,12 +190,31 @@ public record TrainingLabelRequest(Guid ScanId, Guid UserId, string FinalSlug);
 // POST /api/v1/bill/classify-items — phân loại từng món. KHÔNG bao giờ gửi số tiền, chỉ tên món và chỉ số dòng cha.
 public record ClassifyItemInput(string Name, int? Parent);
 
-public record ClassifyItemsRequest(Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi);
+/// <summary>Một danh mục của người dùng gửi kèm để AI chọn ra. <c>Name</c> được cắt 40 ký tự ở Infrastructure; <c>ParentSlug</c> là slug hệ thống cha (null với danh mục hệ thống).</summary>
+public record ClassifyCategoryInput(Guid Id, string Name, string Slug, bool IsSystem, string? ParentSlug);
+
+public record ClassifyItemsRequest(
+    Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi,
+    IReadOnlyList<ClassifyCategoryInput>? Categories = null);
 
 /// <param name="Source">rule | cache | inherit | merchant | ai | unknown.</param>
 public record ClassifiedItem(int Index, string? CategorySlug, string Source);
 
 public record ClassifyItemsResponse(IReadOnlyList<ClassifiedItem> Items, bool AiUsed);
+
+// POST /api/v1/bill/items/memory — người dùng đã chốt danh mục cho tên món. Chỉ tên món và id danh mục, không số tiền.
+public static class ItemMemoryKinds
+{
+    /// <summary>Người dùng sửa danh mục AI gợi ý.</summary>
+    public const string Corrected = "corrected";
+
+    /// <summary>Người dùng giữ nguyên danh mục AI gợi ý.</summary>
+    public const string Accepted = "accepted";
+}
+
+public record LearnItemEntry(string Name, Guid CategoryId, string Kind);
+
+public record LearnItemsRequest(Guid UserId, IReadOnlyList<LearnItemEntry> Items);
 
 public interface IAIServiceClient
 {
@@ -248,4 +267,10 @@ public interface IAIServiceClient
 
     /// <summary>KHÔNG best-effort: ném lỗi khi ai-service không xác nhận được, để người gọi báo và thử lại. Xóa MỌI mẫu huấn luyện của người dùng (rút đồng ý đóng góp, hoặc xóa cứng tài khoản).</summary>
     Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Best-effort như <see cref="LearnMerchantAsync"/>. Ghi nhớ danh mục người dùng đã chốt cho từng tên món (1..60 món mỗi lần).</summary>
+    Task LearnItemsAsync(LearnItemsRequest request, CancellationToken ct = default);
+
+    /// <summary>KHÔNG best-effort: ném lỗi khi ai-service không xác nhận được, để người gọi báo và thử lại. Xóa MỌI bộ nhớ tên món của người dùng.</summary>
+    Task EraseItemMemoryAsync(Guid userId, CancellationToken ct = default);
 }

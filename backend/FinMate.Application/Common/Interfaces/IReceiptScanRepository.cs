@@ -31,6 +31,16 @@ public interface IReceiptScanRepository
     /// <summary>Mã lần quét mà giao dịch đã được nối tới (của <paramref name="userId"/>); null khi giao dịch chưa nối với lần quét nào.</summary>
     Task<Guid?> GetLinkedScanIdAsync(Guid transactionId, Guid userId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Các món THƯỜNG của một nhóm trong lần quét của <paramref name="userId"/>, theo thứ tự dòng. <paramref name="groupCategorySlug"/> bằng
+    /// <see cref="ReceiptScanLink.UnknownGroup"/> khớp món không có slug. Bỏ dòng giảm giá/phụ thu và món phụ (<c>ParentPosition != null</c>).
+    /// Lần quét của người khác hoặc không tồn tại: rỗng.
+    /// </summary>
+    Task<IReadOnlyList<ReceiptScanItem>> GetGroupItemsAsync(Guid scanId, Guid userId, string groupCategorySlug, CancellationToken ct = default);
+
+    /// <summary>Lần quét và nhóm mà giao dịch đã được nối tới (của <paramref name="userId"/>); null khi chưa nối.</summary>
+    Task<(Guid ScanId, string Group)?> GetLinkedGroupAsync(Guid transactionId, Guid userId, CancellationToken ct = default);
+
     /// <summary>Lọc theo <paramref name="userId"/> như mọi truy vấn khác: id một lần quét không được đủ để đọc bản ghi của người khác.</summary>
     Task<ReceiptScan?> GetByIdAsync(Guid id, Guid userId, CancellationToken ct = default);
 

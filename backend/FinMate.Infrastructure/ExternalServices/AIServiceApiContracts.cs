@@ -188,7 +188,15 @@ public record ClassifyItemsApiRequest(
     [property: JsonPropertyName("items")] IReadOnlyList<ClassifyItemApiInput> Items,
     [property: JsonPropertyName("merchant_name")] string? MerchantName,
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
-    [property: JsonPropertyName("allow_ai")] bool AllowAi);
+    [property: JsonPropertyName("allow_ai")] bool AllowAi,
+    [property: JsonPropertyName("categories")] IReadOnlyList<ClassifyCategoryApiInput>? Categories = null);
+
+public record ClassifyCategoryApiInput(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("slug")] string Slug,
+    [property: JsonPropertyName("is_system")] bool IsSystem,
+    [property: JsonPropertyName("parent_slug")] string? ParentSlug);
 
 public record ClassifiedItemApiResult(
     [property: JsonPropertyName("index")] int Index,
@@ -198,3 +206,15 @@ public record ClassifiedItemApiResult(
 public record ClassifyItemsApiResponse(
     [property: JsonPropertyName("items")] IReadOnlyList<ClassifiedItemApiResult> Items,
     [property: JsonPropertyName("ai_used")] bool AiUsed);
+
+public record LearnItemApiEntry(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("category_id")] Guid CategoryId,
+    [property: JsonPropertyName("kind")] string Kind);
+
+public record LearnItemsApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("items")] IReadOnlyList<LearnItemApiEntry> Items);
+
+public record ItemMemoryEraseApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash);

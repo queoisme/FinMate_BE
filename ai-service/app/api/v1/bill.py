@@ -21,7 +21,7 @@ from app.api.deps import verify_internal_api_key
 from app.bill.classify_stats import ClassifyStatsRecorder, build_counts
 from app.bill.gemini import LlmClient
 from app.bill.item_classifier import classify_items
-from app.bill import item_votes
+from app.bill import item_memory, item_votes
 from app.bill import samples as bill_samples
 from app.bill import slug_model
 from app.bill.rules_classify import MAX_CONFIDENCE as _MAX_CONFIDENCE
@@ -37,6 +37,10 @@ from app.schemas.bill import (
     BillClassifyItemsRequest,
     BillItemFeedbackRequest,
     BillItemFeedbackResponse,
+    BillItemMemoryEraseRequest,
+    BillItemMemoryEraseResponse,
+    BillItemMemoryRequest,
+    BillItemMemoryResponse,
     BillClassifyItemsResponse,
     BillClassifyRequest,
     BillClassifyResponse,
@@ -259,6 +263,33 @@ async def record_item_feedback(
     return BillItemFeedbackResponse(recorded=recorded)
 
 
+@router.post("/bill/items/memory", response_model=BillItemMemoryResponse)
+async def record_item_memory(
+    body: BillItemMemoryRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillItemMemoryResponse:
+    """Ghi nhóm người dùng đã chọn cho từng món vào bảng nhớ riêng của họ (``corrected`` đè ``accepted``, không ngược lại); ``recorded`` là số dòng thực sự được ghi.
+    Best-effort như ``/bill/items/feedback``: lỗi DB không bao giờ thành 500, vì việc nhớ món là phần phụ của việc lưu hóa đơn."""
+    try:
+        async with factory() as session:
+            recorded = await item_memory.record(session, body.user_id_hash, [(item.name, item.category_id, item.kind) for item in body.items])
+    except Exception as error:  # noqa: BLE001 - bảng nhớ là phần phụ, không được làm hỏng luồng lưu hóa đơn
+        logger.warning("bill_item_memory_failed", error=type(error).__name__)
+        recorded = 0
+    logger.info("bill_item_memory", recorded=recorded, items=len(body.items))  # không ghi tên món hay danh mục
+    return BillItemMemoryResponse(recorded=recorded)
+
+
+@router.post("/bill/items/memory/erase", response_model=BillItemMemoryEraseResponse)
+async def erase_item_memory(
+    body: BillItemMemoryEraseRequest, factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+) -> BillItemMemoryEraseResponse:
+    """Xóa toàn bộ bảng nhớ món của người dùng này (khi xóa tài khoản). Lỗi DB để lan ra (500): người gọi cần biết việc xóa chưa xong."""
+    async with factory() as session:
+        deleted = await item_memory.delete_by_user_hash(session, body.user_id_hash)
+    logger.info("bill_item_memory_erased", deleted=deleted)
+    return BillItemMemoryEraseResponse(deleted=deleted)
+
+
 @router.post("/bill/classify-items", response_model=BillClassifyItemsResponse)
 async def classify_bill_items(
     body: BillClassifyItemsRequest,
@@ -271,7 +302,10 @@ async def classify_bill_items(
     started = time.perf_counter()
     merchant = body.merchant_name.strip() if body.merchant_name and body.merchant_name.strip() else None
     stats: dict[str, int] = {}
-    items, ai_used = await classify_items(body.items, merchant, knowledge, gemini, instruction, body.allow_ai, stats=stats)
+    items, ai_used = await classify_items(
+        body.items, merchant, knowledge, gemini, instruction, body.allow_ai, stats=stats,
+        user_id_hash=body.user_id_hash, categories=body.categories,
+    )
     try:
         await recorder.record(build_counts(items, body.allow_ai, ai_used, stats))  # đo mức dùng: chỉ số đếm, lỗi thì bỏ qua
     except Exception as error:  # noqa: BLE001
