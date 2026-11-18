@@ -1644,3 +1644,30 @@ Nhánh `feat/group-fund` (từ `main` @ `4601e1f`, sau PR #33). Kế hoạch ph�
   - **Push:** `data.kind = group_fund_negative` (`groupId`, `fundId`) và `group_fund_removed` (`groupId`, `fundId`, `entryId`).
   - **Lỗi mới:** `GROUP_FUNDS_DISABLED`, `GROUP_TOO_MANY_FUNDS`, `GROUP_FUND_NOT_SETTLED`, `GROUP_FUND_ARCHIVED`, `GROUP_FUND_ENTRY_INVALID`, `GROUP_FUND_ENTRY_LOCKED`, `GROUP_FUND_SOURCE_NOT_ELIGIBLE`, `TRANSACTION_GROUP_FUND_LINKED`.
   - **Hạn chế cần nói với người dùng:** người giữ quỹ nhận tiền góp qua ngân hàng sẽ thấy khoản đó là thu nhập; tạm thời tự chuyển nó thành chuyển ví hoặc xoá.
+
+## Phase 86 — Văn bản pháp lý (thiết kế 2026-11-13, merge từ `dev/tuan` vào `dev/tho` 2026-11-18)
+Kế hoạch: `docs/superpowers/specs/2026-11-13-legal-documents-design.md`. API: `docs/ops-api.md`.
+- [x] Bảng `legal_versions` (migration `AddLegalVersions`): 1 dòng/phiên bản, chứa cả Terms + Privacy; `version` null khi nháp, gán `max+1` lúc xuất bản; tối đa 1 dòng `draft`; dòng `published` không sửa được.
+- [x] Xóa hằng `ConsentVersions.Terms`; `ILegalVersionProvider` đọc DB mỗi lần, không cache, để xuất bản có hiệu lực ngay trên mọi instance.
+- [x] `GET legal/terms|privacy` (ẩn danh); `GET/PUT ops/legal/draft`, `GET ops/legal/versions` (quyền mới `ManageLegalDocuments`, Manager trở lên); `POST admin/legal/draft/publish` (chỉ Admin, `ManageSystem`).
+- [x] Xuất bản → `termsAccepted = false` cho mọi người dùng cùng lúc; `GetUserProfileQueryHandler` so lại `TermsVersion` đã cache mỗi lần đọc. Đồng ý AI không bị ảnh hưởng (phiên bản riêng).
+- [x] `PUT draft` chặn ghi đè bằng `baseUpdatedAt` (409 nếu lệch); `publish` từ chối nháp trống hoặc giống hệt bản hiện hành.
+- [x] Audit `LegalDraftSaved`, `LegalVersionPublished` (chỉ số phiên bản, không ghi nội dung).
+- [ ] Bản 5 đầy đủ (Google Vision, nhóm, hỗ trợ) còn chờ người phụ trách pháp lý duyệt chữ — chưa xuất bản, hiện vẫn dùng bản 4 tạm.
+
+## Phase 88 — Giao dịch mở rộng, bản nháp và gợi ý trợ lý (2026-11-16, merge từ `dev/tuan` vào `dev/tho` 2026-11-18)
+API cho app: `docs/transaction-extras-api.md`.
+- [x] `TransactionDto` (chi tiết) thêm `goalId`/`goalName`, `receiptScanId`, `aiClassification {confidence, reason, model}` (dựng từ tín hiệu pipeline có sẵn, không gọi thêm LLM), `sourceDetail {channel, label}`; danh sách giao dịch có cùng trường, các mục chỉ-chi-tiết trả `null`.
+- [x] `PUT/DELETE transactions/{id}/goal`, `POST transactions/{id}/share-receipt` (trả văn bản mở share sheet, không có link công khai), `POST recurring-items/from-transaction/{id}`.
+- [x] Bản nháp (chat/thông báo/hóa đơn) thêm `sourceDetail`, `aiExplanation`, `confidence`; `sourceDetail.channel = Chat` chỉ ở bản nháp — giao dịch chat đã lưu luôn mang `source = Manual`.
+- [x] `GET assistant/suggestions`: câu gợi ý khung chat, cấu hình `assistant.suggestions`/`assistant.maxSuggestions`, lọc theo ngữ cảnh người gọi (`always`/`noTransactionToday`/`hasBudget`/`hasGoal`).
+- [ ] Đã bỏ khỏi phạm vi theo yêu cầu chủ dự án, không tự thêm lại: phí/hạn mức chuyển ví (`GET transactions/transfer-rules`, mã `TRANSFER_LIMIT_EXCEEDED`).
+- [ ] Không làm và sẽ không làm: xem ảnh hóa đơn (`GET transactions/{id}/receipt-image`) — ảnh xử lý trong bộ nhớ rồi bỏ, không lưu ở đâu (quyết định riêng tư có từ trước).
+
+## Phase 89 — Phân loại món theo danh mục riêng người dùng (2026-11-16, merge từ `dev/tuan` vào `dev/tho` 2026-11-18; backend + ai-service, không đổi app)
+Thiết kế: `docs/superpowers/specs/2026-11-16-per-user-item-categories-design.md`.
+- [x] `ScanReceiptCommandHandler.TrySplitAsync` gửi danh mục riêng của người dùng (`id`, `name`, `slug`, `is_system`, `parent_slug`; tối đa 60, bỏ income/loan) cho ai-service `classify-items`; người dùng không có danh mục riêng → đường cũ y nguyên (`Categories = null`).
+- [x] Bảng nhớ riêng `user_item_memory` (`user_id_hash`, `item_key`; alembic `0037`) tra trước; rồi Gemini (danh sách đánh số các danh mục của người dùng, không gửi tên/id người dùng, id danh mục hay số tiền); rồi dự phòng luật/bảng nhớ chung — **mơ hồ** (không đoán) nếu người dùng có từ 2 danh mục riêng mơ hồ cùng nhóm cha hệ thống.
+- [x] Ghi nhận lúc lưu giao dịch (`CreateManualTransactionCommandHandler`) và khi sửa danh mục giao dịch đã tách (`UpdateTransactionCommandHandler`): `kind = corrected` (luôn đè) hoặc `accepted` (không đè `corrected`); mỗi người tối đa 1000 dòng.
+- [x] Xóa theo `user_id_hash` khi xóa tài khoản (`DataDeletionJob`); không xóa khi rút đồng ý huấn luyện (đây là bộ nhớ lựa chọn của người dùng, không phải dữ liệu huấn luyện).
+- [ ] Gap đã biết, chưa sửa (ghi trong design doc, không phải lỗi mới): danh mục riêng có thể trùng slug với danh mục hệ thống (`ExistsBySlugAsync` chỉ kiểm trong phạm vi 1 người dùng); chưa xác minh `user_merchant_memory` có bị xóa khi xóa tài khoản hay không.
