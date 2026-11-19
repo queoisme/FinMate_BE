@@ -515,6 +515,29 @@ Server biết khi nào `NotificationListenerService` trên máy đã ngừng, đ
 - **Dự báo:** `ForecastCoverage.Apply` chỉ ở `ForecastController`, `PurchaseCheckService` và `AgentOrchestrator`; engine và `ForecastAccuracyService` không đi qua, để thống kê độ chính xác vẫn đo độ tin cậy của engine. `poor` hạ độ tin cậy và thêm câu mẫu; không đổi con số. Cửa sổ = `forecast.historyWindowDays` kẹp 7–90, cache 10 phút, `PUT listener-status` xoá cache.
 - **Đổi mẫu tin:** `ProviderFormatMonitorJob` mỗi giờ (theo `MONITORING_ENABLED`) đếm `ai_results` theo provider trong một câu GROUP BY, không tính `error`. Trạng thái ở `ops_service_status` (`format:{key}`), sự cố qua `IIncidentService` (`notification_format:{key}`), email qua `IIncidentNotifier` như mọi nguồn khác.
 
+### 2.14 Văn bản pháp lý (thêm 2026-11-13, từ `main`/`dev/tuan`, gộp vào `dev/tho` 2026-11-18)
+
+Điều khoản và Chính sách quyền riêng tư chuyển từ hằng số viết cứng sang dữ liệu đọc từ DB. Thiết kế: `docs/superpowers/specs/2026-11-13-legal-documents-design.md`. API: `docs/ops-api.md`.
+
+- **Bảng** `legal_versions`: một dòng = một phiên bản chứa **cả hai** văn bản (`terms_sections`, `privacy_sections` jsonb); `version` null khi còn nháp, gán `max + 1` lúc xuất bản; tối đa một dòng `draft`; dòng `published` không bao giờ sửa.
+- `ConsentVersions.Terms` (hằng số) đã bị xóa; `ILegalVersionProvider` đọc `max(version)` của dòng `published` mỗi lần gọi, **không cache**, để xuất bản có hiệu lực ngay trên mọi instance. `ConsentVersions.Ai/Training/SurveyAi/Community` vẫn là hằng, không đổi.
+- **API:** `GET legal/terms`, `GET legal/privacy` ẩn danh (bản mới nhất); `GET/PUT ops/legal/draft` + `GET ops/legal/versions` cần quyền mới `ManageLegalDocuments` (Manager trở lên); `POST admin/legal/draft/publish` chỉ Admin (`ManageSystem`).
+- Xuất bản luôn tạo phiên bản mới và đưa `termsAccepted = false` cho **mọi người dùng** cùng lúc; `GetUserProfileQueryHandler` so lại `TermsVersion` đã cache (15 phút) với phiên bản hiện hành mỗi lần đọc, thiếu bước này thì xuất bản không có hiệu lực ngay. Xuất bản **không** đụng tới đồng ý AI (phiên bản riêng).
+- `PUT draft` dùng `baseUpdatedAt` chặn ghi đè giữa hai người soạn cùng lúc (409 nếu lệch); `publish` từ chối khi không có nháp hoặc nháp giống hệt bản hiện hành.
+- Audit: `LegalDraftSaved`, `LegalVersionPublished` (chỉ số phiên bản, không ghi nội dung).
+- Bản 4 (migration tạo sẵn, đã xuất bản) là nội dung tạm chép từ app cũ; bản 5 đầy đủ (Google Vision, nhóm, hỗ trợ) còn chờ người phụ trách pháp lý duyệt chữ trước khi xuất bản — xem cảnh báo tương tự ở Phase 18 (CLAUDE.md) về Terms v4.
+
+### 2.15 Giao dịch mở rộng, bản nháp và gợi ý trợ lý (thêm 2026-11-16, từ `main`/`dev/tuan`, gộp vào `dev/tho` 2026-11-18)
+
+Nhóm API phục vụ màn chi tiết giao dịch, bản nháp và khung chat — không có pipeline AI mới, chỉ lắp thêm trường/endpoint quanh dữ liệu đã có. API đầy đủ: `docs/transaction-extras-api.md`.
+
+- `TransactionDto` (chi tiết) thêm `goalId`/`goalName`, `receiptScanId`, `aiClassification {confidence, reason, model}` (dựng từ tín hiệu đã có sẵn trong pipeline — nguồn danh mục, độ tin cậy trích số tiền/phân loại — **không gọi thêm LLM**), `sourceDetail {channel, label}`. Danh sách giao dịch có cùng trường nhưng các mục chỉ-chi-tiết trả `null`.
+- Không có và sẽ không có endpoint xem ảnh hóa đơn: ảnh xử lý trong bộ nhớ rồi bỏ, không lưu ở đâu (quyết định riêng tư có từ trước, Phase 11/19). Muốn có ảnh phải lưu file + sửa Terms/Privacy — một quyết định sản phẩm riêng, chưa có.
+- Mới: `PUT/DELETE transactions/{id}/goal`, `POST transactions/{id}/share-receipt` (trả **văn bản** để mở share sheet, không có link công khai), `POST recurring-items/from-transaction/{id}`.
+- Bản nháp (chat/thông báo/hóa đơn, chưa xác nhận) thêm `sourceDetail`, `aiExplanation`, `confidence`. `sourceDetail.channel = Chat` chỉ xuất hiện ở bản nháp — giao dịch chat đã lưu luôn mang `source = Manual` (không có `Chat` ở giao dịch đã xác nhận).
+- `GET assistant/suggestions`: câu gợi ý cho khung chat, cấu hình ở system config `assistant.suggestions`/`assistant.maxSuggestions`, lọc theo ngữ cảnh người gọi (`always`/`noTransactionToday`/`hasBudget`/`hasGoal`). Bấm một gợi ý = gửi `text` của nó vào `POST transactions/chat` như gõ tay.
+- **Đã bỏ khỏi phạm vi** (theo yêu cầu chủ dự án, không tự thêm lại): phí/hạn mức chuyển ví (`GET transactions/transfer-rules`, mã `TRANSFER_LIMIT_EXCEEDED`).
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
