@@ -83,6 +83,12 @@ public class Program
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var dashboardSeedOnly = args.Contains(FinMate.Infrastructure.Persistence.Seed.DashboardDevelopmentSeeder.SeedOnlyArgument, StringComparer.Ordinal);
+        if (dashboardSeedOnly)
+        {
+            if (!builder.Environment.IsDevelopment()) throw new InvalidOperationException("Dashboard seed is only available in Development.");
+            builder.Configuration[FinMate.Infrastructure.Persistence.Seed.DashboardDevelopmentSeeder.EnabledKey] = "true";
+        }
 
         builder.Services.AddSingleton<OpsErrorQueue>();
         builder.Services.AddSingleton<OpsErrorSink>();
@@ -94,7 +100,7 @@ public class Program
             configuration
                 .WriteTo.Sink(services.GetRequiredService<OpsErrorSink>())
                 .MinimumLevel.Is(context.HostingEnvironment.IsDevelopment()
-                    ? Serilog.Events.LogEventLevel.Debug
+                    && !dashboardSeedOnly ? Serilog.Events.LogEventLevel.Debug
                     : Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
@@ -103,7 +109,11 @@ public class Program
             // là không ai đọc được và đầy dần cho tới khi hết chỗ; production thu log từ
             // stdout. Còn một lý do cụ thể nữa: image chạy bằng user không đặc quyền và /app
             // không cho user đó ghi.
-            if (context.HostingEnvironment.IsDevelopment())
+            if (dashboardSeedOnly)
+            {
+                configuration.MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning);
+            }
+            if (context.HostingEnvironment.IsDevelopment() && !dashboardSeedOnly)
             {
                 configuration.WriteTo.File(
                     new Serilog.Formatting.Json.JsonFormatter(),
@@ -829,6 +839,18 @@ public class Program
             {
                 // Người dùng demo có sáu tháng giao dịch để thử agent; cần danh mục hệ thống nên chạy SAU CategorySeeder. KHÔNG bao giờ chạy ngoài Development.
                 FinMate.Infrastructure.Persistence.Seed.DemoUserSeeder.SeedAsync(db, passwordHasher, builder.Configuration).GetAwaiter().GetResult();
+            }
+            var dashboardSeeded = FinMate.Infrastructure.Persistence.Seed.DashboardDevelopmentSeeder
+                .SeedAsync(db, passwordHasher, builder.Configuration, builder.Environment.IsDevelopment()).GetAwaiter().GetResult();
+            if (dashboardSeedOnly)
+            {
+                // Compute genuine current predictions through the normal service, never fabricate accuracy history.
+                var snapshots = scope.ServiceProvider.GetRequiredService<IForecastAccuracyService>()
+                    .CaptureAsync(VietnamTime.Today()).GetAwaiter().GetResult();
+                app.Logger.LogInformation("Dashboard development seed completed. Created={Created}; Dataset={Dataset}",
+                    dashboardSeeded, FinMate.Infrastructure.Persistence.Seed.DashboardDevelopmentSeeder.Version);
+                app.Logger.LogInformation("Current forecast snapshots created: {Rows}", snapshots);
+                return;
             }
         }
 

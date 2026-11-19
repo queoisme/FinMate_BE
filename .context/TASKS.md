@@ -1644,3 +1644,11 @@ Nhánh `feat/group-fund` (từ `main` @ `4601e1f`, sau PR #33). Kế hoạch ph�
   - **Push:** `data.kind = group_fund_negative` (`groupId`, `fundId`) và `group_fund_removed` (`groupId`, `fundId`, `entryId`).
   - **Lỗi mới:** `GROUP_FUNDS_DISABLED`, `GROUP_TOO_MANY_FUNDS`, `GROUP_FUND_NOT_SETTLED`, `GROUP_FUND_ARCHIVED`, `GROUP_FUND_ENTRY_INVALID`, `GROUP_FUND_ENTRY_LOCKED`, `GROUP_FUND_SOURCE_NOT_ELIGIBLE`, `TRANSACTION_GROUP_FUND_LINKED`.
   - **Hạn chế cần nói với người dùng:** người giữ quỹ nhận tiền góp qua ngân hàng sẽ thấy khoản đó là thu nhập; tạm thời tự chuyển nó thành chuyển ví hoặc xoá.
+
+## Dashboard — Bộ dữ liệu phát triển (2026-11-19)
+
+- [x] Bổ sung bộ nạp Development opt-in trên nhánh `dash_board_dev`, chạy cho BE chính 8080 / dashboard 5173; không đổi schema, không nạp QA hoặc AI DB.
+- [x] Dữ liệu nghiệp vụ có nhãn `[Kiểm thử]`: 9 tài khoản, 750 giao dịch, 8 ca hỗ trợ, quyền xem dữ liệu theo ca, 3 đề xuất, nội dung kiểm duyệt và đơn đăng ký chưa thanh toán. Số liệu kinh tế công khai có nguồn/ngày, giả định ở bản nháp.
+- [x] Backup trước khi nạp, giữ nguyên 4 tài khoản cũ; đối chiếu số dư/ngân sách/mục tiêu và xác nhận chạy lại không nhân đôi hoặc ghi đè thao tác kiểm thử.
+- [x] Build BE/Docker và FE, lint FE đạt; 20 kiểm thử tích hợp liên quan, 25 kiểm tra API và kiểm tra các màn dashboard với database chính đạt.
+- [x] Tài liệu tài khoản, kịch bản và cách chạy lại: `backend/docs/dashboard-development-data.md`; bằng chứng tại `D:/Capstone/outputs/finmate-dashboard-dev-data-2026-11-19`.
