@@ -62,6 +62,8 @@ class ChatGoal(BaseModel):
     deadline: datetime | None = None
     # Cụm người dùng nói ("2 tháng sau"): app hiện kèm ngày cụ thể để người dùng soát.
     deadline_text: str | None = None
+    # true: hạn hoặc tên do AI đọc hộ vì luật không hiểu; app không tự tạo mà hỏi người dùng soát
+    ai_assisted: bool = False
 
 
 class ChatPurchase(BaseModel):
@@ -76,6 +78,20 @@ class ChatPurchase(BaseModel):
     category_slug: str | None = None
 
 
+class ChatItem(BaseModel):
+    """Ngân sách / khoản định kỳ / khoản vay nợ đủ thông tin (intent ``create_item``). App gọi API tạo luôn (có nút Hoàn tác); thiếu thông tin thì ``item`` là None và ``reply_text`` là câu hỏi lại."""
+
+    kind: str  # budget | recurring | loan
+    amount_cents: int  # đồng VND: hạn mức tháng / số tiền mỗi lần / số tiền vay
+    # recurring: tên khoản ("Claude Pro"); loan: tiêu đề ("Cho Bạn An vay")
+    name: str | None = None
+    category_slug: str | None = None  # budget: nhóm chi
+    cadence: str | None = None  # recurring: weekly | monthly | yearly
+    next_due: date | None = None  # recurring: ngày thanh toán tiếp theo
+    direction: str | None = None  # loan: borrow (mình đi vay) | lend (mình cho vay)
+    counterparty: str | None = None  # loan: tên người
+
+
 class ChatNlu(BaseModel):
     source: str  # model | rules
     intent: str | None = None
@@ -84,7 +100,7 @@ class ChatNlu(BaseModel):
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | purchase_needs_amount | needs_period | create_goal | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | purchase_needs_amount | ask_agent | needs_period | create_goal | create_item | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None
@@ -98,6 +114,7 @@ class ChatParseResponse(BaseModel):
     skipped: list[str] = Field(default_factory=list)
     goal: ChatGoal | None = None
     purchase: ChatPurchase | None = None
+    item: ChatItem | None = None
     nlu: ChatNlu
     # low_confidence | disagree | not_understood: câu đáng để xem lại nếu người dùng đồng ý chia sẻ. Chưa lưu ở đâu.
     unclear_reason: str | None = None

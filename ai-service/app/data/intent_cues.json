@@ -1,6 +1,19 @@
 {
   "_doc": "Từ vựng, mẫu nhận dạng, ngưỡng và câu trả lời của lớp hiểu câu chat (app/services/transaction_parser.py, clauses.py, goal_parser.py, category_resolver.py). Sửa tệp này rồi khởi động lại ai-service, hoặc sửa qua trang quản trị (config_documents) để có hiệu lực không cần khởi động lại; KHÔNG thêm từ khóa vào code. Mỗi mẫu là một LOẠI dấu hiệu (động từ/vai trò/hình thức câu), không phải một câu lỗi cụ thể: thêm mẫu cho một câu lẻ là vá cho qua test. Mọi thay đổi ở đây phải qua cổng scripts/audit_overrides.py (cứu >= phá, không làm tụt bộ độc lập). Cú pháp <<tên>> chèn một danh sách trong 'lists' (tự bỏ dấu khi mẫu có on=folded) hoặc một đoạn trong 'fragments'.",
   "lists": {
+    "item_create_verbs": ["đặt", "tạo", "thiết lập", "lập", "cài đặt", "cài"],
+    "item_budget_nouns": ["ngân sách", "hạn mức chi tiêu", "hạn mức chi", "hạn mức", "giới hạn chi tiêu", "giới hạn chi"],
+    "item_recurring_verbs": ["gia hạn", "thuê bao", "subscription", "đăng ký gói", "đăng kí gói"],
+    "item_recurring_weak_verbs": ["đăng ký", "đăng kí", "định kỳ"],
+    "item_pay_verbs": ["trả", "đóng", "thanh toán", "nộp"],
+    "item_cadence_month": ["hằng tháng", "hàng tháng", "mỗi tháng", "theo tháng", "tháng một lần"],
+    "item_cadence_week": ["hằng tuần", "hàng tuần", "mỗi tuần", "theo tuần", "tuần một lần"],
+    "item_cadence_year": ["hằng năm", "hàng năm", "mỗi năm", "theo năm", "năm một lần"],
+    "item_due_today": ["hôm nay"],
+    "item_due_tomorrow": ["ngày mai", "mai"],
+    "item_self_words": ["tôi", "mình", "tui", "tớ", "em", "anh", "chị"],
+    "item_name_stopwords": ["gói", "của", "cho", "tôi", "mình", "là", "với", "khoảng", "tầm", "mỗi", "hằng", "hàng", "tháng", "tuần", "năm", "theo", "trả", "đóng", "thanh", "toán", "nộp", "tiền", "vào", "ngày", "hôm", "nay", "mai", "một", "lần", "đặt", "tạo", "lập", "thiết", "cài", "ngân", "sách", "hạn", "mức", "chi", "tiêu", "giới", "đăng", "ký", "kí", "thuê", "bao", "định", "kỳ", "gia", "k", "đồng", "và", "thì", "nhé", "nha", "với"],
+    "item_name_cutoff": ["một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", "triệu", "nghìn", "ngàn", "trăm", "tỷ", "tỉ", "k", "đồng", "vnd", "tiền", "vì", "do", "để", "hôm", "nay", "qua", "mai", "vào", "lúc", "khoảng", "tầm", "và", "rồi", "thì", "nhé", "nha", "ạ", "đã", "đang", "sẽ", "còn", "thêm", "mua", "ít", "nhiều"],
     "giver": [
       "mẹ",
       "bố",
@@ -228,6 +241,31 @@
       "a",
       "truoc"
     ],
+    "goal_stopwords_accented": [
+      "vào", "tôi", "mình", "sẽ", "muốn", "được", "khoảng", "tầm", "có", "là", "hết", "trong", "với", "tiết", "kiệm", "để", "cho", "sau", "nữa", "tiếp",
+      "theo", "đặt", "tạo", "lập", "mục", "tiêu", "dành", "dùm", "cần", "phải", "đến", "khoản", "nhé", "nhá", "nha", "a", "trước", "vòng"
+    ],
+    "goal_ambiguous_particles": ["nha"],
+    "goal_duration_limits": ["year:50", "month:600", "week:2600", "day:18000"],
+    "goal_year_range": ["min:2000", "max:2200"],
+    "goal_number_words": ["mot:1", "hai:2", "ba:3", "bon:4", "tu:4", "nam:5", "sau:6", "bay:7", "tam:8", "chin:9", "muoi:10"],
+    "goal_unit_year": ["nam"],
+    "goal_unit_month": ["thang"],
+    "goal_unit_week": ["tuan"],
+    "goal_unit_day": ["ngay"],
+    "goal_relative_tail": ["sau", "nua", "toi", "tiep theo"],
+    "goal_next_words": ["sau", "toi", "tiep theo"],
+    "goal_within_lead": ["trong vong", "trong", "sau", "ky han", "han"],
+    "goal_approx_words": ["khoang"],
+    "goal_half_word": ["ruoi"],
+    "goal_half_year_words": ["nua nam"],
+    "goal_half_year_tail": ["nua", "sau", "toi"],
+    "goal_end_word": ["cuoi"],
+    "goal_this_word": ["nay"],
+    "goal_quarter_word": ["quy"],
+    "goal_year_rel_words": ["nay", "sau", "toi"],
+    "goal_ai_candidate_phrases": ["tich luy", "danh dum", "de danh", "phan dau", "muon co", "can co", "can gop", "gop", "tiet kiem", "muc tieu", "ke hoach"],
+    "goal_ai_candidate_intents": ["add_expense", "add_income", "out_of_scope", "ask_agent", "needs_amount"],
     "not_item_words": [
       "khác"
     ],
@@ -236,7 +274,14 @@
       "được không", "được ko", "được hông", "được chứ", "ổn không", "ổn ko", "ổn chứ", "có sao không", "có sao ko",
       "đủ tiền", "đủ không", "đủ ko", "hợp lý không", "an toàn không"
     ],
-    "purchase_ask_weak_phrases": ["có nên", "nên", "liệu"],
+    "purchase_ask_weak_phrases": ["có nên", "nên", "liệu", "muốn mua", "định mua", "tính mua", "dự định mua"],
+    "topup_spend_targets": ["game", "điện thoại", "sim", "thẻ cào", "steam", "garena", "liên quân", "free fire", "roblox"],
+    "agent_planning_phrases": [
+      "nếu thu nhập", "nếu mất việc", "mất việc", "thu nhập giảm", "bao lâu", "kịch bản", "chia ngân sách", "lập ngân sách", "lên kế hoạch",
+      "kế hoạch tiết kiệm", "quỹ khẩn cấp", "dự phòng khẩn cấp", "lạm phát", "giả định", "sống được", "chịu được",
+      "dự đoán", "nếu tôi", "nếu mình", "nên vay", "nên đầu tư", "nên gửi tiết kiệm", "trả nợ trước",
+      "hạn mức", "ngân sách còn", "còn bao nhiêu ngân sách", "tiến độ mục tiêu", "sắp đến hạn", "khoản định kỳ"
+    ],
     "purchase_choice_words": ["nào", "gì", "dưới", "trên", "tối đa", "tối thiểu", "không quá"],
     "purchase_when_lead": ["đợi", "chờ", "đến", "tới", "vào", "lúc", "đúng"],
     "purchase_stopwords": [
@@ -246,11 +291,15 @@
     ]
   },
   "fragments": {
+    "goal_unit": "(?:(?P<year><<goal_unit_year>>)|(?P<month><<goal_unit_month>>)|(?P<week><<goal_unit_week>>)|(?P<day><<goal_unit_day>>))",
+    "goal_number": "(?P<n>\\d{1,3}|<<goal_number_words>>)",
     "interest_in": "(?<!trả )(?<!đóng )tiền lãi(?! vay)",
     "sell": "(?<!người )(?<!nhân viên )(?<!cửa hàng )(?<!quầy )(?<!chỗ )(?<!tiệm )(?<!quán )\\bbán\\b",
-    "income_specific_src": "nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:<<giver>>)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|khách trả|<<sell>>|<<interest_in>>|hoàn (?:lại|trả)|(?:công ty|bảo hiểm|nhà nước|nhà trường)(?: (?:tôi|mình))? (?:hỗ trợ|trả|chi trả|bồi thường|chuyển|cấp)|bồi thường|trợ cấp|phụ cấp|cho thuê|thu tiền",
+    "income_specific_src": "nhận (?:lương|tiền|thưởng|được)|được (?:cho|tặng|thưởng|hoàn|lì xì)|(?:<<giver>>)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)|khách trả|<<sell>>|<<interest_in>>|hoàn (?:lại|trả)|(?:công ty|bảo hiểm|nhà nước|nhà trường)(?: (?:tôi|mình))? (?:hỗ trợ|trả|chi trả|bồi thường|chuyển|cấp)|bồi thường|trợ cấp|phụ cấp|cho thuê|thu tiền|<<interest_paid>>|<<person_transfers_back>>",
     "income_topic_src": "lương|thưởng|lì xì|hoàn tiền|tiền hoàn|thu nhập|tiền công|làm thêm",
-    "income_weak_src": "(?:anh|em)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)",
+    "income_weak_src": "(?<!\\w)(?<!tiếng )(?<!tieng )(?:anh|em)(?: (?:tôi|mình))? (?:cho|gửi|tặng|trả|biếu)",
+    "interest_paid": "(?:ngân hàng|ngan hang|bank) (?:trả|cộng|chuyển) lãi(?! vay)|lãi suất(?: [^\\d]{0,25})? về|cashback|(?:từ|của) khách(?: hàng)?",
+    "person_transfers_back": "(?<!\\w)(?:<<people_in>>)(?: (?:tôi|mình))? chuyển(?: khoản)? (?:trả|lại|cho (?:tôi|mình))",
     "income_specific_plain_src": "nhan luong|nhan thuong|nhan tien|duoc cho|duoc tang|duoc hoan|khach tra|ban duoc|ban do|ban xe|hoan lai|hoan tra|cong ty ho tro|cong ty tra|boi thuong|tro cap|phu cap|cho thue|thu tien",
     "balance_ask_src": "con lai|thu chi|so du|(?:co|con) bao nhieu tien|(?:vi|tai khoan|the)(?: cua)?(?: toi| minh)? (?:hien )?(?:co|con) bao nhieu",
     "balance_src": "<<balance_ask_src>>|tiet kiem duoc|chenh lech|du bao nhieu",
@@ -258,6 +307,21 @@
     "pay_debt": "tra(?: tien)? no"
   },
   "patterns": {
+    "item_budget_strong": {"on": "folded", "regex": "(?<![a-z])(?:<<item_create_verbs>>) (?:cho )?(?:<<item_budget_nouns>>)(?![a-z])", "doc": "Đặt ngân sách/hạn mức rõ ràng ('đặt ngân sách ăn uống 2 triệu'): đủ để hỏi lại nhóm hoặc số tiền nếu thiếu."},
+    "item_budget_weak": {"on": "folded", "regex": "(?<![a-z])(?:<<item_budget_nouns>>)(?![a-z])", "doc": "Chỉ nhắc 'ngân sách'/'hạn mức' không có động từ đặt: chỉ tính là đặt ngân sách khi có đủ cả nhóm và số tiền, kẻo 'ngân sách còn bao nhiêu' bị hỏi lại."},
+    "item_recurring_strong": {"on": "folded", "regex": "(?<![a-z])(?:<<item_recurring_verbs>>)(?![a-z])", "doc": "Từ chỉ khoản lặp lại ('gia hạn gói Claude Pro', 'đăng ký thuê bao Netflix', 'định kỳ'): đủ để hỏi lại số tiền, chu kỳ hoặc ngày nếu thiếu."},
+    "item_recurring_weak": {"on": "folded", "regex": "(?<![a-z])(?:<<item_recurring_weak_verbs>>)(?![a-z])", "doc": "Từ chỉ khoản lặp lại dễ lẫn câu khác ('đăng ký', 'định kỳ'): chỉ tính khi có số tiền, kẻo 'các khoản định kỳ của tôi' bị hỏi lại số tiền."},
+    "item_pay_verb": {"on": "folded", "regex": "(?<![a-z])(?:<<item_pay_verbs>>)(?![a-z])", "doc": "Động từ trả tiền; đi kèm chu kỳ ('đóng tiền net hằng tháng 200k') mới là khoản định kỳ, chu kỳ đứng một mình thì không."},
+    "item_cadence_month": {"on": "folded", "regex": "(?<![a-z])(?:<<item_cadence_month>>)(?![a-z])", "doc": "Chu kỳ hằng tháng."},
+    "item_cadence_week": {"on": "folded", "regex": "(?<![a-z])(?:<<item_cadence_week>>)(?![a-z])", "doc": "Chu kỳ hằng tuần."},
+    "item_cadence_year": {"on": "folded", "regex": "(?<![a-z])(?:<<item_cadence_year>>)(?![a-z])", "doc": "Chu kỳ hằng năm."},
+    "item_cadence_slash": {"on": "folded", "regex": "/\\s?(?:(?P<month>thang)|(?P<week>tuan)|(?P<year>nam))(?![a-z])", "doc": "Chu kỳ viết kiểu '600k/tháng'."},
+    "item_due_day": {"on": "folded", "regex": "(?<![a-z])(?:vao )?ngay (?P<d>\\d{1,2})(?: thang (?P<m>\\d{1,2}))?(?![\\d/])", "doc": "Ngày thanh toán tiếp theo: 'ngày 5', 'ngày 5 tháng 12'."},
+    "item_due_slash": {"on": "folded", "regex": "(?<![\\d/])(?P<d>\\d{1,2})/(?P<m>\\d{1,2})(?:/(?P<y>\\d{2,4}))?(?![\\d/])", "doc": "Ngày thanh toán tiếp theo viết '05/12' hoặc '05/12/2026'."},
+    "item_due_today": {"on": "folded", "regex": "(?<![a-z])(?:<<item_due_today>>)(?![a-z])", "doc": "'hôm nay' là ngày thanh toán tiếp theo."},
+    "item_due_tomorrow": {"on": "folded", "regex": "(?<![a-z])(?:<<item_due_tomorrow>>)(?![a-z])", "doc": "'ngày mai' là ngày thanh toán tiếp theo."},
+    "item_loan_owes_me": {"on": "folded", "regex": "(?<![a-z])(?<!tra )(?<!tra lai )(?<!thu )no (?:<<item_self_words>>)(?![a-z])", "doc": "Người khác nợ mình ('bạn An nợ tôi 700k'): MÌNH cho vay, tên người ở TRƯỚC cụm này. Chỉ nói về KHOẢN NỢ; 'cho vay', 'cho mượn' là lúc đưa tiền (giao dịch loại cho vay/mượn, xử lý ở bộ ghi chi tiêu). 'trả nợ tôi' là được trả nợ nên không khớp."},
+    "item_loan_i_owe": {"on": "folded", "regex": "(?<![a-z])(?:<<item_self_words>>) no(?![a-z])", "doc": "Mình nợ người khác ('tôi nợ An 700k'): MÌNH đi vay, tên người ở SAU cụm này."},
     "income_specific": {
       "on": "accented",
       "regex": "<<income_specific_src>>",
@@ -310,7 +374,7 @@
     },
     "transfer_cue": {
       "on": "folded",
-      "regex": "(?<![a-z])(?:chuyen khoan|chuyen tien|chuyen|rut|nap(?: tien)?(?: \\S+){0,3} vao|gui tiet kiem|<<pay_debt>>|dao no)(?![a-z])",
+      "regex": "(?<![a-z])(?:chuyen khoan|chuyen tien|chuyen|rut|nap(?: tien)?(?: \\S+){0,3} vao(?!(?: \\S+){0,2} (?:<<topup_spend_targets>>)(?![a-z]))|gui tiet kiem|gui (?:<<recipients>>)|<<pay_debt>>|dao no)(?![a-z])",
       "doc": "Dấu hiệu chuyển tiền; số tiền có thể nằm giữa ('nạp 300k vào momo')."
     },
     "to_others": {
@@ -548,6 +612,66 @@
       "regex": "(?<![a-z])(?:thang truoc|tuan truoc|nam truoc|hom qua|hom kia)(?![a-z])",
       "doc": "Mốc thời gian đã qua ('tháng trước', 'hôm qua'): hạn mục tiêu phải ở tương lai nên bị từ chối. Khớp trên câu đã bỏ dấu."
     },
+    "goal_date": {
+      "on": "folded",
+      "regex": "(?<![\\d/])(?P<d>\\d{1,2})/(?P<m>\\d{1,2})(?:/(?P<y>\\d{4}|\\d{2}))?(?![\\d/])",
+      "doc": "Hạn theo ngày cụ thể: '30/12', '1/1/2028'. Không có năm thì là lần tới của ngày đó (đã qua thì năm sau)."
+    },
+    "goal_relative": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d])<<goal_number>>\\s+<<goal_unit>>(?P<half>\\s+<<goal_half_word>>)?\\s+(?:<<goal_relative_tail>>)(?![a-z])",
+      "doc": "Khoảng thời gian tính từ hôm nay, đặt SAU: '3 năm nữa', '2 tháng sau', '3 năm rưỡi nữa', 'ba năm tới'. Số là chữ số hoặc số bằng chữ (goal_number_words); nhóm year/month/week/day cho biết đơn vị; 'rưỡi' chỉ có nghĩa với năm."
+    },
+    "goal_within": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d])(?:<<goal_within_lead>>)\\s+(?:<<goal_approx_words>>\\s+)?<<goal_number>>\\s+<<goal_unit>>(?P<half>\\s+<<goal_half_word>>)?(?![a-z])",
+      "doc": "Khoảng thời gian tính từ hôm nay, từ dẫn đặt TRƯỚC: 'trong 3 năm', 'trong vòng 36 tháng', 'sau 3 năm', 'kỳ hạn 2 năm', 'trong khoảng 4 năm'. Cùng nghĩa với goal_relative."
+    },
+    "goal_half_year": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_half_year_words>>)(?: (?:<<goal_half_year_tail>>))?(?![a-z])",
+      "doc": "'nửa năm nữa/sau/tới' = 6 tháng."
+    },
+    "goal_quarter": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_quarter_word>>)\\s+(?P<q>[1-4])(?:\\s+(?:(?:<<goal_unit_year>>)\\s+(?P<rel><<goal_year_rel_words>>)|(?:(?:<<goal_unit_year>>)\\s+)?(?P<y>20\\d{2})))?(?![a-z\\d])",
+      "doc": "Hạn theo quý: 'quý 2 năm sau', 'quý 4 năm 2027', 'quý 1'. Hạn là ngày cuối quý. Nhóm rel là từ chỉ năm nay/năm sau (goal_year_rel_words; goal_next_words là các từ nghĩa 'sau')."
+    },
+    "goal_month_year": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d])(?:<<goal_unit_month>>)\\s+(?P<m>\\d{1,2})\\s+(?:<<goal_unit_year>>)\\s+(?P<y>20\\d{2})(?!\\d)",
+      "doc": "Hạn theo tháng của một năm cụ thể: 'tháng 6 năm 2028' = ngày cuối tháng đó."
+    },
+    "goal_year_only": {
+      "on": "folded",
+      "regex": "(?<![a-z\\d])(?:<<goal_unit_year>>)\\s+(?P<y>20\\d{2})(?!\\d)",
+      "doc": "Hạn theo một năm cụ thể: 'đến năm 2029', 'vào năm 2030' = 31/12 năm đó."
+    },
+    "goal_end_of": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_end_word>>)\\s+(?:(?P<month><<goal_unit_month>>)|(?P<year><<goal_unit_year>>))(?:\\s+(?:<<goal_this_word>>))?(?:\\s+(?P<y>20\\d{2}))?(?![a-z\\d])",
+      "doc": "'cuối tháng', 'cuối năm', 'cuối năm nay', 'cuối năm 2029'. Có năm cụ thể (nhóm y) thì là cuối năm đó."
+    },
+    "goal_next": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:(?P<year><<goal_unit_year>>)|(?P<month><<goal_unit_month>>)|(?P<week><<goal_unit_week>>))\\s+(?:<<goal_next_words>>)(?![a-z])",
+      "doc": "'năm sau', 'tháng sau', 'tuần tới': tháng sau là CUỐI tháng sau (khác '1 tháng sau'), năm sau là 31/12 năm sau, tuần sau là 7 ngày."
+    },
+    "goal_time_words": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_unit_year>>|<<goal_unit_month>>|<<goal_unit_week>>|<<goal_unit_day>>|<<goal_quarter_word>>)(?![a-z])",
+      "doc": "Câu có chữ chỉ thời gian: nếu luật không đọc ra hạn thì nhờ AI đọc hộ cụm thời hạn."
+    },
+    "goal_name_time": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_unit_year>>|<<goal_unit_month>>|<<goal_unit_week>>|<<goal_unit_day>>|<<goal_quarter_word>>|<<goal_within_lead>>|<<goal_relative_tail>>)(?![a-z])|\\d",
+      "doc": "Tên mục tiêu dính chữ thời hạn hoặc số ('Mua 3 năm'): coi là tên chưa sạch, AI được phép đề xuất tên thay."
+    },
+    "goal_ai_candidate": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<goal_ai_candidate_phrases>>)(?![a-z])",
+      "doc": "Kiểu nói muốn có / dành dụm / tích lũy / góp / mục tiêu: câu có số tiền mà luật không nhận là đặt mục tiêu thì nhờ AI xác nhận (goal_ai_candidate_intents là các ý định luật đã gán nhầm)."
+    },
     "purchase_buy": {
       "on": "folded",
       "regex": "(?<![a-z])(?:<<purchase_buy_words>>)(?![a-z])",
@@ -562,6 +686,11 @@
       "on": "accented",
       "regex": "(?i)(?<!\\w)(?:<<purchase_ask_weak_phrases>>)(?!\\w)",
       "doc": "Cách hỏi xin LỜI KHUYÊN ('có nên', 'nên', 'liệu'): câu thiếu số tiền thì hỏi lại số tiền (kể cả 'có nên mua iphone'); câu chọn món ('nên mua laptop nào dưới 20 triệu') vẫn ngoài phạm vi. Khớp trên câu CÓ dấu vì bỏ dấu thì 'nên' trùng 'nến'/'nền' ('mua nến thơm 200k' là khoản chi); gõ không dấu thì chỉ các cách hỏi khả năng chi (purchase_ask_strong) còn nhận."
+    },
+    "agent_planning": {
+      "on": "folded",
+      "regex": "(?<![a-z])(?:<<agent_planning_phrases>>)(?![a-z])|(?<![a-z])sau\\s+\\d+\\s*(?:nam|thang)(?![a-z])|(?<![a-z])\\d+\\s*(?:nam|thang)\\s+nua(?![a-z])|(?<![a-z])nen\\s+(?:mua|vay|dau tu)\\s[^?]*\\shay\\s|(?<![a-z])muc\\s+tieu\\s+cua\\s+(?:toi|minh)\\s+(?:den|toi|the\\s+nao|ra\\s+sao|con|bao\\s+nhieu|duoc)(?![a-z])|(?<![a-z])du\\s+bao(?!\\s+nhieu)(?![a-z])|(?<![a-z])ngan\\s+sach(?:\\s+[a-z]+){0,3}\\s+con(?![a-z])|(?<![a-z])cuoi\\s+thang[^?]*\\scon\\s+du(?![a-z])",
+      "doc": "Câu KẾ HOẠCH / DỰ BÁO cần AI Financial Agent ('nếu thu nhập giảm 30% thì sao', 'bao lâu đủ tiền mua nhà', 'sau 2 năm', 'chia ngân sách', 'sống được mấy tháng'): trả ý định ask_agent và app hỏi agent (POST /agent/ask) thay vì ghi chi tiêu hay đánh giá mua. Đứng trước đánh giá mua vì kiểm tra mua chỉ nhìn tối đa 90 ngày. Cố ý KHÔNG có 'trong N tháng' (câu hỏi tổng 'tiêu trong 3 tháng qua' vẫn là ask_spending) và KHÔNG có 'bao nhiêu tháng' ('chi bao nhiêu tháng này' khớp nhầm). Cụm từ nằm ở agent_planning_phrases: thêm bớt ở đó, không đổi mẫu."
     },
     "purchase_choice": {
       "on": "accented",
@@ -720,6 +849,17 @@
     }
   },
   "replies": {
+    "item_budget_ask_category": "Ngân sách này cho nhóm chi tiêu nào? Ví dụ: \"đặt ngân sách ăn uống 2 triệu\".",
+    "item_budget_ask_amount": "Hạn mức mỗi tháng của ngân sách này là bao nhiêu?",
+    "item_recurring_ask_amount": "Khoản này mỗi lần là bao nhiêu tiền?",
+    "item_recurring_ask_cadence": "Khoản này lặp lại bao lâu một lần: hằng tuần, hằng tháng hay hằng năm?",
+    "item_recurring_ask_due": "Lần thanh toán tiếp theo là ngày nào? Ví dụ: \"ngày 5\" hoặc \"05/12\".",
+    "item_loan_ask_amount": "Khoản này là bao nhiêu tiền?",
+    "item_loan_ask_who": "Khoản này với ai? Ví dụ: \"bạn An nợ tôi 700k\".",
+    "item_needs_unit": "Bạn nhập số tiền kèm đơn vị giúp mình nhé (ví dụ 600k hoặc 2 triệu).",
+    "item_recurring_default_name": "Khoản định kỳ",
+    "item_loan_title_lend": "Cho {who} vay",
+    "item_loan_title_borrow": "Vay {who}",
     "period_month": "tháng {month}",
     "period_month_year": "tháng {month}/{year}",
     "period_year": "năm {year}",
@@ -749,7 +889,10 @@
     "purchase": "Mình đánh giá khoản định mua này dựa trên số dư và kế hoạch của bạn. Mình không ghi khoản này vào chi tiêu.",
     "ai_rewrite_prompt": "Bạn sửa một câu chat tiếng Việt của ứng dụng quản lý chi tiêu cho đúng chính tả để bộ luật phía sau đọc được. Quy tắc: (1) Chỉ sửa lỗi gõ, thiếu dấu, viết tắt (ví dụ ko, k, hong = không; dc, duo, duoc = được; mik, tui = mình; ck = chuyển khoản; dt = điện thoại; wa = qua), chữ dính hoặc tách sai. (2) Giữ nguyên mọi ký hiệu dạng {1}, {2}, mỗi ký hiệu đúng một lần, không đổi thứ tự, không thay bằng số, không thêm số nào khác. Chữ đứng ngay sau ký hiệu (tr, k, triệu, nghìn, đ...) là đơn vị tiền: giữ lại, được viết đầy đủ (tr = triệu, k = nghìn) nhưng không được bỏ. (3) Không thêm, bớt hay đổi ý; không trả lời câu hỏi; không giải thích. (4) Nếu câu không liên quan tới tiền hay chi tiêu cá nhân, hoặc không cần sửa, trả lại đúng câu gốc. Chỉ trả JSON dạng {\"text\": \"câu đã sửa\"}.",
     "purchase_needs_amount": "Bạn định mua với giá bao nhiêu? Nhắn kèm giá để mình đánh giá có nên mua không, ví dụ \"mua iphone 15tr được không?\". Mình không ghi khoản này vào chi tiêu.",
-    "purchase_needs_unit": "Bạn nhắn kèm đơn vị cho giá nhé, ví dụ \"800k\" hoặc \"2 triệu\".",
+    "ai_goal_prompt": "Bạn đọc một câu tiếng Việt người dùng nhắn để ĐẶT MỤC TIÊU TIẾT KIỆM. Mọi chữ số trong câu đã được thay bằng ký hiệu {1}, {2}... theo thứ tự xuất hiện. Nhiệm vụ: chỉ ra THỜI HẠN của mục tiêu và tên mục tiêu, trả JSON đúng schema. KHÔNG tự tính ngày, KHÔNG viết chữ số.\n- Thời hạn dạng khoảng thời gian tính từ hôm nay (\"trong {1} năm\", \"khoảng {1} tháng nữa\", \"{1} năm tới\"): duration_unit là year, month, week hoặc day; duration_slot là SỐ THỨ TỰ của ký hiệu chứa con số chỉ thời gian (ví dụ {2} thì duration_slot = 2). Không nhầm với số TIỀN (\"1 tỷ\", \"500 triệu\").\n- Thời hạn dạng một NĂM cụ thể (\"đến năm {2}\", \"trước năm {1}\"): duration_unit là none, year_slot là số thứ tự của ký hiệu năm, month_slot = 0.\n- Thời hạn dạng THÁNG và NĂM cụ thể (\"tháng {2} năm {3}\"): duration_unit là none, month_slot là số thứ tự của ký hiệu tháng, year_slot là số thứ tự của ký hiệu năm.\n- Không có thời hạn: duration_unit là none, duration_slot = 0, year_slot = 0, month_slot = 0.\n- name: tên mục tiêu ngắn lấy NGUYÊN các chữ có trong câu (ví dụ \"Mua nhà\", \"Du lịch Nhật\"), không có số tiền hay thời hạn; không rõ thì để chuỗi rỗng.\nNgười dùng cũng viết tắt hay thiếu dấu: cứ hiểu theo nghĩa thường.",
+    "ai_goal_detect_prompt": "Bạn đọc một câu tiếng Việt người dùng nhắn cho app quản lý tài chính cá nhân. Mọi chữ số đã được thay bằng ký hiệu {1}, {2}... Hãy trả is_goal = true CHỈ KHI người dùng đang ĐẶT hoặc MUỐN CÓ một MỤC TIÊU TIẾT KIỆM: muốn dành dụm, tích lũy, để dành, góp, có được một khoản tiền (thường kèm mục đích như mua nhà, mua xe, đi du lịch, hoặc kèm thời hạn). Trả false nếu là khoản chi hoặc khoản thu ĐÃ xảy ra (đã mua, đã nhận), chuyển tiền, câu hỏi, hay xin lời khuyên.",
+    "goal_reparse_prefix": "đặt mục tiêu",
+    "purchase_needs_unit":"Bạn nhắn kèm đơn vị cho giá nhé, ví dụ \"800k\" hoặc \"2 triệu\".",
     "purchase_bad_date": "Mình chưa hiểu ngày mua. Bạn thử \"hôm nay\", \"ngày mai\" hoặc \"ngày 16\" nhé.",
     "purchase_past": "Mình chỉ đánh giá khoản định mua từ hôm nay trở đi. Khoản đã mua thì bạn nhắn kiểu \"mua quần 800k\" để mình ghi chi tiêu nhé."
   }

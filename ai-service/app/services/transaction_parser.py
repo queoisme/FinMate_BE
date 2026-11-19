@@ -20,6 +20,7 @@ from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
+from app.services.item_parser import ItemDraft, parse_item
 from app.services.purchase_parser import PurchaseDraft, mentions_buying, parse_purchase
 from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
@@ -41,7 +42,7 @@ def _bind(cues: intent_cues.Cues) -> None:
     global _DEBT_IN, _LEND_OUT, _FEE, _WITHDRAW, _OWN_WALLET, _OWN_ACCOUNT, _TRANSFER_CUE, _TO_OTHERS, _PAY_DEBT, _GIVING_AWAY, _PAYING
     global _QUERY, _BALANCE_Q, _INCOME_Q, _SPEND_Q, _MONEY_WORD, _PRICE_Q, _DATA_OPS, _AMBIGUOUS_SEND
     global _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB, _QUESTION_PARTICLES, _ANSWER_STARTS, _REPLIES
-    global _THANKS_LEAD, _REPLY_CUES
+    global _THANKS_LEAD, _REPLY_CUES, _AGENT_PLANNING
     global _PERIOD_DAY, _PERIOD_DAY_ONLY, _PERIOD_RANGE, _PERIOD_LAST, _PERIOD_QUARTER, _PERIOD_DAY_BEFORE, _PERIOD_DAY_PART, _PERIOD_HINT
     global _PERIODS, _PERIOD_MONTH, _PERIOD_YEAR, _SELF_REFERENCE, _DETAIL_Q, _DETAIL_NOT, _REPLY_INTENTS, _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN, _QUESTION_LEAD
     thresholds, p = cues.thresholds, cues.patterns
@@ -49,6 +50,7 @@ def _bind(cues: intent_cues.Cues) -> None:
     UNCERTAIN_BELOW, AUTO_CONFIDENCE = thresholds["uncertain_below"], thresholds["auto_confidence"]
     _GREET, _THANKS = cues.phrases["greet"], cues.phrases["thanks"]
     _THANKS_LEAD = p["thanks_lead"]
+    _AGENT_PLANNING = p["agent_planning"]
     _REPLY_CUES = {name: p[f"reply_cue_{name}"] for name in ("confirm", "deny", "cancel")}  # tên ý định của bộ phân loại ý định -> mẫu từ của lời đáp loại đó
     # Tiền vào có ba mức bằng chứng (xem _direction): CỤ THỂ, CHỦ ĐỀ (lương, thưởng...: đi cả hai chiều) và YẾU (anh/em gửi: người dùng hay tự xưng anh/em).
     _INCOME_SPECIFIC, _INCOME_ACCENTED = p["income_specific"], p["income_accented"]
@@ -79,6 +81,8 @@ intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.appl
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
 PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; bộ phân loại ý định cũng có thể đoán tên này
+ITEM_INTENT = "create_item"  # tạo ngân sách / khoản định kỳ / khoản vay nợ bằng chat (xem item_parser)
+AGENT_INTENT = "ask_agent"  # câu kế hoạch/dự báo (xem mẫu agent_planning): app hỏi AI Financial Agent (POST /agent/ask), chat không ghi và không trả lời gì
 PURCHASE_ASK_INTENT = "purchase_needs_amount"  # vừa hỏi giá một khoản định mua: app nhớ câu hỏi và ghép với tin kế tiếp nếu tin đó chỉ có số tiền (server không giữ trạng thái)
 
 
@@ -125,6 +129,7 @@ class ChatParse:
     skipped: tuple[str, ...] = ()  # vế nối bằng "và/rồi" không có số tiền: không thành khoản, báo cho người dùng
     goal: GoalDraft | None = None  # ý định create_goal: bản nháp mục tiêu tiết kiệm để người dùng xác nhận (None = đang hỏi lại, xem reply_text)
     purchase: PurchaseDraft | None = None  # ý định evaluate_purchase: khoản định mua để backend đánh giá (None = đang hỏi lại, xem reply_text); không phải giao dịch
+    item: ItemDraft | None = None  # ý định create_item: ngân sách / khoản định kỳ / khoản vay nợ đủ thông tin để app tạo (None = đang hỏi lại, xem reply_text)
 
 
 def period_range(key: str, now: datetime) -> tuple[datetime, datetime]:
@@ -669,12 +674,16 @@ def parse_chat(
     def result(intent: str, **extra) -> ChatParse:
         return ChatParse(intent, extra.get("entry"), extra.get("query"), extra.get("reply_text"), source, nlu_intent, confidence,
                          extra.get("unclear_reason"), extra.get("entries", ()),
-                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"), extra.get("purchase"))
+                         extra.get("total_amount"), extra.get("total_mismatch", False), extra.get("skipped", ()), extra.get("goal"), extra.get("purchase"), extra.get("item"))
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
+    if (made := parse_item(text, now, category_from_text)) is not None and not is_query(norm):  # ngân sách / khoản định kỳ / vay nợ: bản nháp đủ thông tin thì app tạo, thiếu thì reply_text là câu hỏi lại (app nhớ và ghép với tin kế tiếp)
+        return result(ITEM_INTENT, item=made.draft, reply_text=made.reply)
+    if _AGENT_PLANNING.search(norm):  # trước đánh giá mua: "mua xe 600 triệu sau 2 năm" vượt tầm kiểm tra mua (tối đa 90 ngày), việc của agent
+        return result(AGENT_INTENT)
     if (check := parse_purchase(text, now)) is not None and not is_query(norm):  # trước _resolve_intent: "…được không?" nếu không sẽ thành out_of_scope qua _is_social_question
         if check.needs_amount:
             return result(PURCHASE_ASK_INTENT, reply_text=check.reply or _REPLIES["needs_amount"])  # lời hỏi giá của khoản định mua nói đúng việc đang hỏi, không phải ví dụ ghi chi tiêu

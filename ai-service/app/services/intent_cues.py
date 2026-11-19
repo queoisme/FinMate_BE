@@ -31,6 +31,19 @@ PATTERN_GROUPS = {
     "period_quarter": {"quarter", "year", "previous", "current"},
     "period_day_part": {"today", "yesterday"},
     "purchase_when": {"today", "tomorrow", "after", "day", "month"},
+    # Hạn của câu đặt mục tiêu (goal_parser): các nhóm đơn vị year/month/week/day nằm trong đoạn goal_unit; nhóm nào khớp cho biết đơn vị người dùng nói
+    "goal_date": {"d", "m", "y"},
+    "goal_relative": {"n", "year", "month", "week", "day", "half"},
+    "goal_within": {"n", "year", "month", "week", "day", "half"},
+    "goal_quarter": {"q", "rel", "y"},
+    "goal_month_year": {"m", "y"},
+    "goal_year_only": {"y"},
+    "goal_end_of": {"month", "year", "y"},
+    "goal_next": {"year", "month", "week"},
+    # Câu tạo khoản định kỳ / vay nợ (item_parser)
+    "item_cadence_slash": {"month", "week", "year"},
+    "item_due_day": {"d", "m"},
+    "item_due_slash": {"d", "m", "y"},
 }
 
 
@@ -48,13 +61,27 @@ class Cues:
     reply_intents: tuple[str, ...]  # tên ý định của bộ phân loại ý định mà code coi là lời đáp chứ không phải khoản ghi
 
 
+_VALUED = re.compile(r"([^:]+):\d+")
+
+
+def _word_of(entry: str) -> str:
+    found = _VALUED.fullmatch(entry)
+    return found.group(1) if found else entry
+
+
+def valued(cues: "Cues", name: str) -> dict[str, int]:
+    """Danh sách mục dạng "từ:số" (goal_number_words, goal_duration_limits, goal_year_range) thành {từ: số}. Số nguyên không âm; mục sai dạng bị bỏ qua khi dựng (``build`` đã kiểm)."""
+    return {key: int(number) for key, number in (entry.split(":", 1) for entry in cues.lists[name])}
+
+
 def _expand(template: str, lists: dict[str, list[str]], fragments: dict[str, str], folded: bool, stack: tuple[str, ...] = ()) -> str:
     def replace(match: re.Match) -> str:
         key = match.group(1)
         if key in stack:
             raise ValueError(f"tham chiếu vòng <<{key}>>")
         if key in lists:
-            return "|".join(fold(word) if folded else word for word in lists[key])
+            # Mục dạng "từ:số" (vd "mot:1" trong goal_number_words) mang thêm giá trị cho code đọc; vào mẫu chỉ chèn phần từ
+            return "|".join(fold(_word_of(word)) if folded else _word_of(word) for word in lists[key])
         if key in fragments:
             return _expand(fragments[key], lists, fragments, folded, stack + (key,))
         raise ValueError(f"tham chiếu <<{key}>> không tồn tại")
