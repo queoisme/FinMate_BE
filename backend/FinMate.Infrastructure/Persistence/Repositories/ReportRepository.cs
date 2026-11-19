@@ -101,7 +101,8 @@ public class ReportRepository : IReportRepository
                 g.Key.CategoryId,
                 g.Key.Name,
                 g.Key.Slug,
-                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : -t.AmountCents)))
+                g.Sum(t => t.TransactionType == TransactionType.Debit ? t.AmountCents : -t.AmountCents),
+                g.Count(t => t.TransactionType == TransactionType.Debit)))
             .ToListAsync(ct);
 
         return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();
@@ -111,16 +112,22 @@ public class ReportRepository : IReportRepository
     {
         var (start, end) = VietnamTime.DayRange(from, to);
 
-        // Cùng pattern với GetCategorySpendAsync, đổi Debit → Credit: thu ròng theo danh mục.
+        // Thu theo danh mục: khoản thu THẬT (Credit đã xác nhận, chưa bị đảo, không phải hoàn tiền và không phải cho vay/mượn). Không dùng
+        // BudgetSpendScope.Counts vì nó chỉ đếm CHI (và hoàn) cho ngân sách, nên tab Thu luôn rỗng. Hoàn tiền không bao giờ là thu nhập (Phase 81).
         var rows = await _context.Transactions
             .Where(BudgetSpendScope.Personal(userId, null, start, end))
-            .Where(BudgetSpendScope.Counts)
+            .Where(LoanExclusion.NotLoan)
+            .Where(t => t.Status == TransactionStatus.Confirmed
+                && t.TransactionType == TransactionType.Credit
+                && t.Relation == null
+                && !t.IsReversed)
             .GroupBy(t => new { t.CategoryId, Name = t.Category!.Name, Slug = t.Category!.Slug })
             .Select(g => new CategorySpend(
                 g.Key.CategoryId,
                 g.Key.Name,
                 g.Key.Slug,
-                g.Sum(t => t.TransactionType == TransactionType.Credit ? t.AmountCents : -t.AmountCents)))
+                g.Sum(t => t.AmountCents),
+                g.Count()))
             .ToListAsync(ct);
 
         return rows.Where(r => r.SpentCents > 0).OrderByDescending(r => r.SpentCents).ToList();

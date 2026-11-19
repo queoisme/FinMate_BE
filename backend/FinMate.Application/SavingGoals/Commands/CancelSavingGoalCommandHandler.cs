@@ -19,11 +19,11 @@ public class CancelSavingGoalCommandHandler : ICancelSavingGoalCommandHandler
         var goal = await _savingGoalRepository.GetByIdAsync(command.GoalId, command.UserId, ct)
             ?? throw new NotFoundException("SavingGoal", command.GoalId);
 
-        if (goal.Status != SavingGoalStatus.Active)
+        if (goal.Status is not (SavingGoalStatus.Active or SavingGoalStatus.Draft))
         {
             throw new BusinessRuleException(
                 SavingGoalErrorCodes.NotActive,
-                "Chỉ hủy được mục tiêu đang hoạt động.");
+                "Chỉ hủy được mục tiêu đang hoạt động hoặc đang là bản nháp.");
         }
 
         var now = DateTimeOffset.UtcNow;

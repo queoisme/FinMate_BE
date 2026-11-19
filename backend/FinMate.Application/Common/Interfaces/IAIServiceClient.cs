@@ -140,7 +140,8 @@ public record ChatParseQuery(
 /// <summary>Bản nháp mục tiêu tiết kiệm AI hiểu từ câu chat (intent create_goal). Chưa phải mục tiêu: người dùng xác nhận rồi app mới tạo.</summary>
 /// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>
 /// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để app hiện kèm ngày cụ thể cho họ soát.</param>
-public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
+/// <param name="AiAssisted">Hạn hoặc tên do AI đọc hộ vì luật không hiểu: client không tự tạo mục tiêu mà hỏi người dùng soát.</param>
+public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText, bool AiAssisted = false);
 
 /// <summary>
 /// Khoản mua người dùng đang cân nhắc (intent evaluate_purchase). Chỉ là tham số có cấu trúc: không tạo giao dịch, không có kết luận tiền.
@@ -149,7 +150,17 @@ public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, D
 /// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
 public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
+/// <summary>
+/// Ngân sách / khoản định kỳ / khoản vay nợ đủ thông tin AI hiểu từ câu chat (intent create_item). <paramref name="Kind"/>: budget | recurring | loan.
+/// Thiếu thông tin thì <c>Item</c> null và <c>ReplyText</c> là câu hỏi lại.
+/// </summary>
+/// <param name="AmountCents">Đồng VND: hạn mức tháng / số tiền mỗi lần / số tiền vay.</param>
+/// <param name="Name">recurring: tên khoản; loan: tiêu đề.</param>
+/// <param name="Cadence">recurring: weekly | monthly | yearly.</param>
+/// <param name="Direction">loan: borrow (mình đi vay) | lend (mình cho vay).</param>
+public record ChatParseItem(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty);
+
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | create_item | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,
@@ -161,7 +172,8 @@ public record ChatParseResponse(
     bool TotalMismatch = false,
     IReadOnlyList<string>? Skipped = null,
     ChatParseGoal? Goal = null,
-    ChatParsePurchase? Purchase = null);
+    ChatParsePurchase? Purchase = null,
+    ChatParseItem? Item = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.

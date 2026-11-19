@@ -26,7 +26,7 @@ public class UpdateSavingGoalCommandHandler : IUpdateSavingGoalCommandHandler
         var goal = await _savingGoalRepository.GetByIdAsync(command.GoalId, command.UserId, ct)
             ?? throw new NotFoundException("SavingGoal", command.GoalId);
 
-        if (goal.Status != SavingGoalStatus.Active)
+        if (goal.Status is not (SavingGoalStatus.Active or SavingGoalStatus.Draft))
         {
             throw new BusinessRuleException(
                 SavingGoalErrorCodes.NotActive,
@@ -37,10 +37,17 @@ public class UpdateSavingGoalCommandHandler : IUpdateSavingGoalCommandHandler
         goal.Name = command.Name;
         goal.TargetCents = command.TargetCents;
         goal.Deadline = command.Deadline;
+        // null = giữ nguyên; chuỗi rỗng = xóa biểu tượng.
+        if (command.Icon is not null)
+        {
+            goal.Icon = string.IsNullOrWhiteSpace(command.Icon) ? null : command.Icon.Trim();
+        }
+
+        goal.ContributionFrequency = command.ContributionFrequency ?? goal.ContributionFrequency;
         goal.UpdatedAt = now;
 
         // Hạ mục tiêu xuống dưới số đã tiết kiệm được thì coi như đã hoàn thành.
-        if (goal.SavedCents >= goal.TargetCents)
+        if (goal.Status == SavingGoalStatus.Active && goal.SavedCents >= goal.TargetCents)
         {
             goal.Status = SavingGoalStatus.Completed;
             goal.CompletedAt = now;

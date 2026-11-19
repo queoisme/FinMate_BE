@@ -28,7 +28,7 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
 
         var prevFirst = monthFirst.AddMonths(-1);
         var prevLast = monthFirst.AddDays(-1);
-        var (prevSpent, _, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, query.AccountId, ct);
+        var (prevSpent, prevIncome, _, _) = await ReadRangeAsync(query.UserId, prevFirst, prevLast, query.AccountId, ct);
 
         // Phase 81, D3: phần hoàn trong tháng cho khoản mua tháng khác (giải thích vì sao tổng chi thấp hơn tổng các danh mục). 0 thì bỏ trống.
         // Issue D: lọc theo accountId luôn đi qua đường live (xem ReadRangeAsync) nên khoản hoàn
@@ -42,6 +42,10 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
             ? Math.Round((spent - prevSpent) * 100.0 / prevSpent, 1)
             : null;
 
+        double? incomeChangePercent = prevIncome > 0
+            ? Math.Round((income - prevIncome) * 100.0 / prevIncome, 1)
+            : null;
+
         return new MonthlySummaryDto(
             periodStart.ToOffset(VietnamTime.Offset),
             periodEnd.ToOffset(VietnamTime.Offset),
@@ -52,7 +56,9 @@ public class GetMonthlySummaryQueryHandler : IGetMonthlySummaryQueryHandler
             prevSpent,
             changePercent,
             refunded,
-            crossPeriod > 0 ? crossPeriod : null);
+            crossPeriod > 0 ? crossPeriod : null,
+            prevIncome,
+            incomeChangePercent);
     }
 
     /// <summary>

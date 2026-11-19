@@ -250,10 +250,15 @@ public class AIServiceClient : IAIServiceClient
             response.Skipped,
             response.Goal is null
                 ? null
-                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText),
+                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText, response.Goal.AiAssisted),
             response.Purchase is null
                 ? null
-                : new ChatParsePurchase(response.Purchase.Item, response.Purchase.AmountCents, ParseDay(response.Purchase.PurchaseDate), response.Purchase.CategorySlug));
+                : new ChatParsePurchase(response.Purchase.Item, response.Purchase.AmountCents, ParseDay(response.Purchase.PurchaseDate), response.Purchase.CategorySlug),
+            response.Item is null
+                ? null
+                : new ChatParseItem(
+                    response.Item.Kind, response.Item.AmountCents, response.Item.Name, response.Item.CategorySlug, response.Item.Cadence,
+                    ParseDay(response.Item.NextDue), response.Item.Direction, response.Item.Counterparty));
     }
 
     /// <summary>Ngày mua AI trả về: "2026-11-16" hoặc "2026-11-16T00:00:00+07:00". Không đọc được thì coi như không nói ngày (mặc định hôm nay), không làm hỏng cả câu.</summary>

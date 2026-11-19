@@ -10,14 +10,26 @@ public record MonthlySummaryDto(
     long PrevMonthSpentCents,
     double? ChangePercent,
     long RefundedCents = 0,
-    long? CrossPeriodRefundCents = null);
+    long? CrossPeriodRefundCents = null,
+    long PrevMonthIncomeCents = 0,
+    double? IncomeChangePercent = null);
 
+/// <param name="PrevSpentCents">Cùng danh mục ở tháng liền trước (0 nếu không có).</param>
+/// <param name="SavedCents">Tiết kiệm so với tháng trước = max(0, PrevSpentCents − SpentCents); chỉ có ở tab chi, tab thu luôn 0.</param>
+/// <param name="TransactionCount">Số giao dịch của danh mục trong tháng.</param>
+/// <param name="BudgetLimitCents">Hạn mức ngân sách THÁNG của danh mục này đúng tháng được hỏi (lấy ảnh chụp của tháng nếu có), null nếu không có ngân sách hoặc tab thu.</param>
+/// <param name="BudgetSpentCents">Số đã chi tính cho ngân sách đó (cùng định nghĩa với <paramref name="SpentCents"/>), null khi <paramref name="BudgetLimitCents"/> null. Vượt/còn lại = limit − spent.</param>
 public record CategoryBreakdownItemDto(
     Guid? CategoryId,
     string CategoryName,
     string? CategorySlug,
     long SpentCents,
-    int Percent);
+    int Percent,
+    long PrevSpentCents = 0,
+    long SavedCents = 0,
+    int TransactionCount = 0,
+    long? BudgetLimitCents = null,
+    long? BudgetSpentCents = null);
 
 public record CategoryBreakdownDto(
     DateTimeOffset PeriodStart,

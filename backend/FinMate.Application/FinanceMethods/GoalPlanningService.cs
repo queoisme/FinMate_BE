@@ -117,7 +117,7 @@ public class GoalPlanningService : IGoalPlanningService
     }
 
     public async Task<GoalFeasibilityDto?> PreviewFeasibilityAsync(
-        Guid userId, long targetCents, long savedCents, DateTimeOffset deadline, CancellationToken ct = default)
+        Guid userId, long targetCents, long savedCents, DateTimeOffset deadline, CancellationToken ct = default, GoalContributionFrequency? frequency = null)
     {
         if (targetCents <= 0 || savedCents < 0)
         {
@@ -146,7 +146,7 @@ public class GoalPlanningService : IGoalPlanningService
             ? (await _budgets.GetListForUserAsync(userId, ct)).Sum(b => b.LimitCents)
             : 0;
 
-        return GoalFeasibilityCalculator.Compute(remaining, savedCents, deadline, DateTimeOffset.UtcNow, income, budgetLimits);
+        return GoalFeasibilityCalculator.Compute(remaining, savedCents, deadline, DateTimeOffset.UtcNow, income, budgetLimits, frequency);
     }
 
     /// <summary>

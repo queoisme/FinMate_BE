@@ -69,6 +69,53 @@ public class SuggestedActionsTests
         result.Actions.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task AGoalForecastSuggestsCreatingTheGoalWithThePriceAndTheDeadlineTheUserAskedFor()
+    {
+        var income = Enumerable.Repeat(20_000_000L, 6).ToArray();
+        var source = new InMemoryFinancialDataSource(income, Enumerable.Repeat(10_000_000L, 6).ToArray(), 100_000_000);
+        var tool = new ForecastGoalTool(source, new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>()));
+
+        var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 600_000_000, horizon_months = 24 }));
+
+        var goal = result.Actions!.Single();
+        goal.Kind.Should().Be(SuggestedActionKinds.CreateGoal);
+        goal.AmountVnd.Should().Be(600_000_000);
+        goal.Date.Should().Be("2028-11-10", "hôm nay (giờ Việt Nam) cộng 24 tháng");
+        goal.Title.Should().Contain("600.000.000 đồng").And.Contain("24 tháng");
+        result.Evidence.Single(e => e.Id == goal.EvidenceIds.Single()).ValueVnd.Should().Be(goal.AmountVnd, "số tiền của thẻ là một bằng chứng của lượt này");
+    }
+
+    private static CategorySpendVnd C(string slug, string name, long amount) => new(slug, name, amount);
+
+    private static Task<ToolResult> Spending(int months, params CategorySpendVnd[] rows)
+        => new SpendingSummaryTool(new InMemoryFinancialDataSource([], [], 0, null, rows)).RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { months }));
+
+    [Fact]
+    public async Task ASpendingSummaryOverSeveralMonthsSuggestsALimitEqualToTheMonthlyAverageOfTheTopCategories()
+    {
+        var result = await Spending(3, C("an-uong", "Ăn uống", 9_100_000), C("di-chuyen", "Di chuyển", 3_000_000), C("nha-o", "Nhà ở", 2_000_000), C("khac", "Khác", 1_000_000));
+
+        var actions = result.Actions!;
+        actions.Should().OnlyContain(a => a.Kind == SuggestedActionKinds.SetBudgetLimit);
+        actions.Select(a => (a.CategorySlug, a.AmountVnd)).Should().Equal(("an-uong", (long?)3_033_000), ("di-chuyen", 1_000_000), ("nha-o", 666_000));
+        actions.Should().HaveCount(3, "chỉ top 3 nhóm");
+        foreach (var action in actions)
+        {
+            result.Evidence.Single(e => e.Id == action.EvidenceIds.Single()).ValueVnd.Should().Be(action.AmountVnd);
+        }
+
+        result.Evidence.Should().HaveCountLessThanOrEqualTo(12, "đúng số mệnh đề mẫu dự phòng giữ lại");
+    }
+
+    [Fact]
+    public async Task ASingleMonthOfSpendingSuggestsNoLimitBecauseTheMonthIsStillInProgress()
+    {
+        var result = await Spending(1, C("an-uong", "Ăn uống", 9_000_000));
+
+        result.Actions.Should().BeEmpty();
+    }
+
     private static async Task<ToolResult> PlanBudget()
     {
         var source = new Mock<IFinancialDataSource>();

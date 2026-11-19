@@ -89,7 +89,8 @@ public class UserHardDeleter : IUserHardDeleter
     /// <summary>Trạng thái hoàn thành giữ nguyên: nhóm đã đạt mục tiêu thì đó vẫn là sự thật, chỉ số tiền phản ánh phần còn lại.</summary>
     private async Task RecalculateSavedAsync(Guid goalId, CancellationToken ct)
     {
-        var saved = await _context.GoalContributions.Where(c => c.SavingGoalId == goalId).SumAsync(c => (long?)c.AmountCents, ct) ?? 0;
+        var initial = await _context.SavingGoals.IgnoreQueryFilters().Where(g => g.Id == goalId).Select(g => g.InitialSavedCents).FirstOrDefaultAsync(ct);
+        var saved = initial + (await _context.GoalContributions.Where(c => c.SavingGoalId == goalId).SumAsync(c => (long?)c.AmountCents, ct) ?? 0);
         await _context.SavingGoals.IgnoreQueryFilters().Where(g => g.Id == goalId)
             .ExecuteUpdateAsync(s => s.SetProperty(g => g.SavedCents, saved).SetProperty(g => g.UpdatedAt, DateTimeOffset.UtcNow), ct);
     }

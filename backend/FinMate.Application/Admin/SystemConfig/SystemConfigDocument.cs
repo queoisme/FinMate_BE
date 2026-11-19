@@ -481,6 +481,36 @@ public sealed record AgentSettings
     /// Mặc định RỖNG (chủ dự án chốt 2026-11-08: không đặt tỉ lệ sẵn trong code, admin nhập). Sai dạng thì công cụ coi như chưa có mẫu.
     /// </summary>
     public string BudgetTemplate { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Khóa tham số của cách quản lý (<c>FinanceMethod.ParamDefs</c>) được tính là phần TIẾT KIỆM của thu nhập. Công cụ <c>goal_plan</c> cộng giá trị đang có hiệu lực của các khóa này ở cách chính người dùng đang dùng
+    /// (đã chọn từ khảo sát đầu vào) để ước tính sơ khảo "mỗi tháng dành được bao nhiêu" khi chưa có chi tiêu thật. Mặc định là các khóa của chín cách và bốn cách phổ biến đã seed (50/30/20, để dành trước, 6 hũ...);
+    /// admin thêm khóa khi tạo cách mới có phần tiết kiệm. Cách không có khóa nào trong danh sách (vd chỉ theo dõi) thì không ước tính được.
+    /// </summary>
+    public IReadOnlyList<string> SavingParamKeys { get; init; } = ["goals_pct", "saving_pct", "contribution_pct", "long_term_pct", "financial_freedom_pct"];
+
+    /// <summary>
+    /// Mục tiêu chưa khả thi thì <c>goal_plan</c> thử "giảm bấy nhiêu phần trăm chi của nhóm chi nhiều nhất" để xem rút ngắn được bao lâu (kèm thẻ đặt hạn mức cho nhóm đó).
+    /// Đây là mức giảm giả định để so sánh, không phải lời khuyên cắt bao nhiêu; admin chỉnh trong 1–50, 0 = tắt gợi ý này.
+    /// </summary>
+    public int CutSuggestionPercent { get; init; } = 10;
+
+    /// <summary>
+    /// Ước tính sơ khảo "mỗi tháng dành được bao nhiêu % thu nhập" từ câu trả lời khảo sát ban đầu khi chưa có chi tiêu thật và cách quản lý đã chọn không có phần tiết kiệm:
+    /// khóa <c>"mãCâuHỏi:mãĐápÁn"</c> → phần trăm 0–100 (vd <c>"month_end_balance:C"</c>). Nhiều câu có mức thì lấy mức thấp nhất. Mặc định RỖNG: admin nhập, code không giữ tỉ lệ nào.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> SurveySavingShare { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>
+    /// Mức chi trung bình mỗi tháng (đồng) ứng với đáp án của câu khảo sát <c>avg_monthly_spend</c>: khóa <c>"avg_monthly_spend:B"</c> → số đồng (thường là điểm giữa của khoảng).
+    /// Dùng khi chưa có chi tiêu thật: khả năng góp = thu nhập khai − mức này. Ưu tiên hơn phần trăm theo cách quản lý và theo <see cref="SurveySavingShare"/>. Mặc định RỖNG: admin nhập.
+    /// </summary>
+    public IReadOnlyDictionary<string, long> SurveySpendEstimate { get; init; } = new Dictionary<string, long>();
+
+    /// <summary>
+    /// Mẫu câu cố định của công cụ agent (khóa → mẫu có chỗ trống <c>{tên}</c>), xem <c>AgentTexts.Catalog</c>. Chỉ cần ghi các mẫu muốn đổi; khóa vắng mặt dùng mẫu mặc định.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Texts { get; init; } = new Dictionary<string, string>();
 }
 
 /// <summary>Một màu nhận diện trong bảng màu danh mục: <paramref name="Key"/> ổn định để tham chiếu, <paramref name="Hex"/> dạng <c>#RRGGBB</c>, <paramref name="Name"/> hiện cho người dùng.</summary>

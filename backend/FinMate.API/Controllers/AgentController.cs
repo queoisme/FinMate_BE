@@ -25,6 +25,8 @@ public class AgentController(IAgentOrchestrator orchestrator, AgentMemoryService
 
     public sealed record AskRequest(string Question);
 
+    public sealed record GoalPlanRequest(long TargetVnd, int Months);
+
     public sealed record PutMemoryRequest(string Value);
 
     /// <summary>Sở thích dài hạn của CHÍNH người dùng (do họ đặt, xem/sửa/xóa được). Khóa cho phép: <c>preferred_method</c>, <c>eating_out_weekends</c>, <c>notification_quiet_hours</c>, <c>communication_tone</c>.</summary>
@@ -64,5 +66,21 @@ public class AgentController(IAgentOrchestrator orchestrator, AgentMemoryService
         }
 
         return Ok(ApiResponse<AgentAnswerDto>.Ok(await orchestrator.AskAsync(CurrentUserId, question, ct)));
+    }
+
+    /// <summary>
+    /// Đánh giá mục tiêu tiết kiệm <c>targetVnd</c> trong <c>months</c> tháng mà KHÔNG nhờ LLM chọn công cụ (app đã biết hai con số): cùng dạng trả về với <c>ask</c>.
+    /// LLM chỉ còn viết câu (quá <see cref="AgentLimits.ComposeTimeoutSeconds"/> giây thì dùng bản mẫu), nên vẫn có đủ số liệu khi LLM chậm. 422 <c>invalid_goal</c> nếu số ngoài khoảng.
+    /// </summary>
+    [HttpPost("goal-plan")]
+    [EnableRateLimiting(RateLimitingMiddleware.AgentPolicy)]
+    public async Task<IActionResult> GoalPlan([FromBody] GoalPlanRequest request, CancellationToken ct)
+    {
+        if (request.TargetVnd is < 1_000 or > AgentLimits.MaxPriceVnd || request.Months is < 1 or > AgentLimits.MaxSearchMonths)
+        {
+            throw new BusinessRuleException("invalid_goal", "Số tiền hoặc số tháng của mục tiêu nằm ngoài khoảng cho phép.");
+        }
+
+        return Ok(ApiResponse<AgentAnswerDto>.Ok(await orchestrator.AssessGoalAsync(CurrentUserId, request.TargetVnd, request.Months, ct)));
     }
 }

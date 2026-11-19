@@ -27,6 +27,26 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
         RuleFor(x => x.Agent).NotNull();
+        RuleFor(x => x.Agent.CutSuggestionPercent).InclusiveBetween(0, 50).When(x => x.Agent is not null)
+            .WithMessage("Mức giảm chi giả định của gợi ý cắt giảm phải từ 0 đến 50 phần trăm.");
+        RuleFor(x => x.Agent.SurveySavingShare).NotNull()
+            .Must(m => m is null || m.All(p => System.Text.RegularExpressions.Regex.IsMatch(p.Key, "^[a-z0-9_]{1,50}:[A-Za-z0-9]{1,10}$") && p.Value is >= 0 and <= 100))
+            .When(x => x.Agent is not null)
+            .WithMessage("Mức tiết kiệm theo khảo sát phải có khóa dạng 'mã_câu_hỏi:mã_đáp_án' và giá trị từ 0 đến 100.");
+        RuleFor(x => x.Agent.SurveySpendEstimate).NotNull()
+            .Must(m => m is null || m.All(p => System.Text.RegularExpressions.Regex.IsMatch(p.Key, "^[a-z0-9_]{1,50}:[A-Za-z0-9]{1,10}$") && p.Value is >= 0 and <= 100_000_000_000))
+            .When(x => x.Agent is not null)
+            .WithMessage("Mức chi theo khảo sát phải có khóa dạng 'mã_câu_hỏi:mã_đáp_án' và giá trị từ 0 đến 100 tỷ đồng.");
+        RuleFor(x => x.Agent.Texts).NotNull().Custom((texts, ctx) =>
+        {
+            foreach (var (key, template) in texts ?? new Dictionary<string, string>())
+            {
+                if (FinMate.Application.Agent.AgentTexts.Problem(key, template) is { } problem)
+                {
+                    ctx.AddFailure(problem);
+                }
+            }
+        }).When(x => x.Agent is not null);
         RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());

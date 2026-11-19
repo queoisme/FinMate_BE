@@ -123,7 +123,8 @@ public record ChatGoalApiResult(
     [property: JsonPropertyName("name_is_default")] bool NameIsDefault,
     [property: JsonPropertyName("target_cents")] long TargetCents,
     [property: JsonPropertyName("deadline")] DateTimeOffset? Deadline,
-    [property: JsonPropertyName("deadline_text")] string? DeadlineText);
+    [property: JsonPropertyName("deadline_text")] string? DeadlineText,
+    [property: JsonPropertyName("ai_assisted")] bool AiAssisted = false);
 
 /// <summary><c>purchase_date</c> đọc dạng chuỗi (ngày <c>yyyy-MM-dd</c> hoặc thời điểm đầy đủ) rồi đổi sang ngày ở <c>AIServiceClient</c>, để lệch định dạng nhỏ không làm hỏng cả câu trả lời.</summary>
 public record ChatPurchaseApiResult(
@@ -131,6 +132,16 @@ public record ChatPurchaseApiResult(
     [property: JsonPropertyName("amount_cents")] long AmountCents,
     [property: JsonPropertyName("purchase_date")] string? PurchaseDate,
     [property: JsonPropertyName("category_slug")] string? CategorySlug);
+
+public record ChatItemApiResult(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("cadence")] string? Cadence,
+    [property: JsonPropertyName("next_due")] string? NextDue,
+    [property: JsonPropertyName("direction")] string? Direction,
+    [property: JsonPropertyName("counterparty")] string? Counterparty);
 
 public record ChatParseApiResponse(
     [property: JsonPropertyName("intent")] string Intent,
@@ -143,7 +154,8 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
     [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null,
     [property: JsonPropertyName("goal")] ChatGoalApiResult? Goal = null,
-    [property: JsonPropertyName("purchase")] ChatPurchaseApiResult? Purchase = null);
+    [property: JsonPropertyName("purchase")] ChatPurchaseApiResult? Purchase = null,
+    [property: JsonPropertyName("item")] ChatItemApiResult? Item = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,

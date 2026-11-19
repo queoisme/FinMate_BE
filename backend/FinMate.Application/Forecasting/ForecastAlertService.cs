@@ -18,7 +18,8 @@ public sealed record ForecastAlertDto(
     DateTimeOffset ScheduledFor,
     DateTimeOffset? SentAt,
     bool MarkedInaccurate,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    IReadOnlyList<ForecastAlertActionDto> Actions);
 
 public sealed record ForecastAlertListResult(IReadOnlyList<ForecastAlertDto> Items, string? NextCursor);
 
@@ -238,6 +239,8 @@ public class ForecastAlertService : IForecastAlertService
                 new Dictionary<string, string>
                 {
                     ["budgetId"] = budget.BudgetId.ToString(),
+                    ["categoryId"] = budget.CategoryId?.ToString() ?? string.Empty,   // rỗng = ngân sách tổng; app cần nó để nâng đúng hạn mức
+                    ["limitCents"] = budget.LimitCents.ToString(),
                     ["projectedCents"] = budget.ProjectedCents.ToString(),
                     ["maxDailySpendCents"] = budget.MaxDailySpendCents.ToString(),
                 }), ct);
@@ -323,15 +326,21 @@ public class ForecastAlertService : IForecastAlertService
         return document.RootElement.Clone();
     }
 
-    private static ForecastAlertDto ToDto(ForecastAlert a) => new(
-        a.Id,
-        ForecastAlertKinds.Text(a.Kind),
-        a.Title,
-        a.Body,
-        ParseData(a.Data),
-        a.Status.ToString().ToLowerInvariant(),
-        a.ScheduledFor,
-        a.SentAt,
-        a.MarkedInaccurate == true,
-        a.CreatedAt);
+    private static ForecastAlertDto ToDto(ForecastAlert a)
+    {
+        var data = ParseData(a.Data);
+        return new(
+            a.Id,
+            ForecastAlertKinds.Text(a.Kind),
+            a.Title,
+            a.Body,
+            data,
+            a.Status.ToString().ToLowerInvariant(),
+            a.ScheduledFor,
+            a.SentAt,
+            a.MarkedInaccurate == true,
+            a.CreatedAt,
+            // đã báo "không chính xác" thì không gợi ý hành động theo cảnh báo đó nữa
+            a.MarkedInaccurate == true ? [] : ForecastAlertActions.For(a.Kind, data));
+    }
 }

@@ -38,6 +38,8 @@ public class FinMateDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<UserHiddenCategory> UserHiddenCategories => Set<UserHiddenCategory>();
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanRepayment> LoanRepayments => Set<LoanRepayment>();
     public DbSet<GoalContribution> GoalContributions => Set<GoalContribution>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<BudgetPeriod> BudgetPeriods => Set<BudgetPeriod>();

@@ -20,6 +20,18 @@ public class ChatParseContractTests
     private const string QueryJson =
         """{"intent":"ask_spending","reply_text":null,"entry":null,"query":{"metric":"expense","period_key":"thang nay","period_label":"tháng này","start":"2026-10-01T00:00:00+07:00","end":"2026-11-01T00:00:00+07:00","category_slug":"food","income_type":null},"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":3}""";
 
+    // Sinh bằng ChatParseResponse.model_dump_json() cho "gia hạn gói Claude Pro 600k hằng tháng ngày 5" (2026-11-20): intent create_item.
+    private const string ItemJson =
+        """{"intent":"create_item","reply_text":null,"entry":null,"entries":[],"query":null,"total_amount":null,"total_mismatch":false,"skipped":[],"goal":null,"purchase":null,"item":{"kind":"recurring","amount_cents":600000,"name":"Claude Pro","category_slug":null,"cadence":"monthly","next_due":"2026-12-05","direction":null,"counterparty":null},"nlu":{"source":"rules","intent":null,"confidence":null},"unclear_reason":null,"processing_ms":null}""";
+
+    [Fact]
+    public void AnItemFromTheAiServiceDeserialisesIntoEveryField()
+    {
+        var item = JsonSerializer.Deserialize<ChatParseApiResponse>(ItemJson, Options)!.Item!;
+
+        (item.Kind, item.AmountCents, item.Name, item.Cadence, item.NextDue).Should().Be(("recurring", 600_000L, "Claude Pro", "monthly", "2026-12-05"));
+    }
+
     [Fact]
     public void AnEntryFromTheAiServiceDeserialisesIntoEveryField()
     {
@@ -84,6 +96,15 @@ public class ChatParseContractTests
         goal.Deadline!.Value.Offset.Should().Be(TimeSpan.FromHours(7));
 
         JsonSerializer.Deserialize<ChatParseApiResponse>(ExpenseJson, Options)!.Goal.Should().BeNull();  // AI Service cũ: không có goal
+        goal.AiAssisted.Should().BeFalse("AI Service cũ không có ai_assisted: luật đọc, app được tự tạo");
+    }
+
+    [Fact]
+    public void AGoalDraftReadByAiCarriesTheAiAssistedFlag()
+    {
+        var json = GoalJson.Replace("\"deadline_text\":\"2 tháng sau\"", "\"deadline_text\":null,\"ai_assisted\":true");
+
+        JsonSerializer.Deserialize<ChatParseApiResponse>(json, Options)!.Goal!.AiAssisted.Should().BeTrue();
     }
 
     // Sinh bằng ChatParseResponse.model_dump_json() cho "ngày 16 mua cái quần 800k được không" (hôm nay 06/11/2026), ý định evaluate_purchase.

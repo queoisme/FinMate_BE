@@ -93,7 +93,15 @@ public class ChatCommandHandler : IChatCommandHandler
             // Đặt mục tiêu tiết kiệm: luôn qua bước xác nhận, không tạo gì ở đây. Client tạo bằng POST /saving-goals sau khi người dùng bấm Tạo.
             return new ChatResultDto(
                 ChatActions.Goal, parsed.Intent, parsed.ReplyText, null, null, null, null,
-                new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText));
+                new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText, goal.AiAssisted));
+        }
+
+        if (parsed.Item is { } item)
+        {
+            // Ngân sách / khoản định kỳ / vay nợ đủ thông tin: chỉ trả bản nháp, client gọi API tạo (và cho Hoàn tác). Thiếu thông tin thì AI không trả Item: rơi xuống nhánh trả lời với câu hỏi lại.
+            return new ChatResultDto(
+                ChatActions.Item, parsed.Intent, parsed.ReplyText, null, null, null, null, null, null, null, null,
+                new ChatItemDraftDto(item.Kind, item.AmountCents, item.Name, item.CategorySlug, item.Cadence, item.NextDue, item.Direction, item.Counterparty));
         }
 
         if (parsed.Purchase is { } purchase)

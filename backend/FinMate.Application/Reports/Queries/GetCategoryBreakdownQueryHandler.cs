@@ -9,10 +9,12 @@ public class GetCategoryBreakdownQueryHandler : IGetCategoryBreakdownQueryHandle
     private const string UncategorizedName = "Chưa phân loại";
 
     private readonly IReportRepository _reportRepository;
+    private readonly IBudgetRepository? _budgets;   // null (test cũ): không có thông tin ngân sách
 
-    public GetCategoryBreakdownQueryHandler(IReportRepository reportRepository)
+    public GetCategoryBreakdownQueryHandler(IReportRepository reportRepository, IBudgetRepository? budgets = null)
     {
         _reportRepository = reportRepository;
+        _budgets = budgets;
     }
 
     public async Task<CategoryBreakdownDto> HandleAsync(GetCategoryBreakdownQuery query, CancellationToken ct = default)
@@ -33,13 +35,36 @@ public class GetCategoryBreakdownQueryHandler : IGetCategoryBreakdownQueryHandle
             : await _reportRepository.GetCategorySpendAsync(query.UserId, monthFirst, monthLast, ct);
         var total = spend.Sum(s => s.SpentCents);
 
+        // Tháng liền trước, cùng định nghĩa: để hiện "tiết kiệm X so với tháng trước".
+        var prevFirst = monthFirst.AddMonths(-1);
+        var prevLast = monthFirst.AddDays(-1);
+        var prevSpend = query.Type == "income"
+            ? await _reportRepository.GetCategoryIncomeAsync(query.UserId, prevFirst, prevLast, ct)
+            : await _reportRepository.GetCategorySpendAsync(query.UserId, prevFirst, prevLast, ct);
+        var prevByCategory = prevSpend.ToDictionary(s => s.CategoryId ?? Guid.Empty, s => s.SpentCents);   // Guid.Empty = chưa phân loại
+
+        var budgetOf = query.Type == "income" || _budgets is null
+            ? new Dictionary<Guid, (long Limit, long Spent)>()
+            : await BudgetsOfMonthAsync(query.UserId, periodStart, ct);
+
         var items = spend
-            .Select(s => new CategoryBreakdownItemDto(
-                s.CategoryId,
-                s.CategoryName ?? UncategorizedName,
-                s.CategorySlug,
-                s.SpentCents,
-                Percent(s.SpentCents, total)))
+            .Select(s =>
+            {
+                var prev = prevByCategory.GetValueOrDefault(s.CategoryId ?? Guid.Empty);
+                var saved = query.Type == "income" ? 0 : Math.Max(0, prev - s.SpentCents);
+                (long Limit, long Spent)? budget = s.CategoryId is { } id && budgetOf.TryGetValue(id, out var b) ? b : null;
+                return new CategoryBreakdownItemDto(
+                    s.CategoryId,
+                    s.CategoryName ?? UncategorizedName,
+                    s.CategorySlug,
+                    s.SpentCents,
+                    Percent(s.SpentCents, total),
+                    prev,
+                    saved,
+                    s.TransactionCount,
+                    budget?.Limit,
+                    budget is null ? null : s.SpentCents);
+            })
             .ToList();
 
         DistributeRoundingRemainder(items, total);
@@ -49,6 +74,34 @@ public class GetCategoryBreakdownQueryHandler : IGetCategoryBreakdownQueryHandle
             periodEnd.ToOffset(VietnamTime.Offset),
             total,
             items);
+    }
+
+    /// <summary>
+    /// Hạn mức ngân sách THÁNG theo danh mục đúng tháng được hỏi: ưu tiên ảnh chụp <c>budget_periods</c> của tháng đó (tháng cũ giữ hạn mức lúc đó), không có thì
+    /// dùng hạn mức hiện tại của ngân sách nếu ngân sách đã tồn tại trước khi tháng kết thúc.
+    /// </summary>
+    private async Task<Dictionary<Guid, (long Limit, long Spent)>> BudgetsOfMonthAsync(Guid userId, DateTimeOffset periodStart, CancellationToken ct)
+    {
+        var (_, periodEnd) = VietnamTime.MonthRange(VietnamTime.ToLocal(periodStart).Year, VietnamTime.ToLocal(periodStart).Month);
+        var budgets = (await _budgets!.GetListForUserAsync(userId, ct))
+            .Where(b => b.CategoryId is not null && b.PeriodType == Domain.Enums.BudgetPeriodType.Monthly)
+            .ToList();
+        var periods = (await _budgets.GetPeriodsForUserAsync(userId, periodStart, ct)).ToDictionary(p => p.BudgetId);
+
+        var result = new Dictionary<Guid, (long, long)>();
+        foreach (var budget in budgets)
+        {
+            if (periods.TryGetValue(budget.Id, out var period))
+            {
+                result[budget.CategoryId!.Value] = (period.LimitCents, period.SpentCents);
+            }
+            else if (budget.CreatedAt < periodEnd)
+            {
+                result[budget.CategoryId!.Value] = (budget.LimitCents, 0);
+            }
+        }
+
+        return result;
     }
 
     private static int Percent(long spent, long total)

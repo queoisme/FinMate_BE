@@ -1609,7 +1609,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change','listener_health','group_fund_negative','group_fund_removed')");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change','listener_health','group_fund_negative','group_fund_removed','purchase_reminder','weekly_digest')");
 
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
@@ -2594,6 +2594,123 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("listener_upload_gap_daily", null, t =>
                         {
                             t.HasCheckConstraint("chk_listener_upload_gap_daily_count", "count >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Counterparty")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("counterparty");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<DateTimeOffset?>("DueNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_notified_at");
+
+                    b.Property<decimal>("InterestRatePercentYear")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("interest_rate_percent_year");
+
+                    b.Property<long>("PrincipalCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("principal_cents");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_loans_user_id");
+
+                    b.ToTable("loans", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_loans_interest", "interest_rate_percent_year >= 0 AND interest_rate_percent_year <= 100");
+
+                            t.HasCheckConstraint("ck_loans_principal", "principal_cents > 0");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.LoanRepayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("loan_id");
+
+                    b.Property<DateTimeOffset>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<Guid?>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId")
+                        .HasDatabaseName("ix_loan_repayments_loan_id");
+
+                    b.ToTable("loan_repayments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_loan_repayments_amount", "amount_cents > 0");
                         });
                 });
 
@@ -4049,6 +4166,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
 
+                    b.Property<string>("ContributionFrequency")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("contribution_frequency");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -4076,6 +4198,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("icon");
+
+                    b.Property<long>("InitialSavedCents")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("initial_saved_cents");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -4136,9 +4269,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("saving_goals", null, t =>
                         {
+                            t.HasCheckConstraint("chk_saving_goals_contribution_frequency", "contribution_frequency IS NULL OR contribution_frequency IN ('weekly','monthly','custom')");
+
+                            t.HasCheckConstraint("chk_saving_goals_initial_saved_cents", "initial_saved_cents >= 0");
+
                             t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
 
-                            t.HasCheckConstraint("chk_saving_goals_status", "status IN ('active','completed','cancelled')");
+                            t.HasCheckConstraint("chk_saving_goals_status", "status IN ('draft','active','completed','cancelled')");
 
                             t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
                         });
@@ -6479,6 +6616,24 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.Loan", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.LoanRepayment", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.Loan", null)
+                        .WithMany("Repayments")
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.MarketDocument", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.MarketSource", null)
@@ -7167,6 +7322,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FinMate.Domain.Entities.Budget", b =>
                 {
                     b.Navigation("Periods");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.Loan", b =>
+                {
+                    b.Navigation("Repayments");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.NotificationLog", b =>

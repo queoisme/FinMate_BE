@@ -14,7 +14,10 @@ internal static class SavingGoalMapper
         PercentComplete(goal),
         goal.Status.ToString().ToLowerInvariant(),
         goal.Deadline,
-        goal.CompletedAt);
+        goal.CompletedAt,
+        goal.Icon,
+        goal.InitialSavedCents,
+        goal.ContributionFrequency?.ToString().ToLowerInvariant());
 
     internal static GoalContributionDto ToDto(GoalContribution contribution) => new(
         contribution.Id,
