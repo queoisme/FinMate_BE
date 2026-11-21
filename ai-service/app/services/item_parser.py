@@ -29,11 +29,12 @@ _SLASH_GROUPS = (("monthly", "month"), ("weekly", "week"), ("yearly", "year"))  
 
 def _bind(cues: intent_cues.Cues) -> None:
     """Gắn mẫu và danh sách từ của câu tạo ngân sách / khoản định kỳ / vay nợ. Chỉ gọi với bản đã qua intent_cues.build."""
-    global _P, _SELF, _STOP_ACC, _STOP_FOLD, _CUT_ACC, _CUT_FOLD
+    global _P, _SELF, _STOP_ACC, _STOP_FOLD, _CUT_ACC, _CUT_FOLD, _FILL_ACC, _FILL_FOLD
     _P = {name: pattern for name, pattern in cues.patterns.items() if name.startswith("item_")}
     _SELF = frozenset(fold(word) for word in cues.lists["item_self_words"])
     _STOP_ACC, _STOP_FOLD = _word_sets(cues.lists["item_name_stopwords"])
     _CUT_ACC, _CUT_FOLD = _word_sets(cues.lists["item_name_cutoff"])
+    _FILL_ACC, _FILL_FOLD = _word_sets(cues.lists["item_repay_fillers"])
 
 
 def _word_sets(words: tuple[str, ...]) -> tuple[frozenset[str], frozenset[str]]:
@@ -48,12 +49,26 @@ intent_cues.subscribe(_bind)
 class ItemDraft:
     kind: str  # budget | recurring | loan
     amount: int  # đồng VND (hạn mức / số tiền mỗi lần / số tiền vay)
-    name: str | None = None  # recurring: tên khoản; loan: tiêu đề ("Cho Bạn An vay")
-    category: str | None = None  # budget: slug nhóm chi
+    name: str | None = None  # recurring: tên khoản; loan: tiêu đề ("Cho Bạn An vay"); budget: tên nhóm người dùng NÓI (có thể không phải nhóm mặc định nào)
+    category: str | None = None  # budget: slug nhóm mặc định hệ thống nhận ra (None nếu không nhận ra)
     cadence: str | None = None  # recurring: weekly | monthly | yearly
     next_due: date | None = None  # recurring: ngày thanh toán tiếp theo
     direction: str | None = None  # loan: borrow | lend
     counterparty: str | None = None  # loan: tên người
+    operation: str = "create"  # create | repay (gợi ý ghi lần trả vào khoản vay có sẵn, do backend xác nhận) | update (đổi số tiền việc vừa làm) | add (cộng thêm vào số tiền việc vừa làm) | delete (hủy việc vừa làm); update/add/delete mang theo định danh của việc đó lấy từ ngữ cảnh
+
+
+@dataclass(frozen=True)
+class ItemContext:
+    """Việc ngân sách / khoản định kỳ / vay nợ VỪA làm trong phiên này, do app gửi kèm mỗi tin (server không giữ trạng thái). Chỉ có số liệu có cấu trúc, không có chữ người dùng gõ."""
+
+    kind: str
+    amount: int
+    name: str | None = None
+    category: str | None = None
+    cadence: str | None = None
+    direction: str | None = None
+    counterparty: str | None = None
 
 
 @dataclass(frozen=True)
@@ -133,7 +148,36 @@ def _loan(nfc: str, norm: str) -> ItemResult | None:
     return ItemResult(ItemDraft(LOAN, match.value, name=title, direction=direction, counterparty=who), None)
 
 
-def _budget(norm: str, category_of: Callable[[str], str | None]) -> ItemResult | None:
+def parse_repay(text: str) -> ItemDraft | None:
+    """Câu TRẢ NỢ ("bạn An đã trả cho tôi 500k", "tôi trả An 300k"): gợi ý ghi một lần trả vào khoản vay đang có với người đó. KHÔNG thay việc ghi giao dịch thu/chi: server vẫn đọc câu như
+    mọi câu khác và backend mới quyết định (tìm khoản vay khớp tên của người dùng; không có thì giữ giao dịch như cũ), nên tên người không rời khỏi backend. None nếu thiếu tên người hoặc số tiền."""
+    nfc = unicodedata.normalize("NFC", text)
+    norm = normalize(text)
+    to_me, by_me = _P["item_repay_to_me"].search(norm), _P["item_repay_by_me"].search(norm)
+    if to_me:
+        # "bạn An đã trả cho tôi": bỏ chữ đệm ngay trước "trả" ("đã", "vừa"...) rồi mới lấy tên người
+        end = to_me.start()
+        while (last := re.search(r"(\S+)\s*$", nfc[:end])) and _in(last.group(1), _FILL_ACC, _FILL_FOLD):
+            end = last.start(1)
+        direction, words, span = "lend", _words(nfc, 0, end, reverse=True), (to_me.start(), to_me.end())
+    elif by_me:
+        direction, words, span = "borrow", _words(nfc, by_me.end(), len(nfc), reverse=False), (by_me.start(), by_me.end())
+    else:
+        return None
+    words = [w for w in words if not _in(w, _FILL_ACC, _FILL_FOLD)]
+    who = _display(words)
+    if who is None:
+        return None
+    spans = [span]
+    if found := _find(nfc, who):
+        spans.append(found)
+    match = parse_amount(_mask(norm, spans))
+    if match is None or match.assumed:
+        return None
+    return ItemDraft(LOAN, match.value, direction=direction, counterparty=who, operation="repay")
+
+
+def _budget(nfc: str, norm: str, category_of: Callable[[str], str | None]) -> ItemResult | None:
     strong, weak = _P["item_budget_strong"].search(norm), _P["item_budget_weak"].search(norm)
     if not strong and not weak:
         return None
@@ -143,13 +187,15 @@ def _budget(norm: str, category_of: Callable[[str], str | None]) -> ItemResult |
     category = category_of(masked)
     if not strong and (match is None or category is None):
         return None  # "ngân sách còn bao nhiêu", "hạn mức thẻ": chưa phải câu đặt ngân sách
-    if category is None:
+    # Tên nhóm người dùng nói ("thú cưng"): hệ thống chỉ biết các nhóm mặc định, còn nhóm của từng tài khoản khác nhau nên app đối chiếu với danh mục CỦA NGƯỜI DÙNG (và đề nghị tạo nếu chưa có).
+    said = _leftover(nfc, _span(strong) + ([(match.start, match.end)] if match else [])) if strong else None
+    if category is None and said is None:
         return ItemResult(None, replies["item_budget_ask_category"])
     if match is None:
         return ItemResult(None, replies["item_budget_ask_amount"])
     if match.assumed:
         return ItemResult(None, replies["item_needs_unit"])
-    return ItemResult(ItemDraft(BUDGET, match.value, category=category), None)
+    return ItemResult(ItemDraft(BUDGET, match.value, name=said, category=category), None)
 
 
 def _next_due(norm: str, now: datetime) -> tuple[date | None, tuple[int, int] | None, bool]:
@@ -196,7 +242,8 @@ def _cadence(norm: str) -> tuple[str | None, list[tuple[int, int]]]:
     return None, []
 
 
-def _recurring_name(nfc: str, removed: list[tuple[int, int]]) -> str:
+def _leftover(nfc: str, removed: list[tuple[int, int]]) -> str | None:
+    """Các chữ còn lại sau khi bỏ từ lệnh, số tiền, ngày và chữ đệm (item_name_stopwords): tên khoản / tên nhóm người dùng nói; không còn gì thì None."""
     kept = []
     for word in re.finditer(r"\S+", nfc):
         if any(start < word.end() and word.start() < end for start, end in removed):
@@ -205,9 +252,11 @@ def _recurring_name(nfc: str, removed: list[tuple[int, int]]) -> str:
         if token and not _in(token, _STOP_ACC, _STOP_FOLD) and not re.fullmatch(r"[\d.,]+", token):
             kept.append(token)
     name = " ".join(kept)
-    if len(name) < 2:
-        return _replies()["item_recurring_default_name"]
-    return name[:1].upper() + name[1:80]
+    return name[:1].upper() + name[1:80] if len(name) >= 2 else None
+
+
+def _recurring_name(nfc: str, removed: list[tuple[int, int]]) -> str:
+    return _leftover(nfc, removed) or _replies()["item_recurring_default_name"]
 
 
 def _recurring(nfc: str, norm: str, now: datetime) -> ItemResult | None:
@@ -233,8 +282,49 @@ def _recurring(nfc: str, norm: str, now: datetime) -> ItemResult | None:
     return ItemResult(ItemDraft(RECURRING, match.value, name=name, cadence=cadence, next_due=due), None)
 
 
-def parse_item(text: str, now: datetime, category_of: Callable[[str], str | None]) -> ItemResult | None:
-    """None nếu câu không phải tạo ngân sách / khoản định kỳ / vay nợ. ``category_of(norm)`` trả slug nhóm chi nêu trong câu (đã bỏ dấu) hoặc None."""
+def _target(last: ItemContext, operation: str, amount: int) -> ItemDraft:
+    """Bản nháp thao tác lên việc vừa làm: giữ định danh (nhóm / tên / người) để app biết sửa hoặc xóa đúng cái nào."""
+    return ItemDraft(
+        last.kind, amount, name=last.name, category=last.category, cadence=last.cadence, direction=last.direction, counterparty=last.counterparty, operation=operation
+    )
+
+
+def _followup(nfc: str, norm: str, now: datetime, category_of: Callable[[str], str | None], last: ItemContext) -> ItemResult | None:
+    """Câu nối tiếp việc VỪA làm: xóa ("xóa cái đó"), đổi số tiền ("đổi thành 3 triệu"), cộng thêm ("thêm 300k nữa"), hoặc làm tiếp việc cùng loại ("còn di chuyển 1 triệu").
+    Câu còn từ lạ ngoài lệnh và số tiền ("tăng lương lên 20 triệu") không phải nối tiếp: để các luật khác xử lý."""
+    modify, add, also = _P["item_modify"].search(norm), _P["item_add"].search(norm), _P["item_also"].search(norm)
+    delete, referent = _P["item_delete_verb"].search(norm), _P["item_referent"].search(norm)
+    command = [m for m in (modify, add, also, delete, referent) if m]
+    if not command:
+        return None
+    removed = [(m.start(), m.end()) for m in command]
+    match = parse_amount(_mask(norm, removed))
+    if delete and referent and match is None:
+        return ItemResult(_target(last, "delete", 0), None)
+    if match is None or match.assumed:
+        return None
+    spans = removed + [(match.start, match.end)]
+    rest = _leftover(nfc, spans)
+    if rest is None and last.kind in (BUDGET, LOAN):
+        if modify:
+            return ItemResult(_target(last, "update", match.value), None)
+        if add and not also:
+            return ItemResult(_target(last, "add", match.value), None)
+    if also and rest is not None and last.kind == BUDGET:
+        return ItemResult(ItemDraft(BUDGET, match.value, name=rest, category=category_of(_mask(norm, spans))), None)
+    if also and rest is not None and last.kind == RECURRING and last.cadence:
+        due, _, _ = _next_due(norm, now)
+        if due is None:
+            return ItemResult(None, _replies()["item_recurring_ask_due"])
+        return ItemResult(ItemDraft(RECURRING, match.value, name=rest, cadence=last.cadence, next_due=due), None)
+    return None
+
+
+def parse_item(text: str, now: datetime, category_of: Callable[[str], str | None], last: ItemContext | None = None) -> ItemResult | None:
+    """None nếu câu không phải tạo ngân sách / khoản định kỳ / vay nợ (hoặc nối tiếp việc vừa làm khi có ``last``).
+    ``category_of(norm)`` trả slug nhóm chi nêu trong câu (đã bỏ dấu) hoặc None."""
     nfc = unicodedata.normalize("NFC", text)
     norm = normalize(text)
-    return _loan(nfc, norm) or _budget(norm, category_of) or _recurring(nfc, norm, now)
+    if last is not None and (followed := _followup(nfc, norm, now, category_of, last)) is not None:
+        return followed
+    return _loan(nfc, norm) or _budget(nfc, norm, category_of) or _recurring(nfc, norm, now)

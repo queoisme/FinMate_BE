@@ -11,11 +11,25 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
+class ChatItemContext(BaseModel):
+    """Việc ngân sách / khoản định kỳ / vay nợ VỪA làm trong phiên (app gửi kèm mỗi tin; server không giữ trạng thái). Chỉ số liệu có cấu trúc."""
+
+    kind: str  # budget | recurring | loan
+    amount_cents: int = Field(ge=0)
+    name: str | None = Field(default=None, max_length=100)
+    category_slug: str | None = Field(default=None, max_length=64)
+    cadence: str | None = Field(default=None, max_length=16)
+    direction: str | None = Field(default=None, max_length=16)
+    counterparty: str | None = Field(default=None, max_length=100)
+
+
 class ChatParseRequest(BaseModel):
     text: str = Field(max_length=500)
     user_id_hash: str = Field(min_length=64, max_length=64)
     # Người dùng đã đồng ý gửi cụm sản phẩm cho AI bên thứ ba (backend đọc từ DB mỗi lần). Mặc định tắt: không gửi gì ra ngoài.
     allow_ai: bool = False
+    # Việc vừa làm trong phiên: để hiểu câu nối tiếp ("đổi thành 3 triệu", "xóa cái đó", "còn di chuyển 1 triệu"). Không có thì chỉ hiểu câu đứng riêng.
+    item_context: ChatItemContext | None = None
 
 
 class ChatEntry(BaseModel):
@@ -90,6 +104,8 @@ class ChatItem(BaseModel):
     next_due: date | None = None  # recurring: ngày thanh toán tiếp theo
     direction: str | None = None  # loan: borrow (mình đi vay) | lend (mình cho vay)
     counterparty: str | None = None  # loan: tên người
+    # create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm); update/add/delete mang định danh của việc đó (nhóm / tên / người) lấy từ item_context
+    operation: str = "create"
 
 
 class ChatNlu(BaseModel):

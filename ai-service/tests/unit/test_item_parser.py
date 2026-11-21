@@ -62,6 +62,15 @@ def test_budget_needs_category_and_amount():
     assert "bao nhiêu" in parse("đặt ngân sách ăn uống").reply
 
 
+def test_budget_keeps_the_category_name_the_user_said_even_when_the_system_does_not_know_it():
+    known = parse("đặt ngân sách ăn uống 2 triệu").draft
+    custom = parse("đặt ngân sách thú cưng 1 triệu").draft
+
+    assert (known.category, known.name) == ("dining", "Ăn uống")
+    assert (custom.category, custom.name, custom.amount) == (None, "Thú cưng", 1_000_000)  # app đối chiếu với danh mục của chính người dùng
+    assert parse("ngân sách thẻ tín dụng 5 triệu") is None  # không có động từ đặt: chỉ nhận khi biết chắc nhóm
+
+
 def test_a_budget_question_is_not_a_budget_command():
     assert parse("ngân sách còn bao nhiêu") is None
     assert parse("ăn trưa 50k") is None
@@ -98,3 +107,30 @@ def test_parse_chat_routes_to_create_item_and_asks_back():
 
     assert done.intent == "create_item" and done.item.kind == RECURRING
     assert asking.intent == "create_item" and asking.item is None and asking.reply_text
+
+
+@pytest.mark.parametrize(
+    ("text", "direction", "who", "amount"),
+    [
+        ("bạn An đã trả cho tôi 500k", "lend", "Bạn An", 500_000),
+        ("An trả nợ tôi 500k", "lend", "An", 500_000),
+        ("tôi đã trả cho An 300k", "borrow", "An", 300_000),
+        ("mình trả lại bạn Bình 1 triệu", "borrow", "Bạn Bình", 1_000_000),
+    ],
+)
+def test_a_repayment_sentence_is_a_hint_to_record_a_payment_on_an_existing_loan(text, direction, who, amount):
+    from app.services.item_parser import parse_repay
+
+    draft = parse_repay(text)
+
+    assert (draft.operation, draft.kind, draft.direction, draft.counterparty, draft.amount) == ("repay", LOAN, direction, who, amount)
+
+
+def test_repay_needs_a_name_and_an_amount_and_never_changes_the_normal_reading():
+    from app.services.item_parser import parse_repay
+
+    assert parse_repay("tôi trả tiền ăn 50k") is None
+    assert parse_repay("bạn An đã trả cho tôi") is None
+    parsed = tp.parse_chat("bạn An đã trả cho tôi 500k", now=NOW)
+    assert parsed.intent == "add_income" and parsed.entry.amount == 500_000  # vẫn là giao dịch thu như trước
+    assert parsed.item.operation == "repay" and parsed.item.counterparty == "Bạn An"

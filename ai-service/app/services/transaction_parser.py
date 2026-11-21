@@ -20,7 +20,7 @@ from app.services import vocab
 from app.services import intent_cues
 from app.services.amount_normalizer import normalize, parse_amount, remove_amount
 from app.services.goal_parser import GoalDraft, parse_goal
-from app.services.item_parser import ItemDraft, parse_item
+from app.services.item_parser import ItemContext, ItemDraft, parse_item, parse_repay
 from app.services.purchase_parser import PurchaseDraft, mentions_buying, parse_purchase
 from app.services.vi_text import clean_text, fold
 from app.utils.amount_slang import SLANG
@@ -654,13 +654,24 @@ def _total_check(stated: int | None, entries: tuple[Entry, ...]) -> dict:
     return {"total_amount": stated, "total_mismatch": stated != sum(e.amount for e in entries)}
 
 
-def parse_chat(
+def parse_chat(text: str, nlu: dict | None = None, **kwargs) -> ChatParse:
+    """Đọc một câu chat. Câu TRẢ NỢ ("bạn An trả cho tôi 500k") được đọc như mọi câu thu/chi, kèm gợi ý ``item`` (operation repay) để backend ghi vào khoản vay khớp tên nếu có."""
+    parsed = _parse_chat(text, nlu, **kwargs)
+    repay = parse_repay(clean_text(text or "")) if parsed.intent in _REPAY_INTENTS else None
+    return replace(parsed, item=repay) if repay is not None else parsed
+
+
+_REPAY_INTENTS = frozenset({"add_income", "add_expense", "transfer_money"})
+
+
+def _parse_chat(
     text: str,
     nlu: dict | None = None,
     *,
     now: datetime | None = None,
     auto_save_below: int = 2_000_000,
     fallback_category: Callable[[str | None, str], str | None] | None = None,
+    item_context: ItemContext | None = None,
 ) -> ChatParse:
     """nlu: kết quả bộ phân loại ý định {"intent", "confidence", "entities"} hoặc None. fallback_category(merchant, mô tả) -> nhóm 9 nhóm hoặc None."""
     text = clean_text(text or "").strip()
@@ -680,7 +691,7 @@ def parse_chat(
         return result("empty", reply_text=_REPLIES["empty"])
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
-    if (made := parse_item(text, now, category_from_text)) is not None and not is_query(norm):  # ngân sách / khoản định kỳ / vay nợ: bản nháp đủ thông tin thì app tạo, thiếu thì reply_text là câu hỏi lại (app nhớ và ghép với tin kế tiếp)
+    if (made := parse_item(text, now, category_from_text, item_context)) is not None and not is_query(norm):  # ngân sách / khoản định kỳ / vay nợ: bản nháp đủ thông tin thì app tạo, thiếu thì reply_text là câu hỏi lại (app nhớ và ghép với tin kế tiếp)
         return result(ITEM_INTENT, item=made.draft, reply_text=made.reply)
     if _AGENT_PLANNING.search(norm):  # trước đánh giá mua: "mua xe 600 triệu sau 2 năm" vượt tầm kiểm tra mua (tối đa 90 ngày), việc của agent
         return result(AGENT_INTENT)

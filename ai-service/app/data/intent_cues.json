@@ -1,6 +1,12 @@
 {
   "_doc": "Từ vựng, mẫu nhận dạng, ngưỡng và câu trả lời của lớp hiểu câu chat (app/services/transaction_parser.py, clauses.py, goal_parser.py, category_resolver.py). Sửa tệp này rồi khởi động lại ai-service, hoặc sửa qua trang quản trị (config_documents) để có hiệu lực không cần khởi động lại; KHÔNG thêm từ khóa vào code. Mỗi mẫu là một LOẠI dấu hiệu (động từ/vai trò/hình thức câu), không phải một câu lỗi cụ thể: thêm mẫu cho một câu lẻ là vá cho qua test. Mọi thay đổi ở đây phải qua cổng scripts/audit_overrides.py (cứu >= phá, không làm tụt bộ độc lập). Cú pháp <<tên>> chèn một danh sách trong 'lists' (tự bỏ dấu khi mẫu có on=folded) hoặc một đoạn trong 'fragments'.",
   "lists": {
+    "item_repay_fillers": ["đã", "vừa", "mới", "lại", "cho", "nợ", "tiền", "khoản", "số", "đang", "vẫn"],
+    "item_modify_verbs": ["đổi", "sửa", "chỉnh", "thay", "tăng", "giảm", "nâng", "hạ", "cập nhật"],
+    "item_add_words": ["thêm", "cộng thêm", "góp thêm", "nợ thêm", "vay thêm"],
+    "item_also_words": ["còn", "tương tự", "giống vậy", "cũng", "luôn"],
+    "item_delete_verbs": ["xóa", "xoá", "hủy", "huỷ", "bỏ", "gỡ", "thôi"],
+    "item_referents": ["cái đó", "khoản đó", "mục đó", "ngân sách đó", "cái vừa rồi", "vừa tạo", "vừa đặt", "vừa rồi", "cái này", "khoản này"],
     "item_create_verbs": ["đặt", "tạo", "thiết lập", "lập", "cài đặt", "cài"],
     "item_budget_nouns": ["ngân sách", "hạn mức chi tiêu", "hạn mức chi", "hạn mức", "giới hạn chi tiêu", "giới hạn chi"],
     "item_recurring_verbs": ["gia hạn", "thuê bao", "subscription", "đăng ký gói", "đăng kí gói"],
@@ -12,8 +18,8 @@
     "item_due_today": ["hôm nay"],
     "item_due_tomorrow": ["ngày mai", "mai"],
     "item_self_words": ["tôi", "mình", "tui", "tớ", "em", "anh", "chị"],
-    "item_name_stopwords": ["gói", "của", "cho", "tôi", "mình", "là", "với", "khoảng", "tầm", "mỗi", "hằng", "hàng", "tháng", "tuần", "năm", "theo", "trả", "đóng", "thanh", "toán", "nộp", "tiền", "vào", "ngày", "hôm", "nay", "mai", "một", "lần", "đặt", "tạo", "lập", "thiết", "cài", "ngân", "sách", "hạn", "mức", "chi", "tiêu", "giới", "đăng", "ký", "kí", "thuê", "bao", "định", "kỳ", "gia", "k", "đồng", "và", "thì", "nhé", "nha", "với"],
-    "item_name_cutoff": ["một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", "triệu", "nghìn", "ngàn", "trăm", "tỷ", "tỉ", "k", "đồng", "vnd", "tiền", "vì", "do", "để", "hôm", "nay", "qua", "mai", "vào", "lúc", "khoảng", "tầm", "và", "rồi", "thì", "nhé", "nha", "ạ", "đã", "đang", "sẽ", "còn", "thêm", "mua", "ít", "nhiều"],
+    "item_name_stopwords": ["gói", "của", "cho", "tôi", "mình", "là", "với", "khoảng", "tầm", "mỗi", "hằng", "hàng", "tháng", "tuần", "năm", "theo", "trả", "đóng", "thanh", "toán", "nộp", "tiền", "vào", "ngày", "hôm", "nay", "mai", "một", "lần", "đặt", "tạo", "lập", "thiết", "cài", "ngân", "sách", "hạn", "mức", "chi", "tiêu", "giới", "đăng", "ký", "kí", "thuê", "bao", "định", "kỳ", "gia", "k", "đồng", "và", "thì", "nhé", "nha", "nữa", "lại", "đó", "này", "giúp", "xuống", "lên", "thành", "sửa", "đổi", "chỉnh", "thay", "tăng", "giảm", "nâng", "hạ", "cập", "nhật", "xóa", "xoá", "hủy", "huỷ", "bỏ", "gỡ", "cái", "khoản", "mục", "cũng", "luôn", "còn", "cả", "tương", "tự", "giống", "vậy", "thêm", "góp", "vừa", "rồi"],
+    "item_name_cutoff": ["một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", "triệu", "nghìn", "ngàn", "trăm", "tỷ", "tỉ", "k", "đồng", "vnd", "tiền", "vì", "do", "để", "hôm", "nay", "qua", "mai", "vào", "lúc", "khoảng", "tầm", "và", "rồi", "thì", "nhé", "nha", "ạ", "đã", "đang", "sẽ", "còn", "thêm", "mua", "ít", "nhiều", "vừa", "mới", "vẫn"],
     "giver": [
       "mẹ",
       "bố",
@@ -307,6 +313,13 @@
     "pay_debt": "tra(?: tien)? no"
   },
   "patterns": {
+    "item_repay_to_me": {"on": "folded", "regex": "(?<![a-z])tra (?:no |lai )*(?:cho )?(?:<<item_self_words>>)(?![a-z])", "doc": "Người khác TRẢ mình ('bạn An đã trả cho tôi 500k', 'An trả nợ tôi 500k'): ghi một lần thu hồi vào khoản MÌNH cho vay; tên người ở TRƯỚC cụm này. Chỉ là gợi ý: backend tìm khoản vay khớp tên, không có thì vẫn ghi giao dịch thu như thường."},
+    "item_repay_by_me": {"on": "folded", "regex": "(?<![a-z])(?:<<item_self_words>>) (?:da |vua |moi )?tra (?:no |lai )*(?:cho )?", "doc": "MÌNH trả người khác ('tôi đã trả cho An 300k'): ghi một lần trả vào khoản MÌNH đi vay; tên người ở SAU cụm này. Chỉ là gợi ý: backend tìm khoản vay khớp tên, không có thì vẫn ghi giao dịch chi như thường."},
+    "item_modify": {"on": "folded", "regex": "(?<![a-z])(?:<<item_modify_verbs>>)(?![a-z])", "doc": "Câu sửa việc VỪA LÀM ('đổi thành 3 triệu', 'tăng lên 3 triệu'): chỉ tính khi app gửi kèm việc vừa làm VÀ câu không còn từ nào khác ngoài lệnh và số tiền ('tăng lương lên 20 triệu' còn chữ 'lương' nên không phải)."},
+    "item_add": {"on": "folded", "regex": "(?<![a-z])(?:<<item_add_words>>)(?![a-z])", "doc": "Cộng thêm vào việc vừa làm ('thêm 300k nữa'): chỉ khi câu không còn từ nào khác ngoài lệnh và số tiền."},
+    "item_also": {"on": "folded", "regex": "(?<![a-z])(?:<<item_also_words>>)(?![a-z])", "doc": "Làm tiếp một việc CÙNG LOẠI với việc vừa làm ('còn di chuyển thì 1 triệu'): cần có tên nhóm/khoản và số tiền."},
+    "item_delete_verb": {"on": "folded", "regex": "(?<![a-z])(?:<<item_delete_verbs>>)(?![a-z])", "doc": "Động từ xóa/hủy việc vừa làm; phải đi kèm từ chỉ 'cái vừa làm' (item_referent) mới tính."},
+    "item_referent": {"on": "folded", "regex": "(?<![a-z])(?:<<item_referents>>)(?![a-z])", "doc": "Từ chỉ cái vừa làm ('cái đó', 'khoản vừa rồi'): 'hủy' đứng một mình vẫn là hủy thẻ đang chờ như trước."},
     "item_budget_strong": {"on": "folded", "regex": "(?<![a-z])(?:<<item_create_verbs>>) (?:cho )?(?:<<item_budget_nouns>>)(?![a-z])", "doc": "Đặt ngân sách/hạn mức rõ ràng ('đặt ngân sách ăn uống 2 triệu'): đủ để hỏi lại nhóm hoặc số tiền nếu thiếu."},
     "item_budget_weak": {"on": "folded", "regex": "(?<![a-z])(?:<<item_budget_nouns>>)(?![a-z])", "doc": "Chỉ nhắc 'ngân sách'/'hạn mức' không có động từ đặt: chỉ tính là đặt ngân sách khi có đủ cả nhóm và số tiền, kẻo 'ngân sách còn bao nhiêu' bị hỏi lại."},
     "item_recurring_strong": {"on": "folded", "regex": "(?<![a-z])(?:<<item_recurring_verbs>>)(?![a-z])", "doc": "Từ chỉ khoản lặp lại ('gia hạn gói Claude Pro', 'đăng ký thuê bao Netflix', 'định kỳ'): đủ để hỏi lại số tiền, chu kỳ hoặc ngày nếu thiếu."},

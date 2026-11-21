@@ -38,6 +38,7 @@ from app.schemas.chat import (
     ChatQuery,
 )
 from app.services import category_registry
+from app.services.item_parser import ItemContext
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(dependencies=[Depends(verify_internal_api_key)])
@@ -152,10 +153,18 @@ def _to_response(parsed: ChatParse) -> ChatParseResponse:
             next_due=parsed.item.next_due,
             direction=parsed.item.direction,
             counterparty=parsed.item.counterparty,
+            operation=parsed.item.operation,
         )
         if parsed.item
         else None,
     )
+
+
+def _item_context(body: ChatParseRequest) -> ItemContext | None:
+    ctx = body.item_context
+    if ctx is None:
+        return None
+    return ItemContext(ctx.kind, ctx.amount_cents, ctx.name, ctx.category_slug, ctx.cadence, ctx.direction, ctx.counterparty)
 
 
 @router.post("/chat/parse", response_model=ChatParseResponse)
@@ -176,6 +185,7 @@ async def chat_parse(
         nlu,
         now=datetime.now(VN),
         auto_save_below=settings.chat_auto_save_below,
+        item_context=_item_context(body),
     )
     ai_stats: dict[str, int] = {}
 
