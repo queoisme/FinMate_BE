@@ -104,7 +104,13 @@ public record ScanReceiptResponse(
 // POST /api/v1/chat/parse — route thứ năm của contract, thêm ở Phase 20. AI Service chỉ HIỂU câu chat và
 // trả quyết định; backend lưu giao dịch và tự tính tổng. AmountCents là đồng VND như mọi nơi khác.
 /// <param name="AllowAi">Người dùng đang đồng ý gửi cụm sản phẩm cho AI bên thứ ba (đọc từ DB). Mặc định tắt: không gửi gì ra ngoài.</param>
-public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false);
+/// <summary>
+/// Việc ngân sách / khoản định kỳ / vay nợ VỪA làm trong phiên: app gửi kèm mỗi tin chat để AI hiểu câu nối tiếp ("đổi thành 3 triệu", "xóa cái đó"). Server không lưu gì.
+/// Chỉ số liệu có cấu trúc, không có chữ người dùng gõ.
+/// </summary>
+public record ChatItemContext(string Kind, long AmountCents, string? Name = null, string? CategorySlug = null, string? Cadence = null, string? Direction = null, string? Counterparty = null);
+
+public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false, ChatItemContext? ItemContext = null);
 
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
@@ -158,7 +164,8 @@ public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? Purcha
 /// <param name="Name">recurring: tên khoản; loan: tiêu đề.</param>
 /// <param name="Cadence">recurring: weekly | monthly | yearly.</param>
 /// <param name="Direction">loan: borrow (mình đi vay) | lend (mình cho vay).</param>
-public record ChatParseItem(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty);
+/// <param name="Operation">create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm); update/add/delete mang định danh của việc đó.</param>
+public record ChatParseItem(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty, string Operation = "create");
 
 /// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | create_item | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
 public record ChatParseResponse(

@@ -61,6 +61,21 @@ public sealed record GroupSettings
 
     /// <summary>Số quỹ CHƯA lưu trữ tối đa của một nhóm (BR-FUND-01, D16).</summary>
     public int MaxFundsPerGroup { get; init; } = 3;
+
+    /// <summary>Một người chỉ bị nhắc nợ một lần trong khoảng này (giờ), tính cho mỗi nhóm.</summary>
+    public int DebtReminderCooldownHours { get; init; } = 24;
+
+    /// <summary>Số hóa đơn tối đa mỗi trang.</summary>
+    public int MaxBillsPerPage { get; init; } = 50;
+
+    /// <summary>Đầu của link mời công khai; link là <c>{InviteLinkBaseUrl}/{token}</c>. Phải là https.</summary>
+    public string InviteLinkBaseUrl { get; init; } = "https://finmate.app/join";
+
+    /// <summary>Mỗi người tìm/mời theo FinMate ID tối đa chừng này lần trong một cửa sổ (chống dò người dùng).</summary>
+    public int UserSearchLimit { get; init; } = 20;
+
+    public int UserSearchWindowMinutes { get; init; } = 60;
+    public int MaxInviteSuggestions { get; init; } = 10;
 }
 
 /// <summary>Hạn SLA tính bằng phút kể từ lúc tạo ticket, và các giới hạn của ticket.</summary>

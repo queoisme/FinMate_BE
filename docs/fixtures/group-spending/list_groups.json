@@ -1,0 +1,111 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [
+      {
+        "id": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+        "name": "Phòng trọ 302",
+        "type": "Roommates",
+        "transactionVisibility": "Full",
+        "myRole": "Owner",
+        "myPermissions": [
+          "ViewOverview",
+          "ViewMemberTransactions",
+          "ViewActivity",
+          "ShareTransactions",
+          "ContributeGoals",
+          "ManageSharedTransactions",
+          "ManageBudgets",
+          "ManageGoals",
+          "ManageCategories",
+          "InviteMembers",
+          "RemoveMembers",
+          "ManageFunds",
+          "RecordFundEntries"
+        ],
+        "memberCount": 4,
+        "createdAt": "2026-11-20T10:18:42.388374+00:00",
+        "icon": "house",
+        "avatarUrl": null,
+        "description": "Điện nước + internet",
+        "currency": "VND",
+        "settlementModel": "SplitBill",
+        "closingDay": 5,
+        "debtSettlementMethod": "AiOptimized",
+        "myDefaultFinancialAccountId": null,
+        "card": {
+          "fundBalanceCents": 10000000,
+          "monthlySpentCents": 7600000,
+          "monthlyBudgetCents": 20000000,
+          "memberPreview": [
+            {
+              "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+              "displayName": "Minh",
+              "avatarUrl": null
+            },
+            {
+              "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+              "displayName": "Lan",
+              "avatarUrl": null
+            },
+            {
+              "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+              "displayName": "Hung",
+              "avatarUrl": null
+            }
+          ]
+        }
+      },
+      {
+        "id": "457571b5-1966-44f3-a04f-3700d3d13446",
+        "name": "Đi Đà Lạt",
+        "type": "Travel",
+        "transactionVisibility": "Full",
+        "myRole": "Owner",
+        "myPermissions": [
+          "ViewOverview",
+          "ViewMemberTransactions",
+          "ViewActivity",
+          "ShareTransactions",
+          "ContributeGoals",
+          "ManageSharedTransactions",
+          "ManageBudgets",
+          "ManageGoals",
+          "ManageCategories",
+          "InviteMembers",
+          "RemoveMembers",
+          "ManageFunds",
+          "RecordFundEntries"
+        ],
+        "memberCount": 1,
+        "createdAt": "2026-11-20T10:18:43.767984+00:00",
+        "icon": null,
+        "avatarUrl": null,
+        "description": null,
+        "currency": "VND",
+        "settlementModel": "SharedFund",
+        "closingDay": null,
+        "debtSettlementMethod": "AiOptimized",
+        "myDefaultFinancialAccountId": null,
+        "card": {
+          "fundBalanceCents": null,
+          "monthlySpentCents": 0,
+          "monthlyBudgetCents": null,
+          "memberPreview": [
+            {
+              "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+              "displayName": "Minh",
+              "avatarUrl": null
+            }
+          ]
+        }
+      }
+    ],
+    "error": null,
+    "meta": null
+  }
+}

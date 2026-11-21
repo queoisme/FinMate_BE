@@ -1,4 +1,5 @@
 using FinMate.API.Authorization;
+using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Groups;
 using System.Security.Claims;
 using FinMate.Application.Common.Exceptions;
@@ -362,7 +363,7 @@ public class TransactionsController : ControllerBase
     public async Task<IActionResult> Chat([FromBody] ChatRequest request, CancellationToken ct)
     {
         var result = await _chatHandler.HandleAsync(
-            new ChatCommand(CurrentUserId, request.Text, request.FinancialAccountId, request.ClientRequestId), ct);
+            new ChatCommand(CurrentUserId, request.Text, request.FinancialAccountId, request.ClientRequestId, request.ItemContext), ct);
         return Ok(ApiResponse<ChatResultDto>.Ok(result));
     }
 
@@ -469,4 +470,4 @@ public record AttachGoalRequest(Guid GoalId);
 public record ShareTransactionRequest(Guid GroupId, Guid? GroupCategoryId);
 public record ParseNaturalLanguageRequest(string Text);
 
-public record ChatRequest(string Text, Guid? FinancialAccountId = null, Guid? ClientRequestId = null);
+public record ChatRequest(string Text, Guid? FinancialAccountId = null, Guid? ClientRequestId = null, ChatItemContext? ItemContext = null);

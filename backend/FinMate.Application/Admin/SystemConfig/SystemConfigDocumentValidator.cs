@@ -153,6 +153,12 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
             RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
             RuleFor(x => x.MaxFundsPerGroup).InclusiveBetween(1, 20).WithMessage("Số quỹ tối đa của mỗi nhóm phải từ 1 đến 20.");
+            RuleFor(x => x.DebtReminderCooldownHours).InclusiveBetween(1, 168).WithMessage("Khoảng cách giữa hai lần nhắc nợ phải từ 1 đến 168 giờ.");
+            RuleFor(x => x.InviteLinkBaseUrl).Must(u => Uri.TryCreate(u, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps).WithMessage("Link mời phải là địa chỉ https.");
+            RuleFor(x => x.UserSearchLimit).InclusiveBetween(1, 1000).WithMessage("Số lần tìm người tối đa phải từ 1 đến 1000.");
+            RuleFor(x => x.UserSearchWindowMinutes).InclusiveBetween(1, 1440).WithMessage("Cửa sổ giới hạn tìm người phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.MaxInviteSuggestions).InclusiveBetween(1, 50).WithMessage("Số gợi ý mời phải từ 1 đến 50.");
+            RuleFor(x => x.MaxBillsPerPage).InclusiveBetween(10, 200).WithMessage("Số hóa đơn mỗi trang phải từ 10 đến 200.");
         }
     }
 

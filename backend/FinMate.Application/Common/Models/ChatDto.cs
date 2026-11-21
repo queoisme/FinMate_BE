@@ -35,7 +35,13 @@ public record ChatPurchaseDraftDto(string? Item, long AmountCents, DateOnly? Pur
 /// <param name="Name">recurring: tên khoản; loan: tiêu đề.</param>
 /// <param name="Cadence">recurring: weekly | monthly | yearly.</param>
 /// <param name="Direction">loan: borrow (mình đi vay) | lend (mình cho vay).</param>
-public record ChatItemDraftDto(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty);
+/// <param name="Operation">create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm) | repay (ghi một lần trả vào khoản vay <paramref name="LoanId"/> có sẵn).</param>
+/// <param name="LoanId">repay: khoản vay của chính người dùng khớp tên người; backend đã tìm, app chỉ gọi <c>POST /loans/{id}/repayments</c> sau khi người dùng xác nhận.</param>
+/// <param name="RemainingCents">repay: số còn lại của khoản đó TRƯỚC lần trả này (để hiện "còn lại ... sau khi trả").</param>
+/// <param name="FinancialAccountId">repay: ví ghi giao dịch thu/chi của lần trả; null thì chỉ giảm nợ, không ghi giao dịch.</param>
+public record ChatItemDraftDto(
+    string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty, string Operation = "create",
+    Guid? LoanId = null, long? RemainingCents = null, Guid? FinancialAccountId = null);
 
 /// <summary>Bản nháp mục tiêu tiết kiệm từ câu chat. Chưa tạo gì: tạo bằng <c>POST /saving-goals</c> sau khi người dùng xác nhận.</summary>
 /// <param name="NameIsDefault">Người dùng không nói tên nên <paramref name="Name"/> là tên mặc định; client cho sửa.</param>

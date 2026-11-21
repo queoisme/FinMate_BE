@@ -1,0 +1,19 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/categories",
+  "request": {
+    "name": "Điện nước"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "24f42432-fb69-4829-96c2-d40ec181acfb",
+      "name": "Điện nước",
+      "slug": "dien-nuoc",
+      "iconName": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

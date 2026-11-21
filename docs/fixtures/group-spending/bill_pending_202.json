@@ -1,0 +1,41 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/bills",
+  "request": {
+    "title": "Đặt cọc phòng",
+    "amountCents": 6000000,
+    "paidByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+    "splitMode": "Equal",
+    "splits": [
+      {
+        "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+        "shareCents": 0
+      },
+      {
+        "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+        "shareCents": 0
+      }
+    ]
+  },
+  "status": 202,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "e106f2e3-0c22-4fbf-93ef-4c6205fcbb32",
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "kind": "Bill",
+      "status": "Pending",
+      "amountCents": 6000000,
+      "title": "Đặt cọc phòng",
+      "requestedByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+      "requestedByName": "Lan",
+      "createdAt": "2026-11-20T10:18:45.5973746+00:00",
+      "decidedByUserId": null,
+      "decidedAt": null,
+      "decisionReason": null,
+      "resultId": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

@@ -28,6 +28,11 @@ public class GroupConfiguration : IEntityTypeConfiguration<Group>
         {
             t.HasCheckConstraint("chk_groups_type", GroupColumns.CheckIn<GroupType>("type"));
             t.HasCheckConstraint("chk_groups_transaction_visibility", GroupColumns.CheckIn<GroupTransactionVisibility>("transaction_visibility"));
+            t.HasCheckConstraint("chk_groups_settlement_model", GroupColumns.CheckIn<GroupSettlementModel>("settlement_model"));
+            t.HasCheckConstraint("chk_groups_debt_settlement_method", GroupColumns.CheckIn<DebtSettlementMethod>("debt_settlement_method"));
+            t.HasCheckConstraint("chk_groups_closing_day", "closing_day IS NULL OR closing_day BETWEEN 1 AND 28");
+            t.HasCheckConstraint("chk_groups_approval_threshold", "require_approval_above_cents IS NULL OR require_approval_above_cents > 0");
+            t.HasCheckConstraint("chk_groups_weekly_summary_day", "weekly_summary_day BETWEEN 1 AND 7");
         });
 
         builder.HasKey(g => g.Id);
@@ -35,6 +40,21 @@ public class GroupConfiguration : IEntityTypeConfiguration<Group>
         builder.Property(g => g.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
         builder.Property(g => g.Type).HasColumnName("type").HasConversion(GroupColumns.Converter<GroupType>()).HasMaxLength(20).IsRequired();
         builder.Property(g => g.TransactionVisibility).HasColumnName("transaction_visibility").HasConversion(GroupColumns.Converter<GroupTransactionVisibility>()).HasMaxLength(20).IsRequired();
+        builder.Property(g => g.Icon).HasColumnName("icon").HasMaxLength(50);
+        builder.Property(g => g.AvatarUrl).HasColumnName("avatar_url").HasMaxLength(500);
+        builder.Property(g => g.Description).HasColumnName("description").HasMaxLength(200);
+        builder.Property(g => g.Currency).HasColumnName("currency").HasMaxLength(3).HasDefaultValue("VND").IsRequired();
+        builder.Property(g => g.SettlementModel).HasColumnName("settlement_model").HasConversion(GroupColumns.Converter<GroupSettlementModel>()).HasMaxLength(20).HasDefaultValue(GroupSettlementModel.SharedFund).IsRequired();
+        builder.Property(g => g.ClosingDay).HasColumnName("closing_day");
+        builder.Property(g => g.DebtSettlementMethod).HasColumnName("debt_settlement_method").HasConversion(GroupColumns.Converter<DebtSettlementMethod>()).HasMaxLength(20).HasDefaultValue(DebtSettlementMethod.AiOptimized).IsRequired();
+        builder.Property(g => g.JoinCode).HasColumnName("join_code").HasMaxLength(64);
+        builder.Property(g => g.JoinCodeEnabled).HasColumnName("join_code_enabled").IsRequired();
+        builder.HasIndex(g => g.JoinCode).IsUnique().HasFilter("join_code IS NOT NULL").HasDatabaseName("uq_groups_join_code");
+        builder.Property(g => g.RequireApprovalAboveCents).HasColumnName("require_approval_above_cents");
+        builder.Property(g => g.NotifyOnNewTransaction).HasColumnName("notify_on_new_transaction").IsRequired();
+        builder.Property(g => g.WeeklySummary).HasColumnName("weekly_summary").IsRequired();
+        builder.Property(g => g.WeeklySummaryDay).HasColumnName("weekly_summary_day").IsRequired();
+        builder.Property(g => g.WeeklySummaryTime).HasColumnName("weekly_summary_time").IsRequired();
         builder.Property(g => g.CreatedByUserId).HasColumnName("created_by_user_id");
         builder.Property(g => g.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(g => g.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -60,6 +80,7 @@ public class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMember>
         builder.Property(m => m.PermissionsGranted).HasColumnName("permissions_granted").HasDefaultValue(GroupPermission.None).IsRequired();
         builder.Property(m => m.PermissionsRevoked).HasColumnName("permissions_revoked").HasDefaultValue(GroupPermission.None).IsRequired();
         builder.Property(m => m.AlertsEnabled).HasColumnName("alerts_enabled").HasDefaultValue(true).IsRequired();
+        builder.Property(m => m.DefaultFinancialAccountId).HasColumnName("default_financial_account_id");
         builder.Property(m => m.JoinedAt).HasColumnName("joined_at").IsRequired();
         builder.Property(m => m.LeftAt).HasColumnName("left_at");
         builder.Property(m => m.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -72,6 +93,7 @@ public class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMember>
         builder.HasIndex(m => m.UserId).HasFilter("left_at IS NULL").HasDatabaseName("ix_group_members_user_active");
 
         builder.HasOne(m => m.Group).WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<FinancialAccount>().WithMany().HasForeignKey(m => m.DefaultFinancialAccountId).OnDelete(DeleteBehavior.SetNull);
 
         // IsRequired(false): User có query filter xóa mềm, còn người đã yêu cầu xóa vẫn là thành viên tới lúc xóa cứng.
         builder.HasOne(m => m.User).WithMany().HasForeignKey(m => m.UserId).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
@@ -95,6 +117,8 @@ public class GroupInvitationConfiguration : IEntityTypeConfiguration<GroupInvita
         builder.Property(i => i.AcceptedByUserId).HasColumnName("accepted_by_user_id");
         builder.Property(i => i.AcceptedAt).HasColumnName("accepted_at");
         builder.Property(i => i.RevokedAt).HasColumnName("revoked_at");
+        builder.Property(i => i.DeclinedAt).HasColumnName("declined_at");
+        builder.Property(i => i.Message).HasColumnName("message").HasMaxLength(200);
         builder.Property(i => i.CreatedAt).HasColumnName("created_at").IsRequired();
 
         // Khóa lạc quan: hai người nhận cùng một mã thì đúng một người thắng.

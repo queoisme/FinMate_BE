@@ -1,0 +1,46 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/funds/{id}/entries",
+  "request": {
+    "kind": "Contribution",
+    "amountCents": 10000000
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "entry": {
+        "id": "ca3d1f6a-8280-4289-b529-46fa7d7abedf",
+        "fundId": "aa95a8b0-85d6-4fbe-b5ca-76666580bbfe",
+        "kind": "Contribution",
+        "amountCents": 10000000,
+        "transactedAt": "2026-11-20T10:18:44.151016+00:00",
+        "memberUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+        "memberName": "Lan",
+        "categoryId": null,
+        "groupCategoryId": null,
+        "categoryName": null,
+        "note": null,
+        "merchantName": null,
+        "origin": "Created",
+        "hasPersonalLink": false,
+        "createdAt": "2026-11-20T10:18:44.184923+00:00",
+        "updatedAt": "2026-11-20T10:18:44.184923+00:00"
+      },
+      "fund": {
+        "id": "aa95a8b0-85d6-4fbe-b5ca-76666580bbfe",
+        "name": "Quỹ phòng",
+        "note": null,
+        "balanceCents": 10000000,
+        "isNegative": false,
+        "isArchived": false,
+        "archivedAt": null,
+        "createdAt": "2026-11-20T10:18:44.082761+00:00",
+        "updatedAt": "2026-11-20T10:18:44.1849234+00:00"
+      },
+      "alreadyExisted": false
+    },
+    "error": null,
+    "meta": null
+  }
+}

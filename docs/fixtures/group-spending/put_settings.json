@@ -1,0 +1,29 @@
+{
+  "method": "PUT",
+  "url": "/api/v1/groups/{id}/settings",
+  "request": {
+    "closingDay": 5,
+    "debtSettlementMethod": "AiOptimized",
+    "requireApprovalAboveCents": 5000000,
+    "notifyOnNewTransaction": true,
+    "weeklySummary": true,
+    "weeklySummaryDay": 7,
+    "weeklySummaryTime": "20:30"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "closingDay": 5,
+      "debtSettlementMethod": "AiOptimized",
+      "requireApprovalAboveCents": 5000000,
+      "notifyOnNewTransaction": true,
+      "weeklySummary": true,
+      "weeklySummaryDay": 7,
+      "weeklySummaryTime": "20:30",
+      "alertsEnabled": true
+    },
+    "error": null,
+    "meta": null
+  }
+}

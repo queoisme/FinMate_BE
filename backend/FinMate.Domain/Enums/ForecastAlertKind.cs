@@ -36,4 +36,13 @@ public enum ForecastAlertKind
 
     /// <summary>Bản tin tổng kết tuần (thứ Hai 08:00 giờ Việt Nam): ngân sách có nguy cơ vượt và tiến độ mục tiêu gần hạn nhất. Không mang số tiền.</summary>
     WeeklyDigest,
+
+    /// <summary>Chủ nợ nhắc bạn trả nợ trong nhóm. Không mang số tiền.</summary>
+    GroupDebtReminder,
+
+    /// <summary>Có khoản chờ chủ nhóm duyệt. Không mang số tiền.</summary>
+    GroupApprovalRequested,
+
+    /// <summary>Chủ nhóm đã duyệt hoặc từ chối khoản bạn gửi. Không mang số tiền.</summary>
+    GroupApprovalDecided,
 }

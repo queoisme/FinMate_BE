@@ -1,0 +1,18 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/decline",
+  "request": {
+    "token": "1rmNXgyShNIMyOUWV_tSH4cY1GfgMJO6mr0N-2FmPSU"
+  },
+  "status": 422,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_INVITATION_INVALID",
+      "message": "Lời mời đã được xử lý hoặc đã hết hạn.",
+      "details": null
+    },
+    "meta": null
+  }
+}

@@ -63,6 +63,11 @@ public class FinMateDbContext : DbContext
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();
     public DbSet<GroupActivity> GroupActivities => Set<GroupActivity>();
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+    public DbSet<GroupApproval> GroupApprovals => Set<GroupApproval>();
+    public DbSet<GroupBill> GroupBills => Set<GroupBill>();
+    public DbSet<GroupBillSplit> GroupBillSplits => Set<GroupBillSplit>();
+    public DbSet<GroupSettlement> GroupSettlements => Set<GroupSettlement>();
+    public DbSet<GroupDebtReminder> GroupDebtReminders => Set<GroupDebtReminder>();
     public DbSet<GroupFund> GroupFunds => Set<GroupFund>();
     public DbSet<GroupFundEntry> GroupFundEntries => Set<GroupFundEntry>();
     public DbSet<GroupShareRule> GroupShareRules => Set<GroupShareRule>();

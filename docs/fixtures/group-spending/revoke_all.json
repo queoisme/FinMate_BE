@@ -1,0 +1,14 @@
+{
+  "method": "DELETE",
+  "url": "/api/v1/groups/{id}/invitations",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "revoked": 2
+    },
+    "error": null,
+    "meta": null
+  }
+}

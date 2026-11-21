@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/accept",
+  "request": {
+    "token": "vWmn_9ypj67yaM_UgFITLwJsJkbEiuxjz82pUvdJuAI"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2"
+    },
+    "error": null,
+    "meta": null
+  }
+}

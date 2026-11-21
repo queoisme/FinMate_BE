@@ -5,6 +5,9 @@ namespace FinMate.Application.Common.Interfaces;
 /// <param name="IsUserActive">False khi tài khoản đã yêu cầu xóa; tên không được hiển thị nữa.</param>
 public sealed record GroupMemberView(GroupMember Member, string DisplayName, bool IsUserActive);
 
+/// <param name="SharedGroupCount">Số nhóm người gọi và người này cùng tham gia (ngoài nhóm đang mời).</param>
+public sealed record GroupInviteCandidate(Guid UserId, string DisplayName, string FinMateId, int SharedGroupCount);
+
 public sealed record GroupWithMembership(Group Group, GroupMember Member, int MemberCount);
 
 public sealed record GroupActivityPage(IReadOnlyList<GroupActivity> Items, string? NextCursor);
@@ -13,6 +16,9 @@ public sealed record GroupActivityPage(IReadOnlyList<GroupActivity> Items, strin
 public interface IGroupRepository
 {
     Task<Group?> GetByIdAsync(Guid groupId, CancellationToken ct = default);
+
+    /// <summary>Nhóm (chưa xóa) có mã tham gia chung đúng như <paramref name="code"/>, kể cả đang tắt: caller kiểm cờ.</summary>
+    Task<Group?> GetByJoinCodeAsync(string code, CancellationToken ct = default);
     Task<GroupMember?> GetActiveMemberAsync(Guid groupId, Guid userId, CancellationToken ct = default);
 
     /// <summary>Gồm cả người đã rời, để vào lại dùng lại đúng dòng cũ.</summary>
@@ -33,6 +39,8 @@ public interface IGroupRepository
     Task<GroupInvitation?> GetInvitationByTokenHashAsync(string tokenHash, CancellationToken ct = default);
     Task<List<GroupInvitation>> ListPendingInvitationsAsync(Guid groupId, DateTimeOffset now, CancellationToken ct = default);
     Task<int> CountPendingInvitationsAsync(Guid groupId, DateTimeOffset now, CancellationToken ct = default);
+    /// <summary>Người cùng nhóm với <paramref name="userId"/> ở nhóm khác, chưa ở trong nhóm này và chưa có lời mời chờ; nhiều nhóm chung trước.</summary>
+    Task<List<GroupInviteCandidate>> ListInviteCandidatesAsync(Guid userId, Guid groupId, DateTimeOffset now, int limit, CancellationToken ct = default);
 
     Task<GroupActivityPage> ListActivitiesAsync(Guid groupId, string? cursor, int limit, CancellationToken ct = default);
 

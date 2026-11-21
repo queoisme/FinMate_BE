@@ -1,0 +1,31 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/bills",
+  "request": {
+    "title": "Sai tổng",
+    "amountCents": 500000,
+    "paidByUserId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+    "splitMode": "Custom",
+    "splits": [
+      {
+        "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+        "shareCents": 100000
+      },
+      {
+        "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+        "shareCents": 100000
+      }
+    ]
+  },
+  "status": 422,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_BILL_SPLIT_MISMATCH",
+      "message": "Tổng các phần chia phải bằng số tiền hóa đơn và mỗi phần phải lớn hơn 0.",
+      "details": null
+    },
+    "meta": null
+  }
+}

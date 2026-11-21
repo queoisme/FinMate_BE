@@ -1,0 +1,20 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/settlements",
+  "request": {
+    "fromUserId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+    "toUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+    "amountCents": 99000000
+  },
+  "status": 422,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_SETTLEMENT_EXCEEDS_DEBT",
+      "message": "Số tiền vượt quá khoản đang nợ.",
+      "details": null
+    },
+    "meta": null
+  }
+}

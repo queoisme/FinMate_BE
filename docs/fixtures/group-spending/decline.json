@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/decline",
+  "request": {
+    "token": "1rmNXgyShNIMyOUWV_tSH4cY1GfgMJO6mr0N-2FmPSU"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "declinedAt": "2026-11-20T10:18:43.3070826+00:00"
+    },
+    "error": null,
+    "meta": null
+  }
+}

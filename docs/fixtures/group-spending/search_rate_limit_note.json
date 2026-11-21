@@ -1,0 +1,21 @@
+{
+  "method": "GET",
+  "url": "/api/v1/users/search?q=ab",
+  "request": null,
+  "status": 400,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Dữ liệu không hợp lệ.",
+      "details": [
+        {
+          "field": "q",
+          "message": "Từ khóa phải từ 3 đến 320 ký tự."
+        }
+      ]
+    },
+    "meta": null
+  }
+}

@@ -218,7 +218,14 @@ public class AIServiceClient : IAIServiceClient
         ChatParseApiResponse response;
         try
         {
-            response = await _api.ChatParseAsync(new ChatParseApiRequest(request.Text, UserIdHasher.Hash(request.UserId), request.AllowAi), ct);
+            response = await _api.ChatParseAsync(new ChatParseApiRequest(
+                    request.Text, UserIdHasher.Hash(request.UserId), request.AllowAi,
+                    request.ItemContext is null
+                        ? null
+                        : new ChatItemContextApi(
+                            request.ItemContext.Kind, request.ItemContext.AmountCents, request.ItemContext.Name, request.ItemContext.CategorySlug,
+                            request.ItemContext.Cadence, request.ItemContext.Direction, request.ItemContext.Counterparty)),
+                ct);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
         {
@@ -258,7 +265,7 @@ public class AIServiceClient : IAIServiceClient
                 ? null
                 : new ChatParseItem(
                     response.Item.Kind, response.Item.AmountCents, response.Item.Name, response.Item.CategorySlug, response.Item.Cadence,
-                    ParseDay(response.Item.NextDue), response.Item.Direction, response.Item.Counterparty));
+                    ParseDay(response.Item.NextDue), response.Item.Direction, response.Item.Counterparty, response.Item.Operation));
     }
 
     /// <summary>Ngày mua AI trả về: "2026-11-16" hoặc "2026-11-16T00:00:00+07:00". Không đọc được thì coi như không nói ngày (mặc định hôm nay), không làm hỏng cả câu.</summary>

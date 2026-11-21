@@ -1,0 +1,25 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/preview",
+  "request": {
+    "token": "CEt2o7mLh64Muab0EOfByDryM0LP9KZooNilyfaEn-4"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "groupName": "Phòng trọ 302",
+      "groupType": "Roommates",
+      "role": "Member",
+      "invitedBy": "Minh",
+      "expiresAt": "2026-11-27T10:18:42.861723+00:00",
+      "groupIcon": "house",
+      "memberCount": 1,
+      "fundBalanceCents": null,
+      "invitedByRole": "Owner",
+      "message": "Vào nhóm chia tiền phòng nhé!"
+    },
+    "error": null,
+    "meta": null
+  }
+}

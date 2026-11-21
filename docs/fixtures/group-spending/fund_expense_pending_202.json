@@ -1,0 +1,32 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/funds/{id}/entries",
+  "request": {
+    "kind": "Expense",
+    "amountCents": 7000000,
+    "groupCategoryId": "24f42432-fb69-4829-96c2-d40ec181acfb",
+    "merchantName": "Sửa máy giặt",
+    "clientRequestId": "6201ad0d-a4f3-463a-910e-509e9d15a220"
+  },
+  "status": 202,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "68fd73f0-3eb0-4d95-ad40-3523fc0a02f7",
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "kind": "FundEntry",
+      "status": "Pending",
+      "amountCents": 7000000,
+      "title": "Sửa máy giặt",
+      "requestedByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+      "requestedByName": "Lan",
+      "createdAt": "2026-11-20T10:18:45.7447837+00:00",
+      "decidedByUserId": null,
+      "decidedAt": null,
+      "decisionReason": null,
+      "resultId": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

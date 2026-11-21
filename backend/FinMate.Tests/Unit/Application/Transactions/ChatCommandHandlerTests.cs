@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.Loans;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -57,6 +58,62 @@ public class ChatCommandHandlerTests
 
     private void NothingWasCreated() => _create.Verify(
         c => c.HandleAsync(It.IsAny<CreateManualTransactionCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+
+    // ------------------------------------------------------------ trả nợ
+
+    private static LoanDto Loan(Guid id, string direction, string counterparty, long remaining)
+        => new(id, direction, "Cho vay", counterparty, 700_000, 0, null, 700_000 - remaining, remaining, DateTimeOffset.UtcNow);
+
+    private ChatCommandHandler HandlerWithLoans(params LoanDto[] loans)
+    {
+        var service = new Mock<FinMate.Application.Loans.ILoanService>();
+        service.Setup(l => l.ListAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync(loans);
+        return new ChatCommandHandler(
+            _ai.Object, _create.Object, _accounts.Object, _categories.Object, _reports.Object, _transactions.Object, new ChatCommandValidator(), loans: service.Object);
+    }
+
+    private static ChatParseResponse RepayHint(string who = "Bạn An", string direction = "lend", long amount = 500_000)
+        => new("add_income", null, new ChatParseEntry("income", amount, "bạn An đã trả cho tôi", null, "loan", "other", false, false), null, 5,
+            Item: new ChatParseItem("loan", amount, null, null, null, null, direction, who, "repay"));
+
+    [Fact]
+    public async Task ARepaymentSentenceMatchingExactlyOneLoanBecomesARepaymentDraftNotAnIncomeDraft()
+    {
+        var loanId = Guid.NewGuid();
+        AiReturns(RepayHint());
+
+        var result = await HandlerWithLoans(Loan(loanId, "lend", "An", 700_000), Loan(Guid.NewGuid(), "borrow", "An", 300_000)).HandleAsync(Command("bạn An đã trả cho tôi 500k"));
+
+        result.Action.Should().Be(ChatActions.Item);
+        var item = result.Item!;
+        (item.Operation, item.LoanId, item.RemainingCents, item.AmountCents, item.FinancialAccountId).Should().Be(("repay", loanId, 700_000L, 500_000L, _accountId));
+        result.Draft.Should().BeNull();
+        NothingWasCreated();
+    }
+
+    [Theory]
+    [InlineData("lend", "Bình", 700_000)]     // tên khác
+    [InlineData("borrow", "An", 700_000)]     // sai chiều
+    [InlineData("lend", "An", 100_000)]       // trả quá số còn lại
+    public async Task ARepaymentThatMatchesNoLoanFallsBackToTheNormalIncomeDraft(string direction, string counterparty, long remaining)
+    {
+        AiReturns(RepayHint());
+
+        var result = await HandlerWithLoans(Loan(Guid.NewGuid(), direction, counterparty, remaining)).HandleAsync(Command("bạn An đã trả cho tôi 500k"));
+
+        result.Action.Should().Be(ChatActions.Confirm);
+        result.Item.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TwoLoansWithTheSameNameAreNotGuessed()
+    {
+        AiReturns(RepayHint());
+
+        var result = await HandlerWithLoans(Loan(Guid.NewGuid(), "lend", "An", 700_000), Loan(Guid.NewGuid(), "lend", "Bạn An", 900_000)).HandleAsync(Command("bạn An đã trả cho tôi 500k"));
+
+        result.Action.Should().Be(ChatActions.Confirm);
+    }
 
     // ------------------------------------------------------------ mốc thời gian
 

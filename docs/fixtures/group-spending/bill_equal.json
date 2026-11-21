@@ -1,0 +1,66 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/bills",
+  "request": {
+    "title": "Tiền điện tháng 11",
+    "amountCents": 1000000,
+    "paidByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+    "occurredAt": "2026-11-20T10:18:44.5934919+00:00",
+    "splitMode": "Equal",
+    "splits": [
+      {
+        "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+        "shareCents": 0
+      },
+      {
+        "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+        "shareCents": 0
+      },
+      {
+        "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+        "shareCents": 0
+      }
+    ],
+    "groupCategoryId": "24f42432-fb69-4829-96c2-d40ec181acfb",
+    "note": "Hóa đơn EVN"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "672397f0-e456-4b21-b781-4f8355e158ad",
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "title": "Tiền điện tháng 11",
+      "amountCents": 1000000,
+      "paidByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+      "paidByName": "Lan",
+      "occurredAt": "2026-11-20T10:18:44.5934919+00:00",
+      "splitMode": "Equal",
+      "categoryId": null,
+      "groupCategoryId": "24f42432-fb69-4829-96c2-d40ec181acfb",
+      "categoryName": null,
+      "note": "Hóa đơn EVN",
+      "splitCount": 3,
+      "splits": [
+        {
+          "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+          "displayName": "Minh",
+          "shareCents": 333333
+        },
+        {
+          "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+          "displayName": "Lan",
+          "shareCents": 333334
+        },
+        {
+          "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+          "displayName": "Hung",
+          "shareCents": 333333
+        }
+      ],
+      "createdAt": "2026-11-20T10:18:44.6876942+00:00"
+    },
+    "error": null,
+    "meta": null
+  }
+}

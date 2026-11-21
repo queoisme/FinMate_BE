@@ -94,7 +94,17 @@ public record OcrApiResponse(
 public record ChatParseApiRequest(
     [property: JsonPropertyName("text")] string Text,
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
-    [property: JsonPropertyName("allow_ai")] bool AllowAi = false);
+    [property: JsonPropertyName("allow_ai")] bool AllowAi = false,
+    [property: JsonPropertyName("item_context")] ChatItemContextApi? ItemContext = null);
+
+public record ChatItemContextApi(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("cadence")] string? Cadence,
+    [property: JsonPropertyName("direction")] string? Direction,
+    [property: JsonPropertyName("counterparty")] string? Counterparty);
 
 public record ChatEntryApiResult(
     [property: JsonPropertyName("kind")] string Kind,
@@ -141,7 +151,8 @@ public record ChatItemApiResult(
     [property: JsonPropertyName("cadence")] string? Cadence,
     [property: JsonPropertyName("next_due")] string? NextDue,
     [property: JsonPropertyName("direction")] string? Direction,
-    [property: JsonPropertyName("counterparty")] string? Counterparty);
+    [property: JsonPropertyName("counterparty")] string? Counterparty,
+    [property: JsonPropertyName("operation")] string Operation = "create");
 
 public record ChatParseApiResponse(
     [property: JsonPropertyName("intent")] string Intent,

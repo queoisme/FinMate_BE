@@ -78,9 +78,29 @@ public static class BudgetSpendScope
         return e => e.GroupId == groupId && e.Kind == GroupFundEntryKind.Expense && e.DeletedAt == null && e.TransactedAt >= from && e.TransactedAt < to;
     }
 
-    /// <summary>Cả hai phần của chi tiêu nhóm cho một phạm vi ngân sách: giao dịch cá nhân đã chia sẻ và khoản chi từ quỹ.</summary>
+    /// <summary>Hóa đơn chia của nhóm khớp phạm vi ngân sách nhóm, cùng luật danh mục như <see cref="GroupFund"/>. Tính toàn bộ số tiền hóa đơn.</summary>
+    public static Expression<Func<GroupBill, bool>> GroupBillScope(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to)
+    {
+        if (groupCategoryId is { } groupCategory)
+        {
+            return b => b.GroupId == groupId && b.GroupCategoryId == groupCategory && b.OccurredAt >= from && b.OccurredAt < to;
+        }
+
+        if (systemCategoryId is { } systemCategory)
+        {
+            return b => b.GroupId == groupId && b.GroupCategoryId == null && b.CategoryId == systemCategory && b.OccurredAt >= from && b.OccurredAt < to;
+        }
+
+        return b => b.GroupId == groupId && b.OccurredAt >= from && b.OccurredAt < to;
+    }
+
+    public static long ContributionOf(GroupBill bill, Expression<Func<GroupBill, bool>> scope)
+        => scope.Compile()(bill) ? bill.AmountCents : 0;
+
+    /// <summary>Các phần của chi tiêu nhóm cho một phạm vi ngân sách: giao dịch cá nhân đã chia sẻ, khoản chi từ quỹ và hóa đơn chia.</summary>
     public static GroupSpendScope GroupAll(Guid groupId, Guid? systemCategoryId, Guid? groupCategoryId, DateTimeOffset from, DateTimeOffset to)
-        => new(Group(groupId, systemCategoryId, groupCategoryId, from, to), GroupFund(groupId, systemCategoryId, groupCategoryId, from, to));
+        => new(Group(groupId, systemCategoryId, groupCategoryId, from, to), GroupFund(groupId, systemCategoryId, groupCategoryId, from, to),
+            GroupBillScope(groupId, systemCategoryId, groupCategoryId, from, to));
 
     /// <summary>Phần của MỘT dòng quỹ (đang ở trong bộ nhớ) vào một phạm vi: số tiền chi nếu khớp, ngược lại 0.</summary>
     public static long ContributionOf(GroupFundEntry entry, Expression<Func<GroupFundEntry, bool>> scope)
@@ -92,4 +112,4 @@ public static class BudgetSpendScope
 }
 
 /// <summary>Phạm vi một ngân sách nhóm trên hai nguồn chi (Phase 85, D13).</summary>
-public sealed record GroupSpendScope(Expression<Func<Transaction, bool>> Shared, Expression<Func<GroupFundEntry, bool>> Fund);
+public sealed record GroupSpendScope(Expression<Func<Transaction, bool>> Shared, Expression<Func<GroupFundEntry, bool>> Fund, Expression<Func<GroupBill, bool>>? Bill = null);

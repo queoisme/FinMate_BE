@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/invitations",
+  "request": {
+    "role": "Member"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "d0b922fb-1c5c-4c97-a35d-1f2df2f3690e",
+      "email": null,
+      "role": "Member",
+      "expiresAt": "2026-11-27T10:18:43.9184688+00:00",
+      "createdAt": "2026-11-20T10:18:43.9184688+00:00",
+      "token": "GZidGvt3vpS2a-UglnHAGGYOo5zqxtYoPD20z8RRhng",
+      "emailSent": null,
+      "message": null,
+      "joinUrl": "https://finmate.app/join/GZidGvt3vpS2a-UglnHAGGYOo5zqxtYoPD20z8RRhng"
+    },
+    "error": null,
+    "meta": null
+  }
+}

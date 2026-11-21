@@ -1,0 +1,84 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/bills?limit=20",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [
+      {
+        "id": "075f9a65-e814-457c-be7f-a1a66ad1cf21",
+        "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+        "title": "Mua đồ dùng chung",
+        "amountCents": 600000,
+        "paidByUserId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+        "paidByName": "Hung",
+        "occurredAt": "2026-11-20T10:18:44.882537+00:00",
+        "splitMode": "Custom",
+        "categoryId": null,
+        "groupCategoryId": null,
+        "categoryName": null,
+        "note": null,
+        "splitCount": 3,
+        "splits": [
+          {
+            "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+            "displayName": "Minh",
+            "shareCents": 300000
+          },
+          {
+            "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+            "displayName": "Lan",
+            "shareCents": 100000
+          },
+          {
+            "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+            "displayName": "Hung",
+            "shareCents": 200000
+          }
+        ],
+        "createdAt": "2026-11-20T10:18:44.896785+00:00"
+      },
+      {
+        "id": "672397f0-e456-4b21-b781-4f8355e158ad",
+        "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+        "title": "Tiền điện tháng 11",
+        "amountCents": 1000000,
+        "paidByUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+        "paidByName": "Lan",
+        "occurredAt": "2026-11-20T10:18:44.593491+00:00",
+        "splitMode": "Equal",
+        "categoryId": null,
+        "groupCategoryId": "24f42432-fb69-4829-96c2-d40ec181acfb",
+        "categoryName": "Điện nước",
+        "note": "Hóa đơn EVN",
+        "splitCount": 3,
+        "splits": [
+          {
+            "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+            "displayName": "Lan",
+            "shareCents": 333334
+          },
+          {
+            "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+            "displayName": "Minh",
+            "shareCents": 333333
+          },
+          {
+            "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+            "displayName": "Hung",
+            "shareCents": 333333
+          }
+        ],
+        "createdAt": "2026-11-20T10:18:44.687694+00:00"
+      }
+    ],
+    "error": null,
+    "meta": {
+      "cursor": null,
+      "total": null,
+      "offset": null,
+      "limit": null
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/remind-all",
+  "request": null,
+  "status": 429,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_REMINDER_COOLDOWN",
+      "message": "Mọi người đều đã được nhắc gần đây. Hãy thử lại sau.",
+      "details": null
+    },
+    "meta": null
+  }
+}

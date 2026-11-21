@@ -160,3 +160,8 @@ Các câu cố định mà `goal_plan` ghép số vào (nhãn bằng chứng, gh
 | `loan` | "bạn An nợ tôi 700k" (cho vay), "tôi nợ bạn Bình 2 triệu" (đi vay) | có số tiền và tên người | `POST /loans` |
 
 Câu "cho A vay", "A cho tôi mượn", "A trả nợ tôi" KHÔNG vào đây: đó là lúc tiền đi hoặc về, vẫn là giao dịch loại cho vay/mượn như trước. Mọi từ vựng nằm ở `ai-service/app/data/intent_cues.json` (nhóm `item_*`), code ở `app/services/item_parser.py`. Chỉ có khoản định kỳ dạng chi; thu định kỳ chưa hỗ trợ.
+
+### Câu nối tiếp và trả nợ
+
+- **Nhớ trong phiên:** app giữ tối đa 5 việc vừa tạo (bộ nhớ của phiên, mất khi đóng app hoặc đăng xuất) và gửi kèm việc mới nhất ở `itemContext` của `POST /transactions/chat` (chỉ số liệu có cấu trúc). Nhờ đó câu nối tiếp được hiểu: `operation: update` ("đổi thành 3 triệu"), `add` ("thêm 300k nữa"), `delete` ("xóa cái đó"), hoặc tạo tiếp cùng loại ("còn di chuyển thì 1 triệu"). Câu còn từ lạ ngoài lệnh và số tiền không phải nối tiếp. Server không lưu gì.
+- **Trả nợ:** câu như "bạn An đã trả cho tôi 500k" / "tôi trả An 300k" vẫn được đọc như giao dịch thu/chi; ai-service chỉ gắn thêm gợi ý `item` (`operation: repay`). Backend tìm khoản vay CỦA NGƯỜI DÙNG đúng chiều, khớp tên và còn đủ số; đúng MỘT khoản thì trả `action: item` với `loanId`, `remainingCents`, `financialAccountId`, app hỏi xác nhận rồi gọi `POST /loans/{id}/repayments` (lần trả ghi cả giao dịch ví nên không ghi thêm giao dịch thu/chi). Không khớp, nhiều khoản cùng tên hoặc trả quá số còn lại thì giữ giao dịch thu/chi như cũ. Lần trả chưa có API hoàn tác nên luôn hỏi xác nhận.

@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/approvals/{id}/approve",
+  "request": null,
+  "status": 403,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "FORBIDDEN",
+      "message": "Chỉ chủ nhóm mới thực hiện được thao tác này.",
+      "details": null
+    },
+    "meta": null
+  }
+}
