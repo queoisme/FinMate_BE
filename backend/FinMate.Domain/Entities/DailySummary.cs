@@ -18,6 +18,17 @@ public class DailySummary
     public long TotalRefundedCents { get; set; }
     public int TransactionCount { get; set; }
 
+    /// <summary>
+    /// Phase 90 (Q16): dòng tiền của ngày cho mọi ví. Không có cột chuyển ví (mọi ví thì bù về 0) và hoàn vượt chi (tính ở mức kỳ). Xem
+    /// <c>CashFlowCalculator</c>.
+    /// </summary>
+    public long CashFlowNetCents { get; set; }
+    public long LoanOutflowCents { get; set; }
+    public long LoanInflowCents { get; set; }
+    public long GroupFundOutflowCents { get; set; }
+    public long GroupFundInflowCents { get; set; }
+    public long ReversalNetCents { get; set; }
+
     public Guid? TopCategoryId { get; set; }
     public long TopCategorySpentCents { get; set; }
 

@@ -29,13 +29,16 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
     private record AccountBody(bool Success, AccountData Data);
     private record MonthlySummaryData(
         DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd, long TotalSpentCents, long TotalIncomeCents,
-        long NetCents, int TransactionCount, long PrevMonthSpentCents, double? ChangePercent);
+        long NetCents, int TransactionCount, long PrevMonthSpentCents, double? ChangePercent, CashFlowData? CashFlow = null);
+    private record CashFlowData(
+        long NetCents, long LoanOutflowCents, long LoanInflowCents, long GroupFundOutflowCents, long GroupFundInflowCents,
+        long TransferOutflowCents, long TransferInflowCents, long RefundSurplusCents, long ReversalNetCents);
     private record MonthlySummaryBody(bool Success, MonthlySummaryData Data);
     private record BreakdownItem(Guid? CategoryId, string CategoryName, string? CategorySlug, long SpentCents, int Percent);
     private record BreakdownData(DateTimeOffset PeriodStart, long TotalSpentCents, List<BreakdownItem> Items);
     private record BreakdownBody(bool Success, BreakdownData Data);
     private record TimelineTransaction(Guid Id, long AmountCents);
-    private record TimelineDay(DateOnly Date, long TotalSpentCents, long TotalIncomeCents, List<TimelineTransaction> Transactions);
+    private record TimelineDay(DateOnly Date, long TotalSpentCents, long TotalIncomeCents, List<TimelineTransaction> Transactions, CashFlowData? CashFlow = null);
     private record TimelineBody(bool Success, List<TimelineDay> Data);
     private record ForecastData(
         long SpentSoFarCents, long ProjectedSpendCents, int DaysElapsed, int DaysInMonth,
@@ -189,9 +192,10 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    // Từ 2026-11-13 (ReportRepository.GetDailySpendAsync): Thu nhập/Chi tiêu và dòng thời gian phản ánh dòng tiền THẬT ra/vào ví, nên cho mượn
-    // (Debit) và được trả nợ (Credit) đều được tính. Riêng category-breakdown vẫn loại "Cho vay / Mượn" vì đó là cơ cấu chi theo danh mục.
-    public async Task LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown()
+    // Phase 90 (Q16, 2026-11-23): chi tiêu / thu nhập là tiền đã dùng hết hoặc thực sự kiếm được, nên cho mượn và được trả nợ KHÔNG vào tổng chi/thu;
+    // nhưng đó là tiền thật ra/vào ví, nên hiện trong cashFlow (vay nợ ra/vào, và netCents = thay đổi số dư). Commit 3df2182 (13/11) từng tính
+    // loan vào tổng chi/thu; test này trước đây viết theo ý đó.
+    public async Task LoanTransactions_StayOutOfSpendingAndIncome_ButShowInTheCashFlow()
     {
         var token = await RegisterAndLoginAsync();
         var accountId = await CashAccountAsync(token);
@@ -205,8 +209,11 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
 
         var summary = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/monthly-summary", token)))
             .Content.ReadFromJsonAsync<MonthlySummaryBody>(JsonOptions))!.Data;
-        summary.TotalSpentCents.Should().Be(5_300_000);   // 300.000 ăn uống + 5.000.000 cho mượn (tiền thật rời ví)
-        summary.TotalIncomeCents.Should().Be(2_000_000);  // bạn trả nợ (tiền thật về ví)
+        summary.TotalSpentCents.Should().Be(300_000);
+        summary.TotalIncomeCents.Should().Be(0);
+        summary.CashFlow!.LoanOutflowCents.Should().Be(5_000_000);
+        summary.CashFlow.LoanInflowCents.Should().Be(2_000_000);
+        summary.CashFlow.NetCents.Should().Be(-3_300_000);
 
         var breakdown = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/category-breakdown", token)))
             .Content.ReadFromJsonAsync<BreakdownBody>(JsonOptions))!.Data;
@@ -215,10 +222,12 @@ public class ReportsControllerTests : IClassFixture<AuthApiFactory>
 
         var day = (await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/v1/reports/timeline?limit=50", token)))
             .Content.ReadFromJsonAsync<TimelineBody>(JsonOptions))!.Data.Single();
-        // Tổng theo ngày của timeline cùng cách tính với monthly-summary (thống nhất theo yêu cầu 2026-11-16).
-        day.TotalSpentCents.Should().Be(5_300_000);
-        day.TotalIncomeCents.Should().Be(2_000_000);
-        day.Transactions.Should().HaveCount(3);  // và khoản vay vẫn hiện trong danh sách của ngày
+        day.TotalSpentCents.Should().Be(300_000);
+        day.TotalIncomeCents.Should().Be(0);
+        day.CashFlow!.LoanOutflowCents.Should().Be(5_000_000);
+        day.CashFlow.LoanInflowCents.Should().Be(2_000_000);
+        day.CashFlow.NetCents.Should().Be(-3_300_000);
+        day.Transactions.Should().HaveCount(3);  // khoản vay vẫn hiện trong danh sách của ngày
     }
 
     [Fact]

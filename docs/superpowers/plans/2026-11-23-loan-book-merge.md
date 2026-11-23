@@ -41,6 +41,16 @@ Bất biến: `netCashFlowCents = totalIncomeCents − totalSpentCents − loanO
 
 **Ghi chú (không chặn):** tổng từng ngày của `timeline` cộng từ giao dịch của **trang** hiện tại, nên một ngày bị cắt ngang giữa hai trang sẽ có tổng thiếu (lỗi sẵn có). Các trường mới tính cùng cách, nên bất biến vẫn đúng trên những giao dịch đang hiện, nhưng tổng của ngày đó chưa phải tổng thật. Đề xuất sửa trong Task 0b: tổng ngày lấy từ `GetDailySpendAsync` cho các ngày có trên trang, không cộng từ trang.
 
+## Đã chốt (2026-11-23, lần 3): D1–D3 của Task 0b
+
+Duyệt cả ba, gom vào object `cashFlow` (`netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents`) trong `monthly-summary` và từng ngày của `timeline`; `totalSpentCents` / `totalIncomeCents` giữ nguyên. Bất biến: `netCents = thu − chi − loanOut + loanIn − fundOut + fundIn − transferOut + transferIn + refundSurplus + reversalNet`. `refundSurplusCents` khác `crossPeriodRefundCents` (ghi trong `docs/reports-cash-flow-api.md`, kèm ví dụ). Ghi chú về tổng ngày của `timeline` được sửa cùng lúc.
+
+## Báo MinhTuan
+
+- **Test đổi kỳ vọng:** `ReportsControllerTests.LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown` đổi tên thành `LoanTransactions_StayOutOfSpendingAndIncome_ButShowInTheCashFlow`. Lý do: quyết định Q16 (2026-11-23). Tiền cho mượn / được trả nợ là tiền thật ra/vào ví, đúng như ý commit `3df2182`, nhưng nó không phải chi tiêu hay thu nhập. Vì vậy nó hiện ở `cashFlow.loanOutflowCents` / `loanInflowCents` và `cashFlow.netCents` (−3.300.000 trong test), còn `totalSpentCents` / `totalIncomeCents` giữ 300.000 / 0. Dòng thời gian cũng vậy.
+- **8 test gợi ý quan hệ AI đang đỏ trên `main`** (`RelationHint` không được lưu): nhờ cậu ấy sửa trên `main`; danh sách ở mục Verification.
+- **Trước Task 3** (sửa `LoanService`, `LoanRepository`, `LoanConfiguration`, `LoansController`, gỡ `LoanDueReminderJob`): báo trước.
+
 ## Trường app đang dùng (S5, chưa xác nhận)
 
 _Điền trước Task 3 sau khi hỏi nhóm Flutter._
@@ -218,7 +228,7 @@ DTO giao dịch: + `loanLink {loanId, title, counterparty, kind}`, + `loanSugges
 Mỗi task: test trước, code, lớp test của tính năng; trước commit chạy unit + test liên quan. Một commit mỗi task. Không push, không mở PR khi chưa được đồng ý.
 
 0. **Mốc và lỗi sẵn có.** (Task 0–2 không đụng `/loans`; cổng S5 nằm trước Task 3.) Xong 2026-11-23. Đo toàn bộ backend và ai-service trên `aba320c`, ghi vào Verification. Chép Task 0 của nhánh cũ: D23 (`GetRawTransactionsAsync` giữ dòng `loan`, cờ `IsLoan`; test `ForecastAccuracyJobTests.ALoanMovesTheActualBalance_…`) và đồng hồ giả cho `ListenerHealthScenarioTests.D_…`.
-0b. **Dòng tiền riêng cho báo cáo (Q16)**, một commit:
+0b. **Dòng tiền riêng cho báo cáo (Q16)**, một commit. Xong 2026-11-23:
     1. `totalSpentCents` / `totalIncomeCents` của `monthly-summary`, `timeline` (từng ngày) và `daily_summaries` **giữ** loại `loan`. Ngân sách, hũ, spendable, dự báo, insight, chat, Agent, báo cáo nhóm không đổi.
     2. Trường tuỳ chọn mới cho `monthly-summary` và từng ngày của `timeline`: `loanOutflowCents` (Debit `loan`), `loanInflowCents` (Credit `loan`), `groupFundOutflowCents` / `groupFundInflowCents` (giao dịch cá nhân gắn quỹ, qua `TransferLegs`), `netCashFlowCents` = tổng thay đổi số dư của **mọi** ví do giao dịch đã xác nhận trong kỳ, tính **trực tiếp** từ tác động số dư (`TransferLegs`), không cộng từ các trường khác; chuyển ví nội bộ bù về 0.
     3. Bất biến kèm test: `netCashFlowCents = totalIncomeCents − totalSpentCents − loanOutflowCents + loanInflowCents − groupFundOutflowCents + groupFundInflowCents`, với hoàn tiền, cặp đảo, phí chuyển ví, chuyển ví nội bộ, góp/rút quỹ (giao dịch lãi S1 thêm vào test này ở Task 5). Loại giao dịch nào làm lệch → **dừng, báo thành mục D**, không thêm trường "khác".

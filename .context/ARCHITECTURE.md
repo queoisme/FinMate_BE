@@ -16,6 +16,12 @@ thì hỏi user, đừng tự chọn.
 | 3 | Docx bước 1.1 yêu cầu đăng ký bằng **SĐT + OTP** | **Chưa làm trong MVP** | Giữ Email/Password + Google login. Docx coi như overspec ở điểm này |
 | 4 | Docx Flow 2 có **Voice input** và **Receipt OCR**; `TASKS.md` để ở Backlog | **Kéo lên MVP** | Voice: STT ở client → tái dùng `POST /transactions/parse`, không cần route AI mới. OCR: **cần thêm route mới vào contract §3.3** |
 
+**Nguyên tắc "chi tiêu thật" (2026-11-23, Phase 90, Q16), mở rộng quyết định #1:** chi tiêu / thu nhập là tiền đã dùng hết hoặc thực sự
+kiếm được. Tiền đổi chỗ (chuyển giữa ví của mình, góp/rút quỹ nhóm, cho vay / đi vay / trả nợ) **không** phải chi tiêu hay thu nhập, nhưng
+vẫn hiện trong dòng tiền (`cashFlow` của báo cáo, `CashFlowCalculator`). Lãi vay là chi tiêu / thu nhập thật. `cashFlow.netCents` tính thẳng
+từ tác động số dư (`TransferLegs`) và luôn bằng chi/thu cộng các phần đổi chỗ (bất biến có test); thêm một loại giao dịch mới thì phải giữ
+bất biến này, không thêm trường "khác" để bù. Chi tiết: `docs/reports-cash-flow-api.md`.
+
 **Nguyên tắc Internal Transfer (quyết định #1) — dễ sai nhất, đọc kỹ:**
 
 - Transfer chuyển tiền giữa **2 tài khoản của cùng 1 user**: `financial_account_id` là ví nguồn
