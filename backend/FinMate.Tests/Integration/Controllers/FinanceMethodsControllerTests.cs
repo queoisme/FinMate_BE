@@ -370,7 +370,7 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         var (_, after) = await SendAsync(user, HttpMethod.Get, "/api/v1/finance-methods");
         Data(after).EnumerateArray().Select(m => m.GetProperty("code").GetString()).Should().NotContain(code, "tắt chứ không xoá — người dùng không còn thấy");
 
-        var (_, adminList) = await SendAsync(admin, HttpMethod.Get, "/api/v1/admin/finance-methods?includeInactive=true");
+        var (_, adminList) = await SendAsync(admin, HttpMethod.Get, $"/api/v1/admin/finance-methods?includeInactive=true&search={code}");
         Data(adminList).EnumerateArray().Select(m => m.GetProperty("code").GetString()).Should().Contain(code, "admin vẫn thấy cách đã tắt");
     }
 
@@ -520,6 +520,143 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         body.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain(expectedField);
     }
 
+    // ---- bảng phân bổ (allocation) và câu hỏi số liệu của kế hoạch tháng ----
+
+    private static object NewMethodWithAllocation(string code, object allocation) => new
+    {
+        code,
+        name = "Phương pháp thử",
+        summary = "Tóm tắt",
+        role = "primary",
+        goalMode = "trackOnly",
+        whyText = "Vì thử",
+        starterSteps = new[] { "Bước 1" },
+        eligibility = new { weights = new Dictionary<string, int> { ["income_stable"] = 1 }, excludes = Array.Empty<string>() },
+        paramDefs = new[] { Param("a_pct", def: 50), Param("b_pct", def: 30), Param("minutes_x", "minutes", 60) },
+        allocation,
+        sortOrder = 98,
+    };
+
+    private static object Group(string? key, string kind, params string[] categories) => new { key, label = "Nhóm", kind, categories };
+
+    public static IEnumerable<object[]> InvalidAllocations()
+    {
+        yield return [new { not = "array" }, "allocation"];                                                                        // không phải mảng
+        yield return [new[] { Group("khong_co", "spend", "food") }, "allocation[0].key"];                                          // tham số không tồn tại
+        yield return [new[] { Group("minutes_x", "spend", "food") }, "allocation[0].key"];                                         // không phải tham số %
+        yield return [new[] { Group("a_pct", "lend", "food") }, "allocation[0].kind"];                                             // kind lạ
+        yield return [new[] { Group(null, "save") }, "allocation[0].key"];                                                         // nhóm để dành phải có %
+        yield return [new[] { Group("a_pct", "save", "food") }, "allocation[0].categories"];                                       // nhóm để dành không chứa danh mục
+        yield return [new[] { Group("a_pct", "spend", "food"), Group("b_pct", "spend", "food") }, "allocation[1].categories"];    // một danh mục hai nhóm
+        yield return [new[] { Group(null, "spend", "food"), Group(null, "spend", "transport") }, "allocation"];                   // hai nhóm "phần còn lại"
+        yield return [new[] { Group("a_pct", "spend", "danh-muc-khong-co") }, "allocation"];                                       // danh mục không có thật
+        yield return [new[] { new { key = "a_pct", label = new string('x', 41), kind = "spend", categories = new[] { "food" } } }, "allocation[0].label"];
+        yield return [Enumerable.Range(0, 9).Select(_ => Group(null, "spend")).ToArray(), "allocation"];                          // quá 8 nhóm
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidAllocations))]
+    public async Task InvalidAllocations_AreRefusedWithTheFieldThatIsWrong(object allocation, string expectedField)
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+
+        var (status, body) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/finance-methods", NewMethodWithAllocation(NewCode(), allocation));
+
+        status.Should().Be(HttpStatusCode.BadRequest);
+        body.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain(expectedField);
+    }
+
+    [Fact]
+    public async Task Admin_UpdatesMethodAllocation_AndReadsItBack()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+        var (createStatus, created) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/finance-methods",
+            NewMethodWithAllocation(NewCode(), new[] { Group("a_pct", "spend", "food"), Group("b_pct", "save") }));
+        createStatus.Should().Be(HttpStatusCode.Created);
+        Data(created).GetProperty("allocation").GetArrayLength().Should().Be(2);
+        var id = Data(created).GetProperty("id").GetGuid();
+
+        var (patchStatus, patched) = await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/finance-methods/{id}",
+            new { allocation = new[] { Group(null, "spend", "food", "transport") } });
+        patchStatus.Should().Be(HttpStatusCode.OK);
+        var groups = Data(patched).GetProperty("allocation").EnumerateArray().ToList();
+        groups.Should().ContainSingle();
+        groups[0].GetProperty("categories").EnumerateArray().Select(c => c.GetString()).Should().Equal("food", "transport");
+        Data(patched).GetProperty("version").GetInt32().Should().Be(2);
+
+        (await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/finance-methods/{id}", new { allocation = new[] { Group("khong_co", "spend") } }))
+            .Status.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static object Share(string code, int? min, int? max) => new
+    {
+        code, text = code, signals = new Dictionary<string, int>(), sortOrder = 1, shareMinPct = min, shareMaxPct = max,
+    };
+
+    private static object MoneyQuestion(string answerType, string? planRole, string? categorySlug, object[] options) => new
+    {
+        code = $"m_{Guid.NewGuid():N}"[..20], groupCode = "money", text = "Câu thử", sortOrder = 900,
+        answerType, planRole, categorySlug, options,
+    };
+
+    public static IEnumerable<object[]> InvalidMoneyQuestions()
+    {
+        yield return [MoneyQuestion("amount", "fixed", "housing", [Share("A", null, null), Share("B", null, null)]), "options"];          // câu nhập số không có đáp án
+        yield return [MoneyQuestion("slider", null, null, [Share("A", null, null), Share("B", null, null)]), "answerType"];               // loại lạ
+        yield return [MoneyQuestion("amount", "salary", null, []), "planRole"];                                                            // vai trò lạ
+        yield return [MoneyQuestion("choice", "income", null, [Share("A", 0, 5), Share("B", 5, 10)]), "answerType"];                     // thu nhập phải nhập số
+        yield return [MoneyQuestion("choice", "flexible", null, [Share("A", 0, 5), Share("B", 5, 10)]), "categorySlug"];                 // chi linh hoạt cần danh mục
+        yield return [MoneyQuestion("choice", "flexible", "danh-muc-khong-co", [Share("A", 0, 5), Share("B", 5, 10)]), "categorySlug"];  // danh mục không có thật
+        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", null, 5), Share("B", 5, 10)]), "options[0].shareMinPct"];  // thiếu khoảng %
+        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", 20, 10), Share("B", 5, 10)]), "options[0].shareMaxPct"];   // max < min
+        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", 101, null), Share("B", 5, 10)]), "options[0].shareMinPct"]; // quá 100%
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidMoneyQuestions))]
+    public async Task InvalidMoneyQuestions_AreRefusedWithTheFieldThatIsWrong(object question, string expectedField)
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+
+        var (status, body) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions", question);
+
+        status.Should().Be(HttpStatusCode.BadRequest);
+        body.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain(expectedField);
+    }
+
+    [Fact]
+    public async Task Admin_CreatesAnAmountQuestion_AndAFlexibleQuestionWithShares()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+
+        var (amountStatus, amount) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions",
+            MoneyQuestion("amount", "fixed", "housing", []));
+        amountStatus.Should().Be(HttpStatusCode.Created);
+        Data(amount).GetProperty("answerType").GetString().Should().Be("amount");
+        Data(amount).GetProperty("planRole").GetString().Should().Be("fixed");
+        Data(amount).GetProperty("options").GetArrayLength().Should().Be(0);
+
+        var (flexStatus, flex) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions",
+            MoneyQuestion("choice", "flexible", "food", [Share("A", 0, 5), Share("B", 5, null)]));
+        flexStatus.Should().Be(HttpStatusCode.Created);
+        var options = Data(flex).GetProperty("options").EnumerateArray().ToList();
+        var open = options.Single(o => o.GetProperty("code").GetString() == "B");
+        open.GetProperty("shareMinPct").GetInt32().Should().Be(5);
+        open.GetProperty("shareMaxPct").ValueKind.Should().Be(JsonValueKind.Null);
+
+        var questionId = Data(flex).GetProperty("id").GetGuid();
+        var optionId = options[0].GetProperty("id").GetGuid();
+        var (patchStatus, patched) = await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}/options/{optionId}",
+            new { shareMinPct = 1, shareMaxPct = 4 });
+        patchStatus.Should().Be(HttpStatusCode.OK);
+        Data(patched).GetProperty("options").EnumerateArray().Single(o => o.GetProperty("id").GetGuid() == optionId).GetProperty("shareMaxPct").GetInt32().Should().Be(4);
+        (await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}/options/{optionId}", new { shareMaxPct = 0 }))
+            .Status.Should().Be(HttpStatusCode.BadRequest);
+
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{Data(amount).GetProperty("id").GetGuid()}/activation", new { isActive = false });
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}/activation", new { isActive = false });
+    }
+
     [Fact]
     public async Task AJar_CannotBeBoundToAnAlertThreshold_EvenThoughThatParamIsAlsoAPercentage()
     {
@@ -551,7 +688,7 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
 
         async Task<JsonElement> AdminRowAsync()
         {
-            var (_, list) = await SendAsync(admin, HttpMethod.Get, "/api/v1/admin/finance-methods?includeInactive=true");
+            var (_, list) = await SendAsync(admin, HttpMethod.Get, $"/api/v1/admin/finance-methods?includeInactive=true&search={code}");
             return Data(list).EnumerateArray().Single(m => m.GetProperty("code").GetString() == code);
         }
 

@@ -562,6 +562,162 @@ internal sealed class FinanceCatalogValidation
         }
     }
 
+    public const int MaxAllocationGroups = 8;
+    public const int MaxAllocationLabelLength = 40;
+
+    /// <summary>
+    /// Bảng phân bổ của kế hoạch tháng: mảng ≤ 8 nhóm <c>{key, label, kind, categories}</c>. <c>key</c> khác null phải là tham số percent của chính phương pháp;
+    /// nhóm <c>save</c> bắt buộc có <c>key</c> và không chứa danh mục; một danh mục thuộc tối đa một nhóm; tối đa một nhóm <c>spend</c> không có <c>key</c>;
+    /// danh mục phải là danh mục hệ thống đang bật.
+    /// </summary>
+    public void Allocation(string field, JsonElement value, JsonElement paramDefs, IReadOnlySet<string> systemSlugs)
+    {
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            Add(field, "Phải là một mảng.");
+            return;
+        }
+
+        var groups = value.EnumerateArray().ToList();
+        if (groups.Count > MaxAllocationGroups)
+        {
+            Add(field, $"Tối đa {MaxAllocationGroups} nhóm.");
+        }
+
+        var types = ParamTypeByKey(paramDefs);
+        var seen = new HashSet<string>();
+        var restGroups = 0;
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var group = groups[i];
+            var at = $"{field}[{i}]";
+            if (group.ValueKind != JsonValueKind.Object)
+            {
+                Add(at, "Mỗi nhóm phải là một object.");
+                continue;
+            }
+
+            var kind = StringProp(group, "kind");
+            if (kind is null || !AllocationKinds.All.Contains(kind))
+            {
+                Add($"{at}.kind", $"Chỉ nhận: {string.Join(", ", AllocationKinds.All)}.");
+            }
+
+            var label = StringProp(group, "label");
+            if (string.IsNullOrWhiteSpace(label) || label.Trim().Length > MaxAllocationLabelLength)
+            {
+                Add($"{at}.label", $"Tên nhóm từ 1 đến {MaxAllocationLabelLength} ký tự.");
+            }
+
+            string? key = null;
+            if (group.TryGetProperty("key", out var keyElement) && keyElement.ValueKind != JsonValueKind.Null)
+            {
+                key = keyElement.ValueKind == JsonValueKind.String ? keyElement.GetString() : null;
+                if (key is null || types.GetValueOrDefault(key) != FinanceParamTypes.Percent)
+                {
+                    Add($"{at}.key", "Phải là mã một tham số kiểu % của chính cách quản lý này.");
+                }
+            }
+            else if (kind == AllocationKinds.Save)
+            {
+                Add($"{at}.key", "Nhóm để dành phải gắn với một tham số %.");
+            }
+            else if (kind == AllocationKinds.Spend)
+            {
+                restGroups++;
+            }
+
+            if (!group.TryGetProperty("categories", out var categories) || categories.ValueKind != JsonValueKind.Array)
+            {
+                Add($"{at}.categories", "Phải là mảng mã danh mục.");
+                continue;
+            }
+
+            var slugs = categories.EnumerateArray().Select(c => c.ValueKind == JsonValueKind.String ? c.GetString() : null).ToList();
+            if (kind == AllocationKinds.Save && slugs.Count > 0)
+            {
+                Add($"{at}.categories", "Nhóm để dành không chứa danh mục chi.");
+            }
+
+            foreach (var slug in slugs)
+            {
+                if (slug is null)
+                {
+                    Add($"{at}.categories", "Mã danh mục phải là chuỗi.");
+                }
+                else if (!seen.Add(slug))
+                {
+                    Add($"{at}.categories", $"Danh mục '{slug}' đã thuộc một nhóm khác.");
+                }
+                else if (!systemSlugs.Contains(slug))
+                {
+                    Add(field, $"Danh mục '{slug}' không tồn tại hoặc đã tắt (chỉ dùng được mã của danh mục hệ thống).");
+                }
+            }
+        }
+
+        if (restGroups > 1)
+        {
+            Add(field, "Chỉ được một nhóm chi \"phần còn lại\" (không gắn tham số %).");
+        }
+    }
+
+    /// <summary>Các trường kế hoạch của một câu khảo sát: loại câu, vai trò, danh mục và các đáp án theo đúng loại đó.</summary>
+    public void SurveyPlanFields(
+        string answerType, string? planRole, string? categorySlug, IReadOnlyList<(int? Min, int? Max)> activeShares, IReadOnlySet<string> systemSlugs)
+    {
+        if (!SurveyAnswerTypes.All.Contains(answerType))
+        {
+            Add("answerType", $"Chỉ nhận: {string.Join(", ", SurveyAnswerTypes.All)}.");
+        }
+
+        if (planRole is not null && !SurveyPlanRoles.All.Contains(planRole))
+        {
+            Add("planRole", $"Chỉ nhận: {string.Join(", ", SurveyPlanRoles.All)} hoặc để trống.");
+        }
+
+        if (planRole is SurveyPlanRoles.Income or SurveyPlanRoles.SavingsBalance && answerType != SurveyAnswerTypes.Amount)
+        {
+            Add("answerType", "Câu thu nhập và tiền tiết kiệm phải là câu nhập số tiền (amount).");
+        }
+
+        if (categorySlug is not null && !systemSlugs.Contains(categorySlug))
+        {
+            Add("categorySlug", $"Danh mục '{categorySlug}' không tồn tại hoặc đã tắt.");
+        }
+
+        if (planRole == SurveyPlanRoles.Flexible)
+        {
+            if (answerType != SurveyAnswerTypes.Choice)
+            {
+                Add("answerType", "Câu chi linh hoạt là câu chọn khoảng %.");
+            }
+
+            if (categorySlug is null)
+            {
+                Add("categorySlug", "Câu chi linh hoạt phải gắn một danh mục hệ thống.");
+            }
+
+            for (var i = 0; i < activeShares.Count; i++)
+            {
+                ShareRange($"options[{i}]", activeShares[i].Min, activeShares[i].Max);
+            }
+        }
+    }
+
+    /// <summary>Khoảng % của một đáp án câu chi linh hoạt: 0 ≤ min ≤ 100, max null hoặc min ≤ max ≤ 100.</summary>
+    public void ShareRange(string field, int? min, int? max)
+    {
+        if (min is not (>= 0 and <= 100))
+        {
+            Add($"{field}.shareMinPct", "Câu chi linh hoạt cần % tối thiểu từ 0 đến 100.");
+        }
+        else if (max is not null && (max < min || max > 100))
+        {
+            Add($"{field}.shareMaxPct", "% tối đa phải từ % tối thiểu đến 100, hoặc để trống (\"từ mức này trở lên\").");
+        }
+    }
+
     public void Add(string field, string message) => _failures.Add(new ValidationFailure(field, message));
 
     private static string? StringProp(JsonElement element, string name)
