@@ -8,13 +8,12 @@ public interface ILoanRepository
     Task<List<Loan>> GetListAsync(Guid userId, CancellationToken ct = default);
     Task<Loan?> GetOwnedAsync(Guid id, Guid userId, CancellationToken ct = default);
     Task AddAsync(Loan loan, CancellationToken ct = default);
-    Task UpdateAsync(Loan loan, CancellationToken ct = default);
-    Task DeleteAsync(Loan loan, CancellationToken ct = default);
 
-    /// <summary>Thêm lần trả và đồng thời cập nhật dòng khoản vay (khóa lạc quan): hai lần trả đồng thời thì một bên nhận xung đột.</summary>
-    Task AddRepaymentAsync(Loan loan, LoanRepayment repayment, CancellationToken ct = default);
+    /// <summary>
+    /// Lưu mọi thay đổi đang theo dõi của lượt ghi (một lần, D2). Không có hàm xoá cứng: xoá khoản / dòng là xoá mềm (Q4), xoá cứng chỉ đi cùng xoá
+    /// người dùng (cascade).
+    /// </summary>
     Task SaveAsync(CancellationToken ct = default);
-    Task RemoveRepaymentAsync(Loan loan, LoanRepayment repayment, CancellationToken ct = default);
 
     /// <summary>Phase 90, D19: khoản đã tạo bằng cùng <c>clientRequestId</c> (kể cả đã xoá mềm, để gửi lại không tạo lại khoản vừa xoá), kèm dòng còn sống.</summary>
     Task<Loan?> GetByClientRequestAsync(Guid userId, Guid clientRequestId, CancellationToken ct = default);

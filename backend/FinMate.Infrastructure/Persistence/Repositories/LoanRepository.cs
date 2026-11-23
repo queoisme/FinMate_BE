@@ -22,29 +22,7 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
         await context.SaveChangesAsync(ct);
     }
 
-    public async Task UpdateAsync(Loan loan, CancellationToken ct = default) => await context.SaveChangesAsync(ct);
-
-    public async Task DeleteAsync(Loan loan, CancellationToken ct = default)
-    {
-        context.Loans.Remove(loan);
-        await context.SaveChangesAsync(ct);
-    }
-
-    public async Task AddRepaymentAsync(Loan loan, LoanRepayment repayment, CancellationToken ct = default)
-    {
-        context.LoanRepayments.Add(repayment);
-        loan.UpdatedAt = DateTimeOffset.UtcNow;   // buộc UPDATE dòng khoản vay để khóa xmin có tác dụng
-        await context.SaveChangesAsync(ct);
-    }
-
     public async Task SaveAsync(CancellationToken ct = default) => await context.SaveChangesAsync(ct);
-
-    public async Task RemoveRepaymentAsync(Loan loan, LoanRepayment repayment, CancellationToken ct = default)
-    {
-        context.LoanRepayments.Remove(repayment);
-        loan.UpdatedAt = DateTimeOffset.UtcNow;
-        await context.SaveChangesAsync(ct);
-    }
 
     public Task<Loan?> GetByClientRequestAsync(Guid userId, Guid clientRequestId, CancellationToken ct = default)
         => context.Loans.Include(l => l.Repayments.Where(r => r.DeletedAt == null))

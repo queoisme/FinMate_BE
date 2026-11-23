@@ -406,7 +406,7 @@ public class LoanServiceTests
 
         loan.DeletedAt.Should().NotBeNull();
         loan.Repayments.Should().OnlyContain(e => e.DeletedAt != null);
-        _loans.Verify(r => r.DeleteAsync(It.IsAny<Loan>(), It.IsAny<CancellationToken>()), Times.Never, "Q4: không xoá cứng");
+        _loans.Verify(r => r.SaveAsync(It.IsAny<CancellationToken>()), Times.Once, "Q4: xoá mềm là một lần lưu; repository không có hàm xoá cứng");
     }
 
     [Fact]
