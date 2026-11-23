@@ -52,7 +52,7 @@ public sealed class EfConcurrencyRetry : IConcurrencyRetry
     /// </summary>
     private static bool IsLostMoneyRace(Exception ex) => ex switch
     {
-        DbUpdateConcurrencyException conflict => conflict.Entries.Any(e => e.Entity is FinancialAccount or BudgetPeriod or SavingGoal or GroupFund),
+        DbUpdateConcurrencyException conflict => conflict.Entries.Any(e => e.Entity is FinancialAccount or BudgetPeriod or SavingGoal or GroupFund or Loan),
         DbUpdateException update => update.InnerException is PostgresException
         {
             SqlState: UniqueViolation, ConstraintName: BudgetPeriodUniqueIndex or GroupFundEntryClientRequestIndex,

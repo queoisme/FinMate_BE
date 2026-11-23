@@ -45,6 +45,25 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
         await context.SaveChangesAsync(ct);
     }
 
+    public Task<Loan?> GetByClientRequestAsync(Guid userId, Guid clientRequestId, CancellationToken ct = default)
+        => context.Loans.Include(l => l.Repayments.Where(r => r.DeletedAt == null))
+            .FirstOrDefaultAsync(l => l.UserId == userId && l.ClientRequestId == clientRequestId, ct);
+
+    public Task<bool> EntryClientRequestExistsAsync(Guid loanId, Guid clientRequestId, CancellationToken ct = default)
+        => context.LoanRepayments.AnyAsync(r => r.LoanId == loanId && r.ClientRequestId == clientRequestId, ct);
+
+    public Task<bool> IsTransactionLinkedAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => context.LoanRepayments.AnyAsync(
+            r => r.DeletedAt == null && (r.TransactionId == transactionId || r.InterestTransactionId == transactionId)
+                 && context.Loans.Any(l => l.Id == r.LoanId && l.UserId == userId && l.DeletedAt == null),
+            ct);
+
+    public void Track(Loan loan) => context.Loans.Add(loan);
+
+    public void Track(Transaction transaction) => context.Transactions.Add(transaction);
+
+    public void Track(LoanRepayment entry) => context.LoanRepayments.Add(entry);
+
     public Task<List<Loan>> GetDueUnnotifiedAsync(DateOnly dueOnOrBefore, CancellationToken ct = default)
         => context.Loans
             .Where(l => l.DueDate != null && l.DueDate <= dueOnOrBefore && l.DueNotifiedAt == null

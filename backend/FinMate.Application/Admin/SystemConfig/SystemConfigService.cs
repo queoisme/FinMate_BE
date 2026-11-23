@@ -178,6 +178,7 @@ public class SystemConfigService : ISystemConfigService
         Compare("transfers", before.Transfers, after.Transfers);
         Compare("snapshots", before.Snapshots, after.Snapshots);
         Compare("listenerHealth", before.ListenerHealth, after.ListenerHealth);
+        Compare("loans", before.Loans, after.Loans);
         return sections;
     }
 }

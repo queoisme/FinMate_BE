@@ -16,6 +16,27 @@ public interface ILoanRepository
     Task SaveAsync(CancellationToken ct = default);
     Task RemoveRepaymentAsync(Loan loan, LoanRepayment repayment, CancellationToken ct = default);
 
+    /// <summary>Phase 90, D19: khoản đã tạo bằng cùng <c>clientRequestId</c> (kể cả đã xoá mềm, để gửi lại không tạo lại khoản vừa xoá), kèm dòng còn sống.</summary>
+    Task<Loan?> GetByClientRequestAsync(Guid userId, Guid clientRequestId, CancellationToken ct = default);
+
+    /// <summary>Phase 90, D19: dòng đã ghi bằng cùng <c>clientRequestId</c> trên khoản này, kể cả dòng đã xoá (UNIQUE gồm cả chúng).</summary>
+    Task<bool> EntryClientRequestExistsAsync(Guid loanId, Guid clientRequestId, CancellationToken ct = default);
+
+    /// <summary>Phase 90, BR-DEBT-08: giao dịch đã gắn một dòng còn sống (gốc hoặc lãi) của một khoản còn sống chưa.</summary>
+    Task<bool> IsTransactionLinkedAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
+    /// <summary>Phase 90: chỉ theo dõi khoản mới; lưu cùng các thay đổi khác của lượt ghi (một lần lưu, D2).</summary>
+    void Track(Loan loan);
+
+    /// <summary>Phase 90: chỉ theo dõi giao dịch mới do sổ vay tạo (giao dịch <c>loan</c>, giao dịch lãi S1); lưu cùng lượt ghi.</summary>
+    void Track(Transaction transaction);
+
+    /// <summary>
+    /// Phase 90: dòng mới của một khoản đang theo dõi. Phải thêm tường minh: id đặt sẵn + cột có giá trị mặc định làm EF tưởng dòng đã tồn tại
+    /// nếu chỉ thêm vào danh sách của khoản (UPDATE 0 dòng → 409).
+    /// </summary>
+    void Track(LoanRepayment entry);
+
     /// <summary>Khoản còn nợ gốc, có hạn cuối &lt;= <paramref name="dueOnOrBefore"/> và chưa nhắc.</summary>
     Task<List<Loan>> GetDueUnnotifiedAsync(DateOnly dueOnOrBefore, CancellationToken ct = default);
 }

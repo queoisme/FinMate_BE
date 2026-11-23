@@ -21,7 +21,10 @@ public class LoansController(ILoanService service) : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] LoanRequest r, CancellationToken ct)
-        => StatusCode(StatusCodes.Status201Created, ApiResponse<LoanDto>.Ok(await service.CreateAsync(CurrentUserId, r.ToInput(), ct)));
+    {
+        var result = await service.CreateAsync(CurrentUserId, r.ToInput(), ct);
+        return StatusCode(result.AlreadyExisted ? StatusCodes.Status200OK : StatusCodes.Status201Created, ApiResponse<LoanDto>.Ok(result.Loan));
+    }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] LoanRequest r, CancellationToken ct)
@@ -37,7 +40,7 @@ public class LoansController(ILoanService service) : ControllerBase
     /// <summary>Ghi một lần trả (vay) / thu hồi (cho vay). Có <c>financialAccountId</c> thì sinh giao dịch ví tương ứng.</summary>
     [HttpPost("{id:guid}/repayments")]
     public async Task<IActionResult> Repay(Guid id, [FromBody] RepaymentRequest r, CancellationToken ct)
-        => Ok(ApiResponse<LoanDto>.Ok(await service.RepayAsync(CurrentUserId, id, r.AmountCents, r.FinancialAccountId, r.PaidAt, ct)));
+        => Ok(ApiResponse<LoanDto>.Ok((await service.RepayAsync(CurrentUserId, id, new LoanEntryInput(r.AmountCents, r.FinancialAccountId, r.PaidAt), ct)).Loan));
 }
 
 /// <param name="Direction"><c>borrow</c> (đi vay) hoặc <c>lend</c> (cho vay).</param>

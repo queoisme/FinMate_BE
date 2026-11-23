@@ -654,7 +654,16 @@ public class Program
         builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<ILoanRepository, LoanRepository>();
-        builder.Services.AddScoped<FinMate.Application.Loans.ILoanService, FinMate.Application.Loans.LoanService>();
+        builder.Services.AddScoped<FinMate.Application.Loans.LoanTransactionLink>();
+        builder.Services.AddScoped(sp => new FinMate.Application.Loans.LoanServiceDependencies(
+            sp.GetRequiredService<ILoanRepository>(), sp.GetRequiredService<ICategoryRepository>(), sp.GetRequiredService<ITransactionRepository>(),
+            sp.GetRequiredService<IFinancialAccountRepository>(), sp.GetRequiredService<FinMate.Application.Loans.LoanTransactionLink>(),
+            new RefundAfterSave(sp.GetRequiredService<IBudgetAlertNotifier>(), sp.GetRequiredService<ICacheService>(), sp.GetRequiredService<IGroupLedger>(),
+                sp.GetRequiredService<IDailySummaryRefresher>(), sp.GetRequiredService<IForecastAlertTrigger>()),
+            sp.GetRequiredService<ISystemConfigProvider>()));
+        builder.Services.AddScoped<FinMate.Application.Loans.LoanService>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanService>(sp => new FinMate.Application.Loans.RetryingLoanService(
+            sp.GetRequiredService<FinMate.Application.Loans.LoanService>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();

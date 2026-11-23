@@ -180,4 +180,36 @@ public class TransactionDuplicateQueriesTests : IClassFixture<ReceiptScanDbFixtu
         (await second).Should().Be(1);
         finishedEarly.Should().BeFalse();
     }
+
+    /// <summary>
+    /// Phase 90 (Q14): một giao dịch 2.060.000 đã tách thành 2.000.000 (gắn khoản vay) + 60.000 lãi vẫn là MỘT sự kiện ngân hàng. Ứng viên trùng mang
+    /// "số tiền ngân hàng" 2.060.000; chính giao dịch lãi không là ứng viên.
+    /// </summary>
+    [Fact]
+    public async Task Candidates_ATransactionSplitIntoLoanAndInterest_IsFoundAtItsBankAmount()
+    {
+        await using var db = _fixture.NewContext();
+        var s = await SeedUserAsync(db);
+        var principal = await InsertAsync(db, s, amount: 2_000_000);
+        var interest = await InsertAsync(db, s, amount: 60_000);
+        var loan = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO loans (id, user_id, direction, title, counterparty, principal_cents, repaid_cents, status, settled_at, interest_rate_percent_year,
+                               start_date, created_at, updated_at)
+            VALUES ({loan}, {s.User}, 'borrow', 'Khoản', 'Người', 2000000, 2000000, 'settled', now(), 12, current_date, now(), now())
+            """);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO loan_repayments (id, loan_id, kind, amount_cents, paid_at, transaction_id, interest_transaction_id, created_at)
+            VALUES ({Guid.NewGuid()}, {loan}, 'repayment', 2000000, now(), {principal}, {interest}, now())
+            """);
+        var repo = new TransactionRepository(db);
+
+        var atBank = await repo.ListDuplicateCandidatesAsync(Query(s, 2_060_000));
+        var atInterest = await repo.ListDuplicateCandidatesAsync(Query(s, 60_000));
+        var atPrincipal = await repo.ListDuplicateCandidatesAsync(Query(s, 2_000_000));
+
+        atBank.Select(r => (r.Probe.Id, r.Probe.AmountCents)).Should().Equal((principal, 2_060_000L));
+        atInterest.Should().BeEmpty("phần lãi đã tách không phải sự kiện ngân hàng riêng");
+        atPrincipal.Should().BeEmpty("sự kiện ngân hàng là 2.060.000, không phải 2.000.000");
+    }
 }
