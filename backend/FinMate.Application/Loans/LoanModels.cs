@@ -4,10 +4,15 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Loans;
 
+/// <summary>
+/// Một khoản vay. Trường trước Phase 90 giữ nguyên tên và nghĩa (app đang đọc, xem mục S5 của kế hoạch); Phase 90 thêm ở cuối: <paramref name="Status"/>
+/// (<c>open</c> | <c>settled</c> | <c>written_off</c>), <paramref name="IsOverdue"/>, <paramref name="Note"/>, mốc trả xong / xoá nợ.
+/// </summary>
 public record LoanDto(
     Guid Id, string Direction, string Title, string Counterparty, long PrincipalCents, decimal InterestRatePercentYear,
     DateOnly? DueDate, long PaidCents, long RemainingCents, DateTimeOffset CreatedAt,
-    DateOnly StartDate = default, long AccruedInterestCents = 0)
+    DateOnly StartDate = default, long AccruedInterestCents = 0,
+    string Status = "open", bool IsOverdue = false, string? Note = null, DateTimeOffset? SettledAt = null, DateTimeOffset? WrittenOffAt = null)
 {
     /// <summary>Số phải trả/thu tính đến hôm nay = gốc còn lại + lãi tạm tính.</summary>
     public long TotalDueCents => RemainingCents + AccruedInterestCents;
@@ -15,8 +20,51 @@ public record LoanDto(
     public static LoanDto From(Loan l, DateOnly today)
     {
         var paid = LoanTotals.Repaid(l);
+        var remaining = Math.Max(0, l.PrincipalCents - paid);
+        // Q11: trả hết gốc là xong; lãi tạm tính của khoản đã đóng không còn ý nghĩa.
+        var accrued = l.Status == LoanStatus.Open ? LoanInterest.Accrued(l, today) : 0;
         return new(l.Id, l.Direction.ToString().ToLowerInvariant(), l.Title, l.Counterparty, l.PrincipalCents, l.InterestRatePercentYear,
-            l.DueDate, paid, Math.Max(0, l.PrincipalCents - paid), l.CreatedAt, l.StartDate, LoanInterest.Accrued(l, today));
+            l.DueDate, paid, remaining, l.CreatedAt, l.StartDate, accrued,
+            StatusName(l.Status), IsOverdueOn(l, today), l.Note, l.SettledAt, l.WrittenOffAt);
+    }
+
+    public static string StatusName(LoanStatus status) => status switch
+    {
+        LoanStatus.Settled => "settled",
+        LoanStatus.WrittenOff => "written_off",
+        _ => "open",
+    };
+
+    /// <summary>Khoản <c>open</c> có hạn trước hôm nay (giờ VN).</summary>
+    public static bool IsOverdueOn(Loan l, DateOnly today) => l.Status == LoanStatus.Open && l.DueDate is { } due && due < today;
+}
+
+/// <summary>Một dòng của khoản: giải ngân (<c>principal</c>) hoặc trả (<c>repayment</c>); <paramref name="InterestTransactionId"/>: phần lãi tách ra (S1).</summary>
+public sealed record LoanEntryDto(Guid Id, string Kind, long AmountCents, DateTimeOffset At, Guid? TransactionId, Guid? InterestTransactionId);
+
+public sealed record LoanDetailDto(LoanDto Loan, IReadOnlyList<LoanEntryDto> Entries)
+{
+    public static LoanDetailDto From(Loan l, DateOnly today) => new(
+        LoanDto.From(l, today),
+        l.Repayments.Where(e => e.DeletedAt is null).OrderBy(e => e.PaidAt).ThenBy(e => e.CreatedAt)
+            .Select(e => new LoanEntryDto(e.Id, e.Kind == LoanEntryKind.Principal ? "principal" : "repayment", e.AmountCents, e.PaidAt, e.TransactionId, e.InterestTransactionId))
+            .ToList());
+}
+
+/// <summary>D17: tổng gốc còn lại của các khoản <c>open</c>; quá hạn là khoản <c>open</c> có hạn trước hôm nay (giờ VN). Không cộng lãi (Q11).</summary>
+public sealed record LoanSummaryDto(long OwedToMeCents, long IOweCents, int OverdueCount, long OverdueOwedToMeCents, long OverdueIOweCents)
+{
+    public static LoanSummaryDto From(IEnumerable<Loan> loans, DateOnly today)
+    {
+        var open = loans.Where(l => l.Status == LoanStatus.Open && l.DeletedAt is null).ToList();
+        var overdue = open.Where(l => LoanDto.IsOverdueOn(l, today)).ToList();
+        static long Left(Loan l) => Math.Max(0, l.PrincipalCents - l.RepaidCents);
+        return new LoanSummaryDto(
+            open.Where(l => l.Direction == LoanDirection.Lend).Sum(Left),
+            open.Where(l => l.Direction == LoanDirection.Borrow).Sum(Left),
+            overdue.Count,
+            overdue.Where(l => l.Direction == LoanDirection.Lend).Sum(Left),
+            overdue.Where(l => l.Direction == LoanDirection.Borrow).Sum(Left));
     }
 }
 

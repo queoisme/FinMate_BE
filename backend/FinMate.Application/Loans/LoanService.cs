@@ -18,6 +18,15 @@ public interface ILoanService
     /// <summary>Khoản còn sống của người dùng, mới tạo trước. Chat (<c>TryRepayAsync</c>) dùng hàm này.</summary>
     Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, CancellationToken ct = default);
 
+    /// <summary>Q12: <c>GET /loans</c> với lọc tuỳ chọn; không phân trang (người dùng có ít khoản).</summary>
+    Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, LoanStatus? status, LoanDirection? direction, CancellationToken ct = default);
+
+    /// <summary><c>GET /loans/{id}</c>: khoản kèm các dòng còn sống.</summary>
+    Task<LoanDetailDto> GetAsync(Guid userId, Guid id, CancellationToken ct = default);
+
+    /// <summary><c>GET /loans/summary</c> (D17).</summary>
+    Task<LoanSummaryDto> SummaryAsync(Guid userId, CancellationToken ct = default);
+
     /// <summary>BR-DEBT-03: nợ cũ (không đụng ví), kèm giao dịch giải ngân mới, hoặc từ giao dịch có sẵn (Q6).</summary>
     Task<LoanWriteResult> CreateAsync(Guid userId, LoanInput input, CancellationToken ct = default);
 
@@ -81,6 +90,18 @@ public sealed class LoanService : ILoanService
     public async Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, CancellationToken ct = default)
         => (await _loans.GetListAsync(userId, ct)).Select(l => LoanDto.From(l, Today())).ToList();
 
+    public async Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, LoanStatus? status, LoanDirection? direction, CancellationToken ct = default)
+        => (await _loans.GetListAsync(userId, ct))
+            .Where(l => (status is null || l.Status == status) && (direction is null || l.Direction == direction))
+            .Select(l => LoanDto.From(l, Today()))
+            .ToList();
+
+    public async Task<LoanDetailDto> GetAsync(Guid userId, Guid id, CancellationToken ct = default)
+        => LoanDetailDto.From(await LoadAsync(userId, id, ct), Today());
+
+    public async Task<LoanSummaryDto> SummaryAsync(Guid userId, CancellationToken ct = default)
+        => LoanSummaryDto.From(await _loans.GetListAsync(userId, ct), Today());
+
     public async Task<LoanWriteResult> CreateAsync(Guid userId, LoanInput input, CancellationToken ct = default)
     {
         Validate(input);
@@ -113,7 +134,7 @@ public sealed class LoanService : ILoanService
     public async Task<LoanDto> UpdateAsync(Guid userId, Guid id, LoanInput input, CancellationToken ct = default)
     {
         Validate(input);
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         var now = _now();
 
         // S2: principalCents là tổng gốc mới; dòng giải ngân đầu đổi đúng bằng chênh lệch.
@@ -158,7 +179,7 @@ public sealed class LoanService : ILoanService
 
     public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         var now = _now();
         loan.DeletedAt = now;
         loan.UpdatedAt = now;
@@ -173,7 +194,7 @@ public sealed class LoanService : ILoanService
     public async Task<LoanWriteResult> RepayAsync(Guid userId, Guid id, LoanEntryInput input, CancellationToken ct = default)
     {
         EnsureAmount(input.AmountCents);
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         if (input.ClientRequestId is { } requestId && await _loans.EntryClientRequestExistsAsync(loan.Id, requestId, ct))
         {
             return new LoanWriteResult(LoanDto.From(loan, Today()), AlreadyExisted: true);
@@ -215,7 +236,7 @@ public sealed class LoanService : ILoanService
     public async Task<LoanWriteResult> AddPrincipalAsync(Guid userId, Guid id, LoanEntryInput input, CancellationToken ct = default)
     {
         EnsureAmount(input.AmountCents);
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         if (input.ClientRequestId is { } requestId && await _loans.EntryClientRequestExistsAsync(loan.Id, requestId, ct))
         {
             return new LoanWriteResult(LoanDto.From(loan, Today()), AlreadyExisted: true);
@@ -253,7 +274,7 @@ public sealed class LoanService : ILoanService
         var (loan, effects) = await _transactions.RunWithTransactionsLockedAsync(userId, [transactionId], async rows =>
         {
             var transaction = rows[transactionId];
-            var loan = await GetAsync(userId, id, ct);
+            var loan = await LoadAsync(userId, id, ct);
             LoanPolicy.EnsureEligible(transaction, await _loans.IsTransactionLinkedAsync(userId, transaction.Id, ct));
             LoanPolicy.EnsureDirection(loan.Direction, kind, transaction.TransactionType);
             var now = _now();
@@ -295,7 +316,7 @@ public sealed class LoanService : ILoanService
 
     public async Task<LoanDto?> DeleteEntryAsync(Guid userId, Guid id, Guid entryId, CancellationToken ct = default)
     {
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         var entry = loan.Repayments.FirstOrDefault(e => e.Id == entryId && e.DeletedAt is null) ?? throw new NotFoundException("LoanEntry", entryId);
         var now = _now();
         var emptied = LoanPolicy.Remove(loan, entry.Kind, entry.AmountCents, now);
@@ -311,7 +332,7 @@ public sealed class LoanService : ILoanService
 
     public async Task<LoanDto> WriteOffAsync(Guid userId, Guid id, CancellationToken ct = default)
     {
-        var loan = await GetAsync(userId, id, ct);
+        var loan = await LoadAsync(userId, id, ct);
         var before = loan.Status;
         LoanPolicy.WriteOff(loan, _now());
         if (before != loan.Status)
@@ -382,7 +403,7 @@ public sealed class LoanService : ILoanService
             Id = Guid.NewGuid(), LoanId = loan.Id, Kind = kind, AmountCents = amountCents, PaidAt = at, ClientRequestId = clientRequestId, CreatedAt = now,
         };
 
-    private async Task<Loan> GetAsync(Guid userId, Guid id, CancellationToken ct)
+    private async Task<Loan> LoadAsync(Guid userId, Guid id, CancellationToken ct)
         => await _loans.GetOwnedAsync(id, userId, ct) ?? throw new NotFoundException("Loan", id);
 
     private async Task AfterSaveAsync(Guid userId, RefundEffects effects, CancellationToken ct)
@@ -453,6 +474,13 @@ public sealed class LoanService : ILoanService
 public sealed class RetryingLoanService(LoanService inner, IConcurrencyRetry retry) : ILoanService
 {
     public Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, CancellationToken ct = default) => inner.ListAsync(userId, ct);
+
+    public Task<IReadOnlyList<LoanDto>> ListAsync(Guid userId, LoanStatus? status, LoanDirection? direction, CancellationToken ct = default)
+        => inner.ListAsync(userId, status, direction, ct);
+
+    public Task<LoanDetailDto> GetAsync(Guid userId, Guid id, CancellationToken ct = default) => inner.GetAsync(userId, id, ct);
+
+    public Task<LoanSummaryDto> SummaryAsync(Guid userId, CancellationToken ct = default) => inner.SummaryAsync(userId, ct);
 
     public Task<LoanWriteResult> CreateAsync(Guid userId, LoanInput input, CancellationToken ct = default)
         => retry.ExecuteAsync(token => inner.CreateAsync(userId, input, token), ct);
