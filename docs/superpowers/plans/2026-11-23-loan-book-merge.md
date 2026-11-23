@@ -122,6 +122,8 @@ Lỗi đầu vào của endpoint cũ giữ 422 `LOAN_INVALID` như hiện tại;
 - Câu không có dấu nào (thông báo ngân hàng, hoặc gõ không dấu): so **bỏ dấu**, nên "HOA TRA NO" khớp cả "Hoa" lẫn "Hòa". Có hai khoản thì chat trả null như hiện tại, gợi ý thông báo liệt kê cả hai.
 - So theo tập từ như `SameName` hiện tại (tên ngắn hơn ⊆ tên dài hơn), nên "Bạn An" ↔ "An" khớp mà không cần danh sách xưng hô. Với gợi ý từ thông báo: các từ của tên khoản, sau khi bỏ từ xưng hô đứng đầu ("bạn", "anh", "chị", "em", "cô", "chú", "bác", "ông", "bà", "dì", "cậu"), phải đều có trong nội dung. Danh sách xưng hô đặt ở `loans.honorifics` trong cấu hình.
 
+**Q16. Cho vay/mượn có tính vào chi tiêu / thu nhập của báo cáo tháng không? (phát hiện ở Task 0, chưa có đề xuất chốt)** Phase 85 (S2) và Phase 86 dựa trên luật "khoản `loan` không phải chi tiêu hay thu nhập" (`LoanExclusion`, 20 chỗ). Test trên `main` (MinhTuan, 2026-11-17) ghi một yêu cầu ngày 2026-11-16: `monthly-summary` và `timeline` tính **dòng tiền thật** (cho mượn là chi, được trả là thu), chỉ `category-breakdown` loại `loan`; code chưa làm theo nên test đỏ. Hai luật không cùng đúng được. Ảnh hưởng tới Phase 90: kịch bản (b) ("gắn khoản trả vào sổ nợ thì tổng thu tháng giảm") và việc gắn giao dịch vào khoản vay có đổi tổng chi/thu tháng hay không. Cần chủ sản phẩm chốt trước Task 5.
+
 **Q13. Nhánh `feat/debt-book`.** Đề xuất: không push, không merge; xoá nhánh cục bộ sau khi Phase 90 merge. Kế hoạch Phase 86 cũ chép vào `feat/loan-book` để giữ lại D1–D25, S1–S5 làm nguồn luật.
 
 ---
@@ -216,7 +218,15 @@ Code của cậu ấy bị đổi ở: `LoanService` (phần ghi), `LoanReposito
 
 ## Verification
 
-- Mốc: đo ở Task 0, trên `aba320c`.
+- **Mốc (đo 2026-11-23 trên worktree tách riêng tại `aba320c`, trước mọi thay đổi):**
+  - ai-service: **2234 passed, 483 skipped** (không Postgres).
+  - backend: **3628/3639, 11 test đỏ có sẵn trên `main`** (21 phút):
+    - `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…` (có từ `b6f1c42`);
+    - `ReportsControllerTests.LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown`: test (MinhTuan, 2026-11-17) đòi báo cáo tháng và dòng thời gian **tính** cho vay/mượn vào chi/thu "theo yêu cầu 2026-11-16", code vẫn loại `loan` → xem Q16;
+    - 7 test cùng một nguyên nhân: gợi ý quan hệ từ AI không còn được lưu (`RelationHint` null): `RefundNotificationTests` ×3, `RefundScenarioTests` ×3, `AnalyzeNotificationDuplicateTests.TheAiTransferHint_IsStoredForBothDirections`, cộng `TransferScenarioTests.B_AtmWithdrawal_…` (NullReference, có vẻ cùng gốc);
+    - `NotificationsControllerTests.Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance` (nháp không còn tự xác nhận).
+  - Phase 90 dựa vào gợi ý quan hệ của AI (Task 2, 8): lỗi "hint không được lưu" phải được sửa (hoặc hiểu rõ) trước Task 2.
+- Mốc cũ: đo ở Task 0, trên `aba320c`.
 - Trước khi xin merge: toàn bộ backend và ai-service, không thêm test đỏ; `dotnet build` không cảnh báo mới; `alembic upgrade head` trên DB trống chạy qua `0040`.
 - Test riêng cho chuyển dữ liệu: dựng DB ở migration trước `MergeDebtBookIntoLoans`, chèn khoản vay và lần trả theo dạng cũ, chạy migration, kiểm gốc / đã trả / trạng thái / dòng giải ngân đầu.
 
