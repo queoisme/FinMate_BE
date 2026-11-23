@@ -1,3 +1,4 @@
+using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Transactions.Commands;
@@ -16,9 +17,35 @@ public record LoanDto(
 
     public static LoanDto From(Loan l, DateOnly today)
     {
-        var paid = l.Repayments.Sum(r => r.AmountCents);
+        var paid = LoanTotals.Repaid(l);
         return new(l.Id, l.Direction.ToString().ToLowerInvariant(), l.Title, l.Counterparty, l.PrincipalCents, l.InterestRatePercentYear,
             l.DueDate, paid, Math.Max(0, l.PrincipalCents - paid), l.CreatedAt, l.StartDate, LoanInterest.Accrued(l, today));
+    }
+}
+
+/// <summary>
+/// Tổng của một khoản tính từ các dòng còn sống (Phase 90): gốc = Σ giải ngân, đã trả = Σ trả. <see cref="Recompute"/> ghi lại hai tổng lưu sẵn và
+/// trạng thái; mọi chỗ thêm, sửa, xoá dòng phải gọi nó trước khi lưu (CHECK <c>principal_cents &gt;= repaid_cents</c> ở DB là lưới cuối).
+/// </summary>
+public static class LoanTotals
+{
+    public static long Repaid(Loan l) => l.Live(LoanEntryKind.Repayment).Sum(r => r.AmountCents);
+
+    /// <summary>Khoản dựng trong bộ nhớ chưa có dòng giải ngân (dữ liệu trước Phase 90 trong test) thì gốc là số đã lưu.</summary>
+    public static long Principal(Loan l) => l.Live(LoanEntryKind.Principal).Any() ? l.Live(LoanEntryKind.Principal).Sum(r => r.AmountCents) : l.PrincipalCents;
+
+    public static void Recompute(Loan l, DateTimeOffset now)
+    {
+        l.PrincipalCents = Principal(l);
+        l.RepaidCents = Repaid(l);
+        if (l.Status == LoanStatus.WrittenOff)
+        {
+            return;
+        }
+
+        var settled = l.PrincipalCents > 0 && l.RepaidCents >= l.PrincipalCents;
+        l.Status = settled ? LoanStatus.Settled : LoanStatus.Open;
+        l.SettledAt = settled ? l.SettledAt ?? now : null;
     }
 }
 
@@ -26,7 +53,8 @@ public record LoanDto(
 public record LoanInput(LoanDirection Direction, string Title, string Counterparty, long PrincipalCents, decimal InterestRatePercentYear, DateOnly? DueDate, DateOnly? StartDate = null);
 
 /// <summary>
-/// Lãi tạm tính: lãi đơn theo ngày trên dư nợ GỐC, từ ngày bắt đầu đến hôm nay; mỗi lần trả làm giảm gốc (coi tiền trả vào gốc) từ ngày trả.
+/// Lãi tạm tính: lãi đơn theo ngày trên dư nợ GỐC, từ ngày bắt đầu đến hôm nay; mỗi lần trả làm giảm gốc (coi tiền trả vào gốc) từ ngày trả,
+/// mỗi lần giải ngân thêm làm tăng gốc từ ngày đó (Phase 90). Dòng đã xoá không tính.
 /// Chỉ để tham khảo: không phải số của ngân hàng (không lãi kép, không phí phạt, không kỳ trả cố định).
 /// </summary>
 public static class LoanInterest
@@ -39,12 +67,13 @@ public static class LoanInterest
         }
 
         var dailyRate = loan.InterestRatePercentYear / 100m / 365m;
-        var outstanding = (decimal)loan.PrincipalCents;
+        var hasPrincipalRows = loan.Live(LoanEntryKind.Principal).Any();
+        var outstanding = hasPrincipalRows ? 0m : loan.PrincipalCents;
         var cursor = loan.StartDate;
         decimal interest = 0;
-        foreach (var r in loan.Repayments.OrderBy(r => r.PaidAt))
+        foreach (var r in loan.Repayments.Where(r => r.DeletedAt is null).OrderBy(r => r.PaidAt).ThenBy(r => r.Kind))
         {
-            var paidDay = DateOnly.FromDateTime(r.PaidAt.UtcDateTime.AddHours(7));
+            var paidDay = VietnamTime.DateOf(r.PaidAt);
             if (paidDay > today)
             {
                 break;
@@ -56,7 +85,7 @@ public static class LoanInterest
                 cursor = paidDay;
             }
 
-            outstanding = Math.Max(0, outstanding - r.AmountCents);
+            outstanding = r.Kind == LoanEntryKind.Principal ? outstanding + r.AmountCents : Math.Max(0, outstanding - r.AmountCents);
         }
 
         if (today > cursor)
@@ -95,6 +124,13 @@ public class LoanService(
         var now = DateTimeOffset.UtcNow;
         var loan = new Loan { Id = Guid.NewGuid(), UserId = userId, CreatedAt = now, UpdatedAt = now };
         Apply(loan, input);
+        // Phase 90 (Q5): gốc là tổng các dòng giải ngân; khoản mới có một dòng, ngày bắt đầu, không gắn giao dịch.
+        loan.Repayments.Add(new LoanRepayment
+        {
+            Id = Guid.NewGuid(), LoanId = loan.Id, Kind = LoanEntryKind.Principal, AmountCents = input.PrincipalCents, PaidAt = VietnamTime.DayRange(loan.StartDate).Start,
+            CreatedAt = now,
+        });
+        LoanTotals.Recompute(loan, now);
         await loans.AddAsync(loan, ct);
         return LoanDto.From(loan, Today());
     }
@@ -103,9 +139,33 @@ public class LoanService(
     {
         Validate(input);
         var loan = await loans.GetOwnedAsync(id, userId, ct) ?? throw new NotFoundException("Loan", id);
-        if (input.PrincipalCents < loan.Repayments.Sum(r => r.AmountCents))
+        if (input.PrincipalCents < LoanTotals.Repaid(loan))
         {
             throw new BusinessRuleException(LoanErrorCodes.PrincipalBelowPaid, "Số tiền gốc không được nhỏ hơn số đã trả.");
+        }
+
+        // S2: principalCents là tổng gốc mới; dòng giải ngân đầu đổi đúng bằng chênh lệch.
+        var first = loan.Live(LoanEntryKind.Principal).OrderBy(r => r.PaidAt).ThenBy(r => r.CreatedAt).FirstOrDefault();
+        var diff = input.PrincipalCents - LoanTotals.Principal(loan);
+        if (first?.TransactionId is not null)
+        {
+            if (diff != 0)
+            {
+                throw new BusinessRuleException(LoanErrorCodes.PrincipalLinked, "Lần giải ngân đầu đã gắn giao dịch. Hãy sửa số tiền ở giao dịch đó.");
+            }
+        }
+        else if (first is not null)
+        {
+            if (first.AmountCents + diff <= 0)
+            {
+                throw new BusinessRuleException(LoanErrorCodes.Invalid, "Số tiền gốc mới làm lần giải ngân đầu không còn dương.");
+            }
+
+            first.AmountCents += diff;
+            if (input.StartDate is { } start)
+            {
+                first.PaidAt = VietnamTime.DayRange(start).Start;   // dòng đầu chưa gắn giao dịch đi theo ngày bắt đầu
+            }
         }
 
         if (loan.DueDate != input.DueDate)
@@ -115,6 +175,7 @@ public class LoanService(
 
         Apply(loan, input);
         loan.UpdatedAt = DateTimeOffset.UtcNow;
+        LoanTotals.Recompute(loan, loan.UpdatedAt);
         await loans.UpdateAsync(loan, ct);
         return LoanDto.From(loan, Today());
     }
@@ -129,7 +190,7 @@ public class LoanService(
     public async Task<LoanDto> RepayAsync(Guid userId, Guid id, long amountCents, Guid? financialAccountId, DateTimeOffset? paidAt, CancellationToken ct = default)
     {
         var loan = await loans.GetOwnedAsync(id, userId, ct) ?? throw new NotFoundException("Loan", id);
-        var remaining = loan.PrincipalCents - loan.Repayments.Sum(r => r.AmountCents);
+        var remaining = LoanTotals.Principal(loan) - LoanTotals.Repaid(loan);
         if (amountCents <= 0 || amountCents > MaxCents)
         {
             throw new BusinessRuleException(LoanErrorCodes.Invalid, "Số tiền không hợp lệ.");
@@ -143,8 +204,9 @@ public class LoanService(
         // Ghi lần trả TRƯỚC, kèm khóa xmin của khoản vay: hai lần trả đồng thời thì một bên nhận 409 (CONCURRENT_UPDATE), không sinh giao dịch ví thừa.
         var now = DateTimeOffset.UtcNow;
         var repayment = new LoanRepayment { Id = Guid.NewGuid(), LoanId = loan.Id, AmountCents = amountCents, PaidAt = paidAt ?? now, CreatedAt = now };
-        await loans.AddRepaymentAsync(loan, repayment, ct);
         loan.Repayments.Add(repayment);
+        LoanTotals.Recompute(loan, now);
+        await loans.AddRepaymentAsync(loan, repayment, ct);
 
         if (financialAccountId is { } accountId)
         {
@@ -165,6 +227,7 @@ public class LoanService(
             {
                 // Ví lỗi (không có ví, không hợp lệ...) thì bỏ lần trả vừa ghi: sổ và ví không được lệch nhau.
                 loan.Repayments.Remove(repayment);
+                LoanTotals.Recompute(loan, DateTimeOffset.UtcNow);
                 await loans.RemoveRepaymentAsync(loan, repayment, CancellationToken.None);
                 throw;
             }
@@ -173,7 +236,7 @@ public class LoanService(
         return LoanDto.From(loan, Today());
     }
 
-    private static DateOnly Today() => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));   // ngày theo giờ VN
+    private static DateOnly Today() => VietnamTime.DateOf(DateTimeOffset.UtcNow);
 
     private static void Validate(LoanInput i)
     {

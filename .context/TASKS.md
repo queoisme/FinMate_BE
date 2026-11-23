@@ -1679,7 +1679,8 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
 - [x] Sửa trước Task 2: thứ tự `ExtractionResult` (`ProviderReference` về cuối); 8 test gợi ý quan hệ AI đỏ trên `main` xanh lại, kèm lỗi thật ở đường OCR.
 - [x] Task 1: ai-service gợi ý `debt_repayment` (mạnh / yếu / loại trừ, cụm dài nhất thắng), alembic `0040`.
 - [x] Task 2: backend lưu `debt_repayment` và `debt_hint_strength` ở `ai_results` (migration `AddDebtRepaymentHint`).
-- [ ] Task 3–14: migration `loans`, `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
+- [x] Task 3: migration `MergeDebtBookIntoLoans` (dòng giải ngân, `repaid_cents`, `status`, xoá mềm, `interest_transaction_id`, FK giao dịch hoãn kiểm tới commit); `/loans` đọc đúng dòng theo loại.
+- [ ] Task 4–14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
 - [ ] **Báo nhóm Flutter (phần đã xong):**
   - **Dòng tiền:** `monthly-summary` và mỗi ngày của `timeline` có object tuỳ chọn `cashFlow { netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents }`. Màn báo cáo / trang chủ nên hiện thêm dòng **"Số dư thay đổi"** (`netCents`) và phần **"Cho vay / trả nợ"**, **"Quỹ nhóm"**, để người dùng hiểu vì sao số dư giảm nhiều hơn số chi. `totalSpentCents` / `totalIncomeCents` không đổi ý nghĩa (không gồm cho vay/mượn).
   - Hai trường chuyển ví chỉ khác 0 khi xem một ví (`accountId`).

@@ -145,4 +145,100 @@ public class LoanServiceTests
         loan.InterestRatePercentYear = 0;
         LoanInterest.Accrued(loan, start.AddDays(100)).Should().Be(0);
     }
+
+    // ---- Phase 90, Task 3: dòng giải ngân, tổng lưu sẵn, trạng thái, S2 ----
+
+    private Loan WithEntries(long firstPrincipal, long secondPrincipal = 0, long repaid = 0, Guid? firstTransaction = null)
+    {
+        var start = new DateOnly(2026, 9, 1);
+        var loan = new Loan { Id = Guid.NewGuid(), UserId = _userId, Direction = LoanDirection.Lend, Title = "Xe", Counterparty = "FE", StartDate = start };
+        loan.Repayments.Add(new LoanRepayment
+        {
+            Id = Guid.NewGuid(), LoanId = loan.Id, Kind = LoanEntryKind.Principal, AmountCents = firstPrincipal, TransactionId = firstTransaction,
+            PaidAt = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.FromHours(7)),
+        });
+        if (secondPrincipal > 0)
+        {
+            loan.Repayments.Add(new LoanRepayment
+            {
+                Id = Guid.NewGuid(), LoanId = loan.Id, Kind = LoanEntryKind.Principal, AmountCents = secondPrincipal, PaidAt = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.FromHours(7)),
+            });
+        }
+
+        if (repaid > 0)
+        {
+            loan.Repayments.Add(new LoanRepayment { Id = Guid.NewGuid(), LoanId = loan.Id, AmountCents = repaid, PaidAt = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero) });
+        }
+
+        LoanTotals.Recompute(loan, DateTimeOffset.UtcNow);
+        _loans.Setup(r => r.GetOwnedAsync(loan.Id, _userId, It.IsAny<CancellationToken>())).ReturnsAsync(loan);
+        return loan;
+    }
+
+    [Fact]
+    public async Task Create_AddsOnePrincipalEntry_OnTheStartDate_WithoutATransaction()
+    {
+        Loan? saved = null;
+        _loans.Setup(r => r.AddAsync(It.IsAny<Loan>(), It.IsAny<CancellationToken>())).Callback<Loan, CancellationToken>((l, _) => saved = l);
+
+        var dto = await _service.CreateAsync(_userId, new LoanInput(LoanDirection.Lend, "Xe", "FE", 2_000_000, 0, null, new DateOnly(2026, 9, 1)));
+
+        var entry = saved!.Repayments.Should().ContainSingle().Subject;
+        (entry.Kind, entry.AmountCents, entry.TransactionId).Should().Be((LoanEntryKind.Principal, 2_000_000L, (Guid?)null));
+        entry.PaidAt.Should().Be(new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.FromHours(7)));
+        (saved.PrincipalCents, saved.RepaidCents, saved.Status).Should().Be((2_000_000L, 0L, LoanStatus.Open));
+        (dto.PaidCents, dto.RemainingCents).Should().Be((0L, 2_000_000L), "dòng giải ngân không phải lần trả");
+    }
+
+    [Fact]
+    public async Task Update_PrincipalIsTheNewTotal_TheFirstEntryMovesByTheDifference_WithTwoDisbursements()
+    {
+        var loan = WithEntries(1_000_000, secondPrincipal: 500_000, repaid: 200_000);
+
+        var dto = await _service.UpdateAsync(_userId, loan.Id, new LoanInput(LoanDirection.Lend, "Xe", "FE", 1_800_000, 0, null));
+
+        loan.Live(LoanEntryKind.Principal).Select(e => e.AmountCents).Should().Equal(1_300_000, 500_000);
+        (loan.PrincipalCents, loan.RepaidCents, dto.RemainingCents).Should().Be((1_800_000L, 200_000L, 1_600_000L));
+    }
+
+    [Fact]
+    public async Task Update_FirstEntryLinkedToATransaction_Rejected()
+    {
+        var loan = WithEntries(1_000_000, firstTransaction: Guid.NewGuid());
+
+        var act = () => _service.UpdateAsync(_userId, loan.Id, new LoanInput(LoanDirection.Lend, "Xe", "FE", 1_200_000, 0, null));
+
+        await act.Should().ThrowAsync<BusinessRuleException>().Where(e => e.ErrorCode == LoanErrorCodes.PrincipalLinked);
+    }
+
+    [Fact]
+    public async Task Update_FirstEntryWouldDropToZero_Rejected()
+    {
+        var loan = WithEntries(300_000, secondPrincipal: 500_000);
+
+        var act = () => _service.UpdateAsync(_userId, loan.Id, new LoanInput(LoanDirection.Lend, "Xe", "FE", 500_000, 0, null));
+
+        await act.Should().ThrowAsync<BusinessRuleException>().Where(e => e.ErrorCode == LoanErrorCodes.Invalid);
+    }
+
+    [Fact]
+    public async Task Repay_TheRest_SettlesTheLoan()
+    {
+        var loan = WithEntries(1_000_000, repaid: 400_000);
+
+        await _service.RepayAsync(_userId, loan.Id, 600_000, null, null);
+
+        (loan.RepaidCents, loan.Status).Should().Be((1_000_000L, LoanStatus.Settled));
+        loan.SettledAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Interest_ASecondDisbursement_RaisesTheOutstandingFromItsDate()
+    {
+        var loan = WithEntries(36_500_000, secondPrincipal: 36_500_000);
+        loan.InterestRatePercentYear = 10;
+
+        // 30 ngày trên 36,5tr (10.000/ngày) rồi 30 ngày trên 73tr (20.000/ngày).
+        LoanInterest.Accrued(loan, new DateOnly(2026, 10, 31)).Should().Be(30 * 10_000 + 30 * 20_000);
+    }
 }

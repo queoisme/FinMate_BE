@@ -6,11 +6,14 @@ namespace FinMate.Infrastructure.Persistence.Repositories;
 
 public class LoanRepository(FinMateDbContext context) : ILoanRepository
 {
+    // Phase 90: khoản và dòng đã xoá mềm không bao giờ được đọc ở đây.
     public Task<List<Loan>> GetListAsync(Guid userId, CancellationToken ct = default)
-        => context.Loans.Include(l => l.Repayments).Where(l => l.UserId == userId).OrderByDescending(l => l.CreatedAt).ToListAsync(ct);
+        => context.Loans.Include(l => l.Repayments.Where(r => r.DeletedAt == null))
+            .Where(l => l.UserId == userId && l.DeletedAt == null).OrderByDescending(l => l.CreatedAt).ToListAsync(ct);
 
     public Task<Loan?> GetOwnedAsync(Guid id, Guid userId, CancellationToken ct = default)
-        => context.Loans.Include(l => l.Repayments).FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId, ct);
+        => context.Loans.Include(l => l.Repayments.Where(r => r.DeletedAt == null))
+            .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId && l.DeletedAt == null, ct);
 
     public async Task AddAsync(Loan loan, CancellationToken ct = default)
     {
@@ -43,8 +46,8 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
     }
 
     public Task<List<Loan>> GetDueUnnotifiedAsync(DateOnly dueOnOrBefore, CancellationToken ct = default)
-        => context.Loans.Include(l => l.Repayments)
-            .Where(l => l.DueDate != null && l.DueDate <= dueOnOrBefore && l.DueNotifiedAt == null)
-            .ToListAsync(ct)
-            .ContinueWith(t => t.Result.Where(l => l.Repayments.Sum(r => r.AmountCents) < l.PrincipalCents).ToList(), ct);
+        => context.Loans
+            .Where(l => l.DueDate != null && l.DueDate <= dueOnOrBefore && l.DueNotifiedAt == null
+                        && l.DeletedAt == null && l.Status == LoanStatus.Open && l.RepaidCents < l.PrincipalCents)
+            .ToListAsync(ct);
 }
