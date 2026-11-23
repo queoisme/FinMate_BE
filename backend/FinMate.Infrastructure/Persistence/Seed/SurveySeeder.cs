@@ -30,9 +30,32 @@ public static class SurveySeeder
     private const string QSupport = "support_style";
     private const string QSpend = "avg_monthly_spend";
 
-    private sealed record OptionSeed(string Code, string Text, (string Signal, int Weight)[] Signals);
+    private const string GroupMoney = "money";
 
-    private sealed record QuestionSeed(string Code, string Group, string Text, string? ShowIf, OptionSeed[] Options);
+    private sealed record OptionSeed(string Code, string Text, (string Signal, int Weight)[] Signals, int? ShareMinPct = null, int? ShareMaxPct = null);
+
+    private sealed record QuestionSeed(
+        string Code, string Group, string Text, string? ShowIf, OptionSeed[] Options,
+        string AnswerType = SurveyAnswerTypes.Choice, string? CategorySlug = null, string? PlanRole = null);
+
+    /// <summary>Câu nhập số tiền cho kế hoạch tháng (không có đáp án, không sinh signal).</summary>
+    private static QuestionSeed Amount(string code, string text, string planRole, string? categorySlug = null)
+        => new(code, GroupMoney, text, null, [], SurveyAnswerTypes.Amount, categorySlug, planRole);
+
+    /// <summary>
+    /// Câu "thường chi cho X khoảng bao nhiêu": đáp án là khoảng % thu nhập (app đổi ra số tiền). Kế hoạch dùng điểm giữa khoảng.
+    /// Không sinh signal — mức chi không ảnh hưởng việc chọn phương pháp.
+    /// </summary>
+    private static QuestionSeed Flexible(string categorySlug, string label)
+        => new($"flex_{categorySlug}", GroupMoney, $"Mỗi tháng bạn thường chi cho {label} khoảng bao nhiêu?", null,
+        [
+            new("A", "Không chi", [], 0, 0),
+            new("B", "Dưới 5% thu nhập", [], 0, 5),
+            new("C", "Từ 5% đến 10%", [], 5, 10),
+            new("D", "Từ 10% đến 20%", [], 10, 20),
+            new("E", "Từ 20% đến 30%", [], 20, 30),
+            new("F", "Từ 30% trở lên", [], 30, null),
+        ], SurveyAnswerTypes.Choice, categorySlug, SurveyPlanRoles.Flexible);
 
     /// <summary>
     /// Định dạng <c>show_if</c>: <c>{"all":[{"question":mã,"in":[mã đáp án]} | {"question":mã,"not_in":[mã đáp án]}]}</c>.
@@ -134,6 +157,20 @@ public static class SurveySeeder
             new("D", "Theo dõi tiến độ mục tiêu và động viên", [(FinanceSignals.WantsGoalTracking, 3)]),
             new("E", "Cho tôi tự xem số liệu và quyết định", [(FinanceSignals.WantsSelfService, 3)]),
         ]),
+
+        // Phần số liệu cho kế hoạch tháng (đặc tả 2026-11-23-onboarding-financial-plan-design.md §4). Đứng SAU các câu chọn phương pháp.
+        Amount("income_amount", "Mỗi tháng bạn thực nhận khoảng bao nhiêu?", SurveyPlanRoles.Income),
+        Amount("fixed_housing", "Tiền nhà hoặc tiền thuê trọ mỗi tháng", SurveyPlanRoles.Fixed, "housing"),
+        Amount("fixed_bills", "Điện, nước, internet, điện thoại mỗi tháng", SurveyPlanRoles.Fixed, "bills"),
+        Amount("fixed_debt", "Trả góp hoặc trả nợ mỗi tháng", SurveyPlanRoles.Fixed),
+        Flexible("food", "ăn uống"),
+        Flexible("transport", "đi lại"),
+        Flexible("shopping", "mua sắm"),
+        Flexible("entertainment", "giải trí"),
+        Flexible("health", "sức khỏe"),
+        Flexible("education", "học tập"),
+        Flexible("family", "gia đình"),
+        Amount("savings_balance", "Hiện bạn đã có bao nhiêu tiền tiết kiệm?", SurveyPlanRoles.SavingsBalance),
     ];
 
     public static async Task SeedAsync(FinMateDbContext context, CancellationToken ct = default)
@@ -160,6 +197,9 @@ public static class SurveySeeder
                     GroupCode = seed.Group,
                     Text = seed.Text,
                     ShowIf = seed.ShowIf,
+                    AnswerType = seed.AnswerType,
+                    CategorySlug = seed.CategorySlug,
+                    PlanRole = seed.PlanRole,
                     SortOrder = i + 1,
                     IsActive = true,
                     CreatedAt = now,
@@ -183,6 +223,8 @@ public static class SurveySeeder
                     Code = option.Code,
                     Text = option.Text,
                     Signals = JsonSerializer.Serialize(option.Signals.ToDictionary(s => s.Signal, s => s.Weight)),
+                    ShareMinPct = option.ShareMinPct,
+                    ShareMaxPct = option.ShareMaxPct,
                     SortOrder = j + 1,
                     IsActive = true,
                     CreatedAt = now,

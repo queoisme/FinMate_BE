@@ -371,8 +371,65 @@ public static class FinanceMethodSeeder
             ]),
     ];
 
+    private sealed record AllocationGroup(string? Key, string Label, string Kind, string[] Categories);
+
+    /// <summary>Mọi danh mục hệ thống là khoản CHI (trừ thu nhập và cho vay/mượn).</summary>
+    private static readonly string[] AllSpendCategories = ["housing", "bills", "food", "transport", "health", "family", "shopping", "entertainment", "education", "other"];
+
+    private static AllocationGroup Rest() => new(null, "Chi tiêu", AllocationKinds.Spend, AllSpendCategories);
+
+    private static AllocationGroup Save(string key, string label) => new(key, label, AllocationKinds.Save, []);
+
+    /// <summary>
+    /// Bảng phân bổ cho kế hoạch tháng (đặc tả 2026-11-23-onboarding-financial-plan-design.md §5): nhóm % → danh mục. <c>Key</c> là tham số percent
+    /// của chính phương pháp (null = phần còn lại, không trần). Admin sửa được; seeder chỉ điền khi cột còn rỗng.
+    /// </summary>
+    private static readonly Dictionary<string, AllocationGroup[]> Allocations = new()
+    {
+        [FinanceMethodCodes.CategoryBudget] =
+        [
+            new("needs_pct", "Nhu cầu", AllocationKinds.Spend, ["housing", "bills", "food", "transport", "health", "family"]),
+            new("wants_pct", "Mong muốn", AllocationKinds.Spend, ["shopping", "entertainment", "education"]),
+            Save("goals_pct", "Mục tiêu"),
+        ],
+        [FinanceMethodCodes.SixJars] =
+        [
+            new("necessities_pct", "Thiết yếu", AllocationKinds.Spend, ["food", "housing", "bills", "transport", "health", "family"]),
+            new("education_pct", "Giáo dục", AllocationKinds.Spend, ["education"]),
+            new("play_pct", "Hưởng thụ", AllocationKinds.Spend, ["entertainment", "shopping"]),
+            Save("financial_freedom_pct", "Tự do tài chính"),
+            Save("long_term_pct", "Tiết kiệm dài hạn"),
+            Save("give_pct", "Cho đi"),
+        ],
+        [FinanceMethodCodes.Rule702010] =
+        [
+            new("living_pct", "Sinh hoạt", AllocationKinds.Spend, AllSpendCategories),
+            Save("saving_pct", "Tiết kiệm"),
+            Save("debt_goal_pct", "Trả nợ hoặc mục tiêu khác"),
+        ],
+        [FinanceMethodCodes.Rule8020] = [Rest(), Save("saving_pct", "Tiết kiệm")],
+        [FinanceMethodCodes.GoalFund] = [Rest(), Save("saving_pct", "Để dành cho mục tiêu")],
+        [FinanceMethodCodes.EmergencyBuffer] = [Rest(), Save("contribution_pct", "Quỹ khẩn cấp")],
+        [FinanceMethodCodes.MinimalTracking] = [Rest()],
+        [FinanceMethodCodes.AvailableToSpend] = [Rest()],
+        [FinanceMethodCodes.CashFlowBudget] = [Rest()],
+        [FinanceMethodCodes.EnvelopeBudget] = [Rest()],
+        [FinanceMethodCodes.DebtRepayment] = [Rest()],
+        [FinanceMethodCodes.LowEffortAutomation] = [Rest()],
+        [FinanceMethodCodes.ZeroBased] = [Rest()],
+    };
+
+    private static string AllocationJson(string code)
+        => Allocations.TryGetValue(code, out var groups) ? JsonSerializer.Serialize(groups, Json) : "[]";
+
     public static async Task SeedAsync(FinMateDbContext context, CancellationToken ct = default)
     {
+        // Phương pháp có từ trước khi có cột allocation: điền bảng phân bổ mặc định, chỉ khi cột còn rỗng — không ghi đè bản admin đã sửa.
+        foreach (var method in await context.FinanceMethods.Where(m => m.Allocation == "[]").ToListAsync(ct))
+        {
+            method.Allocation = AllocationJson(method.Code);
+        }
+
         var existing = await context.FinanceMethods.Select(m => m.Code).ToListAsync(ct);
         var now = DateTimeOffset.UtcNow;
         var added = false;
@@ -404,6 +461,7 @@ public static class FinanceMethodSeeder
                 WhyText = seed.WhyText,
                 StarterSteps = JsonSerializer.Serialize(seed.StarterSteps, Json),
                 HomeLayout = seed.HomeLayout ?? FinanceHomeBlocks.DefaultLayout,
+                Allocation = AllocationJson(seed.Code),
                 SortOrder = i + 1,
                 IsActive = true,
                 Version = 1,
@@ -413,7 +471,7 @@ public static class FinanceMethodSeeder
             added = true;
         }
 
-        if (added)
+        if (added || context.ChangeTracker.HasChanges())
         {
             await context.SaveChangesAsync(ct);
         }
