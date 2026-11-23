@@ -160,7 +160,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             CreatedAt = now,
         };
         // Phase 81/83: hoàn/đảo chỉ với tiền vào, chuyển ví với cả hai chiều; lưu để dựng lại gợi ý khi app mở nháp sau này.
-        (aiResult.RelationHint, aiResult.TransferKind) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
+        (aiResult.RelationHint, aiResult.TransferKind, aiResult.DebtHintStrength) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
         var outcome = pipelineResult == PipelineResult.Financial

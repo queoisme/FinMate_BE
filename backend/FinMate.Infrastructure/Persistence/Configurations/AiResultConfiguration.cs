@@ -28,7 +28,10 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
             t.HasCheckConstraint(
                 "chk_ai_results_pipeline_result",
                 "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
-            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')");
+            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer','debt_repayment')");
+            t.HasCheckConstraint(
+                "chk_ai_results_debt_hint_strength",
+                "debt_hint_strength IS NULL OR (relation_hint = 'debt_repayment' AND debt_hint_strength IN ('strong','weak'))");
             t.HasCheckConstraint(
                 "chk_ai_results_transfer_kind",
                 "transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))");
@@ -72,8 +75,9 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
         builder.Property(a => a.RelationHint)
             .HasColumnName("relation_hint")
             .HasConversion(
-                v => v == null ? null : v.Value.ToString().ToLowerInvariant(),
-                v => v == null ? null : Enum.Parse<NotificationRelationHint>(v, true))
+                // Phase 90: snake_case tường minh. ToLowerInvariant() cho ra "debtrepayment", không khớp CHECK.
+                v => v == null ? null : GroupColumns.SnakeCase(v.Value.ToString()),
+                v => v == null ? null : Enum.Parse<NotificationRelationHint>(v.Replace("_", string.Empty), true))
             .HasMaxLength(20);
         builder.Property(a => a.TransferKind)
             .HasColumnName("transfer_kind")
@@ -81,6 +85,12 @@ public class AiResultConfiguration : IEntityTypeConfiguration<AiResult>
                 v => v == null ? null : TransferKindColumn.ToColumn(v.Value),
                 v => v == null ? null : TransferKindColumn.FromColumn(v))
             .HasMaxLength(24);
+        builder.Property(a => a.DebtHintStrength)
+            .HasColumnName("debt_hint_strength")
+            .HasConversion(
+                v => v == null ? null : GroupColumns.SnakeCase(v.Value.ToString()),
+                v => v == null ? null : Enum.Parse<DebtHintStrength>(v, true))
+            .HasMaxLength(10);
 
         builder.Property(a => a.ClassifierVersion).HasColumnName("classifier_version").HasMaxLength(20);
         builder.Property(a => a.ExtractorVersion).HasColumnName("extractor_version").HasMaxLength(20);

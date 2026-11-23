@@ -49,7 +49,8 @@ public class AIServiceClient : IAIServiceClient
                     response.Extraction.Confidence,
                     response.Extraction.RelationHint,
                     response.Extraction.TransferKind,
-                    response.Extraction.ProviderReference),
+                    response.Extraction.ProviderReference,
+                    response.Extraction.DebtHintStrength),
             response.Categorization is null
                 ? null
                 : new CategorizationResult(response.Categorization.CategorySlug, response.Categorization.Confidence),
@@ -206,7 +207,8 @@ public class AIServiceClient : IAIServiceClient
                     response.Extraction.Confidence,
                     response.Extraction.RelationHint,
                     response.Extraction.TransferKind,
-                    response.Extraction.ProviderReference),
+                    response.Extraction.ProviderReference,
+                    response.Extraction.DebtHintStrength),
             response.Categorization is null
                 ? null
                 : new CategorizationResult(

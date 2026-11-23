@@ -11,6 +11,9 @@ public enum NotificationRelationHint
 
     /// <summary>Tiền chuyển giữa các ví của chính người dùng (Phase 83); loại cụ thể ở <c>ai_results.transfer_kind</c>.</summary>
     Transfer,
+
+    /// <summary>Trả nợ / thu nợ giữa người với người (Phase 90), cả hai chiều; độ mạnh ở <c>ai_results.debt_hint_strength</c>.</summary>
+    DebtRepayment,
 }
 
 public static class NotificationRelationHintExtensions

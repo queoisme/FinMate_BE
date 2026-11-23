@@ -31,7 +31,8 @@ public record ExtractionResult(
     double? Confidence,
     string? RelationHint = null,    // Phase 81: "refund" | "reversal"; Phase 83: "transfer" — chỉ để GỢI Ý
     string? TransferKind = null,    // Phase 83: atm_withdrawal | atm_deposit | wallet_topup | wallet_withdrawal | own_account
-    string? ProviderReference = null);   // 2026-11-13; để CUỐI để không lệch các chỗ tạo record theo vị trí (đã từng lệch, xem AiClientExtractionMappingTests)
+    string? ProviderReference = null,    // 2026-11-13; trường mới luôn thêm ở CUỐI để không lệch các chỗ tạo record theo vị trí (xem AiClientExtractionMappingTests)
+    string? DebtHintStrength = null);    // Phase 90: strong | weak, chỉ khi RelationHint = "debt_repayment"
 
 public record CategorizationResult(string? CategorySlug, double? Confidence);
 

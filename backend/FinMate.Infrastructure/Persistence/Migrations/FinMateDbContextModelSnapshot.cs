@@ -71,6 +71,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DebtHintStrength")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("debt_hint_strength");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -149,9 +154,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ai_results", null, t =>
                         {
+                            t.HasCheckConstraint("chk_ai_results_debt_hint_strength", "debt_hint_strength IS NULL OR (relation_hint = 'debt_repayment' AND debt_hint_strength IN ('strong','weak'))");
+
                             t.HasCheckConstraint("chk_ai_results_pipeline_result", "pipeline_result IN ('financial','non_financial','uncertain','extraction_failed','error')");
 
-                            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer')");
+                            t.HasCheckConstraint("chk_ai_results_relation_hint", "relation_hint IS NULL OR relation_hint IN ('refund','reversal','transfer','debt_repayment')");
 
                             t.HasCheckConstraint("chk_ai_results_transfer_kind", "transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN ('atm_withdrawal','atm_deposit','wallet_topup','wallet_withdrawal','own_account'))");
                         });
