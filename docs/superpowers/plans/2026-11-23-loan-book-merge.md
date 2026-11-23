@@ -19,6 +19,13 @@
   - **Cổng trước Task 3** (không chỉ trước Task 1): xác nhận với nhóm Flutter app đang đọc những trường nào của `/loans` và ghi vào mục "Trường app đang dùng" bên dưới; báo MinhTuan trước khi sửa `LoanService`. Repo Flutter không có trên máy này nên phải hỏi người. Task 0–2 không đụng `/loans` nên làm trước được.
   - **`GroupDebtService` đã kiểm (2026-11-23):** không đọc thông báo ngân hàng, `relation_hint` hay giao dịch; nhóm chỉ tự ghi lần thanh toán (`SettleAsync`, không tạo giao dịch). Hai loại gợi ý không chồng nhau, nên không cần luật ưu tiên. Test khoá điều này: một thông báo "TRA NO" khi người dùng vừa có khoản vay vừa đang nợ trong nhóm chỉ ra `loanSuggestions`, nhóm không có gì đổi.
 
+## Đã chốt (2026-11-23, lần 2): Q14, Q15, Q16, test đỏ sẵn
+
+- **Q16: cách 3, "chi tiêu thật" + dòng tiền riêng.** Nguyên tắc (ghi vào `.context/ARCHITECTURE.md` cạnh quyết định #1 về `Transfer`): *chi tiêu / thu nhập là tiền đã dùng hết hoặc thực sự kiếm được; tiền đổi chỗ (chuyển giữa ví của mình, góp/rút quỹ nhóm, cho vay / đi vay / trả nợ) không phải chi tiêu hay thu nhập nhưng vẫn hiện trong dòng tiền; lãi vay (S1) là chi tiêu / thu nhập thật.* Nguồn gốc mâu thuẫn: commit `3df2182` (13/11, `dev/tho`) cố ý tính `loan` vào thu/chi của `GetDailySpendAsync`; Phase 85 Task 0 (`5281eba`) vô tình thêm lại `NotLoan` khi gom `LoanExclusion`; test của MinhTuan (17/11) viết theo ý commit 13/11. Làm ở **Task 0b**. Hệ quả cho Phase 90: gắn một giao dịch thu vào sổ nợ (đổi sang `loan`) làm `totalIncomeCents` giảm và `loanInflowCents` tăng đúng bằng số đó, `netCashFlowCents` không đổi; assert này thêm vào kịch bản (b).
+- **8 test gợi ý AI đỏ sẵn:** để MinhTuan sửa trên `main`; ghi tên vào mốc, luật "không thêm test đỏ" so với mốc. Ngoại lệ: nếu tới Task 2 mà `main` chưa sửa và lỗi nằm trong phần Task 2 đụng (`NotificationHints`, hợp đồng AI client) thì sửa bằng một commit `fix:` riêng trước Task 2, ghi vào báo cáo cho MinhTuan. Rebase lấy bản sửa về thì đo lại mốc.
+- **Q14: duyệt.** Khi so "cùng sự kiện ngân hàng", cộng lại phần lãi. Liên kết lưu bằng cột `loan_repayments.interest_transaction_id` (FK NO ACTION, UNIQUE khi khác null) cạnh `transaction_id`, nên biết phần nào cần cộng mà không đoán. Thông báo gửi lại y hệt đã bị `contentHash` chặn ở `notification_logs`, nên chỉ xử lý trùng nghiệp vụ. Test: nhập tay trả 2.060.000 (tách 2.000.000 gốc + 60.000 lãi), rồi thông báo −2.060.000 về → `Suspected` trỏ đúng giao dịch gốc → gộp → vẫn một giao dịch gốc + một giao dịch lãi, số dư không trừ hai lần.
+- **Q15: duyệt.** Câu có dấu so giữ dấu, câu không dấu so bỏ dấu. Một câu khớp nhiều khoản (Hoa, Hòa) → trả **tất cả** trong `loanSuggestions` theo hạng, không tự chọn; khớp tên chỉ dùng để xếp hạng. Test "HOA TRA NO" với hai khoản Hoa và Hòa cùng mở.
+
 ## Trường app đang dùng (S5, chưa xác nhận)
 
 _Điền trước Task 3 sau khi hỏi nhóm Flutter._
@@ -148,6 +155,7 @@ loans (giữ mọi cột có sẵn)
   INDEX (user_id, status, due_date) WHERE deleted_at IS NULL
 
 loan_repayments (giữ tên bảng; giờ chứa cả dòng giải ngân)
+  + interest_transaction_id uuid NULL           -- Q14: giao dịch lãi tách ra (S1); FK → transactions NO ACTION, UNIQUE khi khác null
   + kind varchar(10) NOT NULL DEFAULT 'repayment' CHECK IN ('principal','repayment')
   + deleted_at timestamptz NULL, client_request_id uuid NULL
   ~ transaction_id: thêm FK → transactions ON DELETE NO ACTION
@@ -194,7 +202,15 @@ DTO giao dịch: + `loanLink {loanId, title, counterparty, kind}`, + `loanSugges
 
 Mỗi task: test trước, code, lớp test của tính năng; trước commit chạy unit + test liên quan. Một commit mỗi task. Không push, không mở PR khi chưa được đồng ý.
 
-0. **Mốc và lỗi sẵn có.** (Task 0–2 không đụng `/loans`; cổng S5 nằm trước Task 3.) Đo toàn bộ backend và ai-service trên `aba320c`, ghi vào Verification. Chép Task 0 của nhánh cũ: D23 (`GetRawTransactionsAsync` giữ dòng `loan`, cờ `IsLoan`; test `ForecastAccuracyJobTests.ALoanMovesTheActualBalance_…`) và đồng hồ giả cho `ListenerHealthScenarioTests.D_…`.
+0. **Mốc và lỗi sẵn có.** (Task 0–2 không đụng `/loans`; cổng S5 nằm trước Task 3.) Xong 2026-11-23. Đo toàn bộ backend và ai-service trên `aba320c`, ghi vào Verification. Chép Task 0 của nhánh cũ: D23 (`GetRawTransactionsAsync` giữ dòng `loan`, cờ `IsLoan`; test `ForecastAccuracyJobTests.ALoanMovesTheActualBalance_…`) và đồng hồ giả cho `ListenerHealthScenarioTests.D_…`.
+0b. **Dòng tiền riêng cho báo cáo (Q16)**, một commit:
+    1. `totalSpentCents` / `totalIncomeCents` của `monthly-summary`, `timeline` (từng ngày) và `daily_summaries` **giữ** loại `loan`. Ngân sách, hũ, spendable, dự báo, insight, chat, Agent, báo cáo nhóm không đổi.
+    2. Trường tuỳ chọn mới cho `monthly-summary` và từng ngày của `timeline`: `loanOutflowCents` (Debit `loan`), `loanInflowCents` (Credit `loan`), `groupFundOutflowCents` / `groupFundInflowCents` (giao dịch cá nhân gắn quỹ, qua `TransferLegs`), `netCashFlowCents` = tổng thay đổi số dư của **mọi** ví do giao dịch đã xác nhận trong kỳ, tính **trực tiếp** từ tác động số dư (`TransferLegs`), không cộng từ các trường khác; chuyển ví nội bộ bù về 0.
+    3. Bất biến kèm test: `netCashFlowCents = totalIncomeCents − totalSpentCents − loanOutflowCents + loanInflowCents − groupFundOutflowCents + groupFundInflowCents`, với hoàn tiền, cặp đảo, phí chuyển ví, chuyển ví nội bộ, góp/rút quỹ (giao dịch lãi S1 thêm vào test này ở Task 5). Loại giao dịch nào làm lệch → **dừng, báo thành mục D**, không thêm trường "khác".
+    4. `daily_summaries` thêm các cột tương ứng (mặc định 0); migration backfill các ngày đã chốt trong 90 ngày gần nhất (hoặc đề xuất cách khác nếu nặng); `DailySummaryRefresher` / `DailySummaryJob` tính cả cột mới.
+    5. Sửa và đổi tên test `ReportsControllerTests.LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown`: chi/thu 300.000 / 0; `loanOutflowCents` 5.000.000, `loanInflowCents` 2.000.000, `netCashFlowCents` −3.300.000; ngày của timeline cùng số; danh sách ngày vẫn 3 giao dịch; category-breakdown như cũ. Commit message nêu lý do và nhắc `3df2182`.
+    6. Tài liệu: REQUIREMENTS FR-RPT-01 + §13.6 (quyết định 2026-11-23 kèm nguồn gốc); tài liệu API báo cáo; TASKS "Báo nhóm Flutter" (dòng "Số dư thay đổi" và phần vay nợ / quỹ); ARCHITECTURE nguyên tắc ở trên.
+    7. Báo cáo Phase 90 có đoạn "Báo MinhTuan" giải thích vì sao test của cậu ấy đổi kỳ vọng.
 1. **ai-service:** chép marker trả nợ (mạnh / yếu / loại trừ), cụm dài nhất thắng, `debt_hint_strength`; alembic **`0040`** sau `0039_user_item_memory`. Kiểm không đụng các nhóm từ vựng mới của `main` (`item_*`, `direction cues`).
 2. **Backend nhận hint:** `NotificationRelationHint.DebtRepayment`, `ai_results.debt_hint_strength`, cột `relation_hint` snake_case tường minh, `NotificationHints.Parse`, hợp đồng AI client.
 3. **Migration `MergeDebtBookIntoLoans`** theo mục Mô hình dữ liệu, kèm chuyển dữ liệu; test schema (CHECK, UNIQUE, cascade khi xoá cứng user, dữ liệu cũ sau migration đúng gốc / đã trả / trạng thái).
@@ -206,11 +222,11 @@ Mỗi task: test trước, code, lớp test của tính năng; trước commit c
 9. **Dự báo:** `CashflowEvent.Band`, `LoanForecast` (đi vay cả ba đường, cho vay chỉ lạc quan), `spendable.loansDueCents`, `undatedLoans`, `unlinkedLoanTransactions` (S5); dùng gốc còn lại, không lãi (Q11).
 10. **Nhắc hạn:** `LoanReminderJob` qua `forecast_alerts` kind `loan_due`, câu chung (S2), `loanRemindersEnabled`, cổng bỏ nhắc đã hoãn; gỡ `LoanDueReminderJob` (+ `RemoveIfExists`), xoá cột `due_notified_at`. Thay `LoanDueReminderJobTests` bằng test của job mới.
 11. **Agent:** `get_loans` chỉ đọc, không tên người, không tiêu đề khoản (tiêu đề thường chứa tên).
-12. **Kịch bản** `LoanBookScenarioTests`: (a)–(f) của Phase 86 cũ chạy qua `/loans`; (g) khoản vay tạo như app đang làm (`POST /loans` không ví) rồi trả qua thông báo ngân hàng có gợi ý; (h) trả có ví rồi thông báo ngân hàng cùng số về → nghi trùng → gộp, liên kết ở bản giữ lại, `repaidCents` và số dư ví đúng (S4); (i) trả kèm lãi 2.060.000 (S1).
+12. **Kịch bản** `LoanBookScenarioTests`: (a)–(f) của Phase 86 cũ chạy qua `/loans` ((b) thêm assert Q16: thu tháng giảm, `loanInflowCents` tăng đúng bằng số đó, `netCashFlowCents` không đổi); (g) khoản vay tạo như app đang làm (`POST /loans` không ví) rồi trả qua thông báo ngân hàng có gợi ý; (h) trả có ví rồi thông báo ngân hàng cùng số về → nghi trùng → gộp, liên kết ở bản giữ lại, `repaidCents` và số dư ví đúng (S4); (i) trả kèm lãi 2.060.000 (S1).
 13. **Tài liệu:** `docs/loans-api.md` (mới, thay `debts-api.md` của nhánh cũ), `REQUIREMENTS.md` (FR-LOAN, §13.4: trả góp, thẻ tín dụng, cách tính khoản mất trắng, lãi có vào sổ thật không), `ERD.md`, `ARCHITECTURE.md` (quyết định "nợ là sổ phụ gắn với giao dịch `loan`"), `TASKS.md` Phase 90 + **Báo nhóm Flutter** (liệt kê mọi trường và endpoint mới, mọi hành vi đổi: Q3, Q4, Q5, Q10), `agent-api.md`, `CLAUDE.md`.
 14. **Toàn bộ test** backend và ai-service; không thêm test đỏ so với mốc Task 0.
 
-Thứ tự: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 (9–11 làm song song được sau 6).
+Thứ tự: 0 → 0b → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 (9–11 làm song song được sau 6).
 
 ## Báo trước cho MinhTuan
 
