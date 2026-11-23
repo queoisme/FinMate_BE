@@ -26,6 +26,21 @@
 - **Q14: duyệt.** Khi so "cùng sự kiện ngân hàng", cộng lại phần lãi. Liên kết lưu bằng cột `loan_repayments.interest_transaction_id` (FK NO ACTION, UNIQUE khi khác null) cạnh `transaction_id`, nên biết phần nào cần cộng mà không đoán. Thông báo gửi lại y hệt đã bị `contentHash` chặn ở `notification_logs`, nên chỉ xử lý trùng nghiệp vụ. Test: nhập tay trả 2.060.000 (tách 2.000.000 gốc + 60.000 lãi), rồi thông báo −2.060.000 về → `Suspected` trỏ đúng giao dịch gốc → gộp → vẫn một giao dịch gốc + một giao dịch lãi, số dư không trừ hai lần.
 - **Q15: duyệt.** Câu có dấu so giữ dấu, câu không dấu so bỏ dấu. Một câu khớp nhiều khoản (Hoa, Hòa) → trả **tất cả** trong `loanSuggestions` theo hạng, không tự chọn; khớp tên chỉ dùng để xếp hạng. Test "HOA TRA NO" với hai khoản Hoa và Hòa cùng mở.
 
+## Task 0b dừng lại: ba chỗ làm bất biến dòng tiền lệch (2026-11-23, chờ chốt)
+
+Bất biến: `netCashFlowCents = totalIncomeCents − totalSpentCents − loanOutflowCents + loanInflowCents − groupFundOutflowCents + groupFundInflowCents`, với `netCashFlowCents` tính trực tiếp từ tác động số dư. Kiểm code trước khi sửa thấy ba trường hợp nó **không** đúng. Chưa sửa code nào.
+
+**D1. Cặp đảo giao dịch nằm ở hai kỳ (hoặc hai ngày).** `NetFlow` loại cả khoản chi bị đảo lẫn lệnh đảo khỏi chi, thu và số lượng (Phase 81, BR-RF-08). Cùng một kỳ thì tiền ra rồi vào bù nhau, bất biến đúng. Khoản chi ngày 30/10 bị đảo ngày 2/11: tháng 10 số dư giảm `a` mà chi không tăng, tháng 11 số dư tăng `a` mà thu không tăng. Dòng thời gian từng ngày lệch cả khi cặp đảo cùng tháng nhưng khác ngày.
+*Đề xuất:* trường riêng có tên `reversalNetCents` (có dấu): tác động số dư của các giao dịch thuộc cặp đảo trong kỳ; bằng 0 khi cả cặp nằm trong kỳ. Bất biến thêm `+ reversalNetCents`. Không phải "khác": nó chỉ chứa đúng một loại (cặp đảo, mà báo cáo đã cố ý loại khỏi chi/thu).
+
+**D2. Báo cáo tháng chặn chi ở 0.** `GetMonthlySummaryQueryHandler.ReadRangeAsync` trả `Math.Max(0, spent)` (chi ròng âm khi tiền hoàn trong tháng nhiều hơn tiền chi, vd. được hoàn món mua tháng trước). Khi bị chặn, `totalSpentCents` = 0 nhưng tiền hoàn đã vào ví, nên bất biến lệch đúng bằng phần bị chặn.
+*Đề xuất:* trường riêng `refundSurplusCents` = `max(0, −chi ròng)` của kỳ (thường 0), bất biến thêm `+ refundSurplusCents`. Giữ nguyên cách hiển thị `totalSpentCents` (không bao giờ âm). Phương án khác: bỏ chặn, để `totalSpentCents` âm được (đổi ý nghĩa với app, không đề xuất).
+
+**D3. Báo cáo theo một ví (`accountId`).** Khi xem một ví, chuyển tiền giữa ví đó và ví khác của chính mình làm số dư ví đó đổi, nhưng chuyển ví không phải chi, thu, vay nợ hay quỹ, nên bất biến lệch. Xem tất cả ví thì hai vế bù về 0, không sao.
+*Đề xuất:* hai trường riêng `transferOutflowCents` / `transferInflowCents` (chuyển ví nội bộ ra / vào ví đang xem), luôn 0 khi xem tất cả ví; bất biến thêm `− transferOutflowCents + transferInflowCents`. Phí chuyển ví (Phase 83) vẫn là khoản chi thường.
+
+**Ghi chú (không chặn):** tổng từng ngày của `timeline` cộng từ giao dịch của **trang** hiện tại, nên một ngày bị cắt ngang giữa hai trang sẽ có tổng thiếu (lỗi sẵn có). Các trường mới tính cùng cách, nên bất biến vẫn đúng trên những giao dịch đang hiện, nhưng tổng của ngày đó chưa phải tổng thật. Đề xuất sửa trong Task 0b: tổng ngày lấy từ `GetDailySpendAsync` cho các ngày có trên trang, không cộng từ trang.
+
 ## Trường app đang dùng (S5, chưa xác nhận)
 
 _Điền trước Task 3 sau khi hỏi nhóm Flutter._
