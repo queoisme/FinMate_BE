@@ -480,6 +480,25 @@ Phase 84, 2026-11-14. API ở `docs/listener-health-api.md`, giám sát ở mụ
 | FR-LH-10 | Giám sát đổi mẫu tin | Must | Mỗi giờ theo provider: tỉ lệ `extraction_failed` + `uncertain` 24 giờ ≥ 3 lần 7 ngày trước (sàn nền 1%, tối thiểu 10%), hoặc tỉ lệ `financial` tụt dưới 0,33 lần; đủ 20 mẫu → một sự cố `Normal` mỗi provider; 24 lượt bình thường liên tiếp thì tự đóng. Không tính `error`; chỉ số đếm |
 | FR-LH-11 | `GET /admin/monitoring/provider-formats` | Should | Chỉ Admin; tỉ lệ đọc được và tỉ lệ `financial` 24 giờ / 7 ngày theo provider; số ca `upload_gap` theo phiên bản app |
 
+### 6.x Sổ vay (Phase 90, 2026-11-23) **[Ngoài đặc tả]**
+
+API và luật: `docs/loans-api.md`. Hợp nhất `loans` của `main` với sổ nợ Phase 86 cũ (chưa phát hành) thành một sổ.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-LOAN-01 | Tạo khoản ba cách | Must | Nợ cũ (không đụng ví), kèm giao dịch giải ngân từ ví, hoặc từ giao dịch có sẵn (gốc phải bằng số tiền). Gửi lại cùng `clientRequestId` → 200 |
+| FR-LOAN-02 | Trả / giải ngân thêm | Must | Có ví thì tạo giao dịch "Cho vay / Mượn" đã xác nhận, một lần lưu; trả vượt còn lại → 422; hai lần trả đồng thời không cùng qua |
+| FR-LOAN-03 | Trả kèm lãi | Must | Khoản có lãi suất: phần vượt gốc ≤ lãi tạm tính + `loans.interestToleranceCents` thành giao dịch lãi riêng (đi vay: chi `other`; cho vay: thu `income`), là chi/thu thật (S1) |
+| FR-LOAN-04 | Sửa gốc | Must | `principalCents` là tổng mới; đổi dòng giải ngân đầu; dòng đó gắn giao dịch → 422 (S2) |
+| FR-LOAN-05 | Gắn giao dịch | Must | Giao dịch đã xác nhận (hoặc nháp lúc `confirm` kèm `loanId`) thành một dòng; chuyển sang danh mục loan, tính lại ngân sách; một giao dịch một dòng |
+| FR-LOAN-06 | Đồng bộ đường giao dịch | Must | Xoá, sửa, gộp, chuyển ví giữ sổ khớp; gộp một dòng đã tách lãi theo số tiền ngân hàng (Q14) |
+| FR-LOAN-07 | Gợi ý liên kết | Should | Tính khi đọc; cần tên khớp hoặc gợi ý mạnh của AI; push `choose_loan_link`; không tự liên kết. Khớp tên theo cả câu (Q15) |
+| FR-LOAN-08 | Xoá mềm, xoá dòng, xoá nợ | Must | Xoá khoản không xoá giao dịch; xoá dòng cuối thì khoản đi theo; xoá nợ không đổi số dư |
+| FR-LOAN-09 | Dự báo | Must | Đi vay đến hạn ở cả ba đường, cho vay chỉ đường lạc quan, `spendable.loansDueCents`; không hạn chỉ đếm; gốc còn lại, không lãi (Q11) |
+| FR-LOAN-10 | Nhắc hạn | Should | Qua `forecast_alerts` kind `loan_due`, câu chung, công tắc `loanRemindersEnabled` |
+| FR-LOAN-11 | Agent | Could | `get_loans` chỉ đọc, không tên người hay tiêu đề khoản |
+| FR-LOAN-12 | Riêng tư | Must | Không log / push / LLM tên người; giao dịch do sổ tạo mang chữ cố định; phía vận hành không thấy liên kết hay gợi ý |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -747,6 +766,7 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] **Chia tiền và công nợ giữa thành viên (sau Phase 85).** Ai đang ứng trước bao nhiêu cho quỹ, ai nợ ai. Phase 85 chỉ có số dư quỹ.
 - [ ] **Ẩn danh dòng quỹ khi rút dữ liệu khỏi nhóm (Phase 87).** Đặt `member_user_id = null` là đủ (schema sẵn); cần chốt có ẩn cả ghi chú và nơi chi không.
 - [ ] **Tiền góp vào tài khoản người giữ quỹ (Phase 85, D11/S7).** Thông báo ngân hàng phía người giữ quỹ hiện là thu nhập của họ; ghép với dòng góp ở phase sau.
+- [ ] **Sổ vay (Phase 90), các điểm chưa có:** khoản trả góp (kỳ trả cố định, lãi theo kỳ); thẻ tín dụng (không phải khoản vay giữa người với người); khoản "mất trắng" (xoá nợ) có nên ghi thành chi phí / thu nhập âm trong báo cáo không (hiện không đổi số nào); lãi tạm tính có nên vào sổ thật (hiện chỉ để tham khảo, Q11; lãi thật chỉ vào sổ khi trả kèm, S1).
 - [ ] **4 số đuôi tài khoản (Phase 83, D21).** Giúp ghép chuyển khoản giữa hai ngân hàng chính chủ (`own_account`), không giúp nạp/rút ví hay ATM. Chưa thêm; quyết sau khi đo số lần `own_account` bị bỏ lỡ qua `/admin/ai-stats`.
 
 ### 13.5 Truy vết yêu cầu → nguồn
@@ -788,3 +808,4 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-14 | **Ghép cặp chuyển tiền giữa các ví của chính mình (Phase 83)** | Chủ sản phẩm duyệt kế hoạch, D1–D22 theo đề xuất kèm S1–S6 (`docs/superpowers/plans/2026-11-13-self-transfer-pairing.md`) | FR-TXN-18 phần chuyển ví xong; FR-TXN-33…35 mới; FR-AI-04, FR-FCST-07 cập nhật; quyết định #1 trong `ARCHITECTURE.md` sửa cho chuyển khoản vượt ranh giới ví được tính. Migration `AddSelfTransferPairing`, alembic `0038`. Hoàn tác chưa có (13.1); danh mục phí riêng và 4 số đuôi tài khoản chờ quyết (13.4) |
 | 2026-11-15 | **Quỹ chung của nhóm (Phase 85)**: sổ quỹ ảo thuộc về nhóm, không chia sẻ ví cá nhân | Chủ sản phẩm duyệt kế hoạch phương án A, D1–D22 theo đề xuất kèm S1–S7 (`docs/superpowers/plans/2026-11-14-group-fund.md`) | FR-FUND-01…16 mới (6.6); giao dịch cá nhân gắn quỹ là `Transfer` không ví đích (`TransferLegs` là chỗ duy nhất đọc hướng); cờ `features.groupFunds`; quyền `ManageFunds`, `RecordFundEntries`. Migration `AddGroupFunds`. Kèm sửa lỗi sẵn có: cho vay/mượn bị tính vào `/me/spendable` (S2), giao dịch chia sẻ đã xoá vẫn vào báo cáo nhóm. Chia tiền/công nợ, ẩn danh khi rút dữ liệu (Phase 87), ghép tiền góp phía người giữ quỹ chờ quyết (13.4) |
 | 2026-11-23 | **Chi tiêu thật và dòng tiền riêng (Phase 90, Q16)**: cho vay / đi vay / trả nợ, góp/rút quỹ, chuyển ví không phải chi tiêu hay thu nhập nhưng hiện trong `cashFlow` của báo cáo; lãi vay là chi/thu thật | Hai luật mâu thuẫn trên `main`: commit `3df2182` (13/11, `dev/tho`) cố ý tính `loan` vào thu/chi của `GetDailySpendAsync` vì đó là tiền thật ra/vào ví; Phase 85 Task 0 (`5281eba`) vô tình thêm lại loại trừ khi gom `LoanExclusion`; test của MinhTuan (17/11) viết theo ý 13/11 nên đỏ. Quyết định mới giữ cả hai mục đích | FR-RPT-01; `docs/reports-cash-flow-api.md`; cột mới ở `daily_summaries` (migration `AddReportCashFlow`); báo cáo tháng một ví chặn chi ở 0; tổng ngày của `timeline` vẫn theo trang nhưng không còn cộng nháp |
+| 2026-11-23 | **Một sổ vay (Phase 90)**: sổ nợ Phase 86 (chưa phát hành) hợp nhất vào `/api/v1/loans` của `main`; giữ đường dẫn, trường, mã lỗi cũ | Hai bản làm song song (MinhTuan `loans`, `feat/debt-book`); chọn phương án A | FR-LOAN-01…12; `docs/loans-api.md`; migration `MergeDebtBookIntoLoans`, `AddLoanReminders`; `LoanDueReminderJob` thay bằng `LoanReminderJob`; xoá khoản là xoá mềm; giao dịch do sổ tạo không mang tên người |
