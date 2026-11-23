@@ -1672,7 +1672,7 @@ Thiết kế: `docs/superpowers/specs/2026-11-16-per-user-item-categories-design
 - [x] Xóa theo `user_id_hash` khi xóa tài khoản (`DataDeletionJob`); không xóa khi rút đồng ý huấn luyện (đây là bộ nhớ lựa chọn của người dùng, không phải dữ liệu huấn luyện).
 - [ ] Gap đã biết, chưa sửa (ghi trong design doc, không phải lỗi mới): danh mục riêng có thể trùng slug với danh mục hệ thống (`ExistsBySlugAsync` chỉ kiểm trong phạm vi 1 người dùng); chưa xác minh `user_merchant_memory` có bị xóa khi xóa tài khoản hay không.
 
-## Phase 90 — Hợp nhất sổ nợ vào `loans` và dòng tiền của báo cáo (2026-11-23, đang làm)
+## Phase 90 — Hợp nhất sổ nợ vào `loans` và dòng tiền của báo cáo (2026-11-23 → 2026-11-24, xong trên nhánh, chưa merge)
 Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–S5, D1–D3: `docs/superpowers/plans/2026-11-23-loan-book-merge.md`. Nguồn luật nghiệp vụ: kế hoạch Phase 86 cũ (`2026-11-14-debt-book.md`, không merge). Mốc test và 10 test đỏ sẵn trên `main` ở mục Verification của kế hoạch.
 - [x] Task 0: số dư thực tế của `ForecastAccuracy` tính cả cho vay/mượn (D23); `ListenerHealthScenarioTests.D_…` dùng đồng hồ giả.
 - [x] Task 0b (Q16): `cashFlow` trong `monthly-summary` và từng ngày của `timeline` (`CashFlowCalculator`, bất biến có test cho mọi loại giao dịch, tất cả ví và từng ví); cột mới ở `daily_summaries` (migration `AddReportCashFlow`, điền cho mọi ngày đã chốt); tổng ngày của `timeline` vẫn theo trang (app cộng các trang ở `getPeriodSummary`) nhưng không còn cộng nháp; báo cáo tháng một ví chặn chi ở 0. API: `docs/reports-cash-flow-api.md`.
@@ -1690,7 +1690,7 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
 - [x] Task 11: công cụ Agent `get_loans` chỉ đọc, không tên người, không tiêu đề khoản.
 - [x] Task 12: `LoanBookScenarioTests` (a)–(i).
 - [x] Task 13: tài liệu (`docs/loans-api.md`, REQUIREMENTS FR-LOAN, ERD, ARCHITECTURE §2.16, agent-api, CLAUDE.md, ghi chú Flutter).
-- [ ] Task 14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
+- [x] Task 14: toàn bộ test — backend 3819/3821 (2 đỏ có sẵn trên `main`), ai-service 2255 passed; `alembic upgrade head` tới `0040`.
 - [ ] **Báo nhóm Flutter (phần đã xong):**
   - **Dòng tiền:** `monthly-summary` và mỗi ngày của `timeline` có object tuỳ chọn `cashFlow { netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents }`. Màn báo cáo / trang chủ nên hiện thêm dòng **"Số dư thay đổi"** (`netCents`) và phần **"Cho vay / trả nợ"**, **"Quỹ nhóm"**, để người dùng hiểu vì sao số dư giảm nhiều hơn số chi. `totalSpentCents` / `totalIncomeCents` không đổi ý nghĩa (không gồm cho vay/mượn).
   - Hai trường chuyển ví chỉ khác 0 khi xem một ví (`accountId`).
