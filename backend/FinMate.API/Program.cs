@@ -457,6 +457,7 @@ public class Program
         builder.Services.AddScoped<IAgentTool, ProposeBudgetLimitTool>();
         builder.Services.AddScoped<IAgentTool, StressTestTool>();
         builder.Services.AddScoped<IAgentTool, SensitivityTool>();
+        builder.Services.AddScoped<IAgentTool, GetLoansTool>();   // Phase 90 (BR-DEBT-18): chỉ đọc, không tên người, không tiêu đề khoản
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
         builder.Services.AddScoped<AgentTraceContext>();

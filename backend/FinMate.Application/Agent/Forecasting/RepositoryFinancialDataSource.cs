@@ -10,8 +10,15 @@ namespace FinMate.Application.Agent;
 public sealed class RepositoryFinancialDataSource(
     IReportRepository reports,
     IFinancialAccountRepository accounts,
-    IUserRepository users) : IFinancialDataSource
+    IUserRepository users,
+    ILoanRepository? loans = null) : IFinancialDataSource
 {
+    /// <summary>Phase 90 (D14): bỏ tên người và tiêu đề khoản trước khi rời repository; công cụ không bao giờ thấy chúng.</summary>
+    public async Task<IReadOnlyList<LoanVnd>> GetOpenLoansAsync(Guid userId, CancellationToken ct = default)
+        => loans is null
+            ? []
+            : (await loans.ListOpenAsync(userId, ct)).Where(l => l.PrincipalCents > l.RepaidCents)
+                .Select(l => new LoanVnd(l.Direction, l.PrincipalCents - l.RepaidCents, l.DueDate)).ToList();
 
     public async Task<MonthlySeries> GetMonthlySeriesAsync(Guid userId, int months, DateTimeOffset now, CancellationToken ct = default)
     {
