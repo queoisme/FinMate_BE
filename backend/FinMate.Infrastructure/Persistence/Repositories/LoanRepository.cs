@@ -70,6 +70,43 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
             .Select(r => context.Transactions.Where(t => t.Id == r.InterestTransactionId && t.DeletedAt == null).Select(t => (long?)t.AmountCents).FirstOrDefault())
             .FirstOrDefaultAsync(ct) ?? 0;
 
+    public async Task<IReadOnlyDictionary<Guid, Application.Loans.LoanLinkDto>> GetLinksAsync(
+        Guid userId, IReadOnlyCollection<Guid> transactionIds, CancellationToken ct = default)
+    {
+        if (transactionIds.Count == 0)
+        {
+            return new Dictionary<Guid, Application.Loans.LoanLinkDto>();
+        }
+
+        var rows = await (from r in context.LoanRepayments.AsNoTracking()
+                          join l in context.Loans on r.LoanId equals l.Id
+                          where l.UserId == userId && l.DeletedAt == null && r.DeletedAt == null
+                                && ((r.TransactionId != null && transactionIds.Contains(r.TransactionId.Value))
+                                    || (r.InterestTransactionId != null && transactionIds.Contains(r.InterestTransactionId.Value)))
+                          select new { r.TransactionId, r.InterestTransactionId, r.Kind, l.Id, l.Title, l.Counterparty })
+            .ToListAsync(ct);
+        var links = new Dictionary<Guid, Application.Loans.LoanLinkDto>();
+        foreach (var r in rows)
+        {
+            if (r.TransactionId is { } tx && transactionIds.Contains(tx))
+            {
+                links[tx] = new(r.Id, r.Title, r.Counterparty, r.Kind == LoanEntryKind.Principal ? "principal" : "repayment");
+            }
+
+            if (r.InterestTransactionId is { } interest && transactionIds.Contains(interest))
+            {
+                links[interest] = new(r.Id, r.Title, r.Counterparty, "interest");
+            }
+        }
+
+        return links;
+    }
+
+    public async Task<IReadOnlyList<Loan>> ListOpenAsync(Guid userId, CancellationToken ct = default)
+        => await context.Loans.AsNoTracking().Include(l => l.Repayments.Where(r => r.DeletedAt == null))
+            .Where(l => l.UserId == userId && l.DeletedAt == null && l.Status == LoanStatus.Open)
+            .ToListAsync(ct);
+
     public void Track(Loan loan) => context.Loans.Add(loan);
 
     public void Track(Transaction transaction) => context.Transactions.Add(transaction);

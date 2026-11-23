@@ -39,4 +39,8 @@ public interface INotificationLogRepository
     /// <summary>Phase 81: gợi ý hoàn/đảo mà AI đã trả cho các thông báo này (chỉ của user này). Thông báo không có gợi ý thì không có trong kết quả.</summary>
     Task<IReadOnlyDictionary<Guid, Domain.Enums.TransactionRelation>> GetRelationHintsAsync(
         Guid userId, IReadOnlyCollection<Guid> notificationLogIds, CancellationToken ct = default);
+
+    /// <summary>Phase 90: độ mạnh gợi ý trả nợ của AI cho các thông báo này (chỉ của user này); thông báo không có gợi ý trả nợ thì không có trong kết quả.</summary>
+    Task<IReadOnlyDictionary<Guid, Domain.Enums.DebtHintStrength>> GetDebtHintsAsync(
+        Guid userId, IReadOnlyCollection<Guid> notificationLogIds, CancellationToken ct = default);
 }

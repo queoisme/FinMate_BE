@@ -28,6 +28,12 @@ public interface ILoanRepository
     /// <summary>Phase 90: khoản (đang theo dõi, kèm dòng còn sống) có dòng còn sống gắn giao dịch này làm phần gốc; null khi chưa gắn.</summary>
     Task<Loan?> GetByLinkedTransactionAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 
+    /// <summary>Phase 90: liên kết còn sống của các giao dịch này (một truy vấn cho cả trang). Giao dịch lãi tách ra (S1) có <c>kind = interest</c>.</summary>
+    Task<IReadOnlyDictionary<Guid, Loans.LoanLinkDto>> GetLinksAsync(Guid userId, IReadOnlyCollection<Guid> transactionIds, CancellationToken ct = default);
+
+    /// <summary>Phase 90: mọi khoản <c>open</c> còn sống kèm dòng còn sống, không theo dõi: gợi ý, dự báo, nhắc hạn.</summary>
+    Task<IReadOnlyList<Loan>> ListOpenAsync(Guid userId, CancellationToken ct = default);
+
     /// <summary>Phase 90 (Q14): số tiền phần lãi đã tách khỏi giao dịch này (S1), 0 khi không tách hoặc giao dịch lãi đã xoá.</summary>
     Task<long> GetSplitInterestCentsAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 

@@ -18,6 +18,15 @@ public static class CounterpartyKey
 
     private static readonly Dictionary<char, char> Fold = Accented.Zip(Plain).ToDictionary(p => p.First, p => p.Second);
 
+    /// <summary>
+    /// Phase 90: một ký tự (đã viết thường) bỏ dấu tiếng Việt. Dự án bật <c>InvariantGlobalization</c>, nên <c>string.Normalize(FormD)</c> KHÔNG tách
+    /// dấu; mọi chỗ bỏ dấu phải đi qua bảng này.
+    /// </summary>
+    public static char FoldChar(char lower) => Fold.GetValueOrDefault(lower, lower);
+
+    /// <summary>Phase 90: ký tự (đã viết thường) có dấu tiếng Việt, kể cả đ.</summary>
+    public static bool IsAccented(char lower) => Fold.ContainsKey(lower);
+
     /// <summary>Null khi không có tên dùng được (trống hoặc chỉ toàn ký hiệu).</summary>
     public static string? From(string? name)
     {

@@ -34,6 +34,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
     private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
     private readonly Transactions.Transfers.ITransferSuggestions? _transfers;  // null: không gợi ý chuyển ví (test cũ)
+    private readonly Loans.ILoanTransactionView? _loans;   // null: không gợi ý khoản vay (test cũ)
 
     // Issue B (2026-11-13): tên hiển thị người dùng đã lưu/đổi tay cho người nhận này (nếu có)
     // đáng tin hơn tên thô trong thông báo/mã QR — null: không ghi đè, giữ tên thô như cũ (test cũ).
@@ -52,8 +53,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         Transactions.Refunds.IRefundSuggestions? refundSuggestions = null,
         IDuplicateDetector? duplicates = null,
         Transactions.Transfers.ITransferSuggestions? transfers = null,
-        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null)
+        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
+        Loans.ILoanTransactionView? loans = null)
     {
+        _loans = loans;
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
         _transfers = transfers;
@@ -284,6 +287,9 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         // Phase 83: nháp đang nghi trùng không bao giờ mang gợi ý chuyển ví (BR-TRF-04); TransferMatcher tự loại nó.
         var transfer = _transfers is null ? null : await _transfers.ForOneAsync(command.UserId, transaction, ct);
 
+        // Phase 90 (BR-DEBT-13): khoản vay khớp → push hỏi chọn khoản, không bao giờ tự liên kết.
+        var loanSuggestions = _loans is null ? null : await _loans.SuggestForAsync(command.UserId, transaction, aiResult.DebtHintStrength, ct);
+
         // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách khác nhau tuỳ mức tin cậy; nghi trùng thì hỏi gộp trước (D15).
         var review = TransactionReviewPushBuilder.Build(
             transaction,
@@ -292,7 +298,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             aiResult.RelationHint.AsRefundRelation(),
             suggestions?.Count ?? 0,
             duplicates.Candidates.Count(c => c.MarksSuspected),
-            transfer);
+            transfer,
+            loanSuggestions);
 
         await _pushNotificationService.NotifyAsync(command.UserId, review.Title, review.Body, review.Data, ct);
         return new DraftOutcome(transaction, suggestions, null);

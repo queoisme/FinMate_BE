@@ -211,5 +211,43 @@ public class TransactionReviewPushBuilderTests
 
         push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewTransfer);
     }
-}
 
+    // ------------------------------------------------------------ Phase 90: chọn khoản vay
+
+    private static IReadOnlyList<FinMate.Application.Loans.LoanSuggestionDto> Loans(int count = 1)
+        => Enumerable.Range(0, count)
+            .Select(i => new FinMate.Application.Loans.LoanSuggestionDto(Guid.NewGuid(), $"Cho Nguyễn Văn Nam vay {i}", $"Nguyễn Văn Nam {i}", "lend", 1_500_000, null, true, 0))
+            .ToList();
+
+    [Fact]
+    public void ALoanSuggestion_AsksToChooseTheLoan_EvenWhenConfident_AndNamesNoOne()
+    {
+        var loans = Loans(2);
+
+        var push = TransactionReviewPushBuilder.Build(Draft(500_000, TransactionType.Credit, "NAM TRA NO", "income"), "Thu nhập", 0.99, loanSuggestions: loans);
+
+        push.Data["action"].Should().Be(TransactionReviewPushBuilder.ActionChooseLoanLink);
+        push.Data["loanId"].Should().Be(loans[0].LoanId.ToString());
+        push.Data["suggestionCount"].Should().Be("2");
+        push.Title.Should().NotContain("Nguyễn Văn Nam");
+        push.Body.Should().NotContain("Nguyễn Văn Nam").And.NotContain("1.500.000");
+        push.Data.Values.Should().NotContain(v => v.Contains("Nguyễn"));
+    }
+
+    [Fact]
+    public void DuplicateTransferAndRefund_StillComeBeforeTheLoan()
+    {
+        var loans = Loans();
+        var suspected = Draft(500_000, TransactionType.Credit);
+        suspected.DuplicateStatus = DuplicateStatus.Suspected;
+        suspected.DuplicateOfTransactionId = Guid.NewGuid();
+
+        TransactionReviewPushBuilder.Build(suspected, null, 0.9, loanSuggestions: loans).Data["action"].Should().Be(TransactionReviewPushBuilder.ActionReviewDuplicate);
+        TransactionReviewPushBuilder.Build(Draft(500_000, TransactionType.Credit), null, 0.9, TransactionRelation.Refund, loanSuggestions: loans).Data["action"]
+            .Should().Be(TransactionReviewPushBuilder.ActionChooseRefundLink);
+    }
+
+    [Fact]
+    public void NoLoanSuggestion_KeepsTheOldBranches()
+        => TransactionReviewPushBuilder.Build(Draft(), "Ăn uống", 0.99, loanSuggestions: []).Data["action"].Should().Be(TransactionReviewPushBuilder.ActionOneTap);
+}

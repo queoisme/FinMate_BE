@@ -497,4 +497,36 @@ public class SupportConsentedAccessTests : IClassFixture<AuthApiFactory>, IAsync
         (await db.SupportAccessGrants.AsNoTracking().AnyAsync(g => g.Id == requestId)).Should().BeFalse();
         (await db.SupportDataAccessLogs.AsNoTracking().AnyAsync(l => l.CustomerUserId == c.Customer.Id)).Should().BeFalse();
     }
+
+    /// <summary>Phase 90 (S4 của Phase 86 cũ): giao dịch xem từ phía vận hành không kèm liên kết hay gợi ý sổ vay, và không lộ tên người vay.</summary>
+    [Fact]
+    public async Task TransactionView_CarriesNoLoanFields_EvenForALinkedTransaction()
+    {
+        var c = await CaseAsync();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+            var transaction = await db.Transactions.FirstAsync(t => t.UserId == c.Customer.Id && t.MerchantName == "Quán cà phê");
+            var now = DateTimeOffset.UtcNow;
+            var loan = new Loan
+            {
+                Id = Guid.NewGuid(), UserId = c.Customer.Id, Title = "Cho Nguyễn Văn Bí Mật vay", Counterparty = "Nguyễn Văn Bí Mật", Direction = LoanDirection.Lend,
+                Status = LoanStatus.Open, PrincipalCents = transaction.AmountCents, StartDate = DateOnly.FromDateTime(now.UtcDateTime), CreatedAt = now, UpdatedAt = now,
+            };
+            loan.Repayments.Add(new LoanRepayment
+            {
+                Id = Guid.NewGuid(), LoanId = loan.Id, Kind = LoanEntryKind.Principal, AmountCents = transaction.AmountCents, PaidAt = now, TransactionId = transaction.Id,
+                CreatedAt = now,
+            });
+            db.Loans.Add(loan);
+            await db.SaveChangesAsync();
+        }
+
+        await GrantAsync(c, SupportAccessScope.Transactions);
+        var response = await ReadAsync(c, "transactions");
+        var raw = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, raw);
+        raw.Should().NotContain("loanLink").And.NotContain("loanSuggestions").And.NotContain("Bí Mật");
+    }
 }

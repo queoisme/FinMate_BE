@@ -34,7 +34,14 @@ public record TransactionDto(
     string? GoalName = null,
     Guid? ReceiptScanId = null,
     AiClassificationDto? AiClassification = null,
-    SourceDetailDto? SourceDetail = null);
+    SourceDetailDto? SourceDetail = null,
+    Loans.LoanLinkDto? LoanLink = null,
+    IReadOnlyList<Loans.LoanSuggestionDto>? LoanSuggestions = null)
+{
+    /// <summary>Phase 90: gắn phần sổ vay (liên kết hoặc gợi ý, tính khi đọc) vào DTO; không có thì giữ nguyên.</summary>
+    public TransactionDto WithLoan(Loans.LoanTransactionViewDto? view)
+        => view is null ? this : this with { LoanLink = view.Link, LoanSuggestions = view.Suggestions };
+}
 
 /// <summary>
 /// Phase 85: giao dịch này ghi lại một dòng quỹ nhóm ở sổ cá nhân (Transfer không ví đích; không là chi, không là thu). <c>Kind</c>: <c>Contribution</c>,

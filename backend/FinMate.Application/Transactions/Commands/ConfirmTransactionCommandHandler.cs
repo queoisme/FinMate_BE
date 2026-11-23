@@ -202,7 +202,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }
         await NotifyForecastAsync(command.UserId, ct);
 
-        return TransactionMapper.ToDto(transaction);
+        return TransactionMapper.ToDto(transaction).WithLoan(attached is null ? null : new Loans.LoanTransactionViewDto(attached.Link, null));
     }
 
     private async Task<TransactionDto> ConfirmAsRefundAsync(
