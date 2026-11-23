@@ -38,6 +38,7 @@ public class ForecastService : IForecastService
     private readonly ISystemConfigProvider _config;
     private readonly ICacheService _cache;
     private readonly Func<DateTimeOffset> _now;
+    private readonly ILoanRepository? _loans;   // null: không đưa sổ vay vào dự báo (test cũ)
 
     public ForecastService(
         IFinancialAccountRepository accounts,
@@ -47,8 +48,9 @@ public class ForecastService : IForecastService
         IUserRepository users,
         IGoalPlanningService goals,
         ISystemConfigProvider config,
-        ICacheService cache)
-        : this(accounts, items, data, budgets, users, goals, config, cache, () => DateTimeOffset.UtcNow)
+        ICacheService cache,
+        ILoanRepository? loans = null)
+        : this(accounts, items, data, budgets, users, goals, config, cache, () => DateTimeOffset.UtcNow, loans)
     {
     }
 
@@ -61,8 +63,10 @@ public class ForecastService : IForecastService
         IGoalPlanningService goals,
         ISystemConfigProvider config,
         ICacheService cache,
-        Func<DateTimeOffset> now)
+        Func<DateTimeOffset> now,
+        ILoanRepository? loans = null)
     {
+        _loans = loans;
         _accounts = accounts;
         _items = items;
         _data = data;
@@ -108,6 +112,7 @@ public class ForecastService : IForecastService
             _data, userId, included.Select(a => a.Id).ToHashSet(), today.AddDays(-rules.HistoryWindowDays), today, ct));
         var goals = await _goals.GetSpendableAsync(userId, ct);
         var irregular = await IrregularIncomeAsync(userId, items, today, settings, rules, ct);
+        var loans = await OpenLoansAsync(userId, ct);
 
         return SpendableCalculator.Compute(new SpendableInput(
             today,
@@ -118,7 +123,29 @@ public class ForecastService : IForecastService
             goals.Goals,
             Reserve(user, settings),
             rules,
-            irregular));
+            irregular,
+            loans)) with
+        {
+            UndatedLoans = LoanForecast.Undated(loans),
+            UnlinkedLoanTransactions = await UnlinkedLoansAsync(userId, ct),
+        };
+    }
+
+    /// <summary>Phase 90: khoản vay <c>open</c> của user; rỗng khi không nối sổ vay.</summary>
+    private async Task<IReadOnlyList<Loan>> OpenLoansAsync(Guid userId, CancellationToken ct)
+        => _loans is null ? [] : await _loans.ListOpenAsync(userId, ct);
+
+    /// <summary>S5: giao dịch loan đã xác nhận trong <c>loans.suggestWindowHours × 10</c> giờ mà chưa gắn khoản vay: có thể dự báo đang trừ hai lần.</summary>
+    private async Task<UnlinkedLoanTransactionsDto?> UnlinkedLoansAsync(Guid userId, CancellationToken ct)
+    {
+        if (_loans is null)
+        {
+            return null;
+        }
+
+        var window = (await _config.GetAsync(ct)).Document.Loans.SuggestWindowHours * 10;
+        var count = await _loans.CountUnlinkedLoanTransactionsAsync(userId, _now().AddHours(-window), ct);
+        return count == 0 ? null : new UnlinkedLoanTransactionsDto(count);
     }
 
     /// <summary>
@@ -174,8 +201,16 @@ public class ForecastService : IForecastService
                 i.Date, i.Direction == RecurringDirection.Inflow ? i.AmountCents : -i.AmountCents, i.Label.Trim(), CashflowEventKinds.Scenario, null)))
             .ToList();
 
+        // Phase 90: sổ vay không thuộc ví nào, nên chỉ vào dự báo toàn bộ (không vào dự báo của một ví).
+        var loans = accountId is null ? await OpenLoansAsync(userId, ct) : [];
+        events.AddRange(LoanForecast.Events(loans, today, end));
+
         return CashflowEngine.Project(new CashflowInput(
-            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays));
+            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays)) with
+        {
+            UndatedLoans = LoanForecast.Undated(loans),
+            UnlinkedLoanTransactions = accountId is null ? await UnlinkedLoansAsync(userId, ct) : null,
+        };
     }
 
     /// <summary>Mặc định tới cuối tháng; còn dưới một tuần thì tới cuối tháng sau, để biểu đồ không chỉ có vài điểm.</summary>

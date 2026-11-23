@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -106,6 +107,14 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
         => await context.Loans.AsNoTracking().Include(l => l.Repayments.Where(r => r.DeletedAt == null))
             .Where(l => l.UserId == userId && l.DeletedAt == null && l.Status == LoanStatus.Open)
             .ToListAsync(ct);
+
+    public Task<int> CountUnlinkedLoanTransactionsAsync(Guid userId, DateTimeOffset since, CancellationToken ct = default)
+        => context.Transactions.CountAsync(
+            t => t.UserId == userId && t.DeletedAt == null && t.Status == TransactionStatus.Confirmed && t.CreatedAt >= since
+                 && t.Category != null && t.Category.Slug == Category.LoanSlug
+                 && !context.LoanRepayments.Any(r => r.TransactionId == t.Id && r.DeletedAt == null
+                                                     && context.Loans.Any(l => l.Id == r.LoanId && l.DeletedAt == null)),
+            ct);
 
     public void Track(Loan loan) => context.Loans.Add(loan);
 
