@@ -13,7 +13,8 @@ public sealed record FinancialPlanLineDto(
 /// <param name="CapVnd">Trần của nhóm chi (thu nhập × %); null với nhóm "phần còn lại" và nhóm để dành.</param>
 public sealed record FinancialPlanGroupDto(string? Key, string Label, string Kind, int? Pct, long? CapVnd);
 
-/// <param name="Warnings">Mã cảnh báo: <c>deficit</c>, <c>below_save_target</c>, <c>fixed_exceeds_group:&lt;key&gt;</c>. App tra chữ hiển thị theo mã.</param>
+/// <param name="Warnings">Mã cảnh báo: <c>deficit</c>, <c>below_save_target</c>, <c>fixed_exceeds_group:&lt;key&gt;</c>.</param>
+/// <param name="WarningTexts">Chữ hiển thị theo mã, lấy từ cấu hình hệ thống (<c>financeMethods.planWarningTexts</c>), có cả mã app tự tính lại khi người dùng sửa hạn mức.</param>
 public sealed record FinancialPlanDto(
     string MethodCode,
     int MethodVersion,
@@ -26,7 +27,8 @@ public sealed record FinancialPlanDto(
     long? SavingsBalanceVnd,
     IReadOnlyList<FinancialPlanLineDto> Categories,
     IReadOnlyList<FinancialPlanGroupDto> Groups,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    IReadOnlyDictionary<string, string> WarningTexts);
 
 public interface IFinancialPlanService
 {
@@ -47,14 +49,17 @@ public class FinancialPlanService : IFinancialPlanService
     private readonly IFinanceMethodRepository _methods;
     private readonly IUserRepository _users;
     private readonly ICategoryRepository _categories;
+    private readonly ISystemConfigProvider _config;
 
     public FinancialPlanService(
         ISurveyRepository surveys,
         IUserMethodRepository userMethods,
         IFinanceMethodRepository methods,
         IUserRepository users,
-        ICategoryRepository categories)
+        ICategoryRepository categories,
+        ISystemConfigProvider config)
     {
+        _config = config;
         _surveys = surveys;
         _userMethods = userMethods;
         _methods = methods;
@@ -140,7 +145,31 @@ public class FinancialPlanService : IFinancialPlanService
             groups.Select(g => new FinancialPlanGroupDto(
                 g.Key, g.Label, g.Kind, g.Pct,
                 g.Kind == AllocationKinds.Spend && g.Pct is { } pct ? income * pct / 100 / Rounding * Rounding : null)).ToList(),
-            plan.Warnings);
+            plan.Warnings,
+            WarningTexts((await _config.GetAsync(ct)).Document.FinanceMethods.PlanWarningTexts, groups));
+    }
+
+    private static Dictionary<string, string> WarningTexts(IReadOnlyDictionary<string, string> configured, IReadOnlyList<PlanGroup> groups)
+    {
+        var texts = new Dictionary<string, string>();
+        foreach (var code in new[] { FinancialPlanCalculator.WarningDeficit, FinancialPlanCalculator.WarningBelowSaveTarget })
+        {
+            if (configured.TryGetValue(code, out var text))
+            {
+                texts[code] = text;
+            }
+        }
+
+        const string fixedCode = "fixed_exceeds_group";
+        if (configured.TryGetValue(fixedCode, out var template))
+        {
+            foreach (var group in groups.Where(g => g.Kind == AllocationKinds.Spend && g.Key is not null))
+            {
+                texts[FinancialPlanCalculator.WarningFixedExceedsGroupPrefix + group.Key] = template.Replace("{group}", group.Label);
+            }
+        }
+
+        return texts;
     }
 
     /// <summary>Đọc bảng phân bổ; nhóm trỏ tới tham số không còn (admin đã xóa) thì bỏ % của nó — nhóm thành không trần thay vì làm hỏng cả kế hoạch.</summary>

@@ -778,6 +778,87 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         limits["housing"].Should().Be(2_500_000);
     }
 
+    // ---- sửa sau rà soát toàn nhánh ----
+
+    [Fact]
+    public async Task Draft_CarriesWarningTextsFromConfig_ForEveryCodeTheAppMayShow()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, 6_000_000, ("flex_food", "D"));   // nhà 6tr > trần nhu cầu 5tr
+        await ChooseAsync(token, FinanceMethodCodes.CategoryBudget);
+
+        var (_, draft) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+        var texts = Data(draft).GetProperty("warningTexts");
+        var defaults = new FinMate.Application.Admin.SystemConfig.FinanceMethodSettings().PlanWarningTexts;
+        texts.GetProperty("deficit").GetString().Should().Be(defaults["deficit"]);
+        texts.GetProperty("below_save_target").GetString().Should().Be(defaults["below_save_target"]);
+        texts.GetProperty("fixed_exceeds_group:needs_pct").GetString().Should().Contain("Nhu cầu", "tên nhóm thay vào {group}");
+    }
+
+    [Fact]
+    public async Task SurveyIncomeOfZero_LeavesTheProfileIncomeEmpty()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 0, null);
+
+        var (_, me) = await SendAsync(token, HttpMethod.Get, "/api/v1/users/me");
+
+        Data(me).GetProperty("monthlyIncomeCents").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task ADisabledCategoryAlreadyInAnAllocation_DoesNotLockTheMethod_ButCannotBeAddedAgain()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+        var slug = $"alloc_{Guid.NewGuid():N}"[..20];
+        var (_, category) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/categories", new { name = "Danh mục thử", slug, iconName = "category" });
+        var other = $"alloc_{Guid.NewGuid():N}"[..20];
+        var (_, otherCategory) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/categories", new { name = "Danh mục thử 2", slug = other, iconName = "category" });
+        var (createStatus, created) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/finance-methods",
+            NewMethodWithAllocation(NewCode(), new[] { Group("a_pct", "spend", slug) }));
+        createStatus.Should().Be(HttpStatusCode.Created);
+        var id = Data(created).GetProperty("id").GetGuid();
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/categories/{Data(category).GetProperty("id").GetGuid()}/activation", new { isActive = false });
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/categories/{Data(otherCategory).GetProperty("id").GetGuid()}/activation", new { isActive = false });
+
+        var (renameStatus, _) = await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/finance-methods/{id}",
+            new { paramDefs = new[] { Param("a_pct", def: 40), Param("b_pct", def: 30) } });
+        renameStatus.Should().Be(HttpStatusCode.OK, "danh mục đã có sẵn trong bảng phân bổ bị tắt sau đó không được khóa phương pháp");
+
+        var (addStatus, _) = await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/finance-methods/{id}",
+            new { allocation = new[] { Group("a_pct", "spend", slug, other) } });
+        addStatus.Should().Be(HttpStatusCode.BadRequest, "không được THÊM danh mục đã tắt");
+    }
+
+    [Fact]
+    public async Task Admin_CanTakeAQuestionOutOfThePlan_AndMakeARangeOpenEnded()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+        var (_, flex) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions",
+            MoneyQuestion("choice", "flexible", "food", [Share("A", 0, 5), Share("B", 5, 10)]));
+        var questionId = Data(flex).GetProperty("id").GetGuid();
+        var option = Data(flex).GetProperty("options").EnumerateArray().Single(o => o.GetProperty("code").GetString() == "B");
+        try
+        {
+            var (openStatus, opened) = await SendAsync(admin, HttpMethod.Patch,
+                $"/api/v1/admin/survey-questions/{questionId}/options/{option.GetProperty("id").GetGuid()}", new { clearShareMax = true });
+            openStatus.Should().Be(HttpStatusCode.OK);
+            Data(opened).GetProperty("options").EnumerateArray().Single(o => o.GetProperty("code").GetString() == "B")
+                .GetProperty("shareMaxPct").ValueKind.Should().Be(JsonValueKind.Null);
+
+            var (clearStatus, cleared) = await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}",
+                new { clearPlanRole = true, clearCategorySlug = true });
+            clearStatus.Should().Be(HttpStatusCode.OK);
+            Data(cleared).GetProperty("planRole").ValueKind.Should().Be(JsonValueKind.Null);
+            Data(cleared).GetProperty("categorySlug").ValueKind.Should().Be(JsonValueKind.Null);
+        }
+        finally
+        {
+            await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}/activation", new { isActive = false });
+        }
+    }
+
     [Fact]
     public async Task AJar_CannotBeBoundToAnAlertThreshold_EvenThoughThatParamIsAlsoAPercentage()
     {

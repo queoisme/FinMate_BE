@@ -108,7 +108,7 @@ public class SurveyService : ISurveyService
         var incomeQuestion = questions.FirstOrDefault(q => q.PlanRole == SurveyPlanRoles.Income && kept.ContainsKey(q.Code));
         if (incomeQuestion is not null)
         {
-            user.MonthlyIncomeCents = kept[incomeQuestion.Code].AmountVnd;
+            user.MonthlyIncomeCents = kept[incomeQuestion.Code].AmountVnd is > 0 and var income ? income : null;   // 0 = chưa khai, như màn hồ sơ
         }
 
         await SetStatusAsync(user, OnboardingStatus.Completed, now, ct);

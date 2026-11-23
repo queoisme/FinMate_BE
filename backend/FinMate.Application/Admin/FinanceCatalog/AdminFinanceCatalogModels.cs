@@ -133,9 +133,13 @@ public record UpdateSurveyQuestionRequest(
     bool? ClearShowIf,
     int? SortOrder,
     string? CategorySlug = null,
-    string? PlanRole = null);
+    string? PlanRole = null,
+    bool? ClearPlanRole = null,
+    bool? ClearCategorySlug = null);
 
-public record UpdateSurveyOptionRequest(string? Code, string? Text, JsonElement? Signals, int? SortOrder, int? ShareMinPct = null, int? ShareMaxPct = null);
+/// <param name="ClearShareMax">true = đáp án thành "từ % tối thiểu trở lên" (bỏ % tối đa).</param>
+public record UpdateSurveyOptionRequest(
+    string? Code, string? Text, JsonElement? Signals, int? SortOrder, int? ShareMinPct = null, int? ShareMaxPct = null, bool? ClearShareMax = null);
 
 public record CreateGoalTemplateRequest(string Code, string Name, string Description, JsonElement DefaultParams);
 

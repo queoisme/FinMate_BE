@@ -258,6 +258,9 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         {
             RuleFor(x => x.RecommendationReuseMinutes).InclusiveBetween(0, 1440).WithMessage("Thời gian dùng lại gợi ý phải từ 0 đến 1440 phút (0 = luôn tạo mới).");
             RuleFor(x => x.SupportMinSharePercent).InclusiveBetween(1, 100).WithMessage("Tỷ lệ điểm tối thiểu của cách bổ trợ phải từ 1 đến 100%.");
+            RuleFor(x => x.PlanWarningTexts).NotNull()
+                .Must(texts => texts.Values.All(t => !string.IsNullOrWhiteSpace(t) && t.Length <= 500))
+                .WithMessage("Chữ cảnh báo của kế hoạch tháng không được để trống và tối đa 500 ký tự.");
         }
     }
 

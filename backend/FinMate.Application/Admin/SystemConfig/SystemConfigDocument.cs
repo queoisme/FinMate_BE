@@ -320,6 +320,16 @@ public sealed record FinanceMethodSettings
 
     /// <summary>Khi chọn bằng luật (AI lỗi hoặc không dùng được), cách bổ trợ chỉ được chọn nếu điểm của nó ít nhất bằng chừng này phần trăm điểm của cách chính.</summary>
     public int SupportMinSharePercent { get; init; } = 50;
+
+    /// <summary>
+    /// Chữ cảnh báo của kế hoạch tháng theo mã (app tra theo mã, không viết cứng). <c>fixed_exceeds_group</c> có chỗ thay <c>{group}</c> bằng tên nhóm.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> PlanWarningTexts { get; init; } = new Dictionary<string, string>
+    {
+        ["deficit"] = "Chi dự kiến đang vượt thu nhập. Trước hết hãy giảm bớt chi hoặc tìm thêm thu nhập để không bị hụt cuối tháng, rồi mới tính đến để dành.",
+        ["below_save_target"] = "Phần dư chưa đạt mức để dành mà cách quản lý này đề xuất. Bạn có thể giảm bớt vài hạn mức để dư nhiều hơn.",
+        ["fixed_exceeds_group"] = "Khoản cố định đã vượt phần dành cho nhóm \"{group}\", nên các khoản linh hoạt trong nhóm này tạm để 0.",
+    };
 }
 
 /// <summary>Một khoảng ngày lễ/Tết mà chi tiêu linh hoạt thường tăng (hoặc giảm). Tết đổi ngày theo âm lịch nên admin nhập theo từng năm.</summary>

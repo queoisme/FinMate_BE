@@ -67,6 +67,7 @@ public class FinanceCatalogPlanValidationTests
         yield return ["slider", null, null, Array.Empty<(int?, int?)>(), "answerType"];
         yield return ["amount", "salary", null, Array.Empty<(int?, int?)>(), "planRole"];
         yield return ["choice", "income", null, Array.Empty<(int?, int?)>(), "answerType"];
+        yield return ["choice", "fixed", "housing", Array.Empty<(int?, int?)>(), "answerType"];
         yield return ["choice", "flexible", null, new (int?, int?)[] { (0, 5) }, "categorySlug"];
         yield return ["choice", "flexible", "danh_muc_khong_co", new (int?, int?)[] { (0, 5) }, "categorySlug"];
         yield return ["choice", "flexible", "food", new (int?, int?)[] { (null, 5) }, "options[0].shareMinPct"];

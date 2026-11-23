@@ -42,6 +42,22 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         }
     }
 
+    /// <summary>Danh mục đã nằm trong bảng phân bổ đang lưu: được giữ dù sau đó bị tắt (kế hoạch tự bỏ qua danh mục đã tắt).</summary>
+    private static IEnumerable<string> AllocationSlugs(string allocationJson)
+    {
+        if (FinanceJson.ToElement(allocationJson) is not { ValueKind: JsonValueKind.Array } groups)
+        {
+            return [];
+        }
+
+        return groups.EnumerateArray()
+            .Where(g => g.ValueKind == JsonValueKind.Object && g.TryGetProperty("categories", out var c) && c.ValueKind == JsonValueKind.Array)
+            .SelectMany(g => g.GetProperty("categories").EnumerateArray())
+            .Where(c => c.ValueKind == JsonValueKind.String)
+            .Select(c => c.GetString()!)
+            .ToList();
+    }
+
     private async Task<IReadOnlySet<string>> ActiveSystemSlugsAsync(CancellationToken ct)
         => (await _categories.GetSystemListAsync(includeInactive: false, ct)).Select(c => c.Slug).ToHashSet();
 
@@ -153,7 +169,8 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             var defs = request.ParamDefs ?? FinanceJson.ToElement(method.ParamDefs);
             if (allocation is { } effectiveAllocation && defs is { } effectiveDefs)
             {
-                v.Allocation("allocation", effectiveAllocation, effectiveDefs, await ActiveSystemSlugsAsync(ct));
+                var allowed = (await ActiveSystemSlugsAsync(ct)).Union(AllocationSlugs(method.Allocation)).ToHashSet();
+                v.Allocation("allocation", effectiveAllocation, effectiveDefs, allowed);
             }
         }
 
@@ -349,21 +366,30 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             v.ShowIf("showIf", showIf, await _surveys.GetQuestionsAsync(includeInactive: true, ct), sortOrder, question.Code);
         }
 
-        if (request.PlanRole is not null || request.CategorySlug is not null)
+        var planRole = request.ClearPlanRole == true ? null : request.PlanRole ?? question.PlanRole;
+        var categorySlug = request.ClearCategorySlug == true ? null : request.CategorySlug ?? question.CategorySlug;
+        if (planRole != question.PlanRole || categorySlug != question.CategorySlug)
         {
             // Loại câu (answerType) bất biến sau khi tạo: câu trả lời đã lưu (mã đáp án hay số tiền) phụ thuộc vào nó.
             var activeShares = (await _surveys.GetOptionsAsync(includeInactive: false, ct))
                 .Where(o => o.QuestionId == question.Id).OrderBy(o => o.SortOrder).Select(o => (o.ShareMinPct, o.ShareMaxPct)).ToList();
-            v.SurveyPlanFields(
-                question.AnswerType, request.PlanRole ?? question.PlanRole, request.CategorySlug ?? question.CategorySlug,
-                activeShares, await ActiveSystemSlugsAsync(ct));
+            v.SurveyPlanFields(question.AnswerType, planRole, categorySlug, activeShares, await ActiveSystemSlugsAsync(ct));
         }
 
         v.ThrowIfInvalid();
 
         var changed = new List<string>();
-        Apply(changed, "planRole", request.PlanRole, question.PlanRole ?? string.Empty, x => question.PlanRole = x);
-        Apply(changed, "categorySlug", request.CategorySlug, question.CategorySlug ?? string.Empty, x => question.CategorySlug = x);
+        if (planRole != question.PlanRole)
+        {
+            question.PlanRole = planRole;
+            changed.Add("planRole");
+        }
+
+        if (categorySlug != question.CategorySlug)
+        {
+            question.CategorySlug = categorySlug;
+            changed.Add("categorySlug");
+        }
         Apply(changed, "groupCode", request.GroupCode, question.GroupCode, x => question.GroupCode = x);
         Apply(changed, "text", request.Text?.Trim(), question.Text, x => question.Text = x);
         ApplyValue(changed, "sortOrder", request.SortOrder, question.SortOrder, x => question.SortOrder = x);
@@ -444,8 +470,8 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         if (request.Signals is { } signals) { v.SignalMap("signals", signals); }
         if (request.SortOrder is { } order) { v.SortOrder("sortOrder", order); }
         var shareMin = request.ShareMinPct ?? option.ShareMinPct;
-        var shareMax = request.ShareMaxPct ?? option.ShareMaxPct;
-        if (question.PlanRole == SurveyPlanRoles.Flexible && (request.ShareMinPct is not null || request.ShareMaxPct is not null))
+        var shareMax = request.ClearShareMax == true ? null : request.ShareMaxPct ?? option.ShareMaxPct;
+        if (question.PlanRole == SurveyPlanRoles.Flexible && (request.ShareMinPct is not null || request.ShareMaxPct is not null || request.ClearShareMax == true))
         {
             v.ShareRange("option", shareMin, shareMax);
         }

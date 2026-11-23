@@ -676,9 +676,9 @@ internal sealed class FinanceCatalogValidation
             Add("planRole", $"Chỉ nhận: {string.Join(", ", SurveyPlanRoles.All)} hoặc để trống.");
         }
 
-        if (planRole is SurveyPlanRoles.Income or SurveyPlanRoles.SavingsBalance && answerType != SurveyAnswerTypes.Amount)
+        if (planRole is SurveyPlanRoles.Income or SurveyPlanRoles.Fixed or SurveyPlanRoles.SavingsBalance && answerType != SurveyAnswerTypes.Amount)
         {
-            Add("answerType", "Câu thu nhập và tiền tiết kiệm phải là câu nhập số tiền (amount).");
+            Add("answerType", "Câu thu nhập, khoản cố định và tiền tiết kiệm phải là câu nhập số tiền (amount).");
         }
 
         if (categorySlug is not null && !systemSlugs.Contains(categorySlug))
