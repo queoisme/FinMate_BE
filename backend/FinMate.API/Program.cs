@@ -494,6 +494,7 @@ public class Program
         builder.Services.AddScoped<ISurveyService, SurveyService>();
         builder.Services.AddScoped<IMethodRecommendationService, MethodRecommendationService>();
         builder.Services.AddScoped<IUserMethodService, UserMethodService>();
+        builder.Services.AddScoped<IFinancialPlanService, FinancialPlanService>();
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
 
         // Dự báo tài chính (Flow 6, đợt 1).

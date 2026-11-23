@@ -657,6 +657,173 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{questionId}/activation", new { isActive = false });
     }
 
+    // ---- kế hoạch tháng từ khảo sát: GET /me/financial-plan/draft ----
+
+    private const string DraftUrl = "/api/v1/me/financial-plan/draft";
+
+    private async Task SubmitMoneyAsync(string token, long? income, long? housing, params (string Question, string Option)[] flexible)
+    {
+        var answers = new List<object>();
+        if (income is { } incomeVnd) { answers.Add(new { questionCode = "income_amount", amountVnd = incomeVnd }); }
+        if (housing is { } housingVnd) { answers.Add(new { questionCode = "fixed_housing", amountVnd = housingVnd }); }
+        answers.AddRange(flexible.Select(f => (object)new { questionCode = f.Question, optionCode = f.Option }));
+
+        var (status, _) = await SendAsync(token, HttpMethod.Put, "/api/v1/survey/answers", new { answers });
+        status.Should().Be(HttpStatusCode.OK);
+    }
+
+    private async Task ChooseAsync(string token, string methodCode)
+        => (await SendAsync(token, HttpMethod.Post, "/api/v1/me/methods", new { methodCode })).Status.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
+
+    private static JsonElement PlanLine(JsonElement draft, string slug)
+        => Data(draft).GetProperty("categories").EnumerateArray().Single(c => c.GetProperty("slug").GetString() == slug);
+
+    [Fact]
+    public async Task Draft_FollowsTheChosenMethod()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, 2_500_000, ("flex_food", "D"));   // 10–20% → điểm giữa 15% = 1.500.000
+        await ChooseAsync(token, FinanceMethodCodes.CategoryBudget);
+
+        var (status, draft) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+        status.Should().Be(HttpStatusCode.OK);
+        Data(draft).GetProperty("methodCode").GetString().Should().Be(FinanceMethodCodes.CategoryBudget);
+        Data(draft).GetProperty("incomeVnd").GetInt64().Should().Be(10_000_000);
+        Data(draft).GetProperty("surplusVnd").GetInt64().Should().Be(6_000_000);
+        Data(draft).GetProperty("saveTargetVnd").GetInt64().Should().Be(2_000_000);
+        var food = PlanLine(draft, "food");
+        food.GetProperty("limitVnd").GetInt64().Should().Be(1_500_000);
+        food.GetProperty("groupKey").GetString().Should().Be("needs_pct");
+        var systemFood = (await SystemCategoriesAsync(token, 20)).Single(c => c.Slug == "food");
+        food.GetProperty("categoryId").GetGuid().Should().Be(systemFood.Id);
+        PlanLine(draft, "housing").GetProperty("limitVnd").GetInt64().Should().Be(2_500_000);
+        Data(draft).GetProperty("groups").EnumerateArray().Single(g => g.GetProperty("key").GetString() == "needs_pct")
+            .GetProperty("capVnd").GetInt64().Should().Be(5_000_000);
+
+        var (_, mine) = await SendAsync(token, HttpMethod.Get, "/api/v1/me/methods");
+        await SendAsync(token, HttpMethod.Delete, $"/api/v1/me/methods/{Data(mine)[0].GetProperty("id").GetGuid()}");
+        await ChooseAsync(token, FinanceMethodCodes.Rule8020);
+        var (_, other) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+        Data(other).GetProperty("methodCode").GetString().Should().Be(FinanceMethodCodes.Rule8020);
+        PlanLine(other, "food").GetProperty("groupKey").ValueKind.Should().Be(JsonValueKind.Null);
+        Data(other).GetProperty("saveTargetVnd").GetInt64().Should().Be(2_000_000);
+    }
+
+    [Fact]
+    public async Task Draft_WithoutIncome_ReturnsNoIncome()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, null, null, ("flex_food", "D"));
+        await ChooseAsync(token, FinanceMethodCodes.CategoryBudget);
+
+        var (status, body) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+        status.Should().Be(HttpStatusCode.UnprocessableEntity);
+        body.GetRawText().Should().Contain("FINANCE_PLAN_NO_INCOME");
+    }
+
+    [Fact]
+    public async Task Draft_WithoutAMethod_ReturnsNoActiveMethod()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, null);
+
+        var (status, body) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+        status.Should().Be(HttpStatusCode.UnprocessableEntity);
+        body.GetRawText().Should().Contain("FINANCE_PLAN_NO_ACTIVE_METHOD");
+    }
+
+    [Fact]
+    public async Task Draft_SkipsDisabledCategories_ButKeepsAnswersOfDisabledQuestions()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+        var slug = $"plan_test_{Guid.NewGuid():N}"[..20];
+        var (createdStatus, created) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/categories", new { name = "Danh mục thử", slug, iconName = "category" });
+        createdStatus.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
+        var extra = await SeedQuestionAsync(SurveyAnswerTypes.Choice, SurveyPlanRoles.Flexible, slug);   // đáp án A = 10–20%
+
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, null, ("flex_transport", "C"), (extra, "A"));
+        await ChooseAsync(token, FinanceMethodCodes.Rule8020);
+
+        var (_, questions) = await SendAsync(admin, HttpMethod.Get, "/api/v1/admin/survey-questions?search=flex_transport");
+        var transportQuestion = Data(questions).EnumerateArray().Single(q => q.GetProperty("code").GetString() == "flex_transport").GetProperty("id").GetGuid();
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{transportQuestion}/activation", new { isActive = false });
+        await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/categories/{Data(created).GetProperty("id").GetGuid()}/activation", new { isActive = false });
+        try
+        {
+            var (status, draft) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+            status.Should().Be(HttpStatusCode.OK);
+            PlanLine(draft, "transport").GetProperty("limitVnd").GetInt64().Should().Be(750_000, "câu đã tắt sau khi trả lời vẫn là thông tin thật (5–10% → 7,5%)");
+            Data(draft).GetProperty("categories").EnumerateArray().Select(c => c.GetProperty("slug").GetString()).Should().NotContain(slug);
+        }
+        finally
+        {
+            await SendAsync(admin, HttpMethod.Patch, $"/api/v1/admin/survey-questions/{transportQuestion}/activation", new { isActive = true });
+        }
+    }
+
+    [Fact]
+    public async Task Draft_WithAnEmptyAllocation_KeepsDeclaredSpending()
+    {
+        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+        var code = NewCode();
+        (await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/finance-methods", NewMethod(code, new[] { Param("a_pct", def: 50) }, null)))
+            .Status.Should().Be(HttpStatusCode.Created);
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, null, ("flex_food", "F"));   // từ 30% → 3.000.000
+        await ChooseAsync(token, code);
+
+        var (status, draft) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+
+        status.Should().Be(HttpStatusCode.OK);
+        PlanLine(draft, "food").GetProperty("limitVnd").GetInt64().Should().Be(3_000_000);
+        Data(draft).GetProperty("groups").GetArrayLength().Should().Be(0);
+        Data(draft).GetProperty("surplusVnd").GetInt64().Should().Be(7_000_000);
+    }
+
+    [Fact]
+    public async Task Draft_RequiresLogin_AndOnlyReadsTheCallersAnswers()
+    {
+        (await SendAsync(null, HttpMethod.Get, DraftUrl)).Status.Should().Be(HttpStatusCode.Unauthorized);
+
+        var alice = await UserTokenAsync();
+        await SubmitMoneyAsync(alice, 10_000_000, 2_000_000, ("flex_food", "D"));
+        var bob = await UserTokenAsync();
+        await SubmitMoneyAsync(bob, 8_000_000, null);
+        await ChooseAsync(bob, FinanceMethodCodes.Rule8020);
+
+        var (_, draft) = await SendAsync(bob, HttpMethod.Get, DraftUrl);
+
+        Data(draft).GetProperty("incomeVnd").GetInt64().Should().Be(8_000_000);
+        Data(draft).GetProperty("categories").GetArrayLength().Should().Be(0, "không lấy câu trả lời của người khác");
+    }
+
+    [Fact]
+    public async Task AppliedDraft_BecomesCategoryBudgets()
+    {
+        var token = await UserTokenAsync();
+        await SubmitMoneyAsync(token, 10_000_000, 2_500_000, ("flex_food", "D"));
+        await ChooseAsync(token, FinanceMethodCodes.CategoryBudget);
+        var (_, draft) = await SendAsync(token, HttpMethod.Get, DraftUrl);
+        var items = Data(draft).GetProperty("categories").EnumerateArray()
+            .Where(c => c.GetProperty("limitVnd").GetInt64() > 0)
+            .Select(c => new { categoryId = c.GetProperty("categoryId").GetGuid(), limitCents = c.GetProperty("limitVnd").GetInt64() })
+            .ToList();
+
+        var (applyStatus, _) = await SendAsync(token, HttpMethod.Post, "/api/v1/forecast/categories/apply", new { items });
+        applyStatus.Should().Be(HttpStatusCode.OK);
+
+        var (_, budgets) = await SendAsync(token, HttpMethod.Get, "/api/v1/budgets");
+        var limits = Data(budgets).GetProperty("categoryBudgets").EnumerateArray()
+            .ToDictionary(b => b.GetProperty("categorySlug").GetString()!, b => b.GetProperty("limitCents").GetInt64());
+        limits["food"].Should().Be(1_500_000);
+        limits["housing"].Should().Be(2_500_000);
+    }
+
     [Fact]
     public async Task AJar_CannotBeBoundToAnAlertThreshold_EvenThoughThatParamIsAlsoAPercentage()
     {

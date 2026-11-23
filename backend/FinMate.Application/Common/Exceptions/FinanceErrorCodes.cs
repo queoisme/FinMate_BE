@@ -32,4 +32,10 @@ public static class FinanceErrorCodes
 
     public const string RecommendationAlreadyDecided = "FINANCE_RECOMMENDATION_ALREADY_DECIDED";
     public const string GoalTemplateInactive = "FINANCE_GOAL_TEMPLATE_INACTIVE";
+
+    /// <summary>Lập kế hoạch tháng khi chưa có thu nhập (chưa trả lời câu thu nhập, hồ sơ cũng chưa có).</summary>
+    public const string PlanNoIncome = "FINANCE_PLAN_NO_INCOME";
+
+    /// <summary>Lập kế hoạch tháng khi chưa dùng cách quản lý chính nào.</summary>
+    public const string PlanNoActiveMethod = "FINANCE_PLAN_NO_ACTIVE_METHOD";
 }
