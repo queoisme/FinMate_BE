@@ -539,33 +539,6 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
 
     private static object Group(string? key, string kind, params string[] categories) => new { key, label = "Nhóm", kind, categories };
 
-    public static IEnumerable<object[]> InvalidAllocations()
-    {
-        yield return [new { not = "array" }, "allocation"];                                                                        // không phải mảng
-        yield return [new[] { Group("khong_co", "spend", "food") }, "allocation[0].key"];                                          // tham số không tồn tại
-        yield return [new[] { Group("minutes_x", "spend", "food") }, "allocation[0].key"];                                         // không phải tham số %
-        yield return [new[] { Group("a_pct", "lend", "food") }, "allocation[0].kind"];                                             // kind lạ
-        yield return [new[] { Group(null, "save") }, "allocation[0].key"];                                                         // nhóm để dành phải có %
-        yield return [new[] { Group("a_pct", "save", "food") }, "allocation[0].categories"];                                       // nhóm để dành không chứa danh mục
-        yield return [new[] { Group("a_pct", "spend", "food"), Group("b_pct", "spend", "food") }, "allocation[1].categories"];    // một danh mục hai nhóm
-        yield return [new[] { Group(null, "spend", "food"), Group(null, "spend", "transport") }, "allocation"];                   // hai nhóm "phần còn lại"
-        yield return [new[] { Group("a_pct", "spend", "danh-muc-khong-co") }, "allocation"];                                       // danh mục không có thật
-        yield return [new[] { new { key = "a_pct", label = new string('x', 41), kind = "spend", categories = new[] { "food" } } }, "allocation[0].label"];
-        yield return [Enumerable.Range(0, 9).Select(_ => Group(null, "spend")).ToArray(), "allocation"];                          // quá 8 nhóm
-    }
-
-    [Theory]
-    [MemberData(nameof(InvalidAllocations))]
-    public async Task InvalidAllocations_AreRefusedWithTheFieldThatIsWrong(object allocation, string expectedField)
-    {
-        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
-
-        var (status, body) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/finance-methods", NewMethodWithAllocation(NewCode(), allocation));
-
-        status.Should().Be(HttpStatusCode.BadRequest);
-        body.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain(expectedField);
-    }
-
     [Fact]
     public async Task Admin_UpdatesMethodAllocation_AndReadsItBack()
     {
@@ -599,35 +572,16 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         answerType, planRole, categorySlug, options,
     };
 
-    public static IEnumerable<object[]> InvalidMoneyQuestions()
-    {
-        yield return [MoneyQuestion("amount", "fixed", "housing", [Share("A", null, null), Share("B", null, null)]), "options"];          // câu nhập số không có đáp án
-        yield return [MoneyQuestion("slider", null, null, [Share("A", null, null), Share("B", null, null)]), "answerType"];               // loại lạ
-        yield return [MoneyQuestion("amount", "salary", null, []), "planRole"];                                                            // vai trò lạ
-        yield return [MoneyQuestion("choice", "income", null, [Share("A", 0, 5), Share("B", 5, 10)]), "answerType"];                     // thu nhập phải nhập số
-        yield return [MoneyQuestion("choice", "flexible", null, [Share("A", 0, 5), Share("B", 5, 10)]), "categorySlug"];                 // chi linh hoạt cần danh mục
-        yield return [MoneyQuestion("choice", "flexible", "danh-muc-khong-co", [Share("A", 0, 5), Share("B", 5, 10)]), "categorySlug"];  // danh mục không có thật
-        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", null, 5), Share("B", 5, 10)]), "options[0].shareMinPct"];  // thiếu khoảng %
-        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", 20, 10), Share("B", 5, 10)]), "options[0].shareMaxPct"];   // max < min
-        yield return [MoneyQuestion("choice", "flexible", "food", [Share("A", 101, null), Share("B", 5, 10)]), "options[0].shareMinPct"]; // quá 100%
-    }
-
-    [Theory]
-    [MemberData(nameof(InvalidMoneyQuestions))]
-    public async Task InvalidMoneyQuestions_AreRefusedWithTheFieldThatIsWrong(object question, string expectedField)
-    {
-        var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
-
-        var (status, body) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions", question);
-
-        status.Should().Be(HttpStatusCode.BadRequest);
-        body.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain(expectedField);
-    }
-
     [Fact]
     public async Task Admin_CreatesAnAmountQuestion_AndAFlexibleQuestionWithShares()
     {
         var admin = await LoginAsync(AuthApiFactory.AdminEmail, AuthApiFactory.AdminPassword);
+
+        // Câu nhập số tiền không có đáp án (kiểm ở service, không ở validator chung). Các luật khác: FinanceCatalogPlanValidationTests.
+        var (withOptionsStatus, withOptions) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions",
+            MoneyQuestion("amount", "fixed", "housing", [Share("A", null, null), Share("B", null, null)]));
+        withOptionsStatus.Should().Be(HttpStatusCode.BadRequest);
+        withOptions.GetProperty("error").GetProperty("details").EnumerateArray().Select(d => d.GetProperty("field").GetString()).Should().Contain("options");
 
         var (amountStatus, amount) = await SendAsync(admin, HttpMethod.Post, "/api/v1/admin/survey-questions",
             MoneyQuestion("amount", "fixed", "housing", []));
