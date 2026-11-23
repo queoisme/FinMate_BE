@@ -28,18 +28,19 @@ public static class LoanPolicy
     /// BR-DEBT-08 và D4: chỉ giao dịch Debit/Credit đã xác nhận, còn sống, không có quan hệ hoàn/đảo, không bị gộp, không đang nghi trùng,
     /// không chia sẻ nhóm, không gắn quỹ nhóm, và chưa gắn khoản nào.
     /// </summary>
-    public static void EnsureEligible(Transaction transaction, bool alreadyLinked)
+    /// <param name="beingConfirmed">D4: nháp đang được xác nhận kèm khoản thì được xét như đã xác nhận.</param>
+    public static void EnsureEligible(Transaction transaction, bool alreadyLinked, bool beingConfirmed = false)
     {
-        if (!IsEligible(transaction) || alreadyLinked)
+        if (!IsEligible(transaction, beingConfirmed) || alreadyLinked)
         {
             throw new BusinessRuleException(LoanErrorCodes.TransactionNotEligible, "Giao dịch này không gắn được vào khoản vay.");
         }
     }
 
     /// <summary>Cùng điều kiện với <see cref="EnsureEligible"/>, không tính việc đã gắn: dùng để lọc ứng viên gợi ý.</summary>
-    public static bool IsEligible(Transaction transaction)
+    public static bool IsEligible(Transaction transaction, bool beingConfirmed = false)
         => transaction.DeletedAt is null
-            && transaction.Status == TransactionStatus.Confirmed
+            && (transaction.Status == TransactionStatus.Confirmed || (beingConfirmed && transaction.Status == TransactionStatus.Draft))
             && transaction.TransactionType is TransactionType.Debit or TransactionType.Credit
             && transaction.Relation is null
             && transaction.MergedIntoTransactionId is null

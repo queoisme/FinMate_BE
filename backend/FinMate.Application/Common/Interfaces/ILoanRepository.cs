@@ -25,6 +25,12 @@ public interface ILoanRepository
     /// <summary>Phase 90, BR-DEBT-08: giao dịch đã gắn một dòng còn sống (gốc hoặc lãi) của một khoản còn sống chưa.</summary>
     Task<bool> IsTransactionLinkedAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 
+    /// <summary>Phase 90: khoản (đang theo dõi, kèm dòng còn sống) có dòng còn sống gắn giao dịch này làm phần gốc; null khi chưa gắn.</summary>
+    Task<Loan?> GetByLinkedTransactionAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
+    /// <summary>Phase 90 (Q14): số tiền phần lãi đã tách khỏi giao dịch này (S1), 0 khi không tách hoặc giao dịch lãi đã xoá.</summary>
+    Task<long> GetSplitInterestCentsAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
+
     /// <summary>Phase 90: chỉ theo dõi khoản mới; lưu cùng các thay đổi khác của lượt ghi (một lần lưu, D2).</summary>
     void Track(Loan loan);
 

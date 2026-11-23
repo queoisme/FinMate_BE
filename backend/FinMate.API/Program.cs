@@ -655,6 +655,7 @@ public class Program
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<ILoanRepository, LoanRepository>();
         builder.Services.AddScoped<FinMate.Application.Loans.LoanTransactionLink>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanLinkSync, FinMate.Application.Loans.LoanLinkSync>();
         builder.Services.AddScoped(sp => new FinMate.Application.Loans.LoanServiceDependencies(
             sp.GetRequiredService<ILoanRepository>(), sp.GetRequiredService<ICategoryRepository>(), sp.GetRequiredService<ITransactionRepository>(),
             sp.GetRequiredService<IFinancialAccountRepository>(), sp.GetRequiredService<FinMate.Application.Loans.LoanTransactionLink>(),

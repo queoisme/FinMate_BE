@@ -1683,7 +1683,8 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
 - [x] Task 4: `LoanPolicy` (chiều, điều kiện gắn, tổng và trạng thái, xoá nợ, tách lãi S1).
 - [x] Task 5: `LoanService` ghi một lượt (tạo ba cách, trả / giải ngân thêm, gắn giao dịch, xoá dòng, xoá mềm, xoá nợ, trả kèm lãi S1), `RetryingLoanService`, nhóm cấu hình `loans`, ứng viên trùng theo số tiền ngân hàng (Q14).
 - [x] Task 6: endpoint `GET /loans/{id}`, `/summary`, lọc `status`/`direction`, `POST /{id}/principal`, `DELETE /{id}/entries/{entryId}`, `POST /{id}/write-off`; `repayments` gắn giao dịch có sẵn.
-- [ ] Task 7–14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
+- [x] Task 7: `ILoanLinkSync` trên xoá, sửa, gộp (kể cả dòng đã tách lãi, Q14), chuyển ví, xác nhận kèm `loanId` (tách lãi S1).
+- [ ] Task 8–14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
 - [ ] **Báo nhóm Flutter (phần đã xong):**
   - **Dòng tiền:** `monthly-summary` và mỗi ngày của `timeline` có object tuỳ chọn `cashFlow { netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents }`. Màn báo cáo / trang chủ nên hiện thêm dòng **"Số dư thay đổi"** (`netCents`) và phần **"Cho vay / trả nợ"**, **"Quỹ nhóm"**, để người dùng hiểu vì sao số dư giảm nhiều hơn số chi. `totalSpentCents` / `totalIncomeCents` không đổi ý nghĩa (không gồm cho vay/mượn).
   - Hai trường chuyển ví chỉ khác 0 khi xem một ví (`accountId`).

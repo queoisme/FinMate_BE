@@ -58,6 +58,18 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
                  && context.Loans.Any(l => l.Id == r.LoanId && l.UserId == userId && l.DeletedAt == null),
             ct);
 
+    public Task<Loan?> GetByLinkedTransactionAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => context.Loans.Include(l => l.Repayments.Where(r => r.DeletedAt == null))
+            .FirstOrDefaultAsync(
+                l => l.UserId == userId && l.DeletedAt == null && l.Repayments.Any(r => r.DeletedAt == null && r.TransactionId == transactionId), ct);
+
+    public async Task<long> GetSplitInterestCentsAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => await context.LoanRepayments
+            .Where(r => r.TransactionId == transactionId && r.DeletedAt == null && r.InterestTransactionId != null
+                        && context.Loans.Any(l => l.Id == r.LoanId && l.UserId == userId && l.DeletedAt == null))
+            .Select(r => context.Transactions.Where(t => t.Id == r.InterestTransactionId && t.DeletedAt == null).Select(t => (long?)t.AmountCents).FirstOrDefault())
+            .FirstOrDefaultAsync(ct) ?? 0;
+
     public void Track(Loan loan) => context.Loans.Add(loan);
 
     public void Track(Transaction transaction) => context.Transactions.Add(transaction);

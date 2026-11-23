@@ -22,6 +22,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IGroupLedger? _groupLedger;
     private readonly Refunds.IRefundLedger? _refunds;
     private readonly IDailySummaryRefresher? _summaries;
+    private readonly Loans.ILoanLinkSync? _loanSync;
 
     // §16.5: ghi nhớ danh mục người dùng TỰ chọn cho một merchant, để lần sau AI/QR gợi ý đúng
     // luôn — null: không ghi override (test cũ).
@@ -39,8 +40,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IGroupLedger? groupLedger = null,
         Refunds.IRefundLedger? refunds = null,
         IDailySummaryRefresher? summaries = null,
-        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null)
+        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
+        Loans.ILoanLinkSync? loanSync = null)
     {
+        _loanSync = loanSync;
         _groupLedger = groupLedger;
         _refunds = refunds;
         _summaries = summaries;
@@ -65,6 +68,11 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             throw new BusinessRuleException(
                 TransactionErrorCodes.NotDraft,
                 "Giao dịch đã được xác nhận hoặc không còn ở trạng thái nháp.");
+        }
+
+        if (command.LoanId is not null)
+        {
+            EnsureLoanConfirmShape(command);
         }
 
         // Phase 81: nháp là khoản hoàn/đảo (người dùng vừa chọn khoản gốc, hoặc đã đặt bằng PUT /related) → đường riêng, dưới khoá khoản gốc.
@@ -96,6 +104,16 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }
 
         var now = DateTimeOffset.UtcNow;
+
+        // Phase 90 (D4, S1): gắn vào khoản vay TRƯỚC khi áp số dư và ngân sách: danh mục loan làm delta ngân sách bằng 0, và phần lãi tách ra (nếu
+        // có) đã tự trừ/cộng ví nên giao dịch này chỉ còn phần gốc.
+        Loans.LoanAttachResult? attached = null;
+        if (command.LoanId is { } loanId)
+        {
+            attached = await (_loanSync ?? throw new InvalidOperationException("Thiếu ILoanLinkSync."))
+                .AttachOnConfirmAsync(command.UserId, transaction, account, loanId, now, ct);
+        }
+
         account.BalanceCents += transaction.TransactionType == TransactionType.Credit
             ? transaction.AmountCents
             : -transaction.AmountCents;
@@ -130,6 +148,11 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         // SAU khi UpdateAsync đã lưu: gửi trước đó là báo cho người dùng về một giao dịch có
         // thể bị rollback (docx Flow 2 mục 2a — kiểm tra ngưỡng ngay khi giao dịch phát sinh).
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
+        if (attached is { Effects.BudgetAlerts.Count: > 0 })
+        {
+            await _budgetAlertNotifier.SendAsync(attached.Effects.BudgetAlerts, ct);   // ngân sách của giao dịch lãi (S1)
+        }
+
         if (_groupLedger is not null)
         {
             await _groupLedger.SendAlertsAsync(groupAlerts, ct);
@@ -215,4 +238,13 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>
     private Task NotifyForecastAsync(Guid userId, CancellationToken ct)
         => _forecastAlerts is null ? Task.CompletedTask : _forecastAlerts.UserChangedAsync(userId, ct);
+
+    /// <summary>Phase 90 (D4): xác nhận kèm khoản vay không đi cùng quan hệ hoàn/đảo hay chia sẻ nhóm (giao dịch gắn khoản vay luôn là loan).</summary>
+    private static void EnsureLoanConfirmShape(ConfirmTransactionCommand command)
+    {
+        if (command.RelatedTransactionId is not null || command.Relation is not null || command.GroupId is not null || command.GroupCategoryId is not null)
+        {
+            throw new BusinessRuleException(LoanErrorCodes.TransactionNotEligible, "Khoản vay không đi cùng hoàn tiền hay chia sẻ nhóm.");
+        }
+    }
 }

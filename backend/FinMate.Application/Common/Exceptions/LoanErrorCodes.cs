@@ -20,4 +20,7 @@ public static class LoanErrorCodes
 
     /// <summary>Phase 90 (Q7): xoá nợ một khoản đã trả xong (D6).</summary>
     public const string AlreadySettled = "LOAN_ALREADY_SETTLED";
+
+    /// <summary>Phase 90 (Q7): giao dịch đã gắn khoản vay chỉ đổi được số tiền, ngày, mô tả; gỡ liên kết trước (D3, D7).</summary>
+    public const string TransactionLinked = "TRANSACTION_LOAN_LINKED";
 }
