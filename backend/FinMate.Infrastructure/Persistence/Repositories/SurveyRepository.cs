@@ -75,6 +75,7 @@ public class SurveyRepository : ISurveyRepository
             if (wanted.Remove(answer.QuestionCode, out var replacement))
             {
                 answer.OptionCode = replacement.OptionCode;
+                answer.AmountVnd = replacement.AmountVnd;
                 answer.AnsweredAt = replacement.AnsweredAt;
                 answer.UpdatedAt = replacement.UpdatedAt;
             }

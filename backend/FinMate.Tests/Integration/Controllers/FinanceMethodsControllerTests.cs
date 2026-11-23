@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FinMate.API.Controllers;
 using FinMate.Domain.Entities;
+using FinMate.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace FinMate.Tests.Integration.Controllers;
@@ -19,10 +21,44 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _client;
+    private readonly AuthApiFactory _factory;
 
     public FinanceMethodsControllerTests(AuthApiFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
+    }
+
+    /// <summary>Thêm một câu khảo sát đang bật (mã duy nhất) và trả về mã của nó. Câu choice có một đáp án "A".</summary>
+    private async Task<string> SeedQuestionAsync(string answerType, string? planRole, string? categorySlug = null)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var question = new SurveyQuestion
+        {
+            Id = Guid.NewGuid(),
+            Code = $"t_{Guid.NewGuid():N}"[..30],
+            GroupCode = "money",
+            Text = "Test",
+            AnswerType = answerType,
+            PlanRole = planRole,
+            CategorySlug = categorySlug,
+            SortOrder = 1000,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        db.SurveyQuestions.Add(question);
+        if (answerType == SurveyAnswerTypes.Choice)
+        {
+            db.SurveyOptions.Add(new SurveyOption
+            {
+                Id = Guid.NewGuid(), QuestionId = question.Id, Code = "A", Text = "A", ShareMinPct = 10, ShareMaxPct = 20, CreatedAt = now, UpdatedAt = now,
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return question.Code;
     }
 
     private async Task<string> LoginAsync(string email, string password)
@@ -63,6 +99,7 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
     {
         var (_, survey) = await SendAsync(token, HttpMethod.Get, "/api/v1/survey");
         var answers = Data(survey).GetProperty("questions").EnumerateArray()
+            .Where(q => q.GetProperty("answerType").GetString() == SurveyAnswerTypes.Choice)
             .Select(q => new { questionCode = q.GetProperty("code").GetString(), optionCode = q.GetProperty("options")[0].GetProperty("code").GetString() })
             .ToList();
 
@@ -204,6 +241,64 @@ public class FinanceMethodsControllerTests : IClassFixture<AuthApiFactory>
         (await SendAsync(alice, HttpMethod.Delete, "/api/v1/survey")).Status.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NoContent);
         var (_, aliceAfter) = await SendAsync(alice, HttpMethod.Get, "/api/v1/survey");
         Data(aliceAfter).GetProperty("answers").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SurveyAmountAnswer_IsSavedReturnedAndSetsProfileIncome()
+    {
+        var income = await SeedQuestionAsync(SurveyAnswerTypes.Amount, SurveyPlanRoles.Income);
+        var token = await UserTokenAsync();
+
+        var (status, saved) = await SendAsync(token, HttpMethod.Put, "/api/v1/survey/answers",
+            new { answers = new[] { new { questionCode = income, amountVnd = 10_000_000L } } });
+
+        status.Should().Be(HttpStatusCode.OK);
+        var answer = Data(saved).GetProperty("answers").EnumerateArray().Single(a => a.GetProperty("questionCode").GetString() == income);
+        answer.GetProperty("amountVnd").GetInt64().Should().Be(10_000_000);
+        Data(saved).GetProperty("questions").EnumerateArray().Single(q => q.GetProperty("code").GetString() == income)
+            .GetProperty("answerType").GetString().Should().Be(SurveyAnswerTypes.Amount);
+
+        var (_, me) = await SendAsync(token, HttpMethod.Get, "/api/v1/users/me");
+        Data(me).GetProperty("monthlyIncomeCents").GetInt64().Should().Be(10_000_000);
+    }
+
+    [Fact]
+    public async Task SurveyAmountAnswer_RejectsNegativeMissingOrMixedValues()
+    {
+        var amount = await SeedQuestionAsync(SurveyAnswerTypes.Amount, SurveyPlanRoles.Fixed, "housing");
+        var choice = await SeedQuestionAsync(SurveyAnswerTypes.Choice, SurveyPlanRoles.Flexible, "food");
+        var token = await UserTokenAsync();
+
+        object[] invalid =
+        [
+            new { questionCode = amount, amountVnd = -1L },
+            new { questionCode = amount },
+            new { questionCode = amount, optionCode = "A", amountVnd = 1_000L },
+            new { questionCode = choice, optionCode = "A", amountVnd = 1_000L },
+            new { questionCode = amount, amountVnd = 100_000_000_001L },
+        ];
+        foreach (var answer in invalid)
+        {
+            var (status, body) = await SendAsync(token, HttpMethod.Put, "/api/v1/survey/answers", new { answers = new[] { answer } });
+            status.Should().Be(HttpStatusCode.UnprocessableEntity, because: JsonSerializer.Serialize(answer));
+            body.GetRawText().Should().Contain("SURVEY_ANSWER_INVALID");
+        }
+
+        var (_, survey) = await SendAsync(token, HttpMethod.Get, "/api/v1/survey");
+        Data(survey).GetProperty("answers").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeletingTheSurvey_RemovesAmountAnswers()
+    {
+        var amount = await SeedQuestionAsync(SurveyAnswerTypes.Amount, SurveyPlanRoles.Fixed, "bills");
+        var token = await UserTokenAsync();
+        await SendAsync(token, HttpMethod.Put, "/api/v1/survey/answers", new { answers = new[] { new { questionCode = amount, amountVnd = 500_000L } } });
+
+        await SendAsync(token, HttpMethod.Delete, "/api/v1/survey");
+
+        var (_, survey) = await SendAsync(token, HttpMethod.Get, "/api/v1/survey");
+        Data(survey).GetProperty("answers").GetArrayLength().Should().Be(0);
     }
 
     [Fact]

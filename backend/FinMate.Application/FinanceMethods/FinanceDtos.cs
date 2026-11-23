@@ -41,12 +41,18 @@ public record UserMethodDto(
     IReadOnlyDictionary<string, long> Effective,
     DateTimeOffset StartedAt);
 
-public record SurveyOptionDto(string Code, string Text);
+/// <param name="ShareMinPct">Khoảng % thu nhập của đáp án (câu chi linh hoạt); null ở câu khác.</param>
+public record SurveyOptionDto(string Code, string Text, int? ShareMinPct = null, int? ShareMaxPct = null);
 
 /// <param name="ShowIf">Điều kiện hiển thị (xem <c>ShowIfEvaluator</c>); null = luôn hỏi. Trả cho client để nó ẩn/hiện câu ngay trên máy.</param>
-public record SurveyQuestionDto(string Code, string Group, string Text, JsonElement? ShowIf, IReadOnlyList<SurveyOptionDto> Options);
+/// <param name="AnswerType"><c>choice</c> (chọn đáp án) hoặc <c>amount</c> (nhập số tiền, không có đáp án).</param>
+/// <param name="PlanRole">Vai trò trong kế hoạch tháng (<c>income/fixed/flexible/savings_balance</c>); null = chỉ dùng để chọn phương pháp.</param>
+public record SurveyQuestionDto(
+    string Code, string Group, string Text, JsonElement? ShowIf, IReadOnlyList<SurveyOptionDto> Options,
+    string AnswerType = SurveyAnswerTypes.Choice, string? CategorySlug = null, string? PlanRole = null);
 
-public record SurveyAnswerDto(string QuestionCode, string OptionCode);
+/// <summary>Câu choice gửi <paramref name="OptionCode"/>; câu amount gửi <paramref name="AmountVnd"/> (đồng). Không gửi cả hai.</summary>
+public record SurveyAnswerDto(string QuestionCode, string? OptionCode, long? AmountVnd = null);
 
 /// <param name="Status"><c>pending</c>, <c>completed</c> hoặc <c>skipped</c>.</param>
 public record SurveyDto(
