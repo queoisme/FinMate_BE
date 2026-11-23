@@ -20,6 +20,9 @@ public class SurveyQuestionConfiguration : IEntityTypeConfiguration<SurveyQuesti
         builder.Property(q => q.GroupCode).HasColumnName("group_code").HasMaxLength(50).IsRequired();
         builder.Property(q => q.Text).HasColumnName("text").HasMaxLength(500).IsRequired();
         builder.Property(q => q.ShowIf).HasColumnName("show_if").HasColumnType("jsonb");
+        builder.Property(q => q.AnswerType).HasColumnName("answer_type").HasMaxLength(16).HasDefaultValue(SurveyAnswerTypes.Choice).IsRequired();
+        builder.Property(q => q.CategorySlug).HasColumnName("category_slug").HasMaxLength(64);
+        builder.Property(q => q.PlanRole).HasColumnName("plan_role").HasMaxLength(32);
         builder.Property(q => q.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
         builder.Property(q => q.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 

@@ -26,6 +26,8 @@ public class SurveyOptionConfiguration : IEntityTypeConfiguration<SurveyOption>
             .HasDefaultValueSql("'{}'::jsonb")
             .IsRequired();
 
+        builder.Property(o => o.ShareMinPct).HasColumnName("share_min_pct");
+        builder.Property(o => o.ShareMaxPct).HasColumnName("share_max_pct");
         builder.Property(o => o.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
         builder.Property(o => o.IsActive).HasColumnName("is_active").HasDefaultValue(true);
 

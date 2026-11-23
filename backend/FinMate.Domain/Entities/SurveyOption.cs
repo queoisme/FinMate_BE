@@ -14,6 +14,10 @@ public class SurveyOption
     /// <summary>JSON object {signal_key: trọng số nguyên}. Admin chỉnh ánh xạ ở đây.</summary>
     public string Signals { get; set; } = "{}";
 
+    /// <summary>Khoảng % thu nhập của đáp án (câu chi linh hoạt). Kế hoạch dùng điểm giữa; <see cref="ShareMaxPct"/> NULL = "từ min trở lên".</summary>
+    public int? ShareMinPct { get; set; }
+    public int? ShareMaxPct { get; set; }
+
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }

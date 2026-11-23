@@ -18,6 +18,15 @@ public class SurveyQuestion
     /// </summary>
     public string? ShowIf { get; set; }
 
+    /// <summary><see cref="SurveyAnswerTypes"/>: chọn đáp án (mặc định) hoặc nhập số tiền.</summary>
+    public string AnswerType { get; set; } = SurveyAnswerTypes.Choice;
+
+    /// <summary>Danh mục hệ thống (slug) mà câu này nói về, dùng khi tính kế hoạch tháng. NULL = không gắn danh mục.</summary>
+    public string? CategorySlug { get; set; }
+
+    /// <summary>Vai trò trong kế hoạch tháng (<see cref="SurveyPlanRoles"/>). NULL = câu chỉ dùng để chọn phương pháp.</summary>
+    public string? PlanRole { get; set; }
+
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
