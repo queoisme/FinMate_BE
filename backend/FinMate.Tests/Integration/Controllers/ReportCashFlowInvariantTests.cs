@@ -109,4 +109,55 @@ public class ReportCashFlowInvariantTests : IClassFixture<AuthApiFactory>
         var day = (await SendAsync(HttpMethod.Get, "/api/v1/reports/timeline?limit=50")).EnumerateArray().Single();
         AssertInvariant(day, "ngày của timeline");
     }
+
+    /// <summary>
+    /// Một ngày bị cắt giữa hai trang có mặt ở cả hai, mỗi bản mang phần của mình. App (tab Ngày/Tuần/Năm) cộng mọi ngày của mọi trang, nên tổng
+    /// cộng lại phải bằng báo cáo tháng.
+    /// </summary>
+    [Fact]
+    public async Task Timeline_ADaySplitAcrossPages_SumsToTheMonthlyTotals_WithoutCountingTwice()
+    {
+        var email = $"{Guid.NewGuid():N}@finmate.local";
+        await _client.PostAsJsonAsync("/api/v1/auth/register", new RegisterRequest(email, "Password123!", "Cash Flow"));
+        var login = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, "Password123!"));
+        _token = (await login.Content.ReadFromJsonAsync<AuthBody>(JsonOptions))!.Data.AccessToken;
+        var a = await WalletAsync("Ví A", 10_000_000);
+        var food = await CategoryAsync("food");
+        var income = await CategoryAsync("income");
+        var loan = await CategoryAsync("loan");
+        await TxAsync(a, food, 300_000);
+        await TxAsync(a, income, 1_000_000, "Credit");
+        await TxAsync(a, loan, 500_000);
+        await TxAsync(a, food, 120_000);
+
+        long spent = 0, incomeSum = 0, net = 0;
+        var pages = 0;
+        string? cursor = null;
+        do
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/reports/timeline?limit=2" + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            var root = JsonDocument.Parse(await (await _client.SendAsync(request)).Content.ReadAsStringAsync()).RootElement;
+            foreach (var day in root.GetProperty("data").EnumerateArray())
+            {
+                AssertInvariant(day, $"trang {pages}");
+                spent += day.GetProperty("totalSpentCents").GetInt64();
+                incomeSum += day.GetProperty("totalIncomeCents").GetInt64();
+                net += day.GetProperty("cashFlow").GetProperty("netCents").GetInt64();
+            }
+
+            pages++;
+            cursor = root.TryGetProperty("meta", out var meta) && meta.TryGetProperty("cursor", out var next) && next.ValueKind == JsonValueKind.String
+                ? next.GetString()
+                : null;
+        }
+        while (cursor is not null);
+
+        pages.Should().BeGreaterThan(1, "test cần ngày bị cắt giữa các trang");
+        var month = await SendAsync(HttpMethod.Get, "/api/v1/reports/monthly-summary");
+        (spent, incomeSum, net).Should().Be((
+            month.GetProperty("totalSpentCents").GetInt64(), month.GetProperty("totalIncomeCents").GetInt64(),
+            month.GetProperty("cashFlow").GetProperty("netCents").GetInt64()));
+        spent.Should().Be(420_000, "cho vay không phải chi tiêu");
+    }
 }

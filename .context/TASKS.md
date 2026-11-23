@@ -1675,7 +1675,7 @@ Thiết kế: `docs/superpowers/specs/2026-11-16-per-user-item-categories-design
 ## Phase 90 — Hợp nhất sổ nợ vào `loans` và dòng tiền của báo cáo (2026-11-23, đang làm)
 Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–S5, D1–D3: `docs/superpowers/plans/2026-11-23-loan-book-merge.md`. Nguồn luật nghiệp vụ: kế hoạch Phase 86 cũ (`2026-11-14-debt-book.md`, không merge). Mốc test và 10 test đỏ sẵn trên `main` ở mục Verification của kế hoạch.
 - [x] Task 0: số dư thực tế của `ForecastAccuracy` tính cả cho vay/mượn (D23); `ListenerHealthScenarioTests.D_…` dùng đồng hồ giả.
-- [x] Task 0b (Q16): `cashFlow` trong `monthly-summary` và từng ngày của `timeline` (`CashFlowCalculator`, bất biến có test cho mọi loại giao dịch, tất cả ví và từng ví); cột mới ở `daily_summaries` (migration `AddReportCashFlow`, điền cho mọi ngày đã chốt); tổng ngày của `timeline` lấy từ mọi giao dịch đã xác nhận của ngày; báo cáo tháng một ví chặn chi ở 0. API: `docs/reports-cash-flow-api.md`.
+- [x] Task 0b (Q16): `cashFlow` trong `monthly-summary` và từng ngày của `timeline` (`CashFlowCalculator`, bất biến có test cho mọi loại giao dịch, tất cả ví và từng ví); cột mới ở `daily_summaries` (migration `AddReportCashFlow`, điền cho mọi ngày đã chốt); tổng ngày của `timeline` vẫn theo trang (app cộng các trang ở `getPeriodSummary`) nhưng không còn cộng nháp; báo cáo tháng một ví chặn chi ở 0. API: `docs/reports-cash-flow-api.md`.
 - [x] Sửa trước Task 2: thứ tự `ExtractionResult` (`ProviderReference` về cuối); 8 test gợi ý quan hệ AI đỏ trên `main` xanh lại, kèm lỗi thật ở đường OCR.
 - [x] Task 1: ai-service gợi ý `debt_repayment` (mạnh / yếu / loại trừ, cụm dài nhất thắng), alembic `0040`.
 - [x] Task 2: backend lưu `debt_repayment` và `debt_hint_strength` ở `ai_results` (migration `AddDebtRepaymentHint`).
@@ -1683,4 +1683,4 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
 - [ ] **Báo nhóm Flutter (phần đã xong):**
   - **Dòng tiền:** `monthly-summary` và mỗi ngày của `timeline` có object tuỳ chọn `cashFlow { netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents }`. Màn báo cáo / trang chủ nên hiện thêm dòng **"Số dư thay đổi"** (`netCents`) và phần **"Cho vay / trả nợ"**, **"Quỹ nhóm"**, để người dùng hiểu vì sao số dư giảm nhiều hơn số chi. `totalSpentCents` / `totalIncomeCents` không đổi ý nghĩa (không gồm cho vay/mượn).
   - Hai trường chuyển ví chỉ khác 0 khi xem một ví (`accountId`).
-  - **Đổi hành vi:** báo cáo tháng của một ví không còn trả chi âm; tổng của một ngày trên `timeline` là tổng thật của cả ngày (không còn thiếu khi ngày bị cắt giữa hai trang, không còn cộng nháp).
+  - **Đổi hành vi:** báo cáo tháng của một ví không còn trả chi âm; tổng của một ngày trên `timeline` không còn cộng nháp (vẫn theo trang, nên tab Ngày/Tuần/Năm cộng các trang như cũ là đúng).
