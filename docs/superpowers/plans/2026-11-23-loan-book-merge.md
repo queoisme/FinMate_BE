@@ -48,7 +48,7 @@ Duyệt cả ba, gom vào object `cashFlow` (`netCents, loanOutflowCents, loanIn
 ## Báo MinhTuan
 
 - **Test đổi kỳ vọng:** `ReportsControllerTests.LoanTransactions_CountAsRealCashFlow_ButStayOutOfTheCategoryBreakdown` đổi tên thành `LoanTransactions_StayOutOfSpendingAndIncome_ButShowInTheCashFlow`. Lý do: quyết định Q16 (2026-11-23). Tiền cho mượn / được trả nợ là tiền thật ra/vào ví, đúng như ý commit `3df2182`, nhưng nó không phải chi tiêu hay thu nhập. Vì vậy nó hiện ở `cashFlow.loanOutflowCents` / `loanInflowCents` và `cashFlow.netCents` (−3.300.000 trong test), còn `totalSpentCents` / `totalIncomeCents` giữ 300.000 / 0. Dòng thời gian cũng vậy.
-- **8 test gợi ý quan hệ AI đang đỏ trên `main`** (`RelationHint` không được lưu): nhờ cậu ấy sửa trên `main`; danh sách ở mục Verification.
+- **8 test gợi ý quan hệ AI đỏ trên `main`:** đã sửa trên `feat/loan-book` bằng commit `fix:` riêng `814d54b` (thứ tự `ExtractionResult`, kèm lỗi thật ở đường OCR). Nếu cậu ấy sửa trên `main` theo cách khác thì gộp lại khi rebase. Test `Analyze_HighConfidence…AutoCommits` vẫn đỏ, chưa xem.
 - **Trước Task 3** (sửa `LoanService`, `LoanRepository`, `LoanConfiguration`, `LoansController`, gỡ `LoanDueReminderJob`): báo trước.
 
 ## Trường app đang dùng (S5, chưa xác nhận)
@@ -267,6 +267,7 @@ Code của cậu ấy bị đổi ở: `LoanService` (phần ghi), `LoanReposito
     - 7 test cùng một nguyên nhân: gợi ý quan hệ từ AI không còn được lưu (`RelationHint` null): `RefundNotificationTests` ×3, `RefundScenarioTests` ×3, `AnalyzeNotificationDuplicateTests.TheAiTransferHint_IsStoredForBothDirections`, cộng `TransferScenarioTests.B_AtmWithdrawal_…` (NullReference, có vẻ cùng gốc);
     - `NotificationsControllerTests.Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance` (nháp không còn tự xác nhận).
   - Phase 90 dựa vào gợi ý quan hệ của AI (Task 2, 8): lỗi "hint không được lưu" phải được sửa (hoặc hiểu rõ) trước Task 2.
+  - **Đã sửa trước Task 2 (commit `fix:` riêng `814d54b`, 2026-11-23), vì nằm đúng phần hợp đồng AI client:** `ExtractionResult` bị chèn `ProviderReference` vào trước `RelationHint`, nên mọi chỗ tạo record theo vị trí lệch một ô. 8 test đỏ vì vậy, và **đường OCR thật** (`AIServiceClient.ScanReceiptAsync`) ghi `relation_hint` vào `ProviderReference`. `ProviderReference` về cuối record; test hồi quy `AiClientExtractionMappingTests`. Mốc đỏ sẵn còn lại: `MethodSelectionOnSeedDataTests…` và `NotificationsControllerTests.Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance` (nháp không tự xác nhận, ngoài phạm vi Task 2, để MinhTuan).
 - Mốc cũ: đo ở Task 0, trên `aba320c`.
 - Trước khi xin merge: toàn bộ backend và ai-service, không thêm test đỏ; `dotnet build` không cảnh báo mới; `alembic upgrade head` trên DB trống chạy qua `0040`.
 - Test riêng cho chuyển dữ liệu: dựng DB ở migration trước `MergeDebtBookIntoLoans`, chèn khoản vay và lần trả theo dạng cũ, chạy migration, kiểm gốc / đã trả / trạng thái / dòng giải ngân đầu.
