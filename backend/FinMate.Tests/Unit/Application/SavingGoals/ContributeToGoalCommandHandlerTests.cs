@@ -78,7 +78,8 @@ public class ContributeToGoalCommandHandlerTests
         result.Status.Should().Be("completed");
         result.RemainingCents.Should().Be(0);
         _push.Verify(p => p.NotifyAsync(
-            userId, "Hoàn thành mục tiêu tiết kiệm", It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()),
+            userId, "Hoàn thành mục tiêu tiết kiệm", It.IsAny<string>(),
+            It.Is<IReadOnlyDictionary<string, string>?>(d => d != null && d["action"] == "goal_completed"), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

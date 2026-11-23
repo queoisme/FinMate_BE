@@ -72,7 +72,8 @@ public class GoalDeadlineCheckJob
                 userId,
                 "Mục tiêu tiết kiệm quá hạn",
                 $"Mục tiêu \"{goal.Name}\" đã qua hạn hoàn thành. Bạn muốn gia hạn hay hủy?",
-                ct: ct);
+                new Dictionary<string, string> { ["action"] = "goal_deadline", ["goalId"] = goal.Id.ToString() },
+                ct);
         }
     }
 }

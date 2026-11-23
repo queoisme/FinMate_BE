@@ -26,7 +26,9 @@ public class LoanDueReminderJob(ILoanRepository loans, IUserRepository users, IP
                 var body = borrow
                     ? $"Khoản \"{loan.Title}\" {(overdue ? "đã quá hạn trả" : "sắp đến hạn trả")}."
                     : $"Khoản cho vay \"{loan.Title}\" {(overdue ? "đã quá hạn thu hồi" : "sắp đến hạn thu hồi")}.";
-                await push.NotifyAsync(loan.UserId, title, body, ct: ct);
+                // action để app mở thẳng màn Khoản vay khi bấm push
+                await push.NotifyAsync(loan.UserId, title, body,
+                    new Dictionary<string, string> { ["action"] = "loan_due", ["loanId"] = loan.Id.ToString() }, ct);
             }
 
             loan.DueNotifiedAt = now;

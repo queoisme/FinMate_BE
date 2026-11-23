@@ -85,7 +85,8 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
         {
             const string title = "Hoàn thành mục tiêu tiết kiệm";
             var body = $"Chúc mừng! Bạn đã hoàn thành mục tiêu \"{goal.Name}\".";
-            await _pushNotificationService.NotifyAsync(command.UserId, title, body, ct: ct);
+            await _pushNotificationService.NotifyAsync(command.UserId, title, body,
+                new Dictionary<string, string> { ["action"] = "goal_completed", ["goalId"] = goal.Id.ToString() }, ct);
             if (_userNotifications is not null)
             {
                 await _userNotifications.CreateAsync(command.UserId, UserNotificationType.GoalMilestone, title, body, "SavingGoal", goal.Id, ct);

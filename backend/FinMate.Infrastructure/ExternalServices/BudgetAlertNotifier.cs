@@ -48,7 +48,8 @@ public class BudgetAlertNotifier : IBudgetAlertNotifier
 
             if (await IsEnabledAsync(alert.UserId, ct))
             {
-                await _pushNotificationService.NotifyAsync(alert.UserId, alert.Title, alert.Body, ct: ct);
+                await _pushNotificationService.NotifyAsync(alert.UserId, alert.Title, alert.Body,
+                    new Dictionary<string, string> { ["action"] = "budget_alert" }, ct);
             }
         }
     }
