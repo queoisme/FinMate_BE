@@ -1687,7 +1687,9 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
 - [x] Task 8: `loanLink` / `loanSuggestions` trên DTO giao dịch (tính khi đọc, cả nhận diện lãi S1), push `choose_loan_link`, `PersonNameMatch` dùng chung cho chat và thông báo (S3, Q15; sửa lỗi bỏ dấu dưới `InvariantGlobalization`).
 - [x] Task 9: khoản vay trong dự báo dòng tiền (đi vay ở cả ba đường, cho vay chỉ đường lạc quan), `spendable.loansDueCents` / `loans`, `undatedLoans`, `unlinkedLoanTransactions`, cảnh báo `undated_loan` khi kiểm mua; gốc còn lại, không lãi (Q11).
 - [x] Task 10: `LoanReminderJob` (`loan-reminders`, 08:05 VN) qua `forecast_alerts` kind `loan_due`, câu chung, công tắc `loanRemindersEnabled`, cổng bỏ nhắc đã hoãn; gỡ `LoanDueReminderJob` (`RemoveIfExists("loan-due-reminder")`) và cột `due_notified_at`.
-- [ ] Task 11–14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
+- [x] Task 11: công cụ Agent `get_loans` chỉ đọc, không tên người, không tiêu đề khoản.
+- [x] Task 12: `LoanBookScenarioTests` (a)–(i).
+- [ ] Task 13–14: `LoanPolicy`, `LoanService`, endpoint mới, đồng bộ với các đường giao dịch, gợi ý, dự báo, nhắc hạn, Agent, kịch bản (a)–(i), tài liệu. Cổng S5 (hỏi nhóm Flutter, báo MinhTuan) trước Task 3.
 - [ ] **Báo nhóm Flutter (phần đã xong):**
   - **Dòng tiền:** `monthly-summary` và mỗi ngày của `timeline` có object tuỳ chọn `cashFlow { netCents, loanOutflowCents, loanInflowCents, groupFundOutflowCents, groupFundInflowCents, transferOutflowCents, transferInflowCents, refundSurplusCents, reversalNetCents }`. Màn báo cáo / trang chủ nên hiện thêm dòng **"Số dư thay đổi"** (`netCents`) và phần **"Cho vay / trả nợ"**, **"Quỹ nhóm"**, để người dùng hiểu vì sao số dư giảm nhiều hơn số chi. `totalSpentCents` / `totalIncomeCents` không đổi ý nghĩa (không gồm cho vay/mượn).
   - Hai trường chuyển ví chỉ khác 0 khi xem một ví (`accountId`).
