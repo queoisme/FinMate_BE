@@ -45,4 +45,7 @@ public enum ForecastAlertKind
 
     /// <summary>Chủ nhóm đã duyệt hoặc từ chối khoản bạn gửi. Không mang số tiền.</summary>
     GroupApprovalDecided,
+
+    /// <summary>Khoản vay sắp đến hạn hoặc đã quá hạn (Phase 90, BR-DEBT-14). Câu chung: không tên người, không số tiền (Q3).</summary>
+    LoanDue,
 }

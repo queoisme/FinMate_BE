@@ -122,9 +122,10 @@ public class LoanRepository(FinMateDbContext context) : ILoanRepository
 
     public void Track(LoanRepayment entry) => context.LoanRepayments.Add(entry);
 
-    public Task<List<Loan>> GetDueUnnotifiedAsync(DateOnly dueOnOrBefore, CancellationToken ct = default)
-        => context.Loans
-            .Where(l => l.DueDate != null && l.DueDate <= dueOnOrBefore && l.DueNotifiedAt == null
-                        && l.DeletedAt == null && l.Status == LoanStatus.Open && l.RepaidCents < l.PrincipalCents)
+    public async Task<IReadOnlyList<Guid>> ListUserIdsWithOpenLoansDueByAsync(DateOnly until, CancellationToken ct = default)
+        => await context.Loans
+            .Where(l => l.DueDate != null && l.DueDate <= until && l.DeletedAt == null && l.Status == LoanStatus.Open && l.RepaidCents < l.PrincipalCents)
+            .Select(l => l.UserId)
+            .Distinct()
             .ToListAsync(ct);
 }

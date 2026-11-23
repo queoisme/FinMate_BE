@@ -27,6 +27,11 @@ public class UpdateNotificationPrefsCommandHandler : IUpdateNotificationPrefsCom
             user.NotificationPrefs.ListenerHealthAlertsEnabled = listenerHealth;
         }
 
+        if (command.LoanRemindersEnabled is { } loanReminders)
+        {
+            user.NotificationPrefs.LoanRemindersEnabled = loanReminders;
+        }
+
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _userRepository.UpdateAsync(user, ct);
 

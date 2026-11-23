@@ -817,7 +817,9 @@ public class Program
         builder.Services.AddScoped<IDailySummaryRefresher, DailySummaryRefresher>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
-        builder.Services.AddScoped<LoanDueReminderJob>();
+        builder.Services.AddScoped<LoanReminderJob>();   // Phase 90: thay LoanDueReminderJob
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanReminderService, FinMate.Application.Loans.LoanReminderService>();
+        builder.Services.AddScoped<FinMate.Application.Forecasting.IForecastAlertGate, FinMate.Application.Loans.LoanReminderGate>();
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
@@ -1003,8 +1005,11 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
 
-        RecurringJob.AddOrUpdate<LoanDueReminderJob>(
-            "loan-due-reminder",
+        // Phase 90 (Q10): nhắc khoản vay qua forecast_alerts thay job cũ; 01:05 UTC = 08:05 VN như trước. Hangfire giữ lịch trong Postgres nên phải gỡ
+        // lịch cũ ở mọi lần khởi động cho tới khi mọi môi trường đã chạy một lần.
+        RecurringJob.RemoveIfExists(LoanReminderJob.RetiredJobId);
+        RecurringJob.AddOrUpdate<LoanReminderJob>(
+            LoanReminderJob.JobId,
             job => job.RunAsync(CancellationToken.None),
             "5 1 * * *");
 

@@ -52,6 +52,6 @@ public interface ILoanRepository
     /// </summary>
     void Track(LoanRepayment entry);
 
-    /// <summary>Khoản còn nợ gốc, có hạn cuối &lt;= <paramref name="dueOnOrBefore"/> và chưa nhắc.</summary>
-    Task<List<Loan>> GetDueUnnotifiedAsync(DateOnly dueOnOrBefore, CancellationToken ct = default);
+    /// <summary>Phase 90: user có khoản <c>open</c> còn sống, còn gốc, hạn tới hết <paramref name="until"/> (kể cả đã quá hạn): đầu vào của job nhắc hạn.</summary>
+    Task<IReadOnlyList<Guid>> ListUserIdsWithOpenLoansDueByAsync(DateOnly until, CancellationToken ct = default);
 }

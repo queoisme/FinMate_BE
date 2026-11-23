@@ -71,7 +71,8 @@ public class UsersController : ControllerBase
                 CurrentUserId,
                 request.PushEnabled,
                 request.BudgetAlertsEnabled,
-                request.ListenerHealthAlertsEnabled),
+                request.ListenerHealthAlertsEnabled,
+                request.LoanRemindersEnabled),
             ct);
         return NoContent();
     }
@@ -82,4 +83,4 @@ public class UsersController : ControllerBase
 /// </param>
 public record UpdateProfileRequest(string DisplayName, long? MonthlyIncomeCents = null);
 public record AcceptConsentRequest(ConsentKind Kind, int Version);
-public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled, bool? ListenerHealthAlertsEnabled = null);
+public record UpdateNotificationPrefsRequest(bool PushEnabled, bool BudgetAlertsEnabled, bool? ListenerHealthAlertsEnabled = null, bool? LoanRemindersEnabled = null);

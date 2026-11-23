@@ -45,8 +45,6 @@ public class Loan
 
     public DateOnly? DueDate { get; set; }
 
-    /// <summary>Đã nhắc đến hạn/quá hạn lần này; đổi hạn cuối thì xóa để nhắc lại.</summary>
-    public DateTimeOffset? DueNotifiedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

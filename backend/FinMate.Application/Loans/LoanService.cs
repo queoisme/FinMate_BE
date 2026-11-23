@@ -166,11 +166,6 @@ public sealed class LoanService : ILoanService
             first.PaidAt = VietnamTime.DayRange(start).Start;   // dòng đầu chưa gắn giao dịch đi theo ngày bắt đầu
         }
 
-        if (loan.DueDate != input.DueDate)
-        {
-            loan.DueNotifiedAt = null;   // hạn mới thì được nhắc lại
-        }
-
         Apply(loan, input);
         loan.UpdatedAt = now;
         await _loans.SaveAsync(ct);

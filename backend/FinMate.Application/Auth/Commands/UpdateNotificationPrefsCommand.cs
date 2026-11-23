@@ -5,4 +5,5 @@ public record UpdateNotificationPrefsCommand(
     Guid UserId,
     bool PushEnabled,
     bool BudgetAlertsEnabled,
-    bool? ListenerHealthAlertsEnabled = null);
+    bool? ListenerHealthAlertsEnabled = null,
+    bool? LoanRemindersEnabled = null);   // Phase 90: nhắc khoản vay đến hạn; null = giữ nguyên

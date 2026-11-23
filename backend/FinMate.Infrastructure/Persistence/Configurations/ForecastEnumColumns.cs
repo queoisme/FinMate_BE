@@ -42,6 +42,7 @@ internal static class ForecastAlertKindColumn
         [ForecastAlertKind.GroupDebtReminder] = "group_debt_reminder",
         [ForecastAlertKind.GroupApprovalRequested] = "group_approval_req",
         [ForecastAlertKind.GroupApprovalDecided] = "group_approval_res",
+        [ForecastAlertKind.LoanDue] = "loan_due",
     };
 
     private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);

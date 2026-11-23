@@ -29,7 +29,6 @@ public class LoanConfiguration : IEntityTypeConfiguration<Loan>
         builder.Property(l => l.InterestRatePercentYear).HasColumnName("interest_rate_percent_year").HasPrecision(5, 2).IsRequired();
         builder.Property(l => l.StartDate).HasColumnName("start_date").IsRequired();
         builder.Property(l => l.DueDate).HasColumnName("due_date");
-        builder.Property(l => l.DueNotifiedAt).HasColumnName("due_notified_at");
         builder.Property(l => l.RepaidCents).HasColumnName("repaid_cents").IsRequired();
         builder.Property(l => l.Status).HasColumnName("status").HasMaxLength(12).IsRequired()
             .HasConversion(v => GroupColumns.SnakeCase(v.ToString()), v => Enum.Parse<LoanStatus>(v.Replace("_", string.Empty), true));
