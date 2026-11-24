@@ -97,6 +97,31 @@ public class ConfirmTransactionCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_DraftFromBankNotification_WritesBalanceChangeToInbox()
+    {
+        // Giao dịch bắt từ thông báo ngân hàng chỉ vào hộp thư (tab Biến động) khi được xác nhận ở đây.
+        var userId = Guid.NewGuid();
+        var (transaction, account) = DraftDebit(userId, 45_000);
+        transaction.Source = TransactionSource.Notification;
+        transaction.MerchantName = "Grab";
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account);
+        var inbox = new Mock<FinMate.Application.Notifications.IUserNotificationService>();
+        var handler = new ConfirmTransactionCommandHandler(
+            _transactionRepository.Object, _financialAccountRepository.Object, _budgetPeriodService.Object,
+            _budgetAlertNotifier.Object, _categoryRepository.Object, _aiServiceClient.Object, _cache.Object,
+            userNotifications: inbox.Object);
+
+        await handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+
+        inbox.Verify(n => n.CreateAsync(
+            userId, UserNotificationType.BalanceChange, "Giao dịch mới", It.Is<string>(b => b.StartsWith("Chi ") && b.EndsWith(" tại Grab")),
+            "Transaction", transaction.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_CreditDraft_AddsToBalance()
     {
         var userId = Guid.NewGuid();

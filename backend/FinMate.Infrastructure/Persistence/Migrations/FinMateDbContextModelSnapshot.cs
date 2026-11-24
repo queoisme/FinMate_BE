@@ -6332,6 +6332,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("Data")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("data");
+
                     b.Property<DateTimeOffset?>("ReadAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("read_at");
@@ -6372,7 +6376,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("user_notifications", null, t =>
                         {
-                            t.HasCheckConstraint("chk_user_notifications_type", "type IN ('budget_threshold','balance_change','anomaly_detected','recurring_bill_due','forecast_ready','goal_milestone')");
+                            t.HasCheckConstraint("chk_user_notifications_type", "type IN ('budget_threshold','balance_change','anomaly_detected','recurring_bill_due','forecast_ready','goal_milestone','transaction_review','forecast_alert','general')");
                         });
                 });
 

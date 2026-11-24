@@ -44,12 +44,15 @@ public class BudgetAlertNotifier : IBudgetAlertNotifier
         {
             // Caller đã hỏi IsEnabledAsync trước khi đánh dấu, nhưng hỏi lại ở đây thì rẻ
             // (đã cache) và không endpoint nào mới thêm sau này có thể vô tình bỏ qua nó.
-            await _userNotifications.CreateAsync(alert.UserId, UserNotificationType.BudgetThreshold, alert.Title, alert.Body, null, null, ct);
-
+            // Push tự vào hộp thư (InboxRecordingPushNotificationService); chỉ ghi tay khi không đẩy, để hộp thư vẫn có cảnh báo.
             if (await IsEnabledAsync(alert.UserId, ct))
             {
                 await _pushNotificationService.NotifyAsync(alert.UserId, alert.Title, alert.Body,
                     new Dictionary<string, string> { ["action"] = "budget_alert" }, ct);
+            }
+            else
+            {
+                await _userNotifications.CreateAsync(alert.UserId, UserNotificationType.BudgetThreshold, alert.Title, alert.Body, null, null, ct);
             }
         }
     }

@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Interfaces;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
@@ -18,6 +19,13 @@ public class UserNotificationRepository : IUserNotificationRepository
         _context.UserNotifications.Add(notification);
         await _context.SaveChangesAsync(ct);
     }
+
+    public Task<UserNotification?> FindWithoutPushAsync(
+        Guid userId, UserNotificationType type, Guid relatedEntityId, DateTimeOffset since, CancellationToken ct = default)
+        => _context.UserNotifications
+            .Where(n => n.UserId == userId && n.Type == type && n.RelatedEntityId == relatedEntityId && n.Data == null && n.CreatedAt >= since)
+            .OrderByDescending(n => n.CreatedAt)
+            .FirstOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<UserNotification>> ListForUserAsync(Guid userId, CancellationToken ct = default)
         => await _context.UserNotifications

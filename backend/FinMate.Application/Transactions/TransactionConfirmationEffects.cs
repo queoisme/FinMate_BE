@@ -51,26 +51,6 @@ public class TransactionConfirmationEffects : ITransactionConfirmationEffects
     {
         await TransactionBudgetDelta.InvalidateSummaryAsync(_cache, transaction.UserId, transaction.TransactedAt, ct);
         await _budgetAlertNotifier.SendAsync(budgetAlerts, ct);
-        await NotifyBalanceChangeAsync(transaction, ct);
-    }
-
-    /// <summary>Ghi vào hộp thư trong app (tab "Biến động") rằng giao dịch này vừa đổi số dư.</summary>
-    private Task NotifyBalanceChangeAsync(Transaction transaction, CancellationToken ct)
-    {
-        if (_userNotifications is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        var verb = transaction.TransactionType == TransactionType.Credit ? "Nhận" : "Chi";
-        return _userNotifications.CreateAsync(
-            transaction.UserId,
-            UserNotificationType.BalanceChange,
-            "Giao dịch mới",
-            $"{verb} {ForecastText.Money(transaction.AmountCents)}"
-            + (transaction.MerchantName is { Length: > 0 } merchant ? $" tại {merchant}" : string.Empty),
-            "Transaction",
-            transaction.Id,
-            ct);
+        await BalanceChangeInbox.WriteAsync(_userNotifications, transaction, ct);
     }
 }

@@ -16,6 +16,9 @@ internal static class UserNotificationTypeColumn
         [UserNotificationType.RecurringBillDue] = "recurring_bill_due",
         [UserNotificationType.ForecastReady] = "forecast_ready",
         [UserNotificationType.GoalMilestone] = "goal_milestone",
+        [UserNotificationType.TransactionReview] = "transaction_review",
+        [UserNotificationType.ForecastAlert] = "forecast_alert",
+        [UserNotificationType.General] = "general",
     };
 
     private static readonly Dictionary<string, UserNotificationType> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);
@@ -31,7 +34,7 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
     {
         builder.ToTable("user_notifications", t => t.HasCheckConstraint(
             "chk_user_notifications_type",
-            "type IN ('budget_threshold','balance_change','anomaly_detected','recurring_bill_due','forecast_ready','goal_milestone')"));
+            "type IN ('budget_threshold','balance_change','anomaly_detected','recurring_bill_due','forecast_ready','goal_milestone','transaction_review','forecast_alert','general')"));
 
         builder.HasKey(n => n.Id);
         builder.Property(n => n.Id)
@@ -50,6 +53,7 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
         builder.Property(n => n.Body).HasColumnName("body").HasMaxLength(500).IsRequired();
         builder.Property(n => n.RelatedEntityType).HasColumnName("related_entity_type").HasMaxLength(50);
         builder.Property(n => n.RelatedEntityId).HasColumnName("related_entity_id");
+        builder.Property(n => n.Data).HasColumnName("data").HasColumnType("jsonb");
         builder.Property(n => n.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(n => n.ReadAt).HasColumnName("read_at");
 

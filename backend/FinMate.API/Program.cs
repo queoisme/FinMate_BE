@@ -661,7 +661,12 @@ public class Program
         builder.Services.AddSingleton<IFcmSender, FirebaseAdminFcmSender>();
         builder.Services.AddScoped<FcmPushNotificationService>();
         builder.Services.AddScoped<LoggingPushNotificationService>();
-        builder.Services.AddScoped<IPushNotificationService, SwitchingPushNotificationService>();
+        builder.Services.AddScoped<SwitchingPushNotificationService>();
+        // Mọi push được lưu vào hộp thư trong app trước khi đẩy (màn Thông báo = lịch sử push).
+        builder.Services.AddScoped<IPushNotificationService>(sp => new FinMate.Application.Notifications.InboxRecordingPushNotificationService(
+            sp.GetRequiredService<SwitchingPushNotificationService>(),
+            sp.GetRequiredService<FinMate.Application.Notifications.IUserNotificationService>(),
+            sp.GetRequiredService<ILogger<FinMate.Application.Notifications.InboxRecordingPushNotificationService>>()));
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         // Admin (Phase 8) — mọi controller ở đây nằm sau policy AdminOnly.

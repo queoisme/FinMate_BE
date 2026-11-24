@@ -15,6 +15,12 @@ public class UserNotification
     public string? RelatedEntityType { get; set; }
     public Guid? RelatedEntityId { get; set; }
 
+    /// <summary>
+    /// JSON (object chuỗi→chuỗi) đúng như <c>data</c> của push FCM đã gửi, để app bấm vào mục hộp thư mở cùng màn với khi bấm push.
+    /// null: mục không đến từ push. Mang số tiền như body nên cũng KHÔNG BAO GIỜ ghi log.
+    /// </summary>
+    public string? Data { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ReadAt { get; set; }
 

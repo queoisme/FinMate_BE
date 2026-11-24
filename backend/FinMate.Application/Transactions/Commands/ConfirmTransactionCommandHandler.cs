@@ -27,6 +27,9 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     // luôn — null: không ghi override (test cũ).
     private readonly IMerchantCategoryOverrideRepository? _merchantCategoryOverrides;
 
+    // Hộp thư tab "Biến động": giao dịch bắt từ thông báo ngân hàng chỉ vào đây khi được xác nhận. null (test cũ): bỏ qua.
+    private readonly Notifications.IUserNotificationService? _userNotifications;
+
     public ConfirmTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -39,8 +42,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IGroupLedger? groupLedger = null,
         Refunds.IRefundLedger? refunds = null,
         IDailySummaryRefresher? summaries = null,
-        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null)
+        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
+        Notifications.IUserNotificationService? userNotifications = null)
     {
+        _userNotifications = userNotifications;
         _groupLedger = groupLedger;
         _refunds = refunds;
         _summaries = summaries;
@@ -134,6 +139,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         {
             await _groupLedger.SendAlertsAsync(groupAlerts, ct);
         }
+        await BalanceChangeInbox.WriteAsync(_userNotifications, transaction, ct);
 
         if (categoryChanged && transaction.Source == TransactionSource.Notification)
         {
@@ -209,6 +215,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }, ct);
 
         await new RefundAfterSave(_budgetAlertNotifier, _cache, _groupLedger, _summaries, _forecastAlerts).RunAsync(command.UserId, effects, ct);
+        await BalanceChangeInbox.WriteAsync(_userNotifications, transaction, ct);
         return TransactionMapper.ToDto(transaction);
     }
 
