@@ -16,8 +16,14 @@ namespace FinMate.Tests.Integration;
 /// </summary>
 public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
 {
-    private const int QuestionCount = 11;
+    private const int ChoiceQuestionCount = 11;      // các câu chọn phương pháp, mỗi câu 5 đáp án
     private const int OptionsPerQuestion = 5;
+    private const int FlexibleQuestionCount = 7;     // chi linh hoạt theo danh mục, mỗi câu 6 khoảng %
+    private const int SharesPerFlexibleQuestion = 6;
+    private const int AmountQuestionCount = 5;       // thu nhập, 3 khoản cố định, tiết kiệm đang có — không có đáp án
+    private const int QuestionCount = ChoiceQuestionCount + FlexibleQuestionCount + AmountQuestionCount;
+    private const int OptionCount = ChoiceQuestionCount * OptionsPerQuestion + FlexibleQuestionCount * SharesPerFlexibleQuestion;
+    private static readonly string[] SpendCategories = ["housing", "bills", "food", "transport", "health", "family", "shopping", "entertainment", "education", "other"];
     private const int MethodCount = 13;
     private const int TemplateCount = 4;
     private const int LinkCount = 23;
@@ -65,13 +71,13 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
         await using var db = await NewSeededDbAsync();
 
         (await db.SurveyQuestions.CountAsync()).Should().Be(QuestionCount);
-        (await db.SurveyOptions.CountAsync()).Should().Be(QuestionCount * OptionsPerQuestion);
+        (await db.SurveyOptions.CountAsync()).Should().Be(OptionCount);
         (await db.FinanceMethods.CountAsync()).Should().Be(MethodCount);
         (await db.GoalTemplates.CountAsync()).Should().Be(TemplateCount);
         (await db.MethodGoalTemplates.CountAsync()).Should().Be(LinkCount);
 
         var optionsPerQuestion = await db.SurveyOptions.GroupBy(o => o.QuestionId).Select(g => g.Count()).ToListAsync();
-        optionsPerQuestion.Should().OnlyContain(n => n == OptionsPerQuestion);
+        optionsPerQuestion.Should().OnlyContain(n => n == OptionsPerQuestion || n == SharesPerFlexibleQuestion);
 
         var methodCodes = typeof(FinanceMethodCodes).GetFields().Select(f => (string)f.GetRawConstantValue()!).ToList();
         (await db.FinanceMethods.Select(m => m.Code).ToListAsync()).Should().BeEquivalentTo(methodCodes);
@@ -85,7 +91,7 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
         await SeedAllAsync(db);
 
         (await db.SurveyQuestions.CountAsync()).Should().Be(QuestionCount);
-        (await db.SurveyOptions.CountAsync()).Should().Be(QuestionCount * OptionsPerQuestion);
+        (await db.SurveyOptions.CountAsync()).Should().Be(OptionCount);
         (await db.FinanceMethods.CountAsync()).Should().Be(MethodCount);
         (await db.GoalTemplates.CountAsync()).Should().Be(TemplateCount);
         (await db.MethodGoalTemplates.CountAsync()).Should().Be(LinkCount);
@@ -121,6 +127,103 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
         (await db.MethodGoalTemplates.CountAsync()).Should().Be(LinkCount - 1);
     }
 
+    [Fact]
+    public async Task MoneyQuestions_AreSeededAfterTheOldOnes_WithRolesAndShares()
+    {
+        await using var db = await NewSeededDbAsync();
+        var questions = await db.SurveyQuestions.AsNoTracking().OrderBy(q => q.SortOrder).ToListAsync();
+        var options = await db.SurveyOptions.AsNoTracking().ToListAsync();
+        await CategorySeeder.SeedAsync(db);
+        var systemSlugs = await db.Categories.Where(c => c.UserId == null).Select(c => c.Slug).ToListAsync();
+
+        var money = questions.Where(q => q.GroupCode == "money").ToList();
+        money.Should().HaveCount(FlexibleQuestionCount + AmountQuestionCount);
+        money.Min(q => q.SortOrder).Should().BeGreaterThan(questions.Where(q => q.GroupCode != "money").Max(q => q.SortOrder));
+
+        var income = money.Single(q => q.Code == "income_amount");
+        income.AnswerType.Should().Be(SurveyAnswerTypes.Amount);
+        income.PlanRole.Should().Be(SurveyPlanRoles.Income);
+        money.Where(q => q.AnswerType == SurveyAnswerTypes.Amount).Should().OnlyContain(q => !options.Any(o => o.QuestionId == q.Id));
+        money.Where(q => q.CategorySlug != null).Select(q => q.CategorySlug!).Should().OnlyContain(slug => systemSlugs.Contains(slug));
+
+        var food = money.Single(q => q.Code == "flex_food");
+        food.PlanRole.Should().Be(SurveyPlanRoles.Flexible);
+        food.CategorySlug.Should().Be("food");
+        var shares = options.Where(o => o.QuestionId == food.Id).OrderBy(o => o.SortOrder)
+            .Select(o => (o.Code, o.ShareMinPct, o.ShareMaxPct)).ToList();
+        shares.Should().Equal(("A", 0, 0), ("B", 0, 5), ("C", 5, 10), ("D", 10, 20), ("E", 20, 30), ("F", 30, (int?)null));
+    }
+
+    [Fact]
+    public async Task EveryMethod_HasAnAllocationThatReferencesItsOwnPercentParams()
+    {
+        await using var db = await NewSeededDbAsync();
+
+        foreach (var method in await db.FinanceMethods.AsNoTracking().ToListAsync())
+        {
+            using var defs = JsonDocument.Parse(method.ParamDefs);
+            var percentKeys = defs.RootElement.EnumerateArray()
+                .Where(p => p.GetProperty("type").GetString() == FinanceParamTypes.Percent)
+                .Select(p => p.GetProperty("key").GetString()).ToHashSet();
+
+            using var allocation = JsonDocument.Parse(method.Allocation);
+            var groups = allocation.RootElement.EnumerateArray().ToList();
+            groups.Should().NotBeEmpty(method.Code);
+
+            var seen = new HashSet<string>();
+            foreach (var group in groups)
+            {
+                var key = group.GetProperty("key").ValueKind == JsonValueKind.Null ? null : group.GetProperty("key").GetString();
+                var kind = group.GetProperty("kind").GetString();
+                var categories = group.GetProperty("categories").EnumerateArray().Select(c => c.GetString()!).ToList();
+                if (key is not null)
+                {
+                    percentKeys.Should().Contain(key, method.Code);
+                }
+
+                if (kind == AllocationKinds.Save)
+                {
+                    key.Should().NotBeNull(method.Code);
+                    categories.Should().BeEmpty(method.Code);
+                }
+
+                foreach (var category in categories)
+                {
+                    seen.Add(category).Should().BeTrue($"{method.Code}: {category} chỉ được thuộc một nhóm");
+                }
+            }
+
+            groups.Count(g => g.GetProperty("kind").GetString() == AllocationKinds.Spend && g.GetProperty("key").ValueKind == JsonValueKind.Null)
+                .Should().BeLessThanOrEqualTo(1, method.Code);
+        }
+
+        var fiftyThirtyTwenty = await db.FinanceMethods.AsNoTracking().SingleAsync(m => m.Code == FinanceMethodCodes.CategoryBudget);
+        fiftyThirtyTwenty.Allocation.Should().Contain("needs_pct").And.Contain("wants_pct").And.Contain("goals_pct");
+        var rule8020 = await db.FinanceMethods.AsNoTracking().SingleAsync(m => m.Code == FinanceMethodCodes.Rule8020);
+        using var doc8020 = JsonDocument.Parse(rule8020.Allocation);
+        doc8020.RootElement.EnumerateArray().First(g => g.GetProperty("kind").GetString() == AllocationKinds.Spend)
+            .GetProperty("categories").EnumerateArray().Select(c => c.GetString()).Should().BeEquivalentTo(SpendCategories);
+    }
+
+    [Fact]
+    public async Task Seeder_FillsOnlyEmptyAllocations()
+    {
+        await using var db = await NewSeededDbAsync();
+        const string adminAllocation = """[{"key":null,"label":"Admin","kind":"spend","categories":["food"]}]""";
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE finance_methods SET allocation = CAST({adminAllocation} AS jsonb) WHERE code = {FinanceMethodCodes.CategoryBudget}");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE finance_methods SET allocation = '[]'::jsonb WHERE code = {FinanceMethodCodes.SixJars}");
+        db.ChangeTracker.Clear();   // seeder chạy lúc khởi động trên một context mới, không thấy bản cũ trong bộ nhớ
+
+        await SeedAllAsync(db);
+
+        (await db.FinanceMethods.AsNoTracking().SingleAsync(m => m.Code == FinanceMethodCodes.CategoryBudget)).Allocation
+            .Should().Contain("Admin");
+        (await db.FinanceMethods.AsNoTracking().SingleAsync(m => m.Code == FinanceMethodCodes.SixJars)).Allocation
+            .Should().Contain("necessities_pct");
+    }
+
     // ---- tính toàn vẹn của dữ liệu gieo ----
 
     [Fact]
@@ -130,7 +233,8 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
         var used = new HashSet<string>();
 
         // Câu chỉ lấy số liệu cho dự báo (không dùng để chọn cách quản lý) thì không có signal: xem SurveySeeder.
-        var dataOnly = await db.SurveyQuestions.AsNoTracking().Where(q => q.Code == "avg_monthly_spend").Select(q => q.Id).ToListAsync();
+        // Câu số liệu của kế hoạch tháng (plan_role khác null) cũng vậy.
+        var dataOnly = await db.SurveyQuestions.AsNoTracking().Where(q => q.Code == "avg_monthly_spend" || q.PlanRole != null).Select(q => q.Id).ToListAsync();
         foreach (var option in (await db.SurveyOptions.AsNoTracking().ToListAsync()).Where(o => !dataOnly.Contains(o.QuestionId)))
         {
             var signals = JsonKeys(option.Signals);

@@ -237,6 +237,37 @@ public class FinanceMethodSchemaTests : IClassFixture<ReceiptScanDbFixture>
             ForeignKeyViolation);
     }
 
+    [Fact]
+    public async Task NewSurveyAndAllocationColumns_HaveTheirDefaults_AndRejectNegativeAmounts()
+    {
+        await using var db = _fixture.NewContext();
+        var questionCode = $"q_{Guid.NewGuid():N}";
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO survey_questions (code, group_code, text, created_at, updated_at)
+            VALUES ({questionCode}, 'money', 'Q', now(), now())
+            """);
+        (await db.Database.SqlQuery<string>($"SELECT answer_type AS \"Value\" FROM survey_questions WHERE code = {questionCode}").SingleAsync())
+            .Should().Be("choice");
+
+        var method = await SeedMethodAsync(db);
+        (await db.Database.SqlQuery<string>($"SELECT allocation::text AS \"Value\" FROM finance_methods WHERE id = {method}").SingleAsync())
+            .Should().Be("[]");
+
+        var user = await SeedUserAsync(db);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO user_survey_answers (user_id, question_code, option_code, amount_vnd, answered_at, updated_at)
+            VALUES ({user}, 'income_amount', '', 12000000, now(), now())
+            """);
+        (await CountAsync(db, $"SELECT amount_vnd AS \"Value\" FROM user_survey_answers WHERE user_id = {user}")).Should().Be(12_000_000);
+
+        await ShouldViolateAsync(
+            () => db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO user_survey_answers (user_id, question_code, option_code, amount_vnd, answered_at, updated_at)
+                VALUES ({user}, 'fixed_debt', '', -1, now(), now())
+                """),
+            CheckViolation);
+    }
+
     // ---- xóa tài khoản và mục tiêu ----
 
     [Fact]

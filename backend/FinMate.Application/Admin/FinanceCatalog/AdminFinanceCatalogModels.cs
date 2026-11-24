@@ -24,9 +24,10 @@ public record AdminFinanceMethodDto(
     int Version,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    int ActiveUserCount = 0);
+    int ActiveUserCount = 0,
+    JsonElement? Allocation = null);
 
-public record AdminSurveyOptionDto(Guid Id, string Code, string Text, JsonElement? Signals, int SortOrder, bool IsActive);
+public record AdminSurveyOptionDto(Guid Id, string Code, string Text, JsonElement? Signals, int SortOrder, bool IsActive, int? ShareMinPct = null, int? ShareMaxPct = null);
 
 public record AdminSurveyQuestionDto(
     Guid Id,
@@ -36,7 +37,10 @@ public record AdminSurveyQuestionDto(
     JsonElement? ShowIf,
     int SortOrder,
     bool IsActive,
-    IReadOnlyList<AdminSurveyOptionDto> Options);
+    IReadOnlyList<AdminSurveyOptionDto> Options,
+    string AnswerType = SurveyAnswerTypes.Choice,
+    string? CategorySlug = null,
+    string? PlanRole = null);
 
 public record AdminGoalTemplateDto(
     Guid Id,
@@ -67,7 +71,8 @@ public record CreateFinanceMethodRequest(
     string WhyText,
     JsonElement StarterSteps,
     int SortOrder,
-    JsonElement? HomeLayout = null);
+    JsonElement? HomeLayout = null,
+    JsonElement? Allocation = null);
 
 /// <summary>Một loại khối giao diện trang chủ mà app biết vẽ, để màn admin liệt kê lựa chọn mà không giữ bản sao danh sách.</summary>
 /// <param name="AcceptsKeys">Có nhận <c>keys</c> (lọc theo khóa tham số) hay không.</param>
@@ -100,10 +105,12 @@ public record UpdateFinanceMethodRequest(
     string? WhyText,
     JsonElement? StarterSteps,
     int? SortOrder,
-    JsonElement? HomeLayout = null);
+    JsonElement? HomeLayout = null,
+    JsonElement? Allocation = null);
 
 /// <param name="Signals">Object {signal: trọng số nguyên 1–10}.</param>
-public record CreateSurveyOptionRequest(string Code, string Text, JsonElement Signals, int SortOrder);
+/// <param name="ShareMinPct">Khoảng % thu nhập (câu chi linh hoạt). <paramref name="ShareMaxPct"/> null = "từ min trở lên".</param>
+public record CreateSurveyOptionRequest(string Code, string Text, JsonElement Signals, int SortOrder, int? ShareMinPct = null, int? ShareMaxPct = null);
 
 /// <param name="ShowIf">Xem <c>ShowIfEvaluator</c>; null = luôn hỏi.</param>
 public record CreateSurveyQuestionRequest(
@@ -112,7 +119,10 @@ public record CreateSurveyQuestionRequest(
     string Text,
     JsonElement? ShowIf,
     int SortOrder,
-    IReadOnlyList<CreateSurveyOptionRequest> Options);
+    IReadOnlyList<CreateSurveyOptionRequest> Options,
+    string? AnswerType = null,
+    string? CategorySlug = null,
+    string? PlanRole = null);
 
 /// <param name="ClearShowIf">true = gỡ điều kiện hiển thị (câu luôn được hỏi). Cần cờ riêng vì JSON null và "không gửi" giống nhau với <c>ShowIf</c>.</param>
 public record UpdateSurveyQuestionRequest(
@@ -121,9 +131,15 @@ public record UpdateSurveyQuestionRequest(
     string? Text,
     JsonElement? ShowIf,
     bool? ClearShowIf,
-    int? SortOrder);
+    int? SortOrder,
+    string? CategorySlug = null,
+    string? PlanRole = null,
+    bool? ClearPlanRole = null,
+    bool? ClearCategorySlug = null);
 
-public record UpdateSurveyOptionRequest(string? Code, string? Text, JsonElement? Signals, int? SortOrder);
+/// <param name="ClearShareMax">true = đáp án thành "từ % tối thiểu trở lên" (bỏ % tối đa).</param>
+public record UpdateSurveyOptionRequest(
+    string? Code, string? Text, JsonElement? Signals, int? SortOrder, int? ShareMinPct = null, int? ShareMaxPct = null, bool? ClearShareMax = null);
 
 public record CreateGoalTemplateRequest(string Code, string Name, string Description, JsonElement DefaultParams);
 

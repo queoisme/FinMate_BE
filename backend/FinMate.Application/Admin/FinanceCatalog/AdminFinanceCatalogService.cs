@@ -42,6 +42,25 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         }
     }
 
+    /// <summary>Danh mục đã nằm trong bảng phân bổ đang lưu: được giữ dù sau đó bị tắt (kế hoạch tự bỏ qua danh mục đã tắt).</summary>
+    private static IEnumerable<string> AllocationSlugs(string allocationJson)
+    {
+        if (FinanceJson.ToElement(allocationJson) is not { ValueKind: JsonValueKind.Array } groups)
+        {
+            return [];
+        }
+
+        return groups.EnumerateArray()
+            .Where(g => g.ValueKind == JsonValueKind.Object && g.TryGetProperty("categories", out var c) && c.ValueKind == JsonValueKind.Array)
+            .SelectMany(g => g.GetProperty("categories").EnumerateArray())
+            .Where(c => c.ValueKind == JsonValueKind.String)
+            .Select(c => c.GetString()!)
+            .ToList();
+    }
+
+    private async Task<IReadOnlySet<string>> ActiveSystemSlugsAsync(CancellationToken ct)
+        => (await _categories.GetSystemListAsync(includeInactive: false, ct)).Select(c => c.Slug).ToHashSet();
+
     // ================= cách quản lý =================
 
     public async Task<PagedResult<AdminFinanceMethodDto>> ListMethodsAsync(bool includeInactive, string? search, int offset, int limit, CancellationToken ct = default)
@@ -76,6 +95,11 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             await ValidateJarCategoriesAsync(v, homeLayout, ct);
         }
 
+        if (request.Allocation is { } allocation)
+        {
+            v.Allocation("allocation", allocation, request.ParamDefs, await ActiveSystemSlugsAsync(ct));
+        }
+
         v.ThrowIfInvalid();
 
         if (await _methods.GetMethodByCodeAsync(request.Code, ct) is not null)
@@ -97,6 +121,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             WhyText = request.WhyText.Trim(),
             StarterSteps = request.StarterSteps.GetRawText(),
             HomeLayout = request.HomeLayout?.GetRawText() ?? FinanceHomeBlocks.DefaultLayout,
+            Allocation = request.Allocation?.GetRawText() ?? "[]",
             SortOrder = request.SortOrder,
             IsActive = true,
             Version = 1,
@@ -137,6 +162,18 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             }
         }
 
+        if (request.Allocation is not null || request.ParamDefs is not null)
+        {
+            // Như bố cục: đổi paramDefs có thể làm nhóm đang lưu trỏ tới tham số không còn — kiểm bảng phân bổ HIỆU LỰC.
+            var allocation = request.Allocation ?? FinanceJson.ToElement(method.Allocation);
+            var defs = request.ParamDefs ?? FinanceJson.ToElement(method.ParamDefs);
+            if (allocation is { } effectiveAllocation && defs is { } effectiveDefs)
+            {
+                var allowed = (await ActiveSystemSlugsAsync(ct)).Union(AllocationSlugs(method.Allocation)).ToHashSet();
+                v.Allocation("allocation", effectiveAllocation, effectiveDefs, allowed);
+            }
+        }
+
         v.ThrowIfInvalid();
 
         var changed = new List<string>();
@@ -150,6 +187,7 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         ApplyJson(changed, "eligibility", request.Eligibility, method.Eligibility, x => method.Eligibility = x);
         ApplyJson(changed, "starterSteps", request.StarterSteps, method.StarterSteps, x => method.StarterSteps = x);
         ApplyJson(changed, "homeLayout", request.HomeLayout, method.HomeLayout, x => method.HomeLayout = x);
+        ApplyJson(changed, "allocation", request.Allocation, method.Allocation, x => method.Allocation = x);
 
         if (changed.Count > 0)
         {
@@ -265,7 +303,22 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             v.ShowIf("showIf", showIf, existing, request.SortOrder, request.Code);
         }
 
-        ValidateNewOptions(v, request.Options);
+        var answerType = request.AnswerType ?? SurveyAnswerTypes.Choice;
+        if (answerType == SurveyAnswerTypes.Amount)
+        {
+            if (request.Options.Count > 0)
+            {
+                v.Add("options", "Câu nhập số tiền không có đáp án.");
+            }
+        }
+        else
+        {
+            ValidateNewOptions(v, request.Options);
+        }
+
+        v.SurveyPlanFields(
+            answerType, request.PlanRole, request.CategorySlug,
+            request.Options.Select(o => (o.ShareMinPct, o.ShareMaxPct)).ToList(), await ActiveSystemSlugsAsync(ct));
         v.ThrowIfInvalid();
 
         if (existing.Any(q => q.Code == request.Code))
@@ -281,6 +334,9 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             GroupCode = request.GroupCode,
             Text = request.Text.Trim(),
             ShowIf = request.ShowIf is { ValueKind: not JsonValueKind.Null } s ? s.GetRawText() : null,
+            AnswerType = answerType,
+            CategorySlug = request.CategorySlug,
+            PlanRole = request.PlanRole,
             SortOrder = request.SortOrder,
             IsActive = true,
             CreatedAt = now,
@@ -310,9 +366,30 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
             v.ShowIf("showIf", showIf, await _surveys.GetQuestionsAsync(includeInactive: true, ct), sortOrder, question.Code);
         }
 
+        var planRole = request.ClearPlanRole == true ? null : request.PlanRole ?? question.PlanRole;
+        var categorySlug = request.ClearCategorySlug == true ? null : request.CategorySlug ?? question.CategorySlug;
+        if (planRole != question.PlanRole || categorySlug != question.CategorySlug)
+        {
+            // Loại câu (answerType) bất biến sau khi tạo: câu trả lời đã lưu (mã đáp án hay số tiền) phụ thuộc vào nó.
+            var activeShares = (await _surveys.GetOptionsAsync(includeInactive: false, ct))
+                .Where(o => o.QuestionId == question.Id).OrderBy(o => o.SortOrder).Select(o => (o.ShareMinPct, o.ShareMaxPct)).ToList();
+            v.SurveyPlanFields(question.AnswerType, planRole, categorySlug, activeShares, await ActiveSystemSlugsAsync(ct));
+        }
+
         v.ThrowIfInvalid();
 
         var changed = new List<string>();
+        if (planRole != question.PlanRole)
+        {
+            question.PlanRole = planRole;
+            changed.Add("planRole");
+        }
+
+        if (categorySlug != question.CategorySlug)
+        {
+            question.CategorySlug = categorySlug;
+            changed.Add("categorySlug");
+        }
         Apply(changed, "groupCode", request.GroupCode, question.GroupCode, x => question.GroupCode = x);
         Apply(changed, "text", request.Text?.Trim(), question.Text, x => question.Text = x);
         ApplyValue(changed, "sortOrder", request.SortOrder, question.SortOrder, x => question.SortOrder = x);
@@ -359,6 +436,15 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
 
         var v = new FinanceCatalogValidation();
         ValidateOption(v, "option", request);
+        if (question.AnswerType == SurveyAnswerTypes.Amount)
+        {
+            v.Add("option", "Câu nhập số tiền không có đáp án.");
+        }
+        else if (question.PlanRole == SurveyPlanRoles.Flexible)
+        {
+            v.ShareRange("option", request.ShareMinPct, request.ShareMaxPct);
+        }
+
         v.ThrowIfInvalid();
 
         var siblings = await _surveys.GetOptionsAsync(includeInactive: true, ct);
@@ -383,9 +469,23 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         if (request.Text is not null) { v.Text("text", request.Text, 500); }
         if (request.Signals is { } signals) { v.SignalMap("signals", signals); }
         if (request.SortOrder is { } order) { v.SortOrder("sortOrder", order); }
+        var shareMin = request.ShareMinPct ?? option.ShareMinPct;
+        var shareMax = request.ClearShareMax == true ? null : request.ShareMaxPct ?? option.ShareMaxPct;
+        if (question.PlanRole == SurveyPlanRoles.Flexible && (request.ShareMinPct is not null || request.ShareMaxPct is not null || request.ClearShareMax == true))
+        {
+            v.ShareRange("option", shareMin, shareMax);
+        }
+
         v.ThrowIfInvalid();
 
         var changed = new List<string>();
+        if (shareMin != option.ShareMinPct || shareMax != option.ShareMaxPct)
+        {
+            option.ShareMinPct = shareMin;
+            option.ShareMaxPct = shareMax;
+            changed.Add("share");
+        }
+
         Apply(changed, "text", request.Text?.Trim(), option.Text, x => option.Text = x);
         ApplyValue(changed, "sortOrder", request.SortOrder, option.SortOrder, x => option.SortOrder = x);
         ApplyJson(changed, "signals", request.Signals, option.Signals, x => option.Signals = x);
@@ -524,6 +624,8 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         Code = request.Code,
         Text = request.Text.Trim(),
         Signals = request.Signals.GetRawText(),
+        ShareMinPct = request.ShareMinPct,
+        ShareMaxPct = request.ShareMaxPct,
         SortOrder = request.SortOrder,
         IsActive = true,
         CreatedAt = now,
@@ -639,7 +741,8 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         m.Version,
         m.CreatedAt,
         m.UpdatedAt,
-        activeUsers);
+        activeUsers,
+        FinanceJson.ToElement(m.Allocation));
 
     private static AdminSurveyQuestionDto ToDto(SurveyQuestion q, IEnumerable<SurveyOption> options) => new(
         q.Id,
@@ -650,7 +753,10 @@ public class AdminFinanceCatalogService : IAdminFinanceCatalogService
         q.SortOrder,
         q.IsActive,
         options.OrderBy(o => o.SortOrder).Select(o => new AdminSurveyOptionDto(
-            o.Id, o.Code, o.Text, FinanceJson.ToElement(o.Signals), o.SortOrder, o.IsActive)).ToList());
+            o.Id, o.Code, o.Text, FinanceJson.ToElement(o.Signals), o.SortOrder, o.IsActive, o.ShareMinPct, o.ShareMaxPct)).ToList(),
+        q.AnswerType,
+        q.CategorySlug,
+        q.PlanRole);
 
     private static AdminGoalTemplateDto ToDto(GoalTemplate t) => new(
         t.Id, t.Code, t.Name, t.Description, FinanceJson.ToElement(t.DefaultParams), t.IsActive, t.CreatedAt, t.UpdatedAt);

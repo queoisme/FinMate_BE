@@ -21,10 +21,13 @@ public class MyFinanceController : ControllerBase
     private readonly IAlertThresholdSettingsService _thresholds;
     private readonly IJarService _jars;
     private readonly IDataCoverageService _coverage;
+    private readonly IFinancialPlanService _plan;
 
     public MyFinanceController(
-        IUserMethodService userMethods, IGoalPlanningService planning, IAlertThresholdSettingsService thresholds, IJarService jars, IDataCoverageService coverage)
+        IUserMethodService userMethods, IGoalPlanningService planning, IAlertThresholdSettingsService thresholds, IJarService jars, IDataCoverageService coverage,
+        IFinancialPlanService plan)
     {
+        _plan = plan;
         _coverage = coverage;
         _userMethods = userMethods;
         _planning = planning;
@@ -96,6 +99,14 @@ public class MyFinanceController : ControllerBase
     [HttpGet("jars")]
     public async Task<IActionResult> GetJars(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<JarSetDto>>.Ok(await _jars.GetMineAsync(CurrentUserId, ct)));
+
+    /// <summary>
+    /// Bản nháp kế hoạch tháng từ khảo sát và cách quản lý chính: thu → cố định → hạn mức từng danh mục → dư. Không lưu gì;
+    /// áp dụng qua <c>POST /forecast/categories/apply</c>.
+    /// </summary>
+    [HttpGet("financial-plan/draft")]
+    public async Task<IActionResult> GetFinancialPlanDraft(CancellationToken ct)
+        => Ok(ApiResponse<FinancialPlanDto>.Ok(await _plan.GetDraftAsync(CurrentUserId, ct)));
 
     /// <summary>Tiền khả dụng của tháng này, tính một chỗ theo cách mục tiêu đi vào dòng tiền của cách chính.</summary>
     [HttpGet("spendable")]

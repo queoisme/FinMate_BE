@@ -1319,6 +1319,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("Allocation")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("allocation")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1420,6 +1427,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("finance_methods", null, t =>
                         {
+                            t.HasCheckConstraint("chk_finance_methods_allocation", "jsonb_typeof(allocation) = 'array'");
+
                             t.HasCheckConstraint("chk_finance_methods_eligibility", "jsonb_typeof(eligibility) = 'object'");
 
                             t.HasCheckConstraint("chk_finance_methods_goal_mode", "goal_mode IN ('reserve_first','envelope','available_to_spend','track_only')");
@@ -5522,6 +5531,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("question_id");
 
+                    b.Property<int?>("ShareMaxPct")
+                        .HasColumnType("integer")
+                        .HasColumnName("share_max_pct");
+
+                    b.Property<int?>("ShareMinPct")
+                        .HasColumnType("integer")
+                        .HasColumnName("share_min_pct");
+
                     b.Property<string>("Signals")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -5565,6 +5582,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("AnswerType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("choice")
+                        .HasColumnName("answer_type");
+
+                    b.Property<string>("CategorySlug")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("category_slug");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -5586,6 +5616,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
+
+                    b.Property<string>("PlanRole")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("plan_role");
 
                     b.Property<string>("ShowIf")
                         .HasColumnType("jsonb")
@@ -6578,6 +6613,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<long?>("AmountVnd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_vnd");
+
                     b.Property<DateTimeOffset>("AnsweredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("answered_at");
@@ -6608,7 +6647,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_user_survey_answers_user_question");
 
-                    b.ToTable("user_survey_answers", (string)null);
+                    b.ToTable("user_survey_answers", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_user_survey_answers_amount", "amount_vnd IS NULL OR amount_vnd >= 0");
+                        });
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.VietQrBank", b =>

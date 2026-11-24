@@ -27,6 +27,7 @@ public class FinanceMethodConfiguration : IEntityTypeConfiguration<FinanceMethod
                 "chk_finance_methods_goal_mode",
                 "goal_mode IN ('reserve_first','envelope','available_to_spend','track_only')");
             t.HasCheckConstraint("chk_finance_methods_param_defs", "jsonb_typeof(param_defs) = 'array'");
+            t.HasCheckConstraint("chk_finance_methods_allocation", "jsonb_typeof(allocation) = 'array'");
             t.HasCheckConstraint("chk_finance_methods_eligibility", "jsonb_typeof(eligibility) = 'object'");
             t.HasCheckConstraint("chk_finance_methods_starter_steps", "jsonb_typeof(starter_steps) = 'array'");
             t.HasCheckConstraint("chk_finance_methods_home_layout", "jsonb_typeof(home_layout) = 'array'");
@@ -76,6 +77,12 @@ public class FinanceMethodConfiguration : IEntityTypeConfiguration<FinanceMethod
 
         builder.Property(m => m.HomeLayout)
             .HasColumnName("home_layout")
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'[]'::jsonb")
+            .IsRequired();
+
+        builder.Property(m => m.Allocation)
+            .HasColumnName("allocation")
             .HasColumnType("jsonb")
             .HasDefaultValueSql("'[]'::jsonb")
             .IsRequired();

@@ -96,6 +96,35 @@ public static class FinanceMethodCodes
     public const string ZeroBased = "zero_based_budget";
 }
 
+/// <summary>Cách trả lời một câu khảo sát (<c>survey_questions.answer_type</c>).</summary>
+public static class SurveyAnswerTypes
+{
+    public const string Choice = "choice";
+    public const string Amount = "amount";
+
+    public static readonly IReadOnlyList<string> All = [Choice, Amount];
+}
+
+/// <summary>Vai trò của câu khảo sát trong kế hoạch tháng (<c>survey_questions.plan_role</c>).</summary>
+public static class SurveyPlanRoles
+{
+    public const string Income = "income";
+    public const string Fixed = "fixed";
+    public const string Flexible = "flexible";
+    public const string SavingsBalance = "savings_balance";
+
+    public static readonly IReadOnlyList<string> All = [Income, Fixed, Flexible, SavingsBalance];
+}
+
+/// <summary>Loại nhóm trong <c>finance_methods.allocation</c>.</summary>
+public static class AllocationKinds
+{
+    public const string Spend = "spend";
+    public const string Save = "save";
+
+    public static readonly IReadOnlyList<string> All = [Spend, Save];
+}
+
 /// <summary>Mã của các mẫu mục tiêu ban đầu (<c>goal_templates.code</c>, bất biến).</summary>
 public static class GoalTemplateCodes
 {

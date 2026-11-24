@@ -11,6 +11,9 @@ public class UserSurveyAnswer
     public Guid UserId { get; set; }
     public string QuestionCode { get; set; } = string.Empty;
     public string OptionCode { get; set; } = string.Empty;
+    /// <summary>Đáp án của câu nhập số tiền (đồng); khi đó <see cref="OptionCode"/> rỗng.</summary>
+    public long? AmountVnd { get; set; }
+
     public DateTimeOffset AnsweredAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -36,6 +36,12 @@ public class FinanceMethod
     /// <summary>JSON array khối giao diện trang chủ khi người dùng đang dùng cách này: [{type, title?, keys?, display?}]. Loại khối: <see cref="FinanceHomeBlocks"/>.</summary>
     public string HomeLayout { get; set; } = FinanceHomeBlocks.DefaultLayout;
 
+    /// <summary>
+    /// JSON array bảng phân bổ dùng cho kế hoạch tháng: [{key, label, kind, categories}]. <c>key</c> là một tham số percent của chính phương pháp
+    /// (null = nhóm chi "phần còn lại", không có trần); <c>kind</c>: <see cref="AllocationKinds"/>.
+    /// </summary>
+    public string Allocation { get; set; } = "[]";
+
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 

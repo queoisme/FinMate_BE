@@ -25,6 +25,9 @@ public class SurveyService : ISurveyService
         _cache = cache;
     }
 
+    /// <summary>Trần của một câu trả lời số tiền (100 tỷ đồng), cùng trần với số tiền ở các công cụ của agent.</summary>
+    public const long MaxAmountVnd = 100_000_000_000;
+
     public async Task<SurveyDto> GetAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await LoadUserAsync(userId, ct);
@@ -47,25 +50,37 @@ public class SurveyService : ISurveyService
         var questions = (await _surveys.GetQuestionsAsync(includeInactive: false, ct)).OrderBy(q => q.SortOrder).ToList();
         var options = await _surveys.GetOptionsAsync(includeInactive: false, ct);
 
-        var submitted = answers.ToDictionary(a => a.QuestionCode, a => a.OptionCode);
-        foreach (var (questionCode, optionCode) in submitted)
+        var submitted = answers.ToDictionary(a => a.QuestionCode);
+        foreach (var answer in answers)
         {
-            var question = questions.FirstOrDefault(q => q.Code == questionCode)
-                ?? throw new BusinessRuleException(FinanceErrorCodes.SurveyAnswerInvalid, $"Câu hỏi '{questionCode}' không tồn tại hoặc đã tắt.");
-            if (!options.Any(o => o.QuestionId == question.Id && o.Code == optionCode))
+            var question = questions.FirstOrDefault(q => q.Code == answer.QuestionCode)
+                ?? throw new BusinessRuleException(FinanceErrorCodes.SurveyAnswerInvalid, $"Câu hỏi '{answer.QuestionCode}' không tồn tại hoặc đã tắt.");
+            if (question.AnswerType == SurveyAnswerTypes.Amount)
             {
-                throw new BusinessRuleException(FinanceErrorCodes.SurveyAnswerInvalid, $"Đáp án '{optionCode}' không thuộc câu hỏi '{questionCode}'.");
+                if (!string.IsNullOrEmpty(answer.OptionCode) || answer.AmountVnd is not (>= 0 and <= MaxAmountVnd))
+                {
+                    throw new BusinessRuleException(FinanceErrorCodes.SurveyAnswerInvalid, $"Câu hỏi '{answer.QuestionCode}' cần một số tiền từ 0 đến 100 tỷ đồng.");
+                }
+            }
+            else if (answer.AmountVnd is not null || !options.Any(o => o.QuestionId == question.Id && o.Code == answer.OptionCode))
+            {
+                throw new BusinessRuleException(FinanceErrorCodes.SurveyAnswerInvalid, $"Đáp án '{answer.OptionCode}' không thuộc câu hỏi '{answer.QuestionCode}'.");
             }
         }
 
         // Duyệt theo thứ tự câu hỏi: câu chỉ được giữ khi điều kiện hiển thị của nó đúng với các câu TRƯỚC đã giữ. Client gửi bộ đáp án cũ của một câu
-        // vừa bị ẩn (vì người dùng đổi câu trước đó) thì bỏ, không để nó lọt vào signals.
-        var kept = new Dictionary<string, string>();
+        // vừa bị ẩn (vì người dùng đổi câu trước đó) thì bỏ, không để nó lọt vào signals. Điều kiện chỉ đọc mã đáp án của câu choice.
+        var kept = new Dictionary<string, SurveyAnswerDto>();
+        var keptOptions = new Dictionary<string, string>();
         foreach (var question in questions)
         {
-            if (submitted.TryGetValue(question.Code, out var optionCode) && ShowIfEvaluator.IsVisible(question.ShowIf, kept))
+            if (submitted.TryGetValue(question.Code, out var answer) && ShowIfEvaluator.IsVisible(question.ShowIf, keptOptions))
             {
-                kept[question.Code] = optionCode;
+                kept[question.Code] = answer;
+                if (answer.OptionCode is { Length: > 0 } optionCode)
+                {
+                    keptOptions[question.Code] = optionCode;
+                }
             }
         }
 
@@ -82,11 +97,19 @@ public class SurveyService : ISurveyService
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 QuestionCode = a.Key,
-                OptionCode = a.Value,
+                OptionCode = a.Value.OptionCode ?? string.Empty,
+                AmountVnd = a.Value.AmountVnd,
                 AnsweredAt = now,
                 UpdatedAt = now,
             }).ToList(),
             ct);
+
+        // Thu nhập khai trong khảo sát là thu nhập dự kiến mới nhất của người dùng: ghi vào hồ sơ cùng lần lưu trạng thái.
+        var incomeQuestion = questions.FirstOrDefault(q => q.PlanRole == SurveyPlanRoles.Income && kept.ContainsKey(q.Code));
+        if (incomeQuestion is not null)
+        {
+            user.MonthlyIncomeCents = kept[incomeQuestion.Code].AmountVnd is > 0 and var income ? income : null;   // 0 = chưa khai, như màn hồ sơ
+        }
 
         await SetStatusAsync(user, OnboardingStatus.Completed, now, ct);
         return await BuildAsync(user, ct);
@@ -151,7 +174,10 @@ public class SurveyService : ISurveyService
                 q.GroupCode,
                 q.Text,
                 FinanceJson.ToElement(q.ShowIf),
-                options.GetValueOrDefault(q.Id, []).Select(o => new SurveyOptionDto(o.Code, o.Text)).ToList())).ToList(),
-            answers.Select(a => new SurveyAnswerDto(a.QuestionCode, a.OptionCode)).ToList());
+                options.GetValueOrDefault(q.Id, []).Select(o => new SurveyOptionDto(o.Code, o.Text, o.ShareMinPct, o.ShareMaxPct)).ToList(),
+                q.AnswerType,
+                q.CategorySlug,
+                q.PlanRole)).ToList(),
+            answers.Select(a => new SurveyAnswerDto(a.QuestionCode, a.AmountVnd is null ? a.OptionCode : null, a.AmountVnd)).ToList());
     }
 }

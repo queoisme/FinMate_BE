@@ -8,7 +8,8 @@ public class UserSurveyAnswerConfiguration : IEntityTypeConfiguration<UserSurvey
 {
     public void Configure(EntityTypeBuilder<UserSurveyAnswer> builder)
     {
-        builder.ToTable("user_survey_answers");
+        builder.ToTable("user_survey_answers", t => t.HasCheckConstraint(
+            "chk_user_survey_answers_amount", "amount_vnd IS NULL OR amount_vnd >= 0"));
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id)
@@ -18,6 +19,7 @@ public class UserSurveyAnswerConfiguration : IEntityTypeConfiguration<UserSurvey
         builder.Property(a => a.UserId).HasColumnName("user_id").IsRequired();
         builder.Property(a => a.QuestionCode).HasColumnName("question_code").HasMaxLength(50).IsRequired();
         builder.Property(a => a.OptionCode).HasColumnName("option_code").HasMaxLength(10).IsRequired();
+        builder.Property(a => a.AmountVnd).HasColumnName("amount_vnd");
         builder.Property(a => a.AnsweredAt).HasColumnName("answered_at").IsRequired();
         builder.Property(a => a.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
