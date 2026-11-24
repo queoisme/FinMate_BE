@@ -3,7 +3,9 @@ using FinMate.Application.Agent;
 
 namespace FinMate.Application.Common.Interfaces;
 
-public sealed record AgentGateResult(bool InScope, string ReasonCode, string? RefusalText);
+/// <param name="DirectTool">Câu hỏi quen về dữ liệu quản lý: luật đã chọn sẵn công cụ, backend bỏ lượt LLM lập kế hoạch (rẻ hơn, nhanh hơn, không phụ thuộc LLM ở bước đầu). null = để LLM lập kế hoạch.</param>
+/// <param name="DirectArgs">Tham số nguyên của <paramref name="DirectTool"/> (vd <c>months</c>); rỗng nếu công cụ không có tham số.</param>
+public sealed record AgentGateResult(bool InScope, string ReasonCode, string? RefusalText, string? DirectTool = null, IReadOnlyDictionary<string, long>? DirectArgs = null);
 
 /// <summary>Công cụ nào bị từ chối vì sao ("invalid_argument:price_vnd"): bộ lập kế hoạch đọc để sửa tham số ở lần lập lại.</summary>
 public sealed record AgentPlanFeedback(string Tool, string Code);

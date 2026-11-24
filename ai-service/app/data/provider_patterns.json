@@ -30,6 +30,46 @@
     "notes": "VCB tách Ref và ND thành hai cụm; cả hai đều có thể vắng."
   },
   {
+    "provider_key": "vietcombank",
+    "package_name": "com.VCB",
+    "pattern_name": "vcb_v2_ref_narrative",
+    "transaction_type": null,
+    "priority": 20,
+    "regex": "So du TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*luc\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*So du\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*Ref\\s*(?P<ref>[\\w.]+?)-\\s*(?P<merchant>.+?)\\s+chuyen tien(?:\\s+qua\\s+\\w+)?(?:\\s*-\\s*(?P<description>[^-]+?))?\\s*(?:-.*)?$",
+    "sample_text": "So du TK VCB 0011001234567 +5,000 VND luc 23-11-2026 03:53:11. So du 10,000 VND. Ref 158245989977-LE MINH TUAN chuyen tien qua MoMo-CHUYEN TIEN-OQCH000P3Sby-MOMO158245989977MOMO#SP#0200970422112303531020260AB6915637.5389.22283.035311",
+    "notes": "Ref có dạng <mã>-<người chuyển> chuyen tien [qua <kênh>]-<nội dung>-<mã giao dịch ngân hàng gửi>. Mã GD phía sau bị bỏ: dài, vô nghĩa với người dùng. vcb_v1 (không có người chuyển) được thử trước."
+  },
+  {
+    "provider_key": "vietcombank",
+    "package_name": "com.VCB",
+    "pattern_name": "vcb_v3_ref_free_text",
+    "transaction_type": null,
+    "priority": 30,
+    "regex": "So du TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>[-+])(?P<amount>[\\d.,]+)\\s*VND\\s*luc\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*So du\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*Ref\\s*(?P<ref>[\\w.]+?)-\\s*(?P<description>[^-]+?)\\s*(?:-.*)?$",
+    "sample_text": "So du TK VCB 0011001234567 +750,000 VND luc 23-11-2026 09:30:00. So du 2,000,000 VND. Ref 55512345-NGUYEN VAN B thanh toan hoc phi-MA GD 0042",
+    "notes": "Dự phòng cho Ref dạng <mã>-<chữ tự do> không có cụm 'chuyen tien': số tiền, chiều và số dư vẫn đúng, nội dung chỉ lấy tới dấu gạch kế tiếp thay vì nhét cả câu vào ghi chú. Thử sau vcb_v1 và vcb_v2."
+  },
+  {
+    "provider_key": "vietcombank",
+    "package_name": "com.VCB",
+    "pattern_name": "vcb_v4_ref_mbvcb_out",
+    "transaction_type": null,
+    "priority": 40,
+    "regex": "So du TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>-)(?P<amount>[\\d.,]+)\\s*VND\\s*luc\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*So du\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*Ref\\s*(?P<ref>[A-Za-z]+(?:\\.\\d+)+)\\.\\s*(?P<description>.*?)\\s*\\.?\\s*CT\\s+tu\\s+\\S+\\s+(?P<payer>.+?)\\s+toi\\s+\\S+\\s+(?P<merchant>.+?)(?:\\s+tai\\s+.+?)?\\s*$",
+    "sample_text": "So du TK VCB 9982815244 -40,000 VND luc 23-11-2026 16:16:02. So du 00 VND. Ref MBVCB.17184288636.673829.mua com.CT tu 9982815244 LE MINH TUAN toi 6353866323 LE MINH TUAN tai BIDV",
+    "notes": "Chuyển đi: Ref <MBVCB.mã.mã>.<nội dung>.CT tu <TK gửi> <tên gửi> toi <TK nhận> <tên nhận> [tai <ngân hàng>]. Đối ứng (merchant) là người NHẬN. Nội dung có thể rỗng."
+  },
+  {
+    "provider_key": "vietcombank",
+    "package_name": "com.VCB",
+    "pattern_name": "vcb_v4_ref_mbvcb_in",
+    "transaction_type": null,
+    "priority": 41,
+    "regex": "So du TK\\s*(?:VCB)?\\s*(?P<account>[\\dx*]+)\\s*(?P<sign>\\+)(?P<amount>[\\d.,]+)\\s*VND\\s*luc\\s*(?P<occurred_at>\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)\\.?\\s*So du\\s*(?P<balance>[\\d.,]+)\\s*VND\\.?\\s*Ref\\s*(?P<ref>[A-Za-z]+(?:\\.\\d+)+)\\.\\s*(?P<description>.*?)\\s*\\.?\\s*CT\\s+tu\\s+\\S+\\s+(?P<merchant>.+?)\\s+toi\\s+\\S+\\s+(?P<receiver>.+?)(?:\\s+tai\\s+.+?)?\\s*$",
+    "sample_text": "So du TK VCB 9982815244 +40,000 VND luc 23-11-2026 16:16:02. So du 140,000 VND. Ref MBVCB.17184288636.673829.tra no.CT tu 6353866323 NGUYEN VAN A toi 9982815244 LE MINH TUAN tai BIDV",
+    "notes": "Chuyển đến: cùng khuôn với vcb_v4_ref_mbvcb_out nhưng đối ứng (merchant) là người GỬI, đứng sau 'CT tu'."
+  },
+  {
     "provider_key": "momo",
     "package_name": "com.mservice.momotransfer",
     "pattern_name": "momo_payment_v1",

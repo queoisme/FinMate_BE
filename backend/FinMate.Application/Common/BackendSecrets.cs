@@ -12,19 +12,21 @@ public static class BackendSecrets
     public const string BrevoSenderEmail = "brevo_sender_email";
     public const string GoogleClientSecret = "google_client_secret";
     public const string FcmCredentialsJson = "fcm_credentials_json";
+    public const string FirebaseStorageBucket = "firebase_storage_bucket";
     public const string SepaySecretKey = "sepay_secret_key";
     public const string SepayIpnSecretKey = "sepay_ipn_secret_key";
 
     public const int MaxLength = 8192;
 
-    public sealed record Definition(string Name, string Title, string EnvVar, Func<string, string?> Validate, bool Multiline = false);
+    public sealed record Definition(string Name, string Title, string EnvVar, Func<string, string?> Validate, bool Multiline = false, bool Plain = false, string? Placeholder = null);
 
     public static readonly IReadOnlyList<Definition> All =
     [
         new(BrevoApiKey, "Brevo API key (gửi email OTP)", "BREVO_API_KEY", ValidateToken),
-        new(BrevoSenderEmail, "Email người gửi Brevo (phải là email đã xác minh trên Brevo)", "BREVO_SENDER_EMAIL", ValidateEmail),
+        new(BrevoSenderEmail, "Email người gửi Brevo (phải là email đã xác minh trên Brevo)", "BREVO_SENDER_EMAIL", ValidateEmail, Plain: true, Placeholder: "no-reply@ten-mien.com"),
         new(GoogleClientSecret, "Google OAuth client secret (đăng nhập Google)", "GOOGLE_CLIENT_SECRET", ValidateToken),
         new(FcmCredentialsJson, "Firebase service account JSON (thông báo đẩy FCM)", "FCM_CREDENTIALS_JSON", ValidateServiceAccount, Multiline: true),
+        new(FirebaseStorageBucket, "Firebase Storage bucket (lưu logo ứng dụng)", "FIREBASE_STORAGE_BUCKET", ValidateBucket, Plain: true, Placeholder: "ten-du-an.firebasestorage.app"),
         new(SepaySecretKey, "SePay secret key (ký form, tra đơn)", "SEPAY_SECRET_KEY", ValidateToken),
         new(SepayIpnSecretKey, "SePay IPN secret key (xác thực thông báo thanh toán)", "SEPAY_IPN_SECRET_KEY", ValidateToken),
     ];
@@ -34,6 +36,9 @@ public static class BackendSecrets
     /// <summary>Trả lý do từ chối (tiếng Việt, không chứa giá trị) hoặc null nếu hợp lệ.</summary>
     private static string? ValidateToken(string value)
         => value.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)) ? "Key không được chứa khoảng trắng hay ký tự điều khiển." : null;
+
+    private static string? ValidateBucket(string value)
+        => System.Text.RegularExpressions.Regex.IsMatch(value, @"^[a-z0-9][a-z0-9._-]{2,221}$") ? null : "Tên bucket chỉ gồm chữ thường, số, dấu chấm, gạch ngang hoặc gạch dưới, ví dụ ten-du-an.firebasestorage.app.";
 
     private static string? ValidateEmail(string value)
         => System.Net.Mail.MailAddress.TryCreate(value, out var a) && a.Address == value ? null : "Phải là một địa chỉ email hợp lệ.";

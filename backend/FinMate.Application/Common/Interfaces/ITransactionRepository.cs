@@ -78,6 +78,9 @@ public interface ITransactionRepository
     Task AddAsync(Transaction transaction, CancellationToken ct = default);
     Task UpdateAsync(Transaction transaction, CancellationToken ct = default);
     Task<bool> HasAnyForAccountAsync(Guid financialAccountId, CancellationToken ct = default);
+
+    /// <summary>Ví có giao dịch ĐÃ XÁC NHẬN, chưa xoá, xảy ra sau <paramref name="after"/> (không tính <paramref name="excludeId"/>)? Dùng để biết số dư ngân hàng ghi trong một thông báo còn là số dư mới nhất của ví hay không.</summary>
+    Task<bool> HasConfirmedAfterAsync(Guid financialAccountId, DateTimeOffset after, Guid excludeId, CancellationToken ct = default);
     Task<bool> HasAnyForCategoryAsync(Guid categoryId, CancellationToken ct = default);
 
     /// <summary>

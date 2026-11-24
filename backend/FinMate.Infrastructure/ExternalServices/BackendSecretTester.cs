@@ -58,6 +58,7 @@ public class BackendSecretTester : ISecretTester
                 BackendSecrets.BrevoSenderEmail => new SecretTestResult(true, "Đã lưu. Gửi thử một mã OTP để biết Brevo có chấp nhận người gửi này."),
                 BackendSecrets.GoogleClientSecret => await TestGoogleAsync(value!, ct),
                 BackendSecrets.FcmCredentialsJson => await TestFirebaseAsync(ct),
+                BackendSecrets.FirebaseStorageBucket => await TestBucketAsync(value!, ct),
                 BackendSecrets.SepaySecretKey => await TestSepayAsync(ct),
                 _ => new SecretTestResult(false, "Không có cách thử cho key này."),
             };
@@ -115,6 +116,23 @@ public class BackendSecretTester : ISecretTester
             "invalid_client" or "unauthorized_client" => new SecretTestResult(false, "Google từ chối Client ID hoặc secret."),
             _ => new SecretTestResult(false, $"Google trả kết quả không đoán được (HTTP {(int)response.StatusCode})."),
         };
+    }
+
+    /// <summary>Đọc metadata của bucket (chỉ đọc): 404 là sai tên, 403 là service account chưa có quyền với bucket.</summary>
+    private async Task<SecretTestResult> TestBucketAsync(string bucket, CancellationToken ct)
+    {
+        var token = await _fcm.AccessTokenAsync(FirebaseBrandLogoStorage.Scope, ct);
+        if (token is null)
+        {
+            return new SecretTestResult(false, "Cần lưu Firebase service account JSON trước khi thử bucket.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://storage.googleapis.com/storage/v1/b/{Uri.EscapeDataString(bucket)}?fields=name");
+        request.Headers.Authorization = new("Bearer", token);
+        using var response = await _http.CreateClient("firebase-storage").SendAsync(request, ct);
+        return response.IsSuccessStatusCode
+            ? new SecretTestResult(true, "Bucket truy cập được.")
+            : new SecretTestResult(false, (int)response.StatusCode switch { 404 => "Không tìm thấy bucket này. Kiểm tra lại tên.", 401 or 403 => "Service account chưa có quyền với bucket (cần Storage Object Admin).", var code => $"Google Storage trả HTTP {code}." });
     }
 
     private async Task<SecretTestResult> TestFirebaseAsync(CancellationToken ct)

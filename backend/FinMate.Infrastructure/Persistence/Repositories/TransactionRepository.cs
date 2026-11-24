@@ -163,6 +163,12 @@ public class TransactionRepository : ITransactionRepository
             t => t.FinancialAccountId == financialAccountId || t.CounterAccountId == financialAccountId,
             ct);
 
+    public Task<bool> HasConfirmedAfterAsync(Guid financialAccountId, DateTimeOffset after, Guid excludeId, CancellationToken ct = default)
+        => _context.Transactions.AnyAsync(
+            t => (t.FinancialAccountId == financialAccountId || t.CounterAccountId == financialAccountId)
+                 && t.Id != excludeId && t.Status == TransactionStatus.Confirmed && t.DeletedAt == null && t.TransactedAt > after,
+            ct);
+
     public Task<bool> HasAnyForCategoryAsync(Guid categoryId, CancellationToken ct = default)
         => _context.Transactions.AnyAsync(t => t.CategoryId == categoryId, ct);
 

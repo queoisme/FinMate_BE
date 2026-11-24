@@ -16,6 +16,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
             t.HasCheckConstraint("chk_saving_goals_initial_saved_cents", "initial_saved_cents >= 0");
             t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
             t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
+            t.HasCheckConstraint(
+                "chk_saving_goals_market",
+                "(market_topic IS NULL AND market_baseline_cents IS NULL AND market_baseline_at IS NULL) OR (market_topic IS NOT NULL AND market_baseline_cents > 0 AND market_baseline_at IS NOT NULL AND user_id IS NOT NULL)");
         });
 
         builder.HasKey(g => g.Id);
@@ -54,6 +57,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
 
         builder.Property(g => g.GoalTemplateId).HasColumnName("goal_template_id");
         builder.Property(g => g.UserMethodId).HasColumnName("user_method_id");
+        builder.Property(g => g.MarketTopic).HasColumnName("market_topic").HasMaxLength(32);
+        builder.Property(g => g.MarketBaselineCents).HasColumnName("market_baseline_cents");
+        builder.Property(g => g.MarketBaselineAt).HasColumnName("market_baseline_at");
 
         builder.Property(g => g.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(g => g.UpdatedAt).HasColumnName("updated_at").IsRequired();

@@ -48,7 +48,7 @@ public class ExceptionHandlingMiddleware
         }
     }
 
-    private static async Task WriteErrorResponseAsync(
+    internal static async Task WriteErrorResponseAsync(
         HttpContext context,
         int statusCode,
         string errorCode,

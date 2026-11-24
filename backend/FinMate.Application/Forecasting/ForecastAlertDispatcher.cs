@@ -196,6 +196,7 @@ public static class ForecastAlertKinds
         ForecastAlertKind.GroupDebtReminder => "group_debt_reminder",
         ForecastAlertKind.GroupApprovalRequested => "group_approval_req",
         ForecastAlertKind.GroupApprovalDecided => "group_approval_res",
+        ForecastAlertKind.GoalMarketShift => "goal_market_shift",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

@@ -83,7 +83,8 @@ public sealed class AgentOrchestrator(
             question, profile.Segment.ToString().ToLowerInvariant(), await tools.Registry.SpecsAsync(ct), AgentLimits.MaxPlanSteps,
             State: state is null ? null : new AgentPlanState(state.LastIntent, state.Slots),
             Memory: await ReadMemoryAsync(userId, ct));
-        var plan = await ai.PlanAsync(request, ct);
+        // Câu quen về dữ liệu quản lý: cổng đã chọn sẵn công cụ bằng luật, bỏ lượt LLM lập kế hoạch (công cụ vẫn qua kiểm danh sách cho phép và tham số như mọi kế hoạch).
+        var plan = DirectPlan(gate) ?? await ai.PlanAsync(request, ct);
         trace.AddUsage(plan.Usage);
 
         var evidence = new List<Evidence>();
@@ -207,6 +208,17 @@ public sealed class AgentOrchestrator(
             traceId,
             usedTemplate,
             actions.DistinctBy(a => (a.Kind, a.Date, a.AmountVnd, a.CategorySlug)).Take(AgentLimits.MaxSuggestedActions).ToList());
+    }
+
+    private AgentPlanResult? DirectPlan(AgentGateResult gate)
+    {
+        if (gate.DirectTool is null)
+        {
+            return null;
+        }
+
+        var args = JsonSerializer.SerializeToElement(gate.DirectArgs ?? new Dictionary<string, long>());
+        return new AgentPlanResult(gate.DirectTool, [new AgentPlanStep(gate.DirectTool, args)], null, null);
     }
 
     private async Task<(IReadOnlyList<AgentClaimDto> Claims, bool UsedTemplate)> ComposeAsync(string question, List<Evidence> evidence, CancellationToken ct)

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import gate, memory
+from app.agent.direct import direct_route
 from app.agent import trace as agent_trace
 from app.agent.trace import TraceInfo, get_trace
 from app.agent.llm.provider import LlmFailed, LlmProvider, build_provider
@@ -57,7 +58,10 @@ async def agent_gate(
     result = await gate.evaluate(body.text, rules, nlu)
     logger.info("agent_gate", in_scope=result.in_scope, reason=result.reason_code)  # mã cố định, không có nội dung câu hỏi
     await agent_trace.record(session, trace, "gate", _ms(started), result.reason_code)
+    direct = direct_route(body.text) if result.in_scope else None
     return GateResponse(
+        direct_tool=direct.tool if direct else None,
+        direct_args=direct.args if direct else None,
         in_scope=result.in_scope,
         reason_code=result.reason_code,
         refusal_text=None if result.in_scope else gate.refusal_text(rules, result.reason_code),

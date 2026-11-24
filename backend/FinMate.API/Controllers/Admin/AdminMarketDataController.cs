@@ -13,7 +13,12 @@ public record UpdateMarketSourceRequest(string? Name, string? Kind, bool? IsActi
 
 public record ReviewMarketEventRequest(string? Note);
 
-public record CorrectFuelPriceRequest(string? FuelKey, long Region1PriceCents, long Region2PriceCents, string? Note);
+/// <param name="Region2PriceCents">Bỏ trống khi chỉ có giá trần toàn quốc (thông cáo của Bộ Công Thương).</param>
+/// <param name="BuyCents">Giá mua vào, đồng mỗi lượng.</param>
+/// <param name="SellCents">Giá bán ra, đồng mỗi lượng.</param>
+public record CorrectGoldPriceRequest(string? GoldKey, long BuyCents, long SellCents, string? Note);
+
+public record CorrectFuelPriceRequest(string? FuelKey, long Region1PriceCents, long? Region2PriceCents, string? Note);
 
 /// <summary>Website làm nguồn thông tin thị trường, bài đã đọc và giá xăng đã xác nhận. Xem <c>docs/market-data-api.md</c>.</summary>
 [Route("api/v1/admin")]
@@ -102,4 +107,15 @@ public class AdminMarketDataController : AdminControllerBase
     public async Task<IActionResult> CorrectFuelPrice([FromBody] CorrectFuelPriceRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, ApiResponse<FuelPriceDto>.Ok(await _service.CorrectFuelPriceAsync(
             CurrentAdminId, CurrentIpAddress, new CorrectFuelPriceInput(request.FuelKey ?? string.Empty, request.Region1PriceCents, request.Region2PriceCents, request.Note), ct)));
+
+    /// <summary>Lịch sử giá vàng đã xác nhận, đồng mỗi lượng. Chỉ có dòng mới khi giá đổi.</summary>
+    [HttpGet("gold-prices")]
+    public async Task<IActionResult> ListGoldPrices([FromQuery] string? goldKey, [FromQuery] int offset = 0, [FromQuery] int limit = 50, CancellationToken ct = default)
+        => Ok(ApiResponse<GoldPricePageDto>.Ok(await _service.ListGoldPricesAsync(goldKey, offset, limit, ct)));
+
+    /// <summary>Nhập tay giá vàng khi nguồn hỏng hoặc sai. Bắt buộc có ghi chú, được ghi vào nhật ký admin.</summary>
+    [HttpPost("gold-prices")]
+    public async Task<IActionResult> CorrectGoldPrice([FromBody] CorrectGoldPriceRequest request, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, ApiResponse<GoldPriceDto>.Ok(await _service.CorrectGoldPriceAsync(
+            CurrentAdminId, CurrentIpAddress, new CorrectGoldPriceInput(request.GoldKey ?? string.Empty, request.BuyCents, request.SellCents, request.Note), ct)));
 }

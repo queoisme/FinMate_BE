@@ -41,6 +41,7 @@ PATTERN_GROUPS = {
     "goal_end_of": {"month", "year", "y"},
     "goal_next": {"year", "month", "week"},
     # Câu tạo khoản định kỳ / vay nợ (item_parser)
+    "agent_direct_months": {"n"},
     "item_cadence_slash": {"month", "week", "year"},
     "item_due_day": {"d", "m"},
     "item_due_slash": {"d", "m", "y"},

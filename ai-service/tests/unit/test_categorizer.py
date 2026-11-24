@@ -81,3 +81,40 @@ def test_lexicon_on_full_corpus(corpus):
         for row in debits
     )
     assert correct / len(debits) >= 0.95
+
+
+class _AlwaysShoppingModel:
+    version = "test"
+
+    def predict(self, text):
+        return "shopping", 0.6
+
+
+class _RegistryWith:
+    def __init__(self, model):
+        self._model = model
+
+    def get(self, stage):
+        return self._model
+
+
+def test_lexicon_hit_beats_active_model():
+    """Luật trước model: cửa hàng đã có trong từ điển không bị model đoán đè."""
+    from app.pipeline.stages.categorizer import Categorizer
+
+    outcome = Categorizer(_RegistryWith(_AlwaysShoppingModel())).categorize(
+        "HIGHLANDS COFFEE", None, TransactionType.DEBIT
+    )
+    assert outcome.category_slug == "food"
+    assert outcome.model_version is None
+
+
+def test_model_answers_when_lexicon_misses():
+    """Cửa hàng lạ (trượt từ điển) mới đến lượt model."""
+    from app.pipeline.stages.categorizer import Categorizer
+
+    outcome = Categorizer(_RegistryWith(_AlwaysShoppingModel())).categorize(
+        "XYZQWE KHONG CO TRONG TU DIEN", None, TransactionType.DEBIT
+    )
+    assert outcome.category_slug == "shopping"
+    assert outcome.model_version == "test"

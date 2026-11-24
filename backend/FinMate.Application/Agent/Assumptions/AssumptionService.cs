@@ -6,10 +6,12 @@ using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Agent;
 
-public sealed record AssumptionDto(Guid Id, string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf, int Version, string Status, Guid CreatedBy, Guid? ApprovedBy)
+/// <param name="CreatedBySystem">Do hệ thống soạn (CPI tự cập nhật, hoặc nháp từ giá thị trường), để trang duyệt gắn nhãn.</param>
+public sealed record AssumptionDto(Guid Id, string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf, int Version, string Status, Guid CreatedBy, Guid? ApprovedBy, bool CreatedBySystem = false)
 {
     public static AssumptionDto From(EconomicAssumption a)
-        => new(a.Id, a.Key, a.RateBps, a.Unit, a.SourceName, a.SourceUrl, a.AsOf, a.Version, a.Status.ToString().ToLowerInvariant(), a.CreatedBy, a.ApprovedBy);
+        => new(a.Id, a.Key, a.RateBps, a.Unit, a.SourceName, a.SourceUrl, a.AsOf, a.Version, a.Status.ToString().ToLowerInvariant(), a.CreatedBy, a.ApprovedBy,
+            a.CreatedBy == Admin.Commands.AiCategorySyncService.SystemActorId);
 }
 
 public interface IAssumptionService

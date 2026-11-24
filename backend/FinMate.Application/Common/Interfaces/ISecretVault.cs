@@ -2,8 +2,9 @@ namespace FinMate.Application.Common.Interfaces;
 
 /// <summary>Trạng thái một key để hiện trên trang quản trị. Không bao giờ chứa giá trị key.</summary>
 /// <param name="Multiline">Giá trị nhiều dòng (file JSON) nên trang quản trị dùng ô nhiều dòng thay vì ô mật khẩu.</param>
+/// <param name="Plain">Giá trị không phải bí mật (tên bucket, email người gửi): trang quản trị dùng ô chữ thường và không nhắc "không xem lại được".</param>
 /// <param name="Source"><c>db</c> (admin đã nhập), <c>env</c> (biến môi trường) hoặc <c>none</c>.</param>
-public sealed record SecretStatus(string Name, string Title, string Source, bool Configured, string? Last4, DateTimeOffset? UpdatedAt, bool Multiline = false);
+public sealed record SecretStatus(string Name, string Title, string Source, bool Configured, string? Last4, DateTimeOffset? UpdatedAt, bool Multiline = false, bool Plain = false, string? Placeholder = null);
 
 /// <summary>
 /// Kho key bên thứ ba của backend: key admin nhập (mã hóa trong DB) được ưu tiên, không có thì rơi về biến môi trường như trước khi có kho, nên không có gì ngừng chạy lúc chuyển.

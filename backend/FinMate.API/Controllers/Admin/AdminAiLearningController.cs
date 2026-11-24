@@ -30,4 +30,18 @@ public class AdminAiLearningController : AdminControllerBase
     [HttpGet("feedback")]
     public async Task<IActionResult> Feedback(CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await _service.FeedbackAsync(QueryOf(), ct)));
+
+    /// <summary>Tổng quan: số phản hồi theo loại, số chưa dùng để học, các cặp (AI đoán → người dùng sửa) nhiều nhất.</summary>
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary(CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await _service.SummaryAsync(ct)));
+
+    /// <summary>
+    /// Gợi ý từ khóa cho từ điển tên cửa hàng: tên mà từ 2 người dùng khác nhau trở lên cùng sửa sang một danh mục
+    /// (<c>keyword, corrected_category, users, times, predicted_categories, current_category, covered, last_at</c>). Lọc: <c>min_users</c> (≥ 2), <c>include_covered</c>.
+    /// Thêm vào từ điển đi qua tài liệu <c>merchant_lexicon</c> (/admin/ai-config), có lịch sử và khôi phục.
+    /// </summary>
+    [HttpGet("suggestions")]
+    public async Task<IActionResult> Suggestions(CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await _service.SuggestionsAsync(QueryOf(), ct)));
 }

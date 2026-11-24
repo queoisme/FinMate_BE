@@ -43,6 +43,15 @@ Quy ước chung như `docs/transaction-extras-api.md`: `Authorization: Bearer`,
 
 Lỗi: số đã có không nhỏ hơn mục tiêu hoặc âm, biểu tượng quá 40 ký tự → `400` mã `VALIDATION_ERROR` (`details` chứa thông điệp tiếng Việt, ví dụ "Số tiền đã có phải từ 0 và nhỏ hơn số tiền mục tiêu."). `contributionFrequency` sai giá trị → `400`.
 
+### Theo giá thị trường (vàng)
+
+- `GET /api/v1/saving-goals/market-topics` → `[{ key, label, priceCents, asOf, nameKeywords }]`: chủ đề đang bật và đã có giá xác nhận (mặc định `gold`, giá bán ra vàng miếng SJC, đồng mỗi lượng). Tên mục tiêu chứa một từ trong `nameKeywords` thì app **gợi ý** chọn chủ đề, không tự gắn.
+- `POST /saving-goals` nhận thêm `marketTopic` (bỏ trống = không theo). `PATCH /saving-goals/{id}`: `marketTopic` null = giữ nguyên, `""` = bỏ theo, mã = theo giá đó.
+- Khi gắn, backend lấy giá hiện tại làm **giá mốc**. Gửi lại đúng chủ đề cũ mà không đổi số tiền thì giữ mốc. Đổi số tiền mục tiêu đang theo giá thì lấy lại mốc theo giá hiện tại (số mới đã tính theo giá đó).
+- Chủ đề lạ hoặc chưa có giá → 422 `MARKET_TOPIC_UNAVAILABLE`. Chỉ mục tiêu cá nhân.
+- `SavingGoalDto` có thêm `marketTopic`. `GET /forecast/goals/{id}` có thêm `market`: `{ topic, label, baselinePriceCents, baselineAt, latestPriceCents, latestAt, changeBps, adjustedTargetCents }` (null khi không theo giá). App ghi "từ khi theo giá vàng", không phải "từ khi đặt mục tiêu".
+- Cảnh báo `goal_market_shift` khi giá làm ngày đạt lùi xa: xem `docs/market-data-api.md`, mục "Mục tiêu theo giá vàng".
+
 ## 2. Bản nháp
 
 - `POST /saving-goals` với `"isDraft": true` → trạng thái `draft`. Vẫn cần tên và số tiền mục tiêu.

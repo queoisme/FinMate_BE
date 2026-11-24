@@ -12,6 +12,12 @@ public interface IAdminLearningService
 {
     /// <summary>Phản hồi sửa kết quả AI của người dùng (mới nhất trước): <c>{items, total, limit, offset}</c>.</summary>
     Task<JsonElement?> FeedbackAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
+
+    /// <summary>Tổng quan phản hồi: <c>{total, by_type, unprocessed, top_corrections}</c>.</summary>
+    Task<JsonElement?> SummaryAsync(CancellationToken ct = default);
+
+    /// <summary>Gợi ý thêm tên cửa hàng vào từ điển: nhóm (tên, danh mục sửa thành) có từ 2 người dùng trở lên, <c>{items, total, limit, offset}</c>.</summary>
+    Task<JsonElement?> SuggestionsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
 }
 
 public class AdminLearningService : IAdminLearningService
@@ -25,4 +31,10 @@ public class AdminLearningService : IAdminLearningService
 
     public Task<JsonElement?> FeedbackAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
         => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "feedback", query, Area: AiRulesRequest.LearningArea), ct);
+
+    public Task<JsonElement?> SummaryAsync(CancellationToken ct = default)
+        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "summary", Area: AiRulesRequest.LearningArea), ct);
+
+    public Task<JsonElement?> SuggestionsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
+        => _client.SendAsync(new AiRulesRequest(HttpMethod.Get, "suggestions", query, Area: AiRulesRequest.LearningArea), ct);
 }

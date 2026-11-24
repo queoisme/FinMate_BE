@@ -23,7 +23,7 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
 
     private sealed record GateRequest(string Text);
 
-    private sealed record GateResponse(bool InScope, string ReasonCode, string? RefusalText);
+    private sealed record GateResponse(bool InScope, string ReasonCode, string? RefusalText, string? DirectTool = null, Dictionary<string, long>? DirectArgs = null);
 
     private sealed record WireTool(string Name, string Description, Dictionary<string, WireArg> ArgsSchema);
 
@@ -74,7 +74,7 @@ public class AgentAiClient(HttpClient http, ILogger<AgentAiClient> logger, Agent
     public async Task<AgentGateResult> GateAsync(string text, CancellationToken ct = default)
     {
         var response = await PostAsync<GateRequest, GateResponse>("api/v1/agent/gate", new GateRequest(text), "gate", ct);
-        return new AgentGateResult(response.InScope, response.ReasonCode, response.RefusalText);
+        return new AgentGateResult(response.InScope, response.ReasonCode, response.RefusalText, response.DirectTool, response.DirectArgs);
     }
 
     public async Task<AgentPlanResult> PlanAsync(AgentPlanRequest request, CancellationToken ct = default)

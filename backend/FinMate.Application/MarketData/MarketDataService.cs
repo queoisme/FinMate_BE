@@ -22,7 +22,8 @@ public record MarketSourceDto(
     DateTimeOffset? LastSuccessAt,
     int ConsecutiveFailures,
     string? LastErrorCode,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string TrustTier);
 
 public record CreatedMarketSourceDto(MarketSourceDto Source, IReadOnlyList<string> Warnings);
 
@@ -32,21 +33,29 @@ public record MarketDocumentDto(Guid Id, Guid SourceId, string Url, string Title
 
 public record MarketDocumentPageDto(IReadOnlyList<MarketDocumentDto> Items, int Total, int Offset, int Limit);
 
-public record FuelPriceDto(Guid Id, string FuelKey, long Region1PriceCents, long Region2PriceCents, DateTimeOffset FirstSeenAt, string Origin, string? Note);
+public record FuelPriceDto(Guid Id, string FuelKey, long Region1PriceCents, long? Region2PriceCents, DateTimeOffset FirstSeenAt, string Origin, string? Note, IReadOnlyList<string>? SourceDomains);
 
 public record FuelPricePageDto(IReadOnlyList<FuelPriceDto> Items, int Total, int Offset, int Limit);
 
-public record FuelReadingDto(string FuelKey, long Region1PriceCents, long Region2PriceCents);
+public record FuelReadingDto(string FuelKey, long Region1PriceCents, long? Region2PriceCents);
+
+public record GoldPriceDto(Guid Id, string GoldKey, long BuyCents, long SellCents, DateTimeOffset FirstSeenAt, string Origin, string? Note, IReadOnlyList<string>? SourceDomains);
+
+public record GoldPricePageDto(IReadOnlyList<GoldPriceDto> Items, int Total, int Offset, int Limit);
+
+public record GoldReadingDto(string GoldKey, long BuyCents, long SellCents);
+
+public sealed record CorrectGoldPriceInput(string GoldKey, long BuyCents, long SellCents, string? Note);
 
 public record ArticlePreviewDto(string Url, string Title, int TextLength, string Status);
 
-public record MarketSourceTestDto(string Kind, bool AiAllowed, IReadOnlyList<FuelReadingDto> FuelPrices, string? FuelErrorCode, IReadOnlyList<ArticlePreviewDto> Articles, IReadOnlyList<string> Warnings);
+public record MarketSourceTestDto(string Kind, bool AiAllowed, IReadOnlyList<FuelReadingDto> FuelPrices, string? FuelErrorCode, IReadOnlyList<ArticlePreviewDto> Articles, IReadOnlyList<string> Warnings, IReadOnlyList<GoldReadingDto>? GoldPrices = null);
 
-public record MarketRefreshSummary(int SourcesChecked, int SourcesFailed, int NewDocuments, IReadOnlyList<string> ConfirmedFuels, IReadOnlyList<string> HeldBackFuels, int AiProcessed = 0, string? AiStatus = null);
+public record MarketRefreshSummary(int SourcesChecked, int SourcesFailed, int NewDocuments, IReadOnlyList<string> ConfirmedFuels, IReadOnlyList<string> HeldBackFuels, int AiProcessed = 0, string? AiStatus = null, IReadOnlyList<string>? ConfirmedGold = null);
 
 public sealed record UpdateMarketSourceInput(string? Name, MarketSourceKind? Kind, bool? IsActive);
 
-public sealed record CorrectFuelPriceInput(string FuelKey, long Region1PriceCents, long Region2PriceCents, string? Note);
+public sealed record CorrectFuelPriceInput(string FuelKey, long Region1PriceCents, long? Region2PriceCents, string? Note);
 
 public static class MarketErrorCodes
 {
@@ -60,12 +69,17 @@ public static class MarketErrorCodes
     public const string UnsupportedContent = "MARKET_SOURCE_UNSUPPORTED_CONTENT";
     public const string Unreachable = "MARKET_SOURCE_UNREACHABLE";
     public const string Duplicate = "MARKET_SOURCE_DUPLICATE";
+    public const string NotTrusted = "MARKET_SOURCE_NOT_TRUSTED";
+    public const string ReleaseNotFound = "FUEL_RELEASE_NOT_FOUND";
     public const string NoContent = "NO_CONTENT";
     public const string NoRelevantLinks = "NO_RELEVANT_LINKS";
     public const string BulkTooLarge = "MARKET_SOURCE_BULK_TOO_LARGE";
     public const string UnknownFuel = "FUEL_KEY_UNKNOWN";
     public const string NoteRequired = "FUEL_NOTE_REQUIRED";
     public const string NoChange = "FUEL_PRICE_UNCHANGED";
+    public const string UnknownGold = "GOLD_KEY_UNKNOWN";
+    public const string GoldPriceInvalid = "GOLD_PRICE_INVALID";
+    public const string GoldNoChange = "GOLD_PRICE_UNCHANGED";
 }
 
 public static class MarketText
@@ -75,6 +89,7 @@ public static class MarketText
         MarketSourceKind.Feed => "feed",
         MarketSourceKind.PriceTable => "price_table",
         MarketSourceKind.Page => "page",
+        MarketSourceKind.FuelRelease => "fuel_release",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -83,6 +98,7 @@ public static class MarketText
         "feed" => MarketSourceKind.Feed,
         "price_table" => MarketSourceKind.PriceTable,
         "page" => MarketSourceKind.Page,
+        "fuel_release" => MarketSourceKind.FuelRelease,
         _ => null,
     };
 
@@ -125,6 +141,8 @@ public interface IMarketDataService
     Task<MarketDocumentPageDto> ListDocumentsAsync(Guid? sourceId, MarketDocumentStatus? status, int offset, int limit, CancellationToken ct = default);
     Task<FuelPricePageDto> ListFuelPricesAsync(string? fuelKey, int offset, int limit, CancellationToken ct = default);
     Task<FuelPriceDto> CorrectFuelPriceAsync(Guid adminId, string? ip, CorrectFuelPriceInput input, CancellationToken ct = default);
+    Task<GoldPricePageDto> ListGoldPricesAsync(string? goldKey, int offset, int limit, CancellationToken ct = default);
+    Task<GoldPriceDto> CorrectGoldPriceAsync(Guid adminId, string? ip, CorrectGoldPriceInput input, CancellationToken ct = default);
     Task<MarketRefreshSummary> RefreshAsync(CancellationToken ct = default);
     Task<int> PurgeOldDocumentsAsync(CancellationToken ct = default);
 }
@@ -169,12 +187,21 @@ public sealed class MarketDataService : IMarketDataService
     }
 
     public async Task<IReadOnlyList<MarketSourceDto>> ListSourcesAsync(CancellationToken ct = default)
-        => (await _repository.ListSourcesAsync(ct)).Select(ToDto).ToList();
+    {
+        var settings = (await _config.GetAsync(ct)).Document.MarketData;
+        return (await _repository.ListSourcesAsync(ct)).Select(s => ToDto(s, settings)).ToList();
+    }
 
     public async Task<CreatedMarketSourceDto> CreateSourceAsync(Guid adminId, string? ip, string? url, string? name, CancellationToken ct = default)
     {
         var uri = ParseUrl(url);
-        var inspection = await InspectAsync(uri, ct);
+        var settings = (await _config.GetAsync(ct)).Document.MarketData;
+        if (!MarketTrust.IsTrusted(uri.AbsoluteUri, settings))
+        {
+            throw new BusinessRuleException(MarketErrorCodes.NotTrusted, Explain(MarketErrorCodes.NotTrusted));
+        }
+
+        var inspection = await InspectAsync(uri, settings, ct);
         if (inspection.ErrorCode is { } error)
         {
             throw new BusinessRuleException(error, Explain(error));
@@ -201,7 +228,7 @@ public sealed class MarketDataService : IMarketDataService
         }
 
         await _audit.LogAsync(AuditEvents.AdminMarketSourceCreated, adminId, ip, new { source.Id, source.Url, Kind = MarketText.Kind(source.Kind) }, ct);
-        return new CreatedMarketSourceDto(ToDto(source), inspection.Warnings);
+        return new CreatedMarketSourceDto(ToDto(source, settings), inspection.Warnings);
     }
 
     public async Task<IReadOnlyList<BulkSourceResult>> CreateSourcesAsync(Guid adminId, string? ip, IReadOnlyList<string> urls, CancellationToken ct = default)
@@ -238,8 +265,14 @@ public sealed class MarketDataService : IMarketDataService
             source.Name = Limit(name, MaxNameLength);
         }
 
+        var settings = (await _config.GetAsync(ct)).Document.MarketData;
         if (input.Kind is { } kind)
         {
+            if (kind == MarketSourceKind.FuelRelease && MarketTrust.TierOf(source.Url, settings) != MarketTrustedDomain.Official)
+            {
+                throw new BusinessRuleException(MarketErrorCodes.NotTrusted, "Chỉ nguồn hạng official mới được đọc thông cáo giá xăng.");
+            }
+
             source.Kind = kind;
         }
 
@@ -251,7 +284,7 @@ public sealed class MarketDataService : IMarketDataService
         source.UpdatedAt = DateTimeOffset.UtcNow;
         await _repository.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.AdminMarketSourceUpdated, adminId, ip, new { source.Id, Kind = MarketText.Kind(source.Kind), source.IsActive }, ct);
-        return ToDto(source);
+        return ToDto(source, settings);
     }
 
     public async Task<MarketSourceTestDto> TestSourceAsync(Guid id, CancellationToken ct = default)
@@ -279,9 +312,17 @@ public sealed class MarketDataService : IMarketDataService
         var content = fetched.Content ?? string.Empty;
         if (source.Kind == MarketSourceKind.PriceTable)
         {
-            var readings = FuelTableParser.Parse(HtmlTextExtractor.PageText(content));
+            var text = HtmlTextExtractor.PageText(content);
+            var readings = FuelTableParser.Parse(text);
             var error = FuelReadingValidator.ValidateTable(readings, settings);
-            return new MarketSourceTestDto(MarketText.Kind(source.Kind), rules.AiAllowed, readings.Select(ToDto).ToList(), error, [], []);
+            var gold = GoldTableParser.Parse(text, settings.Gold);
+            return new MarketSourceTestDto(MarketText.Kind(source.Kind), rules.AiAllowed, readings.Select(ToDto).ToList(), error, [], [], gold.Select(ToDto).ToList());
+        }
+
+        if (source.Kind == MarketSourceKind.FuelRelease)
+        {
+            var release = await ReadReleaseAsync(content, fetched.FinalUri ?? uri, settings, ct);
+            return new MarketSourceTestDto(MarketText.Kind(source.Kind), rules.AiAllowed, release.Readings.Select(ToDto).ToList(), release.ErrorCode, [], []);
         }
 
         var candidates = Candidates(source, content, fetched.FinalUri ?? uri, settings).ToList();
@@ -367,11 +408,71 @@ public sealed class MarketDataService : IMarketDataService
         return ToDto(price);
     }
 
+    public async Task<GoldPricePageDto> ListGoldPricesAsync(string? goldKey, int offset, int limit, CancellationToken ct = default)
+    {
+        offset = Math.Max(offset, 0);
+        limit = Math.Clamp(limit, 1, MaxPageSize);
+        var (items, total) = await _repository.ListGoldPricesAsync(goldKey, offset, limit, ct);
+        return new GoldPricePageDto(items.Select(ToDto).ToList(), total, offset, limit);
+    }
+
+    public async Task<GoldPriceDto> CorrectGoldPriceAsync(Guid adminId, string? ip, CorrectGoldPriceInput input, CancellationToken ct = default)
+    {
+        var gold = (await _config.GetAsync(ct)).Document.MarketData.Gold;
+        if (gold.Rows.All(r => r.Key != input.GoldKey))
+        {
+            throw new BusinessRuleException(MarketErrorCodes.UnknownGold, "Loại vàng không hợp lệ.");
+        }
+
+        var note = input.Note?.Trim();
+        if (note is null || note.Length < MinNoteLength || note.Length > MaxNoteLength)
+        {
+            throw new BusinessRuleException(MarketErrorCodes.NoteRequired, $"Ghi chú phải từ {MinNoteLength} đến {MaxNoteLength} ký tự.");
+        }
+
+        if (!GoldTableParser.IsValid(new GoldReading(input.GoldKey, input.BuyCents, input.SellCents), gold))
+        {
+            throw new BusinessRuleException(MarketErrorCodes.GoldPriceInvalid, "Giá không hợp lệ: ngoài khoảng cho phép, giá mua cao hơn giá bán, hoặc chênh mua bán quá lớn.");
+        }
+
+        var latest = (await _repository.ListLatestGoldPricesAsync(ct)).FirstOrDefault(p => p.GoldKey == input.GoldKey);
+        if (latest is not null)
+        {
+            if (latest.BuyCents == input.BuyCents && latest.SellCents == input.SellCents)
+            {
+                throw new BusinessRuleException(MarketErrorCodes.GoldNoChange, "Giá này giống giá đang lưu.");
+            }
+
+            if (Math.Abs(input.SellCents - latest.SellCents) * 100 > latest.SellCents * gold.MaxChangePercent)
+            {
+                throw new BusinessRuleException(FuelErrorCodes.ChangeTooLarge, $"Giá đổi hơn {gold.MaxChangePercent}% so với giá đang lưu.");
+            }
+        }
+
+        var price = new GoldPrice
+        {
+            Id = Guid.NewGuid(),
+            GoldKey = input.GoldKey,
+            BuyCents = input.BuyCents,
+            SellCents = input.SellCents,
+            FirstSeenAt = DateTimeOffset.UtcNow,
+            Origin = FuelPriceOrigin.Manual,
+            CreatedByUserId = adminId,
+            Note = note,
+        };
+        _repository.AddGoldPrice(price);
+        await _repository.SaveChangesAsync(ct);
+        await _audit.LogAsync(AuditEvents.AdminGoldPriceCorrected, adminId, ip, new { price.Id, price.GoldKey, price.BuyCents, price.SellCents, Note = note }, ct);
+        _alertTrigger.Enqueue();
+        return ToDto(price);
+    }
+
     public async Task<MarketRefreshSummary> RefreshAsync(CancellationToken ct = default)
     {
         var settings = (await _config.GetAsync(ct)).Document.MarketData;
         var sources = await _repository.ListActiveSourcesAsync(ct);
         var tables = new List<SourceFuelTable>();
+        var goldTables = new List<SourceFuelTable>();
         var failed = 0;
         var newDocuments = 0;
 
@@ -379,6 +480,14 @@ public sealed class MarketDataService : IMarketDataService
         {
             var now = DateTimeOffset.UtcNow;
             source.LastCheckedAt = now;
+            if (!MarketTrust.IsTrusted(source.Url, settings))
+            {
+                // Tên miền đã bị gỡ khỏi danh sách uy tín: không đọc, và không tính là lỗi của trang.
+                source.LastErrorCode = MarketErrorCodes.NotTrusted;
+                await _repository.SaveChangesAsync(ct);
+                continue;
+            }
+
             try
             {
                 var outcome = await ReadSourceAsync(source, settings, ct);
@@ -390,7 +499,16 @@ public sealed class MarketDataService : IMarketDataService
                     newDocuments += outcome.NewDocuments;
                     if (outcome.Readings is not null)
                     {
-                        tables.Add(new SourceFuelTable(MarketDomains.Of(source.Url), outcome.Readings));
+                        var domain = MarketDomains.Of(source.Url);
+                        var official = MarketTrust.TierOf(source.Url, settings) == MarketTrustedDomain.Official;
+                        tables.Add(new SourceFuelTable(domain, outcome.Readings, official, MarketTrust.OwnerOf(domain, settings)));
+                    }
+
+                    if (outcome.Gold is { Count: > 0 })
+                    {
+                        var domain = MarketDomains.Of(source.Url);
+                        var official = MarketTrust.TierOf(source.Url, settings) == MarketTrustedDomain.Official;
+                        goldTables.Add(new SourceFuelTable(domain, outcome.Gold.Select(AsFuelShape).ToList(), official, MarketTrust.OwnerOf(domain, settings)));
                     }
                 }
                 else
@@ -413,10 +531,11 @@ public sealed class MarketDataService : IMarketDataService
         }
 
         var confirmation = await ConfirmPricesAsync(tables, settings, ct);
-        RecordFuelHealth(sources.Count(s => s.Kind == MarketSourceKind.PriceTable), confirmation);
+        var confirmedGold = await ConfirmGoldAsync(goldTables, settings, ct);
+        RecordFuelHealth(sources.Count(s => s.Kind is MarketSourceKind.PriceTable or MarketSourceKind.FuelRelease && MarketTrust.IsTrusted(s.Url, settings)), confirmation);
         var (aiProcessed, aiStatus) = await ReadPendingWithAiAsync(settings, ct);
         await _signals.ExpireOldEventsAsync(ct);
-        return new MarketRefreshSummary(sources.Count, failed, newDocuments, confirmation.Confirmed.Select(c => c.FuelKey).ToList(), confirmation.HeldBack, aiProcessed, aiStatus);
+        return new MarketRefreshSummary(sources.Count, failed, newDocuments, confirmation.Confirmed.Select(c => c.FuelKey).ToList(), confirmation.HeldBack, aiProcessed, aiStatus, confirmedGold);
     }
 
     /// <summary>Một nguồn lỗi riêng lẻ chỉ ghi vào nguồn đó. Sự cố chỉ mở khi nhiều lượt liền không xác nhận được giá, vì lúc đó cảnh báo xăng đã ngừng hoạt động.</summary>
@@ -540,6 +659,7 @@ public sealed class MarketDataService : IMarketDataService
                 Region2PriceCents = reading.Region2PriceCents,
                 FirstSeenAt = now,
                 Origin = FuelPriceOrigin.Sources,
+                SourceDomains = confirmation.Domains?.GetValueOrDefault(reading.FuelKey)?.ToArray(),
             });
         }
 
@@ -552,7 +672,56 @@ public sealed class MarketDataService : IMarketDataService
         return confirmation;
     }
 
-    private sealed record SourceOutcome(string? ErrorCode, int NewDocuments = 0, IReadOnlyList<FuelReading>? Readings = null);
+    /// <summary>
+    /// Giá vàng dùng chung luật xác nhận với giá xăng (<see cref="FuelPriceConfirmer"/>): mua vào ở chỗ vùng 1, bán ra ở chỗ vùng 2, và trần thay đổi của vàng.
+    /// Trần thay đổi so trên giá mua vào.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ConfirmGoldAsync(IReadOnlyList<SourceFuelTable> tables, MarketDataSettings settings, CancellationToken ct)
+    {
+        if (tables.Count == 0)
+        {
+            return [];
+        }
+
+        var latestRows = await _repository.ListLatestGoldPricesAsync(ct);
+        var latest = latestRows.ToDictionary(p => p.GoldKey, p => new FuelReading(p.GoldKey, p.BuyCents, p.SellCents));
+        var heldStale = new Dictionary<string, FuelReading>();
+        foreach (var manual in latestRows.Where(p => p.Origin == FuelPriceOrigin.Manual))
+        {
+            if (await _repository.GetLatestSourceGoldPriceAsync(manual.GoldKey, ct) is { } source)
+            {
+                heldStale[manual.GoldKey] = new FuelReading(source.GoldKey, source.BuyCents, source.SellCents);
+            }
+        }
+
+        var confirmation = FuelPriceConfirmer.Confirm(tables, latest, settings with { MaxChangePercent = settings.Gold.MaxChangePercent }, heldStale);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var reading in confirmation.Confirmed)
+        {
+            _repository.AddGoldPrice(new GoldPrice
+            {
+                Id = Guid.NewGuid(),
+                GoldKey = reading.FuelKey,
+                BuyCents = reading.Region1PriceCents,
+                SellCents = reading.Region2PriceCents!.Value,
+                FirstSeenAt = now,
+                Origin = FuelPriceOrigin.Sources,
+                SourceDomains = confirmation.Domains?.GetValueOrDefault(reading.FuelKey)?.ToArray(),
+            });
+        }
+
+        await _repository.SaveChangesAsync(ct);
+        if (confirmation.HeldBack.Count > 0)
+        {
+            _logger.LogWarning("Gold prices held back as implausible: {GoldKeys}", string.Join(",", confirmation.HeldBack));
+        }
+
+        return confirmation.Confirmed.Select(r => r.FuelKey).ToList();
+    }
+
+    private static FuelReading AsFuelShape(GoldReading gold) => new(gold.GoldKey, gold.BuyCents, gold.SellCents);
+
+    private sealed record SourceOutcome(string? ErrorCode, int NewDocuments = 0, IReadOnlyList<FuelReading>? Readings = null, IReadOnlyList<GoldReading>? Gold = null);
 
     private async Task<SourceOutcome> ReadSourceAsync(MarketSource source, MarketDataSettings settings, CancellationToken ct)
     {
@@ -579,9 +748,23 @@ public sealed class MarketDataService : IMarketDataService
         if (source.Kind == MarketSourceKind.PriceTable)
         {
             // Luôn đọc lại dù trang không đổi: việc so khớp cần số của mọi nguồn trong cùng một lượt.
-            var readings = FuelTableParser.Parse(HtmlTextExtractor.PageText(content));
+            // Một trang có thể chỉ có giá xăng, chỉ có giá vàng, hoặc cả hai.
+            var text = HtmlTextExtractor.PageText(content);
+            var readings = FuelTableParser.Parse(text);
             var error = FuelReadingValidator.ValidateTable(readings, settings);
-            return error is null ? new SourceOutcome(null, 0, readings) : new SourceOutcome(error);
+            var gold = GoldTableParser.Parse(text, settings.Gold);
+            if (error is not null && gold.Count == 0)
+            {
+                return new SourceOutcome(error);
+            }
+
+            return new SourceOutcome(null, 0, error is null ? readings : null, gold);
+        }
+
+        if (source.Kind == MarketSourceKind.FuelRelease)
+        {
+            var release = await ReadReleaseAsync(content, fetched.FinalUri ?? uri, settings, ct);
+            return release.ErrorCode is null ? new SourceOutcome(null, 0, release.Readings) : new SourceOutcome(release.ErrorCode);
         }
 
         var hash = Hash(content);
@@ -632,6 +815,38 @@ public sealed class MarketDataService : IMarketDataService
         }
 
         return new SourceOutcome(null, added);
+    }
+
+    private sealed record ReleaseRead(IReadOnlyList<FuelReading> Readings, string? ErrorCode);
+
+    /// <summary>Trang chỉ mục → thông cáo mới nhất → giá. Thông cáo cũng phải được <c>robots.txt</c> cho phép.</summary>
+    private async Task<ReleaseRead> ReadReleaseAsync(string indexHtml, Uri indexUri, MarketDataSettings settings, CancellationToken ct)
+    {
+        var releaseUri = FuelReleaseParser.FindLatestRelease(indexHtml, indexUri, settings);
+        if (releaseUri is null)
+        {
+            return new ReleaseRead([], MarketErrorCodes.ReleaseNotFound);
+        }
+
+        var (rules, robotsError) = await RobotsForAsync(releaseUri, ct);
+        if (rules is null)
+        {
+            return new ReleaseRead([], robotsError);
+        }
+
+        if (!rules.IsAllowed(releaseUri.PathAndQuery))
+        {
+            return new ReleaseRead([], MarketErrorCodes.RobotsDisallowed);
+        }
+
+        var fetched = await _fetcher.FetchAsync(releaseUri, ct);
+        if (fetched.Outcome != WebFetchOutcome.Ok)
+        {
+            return new ReleaseRead([], ErrorCodeFor(fetched.Outcome));
+        }
+
+        var readings = FuelReleaseParser.Parse(HtmlTextExtractor.PageText(fetched.Content ?? string.Empty), settings);
+        return new ReleaseRead(readings, FuelReadingValidator.ValidateRelease(readings, settings));
     }
 
     private sealed record ArticleCandidate(string Url, string Title, DateTimeOffset? PublishedAt);
@@ -701,7 +916,7 @@ public sealed class MarketDataService : IMarketDataService
 
     private sealed record Inspection(MarketSourceKind Kind, bool AiAllowed, string? ErrorCode, IReadOnlyList<string> Warnings);
 
-    private async Task<Inspection> InspectAsync(Uri uri, CancellationToken ct)
+    private async Task<Inspection> InspectAsync(Uri uri, MarketDataSettings settings, CancellationToken ct)
     {
         var (rules, robotsError) = await RobotsForAsync(uri, ct);
         if (rules is null)
@@ -720,10 +935,10 @@ public sealed class MarketDataService : IMarketDataService
             return new Inspection(MarketSourceKind.Page, false, ErrorCodeFor(fetched.Outcome), []);
         }
 
-        var settings = (await _config.GetAsync(ct)).Document.MarketData;
         var content = fetched.Content ?? string.Empty;
         var warnings = new List<string>();
-        var kind = DetectKind(content, settings);
+        var official = MarketTrust.TierOf(uri.AbsoluteUri, settings) == MarketTrustedDomain.Official;
+        var kind = DetectKind(content, settings, official ? fetched.FinalUri ?? uri : null);
         if (!rules.AiAllowed)
         {
             warnings.Add("AI_NOT_ALLOWED");
@@ -746,15 +961,23 @@ public sealed class MarketDataService : IMarketDataService
         return new Inspection(kind, rules.AiAllowed, null, warnings);
     }
 
-    internal static MarketSourceKind DetectKind(string content, MarketDataSettings settings)
+    /// <param name="officialUri">Địa chỉ trang nếu nguồn là hạng official: chỉ khi đó mới xét trang có phải chỉ mục thông cáo giá xăng không.</param>
+    internal static MarketSourceKind DetectKind(string content, MarketDataSettings settings, Uri? officialUri = null)
     {
         if (FeedReader.LooksLikeFeed(content))
         {
             return MarketSourceKind.Feed;
         }
 
-        var readings = FuelTableParser.Parse(HtmlTextExtractor.PageText(content));
-        return FuelReadingValidator.ValidateTable(readings, settings) is null ? MarketSourceKind.PriceTable : MarketSourceKind.Page;
+        var text = HtmlTextExtractor.PageText(content);
+        if (FuelReadingValidator.ValidateTable(FuelTableParser.Parse(text), settings) is null || GoldTableParser.Parse(text, settings.Gold).Count > 0)
+        {
+            return MarketSourceKind.PriceTable;
+        }
+
+        return officialUri is not null && FuelReleaseParser.FindLatestRelease(content, officialUri, settings) is not null
+            ? MarketSourceKind.FuelRelease
+            : MarketSourceKind.Page;
     }
 
     private readonly record struct RobotsLookup(RobotsRules? Rules, string? ErrorCode);
@@ -810,6 +1033,7 @@ public sealed class MarketDataService : IMarketDataService
     private static string Explain(string errorCode) => errorCode switch
     {
         MarketErrorCodes.AddressNotAllowed => "Link trỏ tới địa chỉ không được phép.",
+        MarketErrorCodes.NotTrusted => "Tên miền này chưa có trong danh sách nguồn uy tín. Thêm tên miền kèm đơn vị chủ quản và số giấy phép ở Cấu hình hệ thống trước.",
         MarketErrorCodes.RobotsDisallowed => "Trang này không cho phép công cụ tự động đọc. Hệ thống không đọc những trang như vậy, gồm cả trang cần đăng nhập như Facebook.",
         MarketErrorCodes.RobotsUnavailable => "Chưa xác định được quy định của trang này. Hãy thử lại sau.",
         MarketErrorCodes.Refused => "Trang từ chối công cụ tự động hoặc cần đăng nhập. Hệ thống không vượt qua việc này.",
@@ -823,9 +1047,14 @@ public sealed class MarketDataService : IMarketDataService
 
     private static string Limit(string text, int max) => text.Length <= max ? text : text[..max];
 
-    private static MarketSourceDto ToDto(MarketSource s) => new(s.Id, s.Name, s.Url, MarketText.Kind(s.Kind), s.AiAllowed, s.IsActive, s.LastCheckedAt, s.LastSuccessAt, s.ConsecutiveFailures, s.LastErrorCode, s.CreatedAt);
+    private static MarketSourceDto ToDto(MarketSource s, MarketDataSettings settings)
+        => new(s.Id, s.Name, s.Url, MarketText.Kind(s.Kind), s.AiAllowed, s.IsActive, s.LastCheckedAt, s.LastSuccessAt, s.ConsecutiveFailures, s.LastErrorCode, s.CreatedAt, MarketTrust.TierOf(s.Url, settings));
 
-    private static FuelPriceDto ToDto(FuelPrice p) => new(p.Id, p.FuelKey, p.Region1PriceCents, p.Region2PriceCents, p.FirstSeenAt, p.Origin == FuelPriceOrigin.Manual ? "manual" : "sources", p.Note);
+    private static FuelPriceDto ToDto(FuelPrice p) => new(p.Id, p.FuelKey, p.Region1PriceCents, p.Region2PriceCents, p.FirstSeenAt, p.Origin == FuelPriceOrigin.Manual ? "manual" : "sources", p.Note, p.SourceDomains);
 
     private static FuelReadingDto ToDto(FuelReading r) => new(r.FuelKey, r.Region1PriceCents, r.Region2PriceCents);
+
+    private static GoldPriceDto ToDto(GoldPrice p) => new(p.Id, p.GoldKey, p.BuyCents, p.SellCents, p.FirstSeenAt, p.Origin == FuelPriceOrigin.Manual ? "manual" : "sources", p.Note, p.SourceDomains);
+
+    private static GoldReadingDto ToDto(GoldReading r) => new(r.GoldKey, r.BuyCents, r.SellCents);
 }

@@ -68,14 +68,15 @@ public class FuelPriceConfiguration : IEntityTypeConfiguration<FuelPrice>
         builder.ToTable("fuel_prices", t =>
         {
             t.HasCheckConstraint("chk_fuel_prices_origin", GroupColumns.CheckIn<FuelPriceOrigin>("origin"));
-            t.HasCheckConstraint("chk_fuel_prices_positive", "region1_price_cents > 0 AND region2_price_cents > 0");
+            t.HasCheckConstraint("chk_fuel_prices_positive", "region1_price_cents > 0 AND (region2_price_cents IS NULL OR region2_price_cents > 0)");
         });
 
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(p => p.FuelKey).HasColumnName("fuel_key").HasMaxLength(30).IsRequired();
         builder.Property(p => p.Region1PriceCents).HasColumnName("region1_price_cents").IsRequired();
-        builder.Property(p => p.Region2PriceCents).HasColumnName("region2_price_cents").IsRequired();
+        builder.Property(p => p.Region2PriceCents).HasColumnName("region2_price_cents");
+        builder.Property(p => p.SourceDomains).HasColumnName("source_domains");
         builder.Property(p => p.FirstSeenAt).HasColumnName("first_seen_at").IsRequired();
         builder.Property(p => p.Origin).HasColumnName("origin").HasConversion(GroupColumns.Converter<FuelPriceOrigin>()).HasMaxLength(20).IsRequired();
         builder.Property(p => p.CreatedByUserId).HasColumnName("created_by_user_id");
@@ -83,6 +84,34 @@ public class FuelPriceConfiguration : IEntityTypeConfiguration<FuelPrice>
         builder.Property(p => p.AlertsProcessedAt).HasColumnName("alerts_processed_at");
 
         builder.HasIndex(p => new { p.FuelKey, p.FirstSeenAt }).HasDatabaseName("ix_fuel_prices_key_time");
+        builder.HasOne<User>().WithMany().HasForeignKey(p => p.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class GoldPriceConfiguration : IEntityTypeConfiguration<GoldPrice>
+{
+    public void Configure(EntityTypeBuilder<GoldPrice> builder)
+    {
+        builder.ToTable("gold_prices", t =>
+        {
+            t.HasCheckConstraint("chk_gold_prices_origin", GroupColumns.CheckIn<FuelPriceOrigin>("origin"));
+            t.HasCheckConstraint("chk_gold_prices_prices", "buy_cents > 0 AND sell_cents >= buy_cents");
+            t.HasCheckConstraint("chk_gold_prices_manual_note", "origin <> 'manual' OR note IS NOT NULL");
+        });
+
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(p => p.GoldKey).HasColumnName("gold_key").HasMaxLength(30).IsRequired();
+        builder.Property(p => p.BuyCents).HasColumnName("buy_cents").IsRequired();
+        builder.Property(p => p.SellCents).HasColumnName("sell_cents").IsRequired();
+        builder.Property(p => p.FirstSeenAt).HasColumnName("first_seen_at").IsRequired();
+        builder.Property(p => p.Origin).HasColumnName("origin").HasConversion(GroupColumns.Converter<FuelPriceOrigin>()).HasMaxLength(20).IsRequired();
+        builder.Property(p => p.SourceDomains).HasColumnName("source_domains");
+        builder.Property(p => p.CreatedByUserId).HasColumnName("created_by_user_id");
+        builder.Property(p => p.Note).HasColumnName("note").HasMaxLength(500);
+        builder.Property(p => p.AlertsProcessedAt).HasColumnName("alerts_processed_at");
+
+        builder.HasIndex(p => new { p.GoldKey, p.FirstSeenAt }).HasDatabaseName("ix_gold_prices_key_time");
         builder.HasOne<User>().WithMany().HasForeignKey(p => p.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
     }
 }

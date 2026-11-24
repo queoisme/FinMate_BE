@@ -30,6 +30,7 @@ public static class RolePermissionRules
     [
         (OpsCapability.AccessCustomerData, OpsCapability.HandleTickets),
         (OpsCapability.CreateDraftTransactions, OpsCapability.AccessCustomerData),
+        (OpsCapability.ApproveAgentContent, OpsCapability.ManageAgentContent),
     ];
 
     public static IReadOnlyList<string> CatalogNames => OpsPermissions.Names(All);

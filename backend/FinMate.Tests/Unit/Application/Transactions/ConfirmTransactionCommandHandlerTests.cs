@@ -137,6 +137,47 @@ public class ConfirmTransactionCommandHandlerTests
         account.BalanceCents.Should().Be(1_050_000);
     }
 
+    private async Task<FinancialAccount> ConfirmNotificationDraftAsync(TransactionType type, long amount, long? bankBalance, bool newerConfirmedExists, TransactionSource source = TransactionSource.Notification)
+    {
+        var userId = Guid.NewGuid();
+        var (transaction, account) = DraftDebit(userId, amount);
+        transaction.TransactionType = type;
+        transaction.Source = source;
+        transaction.BalanceAfterCents = bankBalance;
+        _transactionRepository.Setup(r => r.GetByIdAsync(transaction.Id, userId, It.IsAny<CancellationToken>())).ReturnsAsync(transaction);
+        _transactionRepository.Setup(r => r.HasConfirmedAfterAsync(account.Id, transaction.TransactedAt, transaction.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(newerConfirmedExists);
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>())).ReturnsAsync(account);
+
+        await _handler.HandleAsync(new ConfirmTransactionCommand(userId, transaction.Id));
+        return account;
+    }
+
+    [Fact]
+    public async Task HandleAsync_NotificationWithBankBalance_SetsAccountBalanceToBankBalance()
+    {
+        // Ví đang ghi 1.000.000 nhưng ngân hàng báo còn 10.000: ngân hàng đúng, không cộng dồn lên số cũ.
+        var account = await ConfirmNotificationDraftAsync(TransactionType.Credit, 5_000, bankBalance: 10_000, newerConfirmedExists: false);
+
+        account.BalanceCents.Should().Be(10_000);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NotificationWithBankBalanceButNewerTransactionExists_AppliesDeltaOnly()
+    {
+        var account = await ConfirmNotificationDraftAsync(TransactionType.Debit, 5_000, bankBalance: 10_000, newerConfirmedExists: true);
+
+        account.BalanceCents.Should().Be(995_000);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ManualDraftIgnoresBalanceAfter()
+    {
+        var account = await ConfirmNotificationDraftAsync(TransactionType.Credit, 5_000, bankBalance: 10_000, newerConfirmedExists: false, TransactionSource.Manual);
+
+        account.BalanceCents.Should().Be(1_005_000);
+    }
+
     [Fact]
     public async Task HandleAsync_DebitDraft_AddsSpendToBudgetPeriod()
     {

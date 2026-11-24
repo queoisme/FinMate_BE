@@ -64,3 +64,61 @@ def test_parse_chat_uses_the_context_only_when_given():
 
     assert with_context.intent == "create_item" and with_context.item.operation == "update"
     assert without.intent != "create_item"
+
+
+# --- sửa / xóa theo tên, thu nhập định kỳ, ngân sách tổng
+
+
+def named(text):
+    return parse_item(text, NOW, tp.category_from_text)
+
+
+@pytest.mark.parametrize(
+    ("text", "kind", "operation", "name", "amount"),
+    [
+        ("xóa ngân sách ăn uống", "budget", "delete_named", "Ăn uống", 0),
+        ("xóa khoản nợ của An", "loan", "delete_named", "An", 0),
+        ("xóa gói Netflix", "recurring", "delete_named", "Netflix", 0),
+        ("đổi khoản Netflix thành 300k", "any", "update_named", "Netflix", 300_000),
+        ("tăng ngân sách ăn uống lên 3 triệu", "budget", "update_named", "Ăn uống", 3_000_000),
+    ],
+)
+def test_editing_or_deleting_an_existing_item_by_name(text, kind, operation, name, amount):
+    draft = named(text).draft
+
+    assert (draft.kind, draft.operation, draft.name, draft.amount) == (kind, operation, name, amount)
+
+
+@pytest.mark.parametrize("text", ["xóa giao dịch cà phê", "hủy mục tiêu mua xe", "đổi 500k tiền ăn", "bỏ 50k vào ví", "xóa cái đó", "đặt ngân sách ăn uống 2 triệu"])
+def test_other_deletes_and_edits_are_not_named_item_operations(text):
+    result = named(text)
+
+    assert result is None or result.draft.operation == "create"
+
+
+def test_recurring_income_needs_a_cadence_and_is_marked_inflow():
+    salary = named("lương 15 triệu hằng tháng ngày 5").draft
+    assert (salary.kind, salary.name, salary.direction, salary.cadence, salary.amount) == ("recurring", "Lương", "inflow", "monthly", 15_000_000)
+    assert named("mỗi tháng nhận lương 15tr ngày 5").draft.direction == "inflow"
+    assert named("nhận lương 15 triệu") is None  # một khoản thu thường, không phải định kỳ
+    assert named("gia hạn gói Claude Pro 600k hằng tháng ngày 5").draft.direction is None  # khoản chi như cũ
+
+
+@pytest.mark.parametrize("text", ["đặt ngân sách tổng 15 triệu", "ngân sách cả tháng 15 triệu"])
+def test_an_overall_budget_has_no_category(text):
+    draft = named(text).draft
+
+    assert (draft.kind, draft.amount, draft.category) == ("budget_total", 15_000_000, None)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["vì sao ô số dư ra 14,5 triệu?", "số này tính thế nào", "con số đó từ đâu ra vậy", "giải thích số liệu giúp mình", "tại sao số cần góp lại là 2,7 triệu", "căn cứ vào đâu mà kết luận vậy"],
+)
+def test_asking_to_explain_the_numbers_of_the_last_answer(text):
+    assert tp.parse_chat(text, now=NOW).intent == "explain_numbers"
+
+
+@pytest.mark.parametrize("text", ["ăn trưa 50k", "tháng này tôi tiêu bao nhiêu", "đặt ngân sách ăn uống 2 triệu", "mua xe 600 triệu sau 2 năm được không", "vì sao tôi tiêu nhiều thế"])
+def test_other_sentences_are_not_explain_requests(text):
+    assert tp.parse_chat(text, now=NOW).intent != "explain_numbers"

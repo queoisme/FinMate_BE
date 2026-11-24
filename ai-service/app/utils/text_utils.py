@@ -260,6 +260,8 @@ def select_amounts(text: str) -> AmountSelection:
             max(previous_end, candidate.start - _BALANCE_CONTEXT_CHARS) : candidate.start
         ]
         previous_end = max(previous_end, candidate.end)
+        # Nhãn không vượt qua ranh giới câu: "So du 00 VND. Ref MBVCB.1718…" — số "00" bị loại (không dương) nên previous_end không dịch tới nó, và nhãn "so du" phía trước sẽ gán nhầm cho mã Ref.
+        prefix = prefix.rsplit(". ", 1)[-1]
         if not notification_vocab.has_balance_marker(prefix):
             others.append(candidate)
         elif _looks_like_money(candidate):

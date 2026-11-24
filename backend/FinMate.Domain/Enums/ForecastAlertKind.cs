@@ -45,4 +45,7 @@ public enum ForecastAlertKind
 
     /// <summary>Chủ nhóm đã duyệt hoặc từ chối khoản bạn gửi. Không mang số tiền.</summary>
     GroupApprovalDecided,
+
+    /// <summary>Giá thị trường mà mục tiêu tiết kiệm đang theo (ví dụ vàng) tăng làm ngày đạt mục tiêu lùi xa.</summary>
+    GoalMarketShift,
 }

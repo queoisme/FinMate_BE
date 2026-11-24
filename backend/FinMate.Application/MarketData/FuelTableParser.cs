@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace FinMate.Application.MarketData;
 
-public sealed record FuelReading(string FuelKey, long Region1PriceCents, long Region2PriceCents);
+/// <param name="Region2PriceCents">Null khi nguồn chỉ công bố một mức giá, như thông cáo của Bộ Công Thương (giá trần toàn quốc).</param>
+public sealed record FuelReading(string FuelKey, long Region1PriceCents, long? Region2PriceCents);
 
 public static class FuelKeys
 {
@@ -16,6 +17,9 @@ public static class FuelKeys
 
     /// <summary>Thiếu một trong các loại này thì không coi là bảng giá xăng.</summary>
     public static readonly IReadOnlyList<string> Required = [E10Ron95Level5, E10Ron95Level3, E5Ron92Level2];
+
+    /// <summary>Thông cáo của Bộ Công Thương không có E10 RON95 mức 5; thiếu một trong hai loại này thì không coi là thông cáo giá.</summary>
+    public static readonly IReadOnlyList<string> ReleaseRequired = [E10Ron95Level3, E5Ron92Level2];
 
     public static readonly IReadOnlyList<string> All = [E10Ron95Level5, E10Ron95Level3, E5Ron92Level2, Diesel0001Level5, Diesel005Level2, Kerosene];
 }

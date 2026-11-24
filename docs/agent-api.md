@@ -97,7 +97,7 @@ Các ý định khác (ghi chép, hỏi tổng, đánh giá mua, chào hỏi...)
 | Công cụ | Việc | Thiếu dữ liệu |
 |---|---|---|
 | `forecast_goal` | Bao lâu đủ tiền mua món giá X trong N tháng, ba kịch bản | dưới 3 tháng lịch sử → `history_too_short` |
-| `get_assumptions` | Tra giả định kinh tế đã duyệt (nguồn, ngày) | chưa có → `assumption_missing` |
+| `get_assumptions` | Tra giả định kinh tế đã duyệt (nguồn, ngày). `gold_price_growth` do hệ thống soạn nháp từ giá vàng, người duyệt mới dùng được | chưa có → `assumption_missing` |
 | `search_knowledge` | Tra tri thức đã duyệt (RAG) | không có đoạn nào → `knowledge_missing` (ghi mã băm câu hỏi) |
 | `simulate_purchase` | Số dư thấp nhất trong kỳ trước và sau khi mua; bọc `IPurchaseCheckService` (cùng số với màn "Mua món này có ổn không?") | engine báo `insufficient_data` → `purchase_data_missing`; có dòng ước tính → kết luận tối đa `tight` |
 | `runway` | Số dư đủ chi tiêu bao nhiêu tháng nếu thu nhập dừng | `history_too_short`, `no_spending_history` |
@@ -132,9 +132,9 @@ Các ý định khác (ghi chép, hỏi tổng, đánh giá mua, chào hỏi...)
 
 ## API cho nhân sự (vai trò Staff / OpsManager / Admin của Phase 61–65)
 
-- `/api/v1/admin/assumptions` — giả định kinh tế: Staff trở lên soạn bản nháp, **OpsManager trở lên** (policy `ManagerOrAbove`) duyệt / gỡ.
+- `/api/v1/admin/assumptions` — giả định kinh tế: xem và soạn bản nháp cần quyền `ManageAgentContent` (mặc định Staff trở lên), duyệt / gỡ cần `ApproveAgentContent` (mặc định OpsManager trở lên). Admin chỉnh được hai quyền này trên trang Phân quyền; thiếu quyền thì 403.
 - `/api/v1/admin/knowledge` — tài liệu tri thức và câu hỏi chưa có tri thức: cùng phân quyền như trên. `GET /documents` là danh sách (không kèm nội dung); `GET /documents/{id}` trả thêm `text` (toàn bộ nội dung) để người duyệt đọc trước khi bấm duyệt.
-- Giao diện duyệt trên web quản trị (repo `FinMate_Admin`): menu vận hành **Tri thức AI** (`/ops/knowledge`) và **Giả định kinh tế** (`/ops/assumptions`), dành cho OpsManager và Admin (quyền `DecideApprovals`). Cấu hình tự cập nhật CPI nằm ở trang Admin **Số liệu kinh tế** (`/settings/economic`).
+- Giao diện duyệt trên web quản trị (repo `FinMate_Admin`): menu vận hành **Tri thức AI** (`/ops/knowledge`) và **Giả định kinh tế** (`/ops/assumptions`), hiện cho tài khoản có `ManageAgentContent`; nút duyệt / gỡ chỉ hiện khi có `ApproveAgentContent`. Cấu hình tự cập nhật CPI nằm ở trang Admin **Số liệu kinh tế** (`/settings/economic`).
 - `POST /api/v1/ops/tickets/{id}/assist` — trợ lý gợi ý cho nhân sự khi xử lý ticket: tóm tắt + bản nháp trả lời, **chỉ gợi ý** (không đổi ticket, không gửi gì cho khách; nhân sự tự gửi qua `/ops/tickets/{id}/messages`). `available: false` khi LLM sập; `verified: false` khi bản nháp bị bỏ vì chứa số tiền không có trong ticket. Ghi chú nội bộ không bao giờ gửi cho mô hình.
 
 ## Chỉ dùng khi phát triển
@@ -165,3 +165,18 @@ Câu "cho A vay", "A cho tôi mượn", "A trả nợ tôi" KHÔNG vào đây: �
 
 - **Nhớ trong phiên:** app giữ tối đa 5 việc vừa tạo (bộ nhớ của phiên, mất khi đóng app hoặc đăng xuất) và gửi kèm việc mới nhất ở `itemContext` của `POST /transactions/chat` (chỉ số liệu có cấu trúc). Nhờ đó câu nối tiếp được hiểu: `operation: update` ("đổi thành 3 triệu"), `add` ("thêm 300k nữa"), `delete` ("xóa cái đó"), hoặc tạo tiếp cùng loại ("còn di chuyển thì 1 triệu"). Câu còn từ lạ ngoài lệnh và số tiền không phải nối tiếp. Server không lưu gì.
 - **Trả nợ:** câu như "bạn An đã trả cho tôi 500k" / "tôi trả An 300k" vẫn được đọc như giao dịch thu/chi; ai-service chỉ gắn thêm gợi ý `item` (`operation: repay`). Backend tìm khoản vay CỦA NGƯỜI DÙNG đúng chiều, khớp tên và còn đủ số; đúng MỘT khoản thì trả `action: item` với `loanId`, `remainingCents`, `financialAccountId`, app hỏi xác nhận rồi gọi `POST /loans/{id}/repayments` (lần trả ghi cả giao dịch ví nên không ghi thêm giao dịch thu/chi). Không khớp, nhiều khoản cùng tên hoặc trả quá số còn lại thì giữ giao dịch thu/chi như cũ. Lần trả chưa có API hoàn tác nên luôn hỏi xác nhận.
+
+### Tiết kiệm chi phí và chống LLM treo
+
+- **Đường tắt:** câu quen về dữ liệu quản lý ("ngân sách còn bao nhiêu", "mục tiêu đến đâu rồi", "sắp đến hạn khoản nào", "tháng này / N tháng qua tiêu nhiều nhất vào đâu") được luật chọn công cụ ngay ở cổng (`POST /agent/gate` trả thêm `direct_tool`, `direct_args`), backend bỏ lượt LLM lập kế hoạch (lượt đó chiếm khoảng một nửa token của một lượt hỏi). Câu không khớp rõ ràng (không nói kỳ, có số tiền, hoặc khớp hai công cụ) vẫn qua LLM. Mẫu nhận dạng ở `intent_cues.json` (nhóm `agent_direct_*`), code ở `ai-service/app/agent/direct.py`; công cụ vẫn qua danh sách cho phép và kiểm tham số như mọi kế hoạch.
+- **Chạy nền:** các lệnh "học" gửi ai-service sau khi lưu hoặc sửa giao dịch (nhớ danh mục cửa hàng, phản hồi sửa danh mục) được xếp hàng Hangfire (`IAiLearningQueue`, `AiLearningJob`) thay vì chờ trong request. Lỗi xếp hàng chỉ ghi log. Các lệnh khác (thông báo đẩy, email OTP) vẫn chạy trong request.
+
+### Sửa/xóa theo tên, thu nhập định kỳ, ngân sách tổng
+
+- **Sửa/xóa theo tên** (`item.operation`: `update_named` / `delete_named`, `kind`: `budget` | `loan` | `recurring` | `any`, tên ở `name`): "xóa ngân sách ăn uống", "đổi khoản Netflix thành 300k", "xóa khoản nợ của An". ai-service chỉ trả tên và loại; app tìm trong dữ liệu CỦA NGƯỜI DÙNG (ngân sách nhóm, khoản định kỳ đang chạy, khoản vay nợ). Không thấy hoặc nhiều mục khớp thì nói rõ, không đoán. Sửa số tiền làm ngay (Hoàn tác về số cũ); xóa luôn hỏi xác nhận. Không áp dụng cho giao dịch, mục tiêu, danh mục, tài khoản.
+- **Thu nhập định kỳ:** "lương 15 triệu hằng tháng ngày 5" tạo khoản định kỳ `direction: inflow` (cần có chu kỳ; "nhận lương 15 triệu" một mình vẫn là khoản thu thường).
+- **Ngân sách tổng:** "đặt ngân sách tổng 15 triệu" / "ngân sách cả tháng 15 triệu" → `kind: budget_total`, đặt hạn mức chung của tháng; đã có thì đổi (Hoàn tác trả mức cũ).
+
+### Giải thích con số trong chat
+
+Câu như "vì sao ô số dư ra 14,5 triệu?", "số này tính thế nào", "con số đó từ đâu ra" được ai-service nhận ra (`intent: explain_numbers`, cụm từ ở `explain_phrases` trong `intent_cues.json`). App giải thích bằng chính **bằng chứng của câu trả lời agent gần nhất** (mỗi số kèm mô tả và nguồn: đã xác nhận / bạn khai / ước tính / tài liệu, thêm ghi chú "chỉ để tham khảo" nếu có): không gọi AI và không tính lại, nên không thể lệch với con số đã hiện. Chưa có câu trả lời nào thì nói rõ là chưa có gì để giải thích. Chỉ giải thích câu trả lời của trợ lý hỏi đáp, chưa giải thích các thẻ ngân sách hay số liệu ở màn khác.

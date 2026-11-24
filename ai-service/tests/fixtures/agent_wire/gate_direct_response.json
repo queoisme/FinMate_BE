@@ -1,0 +1,9 @@
+{
+  "in_scope": true,
+  "reason_code": "finance_cue",
+  "refusal_text": null,
+  "direct_tool": "spending_summary",
+  "direct_args": {
+    "months": 3
+  }
+}

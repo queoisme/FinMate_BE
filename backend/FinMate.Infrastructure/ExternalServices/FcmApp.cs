@@ -81,6 +81,17 @@ public sealed class FcmApp
         }
     }
 
+    /// <summary>Access token của credentials Firebase hiện hành cho một phạm vi (scope); null nếu chưa có credentials dùng được.</summary>
+    public async Task<string?> AccessTokenAsync(string scope, CancellationToken ct = default)
+    {
+        if (!await EnsureAsync(ct) || FirebaseApp.DefaultInstance?.Options.Credential is not { } credential)
+        {
+            return null;
+        }
+
+        return await credential.CreateScoped(scope).UnderlyingCredential.GetAccessTokenForRequestAsync(cancellationToken: ct);
+    }
+
     /// <summary>Xin một access token bằng credentials hiện hành, để biết chúng có thật sự dùng được không. Không gửi gì tới thiết bị nào.</summary>
     public async Task<bool> CanObtainTokenAsync(CancellationToken ct = default)
     {

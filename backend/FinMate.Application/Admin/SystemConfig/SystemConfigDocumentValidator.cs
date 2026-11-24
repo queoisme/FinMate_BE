@@ -49,6 +49,10 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         }).When(x => x.Agent is not null);
         RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
+        RuleFor(x => x.EconomicFeeds.CpiIndexUrl)
+            .Must((doc, url) => string.IsNullOrEmpty(url) || !IsHttps(url) || FinMate.Application.MarketData.MarketTrust.TierOf(url, doc.MarketData) == MarketTrustedDomain.Official)
+            .WithMessage("Địa chỉ nguồn CPI phải thuộc một tên miền hạng official trong danh sách nguồn uy tín.")
+            .When(x => x.EconomicFeeds is not null && x.MarketData?.TrustedDomains is { } list && list.All(d => d is not null));
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
         RuleFor(x => x.Categories).NotNull().SetValidator(new CategorySettingsValidator());
         RuleFor(x => x.Assistant).NotNull().SetValidator(new AssistantValidator());
@@ -187,6 +191,14 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.ProviderFailureThreshold).InclusiveBetween(1, 1000).WithMessage("Ngưỡng lỗi nhà cung cấp phải từ 1 đến 1000.");
             RuleFor(x => x.ReminderMinutes).InclusiveBetween(1, 1440).WithMessage("Thời gian nhắc lại phải từ 1 đến 1440 phút.");
             RuleFor(x => x.ErrorRetentionDays).InclusiveBetween(1, 365).WithMessage("Thời gian giữ lỗi phải từ 1 đến 365 ngày.");
+            RuleFor(x => x.ErrorHints).NotNull().Must(h => h is { Count: <= 100 }).WithMessage("Tối đa 100 chú giải lỗi.");
+            RuleForEach(x => x.ErrorHints).ChildRules(hint =>
+            {
+                hint.RuleFor(h => h.Match).NotEmpty().MaximumLength(200).WithMessage("Chuỗi khớp tên lỗi là bắt buộc (tối đa 200 ký tự).");
+                hint.RuleFor(h => h.Title).NotEmpty().MaximumLength(100).WithMessage("Tên lỗi là bắt buộc (tối đa 100 ký tự).");
+                hint.RuleFor(h => h.Explanation).MaximumLength(500).WithMessage("Giải thích tối đa 500 ký tự.");
+                hint.RuleFor(h => h.Action).MaximumLength(500).WithMessage("Hướng xử lý tối đa 500 ký tự.");
+            });
         }
     }
 
@@ -227,6 +239,80 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
                 type.RuleFor(t => t.NewsKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ khóa tin bài, mỗi từ khóa tối đa 50 ký tự.");
                 type.RuleFor(t => t.CategorySlugs).Must(slugs => slugs is { Count: <= 10 }).WithMessage("Tối đa 10 danh mục cho một loại chi phí.");
                 type.RuleFor(t => t).Must(t => t.TransactionKeywords is { Count: > 0 } || t.CategorySlugs is { Count: > 0 }).WithMessage("Loại chi phí phải có từ khóa giao dịch hoặc danh mục.");
+            });
+            RuleFor(x => x.TrustedDomains).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách nguồn uy tín.")
+                .Must(list => list.Count <= 200).WithMessage("Tối đa 200 tên miền uy tín.")
+                .Must(list => list.All(d => d is not null)).WithMessage("Tên miền uy tín không được để trống.")
+                .Must(list => list.Select(d => d.Domain).Distinct().Count() == list.Count).WithMessage("Tên miền uy tín không được trùng.");
+            RuleForEach(x => x.TrustedDomains).Cascade(CascadeMode.Stop).NotNull().ChildRules(domain =>
+            {
+                domain.RuleFor(d => d.Domain).Cascade(CascadeMode.Stop).NotEmpty().MaximumLength(100)
+                    .Matches(@"\A[a-z0-9-]+(\.[a-z0-9-]+)+\z")
+                    .Must(d => FinMate.Application.MarketData.MarketDomains.OfHost(d) == d)
+                    .WithMessage("Tên miền uy tín phải là tên miền gốc viết thường, ví dụ 24h.com.vn (tên miền con tính chung).");
+                domain.RuleFor(d => d.Tier).Must(t => t is MarketTrustedDomain.Official or MarketTrustedDomain.Licensed).WithMessage("Hạng nguồn phải là official hoặc licensed.");
+                domain.RuleFor(d => d.Owner).NotEmpty().MaximumLength(200).WithMessage("Đơn vị chủ quản từ 1 đến 200 ký tự.");
+                domain.RuleFor(d => d.LicenseRef).NotNull().MaximumLength(300).WithMessage("Số giấy phép tối đa 300 ký tự.");
+                domain.RuleFor(d => d.LicenseRef).NotEmpty().When(d => d.Tier == MarketTrustedDomain.Licensed).WithMessage("Nguồn có giấy phép phải ghi số giấy phép.");
+                domain.RuleFor(d => d.CheckedAt).Must(d => string.IsNullOrEmpty(d) || DateOnly.TryParseExact(d, "yyyy-MM-dd", out _)).WithMessage("Ngày kiểm phải có dạng yyyy-MM-dd.");
+            });
+            RuleFor(x => x.Gold).NotNull().ChildRules(gold =>
+            {
+                gold.RuleFor(g => g.MinPriceCents).GreaterThan(0).LessThan(g => g.MaxPriceCents).WithMessage("Giá vàng tối thiểu phải lớn hơn 0 và nhỏ hơn giá tối đa.");
+                gold.RuleFor(g => g.MaxChangePercent).InclusiveBetween(1, 100).WithMessage("Mức đổi giá vàng tối đa phải từ 1 đến 100%.");
+                gold.RuleFor(g => g.MaxSpreadPercent).InclusiveBetween(0, 100).WithMessage("Chênh mua bán tối đa phải từ 0 đến 100%.");
+                gold.RuleFor(g => g.Rows).Cascade(CascadeMode.Stop)
+                    .NotNull().WithMessage("Phải có danh sách loại vàng.")
+                    .Must(rows => rows.Count <= 10 && rows.All(r => r is not null)).WithMessage("Tối đa 10 loại vàng, không được để trống.")
+                    .Must(rows => rows.Select(r => r.Key).Distinct().Count() == rows.Count).WithMessage("Mã loại vàng không được trùng.");
+                gold.RuleForEach(g => g.Rows).ChildRules(row =>
+                {
+                    row.RuleFor(r => r.Key).Matches(@"\A[a-z][a-z0-9_]{1,28}[a-z0-9]\z").WithMessage("Mã loại vàng chỉ gồm chữ thường, số và gạch dưới, tối đa 30 ký tự.");
+                    row.RuleFor(r => r.Label).NotEmpty().MaximumLength(50).WithMessage("Tên loại vàng từ 1 đến 50 ký tự.");
+                    row.RuleFor(r => r.Names).Must(names => names is { Count: >= 1 and <= 10 } && names.All(n => !string.IsNullOrWhiteSpace(n) && n.Length <= 50)).WithMessage("Mỗi loại vàng có 1 đến 10 tên, mỗi tên tối đa 50 ký tự.");
+                });
+                gold.RuleFor(g => g.RowWords).Must(ValidKeywords).WithMessage("Tối đa 50 chữ được phép trong dòng giá vàng, mỗi chữ tối đa 50 ký tự.");
+                gold.RuleFor(g => g.Units).Must(units => units is { Count: >= 1 and <= 20 } && units.All(u => u is not null && !string.IsNullOrWhiteSpace(u.Text) && u.Text.Length <= 50 && u.Multiplier is >= 1 and <= 1_000_000_000))
+                    .WithMessage("Có 1 đến 20 đơn vị giá vàng, mỗi đơn vị có chữ (tối đa 50 ký tự) và hệ số từ 1 đến 1 tỉ.");
+            });
+            RuleFor(x => x.GoalTopics).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách chủ đề mục tiêu.")
+                .Must(topics => topics.Count <= 20 && topics.All(t => t is not null)).WithMessage("Tối đa 20 chủ đề mục tiêu, không được để trống.")
+                .Must(topics => topics.Select(t => t.Key).Distinct().Count() == topics.Count).WithMessage("Mã chủ đề mục tiêu không được trùng.")
+                .Must((settings, topics) => topics.All(t => settings.Gold?.Rows?.Any(r => r?.Key == t.GoldKey) == true)).WithMessage("Mỗi chủ đề mục tiêu phải trỏ tới một loại vàng có trong marketData.gold.rows.");
+            RuleForEach(x => x.GoalTopics).ChildRules(topic =>
+            {
+                topic.RuleFor(t => t.Key).Matches(@"\A[a-z][a-z0-9_]{1,30}\z").WithMessage("Mã chủ đề mục tiêu chỉ gồm chữ thường, số và gạch dưới, 2 đến 31 ký tự.");
+                topic.RuleFor(t => t.Label).NotEmpty().MaximumLength(50).WithMessage("Tên chủ đề mục tiêu từ 1 đến 50 ký tự.");
+                topic.RuleFor(t => t.NameKeywords).Must(ValidKeywords).WithMessage("Tối đa 50 từ gợi ý, mỗi từ tối đa 50 ký tự.");
+            });
+            RuleFor(x => x.GoalAlerts).NotNull().ChildRules(alerts =>
+            {
+                alerts.RuleFor(a => a.MinChangePercent).InclusiveBetween(1, 100).WithMessage("Mức tăng giá tối thiểu phải từ 1 đến 100%.");
+                alerts.RuleFor(a => a.MinShiftDays).InclusiveBetween(1, 3650).WithMessage("Số ngày lùi tối thiểu phải từ 1 đến 3650.");
+                alerts.RuleFor(a => a.CooldownDays).InclusiveBetween(0, 365).WithMessage("Thời gian giãn cảnh báo mục tiêu phải từ 0 đến 365 ngày.");
+            });
+            RuleFor(x => x.AssumptionRules).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách luật soạn giả định.")
+                .Must(rules => rules.Count <= 20 && rules.All(r => r is not null)).WithMessage("Tối đa 20 luật soạn giả định, không được để trống.")
+                .Must(rules => rules.Select(r => r.AssumptionKey).Distinct().Count() == rules.Count).WithMessage("Mỗi khóa giả định chỉ có một luật.")
+                .Must((settings, rules) => rules.All(r => settings.Gold?.Rows?.Any(g => g?.Key == r.GoldKey) == true)).WithMessage("Mỗi luật soạn giả định phải trỏ tới một loại vàng có trong marketData.gold.rows.");
+            RuleForEach(x => x.AssumptionRules).ChildRules(rule =>
+            {
+                rule.RuleFor(r => r.AssumptionKey).Matches("^[a-z][a-z0-9_]{2,47}$").WithMessage("Khóa giả định gồm chữ thường, số, gạch dưới; bắt đầu bằng chữ; 3–48 ký tự.");
+                rule.RuleFor(r => r.WindowDays).InclusiveBetween(30, 3650).WithMessage("Cửa sổ tính tốc độ phải từ 30 đến 3650 ngày.");
+                rule.RuleFor(r => r.MinDeltaBps).InclusiveBetween(0, 10000).WithMessage("Mức lệch để soạn nháp mới phải từ 0 đến 10000 điểm cơ bản.");
+            });
+            RuleFor(x => x.FuelReleaseLinkText).NotEmpty().MaximumLength(200).WithMessage("Chữ của link thông cáo giá xăng từ 1 đến 200 ký tự.");
+            RuleFor(x => x.FuelReleaseNames).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Phải có danh sách tên hàng trong thông cáo giá xăng.")
+                .Must(list => list.Count <= 20 && list.All(n => n is not null)).WithMessage("Tối đa 20 tên hàng, không được để trống.")
+                .Must(list => list.Select(n => n.FuelKey).Distinct().Count() == list.Count).WithMessage("Mỗi loại xăng dầu chỉ được một tên hàng.");
+            RuleForEach(x => x.FuelReleaseNames).ChildRules(name =>
+            {
+                name.RuleFor(n => n.Name).NotEmpty().MaximumLength(100).WithMessage("Tên hàng từ 1 đến 100 ký tự.");
+                name.RuleFor(n => n.FuelKey).Must(key => FinMate.Application.MarketData.FuelKeys.All.Contains(key)).WithMessage("Loại xăng dầu của tên hàng không hợp lệ.");
             });
             RuleFor(x => x.MinEventDomains).InclusiveBetween(1, 10).WithMessage("Số tên miền phải từ 1 đến 10.");
             RuleFor(x => x.MaxAiDocumentsPerDay).InclusiveBetween(0, 5000).WithMessage("Số bài gửi AI mỗi ngày phải từ 0 đến 5000.");
@@ -419,6 +505,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
 
     private sealed class ThemeValidator : AbstractValidator<ThemeSettings>
     {
+        private const int MaxFonts = 30;
+
         public ThemeValidator()
         {
             RuleFor(x => x.PrimaryColor).Must(BeColorOrEmpty).WithMessage("Màu chủ đạo phải là mã HEX 6 số (vd #2E7D6B).");
@@ -426,6 +514,16 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.NavBarColor).Must(BeColorOrEmpty).WithMessage("Màu thanh điều hướng phải là mã HEX 6 số.");
             RuleFor(x => x.FontFamily).Must(font => font is null || FontName.IsMatch(font))
                 .WithMessage("Tên font chỉ gồm chữ, số và dấu cách (tối đa 40 ký tự).");
+            RuleFor(x => x.AvailableFonts).NotNull().Must(fonts => fonts.Count <= MaxFonts)
+                .WithMessage($"Danh sách font tối đa {MaxFonts} font.");
+            RuleForEach(x => x.AvailableFonts).Must(font => font is not null && FontName.IsMatch(font))
+                .WithMessage("Tên font chỉ gồm chữ, số và dấu cách (tối đa 40 ký tự), đúng như trên Google Fonts.");
+            RuleFor(x => x.AvailableFonts).Must(fonts => fonts.Distinct(StringComparer.OrdinalIgnoreCase).Count() == fonts.Count)
+                .When(x => x.AvailableFonts is not null).WithMessage("Danh sách font có tên bị trùng.");
+            RuleFor(x => x.FontFamily)
+                .Must((theme, font) => font is null || font == ThemeSettings.DefaultFont || (theme.AvailableFonts?.Contains(font) ?? false))
+                .When(x => x.FontFamily is not null && FontName.IsMatch(x.FontFamily))
+                .WithMessage("Font đang chọn không còn trong danh sách font. Chọn lại font hoặc thêm font đó vào danh sách.");
             RuleFor(x => x.TextScale).InclusiveBetween(0.8, 1.5).WithMessage("Hệ số cỡ chữ phải từ 0,8 đến 1,5.");
             RuleFor(x => x.LogoUrl).Must(url => url is null || (url.Length <= 500 && IsHttps(url)))
                 .WithMessage("Đường dẫn logo phải là địa chỉ https (tối đa 500 ký tự).");

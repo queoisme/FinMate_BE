@@ -23,4 +23,7 @@ public interface ISavingGoalRepository
 
     /// <summary>Goal còn Active, đã quá deadline và chưa được nhắc lần nào.</summary>
     Task<List<SavingGoal>> GetOverdueUnnotifiedGoalsAsync(DateTimeOffset now, CancellationToken ct = default);
+
+    /// <summary>Mục tiêu cá nhân đang chạy có theo một trong các chủ đề giá thị trường này (dùng cho job cảnh báo, không theo người dùng).</summary>
+    Task<List<SavingGoal>> GetActiveWithMarketTopicAsync(IReadOnlyCollection<string> topics, CancellationToken ct = default);
 }

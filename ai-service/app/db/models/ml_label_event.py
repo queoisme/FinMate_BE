@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, created_at, uuid_pk
 from app.db.models.category import category_fk
+from app.db.models import user_feedback  # noqa: F401  đăng ký bảng đích của FK feedback_id; script không import app.main thì thiếu nó
 
 LABEL_EVENT_SOURCES = ("feedback", "gold", "import", "user", "system")
 

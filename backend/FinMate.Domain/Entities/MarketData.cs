@@ -82,12 +82,37 @@ public class FuelPrice
     public Guid Id { get; set; }
     public string FuelKey { get; set; } = string.Empty;
     public long Region1PriceCents { get; set; }
-    public long Region2PriceCents { get; set; }
+    /// <summary>Null khi nguồn chỉ có một mức giá (thông cáo của Bộ Công Thương công bố giá trần toàn quốc).</summary>
+    public long? Region2PriceCents { get; set; }
     public DateTimeOffset FirstSeenAt { get; set; }
     public FuelPriceOrigin Origin { get; set; }
+
+    /// <summary>Tên miền đã cho đúng giá này ở lượt xác nhận. Null với giá admin nhập tay và giá có từ trước khi lưu trường này.</summary>
+    public string[]? SourceDomains { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public string? Note { get; set; }
 
     /// <summary>Đã xét gửi cảnh báo cho mức giá này.</summary>
+    public DateTimeOffset? AlertsProcessedAt { get; set; }
+}
+
+/// <summary>Giá vàng đã xác nhận, đồng mỗi lượng. Chỉ thêm dòng khi giá đổi, nên dòng mới nhất của một loại là giá đang áp dụng.</summary>
+public class GoldPrice
+{
+    public Guid Id { get; set; }
+
+    /// <summary>Mã trong <c>marketData.gold.rows</c>, ví dụ <c>sjc_bar</c>.</summary>
+    public string GoldKey { get; set; } = string.Empty;
+    public long BuyCents { get; set; }
+    public long SellCents { get; set; }
+    public DateTimeOffset FirstSeenAt { get; set; }
+
+    /// <summary>Cùng ý nghĩa với giá xăng: đọc từ nguồn hoặc admin nhập tay.</summary>
+    public FuelPriceOrigin Origin { get; set; }
+    public string[]? SourceDomains { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public string? Note { get; set; }
+
+    /// <summary>Đã xét cảnh báo mục tiêu cho mức giá này.</summary>
     public DateTimeOffset? AlertsProcessedAt { get; set; }
 }

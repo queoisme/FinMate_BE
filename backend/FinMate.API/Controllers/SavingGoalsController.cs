@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FinMate.Application.Common.Models;
+using FinMate.Application.MarketData;
 using FinMate.Application.SavingGoals.Commands;
 using FinMate.Application.SavingGoals.Queries;
 using FinMate.Domain.Enums;
@@ -45,13 +46,23 @@ public class SavingGoalsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<SavingGoalDto>>.Ok(goals));
     }
 
+    /// <summary>Giá thị trường mà mục tiêu theo được (ví dụ vàng), kèm giá hiện tại và từ gợi ý theo tên mục tiêu. Chỉ chủ đề đang bật và đã có giá xác nhận.</summary>
+    [HttpGet("market-topics")]
+    public async Task<IActionResult> GetMarketTopics([FromServices] GoalMarketService market, CancellationToken ct)
+    {
+        var topics = (await market.ListAsync(ct))
+            .Select(q => new GoalMarketTopicDto(q.Topic.Key, q.Topic.Label, q.PriceCents, q.At, q.Topic.NameKeywords))
+            .ToList();
+        return Ok(ApiResponse<IReadOnlyList<GoalMarketTopicDto>>.Ok(topics));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSavingGoalRequest request, CancellationToken ct)
     {
         var goal = await _createHandler.HandleAsync(
             new CreateSavingGoalCommand(
                 CurrentUserId, request.Name, request.TargetCents, request.Deadline, request.GoalTemplateCode,
-                request.Icon, request.InitialSavedCents ?? 0, request.ContributionFrequency, request.IsDraft ?? false), ct);
+                request.Icon, request.InitialSavedCents ?? 0, request.ContributionFrequency, request.IsDraft ?? false, request.MarketTopic), ct);
         return StatusCode(StatusCodes.Status201Created, ApiResponse<SavingGoalDto>.Ok(goal));
     }
 
@@ -59,7 +70,7 @@ public class SavingGoalsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSavingGoalRequest request, CancellationToken ct)
     {
         var goal = await _updateHandler.HandleAsync(
-            new UpdateSavingGoalCommand(CurrentUserId, id, request.Name, request.TargetCents, request.Deadline, request.Icon, request.ContributionFrequency), ct);
+            new UpdateSavingGoalCommand(CurrentUserId, id, request.Name, request.TargetCents, request.Deadline, request.Icon, request.ContributionFrequency, request.MarketTopic), ct);
         return Ok(ApiResponse<SavingGoalDto>.Ok(goal));
     }
 
@@ -96,11 +107,19 @@ public class SavingGoalsController : ControllerBase
 /// <param name="InitialSavedCents">Số đã có sẵn lúc đặt mục tiêu, từ 0 và nhỏ hơn <c>TargetCents</c>. Không phải khoản góp.</param>
 /// <param name="ContributionFrequency"><c>weekly</c> | <c>monthly</c> | <c>custom</c>.</param>
 /// <param name="IsDraft">true = lưu bản nháp (trạng thái <c>draft</c>), kích hoạt sau bằng <c>POST /saving-goals/{id}/activate</c>.</param>
+/// <param name="MarketTopic">Mã chủ đề giá thị trường mục tiêu theo, lấy từ <c>GET /market-data/goal-topics</c> (ví dụ <c>gold</c>); bỏ trống = không theo.</param>
 public record CreateSavingGoalRequest(
     string Name, long TargetCents, DateTimeOffset? Deadline, string? GoalTemplateCode = null,
-    string? Icon = null, long? InitialSavedCents = null, GoalContributionFrequency? ContributionFrequency = null, bool? IsDraft = null);
+    string? Icon = null, long? InitialSavedCents = null, GoalContributionFrequency? ContributionFrequency = null, bool? IsDraft = null,
+    string? MarketTopic = null);
 
 /// <param name="Icon">null = giữ nguyên; chuỗi rỗng = xóa.</param>
+/// <param name="MarketTopic">null = giữ nguyên; chuỗi rỗng = bỏ theo giá; mã = theo giá đó, lấy giá hiện tại làm mốc.</param>
 public record UpdateSavingGoalRequest(
-    string Name, long TargetCents, DateTimeOffset? Deadline, string? Icon = null, GoalContributionFrequency? ContributionFrequency = null);
+    string Name, long TargetCents, DateTimeOffset? Deadline, string? Icon = null, GoalContributionFrequency? ContributionFrequency = null,
+    string? MarketTopic = null);
+/// <param name="PriceCents">Giá bán ra đã xác nhận mới nhất, đồng mỗi lượng.</param>
+/// <param name="NameKeywords">Tên mục tiêu chứa một trong các từ này thì app gợi ý theo giá; chỉ gợi ý.</param>
+public record GoalMarketTopicDto(string Key, string Label, long PriceCents, DateTimeOffset AsOf, IReadOnlyList<string> NameKeywords);
+
 public record ContributeToGoalRequest(long AmountCents, string? Note, DateTimeOffset? ContributedAt);

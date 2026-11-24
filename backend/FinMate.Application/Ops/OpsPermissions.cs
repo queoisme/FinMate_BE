@@ -33,6 +33,12 @@ public enum OpsCapability
 
     /// <summary>Soạn bản nháp Điều khoản và Chính sách quyền riêng tư, xem lịch sử phiên bản. Xuất bản cần <see cref="ManageSystem"/> (chỉ Admin).</summary>
     ManageLegalDocuments = 1 << 17,
+
+    /// <summary>Xem, soạn bản nháp kho tri thức và giả định kinh tế của agent, đánh dấu câu hỏi chưa trả lời được. Duyệt và gỡ cần <see cref="ApproveAgentContent"/>.</summary>
+    ManageAgentContent = 1 << 18,
+
+    /// <summary>Duyệt và gỡ tri thức, giả định kinh tế để agent dùng. Cần có <see cref="ManageAgentContent"/>.</summary>
+    ApproveAgentContent = 1 << 19,
 }
 
 public static class OpsPermissions
@@ -43,7 +49,8 @@ public static class OpsPermissions
         | OpsCapability.CreateDraftTransactions
         | OpsCapability.EmergencyLock
         | OpsCapability.ProposeApprovals
-        | OpsCapability.ModerateCommunity;
+        | OpsCapability.ModerateCommunity
+        | OpsCapability.ManageAgentContent;
 
     private const OpsCapability ManagerCapabilities =
         StaffCapabilities
@@ -57,7 +64,8 @@ public static class OpsPermissions
         | OpsCapability.ManageIncidents
         | OpsCapability.MuteCommunityAuthors
         | OpsCapability.ManageSubscriptionPlans
-        | OpsCapability.ManageLegalDocuments;
+        | OpsCapability.ManageLegalDocuments
+        | OpsCapability.ApproveAgentContent;
 
     public static OpsCapability For(UserRole role) => role switch
     {

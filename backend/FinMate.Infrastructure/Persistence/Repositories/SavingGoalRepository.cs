@@ -67,4 +67,13 @@ public class SavingGoalRepository : ISavingGoalRepository
                 && g.Deadline < now
                 && g.DeadlineNotifiedAt == null)
             .ToListAsync(ct);
+
+    public Task<List<SavingGoal>> GetActiveWithMarketTopicAsync(IReadOnlyCollection<string> topics, CancellationToken ct = default)
+        => _context.SavingGoals
+            .Where(g => g.Status == SavingGoalStatus.Active
+                && g.UserId != null
+                && g.DeletedAt == null
+                && g.MarketTopic != null
+                && topics.Contains(g.MarketTopic))
+            .ToListAsync(ct);
 }

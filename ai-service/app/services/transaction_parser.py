@@ -81,6 +81,7 @@ intent_cues.subscribe(_bind)  # admin kích hoạt bản mới (intent_cues.appl
 _KIND_BY_INTENT = {"add_expense": "expense", "add_income": "income", "transfer_money": "transfer"}
 _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
 PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; bộ phân loại ý định cũng có thể đoán tên này
+EXPLAIN_INTENT = "explain_numbers"  # xin giải thích con số của câu trả lời vừa rồi: app đọc bằng chứng của chính câu trả lời đó, chat không trả lời gì
 ITEM_INTENT = "create_item"  # tạo ngân sách / khoản định kỳ / khoản vay nợ bằng chat (xem item_parser)
 AGENT_INTENT = "ask_agent"  # câu kế hoạch/dự báo (xem mẫu agent_planning): app hỏi AI Financial Agent (POST /agent/ask), chat không ghi và không trả lời gì
 PURCHASE_ASK_INTENT = "purchase_needs_amount"  # vừa hỏi giá một khoản định mua: app nhớ câu hỏi và ghép với tin kế tiếp nếu tin đó chỉ có số tiền (server không giữ trạng thái)
@@ -689,6 +690,8 @@ def _parse_chat(
 
     if not norm:
         return result("empty", reply_text=_REPLIES["empty"])
+    if intent_cues.current().patterns["explain_numbers"].search(norm):
+        return result(EXPLAIN_INTENT)
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
     if (made := parse_item(text, now, category_from_text, item_context)) is not None and not is_query(norm):  # ngân sách / khoản định kỳ / vay nợ: bản nháp đủ thông tin thì app tạo, thiếu thì reply_text là câu hỏi lại (app nhớ và ghép với tin kế tiếp)

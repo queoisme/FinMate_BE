@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FinMate.API.Authorization;
+using FinMate.Application.Ops;
 using FinMate.Application.Admin.Commands;
 using FinMate.Application.Common.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,7 @@ namespace FinMate.API.Controllers.Admin;
 /// mã băm và số lần gặp, KHÔNG có nội dung và không bao giờ tự vào kho. Lỗi từ AI Service giữ nguyên: 404 không có, 409 chuyển trạng thái sai (<c>kb_invalid_transition</c>), 422 dữ liệu sai, 503 chưa nhúng được vector.
 /// </summary>
 [Route("api/v1/admin/knowledge")]
+[RequireOpsCapability(OpsCapability.ManageAgentContent)]
 public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentContentControllerBase
 {
     private static Dictionary<string, string?> Query(params (string Name, object? Value)[] values)
@@ -34,19 +36,30 @@ public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentCon
         => StatusCode(StatusCodes.Status201Created, ApiResponse<JsonElement?>.Ok(await service.SubmitAsync(CurrentAdminId, body, CurrentIpAddress, ct)));
 
     [HttpPost("documents/{id:guid}/approve")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [RequireOpsCapability(OpsCapability.ApproveAgentContent)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.ApproveAsync(CurrentAdminId, id, CurrentIpAddress, ct)));
 
     [HttpPost("documents/{id:guid}/retire")]
-    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    [RequireOpsCapability(OpsCapability.ApproveAgentContent)]
     public async Task<IActionResult> Retire(Guid id, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.RetireAsync(CurrentAdminId, id, CurrentIpAddress, ct)));
 
-    /// <summary>Câu hỏi chưa có tri thức, nhiều lần gặp nhất trước: <c>question_hash</c>, <c>count</c>, <c>first_seen</c>, <c>last_seen</c>, <c>status</c> (New|Dismissed|Covered).</summary>
+    /// <summary>
+    /// Câu hỏi chưa có tri thức, nhiều lần gặp nhất trước: <c>question_hash</c>, <c>count</c>, <c>first_seen</c>, <c>last_seen</c>, <c>status</c> (New|Dismissed|Covered),
+    /// <c>topic_code</c> và <c>topic_label</c> (chủ đề, null = chưa khớp chủ đề nào). <c>topic</c> lọc theo mã chủ đề, hoặc <c>none</c> cho các câu chưa có chủ đề.
+    /// </summary>
     [HttpGet("candidates")]
-    public async Task<IActionResult> ListCandidates([FromQuery] string? status, [FromQuery] int? limit, [FromQuery] int? offset, CancellationToken ct)
-        => Ok(ApiResponse<JsonElement?>.Ok(await service.ListCandidatesAsync(Query(("status", status), ("limit", limit), ("offset", offset)), ct)));
+    public async Task<IActionResult> ListCandidates([FromQuery] string? status, [FromQuery] string? topic, [FromQuery] int? limit, [FromQuery] int? offset, CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await service.ListCandidatesAsync(Query(("status", status), ("topic", topic), ("limit", limit), ("offset", offset)), ct)));
+
+    /// <summary>
+    /// Câu hỏi chưa trả lời được gom theo chủ đề: <c>topic_code</c>, <c>topic_label</c>, <c>questions</c> (số câu khác nhau), <c>occurrences</c> (tổng số lần gặp), nhiều nhất trước.
+    /// <c>status</c> mặc định <c>New</c>.
+    /// </summary>
+    [HttpGet("candidate-topics")]
+    public async Task<IActionResult> ListCandidateTopics([FromQuery] string? status, CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await service.ListCandidateTopicsAsync(Query(("status", status)), ct)));
 
     /// <summary>Đánh dấu đã xử lý: <c>{"status": "Dismissed" | "Covered"}</c>. Không tạo tài liệu.</summary>
     [HttpPost("candidates/{id:guid}/resolve")]

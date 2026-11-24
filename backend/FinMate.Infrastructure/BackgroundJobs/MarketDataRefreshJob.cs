@@ -1,3 +1,4 @@
+using FinMate.Application.Economics;
 using FinMate.Application.MarketData;
 using Hangfire;
 using Microsoft.Extensions.Logging;
@@ -10,9 +11,11 @@ public class MarketDataRefreshJob
     private readonly IMarketDataService _service;
     private readonly IMarketAlertService _alerts;
     private readonly ILogger<MarketDataRefreshJob> _logger;
+    private readonly MarketAssumptionDrafter? _drafter;
 
-    public MarketDataRefreshJob(IMarketDataService service, IMarketAlertService alerts, ILogger<MarketDataRefreshJob> logger)
+    public MarketDataRefreshJob(IMarketDataService service, IMarketAlertService alerts, ILogger<MarketDataRefreshJob> logger, MarketAssumptionDrafter? drafter = null)
     {
+        _drafter = drafter;
         _alerts = alerts;
         _service = service;
         _logger = logger;
@@ -30,6 +33,10 @@ public class MarketDataRefreshJob
             _logger.LogInformation(
                 "Market data refreshed: {Checked} sources, {Failed} failed, {NewDocuments} new documents, {Confirmed} fuels changed, {Purged} documents purged",
                 summary.SourcesChecked, summary.SourcesFailed, summary.NewDocuments, summary.ConfirmedFuels.Count, purged);
+            if (_drafter is not null && summary.ConfirmedGold is { Count: > 0 })
+            {
+                await _drafter.RunAsync(ct);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

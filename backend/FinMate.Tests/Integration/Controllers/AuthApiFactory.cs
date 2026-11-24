@@ -124,6 +124,16 @@ public class AuthApiFactory : WebApplicationFactory<FinMate.API.Program>, IAsync
             // instead of the real Refit client.
             services.RemoveAll<IAIServiceClient>();
             services.AddScoped<IAIServiceClient, FakeAIServiceClient>();
+            services.RemoveAll<IAiLearningQueue>();
+            services.AddScoped<IAiLearningQueue, InlineAiLearningQueue>();  // bài test kiểm kết quả ngay sau request: chạy lệnh học tại chỗ thay vì xếp hàng Hangfire
         });
     }
+}
+
+/// <summary>Bản thay thế cho test: chạy lệnh học tại chỗ (đồng bộ) để kiểm được kết quả ngay sau request.</summary>
+public sealed class InlineAiLearningQueue(IAIServiceClient client) : IAiLearningQueue
+{
+    public void LearnMerchant(LearnMerchantRequest request) => client.LearnMerchantAsync(request).GetAwaiter().GetResult();
+
+    public void Feedback(FeedbackRequest request) => client.SendFeedbackAsync(request).GetAwaiter().GetResult();
 }

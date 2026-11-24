@@ -22,7 +22,7 @@ def test_the_backend_requests_are_accepted_by_the_models_without_unknown_fields(
     assert parsed is not None
 
 
-@pytest.mark.parametrize("name,model", [("gate_response.json", GateResponse), ("plan_response.json", PlanResponse), ("compose_response.json", ComposeResponse)])
+@pytest.mark.parametrize("name,model", [("gate_response.json", GateResponse), ("gate_direct_response.json", GateResponse), ("plan_response.json", PlanResponse), ("compose_response.json", ComposeResponse)])
 def test_the_response_fixtures_are_exactly_what_the_models_produce(name, model):
     fixture = load(name)
 

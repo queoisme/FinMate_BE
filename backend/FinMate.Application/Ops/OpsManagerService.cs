@@ -143,9 +143,7 @@ public sealed class OpsManagerService : IOpsManagerService
 
         var result = await _auditLogs.GetPageAsync(
             new AuditLogListFilter(null, eventType, from, to, cursor, Math.Clamp(limit, 1, 100), OpsEventPrefix, search), ct);
-        return new AuditLogListDto(
-            result.Items.Select(a => new AuditLogDto(a.Id, a.UserId, a.EventType, a.Metadata, a.IpAddress, a.CreatedAt)).ToList(),
-            result.NextCursor);
+        return new AuditLogListDto(await _auditLogs.ToDtosAsync(result.Items, ct), result.NextCursor);
     }
 
     public async Task<AiStatsDto> GetAiStatsAsync(Guid actorId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct = default)

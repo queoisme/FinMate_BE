@@ -12,7 +12,8 @@ public record SavingGoalDto(
     DateTimeOffset? CompletedAt,
     string? Icon = null,
     long InitialSavedCents = 0,
-    string? ContributionFrequency = null);
+    string? ContributionFrequency = null,
+    string? MarketTopic = null);
 
 public record GoalContributionDto(
     Guid Id,

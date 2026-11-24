@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.MarketData;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentValidation;
@@ -13,17 +14,20 @@ public class CreateSavingGoalCommandHandler : ICreateSavingGoalCommandHandler
     private readonly IValidator<CreateSavingGoalCommand> _validator;
     private readonly IFinanceMethodRepository _financeMethods;
     private readonly IUserMethodRepository _userMethods;
+    private readonly GoalMarketService? _market;
 
     public CreateSavingGoalCommandHandler(
         ISavingGoalRepository savingGoalRepository,
         IValidator<CreateSavingGoalCommand> validator,
         IFinanceMethodRepository financeMethods,
-        IUserMethodRepository userMethods)
+        IUserMethodRepository userMethods,
+        GoalMarketService? market = null)
     {
         _savingGoalRepository = savingGoalRepository;
         _validator = validator;
         _financeMethods = financeMethods;
         _userMethods = userMethods;
+        _market = market;
     }
 
     public async Task<SavingGoalDto> HandleAsync(CreateSavingGoalCommand command, CancellationToken ct = default)
@@ -62,6 +66,11 @@ public class CreateSavingGoalCommandHandler : ICreateSavingGoalCommandHandler
             CreatedAt = now,
             UpdatedAt = now,
         };
+
+        if (_market is not null && !string.IsNullOrEmpty(command.MarketTopic))
+        {
+            await _market.ApplyAsync(goal, command.MarketTopic, targetChanged: false, now, ct);
+        }
 
         await _savingGoalRepository.AddAsync(goal, ct);
 

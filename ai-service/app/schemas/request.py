@@ -8,10 +8,11 @@ lặng lẽ chứ không phải exception.
 
 from __future__ import annotations
 
+import unicodedata
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AnalyzeRequest(BaseModel):
@@ -24,6 +25,12 @@ class AnalyzeRequest(BaseModel):
     notification_body: str = Field(min_length=1)
     received_at: datetime
     allow_ai: bool = False  # người dùng đã đồng ý AI; backend cũ không gửi → false → không bao giờ gọi AI
+
+    @field_validator("notification_title", "notification_body")
+    @classmethod
+    def _nfc(cls, value: str | None) -> str | None:
+        """Thông báo thật hay trộn chữ tổ hợp sẵn với chữ dùng dấu rời ("lúc" = ``u`` + U+0301, "Số" = ``ố``). Regex, nhãn "số dư" và so khớp từ đều so từng code point, nên một chữ dấu rời làm cả nhãn trượt: số dư bị đọc thành số tiền giao dịch. Chuẩn hóa MỘT lần ở đầu vào để mọi stage thấy cùng một dạng."""
+        return None if value is None else unicodedata.normalize("NFC", value)
 
 
 class FeedbackRequest(BaseModel):

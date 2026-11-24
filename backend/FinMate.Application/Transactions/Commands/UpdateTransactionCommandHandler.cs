@@ -35,6 +35,8 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IRefundLedger? _refunds;
     private readonly IDailySummaryRefresher? _summaries;
 
+    private readonly IAiLearningQueue? _learning;  // null (test cũ): gọi thẳng AI Service như trước
+
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -52,8 +54,10 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IGroupLedger? groupLedger = null,
         IRefundLedger? refunds = null,
         IDailySummaryRefresher? summaries = null,
-        IItemMemoryService? itemMemory = null)
+        IItemMemoryService? itemMemory = null,
+        IAiLearningQueue? learning = null)
     {
+        _learning = learning;
         _refunds = refunds;
         _summaries = summaries;
         _itemMemory = itemMemory;
@@ -181,6 +185,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         var categoryChanged = transaction.CategoryId != (newCategory?.Id);
         var oldCategorySlug = transaction.Category?.Slug;
 
+        // Số dư ngân hàng ghi trên nháp là của ví gốc; chuyển nháp sang ví khác thì nó không còn đúng, và lúc xác nhận sẽ bị đặt làm số dư ví mới.
+        if (!wasConfirmed && transaction.FinancialAccountId != command.FinancialAccountId)
+        {
+            transaction.BalanceAfterCents = null;
+        }
+
         transaction.FinancialAccountId = command.FinancialAccountId;
         transaction.CounterAccountId = command.CounterAccountId;
         transaction.CategoryId = newCategory?.Id;
@@ -232,24 +242,37 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
             if (categoryChanged && transaction.Source == TransactionSource.Notification)
             {
                 // IAIServiceClient.SendFeedbackAsync tự nuốt lỗi (best-effort) — không cần try/catch ở đây.
-                await _aiServiceClient.SendFeedbackAsync(
-                    new FeedbackRequest(
-                        transaction.Id,
-                        command.UserId,
-                        null,
-                        transaction.FinancialAccount?.PackageName ?? "unknown",
-                        oldCategorySlug,
-                        newCategory?.Slug,
-                        "category_correction"),
-                    ct);
+                var feedback = new FeedbackRequest(
+                    transaction.Id,
+                    command.UserId,
+                    null,
+                    transaction.FinancialAccount?.PackageName ?? "unknown",
+                    oldCategorySlug,
+                    newCategory?.Slug,
+                    "category_correction");
+                if (_learning is not null)
+                {
+                    _learning.Feedback(feedback);
+                }
+                else
+                {
+                    await _aiServiceClient.SendFeedbackAsync(feedback, ct);
+                }
             }
 
             // Sửa danh mục của một khoản chi từ hóa đơn: lựa chọn mới của người dùng thắng gợi ý cũ của AI, và lần quét sau cùng cửa hàng ra đúng nó.
             if (categoryChanged && ReceiptMemory.ShouldLearn(transaction.Source, newCategory, transaction.MerchantName, scanWasSplit: false)
                 && !await LinkedToSplitScanAsync(transaction.Id, command.UserId, ct))
             {
-                await _aiServiceClient.LearnMerchantAsync(
-                    new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug), ct);
+                var learn = new LearnMerchantRequest(command.UserId, transaction.MerchantName!, newCategory!.Slug);
+                if (_learning is not null)
+                {
+                    _learning.LearnMerchant(learn);
+                }
+                else
+                {
+                    await _aiServiceClient.LearnMerchantAsync(learn, ct);
+                }
             }
 
             if (categoryChanged && transaction.Source == TransactionSource.Receipt && _trainingSamples is not null)

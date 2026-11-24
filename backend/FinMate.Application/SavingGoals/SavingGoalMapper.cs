@@ -17,7 +17,8 @@ internal static class SavingGoalMapper
         goal.CompletedAt,
         goal.Icon,
         goal.InitialSavedCents,
-        goal.ContributionFrequency?.ToString().ToLowerInvariant());
+        goal.ContributionFrequency?.ToString().ToLowerInvariant(),
+        goal.MarketTopic);
 
     internal static GoalContributionDto ToDto(GoalContribution contribution) => new(
         contribution.Id,

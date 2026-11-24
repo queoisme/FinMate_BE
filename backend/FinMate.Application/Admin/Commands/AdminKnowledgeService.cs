@@ -23,6 +23,9 @@ public interface IAdminKnowledgeService
 
     Task<JsonElement?> ListCandidatesAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
 
+    /// <summary>Câu hỏi chưa trả lời được gom theo chủ đề (nhiều lần gặp nhất trước), để biết cần viết tài liệu về mảng nào.</summary>
+    Task<JsonElement?> ListCandidateTopicsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default);
+
     Task<JsonElement?> ResolveCandidateAsync(Guid adminId, Guid candidateId, JsonElement body, CancellationToken ct = default);
 }
 
@@ -51,6 +54,9 @@ public class AdminKnowledgeService(IAiRulesAdminClient client, IAuditLogService 
 
     public Task<JsonElement?> ListCandidatesAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
         => client.SendAsync(new AiRulesRequest(HttpMethod.Get, "candidates", query, Area: Area), ct);
+
+    public Task<JsonElement?> ListCandidateTopicsAsync(IReadOnlyDictionary<string, string?> query, CancellationToken ct = default)
+        => client.SendAsync(new AiRulesRequest(HttpMethod.Get, "candidate-topics", query, Area: Area), ct);
 
     public Task<JsonElement?> ResolveCandidateAsync(Guid adminId, Guid candidateId, JsonElement body, CancellationToken ct = default)
         => client.SendAsync(new AiRulesRequest(HttpMethod.Post, $"candidates/{candidateId}/resolve", null, body, adminId, Area), ct);

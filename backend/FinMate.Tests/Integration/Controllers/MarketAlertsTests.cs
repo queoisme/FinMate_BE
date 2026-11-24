@@ -470,9 +470,15 @@ public class MarketAlertsTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             db.MarketSources.Add(new MarketSource { Id = Guid.NewGuid(), Name = "Giá", Url = "https://gia-hong.invalid/x", Kind = MarketSourceKind.PriceTable, AiAllowed = true, IsActive = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
             return await db.SaveChangesAsync();
         });
+        // Nguồn ngoài danh sách uy tín bị bỏ qua chứ không tính là lỗi, nên tên miền này phải có trong danh sách.
+        await SetConfigAsync(false, new MarketDataSettings
+        {
+            TrustedDomains = [new MarketTrustedDomain { Domain = "gia-hong.invalid", Tier = MarketTrustedDomain.Licensed, Owner = "Giá hỏng", LicenseRef = "1/GP-TEST" }],
+        });
         var before = tracker.Get(MonitoredServices.MarketData.Key).ConsecutiveFailures;
 
         using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>().Invalidate();
         await scope.ServiceProvider.GetRequiredService<IMarketDataService>().RefreshAsync();
 
         var state = tracker.Get(MonitoredServices.MarketData.Key);

@@ -9,4 +9,5 @@ public record UpdateSavingGoalCommand(
     long TargetCents,
     DateTimeOffset? Deadline,
     string? Icon = null,
-    GoalContributionFrequency? ContributionFrequency = null);
+    GoalContributionFrequency? ContributionFrequency = null,
+    string? MarketTopic = null);

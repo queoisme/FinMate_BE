@@ -41,6 +41,9 @@ public sealed record FeatureSettings
     /// <summary>Cảnh báo giá tăng. Mặc định tắt: chỉ bật sau khi app xử lý được loại cảnh báo này. Việc đọc dữ liệu vẫn chạy khi tắt.</summary>
     public bool MarketAlerts { get; init; }
 
+    /// <summary>Cảnh báo khi giá thị trường làm ngày đạt mục tiêu tiết kiệm lùi xa (<c>goal_market_shift</c>). Mặc định tắt cho tới khi app xử lý được loại này. Gắn mục tiêu với giá vẫn dùng được khi tắt.</summary>
+    public bool GoalMarketAlerts { get; init; }
+
     /// <summary>Cộng đồng. Mặc định tắt: chỉ bật khi app đã có màn hình, câu chữ đồng ý đã được duyệt và đã có người trực duyệt ảnh.</summary>
     public bool Community { get; init; }
 
@@ -111,6 +114,41 @@ public sealed record MonitoringSettings
     public int ProviderFailureThreshold { get; init; } = 3;
     public int ReminderMinutes { get; init; } = 15;
     public int ErrorRetentionDays { get; init; } = 30;
+
+    /// <summary>
+    /// Giải thích lỗi bằng lời thường cho trang Giám sát hệ thống. Khớp theo tên kiểu lỗi (chứa chuỗi <c>Match</c>, không phân biệt hoa thường), mục đầu tiên khớp được dùng.
+    /// Admin sửa/thêm bằng cấu hình, không phải sửa code. Chỉ là chú giải: không đổi cách ghi nhận hay gom sự cố.
+    /// </summary>
+    public IReadOnlyList<ErrorHint> ErrorHints { get; init; } =
+    [
+        new() { Match = "AIServiceUnavailable", Title = "Dịch vụ AI không phản hồi", Explanation = "Hệ thống không kết nối được tới dịch vụ phân tích AI (đang tắt, đang khởi động lại hoặc quá tải). Các việc cần AI sẽ không chạy hoặc dùng luật dự phòng.", Action = "Mở tab Dịch vụ xem \"Phân tích AI\" có đang chạy không; khởi động lại dịch vụ AI nếu cần." },
+        new() { Match = "OperationCanceled", Title = "Yêu cầu bị hủy giữa chừng", Explanation = "Người dùng đóng ứng dụng hoặc mất mạng trước khi hệ thống trả lời xong, hoặc yêu cầu chạy quá lâu nên bị ngắt. Xuất hiện lẻ tẻ thì không phải lỗi hệ thống.", Action = "Chỉ cần xử lý nếu số lượng tăng đột biến." },
+        new() { Match = "TaskCanceled", Title = "Yêu cầu bị hủy giữa chừng", Explanation = "Một yêu cầu bị ngắt trước khi hoàn tất (mất mạng hoặc quá thời gian chờ).", Action = "Chỉ cần xử lý nếu số lượng tăng đột biến." },
+        new() { Match = "SwaggerGeneratorException", Title = "Không dựng được trang tài liệu API", Explanation = "Trang tài liệu API (Swagger) không tạo được vì có một API khai báo chưa đúng. Không ảnh hưởng người dùng ứng dụng.", Action = "Báo đội phát triển, kèm thời điểm lỗi." },
+        new() { Match = "TimeoutException", Title = "Quá thời gian chờ", Explanation = "Một thao tác chờ quá lâu mà không có phản hồi (cơ sở dữ liệu hoặc dịch vụ bên ngoài chậm).", Action = "Xem tab Dịch vụ để biết dịch vụ nào đang chậm." },
+        new() { Match = "HttpRequestException", Title = "Không gọi được dịch vụ bên ngoài", Explanation = "Hệ thống không kết nối được tới một dịch vụ bên ngoài (đọc chữ hóa đơn, nhận diện giọng nói, ngân hàng...).", Action = "Xem tab Dịch vụ và tab Chất lượng thông báo." },
+        new() { Match = "Npgsql", Title = "Lỗi cơ sở dữ liệu", Explanation = "Hệ thống không đọc hoặc ghi được cơ sở dữ liệu.", Action = "Kiểm tra cơ sở dữ liệu có đang chạy; báo đội phát triển nếu lặp lại." },
+        new() { Match = "Redis", Title = "Lỗi bộ nhớ đệm", Explanation = "Hệ thống không kết nối được bộ nhớ đệm Redis. Ứng dụng có thể chậm hơn nhưng dữ liệu không mất.", Action = "Kiểm tra Redis có đang chạy." },
+        new() { Match = "DbUpdateConcurrency", Title = "Hai thao tác ghi cùng lúc", Explanation = "Hai yêu cầu cùng sửa một dữ liệu nên một bên bị từ chối. Người dùng thử lại là được.", Action = "Chỉ cần xử lý nếu xuất hiện liên tục." },
+        new() { Match = "JsonException", Title = "Dữ liệu gửi lên sai định dạng", Explanation = "Một yêu cầu gửi lên dữ liệu không đọc được.", Action = "Báo đội phát triển nếu lặp lại nhiều." },
+        new() { Match = "NullReference", Title = "Lỗi lập trình (thiếu dữ liệu)", Explanation = "Chương trình gặp dữ liệu trống ở chỗ không dự kiến. Đây là lỗi của phần mềm, không phải do người dùng.", Action = "Báo đội phát triển, kèm mã đối chiếu trong phần chi tiết." },
+    ];
+}
+
+/// <summary>Chú giải cho một loại lỗi trên trang Giám sát hệ thống.</summary>
+public sealed record ErrorHint
+{
+    /// <summary>Chuỗi có trong tên kiểu lỗi (ví dụ <c>TaskCanceled</c>).</summary>
+    public string Match { get; init; } = string.Empty;
+
+    /// <summary>Tên lỗi bằng lời thường, ngắn.</summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>Lỗi này nghĩa là gì và ảnh hưởng ra sao.</summary>
+    public string Explanation { get; init; } = string.Empty;
+
+    /// <summary>Người vận hành nên làm gì (có thể để trống).</summary>
+    public string Action { get; init; } = string.Empty;
 }
 
 /// <summary>Một loại chi phí hệ thống theo dõi giá. Thêm loại mới bằng cấu hình, không phải sửa code. Từ khóa so khớp theo cả từ và không phân biệt dấu, vì thông báo ngân hàng thường viết không dấu.</summary>
@@ -231,6 +269,186 @@ public sealed record MarketDataSettings
             NewsKeywords = ["giá gas", "giá khí hóa lỏng", "gas bán lẻ"],
         },
     ];
+
+    /// <summary>
+    /// Tên miền được dùng làm nguồn. Không có tên trong danh sách thì không thêm được nguồn, nguồn đã có bị bỏ qua và tin không được đếm.
+    /// Danh sách mặc định chỉ gồm trang đã kiểm ngày 2026-11-23; số giấy phép chép từ chân trang của chính trang đó.
+    /// </summary>
+    public IReadOnlyList<MarketTrustedDomain> TrustedDomains { get; init; } =
+    [
+        new() { Domain = "nso.gov.vn", Tier = MarketTrustedDomain.Official, Owner = "Cục Thống kê" },
+        new() { Domain = "moit.gov.vn", Tier = MarketTrustedDomain.Official, Owner = "Bộ Công Thương" },
+        new() { Domain = "sbv.gov.vn", Tier = MarketTrustedDomain.Official, Owner = "Ngân hàng Nhà nước Việt Nam" },
+        new() { Domain = "petrolimex.com.vn", Tier = MarketTrustedDomain.Official, Owner = "Tập đoàn Xăng dầu Việt Nam", LicenseRef = "1900/GP-TTĐT, Sở TT&TT Hà Nội, 08/07/2020", CheckedAt = "2026-11-23" },
+        new() { Domain = "sjc.com.vn", Tier = MarketTrustedDomain.Official, Owner = "Công ty Vàng bạc Đá quý Sài Gòn - SJC" },
+        new() { Domain = "pnj.com.vn", Tier = MarketTrustedDomain.Official, Owner = "Công ty Vàng bạc Đá quý Phú Nhuận - PNJ" },
+        new() { Domain = "doji.vn", Tier = MarketTrustedDomain.Official, Owner = "Tập đoàn Vàng bạc Đá quý DOJI" },
+        new() { Domain = "btmc.vn", Tier = MarketTrustedDomain.Official, Owner = "Công ty Bảo Tín Minh Châu" },
+        new() { Domain = "24h.com.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Công ty CP Quảng cáo trực tuyến 24H", LicenseRef = "180/GP-STTTT, Sở TT&TT Hà Nội, 11/12/2024", CheckedAt = "2026-11-23" },
+        new() { Domain = "cafef.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Công ty Cổ phần VCCorp", LicenseRef = "2216/GP-TTĐT, Sở TT&TT Hà Nội, 10/04/2019", CheckedAt = "2026-11-23" },
+        new() { Domain = "tuoitre.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Cơ quan Báo và Phát thanh, Truyền hình TP.HCM", LicenseRef = "561/GP-BTTTT, 25/11/2022", CheckedAt = "2026-11-23" },
+        new() { Domain = "nld.com.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Cơ quan Báo và Phát thanh, Truyền hình TP.HCM", LicenseRef = "561/GP-BTTTT, 25/11/2022", CheckedAt = "2026-11-23" },
+        new() { Domain = "thanhnien.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Báo Thanh Niên", LicenseRef = "110/GP-BTTTT, 24/03/2020", CheckedAt = "2026-11-23" },
+        new() { Domain = "dantri.com.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Báo Dân trí (Bộ Nội vụ)", LicenseRef = "15/GP-BVHTTDL, 14/04/2025", CheckedAt = "2026-11-23" },
+        new() { Domain = "vietnamnet.vn", Tier = MarketTrustedDomain.Licensed, Owner = "Báo VietNamNet (Bộ Dân tộc và Tôn giáo)", LicenseRef = "146/GP-BVHTTDL, 17/10/2025", CheckedAt = "2026-11-23" },
+    ];
+
+    /// <summary>Bảng giá vàng, đọc trên cùng nguồn <c>price_table</c> với giá xăng.</summary>
+    public GoldSettings Gold { get; init; } = new();
+
+    /// <summary>Giá thị trường mà người dùng gắn được với mục tiêu tiết kiệm. Hiện chỉ có giá vàng (giá bán ra).</summary>
+    public IReadOnlyList<GoalMarketTopic> GoalTopics { get; init; } =
+    [
+        new() { Key = "gold", Label = "vàng", GoldKey = "sjc_bar", NameKeywords = ["vàng"] },
+    ];
+
+    public GoalMarketAlertSettings GoalAlerts { get; init; } = new();
+
+    /// <summary>Từ giá đã xác nhận, soạn bản NHÁP giả định tốc độ tăng giá cho agent. Không bao giờ tự duyệt.</summary>
+    public IReadOnlyList<MarketAssumptionRule> AssumptionRules { get; init; } =
+    [
+        new() { GoldKey = "sjc_bar", AssumptionKey = "gold_price_growth" },
+    ];
+
+    /// <summary>Chữ hiển thị của link tới thông cáo giá xăng mới nhất trên trang chỉ mục (nguồn loại <c>fuel_release</c>). Link đầu tiên chứa cụm này được đọc.</summary>
+    public string FuelReleaseLinkText { get; init; } = "Thông tin về việc điều hành giá xăng dầu";
+
+    /// <summary>Tên hàng trong thông cáo điều hành giá xăng dầu của Bộ Công Thương → mã giá. Câu có dạng "{tên}: không cao hơn {số} đồng/lít".</summary>
+    public IReadOnlyList<FuelReleaseName> FuelReleaseNames { get; init; } =
+    [
+        new() { Name = "Xăng E5RON92", FuelKey = "e5_ron92_2" },
+        new() { Name = "Xăng E10RON95-III", FuelKey = "e10_ron95_3" },
+        new() { Name = "Dầu điêzen 0.05S", FuelKey = "do_005s_2" },
+    ];
+}
+
+/// <summary>
+/// Một tên miền được tin dùng. <see cref="Official"/>: nơi tự công bố con số (cơ quan nhà nước, doanh nghiệp phát hành giá), một nguồn là đủ.
+/// <see cref="Licensed"/>: báo hoặc trang tổng hợp có giấy phép, phải có đủ đơn vị chủ quản khác nhau cùng cho một con số.
+/// </summary>
+public sealed record MarketTrustedDomain
+{
+    public const string Official = "official";
+    public const string Licensed = "licensed";
+
+    /// <summary>Tên miền gốc, chữ thường, ví dụ <c>24h.com.vn</c>. Tên miền con tính chung.</summary>
+    public string Domain { get; init; } = string.Empty;
+    public string Tier { get; init; } = Licensed;
+
+    /// <summary>Đơn vị chủ quản. Hai tên miền cùng chủ quản chỉ tính là một nguồn khi so khớp.</summary>
+    public string Owner { get; init; } = string.Empty;
+
+    /// <summary>Số giấy phép và nơi cấp. Bắt buộc với <see cref="Licensed"/>.</summary>
+    public string LicenseRef { get; init; } = string.Empty;
+
+    /// <summary>Ngày người thêm đã kiểm giấy phép, <c>yyyy-MM-dd</c>.</summary>
+    public string CheckedAt { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Đọc giá vàng trên trang bảng giá. Mỗi dòng: tên (ví dụ "Vàng miếng SJC") rồi các số; giữa các số chỉ được có <see cref="RowWords"/>, số tăng giảm và phần trăm.
+/// Đơn vị lấy từ nhãn "Đơn vị: …" gần nhất phía sau dòng, quy ra đồng/lượng theo <see cref="Units"/>. Số ngoài khoảng giá bị bỏ (đó là cột tăng giảm);
+/// hai số đầu còn lại là mua vào, bán ra.
+/// </summary>
+public sealed record GoldSettings
+{
+    public bool Enabled { get; init; } = true;
+
+    public IReadOnlyList<GoldRow> Rows { get; init; } =
+    [
+        new() { Key = "sjc_bar", Label = "vàng miếng SJC", Names = ["Vàng miếng SJC", "SJC"] },
+    ];
+
+    /// <summary>Chữ được phép đứng giữa tên dòng và các số, so không phân biệt hoa thường.</summary>
+    public IReadOnlyList<string> RowWords { get; init; } = ["mua", "vào", "bán", "ra"];
+
+    /// <summary>Cách viết đơn vị sau "Đơn vị:" → số đồng mỗi lượng của một đơn vị số trên trang. Dấu cách quanh "/" được bỏ trước khi so.</summary>
+    public IReadOnlyList<GoldUnit> Units { get; init; } =
+    [
+        new() { Text = "nghìn đồng/lượng", Multiplier = 1_000 },
+        new() { Text = "ngàn đồng/lượng", Multiplier = 1_000 },
+        new() { Text = "x1000đ/lượng", Multiplier = 1_000 },
+        new() { Text = "đồng/lượng", Multiplier = 1 },
+        new() { Text = "đồng/chỉ", Multiplier = 10 },
+    ];
+
+    /// <summary>Khoảng hợp lý của một lượng. Bắt luôn lỗi nhầm đơn vị.</summary>
+    public long MinPriceCents { get; init; } = 50_000_000;
+    public long MaxPriceCents { get; init; } = 500_000_000;
+
+    /// <summary>Đổi hơn mức này so với giá đang lưu thì không nhận.</summary>
+    public int MaxChangePercent { get; init; } = 10;
+
+    /// <summary>Chênh mua vào và bán ra tối đa, tính trên giá bán.</summary>
+    public int MaxSpreadPercent { get; init; } = 10;
+}
+
+/// <summary>Một giá thị trường mà mục tiêu tiết kiệm theo được.</summary>
+public sealed record GoalMarketTopic
+{
+    /// <summary>Mã lưu ở <c>saving_goals.market_topic</c>. Không đổi sau khi đã có mục tiêu gắn với nó.</summary>
+    public string Key { get; init; } = string.Empty;
+
+    /// <summary>Tên trong câu cảnh báo: "Giá {Label} …". Do admin đặt.</summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>Mã giá vàng (<c>marketData.gold.rows</c>) làm giá của chủ đề; dùng giá bán ra.</summary>
+    public string GoldKey { get; init; } = string.Empty;
+
+    /// <summary>Tên mục tiêu chứa một trong các từ này thì app gợi ý gắn chủ đề. Chỉ gợi ý, không tự gắn.</summary>
+    public IReadOnlyList<string> NameKeywords { get; init; } = [];
+    public bool Enabled { get; init; } = true;
+}
+
+/// <summary>Khi nào báo rằng giá làm mục tiêu lùi xa. Phải đủ mức tăng giá VÀ (lùi đủ ngày HOẶC mục tiêu có hạn chuyển từ kịp sang trễ).</summary>
+public sealed record GoalMarketAlertSettings
+{
+    /// <summary>Giá tăng ít nhất chừng này phần trăm so với giá lúc gắn.</summary>
+    public int MinChangePercent { get; init; } = 5;
+
+    /// <summary>Ngày đạt dự kiến lùi ít nhất chừng này ngày.</summary>
+    public int MinShiftDays { get; init; } = 30;
+
+    /// <summary>Không báo lại cùng một mục tiêu trong chừng này ngày.</summary>
+    public int CooldownDays { get; init; } = 30;
+}
+
+/// <summary>Một giả định soạn từ giá vàng: % thay đổi giá bán ra trong <see cref="WindowDays"/> ngày, quy ra mỗi năm.</summary>
+public sealed record MarketAssumptionRule
+{
+    public string GoldKey { get; init; } = string.Empty;
+
+    /// <summary>Khóa giả định (<c>economic_assumptions.key</c>) mà agent tra, ví dụ <c>gold_price_growth</c>.</summary>
+    public string AssumptionKey { get; init; } = string.Empty;
+
+    /// <summary>Chưa có giá từ chừng này ngày trước thì không soạn: vài tuần dữ liệu không nói được tốc độ một năm.</summary>
+    public int WindowDays { get; init; } = 365;
+
+    /// <summary>Chỉ soạn nháp mới khi lệch so với bản đang dùng từ chừng này điểm cơ bản (100 = 1 điểm %).</summary>
+    public int MinDeltaBps { get; init; } = 200;
+    public bool Enabled { get; init; } = true;
+}
+
+public sealed record GoldRow
+{
+    /// <summary>Mã giá, chữ thường và gạch dưới, ví dụ <c>sjc_bar</c>.</summary>
+    public string Key { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>Các cách trang viết tên dòng. Lấy dòng đầu tiên trên trang ra được cặp giá hợp lệ.</summary>
+    public IReadOnlyList<string> Names { get; init; } = [];
+}
+
+public sealed record GoldUnit
+{
+    public string Text { get; init; } = string.Empty;
+    public long Multiplier { get; init; }
+}
+
+public sealed record FuelReleaseName
+{
+    public string Name { get; init; } = string.Empty;
+    public string FuelKey { get; init; } = string.Empty;
 }
 
 public sealed record LimitSettings
@@ -258,8 +476,17 @@ public sealed record ThemeSettings
     public string? BackgroundColor { get; init; }
     public string? NavBarColor { get; init; }
 
-    /// <summary>Tên font trên Google Fonts; app không tải được thì dùng font mặc định.</summary>
+    /// <summary>Font có sẵn trong app, dùng khi <see cref="FontFamily"/> là null; luôn chọn được dù không nằm trong <see cref="AvailableFonts"/>.</summary>
+    public const string DefaultFont = "Be Vietnam Pro";
+
+    /// <summary>Tên font trên Google Fonts; null là font mặc định. Phải là <see cref="DefaultFont"/> hoặc nằm trong <see cref="AvailableFonts"/>. App không tải được thì dùng font mặc định.</summary>
     public string? FontFamily { get; init; }
+
+    /// <summary>
+    /// Các font (tên trên Google Fonts) admin được chọn cho app, ngoài font mặc định. Nằm trong cấu hình để thêm font không cần sửa code; app tải font theo tên
+    /// lúc chạy nên cũng không cần phát hành lại. Mặc định là danh sách trang quản trị từng viết cứng.
+    /// </summary>
+    public IReadOnlyList<string> AvailableFonts { get; init; } = ["Inter", "Roboto", "Nunito", "Open Sans", "Lexend", "Montserrat"];
 
     /// <summary>Hệ số phóng cỡ chữ toàn app (1.0 = mặc định).</summary>
     public double TextScale { get; init; } = 1.0;

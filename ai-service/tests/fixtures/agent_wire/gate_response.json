@@ -1,5 +1,7 @@
 {
   "in_scope": false,
   "reason_code": "investment_advice",
-  "refusal_text": "Mình không tư vấn đầu tư."
+  "refusal_text": "Mình không tư vấn đầu tư.",
+  "direct_tool": null,
+  "direct_args": null
 }

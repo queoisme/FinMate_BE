@@ -9,6 +9,23 @@ Admin gửi link website. Hệ thống tự đọc mỗi 3 giờ và tự nhận
 | `price_table` | Trang có bảng giá xăng | Đọc bằng luật, ra số chính xác |
 | `feed` | RSS hoặc Atom của báo | Lọc tin về giá cả, rồi tải từng bài |
 | `page` | Trang danh sách bài | Lấy link cùng tên miền có từ khóa về giá cả, rồi tải từng bài |
+| `fuel_release` | Trang chỉ mục có link tới thông cáo điều hành giá xăng dầu (Bộ Công Thương). Chỉ nguồn hạng `official` | Mở link đầu tiên có chữ `fuelReleaseLinkText`, đọc câu "{tên hàng}: không cao hơn {số} đồng/lít" |
+
+## Nguồn uy tín
+
+Chỉ tên miền có trong `marketData.trustedDomains` mới được dùng. Hạng do admin đặt:
+
+| Hạng | Là gì | Luật nhận giá |
+|---|---|---|
+| `official` | Nơi tự công bố con số: cơ quan nhà nước, doanh nghiệp phát hành giá | Một nguồn là đủ, và thắng nguồn `licensed` khi hai bên khác nhau. Hai nguồn `official` khác nhau thì chờ lượt sau |
+| `licensed` | Báo hoặc trang tổng hợp ghi rõ số giấy phép và người chịu trách nhiệm nội dung | Phải đủ `minAgreeingSources` **đơn vị chủ quản** khác nhau cho đúng cùng con số |
+| (không có tên) | Không rõ chủ quản, ví dụ webgia.com, giavang.org, giaxanghomnay.com | Không dùng |
+
+- Thêm link ngoài danh sách trả 422 `MARKET_SOURCE_NOT_TRUSTED`, không tải trang nào.
+- Nguồn đã có mà tên miền bị gỡ khỏi danh sách: lượt đọc bỏ qua, `lastErrorCode = MARKET_SOURCE_NOT_TRUSTED`, không tính là lỗi của trang.
+- Hai tên miền cùng `owner` (so không phân biệt hoa thường) tính là một nguồn, cho cả giá lẫn sự kiện tin bài. Ví dụ tuoitre.vn và nld.com.vn cùng thuộc Cơ quan Báo và Phát thanh, Truyền hình TP.HCM.
+- `economicFeeds.cpiIndexUrl` phải thuộc tên miền hạng `official`, nếu không cấu hình không lưu được.
+- Danh sách mặc định gồm trang đã kiểm ngày 2026-11-23 (số giấy phép chép từ chân trang của chính trang đó). vnexpress.net và vneconomy.vn chưa có vì không thấy số giấy phép trong HTML tĩnh; muốn dùng thì admin thêm kèm số giấy phép.
 
 Hệ thống không đọc trang cấm trong `robots.txt`, trang cần đăng nhập hoặc trang chặn công cụ tự động, và không tìm cách vượt qua. Vì vậy Facebook không dùng được. `robots.txt` không thay thế điều khoản sử dụng: trước khi phát hành thật phải kiểm tra điều khoản của từng trang.
 
@@ -16,7 +33,7 @@ Hệ thống không đọc trang cấm trong `robots.txt`, trang cần đăng nh
 
 | API | Việc |
 |---|---|
-| `GET /api/v1/admin/market-sources` | Danh sách, kèm lần đọc gần nhất và mã lỗi |
+| `GET /api/v1/admin/market-sources` | Danh sách, kèm lần đọc gần nhất, mã lỗi và `trustTier` (`official`, `licensed`, `untrusted`) tính theo danh sách hiện tại |
 | `POST /api/v1/admin/market-sources` | Thêm một link: `{ "url": "https://...", "name": "tùy chọn" }`. Trả `{ source, warnings }` |
 | `POST /api/v1/admin/market-sources/bulk` | Thêm tối đa 50 link: `{ "urls": [...] }`. Báo kết quả từng link. Mỗi tên miền đọc tối đa 1 lần mỗi giây nên lô lớn có thể mất vài chục giây |
 | `PATCH /api/v1/admin/market-sources/{id}` | Sửa `name`, `kind`, `isActive`. Không xóa nguồn |
@@ -30,7 +47,7 @@ Hệ thống không đọc trang cấm trong `robots.txt`, trang cần đăng nh
 | `NO_CONTENT` | Trang gần như trống, thường vì cần JavaScript. Hệ thống không chạy JavaScript |
 | `NO_RELEVANT_LINKS` | Lúc thêm chưa thấy link nào về giá cả |
 
-Mã lỗi 422: `MARKET_SOURCE_URL_INVALID`, `MARKET_SOURCE_ADDRESS_NOT_ALLOWED`, `MARKET_SOURCE_ROBOTS_DISALLOWED`, `MARKET_SOURCE_ROBOTS_UNAVAILABLE`, `MARKET_SOURCE_REFUSED`, `MARKET_SOURCE_NOT_FOUND`, `MARKET_SOURCE_TOO_LARGE`, `MARKET_SOURCE_UNSUPPORTED_CONTENT`, `MARKET_SOURCE_UNREACHABLE`. Link đã có trả 409 `MARKET_SOURCE_DUPLICATE`.
+Mã lỗi 422: `MARKET_SOURCE_NOT_TRUSTED` (tên miền chưa có trong danh sách nguồn uy tín, hoặc đổi `kind` sang `fuel_release` cho nguồn không phải `official`), `MARKET_SOURCE_URL_INVALID`, `MARKET_SOURCE_ADDRESS_NOT_ALLOWED`, `MARKET_SOURCE_ROBOTS_DISALLOWED`, `MARKET_SOURCE_ROBOTS_UNAVAILABLE`, `MARKET_SOURCE_REFUSED`, `MARKET_SOURCE_NOT_FOUND`, `MARKET_SOURCE_TOO_LARGE`, `MARKET_SOURCE_UNSUPPORTED_CONTENT`, `MARKET_SOURCE_UNREACHABLE`. Link đã có trả 409 `MARKET_SOURCE_DUPLICATE`.
 
 ## Bài đã đọc
 
@@ -51,12 +68,52 @@ Không có toàn văn, chỉ có tiêu đề, link, độ dài, trạng thái. G
 
 | API | Việc |
 |---|---|
-| `GET /api/v1/admin/fuel-prices?fuelKey=&offset=&limit=` | Lịch sử giá đã xác nhận. Chỉ có dòng mới khi giá đổi |
-| `POST /api/v1/admin/fuel-prices` | Đường ngoại lệ khi nguồn hỏng hoặc sai: `{ "fuelKey", "region1PriceCents", "region2PriceCents", "note" }`. Bắt buộc có ghi chú |
+| `GET /api/v1/admin/fuel-prices?fuelKey=&offset=&limit=` | Lịch sử giá đã xác nhận. Chỉ có dòng mới khi giá đổi. `sourceDomains`: tên miền đã cho đúng giá đó (null với giá nhập tay và giá cũ). `region2PriceCents` null khi nguồn chỉ có giá trần toàn quốc |
+| `POST /api/v1/admin/fuel-prices` | Đường ngoại lệ khi nguồn hỏng hoặc sai: `{ "fuelKey", "region1PriceCents", "region2PriceCents", "note" }`, `region2PriceCents` bỏ trống được. Bắt buộc có ghi chú |
 
 `fuelKey`: `e10_ron95_5`, `e10_ron95_3`, `e5_ron92_2`, `do_0001s_5`, `do_005s_2`, `kerosene_2k`. Giá tính bằng đồng.
 
-Một giá chỉ được xác nhận khi đủ `minAgreeingSources` nguồn thuộc các tên miền khác nhau cho đúng cùng cặp số trong một lượt đọc. Nguồn lệch giờ cập nhật thì chờ lượt sau. Đổi hơn `maxChangePercent` thì không nhận. Sau khi admin sửa tay, nguồn còn báo đúng giá cũ thì không ghi đè, nguồn đổi sang giá khác mới được tính.
+Một giá được xác nhận khi có một nguồn `official`, hoặc đủ `minAgreeingSources` nguồn `licensed` thuộc các đơn vị chủ quản khác nhau cho đúng cùng cặp số trong một lượt đọc (xem "Nguồn uy tín"). Nguồn lệch giờ cập nhật thì chờ lượt sau. Đổi hơn `maxChangePercent` thì không nhận. Sau khi admin sửa tay, nguồn còn báo đúng giá cũ thì không ghi đè, nguồn đổi sang giá khác mới được tính.
+
+**Thông cáo của Bộ Công Thương** (`fuel_release`, ví dụ trang chủ `https://moit.gov.vn/`): mỗi lượt mở trang chỉ mục, theo link đầu tiên có chữ `fuelReleaseLinkText` (mặc định "Thông tin về việc điều hành giá xăng dầu", cùng tên miền), rồi đọc câu "{tên hàng}: không cao hơn {số} đồng/lít" theo `fuelReleaseNames` (mặc định E5RON92 → `e5_ron92_2`, E10RON95-III → `e10_ron95_3`, điêzen 0.05S → `do_005s_2`). Thiếu `e5_ron92_2` hoặc `e10_ron95_3` thì nguồn báo `MISSING_FUELS`; không thấy link thì `FUEL_RELEASE_NOT_FOUND`. Đây là giá trần toàn quốc nên không có vùng 2, và không có E10 RON95 mức 5, DO 0,001S, dầu hỏa. Cảnh báo chỉ dùng vùng 1 nên không ảnh hưởng. Kiểu nguồn này chỉ được nhận ra khi tên miền là `official`.
+
+## Giá vàng
+
+Trang `price_table` có thể có giá xăng, giá vàng, hoặc cả hai; trang chỉ có giá vàng vẫn là nguồn đọc được. Mỗi lượt đọc cả hai bảng.
+
+| API | Việc |
+|---|---|
+| `GET /api/v1/admin/gold-prices?goldKey=&offset=&limit=` | Lịch sử giá vàng đã xác nhận: `{ goldKey, buyCents, sellCents, firstSeenAt, origin, note, sourceDomains }`, đồng mỗi lượng. Chỉ có dòng mới khi giá đổi |
+| `POST /api/v1/admin/gold-prices` | Nhập tay khi nguồn hỏng: `{ "goldKey", "buyCents", "sellCents", "note" }`. Bắt buộc ghi chú; sai khoảng giá, mua cao hơn bán hoặc chênh quá `maxSpreadPercent` trả 422 `GOLD_PRICE_INVALID`; mã lạ `GOLD_KEY_UNKNOWN`; giống giá đang lưu `GOLD_PRICE_UNCHANGED` |
+
+`POST /market-sources/{id}/test` trả thêm `goldPrices`. `RefreshAsync` trả thêm `confirmedGold`.
+
+**Cách đọc** (`marketData.gold`): tìm tên dòng (`rows[].names`, mặc định "Vàng miếng SJC", "SJC"), lấy các số ngay sau tên. Giữa các số chỉ được có số tăng giảm, phần trăm và chữ trong `rowWords` (mua, vào, bán, ra); gặp chữ khác (tên thương hiệu khác, câu văn) là dừng. Đơn vị lấy từ nhãn "Đơn vị: …" gần nhất **phía sau** dòng (trong 4.000 ký tự), quy ra đồng/lượng theo `units` (nghìn đồng/lượng, x1000đ/lượng, đồng/lượng, đồng/chỉ); không có nhãn hoặc nhãn lạ thì bỏ dòng. Số ngoài `[minPriceCents, maxPriceCents]` (mặc định 50 triệu đến 500 triệu) bị bỏ, đó là cột tăng giảm; hai số đầu còn lại là mua vào, bán ra. Số thập phân như "130.00" (triệu đồng) không được đọc.
+
+**Xác nhận**: cùng luật với giá xăng (một nguồn `official`, hoặc đủ đơn vị chủ quản `licensed` khớp đúng cặp mua/bán), trần thay đổi là `gold.maxChangePercent` (10%, so trên giá mua).
+
+Nguồn đọc được ngày 2026-11-23: `24h.com.vn/gia-vang-hom-nay-c425.html` và `cafef.vn/du-lieu/gia-vang-hom-nay/trong-nuoc.chn` (hai chủ quản khác nhau). Trang SJC, PNJ, DOJI nạp giá bằng JavaScript nên chưa đọc được; một trang hỏng là lượt đó không xác nhận được giá vàng. Chưa có sự cố giám sát riêng cho giá vàng, chỉ `lastErrorCode` của nguồn.
+
+## Giả định nháp từ giá vàng
+
+Sau lượt đọc có giá vàng mới, `MarketAssumptionDrafter` soạn bản **nháp** giả định theo `marketData.assumptionRules` (mặc định `sjc_bar` → `gold_price_growth`):
+
+- Tốc độ = % thay đổi giá bán ra giữa giá mới nhất và giá đang áp dụng cách đó `windowDays` (365) ngày, quy tuyến tính ra một năm, điểm cơ bản. **Chưa có giá từ đủ lâu thì không soạn.** Admin có thể nhập tay vài mốc giá cũ (`POST /admin/gold-prices`, có ghi chú nguồn) để có nháp sớm hơn.
+- Chỉ soạn khi lệch so với bản đang duyệt từ `minDeltaBps` (200 = 2 điểm %), hoặc chưa có bản nào. Đã có nháp hệ thống đúng số đó thì thôi; nháp hệ thống cũ khác số thì bị gỡ, để người duyệt chỉ thấy một bản.
+- Nguồn: mẫu cố định "FinMate — giá … (bán ra) đã xác nhận: {giá cũ} ngày … → {giá mới} ngày …, quy ra mỗi năm", đường dẫn là một tên miền đã khớp. Giá chỉ có nhập tay, không có nguồn nào thì không soạn.
+- **Không bao giờ tự duyệt** (khác CPI). Người có `ApproveAgentContent` duyệt ở `/ops/assumptions`; `AssumptionDto.createdBySystem` cho biết bản do hệ thống soạn. Tỉ lệ ngoài khoảng giả định cho phép thì bỏ, không soạn.
+
+## Mục tiêu theo giá vàng
+
+Người dùng gắn mục tiêu tiết kiệm với một chủ đề trong `marketData.goalTopics` (mặc định `gold` → giá bán ra của `sjc_bar`). API ở `docs/goals-and-reports-extras-api.md`.
+
+Cảnh báo `goal_market_shift` (cờ `features.goalMarketAlerts`, mặc định tắt) chạy cùng job cảnh báo thị trường, với giá vàng mới nhất của mỗi loại chưa xét. Mục tiêu cá nhân đang chạy, đang theo chủ đề đó, nhận cảnh báo khi đủ cả:
+
+1. Giá bán ra tăng từ `goalAlerts.minChangePercent` (5%) so với giá mốc của mục tiêu.
+2. Tính lại ngày đạt (cùng cách màn mục tiêu, theo lịch sử góp) với số tiền tương đương `mục tiêu × giá mới / giá mốc`, làm tròn lên 100.000đ: ngày đạt lùi từ `goalAlerts.minShiftDays` (30) ngày, hoặc mục tiêu có hạn chuyển từ kịp hạn sang trễ hạn. Chưa góp lần nào thì không tính được ngày nên không báo.
+3. Chưa báo mục tiêu này trong `goalAlerts.cooldownDays` (30) ngày.
+
+Giá giảm không báo. Cờ tắt vẫn đánh dấu giá đã xét, bật cờ không gửi bù. Theo công tắc `forecastAlertsEnabled`, giờ yên lặng 21:00–08:00 như cảnh báo thị trường. Nội dung là mẫu cố định gồm nhãn chủ đề, tên mục tiêu của chính người dùng và số do code tính, không có lời khuyên mua bán. `data`: `goalId`, `topic`, `changeBps`, `shiftDays`, `adjustedTargetCents`. Nút: `update_goal_target` (`amountCents` = số tương đương, `targetId` = mục tiêu; app mở form sửa điền sẵn) và `open_goal`.
 
 ## Tin bài và AI
 
@@ -70,7 +127,7 @@ Backend chỉ lưu một mục khi `evidence` có nguyên văn trong bài và `c
 
 ## Sự kiện
 
-Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính tin `actual`, tăng hoặc giảm, về loại chi phí đang bật và không có bảng giá, có ngày đăng rõ ràng trong 7 ngày, từ nguồn thuộc ít nhất `minEventDomains` tên miền. Tên miền con tính chung, và đếm theo nguồn admin đã thêm, không theo link trong bài. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
+Nhiều trang cùng đưa tin một thay đổi giá thì thành sự kiện chờ duyệt. Chỉ tính nguồn có trong danh sách uy tín, đếm theo đơn vị chủ quản. Chỉ tính tin `actual`, tăng hoặc giảm, về loại chi phí đang bật và không có bảng giá, có ngày đăng rõ ràng trong 7 ngày, từ nguồn thuộc ít nhất `minEventDomains` tên miền. Tên miền con tính chung, và đếm theo nguồn admin đã thêm, không theo link trong bài. Tin về xăng không thành sự kiện vì đã có giá thật. Báo hay đăng lại của nhau nên số tên miền không chứng minh tin đúng, vì vậy mặc định phải có admin duyệt.
 
 | API | Việc |
 |---|---|
@@ -119,7 +176,7 @@ Nhiều lượt liền không xác nhận được giá xăng thì mở sự c�
 
 ## Cấu hình
 
-Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100), `referenceFuelKey` (`e10_ron95_3`), `riseThresholdPercent` (3), `compareWindowDays` (14), `alertCooldownDays` (14), `spendLookbackDays` (60), `minCategoryTransactions` (2), `lastSpendMaxDays` (45), `minSpendSharePercent` (2), `minExtraCostCents` (5.000), `costTypes`.
+Nhóm `marketData` trong `/admin/system-config`: `minAgreeingSources` (2), `maxDocumentsPerRun` (20), `minPriceCents` (10.000), `maxPriceCents` (60.000), `maxChangePercent` (20), `minEventDomains` (2), `autoPublishNewsEvents` (tắt), `maxAiDocumentsPerDay` (100), `referenceFuelKey` (`e10_ron95_3`), `riseThresholdPercent` (3), `compareWindowDays` (14), `alertCooldownDays` (14), `spendLookbackDays` (60), `minCategoryTransactions` (2), `lastSpendMaxDays` (45), `minSpendSharePercent` (2), `minExtraCostCents` (5.000), `costTypes`, `gold`, `goalTopics` (`{ key, label, goldKey, nameKeywords, enabled }`), `goalAlerts`, `trustedDomains` (danh sách `{ domain, tier, owner, licenseRef, checkedAt }`, tối đa 200; `licensed` bắt buộc `licenseRef`; `domain` là tên miền gốc viết thường), `fuelReleaseLinkText`, `fuelReleaseNames` (`{ name, fuelKey }`).
 
 ## An toàn
 

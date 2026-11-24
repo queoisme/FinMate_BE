@@ -81,7 +81,7 @@ public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
     public async Task Anonymous_Is401_AndAPlainUser_Is403_OnEveryRoute()
     {
         var user = await UserTokenAsync();
-        foreach (var url in new[] { $"{Base}/feedback" })
+        foreach (var url in new[] { $"{Base}/feedback", $"{Base}/summary", $"{Base}/suggestions" })
         {
             (await _client.SendAsync(Get(url, null))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
             (await _client.SendAsync(Get(url, user))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -92,6 +92,7 @@ public class AdminAiLearningControllerTests : IClassFixture<AuthApiFactory>
 
     [Theory]
     [InlineData("feedback", "q=agribank&feedback_type=category_correction&processed=false&limit=50&offset=0")]
+    [InlineData("suggestions", "min_users=3&include_covered=true&limit=50&offset=0")]
     public async Task Listing_ForwardsPagingSearchAndFiltersToTheLearningArea_AndReturnsTheBodyAsIs(string path, string query)
     {
         var admin = await AdminTokenAsync();

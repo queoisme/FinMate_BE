@@ -79,13 +79,13 @@ public sealed class SecretVault : ISecretVault
     {
         if (row is not null && _cipher.Decrypt(definition.Name, row.Ciphertext, row.Nonce) is not null)
         {
-            return new SecretStatus(definition.Name, definition.Title, "db", true, row.Last4, row.UpdatedAt, definition.Multiline);
+            return new SecretStatus(definition.Name, definition.Title, "db", true, row.Last4, row.UpdatedAt, definition.Multiline, definition.Plain, definition.Placeholder);
         }
 
         var env = FromEnvironment(definition);
         return env is null
-            ? new SecretStatus(definition.Name, definition.Title, "none", false, null, null, definition.Multiline)
-            : new SecretStatus(definition.Name, definition.Title, "env", true, Last4Of(env), null, definition.Multiline);
+            ? new SecretStatus(definition.Name, definition.Title, "none", false, null, null, definition.Multiline, definition.Plain, definition.Placeholder)
+            : new SecretStatus(definition.Name, definition.Title, "env", true, Last4Of(env), null, definition.Multiline, definition.Plain, definition.Placeholder);
     }
 
     private static string Last4Of(string value) => value.Length <= 4 ? new string('*', value.Length) : value[^4..];

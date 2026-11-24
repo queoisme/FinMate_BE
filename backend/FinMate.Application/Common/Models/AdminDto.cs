@@ -64,13 +64,19 @@ public record AdminCategoryDto(
 /// chứ không parse: không có schema chung để parse theo, và cố ép một schema vào đây sẽ làm
 /// hỏng đúng những dòng bất thường mà người xem log đang đi tìm.
 /// </param>
+/// <param name="Title">Câu tiếng Việt cho <paramref name="EventType"/> (<see cref="Common.AuditEventLabels"/>).</param>
+/// <param name="ActorName">Tên người thực hiện (<paramref name="UserId"/>); null khi dòng không gắn người nào hoặc tài khoản đã bị xóa hẳn.</param>
 public record AuditLogDto(
     Guid Id,
     Guid? UserId,
     string EventType,
     string? Metadata,
     string? IpAddress,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Title = "",
+    string? ActorName = null,
+    string? ActorEmail = null,
+    string? ActorRole = null);
 
 public record AuditLogListDto(IReadOnlyList<AuditLogDto> Items, string? NextCursor);
 

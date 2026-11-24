@@ -118,6 +118,7 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
                      (HttpMethod.Post, $"{Base}/documents/{DocId}/approve", null),
                      (HttpMethod.Post, $"{Base}/documents/{DocId}/retire", null),
                      (HttpMethod.Get, $"{Base}/candidates", null),
+                     (HttpMethod.Get, $"{Base}/candidate-topics", null),
                      (HttpMethod.Post, $"{Base}/candidates/{DocId}/resolve", """{"status":"Covered"}"""),
                  })
         {
@@ -228,5 +229,19 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
         _ai.Calls[0].Should().Match<AiRulesRequest>(c => c.Path == "candidates" && c.Method == HttpMethod.Get);
         _ai.Calls[1].Should().Match<AiRulesRequest>(c => c.Path == $"candidates/{DocId}/resolve" && c.Method == HttpMethod.Post);
         _ai.Calls.Should().NotContain(c => c.Path == "documents"); // ứng viên không bao giờ tự thành tài liệu
+    }
+
+    [Fact]
+    public async Task CandidateTopics_AreForwardedWithTheStatusAndTopicFilters()
+    {
+        var admin = await AdminTokenAsync();
+        _ai.Calls.Clear();
+
+        await _client.SendAsync(Request(HttpMethod.Get, $"{Base}/candidate-topics?status=New", admin));
+        await _client.SendAsync(Request(HttpMethod.Get, $"{Base}/candidates?topic=tax&limit=10", admin));
+
+        _ai.Calls.Should().HaveCount(2);
+        _ai.Calls[0].Should().Match<AiRulesRequest>(c => c.Path == "candidate-topics" && c.Method == HttpMethod.Get && c.Query!["status"] == "New");
+        _ai.Calls[1].Should().Match<AiRulesRequest>(c => c.Path == "candidates" && c.Query!["topic"] == "tax");
     }
 }

@@ -399,6 +399,8 @@ public class Program
         builder.Services.AddSingleton(new SecretCipher(builder.Configuration["SECRETS_MASTER_KEY"]));
         builder.Services.AddSingleton<ISecretVault, SecretVault>();
         builder.Services.AddSingleton<FcmApp>();
+        builder.Services.AddScoped<IBrandLogoStorage, FirebaseBrandLogoStorage>();
+        builder.Services.AddHttpClient("firebase-storage");
         builder.Services.AddScoped<ISecretTester, BackendSecretTester>();
         builder.Services.AddHttpClient(SwitchingEmailSender.HttpClientName, client => client.BaseAddress = new Uri("https://api.brevo.com/"));
         builder.Services.AddHttpClient("google-oauth");
@@ -533,6 +535,8 @@ public class Program
         builder.Services.AddScoped<IMarketSignalProcessor, MarketSignalProcessor>();
         builder.Services.AddScoped<IMarketEventService, MarketEventService>();
         builder.Services.AddScoped<IMarketAlertService, MarketAlertService>();
+        builder.Services.AddScoped<GoalMarketService>();
+        builder.Services.AddScoped<FinMate.Application.Economics.MarketAssumptionDrafter>();
         builder.Services.AddScoped<IMarketAlertTrigger, HangfireMarketAlertTrigger>();
 
         // Trần Gemini phía ai-service là 30 giây cho cả chuỗi model.
@@ -667,6 +671,7 @@ public class Program
             sp.GetRequiredService<SwitchingPushNotificationService>(),
             sp.GetRequiredService<FinMate.Application.Notifications.IUserNotificationService>(),
             sp.GetRequiredService<ILogger<FinMate.Application.Notifications.InboxRecordingPushNotificationService>>()));
+        builder.Services.AddScoped<IAiLearningQueue, HangfireAiLearningQueue>();
         builder.Services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
         // Admin (Phase 8) — mọi controller ở đây nằm sau policy AdminOnly.
@@ -871,6 +876,27 @@ public class Program
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+        // Lỗi framework tự trả với body rỗng (403 do policy, 429 của rate limiter, 404/405/415 sai route...)
+        // không đi qua ExceptionHandlingMiddleware. Chỉ chạy khi chưa có body, nên không đè lỗi đã có envelope.
+        app.UseStatusCodePages(statusContext =>
+        {
+            var context = statusContext.HttpContext;
+            var (code, message) = context.Response.StatusCode switch
+            {
+                401 => ("UNAUTHORIZED", "Thiếu hoặc token xác thực không hợp lệ."),
+                403 => ("FORBIDDEN", "Bạn không có quyền truy cập tài nguyên này."),
+                404 => ("NOT_FOUND", "Không tìm thấy tài nguyên."),
+                405 => ("METHOD_NOT_ALLOWED", "Phương thức không được hỗ trợ."),
+                413 => ("PAYLOAD_TOO_LARGE", "Dữ liệu gửi lên quá lớn."),
+                415 => ("UNSUPPORTED_MEDIA_TYPE", "Định dạng dữ liệu không được hỗ trợ."),
+                429 => ("TOO_MANY_REQUESTS", "Bạn thao tác quá nhanh. Vui lòng thử lại sau."),
+                >= 500 => ("INTERNAL_ERROR", "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau."),
+                _ => ("HTTP_ERROR", "Yêu cầu không hợp lệ."),
+            };
+            return ExceptionHandlingMiddleware.WriteErrorResponseAsync(context, context.Response.StatusCode, code, message, null);
+        });
+
         app.UseMiddleware<RequestLoggingMiddleware>();
 
         if (app.Environment.IsDevelopment())

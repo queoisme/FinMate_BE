@@ -26,9 +26,7 @@ public class GetAuditLogListQueryHandler : IGetAuditLogListQueryHandler
                 Search: query.Search),
             ct);
 
-        var items = result.Items
-            .Select(a => new AuditLogDto(a.Id, a.UserId, a.EventType, a.Metadata, a.IpAddress, a.CreatedAt))
-            .ToList();
+        var items = await _auditLogRepository.ToDtosAsync(result.Items, ct);
 
         return new AuditLogListDto(items, result.NextCursor);
     }

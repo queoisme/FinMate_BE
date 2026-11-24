@@ -147,11 +147,21 @@ async def record_candidate(body: CandidateRecord, session: Annotated[AsyncSessio
 async def list_candidates(
     session: Annotated[AsyncSession, Depends(get_db)],
     status: str | None = Query(default=None, pattern="^(New|Dismissed|Covered)$"),
+    topic: str | None = Query(default=None, pattern="^[a-z0-9_]{1,40}$", description="Mã chủ đề, hoặc 'none' cho câu chưa khớp chủ đề nào"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
-    total, items = await candidates.list_candidates(session, status=status, limit=limit, offset=offset)
+    total, items = await candidates.list_candidates(session, status=status, limit=limit, offset=offset, topic=topic)
     return {"total": total, "items": [{**i, "id": str(i["id"])} for i in items]}
+
+
+@router.get("/admin/knowledge/candidate-topics")
+async def candidate_topics(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    status: str | None = Query(default="New", pattern="^(New|Dismissed|Covered)$"),
+) -> dict:
+    """Câu hỏi chưa trả lời được gom theo CHỦ ĐỀ (nhiều lần gặp nhất trước): admin biết cần viết tài liệu về mảng nào. ``topic_code`` null = chưa khớp chủ đề nào."""
+    return {"items": await candidates.topic_summary(session, status=status)}
 
 
 @router.post("/admin/knowledge/candidates/{candidate_id}/resolve")

@@ -25,7 +25,6 @@ public class OpsRolesControllerTests : IClassFixture<AuthApiFactory>
     [
         "/api/v1/admin/users",
         "/api/v1/admin/audit-logs",
-        "/api/v1/admin/ai-stats",
         "/api/v1/admin/categories",
         "/api/v1/admin/data-deletion-requests",
         "/api/v1/admin/provider-configs",

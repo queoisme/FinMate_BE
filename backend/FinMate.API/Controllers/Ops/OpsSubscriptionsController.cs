@@ -9,7 +9,6 @@ namespace FinMate.API.Controllers.Ops;
 
 /// <summary>Cấu hình gói đăng ký. Policy chỉ chặn sớm; quyền thật được đọc lại từ DB trong service. Chạy cả khi cờ tắt, để chuẩn bị gói trước khi bật.</summary>
 [Route("api/v1/ops/subscriptions")]
-[Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
 public class OpsSubscriptionsController : OpsControllerBase
 {
     private readonly IOpsSubscriptionService _subscriptions;

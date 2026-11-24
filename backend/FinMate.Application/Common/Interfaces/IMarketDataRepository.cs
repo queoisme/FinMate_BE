@@ -22,6 +22,14 @@ public interface IMarketDataRepository
     Task<List<FuelPrice>> ListLatestFuelPricesAsync(CancellationToken ct = default);
     Task<(List<FuelPrice> Items, int Total)> ListFuelPricesAsync(string? fuelKey, int offset, int limit, CancellationToken ct = default);
     void AddFuelPrice(FuelPrice price);
+    Task<List<GoldPrice>> ListLatestGoldPricesAsync(CancellationToken ct = default);
+    Task<(List<GoldPrice> Items, int Total)> ListGoldPricesAsync(string? goldKey, int offset, int limit, CancellationToken ct = default);
+    Task<GoldPrice?> GetLatestSourceGoldPriceAsync(string goldKey, CancellationToken ct = default);
+    void AddGoldPrice(GoldPrice price);
+    Task<List<GoldPrice>> ListGoldPricesAwaitingAlertsAsync(CancellationToken ct = default);
+
+    /// <summary>Giá đang áp dụng tại thời điểm <paramref name="at"/>: dòng mới nhất có <c>FirstSeenAt</c> không sau đó.</summary>
+    Task<GoldPrice?> GetGoldPriceAsOfAsync(string goldKey, DateTimeOffset at, CancellationToken ct = default);
     Task<int> MarkPendingDocumentsNotAllowedAsync(CancellationToken ct = default);
     Task<List<MarketDocument>> ListDocumentsForAiAsync(int limit, CancellationToken ct = default);
     Task<int> CountAiAttemptsSinceAsync(DateTimeOffset since, CancellationToken ct = default);

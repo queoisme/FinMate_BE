@@ -105,6 +105,24 @@ public class SystemConfigDocumentValidatorTests
     }
 
     [Fact]
+    public void TheChosenFont_MustBeTheDefaultOrInTheList()
+    {
+        _validator.Validate(WithTheme(new ThemeSettings { FontFamily = "Lexend" })).IsValid.Should().BeTrue();
+        _validator.Validate(WithTheme(new ThemeSettings { FontFamily = "Poppins" })).IsValid.Should().BeFalse();
+        _validator.Validate(WithTheme(new ThemeSettings { FontFamily = "Poppins", AvailableFonts = ["Poppins"] })).IsValid.Should().BeTrue();
+        _validator.Validate(WithTheme(new ThemeSettings { FontFamily = ThemeSettings.DefaultFont, AvailableFonts = [] })).IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(new[] { "Inter", "Plus Jakarta Sans" }, true)]
+    [InlineData(new[] { "Inter", "inter" }, false)]
+    [InlineData(new[] { "Font;DROP TABLE" }, false)]
+    public void TheFontList_HoldsUniquePlainNames(string[] fonts, bool valid)
+    {
+        _validator.Validate(WithTheme(new ThemeSettings { AvailableFonts = fonts })).IsValid.Should().Be(valid);
+    }
+
+    [Fact]
     public void TheMinimumAppVersion_CannotExceedTheLatest()
     {
         var bad = new SystemConfigDocument { AppVersion = new AppVersionSettings { MinVersion = "2.0.0", LatestVersion = "1.9.9" } };

@@ -90,7 +90,6 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         { "GET", "/api/v1/admin/users" },
         { "GET", "/api/v1/admin/provider-configs" },
         { "GET", "/api/v1/admin/categories" },
-        { "GET", "/api/v1/admin/ai-stats" },
         { "GET", "/api/v1/admin/audit-logs" },
         { "GET", "/api/v1/admin/data-deletion-requests" },
     };
@@ -273,7 +272,7 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         // Service đang restart. Màn hình quản trị không được sập theo.
         var token = await AdminTokenAsync();
 
-        var response = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/admin/ai-stats", token));
+        var response = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/ops/ai-stats", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<AiStatsBody>(JsonOptions);

@@ -14,6 +14,12 @@ public class AuditLogRepository : IAuditLogRepository
         _context = context;
     }
 
+    public async Task<IReadOnlyDictionary<Guid, AuditActor>> GetActorsAsync(IReadOnlyCollection<Guid> userIds, CancellationToken ct = default)
+        => await _context.Users.AsNoTracking().IgnoreQueryFilters()
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, u.Email, u.Role })
+            .ToDictionaryAsync(u => u.Id, u => new AuditActor(u.DisplayName, u.Email, u.Role.ToString()), ct);
+
     public async Task<AuditLogListResult> GetPageAsync(
         AuditLogListFilter filter, CancellationToken ct = default)
     {

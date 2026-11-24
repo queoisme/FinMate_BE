@@ -1609,7 +1609,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_forecast_alerts_feedback", "feedback IS NULL OR feedback = 'inaccurate'");
 
-                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change','listener_health','group_fund_negative','group_fund_removed','purchase_reminder','weekly_digest','group_debt_reminder','group_approval_req','group_approval_res')");
+                            t.HasCheckConstraint("chk_forecast_alerts_kind", "kind IN ('low_balance','budget_risk','bill_due','bill_status_check','income_late','price_change','anomaly','group_budget','group_goal','market_change','listener_health','group_fund_negative','group_fund_removed','purchase_reminder','weekly_digest','group_debt_reminder','group_approval_req','group_approval_res','goal_market_shift')");
 
                             t.HasCheckConstraint("chk_forecast_alerts_sent_at", "(status = 'sent') = (sent_at IS NOT NULL)");
 
@@ -1828,9 +1828,13 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("region1_price_cents");
 
-                    b.Property<long>("Region2PriceCents")
+                    b.Property<long?>("Region2PriceCents")
                         .HasColumnType("bigint")
                         .HasColumnName("region2_price_cents");
+
+                    b.PrimitiveCollection<string[]>("SourceDomains")
+                        .HasColumnType("text[]")
+                        .HasColumnName("source_domains");
 
                     b.HasKey("Id");
 
@@ -1843,7 +1847,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("chk_fuel_prices_origin", "origin IN ('sources','manual')");
 
-                            t.HasCheckConstraint("chk_fuel_prices_positive", "region1_price_cents > 0 AND region2_price_cents > 0");
+                            t.HasCheckConstraint("chk_fuel_prices_positive", "region1_price_cents > 0 AND (region2_price_cents IS NULL OR region2_price_cents > 0)");
                         });
                 });
 
@@ -1947,6 +1951,72 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("goal_templates", null, t =>
                         {
                             t.HasCheckConstraint("chk_goal_templates_default_params", "jsonb_typeof(default_params) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.GoldPrice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AlertsProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("alerts_processed_at");
+
+                    b.Property<long>("BuyCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("buy_cents");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.Property<string>("GoldKey")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("gold_key");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("origin");
+
+                    b.Property<long>("SellCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sell_cents");
+
+                    b.PrimitiveCollection<string[]>("SourceDomains")
+                        .HasColumnType("text[]")
+                        .HasColumnName("source_domains");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("GoldKey", "FirstSeenAt")
+                        .HasDatabaseName("ix_gold_prices_key_time");
+
+                    b.ToTable("gold_prices", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_gold_prices_manual_note", "origin <> 'manual' OR note IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_gold_prices_origin", "origin IN ('sources','manual')");
+
+                            t.HasCheckConstraint("chk_gold_prices_prices", "buy_cents > 0 AND sell_cents >= buy_cents");
                         });
                 });
 
@@ -3417,7 +3487,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("market_sources", null, t =>
                         {
-                            t.HasCheckConstraint("chk_market_sources_kind", "kind IN ('feed','price_table','page')");
+                            t.HasCheckConstraint("chk_market_sources_kind", "kind IN ('feed','price_table','page','fuel_release')");
                         });
                 });
 
@@ -4615,6 +4685,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0L)
                         .HasColumnName("initial_saved_cents");
 
+                    b.Property<DateTimeOffset?>("MarketBaselineAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("market_baseline_at");
+
+                    b.Property<long?>("MarketBaselineCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("market_baseline_cents");
+
+                    b.Property<string>("MarketTopic")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("market_topic");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -4677,6 +4760,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("chk_saving_goals_contribution_frequency", "contribution_frequency IS NULL OR contribution_frequency IN ('weekly','monthly','custom')");
 
                             t.HasCheckConstraint("chk_saving_goals_initial_saved_cents", "initial_saved_cents >= 0");
+
+                            t.HasCheckConstraint("chk_saving_goals_market", "(market_topic IS NULL AND market_baseline_cents IS NULL AND market_baseline_at IS NULL) OR (market_topic IS NOT NULL AND market_baseline_cents > 0 AND market_baseline_at IS NOT NULL AND user_id IS NOT NULL)");
 
                             t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
 
@@ -6882,6 +6967,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("SavingGoal");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.GoldPrice", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.Group", b =>

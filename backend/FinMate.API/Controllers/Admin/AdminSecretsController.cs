@@ -28,6 +28,11 @@ public class AdminSecretsController : AdminControllerBase
     public async Task<IActionResult> List(CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await _service.ListAsync(ct)));
 
+    /// <summary>Chép mọi key đang ở biến môi trường vào kho mã hóa trong DB để chỉnh được trên trang. Chỉ trả tên key đã chép hoặc thất bại, không trả giá trị.</summary>
+    [HttpPost("import-env")]
+    public async Task<IActionResult> ImportFromEnvironment([FromQuery] string? reason, CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await _service.ImportFromEnvironmentAsync(CurrentAdminId, CurrentIpAddress, reason, ct)));
+
     /// <summary>Đặt hoặc ghi đè key. Thân: <c>{"value": "...", "reason": "..."}</c>. Trả trạng thái mới của key, không trả giá trị.</summary>
     [HttpPut("{name}")]
     public async Task<IActionResult> Set(string name, [FromBody] JsonElement body, CancellationToken ct)

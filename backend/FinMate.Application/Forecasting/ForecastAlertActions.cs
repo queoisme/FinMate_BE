@@ -13,6 +13,12 @@ public static class ForecastAlertActionKinds
 
     /// <summary>Theo dõi lại một khoản định kỳ đã bị tạm ngừng vì quá hạn lâu (<c>TargetId</c> = id khoản đó).</summary>
     public const string ResumeRecurring = "resume_recurring";
+
+    /// <summary>Mở form sửa mục tiêu <c>TargetId</c> với số tiền đề xuất <c>AmountCents</c> điền sẵn; người dùng lưu thì app gọi <c>PATCH /saving-goals/{id}</c>.</summary>
+    public const string UpdateGoalTarget = "update_goal_target";
+
+    /// <summary>Mở màn mục tiêu <c>TargetId</c> (điều hướng, không đổi dữ liệu).</summary>
+    public const string OpenGoal = "open_goal";
 }
 
 /// <param name="AmountCents">Số tiền của hành động (đồng); null nếu loại này không có.</param>
@@ -56,6 +62,17 @@ public static class ForecastAlertActions
 
             case ForecastAlertKind.BillStatusCheck when Text(data, "recurringItemId") is { Length: > 0 } itemId:
                 return [new ForecastAlertActionDto(ForecastAlertActionKinds.ResumeRecurring, "Vẫn dùng, theo dõi lại", null, null, itemId)];
+
+            case ForecastAlertKind.GoalMarketShift when Text(data, "goalId") is { Length: > 0 } goalId:
+                var goalActions = new List<ForecastAlertActionDto>();
+                if (Long(data, "adjustedTargetCents") is { } adjusted && adjusted > 0)
+                {
+                    goalActions.Add(new ForecastAlertActionDto(
+                        ForecastAlertActionKinds.UpdateGoalTarget, $"Cập nhật mục tiêu lên {ForecastText.Money(adjusted)}", adjusted, null, goalId));
+                }
+
+                goalActions.Add(new ForecastAlertActionDto(ForecastAlertActionKinds.OpenGoal, "Xem mục tiêu", null, null, goalId));
+                return goalActions;
 
             default:
                 return [];

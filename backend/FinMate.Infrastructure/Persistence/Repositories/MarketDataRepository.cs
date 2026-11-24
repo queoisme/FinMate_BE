@@ -120,6 +120,53 @@ public class MarketDataRepository : IMarketDataRepository
 
     public void AddFuelPrice(FuelPrice price) => _context.FuelPrices.Add(price);
 
+    public async Task<List<GoldPrice>> ListLatestGoldPricesAsync(CancellationToken ct = default)
+    {
+        var keys = await _context.GoldPrices.AsNoTracking().Select(p => p.GoldKey).Distinct().ToListAsync(ct);
+        var latest = new List<GoldPrice>(keys.Count);
+        foreach (var key in keys)
+        {
+            latest.Add(await _context.GoldPrices.AsNoTracking()
+                .Where(p => p.GoldKey == key)
+                .OrderByDescending(p => p.FirstSeenAt)
+                .ThenByDescending(p => p.Id)
+                .FirstAsync(ct));
+        }
+
+        return latest;
+    }
+
+    public async Task<(List<GoldPrice> Items, int Total)> ListGoldPricesAsync(string? goldKey, int offset, int limit, CancellationToken ct = default)
+    {
+        var query = _context.GoldPrices.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(goldKey))
+        {
+            query = query.Where(p => p.GoldKey == goldKey);
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(p => p.FirstSeenAt).ThenBy(p => p.GoldKey).Skip(offset).Take(limit).ToListAsync(ct);
+        return (items, total);
+    }
+
+    public Task<GoldPrice?> GetLatestSourceGoldPriceAsync(string goldKey, CancellationToken ct = default)
+        => _context.GoldPrices.AsNoTracking()
+            .Where(p => p.GoldKey == goldKey && p.Origin == FuelPriceOrigin.Sources)
+            .OrderByDescending(p => p.FirstSeenAt)
+            .FirstOrDefaultAsync(ct);
+
+    public void AddGoldPrice(GoldPrice price) => _context.GoldPrices.Add(price);
+
+    public Task<List<GoldPrice>> ListGoldPricesAwaitingAlertsAsync(CancellationToken ct = default)
+        => _context.GoldPrices.Where(p => p.AlertsProcessedAt == null).OrderBy(p => p.FirstSeenAt).ToListAsync(ct);
+
+    public Task<GoldPrice?> GetGoldPriceAsOfAsync(string goldKey, DateTimeOffset at, CancellationToken ct = default)
+        => _context.GoldPrices.AsNoTracking()
+            .Where(p => p.GoldKey == goldKey && p.FirstSeenAt <= at)
+            .OrderByDescending(p => p.FirstSeenAt)
+            .ThenByDescending(p => p.Id)
+            .FirstOrDefaultAsync(ct);
+
     public Task<int> MarkPendingDocumentsNotAllowedAsync(CancellationToken ct = default)
         => _context.MarketDocuments
             .Where(d => d.Status == MarketDocumentStatus.PendingAi

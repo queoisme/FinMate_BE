@@ -47,8 +47,37 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
             await db.MarketDocuments.ExecuteDeleteAsync();
             await db.MarketSources.ExecuteDeleteAsync();
             await db.FuelPrices.ExecuteDeleteAsync();
+            await db.GoldPrices.ExecuteDeleteAsync();
             return 0;
         });
+        await SetTrustedAsync(TestDomains.Select(d => Licensed(d)).Append(Official("bocongthuong.vn")).ToArray());
+    }
+
+    /// <summary>Các tên miền giả dùng trong lớp test này, mỗi tên miền một đơn vị chủ quản.</summary>
+    private static readonly string[] TestDomains =
+        ["a.vn", "b.vn", "c.vn", "khac.vn", "bao-cam.vn", "bao.vn", "chan.vn", "cu.vn", "gia.vn", "la.vn", "mat.vn", "nha.vn", "spa.vn", "tin.vn", "tonghop.vn", "facebook.com"];
+
+    private static MarketTrustedDomain Licensed(string domain, string? owner = null)
+        => new() { Domain = domain, Tier = MarketTrustedDomain.Licensed, Owner = owner ?? domain, LicenseRef = "1/GP-TEST" };
+
+    private static MarketTrustedDomain Official(string domain) => new() { Domain = domain, Tier = MarketTrustedDomain.Official, Owner = domain };
+
+    private async Task SetTrustedAsync(params MarketTrustedDomain[] domains)
+    {
+        var adminId = await InDbAsync(db => db.Users.Where(u => u.RoleAssignment!.RoleId == UserRole.Admin).Select(u => u.Id).FirstAsync());
+        using var scope = _factory.Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<ISystemConfigService>();
+        var current = await config.GetActiveAsync();
+
+        // Test khác trong cùng CSDL có thể đã đặt nguồn CPI; nguồn đó phải là official thì cấu hình mới lưu được.
+        var cpi = current.Content.EconomicFeeds.CpiIndexUrl;
+        if (!string.IsNullOrEmpty(cpi) && domains.All(d => d.Domain != MarketDomains.Of(cpi)))
+        {
+            domains = [.. domains, Official(MarketDomains.Of(cpi))];
+        }
+
+        await config.SaveAsync(adminId, null, current.Version, current.Content with { MarketData = current.Content.MarketData with { TrustedDomains = domains } }, "nguồn uy tín cho test");
+        scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>().Invalidate();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -1045,5 +1074,160 @@ public class MarketDataTests : IClassFixture<AuthApiFactory>, IAsyncLifetime
 
         (await SendAsync(HttpMethod.Get, "/api/v1/admin/market-events", token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await SendAsync(HttpMethod.Post, $"/api/v1/admin/market-events/{Guid.NewGuid()}/approve", token, new { })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ADomainOutsideTheTrustedListCannotBeAddedAndIsNeverFetched()
+    {
+        var (status, root) = await PostSourceAsync("https://webgia.com/gia-xang-dau/", await AdminTokenAsync());
+
+        status.Should().Be((HttpStatusCode)422);
+        root.GetProperty("error").GetProperty("code").GetString().Should().Be(MarketErrorCodes.NotTrusted);
+        _web.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ASourceRemovedFromTheTrustedListIsSkipped()
+    {
+        _web.Html("https://a.vn/", Table());
+        _web.Html("https://b.vn/", Table());
+        await AddSourceAsync("https://a.vn/", MarketSourceKind.PriceTable);
+        await AddSourceAsync("https://b.vn/", MarketSourceKind.PriceTable);
+        await SetTrustedAsync(Licensed("a.vn"));
+
+        var summary = await RefreshAsync();
+
+        summary.ConfirmedFuels.Should().BeEmpty("chỉ còn một nguồn uy tín");
+        _web.Requests.Should().NotContain(url => url.StartsWith("https://b.vn"));
+        (await InDbAsync(db => db.MarketSources.SingleAsync(s => s.Url == "https://b.vn/"))).LastErrorCode.Should().Be(MarketErrorCodes.NotTrusted);
+        var sources = await SendAsync(HttpMethod.Get, "/api/v1/admin/market-sources", await AdminTokenAsync());
+        (await sources.Content.ReadAsStringAsync()).Should().Contain("\"trustTier\":\"untrusted\"");
+    }
+
+    [Fact]
+    public async Task TwoTrustedDomainsOfOneOwnerAreOneSource()
+    {
+        _web.Html("https://a.vn/", Table());
+        _web.Html("https://b.vn/", Table());
+        await AddSourceAsync("https://a.vn/", MarketSourceKind.PriceTable);
+        await AddSourceAsync("https://b.vn/", MarketSourceKind.PriceTable);
+        await SetTrustedAsync(Licensed("a.vn", owner: "Cùng một công ty"), Licensed("b.vn", owner: "cùng một công ty "));
+
+        (await RefreshAsync()).ConfirmedFuels.Should().BeEmpty();
+    }
+
+    private const string ReleaseUrl = "https://bocongthuong.vn/tin-tuc/thong-tin-ve-viec-dieu-hanh-gia-xang-dau-ngay-19-11-2026.html";
+
+    private void PublishRelease(long e10)
+    {
+        _web.Html("https://bocongthuong.vn/", $"""<html><body><a href="/tin-tuc/khac.html">Tin khác</a><a href="{ReleaseUrl}">Thông tin về việc điều hành giá xăng dầu ngày 19/11/2026</a></body></html>""");
+        _web.Html(ReleaseUrl, $"""
+            <html><body><p>giá bán các mặt hàng xăng dầu tiêu dùng phổ biến trên thị trường như sau:
+            - Xăng E5RON92: không cao hơn 18.576 đồng/lít (giảm 823 đồng/lít so với giá bán tối đa hiện hành);
+            - Xăng E10RON95-III: không cao hơn {e10:N0} đồng/lít (giảm 745 đồng/lít so với giá bán tối đa hiện hành);
+            - Dầu điêzen 0.05S: không cao hơn 26.347 đồng/lít.</p></body></html>
+            """.Replace(",", "."));
+    }
+
+    [Fact]
+    public async Task AnOfficialFuelReleaseIsDetectedAndConfirmsPricesAlone()
+    {
+        PublishRelease(19_100);
+
+        var (status, root) = await PostSourceAsync("https://bocongthuong.vn/", await AdminTokenAsync());
+        status.Should().Be(HttpStatusCode.Created);
+        root.GetProperty("data").GetProperty("source").GetProperty("kind").GetString().Should().Be("fuel_release");
+
+        var summary = await RefreshAsync();
+
+        summary.ConfirmedFuels.Should().BeEquivalentTo([FuelKeys.E5Ron92Level2, FuelKeys.E10Ron95Level3, FuelKeys.Diesel005Level2]);
+        var e10 = (await PricesAsync()).Single(p => p.FuelKey == FuelKeys.E10Ron95Level3);
+        e10.Region1PriceCents.Should().Be(19_100);
+        e10.Region2PriceCents.Should().BeNull();
+        e10.SourceDomains.Should().Equal("bocongthuong.vn");
+
+        PublishRelease(19_400);
+        (await RefreshAsync()).ConfirmedFuels.Should().Equal(FuelKeys.E10Ron95Level3);
+    }
+
+    [Fact]
+    public async Task ALicensedSiteLinkingToAReleaseIsJustAPage()
+    {
+        PublishRelease(19_100);
+        _web.Html("https://tin.vn/", _web.Pages["https://bocongthuong.vn/"].Content!.Replace("/tin-tuc/khac.html", "https://tin.vn/gia-xang"));
+
+        var (status, root) = await PostSourceAsync("https://tin.vn/", await AdminTokenAsync());
+
+        status.Should().Be(HttpStatusCode.Created);
+        root.GetProperty("data").GetProperty("source").GetProperty("kind").GetString().Should().NotBe("fuel_release");
+    }
+
+    private static string GoldTable(long sell = 135_000) => $"""
+        <html><body><table><tr><th>Hệ thống</th><th>Mua vào</th><th>Bán ra</th></tr>
+        <tr><td>SJC</td><td>130,000</td><td>{sell:N0}</td></tr></table><p>Đơn vị: nghìn đồng/lượng</p></body></html>
+        """.Replace(".", ",");
+
+    private Task<List<GoldPrice>> GoldAsync() => InDbAsync(db => db.GoldPrices.AsNoTracking().ToListAsync());
+
+    [Fact]
+    public async Task AGoldOnlyPageIsAPriceTableAndTwoOwnersConfirmIt()
+    {
+        _web.Html("https://a.vn/", GoldTable());
+        _web.Html("https://b.vn/", GoldTable());
+        var token = await AdminTokenAsync();
+        (await PostSourceAsync("https://a.vn/", token)).Root.GetProperty("data").GetProperty("source").GetProperty("kind").GetString().Should().Be("price_table");
+        await PostSourceAsync("https://b.vn/", token);
+
+        var summary = await RefreshAsync();
+
+        summary.ConfirmedGold.Should().Equal("sjc_bar");
+        summary.ConfirmedFuels.Should().BeEmpty();
+        (await InDbAsync(db => db.MarketSources.Where(s => s.LastErrorCode != null).CountAsync())).Should().Be(0, "trang chỉ có giá vàng vẫn là nguồn đọc được");
+        var price = (await GoldAsync()).Single();
+        (price.BuyCents, price.SellCents).Should().Be((130_000_000L, 135_000_000L));
+        price.SourceDomains.Should().BeEquivalentTo(["a.vn", "b.vn"]);
+
+        (await RefreshAsync()).ConfirmedGold.Should().BeEmpty("giá không đổi thì không thêm dòng");
+    }
+
+    [Fact]
+    public async Task OneGoldSourceAloneIsNotEnough()
+    {
+        _web.Html("https://a.vn/", GoldTable());
+        await AddSourceAsync("https://a.vn/", MarketSourceKind.PriceTable);
+
+        (await RefreshAsync()).ConfirmedGold.Should().BeEmpty();
+        (await GoldAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AnAdminCanCorrectAGoldPriceWithANote()
+    {
+        var token = await AdminTokenAsync();
+
+        var noNote = await SendAsync(HttpMethod.Post, "/api/v1/admin/gold-prices", token, new { goldKey = "sjc_bar", buyCents = 130_000_000, sellCents = 135_000_000 });
+        var inverted = await SendAsync(HttpMethod.Post, "/api/v1/admin/gold-prices", token, new { goldKey = "sjc_bar", buyCents = 136_000_000, sellCents = 135_000_000, note = "nguồn sai" });
+        var created = await SendAsync(HttpMethod.Post, "/api/v1/admin/gold-prices", token, new { goldKey = "sjc_bar", buyCents = 130_000_000, sellCents = 135_000_000, note = "Theo bảng giá SJC 14:50" });
+
+        noNote.StatusCode.Should().Be((HttpStatusCode)422);
+        inverted.StatusCode.Should().Be((HttpStatusCode)422);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var list = JsonDocument.Parse(await (await SendAsync(HttpMethod.Get, "/api/v1/admin/gold-prices?goldKey=sjc_bar", token)).Content.ReadAsStringAsync()).RootElement;
+        var item = list.GetProperty("data").GetProperty("items").EnumerateArray().Single();
+        item.GetProperty("origin").GetString().Should().Be("manual");
+        item.GetProperty("sellCents").GetInt64().Should().Be(135_000_000);
+    }
+
+    [Fact]
+    public async Task NewsFromTwoDomainsOfOneOwnerMakesNoEvent()
+    {
+        await SetTrustedAsync(Licensed("a.vn", owner: "Một cơ quan"), Licensed("b.vn", owner: "Một cơ quan"));
+        _ai.Respond = (_, _) => PowerUp();
+        await AddNewsAsync("a.vn");
+        await AddNewsAsync("b.vn");
+
+        await RefreshAsync();
+
+        (await EventsAsync()).Should().BeEmpty();
     }
 }

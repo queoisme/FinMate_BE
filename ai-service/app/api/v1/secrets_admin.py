@@ -32,6 +32,12 @@ async def list_secrets(session: Session) -> dict:
     return await secret_store.status(session)
 
 
+@router.post("/import-env")
+async def import_env(session: Session, actor: Actor, reason: Reason = None) -> dict:
+    """Chép key đang ở biến môi trường vào DB (mã hóa). Trả ``{"imported": [tên], "failed": [tên]}``, không trả giá trị."""
+    return await secret_store.import_env(session, actor, reason)
+
+
 @router.put("/{name}")
 async def put_secret(name: str, body: PutBody, session: Session, actor: Actor) -> dict:
     """Ghi đè key (mã hóa trước khi lưu). Thân: ``{"value": "...", "reason": "..."}``. Trả trạng thái mới, không trả giá trị."""

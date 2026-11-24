@@ -186,3 +186,96 @@ def test_generic_direction_follows_the_sign_stuck_to_the_amount(now):
 def test_generic_sign_ignores_a_hyphen_inside_a_date_or_code(now):
     outcome = extract_generic("Ban da nhan 500.000d ngay 12-10-2026 ma A-5", now)
     assert outcome.transaction_type is TransactionType.CREDIT  # không có dấu dính liền số tiền: rơi về động từ
+
+
+# ---- VCB: thông báo thật 23-11-2026 (mẫu người dùng báo lỗi: ra -10.000 thay vì +5.000) ----
+VCB_REAL = (
+    "Số dư TK VCB 9982815244 +5,000 VND lúc 23-11-2026 03:53:11. Số dư 10,000 VND. "
+    "Ref 158245989977-LE MINH TUAN chuyen tien qua MoMo-CHUYEN TIEN-OQCH000P3Sby-"
+    "MOMO158245989977MOMO#SP#0200970422112303531020260AB6915637.5389.22283.035311"
+)
+
+
+def _vcb(matcher, now, body):
+    from app.schemas.request import AnalyzeRequest  # đi đúng đường vào của pipeline (chuẩn hóa NFC)
+
+    request = AnalyzeRequest(
+        backend_request_id="00000000-0000-0000-0000-000000000001", user_id_hash="a" * 64,
+        package_name="com.VCB", notification_body=body, received_at=now,
+    )
+    return Extractor(matcher).extract("com.VCB", request.notification_body, now)
+
+
+def test_vcb_real_notification_splits_amount_balance_counterparty_and_note(matcher, now):
+    outcome = _vcb(matcher, now, VCB_REAL)
+    assert (outcome.amount_cents, outcome.balance_after_cents) == (5_000, 10_000)
+    assert outcome.transaction_type == TransactionType.CREDIT
+    assert outcome.merchant_name == "LE MINH TUAN"
+    assert outcome.description == "CHUYEN TIEN"
+    assert outcome.transacted_at == datetime(2026, 11, 23, 3, 53, 11, tzinfo=VIETNAM_TZ)
+    assert outcome.matched_pattern_name == "vcb_v2_ref_narrative"
+
+
+def test_vcb_decomposed_unicode_still_reads_amount_not_balance(now):
+    """Chữ dấu rời làm trượt nhãn "số dư" → số dư 10.000 bị đọc là số tiền, chiều thành chi."""
+    import unicodedata
+
+    from app.schemas.request import AnalyzeRequest
+
+    body = unicodedata.normalize("NFD", VCB_REAL)
+    request = AnalyzeRequest(
+        backend_request_id="00000000-0000-0000-0000-000000000001", user_id_hash="a" * 64,
+        package_name="com.x", notification_body=body, received_at=now,
+    )
+    # nhánh generic (không pattern): đủ chứng minh số dư không còn bị nhận nhầm làm số tiền
+    outcome = extract_generic(request.notification_body, now)
+    assert (outcome.amount_cents, outcome.balance_after_cents) == (5_000, 10_000)
+    assert outcome.transaction_type == TransactionType.CREDIT
+
+
+def test_vcb_debit_and_credit_variants(matcher, now):
+    debit = _vcb(matcher, now, "Số dư TK VCB 0011001234567 -250,000 VND lúc 23-11-2026 10:00:00. Số dư 1,750,000 VND. Ref 987654321-NGUYEN VAN A chuyen tien-TIEN AN")
+    assert (debit.amount_cents, debit.balance_after_cents, debit.transaction_type) == (250_000, 1_750_000, TransactionType.DEBIT)
+    assert (debit.merchant_name, debit.description) == ("NGUYEN VAN A", "TIEN AN")
+
+    no_ref = _vcb(matcher, now, "Số dư TK VCB 0011001234567 +1,000,000 VND lúc 23-11-2026 10:00:00. Số dư 3,000,000 VND.")
+    assert (no_ref.amount_cents, no_ref.balance_after_cents, no_ref.transaction_type) == (1_000_000, 3_000_000, TransactionType.CREDIT)
+    assert no_ref.matched_pattern_name == "vcb_v1"
+
+    dotted_ref = _vcb(matcher, now, "Số dư TK VCB 1038646763 +20,000,000 VND lúc 19-07-2026 10:19:38. Số dư 20,550,000 VND. Ref 213085.190724.101936.SW494931287")
+    assert (dotted_ref.amount_cents, dotted_ref.balance_after_cents) == (20_000_000, 20_550_000)
+    assert dotted_ref.matched_pattern_name == "vcb_v1"
+
+
+def test_vcb_ref_without_transfer_phrase_keeps_amounts_and_short_note(matcher, now):
+    outcome = _vcb(matcher, now, "Số dư TK VCB 0011001234567 +750,000 VND lúc 23-11-2026 09:30:00. Số dư 2,000,000 VND. Ref 55512345-NGUYEN VAN B thanh toan hoc phi-MA GD 0042")
+    assert (outcome.amount_cents, outcome.balance_after_cents, outcome.transaction_type) == (750_000, 2_000_000, TransactionType.CREDIT)
+    assert outcome.matched_pattern_name == "vcb_v3_ref_free_text"
+    assert outcome.description == "NGUYEN VAN B thanh toan hoc phi"
+
+
+VCB_MBVCB_OUT = (
+    "Số dư TK VCB 9982815244 -40,000 VND lúc 23-11-2026 16:16:02. Số dư 00 VND. "
+    "Ref MBVCB.17184288636.673829.mua com.CT tu 9982815244 LE MINH TUAN toi 6353866323 LE MINH TUAN tai BIDV"
+)
+
+
+def test_vcb_mbvcb_transfer_out_reads_amount_zero_balance_and_receiver(matcher, now):
+    """Thông báo thật 16:16: Ref chứa mã dài có dấu chấm. Trước đây số dư bị đọc thành mã Ref (~1,7e16)."""
+    outcome = _vcb(matcher, now, VCB_MBVCB_OUT)
+    assert (outcome.amount_cents, outcome.balance_after_cents, outcome.transaction_type) == (40_000, 0, TransactionType.DEBIT)
+    assert (outcome.merchant_name, outcome.description) == ("LE MINH TUAN", "mua com")
+    assert outcome.matched_pattern_name == "vcb_v4_ref_mbvcb_out"
+
+
+def test_vcb_mbvcb_transfer_in_uses_the_sender_as_counterparty(matcher, now):
+    outcome = _vcb(matcher, now, "Số dư TK VCB 9982815244 +40,000 VND lúc 23-11-2026 16:16:02. Số dư 140,000 VND. Ref MBVCB.1.2.tra no.CT tu 6353866323 NGUYEN VAN A toi 9982815244 LE MINH TUAN tai BIDV")
+    assert (outcome.amount_cents, outcome.balance_after_cents, outcome.transaction_type) == (40_000, 140_000, TransactionType.CREDIT)
+    assert outcome.merchant_name == "NGUYEN VAN A"
+
+
+def test_generic_branch_never_reads_a_reference_number_as_the_balance(now):
+    """Không pattern nào khớp: nhãn "số dư" không được vượt qua ranh giới câu để dính vào mã Ref phía sau."""
+    outcome = extract_generic("TK 99 -40,000 VND. So du 00 VND. Ref ABC.17184288636.673829 chuyen khoan", now)
+    assert outcome.amount_cents == 40_000
+    assert outcome.balance_after_cents is None or outcome.balance_after_cents < 10**12

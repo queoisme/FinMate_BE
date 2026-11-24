@@ -24,9 +24,20 @@ public static class FuelReadingValidator
         return readings.Select(r => ValidatePrice(r, settings)).FirstOrDefault(error => error is not null);
     }
 
+    /// <summary>Kiểm tra giá đọc từ thông cáo của Bộ Công Thương: phải có đủ <see cref="FuelKeys.ReleaseRequired"/>.</summary>
+    public static string? ValidateRelease(IReadOnlyList<FuelReading> readings, MarketDataSettings settings)
+    {
+        if (FuelKeys.ReleaseRequired.Any(key => readings.All(r => r.FuelKey != key)))
+        {
+            return FuelErrorCodes.MissingFuels;
+        }
+
+        return readings.Select(r => ValidatePrice(r, settings)).FirstOrDefault(error => error is not null);
+    }
+
     public static string? ValidatePrice(FuelReading reading, MarketDataSettings settings)
     {
-        if (!InRange(reading.Region1PriceCents, settings) || !InRange(reading.Region2PriceCents, settings))
+        if (!InRange(reading.Region1PriceCents, settings) || (reading.Region2PriceCents is { } region2 && !InRange(region2, settings)))
         {
             return FuelErrorCodes.PriceOutOfRange;
         }
@@ -41,16 +52,22 @@ public static class FuelReadingValidator
         => price >= settings.MinPriceCents && price <= settings.MaxPriceCents;
 }
 
-/// <summary>Bảng giá đọc từ một nguồn. Hai trang cùng một đơn vị chỉ tính là một nguồn khi so khớp.</summary>
-public sealed record SourceFuelTable(string Domain, IReadOnlyList<FuelReading> Readings);
+/// <summary>Bảng giá đọc từ một nguồn.</summary>
+/// <param name="Official">Nguồn hạng official: tự nó đủ để xác nhận, và thắng nguồn có giấy phép khi hai bên khác nhau.</param>
+/// <param name="Owner">Đơn vị chủ quản. Hai nguồn cùng chủ quản (hoặc cùng tên miền khi không biết chủ quản) chỉ tính là một khi so khớp.</param>
+public sealed record SourceFuelTable(string Domain, IReadOnlyList<FuelReading> Readings, bool Official = false, string? Owner = null);
 
 /// <summary>Kết quả xác nhận giá của một lượt đọc.</summary>
 /// <param name="Confirmed">Loại có đủ nguồn khớp và giá khác giá đang lưu.</param>
 /// <param name="HeldBack">Loại có đủ nguồn khớp nhưng đổi quá mạnh, không được nhận.</param>
 /// <param name="AgreedFuels">Số loại có đủ nguồn khớp, kể cả khi giá không đổi. Bằng 0 nghĩa là lượt này không xác nhận được gì.</param>
-public sealed record FuelConfirmation(IReadOnlyList<FuelReading> Confirmed, IReadOnlyList<string> HeldBack, int AgreedFuels);
+/// <param name="Domains">Tên miền đã cho đúng giá được nhận, theo mã giá.</param>
+public sealed record FuelConfirmation(IReadOnlyList<FuelReading> Confirmed, IReadOnlyList<string> HeldBack, int AgreedFuels, IReadOnlyDictionary<string, IReadOnlyList<string>>? Domains = null);
 
-/// <summary>Chỉ nhận giá có đủ số nguồn cho đúng cùng một cặp số. Nguồn lệch giờ cập nhật thì chờ lượt sau, không chọn bên nào.</summary>
+/// <summary>
+/// Một nguồn official là đủ; không có thì phải có đủ số đơn vị chủ quản khác nhau cho đúng cùng một cặp số.
+/// Nguồn lệch giờ cập nhật thì chờ lượt sau, không chọn bên nào.
+/// </summary>
 public static class FuelPriceConfirmer
 {
     /// <param name="heldStale">Giá mà nguồn đang báo trước khi admin sửa tay. Nguồn còn báo đúng giá cũ đó thì giữ giá admin, không ghi đè.</param>
@@ -62,26 +79,29 @@ public static class FuelPriceConfirmer
     {
         var confirmed = new List<FuelReading>();
         var heldBack = new List<string>();
+        var domains = new Dictionary<string, IReadOnlyList<string>>();
         var agreedFuels = 0;
 
-        var agreed = sourceTables
-            .SelectMany(table => table.Readings.Select(reading => (table.Domain, reading)))
-            .GroupBy(entry => entry.reading)
-            .Where(group => group.Select(entry => entry.Domain).Distinct().Count() >= settings.MinAgreeingSources)
-            .Select(group => group.Key)
-            .GroupBy(reading => reading.FuelKey);
-
-        foreach (var fuel in agreed)
+        var entries = sourceTables.SelectMany(table => table.Readings.Select(reading => (Table: table, Reading: reading))).ToList();
+        foreach (var fuel in entries.GroupBy(entry => entry.Reading.FuelKey))
         {
-            // Nhiều nguồn cùng chia làm hai phe bằng nhau: không biết phe nào đúng.
-            if (fuel.Count() > 1)
+            var official = fuel.Where(entry => entry.Table.Official).ToList();
+            var candidates = official.Count > 0
+                ? official.GroupBy(entry => entry.Reading).ToList()
+                : fuel.GroupBy(entry => entry.Reading)
+                    .Where(group => group.Select(entry => entry.Table.Owner ?? entry.Table.Domain).Distinct().Count() >= settings.MinAgreeingSources)
+                    .ToList();
+
+            // Không phe nào đủ, hoặc nhiều phe cùng đủ (kể cả hai nguồn official khác nhau): không biết phe nào đúng.
+            if (candidates.Count != 1)
             {
                 continue;
             }
 
             agreedFuels++;
-            var reading = fuel.Single();
-            if (heldStale is not null && heldStale.TryGetValue(reading.FuelKey, out var stale) && stale == reading)
+            var reading = candidates[0].Key;
+            var agreedDomains = candidates[0].Select(entry => entry.Table.Domain).Distinct().ToList();
+            if (heldStale is not null && heldStale.TryGetValue(reading.FuelKey, out var stale) && SamePrice(stale, reading))
             {
                 continue;
             }
@@ -90,7 +110,7 @@ public static class FuelPriceConfirmer
             {
                 confirmed.Add(reading);
             }
-            else if (current == reading)
+            else if (SamePrice(current, reading))
             {
                 continue;
             }
@@ -101,9 +121,16 @@ public static class FuelPriceConfirmer
             else
             {
                 heldBack.Add(reading.FuelKey);
+                continue;
             }
+
+            domains[reading.FuelKey] = agreedDomains;
         }
 
-        return new FuelConfirmation(confirmed, heldBack, agreedFuels);
+        return new FuelConfirmation(confirmed, heldBack, agreedFuels, domains);
     }
+
+    /// <summary>Nguồn không có giá vùng 2 thì chỉ so vùng 1, để đổi từ bảng giá sang thông cáo không tạo ra một "lần đổi giá" giả.</summary>
+    private static bool SamePrice(FuelReading stored, FuelReading reading)
+        => stored.Region1PriceCents == reading.Region1PriceCents && (reading.Region2PriceCents is null || stored.Region2PriceCents == reading.Region2PriceCents);
 }

@@ -33,6 +33,8 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly Refunds.IRefundLedger? _refunds;
     private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
 
+    private readonly IAiLearningQueue? _learning;  // null (test cũ): gọi thẳng AI Service như trước
+
     public CreateManualTransactionCommandHandler(
         ITransactionRepository transactionRepository,
         IFinancialAccountRepository financialAccountRepository,
@@ -50,8 +52,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         Refunds.IRefundLedger? refunds = null,
         Duplicates.IDuplicateDetector? duplicates = null,
         IUserNotificationService? userNotifications = null,
-        IItemMemoryService? itemMemory = null)
+        IItemMemoryService? itemMemory = null,
+        IAiLearningQueue? learning = null)
     {
+        _learning = learning;
         _itemMemory = itemMemory;
         _duplicates = duplicates;
         _groupLedger = groupLedger;
@@ -221,8 +225,15 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         // Người dùng đã chọn danh mục cho cửa hàng trên một hóa đơn: nhờ AI Service nhớ cho lần quét sau (best-effort, sau khi đã lưu).
         if (ReceiptMemory.ShouldLearn(command.Source, category, command.MerchantName, scanWasSplit))
         {
-            await _aiServiceClient.LearnMerchantAsync(
-                new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug), ct);
+            var learn = new LearnMerchantRequest(command.UserId, command.MerchantName!, category!.Slug);
+            if (_learning is not null)
+            {
+                _learning.LearnMerchant(learn);
+            }
+            else
+            {
+                await _aiServiceClient.LearnMerchantAsync(learn, ct);
+            }
         }
 
         // Bộ nhớ món của người dùng: chỉ học khi liên kết vừa được tạo (không phải gửi lại) với lần quét đã tách. Giao dịch đã lưu rồi nên lỗi nào cũng không được thành 500 (client bấm Lưu lại sẽ tạo trùng); chỉ ghi tên loại lỗi.

@@ -36,6 +36,8 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 | `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
 | `ManageLegalDocuments` (soạn nháp văn bản pháp lý; xuất bản cần `ManageSystem`) | ❌ | ✅ | ✅ |
+| `ManageAgentContent` (xem, soạn nháp kho tri thức và giả định kinh tế, xử lý câu hỏi chưa trả lời được) | ✅ | ✅ | ✅ |
+| `ApproveAgentContent` (duyệt, gỡ tri thức và giả định; cần có `ManageAgentContent`) | ❌ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -216,7 +218,7 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 | `POST /ops/tickets/{id}/broadcast` | Trả lời ca cha và mọi ca con chưa đóng: `body`, `resolve` |
 | `GET /ops/canned-replies` (mọi vai trò), `POST`, `PATCH /{id}` | Câu trả lời mẫu; tắt bằng `isActive = false`, không xóa |
 | `GET /ops/audit-logs` | Chỉ sự kiện `Ops.*`; lọc sự kiện khác thì 403 |
-| `GET /ops/ai-stats` | Như `/admin/ai-stats`, chỉ đọc |
+| `GET /ops/ai-stats` | Thống kê AI, chỉ đọc (thay cho `/admin/ai-stats` đã gỡ ngày 2026-11-22) |
 
 ## Xác thực 2 lớp
 

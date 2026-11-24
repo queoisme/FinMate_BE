@@ -166,6 +166,35 @@ public class AgentOrchestratorTests
         ai.PlanCalls.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task a_familiar_question_picked_by_the_gate_skips_the_planner_and_still_runs_the_tool()
+    {
+        var source = new InMemoryFinancialDataSource(Income, Spend.Take(Income.Length).ToArray(), 100_000_000, null);
+        var ai = new FakeAi { Gate = new AgentGateResult(true, "finance_cue", null, "goal_plan", new Dictionary<string, long> { ["target_vnd"] = 500_000_000, ["months"] = 36 }) };
+        var orchestrator = new AgentOrchestrator(
+            ai, new ToolExecutor(new ToolRegistry([new FakeGoalPlanTool()])), new IncomeHistory(source), new ConversationStore(new FakeCache()), new AgentTraceContext(), () => Now);
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "câu hỏi quen");
+
+        answer.Status.Should().Be(AgentStatus.Answered);
+        answer.Evidence.Should().Contain(e => e.Id == "goal_target" && e.ValueVnd == 500_000_000);
+        ai.PlanCalls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task a_direct_tool_outside_the_allowlist_is_rejected_like_any_plan_step()
+    {
+        var source = new InMemoryFinancialDataSource(Income, Spend.Take(Income.Length).ToArray(), 100_000_000, null);
+        var ai = new FakeAi { Gate = new AgentGateResult(true, "finance_cue", null, "drop_database", new Dictionary<string, long>()) };
+        var orchestrator = new AgentOrchestrator(
+            ai, new ToolExecutor(new ToolRegistry([new FakeGoalPlanTool()])), new IncomeHistory(source), new ConversationStore(new FakeCache()), new AgentTraceContext(), () => Now);
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "câu hỏi lạ");
+
+        answer.Status.Should().NotBe(AgentStatus.Answered);
+        answer.Evidence.Should().BeEmpty();
+    }
+
     private sealed class FakeKnowledgeTool : IAgentTool
     {
         public ToolSpec Spec { get; } = new("search_knowledge", "Tra tri thức.", [new ToolArg("query", "string", true)]);

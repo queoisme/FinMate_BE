@@ -27,6 +27,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     // luôn — null: không ghi override (test cũ).
     private readonly IMerchantCategoryOverrideRepository? _merchantCategoryOverrides;
 
+    private readonly IAiLearningQueue? _learning;  // null (test cũ): gọi thẳng AI Service như trước
+
     // Hộp thư tab "Biến động": giao dịch bắt từ thông báo ngân hàng chỉ vào đây khi được xác nhận. null (test cũ): bỏ qua.
     private readonly Notifications.IUserNotificationService? _userNotifications;
 
@@ -43,8 +45,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         Refunds.IRefundLedger? refunds = null,
         IDailySummaryRefresher? summaries = null,
         IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
+        IAiLearningQueue? learning = null,
         Notifications.IUserNotificationService? userNotifications = null)
     {
+        _learning = learning;
         _userNotifications = userNotifications;
         _groupLedger = groupLedger;
         _refunds = refunds;
@@ -101,9 +105,8 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         }
 
         var now = DateTimeOffset.UtcNow;
-        account.BalanceCents += transaction.TransactionType == TransactionType.Credit
-            ? transaction.AmountCents
-            : -transaction.AmountCents;
+        await ApplyToBalanceAsync(
+            account, transaction, transaction.TransactionType == TransactionType.Credit ? transaction.AmountCents : -transaction.AmountCents, ct);
         account.UpdatedAt = now;
 
         transaction.Status = TransactionStatus.Confirmed;
@@ -146,16 +149,22 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             // Bảng tình huống biên của docx: "lưu lại lựa chọn của người dùng để cải thiện
             // thuật toán sau này". Đây chính là tín hiệu quý nhất — người dùng vừa sửa đúng
             // cái AI đoán sai. IAIServiceClient tự nuốt lỗi nên không cần try/catch.
-            await _aiServiceClient.SendFeedbackAsync(
-                new FeedbackRequest(
-                    transaction.Id,
-                    command.UserId,
-                    null,
-                    transaction.FinancialAccount?.PackageName ?? "unknown",
-                    predictedSlug,
-                    transaction.Category?.Slug,
-                    "category_correction"),
-                ct);
+            var feedback = new FeedbackRequest(
+                transaction.Id,
+                command.UserId,
+                null,
+                transaction.FinancialAccount?.PackageName ?? "unknown",
+                predictedSlug,
+                transaction.Category?.Slug,
+                "category_correction");
+            if (_learning is not null)
+            {
+                _learning.Feedback(feedback);
+            }
+            else
+            {
+                await _aiServiceClient.SendFeedbackAsync(feedback, ct);
+            }
 
             // §7 Mapping-trigger rule + §16.5: chỉ ghi override khi user TỰ chọn danh mục, không
             // ghi khi chỉ chấp nhận gợi ý AI nguyên vẹn (categoryChanged đã đảm bảo đúng điều này).
@@ -208,7 +217,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             transaction.UpdatedAt = now;
             var result = await refunds.AttachAsync(command.UserId, original, transaction, relation, before: null, ct);
 
-            account.BalanceCents += transaction.AmountCents;   // AttachAsync đã bảo đảm đây là tiền vào
+            await ApplyToBalanceAsync(account, transaction, transaction.AmountCents, ct);   // AttachAsync đã bảo đảm đây là tiền vào
             account.UpdatedAt = now;
             await _transactionRepository.UpdateAsync(transaction, ct);
             return result;
@@ -217,6 +226,23 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         await new RefundAfterSave(_budgetAlertNotifier, _cache, _groupLedger, _summaries, _forecastAlerts).RunAsync(command.UserId, effects, ct);
         await BalanceChangeInbox.WriteAsync(_userNotifications, transaction, ct);
         return TransactionMapper.ToDto(transaction);
+    }
+
+    /// <summary>
+    /// Số dư ví sau khi xác nhận. Thông báo ngân hàng đã ghi sẵn số dư thật: nếu đó là giao dịch MỚI NHẤT của ví thì lấy luôn số ngân hàng báo, tự sửa mọi sai lệch tích lũy
+    /// (giao dịch bỏ sót, số dư ban đầu nhập sai). Còn giao dịch mới hơn trong ví thì số ngân hàng đã cũ — chỉ cộng/trừ như thường, kẻo mất các giao dịch đó.
+    /// </summary>
+    private async Task ApplyToBalanceAsync(FinancialAccount account, Transaction transaction, long deltaCents, CancellationToken ct)
+    {
+        if (transaction.Source == TransactionSource.Notification
+            && transaction.BalanceAfterCents is >= 0 and var bankBalance
+            && !await _transactionRepository.HasConfirmedAfterAsync(account.Id, transaction.TransactedAt, transaction.Id, ct))
+        {
+            account.BalanceCents = bankBalance;
+            return;
+        }
+
+        account.BalanceCents += deltaCents;
     }
 
     /// <summary>Kiểm tra số dư thấp / vượt ngân sách sớm ngoài request (Flow 6). Gọi SAU khi đã lưu; trigger tự nuốt lỗi.</summary>

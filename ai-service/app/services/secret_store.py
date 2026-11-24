@@ -196,6 +196,25 @@ async def save(session: AsyncSession, name: str, value: object, actor: str, reas
     _values[name] = text
 
 
+async def import_env(session: AsyncSession, actor: str, reason: str | None) -> dict:
+    """Chép mọi key đang chỉ nằm ở biến môi trường vào DB (mã hóa), để từ đó chỉnh được trên trang quản trị. Key đã có trong DB giữ nguyên.
+    Trả tên key đã chép và tên key không chép được; không bao giờ có giá trị key."""
+    _aead()  # chưa có khóa chủ thì dừng ngay với thông điệp rõ ràng, thay vì báo từng key thất bại
+    in_db = set((await session.scalars(select(SecretRow.name))).all())
+    imported: list[str] = []
+    failed: list[str] = []
+    for spec in SECRETS.values():
+        env = getattr(settings, spec.env_attr, None)
+        if spec.name in in_db or not env:
+            continue
+        try:
+            await save(session, spec.name, env, actor, reason)
+            imported.append(spec.name)
+        except RuleError:
+            failed.append(spec.name)
+    return {"imported": imported, "failed": failed}
+
+
 async def delete(session: AsyncSession, name: str, actor: str, reason: str | None) -> None:
     """Xóa key trong DB: dịch vụ quay về key ở biến môi trường (nếu có)."""
     _spec(name)

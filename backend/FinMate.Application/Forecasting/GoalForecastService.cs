@@ -1,6 +1,7 @@
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.MarketData;
 using FinMate.Application.SavingGoals;
 using FinMate.Domain.Entities;
 using FluentValidation;
@@ -26,12 +27,16 @@ public sealed record GoalForecastDto(
     DateOnly? LikelyDate,
     DateOnly? ConservativeDate,
     long? RequiredMonthlyCents,
-    string Message);
+    string Message,
+    GoalMarketDto? Market = null);
 
 public interface IGoalForecastService
 {
     /// <param name="scenarioMonthlyCents">Mức góp hằng tháng muốn thử (không lưu); null = theo lịch sử góp.</param>
     Task<GoalForecastDto> GetAsync(Guid userId, Guid goalId, long? scenarioMonthlyCents, CancellationToken ct = default);
+
+    /// <summary>Dự báo theo lịch sử góp của mục tiêu nhưng với số tiền mục tiêu <paramref name="targetCents"/>, để so ngày đạt trước và sau khi giá đổi.</summary>
+    Task<GoalForecast> ForecastAsync(SavingGoal goal, long targetCents, CancellationToken ct = default);
 }
 
 public class GoalForecastService : IGoalForecastService
@@ -41,11 +46,33 @@ public class GoalForecastService : IGoalForecastService
 
     private readonly ISavingGoalRepository _goals;
     private readonly ISystemConfigProvider _config;
+    private readonly GoalMarketService? _market;
 
-    public GoalForecastService(ISavingGoalRepository goals, ISystemConfigProvider config)
+    public GoalForecastService(ISavingGoalRepository goals, ISystemConfigProvider config, GoalMarketService? market = null)
     {
         _goals = goals;
         _config = config;
+        _market = market;
+    }
+
+    public async Task<GoalForecast> ForecastAsync(SavingGoal goal, long targetCents, CancellationToken ct = default)
+    {
+        var (totals, _, today) = await MonthlyTotalsAsync(goal, ct);
+        var deadline = goal.Deadline is { } d ? VietnamTime.DateOf(d) : (DateOnly?)null;
+        return GoalForecastCalculator.Compute(targetCents, goal.SavedCents, deadline, totals, today, null);
+    }
+
+    private async Task<(List<long> Totals, int FullMonths, DateOnly Today)> MonthlyTotalsAsync(SavingGoal goal, CancellationToken ct)
+    {
+        var settings = (await _config.GetAsync(ct)).Document.Forecast;
+        var today = VietnamTime.Today();
+        var (months, fullMonths) = RateMonths(goal, today, settings.GoalRateMonths);
+        var since = VietnamTime.MonthRange(months[0].Year, months[0].Month).Start;
+        var contributions = await _goals.GetContributionsSinceAsync(goal.Id, goal.UserId!.Value, since, ct);
+        var totals = months
+            .Select(m => contributions.Where(c => InMonth(VietnamTime.DateOf(c.ContributedAt), m)).Sum(c => c.AmountCents))
+            .ToList();
+        return (totals, fullMonths, today);
     }
 
     public async Task<GoalForecastDto> GetAsync(Guid userId, Guid goalId, long? scenarioMonthlyCents, CancellationToken ct = default)
@@ -57,15 +84,7 @@ public class GoalForecastService : IGoalForecastService
         }
 
         var goal = await _goals.GetByIdAsync(goalId, userId, ct) ?? throw new NotFoundException("SavingGoal", goalId);
-        var settings = (await _config.GetAsync(ct)).Document.Forecast;
-        var today = VietnamTime.Today();
-        var (months, fullMonths) = RateMonths(goal, today, settings.GoalRateMonths);
-        var since = VietnamTime.MonthRange(months[0].Year, months[0].Month).Start;
-        var contributions = await _goals.GetContributionsSinceAsync(goal.Id, userId, since, ct);
-        var totals = months
-            .Select(m => contributions.Where(c => InMonth(VietnamTime.DateOf(c.ContributedAt), m)).Sum(c => c.AmountCents))
-            .ToList();
-
+        var (totals, fullMonths, today) = await MonthlyTotalsAsync(goal, ct);
         var deadline = goal.Deadline is { } d ? VietnamTime.DateOf(d) : (DateOnly?)null;
         var forecast = GoalForecastCalculator.Compute(goal.TargetCents, goal.SavedCents, deadline, totals, today, scenarioMonthlyCents);
         return new GoalForecastDto(
@@ -86,7 +105,8 @@ public class GoalForecastService : IGoalForecastService
             forecast.LikelyDate,
             forecast.ConservativeDate,
             forecast.RequiredMonthlyCents,
-            Message(forecast));
+            Message(forecast),
+            _market is null ? null : await _market.DescribeAsync(goal, ct));
     }
 
     /// <summary>

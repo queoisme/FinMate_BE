@@ -16,6 +16,12 @@ public interface IAdminSecretsService
     /// <summary>Đặt hoặc ghi đè key. <paramref name="body"/> chứa giá trị key: chỉ được chuyển tiếp, không log, không đưa vào nhật ký admin.</summary>
     Task<JsonElement?> SetAsync(Guid adminId, string? ip, string name, JsonElement body, CancellationToken ct = default);
 
+    /// <summary>
+    /// Chép mọi key đang chỉ nằm ở biến môi trường (của backend và của AI Service) vào kho mã hóa trong DB, để chỉnh được trên trang quản trị. Key đã ở DB giữ nguyên.
+    /// Trả <c>imported</c> và <c>failed</c> (chỉ tên key, không có giá trị).
+    /// </summary>
+    Task<JsonElement?> ImportFromEnvironmentAsync(Guid adminId, string? ip, string? reason, CancellationToken ct = default);
+
     /// <summary>Xóa key trong DB: AI Service quay về key ở biến môi trường nếu có.</summary>
     Task<JsonElement?> DeleteAsync(Guid adminId, string? ip, string name, string? reason, CancellationToken ct = default);
 }
@@ -65,7 +71,7 @@ public class AdminSecretsService : IAdminSecretsService
         items.AddRange((await _vault.ListAsync(ct)).Select(s => (object)new Dictionary<string, object?>
         {
             ["name"] = s.Name, ["title"] = s.Title, ["source"] = s.Source, ["configured"] = s.Configured, ["last4"] = s.Last4,
-            ["updated_at"] = s.UpdatedAt, ["multiline"] = s.Multiline, ["owner"] = "backend", ["can_store"] = _vault.CanStore,
+            ["updated_at"] = s.UpdatedAt, ["multiline"] = s.Multiline, ["plain"] = s.Plain, ["placeholder"] = s.Placeholder, ["owner"] = "backend", ["can_store"] = _vault.CanStore,
         }));
 
         return JsonSerializer.SerializeToElement(new { available = aiAvailable || _vault.CanStore, ai_unavailable = aiUnavailable, items });
@@ -82,7 +88,7 @@ public class AdminSecretsService : IAdminSecretsService
     private static Dictionary<string, object?> Shape(SecretStatus s, bool canStore) => new()
     {
         ["name"] = s.Name, ["title"] = s.Title, ["source"] = s.Source, ["configured"] = s.Configured, ["last4"] = s.Last4,
-        ["updated_at"] = s.UpdatedAt, ["multiline"] = s.Multiline, ["owner"] = "backend", ["can_store"] = canStore,
+        ["updated_at"] = s.UpdatedAt, ["multiline"] = s.Multiline, ["plain"] = s.Plain, ["placeholder"] = s.Placeholder, ["owner"] = "backend", ["can_store"] = canStore,
     };
 
     public async Task<JsonElement?> TestAsync(string name, CancellationToken ct = default)
@@ -119,6 +125,59 @@ public class AdminSecretsService : IAdminSecretsService
         await LogAsync(adminId, ip, name, "set", ReasonOf(body), ct);
         return result;
     }
+
+    public async Task<JsonElement?> ImportFromEnvironmentAsync(Guid adminId, string? ip, string? reason, CancellationToken ct = default)
+    {
+        if (!_vault.CanStore)
+        {
+            throw new BusinessRuleException("SECRET_STORE_UNAVAILABLE", "Backend chưa có SECRETS_MASTER_KEY nên chưa lưu được key vào hệ thống.");
+        }
+
+        var imported = new List<string>();
+        var failed = new List<string>();
+        foreach (var status in (await _vault.ListAsync(ct)).Where(s => s.Source == "env"))
+        {
+            var value = await _vault.GetAsync(status.Name, ct);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            try
+            {
+                await _vault.SaveAsync(status.Name, value, adminId, ct);
+                imported.Add(status.Name);
+            }
+            catch (FinMateException)
+            {
+                failed.Add(status.Name);
+            }
+        }
+
+        var aiUnavailable = false;
+        try
+        {
+            var query = reason is null ? null : new Dictionary<string, string?> { ["reason"] = reason };
+            var ai = await _client.SendAsync(new AiRulesRequest(HttpMethod.Post, "import-env", query, null, adminId, AiRulesRequest.SecretsArea), ct);
+            if (ai is { ValueKind: JsonValueKind.Object } root)
+            {
+                imported.AddRange(Names(root, "imported"));
+                failed.AddRange(Names(root, "failed"));
+            }
+        }
+        catch (Exception ex) when (ex is FinMateException or HttpRequestException)
+        {
+            aiUnavailable = true;
+        }
+
+        await LogAsync(adminId, ip, "all", "import_env", reason, ct);
+        return JsonSerializer.SerializeToElement(new { imported, failed, ai_unavailable = aiUnavailable });
+    }
+
+    private static IEnumerable<string> Names(JsonElement root, string property)
+        => root.TryGetProperty(property, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Select(e => e.GetString()).OfType<string>().ToList()
+            : [];
 
     public async Task<JsonElement?> DeleteAsync(Guid adminId, string? ip, string name, string? reason, CancellationToken ct = default)
     {

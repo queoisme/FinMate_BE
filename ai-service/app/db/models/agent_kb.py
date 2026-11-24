@@ -5,9 +5,9 @@ Chỉ tài liệu ``Approved`` và còn hiệu lực (``effective_from <= now < 
 
 import uuid
 
-from sqlalchemy import CheckConstraint, Computed, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Computed, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy import text as sql_text
-from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, created_at, timestamptz, uuid_pk
@@ -68,10 +68,26 @@ class AgentKbCandidate(Base):
     first_seen: Mapped[created_at]
     last_seen: Mapped[timestamptz] = mapped_column(server_default=sql_text("now()"), nullable=False)
     status: Mapped[str] = mapped_column(String(10), nullable=False, server_default=sql_text("'New'"))
+    topic_code: Mapped[str | None] = mapped_column(String(40))  # mã trong agent_kb_topics; None = chưa khớp chủ đề nào
 
     __table_args__ = (
         UniqueConstraint("question_hash", name="uq_agent_kb_candidates_hash"),
         CheckConstraint("question_hash ~ '^[0-9a-f]{64}$'", name="chk_agent_kb_candidates_hash"),
         CheckConstraint("status IN ('New', 'Dismissed', 'Covered')", name="chk_agent_kb_candidates_status"),
         CheckConstraint("count >= 1", name="chk_agent_kb_candidates_count"),
+        Index("ix_agent_kb_candidates_topic", "topic_code"),
     )
+
+
+class AgentKbTopic(Base):
+    """Chủ đề gán cho câu hỏi tri thức chưa trả lời được (``agent_kb_candidates.topic_code``). Admin sửa được, không nằm trong code: từ khóa đã bỏ dấu, viết thường, khớp nguyên cụm từ."""
+
+    __tablename__ = "agent_kb_topics"
+
+    code: Mapped[str] = mapped_column(String(40), primary_key=True)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    keywords: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default=sql_text("'{}'"))
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sql_text("0"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("true"))
+
+    __table_args__ = (CheckConstraint("code ~ '^[a-z0-9_]{1,40}$'", name="chk_agent_kb_topics_code"),)

@@ -191,7 +191,8 @@ public sealed class MarketSignalProcessor : IMarketSignalProcessor
     {
         var since = now.AddDays(-EventWindowDays);
         var sources = await _repository.ListActualSignalSourcesAsync(topic, direction, since, ct);
-        var domains = sources.Select(s => MarketDomains.Of(s.SourceUrl)).Distinct().Count();
+        // Chỉ đếm nguồn uy tín, và hai tên miền cùng đơn vị chủ quản là một nguồn.
+        var domains = sources.Select(s => MarketTrust.OwnerOf(MarketDomains.Of(s.SourceUrl), settings)).OfType<string>().Distinct().Count();
         if (domains < settings.MinEventDomains)
         {
             return;

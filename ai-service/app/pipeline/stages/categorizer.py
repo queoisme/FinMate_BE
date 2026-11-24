@@ -1,8 +1,8 @@
 """Stage 3 — gán danh mục cho giao dịch.
 
 Đây là chỗ ML thực sự có việc để làm: đầu vào là tên đơn vị bán hàng, một trường văn bản
-mở mà không template nào phủ hết được. Chưa có model thì rơi về từ điển từ khoá trong
-``app/data/merchant_categories.json``.
+mở mà không template nào phủ hết được. Thứ tự: từ điển từ khoá (``app/data/merchant_categories.json``,
+admin sửa được) trước; trượt từ điển mới hỏi model (nếu có model active); không có model thì "other".
 
 Ràng buộc cứng: slug trả về phải nằm trong 11 slug hệ thống mà ``CategorySeeder`` của
 backend seed. Slug lạ làm ``GetSystemBySlugAsync`` trả NULL và giao dịch mất danh mục mà
@@ -109,6 +109,13 @@ class Categorizer:
                 FALLBACK_CATEGORY_SLUG, table.get("categorizer.empty_text"), ExtractionMethod.RULE
             )
 
+        # Luật trước, model sau: trúng từ điển là khớp đúng một cửa hàng đã biết, chắc hơn mọi
+        # phỏng đoán, và từ khoá Staff vừa sửa phải có hiệu lực ngay chứ không đợi train lại.
+        # Model chỉ lo phần luật bó tay: cửa hàng chưa có trong từ điển.
+        hit = _lexicon_hit(text)
+        if hit is not None:
+            return hit
+
         model = self._registry.get(ModelStage.CATEGORIZER)
         if model is not None:
             slug, confidence = model.predict(normalize_for_model(text))
@@ -119,7 +126,7 @@ class Categorizer:
             # Model trả slug ngoài taxonomy nghĩa là artifact lệch pha với CategorySeeder.
             # Rơi về luật thay vì đẩy slug rác sang backend.
 
-        return categorize_by_rules(text)
+        return _rule_fallback()
 
 
 # Trúng từ điển là khớp CHÍNH XÁC một tên cửa hàng đã biết ("highlands" → Ăn uống), nên nó
@@ -131,11 +138,19 @@ class Categorizer:
 _LEXICON_HIT_CONFIDENCE = table.get("categorizer.lexicon_hit")  # lý do và ràng buộc với ngưỡng 85%: app/data/confidence.json
 
 
-def categorize_by_rules(text: str) -> CategorizationOutcome:
+def _lexicon_hit(text: str) -> CategorizationOutcome | None:
     lowered = f" {text.lower()} "
     for keyword, slug in load_lexicon():
         if keyword in lowered:
             return CategorizationOutcome(slug, _LEXICON_HIT_CONFIDENCE, ExtractionMethod.RULE)
+    return None
+
+
+def _rule_fallback() -> CategorizationOutcome:
     # Không khớp từ khoá nào: vẫn trả "other" nhưng với độ tin cậy thấp, để ngưỡng 85%
     # của Flow 1 đẩy sang hộp thoại cho người dùng chọn.
     return CategorizationOutcome(FALLBACK_CATEGORY_SLUG, table.get("categorizer.fallback"), ExtractionMethod.RULE)
+
+
+def categorize_by_rules(text: str) -> CategorizationOutcome:
+    return _lexicon_hit(text) or _rule_fallback()

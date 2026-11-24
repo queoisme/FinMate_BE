@@ -1,6 +1,7 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Common.Models;
+using FinMate.Application.MarketData;
 using FinMate.Domain.Enums;
 using FluentValidation;
 
@@ -10,13 +11,16 @@ public class UpdateSavingGoalCommandHandler : IUpdateSavingGoalCommandHandler
 {
     private readonly ISavingGoalRepository _savingGoalRepository;
     private readonly IValidator<UpdateSavingGoalCommand> _validator;
+    private readonly GoalMarketService? _market;
 
     public UpdateSavingGoalCommandHandler(
         ISavingGoalRepository savingGoalRepository,
-        IValidator<UpdateSavingGoalCommand> validator)
+        IValidator<UpdateSavingGoalCommand> validator,
+        GoalMarketService? market = null)
     {
         _savingGoalRepository = savingGoalRepository;
         _validator = validator;
+        _market = market;
     }
 
     public async Task<SavingGoalDto> HandleAsync(UpdateSavingGoalCommand command, CancellationToken ct = default)
@@ -34,6 +38,12 @@ public class UpdateSavingGoalCommandHandler : IUpdateSavingGoalCommandHandler
         }
 
         var now = DateTimeOffset.UtcNow;
+        if (_market is not null)
+        {
+            // null = giữ nguyên, chuỗi rỗng = bỏ gắn. Đổi số tiền thì lấy lại giá mốc.
+            await _market.ApplyAsync(goal, command.MarketTopic, targetChanged: goal.TargetCents != command.TargetCents, now, ct);
+        }
+
         goal.Name = command.Name;
         goal.TargetCents = command.TargetCents;
         goal.Deadline = command.Deadline;

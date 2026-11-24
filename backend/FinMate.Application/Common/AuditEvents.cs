@@ -140,6 +140,7 @@ public static class AuditEvents
     public const string AdminMarketSourceCreated = "Admin.MarketSource.Created";
     public const string AdminMarketSourceUpdated = "Admin.MarketSource.Updated";
     public const string AdminFuelPriceCorrected = "Admin.FuelPrice.Corrected";
+    public const string AdminGoldPriceCorrected = "Admin.GoldPrice.Corrected";
     public const string AdminMarketEventApproved = "Admin.MarketEvent.Approved";
     public const string AdminMarketEventRejected = "Admin.MarketEvent.Rejected";
     public const string OpsTwoFactorVerified = "Ops.TwoFactor.Verified";

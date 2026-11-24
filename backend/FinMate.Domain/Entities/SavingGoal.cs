@@ -33,6 +33,13 @@ public class SavingGoal
     /// <summary>Phương pháp đang dùng lúc tạo mục tiêu (để biết mục tiêu này theo <c>goal_mode</c> nào). NULL = tạo khi chưa dùng phương pháp nào.</summary>
     public Guid? UserMethodId { get; set; }
 
+    /// <summary>Giá thị trường mục tiêu này theo (mã trong <c>marketData.goalTopics</c>, ví dụ <c>gold</c>). NULL = không theo. Chỉ mục tiêu cá nhân.</summary>
+    public string? MarketTopic { get; set; }
+
+    /// <summary>Giá của chủ đề lúc gắn, hoặc lúc người dùng đổi số tiền mục tiêu sau đó. Có khi và chỉ khi có <see cref="MarketTopic"/>.</summary>
+    public long? MarketBaselineCents { get; set; }
+    public DateTimeOffset? MarketBaselineAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

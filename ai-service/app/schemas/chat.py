@@ -116,7 +116,7 @@ class ChatNlu(BaseModel):
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | purchase_needs_amount | ask_agent | needs_period | create_goal | create_item | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | purchase_needs_amount | ask_agent | needs_period | create_goal | create_item | explain_numbers | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None

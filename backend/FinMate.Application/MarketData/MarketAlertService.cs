@@ -93,6 +93,8 @@ public sealed class MarketAlertService : IMarketAlertService
     private readonly IAlertThresholdProvider _thresholds;
     private readonly ISystemConfigProvider _config;
     private readonly ILogger<MarketAlertService> _logger;
+    private readonly ISavingGoalRepository? _goals;
+    private readonly IGoalForecastService? _goalForecasts;
 
     public MarketAlertService(
         IMarketDataRepository market,
@@ -102,8 +104,12 @@ public sealed class MarketAlertService : IMarketAlertService
         IForecastAlertDispatcher dispatcher,
         IAlertThresholdProvider thresholds,
         ISystemConfigProvider config,
-        ILogger<MarketAlertService> logger)
+        ILogger<MarketAlertService> logger,
+        ISavingGoalRepository? goals = null,
+        IGoalForecastService? goalForecasts = null)
     {
+        _goals = goals;
+        _goalForecasts = goalForecasts;
         _market = market;
         _reports = reports;
         _budgets = budgets;
@@ -122,6 +128,7 @@ public sealed class MarketAlertService : IMarketAlertService
         var now = DateTimeOffset.UtcNow;
 
         await ProcessFuelAsync(settings, enabled, now, ct);
+        await ProcessGoalsAsync(settings, document.Features.GoalMarketAlerts, now, ct);
         foreach (var marketEvent in await _market.ListEventsAwaitingAlertsAsync(ct))
         {
             // Loại có bảng giá chỉ cảnh báo theo giá thật, kể cả khi còn sự kiện từ trước.
@@ -165,6 +172,92 @@ public sealed class MarketAlertService : IMarketAlertService
         }
 
         await _market.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Giá vàng mới → các mục tiêu đang theo giá đó. Chỉ xét giá mới nhất của mỗi loại. Cờ tắt vẫn đánh dấu đã xét, để bật cờ không gửi bù giá cũ.
+    /// </summary>
+    private async Task ProcessGoalsAsync(MarketDataSettings settings, bool enabled, DateTimeOffset now, CancellationToken ct)
+    {
+        var waiting = await _market.ListGoldPricesAwaitingAlertsAsync(ct);
+        if (waiting.Count == 0)
+        {
+            return;
+        }
+
+        if (enabled && _goals is not null && _goalForecasts is not null)
+        {
+            foreach (var price in waiting.GroupBy(p => p.GoldKey).Select(g => g.Last()))
+            {
+                var topics = settings.GoalTopics.Where(t => t.Enabled && t.GoldKey == price.GoldKey).ToList();
+                if (topics.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var goal in await _goals.GetActiveWithMarketTopicAsync(topics.Select(t => t.Key).ToList(), ct))
+                {
+                    try
+                    {
+                        await SendGoalAlertAsync(goal, topics.First(t => t.Key == goal.MarketTopic), price, settings.GoalAlerts, now, ct);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogError("Goal market alert failed for goal {GoalId}: {ErrorType}", goal.Id, ex.GetType().Name);
+                    }
+                }
+            }
+        }
+
+        foreach (var price in waiting)
+        {
+            price.AlertsProcessedAt = now;
+        }
+
+        await _market.SaveChangesAsync(ct);
+    }
+
+    private async Task SendGoalAlertAsync(SavingGoal goal, GoalMarketTopic topic, GoldPrice price, GoalMarketAlertSettings settings, DateTimeOffset now, CancellationToken ct)
+    {
+        if (goal.UserId is not { } userId || goal.MarketBaselineCents is not { } baseline || baseline <= 0)
+        {
+            return;
+        }
+
+        var changeBps = GoalMarketRules.ChangeBps(baseline, price.SellCents);
+        var prefix = $"goal_market:{goal.Id}:";
+        if (changeBps < settings.MinChangePercent * 100
+            || await _alerts.AnyWithKeyPrefixSinceAsync(userId, ForecastAlertKind.GoalMarketShift, prefix, now.AddDays(-settings.CooldownDays), ct))
+        {
+            return;
+        }
+
+        var adjustedTarget = GoalMarketRules.AdjustedTarget(goal.TargetCents, baseline, price.SellCents);
+        var current = await _goalForecasts!.ForecastAsync(goal, goal.TargetCents, ct);
+        var adjusted = await _goalForecasts.ForecastAsync(goal, adjustedTarget, ct);
+        if (GoalMarketRules.ShiftToReport(current, adjusted, changeBps, settings) is not { } shift)
+        {
+            return;
+        }
+
+        var turnedLate = current.Status == GoalForecastStatus.OnTrack && adjusted.Status == GoalForecastStatus.Behind;
+        await _dispatcher.RaiseAsync(
+            new ForecastAlertRequest(
+                userId,
+                ForecastAlertKind.GoalMarketShift,
+                $"{prefix}{price.Id}",
+                GoalMarketRules.Title(topic),
+                GoalMarketRules.Body(topic, goal.Name, changeBps, shift, turnedLate, adjustedTarget),
+                new Dictionary<string, string>
+                {
+                    ["goalId"] = goal.Id.ToString(),
+                    ["topic"] = topic.Key,
+                    ["changeBps"] = changeBps.ToString(CultureInfo.InvariantCulture),
+                    ["shiftDays"] = shift.ToString(CultureInfo.InvariantCulture),
+                    ["adjustedTargetCents"] = adjustedTarget.ToString(CultureInfo.InvariantCulture),
+                },
+                NotBefore: MarketAlertRules.NotBefore(now)),
+            ct);
     }
 
     private async Task ForEachActiveUserAsync(MarketDataSettings settings, DateTimeOffset now, Func<Guid, DateOnly, Task> send, CancellationToken ct)

@@ -82,6 +82,15 @@ public class AgentAiClientContractTests
     }
 
     [Fact]
+    public async Task the_gate_can_pick_the_tool_for_a_familiar_question()
+    {
+        var gate = await Client(new StubHandler("gate_direct_response.json")).GateAsync("3 tháng qua tôi chi vào đâu nhiều nhất");
+
+        (gate.InScope, gate.DirectTool).Should().Be((true, "spending_summary"));
+        gate.DirectArgs.Should().Equal(new Dictionary<string, long> { ["months"] = 3 });
+    }
+
+    [Fact]
     public async Task without_a_trace_no_trace_headers_are_sent()
     {
         var handler = new StubHandler("gate_response.json");

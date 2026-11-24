@@ -10,6 +10,9 @@ public enum MarketSourceKind
 
     /// <summary>Trang danh sách bài, lấy link trong cùng tên miền.</summary>
     Page,
+
+    /// <summary>Trang chỉ mục có link tới thông cáo điều hành giá xăng dầu mới nhất (Bộ Công Thương). Chỉ nguồn hạng official.</summary>
+    FuelRelease,
 }
 
 public enum MarketDocumentStatus

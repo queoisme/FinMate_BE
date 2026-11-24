@@ -36,6 +36,9 @@ class GateResponse(BaseModel):
     in_scope: bool
     reason_code: str
     refusal_text: str | None = None  # có khi in_scope = false; lấy từ agent_refusal_templates
+    # Câu hỏi quen về dữ liệu quản lý: luật đã chọn sẵn công cụ và tham số, backend bỏ lượt LLM lập kế hoạch (xem app/agent/direct.py). None = để LLM lập kế hoạch.
+    direct_tool: str | None = None
+    direct_args: dict[str, int] | None = None
 
 
 class PlanTool(BaseModel):

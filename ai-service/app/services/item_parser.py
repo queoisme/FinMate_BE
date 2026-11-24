@@ -23,6 +23,8 @@ from app.services.amount_normalizer import normalize, parse_amount
 from app.services.vi_text import fold
 
 BUDGET, RECURRING, LOAN = "budget", "recurring", "loan"
+BUDGET_TOTAL = "budget_total"  # ngân sách TỔNG của tháng, không gắn một nhóm chi
+ANY = "any"  # sửa/xóa theo tên mà câu không nói rõ loại: app tìm trong ngân sách, khoản định kỳ và khoản vay nợ
 _CADENCES = (("monthly", "item_cadence_month"), ("weekly", "item_cadence_week"), ("yearly", "item_cadence_year"))
 _SLASH_GROUPS = (("monthly", "month"), ("weekly", "week"), ("yearly", "year"))  # tên nhóm trong mẫu item_cadence_slash (hợp đồng giữa mẫu và code)
 
@@ -53,9 +55,9 @@ class ItemDraft:
     category: str | None = None  # budget: slug nhóm mặc định hệ thống nhận ra (None nếu không nhận ra)
     cadence: str | None = None  # recurring: weekly | monthly | yearly
     next_due: date | None = None  # recurring: ngày thanh toán tiếp theo
-    direction: str | None = None  # loan: borrow | lend
+    direction: str | None = None  # loan: borrow | lend; recurring: "inflow" khi là thu nhập định kỳ (lương), None là khoản chi
     counterparty: str | None = None  # loan: tên người
-    operation: str = "create"  # create | repay (gợi ý ghi lần trả vào khoản vay có sẵn, do backend xác nhận) | update (đổi số tiền việc vừa làm) | add (cộng thêm vào số tiền việc vừa làm) | delete (hủy việc vừa làm); update/add/delete mang theo định danh của việc đó lấy từ ngữ cảnh
+    operation: str = "create"  # create | update_named / delete_named (sửa / xóa mục đã có THEO TÊN, không cần ngữ cảnh; app tìm mục khớp tên) | repay (gợi ý ghi lần trả vào khoản vay có sẵn, do backend xác nhận) | update (đổi số tiền việc vừa làm) | add (cộng thêm vào số tiền việc vừa làm) | delete (hủy việc vừa làm); update/add/delete mang theo định danh của việc đó lấy từ ngữ cảnh
 
 
 @dataclass(frozen=True)
@@ -183,6 +185,15 @@ def _budget(nfc: str, norm: str, category_of: Callable[[str], str | None]) -> It
         return None
     replies = _replies()
     masked = _mask(norm, _span(strong) or _span(weak))
+    overall = _P["item_budget_overall"].search(masked)
+    if overall:  # "đặt ngân sách tổng 15 triệu": hạn mức chung của cả tháng, không gắn nhóm nào
+        masked = _mask(masked, _span(overall))
+        match = parse_amount(masked)
+        if match is None:
+            return ItemResult(None, replies["item_budget_ask_amount"]) if strong else None
+        if match.assumed:
+            return ItemResult(None, replies["item_needs_unit"])
+        return ItemResult(ItemDraft(BUDGET_TOTAL, match.value), None)
     match = parse_amount(masked)
     category = category_of(masked)
     if not strong and (match is None or category is None):
@@ -262,7 +273,8 @@ def _recurring_name(nfc: str, removed: list[tuple[int, int]]) -> str:
 def _recurring(nfc: str, norm: str, now: datetime) -> ItemResult | None:
     strong, weak, pay = _P["item_recurring_strong"].search(norm), _P["item_recurring_weak"].search(norm), _P["item_pay_verb"].search(norm)
     cadence, cadence_spans = _cadence(norm)
-    if not strong and not weak and not (cadence and pay):
+    income = _P["item_income_cue"].search(norm)
+    if not strong and not weak and not (cadence and (pay or income)):
         return None
     replies = _replies()
     due, due_span, due_ok = _next_due(norm, now)
@@ -279,7 +291,45 @@ def _recurring(nfc: str, norm: str, now: datetime) -> ItemResult | None:
     if due is None:
         return ItemResult(None, replies["item_recurring_ask_due"])
     name = _recurring_name(nfc, removed + [(match.start, match.end)])
-    return ItemResult(ItemDraft(RECURRING, match.value, name=name, cadence=cadence, next_due=due), None)
+    return ItemResult(ItemDraft(RECURRING, match.value, name=name, cadence=cadence, next_due=due, direction="inflow" if income else None), None)
+
+
+def _named(nfc: str, norm: str, category_of: Callable[[str], str | None]) -> ItemResult | None:
+    """Sửa / xóa một mục ĐÃ CÓ theo tên, không cần ngữ cảnh: "xóa ngân sách ăn uống", "đổi khoản Netflix thành 300k", "xóa khoản nợ của An".
+    Chỉ nhận khi câu có động từ xóa hoặc (động từ sửa + từ nối + số tiền), có từ chỉ loại hoặc từ "khoản/mục", và còn lại một cái tên; ai-service không biết mục nào đang có,
+    nên trả tên + loại (hoặc ``any``) và app tìm trong dữ liệu CỦA NGƯỜI DÙNG. Đối tượng như giao dịch, mục tiêu, danh mục không thuộc đây."""
+    if _P["item_named_exclude"].search(norm):
+        return None
+    delete, modify, link = _P["item_delete_verb"].search(norm), _P["item_modify"].search(norm), _P["item_modify_link"].search(norm)
+    if delete and fold(delete.group(0)) == "thoi":
+        delete = None  # "thôi" một mình là bỏ ý định, không phải lệnh xóa
+    kinds = {
+        BUDGET: _P["item_budget_weak"].search(norm),
+        LOAN: _P["item_kind_loan"].search(norm),
+        RECURRING: _P["item_kind_recurring"].search(norm),
+    }
+    obj = _P["item_object_word"].search(norm)
+    named = [m for m in (*kinds.values(), obj) if m]
+    if not named or not (delete or (modify and link)):
+        return None
+    spans = [(m.start(), m.end()) for m in (delete, modify, link, *named) if m]
+    match = parse_amount(_mask(norm, spans))
+    if delete:
+        if match is not None:
+            return None  # "bỏ 50k vào ví": có số tiền thì không phải lệnh xóa
+        amount, operation = 0, "delete_named"
+    else:
+        if match is None or match.assumed:
+            return None
+        spans.append((match.start, match.end))
+        amount, operation = match.value, "update_named"
+    target = _leftover(nfc, spans)
+    if target is None:
+        return None  # không có tên: câu nối tiếp việc vừa làm lo (xem _followup)
+    kind = next((k for k in (BUDGET, LOAN, RECURRING) if kinds[k]), ANY)
+    return ItemResult(
+        ItemDraft(kind, amount, name=target, category=category_of(_mask(norm, spans)) if kind == BUDGET else None, counterparty=target if kind == LOAN else None, operation=operation), None
+    )
 
 
 def _target(last: ItemContext, operation: str, amount: int) -> ItemDraft:
@@ -305,7 +355,7 @@ def _followup(nfc: str, norm: str, now: datetime, category_of: Callable[[str], s
         return None
     spans = removed + [(match.start, match.end)]
     rest = _leftover(nfc, spans)
-    if rest is None and last.kind in (BUDGET, LOAN):
+    if rest is None and last.kind in (BUDGET, BUDGET_TOTAL, LOAN):
         if modify:
             return ItemResult(_target(last, "update", match.value), None)
         if add and not also:
@@ -327,4 +377,4 @@ def parse_item(text: str, now: datetime, category_of: Callable[[str], str | None
     norm = normalize(text)
     if last is not None and (followed := _followup(nfc, norm, now, category_of, last)) is not None:
         return followed
-    return _loan(nfc, norm) or _budget(nfc, norm, category_of) or _recurring(nfc, norm, now)
+    return _named(nfc, norm, category_of) or _loan(nfc, norm) or _budget(nfc, norm, category_of) or _recurring(nfc, norm, now)
