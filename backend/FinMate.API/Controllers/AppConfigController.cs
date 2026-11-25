@@ -8,7 +8,8 @@ using Microsoft.Net.Http.Headers;
 namespace FinMate.API.Controllers;
 
 /// <summary>Cấu hình công khai cho app: số phiên bản, giờ máy chủ và toàn bộ cấu hình không bí mật.</summary>
-public sealed record PublicAppConfig(int Version, DateTimeOffset ServerTime, SystemConfigDocument Config);
+/// <param name="DataExportPackageAvailable">Phase 91 (D8): false khi máy chủ chưa có khoá mã hoá, gói dữ liệu đầy đủ trả 422; app ẩn nút đó, CSV vẫn dùng được.</param>
+public sealed record PublicAppConfig(int Version, DateTimeOffset ServerTime, SystemConfigDocument Config, bool DataExportPackageAvailable = true);
 
 /// <summary>
 /// Cấu hình mà app cần biết TRƯỚC khi đăng nhập: có đang bảo trì không (kèm lời nhắn), phiên bản tối thiểu, công tắc tính năng và giao diện. Ẩn danh CÓ CHỦ Ý, giống <c>/health</c>:
@@ -23,10 +24,12 @@ public class AppConfigController : ControllerBase
     private const int MaxAgeSeconds = 30;
 
     private readonly ISystemConfigProvider _provider;
+    private readonly IExportArchiveProtector _exportProtector;
 
-    public AppConfigController(ISystemConfigProvider provider)
+    public AppConfigController(ISystemConfigProvider provider, IExportArchiveProtector exportProtector)
     {
         _provider = provider;
+        _exportProtector = exportProtector;
     }
 
     [HttpGet]
@@ -42,6 +45,7 @@ public class AppConfigController : ControllerBase
             return StatusCode(StatusCodes.Status304NotModified);
         }
 
-        return Ok(ApiResponse<PublicAppConfig>.Ok(new PublicAppConfig(snapshot.Version, DateTimeOffset.UtcNow, snapshot.Document with { Monitoring = new MonitoringSettings(), MarketData = new MarketDataSettings(), Community = CommunitySettings.HiddenFromPublic })));
+        return Ok(ApiResponse<PublicAppConfig>.Ok(new PublicAppConfig(snapshot.Version, DateTimeOffset.UtcNow, snapshot.Document with { Monitoring = new MonitoringSettings(), MarketData = new MarketDataSettings(), Community = CommunitySettings.HiddenFromPublic },
+            _exportProtector.Available)));
     }
 }
