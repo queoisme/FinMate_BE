@@ -276,6 +276,17 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             return new DraftOutcome(null, null, sameEvent);
         }
 
+        // Lưu TRƯỚC khi tính các gợi ý: ForOneAsync/SuggestForAsync tự tra lại chính giao dịch này
+        // qua DB (ListTransferProbesAsync, …) để tìm cặp ghép — chưa lưu thì không tự thấy mình,
+        // luôn trả "không có gợi ý" sai (vd Transfer không bao giờ ghép được chiều đầu).
+        await _transactionRepository.AddAsync(transaction, ct);
+        transaction.Category = category;
+
+        if (qrIntent is not null)
+        {
+            await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
+        }
+
         // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Tính TRƯỚC khi quyết định
         // auto-commit: có relation hint thì không bao giờ auto-commit (BR-RF-13 — người dùng mới
         // là người liên kết), bất kể độ tin cậy trích số bao nhiêu.
@@ -309,14 +320,6 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             && aiResult.ExtractionConfidence is { } extractionConfidence
             && extractionConfidence >= TransactionReviewPushBuilder.OneTapThreshold
             && _confirmHandler is not null;
-
-        await _transactionRepository.AddAsync(transaction, ct);
-        transaction.Category = category;
-
-        if (qrIntent is not null)
-        {
-            await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
-        }
 
         if (canAutoCommit)
         {
