@@ -1,6 +1,6 @@
 # Phase 91 — Xuất dữ liệu
 
-> Trạng thái: **đã duyệt 2026-11-25**, Task 0–11 xong; Task 12 (toàn bộ test, kiểm tay S1) chưa làm. D1–D18 theo đề xuất (D17: chỉ CSV), kèm S1–S5 bên dưới (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/data-export` từ `main` @ `5aeec81` (đã có Phase 90, PR #35).
+> Trạng thái: **đã duyệt 2026-11-25**, Task 0–12 xong (backend 3946/3948, chỉ 2 đỏ có sẵn; ai-service 2255 passed). Còn kiểm tay S1 trên Excel Windows / Google Sheets. D1–D18 theo đề xuất (D17: chỉ CSV), kèm S1–S5 bên dưới (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/data-export` từ `main` @ `5aeec81` (đã có Phase 90, PR #35).
 > Luật nghiệp vụ BR-EXP-01…14 do chủ sản phẩm chốt; kế hoạch này chỉ thêm cách làm, danh mục gói, chỗ lưu file và các điểm D1–D18.
 
 ## Đã duyệt (2026-11-25): điều chỉnh S1–S5
@@ -289,6 +289,8 @@ Thứ tự: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 1
 - ai-service: **2255 passed, 483 skipped** (không có Postgres).
 
 Luật: không thêm test đỏ so với mốc này.
+
+Kết quả Task 12 (2026-11-25): backend **3946/3948**, đúng hai test đỏ trên; không cảnh báo CS. ai-service 2255 passed, 483 skipped.
 
 ## 9. Báo nhóm Flutter (bản nháp, chép vào TASKS.md khi xong)
 

@@ -1699,7 +1699,7 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
   - **Dự báo:** sự kiện `loan_outflow` / `loan_inflow` (`loanId`, `optimisticOnly`), nguyên nhân `source = user_entered`; `spendable.loansDueCents`, `spendable.loans[]`; `undatedLoans`, `unlinkedLoanTransactions`; cảnh báo kiểm mua `undated_loan`. Chi tiết `docs/loans-api.md`.
   - **Đổi hành vi:** báo cáo tháng của một ví không còn trả chi âm; tổng của một ngày trên `timeline` không còn cộng nháp (vẫn theo trang, nên tab Ngày/Tuần/Năm cộng các trang như cũ là đúng).
 
-## Phase 91 — Xuất dữ liệu (2026-11-25, xong trên nhánh, chưa merge)
+## Phase 91 — Xuất dữ liệu (2026-11-25, xong trên nhánh, chưa merge; còn kiểm tay S1)
 
 Nhánh `feat/data-export` (từ `main` @ `5aeec81`, đã có Phase 90). Kế hoạch, danh mục bảng, D1–D18, S1–S5: `docs/superpowers/plans/2026-11-25-data-export.md`. API: `docs/data-export-api.md`. Mốc test và test đỏ sẵn ở mục 8 của kế hoạch.
 
@@ -1716,7 +1716,7 @@ Nhánh `feat/data-export` (từ `main` @ `5aeec81`, đã có Phase 90). Kế ho�
 - [x] Task 10: ticket `PersonalDataRequest` (P2), test kiến trúc nhân viên / gói trả phí, audit `User.ConsentChanged` (D3), `app-config.dataExportPackageAvailable` (D8).
 - [x] Sửa thêm (D15): sự cố `data_export:overdue` khi còn yêu cầu chưa xong sau 5 ngày.
 - [x] Task 11: tài liệu (`docs/data-export-api.md`, REQUIREMENTS 6.12 FR-EXP-01…13, NFR-SEC-33, 13.1, 13.4, 13.6; ERD 3.1.9; ops-api, ops-runbook; ARCHITECTURE §2.17; CLAUDE.md).
-- [ ] Task 12: toàn bộ test và kiểm tay S1 (xem báo cáo cuối phase).
+- [x] Task 12: toàn bộ test — backend **3946/3948** (mốc 3820/3822; +126 test mới, chỉ còn 2 đỏ có sẵn trên `main`), không cảnh báo CS; ai-service 2255 passed, 483 skipped (không đổi). Kiểm tay S1 chưa làm (mục dưới).
 - [ ] **Kiểm tay S1:** mở CSV bằng Excel trên Windows đặt vùng Vietnamese và bằng Google Sheets, với cả `comma` và `semicolon`. Chưa làm được trên máy phát triển (Linux, không có Excel); cần người có máy Windows.
 - [ ] **Người viết Điều khoản / Chính sách quyền riêng tư:** bổ sung quyền tải dữ liệu cá nhân (CSV, gói đầy đủ, file giữ 72 giờ, những gì không có trong gói và vì sao, nhân viên không tải thay) ở bản tiếp theo (REQUIREMENTS 13.4).
 - [ ] **Báo nhóm Flutter:**
