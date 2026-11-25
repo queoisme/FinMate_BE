@@ -23,7 +23,7 @@ public class GetMonthlySummaryQueryHandlerTests
                 It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DailySummary>());
         _reportRepository.Setup(r => r.GetDailySpendAsync(
-                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+                It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>(), It.IsAny<bool>()))
             .ReturnsAsync(new List<DailySpendPoint>());
     }
 
@@ -41,11 +41,11 @@ public class GetMonthlySummaryQueryHandlerTests
             .ReturnsAsync(summaries.ToList());
 
     private void SetupLive(DateOnly from, DateOnly to, params DailySpendPoint[] points)
-        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), It.IsAny<Guid?>(), It.IsAny<bool>()))
             .ReturnsAsync(points.ToList());
 
     private void SetupLiveForAccount(Guid accountId, DateOnly from, DateOnly to, params DailySpendPoint[] points)
-        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), accountId))
+        => _reportRepository.Setup(r => r.GetDailySpendAsync(_userId, from, to, It.IsAny<CancellationToken>(), accountId, It.IsAny<bool>()))
             .ReturnsAsync(points.ToList());
 
     [Fact]

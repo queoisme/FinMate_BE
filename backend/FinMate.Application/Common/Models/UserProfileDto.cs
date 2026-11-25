@@ -18,7 +18,8 @@ public record UserProfileDto(
     bool CommunityConsentGranted = false,
     bool ListenerHealthAlertsEnabled = true,
     int? TermsVersion = null,
-    string? FinMateId = null)
+    string? FinMateId = null,
+    bool LoanRemindersEnabled = true)
 {
     /// <param name="termsVersion">Phiên bản Điều khoản hiện hành (từ <c>ILegalVersionProvider</c>).</param>
     public static UserProfileDto From(User user, int termsVersion) => new(
@@ -37,5 +38,6 @@ public record UserProfileDto(
         user.CommunityConsentGranted,
         user.NotificationPrefs.ListenerHealthAlertsEnabled,
         user.TermsVersion,
-        user.FinMateId);
+        user.FinMateId,
+        user.NotificationPrefs.LoanRemindersEnabled);
 }

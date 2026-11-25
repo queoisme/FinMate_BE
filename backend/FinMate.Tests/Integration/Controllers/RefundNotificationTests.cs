@@ -110,6 +110,12 @@ public class RefundNotificationTests : IClassFixture<RefundApiFactory>
         _factory.Push.Sent.Where(p => p.UserId == userId).Should().ContainSingle(p => p.Action == "choose_refund_link");
     }
 
+    /// <summary>
+    /// §7/§16.1 FLOW1_CURRENT_DECISIONS.md — không có relation hint, không nghi trùng, không gợi ý
+    /// chuyển ví, độ tin cậy trích xuất ≥85% → Auto-commit thẳng (Status=Confirmed), không còn dừng
+    /// ở "confirm_one_tap" nữa (tên test giữ nguyên để tham chiếu lịch sử, hành vi đã đổi theo quyết
+    /// định sản phẩm: auto-commit là cơ chế chuẩn, "Chờ duyệt" chỉ dành cho case không đủ điều kiện).
+    /// </summary>
     [Fact]
     public async Task OldAiWithoutHint_BehavesAsBefore()
     {
@@ -120,7 +126,9 @@ public class RefundNotificationTests : IClassFixture<RefundApiFactory>
 
         analysis.RelationHint.Should().BeNull();
         analysis.SuggestedRelatedTransactions.Should().BeNull();
-        _factory.Push.Sent.Where(p => p.UserId == userId).Should().ContainSingle(p => p.Action == "confirm_one_tap");
+        var transaction = await _api.GetAsync(s, analysis.DraftTransactionId!.Value);
+        transaction.Status.Should().Be("Confirmed", "đủ điều kiện Auto-commit nên không còn là Draft");
+        _factory.Push.Sent.Where(p => p.UserId == userId).Should().ContainSingle(p => p.Action == null, "push Auto-commit (transaction_auto_committed) không mang action — không còn gì để người dùng chạm xác nhận");
     }
 
     [Fact]

@@ -46,6 +46,7 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
     private readonly RefundAfterSave _afterSave;
     private readonly IMergeSnapshotRepository? _snapshots;   // null: không ghi ảnh chụp (test cũ)
     private readonly ISystemConfigProvider? _config;         // null: giới hạn phí mặc định
+    private readonly Loans.ILoanLinkSync? _loanSync;         // null: không có sổ vay (test cũ)
 
     // Thay đổi số dư của lượt đang chạy, theo ví (để xem trước và ảnh chụp). Handler sống theo request; đặt lại đầu mỗi lượt (kể cả lượt thử lại).
     private readonly Dictionary<Guid, long> _deltas = new();
@@ -66,8 +67,10 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         IDailySummaryRefresher? summaries = null,
         IForecastAlertTrigger? forecastAlerts = null,
         IMergeSnapshotRepository? snapshots = null,
-        ISystemConfigProvider? config = null)
+        ISystemConfigProvider? config = null,
+        Loans.ILoanLinkSync? loanSync = null)
     {
+        _loanSync = loanSync;
         _snapshots = snapshots;
         _config = config;
         _transactions = transactions;
@@ -142,10 +145,18 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         var loserRefunded = loser.Status == TransactionStatus.Confirmed
             && await _transactions.SumConfirmedRefundsAsync(command.UserId, loser.Id, null, ct) > 0;
         var transfers = _config is null ? new Admin.SystemConfig.TransferSettings() : (await _config.GetAsync(ct)).Document.Transfers;
+        // Phase 90 (Q14): một giao dịch đã tách phần lãi khi gắn khoản vay vẫn là một sự kiện ngân hàng với số tiền gốc + lãi.
+        var (interestA, interestB) = _loanSync is null ? (0L, 0L)
+            : (await _loanSync.SplitInterestOfAsync(command.UserId, a.Id, ct), await _loanSync.SplitInterestOfAsync(command.UserId, b.Id, ct));
         MergePolicy.EnsureMergeable(
-            a, b, survivor, new MergeFacts(loserRefunded, qrA is not null, qrB is not null, transfers.MaxFeeCents, transfers.MaxFeePercent));
+            a, b, survivor, new MergeFacts(loserRefunded, qrA is not null, qrB is not null, transfers.MaxFeeCents, transfers.MaxFeePercent, interestA, interestB));
         if (survivor.TransactionType == TransactionType.Transfer)
         {
+            if (_loanSync is not null)
+            {
+                await _loanSync.EnsureNotLinkedAsync(command.UserId, [loser.Id], ct);   // Phase 90 (D7): khoản vay không gộp vào chuyển ví
+            }
+
             var (transferQr, otherQr) = ReferenceEquals(survivor, a) ? (qrA, qrB) : (qrB, qrA);
             return await MergeIntoTransferAsync(command.UserId, survivor, loser, otherQr, transferQr, ct);
         }
@@ -161,8 +172,18 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         var receiptMoves = await _receipts.GetLinkedScanIdAsync(loser.Id, command.UserId, ct) is not null
             && await _receipts.GetLinkedScanIdAsync(survivor.Id, command.UserId, ct) is null;
 
+        // Phase 90 (D7, Q14): liên kết khoản vay ở lại trên bên thắng. TRƯỚC khi chuyển số dư: dòng đã tách lãi đổi số tiền của bên thắng về phần gốc.
+        var keepsLoan = _loanSync is not null && await _loanSync.MergeAsync(command.UserId, loser, survivor, now, ct);
         await MoveMoneyAsync(command.UserId, survivor, loser, fields.AccountId, now, ct);
         var moved = await ApplyFieldsAsync(survivor, loser, fields, chosen, now, ct);
+        if (keepsLoan)
+        {
+            // SAU khi áp các trường gộp (chúng đặt danh mục theo bên người dùng): giao dịch gắn khoản vay luôn là loan (BR-DEBT-06).
+            var loanCategory = await _categories.GetSystemBySlugAsync(Category.LoanSlug, ct) ?? throw new InvalidOperationException("Thiếu danh mục hệ thống 'loan'.");
+            survivor.CategoryId = loanCategory.Id;
+            survivor.Category = loanCategory;
+        }
+
         var anomalies = await AnomaliesToRemoveAsync(command.UserId, survivor, loser, moved, ct);
         var references = await MoveReferencesAsync(command.UserId, survivor, loser, loserQr, survivorQr, moved, now, ct);
 

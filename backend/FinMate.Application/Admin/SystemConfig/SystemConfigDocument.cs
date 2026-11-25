@@ -946,6 +946,27 @@ public sealed record ListenerHealthSettings
     public double FormatFinancialShareDropRatio { get; init; } = 0.33;
 }
 
+/// <summary>Sổ vay (Phase 90): gợi ý gắn giao dịch, nhắc hạn, trả kèm lãi (S1), khớp tên (Q15).</summary>
+public sealed record LoanSettings
+{
+    /// <summary>Giao dịch đã xác nhận còn được gợi ý gắn khoản vay trong chừng này giờ từ lúc tạo (D9). ×10 là cửa sổ "khoản loan chưa gắn" (S5).</summary>
+    public int SuggestWindowHours { get; init; } = 72;
+
+    public int MaxSuggestions { get; init; } = 3;
+
+    public int ReminderDaysBefore { get; init; } = 3;
+
+    public int OverdueRepeatDays { get; init; } = 7;
+
+    public int MaxOverdueReminders { get; init; } = 3;
+
+    /// <summary>S1: trả vượt gốc còn lại được nhận khi phần vượt ≤ lãi tạm tính + chừng này (đồng); phần vượt thành giao dịch lãi.</summary>
+    public long InterestToleranceCents { get; init; } = 10_000;
+
+    /// <summary>Q15: từ xưng hô đứng đầu tên khoản, bỏ khi tìm tên trong nội dung thông báo.</summary>
+    public string[] Honorifics { get; init; } = ["bạn", "anh", "chị", "em", "cô", "chú", "bác", "ông", "bà", "dì", "cậu"];
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -973,6 +994,7 @@ public sealed record SystemConfigDocument
     public TransferSettings Transfers { get; init; } = new();
     public SnapshotSettings Snapshots { get; init; } = new();
     public ListenerHealthSettings ListenerHealth { get; init; } = new();
+    public LoanSettings Loans { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

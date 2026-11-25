@@ -325,9 +325,10 @@ public class ChatCommandHandler : IChatCommandHandler
         }
 
         var wanted = repay.Direction ?? string.Empty;
-        var said = FoldName(repay.Counterparty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Phase 90 (S3, Q15): cùng một hàm khớp tên với gợi ý từ thông báo; câu có dấu thì so giữ dấu ("Hòa" ≠ "Hoa"), không dấu thì bỏ dấu.
         var matches = (await _loans.ListAsync(command.UserId, ct))
-            .Where(l => l.Direction == wanted && l.RemainingCents >= repay.AmountCents && SameName(FoldName(l.Counterparty).Split(' ', StringSplitOptions.RemoveEmptyEntries), said))
+            .Where(l => l.Status == "open" && l.Direction == wanted && l.RemainingCents >= repay.AmountCents
+                        && Loans.PersonNameMatch.SameName(l.Counterparty, repay.Counterparty, command.Text))
             .ToList();
         if (matches.Count != 1)
         {
@@ -341,18 +342,6 @@ public class ChatCommandHandler : IChatCommandHandler
             new ChatItemDraftDto(
                 "loan", repay.AmountCents, loan.Title, null, null, null, loan.Direction, loan.Counterparty, "repay", loan.Id, loan.RemainingCents, accountId));
     }
-
-    /// <summary>Tên người bỏ dấu, chữ thường, cách nhau một dấu cách: "Bạn Bình" và "ban binh" là một.</summary>
-    private static string FoldName(string name)
-    {
-        var decomposed = name.Trim().ToLowerInvariant().Replace('đ', 'd').Normalize(System.Text.NormalizationForm.FormD);
-        var stripped = new string(decomposed.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
-        return string.Join(' ', stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries));
-    }
-
-    /// <summary>Hai tên là một người khi chữ của tên ngắn hơn nằm hết trong tên dài hơn ("An" trong "Bạn An"); khác nhau ở bất kỳ chữ nào thì không.</summary>
-    private static bool SameName(string[] a, string[] b)
-        => a.Length > 0 && b.Length > 0 && (a.Length <= b.Length ? a : b).All((a.Length <= b.Length ? b : a).Contains);
 
     private async Task<Guid?> ResolveAccountAsync(ChatCommand command, CancellationToken ct)
     {

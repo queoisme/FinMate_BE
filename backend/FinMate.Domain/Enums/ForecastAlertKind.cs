@@ -48,4 +48,7 @@ public enum ForecastAlertKind
 
     /// <summary>Giá thị trường mà mục tiêu tiết kiệm đang theo (ví dụ vàng) tăng làm ngày đạt mục tiêu lùi xa.</summary>
     GoalMarketShift,
+
+    /// <summary>Khoản vay sắp đến hạn hoặc đã quá hạn (Phase 90, BR-DEBT-14). Câu chung: không tên người, không số tiền (Q3).</summary>
+    LoanDue,
 }

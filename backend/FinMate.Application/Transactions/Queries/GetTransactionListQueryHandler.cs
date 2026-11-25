@@ -13,13 +13,16 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
     private readonly Refunds.IRefundSuggestions? _suggestions;
     private readonly Duplicates.IDuplicateDetector? _duplicates;
     private readonly Transfers.ITransferSuggestions? _transfers;
+    private readonly Loans.ILoanTransactionView? _loans;
 
     public GetTransactionListQueryHandler(
         ITransactionRepository transactionRepository,
         Refunds.IRefundSuggestions? suggestions = null,
         Duplicates.IDuplicateDetector? duplicates = null,
-        Transfers.ITransferSuggestions? transfers = null)
+        Transfers.ITransferSuggestions? transfers = null,
+        Loans.ILoanTransactionView? loans = null)
     {
+        _loans = loans;
         _transactionRepository = transactionRepository;
         _suggestions = suggestions;
         _duplicates = duplicates;
@@ -57,6 +60,9 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
         var transfers = _transfers is null
             ? new Dictionary<Guid, TransferSuggestionDto>()
             : await _transfers.ForAsync(query.UserId, result.Items, ct);
+        var loans = _loans is null
+            ? new Dictionary<Guid, Loans.LoanTransactionViewDto>()
+            : await _loans.ViewAsync(query.UserId, result.Items, ct);
 
         return new TransactionListDto(
             result.Items.Select(t => TransactionMapper.ToDto(
@@ -64,7 +70,7 @@ public class GetTransactionListQueryHandler : IGetTransactionListQueryHandler
                 GetTransactionDetailQueryHandler.RefundableShape(t) ? refunded.GetValueOrDefault(t.Id) : null,
                 suggestions.TryGetValue(t.Id, out var s) ? s.Items : null,
                 duplicates.GetValueOrDefault(t.Id),
-                transfers.GetValueOrDefault(t.Id))).ToList(),
+                transfers.GetValueOrDefault(t.Id)).WithLoan(loans.GetValueOrDefault(t.Id))).ToList(),
             result.NextCursor);
     }
 }

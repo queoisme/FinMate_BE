@@ -115,6 +115,33 @@ public class ChatCommandHandlerTests
         result.Action.Should().Be(ChatActions.Confirm);
     }
 
+    /// <summary>Phase 90 (S3): "chị Hoa" khớp khoản "Hoa"; câu có dấu "Hòa" không khớp khoản "Hoa" (cùng hàm khớp tên với gợi ý từ thông báo).</summary>
+    [Theory]
+    [InlineData("chị Hoa", "chị Hoa đã trả cho tôi 500k", true)]
+    [InlineData("Hòa", "Hòa đã trả cho tôi 500k", false)]
+    public async Task S3_NamesWithHonorificsMatch_ButAccentedNamesMustAgree(string who, string sentence, bool matches)
+    {
+        AiReturns(RepayHint(who));
+
+        var result = await HandlerWithLoans(Loan(Guid.NewGuid(), "lend", "Hoa", 700_000)).HandleAsync(Command(sentence));
+
+        result.Action.Should().Be(matches ? ChatActions.Item : ChatActions.Confirm);
+    }
+
+    /// <summary>
+    /// Phase 90 (Q15): câu gõ không dấu so bỏ dấu, nên "hoa tra toi 500k" khớp khoản "Hòa". Trên main trước Phase 90 câu này không khớp: FoldName dùng
+    /// Normalize(FormD), vốn không tách dấu khi bật InvariantGlobalization.
+    /// </summary>
+    [Fact]
+    public async Task Q15_AnUnaccentedSentence_MatchesAnAccentedLoanName()
+    {
+        AiReturns(RepayHint("hoa"));
+
+        var result = await HandlerWithLoans(Loan(Guid.NewGuid(), "lend", "Hòa", 700_000)).HandleAsync(Command("hoa tra toi 500k"));
+
+        result.Action.Should().Be(ChatActions.Item);
+    }
+
     // ------------------------------------------------------------ mốc thời gian
 
     [Fact]
@@ -288,7 +315,7 @@ public class ChatCommandHandlerTests
     private void MonthHas(long spent, long income, params CategorySpend[] byCategory)
     {
         _reports
-            .Setup(r => r.GetDailySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+            .Setup(r => r.GetDailySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>(), It.IsAny<Guid?>(), It.IsAny<bool>()))
             .ReturnsAsync(new List<DailySpendPoint> { new(new DateOnly(2026, 10, 5), spent, income, 3) });
         _reports
             .Setup(r => r.GetCategorySpendAsync(_userId, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), It.IsAny<CancellationToken>()))

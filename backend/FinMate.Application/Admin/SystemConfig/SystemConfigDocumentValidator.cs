@@ -61,6 +61,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Transfers).NotNull().SetValidator(new TransferValidator());
         RuleFor(x => x.Snapshots).NotNull().SetValidator(new SnapshotValidator());
         RuleFor(x => x.ListenerHealth).NotNull().SetValidator(new ListenerHealthValidator());
+        RuleFor(x => x.Loans).NotNull().SetValidator(new LoanValidator());
     }
 
     private sealed class AssistantValidator : AbstractValidator<AssistantSettings>
@@ -463,6 +464,21 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.FormatDriftBaselineFloorPercent).InclusiveBetween(0, 100).WithMessage("Sàn tỉ lệ nền phải từ 0 đến 100%.");
             RuleFor(x => x.FormatDriftRecoveryRuns).InclusiveBetween(1, 168).WithMessage("Số lượt bình thường để tự đóng sự cố phải từ 1 đến 168.");
             RuleFor(x => x.FormatFinancialShareDropRatio).InclusiveBetween(0.01, 1).WithMessage("Hệ số tụt tỉ lệ giao dịch phải từ 0,01 đến 1.");
+        }
+    }
+
+    private sealed class LoanValidator : AbstractValidator<LoanSettings>
+    {
+        public LoanValidator()
+        {
+            RuleFor(x => x.SuggestWindowHours).InclusiveBetween(1, 720).WithMessage("Cửa sổ gợi ý gắn khoản vay phải từ 1 đến 720 giờ.");
+            RuleFor(x => x.MaxSuggestions).InclusiveBetween(1, 10).WithMessage("Số gợi ý khoản vay phải từ 1 đến 10.");
+            RuleFor(x => x.ReminderDaysBefore).InclusiveBetween(0, 30).WithMessage("Nhắc trước hạn phải từ 0 đến 30 ngày.");
+            RuleFor(x => x.OverdueRepeatDays).InclusiveBetween(1, 60).WithMessage("Nhắc lại khi quá hạn phải cách từ 1 đến 60 ngày.");
+            RuleFor(x => x.MaxOverdueReminders).InclusiveBetween(0, 10).WithMessage("Số lần nhắc khi quá hạn phải từ 0 đến 10.");
+            RuleFor(x => x.InterestToleranceCents).InclusiveBetween(0, 1_000_000).WithMessage("Ngưỡng lãi phải từ 0 đến 1.000.000 đồng.");
+            RuleFor(x => x.Honorifics).NotNull().Must(h => h.All(w => !string.IsNullOrWhiteSpace(w) && w.Trim().Length <= 10))
+                .WithMessage("Mỗi từ xưng hô phải có từ 1 đến 10 ký tự.");
         }
     }
 

@@ -70,7 +70,7 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         # mốc khác: lệch thời gian làm giao dịch rơi nhầm chu kỳ ngân sách.
         transacted_at = received_at
 
-    merchant = matched.merchant_name or _merchant_from_description(matched.description)
+    merchant = _clean_merchant(matched.merchant_name) or _merchant_from_description(matched.description)
 
     # Bóc được càng nhiều trường thì càng chắc là đúng template, không phải khớp may.
     filled = sum(
@@ -147,12 +147,22 @@ def _signed_type(text: str, amount_start: int) -> TransactionType | None:
 def relation_hint_for(text: str, transaction_type: TransactionType) -> str | None:
     """
     Gợi ý quan hệ. Hoàn tiền / đảo (Phase 81) chỉ cho tiền vào: "phí hủy vé" vẫn là chi. Chuyển ví (Phase 83) cho cả hai chiều: "RUT TIEN ATM"
-    là khoản chi, "Nap tien tu Vietcombank" là khoản thu. Hoàn tiền thắng chuyển ví.
+    là khoản chi, "Nap tien tu Vietcombank" là khoản thu. Trả nợ (Phase 90) cũng hai chiều. Thứ tự: cashback > đảo > hoàn tiền > chuyển ví > trả nợ,
+    với cụm dài nhất thắng giữa bốn loại đặc biệt (``notification_vocab.special_kind``).
     """
     lowered = f" {text.lower()} "
     if transaction_type == TransactionType.CREDIT and (hint := notification_vocab.relation_hint(lowered)) is not None:
         return hint
-    return "transfer" if transfer_kind_for(text, transaction_type) is not None else None
+    if transfer_kind_for(text, transaction_type) is not None:
+        return "transfer"
+    return "debt_repayment" if debt_hint_strength_for(text, transaction_type) is not None else None
+
+
+def debt_hint_strength_for(text: str, transaction_type: TransactionType) -> str | None:
+    """Phase 90 (S3): ``strong`` / ``weak`` khi gợi ý cuối cùng là trả nợ; None khi là loại khác (kể cả chuyển ví thắng) hoặc không có."""
+    if transaction_type not in (TransactionType.CREDIT, TransactionType.DEBIT) or transfer_kind_for(text, transaction_type) is not None:
+        return None
+    return notification_vocab.debt_strength(f" {text.lower()} ", credit=transaction_type == TransactionType.CREDIT)
 
 
 def transfer_kind_for(text: str, transaction_type: TransactionType) -> str | None:
@@ -188,8 +198,15 @@ def _merchant_after_preposition(text: str, from_index: int) -> str | None:
 
 
 def _merchant_from_description(description: str | None) -> str | None:
-    """VNPay/VCB chỉ có trường nội dung — gỡ các tiền tố nghiệp vụ để lộ tên đơn vị."""
+    """VNPay/VCB/MB chỉ có trường nội dung — gỡ tiền tố ("TT QR") và hậu tố ("chuyen tien" kèm
+    mọi thứ sau nó: tên app, mã tham chiếu) nghiệp vụ để lộ tên đơn vị/người chuyển."""
     if not description:
         return None
-    cleaned = notification_vocab.strip_merchant_prefix(normalize_whitespace(description))
+    return _clean_merchant(notification_vocab.strip_merchant_prefix(normalize_whitespace(description)))
+
+
+def _clean_merchant(merchant: str | None) -> str | None:
+    if not merchant:
+        return None
+    cleaned = notification_vocab.strip_merchant_suffix(merchant)
     return cleaned[: notification_vocab.MAX_MERCHANT_CHARS] or None

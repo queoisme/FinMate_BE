@@ -11,6 +11,7 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
     private readonly Refunds.IRefundSuggestions? _suggestions;
     private readonly Duplicates.IDuplicateDetector? _duplicates;
     private readonly Transfers.ITransferSuggestions? _transfers;
+    private readonly Loans.ILoanTransactionView? _loans;
 
     private readonly IReceiptScanRepository? _scans;
 
@@ -19,8 +20,10 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
         IReceiptScanRepository? scans = null,
         Refunds.IRefundSuggestions? suggestions = null,
         Duplicates.IDuplicateDetector? duplicates = null,
-        Transfers.ITransferSuggestions? transfers = null)
+        Transfers.ITransferSuggestions? transfers = null,
+        Loans.ILoanTransactionView? loans = null)
     {
+        _loans = loans;
         _transactionRepository = transactionRepository;
         _scans = scans;
         _suggestions = suggestions;
@@ -40,12 +43,13 @@ public class GetTransactionDetailQueryHandler : IGetTransactionDetailQueryHandle
         var suggestions = _suggestions is null ? null : await _suggestions.ForDraftsAsync(query.UserId, [transaction], ct);
         var duplicates = _duplicates is null ? null : await _duplicates.ViewAsync(query.UserId, [transaction], ct);
         var transfers = _transfers is null ? null : await _transfers.ForAsync(query.UserId, [transaction], ct);
+        var loans = _loans is null ? null : await _loans.ViewAsync(query.UserId, [transaction], ct);
         var dto = TransactionMapper.ToDto(
             transaction,
             refunded,
             suggestions is not null && suggestions.TryGetValue(transaction.Id, out var s) ? s.Items : null,
             duplicates?.GetValueOrDefault(transaction.Id),
-            transfers?.GetValueOrDefault(transaction.Id));
+            transfers?.GetValueOrDefault(transaction.Id)).WithLoan(loans?.GetValueOrDefault(transaction.Id));
 
         if (_scans is not null && transaction.Source == Domain.Enums.TransactionSource.Receipt
             && await _scans.GetLinkedScanIdAsync(transaction.Id, query.UserId, ct) is { } scanId)

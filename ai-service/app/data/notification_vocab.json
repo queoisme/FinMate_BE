@@ -74,6 +74,10 @@
     "tt",
     "ttoan"
   ],
+  "merchant_suffixes": [
+    "chuyen tien",
+    "chuyển tiền"
+  ],
   "balance_markers": [
     "so du",
     "số dư",
@@ -276,5 +280,33 @@
     "ck chính chủ",
     "chuyen tien chinh chu",
     "chuyển tiền chính chủ"
+  ],
+  "debt_repayment_markers": [
+    "tra no",
+    "trả nợ",
+    "tra tien muon",
+    "trả tiền mượn",
+    "hoan tien muon",
+    "hoàn tiền mượn"
+  ],
+  "debt_repayment_weak_markers": [
+    "tra lai tien",
+    "trả lại tiền",
+    "gui tra",
+    "gửi trả"
+  ],
+  "debt_repayment_exclusion_markers": [
+    "the tin dung",
+    "thẻ tín dụng",
+    "credit card",
+    "sao ke",
+    "sao kê",
+    "khoan vay",
+    "khoản vay",
+    "tra gop",
+    "trả góp",
+    "fe credit",
+    "home credit",
+    "hd saison"
   ]
 }

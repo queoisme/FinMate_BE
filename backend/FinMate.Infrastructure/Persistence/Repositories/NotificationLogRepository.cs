@@ -61,6 +61,23 @@ public class NotificationLogRepository : INotificationLogRepository
         await _context.SaveChangesAsync(ct);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, DebtHintStrength>> GetDebtHintsAsync(
+        Guid userId, IReadOnlyCollection<Guid> notificationLogIds, CancellationToken ct = default)
+    {
+        if (notificationLogIds.Count == 0)
+        {
+            return new Dictionary<Guid, DebtHintStrength>();
+        }
+
+        var rows = await (from r in _context.AiResults.AsNoTracking()
+                          join l in _context.NotificationLogs on r.NotificationLogId equals l.Id
+                          where l.UserId == userId && notificationLogIds.Contains(r.NotificationLogId)
+                                && r.RelationHint == NotificationRelationHint.DebtRepayment && r.DebtHintStrength != null
+                          select new { r.NotificationLogId, r.DebtHintStrength })
+            .ToListAsync(ct);
+        return rows.GroupBy(r => r.NotificationLogId).ToDictionary(g => g.Key, g => g.First().DebtHintStrength!.Value);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, TransactionRelation>> GetRelationHintsAsync(
         Guid userId, IReadOnlyCollection<Guid> notificationLogIds, CancellationToken ct = default)
     {

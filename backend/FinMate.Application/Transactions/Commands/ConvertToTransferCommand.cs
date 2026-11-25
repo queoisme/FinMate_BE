@@ -52,6 +52,7 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
     private readonly ISystemConfigProvider _config;
     private readonly RefundAfterSave _afterSave;
     private readonly ITransferRecurringCheck? _recurring;
+    private readonly Loans.ILoanLinkSync? _loanSync;
 
     public ConvertToTransferCommandHandler(
         ITransactionRepository transactions,
@@ -66,8 +67,10 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         IGroupLedger? groupLedger = null,
         IDailySummaryRefresher? summaries = null,
         IForecastAlertTrigger? forecastAlerts = null,
-        ITransferRecurringCheck? recurring = null)
+        ITransferRecurringCheck? recurring = null,
+        Loans.ILoanLinkSync? loanSync = null)
     {
+        _loanSync = loanSync;
         _transactions = transactions;
         _accounts = accounts;
         _categories = categories;
@@ -118,6 +121,10 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         var other = command.PairedTransactionId is { } pairedId ? rows[pairedId] : null;
         GroupFundGuard.EnsureNotLinked(subject);
         GroupFundGuard.EnsureNotLinked(other);
+        if (_loanSync is not null)
+        {
+            await _loanSync.EnsureNotLinkedAsync(command.UserId, other is null ? [subject.Id] : [subject.Id, other.Id], ct);   // Phase 90 (D7)
+        }
         if (await AlreadyConvertedAsync(command, subject, other, ct) is { } done)
         {
             return done;   // gọi lại cùng input → kết quả cũ, không làm gì thêm

@@ -64,8 +64,9 @@ public static class ForecastSnapshotBuilder
 }
 
 /// <summary>
-/// Số dư thực tế cuối một ngày = số dư lúc chụp + thu chi thật từ ngày gốc tới ngày đó, cùng định nghĩa với dự báo: chỉ ví được tính, không
-/// gồm chuyển khoản nội bộ và cho vay/mượn (bộ đọc giao dịch của dự báo đã loại sẵn). Giao dịch user loại khỏi dự báo vẫn tính vì tiền đã đổi thật.
+/// Số dư thực tế cuối một ngày = số dư lúc chụp + thu chi thật từ ngày gốc tới ngày đó: chỉ ví được tính, không gồm chuyển khoản nội bộ. Cho vay/mượn
+/// CÓ tính (D23, Phase 90): tiền ra khỏi ví thật, và dự báo cũng có tiền ra trả nợ; bỏ nó thì "thực tế" lệch số dư ví đúng bằng khoản vay. Giao dịch user
+/// loại khỏi dự báo vẫn tính vì tiền đã đổi thật.
 /// Job chụp chạy sáng sớm nên giao dịch của chính ngày gốc gần như chưa có và không bị tính hai lần.
 /// </summary>
 public static class ForecastActuals

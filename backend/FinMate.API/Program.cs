@@ -459,6 +459,7 @@ public class Program
         builder.Services.AddScoped<IAgentTool, ProposeBudgetLimitTool>();
         builder.Services.AddScoped<IAgentTool, StressTestTool>();
         builder.Services.AddScoped<IAgentTool, SensitivityTool>();
+        builder.Services.AddScoped<IAgentTool, GetLoansTool>();   // Phase 90 (BR-DEBT-18): chỉ đọc, không tên người, không tiêu đề khoản
         builder.Services.AddScoped<ToolRegistry>();
         builder.Services.AddScoped<ToolExecutor>();
         builder.Services.AddScoped<AgentTraceContext>();
@@ -659,7 +660,18 @@ public class Program
         builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
         builder.Services.AddScoped<ILoanRepository, LoanRepository>();
-        builder.Services.AddScoped<FinMate.Application.Loans.ILoanService, FinMate.Application.Loans.LoanService>();
+        builder.Services.AddScoped<FinMate.Application.Loans.LoanTransactionLink>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanLinkSync, FinMate.Application.Loans.LoanLinkSync>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanTransactionView, FinMate.Application.Loans.LoanTransactionViewService>();
+        builder.Services.AddScoped(sp => new FinMate.Application.Loans.LoanServiceDependencies(
+            sp.GetRequiredService<ILoanRepository>(), sp.GetRequiredService<ICategoryRepository>(), sp.GetRequiredService<ITransactionRepository>(),
+            sp.GetRequiredService<IFinancialAccountRepository>(), sp.GetRequiredService<FinMate.Application.Loans.LoanTransactionLink>(),
+            new RefundAfterSave(sp.GetRequiredService<IBudgetAlertNotifier>(), sp.GetRequiredService<ICacheService>(), sp.GetRequiredService<IGroupLedger>(),
+                sp.GetRequiredService<IDailySummaryRefresher>(), sp.GetRequiredService<IForecastAlertTrigger>()),
+            sp.GetRequiredService<ISystemConfigProvider>()));
+        builder.Services.AddScoped<FinMate.Application.Loans.LoanService>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanService>(sp => new FinMate.Application.Loans.RetryingLoanService(
+            sp.GetRequiredService<FinMate.Application.Loans.LoanService>(), sp.GetRequiredService<IConcurrencyRetry>()));
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
@@ -817,7 +829,9 @@ public class Program
         builder.Services.AddScoped<IDailySummaryRefresher, DailySummaryRefresher>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
-        builder.Services.AddScoped<LoanDueReminderJob>();
+        builder.Services.AddScoped<LoanReminderJob>();   // Phase 90: thay LoanDueReminderJob
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanReminderService, FinMate.Application.Loans.LoanReminderService>();
+        builder.Services.AddScoped<FinMate.Application.Forecasting.IForecastAlertGate, FinMate.Application.Loans.LoanReminderGate>();
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
@@ -1024,8 +1038,11 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
 
-        RecurringJob.AddOrUpdate<LoanDueReminderJob>(
-            "loan-due-reminder",
+        // Phase 90 (Q10): nhắc khoản vay qua forecast_alerts thay job cũ; 01:05 UTC = 08:05 VN như trước. Hangfire giữ lịch trong Postgres nên phải gỡ
+        // lịch cũ ở mọi lần khởi động cho tới khi mọi môi trường đã chạy một lần.
+        RecurringJob.RemoveIfExists(LoanReminderJob.RetiredJobId);
+        RecurringJob.AddOrUpdate<LoanReminderJob>(
+            LoanReminderJob.JobId,
             job => job.RunAsync(CancellationToken.None),
             "5 1 * * *");
 

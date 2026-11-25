@@ -167,8 +167,11 @@ public class DuplicateScenarioTests : IClassFixture<RefundApiFactory>
         second.DuplicateOfTransactionId.Should().Be(first.DraftTransactionId);
         (await _api.GetAsync(x.S, second.DraftTransactionId!.Value)).DuplicateStatus.Should().Be("Suspected");
 
+        // `first` không nghi trùng với ai cả (không có gì để so khi nó được tạo) nên đủ điều kiện
+        // auto-commit (§7 FLOW1_CURRENT_DECISIONS.md) và đã Confirmed ngay trong NotifyVcbAsync ở
+        // trên; `second` bị đánh dấu nghi trùng nên auto-commit bị chặn, vẫn ở Draft chờ xác nhận tay.
+        (await _api.GetAsync(x.S, first.DraftTransactionId!.Value)).Status.Should().Be("Confirmed");
         (await _api.NotDuplicateAsync(x.S, second.DraftTransactionId!.Value)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await _api.Base.ConfirmAsync(x.S, first.DraftTransactionId!.Value)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await _api.Base.ConfirmAsync(x.S, second.DraftTransactionId!.Value)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var confirmed = await _api.ListAsync(x.S, "status=Confirmed");

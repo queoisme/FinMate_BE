@@ -73,7 +73,7 @@ public class RetryFailedNotificationJob
                     CreatedAt = DateTimeOffset.UtcNow,
                 };
                 // Phase 81/83: như đường chính; job không gửi push, nháp dựng gợi ý khi app đọc nó.
-                (aiResult.RelationHint, aiResult.TransferKind) = Application.Notifications.NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
+                (aiResult.RelationHint, aiResult.TransferKind, aiResult.DebtHintStrength) = Application.Notifications.NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
                 await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
                 // Phase 82: như đường chính, cờ trùng của AI không còn làm mất thông báo; job không gửi push, nháp nghi trùng chờ trong tab Chờ duyệt.

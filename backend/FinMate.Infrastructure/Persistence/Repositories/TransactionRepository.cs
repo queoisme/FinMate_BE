@@ -329,35 +329,46 @@ public class TransactionRepository : ITransactionRepository
         var withTransfers = query.TransferAmountMin is not null && query.TransferAmountMax is not null;
         var transferMin = query.TransferAmountMin ?? 0;
         var transferMax = query.TransferAmountMax ?? 0;
+        // Phase 90 (Q14): một giao dịch đã tách phần lãi khi gắn khoản vay (S1) vẫn là MỘT sự kiện ngân hàng với số tiền gốc + lãi. So trùng dùng
+        // "số tiền ngân hàng" đó, để thông báo gửi lại hoặc bản nhập tay cùng sự kiện vẫn được nhận ra.
         return await _context.Transactions
             .AsNoTracking()
             .Where(t => t.UserId == query.UserId
                 && t.Relation == null
                 && t.TransactedAt >= query.From
                 && t.TransactedAt <= query.To
-                && (((t.TransactionType == TransactionType.Debit || t.TransactionType == TransactionType.Credit) && amounts.Contains(t.AmountCents))
-                    || (withTransfers && t.TransactionType == TransactionType.Transfer && t.AmountCents >= transferMin && t.AmountCents <= transferMax)))
-            .Select(t => new DuplicateCandidateRow(
+                && !_context.LoanRepayments.Any(r => r.InterestTransactionId == t.Id && r.DeletedAt == null))   // phần lãi đã tách không là sự kiện riêng
+            .Select(t => new
+            {
+                t,
+                BankAmount = t.AmountCents + (_context.LoanRepayments
+                    .Where(r => r.TransactionId == t.Id && r.DeletedAt == null && r.InterestTransactionId != null)
+                    .Select(r => (long?)_context.Transactions.Where(i => i.Id == r.InterestTransactionId && i.DeletedAt == null).Select(i => i.AmountCents).FirstOrDefault())
+                    .FirstOrDefault() ?? 0L),
+            })
+            .Where(x => ((x.t.TransactionType == TransactionType.Debit || x.t.TransactionType == TransactionType.Credit) && amounts.Contains(x.BankAmount))
+                || (withTransfers && x.t.TransactionType == TransactionType.Transfer && x.t.AmountCents >= transferMin && x.t.AmountCents <= transferMax))
+            .Select(x => new DuplicateCandidateRow(
                 new DuplicateProbe(
-                    t.Id,
-                    t.Source,
-                    t.TransactionType,
-                    t.AmountCents,
-                    t.TransactedAt,
-                    t.CreatedAt,
-                    t.FinancialAccountId,
-                    t.MerchantName,
-                    t.BalanceAfterCents,
-                    t.NotificationLog != null ? t.NotificationLog.PackageName : null,
-                    t.Relation,
-                    t.DeletedAt != null,
-                    t.MergedIntoTransactionId != null,
-                    t.MergedSources,
-                    t.NotificationLogId,
-                    t.CounterAccountId,
-                    t.GroupFundDirection),
-                t.DuplicateOfTransactionId,
-                t.DuplicateStatus))
+                    x.t.Id,
+                    x.t.Source,
+                    x.t.TransactionType,
+                    x.BankAmount,
+                    x.t.TransactedAt,
+                    x.t.CreatedAt,
+                    x.t.FinancialAccountId,
+                    x.t.MerchantName,
+                    x.t.BalanceAfterCents,
+                    x.t.NotificationLog != null ? x.t.NotificationLog.PackageName : null,
+                    x.t.Relation,
+                    x.t.DeletedAt != null,
+                    x.t.MergedIntoTransactionId != null,
+                    x.t.MergedSources,
+                    x.t.NotificationLogId,
+                    x.t.CounterAccountId,
+                    x.t.GroupFundDirection),
+                x.t.DuplicateOfTransactionId,
+                x.t.DuplicateStatus))
             .ToListAsync(ct);
     }
 

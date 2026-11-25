@@ -91,6 +91,8 @@ Body thêm tuỳ chọn `contributionFrequency` (`weekly` | `monthly` | `custom`
 
 ## 4. `GET /api/v1/reports/monthly-summary`
 
+> Phase 90 (2026-11-23): thêm object `cashFlow` (dòng tiền thật: vay nợ, quỹ nhóm, chuyển ví, hoàn vượt chi, cặp đảo), xem `docs/reports-cash-flow-api.md`.
+
 Thêm `prevMonthIncomeCents` (tổng thu tháng liền trước) và `incomeChangePercent` (% đổi của tổng thu, làm tròn 1 chữ số; `null` khi tháng trước không có thu), cùng kiểu với `prevMonthSpentCents` / `changePercent` đã có.
 
 ## 5. `GET /api/v1/reports/period-summary` (kỳ trước cho Ngày / Tuần / Năm)

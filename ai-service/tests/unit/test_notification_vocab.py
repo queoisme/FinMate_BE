@@ -72,6 +72,19 @@ def test_merchant_prefix_is_stripped_only_at_a_word_boundary(description, expect
     assert _merchant_from_description(description) == expected
 
 
+@pytest.mark.parametrize(
+    "description,expected",
+    [
+        # MB thật (bug report): "chuyen tien" + mã tham chiếu dính liền sau tên người chuyển.
+        ("LE XUAN THO Chuyen tien cJI1SU2A/031960", "LE XUAN THO"),
+        ("MBCT LE XUAN THO chuyen tien DLLWIF57/844935", "MBCT LE XUAN THO"),
+        ("HIGHLANDS COFFEE", "HIGHLANDS COFFEE"),  # không có hậu tố thì giữ nguyên
+    ],
+)
+def test_merchant_suffix_boilerplate_is_stripped_along_with_everything_after_it(description, expected):
+    assert _merchant_from_description(description) == expected
+
+
 def test_stored_document_missing_a_new_group_is_filled_from_defaults():
     old = {"credit_verbs": ["nhan"]}
     filled = SPEC.upgrade(old)

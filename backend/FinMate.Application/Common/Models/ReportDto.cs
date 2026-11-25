@@ -1,5 +1,30 @@
 namespace FinMate.Application.Common.Models;
 
+/// <summary>
+/// Dòng tiền của một kỳ (Phase 90, Q16, D1–D3). <c>totalSpentCents</c> / <c>totalIncomeCents</c> là chi tiêu / thu nhập THẬT; tiền đổi chỗ nằm ở đây.
+/// Bất biến: <c>NetCents = thu − chi − LoanOutflow + LoanInflow − GroupFundOutflow + GroupFundInflow − TransferOutflow + TransferInflow
+/// + RefundSurplus + ReversalNet</c>.
+/// </summary>
+/// <param name="NetCents">Tổng tác động số dư của các giao dịch ĐÃ XÁC NHẬN trong kỳ (không gồm số dư ban đầu của ví tạo giữa kỳ, không gồm nháp).</param>
+/// <param name="LoanOutflowCents">Giao dịch danh mục <c>loan</c> làm tiền ra (cho vay, trả nợ).</param>
+/// <param name="LoanInflowCents">Giao dịch danh mục <c>loan</c> làm tiền vào (đi vay, được trả).</param>
+/// <param name="GroupFundOutflowCents">Góp quỹ nhóm, chi quỹ trả bằng ví (Phase 85).</param>
+/// <param name="GroupFundInflowCents">Rút từ quỹ nhóm về ví.</param>
+/// <param name="TransferOutflowCents">Chuyển sang ví khác của chính mình; chỉ khác 0 khi xem một ví. Phí chuyển ví là khoản chi riêng.</param>
+/// <param name="TransferInflowCents">Nhận từ ví khác của chính mình; chỉ khác 0 khi xem một ví.</param>
+/// <param name="RefundSurplusCents">max(0, tổng hoàn − tổng chi gộp) của kỳ: phần chi ròng âm bị chặn để <c>totalSpentCents</c> không âm.</param>
+/// <param name="ReversalNetCents">Tác động số dư của cặp đảo giao dịch (có dấu): âm khi khoản gốc bị đảo ở kỳ này mà lệnh đảo ở kỳ khác, dương khi ngược lại, 0 khi cả cặp cùng kỳ.</param>
+public record CashFlowDto(
+    long NetCents,
+    long LoanOutflowCents,
+    long LoanInflowCents,
+    long GroupFundOutflowCents,
+    long GroupFundInflowCents,
+    long TransferOutflowCents,
+    long TransferInflowCents,
+    long RefundSurplusCents,
+    long ReversalNetCents);
+
 public record MonthlySummaryDto(
     DateTimeOffset PeriodStart,
     DateTimeOffset PeriodEnd,
@@ -12,7 +37,8 @@ public record MonthlySummaryDto(
     long RefundedCents = 0,
     long? CrossPeriodRefundCents = null,
     long PrevMonthIncomeCents = 0,
-    double? IncomeChangePercent = null);
+    double? IncomeChangePercent = null,
+    CashFlowDto? CashFlow = null);
 
 /// <param name="PrevSpentCents">Cùng danh mục ở tháng liền trước (0 nếu không có).</param>
 /// <param name="SavedCents">Tiết kiệm so với tháng trước = max(0, PrevSpentCents − SpentCents); chỉ có ở tab chi, tab thu luôn 0.</param>
@@ -41,7 +67,8 @@ public record TimelineDayDto(
     DateOnly Date,
     long TotalSpentCents,
     long TotalIncomeCents,
-    IReadOnlyList<TransactionDto> Transactions);
+    IReadOnlyList<TransactionDto> Transactions,
+    CashFlowDto? CashFlow = null);
 
 public record TimelineDto(IReadOnlyList<TimelineDayDto> Days, string? NextCursor);
 

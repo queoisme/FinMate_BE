@@ -100,6 +100,7 @@ Các ý định khác (ghi chép, hỏi tổng, đánh giá mua, chào hỏi...)
 | `get_assumptions` | Tra giả định kinh tế đã duyệt (nguồn, ngày). `gold_price_growth` do hệ thống soạn nháp từ giá vàng, người duyệt mới dùng được | chưa có → `assumption_missing` |
 | `search_knowledge` | Tra tri thức đã duyệt (RAG) | không có đoạn nào → `knowledge_missing` (ghi mã băm câu hỏi) |
 | `simulate_purchase` | Số dư thấp nhất trong kỳ trước và sau khi mua; bọc `IPurchaseCheckService` (cùng số với màn "Mua món này có ổn không?") | engine báo `insufficient_data` → `purchase_data_missing`; có dòng ước tính → kết luận tối đa `tight` |
+| `get_loans` | Phase 90: **đọc** sổ vay: tổng đang nợ (`loans_i_owe`), tổng người khác nợ (`loans_owed_to_me`), số khoản quá hạn (`loans_overdue_count`), tối đa 10 khoản `loan_N` (quá hạn và hạn gần trước; gốc còn lại, không lãi). Không tên người, không tiêu đề khoản; không có công cụ ghi | không có khoản `open` → `no_open_loans` |
 | `runway` | Số dư đủ chi tiêu bao nhiêu tháng nếu thu nhập dừng | `history_too_short`, `no_spending_history` |
 | `stress_test` | Thu nhập giảm X% trong N tháng thì sao | `history_too_short` |
 | `sensitivity` | Yếu tố nào làm kết luận mục tiêu đổi nhiều nhất | `history_too_short` |

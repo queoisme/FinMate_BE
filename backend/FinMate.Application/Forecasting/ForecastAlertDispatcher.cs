@@ -7,8 +7,17 @@ using FinMate.Domain.Enums;
 namespace FinMate.Application.Forecasting;
 
 /// <param name="DedupKey">Cùng <c>(user, kind, dedupKey)</c> chỉ được báo một lần — vd mỗi ngân sách mỗi kỳ, mỗi hóa đơn mỗi lần đến hạn.</param>
-/// <param name="HonorQuietHours">Chỉ cảnh báo số dư thấp tôn trọng giờ yên lặng (đúng sơ đồ trang 1).</param>
+/// <param name="HonorQuietHours">Cảnh báo số dư thấp (sơ đồ trang 1) và nhắc khoản vay (Phase 90, BR-DEBT-14) tôn trọng giờ yên lặng.</param>
 /// <param name="NotBefore">Không gửi trước lúc này (job đêm phát hiện đổi giá không được push lúc 1 giờ sáng).</param>
+/// <summary>
+/// Phase 90: hỏi lại trước khi gửi một cảnh báo đã hoãn (giờ yên lặng) xem nó còn đúng không, vd khoản vay đã trả xong trong lúc chờ. Chưa biết loại thì
+/// trả true.
+/// </summary>
+public interface IForecastAlertGate
+{
+    Task<bool> StillRelevantAsync(ForecastAlert alert, IReadOnlyDictionary<string, string> data, CancellationToken ct = default);
+}
+
 public sealed record ForecastAlertRequest(
     Guid UserId,
     ForecastAlertKind Kind,
@@ -42,15 +51,19 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
     private readonly IPushNotificationService _push;
     private readonly ISystemConfigProvider _config;
     private readonly Func<DateTimeOffset> _now;
+    private readonly IForecastAlertGate? _gate;
 
-    public ForecastAlertDispatcher(IForecastAlertRepository alerts, IUserRepository users, IPushNotificationService push, ISystemConfigProvider config)
-        : this(alerts, users, push, config, () => DateTimeOffset.UtcNow)
+    public ForecastAlertDispatcher(
+        IForecastAlertRepository alerts, IUserRepository users, IPushNotificationService push, ISystemConfigProvider config, IForecastAlertGate? gate = null)
+        : this(alerts, users, push, config, () => DateTimeOffset.UtcNow, gate)
     {
     }
 
     internal ForecastAlertDispatcher(
-        IForecastAlertRepository alerts, IUserRepository users, IPushNotificationService push, ISystemConfigProvider config, Func<DateTimeOffset> now)
+        IForecastAlertRepository alerts, IUserRepository users, IPushNotificationService push, ISystemConfigProvider config, Func<DateTimeOffset> now,
+        IForecastAlertGate? gate = null)
     {
+        _gate = gate;
         _alerts = alerts;
         _users = users;
         _push = push;
@@ -122,7 +135,10 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
             if (user is not null && Wants(user, alert.Kind))
             {
                 var data = JsonSerializer.Deserialize<Dictionary<string, string>>(alert.Data) ?? [];
-                await _push.NotifyAsync(alert.UserId, alert.Title, alert.Body, data, ct);
+                if (_gate is null || await _gate.StillRelevantAsync(alert, data, ct))
+                {
+                    await _push.NotifyAsync(alert.UserId, alert.Title, alert.Body, data, ct);
+                }
             }
         }
 
@@ -136,6 +152,7 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
         ForecastAlertKind.GroupGoal => true,   // nhắc mục tiêu cá nhân cũng chỉ theo công tắc push; IPushNotificationService tự chặn
         ForecastAlertKind.GroupFundNegative or ForecastAlertKind.GroupFundRemoved or ForecastAlertKind.GroupDebtReminder or ForecastAlertKind.GroupApprovalRequested or ForecastAlertKind.GroupApprovalDecided => true,   // như nhắc nhóm: theo công tắc push và alerts_enabled của nhóm
         ForecastAlertKind.ListenerHealth => user.NotificationPrefs.ListenerHealthAlertsEnabled,   // D18: không phụ thuộc công tắc dự báo
+        ForecastAlertKind.LoanDue => user.NotificationPrefs.LoanRemindersEnabled,   // Phase 90: công tắc riêng, không phụ thuộc công tắc dự báo
         ForecastAlertKind.PurchaseReminder => true,   // người dùng tự bấm hẹn nên không phụ thuộc công tắc cảnh báo dự báo; IPushNotificationService vẫn tôn trọng công tắc push
         _ => user.NotificationPrefs.ForecastAlertsEnabled,
     };
@@ -197,6 +214,7 @@ public static class ForecastAlertKinds
         ForecastAlertKind.GroupApprovalRequested => "group_approval_req",
         ForecastAlertKind.GroupApprovalDecided => "group_approval_res",
         ForecastAlertKind.GoalMarketShift => "goal_market_shift",
+        ForecastAlertKind.LoanDue => "loan_due",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

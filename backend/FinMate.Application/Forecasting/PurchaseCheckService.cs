@@ -138,7 +138,7 @@ public class PurchaseCheckService : IPurchaseCheckService
             result.Status, result.Verdict, PurchaseVerdict.Summary(input, result, command.Item), command.AmountCents, purchaseDate, command.Item?.Trim(),
             period, result.LowestBefore, result.LowestAfter, result.ConservativeLowestAfterCents, input.BufferCents, result.ShortfallCents,
             input.Budget, input.Plan, result.MaxAffordableCents, result.EarliestSafeDate,
-            await LinesAsync(command.UserId, withPurchase, period, today, ct), result.Warnings,
+            await LinesAsync(command.UserId, withPurchase, period, today, ct), WithLoanWarnings(result.Warnings, baseline),
             coverage is { IsPoor: true } ? ListenerHealth.ForecastCoverage.LowConfidence : baseline.Confidence,
             accounts.Count == 0 ? null : accounts.Max(a => a.UpdatedAt), now)
         {
@@ -254,7 +254,8 @@ public class PurchaseCheckService : IPurchaseCheckService
         var lines = new List<PurchaseLineDto> { new(today, "Số dư hiện tại", forecast.StartBalanceCents, PurchaseSources.Confirmed) };
         foreach (var day in inPeriod)
         {
-            lines.AddRange(day.Events.Select(e => new PurchaseLineDto(day.Date, e.Label, e.AmountCents, SourceOf(e, manual))));
+            // Khoản cho vay chỉ nằm ở đường lạc quan (BR-DEBT-16): không đưa vào các dòng của đường dự kiến.
+            lines.AddRange(day.Events.Where(e => !e.OptimisticOnly).Select(e => new PurchaseLineDto(day.Date, e.Label, e.AmountCents, SourceOf(e, manual))));
         }
 
         var flexible = inPeriod.Sum(d => d.FlexibleSpendCents);
@@ -266,8 +267,17 @@ public class PurchaseCheckService : IPurchaseCheckService
         return lines;
     }
 
+    /// <summary>Phase 90 (D13): khoản vay không có hạn không nằm trong đường số dư; nói ra để người dùng tự tính.</summary>
+    private static IReadOnlyList<PurchaseWarningDto> WithLoanWarnings(IReadOnlyList<PurchaseWarningDto> warnings, CashflowForecastDto baseline)
+        => baseline.UndatedLoans is { Count: > 0 } undated
+            ? [.. warnings, new PurchaseWarningDto(
+                PurchaseWarningCodes.UndatedLoan,
+                $"Có {undated.Count} khoản vay chưa có hạn trả nên chưa được tính vào dự báo.")]
+            : warnings;
+
     private static string SourceOf(CashflowEventDto e, IReadOnlySet<Guid> manual)
-        => e.Kind == CashflowEventKinds.Scenario || (e.RecurringItemId is { } id && manual.Contains(id))
+        => e.Kind is CashflowEventKinds.Scenario or CashflowEventKinds.LoanOutflow or CashflowEventKinds.LoanInflow
+           || (e.RecurringItemId is { } id && manual.Contains(id))
             ? PurchaseSources.UserEntered
             : PurchaseSources.Confirmed;
 }
