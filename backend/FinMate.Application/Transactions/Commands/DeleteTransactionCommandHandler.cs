@@ -18,6 +18,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly IBudgetAlertNotifier? _budgetAlerts;
     private readonly IDailySummaryRefresher? _summaries;
     private readonly Groups.Funds.IGroupFundLinkSync? _fundSync;
+    private readonly Loans.ILoanLinkSync? _loanSync;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -29,9 +30,11 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         Refunds.IRefundLedger? refunds = null,
         IBudgetAlertNotifier? budgetAlerts = null,
         IDailySummaryRefresher? summaries = null,
-        Groups.Funds.IGroupFundLinkSync? fundSync = null)
+        Groups.Funds.IGroupFundLinkSync? fundSync = null,
+        Loans.ILoanLinkSync? loanSync = null)
     {
         _fundSync = fundSync;
+        _loanSync = loanSync;
         _groupLedger = groupLedger;
         _refunds = refunds;
         _budgetAlerts = budgetAlerts;
@@ -50,6 +53,13 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
 
         var now = DateTimeOffset.UtcNow;
         var wasConfirmed = transaction.Status == TransactionStatus.Confirmed;
+
+        // Phase 90 (BR-DEBT-09): dòng sổ vay của giao dịch đi theo trong cùng lượt lưu; làm Σ giải ngân < Σ trả thì 422 trước khi đổi gì.
+        // Phần lãi đã tách (S1) là giao dịch riêng, ở lại; người dùng xoá riêng nếu muốn.
+        if (_loanSync is not null)
+        {
+            await _loanSync.OnDeletingAsync(command.UserId, transaction, now, ct);
+        }
 
         // Phase 81 (BR-RF-11, D18): khoản gốc còn khoản hoàn/đảo ĐÃ XÁC NHẬN thì không xoá được; nháp đang trỏ tới nó chỉ mất liên kết.
         if (_refunds is not null && transaction.TransactionType == TransactionType.Debit)

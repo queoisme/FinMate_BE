@@ -15,7 +15,10 @@ public interface IForecastDataRepository
     /// </remarks>
     Task<IReadOnlyList<ForecastTransaction>> GetTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
 
-    /// <summary>Như trên nhưng giữ nguyên mọi dòng: khoản hoàn là tiền vào, cặp đảo triệt tiêu nhau. Chỉ dùng cho phép đối chiếu số dư (BR-RF-07).</summary>
+    /// <summary>
+    /// Như trên nhưng giữ nguyên mọi dòng: khoản hoàn là tiền vào, cặp đảo triệt tiêu nhau, và CÓ cả cho vay/mượn (<c>IsLoan</c>), vì tiền đó ra/vào
+    /// ví thật. Chỉ dùng cho phép đối chiếu số dư (BR-RF-07, Phase 86 D23).
+    /// </summary>
     Task<IReadOnlyList<ForecastTransaction>> GetRawTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
 
     /// <summary>

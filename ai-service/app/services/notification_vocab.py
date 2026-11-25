@@ -17,8 +17,14 @@ GROUPS = (
     # Phase 83: chuyển tiền giữa các ví của chính người dùng. Nhóm loại trừ (nạp điện thoại, VETC, hoá đơn…) là THANH TOÁN dù có chữ "nạp".
     "transfer_exclusion_markers", "transfer_atm_markers", "transfer_atm_deposit_markers", "transfer_topup_markers",
     "transfer_withdrawal_markers", "transfer_own_account_markers",
+    # Phase 90 (S3): trả nợ / thu nợ giữa người với người, cả hai chiều. Nhóm mạnh tự đủ để gợi ý; nhóm yếu chỉ gợi ý khi backend thấy tên người
+    # khớp. Nhóm loại trừ: nợ ngân hàng, trả góp, thẻ tín dụng (ngoài phạm vi sổ nợ).
+    "debt_repayment_markers", "debt_repayment_weak_markers", "debt_repayment_exclusion_markers",
 )
 RELATION_GROUPS = ("cashback_markers", "reversal_markers", "refund_markers")  # thứ tự ưu tiên khi một câu trúng nhiều nhóm
+DEBT_GROUPS = ("debt_repayment_markers", "debt_repayment_weak_markers")
+# Phase 90: bốn loại tiền "đặc biệt" so độ dài cụm khớp với nhau; bằng nhau thì theo thứ tự này (trước thắng).
+SPECIAL_PRIORITY = ("cashback", "reversal", "refund", "debt_strong", "debt_weak")
 # Nhóm chuyển ví → transfer_kind, và chiều tiền nó cho phép (None = cả hai). Cụm DÀI NHẤT trên mọi nhóm quyết định loại.
 TRANSFER_KINDS = {
     "transfer_atm_markers": ("atm_withdrawal", "debit"),
@@ -28,7 +34,7 @@ TRANSFER_KINDS = {
     "transfer_own_account_markers": ("own_account", None),
 }
 # Mọi nhóm mà một cụm chỉ được thuộc về đúng một: tiền vào đặc biệt (Phase 81), loại trừ chuyển ví và các loại chuyển ví (Phase 83).
-EXCLUSIVE_GROUPS = (*RELATION_GROUPS, "transfer_exclusion_markers", *TRANSFER_KINDS)
+EXCLUSIVE_GROUPS = (*RELATION_GROUPS, "transfer_exclusion_markers", *TRANSFER_KINDS, *DEBT_GROUPS, "debt_repayment_exclusion_markers")
 MAX_MERCHANT_CHARS = 120
 _STRIP_PREFIX = " -:"
 _STRIP_MERCHANT = " .,;:"
@@ -66,6 +72,9 @@ class _Vocab:
     refund: re.Pattern[str] | None
     transfer_exclusion: re.Pattern[str] | None
     transfer: tuple[tuple[re.Pattern[str], str, str | None], ...]
+    debt_strong: re.Pattern[str] | None
+    debt_weak: re.Pattern[str] | None
+    debt_exclusion: re.Pattern[str] | None
 
 
 def build(content: dict) -> _Vocab:
@@ -88,6 +97,9 @@ def build(content: dict) -> _Vocab:
             for group, (kind, direction) in TRANSFER_KINDS.items()
             if (pattern := _any_word(content[group])) is not None
         ),
+        debt_strong=_any_word(content["debt_repayment_markers"]),
+        debt_weak=_any_word(content["debt_repayment_weak_markers"]),
+        debt_exclusion=_any_word(content["debt_repayment_exclusion_markers"]),
     )
 
 
@@ -157,21 +169,46 @@ def financial_signals(lowered: str) -> int:
     return sum(1 for marker in _vocab.financial if marker in lowered)
 
 
-def relation_hint(text: str) -> str | None:
-    """``refund`` / ``reversal`` / None cho một khoản tiền vào. Cashback thắng trước ("hoàn tiền khuyến mãi" là thu nhập), rồi tới đảo
-    ("hoàn trả GD lỗi" chứa cả chữ hoàn), cuối cùng là hoàn tiền. Chỉ là GỢI Ý: backend không bao giờ tự liên kết theo nó."""
-    if _vocab.cashback is not None and _vocab.cashback.search(text):
+def _longest(pattern: re.Pattern[str] | None, text: str) -> int:
+    return max((m.end() - m.start() for m in pattern.finditer(text)), default=0) if pattern is not None else 0
+
+
+def special_kind(text: str, credit: bool) -> str | None:
+    """
+    Loại tiền "đặc biệt" của câu: ``cashback`` / ``reversal`` / ``refund`` (chỉ tiền vào) hoặc ``debt_strong`` / ``debt_weak`` (hai chiều), None nếu không
+    trúng. Cụm DÀI NHẤT thắng ("hoan tien muon" thắng "hoan tien"); bằng nhau thì theo ``SPECIAL_PRIORITY``. Câu có cụm loại trừ nợ (khoản vay ngân
+    hàng, thẻ tín dụng, trả góp) thì không bao giờ ra loại nợ.
+    """
+    lengths = {
+        "debt_strong": _longest(_vocab.debt_strong, text),
+        "debt_weak": _longest(_vocab.debt_weak, text),
+    }
+    if _vocab.debt_exclusion is not None and _vocab.debt_exclusion.search(text):
+        lengths = {"debt_strong": 0, "debt_weak": 0}
+    if credit:
+        lengths |= {"cashback": _longest(_vocab.cashback, text), "reversal": _longest(_vocab.reversal, text), "refund": _longest(_vocab.refund, text)}
+    best = max(lengths.values())
+    if best == 0:
         return None
-    if _vocab.reversal is not None and _vocab.reversal.search(text):
-        return "reversal"
-    if _vocab.refund is not None and _vocab.refund.search(text):
-        return "refund"
-    return None
+    return next(kind for kind in SPECIAL_PRIORITY if lengths.get(kind) == best)
+
+
+def relation_hint(text: str) -> str | None:
+    """``refund`` / ``reversal`` / None cho một khoản tiền vào (Phase 81). Cashback ("hoàn tiền khuyến mãi" là thu nhập) và trả nợ không ra ở đây.
+    Chỉ là GỢI Ý: backend không bao giờ tự liên kết theo nó."""
+    kind = special_kind(text, credit=True)
+    return kind if kind in ("refund", "reversal") else None
+
+
+def debt_strength(text: str, credit: bool) -> str | None:
+    """Phase 90: ``strong`` / ``weak`` khi câu là trả nợ (sau khi so với hoàn tiền / đảo / cashback), None nếu không."""
+    kind = special_kind(text, credit)
+    return {"debt_strong": "strong", "debt_weak": "weak"}.get(kind) if kind else None
 
 
 def is_special_money_in(text: str) -> bool:
-    """Câu trúng nhóm hoàn tiền, đảo giao dịch hoặc cashback: đó không phải chuyển ví (hoàn tiền nạp ví vẫn là hoàn tiền)."""
-    return any(p is not None and p.search(text) for p in (_vocab.cashback, _vocab.reversal, _vocab.refund))
+    """Câu là hoàn tiền, đảo giao dịch hoặc cashback: đó không phải chuyển ví (hoàn tiền nạp ví vẫn là hoàn tiền). Trả nợ thì không: chuyển ví thắng nó."""
+    return special_kind(text, credit=True) in ("cashback", "reversal", "refund")
 
 
 def transfer_kind(text: str, direction: str) -> str | None:

@@ -7,7 +7,18 @@ namespace FinMate.Application.Common.Interfaces;
 /// RÒNG (chi − hoàn, có thể âm ở một ngày chỉ có hoàn; caller chặn ở 0 khi cộng thành tổng kỳ), <c>IncomeCents</c> không gồm hoàn,
 /// <c>RefundedCents</c> là tổng hoàn trong ngày; cặp đảo bị loại khỏi cả ba và khỏi số lượng.
 /// </summary>
-public record DailySpendPoint(DateOnly Date, long SpentCents, long IncomeCents, int TransactionCount, long RefundedCents = 0);
+public record DailySpendPoint(DateOnly Date, long SpentCents, long IncomeCents, int TransactionCount, long RefundedCents = 0)
+{
+    /// <summary>Phase 90 (Q16): dòng tiền của ngày, xem <see cref="Reports.CashFlowCalculator"/>. Chi của ngày có thể âm (chỉ có hoàn); kỳ thì chặn ở 0.</summary>
+    public long CashNetCents { get; init; }
+    public long LoanOutflowCents { get; init; }
+    public long LoanInflowCents { get; init; }
+    public long GroupFundOutflowCents { get; init; }
+    public long GroupFundInflowCents { get; init; }
+    public long TransferOutflowCents { get; init; }
+    public long TransferInflowCents { get; init; }
+    public long ReversalNetCents { get; init; }
+}
 
 /// <summary>Chi tiêu RÒNG (chi − hoàn) gom theo category trong một khoảng; CategoryId null = chưa phân loại. Danh mục ròng ≤ 0 không có dòng (D3).</summary>
 public record CategorySpend(Guid? CategoryId, string? CategoryName, string? CategorySlug, long SpentCents, int TransactionCount = 0);
@@ -27,7 +38,9 @@ public interface IReportRepository
     /// có giá trị = chỉ ví đó — <c>daily_summaries</c> không có chiều theo ví nên caller phải luôn
     /// tính live cho trường hợp này, không có cache để dùng (Issue D, 2026-11-13).
     /// </summary>
-    Task<List<DailySpendPoint>> GetDailySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null);
+    /// <param name="includeCashFlowOnlyDays">Phase 90: giữ cả ngày chỉ có dòng tiền (cho vay, quỹ, chuyển ví, cặp đảo). Mặc định false: như trước, chỉ ngày có giao dịch được đếm.</param>
+    Task<List<DailySpendPoint>> GetDailySpendAsync(
+        Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null, bool includeCashFlowOnlyDays = false);
 
     Task<List<CategorySpend>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default);
 

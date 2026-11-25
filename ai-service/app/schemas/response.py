@@ -29,6 +29,8 @@ class ExtractionResult(BaseModel):
     relation_hint: str | None = None
     # Phase 83: chỉ có khi relation_hint = "transfer": atm_withdrawal | atm_deposit | wallet_topup | wallet_withdrawal | own_account.
     transfer_kind: str | None = None
+    # Phase 90 (S3): chỉ có khi relation_hint = "debt_repayment": strong | weak. Gợi ý yếu chỉ dùng khi backend thấy tên người khớp.
+    debt_hint_strength: str | None = None
 
     # Mã tham chiếu của ngân hàng cho giao dịch này (vd "CT DI:628111031960"), khi định dạng
     # provider có bắt được — hiện chỉ VietinBank. Dùng để phân biệt 2 giao dịch THẬT khác

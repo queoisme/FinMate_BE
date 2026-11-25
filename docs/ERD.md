@@ -2216,6 +2216,52 @@ Khóa bên thứ ba mã hóa AES-256-GCM (bản riêng của ai-service).
 Ràng buộc:
 - CHECK `chk_secret_store_nonce`: `octet_length(nonce) = 12`
 
+#### 3.1.8 Sổ vay (Phase 90, 2026-11-23)
+
+Bảng `loans` có từ `main` (2026-11-20, MinhTuan); Phase 90 hợp nhất sổ nợ của Phase 86 cũ vào đây (migration `MergeDebtBookIntoLoans`, `AddLoanReminders`). API: `docs/loans-api.md`.
+
+```mermaid
+erDiagram
+    users ||--o{ loans : "user_id CASCADE"
+    loans ||--o{ loan_repayments : "loan_id CASCADE"
+    transactions |o--o| loan_repayments : "transaction_id (DEFERRABLE)"
+    transactions |o--o| loan_repayments : "interest_transaction_id (DEFERRABLE)"
+```
+
+##### `loans` — Loan
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | uuid PK | |
+| `user_id` | uuid FK → users CASCADE | |
+| `direction` | varchar(10) | `borrow` \| `lend` |
+| `title`, `counterparty` | varchar(100) | Tên người là dữ liệu bên thứ ba: không log, không push, không LLM |
+| `principal_cents` | bigint ≥ 0 | Lưu sẵn = Σ dòng `principal` còn sống |
+| `repaid_cents` | bigint ≥ 0, ≤ principal | Lưu sẵn = Σ dòng `repayment` còn sống |
+| `status` | varchar(12) | `open` \| `settled` \| `written_off`, CHECK khớp `settled_at` / `written_off_at` |
+| `interest_rate_percent_year` | numeric(5,2) 0–100 | Tỉ lệ, không phải tiền (ngoại lệ có chủ ý của luật "không decimal", Q2) |
+| `start_date`, `due_date` | date | Giờ VN |
+| `note` | varchar(500) null | |
+| `settled_at`, `written_off_at`, `deleted_at` | timestamptz null | Xoá mềm (Q4) |
+| `client_request_id` | uuid null | UNIQUE (user_id, client_request_id) khi khác null |
+| `xmin` | | Khoá lạc quan |
+
+Chỉ mục: `(user_id)`, `(user_id, status, due_date) WHERE deleted_at IS NULL`.
+
+##### `loan_repayments` — LoanRepayment (dòng của khoản)
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | uuid PK | |
+| `loan_id` | uuid FK → loans CASCADE | |
+| `kind` | varchar(10) | `principal` (giải ngân) \| `repayment` (trả); dòng có trước Phase 90 là `repayment` |
+| `amount_cents` | bigint > 0 | |
+| `paid_at` | timestamptz | |
+| `transaction_id` | uuid null FK → transactions NO ACTION **DEFERRABLE INITIALLY DEFERRED** | UNIQUE khi khác null và dòng còn sống. Hoãn kiểm vì xoá cứng user cascade `transactions` trước `loans → loan_repayments`. **Viết bằng SQL tay** trong migration `MergeDebtBookIntoLoans` (`ALTER TABLE … ALTER CONSTRAINT … DEFERRABLE INITIALLY DEFERRED`): EF không biểu diễn được, snapshot của EF không biết; migration sau tạo lại FK này phải giữ dòng đó. Test `LoanBookSchemaTests.TheTwoTransactionForeignKeys_AreDeferrableInitiallyDeferred` canh |
+| `interest_transaction_id` | uuid null FK → transactions (như trên) | Giao dịch lãi tách ra (S1); chỉ trên dòng `repayment`; UNIQUE khi khác null |
+| `deleted_at` | timestamptz null | |
+| `client_request_id` | uuid null | UNIQUE (loan_id, client_request_id) |
+
 ### 3.2 AI Service — `finmate_ai`
 
 #### 3.2.1 Danh mục và tri thức phân loại

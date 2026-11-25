@@ -35,6 +35,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly Transactions.Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc (test cũ)
     private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
     private readonly Transactions.Transfers.ITransferSuggestions? _transfers;  // null: không gợi ý chuyển ví (test cũ)
+    private readonly Loans.ILoanTransactionView? _loans;   // null: không gợi ý khoản vay (test cũ)
 
     // §7/§16.1 FLOW1_CURRENT_DECISIONS.md: Auto-commit tái dùng đúng logic số dư/ngân sách/nhóm
     // của ConfirmTransactionCommandHandler thay vì chép lại — null: không auto-commit (test cũ),
@@ -59,8 +60,10 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         IDuplicateDetector? duplicates = null,
         Transactions.Transfers.ITransferSuggestions? transfers = null,
         IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
-        IConfirmTransactionCommandHandler? confirmHandler = null)
+        IConfirmTransactionCommandHandler? confirmHandler = null,
+        Loans.ILoanTransactionView? loans = null)
     {
+        _loans = loans;
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
         _transfers = transfers;
@@ -168,7 +171,7 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             CreatedAt = now,
         };
         // Phase 81/83: hoàn/đảo chỉ với tiền vào, chuyển ví với cả hai chiều; lưu để dựng lại gợi ý khi app mở nháp sau này.
-        (aiResult.RelationHint, aiResult.TransferKind) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
+        (aiResult.RelationHint, aiResult.TransferKind, aiResult.DebtHintStrength) = NotificationHints.Parse(response.Extraction, aiResult.TransactionType);
         await _notificationLogRepository.AddAiResultAsync(aiResult, ct);
 
         var outcome = pipelineResult == PipelineResult.Financial
@@ -287,18 +290,22 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         // Phase 83: nháp đang nghi trùng không bao giờ mang gợi ý chuyển ví (BR-TRF-04); TransferMatcher tự loại nó.
         var transfer = _transfers is null ? null : await _transfers.ForOneAsync(command.UserId, transaction, ct);
 
+        // Phase 90 (BR-DEBT-13): khoản vay khớp → push hỏi chọn khoản, không bao giờ tự liên kết.
+        var loanSuggestions = _loans is null ? null : await _loans.SuggestForAsync(command.UserId, transaction, aiResult.DebtHintStrength, ct);
+
         // §7/§16.1 FLOW1_CURRENT_DECISIONS.md — Auto-commit đòi đủ 5 điều kiện: không nghi trùng
         // nghiệp vụ, nhãn FINANCIAL (đã đảm bảo — HandleAsync chỉ gọi hàm này khi pipelineResult
         // là Financial), ví đã xác nhận (đã có `account`), core field hợp lệ (đã đảm bảo — amount
         // > 0 và transactionType khác null trước khi gọi hàm này), và ExtractionConfidence đạt
         // ngưỡng (dùng chung TransactionReviewPushBuilder.OneTapThreshold, KHÔNG gộp với độ tin
-        // cậy phân loại danh mục — xem ghi chú trong §7). Ngoài 5 điều kiện gốc, 2 nhánh sau luôn
-        // thắng auto-commit giống cách chúng thắng one-tap: nghi trùng và gợi ý chuyển ví nội bộ
-        // (cả hai đều cần người dùng tự chọn, không thể tự quyết thay).
+        // cậy phân loại danh mục — xem ghi chú trong §7). Ngoài 5 điều kiện gốc, 3 nhánh sau luôn
+        // thắng auto-commit giống cách chúng thắng one-tap: nghi trùng, gợi ý chuyển ví nội bộ và
+        // gợi ý khoản vay (cả ba đều cần người dùng tự chọn, không thể tự quyết thay).
         var noBusinessDuplicate = !duplicates.Candidates.Any(c => c.MarksSuspected);
         var canAutoCommit = noBusinessDuplicate
             && refundHint is null
             && transfer is null
+            && loanSuggestions is not { Count: > 0 }
             && aiResult.ExtractionConfidence is { } extractionConfidence
             && extractionConfidence >= TransactionReviewPushBuilder.OneTapThreshold
             && _confirmHandler is not null;
@@ -331,7 +338,8 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             refundHint,
             suggestions?.Count ?? 0,
             duplicates.Candidates.Count(c => c.MarksSuspected),
-            transfer);
+            transfer,
+            loanSuggestions);
 
         await _pushNotificationService.NotifyAsync(command.UserId, review.Title, review.Body, review.Data, ct);
         return new DraftOutcome(transaction, suggestions, null);

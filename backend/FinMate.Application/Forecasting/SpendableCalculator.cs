@@ -17,7 +17,8 @@ public sealed record SpendableInput(
     IReadOnlyList<SpendableGoalDto> Goals,
     long ReserveCents,
     ForecastRules Rules,
-    long IrregularIncomeCents = 0);
+    long IrregularIncomeCents = 0,
+    IReadOnlyList<Domain.Entities.Loan>? Loans = null);   // Phase 90: khoản vay open; đi vay có hạn trong kỳ bị trừ (BR-DEBT-17)
 
 public static class SpendablePeriodBasis
 {
@@ -49,6 +50,20 @@ public sealed record SafeToSpendDto(
 {
     /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu. Công thức này không có độ tin cậy nên chỉ thêm trường này (D11).</summary>
     public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
+
+    /// <summary>
+    /// Phase 90 (BR-DEBT-17, D12): tổng gốc còn lại của khoản đi vay đến hạn trong kỳ (kể cả quá hạn), đã trừ trong <see cref="SpendableCents"/>.
+    /// Tách khỏi <see cref="UpcomingBillsCents"/>: app cũ cộng các dòng sẽ lệch đúng bằng số này.
+    /// </summary>
+    public long LoansDueCents { get; init; }
+
+    public IReadOnlyList<SpendableLoanDto> Loans { get; init; } = [];
+
+    /// <summary>Phase 90 (D13).</summary>
+    public UndatedLoansDto? UndatedLoans { get; init; }
+
+    /// <summary>Phase 90 (S5).</summary>
+    public UnlinkedLoanTransactionsDto? UnlinkedLoanTransactions { get; init; }
 }
 
 public static class SpendableCalculator
@@ -74,7 +89,9 @@ public static class SpendableCalculator
         var balance = input.Accounts.Sum(a => a.BalanceCents);
         var income = incomes.Sum(e => e.AmountCents);
         var billsTotal = -bills.Sum(e => e.AmountCents);
-        var result = balance + income - billsTotal - input.GoalSetAsideCents - input.ReserveCents;
+        var loans = input.Loans is null ? [] : LoanForecast.DueForSpendable(input.Loans, end);
+        var loansTotal = loans.Sum(l => l.AmountCents);
+        var result = balance + income - billsTotal - loansTotal - input.GoalSetAsideCents - input.ReserveCents;
         var daysRemaining = end.DayNumber - input.Today.DayNumber + 1;
 
         var spendable = Math.Max(0, result);
@@ -87,7 +104,11 @@ public static class SpendableCalculator
             input.Accounts,
             ToDto(incomes),
             ToDto(bills),
-            input.Goals);
+            input.Goals)
+        {
+            LoansDueCents = loansTotal,
+            Loans = loans,
+        };
     }
 
     /// <summary>Kỳ tính (BR-03.1): hôm nay tới hết ngày trước lần nhận thu nhập định kỳ kế tiếp; không biết thì tới cuối tháng.</summary>

@@ -43,6 +43,12 @@ public class ReportRepository : IReportRepository
             existing.TransactionCount = summary.TransactionCount;
             existing.TopCategoryId = summary.TopCategoryId;
             existing.TopCategorySpentCents = summary.TopCategorySpentCents;
+            existing.CashFlowNetCents = summary.CashFlowNetCents;
+            existing.LoanOutflowCents = summary.LoanOutflowCents;
+            existing.LoanInflowCents = summary.LoanInflowCents;
+            existing.GroupFundOutflowCents = summary.GroupFundOutflowCents;
+            existing.GroupFundInflowCents = summary.GroupFundInflowCents;
+            existing.ReversalNetCents = summary.ReversalNetCents;
             existing.UpdatedAt = summary.UpdatedAt;
         }
 
@@ -50,41 +56,28 @@ public class ReportRepository : IReportRepository
     }
 
     public async Task<List<DailySpendPoint>> GetDailySpendAsync(
-        Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null)
+        Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default, Guid? financialAccountId = null, bool includeCashFlowOnlyDays = false)
     {
         var (start, end) = VietnamTime.DayRange(from, to);
 
         // Gom theo ngày giờ VN phải làm trong bộ nhớ: biểu thức cắt ngày theo offset +07
         // không dịch được sang SQL đáng tin cậy qua EF/Npgsql. Chỉ kéo về 3 cột cần dùng và
         // khoảng thời gian luôn bị chặn (vài tháng của MỘT user), nên chi phí không đáng kể.
-        var rows = await _context.Transactions
-            .Where(LoanExclusion.NotLoan)  // cho vay/mượn không phải chi tiêu hay thu nhập
+        // Phase 90 (Q16): kéo CẢ giao dịch cho vay/mượn và giao dịch mà ví đang xem là ví đích; CashFlowCalculator tách chi tiêu thật (loại loan,
+        // như trước) khỏi dòng tiền. Issue D (2026-11-13): financialAccountId null = mọi ví.
+        var transactions = await _context.Transactions
+            .AsNoTracking()
+            .Include(t => t.Category)
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactedAt >= start
                 && t.TransactedAt < end
-                // Issue D (2026-11-13): lọc theo 1 tài khoản cụ thể khi người dùng bấm chip tài
-                // khoản trên Home — null nghĩa là tất cả tài khoản (giữ hành vi cũ).
-                && (financialAccountId == null || t.FinancialAccountId == financialAccountId))
-            .Select(t => new { t.TransactedAt, t.AmountCents, t.TransactionType, t.Relation, t.IsReversed })
+                && (financialAccountId == null || t.FinancialAccountId == financialAccountId || t.CounterAccountId == financialAccountId))
             .ToListAsync(ct);
 
-        // Hoàn tiền / đảo giao dịch (Phase 81): một quy tắc chung cho mọi báo cáo, xem NetFlow.
-        return rows
-            .GroupBy(t => VietnamTime.DateOf(t.TransactedAt))
-            .Select(g =>
-            {
-                var parts = g.Select(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents)).ToList();
-                return new DailySpendPoint(
-                    g.Key,
-                    parts.Sum(p => p.SpentCents),
-                    parts.Sum(p => p.IncomeCents),
-                    parts.Count(p => p.Counted),
-                    parts.Sum(p => p.RefundedCents));
-            })
-            .Where(p => p.TransactionCount > 0)
-            .OrderBy(r => r.Date)
-            .ToList();
+        // Hoàn tiền / đảo giao dịch (Phase 81) theo NetFlow; cho vay/mượn, quỹ, chuyển ví, cặp đảo vào dòng tiền (Phase 90). Tác động số dư qua
+        // TransferLegs (CashFlowRow.From), chỗ duy nhất đọc hướng quỹ.
+        return CashFlowCalculator.ByDay(transactions.Select(CashFlowRow.From), financialAccountId, includeCashFlowOnlyDays);
     }
 
     public async Task<List<CategorySpend>> GetCategorySpendAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)

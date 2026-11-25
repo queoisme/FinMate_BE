@@ -34,6 +34,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IGroupLedger? _groupLedger;
     private readonly IRefundLedger? _refunds;
     private readonly IDailySummaryRefresher? _summaries;
+    private readonly Loans.ILoanLinkSync? _loanSync;
 
     public UpdateTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -52,8 +53,10 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IGroupLedger? groupLedger = null,
         IRefundLedger? refunds = null,
         IDailySummaryRefresher? summaries = null,
-        IItemMemoryService? itemMemory = null)
+        IItemMemoryService? itemMemory = null,
+        Loans.ILoanLinkSync? loanSync = null)
     {
+        _loanSync = loanSync;
         _refunds = refunds;
         _summaries = summaries;
         _itemMemory = itemMemory;
@@ -106,6 +109,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         var now = DateTimeOffset.UtcNow;
         var wasConfirmed = transaction.Status == TransactionStatus.Confirmed;
         var oldTransactedAt = transaction.TransactedAt;
+
+        // Phase 90 (D3): giao dịch đã gắn khoản vay giữ danh mục loan và loại; số tiền và ngày đi theo vào dòng. Ném trước khi đổi gì.
+        if (_loanSync is not null)
+        {
+            await _loanSync.OnUpdatingAsync(command.UserId, transaction, newCategory, command.TransactionType, command.AmountCents, command.TransactedAt, now, ct);
+        }
 
         // Transfer chạm 2 số dư và không tiêu ngân sách; debit/credit chạm 1 và có tiêu. Cho
         // phép đổi qua lại giữa 2 thế giới đó nghĩa là phải revert theo một hình dạng rồi áp

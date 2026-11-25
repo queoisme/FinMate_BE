@@ -37,7 +37,8 @@ public class DailySummaryJob
     /// </summary>
     public async Task SummariseUserAsync(Guid userId, DateOnly date, CancellationToken ct = default)
     {
-        var point = (await _reportRepository.GetDailySpendAsync(userId, date, date, ct)).FirstOrDefault();
+        // Phase 90: cả ngày chỉ có dòng tiền (vd. chỉ có cho vay) cũng có dòng, để báo cáo tháng đọc được cột dòng tiền đã chốt.
+        var point = (await _reportRepository.GetDailySpendAsync(userId, date, date, ct, includeCashFlowOnlyDays: true)).FirstOrDefault();
         if (point is null && await _reportRepository.GetDailySummaryAsync(userId, date, ct) is null)
         {
             return;
@@ -58,6 +59,12 @@ public class DailySummaryJob
             TotalIncomeCents = point?.IncomeCents ?? 0,
             TotalRefundedCents = point?.RefundedCents ?? 0,
             TransactionCount = point?.TransactionCount ?? 0,
+            CashFlowNetCents = point?.CashNetCents ?? 0,
+            LoanOutflowCents = point?.LoanOutflowCents ?? 0,
+            LoanInflowCents = point?.LoanInflowCents ?? 0,
+            GroupFundOutflowCents = point?.GroupFundOutflowCents ?? 0,
+            GroupFundInflowCents = point?.GroupFundInflowCents ?? 0,
+            ReversalNetCents = point?.ReversalNetCents ?? 0,
             TopCategoryId = top?.CategoryId,
             TopCategorySpentCents = top?.SpentCents ?? 0,
             CreatedAt = now,

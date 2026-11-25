@@ -16,6 +16,12 @@ thì hỏi user, đừng tự chọn.
 | 3 | Docx bước 1.1 yêu cầu đăng ký bằng **SĐT + OTP** | **Chưa làm trong MVP** | Giữ Email/Password + Google login. Docx coi như overspec ở điểm này |
 | 4 | Docx Flow 2 có **Voice input** và **Receipt OCR**; `TASKS.md` để ở Backlog | **Kéo lên MVP** | Voice: STT ở client → tái dùng `POST /transactions/parse`, không cần route AI mới. OCR: **cần thêm route mới vào contract §3.3** |
 
+**Nguyên tắc "chi tiêu thật" (2026-11-23, Phase 90, Q16), mở rộng quyết định #1:** chi tiêu / thu nhập là tiền đã dùng hết hoặc thực sự
+kiếm được. Tiền đổi chỗ (chuyển giữa ví của mình, góp/rút quỹ nhóm, cho vay / đi vay / trả nợ) **không** phải chi tiêu hay thu nhập, nhưng
+vẫn hiện trong dòng tiền (`cashFlow` của báo cáo, `CashFlowCalculator`). Lãi vay là chi tiêu / thu nhập thật. `cashFlow.netCents` tính thẳng
+từ tác động số dư (`TransferLegs`) và luôn bằng chi/thu cộng các phần đổi chỗ (bất biến có test); thêm một loại giao dịch mới thì phải giữ
+bất biến này, không thêm trường "khác" để bù. Chi tiết: `docs/reports-cash-flow-api.md`.
+
 **Nguyên tắc Internal Transfer (quyết định #1) — dễ sai nhất, đọc kỹ:**
 
 - Transfer chuyển tiền giữa **2 tài khoản của cùng 1 user**: `financial_account_id` là ví nguồn
@@ -537,6 +543,17 @@ Nhóm API phục vụ màn chi tiết giao dịch, bản nháp và khung chat �
 - Bản nháp (chat/thông báo/hóa đơn, chưa xác nhận) thêm `sourceDetail`, `aiExplanation`, `confidence`. `sourceDetail.channel = Chat` chỉ xuất hiện ở bản nháp — giao dịch chat đã lưu luôn mang `source = Manual` (không có `Chat` ở giao dịch đã xác nhận).
 - `GET assistant/suggestions`: câu gợi ý cho khung chat, cấu hình ở system config `assistant.suggestions`/`assistant.maxSuggestions`, lọc theo ngữ cảnh người gọi (`always`/`noTransactionToday`/`hasBudget`/`hasGoal`). Bấm một gợi ý = gửi `text` của nó vào `POST transactions/chat` như gõ tay.
 - **Đã bỏ khỏi phạm vi** (theo yêu cầu chủ dự án, không tự thêm lại): phí/hạn mức chuyển ví (`GET transactions/transfer-rules`, mã `TRANSFER_LIMIT_EXCEEDED`).
+
+### 2.16 Sổ vay (thêm 2026-11-23, Phase 90)
+
+**Quyết định: nợ là sổ phụ gắn với giao dịch `loan`.** Tiền thật đi qua giao dịch danh mục "Cho vay / Mượn" (không phải chi tiêu hay thu nhập, Q16); sổ vay chỉ ghi khoản nào, của ai, còn bao nhiêu. Một khoản = các dòng `principal` / `repayment` trong `loan_repayments`, tổng lưu sẵn trên `loans` (`principal_cents`, `repaid_cents`, `status`) với `xmin`. API: `docs/loans-api.md`; kế hoạch: `docs/superpowers/plans/2026-11-23-loan-book-merge.md`. Luật dễ sai:
+
+- Mọi thay đổi tổng / trạng thái đi qua `LoanPolicy` (ném trước khi đổi gì); mọi lệnh ghi lưu MỘT lần; `RetryingLoanService` chạy lại khi đụng `xmin` (`Loan` nằm trong danh sách của `EfConcurrencyRetry`). Dòng mới của khoản đang theo dõi phải `ILoanRepository.Track` tường minh (id đặt sẵn + `gen_random_uuid()` làm EF tưởng dòng đã tồn tại).
+- Handler giao dịch nhận `ILoanLinkSync` tuỳ chọn (như `IGroupFundLinkSync`): đường mới xoá / sửa / gộp / chuyển đổi giao dịch phải gọi nó. Gộp: chỉnh số tiền bên giữ lại TRƯỚC khi chuyển số dư, đặt danh mục loan SAU khi áp các trường gộp.
+- Trả kèm lãi (S1) tách phần lãi thành giao dịch riêng (`interest_transaction_id`, khoá UUID v5); so trùng và gộp dùng "số tiền ngân hàng" = gốc + lãi đã tách (Q14).
+- Tên người (`counterparty`, và `title` thường chứa tên) không bao giờ vào log, push, giao dịch, nhãn dự báo, kết quả công cụ Agent hay DTO phía vận hành.
+- Khớp tên: chỉ `PersonNameMatch` (chat và thông báo). Dự án bật `InvariantGlobalization`, nên `string.Normalize(FormD)` KHÔNG tách dấu: bỏ dấu phải qua bảng `CounterpartyKey.FoldChar`.
+- Hai FK `loan_repayments → transactions` là `DEFERRABLE INITIALLY DEFERRED` bằng SQL trong migration; migration nào tạo lại chúng phải giữ dòng đó.
 
 ## 3. AI Service — Pipeline Architecture
 

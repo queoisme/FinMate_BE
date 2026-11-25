@@ -85,6 +85,12 @@ public static class TransactionReviewPushBuilder
     /// <param name="relationHint">Gợi ý hoàn/đảo của AI; có giá trị thì luôn ra <see cref="ActionChooseRefundLink"/>.</param>
     /// <param name="suggestionCount">Số khoản chi gốc gợi ý (0..3), đưa vào payload để app biết mở danh sách hay màn chọn tay.</param>
     /// <param name="duplicateCandidateCount">Số giao dịch có thể trùng (1..3) khi nháp đang <c>Suspected</c>.</param>
+    /// <summary>
+    /// Phase 90 (BR-DEBT-13, D22): có khoản vay khớp (tên người hoặc gợi ý mạnh của AI). Sau <see cref="ActionChooseRefundLink"/>, trước một chạm: xác nhận
+    /// nhanh lúc này là ghi tiền trả nợ thành thu nhập hoặc chi tiêu. Nội dung không nêu tên người hay số còn nợ (dữ liệu bên thứ ba, hiện trên màn khoá).
+    /// </summary>
+    public const string ActionChooseLoanLink = "choose_loan_link";
+
     public static TransactionReviewPush Build(
         Transaction transaction,
         string? categoryName,
@@ -92,7 +98,8 @@ public static class TransactionReviewPushBuilder
         TransactionRelation? relationHint = null,
         int suggestionCount = 0,
         int duplicateCandidateCount = 0,
-        Transactions.Transfers.TransferSuggestion? transfer = null)
+        Transactions.Transfers.TransferSuggestion? transfer = null,
+        IReadOnlyList<Loans.LoanSuggestionDto>? loanSuggestions = null)
     {
         var amount = transaction.AmountCents.ToString("N0", VietnamMoney) + "đ";
         var merchant = string.IsNullOrWhiteSpace(transaction.MerchantName)
@@ -156,6 +163,17 @@ public static class TransactionReviewPushBuilder
             return new TransactionReviewPush(
                 "Có tiền hoàn về",
                 $"Bạn vừa nhận {amount}{at}, có vẻ là {what}. Chạm để chọn khoản chi gốc.",
+                data);
+        }
+
+        if (loanSuggestions is { Count: > 0 })
+        {
+            data["action"] = ActionChooseLoanLink;
+            data["loanId"] = loanSuggestions[0].LoanId.ToString();
+            data["suggestionCount"] = loanSuggestions.Count.ToString(CultureInfo.InvariantCulture);
+            return new TransactionReviewPush(
+                "Có thể là tiền trả nợ",
+                $"Bạn vừa {verb} {amount}{at}, có vẻ là tiền trả nợ. Chạm để chọn khoản vay.",
                 data);
         }
 
