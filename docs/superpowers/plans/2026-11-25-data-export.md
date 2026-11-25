@@ -1,6 +1,6 @@
 # Phase 91 — Xuất dữ liệu
 
-> Trạng thái: **đã duyệt 2026-11-25**, đang làm. D1–D18 theo đề xuất (D17: chỉ CSV), kèm S1–S5 bên dưới (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/data-export` từ `main` @ `5aeec81` (đã có Phase 90, PR #35).
+> Trạng thái: **đã duyệt 2026-11-25**, Task 0–11 xong; Task 12 (toàn bộ test, kiểm tay S1) chưa làm. D1–D18 theo đề xuất (D17: chỉ CSV), kèm S1–S5 bên dưới (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/data-export` từ `main` @ `5aeec81` (đã có Phase 90, PR #35).
 > Luật nghiệp vụ BR-EXP-01…14 do chủ sản phẩm chốt; kế hoạch này chỉ thêm cách làm, danh mục gói, chỗ lưu file và các điểm D1–D18.
 
 ## Đã duyệt (2026-11-25): điều chỉnh S1–S5

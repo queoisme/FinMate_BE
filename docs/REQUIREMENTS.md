@@ -499,6 +499,26 @@ API và luật: `docs/loans-api.md`. Hợp nhất `loans` của `main` với s�
 | FR-LOAN-11 | Agent | Could | `get_loans` chỉ đọc, không tên người hay tiêu đề khoản |
 | FR-LOAN-12 | Riêng tư | Must | Không log / push / LLM tên người; giao dịch do sổ tạo mang chữ cố định; phía vận hành không thấy liên kết hay gợi ý |
 
+### 6.12 Xuất dữ liệu (Phase 91, 2026-11-25) **[Ngoài đặc tả]**
+
+API và luật: `docs/data-export-api.md`; kế hoạch, danh mục bảng và quyết định D1–D18, S1–S5: `docs/superpowers/plans/2026-11-25-data-export.md`. Công tắc `features.dataExport` mặc định **bật** (quyền theo luật). Không bị chặn bởi gói trả phí.
+
+| ID | Yêu cầu | Ưu tiên | Tiêu chí |
+|---|---|---|---|
+| FR-EXP-01 | CSV giao dịch (`GET /exports/transactions.csv`) | Must | Lọc ngày (giờ VN, gồm hai đầu, mặc định tháng này), ví, danh mục, trạng thái (mặc định `Confirmed`); tối đa `maxRangeDays` (366) và `maxRows` (50.000), vượt → 422 `EXPORT_RANGE_TOO_LARGE`; ví/danh mục của người khác → 404 |
+| FR-EXP-02 | Định dạng CSV | Must | UTF-8 có BOM, không dòng `sep=`, CRLF, RFC 4180 theo dấu phân cách đang dùng; `delimiter=comma\|semicolon` (S1); tiền số nguyên đồng; thời điểm `+07:00` và cột "Ngày" riêng; 18 cột tiếng Việt cố định |
+| FR-EXP-03 | Chống CSV injection | Must | Ô chữ bắt đầu bằng `= + - @`, tab, CR được thêm `'`; ô số không bao giờ bị thêm |
+| FR-EXP-04 | Cột chi tiêu khớp báo cáo | Must | "Tính vào chi tiêu" và số có dấu theo đúng luật báo cáo (Q16); cộng một tháng ra `totalSpentCents`, trừ tháng có hoàn nhiều hơn chi (báo cáo chặn ở 0) |
+| FR-EXP-05 | Tần suất CSV | Must | `csvPerHour` (20) mỗi user, vượt → 429 `EXPORT_RATE_LIMITED`; chỉ lần thành công bị đếm (S3) |
+| FR-EXP-06 | Yêu cầu gói đầy đủ | Must | Xác thực lại bằng OTP email mục đích `data_export` (thiếu/sai → 403); một yêu cầu đang chạy và `maxRequestsPerDay` (1) mỗi 24 giờ, vượt → 429; thất bại do hệ thống không tính |
+| FR-EXP-07 | Nội dung gói | Must | ZIP: README tiếng Việt, một JSON mỗi nhóm dữ liệu, `transactions.csv` và `transactions_deleted.csv`; theo danh mục đã duyệt; không bí mật, không dữ liệu người khác (thành viên nhóm chỉ còn vai trò), không ảnh, không thông báo thô, không dữ liệu AI DB |
+| FR-EXP-08 | Lưu và giữ file | Must | Mã hoá AES-256-GCM bằng `SECRETS_MASTER_KEY` (thiếu khoá → 422 `DATA_EXPORT_UNAVAILABLE`, CSV vẫn chạy); giữ `fileRetentionHours` (72) rồi `Expired` và xoá; quá `maxArchiveMb` (25) → `Failed` + sự cố Normal |
+| FR-EXP-09 | Báo và tải | Must | Push `data_export_ready` + email, không link, không số liệu; link dùng một lần sống `downloadLinkMinutes` (10), gắn với user (endpoint tải vẫn đòi đăng nhập); dùng lại / quá hạn / bị thay → 410 |
+| FR-EXP-10 | Lịch sử và audit | Must | `GET /exports/personal-data` liệt kê yêu cầu của user; mọi bước (tạo, xong, thất bại, lấy link, tải, hết hạn, CSV) ghi `audit_logs` không nội dung, không số tiền |
+| FR-EXP-11 | Xoá tài khoản | Must | Chờ xoá vẫn không đăng nhập được; `DELETE /auth/account` khi đang xuất → 409 `DATA_EXPORT_IN_PROGRESS` (S5); xoá cứng xoá yêu cầu và file |
+| FR-EXP-12 | Nhân viên | Should | Ticket loại `PersonalDataRequest` (P2) và câu trả lời mẫu hướng dẫn tự tải; nhân viên không tạo hay tải gói thay khách (test kiến trúc) |
+| FR-EXP-13 | Lịch sử đồng ý | Should | Đồng ý / rút ghi audit `User.ConsentChanged` từ 2026-11-25, hiện trong `consents.json` (D3) |
+
 ## 7. FR — Thông báo đẩy
 
 ### 7.1 Thông báo đẩy (FCM)
@@ -616,6 +636,7 @@ FinMate là **zero-credential**: không bao giờ hỏi tài khoản, mật kh�
 | NFR-SEC-29 | **[Một phần]** Bằng chứng đồng ý lưu lâu dài kể cả khi user yêu cầu xoá dữ liệu | Hiện lưu ở cột của `users`, bị xoá cùng user khi xoá cứng |
 | NFR-SEC-30 | Gửi dữ liệu tới LLM bên thứ ba chỉ khi có đồng ý và chỉ phần tối thiểu | Tên món / cụm sản phẩm đã bỏ số tiền; signals khảo sát ẩn danh; OpenRouter luôn `data_collection = deny` |
 | NFR-SEC-31 | Key bên thứ ba lưu mã hoá (FR-CFG-03) | Review `SecretCipher` |
+| NFR-SEC-33 | Gói dữ liệu cá nhân chỉ giữ có hạn và đã mã hoá (Phase 91) | `personal_data_export_archives` mã hoá AES-256-GCM, AAD theo id yêu cầu; `data-export-cleanup` xoá sau `dataExport.fileRetentionHours` (72); không lưu bản rõ khi thiếu khoá. Gói có thể còn trong bản sao lưu DB lâu hơn (đã mã hoá), xem 13.4 |
 
 ## 11. NFR — Toàn vẹn dữ liệu, độ tin cậy, hiệu năng
 
@@ -710,6 +731,7 @@ Kiểm trên code ngày 2026-11-02.
 | Mã | Nhãn | Hiện trạng | Việc cần làm | Ảnh hưởng |
 | --- | --- | --- | --- | --- |
 | FR-CONS-05, NFR-SEC-24 | Đổi | Ảnh gốc gửi Google Vision, Điều khoản bản 3 không nhắc | Đã chốt: nêu trong bản 4, chưa phát hành | Lớn — pháp lý |
+| FR-EXP-01…13 | Đóng (2026-11-25) | Trước Phase 91 chưa có cách nào để người dùng lấy dữ liệu của mình ra | Đã có CSV giao dịch và gói dữ liệu đầy đủ (6.12). Còn lại: DSAR đầy đủ, `.xlsx`, xuất dữ liệu nhóm (13.4) | — |
 | FR-FIN-07 | Sai lệch | Test gợi ý theo luật đỏ | Chỉnh trọng số `rule_80_20` / `cash_flow_budget` hoặc chốt lại kỳ vọng | Nhỏ |
 | FR-TXN-05, 05a, 06 | Đổi | Luôn Draft + một chạm | Auto-commit theo trường cốt lõi và extraction | Lớn — đảo Phase 15, đổi hợp đồng push |
 | FR-TXN-31, 33 | Giới hạn (Phase 82, 83) | Chưa có hoàn tác gộp và hoàn tác chuyển đổi | Đã có ảnh chụp `transaction_merge_snapshots` (trạng thái trước, tham chiếu đã chuyển, khoản phí, số dư) để làm endpoint hoàn tác; ảnh chụp chỉ giữ 365 ngày | Trung bình |
@@ -767,6 +789,11 @@ Kiểm trên code ngày 2026-11-02.
 - [ ] **Ẩn danh dòng quỹ khi rút dữ liệu khỏi nhóm (Phase 87).** Đặt `member_user_id = null` là đủ (schema sẵn); cần chốt có ẩn cả ghi chú và nơi chi không.
 - [ ] **Tiền góp vào tài khoản người giữ quỹ (Phase 85, D11/S7).** Thông báo ngân hàng phía người giữ quỹ hiện là thu nhập của họ; ghép với dòng góp ở phase sau.
 - [ ] **Sổ vay (Phase 90), các điểm chưa có:** khoản trả góp (kỳ trả cố định, lãi theo kỳ); thẻ tín dụng (không phải khoản vay giữa người với người); khoản "mất trắng" (xoá nợ) có nên ghi thành chi phí / thu nhập âm trong báo cáo không (hiện không đổi số nào); lãi tạm tính có nên vào sổ thật (hiện chỉ để tham khảo, Q11; lãi thật chỉ vào sổ khi trả kèm, S1).
+- [ ] **Yêu cầu dữ liệu cá nhân đầy đủ (DSAR, sau Phase 91).** Hàng đợi cho nhân viên: xem, sửa, xoá, rút đồng ý theo yêu cầu của chủ thể, với hạn 2 / 10 / 20 ngày theo Nghị định 356/2025; lấy dữ liệu cho người **đã** xin xoá tài khoản (họ không đăng nhập được nên không tự tải, S5); hồ sơ duyệt nội bộ về user (`ops_approval_requests`) có đưa cho khách không (D12). Phase 91 chỉ có loại ticket `PersonalDataRequest` và câu trả lời mẫu.
+- [ ] **Xuất `.xlsx` (Phase 91, D17).** Hiện chỉ CSV (mở được bằng Excel và Google Sheets). Nếu cần định dạng số, nhiều sheet: chọn MiniExcel (Apache-2.0, ~0,5 MB, ghi theo luồng); EPPlus 5+ không dùng được (Polyform Noncommercial). Thêm dependency cần duyệt `TECH_STACK.md`.
+- [ ] **Xuất dữ liệu nhóm.** `GET /groups/{id}/export` vẫn ghi "chưa làm" (`docs/group-spending-api.md`); Phase 91 chỉ xuất phần của từng người.
+- [ ] **Gói dữ liệu trong bản sao lưu DB (Phase 91, S4).** Gói lưu trong Postgres nên có thể nằm trong bản sao lưu lâu hơn 72 giờ (đã mã hoá bằng `SECRETS_MASTER_KEY`). Hướng sau: kho file riêng không nằm trong sao lưu.
+- [ ] **Điều khoản / Chính sách quyền riêng tư (Phase 91).** Bổ sung quyền tải dữ liệu cá nhân (CSV, gói đầy đủ, thời hạn giữ file 72 giờ, cái gì không có trong gói) khi soạn bản Điều khoản tiếp theo.
 - [ ] **4 số đuôi tài khoản (Phase 83, D21).** Giúp ghép chuyển khoản giữa hai ngân hàng chính chủ (`own_account`), không giúp nạp/rút ví hay ATM. Chưa thêm; quyết sau khi đo số lần `own_account` bị bỏ lỡ qua `/admin/ai-stats`.
 
 ### 13.5 Truy vết yêu cầu → nguồn
@@ -809,3 +836,4 @@ Kiểm trên code ngày 2026-11-02.
 | 2026-11-15 | **Quỹ chung của nhóm (Phase 85)**: sổ quỹ ảo thuộc về nhóm, không chia sẻ ví cá nhân | Chủ sản phẩm duyệt kế hoạch phương án A, D1–D22 theo đề xuất kèm S1–S7 (`docs/superpowers/plans/2026-11-14-group-fund.md`) | FR-FUND-01…16 mới (6.6); giao dịch cá nhân gắn quỹ là `Transfer` không ví đích (`TransferLegs` là chỗ duy nhất đọc hướng); cờ `features.groupFunds`; quyền `ManageFunds`, `RecordFundEntries`. Migration `AddGroupFunds`. Kèm sửa lỗi sẵn có: cho vay/mượn bị tính vào `/me/spendable` (S2), giao dịch chia sẻ đã xoá vẫn vào báo cáo nhóm. Chia tiền/công nợ, ẩn danh khi rút dữ liệu (Phase 87), ghép tiền góp phía người giữ quỹ chờ quyết (13.4) |
 | 2026-11-23 | **Chi tiêu thật và dòng tiền riêng (Phase 90, Q16)**: cho vay / đi vay / trả nợ, góp/rút quỹ, chuyển ví không phải chi tiêu hay thu nhập nhưng hiện trong `cashFlow` của báo cáo; lãi vay là chi/thu thật | Hai luật mâu thuẫn trên `main`: commit `3df2182` (13/11, `dev/tho`) cố ý tính `loan` vào thu/chi của `GetDailySpendAsync` vì đó là tiền thật ra/vào ví; Phase 85 Task 0 (`5281eba`) vô tình thêm lại loại trừ khi gom `LoanExclusion`; test của MinhTuan (17/11) viết theo ý 13/11 nên đỏ. Quyết định mới giữ cả hai mục đích | FR-RPT-01; `docs/reports-cash-flow-api.md`; cột mới ở `daily_summaries` (migration `AddReportCashFlow`); báo cáo tháng một ví chặn chi ở 0; tổng ngày của `timeline` vẫn theo trang nhưng không còn cộng nháp |
 | 2026-11-23 | **Một sổ vay (Phase 90)**: sổ nợ Phase 86 (chưa phát hành) hợp nhất vào `/api/v1/loans` của `main`; giữ đường dẫn, trường, mã lỗi cũ | Hai bản làm song song (MinhTuan `loans`, `feat/debt-book`); chọn phương án A | FR-LOAN-01…12; `docs/loans-api.md`; migration `MergeDebtBookIntoLoans`, `AddLoanReminders`; `LoanDueReminderJob` thay bằng `LoanReminderJob`; xoá khoản là xoá mềm; giao dịch do sổ tạo không mang tên người |
+| 2026-11-25 | **Xuất dữ liệu (Phase 91)**: CSV giao dịch và gói toàn bộ dữ liệu cá nhân (ZIP) cho quyền được cung cấp dữ liệu (Luật BVDLCN 2025, Nghị định 356/2025) | Chủ sản phẩm duyệt kế hoạch, D1–D18 theo đề xuất (D17: chỉ CSV) kèm S1–S5 (`docs/superpowers/plans/2026-11-25-data-export.md`) | FR-EXP-01…13 mới (6.12), NFR-SEC-33; cờ `features.dataExport` (bật); `docs/data-export-api.md`. Migration `AddPersonalDataExports`. DSAR đầy đủ, `.xlsx`, xuất dữ liệu nhóm, sao lưu chờ quyết (13.4) |
