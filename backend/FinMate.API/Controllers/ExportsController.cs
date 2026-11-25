@@ -26,9 +26,9 @@ public class ExportsController(TransactionCsvExportService csv, PersonalDataExpo
     [HttpGet("transactions.csv")]
     public async Task TransactionsCsv(
         [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] Guid? accountId, [FromQuery] Guid? categoryId,
-        [FromQuery] string? status, [FromQuery] string? delimiter, CancellationToken ct)
+        [FromQuery] string? status, [FromQuery] string? delimiter, [FromQuery] bool? includeDeleted, CancellationToken ct)
     {
-        var plan = await csv.PrepareAsync(CurrentUserId, new TransactionCsvRequest(from, to, accountId, categoryId, status, delimiter), RemoteIp, ct);
+        var plan = await csv.PrepareAsync(CurrentUserId, new TransactionCsvRequest(from, to, accountId, categoryId, status, delimiter, includeDeleted ?? false), RemoteIp, ct);
 
         Response.ContentType = "text/csv; charset=utf-8";
         Response.Headers.ContentDisposition = $"attachment; filename=\"{plan.FileName}\"";

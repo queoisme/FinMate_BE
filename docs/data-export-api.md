@@ -28,15 +28,16 @@ PDF báo cáo vẫn do app dựng (`docs/goals-and-reports-extras-api.md` mục 
 
 ## 1. CSV giao dịch
 
-`GET /api/v1/exports/transactions.csv?from=&to=&accountId=&categoryId=&status=&delimiter=`
+`GET /api/v1/exports/transactions.csv?from=&to=&accountId=&categoryId=&status=&delimiter=&includeDeleted=`
 
 | Tham số | Mặc định | Ghi chú |
 |---|---|---|
 | `from`, `to` | tháng hiện tại (giờ VN) | `yyyy-MM-dd`, ngày giờ VN, **gồm cả hai đầu**. Chỉ có `from` → tới hết tháng của `from`; chỉ có `to` → từ đầu tháng của `to` |
 | `accountId` | tất cả | Giao dịch có ví nguồn **hoặc** ví đích là ví này. Ví của người khác → 404 |
 | `categoryId` | tất cả | Danh mục hệ thống hoặc danh mục riêng của mình; danh mục riêng của người khác → 404 |
-| `status` | `Confirmed` | `Confirmed` \| `Draft` \| `All`. Giao dịch đã xoá không bao giờ có |
+| `status` | `Confirmed` | `Confirmed` \| `Draft` \| `All` |
 | `delimiter` | `comma` | `comma` \| `semicolon` (S1, Excel đặt vùng Việt Nam tách cột bằng `;`) |
+| `includeDeleted` | `false` | Tuỳ chọn (S6). Mặc định **không** có giao dịch đã xoá/đã gộp. `true` → thêm chúng (theo cùng bộ lọc ngày/ví/danh mục/trạng thái, tính vào `maxRows`) và thêm cột cuối "Đã xoá lúc" (trống với dòng còn sống). Dòng đã xoá luôn có "Tính vào chi tiêu" = Không, "Số tiền tính vào chi tiêu" = 0, nên tổng cột vẫn bằng `totalSpentCents` |
 
 Trả `200 text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="finmate-giao-dich-{from}-{to}.csv"`, `Cache-Control: no-store`. Mọi lỗi trả JSON **trước** byte đầu tiên của file.
 

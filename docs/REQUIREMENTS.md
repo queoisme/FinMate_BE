@@ -505,7 +505,7 @@ API và luật: `docs/data-export-api.md`; kế hoạch, danh mục bảng và q
 
 | ID | Yêu cầu | Ưu tiên | Tiêu chí |
 |---|---|---|---|
-| FR-EXP-01 | CSV giao dịch (`GET /exports/transactions.csv`) | Must | Lọc ngày (giờ VN, gồm hai đầu, mặc định tháng này), ví, danh mục, trạng thái (mặc định `Confirmed`); tối đa `maxRangeDays` (366) và `maxRows` (50.000), vượt → 422 `EXPORT_RANGE_TOO_LARGE`; ví/danh mục của người khác → 404 |
+| FR-EXP-01 | CSV giao dịch (`GET /exports/transactions.csv`) | Must | Lọc ngày (giờ VN, gồm hai đầu, mặc định tháng này), ví, danh mục, trạng thái (mặc định `Confirmed`); mặc định không gồm giao dịch đã xoá, `includeDeleted=true` thêm chúng kèm cột "Đã xoá lúc" và tính 0 vào chi tiêu; tối đa `maxRangeDays` (366) và `maxRows` (50.000), vượt → 422 `EXPORT_RANGE_TOO_LARGE`; ví/danh mục của người khác → 404 |
 | FR-EXP-02 | Định dạng CSV | Must | UTF-8 có BOM, không dòng `sep=`, CRLF, RFC 4180 theo dấu phân cách đang dùng; `delimiter=comma\|semicolon` (S1); tiền số nguyên đồng; thời điểm `+07:00` và cột "Ngày" riêng; 18 cột tiếng Việt cố định |
 | FR-EXP-03 | Chống CSV injection | Must | Ô chữ bắt đầu bằng `= + - @`, tab, CR được thêm `'`; ô số không bao giờ bị thêm |
 | FR-EXP-04 | Cột chi tiêu khớp báo cáo | Must | "Tính vào chi tiêu" và số có dấu theo đúng luật báo cáo (Q16); cộng một tháng ra `totalSpentCents`, trừ tháng có hoàn nhiều hơn chi (báo cáo chặn ở 0) |

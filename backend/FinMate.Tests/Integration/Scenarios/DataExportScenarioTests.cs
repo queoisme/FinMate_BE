@@ -29,9 +29,9 @@ public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
         factory.Agent.Setup(a => a.GetMemoryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
     }
 
-    private static async Task<byte[]> CsvAsync(LoanTestApi api)
+    private static async Task<byte[]> CsvAsync(LoanTestApi api, string query = "")
     {
-        var response = await api.SendAsync(HttpMethod.Get, CsvUrl);
+        var response = await api.SendAsync(HttpMethod.Get, CsvUrl + query);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         return await response.Content.ReadAsByteArrayAsync();
     }
@@ -44,7 +44,8 @@ public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
 
     /// <summary>
     /// (a) 3 ví, 50 giao dịch tháng này gồm hoàn tiền, cặp đảo, chuyển ví, cho vay và được trả nợ. Đọc CSV bằng trình đọc thật: đúng 50 dòng, và tổng cột
-    /// "Số tiền tính vào chi tiêu" bằng <c>totalSpentCents</c> của <c>monthly-summary</c> cùng kỳ (D5).
+    /// "Số tiền tính vào chi tiêu" bằng <c>totalSpentCents</c> của <c>monthly-summary</c> cùng kỳ (D5). Sau đó xoá 2 khoản chi: mặc định CSV không có
+    /// dòng đã xoá; <c>includeDeleted=true</c> có đủ 50 dòng, cột "Đã xoá lúc", dòng đã xoá tính 0 và tổng cột vẫn bằng <c>totalSpentCents</c> mới.
     /// </summary>
     [Fact]
     public async Task A_FiftyTransactionsAcrossThreeWallets_SumOfTheSpendingColumn_MatchesTheMonthlySummary()
@@ -78,11 +79,12 @@ public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
         // Lương (1 giao dịch) và 42 khoản chi thường.
         await api.TransactionAsync(wallets[0], income, 15_000_000, "Credit", merchant: "Lương");
         long plain = 0;
+        var plainIds = new List<Guid>();
         for (var i = 0; i < 42; i++)
         {
             var amount = 10_000L * (i + 1);
             plain += amount;
-            await api.TransactionAsync(wallets[i % 3], (i % 3) switch { 0 => food, 1 => transport, _ => null }, amount, merchant: $"Quán {i}");
+            plainIds.Add(await api.TransactionAsync(wallets[i % 3], (i % 3) switch { 0 => food, 1 => transport, _ => null }, amount, merchant: $"Quán {i}"));
         }
 
         var rows = CsvTestReader.Read(await CsvAsync(api));
@@ -96,6 +98,28 @@ public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
         rows.Single(r => r["Loại"] == "Chuyển ví")["Ví đích"].Should().Be("MoMo");
         rows.Single(r => r["Quan hệ"] == "Hoàn tiền")["Liên quan đến"].Should().Be(bought.ToString());
         rows.Where(r => r["Quan hệ"] is "Đảo giao dịch" or "Đã bị đảo").Should().HaveCount(2).And.OnlyContain(r => r["Tính vào chi tiêu"] == "Không");
+        rows[0].Should().NotContainKey("Đã xoá lúc");
+
+        // Xoá 2 khoản chi thường (10.000 và 420.000).
+        Guid[] deleted = [plainIds[0], plainIds[41]];
+        foreach (var id in deleted)
+        {
+            (await api.SendAsync(HttpMethod.Delete, $"/api/v1/transactions/{id}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
+
+        var spentAfter = (await api.MonthlySummaryAsync()).GetProperty("totalSpentCents").GetInt64();
+        spentAfter.Should().Be(plain + 300_000 - 10_000 - 420_000);
+
+        var live = CsvTestReader.Read(await CsvAsync(api));
+        live.Should().HaveCount(48, "mặc định không gồm giao dịch đã xoá");
+        live.Select(r => r["Mã giao dịch"]).Should().NotContain(deleted.Select(d => d.ToString()));
+
+        var all = CsvTestReader.Read(await CsvAsync(api, "?includeDeleted=true"));
+        all.Should().HaveCount(50);
+        var gone = all.Where(r => r["Đã xoá lúc"] != string.Empty).ToList();
+        gone.Select(r => r["Mã giao dịch"]).Should().BeEquivalentTo(deleted.Select(d => d.ToString()));
+        gone.Should().OnlyContain(r => r["Số tiền tính vào chi tiêu"] == "0" && r["Tính vào chi tiêu"] == "Không" && r["Đã xoá lúc"].EndsWith("+07:00"));
+        all.Sum(r => long.Parse(r["Số tiền tính vào chi tiêu"])).Should().Be(spentAfter, "dòng đã xoá tính 0 nên tổng cột 17 vẫn bằng totalSpentCents");
     }
 
     /// <summary>(b) Ghi chú là công thức: trong CSV thành <c>'=HYPERLINK("x")</c>, không chạy được trong bảng tính.</summary>

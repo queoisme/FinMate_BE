@@ -206,6 +206,21 @@ public class TransactionCsvFormatTests
         cells["Tính vào chi tiêu"].Should().Be("Không");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADeletedRow_CountsZero_WhileALiveRowInTheSameFileKeepsItsSpending(bool deletedFile)
+    {
+        Cells(Row() with { DeletedAt = At }, deletedFile)["Số tiền tính vào chi tiêu"].Should().Be("0");
+
+        var live = Cells(Row(), deletedFile);
+        live["Số tiền tính vào chi tiêu"].Should().Be("45000");
+        if (deletedFile)
+        {
+            live["Đã xoá lúc"].Should().BeNullOrEmpty();
+        }
+    }
+
     [Fact]
     public void NoBankInternals_HaveAColumn()
     {

@@ -60,7 +60,14 @@ public sealed class DataExportRepository(FinMateDbContext db) : IDataExportRepos
     {
         var statuses = filter.Statuses.ToArray();
         var query = db.Transactions.IgnoreQueryFilters().Where(t => t.UserId == userId && statuses.Contains(t.Status));
-        query = filter.DeletedOnly ? query.Where(t => t.DeletedAt != null) : query.Where(t => t.DeletedAt == null);
+        if (filter.DeletedOnly)
+        {
+            query = query.Where(t => t.DeletedAt != null);
+        }
+        else if (!filter.IncludeDeleted)
+        {
+            query = query.Where(t => t.DeletedAt == null);
+        }
         if (filter.Start is { } start)
         {
             query = query.Where(t => t.TransactedAt >= start);

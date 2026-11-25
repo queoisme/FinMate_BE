@@ -31,7 +31,8 @@ public static class TransactionCsvFormat
 
     public static IReadOnlyList<CsvCell> ToCells(TransactionExportRow row, bool deletedFile)
     {
-        var effect = deletedFile && row.DeletedAt is not null ? 0 : SpendingEffect(row);
+        // Bản đã xoá/đã gộp không còn trong bất kỳ tổng nào của báo cáo, nên luôn 0 (D6).
+        var effect = row.DeletedAt is not null ? 0 : SpendingEffect(row);
         var (relation, relatedId) = Relation(row);
         var cells = new List<CsvCell>(Columns.Length + 1)
         {

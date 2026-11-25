@@ -10,6 +10,7 @@
 - **S3 (tần suất CSV).** `dataExport.csvPerHour` (mặc định 20) theo user, cửa sổ trượt 60 phút đếm trong Redis (cùng kiểu cooldown OTP); vượt → 429 `EXPORT_RATE_LIMITED`. Chỉ đếm lần trả file thành công (422/404 không đốt lượt). Test.
 - **S4 (`maxArchiveMb` = 25).** Ghi vào `docs/ops-runbook.md` và REQUIREMENTS §13.4: gói lưu trong Postgres nên có thể còn trong bản sao lưu DB lâu hơn 72 giờ (đã mã hoá bằng `SECRETS_MASTER_KEY`); hướng sau này là kho file riêng không nằm trong sao lưu.
 - **S5 (xin xoá khi đang xuất).** `DELETE /auth/account` trả 409 `DATA_EXPORT_IN_PROGRESS` khi user có yêu cầu `Pending`/`Running` (kiểm sau bước xác thực mật khẩu, trước khi tạo yêu cầu xoá). Ghi §13.4: sau khi đã xin xoá, người dùng lấy dữ liệu qua hỗ trợ (DSAR đầy đủ, phase sau). "Báo nhóm Flutter": màn xoá tài khoản nhắc tải dữ liệu trước và xử lý mã lỗi mới. Test ở Task 9.
+- **S6 (bổ sung sau review PR #36, 2026-11-26): CSV có tuỳ chọn gồm giao dịch đã xoá.** Mở rộng D6: `GET /exports/transactions.csv` thêm `includeDeleted` (mặc định `false`, giữ nguyên hành vi cũ). Bật thì dòng đã xoá/đã gộp nằm chung file, thêm cột cuối "Đã xoá lúc"; dòng đã xoá luôn tính 0 vào chi tiêu (`TransactionCsvFormat` dựa vào `DeletedAt`, không phụ thuộc loại file). Kịch bản (a) kiểm: xoá 2 khoản chi, mặc định 48 dòng, `includeDeleted=true` 50 dòng và tổng cột 17 vẫn bằng `totalSpentCents`.
 
 ## 1. Đã kiểm trong code (những gì dùng lại)
 

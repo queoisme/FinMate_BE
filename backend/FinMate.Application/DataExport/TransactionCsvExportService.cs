@@ -11,7 +11,9 @@ namespace FinMate.Application.DataExport;
 
 /// <param name="Status"><c>Confirmed</c> (mặc định) | <c>Draft</c> | <c>All</c>.</param>
 /// <param name="Delimiter"><c>comma</c> (mặc định) | <c>semicolon</c> (S1).</param>
-public sealed record TransactionCsvRequest(DateOnly? From, DateOnly? To, Guid? AccountId, Guid? CategoryId, string? Status, string? Delimiter);
+/// <param name="IncludeDeleted">Mặc định không. Bật thì thêm giao dịch đã xoá/đã gộp và cột "Đã xoá lúc"; dòng đã xoá có "Số tiền tính vào chi tiêu" = 0.</param>
+public sealed record TransactionCsvRequest(
+    DateOnly? From, DateOnly? To, Guid? AccountId, Guid? CategoryId, string? Status, string? Delimiter, bool IncludeDeleted = false);
 
 /// <summary>Kết quả kiểm tra xong, sẵn sàng ghi file.</summary>
 public sealed record TransactionCsvPlan(TransactionExportFilter Filter, CsvDelimiter Delimiter, string FileName);
@@ -43,7 +45,7 @@ public sealed class TransactionCsvExportService(
         await EnsureOwnedAsync(userId, request.AccountId, request.CategoryId, ct);
 
         var (start, end) = VietnamTime.DayRange(from, to);
-        var filter = new TransactionExportFilter(start, end, request.AccountId, request.CategoryId, statuses);
+        var filter = new TransactionExportFilter(start, end, request.AccountId, request.CategoryId, statuses, IncludeDeleted: request.IncludeDeleted);
         if (await repository.CountTransactionsAsync(userId, filter, ct) > settings.MaxRows)
         {
             throw new BusinessRuleException(DataExportErrorCodes.RangeTooLarge,
@@ -58,10 +60,11 @@ public sealed class TransactionCsvExportService(
     public async Task WriteAsync(Guid userId, TransactionCsvPlan plan, Stream output, CancellationToken ct = default)
     {
         await using var writer = new CsvWriter(output, plan.Delimiter);
-        await writer.WriteRowAsync(TransactionCsvFormat.HeaderCells(deletedFile: false), ct);
+        var withDeleted = plan.Filter.IncludeDeleted;
+        await writer.WriteRowAsync(TransactionCsvFormat.HeaderCells(deletedFile: withDeleted), ct);
         await foreach (var row in repository.StreamTransactionsAsync(userId, plan.Filter, ct))
         {
-            await writer.WriteRowAsync(TransactionCsvFormat.ToCells(row, deletedFile: false), ct);
+            await writer.WriteRowAsync(TransactionCsvFormat.ToCells(row, deletedFile: withDeleted), ct);
         }
     }
 

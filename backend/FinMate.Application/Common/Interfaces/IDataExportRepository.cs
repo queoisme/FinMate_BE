@@ -3,14 +3,18 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
-/// <summary>Bộ lọc giao dịch khi xuất. Khoảng thời gian là [<c>Start</c>, <c>End</c>), null = không giới hạn (gói đầy đủ).</summary>
+/// <summary>
+/// Bộ lọc giao dịch khi xuất. Khoảng thời gian là [<c>Start</c>, <c>End</c>), null = không giới hạn (gói đầy đủ).
+/// Mặc định chỉ giao dịch còn sống; <c>DeletedOnly</c> chỉ lấy bản đã xoá/đã gộp (gói ZIP); <c>IncludeDeleted</c> lấy cả hai (CSV với <c>includeDeleted=true</c>).
+/// </summary>
 public sealed record TransactionExportFilter(
     DateTimeOffset? Start,
     DateTimeOffset? End,
     Guid? AccountId,
     Guid? CategoryId,
     IReadOnlyCollection<TransactionStatus> Statuses,
-    bool DeletedOnly = false);
+    bool DeletedOnly = false,
+    bool IncludeDeleted = false);
 
 /// <summary>Đọc dữ liệu để xuất (Phase 91). Mọi truy vấn lọc theo <c>userId</c>; không bao giờ đọc giao dịch của người khác kể cả cùng nhóm.</summary>
 public interface IDataExportRepository

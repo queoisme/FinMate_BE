@@ -83,6 +83,32 @@ public class DataExportCsvTests : IClassFixture<AuthApiFactory>
         CsvTestReader.Read(await CsvAsync(api, "?status=All")).Select(r => r["Trạng thái"]).Should().BeEquivalentTo("Đã xác nhận", "Chờ duyệt");
     }
 
+    [Theory]
+    [InlineData("comma", ',')]
+    [InlineData("semicolon", ';')]
+    public async Task IncludeDeleted_AddsDeletedRowsWithADeletedAtColumn_AndZeroSpending(string delimiter, char separator)
+    {
+        var api = await UserAsync();
+        var wallet = await api.WalletAsync();
+        var kept = await api.TransactionAsync(wallet, null, 10_000);
+        var removed = await api.TransactionAsync(wallet, null, 25_000);
+        (await api.SendAsync(HttpMethod.Delete, $"/api/v1/transactions/{removed}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var byDefault = CsvTestReader.Read(await CsvAsync(api, $"?delimiter={delimiter}"), separator);
+        byDefault.Should().ContainSingle().Which.Should().NotContainKey("Đã xoá lúc");
+
+        var rows = CsvTestReader.Read(await CsvAsync(api, $"?delimiter={delimiter}&includeDeleted=true"), separator);
+        rows.Should().HaveCount(2);
+        var live = rows.Single(r => r["Mã giao dịch"] == kept.ToString());
+        live["Đã xoá lúc"].Should().BeEmpty();
+        live["Số tiền tính vào chi tiêu"].Should().Be("10000");
+        var gone = rows.Single(r => r["Mã giao dịch"] == removed.ToString());
+        gone["Đã xoá lúc"].Should().EndWith("+07:00");
+        gone["Số tiền"].Should().Be("25000");
+        gone["Số tiền tính vào chi tiêu"].Should().Be("0");
+        gone["Tính vào chi tiêu"].Should().Be("Không");
+    }
+
     [Fact]
     public async Task Semicolon_SplitsColumnsWithSemicolons_AndKeepsCommasInsideCells()
     {
