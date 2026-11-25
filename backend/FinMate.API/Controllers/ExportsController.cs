@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FinMate.Application.Common.Models;
 using FinMate.Application.DataExport;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,7 @@ namespace FinMate.API.Controllers;
 [ApiController]
 [Route("api/v1/exports")]
 [Authorize]
-public class ExportsController(TransactionCsvExportService csv) : ControllerBase
+public class ExportsController(TransactionCsvExportService csv, PersonalDataExportService personalData) : ControllerBase
 {
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -34,4 +35,29 @@ public class ExportsController(TransactionCsvExportService csv) : ControllerBase
         Response.Headers.CacheControl = "no-store";
         await csv.WriteAsync(CurrentUserId, plan, Response.Body, ct);
     }
+
+    /// <summary>BR-EXP-06: gửi mã xác nhận tới email. Hạn mức được kiểm trước (429 thì không gửi mail).</summary>
+    [HttpPost("personal-data/otp")]
+    public async Task<IActionResult> SendPersonalDataOtp(CancellationToken ct)
+    {
+        await personalData.SendOtpAsync(CurrentUserId, ct);
+        return Accepted();
+    }
+
+    /// <summary>BR-EXP-06: tạo yêu cầu gói đầy đủ. Thiếu hoặc sai mã → 403; đang có yêu cầu chạy hoặc đã có trong 24 giờ → 429.</summary>
+    [HttpPost("personal-data")]
+    public async Task<IActionResult> RequestPersonalData([FromBody] PersonalDataExportRequest? request, CancellationToken ct)
+        => Accepted(ApiResponse<PersonalDataExportDto>.Ok(await personalData.RequestAsync(CurrentUserId, request?.Code, RemoteIp, ct)));
+
+    /// <summary>BR-EXP-11: các yêu cầu của chính user trong cửa sổ lịch sử, mới nhất trước. Không phân trang (tối đa vài trăm dòng).</summary>
+    [HttpGet("personal-data")]
+    public async Task<IActionResult> ListPersonalData(CancellationToken ct)
+        => Ok(ApiResponse<IReadOnlyList<PersonalDataExportDto>>.Ok(await personalData.ListAsync(CurrentUserId, ct)));
+
+    /// <summary>BR-EXP-10: trạng thái một yêu cầu. Id của người khác → 404.</summary>
+    [HttpGet("personal-data/{id:guid}")]
+    public async Task<IActionResult> GetPersonalData(Guid id, CancellationToken ct)
+        => Ok(ApiResponse<PersonalDataExportDto>.Ok(await personalData.GetAsync(CurrentUserId, id, ct)));
 }
+
+public record PersonalDataExportRequest(string? Code);

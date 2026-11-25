@@ -17,6 +17,7 @@ internal sealed class LoanTestApi(AuthApiFactory factory, HttpClient client)
 
     public string Token { get; private set; } = string.Empty;
     public Guid UserId { get; private set; }
+    public string Email { get; private set; } = string.Empty;
 
     private record AuthBody(AuthData Data);
     private record AuthData(string AccessToken);
@@ -24,6 +25,7 @@ internal sealed class LoanTestApi(AuthApiFactory factory, HttpClient client)
     public async Task<LoanTestApi> SignUpAsync()
     {
         var email = $"{Guid.NewGuid():N}@finmate.local";
+        Email = email;
         await client.PostAsJsonAsync("/api/v1/auth/register", new RegisterRequest(email, "Password123!", "Loan Tester"));
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, "Password123!"));
         Token = (await login.Content.ReadFromJsonAsync<AuthBody>(JsonOptions))!.Data.AccessToken;
