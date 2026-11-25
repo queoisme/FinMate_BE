@@ -52,6 +52,7 @@ using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using FinMate.Infrastructure.Security;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -579,6 +580,12 @@ public class Program
         builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
         builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
         builder.Services.AddSingleton<IExportArchiveProtector, SecretCipherExportArchiveProtector>();
+
+        // Phase 91: xuất dữ liệu.
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<IDataExportRepository, DataExportRepository>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.CsvExportRateLimiter>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.TransactionCsvExportService>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
