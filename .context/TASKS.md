@@ -1698,3 +1698,32 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
   - **Hành vi đổi của `/loans`:** (Q3) giao dịch ví do sổ vay tạo có mô tả cố định ("Trả nợ", "Thu nợ", "Cho vay", "Đi vay") và không có nơi chi; tên người hiện qua `loanLink`. (Q4) `DELETE /loans/{id}` là xoá mềm, giao dịch đã sinh ở lại. (Q5, S2) `PUT principalCents` là tổng gốc mới; khoản có lần giải ngân đầu gắn giao dịch thì đổi gốc bị 422 `LOAN_PRINCIPAL_LINKED`. (Q10) nhắc hạn là push câu chung kind `loan_due` (data `loanId`, `phase`), công tắc `loanRemindersEnabled` trong `PATCH /users/me/notification-prefs` và `GET /users/me`. Khoản đã đóng trả `accruedInterestCents = 0`.
   - **Dự báo:** sự kiện `loan_outflow` / `loan_inflow` (`loanId`, `optimisticOnly`), nguyên nhân `source = user_entered`; `spendable.loansDueCents`, `spendable.loans[]`; `undatedLoans`, `unlinkedLoanTransactions`; cảnh báo kiểm mua `undated_loan`. Chi tiết `docs/loans-api.md`.
   - **Đổi hành vi:** báo cáo tháng của một ví không còn trả chi âm; tổng của một ngày trên `timeline` không còn cộng nháp (vẫn theo trang, nên tab Ngày/Tuần/Năm cộng các trang như cũ là đúng).
+
+## Phase 91 — Xuất dữ liệu (2026-11-25, xong trên nhánh, chưa merge; còn kiểm tay S1)
+
+Nhánh `feat/data-export` (từ `main` @ `5aeec81`, đã có Phase 90). Kế hoạch, danh mục bảng, D1–D18, S1–S5: `docs/superpowers/plans/2026-11-25-data-export.md`. API: `docs/data-export-api.md`. Mốc test và test đỏ sẵn ở mục 8 của kế hoạch.
+
+- [x] Task 0: kế hoạch duyệt kèm S1–S5; mốc test backend 3820/3822 (2 đỏ sẵn trên `main`), ai-service 2255 passed.
+- [x] Task 1: bảng `personal_data_exports` + `personal_data_export_archives` (migration `AddPersonalDataExports`, một yêu cầu đang chạy mỗi user bằng UNIQUE một phần), `features.dataExport` (bật) và nhóm cấu hình `dataExport`, `OtpPurpose.DataExport`, mã lỗi, audit, `IExportArchiveProtector`, ticket `PersonalDataRequest` + câu trả lời mẫu.
+- [x] Task 2: `CsvWriter` (BOM, không `sep=`, CRLF, RFC 4180 theo dấu phân cách, chống injection).
+- [x] Task 3: `TransactionCsvFormat` (18 cột, cột chi tiêu có dấu theo `NetFlow`/loan/`Transfer`, quan hệ theo ưu tiên, trạng thái hai giá trị S2).
+- [x] Task 4: `GET /exports/transactions.csv` (`delimiter` S1, `csvPerHour` S3), kịch bản (a), (b).
+- [x] Task 5: OTP, tạo yêu cầu, danh sách, trạng thái; hạn mức kiểm trước mã; thất bại hệ thống không tính (D14); thiếu khoá → 422 (D8).
+- [x] Task 6: `PersonalDataReader` theo danh mục + `PersonalDataArchiveBuilder` + README; test không chuỗi bí mật và không dữ liệu thành viên khác.
+- [x] Task 7: `PersonalDataExportRunner` (thuê có hạn, mã hoá, Ready trong một transaction, push + email không link), job quét 5 phút, quá cỡ → sự cố Normal.
+- [x] Task 8: link tải dùng một lần gắn với user (D7, D9), kịch bản (c), (d).
+- [x] Task 9: dọn dẹp mỗi giờ (Expired, xoá file, lịch sử), xoá cứng, `DELETE /auth/account` → 409 khi đang xuất (S5), kịch bản (e).
+- [x] Task 10: ticket `PersonalDataRequest` (P2), test kiến trúc nhân viên / gói trả phí, audit `User.ConsentChanged` (D3), `app-config.dataExportPackageAvailable` (D8).
+- [x] Sửa thêm (D15): sự cố `data_export:overdue` khi còn yêu cầu chưa xong sau 5 ngày.
+- [x] Task 11: tài liệu (`docs/data-export-api.md`, REQUIREMENTS 6.12 FR-EXP-01…13, NFR-SEC-33, 13.1, 13.4, 13.6; ERD 3.1.9; ops-api, ops-runbook; ARCHITECTURE §2.17; CLAUDE.md).
+- [x] Task 12: toàn bộ test — backend **3946/3948** (mốc 3820/3822; +126 test mới, chỉ còn 2 đỏ có sẵn trên `main`), không cảnh báo CS; ai-service 2255 passed, 483 skipped (không đổi). Kiểm tay S1 chưa làm (mục dưới).
+- [ ] **Kiểm tay S1:** mở CSV bằng Excel trên Windows đặt vùng Vietnamese và bằng Google Sheets, với cả `comma` và `semicolon`. Chưa làm được trên máy phát triển (Linux, không có Excel); cần người có máy Windows.
+- [ ] **Người viết Điều khoản / Chính sách quyền riêng tư:** bổ sung quyền tải dữ liệu cá nhân (CSV, gói đầy đủ, file giữ 72 giờ, những gì không có trong gói và vì sao, nhân viên không tải thay) ở bản tiếp theo (REQUIREMENTS 13.4).
+- [ ] **Báo nhóm Flutter:**
+  - **Màn "Dữ liệu của tôi"** (Cài đặt): hai mục "Xuất giao dịch (CSV)" và "Tải toàn bộ dữ liệu", cộng danh sách các lần tải (`GET /exports/personal-data`). Ẩn mục thứ hai khi `app-config.dataExportPackageAvailable = false`; ẩn cả màn khi `config.features.dataExport = false`.
+  - **Xuất CSV:** chọn khoảng ngày (≤ `config.dataExport.maxRangeDays`, mặc định tháng này), ví, danh mục, trạng thái (`Confirmed` mặc định / `Draft` / `All`), dấu phân cách: gợi ý `semicolon` khi máy đặt vùng Việt Nam (Excel vùng VN tách cột bằng `;`), công tắc tuỳ chọn "Gồm giao dịch đã xoá" (`includeDeleted=true`, mặc định tắt). Gọi `GET /exports/transactions.csv` có bearer, lưu file theo `Content-Disposition`, mở sheet chia sẻ. 422 / 429 chỉ hiện `message`.
+  - **Luồng gói đầy đủ:** màn giải thích (gồm gì, không gồm gì, file giữ 72 giờ, một lần mỗi 24 giờ) → `POST /exports/personal-data/otp` → nhập mã 6 số → `POST /exports/personal-data { code }` → trạng thái `Pending` / `Running` / `Ready` / `Failed` / `Expired` (đọc lại khi nhận push `data_export_ready` hoặc `data_export_failed`, có `exportId`; hiện `failureReason` khi `Failed`).
+  - **Tải về:** `POST .../{id}/download-link` rồi tải **ngay** `url` bằng HTTP client **có bearer** (link sống 10 phút, dùng một lần, không mở bằng trình duyệt hay DownloadManager). Tải đứt thì xin link mới. Lưu ZIP vào Files, nhắc người dùng cất nơi an toàn.
+  - **Câu chữ gợi ý:** "Gói chứa toàn bộ dữ liệu tài chính của bạn. FinMate giữ gói 72 giờ rồi tự xoá." / "Không có: mật khẩu, nội dung thông báo ngân hàng gốc, ảnh, dữ liệu của thành viên khác trong nhóm."
+  - **Xoá tài khoản:** trước khi xác nhận, nhắc tải dữ liệu (sau khi xin xoá không đăng nhập được nữa, chỉ lấy được qua hỗ trợ). `DELETE /auth/account` có thể trả 409 `DATA_EXPORT_IN_PROGRESS` khi gói đang dựng: hiện `message`, mời chờ xong rồi xoá.
+  - **Hỗ trợ:** loại ticket mới `PersonalDataRequest` (nhãn gợi ý "Yêu cầu dữ liệu cá nhân").

@@ -20,6 +20,9 @@ public static class AuditEvents
     public const string EmailVerified = "Auth.EmailVerified";
     public const string LogoutAllDevices = "Auth.LogoutAllDevices";
     public const string AccountDeletionRequested = "Auth.AccountDeletionRequested";
+
+    /// <summary>Phase 91 (D3): đồng ý / rút đồng ý. Metadata: loại, phiên bản, đồng ý hay rút. Có từ 2026-11-25, là lịch sử đồng ý trong gói dữ liệu.</summary>
+    public const string ConsentChanged = "User.ConsentChanged";
     public const string TokenReuseDetected = "Auth.TokenReuse.Detected";
     public const string GoogleLoginSuccess = "Auth.Google.Login.Success";
     public const string GoogleLinked = "Auth.Google.Linked";
@@ -154,4 +157,15 @@ public static class AuditEvents
     public const string SubscriptionOrderPaid = "Subscription.Order.Paid";
     public const string SubscriptionOrderVoided = "Subscription.Order.Voided";
     public const string SubscriptionOrderNeedsReview = "Subscription.Order.NeedsReview";
+
+    // Xuất dữ liệu (Phase 91, BR-EXP-11). Metadata chỉ có id yêu cầu (và mã lỗi): không số tiền, không nội dung, không token, không bộ lọc.
+    public const string DataExportRequested = "DataExport.Requested";
+    public const string DataExportReady = "DataExport.Ready";
+    public const string DataExportFailed = "DataExport.Failed";
+    public const string DataExportLinkIssued = "DataExport.LinkIssued";
+    public const string DataExportDownloaded = "DataExport.Downloaded";
+    public const string DataExportExpired = "DataExport.Expired";
+
+    /// <summary>D16: tải file CSV giao dịch. Không ghi bộ lọc hay số dòng.</summary>
+    public const string DataExportTransactionsCsv = "DataExport.TransactionsCsv";
 }

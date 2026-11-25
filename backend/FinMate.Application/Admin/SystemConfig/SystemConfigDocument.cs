@@ -50,6 +50,10 @@ public sealed record FeatureSettings
     /// <summary>Quỹ chung của nhóm (Phase 85). Mặc định tắt; chỉ có tác dụng khi <see cref="Groups"/> cũng bật. Tắt thì API quỹ trả 422, nhưng
     /// xoá giao dịch cá nhân gắn quỹ vẫn đồng bộ dòng quỹ và chi từ quỹ vẫn tính vào ngân sách nhóm, để số của nhóm không lệch.</summary>
     public bool GroupFunds { get; init; }
+
+    /// <summary>Xuất dữ liệu (Phase 91). Mặc định BẬT vì phục vụ quyền theo luật; chỉ tắt khi sự cố. Tắt thì không nhận CSV, yêu cầu gói hay link mới,
+    /// job dựng gói tạm dừng (yêu cầu nằm chờ), dọn dẹp vẫn chạy.</summary>
+    public bool DataExport { get; init; } = true;
 }
 
 public sealed record GroupSettings
@@ -730,6 +734,34 @@ public sealed record LoanSettings
     public string[] Honorifics { get; init; } = ["bạn", "anh", "chị", "em", "cô", "chú", "bác", "ông", "bà", "dì", "cậu"];
 }
 
+/// <summary>Xuất dữ liệu (Phase 91, BR-EXP-01…10, S3, S4). Mặc định do chủ sản phẩm duyệt ngày 2026-11-25.</summary>
+public sealed record DataExportSettings
+{
+    /// <summary>BR-EXP-01: khoảng ngày tối đa của một file CSV giao dịch.</summary>
+    public int MaxRangeDays { get; init; } = 366;
+
+    /// <summary>BR-EXP-01: số dòng tối đa của một file CSV giao dịch.</summary>
+    public int MaxRows { get; init; } = 50_000;
+
+    /// <summary>S3: số file CSV mỗi user trong 60 phút.</summary>
+    public int CsvPerHour { get; init; } = 20;
+
+    /// <summary>BR-EXP-06: số yêu cầu gói đầy đủ trong 24 giờ.</summary>
+    public int MaxRequestsPerDay { get; init; } = 1;
+
+    /// <summary>BR-EXP-09: giữ file chừng này giờ sau khi xong rồi xoá.</summary>
+    public int FileRetentionHours { get; init; } = 72;
+
+    /// <summary>BR-EXP-09, S4: gói lớn hơn thì job thất bại và mở sự cố Normal.</summary>
+    public int MaxArchiveMb { get; init; } = 25;
+
+    /// <summary>BR-EXP-10: link tải dùng một lần sống chừng này phút.</summary>
+    public int DownloadLinkMinutes { get; init; } = 10;
+
+    /// <summary>Giữ dòng lịch sử yêu cầu (không có file) chừng này ngày.</summary>
+    public int RequestHistoryDays { get; init; } = 365;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -758,6 +790,7 @@ public sealed record SystemConfigDocument
     public SnapshotSettings Snapshots { get; init; } = new();
     public ListenerHealthSettings ListenerHealth { get; init; } = new();
     public LoanSettings Loans { get; init; } = new();
+    public DataExportSettings DataExport { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>

@@ -2262,6 +2262,49 @@ Chỉ mục: `(user_id)`, `(user_id, status, due_date) WHERE deleted_at IS NULL`
 | `deleted_at` | timestamptz null | |
 | `client_request_id` | uuid null | UNIQUE (loan_id, client_request_id) |
 
+#### 3.1.9 Xuất dữ liệu (Phase 91, 2026-11-25)
+
+Migration `AddPersonalDataExports`. API: `docs/data-export-api.md`. Cùng migration: `support_tickets.category` rộng lên `varchar(30)` và thêm giá trị `personal_data_request` vào CHECK; gieo một dòng `canned_replies` (id cố định `9a1f0e6c-5d2b-4c8e-a7f3-91b0d4e2c591`). Down đưa ticket loại mới về `question` trước khi siết lại CHECK.
+
+```mermaid
+erDiagram
+    users ||--o{ personal_data_exports : "user_id CASCADE"
+    personal_data_exports ||--o| personal_data_export_archives : "export_id CASCADE"
+```
+
+##### `personal_data_exports` — PersonalDataExport (yêu cầu tải dữ liệu cá nhân)
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | uuid PK | |
+| `user_id` | uuid FK → users CASCADE | Xoá cứng user xoá yêu cầu (và file theo bảng dưới) |
+| `status` | varchar(10) | `pending` \| `running` \| `ready` \| `failed` \| `expired` |
+| `format_version` | int | Phiên bản định dạng gói (README ghi lại) |
+| `requested_at`, `started_at`, `ready_at`, `failed_at`, `expires_at`, `expired_at` | timestamptz | CHECK: `ready` thì có `ready_at` và `expires_at` |
+| `failure_code` | varchar(40) null | `archive_too_large` \| `account_deleted` \| `internal_error`; CHECK: có khi và chỉ khi `failed` |
+| `size_bytes` | bigint null ≥ 0 | |
+| `attempts` | int ≥ 0 | Số lần job nhận việc (tối đa 3) |
+| `lease_until` | timestamptz null | Hạn thuê của job đang chạy; quá hạn thì job quét chạy lại |
+| `download_token_hash` | char(64) null | SHA-256 hex của token link tải đang sống; null = không có link dùng được |
+| `download_token_expires_at` | timestamptz null | |
+| `download_count` | int ≥ 0 | Số lần bắt đầu tải |
+| `last_downloaded_at` | timestamptz null | |
+| `counts_toward_limit` | boolean | false khi thất bại do hệ thống (không chiếm hạn mức 24 giờ, D14) |
+| `xmin` | | Khoá lạc quan |
+
+Chỉ mục: UNIQUE `(user_id) WHERE status IN ('pending','running')` (một yêu cầu đang chạy mỗi user, kể cả khi gửi song song), `(user_id, requested_at DESC)`, `(status, expires_at)`.
+
+##### `personal_data_export_archives` — PersonalDataExportArchive (file ZIP đã mã hoá)
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `export_id` | uuid PK, FK → personal_data_exports CASCADE | Bảng riêng để đọc trạng thái không kéo theo file |
+| `data` | bytea | Bản mã AES-256-GCM (kèm thẻ xác thực), khoá chủ `SECRETS_MASTER_KEY`, dữ liệu kèm `data-export:{id}` |
+| `nonce` | bytea | 12 byte |
+| `created_at` | timestamptz | |
+
+Bị xoá khi yêu cầu hết hạn (`data-export-cleanup`) hoặc khi xoá cứng user. Có thể còn trong bản sao lưu DB (đã mã hoá), xem REQUIREMENTS 13.4.
+
 ### 3.2 AI Service — `finmate_ai`
 
 #### 3.2.1 Danh mục và tri thức phân loại

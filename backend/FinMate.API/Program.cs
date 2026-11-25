@@ -52,6 +52,7 @@ using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using FinMate.Infrastructure.Security;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -578,6 +579,22 @@ public class Program
         builder.Services.AddScoped<IOpsCustomerDataService, OpsCustomerDataService>();
         builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
         builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
+        builder.Services.AddSingleton<IExportArchiveProtector, SecretCipherExportArchiveProtector>();
+
+        // Phase 91: xuất dữ liệu.
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<IDataExportRepository, DataExportRepository>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.CsvExportRateLimiter>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.TransactionCsvExportService>();
+        builder.Services.AddScoped<IPersonalDataExportRepository, PersonalDataExportRepository>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.IPersonalDataReader, FinMate.Infrastructure.DataExport.PersonalDataReader>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.PersonalDataArchiveBuilder>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportNotifier>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.IPersonalDataExportQueue, HangfirePersonalDataExportQueue>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportRunner>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataDownloadService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportCleanup>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -945,6 +962,18 @@ public class Program
             "notification-body-purge",
             job => job.RunAsync(CancellationToken.None),
             "15 20 * * *");
+
+        // Phase 91: chạy lại yêu cầu tải dữ liệu bị mất hoặc bỏ dở.
+        RecurringJob.AddOrUpdate<PersonalDataExportSweepJob>(
+            "data-export-sweep",
+            job => job.RunAsync(CancellationToken.None),
+            "*/5 * * * *");
+
+        // Phase 91: gói quá fileRetentionHours → Expired, file bị xoá.
+        RecurringJob.AddOrUpdate<PersonalDataExportCleanupJob>(
+            "data-export-cleanup",
+            job => job.RunAsync(CancellationToken.None),
+            "7 * * * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(

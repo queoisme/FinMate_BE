@@ -90,10 +90,12 @@ Khách không tự chọn mức ưu tiên; hệ thống gán theo loại, Manage
 | Mức | Loại ticket | Phản hồi đầu | Giải quyết |
 |---|---|---|---|
 | `P1` | `Security` | 15 phút | 4 giờ |
-| `P2` | `Account`, `Transaction`, `Receipt`, `Notification`, `Group` | 1 giờ | 1 ngày |
+| `P2` | `Account`, `Transaction`, `Receipt`, `Notification`, `Group`, `PersonalDataRequest` | 1 giờ | 1 ngày |
 | `P3` | `Question` | 4 giờ | 3 ngày |
 
 Sửa được trong nhóm cấu hình `support` ở `/admin/system-config`.
+
+**Yêu cầu dữ liệu cá nhân (`PersonalDataRequest`, Phase 91).** Khách tự tải được toàn bộ dữ liệu trong app (Cài đặt → Dữ liệu của tôi; `docs/data-export-api.md`). Nhân viên trả lời bằng câu trả lời mẫu "Hướng dẫn tự tải dữ liệu cá nhân" (gieo sẵn, sửa ở `/ops/canned-replies`). Nhân viên **không** tạo hay tải gói thay khách và không có API nào cho việc đó. Khách đã xin xoá tài khoản không đăng nhập được nên không tự tải được: chuyển Manager, xem `docs/ops-runbook.md` mục "Yêu cầu dữ liệu cá nhân".
 
 ### API cho khách: `/api/v1/support/tickets`
 
@@ -282,6 +284,8 @@ Nhà cung cấp chỉ được đếm khi có lần gọi thật. Không có kh�
 Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Nhà cung cấp có trạng thái `Unknown` khi chưa đủ căn cứ: dịch vụ Python bản cũ chưa có API trạng thái, dịch vụ vừa khởi động lại chưa có lần gọi nào, hoặc không đọc được key. `Unknown` không mở sự cố và không đóng sự cố đang mở, nên khởi động lại dịch vụ không làm một sự cố thật tự đóng.
 
 **Mẫu thông báo.** Mỗi provider đúng một sự cố đang mở (fingerprint `notification_format:{provider_key}`), tiêu đề "Có thể {tên provider} đã đổi mẫu thông báo", mức `Normal`. `technicalDetail` (chỉ Admin) nêu tín hiệu nào đang vượt (`error_rate`, `financial_share`) và số đếm hai cửa sổ, không có nội dung thông báo hay người dùng. Kết quả `error` (AI service hỏng) không tính, vì đó là việc của nguồn Dịch vụ. 24 giờ qua chưa đủ mẫu thì trạng thái `Unknown`: không mở, không đóng. Trạng thái nằm trong `GET /status` với tên `format:{provider_key}`. Việc cần làm khi có sự cố: so mẫu tin thật với `provider_patterns` của ai-service rồi sửa regex qua `/admin/ai-rules`.
+
+**Xuất dữ liệu (Phase 91).** Hai sự cố mức `Normal`, nguồn `job`, dịch vụ `data-export`, không có người dùng trong tiêu đề hay `technicalDetail`: `data_export:archive_too_large` (một gói vượt `dataExport.maxArchiveMb`; yêu cầu đó thất bại, khách được báo; nâng giới hạn rồi bảo khách gửi lại) và `data_export:overdue` (còn yêu cầu chưa xong sau 5 ngày, hạn luật 10 ngày; mở bởi `data-export-cleanup` mỗi giờ, chạy cả khi `features.dataExport` tắt; tự đóng khi hết).
 
 Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ được ghi vào log, nên hệ thống không báo được cho ai. Hãy kiểm tra trạng thái này sau khi deploy.
 

@@ -4142,6 +4142,148 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<bool>("CountsTowardLimit")
+                        .HasColumnType("boolean")
+                        .HasColumnName("counts_toward_limit");
+
+                    b.Property<int>("DownloadCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("download_count");
+
+                    b.Property<DateTimeOffset?>("DownloadTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("download_token_expires_at");
+
+                    b.Property<string>("DownloadTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("download_token_hash")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("ExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expired_at");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<int>("FormatVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("format_version");
+
+                    b.Property<DateTimeOffset?>("LastDownloadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_downloaded_at");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_personal_data_exports_user_active")
+                        .HasFilter("status IN ('pending','running')");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasDatabaseName("ix_personal_data_exports_status_expires");
+
+                    b.HasIndex("UserId", "RequestedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_personal_data_exports_user_requested");
+
+                    b.ToTable("personal_data_exports", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_personal_data_exports_counters", "attempts >= 0 AND download_count >= 0 AND (size_bytes IS NULL OR size_bytes >= 0)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_failed", "(status = 'failed') = (failure_code IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_ready", "status <> 'ready' OR (ready_at IS NOT NULL AND expires_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_status", "status IN ('pending','running','ready','failed','expired')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExportArchive", b =>
+                {
+                    b.Property<Guid>("ExportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("export_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<byte[]>("Nonce")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("nonce");
+
+                    b.HasKey("ExportId");
+
+                    b.ToTable("personal_data_export_archives", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.ProviderConfig", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5336,8 +5478,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
                         .HasColumnName("category");
 
                     b.Property<DateTimeOffset?>("ClosedAt")
@@ -5421,7 +5563,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("support_tickets", null, t =>
                         {
-                            t.HasCheckConstraint("chk_support_tickets_category", "category IN ('security','account','transaction','receipt','notification','group','question')");
+                            t.HasCheckConstraint("chk_support_tickets_category", "category IN ('security','account','transaction','receipt','notification','group','question','personal_data_request')");
 
                             t.HasCheckConstraint("chk_support_tickets_priority", "priority IN ('p1','p2','p3')");
 
@@ -7437,6 +7579,24 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ResolvedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExport", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExportArchive", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.PersonalDataExport", null)
+                        .WithOne()
+                        .HasForeignKey("FinMate.Domain.Entities.PersonalDataExportArchive", "ExportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>

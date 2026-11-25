@@ -9,6 +9,9 @@ public enum SupportTicketCategory
     Notification,
     Group,
     Question,
+
+    /// <summary>Phase 91 (BR-EXP-14): khách xin dữ liệu cá nhân. Nhân viên chỉ hướng dẫn tự tải trong app, không tạo hay tải gói thay khách.</summary>
+    PersonalDataRequest,
 }
 
 public enum SupportTicketPriority
