@@ -578,6 +578,7 @@ public class Program
         builder.Services.AddScoped<IOpsCustomerDataService, OpsCustomerDataService>();
         builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
         builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
+        builder.Services.AddSingleton<IExportArchiveProtector, SecretCipherExportArchiveProtector>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();

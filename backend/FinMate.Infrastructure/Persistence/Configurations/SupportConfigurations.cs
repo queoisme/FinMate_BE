@@ -22,7 +22,7 @@ public class SupportTicketConfiguration : IEntityTypeConfiguration<SupportTicket
         builder.Property(t => t.RequesterUserId).HasColumnName("requester_user_id").IsRequired();
         builder.Property(t => t.AssigneeUserId).HasColumnName("assignee_user_id");
         builder.Property(t => t.ParentTicketId).HasColumnName("parent_ticket_id");
-        builder.Property(t => t.Category).HasColumnName("category").HasConversion(GroupColumns.Converter<SupportTicketCategory>()).HasMaxLength(20).IsRequired();
+        builder.Property(t => t.Category).HasColumnName("category").HasConversion(GroupColumns.Converter<SupportTicketCategory>()).HasMaxLength(30).IsRequired();
         builder.Property(t => t.Priority).HasColumnName("priority").HasConversion(GroupColumns.Converter<SupportTicketPriority>()).HasMaxLength(5).IsRequired();
         builder.Property(t => t.Status).HasColumnName("status").HasConversion(GroupColumns.Converter<SupportTicketStatus>()).HasMaxLength(20).IsRequired();
         builder.Property(t => t.Subject).HasColumnName("subject").HasMaxLength(200).IsRequired();

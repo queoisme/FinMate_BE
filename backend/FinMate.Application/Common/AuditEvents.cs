@@ -154,4 +154,15 @@ public static class AuditEvents
     public const string SubscriptionOrderPaid = "Subscription.Order.Paid";
     public const string SubscriptionOrderVoided = "Subscription.Order.Voided";
     public const string SubscriptionOrderNeedsReview = "Subscription.Order.NeedsReview";
+
+    // Xuất dữ liệu (Phase 91, BR-EXP-11). Metadata chỉ có id yêu cầu (và mã lỗi): không số tiền, không nội dung, không token, không bộ lọc.
+    public const string DataExportRequested = "DataExport.Requested";
+    public const string DataExportReady = "DataExport.Ready";
+    public const string DataExportFailed = "DataExport.Failed";
+    public const string DataExportLinkIssued = "DataExport.LinkIssued";
+    public const string DataExportDownloaded = "DataExport.Downloaded";
+    public const string DataExportExpired = "DataExport.Expired";
+
+    /// <summary>D16: tải file CSV giao dịch. Không ghi bộ lọc hay số dòng.</summary>
+    public const string DataExportTransactionsCsv = "DataExport.TransactionsCsv";
 }
