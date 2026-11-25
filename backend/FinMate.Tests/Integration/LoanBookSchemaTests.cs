@@ -163,6 +163,29 @@ public class LoanBookSchemaTests : IClassFixture<ReceiptScanDbFixture>
         (await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM loans WHERE id = {loan}").SingleAsync()).Should().Be(0);
     }
 
+    private sealed record ConstraintRow(string Name, bool Deferrable, bool InitiallyDeferred);
+
+    /// <summary>
+    /// Hai FK tới <c>transactions</c> là DEFERRABLE INITIALLY DEFERRED, viết bằng SQL tay trong migration <c>MergeDebtBookIntoLoans</c> (EF không biểu diễn được).
+    /// Migration sau mà tạo lại FK bằng EF sẽ âm thầm bỏ tính chất này; test này đỏ ngay thay vì chờ một lần xoá cứng người dùng thất bại.
+    /// </summary>
+    [Fact]
+    public async Task TheTwoTransactionForeignKeys_AreDeferrableInitiallyDeferred()
+    {
+        await using var db = _fixture.NewContext();
+
+        var rows = await db.Database.SqlQuery<ConstraintRow>($"""
+            SELECT conname AS "Name", condeferrable AS "Deferrable", condeferred AS "InitiallyDeferred"
+            FROM pg_constraint
+            WHERE conrelid = 'loan_repayments'::regclass AND contype = 'f' AND confrelid = 'transactions'::regclass
+            ORDER BY conname
+            """).ToListAsync();
+
+        rows.Should().Equal(
+            new ConstraintRow("fk_loan_repayments_interest_transaction", true, true),
+            new ConstraintRow("fk_loan_repayments_transaction", true, true));
+    }
+
     [Fact]
     public async Task HardDeletingALinkedTransactionAlone_IsStillRefused()
     {

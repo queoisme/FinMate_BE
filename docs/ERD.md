@@ -2257,7 +2257,7 @@ Chỉ mục: `(user_id)`, `(user_id, status, due_date) WHERE deleted_at IS NULL`
 | `kind` | varchar(10) | `principal` (giải ngân) \| `repayment` (trả); dòng có trước Phase 90 là `repayment` |
 | `amount_cents` | bigint > 0 | |
 | `paid_at` | timestamptz | |
-| `transaction_id` | uuid null FK → transactions NO ACTION **DEFERRABLE INITIALLY DEFERRED** | UNIQUE khi khác null và dòng còn sống. Hoãn kiểm vì xoá cứng user cascade `transactions` trước `loans → loan_repayments` |
+| `transaction_id` | uuid null FK → transactions NO ACTION **DEFERRABLE INITIALLY DEFERRED** | UNIQUE khi khác null và dòng còn sống. Hoãn kiểm vì xoá cứng user cascade `transactions` trước `loans → loan_repayments`. **Viết bằng SQL tay** trong migration `MergeDebtBookIntoLoans` (`ALTER TABLE … ALTER CONSTRAINT … DEFERRABLE INITIALLY DEFERRED`): EF không biểu diễn được, snapshot của EF không biết; migration sau tạo lại FK này phải giữ dòng đó. Test `LoanBookSchemaTests.TheTwoTransactionForeignKeys_AreDeferrableInitiallyDeferred` canh |
 | `interest_transaction_id` | uuid null FK → transactions (như trên) | Giao dịch lãi tách ra (S1); chỉ trên dòng `repayment`; UNIQUE khi khác null |
 | `deleted_at` | timestamptz null | |
 | `client_request_id` | uuid null | UNIQUE (loan_id, client_request_id) |
