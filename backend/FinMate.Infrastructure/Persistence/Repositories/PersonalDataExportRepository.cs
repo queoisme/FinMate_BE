@@ -140,4 +140,8 @@ public sealed class PersonalDataExportRepository(FinMateDbContext db) : IPersona
             .Where(e => e.RequestedAt < before && e.Status != PersonalDataExportStatus.Pending && e.Status != PersonalDataExportStatus.Running
                 && e.Status != PersonalDataExportStatus.Ready)
             .ExecuteDeleteAsync(ct);
+
+    public Task<int> CountUnfinishedSinceBeforeAsync(DateTimeOffset before, CancellationToken ct = default)
+        => db.PersonalDataExports.CountAsync(e => e.RequestedAt < before
+            && (e.Status == PersonalDataExportStatus.Pending || e.Status == PersonalDataExportStatus.Running), ct);
 }

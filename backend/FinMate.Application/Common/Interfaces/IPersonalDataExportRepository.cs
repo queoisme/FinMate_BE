@@ -55,4 +55,7 @@ public interface IPersonalDataExportRepository
 
     /// <summary>Xoá dòng lịch sử (đã xong) cũ hơn <paramref name="before"/>; file đi theo khoá ngoại. Trả số dòng đã xoá.</summary>
     Task<int> PurgeHistoryAsync(DateTimeOffset before, CancellationToken ct = default);
+
+    /// <summary>D15: số yêu cầu còn <c>Pending</c>/<c>Running</c> từ trước <paramref name="before"/> (có nguy cơ trễ hạn luật 10 ngày).</summary>
+    Task<int> CountUnfinishedSinceBeforeAsync(DateTimeOffset before, CancellationToken ct = default);
 }
