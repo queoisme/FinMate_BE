@@ -94,4 +94,21 @@ public sealed class PersonalDataExportRepository(FinMateDbContext db) : IPersona
             .Where(e => (e.Status == PersonalDataExportStatus.Pending && e.RequestedAt < pendingBefore)
                 || (e.Status == PersonalDataExportStatus.Running && e.LeaseUntil < now))
             .OrderBy(e => e.RequestedAt).Take(100).ToListAsync(ct);
+
+    public async Task<bool> SetDownloadTokenAsync(Guid userId, Guid id, string tokenHash, DateTimeOffset expiresAt, CancellationToken ct = default)
+        => await db.PersonalDataExports.Where(e => e.Id == id && e.UserId == userId && e.Status == PersonalDataExportStatus.Ready)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.DownloadTokenHash, tokenHash).SetProperty(e => e.DownloadTokenExpiresAt, expiresAt), ct) > 0;
+
+    public async Task<bool> TryConsumeDownloadTokenAsync(Guid userId, Guid id, string tokenHash, DateTimeOffset now, CancellationToken ct = default)
+        => await db.PersonalDataExports
+            .Where(e => e.Id == id && e.UserId == userId && e.Status == PersonalDataExportStatus.Ready
+                && e.DownloadTokenHash == tokenHash && e.DownloadTokenExpiresAt > now)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.DownloadTokenHash, (string?)null)
+                .SetProperty(e => e.DownloadTokenExpiresAt, (DateTimeOffset?)null)
+                .SetProperty(e => e.DownloadCount, e => e.DownloadCount + 1)
+                .SetProperty(e => e.LastDownloadedAt, now), ct) > 0;
+
+    public Task<PersonalDataExportArchive?> GetArchiveAsync(Guid id, CancellationToken ct = default)
+        => db.PersonalDataExportArchives.AsNoTracking().FirstOrDefaultAsync(a => a.ExportId == id, ct);
 }

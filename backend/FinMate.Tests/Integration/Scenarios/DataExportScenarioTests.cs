@@ -2,23 +2,30 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FinMate.Tests.Integration.Controllers;
+using System.IO.Compression;
+using FinMate.Application.Common.Exceptions;
+using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace FinMate.Tests.Integration.Scenarios;
 
 /// <summary>Kịch bản đầu-cuối bắt buộc của Phase 91 (xuất dữ liệu), qua đúng các endpoint app gọi. (a), (b): CSV giao dịch; (c)–(e): gói dữ liệu đầy đủ.</summary>
 [Collection("Integration")]
-public class DataExportScenarioTests : IClassFixture<AuthApiFactory>
+public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
 {
     private const string CsvUrl = "/api/v1/exports/transactions.csv";
-    private readonly AuthApiFactory _factory;
+    private readonly DataExportApiFactory _factory;
     private readonly HttpClient _client;
 
-    public DataExportScenarioTests(AuthApiFactory factory)
+    public DataExportScenarioTests(DataExportApiFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient();
+        factory.Agent.Setup(a => a.GetMemoryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
     }
 
     private static async Task<byte[]> CsvAsync(LoanTestApi api)
@@ -105,5 +112,73 @@ public class DataExportScenarioTests : IClassFixture<AuthApiFactory>
 
         Encoding.UTF8.GetString(bytes).Should().Contain("\"'=HYPERLINK(\"\"x\"\")\"");
         CsvTestReader.Read(bytes).Single()["Ghi chú"].Should().Be("'=HYPERLINK(\"x\")");
+    }
+
+    private static async Task<Dictionary<string, string>> DownloadAsync(LoanTestApi api, Guid id)
+    {
+        var url = (await api.ExpectAsync(HttpMethod.Post, $"{DataExportTestApi.Base}/{id}/download-link", null, HttpStatusCode.OK)).GetProperty("url").GetString()!;
+        var response = await api.SendAsync(HttpMethod.Get, url);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var zip = new ZipArchive(new MemoryStream(await response.Content.ReadAsByteArrayAsync()));
+        return zip.Entries.ToDictionary(e => e.FullName, e => new StreamReader(e.Open(), Encoding.UTF8).ReadToEnd());
+    }
+
+    /// <summary>(c) Không mã → 403; có mã → Pending → chạy job → Ready → lấy link → tải được ZIP → gọi lại link → 410.</summary>
+    [Fact]
+    public async Task C_WithoutAnOtp403_WithOne_PendingReadyDownloadOnce()
+    {
+        var api = await new LoanTestApi(_factory, _client).SignUpAsync();
+        var wallet = await api.WalletAsync();
+        await api.TransactionAsync(wallet, null, 50_000, merchant: "Cơm tấm");
+
+        (await api.ErrorCodeAsync(HttpMethod.Post, DataExportTestApi.Base, new { }, HttpStatusCode.Forbidden)).Should().Be(DataExportErrorCodes.OtpInvalid);
+        var id = await api.RequestExportAsync(_factory);
+        (await api.ExportAsync(id)).GetProperty("status").GetString().Should().Be("Pending");
+
+        await _factory.RunJobAsync(id);
+        (await api.ExportAsync(id)).GetProperty("status").GetString().Should().Be("Ready");
+
+        var url = (await api.ExpectAsync(HttpMethod.Post, $"{DataExportTestApi.Base}/{id}/download-link", null, HttpStatusCode.OK)).GetProperty("url").GetString()!;
+        var download = await api.SendAsync(HttpMethod.Get, url);
+        download.StatusCode.Should().Be(HttpStatusCode.OK);
+        using (var zip = new ZipArchive(new MemoryStream(await download.Content.ReadAsByteArrayAsync())))
+        {
+            zip.GetEntry("README.txt").Should().NotBeNull();
+            new StreamReader(zip.GetEntry("transactions.csv")!.Open()).ReadToEnd().Should().Contain("Cơm tấm");
+        }
+
+        (await api.SendAsync(HttpMethod.Get, url)).StatusCode.Should().Be(HttpStatusCode.Gone);
+    }
+
+    /// <summary>(d) A và B cùng nhóm; B chia sẻ giao dịch vào nhóm → gói của A không có giao dịch, tên hay email của B.</summary>
+    [Fact]
+    public async Task D_AnotherMembersSharedTransaction_NameAndEmail_AreNotInMyPackage()
+    {
+        var a = await new LoanTestApi(_factory, _client).SignUpAsync();
+        var b = await new LoanTestApi(_factory, _client).SignUpAsync();
+        var bTx = await b.TransactionAsync(await b.WalletAsync("Ví của B"), null, 654_321, merchant: "Quán nhậu của B");
+        var bInfo = await b.InDbAsync(async db =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var user = await db.Users.SingleAsync(u => u.Id == b.UserId);
+            user.DisplayName = "Nguyễn Văn Bê";
+            var group = new Group { Id = Guid.NewGuid(), Name = "Nhà chung", CreatedByUserId = b.UserId, CreatedAt = now, UpdatedAt = now };
+            db.Add(group);
+            db.Add(new GroupMember { Id = Guid.NewGuid(), GroupId = group.Id, UserId = b.UserId, Role = GroupRole.Owner, JoinedAt = now, UpdatedAt = now });
+            db.Add(new GroupMember { Id = Guid.NewGuid(), GroupId = group.Id, UserId = a.UserId, Role = GroupRole.Member, JoinedAt = now, UpdatedAt = now });
+            var shared = await db.Transactions.SingleAsync(t => t.Id == bTx);
+            (shared.GroupId, shared.SharedAt, shared.Description) = (group.Id, now, "Ghi chú của B");
+            await db.SaveChangesAsync();
+            return (user.Email, user.DisplayName);
+        });
+
+        var id = await a.RequestExportAsync(_factory);
+        await _factory.RunJobAsync(id);
+        var files = await DownloadAsync(a, id);
+        var everything = string.Join("\n", files.Values);
+
+        new[] { bTx.ToString(), "Quán nhậu của B", "Ghi chú của B", "654321", "Ví của B", bInfo.Email, bInfo.DisplayName, b.UserId.ToString() }
+            .Where(s => everything.Contains(s, StringComparison.Ordinal)).Should().BeEmpty();
+        files["groups.json"].Should().Contain("Nhà chung").And.Contain("\"isYou\": true");
     }
 }

@@ -593,6 +593,7 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportNotifier>();
         builder.Services.AddScoped<FinMate.Application.DataExport.IPersonalDataExportQueue, HangfirePersonalDataExportQueue>();
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportRunner>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataDownloadService>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();

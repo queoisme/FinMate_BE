@@ -13,7 +13,7 @@ namespace FinMate.API.Controllers;
 [ApiController]
 [Route("api/v1/exports")]
 [Authorize]
-public class ExportsController(TransactionCsvExportService csv, PersonalDataExportService personalData) : ControllerBase
+public class ExportsController(TransactionCsvExportService csv, PersonalDataExportService personalData, PersonalDataDownloadService downloads) : ControllerBase
 {
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -58,6 +58,23 @@ public class ExportsController(TransactionCsvExportService csv, PersonalDataExpo
     [HttpGet("personal-data/{id:guid}")]
     public async Task<IActionResult> GetPersonalData(Guid id, CancellationToken ct)
         => Ok(ApiResponse<PersonalDataExportDto>.Ok(await personalData.GetAsync(CurrentUserId, id, ct)));
+
+    /// <summary>BR-EXP-10: link tải dùng một lần, sống <c>downloadLinkMinutes</c>. Chưa xong → 409; file đã hết hạn → 410. Link mới thay link cũ.</summary>
+    [HttpPost("personal-data/{id:guid}/download-link")]
+    public async Task<IActionResult> IssueDownloadLink(Guid id, CancellationToken ct)
+        => Ok(ApiResponse<PersonalDataDownloadLinkDto>.Ok(await downloads.IssueLinkAsync(CurrentUserId, id, RemoteIp, ct)));
+
+    /// <summary>
+    /// BR-EXP-10, D7, D9: tải ZIP. Vẫn đòi đăng nhập đúng user; token ở query (log request chỉ ghi đường dẫn). Link chết ngay khi bắt đầu tải; dùng lại,
+    /// quá hạn hay bị link mới thay → 410. Id của người khác → 404.
+    /// </summary>
+    [HttpGet("personal-data/{id:guid}/download")]
+    public async Task<IActionResult> Download(Guid id, [FromQuery] string? token, CancellationToken ct)
+    {
+        var file = await downloads.DownloadAsync(CurrentUserId, id, token, RemoteIp, ct);
+        Response.Headers.CacheControl = "no-store";
+        return File(file.Content, "application/zip", file.FileName);
+    }
 }
 
 public record PersonalDataExportRequest(string? Code);

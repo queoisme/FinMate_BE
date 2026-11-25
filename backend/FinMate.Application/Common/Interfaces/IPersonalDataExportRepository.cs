@@ -34,4 +34,14 @@ public interface IPersonalDataExportRepository
 
     /// <summary>Việc cần chạy lại: <c>Pending</c> tạo trước <paramref name="pendingBefore"/> (enqueue bị mất) hoặc <c>Running</c> quá hạn thuê (job chết).</summary>
     Task<IReadOnlyList<PersonalDataExport>> FindStaleAsync(DateTimeOffset pendingBefore, DateTimeOffset now, CancellationToken ct = default);
+
+    // Link tải (BR-EXP-10).
+
+    /// <summary>Đặt token tải mới (thay token cũ) cho yêu cầu <c>Ready</c> của user. False nếu không còn <c>Ready</c>.</summary>
+    Task<bool> SetDownloadTokenAsync(Guid userId, Guid id, string tokenHash, DateTimeOffset expiresAt, CancellationToken ct = default);
+
+    /// <summary>Đổi token lấy một lượt tải: đúng token, chưa hết hạn, còn <c>Ready</c> → xoá token, tăng số lượt tải. Một UPDATE, nên hai lượt dùng cùng lúc chỉ một qua.</summary>
+    Task<bool> TryConsumeDownloadTokenAsync(Guid userId, Guid id, string tokenHash, DateTimeOffset now, CancellationToken ct = default);
+
+    Task<PersonalDataExportArchive?> GetArchiveAsync(Guid id, CancellationToken ct = default);
 }
