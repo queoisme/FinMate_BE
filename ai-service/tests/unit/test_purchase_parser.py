@@ -135,7 +135,6 @@ def test_a_missing_price_asks_for_the_amount():
     [
         "tôi có nên mua điện thoại iphone duo ko ?",  # gõ sai "được": chỉ còn "có nên" mà vẫn phải hỏi lại giá chứ không "ngoài phạm vi"
         "có nên mua vàng không",
-        "nên mua nhà hay thuê nhà",
     ],
 )
 def test_an_advice_question_without_a_price_asks_for_the_amount(text):
@@ -179,7 +178,7 @@ def test_ordinary_sentences_are_not_purchase_questions(text):
         ("hôm qua mua cái quần 800k", "add_expense"),
         ("đặt mục tiêu mua laptop 25 triệu trước 30/12", "create_goal"),
         ("iphone 20 triệu có đáng mua không", "out_of_scope"),
-        ("nên mua nhà hay thuê nhà", "purchase_needs_amount"),
+        ("nên mua nhà hay thuê nhà", "ask_agent"),  # so sánh hai lựa chọn không có giá: việc của agent
         ("tháng này tôi mua quần hết bao nhiêu được không", "ask_spending"),
     ],
 )

@@ -9,6 +9,36 @@ public class Group
     public string Name { get; set; } = string.Empty;
     public GroupType Type { get; set; } = GroupType.Family;
     public GroupTransactionVisibility TransactionVisibility { get; set; } = GroupTransactionVisibility.Full;
+    public string? Icon { get; set; }
+    public string? AvatarUrl { get; set; }
+    public string? Description { get; set; }
+    public string Currency { get; set; } = "VND";
+    public GroupSettlementModel SettlementModel { get; set; } = GroupSettlementModel.SharedFund;
+
+    /// <summary>Ngày chốt sổ hằng tháng 1–28; null = cuối tháng.</summary>
+    public int? ClosingDay { get; set; }
+
+    public DebtSettlementMethod DebtSettlementMethod { get; set; } = DebtSettlementMethod.AiOptimized;
+
+    /// <summary>
+    /// Mã tham gia CHUNG của nhóm (link/QR luôn hiện sẵn): không hết hạn, dùng được nhiều lần, vào nhóm với vai trò Member. Lưu nguyên văn (không băm)
+    /// vì app cần hiện lại mã bất cứ lúc nào; DB bị lộ thì lộ mã, nên chủ nhóm có thể đặt lại mã hoặc tắt. Null = chưa tạo (tạo khi mở lần đầu).
+    /// </summary>
+    public string? JoinCode { get; set; }
+
+    public bool JoinCodeEnabled { get; set; } = true;
+
+    /// <summary>Giao dịch/hóa đơn/chi quỹ từ ngưỡng này do người không phải Owner tạo thì chờ duyệt. Null = tắt.</summary>
+    public long? RequireApprovalAboveCents { get; set; }
+
+    public bool NotifyOnNewTransaction { get; set; } = true;
+    public bool WeeklySummary { get; set; }
+
+    /// <summary>Thứ gửi tóm tắt tuần, theo ISO: 1 = thứ Hai … 7 = Chủ nhật.</summary>
+    public int WeeklySummaryDay { get; set; } = 1;
+
+    /// <summary>Giờ gửi tóm tắt tuần, giờ Việt Nam.</summary>
+    public TimeOnly WeeklySummaryTime { get; set; } = new(9, 0);
     public Guid? CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -28,6 +58,10 @@ public class GroupMember
     public GroupPermission PermissionsGranted { get; set; }
     public GroupPermission PermissionsRevoked { get; set; }
     public bool AlertsEnabled { get; set; } = true;
+
+    /// <summary>Ví nguồn tiền mặc định của chính người này trong nhóm (do người dùng chọn khi nhận lời mời). Server chỉ lưu và trả về, không tự áp vào dòng quỹ.</summary>
+    public Guid? DefaultFinancialAccountId { get; set; }
+
     public DateTimeOffset JoinedAt { get; set; }
     public DateTimeOffset? LeftAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -52,9 +86,16 @@ public class GroupInvitation
     public Guid? AcceptedByUserId { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
+
+    /// <summary>Người được mời từ chối. Lời mời đã từ chối không còn hiện ở danh sách đang chờ.</summary>
+    public DateTimeOffset? DeclinedAt { get; set; }
+
+    /// <summary>Lời nhắn của người mời (≤ 200 ký tự).</summary>
+    public string? Message { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
-    public bool IsPending(DateTimeOffset now) => AcceptedAt is null && RevokedAt is null && ExpiresAt > now;
+    public bool IsPending(DateTimeOffset now) => AcceptedAt is null && RevokedAt is null && DeclinedAt is null && ExpiresAt > now;
 }
 
 /// <summary>Danh mục riêng của nhóm. Bảng riêng, không dùng <c>categories</c>: ở đó <c>user_id IS NULL</c> nghĩa là danh mục hệ thống hiện cho mọi người.</summary>

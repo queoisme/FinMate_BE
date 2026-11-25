@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "url": "/api/v1/users/search?q=FM-ZZZZZZZZ",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [],
+    "error": null,
+    "meta": null
+  }
+}

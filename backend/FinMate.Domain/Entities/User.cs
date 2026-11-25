@@ -11,6 +11,9 @@ public class User
     public string? GoogleId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
 
+    /// <summary>Mã để người khác tìm và mời vào nhóm (xem <see cref="FinMateIds"/>). Tự sinh, duy nhất, chỉ đọc.</summary>
+    public string FinMateId { get; set; } = FinMateIds.New();
+
     /// <summary>
     /// Vai trò được gán (bảng <c>user_roles</c>, nạp tự động cùng user). Không phải cột của <c>users</c>.
     /// Null nghĩa là chưa có hàng gán; khi đó <see cref="Role"/> trả <see cref="UserRole.User"/> (thiếu dữ liệu thì mất quyền chứ không thừa quyền).

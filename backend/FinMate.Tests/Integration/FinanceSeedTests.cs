@@ -16,7 +16,7 @@ namespace FinMate.Tests.Integration;
 /// </summary>
 public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
 {
-    private const int QuestionCount = 10;
+    private const int QuestionCount = 11;
     private const int OptionsPerQuestion = 5;
     private const int MethodCount = 13;
     private const int TemplateCount = 4;
@@ -129,7 +129,9 @@ public class FinanceSeedTests : IClassFixture<ReceiptScanDbFixture>
         await using var db = await NewSeededDbAsync();
         var used = new HashSet<string>();
 
-        foreach (var option in await db.SurveyOptions.AsNoTracking().ToListAsync())
+        // Câu chỉ lấy số liệu cho dự báo (không dùng để chọn cách quản lý) thì không có signal: xem SurveySeeder.
+        var dataOnly = await db.SurveyQuestions.AsNoTracking().Where(q => q.Code == "avg_monthly_spend").Select(q => q.Id).ToListAsync();
+        foreach (var option in (await db.SurveyOptions.AsNoTracking().ToListAsync()).Where(o => !dataOnly.Contains(o.QuestionId)))
         {
             var signals = JsonKeys(option.Signals);
             signals.Should().NotBeEmpty($"đáp án {option.Code} phải sinh ra ít nhất một signal");

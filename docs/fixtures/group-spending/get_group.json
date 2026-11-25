@@ -1,0 +1,37 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "name": "Phòng trọ 302",
+      "type": "Roommates",
+      "transactionVisibility": "Full",
+      "myRole": "Member",
+      "myPermissions": [
+        "ViewOverview",
+        "ViewMemberTransactions",
+        "ViewActivity",
+        "ShareTransactions",
+        "ContributeGoals",
+        "RecordFundEntries"
+      ],
+      "memberCount": 4,
+      "createdAt": "2026-11-20T10:18:42.388374+00:00",
+      "icon": "house",
+      "avatarUrl": null,
+      "description": "Điện nước + internet",
+      "currency": "VND",
+      "settlementModel": "SplitBill",
+      "closingDay": 5,
+      "debtSettlementMethod": "AiOptimized",
+      "myDefaultFinancialAccountId": "d8816686-2440-49ee-a601-582b99263a32",
+      "card": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

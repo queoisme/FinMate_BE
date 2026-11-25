@@ -65,6 +65,67 @@ public class ClassifyItemsClientTests
     }
 
     [Fact]
+    public async Task ClassifyItems_WithCategories_SendsSnakeCaseCategoriesAndNoUserId()
+    {
+        var (client, handler) = ClientReturning(() => Json("""{"items":[],"ai_used":false}"""));
+        var catId = Guid.NewGuid();
+        var request = Request with
+        {
+            Categories = [new ClassifyCategoryInput(catId, "Cà phê sáng", "ca-phe-sang", false, "food")],
+        };
+
+        await client.ClassifyItemsAsync(request);
+
+        using var doc = JsonDocument.Parse(handler.Body!);
+        var cat = doc.RootElement.GetProperty("categories")[0];
+        cat.GetProperty("id").GetGuid().Should().Be(catId);
+        cat.GetProperty("name").GetString().Should().Be("Cà phê sáng");
+        cat.GetProperty("slug").GetString().Should().Be("ca-phe-sang");
+        cat.GetProperty("is_system").GetBoolean().Should().BeFalse();
+        cat.GetProperty("parent_slug").GetString().Should().Be("food");
+        handler.Body.Should().NotContain(UserId.ToString()).And.NotContain(UserId.ToString("N"));
+    }
+
+    [Fact]
+    public async Task ClassifyItems_WithoutCategories_SendsJsonNull()
+    {
+        var (client, handler) = ClientReturning(() => Json("""{"items":[],"ai_used":false}"""));
+
+        await client.ClassifyItemsAsync(Request);
+
+        using var doc = JsonDocument.Parse(handler.Body!);
+        doc.RootElement.GetProperty("categories").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task ClassifyItems_TruncatesCategoryNameTo40Chars()
+    {
+        var (client, handler) = ClientReturning(() => Json("""{"items":[],"ai_used":false}"""));
+        var request = Request with
+        {
+            Categories = [new ClassifyCategoryInput(Guid.NewGuid(), new string('a', 55), "x", false, null)],
+        };
+
+        await client.ClassifyItemsAsync(request);
+
+        using var doc = JsonDocument.Parse(handler.Body!);
+        var cat = doc.RootElement.GetProperty("categories")[0];
+        cat.GetProperty("name").GetString().Should().HaveLength(40);
+        cat.GetProperty("parent_slug").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task ClassifyItems_ToleratesCategoryIdInResponse()
+    {
+        var (client, _) = ClientReturning(() => Json(
+            """{"items":[{"index":0,"category_slug":"food","source":"rule","category_id":"3f2b8c1e-0000-4000-8000-000000000001"},{"index":1,"category_slug":null,"source":"unknown","category_id":null}],"ai_used":false}"""));
+
+        var result = await client.ClassifyItemsAsync(Request);
+
+        result.Items.Should().Equal(new ClassifiedItem(0, "food", "rule"), new ClassifiedItem(1, null, "unknown"));
+    }
+
+    [Fact]
     public async Task ClassifyItems_MapsResponse()
     {
         var (client, _) = ClientReturning(() => Json(

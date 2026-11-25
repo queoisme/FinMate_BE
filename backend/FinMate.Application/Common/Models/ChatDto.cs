@@ -18,6 +18,9 @@ public static class ChatActions
     /// <summary>Đặt mục tiêu tiết kiệm: client hiện <see cref="ChatResultDto.Goal"/> để xác nhận rồi tự gọi <c>POST /saving-goals</c>. Không bao giờ tự tạo.</summary>
     public const string Goal = "goal";
 
+    /// <summary>Tạo ngân sách / khoản định kỳ / khoản vay nợ: <see cref="ChatResultDto.Item"/> đã đủ thông tin, client tự gọi API tạo (có nút Hoàn tác). Thiếu thông tin thì là <see cref="Reply"/> với câu hỏi lại.</summary>
+    public const string Item = "item";
+
     /// <summary>Hỏi "mua món này có ổn không": client hiện <see cref="ChatResultDto.Purchase"/> rồi gọi <c>POST /forecast/purchase-check</c> để lấy đánh giá. Không tạo giao dịch.</summary>
     public const string Purchase = "purchase";
 }
@@ -26,11 +29,26 @@ public static class ChatActions
 /// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
 public record ChatPurchaseDraftDto(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
+/// <summary>Ngân sách / khoản định kỳ / khoản vay nợ từ câu chat, đủ thông tin. Chưa tạo gì ở backend: client gọi <c>POST /budgets</c>, <c>/recurring-items</c> hoặc <c>/loans</c>.</summary>
+/// <param name="Kind">budget | recurring | loan.</param>
+/// <param name="AmountCents">Đồng VND: hạn mức tháng / số tiền mỗi lần / số tiền vay.</param>
+/// <param name="Name">recurring: tên khoản; loan: tiêu đề.</param>
+/// <param name="Cadence">recurring: weekly | monthly | yearly.</param>
+/// <param name="Direction">loan: borrow (mình đi vay) | lend (mình cho vay).</param>
+/// <param name="Operation">create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm) | repay (ghi một lần trả vào khoản vay <paramref name="LoanId"/> có sẵn).</param>
+/// <param name="LoanId">repay: khoản vay của chính người dùng khớp tên người; backend đã tìm, app chỉ gọi <c>POST /loans/{id}/repayments</c> sau khi người dùng xác nhận.</param>
+/// <param name="RemainingCents">repay: số còn lại của khoản đó TRƯỚC lần trả này (để hiện "còn lại ... sau khi trả").</param>
+/// <param name="FinancialAccountId">repay: ví ghi giao dịch thu/chi của lần trả; null thì chỉ giảm nợ, không ghi giao dịch.</param>
+public record ChatItemDraftDto(
+    string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty, string Operation = "create",
+    Guid? LoanId = null, long? RemainingCents = null, Guid? FinancialAccountId = null);
+
 /// <summary>Bản nháp mục tiêu tiết kiệm từ câu chat. Chưa tạo gì: tạo bằng <c>POST /saving-goals</c> sau khi người dùng xác nhận.</summary>
 /// <param name="NameIsDefault">Người dùng không nói tên nên <paramref name="Name"/> là tên mặc định; client cho sửa.</param>
 /// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>
 /// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để hiện kèm ngày cụ thể.</param>
-public record ChatGoalDraftDto(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
+/// <param name="AiAssisted">Hạn hoặc tên do AI đọc hộ: app không tự tạo mục tiêu, để người dùng soát rồi bấm tạo.</param>
+public record ChatGoalDraftDto(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText, bool AiAssisted = false);
 
 /// <summary>Trường còn thiếu trong <see cref="ChatDraftDto.MissingFields"/>.</summary>
 public static class ChatMissingFields
@@ -114,4 +132,5 @@ public record ChatResultDto(
     ChatGoalDraftDto? Goal = null,
     ChatPurchaseDraftDto? Purchase = null,
     DateTimeOffset? ReceivedAt = null,
-    DateTimeOffset? RespondedAt = null);
+    DateTimeOffset? RespondedAt = null,
+    ChatItemDraftDto? Item = null);

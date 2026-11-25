@@ -77,6 +77,9 @@ public class GroupRepository : IGroupRepository
 
     public void AddInvitation(GroupInvitation invitation) => _context.GroupInvitations.Add(invitation);
 
+    public Task<Group?> GetByJoinCodeAsync(string code, CancellationToken ct = default)
+        => _context.Groups.FirstOrDefaultAsync(g => g.JoinCode == code, ct);
+
     public Task<GroupInvitation?> GetInvitationAsync(Guid groupId, Guid invitationId, CancellationToken ct = default)
         => _context.GroupInvitations.FirstOrDefaultAsync(i => i.Id == invitationId && i.GroupId == groupId, ct);
 
@@ -146,6 +149,31 @@ public class GroupRepository : IGroupRepository
         }
     }
 
+    public async Task<List<GroupInviteCandidate>> ListInviteCandidatesAsync(Guid userId, Guid groupId, DateTimeOffset now, int limit, CancellationToken ct = default)
+    {
+        var mine = _context.GroupMembers.Where(m => m.UserId == userId && m.LeftAt == null && m.GroupId != groupId).Select(m => m.GroupId);
+        var coMembers = await (from m in _context.GroupMembers
+                               where mine.Contains(m.GroupId) && m.LeftAt == null && m.UserId != userId
+                                   && _context.Groups.Any(g => g.Id == m.GroupId)
+                                   && !_context.GroupMembers.Any(x => x.GroupId == groupId && x.UserId == m.UserId && x.LeftAt == null)
+                               select m.UserId)
+            .ToListAsync(ct);
+        if (coMembers.Count == 0)
+        {
+            return [];
+        }
+
+        // Đếm nhóm chung trong bộ nhớ: tối đa (số nhóm × số thành viên) dòng, nhỏ; truy vấn gộp rồi nối bảng users không dịch được sang SQL.
+        var shared = coMembers.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
+        var users = await _context.Users.Where(u => shared.Keys.Contains(u.Id) && !u.IsLocked).ToListAsync(ct);
+        return users
+            .OrderByDescending(u => shared[u.Id])
+            .ThenBy(u => u.DisplayName)
+            .Take(limit)
+            .Select(u => new GroupInviteCandidate(u.Id, u.DisplayName, u.FinMateId, shared[u.Id]))
+            .ToList();
+    }
+
     private IQueryable<GroupInvitation> PendingInvitations(Guid groupId, DateTimeOffset now)
-        => _context.GroupInvitations.Where(i => i.GroupId == groupId && i.AcceptedAt == null && i.RevokedAt == null && i.ExpiresAt > now);
+        => _context.GroupInvitations.Where(i => i.GroupId == groupId && i.AcceptedAt == null && i.RevokedAt == null && i.DeclinedAt == null && i.ExpiresAt > now);
 }

@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/budgets",
+  "request": {
+    "limitCents": 20000000
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "f52908aa-c8d8-474e-9f93-553896fc0d49",
+      "categoryId": null,
+      "groupCategoryId": null,
+      "categoryName": null,
+      "limitCents": 20000000,
+      "spentCents": 0,
+      "remainingCents": 20000000,
+      "percentUsed": 0,
+      "isOverLimit": false
+    },
+    "error": null,
+    "meta": null
+  }
+}

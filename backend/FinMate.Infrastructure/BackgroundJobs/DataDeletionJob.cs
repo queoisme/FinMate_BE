@@ -15,13 +15,16 @@ public class DataDeletionJob
     private readonly IUserHardDeleter _userHardDeleter;
     private readonly ITrainingSampleService? _trainingSamples;
     private readonly ILogger<DataDeletionJob>? _logger;
+    private readonly IItemMemoryService? _itemMemory;  // null: không có dịch vụ bộ nhớ món (test cũ) thì bỏ qua
 
     public DataDeletionJob(
         IDataDeletionRequestRepository dataDeletionRequestRepository,
         IUserHardDeleter userHardDeleter,
         ITrainingSampleService? trainingSamples = null,
-        ILogger<DataDeletionJob>? logger = null)
+        ILogger<DataDeletionJob>? logger = null,
+        IItemMemoryService? itemMemory = null)
     {
+        _itemMemory = itemMemory;
         _dataDeletionRequestRepository = dataDeletionRequestRepository;
         _userHardDeleter = userHardDeleter;
         _trainingSamples = trainingSamples;
@@ -51,6 +54,13 @@ public class DataDeletionJob
         // Mẫu huấn luyện ở ai-service chỉ tìm được qua người dùng này: xóa TRƯỚC khi xóa tài khoản.
         // Chưa xóa được thì giữ nguyên người dùng và yêu cầu: đêm sau job chạy lại (xóa cứng xong là không còn cách tìm dữ liệu của họ)
         if (_trainingSamples is not null && !await _trainingSamples.EraseAsync(request.UserId, ct))
+        {
+            return;
+        }
+
+        // Bộ nhớ món cá nhân ở ai-service cũng chỉ tìm được qua băm của người dùng này: không xóa được thì giữ nguyên người dùng và yêu cầu, đêm sau job thử lại.
+        // (Rút đồng ý huấn luyện KHÔNG xóa bộ nhớ này: đó là dữ liệu cá nhân của chính họ, chỉ xóa khi xóa tài khoản.)
+        if (_itemMemory is not null && !await _itemMemory.EraseAsync(request.UserId, ct))
         {
             return;
         }

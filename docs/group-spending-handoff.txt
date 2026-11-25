@@ -1,0 +1,117 @@
+BÀN GIAO API NHÓM CHI TIÊU (I1–I7): BACKEND -> FE, VÀ VIỆC CÒN LẠI CỦA BE
+Ngày: 2026-11-20. Nhánh dev/tuan, thư mục E:\Ki 9\Model AI\FinMate_BE. Chưa commit, chưa chạy migration lên DB dùng chung (cổng 8080).
+
+TÀI LIỆU CHI TIẾT: docs/group-spending-api.md (ví dụ request/response lấy từ chạy thật)
+FIXTURE JSON MẪU:  docs/fixtures/group-spending/<tên>.json (54 file, mỗi file {method, url, request, status, response})
+
+======================================================================
+PHẦN A. FE LÀM ĐƯỢC NGAY (backend đã xong, có test)
+======================================================================
+
+A1. Lời mời (P1-A, P1-B, P1-C)
+- POST /group-invitations/decline {token}. Token sai hoặc dành cho email khác: 404. Đã xử lý hoặc hết hạn: 422 GROUP_INVITATION_INVALID.
+- POST /group-invitations/preview trả thêm: groupIcon, memberCount, fundBalanceCents (null nếu nhóm chưa có quỹ), invitedByRole, message.
+- POST /groups/{id}/invitations nhận thêm message (<= 200 ký tự).
+- POST /group-invitations/accept nhận thêm defaultFinancialAccountId (ví của chính người dùng, sai thì 422 GROUP_DEFAULT_ACCOUNT_INVALID).
+  LƯU Ý: server chỉ lưu giá trị này (trả lại ở myDefaultFinancialAccountId của GroupDto). Server KHÔNG tự áp nó khi góp quỹ/ghi chi: FE phải tự truyền financialAccountId vào dòng quỹ.
+
+A2. Hồ sơ nhóm và thẻ danh sách (P2-A)
+- POST/PATCH /groups nhận thêm: icon, description (<=200), currency (chỉ VND), settlementModel (SharedFund|SplitBill), closingDay (1-28), debtSettlementMethod (AiOptimized|Manual).
+- GroupType: Family, Friends, Travel, Colleagues, Roommates, Other.
+- GET /groups có thêm card: fundBalanceCents, monthlySpentCents, monthlyBudgetCents, memberPreview (tối đa 3 người). Chỉ có ở danh sách, không có ở GET /groups/{id}.
+- avatarUrl LUÔN null (chưa có upload). memberPreview.avatarUrl cũng luôn null (tài khoản chưa có ảnh đại diện).
+- PATCH không đặt closingDay về "cuối tháng" được; dùng PUT /settings với closingDay null.
+
+A3. Cài đặt nhóm (P2-C, phần lưu cài đặt)
+- GET /groups/{id}/settings (mọi thành viên), PUT /groups/{id}/settings (chỉ Owner, người khác 403). PUT thay toàn bộ.
+- Trường: closingDay, debtSettlementMethod, requireApprovalAboveCents, notifyOnNewTransaction, weeklySummary, weeklySummaryDay (1=thứ Hai..7=Chủ nhật), weeklySummaryTime ("HH:mm", giờ VN), alertsEnabled (chỉ đọc).
+- CẢNH BÁO: notifyOnNewTransaction và weeklySummary mới chỉ được LƯU, server chưa gửi thông báo theo hai cờ này.
+
+A4. Tìm người và mời (P2-B)
+- GET /users/search?q=&groupId=: khớp chính xác theo email (tài khoản đã xác minh) hoặc FinMate ID (FM-XXXXXXXX, không phân biệt hoa thường, được bỏ "FM-"). Khớp từng phần: danh sách rỗng. q từ 3 đến 320 ký tự (400 nếu không).
+  Kết quả: userId, displayName, maskedEmail (m***@gmail.com), finMateId.
+  Giới hạn 20 lần / 60 phút / người gọi, vượt thì 429 USER_SEARCH_RATE_LIMITED. Mời theo FinMate ID cũng tính vào giới hạn này.
+  KHÔNG hỗ trợ số điện thoại (tài khoản chưa có trường này).
+- FinMate ID của chính mình: trường finMateId trong GET /users/me.
+- GET /groups/{id}/invite-suggestions: tối đa 10 người cùng nhóm khác, chưa ở nhóm này.
+- POST /groups/{id}/invitations: có email thì gửi lời mời qua email, không có thì là lời mời link (joinUrl + token, một lần, hết hạn). Lời mời gửi thẳng theo userId/FinMate ID đã gỡ.
+- MÃ/LINK/QR CHUNG CỦA NHÓM (luôn hiện sẵn, không cần bấm tạo): GET /groups/{id}/join-link trả {code, joinUrl, role (Member), enabled}; lần đầu mở server tự tạo, các lần sau trả đúng mã đó. Không hết hạn, dùng nhiều lần, vào nhóm với vai trò Member. Cần quyền mời (Member thường 403).
+  POST /groups/{id}/join-link/reset: đổi mã mới (mã cũ chết, bật lại nếu đang tắt). PUT /groups/{id}/join-link {enabled}: tắt/bật.
+  Người vào dùng route cũ: POST /group-invitations/preview và /accept với token = code (preview của mã chung có expiresAt = null). Mã sai/đã reset/đang tắt: 422 GROUP_INVITATION_INVALID. Đã là thành viên: 409 GROUP_ALREADY_MEMBER.
+  Server lưu mã nguyên văn (không băm) để hiện lại được: FE nên cho người dùng thấy rõ nút tắt/đặt lại.
+- DELETE /groups/{id}/invitations: thu hồi mọi lời mời đang chờ, trả {revoked: n}.
+- App cần tự xử lý deep link https://finmate.app/join/<token>: lấy <token> rồi gọi accept. Backend chỉ tạo URL, chưa có trang web đích.
+
+A5. Hóa đơn chia (P1-F)
+- POST /groups/{id}/bills {title, amountCents, paidByUserId, occurredAt?, splitMode (Equal|Custom), splits[{userId, shareCents}], categoryId?, groupCategoryId?, note?}. Quyền ShareTransactions (Viewer 403).
+  Equal: chỉ cần userId, shareCents bị bỏ qua; server chia và dồn phần dư cho người trả. Custom: tổng shareCents phải bằng amountCents.
+  Lỗi: 422 GROUP_BILL_INVALID, 422 GROUP_BILL_SPLIT_MISMATCH.
+- GET /groups/{id}/bills?cursor=&limit= (phân trang con trỏ, meta.cursor), GET /groups/{id}/bills/{billId}.
+- Hóa đơn là sổ ghi nợ: không gắn ví, không tạo giao dịch cá nhân, không sửa/xóa. Tính TOÀN BỘ số tiền vào chi tiêu/ngân sách/báo cáo tháng của nhóm, đứng tên người trả.
+
+A6. Sổ nợ (P1-E)
+- GET /groups/{id}/balances: members[].netCents (DƯƠNG = đang được nợ, ÂM = đang nợ, tổng = 0), transfers[] (chuyển tiền tối giản), formerMembersNetCents.
+  transfers = null khi nhóm chọn debtSettlementMethod = Manual.
+- POST /groups/{id}/settlements {fromUserId, toUserId, amountCents, note?}: chỉ người trả, người nhận hoặc Owner. Không được vượt số đang nợ (422 GROUP_SETTLEMENT_EXCEEDS_DEBT). Trả 201. FinMate không chuyển tiền thật.
+- POST /groups/{id}/members/{userId}/remind-debt và POST /groups/{id}/remind-all: chỉ người đang được nợ hoặc Owner/Manager. Mỗi người tối đa 1 lần / 24 giờ / nhóm, quá thì 429 GROUP_REMINDER_COOLDOWN (chưa có header Retry-After). Nhắc người không nợ: 422 GROUP_NO_DEBT. Push data.kind = group_debt_reminder, không có số tiền.
+
+A7. Tổng quan (P1-D)
+- GET /groups/me/summary?year=&month=: totalSpentCents, activeGroupCount, myShareDueCents (tổng phần của MÌNH trong hóa đơn của tháng), myPayableCents (tổng số mình đang nợ lúc này, cộng dồn; null nếu chưa nhóm nào có hóa đơn/trả nợ), closingDate (ngày chốt sổ gần nhất sắp tới).
+- Định nghĩa myShareDueCents, myPayableCents, closingDate là BE tự chọn khi plan chưa rõ. FE xem có đúng ý màn hình không, nếu khác thì báo lại.
+
+A8. Duyệt khoản lớn (P1-G)
+- Owner đặt requireApprovalAboveCents ở PUT /settings. Hóa đơn và chi/rút quỹ >= ngưỡng do người KHÔNG phải Owner tạo thì trả 202 Accepted, body là yêu cầu chờ duyệt (kind Bill|FundEntry, status Pending), KHÔNG phải hóa đơn/dòng quỹ. App phải kiểm tra mã HTTP 202, không chỉ success.
+- Khoản chờ chưa trừ quỹ, chưa vào ngân sách/báo cáo/sổ nợ.
+- GET /groups/{id}/approvals?status=Pending|Approved|Rejected|All (mặc định Pending). Owner thấy tất cả, người khác chỉ thấy của mình.
+- POST /groups/{id}/approvals/{id}/approve (chỉ Owner; Manager và người gửi đều 403; resultId trỏ tới khoản được tạo).
+- POST /groups/{id}/approvals/{id}/reject {reason?}. Xử lý lần hai: 422 GROUP_APPROVAL_NOT_PENDING.
+- Push: Owner nhận group_approval_req; người gửi nhận group_approval_res (kèm approved).
+- Không áp dụng cho: góp quỹ, điều chỉnh quỹ, giao dịch cá nhân chia sẻ vào nhóm, khoản do Owner tạo.
+
+A9. Vai trò thủ quỹ (P2-D)
+- Quyết định: giữ nguyên 4 vai trò (Owner/Manager/Member/Viewer). FE chỉ hiển thị nhãn Manager = "Thủ quỹ". Backend không đổi gì. Manager đã có ManageFunds; duyệt khoản lớn chỉ Owner.
+
+Lưu ý chung cho FE
+- Lỗi kiểm tra dữ liệu (body sai, quá dài) là 400 VALIDATION_ERROR; lỗi nghiệp vụ là 422 với mã cố định; không phải thành viên nhóm luôn 404; thiếu quyền 403.
+- Mã lỗi mới nằm ở mục 8 của docs/group-spending-api.md.
+
+======================================================================
+PHẦN B. VIỆC CÒN LẠI CỦA BACKEND (gửi cho BE)
+======================================================================
+
+B1. Job tóm tắt tuần + thông báo khi có giao dịch mới (P2-C)   [ưu tiên: trung bình]
+- Cài đặt đã lưu ở groups: notify_on_new_transaction, weekly_summary, weekly_summary_day, weekly_summary_time. Chưa có tác dụng.
+- Cần: (1) Hangfire job chạy theo thứ/giờ VN của từng nhóm, gửi tóm tắt tuần (tổng chi, theo danh mục/người; chỉ số liệu nhóm, không lộ giao dịch riêng nếu nhóm đang ở chế độ Summary). (2) Khi có giao dịch chia sẻ / hóa đơn / dòng quỹ mới, nếu nhóm bật notify_on_new_transaction thì báo các thành viên khác (tôn trọng alerts_enabled của từng người).
+- Thông báo đi qua forecast_alerts + IForecastAlertDispatcher như các loại nhóm khác (mỗi loại mới cần: giá trị enum ForecastAlertKind, ánh xạ ở ForecastAlertDispatcher, ForecastEnumColumns, và cập nhật CHECK chk_forecast_alerts_kind trong ForecastAlertConfiguration + migration). LƯU Ý cột kind giới hạn 20 ký tự.
+- Push không chứa số tiền (quy ước dự án).
+
+B2. Ảnh đại diện nhóm (P2-A)   [cần quyết định]
+- POST/DELETE /groups/{id}/avatar, jpg/png <= 2MB, chỉ Owner; trả/xóa avatarUrl.
+- Chưa có nơi lưu ảnh cho nhóm/người dùng. Cần chốt: lưu ở đâu (đĩa/volume, object storage, hay lưu bytes trong DB), cách phục vụ ảnh (URL công khai hay có xác thực), có xử lý lại ảnh bằng SkiaSharp như Community (SkiaCommunityImageProcessor, xóa EXIF) không. Đề xuất: dùng lại bộ xử lý ảnh của Community.
+- Sau đó memberPreview.avatarUrl cần ảnh đại diện NGƯỜI DÙNG (hiện tài khoản chưa có trường avatar). Cần chốt có làm ảnh đại diện người dùng không.
+
+B3. Xuất báo cáo nhóm (P2-C)   [cần duyệt thư viện]
+- GET /groups/{id}/export?format=xlsx|pdf&from=&to=, tối đa 10MB. Backend hiện KHÔNG có thư viện xlsx/pdf và font tiếng Việt.
+- Cần chốt: (a) thư viện xlsx (vd ClosedXML) và pdf (vd QuestPDF, kèm font hỗ trợ tiếng Việt, kiểm tra giấy phép), hoặc (b) chỉ xuất CSV UTF-8 có BOM trước. Chưa thêm thư viện nào.
+- Nội dung nên gồm: hóa đơn, giao dịch chia sẻ, dòng quỹ, số dư nợ trong khoảng from..to; quyền: ViewOverview (người ở chế độ Summary chỉ xuất số liệu tổng).
+
+B4. Trường trên giao dịch nhóm + P3   [cần FE xác nhận ý nghĩa]
+- Plan: giao dịch nhóm thêm splitCount, isSplit, paidFromFund; GET /groups thêm unsplitTransactionCount.
+- Chưa làm vì chưa rõ ý. Cần FE trả lời: "giao dịch nhóm" ở đây là giao dịch cá nhân chia sẻ, hóa đơn chia, hay dòng chi quỹ? "chia" (split) nghĩa là hóa đơn đã được chia cho nhiều người, hay giao dịch chia sẻ đã gắn danh mục? "unsplit" là giao dịch/hóa đơn chưa chia cho ai?
+- Hiện: hóa đơn có splitCount; chi quỹ là dòng quỹ riêng (kind Expense); giao dịch chia sẻ là giao dịch cá nhân có groupId. Ba loại này chưa nằm chung một danh sách.
+
+B5. Số điện thoại (P2-B)   [hoãn, cần quyết định sản phẩm]
+- Tài khoản chưa có trường số điện thoại và dự án đã bỏ SMS OTP, nên chưa tìm theo số điện thoại. Nếu cần: thêm cột phone (chưa xác minh = ai cũng gán được số người khác, rủi ro dò) hoặc làm luồng xác minh trước.
+
+B6. Cải tiến kỹ thuật nhỏ (không chặn FE)
+- Bộ đếm giới hạn tìm người (UserSearchThrottle) đọc rồi ghi, không nguyên tử: nên chuyển sang INCR của Redis nếu cần chặt.
+- Ghi nhận trả nợ không khóa: hai lần ghi đồng thời có thể vượt nợ một lần (xem ghi chú ponytail trong GroupDebtService).
+- Trả nợ / hóa đơn chưa có API sửa hoặc xóa (cố ý). Nếu FE cần hoàn tác trả nợ nhầm thì phải bổ sung.
+- 429 nghiệp vụ chưa có header Retry-After (đã có RetryAt trong TooManyRequestsException, chưa đưa ra response).
+- Thông báo của các luồng mới chưa được kiểm thử trên thiết bị thật (chỉ kiểm tra hàng đợi forecast_alerts trong test).
+
+B7. Triển khai (BE phải làm trước khi FE chạy được trên môi trường chung)
+- Có 4 migration mới chưa chạy trên DB dev dùng chung, theo thứ tự: AddGroupSpendingFoundations, AddGroupBillsAndDebts, AddGroupApprovals, AddUserSearchAndTargetedInvitations (chúng sẽ chạy cùng các migration chưa xong của phiên khác trên cùng cây). Migration AddUserSearchAndTargetedInvitations thêm cột users.finmate_id và cấp mã ngẫu nhiên cho mọi tài khoản hiện có.
+- Cây FinMate_BE đang giữa một lần merge và nhiều thay đổi chưa commit (kể cả phần vay mượn của phiên khác). Chưa commit gì cho phần này. Khi commit, add từng đường dẫn cụ thể, không commit file thử tạm.
+- Cờ features.groups (và features.groupFunds cho quỹ) phải bật ở GET /app-config thì các route này mới chạy.
+- Test: các test mới nằm ở GroupsControllerTests, GroupBillsControllerTests, GroupApprovalsControllerTests, GroupInviteSearchTests và GroupDebtMathTests. Đã chạy xanh các nhóm test liên quan (nhóm, quỹ, kiến trúc, cảnh báo dự báo, người dùng, auth, cấu hình hệ thống, hóa đơn quét, phân trang); CHƯA chạy toàn bộ bộ test.

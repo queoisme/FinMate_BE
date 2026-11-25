@@ -1,0 +1,18 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/accept",
+  "request": {
+    "token": "6R1W-xlxHY3V04gaiB2-EA"
+  },
+  "status": 409,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_ALREADY_MEMBER",
+      "message": "Bạn đã là thành viên của nhóm này.",
+      "details": null
+    },
+    "meta": null
+  }
+}

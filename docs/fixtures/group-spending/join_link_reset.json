@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/join-link/reset",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "code": "bRBhspvwy-Br8d3YYB_yhA",
+      "joinUrl": "https://finmate.app/join/bRBhspvwy-Br8d3YYB_yhA",
+      "role": "Member",
+      "enabled": true
+    },
+    "error": null,
+    "meta": null
+  }
+}

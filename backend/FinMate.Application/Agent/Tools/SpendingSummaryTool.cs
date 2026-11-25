@@ -11,6 +11,10 @@ namespace FinMate.Application.Agent;
 public sealed class SpendingSummaryTool(IFinancialDataSource source) : IAgentTool
 {
     private const int TopCategories = 5;
+    private const int TopLimits = 3;
+    private const int MinMonthsForLimit = 2;
+    private const long LimitRounding = 1_000;
+    private const long MinLimitVnd = 10_000;
 
     public ToolSpec Spec { get; } = new(
         "spending_summary",
@@ -53,7 +57,27 @@ public sealed class SpendingSummaryTool(IFinancialDataSource source) : IAgentToo
             evidence.Add(Money("cat_other", "category_spend_other", rest, $"Các nhóm khác: {Percent(rest, total)}% tổng chi"));
         }
 
-        return ToolResult.Ok(evidence);
+        // Đề xuất hạn mức cho vài nhóm chi nhiều nhất = mức chi trung bình mỗi tháng của chính họ (làm tròn xuống nghìn đồng). Chỉ khi nhìn ít nhất 2 tháng, vì một tháng dở dang
+        // sẽ cho mức quá thấp. Cảnh báo ngưỡng đi kèm hạn mức sẵn có (ngân sách tự cảnh báo khi chạm ngưỡng), nên không có thẻ "bật cảnh báo" riêng.
+        var actions = new List<SuggestedActionDto>();
+        if (months >= MinMonthsForLimit)
+        {
+            foreach (var row in ordered.Take(TopLimits).Where(r => r.Slug.Length > 0))
+            {
+                var average = row.SpentVnd / months / LimitRounding * LimitRounding;
+                if (average < MinLimitVnd)
+                {
+                    continue;
+                }
+
+                var id = $"limit_{actions.Count + 1}";
+                evidence.Add(Money(id, EvidenceKey.Bounded("category_monthly_avg:", row.Slug), average, $"{row.Name}: chi trung bình mỗi tháng trong {months} tháng gần nhất (tháng này tính đến hôm nay)"));
+                actions.Add(new SuggestedActionDto(
+                    SuggestedActionKinds.SetBudgetLimit, $"Đặt hạn mức {row.Name} {LocalTemplateComposer.FormatVnd(average)} mỗi tháng (bằng mức chi trung bình)", average, null, row.Slug, row.Name, [id]));
+            }
+        }
+
+        return ToolResult.Ok(evidence, actions);
     }
 
     /// <summary>Phần trăm nguyên, làm tròn nửa lên, hoàn toàn bằng số long.</summary>

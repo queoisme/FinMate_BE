@@ -17,7 +17,8 @@ public record UserProfileDto(
     string OnboardingStatus = "pending",
     bool CommunityConsentGranted = false,
     bool ListenerHealthAlertsEnabled = true,
-    int? TermsVersion = null)
+    int? TermsVersion = null,
+    string? FinMateId = null)
 {
     /// <param name="termsVersion">Phiên bản Điều khoản hiện hành (từ <c>ILegalVersionProvider</c>).</param>
     public static UserProfileDto From(User user, int termsVersion) => new(
@@ -35,5 +36,6 @@ public record UserProfileDto(
         user.OnboardingStatus.ToString().ToLowerInvariant(),
         user.CommunityConsentGranted,
         user.NotificationPrefs.ListenerHealthAlertsEnabled,
-        user.TermsVersion);
+        user.TermsVersion,
+        user.FinMateId);
 }

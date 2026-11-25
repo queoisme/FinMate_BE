@@ -116,6 +116,33 @@ public class FakeAIServiceClient : IAIServiceClient
         return Task.FromResult(ClassifyItemsHandler?.Invoke(request) ?? new ClassifyItemsResponse([], false));
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<LearnItemsRequest> LearnItemsRequests = new();
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<Guid> ErasedItemMemory = new();
+
+    /// <summary>Những lần backend nhờ AI nhớ danh mục người dùng chốt cho tên món (test lọc theo người dùng riêng của mình).</summary>
+    public static IReadOnlyList<LearnItemsRequest> LearnItemsSeen => LearnItemsRequests.ToArray();
+
+    /// <summary>Những người dùng đã bị yêu cầu xóa bộ nhớ tên món.</summary>
+    public static IReadOnlyList<Guid> ErasedItemMemoryUsers => ErasedItemMemory.ToArray();
+
+    public static void ResetItemMemory()
+    {
+        LearnItemsRequests.Clear();
+        ErasedItemMemory.Clear();
+    }
+
+    public Task LearnItemsAsync(LearnItemsRequest request, CancellationToken ct = default)
+    {
+        LearnItemsRequests.Enqueue(request);
+        return Task.CompletedTask;
+    }
+
+    public Task EraseItemMemoryAsync(Guid userId, CancellationToken ct = default)
+    {
+        ErasedItemMemory.Enqueue(userId);
+        return Task.CompletedTask;
+    }
+
     public Task SendFeedbackAsync(FeedbackRequest request, CancellationToken ct = default) => Task.CompletedTask;
 
     /// <summary>

@@ -27,6 +27,26 @@ public static class GroupErrorCodes
     /// <summary>Mã mời sai, hết hạn, đã dùng hoặc không dành cho tài khoản này. Cố ý chỉ một mã: không tiết lộ lý do cho người cầm mã đoán.</summary>
     public const string InvitationInvalid = "GROUP_INVITATION_INVALID";
 
+    /// <summary>Ví chọn làm nguồn tiền mặc định không phải của chính người dùng.</summary>
+    public const string DefaultAccountInvalid = "GROUP_DEFAULT_ACCOUNT_INVALID";
+
+    // Hóa đơn chia, sổ nợ.
+    public const string BillInvalid = "GROUP_BILL_INVALID";
+
+    /// <summary>Tổng các phần chia khác số tiền hóa đơn, hoặc có phần ≤ 0.</summary>
+    public const string BillSplitMismatch = "GROUP_BILL_SPLIT_MISMATCH";
+
+    public const string SettlementInvalid = "GROUP_SETTLEMENT_INVALID";
+    public const string SettlementExceedsDebt = "GROUP_SETTLEMENT_EXCEEDS_DEBT";
+
+    /// <summary>Nhắc nợ người không đang nợ ai (429 là <see cref="ReminderCooldown"/>).</summary>
+    public const string NoDebt = "GROUP_NO_DEBT";
+
+    /// <summary>Duyệt hoặc từ chối một yêu cầu đã được xử lý.</summary>
+    public const string ApprovalNotPending = "GROUP_APPROVAL_NOT_PENDING";
+
+    public const string ReminderCooldown = "GROUP_REMINDER_COOLDOWN";
+
     // Quỹ nhóm (Phase 85).
     public const string FundsDisabled = "GROUP_FUNDS_DISABLED";
     public const string TooManyFunds = "GROUP_TOO_MANY_FUNDS";

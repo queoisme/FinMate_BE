@@ -28,6 +28,7 @@ public static class SurveySeeder
     private const string QSaving = "saving_style";
     private const string QTime = "time_budget";
     private const string QSupport = "support_style";
+    private const string QSpend = "avg_monthly_spend";
 
     private sealed record OptionSeed(string Code, string Text, (string Signal, int Weight)[] Signals);
 
@@ -52,6 +53,15 @@ public static class SurveySeeder
             new("D", "Theo dự án, mùa vụ hoặc đợt không đều", [(FinanceSignals.IncomeVariable, 3)]),
             new("E", "Hiện chưa có thu nhập ổn định", [(FinanceSignals.NoStableIncome, 3), (FinanceSignals.IncomeVariable, 2)]),
         ]),
+        // Câu về mức chi: không tạo signal nào (không ảnh hưởng việc chọn cách quản lý). Mức tiền ứng với từng khoảng nằm ở cấu hình agent.surveySpendEstimate; dự báo sơ khảo dùng nó khi chưa có chi tiêu thật.
+        new(QSpend, GroupCashFlow, "Trung bình mỗi tháng bạn tiêu khoảng bao nhiêu?", null,
+        [
+            new("A", "Dưới 5 triệu", []),
+            new("B", "Từ 5 đến dưới 10 triệu", []),
+            new("C", "Từ 10 đến dưới 15 triệu", []),
+            new("D", "Từ 15 đến dưới 25 triệu", []),
+            new("E", "Từ 25 triệu trở lên", []),
+        ]),
         new(QMonthEnd, GroupCashFlow, "Cuối tháng, tình hình tiền của bạn thường thế nào?", null,
         [
             new("A", "Còn dư đều đặn", [(FinanceSignals.SurplusRegular, 3)]),
@@ -68,6 +78,14 @@ public static class SurveySeeder
             new("D", "Vay hoặc dùng thẻ tín dụng", [(FinanceSignals.ThinBuffer, 2), (FinanceSignals.DebtPressure, 2)]),
             new("E", "Chưa biết sẽ xoay xở thế nào", [(FinanceSignals.ThinBuffer, 3)]),
         ]),
+        new(QHardest, GroupHabits, "Khoản nào khiến bạn khó kiểm soát nhất?", null,
+        [
+            new("A", "Ăn uống, mua sắm hoặc giải trí hằng ngày", [(FinanceSignals.FlexibleSpendLeak, 3)]),
+            new("B", "Hóa đơn, thuê nhà và các khoản cố định", [(FinanceSignals.FixedCostsPressure, 3)]),
+            new("C", "Khoản phát sinh không định kỳ", [(FinanceSignals.IrregularExpenses, 3)]),
+            new("D", "Trả nợ hoặc lãi vay", [(FinanceSignals.DebtPressure, 3)]),
+            new("E", "Chưa biết khoản nào là nguyên nhân", [(FinanceSignals.LowVisibility, 2)]),
+        ]),
         new(QTracking, GroupHabits, "Bạn hiện theo dõi chi tiêu bằng cách nào?", null,
         [
             new("A", "Ghi gần như mọi giao dịch", [(FinanceSignals.TracksClosely, 3)]),
@@ -83,14 +101,6 @@ public static class SurveySeeder
             new("C", "Chỉ muốn giới hạn vài khoản dễ vượt", [(FinanceSignals.SelectiveLimits, 3)]),
             new("D", "Dễ thấy bị gò bó rồi bỏ cuộc", [(FinanceSignals.DislikesLimits, 3)]),
             new("E", "Chưa từng thử", [(FinanceSignals.UntriedLimits, 2)]),
-        ]),
-        new(QHardest, GroupHabits, "Khoản nào khiến bạn khó kiểm soát nhất?", null,
-        [
-            new("A", "Ăn uống, mua sắm hoặc giải trí hằng ngày", [(FinanceSignals.FlexibleSpendLeak, 3)]),
-            new("B", "Hóa đơn, thuê nhà và các khoản cố định", [(FinanceSignals.FixedCostsPressure, 3)]),
-            new("C", "Khoản phát sinh không định kỳ", [(FinanceSignals.IrregularExpenses, 3)]),
-            new("D", "Trả nợ hoặc lãi vay", [(FinanceSignals.DebtPressure, 3)]),
-            new("E", "Chưa biết khoản nào là nguyên nhân", [(FinanceSignals.LowVisibility, 2)]),
         ]),
         new(QGoal, GroupGoals, "Mục tiêu tài chính quan trọng nhất trong 6–12 tháng tới là gì?", null,
         [

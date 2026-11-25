@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/members/{id}/remind-debt",
+  "request": null,
+  "status": 422,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_NO_DEBT",
+      "message": "Người này hiện không nợ ai trong nhóm.",
+      "details": null
+    },
+    "meta": null
+  }
+}

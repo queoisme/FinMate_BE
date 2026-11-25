@@ -44,6 +44,7 @@ public class ChatCommandHandler : IChatCommandHandler
     private readonly ISystemConfigProvider? _config;  // null (test cũ): dùng cấu hình trợ lý mặc định
     private readonly IAiConsentReader? _consent;  // null: không có bộ đọc đồng ý (test cũ) thì không gửi gì ra bên thứ ba
     private readonly Refunds.IRefundSuggestions? _refundSuggestions;  // null: không gợi ý khoản chi gốc cho câu "được hoàn tiền"
+    private readonly Loans.ILoanService? _loans;  // null: không tìm khoản vay cho câu trả nợ, giữ giao dịch thu/chi như cũ
     private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: chỉ còn cảnh báo ±10 phút như trước Phase 82
 
     public ChatCommandHandler(
@@ -57,8 +58,10 @@ public class ChatCommandHandler : IChatCommandHandler
         IAiConsentReader? consent = null,
         ISystemConfigProvider? config = null,
         Refunds.IRefundSuggestions? refundSuggestions = null,
-        Duplicates.IDuplicateDetector? duplicates = null)
+        Duplicates.IDuplicateDetector? duplicates = null,
+        Loans.ILoanService? loans = null)
     {
+        _loans = loans;
         _config = config;
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
@@ -86,14 +89,27 @@ public class ChatCommandHandler : IChatCommandHandler
 
         _assistant = _config is null ? new AssistantSettings() : (await _config.GetAsync(ct)).Document.Assistant;
         var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
-        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi), ct);
+        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi, command.ItemContext), ct);
 
         if (parsed.Goal is { } goal)
         {
             // Đặt mục tiêu tiết kiệm: luôn qua bước xác nhận, không tạo gì ở đây. Client tạo bằng POST /saving-goals sau khi người dùng bấm Tạo.
             return new ChatResultDto(
                 ChatActions.Goal, parsed.Intent, parsed.ReplyText, null, null, null, null,
-                new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText));
+                new ChatGoalDraftDto(goal.Name, goal.NameIsDefault, goal.TargetCents, goal.Deadline, goal.DeadlineText, goal.AiAssisted));
+        }
+
+        if (parsed.Item is { Operation: "repay" } repay && await TryRepayAsync(command, parsed, repay, ct) is { } repayResult)
+        {
+            return repayResult;
+        }
+
+        if (parsed.Item is { } item && item.Operation != "repay")
+        {
+            // Ngân sách / khoản định kỳ / vay nợ đủ thông tin: chỉ trả bản nháp, client gọi API tạo (và cho Hoàn tác). Thiếu thông tin thì AI không trả Item: rơi xuống nhánh trả lời với câu hỏi lại.
+            return new ChatResultDto(
+                ChatActions.Item, parsed.Intent, parsed.ReplyText, null, null, null, null, null, null, null, null,
+                new ChatItemDraftDto(item.Kind, item.AmountCents, item.Name, item.CategorySlug, item.Cadence, item.NextDue, item.Direction, item.Counterparty, item.Operation));
         }
 
         if (parsed.Purchase is { } purchase)
@@ -296,6 +312,48 @@ public class ChatCommandHandler : IChatCommandHandler
     }
 
     /// <summary>Ví người dùng chọn, hoặc ví duy nhất của họ; nhiều ví mà không chọn thì null (không đoán).</summary>
+    /// <summary>
+    /// Câu trả nợ ("bạn An trả tôi 500k"): tìm khoản vay CỦA NGƯỜI DÙNG khớp tên và đúng chiều, còn đủ số để trừ; đúng MỘT khoản thì trả bản ghi lần trả để app xác nhận rồi gọi
+    /// <c>POST /loans/{id}/repayments</c> (lần trả ghi cả giao dịch ví nên không ghi thêm giao dịch thu/chi). Không khớp, nhiều khoản cùng tên hoặc trả quá số còn lại thì null:
+    /// câu vẫn được đọc như giao dịch thu/chi thường. Tên người không bao giờ rời khỏi backend.
+    /// </summary>
+    private async Task<ChatResultDto?> TryRepayAsync(ChatCommand command, ChatParseResponse parsed, ChatParseItem repay, CancellationToken ct)
+    {
+        if (_loans is null || string.IsNullOrWhiteSpace(repay.Counterparty) || repay.AmountCents <= 0)
+        {
+            return null;
+        }
+
+        var wanted = repay.Direction ?? string.Empty;
+        var said = FoldName(repay.Counterparty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var matches = (await _loans.ListAsync(command.UserId, ct))
+            .Where(l => l.Direction == wanted && l.RemainingCents >= repay.AmountCents && SameName(FoldName(l.Counterparty).Split(' ', StringSplitOptions.RemoveEmptyEntries), said))
+            .ToList();
+        if (matches.Count != 1)
+        {
+            return null;
+        }
+
+        var loan = matches[0];
+        var accountId = await ResolveAccountAsync(command, ct);
+        return new ChatResultDto(
+            ChatActions.Item, parsed.Intent, null, null, null, null, null, null, null, null, null,
+            new ChatItemDraftDto(
+                "loan", repay.AmountCents, loan.Title, null, null, null, loan.Direction, loan.Counterparty, "repay", loan.Id, loan.RemainingCents, accountId));
+    }
+
+    /// <summary>Tên người bỏ dấu, chữ thường, cách nhau một dấu cách: "Bạn Bình" và "ban binh" là một.</summary>
+    private static string FoldName(string name)
+    {
+        var decomposed = name.Trim().ToLowerInvariant().Replace('đ', 'd').Normalize(System.Text.NormalizationForm.FormD);
+        var stripped = new string(decomposed.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
+        return string.Join(' ', stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    /// <summary>Hai tên là một người khi chữ của tên ngắn hơn nằm hết trong tên dài hơn ("An" trong "Bạn An"); khác nhau ở bất kỳ chữ nào thì không.</summary>
+    private static bool SameName(string[] a, string[] b)
+        => a.Length > 0 && b.Length > 0 && (a.Length <= b.Length ? a : b).All((a.Length <= b.Length ? b : a).Contains);
+
     private async Task<Guid?> ResolveAccountAsync(ChatCommand command, CancellationToken ct)
     {
         if (command.FinancialAccountId is { } chosen)

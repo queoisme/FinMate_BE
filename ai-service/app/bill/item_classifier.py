@@ -16,7 +16,7 @@ from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 from app.services import category_registry
-from app.schemas.bill import ClassifyItemIn, ClassifyItemOut
+from app.schemas.bill import ClassifyItemIn, ClassifyItemOut, UserCategoryIn
 
 # Số tiền kiểu 45,000 / 1.250.000 (kèm đ/d/vnd dính trước hoặc sau): ô tên đôi khi dính giá, không được gửi giá ra ngoài.
 _MONEY_RE = re.compile(r"(?<!\w)(?:(?:vnd|đ|d)\s?)?\d{1,3}(?:[.,]\d{3})+(?:\s?(?:vnd|đ|d))?(?!\w)", re.IGNORECASE)
@@ -82,9 +82,13 @@ async def classify_items(
     allow_ai: bool,
     stats: dict[str, int] | None = None,
     remember: bool = True,  # False: không ghi tên món vào bảng nhớ dùng chung (văn bản người dùng tự viết, vd. nội dung thông báo)
+    user_id_hash: str | None = None,
+    categories: Sequence[UserCategoryIn] | None = None,  # có cả hai (cùng user_id_hash) thì phân loại vào danh mục của người dùng
 ) -> tuple[list[ClassifyItemOut], bool]:
     """``stats`` (tuỳ chọn): được điền số đếm để đo mức dùng Gemini (``ai_candidates``, ``ai_sent``, ``ai_failed``)."""
     await knowledge.refresh_if_stale()  # nạp bảng thương hiệu/từ khóa từ DB vào classifier (TTL 60 giây)
+    if categories and user_id_hash:
+        return await _classify_personal(items, merchant, knowledge, gemini, instruction, allow_ai, stats, user_id_hash, categories)
 
     # Luật/từ khóa theo đúng tên món, dùng chung với chat (kể cả khớp gần đúng cho lỗi OCR một chữ).
     rules: list[str | None] = [None] * len(items)
@@ -160,4 +164,99 @@ async def classify_items(
             results[i] = (parent[0], "inherit") if parent else None
         slug, source = results[i] or (None, "unknown")
         out.append(ClassifyItemOut(index=i, category_slug=slug, source=source))
+    return out, ai_used
+
+
+async def _classify_personal(
+    items: Sequence[ClassifyItemIn],
+    merchant: str | None,
+    knowledge: BillKnowledge,
+    gemini: LlmClient,
+    instruction: str,
+    allow_ai: bool,
+    stats: dict[str, int] | None,
+    user_id_hash: str,
+    categories: Sequence[UserCategoryIn],
+) -> tuple[list[ClassifyItemOut], bool]:
+    """Phân loại vào danh mục của CHÍNH người dùng (thiết kế 2026-11-16, mục 5.2). Không ghi gì vào bảng nhớ dùng chung.
+
+    Thứ tự: bảng nhớ riêng → (chưa cho phép AI) luật → bảng nhớ chung → Gemini chọn trong danh sách → luật / nhóm mặc định cửa hàng (chỉ khi AI không lỗi).
+    Slug hệ thống ``S`` từ luật/bảng nhớ chung/cửa hàng chỉ ánh xạ được sang danh mục hệ thống ``S`` trong danh sách (không có thì unknown), kể cả khi người
+    dùng có danh mục riêng nằm dưới ``S``: không bao giờ đoán "Ăn" hay "Uống". "Mơ hồ" (có danh mục riêng dưới ``S``) chỉ quyết việc nhận kết quả của bảng
+    nhớ chung TRƯỚC Gemini: mơ hồ thì để Gemini chọn, Gemini không quyết mới dùng đến nó như dự phòng."""
+    by_id = {c.id: c for c in categories}
+    system = {c.slug: c for c in categories if c.is_system}
+    ambiguous = {c.parent_slug for c in categories if c.parent_slug}
+
+    def to_user(slug: str | None) -> UserCategoryIn | None:
+        return system.get(slug) if slug else None
+
+    top = [i for i, item in enumerate(items) if item.parent is None]
+    rules = {i: resolve(items[i].name).slug for i in top}
+    clean = {i: _strip_money(item.name) for i, item in enumerate(items)}
+    keys = {i: item_key(item.name) for i, item in enumerate(items)}
+    results: list[tuple[UserCategoryIn, str] | None] = [None] * len(items)
+
+    # 1. Bảng nhớ riêng: id không còn trong danh sách (xoá, tắt) thì bỏ qua. Dòng "accepted" trỏ vào danh mục HỆ THỐNG mà nay đã có danh mục riêng nằm
+    # dưới nó (mơ hồ) cũng bỏ qua: đó chỉ là lần giữ nguyên gợi ý cũ, không phải chọn giữa Ăn/Uống nên để Gemini được thấy danh mục mới. "corrected" luôn được tôn trọng.
+    wanted = sorted({keys[i] for i in top if keys[i]})
+    remembered = await knowledge.user_item_memory(user_id_hash, wanted) if wanted else {}
+    for i in top:
+        if (hit := remembered.get(keys[i])) is None or (chosen := by_id.get(hit.category_id)) is None:
+            continue
+        if hit.source == "accepted" and chosen.is_system and chosen.slug in ambiguous:
+            continue
+        results[i] = (chosen, "item_memory")
+
+    # 2. Chưa cho phép AI: luật quyết trước như đường cũ. Rồi bảng nhớ chung (đọc không gửi gì ra ngoài), chỉ khi ánh xạ được.
+    if not allow_ai:
+        for i in top:
+            if results[i] is None and (chosen := to_user(rules[i])):
+                results[i] = (chosen, "rule")
+    open_ = [i for i in top if results[i] is None and keys[i]]
+    cached = await knowledge.cached_items(sorted({keys[i] for i in open_})) if open_ else {}
+    for i in open_:
+        slug = cached.get(keys[i])
+        if category_registry.is_spend(slug) and slug not in ambiguous and (chosen := to_user(slug)):
+            results[i] = (chosen, "cache")
+
+    # 3. Gemini chọn trong danh sách đánh số của người dùng, tối đa 20 món chưa quyết đầu tiên. Câu trả lời không ghi vào bảng nhớ nào.
+    labels = [f"{c.name} (thuộc nhóm {system[c.parent_slug].name})" if c.parent_slug in system else c.name for c in categories]
+    ai_used = ai_failed = False
+    candidates = [i for i in top if results[i] is None and clean[i]] if allow_ai else []
+    pending = candidates[:MAX_NAMES]
+    if pending and instruction.strip():
+        answers = None
+        if gemini.available:
+            try:
+                answers = await gemini.classify_among([clean[i] for i in pending], labels, instruction)
+            except GeminiFailed:
+                answers = None
+        ai_failed = answers is None
+        if stats is not None:
+            stats.update({"ai_candidates": len(candidates), "ai_sent": len(pending), **({"ai_failed": 1} if ai_failed else {})})
+        if answers is not None:
+            ai_used = True
+            for i, index in zip(pending, answers):
+                if index is not None and 0 <= index < len(categories):
+                    results[i] = (categories[index], "ai")
+
+    # 4. Dự phòng cho món chưa quyết: luật, bảng nhớ chung (kể cả khi mơ hồ), rồi nhóm mặc định của cửa hàng (không áp khi AI được phép mà lỗi, như đường cũ).
+    default = None if ai_failed else to_user(_merchant_default(merchant))
+    for i in top:
+        if results[i] is None:
+            if chosen := to_user(rules[i]):
+                results[i] = (chosen, "rule")
+            elif (slug := cached.get(keys[i])) and category_registry.is_spend(slug) and (chosen := to_user(slug)):
+                results[i] = (chosen, "cache")
+            elif default:
+                results[i] = (default, "merchant")
+
+    out: list[ClassifyItemOut] = []
+    for i, item in enumerate(items):
+        if item.parent is not None:
+            parent = results[item.parent]  # parent < i (schema đã kiểm) nên đã quyết xong
+            results[i] = (parent[0], "inherit") if parent else None
+        chosen, source = results[i] or (None, "unknown")
+        out.append(ClassifyItemOut(index=i, category_slug=chosen.slug if chosen else None, category_id=chosen.id if chosen else None, source=source))
     return out, ai_used

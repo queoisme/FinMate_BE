@@ -1,3 +1,5 @@
+using FinMate.Domain.Enums;
+
 namespace FinMate.Application.SavingGoals.Commands;
 
 public record UpdateSavingGoalCommand(
@@ -5,4 +7,6 @@ public record UpdateSavingGoalCommand(
     Guid GoalId,
     string Name,
     long TargetCents,
-    DateTimeOffset? Deadline);
+    DateTimeOffset? Deadline,
+    string? Icon = null,
+    GoalContributionFrequency? ContributionFrequency = null);

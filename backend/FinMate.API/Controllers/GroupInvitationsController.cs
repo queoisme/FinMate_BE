@@ -29,11 +29,15 @@ public class GroupInvitationsController : ControllerBase
     [HttpPost("preview")]
     public async Task<IActionResult> Preview([FromBody] GroupInvitationTokenRequest request, CancellationToken ct)
         => Ok(ApiResponse<GroupInvitationPreviewDto>.Ok(await _invitations.PreviewAsync(CurrentUserId, request.Token ?? string.Empty, ct)));
-
     [HttpPost("accept")]
-    public async Task<IActionResult> Accept([FromBody] GroupInvitationTokenRequest request, CancellationToken ct)
-        => Ok(ApiResponse<AcceptedGroupInvitationDto>.Ok(new AcceptedGroupInvitationDto(await _invitations.AcceptAsync(CurrentUserId, request.Token ?? string.Empty, ct))));
+    public async Task<IActionResult> Accept([FromBody] AcceptGroupInvitationRequest request, CancellationToken ct)
+        => Ok(ApiResponse<AcceptedGroupInvitationDto>.Ok(new AcceptedGroupInvitationDto(await _invitations.AcceptAsync(CurrentUserId, request.Token ?? string.Empty, request.DefaultFinancialAccountId, ct))));
+
+    [HttpPost("decline")]
+    public async Task<IActionResult> Decline([FromBody] GroupInvitationTokenRequest request, CancellationToken ct)
+        => Ok(ApiResponse<DeclinedGroupInvitationDto>.Ok(await _invitations.DeclineAsync(CurrentUserId, request.Token ?? string.Empty, ct)));
 }
 
 public record GroupInvitationTokenRequest(string? Token);
+public record AcceptGroupInvitationRequest(string? Token, Guid? DefaultFinancialAccountId = null);
 public record AcceptedGroupInvitationDto(Guid GroupId);

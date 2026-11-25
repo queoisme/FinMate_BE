@@ -125,6 +125,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(u => u.DeletedAt).HasColumnName("deleted_at");
 
+        // Mặc định ở DB: dòng chèn thẳng bằng SQL (script, dữ liệu mồi) vẫn có mã; ứng dụng luôn gửi mã tự sinh của FinMateIds.
+        builder.Property(u => u.FinMateId).HasColumnName("finmate_id").HasMaxLength(11)
+            .HasDefaultValueSql("'FM-' || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8))").IsRequired();
+        builder.HasIndex(u => u.FinMateId).IsUnique().HasDatabaseName("uq_users_finmate_id");
+
         builder.HasIndex(u => u.Email)
             .IsUnique()
             .HasDatabaseName("uq_users_email");

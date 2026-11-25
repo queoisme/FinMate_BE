@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/settlements",
+  "request": {
+    "fromUserId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+    "toUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+    "amountCents": 100000,
+    "note": "Chuyển khoản VCB"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "2eac6708-a6ab-421b-829c-372b6fefcd62",
+      "fromUserId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+      "toUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+      "amountCents": 100000,
+      "note": "Chuyển khoản VCB",
+      "createdAt": "2026-11-20T10:18:45.3136036+00:00"
+    },
+    "error": null,
+    "meta": null
+  }
+}

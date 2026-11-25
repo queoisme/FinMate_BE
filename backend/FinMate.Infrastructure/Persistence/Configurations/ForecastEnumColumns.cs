@@ -37,6 +37,11 @@ internal static class ForecastAlertKindColumn
         [ForecastAlertKind.ListenerHealth] = "listener_health",
         [ForecastAlertKind.GroupFundNegative] = "group_fund_negative",
         [ForecastAlertKind.GroupFundRemoved] = "group_fund_removed",
+        [ForecastAlertKind.PurchaseReminder] = "purchase_reminder",
+        [ForecastAlertKind.WeeklyDigest] = "weekly_digest",
+        [ForecastAlertKind.GroupDebtReminder] = "group_debt_reminder",
+        [ForecastAlertKind.GroupApprovalRequested] = "group_approval_req",
+        [ForecastAlertKind.GroupApprovalDecided] = "group_approval_res",
     };
 
     private static readonly Dictionary<string, ForecastAlertKind> FromText = ToText.ToDictionary(p => p.Value, p => p.Key);

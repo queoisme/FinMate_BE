@@ -34,6 +34,9 @@ public interface IUserRepository
     /// </summary>
     Task<int> CountActiveAdminsAsync(CancellationToken ct = default);
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
+
+    /// <summary>Tra theo mã đã chuẩn hoá (<c>FinMateIds.TryNormalize</c>). Tài khoản đã xóa mềm không trả về.</summary>
+    Task<User?> GetByFinMateIdAsync(string finMateId, CancellationToken ct = default);
     Task<User?> GetByGoogleIdAsync(string googleId, CancellationToken ct = default);
     Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using FinMate.Application.Common;
+using FinMate.Application.Common.Interfaces;
 using FinMate.Application.Reports;
 
 namespace FinMate.Application.Agent;
@@ -8,7 +10,8 @@ namespace FinMate.Application.Agent;
 /// chạy <see cref="GoalSimulator"/>, rồi trả gói bằng chứng: mỗi số tiền có id, nguồn và độ tin cậy riêng để câu trả lời trích dẫn được.
 /// Dưới <see cref="AgentLimits.MinHistoryMonths"/> tháng lịch sử thì không dựng dải, trả "chưa đủ dữ liệu".
 /// </summary>
-public sealed class ForecastGoalTool(IFinancialDataSource source, GetAssumptionsTool assumptions) : IAgentTool
+public sealed class ForecastGoalTool(
+    IFinancialDataSource source, GetAssumptionsTool assumptions, PreliminaryCapacityService? preliminary = null, ISystemConfigProvider? config = null) : IAgentTool
 {
     public ToolSpec Spec { get; } = new(
         "forecast_goal",
@@ -32,7 +35,7 @@ public sealed class ForecastGoalTool(IFinancialDataSource source, GetAssumptions
         var profile = IntervalForecaster.BuildProfile(series.IncomeVnd, segmentOverride);
         if (profile.MonthsOfHistory < AgentLimits.MinHistoryMonths)
         {
-            return ToolResult.Insufficient("history_too_short");
+            return preliminary is null ? ToolResult.Insufficient("history_too_short") : await PreliminaryAsync(context, price, horizon, series, ct);
         }
 
         var spend = series.SpendVnd.OrderBy(v => v).ToArray();
@@ -73,6 +76,79 @@ public sealed class ForecastGoalTool(IFinancialDataSource source, GetAssumptions
             "verdict", "goal_verdict", null, $"verdict: {simulation.Verdict.ToString().ToLowerInvariant()} (horizon {horizon} tháng, nhóm thu nhập {profile.Segment.ToString().ToLowerInvariant()})",
             "label", EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, completeness)));
 
-        return ToolResult.Ok(evidence);
+        // Hạn mục tiêu = hôm nay (giờ Việt Nam) + số tháng người dùng hỏi; số tiền là giá họ nêu (bằng chứng "price"), nên thẻ không mang con số nào không có nguồn.
+        var deadline = VietnamTime.DateOf(now).AddMonths(horizon);
+        var actions = new List<SuggestedActionDto>
+        {
+            new(SuggestedActionKinds.CreateGoal, $"Tạo mục tiêu tiết kiệm {LocalTemplateComposer.FormatVnd(price)} trong {horizon} tháng", price, deadline.ToString("yyyy-MM-dd"), null, null, ["price"]),
+        };
+
+        return ToolResult.Ok(evidence, actions);
+    }
+
+    /// <summary>
+    /// Sơ khảo khi lịch sử chưa đủ: so số cần góp mỗi tháng (giá ÷ số tháng) với khả năng góp ước tính từ thu nhập đã khai (<see cref="PreliminaryCapacityService"/>: chi tiêu đã ghi, cách quản lý, rồi khảo sát ban đầu).
+    /// Không dựng dải kịch bản; kết luận chỉ <c>tight</c> hoặc <c>infeasible</c> (không bao giờ <c>feasible</c> khi dữ liệu còn mỏng); chưa biết khả năng góp thì không kết luận. Luôn kèm ghi chú "chỉ để tham khảo".
+    /// </summary>
+    private async Task<ToolResult> PreliminaryAsync(ToolContext context, long price, int horizon, MonthlySeries series, CancellationToken ct)
+    {
+        var estimate = await preliminary!.GetAsync(context.UserId, series, ct);
+        if (estimate is null)
+        {
+            return ToolResult.Insufficient("history_too_short");
+        }
+
+        var settings = config is null ? null : (await config.GetAsync(ct)).Document.Agent;
+        var t = settings?.Texts;
+        var now = context.Now;
+        var required = (price + horizon - 1) / horizon;
+        Evidence Money(string id, long value, EvidenceSource evidenceSource, string text)
+            => new(id, id, value, text, "VND", evidenceSource, now, ConfidenceCalculator.Compute(evidenceSource, now, now, 0.3));
+
+        var evidence = new List<Evidence>
+        {
+            Money("price", price, EvidenceSource.UserEntered, "Giá mục tiêu do người dùng nêu"),
+            Money("plan_required", required, EvidenceSource.Estimated, AgentTexts.Render(t, "plan_required", ("months", horizon), ("duration", GoalPlanTool.Years(horizon, t)))),
+            Money("income_declared", estimate.Income, EvidenceSource.UserEntered, AgentTexts.Render(t, "income_declared")),
+        };
+
+        var basis = string.Empty;
+        switch (estimate.Basis)
+        {
+            case CapacityBasis.Spend:
+                basis = AgentTexts.Render(t, "basis_spend", ("count", estimate.SpendMonths));
+                evidence.Add(Money("capacity_base", estimate.Capacity!.Value, EvidenceSource.Estimated, AgentTexts.Render(t, "capacity_from_spend")));
+                break;
+            case CapacityBasis.Method:
+                basis = AgentTexts.Render(t, "basis_method", ("method", estimate.MethodName!), ("percent", estimate.Percent));
+                evidence.Add(Money("capacity_base", estimate.Capacity!.Value, EvidenceSource.Estimated, AgentTexts.Render(t, "capacity_from_method", ("method", estimate.MethodName!), ("percent", estimate.Percent))));
+                break;
+            case CapacityBasis.SurveySpend:
+                basis = AgentTexts.Render(t, "basis_survey_spend");
+                evidence.Add(Money("spend_declared", estimate.AverageSpend, EvidenceSource.UserEntered, AgentTexts.Render(t, "spend_declared")));
+                evidence.Add(Money("capacity_base", estimate.Capacity!.Value, EvidenceSource.Estimated, AgentTexts.Render(t, "capacity_from_survey_spend")));
+                break;
+            case CapacityBasis.Survey:
+                basis = AgentTexts.Render(t, "basis_survey", ("percent", estimate.Percent));
+                evidence.Add(Money("capacity_base", estimate.Capacity!.Value, EvidenceSource.Estimated, AgentTexts.Render(t, "capacity_from_survey", ("percent", estimate.Percent))));
+                break;
+        }
+
+        evidence.Add(new Evidence(
+            "prelim_note", GoalPlanTool.PreliminaryEvidenceKey, null, AgentTexts.Render(t, "preliminary_note", ("basis", basis), ("minMonths", AgentLimits.MinHistoryMonths)),
+            "label", EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, 0.3)));
+        if (estimate.Capacity is { } capacity)
+        {
+            evidence.Add(new Evidence(
+                "verdict", "goal_verdict", null, $"verdict: {(required <= capacity ? "tight" : "infeasible")} (horizon {horizon} tháng)", "label",
+                EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, 0.3)));
+        }
+
+        var deadline = VietnamTime.DateOf(now).AddMonths(horizon);
+        List<SuggestedActionDto> actions =
+        [
+            new(SuggestedActionKinds.CreateGoal, $"Tạo mục tiêu tiết kiệm {LocalTemplateComposer.FormatVnd(price)} trong {horizon} tháng", price, deadline.ToString("yyyy-MM-dd"), null, null, ["price"]),
+        ];
+        return ToolResult.Ok(evidence, actions);
     }
 }

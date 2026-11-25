@@ -9,6 +9,9 @@ public static class AgentLimits
     /// <summary>Số bước tối đa trong một kế hoạch (provisional).</summary>
     public const int MaxPlanSteps = 4;
 
+    /// <summary>Chờ LLM viết câu tối đa bao nhiêu giây; quá hạn thì trả bản mẫu dựng từ bằng chứng (đủ số liệu, ít tự nhiên hơn) thay vì bắt người dùng chờ (provisional).</summary>
+    public const int ComposeTimeoutSeconds = 6;
+
     /// <summary>Số lần lập lại kế hoạch tối đa khi thiếu dữ liệu (provisional).</summary>
     public const int MaxReplans = 2;
 

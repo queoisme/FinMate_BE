@@ -104,7 +104,13 @@ public record ScanReceiptResponse(
 // POST /api/v1/chat/parse — route thứ năm của contract, thêm ở Phase 20. AI Service chỉ HIỂU câu chat và
 // trả quyết định; backend lưu giao dịch và tự tính tổng. AmountCents là đồng VND như mọi nơi khác.
 /// <param name="AllowAi">Người dùng đang đồng ý gửi cụm sản phẩm cho AI bên thứ ba (đọc từ DB). Mặc định tắt: không gửi gì ra ngoài.</param>
-public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false);
+/// <summary>
+/// Việc ngân sách / khoản định kỳ / vay nợ VỪA làm trong phiên: app gửi kèm mỗi tin chat để AI hiểu câu nối tiếp ("đổi thành 3 triệu", "xóa cái đó"). Server không lưu gì.
+/// Chỉ số liệu có cấu trúc, không có chữ người dùng gõ.
+/// </summary>
+public record ChatItemContext(string Kind, long AmountCents, string? Name = null, string? CategorySlug = null, string? Cadence = null, string? Direction = null, string? Counterparty = null);
+
+public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false, ChatItemContext? ItemContext = null);
 
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
@@ -140,7 +146,8 @@ public record ChatParseQuery(
 /// <summary>Bản nháp mục tiêu tiết kiệm AI hiểu từ câu chat (intent create_goal). Chưa phải mục tiêu: người dùng xác nhận rồi app mới tạo.</summary>
 /// <param name="Deadline">Chốt 23:59:59 giờ VN của ngày hạn; null = không nói hạn.</param>
 /// <param name="DeadlineText">Cụm người dùng nói ("2 tháng sau"), để app hiện kèm ngày cụ thể cho họ soát.</param>
-public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText);
+/// <param name="AiAssisted">Hạn hoặc tên do AI đọc hộ vì luật không hiểu: client không tự tạo mục tiêu mà hỏi người dùng soát.</param>
+public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, DateTimeOffset? Deadline, string? DeadlineText, bool AiAssisted = false);
 
 /// <summary>
 /// Khoản mua người dùng đang cân nhắc (intent evaluate_purchase). Chỉ là tham số có cấu trúc: không tạo giao dịch, không có kết luận tiền.
@@ -149,7 +156,18 @@ public record ChatParseGoal(string Name, bool NameIsDefault, long TargetCents, D
 /// <param name="PurchaseDate">Ngày dự định mua; null = hôm nay.</param>
 public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? PurchaseDate, string? CategorySlug);
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
+/// <summary>
+/// Ngân sách / khoản định kỳ / khoản vay nợ đủ thông tin AI hiểu từ câu chat (intent create_item). <paramref name="Kind"/>: budget | recurring | loan.
+/// Thiếu thông tin thì <c>Item</c> null và <c>ReplyText</c> là câu hỏi lại.
+/// </summary>
+/// <param name="AmountCents">Đồng VND: hạn mức tháng / số tiền mỗi lần / số tiền vay.</param>
+/// <param name="Name">recurring: tên khoản; loan: tiêu đề.</param>
+/// <param name="Cadence">recurring: weekly | monthly | yearly.</param>
+/// <param name="Direction">loan: borrow (mình đi vay) | lend (mình cho vay).</param>
+/// <param name="Operation">create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm); update/add/delete mang định danh của việc đó.</param>
+public record ChatParseItem(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty, string Operation = "create");
+
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | create_item | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,
@@ -161,7 +179,8 @@ public record ChatParseResponse(
     bool TotalMismatch = false,
     IReadOnlyList<string>? Skipped = null,
     ChatParseGoal? Goal = null,
-    ChatParsePurchase? Purchase = null);
+    ChatParsePurchase? Purchase = null,
+    ChatParseItem? Item = null);
 
 // POST /api/v1/bill/classify — route thứ sáu của contract, thêm ở Phase 21 (bước 3 của luồng ảnh → OCR → lọc → AI phân loại).
 // Chỉ nhận diện và phân loại chữ ĐÃ lọc; không lưu gì.
@@ -190,12 +209,31 @@ public record TrainingLabelRequest(Guid ScanId, Guid UserId, string FinalSlug);
 // POST /api/v1/bill/classify-items — phân loại từng món. KHÔNG bao giờ gửi số tiền, chỉ tên món và chỉ số dòng cha.
 public record ClassifyItemInput(string Name, int? Parent);
 
-public record ClassifyItemsRequest(Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi);
+/// <summary>Một danh mục của người dùng gửi kèm để AI chọn ra. <c>Name</c> được cắt 40 ký tự ở Infrastructure; <c>ParentSlug</c> là slug hệ thống cha (null với danh mục hệ thống).</summary>
+public record ClassifyCategoryInput(Guid Id, string Name, string Slug, bool IsSystem, string? ParentSlug);
+
+public record ClassifyItemsRequest(
+    Guid UserId, string? MerchantName, IReadOnlyList<ClassifyItemInput> Items, bool AllowAi,
+    IReadOnlyList<ClassifyCategoryInput>? Categories = null);
 
 /// <param name="Source">rule | cache | inherit | merchant | ai | unknown.</param>
 public record ClassifiedItem(int Index, string? CategorySlug, string Source);
 
 public record ClassifyItemsResponse(IReadOnlyList<ClassifiedItem> Items, bool AiUsed);
+
+// POST /api/v1/bill/items/memory — người dùng đã chốt danh mục cho tên món. Chỉ tên món và id danh mục, không số tiền.
+public static class ItemMemoryKinds
+{
+    /// <summary>Người dùng sửa danh mục AI gợi ý.</summary>
+    public const string Corrected = "corrected";
+
+    /// <summary>Người dùng giữ nguyên danh mục AI gợi ý.</summary>
+    public const string Accepted = "accepted";
+}
+
+public record LearnItemEntry(string Name, Guid CategoryId, string Kind);
+
+public record LearnItemsRequest(Guid UserId, IReadOnlyList<LearnItemEntry> Items);
 
 public interface IAIServiceClient
 {
@@ -248,4 +286,10 @@ public interface IAIServiceClient
 
     /// <summary>KHÔNG best-effort: ném lỗi khi ai-service không xác nhận được, để người gọi báo và thử lại. Xóa MỌI mẫu huấn luyện của người dùng (rút đồng ý đóng góp, hoặc xóa cứng tài khoản).</summary>
     Task EraseTrainingSamplesAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Best-effort như <see cref="LearnMerchantAsync"/>. Ghi nhớ danh mục người dùng đã chốt cho từng tên món (1..60 món mỗi lần).</summary>
+    Task LearnItemsAsync(LearnItemsRequest request, CancellationToken ct = default);
+
+    /// <summary>KHÔNG best-effort: ném lỗi khi ai-service không xác nhận được, để người gọi báo và thử lại. Xóa MỌI bộ nhớ tên món của người dùng.</summary>
+    Task EraseItemMemoryAsync(Guid userId, CancellationToken ct = default);
 }

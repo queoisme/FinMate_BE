@@ -34,6 +34,9 @@ using FinMate.Application.Notifications.Commands;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Forecasting;
 using FinMate.Application.Groups;
+using FinMate.Application.Groups.Approvals;
+using FinMate.Application.Groups.Bills;
+using FinMate.Application.Groups.Invitations;
 using FinMate.Application.Groups.Funds;
 using FinMate.Application.Reports;
 using FinMate.Application.Reports.Commands;
@@ -439,6 +442,7 @@ public class Program
         builder.Services.AddScoped<IFinancialDataSource>(sp => sp.GetRequiredService<SwitchableFinancialDataSource>());
         builder.Services.AddScoped<AgentRunOptions>();
         builder.Services.AddScoped<IncomeHistory>();
+        builder.Services.AddScoped<PreliminaryCapacityService>();
         builder.Services.AddScoped<IAgentTool, ForecastGoalTool>();
         builder.Services.AddScoped<IAgentTool, GetAssumptionsAgentTool>();
         builder.Services.AddScoped<IAgentTool, SearchKnowledgeAgentTool>();
@@ -446,6 +450,11 @@ public class Program
         builder.Services.AddScoped<IAgentTool, RunwayTool>();
         builder.Services.AddScoped<IAgentTool, SpendingSummaryTool>();
         builder.Services.AddScoped<IAgentTool, PlanBudgetTool>();
+        builder.Services.AddScoped<IAgentTool, BudgetStatusTool>();
+        builder.Services.AddScoped<IAgentTool, GoalPlanTool>();
+        builder.Services.AddScoped<IAgentTool, GoalsProgressTool>();
+        builder.Services.AddScoped<IAgentTool, UpcomingItemsTool>();
+        builder.Services.AddScoped<IAgentTool, ProposeBudgetLimitTool>();
         builder.Services.AddScoped<IAgentTool, StressTestTool>();
         builder.Services.AddScoped<IAgentTool, SensitivityTool>();
         builder.Services.AddScoped<ToolRegistry>();
@@ -572,6 +581,17 @@ public class Program
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
         builder.Services.AddScoped<IGroupInvitationService, GroupInvitationService>();
+        builder.Services.AddScoped<IGroupSettingsService, GroupSettingsService>();
+        builder.Services.AddScoped<IGroupJoinLinkService, GroupJoinLinkService>();
+        builder.Services.AddScoped<IUserSearchThrottle, UserSearchThrottle>();
+        builder.Services.AddScoped<IUserSearchService, UserSearchService>();
+        builder.Services.AddScoped<IGroupBillRepository, GroupBillRepository>();
+        builder.Services.AddScoped<IGroupApprovalRepository, GroupApprovalRepository>();
+        builder.Services.AddScoped<IGroupApprovalService, GroupApprovalService>();
+        builder.Services.AddScoped<GroupBillService>();
+        builder.Services.AddScoped<IGroupBillService>(sp => new RetryingGroupBillService(sp.GetRequiredService<GroupBillService>(), sp.GetRequiredService<IConcurrencyRetry>()));
+        builder.Services.AddScoped<IGroupDebtService, GroupDebtService>();
+        builder.Services.AddScoped<IGroupSummaryService, GroupSummaryService>();
         builder.Services.AddScoped<IGroupFinanceRepository, GroupFinanceRepository>();
         builder.Services.AddScoped<IGroupAlertNotifier, GroupAlertNotifier>();
         builder.Services.AddScoped<IGroupLedger, GroupLedger>();
@@ -605,6 +625,8 @@ public class Program
         builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
         builder.Services.AddScoped<IForecastAlertDispatcher, ForecastAlertDispatcher>();
         builder.Services.AddScoped<IForecastAlertService, ForecastAlertService>();
+        builder.Services.AddScoped<IPurchaseReminderService, PurchaseReminderService>();
+        builder.Services.AddScoped<IWeeklyDigestService, WeeklyDigestService>();
         builder.Services.AddScoped<IBudgetForecastService, BudgetForecastService>();
         builder.Services.AddScoped<IIncomeForecastService, IncomeForecastService>();
         builder.Services.AddScoped<IAnomalyRepository, AnomalyRepository>();
@@ -628,8 +650,11 @@ public class Program
         builder.Services.AddScoped<IQrTransferLinker, QrTransferLinker>();
         builder.Services.AddScoped<IReceiptScanRepository, ReceiptScanRepository>();
         builder.Services.AddScoped<ITrainingSampleService, TrainingSampleService>();
+        builder.Services.AddScoped<IItemMemoryService, ItemMemoryService>();
         builder.Services.AddScoped<IAiConsentReader, AiConsentReader>();
         builder.Services.AddScoped<ISavingGoalRepository, SavingGoalRepository>();
+        builder.Services.AddScoped<ILoanRepository, LoanRepository>();
+        builder.Services.AddScoped<FinMate.Application.Loans.ILoanService, FinMate.Application.Loans.LoanService>();
         builder.Services.AddScoped<IReportRepository, ReportRepository>();
         builder.Services.AddScoped<ISpendingForecaster, StatisticalSpendingForecaster>();
         builder.Services.AddScoped<IAIServiceClient, AIServiceClient>();
@@ -761,6 +786,7 @@ public class Program
 
         builder.Services.AddScoped<IGetMonthlySummaryQueryHandler, GetMonthlySummaryQueryHandler>();
         builder.Services.AddScoped<IGetPeriodSummaryQueryHandler, GetPeriodSummaryQueryHandler>();
+        builder.Services.AddScoped<IActivateSavingGoalCommandHandler, ActivateSavingGoalCommandHandler>();
         builder.Services.AddScoped<IGetCategoryBreakdownQueryHandler, GetCategoryBreakdownQueryHandler>();
         builder.Services.AddScoped<IGetTransactionTimelineQueryHandler, GetTransactionTimelineQueryHandler>();
         builder.Services.AddScoped<IGetSpendingForecastQueryHandler, GetSpendingForecastQueryHandler>();
@@ -780,6 +806,7 @@ public class Program
         builder.Services.AddScoped<IDailySummaryRefresher, DailySummaryRefresher>();
         builder.Services.AddScoped<InsightGeneratorJob>();
         builder.Services.AddScoped<GoalDeadlineCheckJob>();
+        builder.Services.AddScoped<LoanDueReminderJob>();
         builder.Services.AddScoped<RecurringDetectionJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
@@ -965,6 +992,11 @@ public class Program
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
 
+        RecurringJob.AddOrUpdate<LoanDueReminderJob>(
+            "loan-due-reminder",
+            job => job.RunAsync(CancellationToken.None),
+            "5 1 * * *");
+
         // Hangfire đọc cron theo UTC. ARCHITECTURE.md §5 ghi giờ theo ý định vận hành (giờ VN)
         // nên hai job dưới phải trừ 7 tiếng: 17:05 UTC = 00:05 VN, 19:00 UTC = 02:00 VN.
         RecurringJob.AddOrUpdate<DailySummaryJob>(
@@ -989,6 +1021,12 @@ public class Program
             "forecast-daily-alerts",
             job => job.RunAsync(CancellationToken.None),
             "0 1 * * *");
+
+        // Thứ Hai 01:00 UTC = 08:00 VN: bản tin tổng kết tuần (ngân sách có nguy cơ vượt, mục tiêu gần hạn nhất).
+        RecurringJob.AddOrUpdate<WeeklyDigestJob>(
+            "weekly-digest",
+            job => job.RunAsync(CancellationToken.None),
+            "0 1 * * 1");
 
         // 02:00 UTC = 09:00 VN (BR-LH-05): nhắc khi app không còn đọc được thông báo ngân hàng, sau lượt cảnh báo dự báo lúc 08:00.
         RecurringJob.AddOrUpdate<ListenerHealthDailyJob>(

@@ -1,0 +1,24 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/funds",
+  "request": {
+    "name": "Quỹ phòng"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "aa95a8b0-85d6-4fbe-b5ca-76666580bbfe",
+      "name": "Quỹ phòng",
+      "note": null,
+      "balanceCents": 0,
+      "isNegative": false,
+      "isArchived": false,
+      "archivedAt": null,
+      "createdAt": "2026-11-20T10:18:44.0827612+00:00",
+      "updatedAt": "2026-11-20T10:18:44.0827612+00:00"
+    },
+    "error": null,
+    "meta": null
+  }
+}

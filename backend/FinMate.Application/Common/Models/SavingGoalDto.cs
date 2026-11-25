@@ -9,7 +9,10 @@ public record SavingGoalDto(
     int PercentComplete,
     string Status,
     DateTimeOffset? Deadline,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? Icon = null,
+    long InitialSavedCents = 0,
+    string? ContributionFrequency = null);
 
 public record GoalContributionDto(
     Guid Id,
@@ -51,4 +54,15 @@ public record GoalFeasibilityDto(
     long? AvailablePerMonthCents,
     bool? IsFeasible,
     DateTimeOffset? SuggestedDeadline,
-    long? SuggestedTargetCents);
+    long? SuggestedTargetCents,
+    int? FeasibilityPercent = null,
+    long RequiredPerWeekCents = 0,
+    long RequiredPerDayCents = 0,
+    long? MonthlyIncomeCents = null,
+    AutoSaveSuggestionDto? AutoSaveSuggestion = null);
+
+/// <summary>
+/// Gợi ý một khoản tự động để dành định kỳ. <paramref name="Frequency"/> là <c>weekly</c> hoặc <c>monthly</c>; <paramref name="AmountCents"/> là phần nhỏ hơn giữa số cần góp
+/// và số có thể dành ra. <paramref name="CoversTarget"/> = false nghĩa là số có thể dành ra không đủ để kịp hạn.
+/// </summary>
+public record AutoSaveSuggestionDto(string Frequency, long AmountCents, bool CoversTarget);

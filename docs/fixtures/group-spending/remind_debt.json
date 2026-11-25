@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/members/{id}/remind-debt",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "sent": [
+        "e6349c5f-3384-4e71-b0c5-90ab2beb3368"
+      ],
+      "skipped": []
+    },
+    "error": null,
+    "meta": null
+  }
+}

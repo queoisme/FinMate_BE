@@ -4,6 +4,45 @@ public enum GroupType
 {
     Family,
     Other,
+    Friends,
+    Travel,
+    Colleagues,
+    Roommates,
+}
+
+/// <summary>Cách nhóm chia tiền: quỹ chung hay chia hóa đơn. Giá trị đầu là mặc định của cột.</summary>
+/// <summary>Chia đều (server tính, dồn phần dư cho người trả) hay chia tùy chỉnh theo từng người.</summary>
+public enum GroupBillSplitMode
+{
+    Equal,
+    Custom,
+}
+
+/// <summary>Loại khoản chờ duyệt.</summary>
+public enum GroupApprovalKind
+{
+    Bill,
+    FundEntry,
+}
+
+public enum GroupApprovalStatus
+{
+    Pending,
+    Approved,
+    Rejected,
+}
+
+public enum GroupSettlementModel
+{
+    SharedFund,
+    SplitBill,
+}
+
+/// <summary>Cách cấn trừ nợ: để hệ thống rút gọn số lần chuyển, hay người dùng tự chọn.</summary>
+public enum DebtSettlementMethod
+{
+    AiOptimized,
+    Manual,
 }
 
 /// <summary>Thứ tự khai báo là thứ bậc: giá trị nhỏ hơn có quyền lớn hơn. So sánh vai trò dựa vào điều này.</summary>
@@ -67,6 +106,12 @@ public enum GroupActivityType
     GoalChanged,
     GoalContributed,
     CategoryChanged,
+    BillCreated,
+    ApprovalRequested,
+    ApprovalApproved,
+    ApprovalRejected,
+    SettlementRecorded,
+    DebtReminded,
     FundCreated,
     FundUpdated,
     FundArchived,

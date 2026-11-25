@@ -15,21 +15,69 @@ public sealed record GroupDto(
     GroupRole MyRole,
     IReadOnlyList<GroupPermission> MyPermissions,
     int MemberCount,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? Icon = null,
+    string? AvatarUrl = null,
+    string? Description = null,
+    string Currency = "VND",
+    GroupSettlementModel SettlementModel = GroupSettlementModel.SharedFund,
+    int? ClosingDay = null,
+    DebtSettlementMethod DebtSettlementMethod = DebtSettlementMethod.AiOptimized,
+    Guid? MyDefaultFinancialAccountId = null,
+    GroupCardDto? Card = null);
+
+/// <summary>Số liệu thẻ danh sách. Chỉ có ở <c>GET /groups</c>. <c>FundBalanceCents</c> null khi chưa có quỹ; <c>MonthlyBudgetCents</c> null khi chưa có ngân sách tổng.</summary>
+public sealed record GroupCardDto(
+    long? FundBalanceCents,
+    long MonthlySpentCents,
+    long? MonthlyBudgetCents,
+    IReadOnlyList<GroupMemberPreviewDto> MemberPreview);
+
+public sealed record GroupMemberPreviewDto(Guid UserId, string DisplayName, string? AvatarUrl);
 
 public sealed record GroupActivityDto(Guid Id, GroupActivityType Type, Guid? ActorUserId, Guid? SubjectId, DateTimeOffset CreatedAt);
 
 public sealed record GroupActivityListResult(IReadOnlyList<GroupActivityDto> Items, string? NextCursor);
 
-public sealed record CreateGroupCommand(Guid UserId, string Name, GroupType Type);
+public sealed record GroupProfile(
+    string? Icon = null,
+    string? Description = null,
+    string? Currency = null,
+    GroupSettlementModel? SettlementModel = null,
+    int? ClosingDay = null,
+    DebtSettlementMethod? DebtSettlementMethod = null);
+
+public sealed record CreateGroupCommand(Guid UserId, string Name, GroupType Type, GroupProfile? Profile = null);
 
 /// <summary>Trường null = giữ nguyên.</summary>
-public sealed record UpdateGroupCommand(Guid UserId, Guid GroupId, string? Name, GroupTransactionVisibility? TransactionVisibility);
+public sealed record UpdateGroupCommand(Guid UserId, Guid GroupId, string? Name, GroupTransactionVisibility? TransactionVisibility, GroupProfile? Profile = null);
 
 public static class GroupLimits
 {
     public const int NameMaxLength = 100;
     public const int MaxActivities = 100;
+    public const int IconMaxLength = 50;
+    public const int DescriptionMaxLength = 200;
+    public const int MemberPreviewCount = 3;
+}
+
+internal static class GroupProfileRules
+{
+    public static void Apply<T>(AbstractValidator<T> v, Func<T, GroupProfile?> profile)
+    {
+        v.RuleFor(x => profile(x)!.Icon).MaximumLength(GroupLimits.IconMaxLength).WithMessage($"Biểu tượng tối đa {GroupLimits.IconMaxLength} ký tự.")
+            .When(x => profile(x)?.Icon is not null);
+        v.RuleFor(x => profile(x)!.Description).MaximumLength(GroupLimits.DescriptionMaxLength).WithMessage($"Mô tả tối đa {GroupLimits.DescriptionMaxLength} ký tự.")
+            .When(x => profile(x)?.Description is not null);
+        v.RuleFor(x => profile(x)!.Currency).Must(c => c == "VND").WithMessage("Hiện chỉ hỗ trợ tiền tệ VND.")
+            .When(x => profile(x)?.Currency is not null);
+        v.RuleFor(x => profile(x)!.ClosingDay!.Value).InclusiveBetween(1, 28).WithMessage("Ngày chốt sổ phải từ 1 đến 28.")
+            .When(x => profile(x)?.ClosingDay is not null);
+        v.RuleFor(x => profile(x)!.SettlementModel!.Value).IsInEnum().WithMessage("Mô hình chia tiền không hợp lệ.")
+            .When(x => profile(x)?.SettlementModel is not null);
+        v.RuleFor(x => profile(x)!.DebtSettlementMethod!.Value).IsInEnum().WithMessage("Cách cấn trừ nợ không hợp lệ.")
+            .When(x => profile(x)?.DebtSettlementMethod is not null);
+    }
 }
 
 public class CreateGroupCommandValidator : AbstractValidator<CreateGroupCommand>
@@ -39,6 +87,7 @@ public class CreateGroupCommandValidator : AbstractValidator<CreateGroupCommand>
         RuleFor(x => x.Name).NotEmpty().WithMessage("Tên nhóm không được để trống.")
             .MaximumLength(GroupLimits.NameMaxLength).WithMessage($"Tên nhóm tối đa {GroupLimits.NameMaxLength} ký tự.");
         RuleFor(x => x.Type).IsInEnum().WithMessage("Loại nhóm không hợp lệ.");
+        GroupProfileRules.Apply(this, c => c.Profile);
     }
 }
 
@@ -49,6 +98,7 @@ public class UpdateGroupCommandValidator : AbstractValidator<UpdateGroupCommand>
         When(x => x.Name is not null, () => RuleFor(x => x.Name).NotEmpty().WithMessage("Tên nhóm không được để trống.")
             .MaximumLength(GroupLimits.NameMaxLength).WithMessage($"Tên nhóm tối đa {GroupLimits.NameMaxLength} ký tự."));
         RuleFor(x => x.TransactionVisibility).IsInEnum().WithMessage("Chế độ hiển thị không hợp lệ.");
+        GroupProfileRules.Apply(this, c => c.Profile);
     }
 }
 
@@ -71,6 +121,8 @@ public class GroupService : IGroupService
     private readonly IValidator<CreateGroupCommand> _createValidator;
     private readonly IValidator<UpdateGroupCommand> _updateValidator;
     private readonly IGroupFundRepository? _funds;
+    private readonly IGroupFinanceRepository? _finance;
+    private readonly IGroupReportService? _reports;
 
     public GroupService(
         IGroupRepository groups,
@@ -79,9 +131,13 @@ public class GroupService : IGroupService
         IAuditLogService audit,
         IValidator<CreateGroupCommand> createValidator,
         IValidator<UpdateGroupCommand> updateValidator,
-        IGroupFundRepository? funds = null)
+        IGroupFundRepository? funds = null,
+        IGroupFinanceRepository? finance = null,
+        IGroupReportService? reports = null)
     {
         _funds = funds;
+        _finance = finance;
+        _reports = reports;
         _groups = groups;
         _access = access;
         _config = config;
@@ -105,6 +161,11 @@ public class GroupService : IGroupService
             Id = Guid.NewGuid(),
             Name = command.Name.Trim(),
             Type = command.Type,
+            Icon = Clean(command.Profile?.Icon),
+            Description = Clean(command.Profile?.Description),
+            SettlementModel = command.Profile?.SettlementModel ?? GroupSettlementModel.SharedFund,
+            ClosingDay = command.Profile?.ClosingDay,
+            DebtSettlementMethod = command.Profile?.DebtSettlementMethod ?? DebtSettlementMethod.AiOptimized,
             CreatedByUserId = command.UserId,
             CreatedAt = now,
             UpdatedAt = now,
@@ -128,7 +189,44 @@ public class GroupService : IGroupService
     }
 
     public async Task<IReadOnlyList<GroupDto>> ListAsync(Guid userId, CancellationToken ct = default)
-        => (await _groups.ListForUserAsync(userId, ct)).Select(g => ToDto(g.Group, g.Member, g.MemberCount)).ToList();
+    {
+        var rows = await _groups.ListForUserAsync(userId, ct);
+        var result = new List<GroupDto>(rows.Count);
+        foreach (var g in rows)
+        {
+            result.Add(ToDto(g.Group, g.Member, g.MemberCount) with { Card = await BuildCardAsync(g.Group.Id, userId, ct) });
+        }
+
+        return result;
+    }
+
+    private async Task<GroupCardDto?> BuildCardAsync(Guid groupId, Guid userId, CancellationToken ct)
+    {
+        long? fund = null;
+        if (_funds is not null)
+        {
+            var open = (await _funds.ListAsync(groupId, ct)).Where(f => !f.IsArchived).ToList();
+            fund = open.Count == 0 ? null : open.Sum(f => f.BalanceCents);
+        }
+
+        var spent = 0L;
+        if (_reports is not null)
+        {
+            var (year, month) = VietnamTime.YearMonthOf(DateTimeOffset.UtcNow);
+            spent = (await _reports.GetMonthlyAsync(groupId, userId, year, month, ct)).TotalSpentCents;
+        }
+
+        long? budget = null;
+        if (_finance is not null)
+        {
+            budget = (await _finance.ListBudgetsAsync(groupId, ct)).FirstOrDefault(b => b.CategoryId is null && b.GroupCategoryId is null)?.LimitCents;
+        }
+
+        var preview = (await _groups.ListActiveMembersAsync(groupId, ct)).Take(GroupLimits.MemberPreviewCount)
+            .Select(m => new GroupMemberPreviewDto(m.Member.UserId, m.IsUserActive ? m.DisplayName : GroupMemberService.InactiveMemberName, null))
+            .ToList();
+        return new GroupCardDto(fund, spent, budget, preview);
+    }
 
     public async Task<GroupDto> GetAsync(Guid groupId, Guid userId, CancellationToken ct = default)
     {
@@ -144,6 +242,14 @@ public class GroupService : IGroupService
 
         access.Group.Name = command.Name?.Trim() ?? access.Group.Name;
         access.Group.TransactionVisibility = command.TransactionVisibility ?? access.Group.TransactionVisibility;
+        if (command.Profile is { } p)
+        {
+            access.Group.Icon = p.Icon is null ? access.Group.Icon : Clean(p.Icon);
+            access.Group.Description = p.Description is null ? access.Group.Description : Clean(p.Description);
+            access.Group.SettlementModel = p.SettlementModel ?? access.Group.SettlementModel;
+            access.Group.ClosingDay = p.ClosingDay ?? access.Group.ClosingDay;
+            access.Group.DebtSettlementMethod = p.DebtSettlementMethod ?? access.Group.DebtSettlementMethod;
+        }
         access.Group.UpdatedAt = now;
 
         _groups.AddActivity(NewActivity(command.GroupId, command.UserId, GroupActivityType.GroupUpdated, null, now));
@@ -198,5 +304,16 @@ public class GroupService : IGroupService
             member.Role,
             GroupPermissions.Expand(GroupPermissions.Effective(member.Role, group.TransactionVisibility, member.PermissionsGranted, member.PermissionsRevoked)),
             memberCount,
-            group.CreatedAt);
+            group.CreatedAt,
+            group.Icon,
+            group.AvatarUrl,
+            group.Description,
+            group.Currency,
+            group.SettlementModel,
+            group.ClosingDay,
+            group.DebtSettlementMethod,
+            member.DefaultFinancialAccountId);
+
+    /// <summary>Chuỗi rỗng sau khi cắt khoảng trắng là xóa giá trị.</summary>
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

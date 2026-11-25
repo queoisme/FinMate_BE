@@ -1,0 +1,53 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/balances",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "method": "AiOptimized",
+      "members": [
+        {
+          "userId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+          "displayName": "Minh",
+          "isActive": true,
+          "netCents": -633333
+        },
+        {
+          "userId": "8b01a1ce-4770-41f8-aed8-7320a37e9d84",
+          "displayName": "Mai",
+          "isActive": true,
+          "netCents": 0
+        },
+        {
+          "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+          "displayName": "Hung",
+          "isActive": true,
+          "netCents": 66667
+        },
+        {
+          "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+          "displayName": "Lan",
+          "isActive": true,
+          "netCents": 566666
+        }
+      ],
+      "transfers": [
+        {
+          "fromUserId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+          "toUserId": "3026b293-a99a-4408-a214-75924c9f549f",
+          "amountCents": 566666
+        },
+        {
+          "fromUserId": "e6349c5f-3384-4e71-b0c5-90ab2beb3368",
+          "toUserId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+          "amountCents": 66667
+        }
+      ],
+      "formerMembersNetCents": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

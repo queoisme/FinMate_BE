@@ -1,0 +1,20 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/me/summary",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "year": 2026,
+      "month": 11,
+      "totalSpentCents": 7600000,
+      "activeGroupCount": 2,
+      "myShareDueCents": 3633333,
+      "myPayableCents": 3533333,
+      "closingDate": "2026-11-30"
+    },
+    "error": null,
+    "meta": null
+  }
+}

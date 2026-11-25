@@ -30,4 +30,19 @@ public enum ForecastAlertKind
 
     /// <summary>Người quản lý đã xoá dòng quỹ của bạn (Phase 85, S3).</summary>
     GroupFundRemoved,
+
+    /// <summary>Nhắc đúng ngày người dùng đã hẹn mua (từ đề xuất "hoãn mua tới ngày" của agent). Không mang số tiền.</summary>
+    PurchaseReminder,
+
+    /// <summary>Bản tin tổng kết tuần (thứ Hai 08:00 giờ Việt Nam): ngân sách có nguy cơ vượt và tiến độ mục tiêu gần hạn nhất. Không mang số tiền.</summary>
+    WeeklyDigest,
+
+    /// <summary>Chủ nợ nhắc bạn trả nợ trong nhóm. Không mang số tiền.</summary>
+    GroupDebtReminder,
+
+    /// <summary>Có khoản chờ chủ nhóm duyệt. Không mang số tiền.</summary>
+    GroupApprovalRequested,
+
+    /// <summary>Chủ nhóm đã duyệt hoặc từ chối khoản bạn gửi. Không mang số tiền.</summary>
+    GroupApprovalDecided,
 }

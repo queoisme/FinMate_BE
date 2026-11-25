@@ -146,6 +146,16 @@ class ClassifyItemIn(BaseModel):
     parent: int | None = None
 
 
+class UserCategoryIn(BaseModel):
+    """Một danh mục của người dùng do backend gửi sang: ``id`` là khóa thật, ``name`` là nhãn Gemini nhìn thấy (không gửi id cho Gemini)."""
+
+    id: uuid.UUID
+    name: str = Field(min_length=1, max_length=40)
+    slug: str
+    is_system: bool
+    parent_slug: str | None = None
+
+
 class BillClassifyItemsRequest(BaseModel):
     """``POST /api/v1/bill/classify-items``: phân loại từng món; ``allow_ai`` là cờ đồng ý chia sẻ tên món với Gemini."""
 
@@ -153,6 +163,8 @@ class BillClassifyItemsRequest(BaseModel):
     merchant_name: str | None = Field(default=None, max_length=200)
     user_id_hash: str = Field(min_length=64, max_length=64)
     allow_ai: bool = False
+    # Danh mục của người dùng (hệ thống + tự tạo). Có thì phân loại theo danh sách này; thiếu thì dùng slug hệ thống như cũ.
+    categories: list[UserCategoryIn] | None = Field(default=None, max_length=60)
 
     @model_validator(mode="after")
     def _parent_points_back(self) -> "BillClassifyItemsRequest":
@@ -167,10 +179,41 @@ class ClassifyItemOut(BaseModel):
     index: int
     # Slug backend, hoặc None khi không nhận ra (backend gom vào nhóm cần xem lại).
     category_slug: str | None = None
-    source: Literal["rule", "cache", "inherit", "merchant", "ai", "unknown"]
+    # Có khi yêu cầu mang ``categories``: id danh mục của người dùng.
+    category_id: uuid.UUID | None = None
+    source: Literal["rule", "cache", "inherit", "merchant", "ai", "item_memory", "unknown"]
 
 
 class BillClassifyItemsResponse(BaseModel):
     items: list[ClassifyItemOut]
     # True khi đã gọi Gemini và nó trả lời được.
     ai_used: bool
+
+
+class ItemMemoryEntry(BaseModel):
+    """Một món người dùng đã chọn nhóm: ``corrected`` = sửa tay, ``accepted`` = giữ nguyên gợi ý."""
+
+    name: str = Field(min_length=1, max_length=200)
+    category_id: uuid.UUID
+    kind: Literal["corrected", "accepted"]
+
+
+class BillItemMemoryRequest(BaseModel):
+    """``POST /api/v1/bill/items/memory``: ghi nhớ nhóm người dùng đã chọn cho từng món."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+    items: list[ItemMemoryEntry] = Field(min_length=1, max_length=60)
+
+
+class BillItemMemoryResponse(BaseModel):
+    recorded: int
+
+
+class BillItemMemoryEraseRequest(BaseModel):
+    """``POST /api/v1/bill/items/memory/erase``: xóa toàn bộ bộ nhớ món của một người dùng."""
+
+    user_id_hash: str = Field(min_length=64, max_length=64)
+
+
+class BillItemMemoryEraseResponse(BaseModel):
+    deleted: int

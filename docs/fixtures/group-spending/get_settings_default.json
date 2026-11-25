@@ -1,0 +1,21 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/settings",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "closingDay": 5,
+      "debtSettlementMethod": "AiOptimized",
+      "requireApprovalAboveCents": null,
+      "notifyOnNewTransaction": true,
+      "weeklySummary": false,
+      "weeklySummaryDay": 1,
+      "weeklySummaryTime": "09:00",
+      "alertsEnabled": true
+    },
+    "error": null,
+    "meta": null
+  }
+}

@@ -134,8 +134,9 @@ public class ForecastAlertDispatcher : IForecastAlertDispatcher
     {
         ForecastAlertKind.BudgetRisk or ForecastAlertKind.GroupBudget => user.NotificationPrefs.BudgetAlertsEnabled,
         ForecastAlertKind.GroupGoal => true,   // nhắc mục tiêu cá nhân cũng chỉ theo công tắc push; IPushNotificationService tự chặn
-        ForecastAlertKind.GroupFundNegative or ForecastAlertKind.GroupFundRemoved => true,   // như nhắc nhóm: theo công tắc push và alerts_enabled của nhóm
+        ForecastAlertKind.GroupFundNegative or ForecastAlertKind.GroupFundRemoved or ForecastAlertKind.GroupDebtReminder or ForecastAlertKind.GroupApprovalRequested or ForecastAlertKind.GroupApprovalDecided => true,   // như nhắc nhóm: theo công tắc push và alerts_enabled của nhóm
         ForecastAlertKind.ListenerHealth => user.NotificationPrefs.ListenerHealthAlertsEnabled,   // D18: không phụ thuộc công tắc dự báo
+        ForecastAlertKind.PurchaseReminder => true,   // người dùng tự bấm hẹn nên không phụ thuộc công tắc cảnh báo dự báo; IPushNotificationService vẫn tôn trọng công tắc push
         _ => user.NotificationPrefs.ForecastAlertsEnabled,
     };
 
@@ -190,6 +191,11 @@ public static class ForecastAlertKinds
         ForecastAlertKind.ListenerHealth => "listener_health",
         ForecastAlertKind.GroupFundNegative => "group_fund_negative",
         ForecastAlertKind.GroupFundRemoved => "group_fund_removed",
+        ForecastAlertKind.PurchaseReminder => "purchase_reminder",
+        ForecastAlertKind.WeeklyDigest => "weekly_digest",
+        ForecastAlertKind.GroupDebtReminder => "group_debt_reminder",
+        ForecastAlertKind.GroupApprovalRequested => "group_approval_req",
+        ForecastAlertKind.GroupApprovalDecided => "group_approval_res",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

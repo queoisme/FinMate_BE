@@ -1,0 +1,19 @@
+{
+  "method": "GET",
+  "url": "/api/v1/users/search?q=FM-JSW48W4Y&groupId={id}",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [
+      {
+        "userId": "8b01a1ce-4770-41f8-aed8-7320a37e9d84",
+        "displayName": "Mai",
+        "maskedEmail": "m***@gmail.com",
+        "finMateId": "FM-JSW48W4Y"
+      }
+    ],
+    "error": null,
+    "meta": null
+  }
+}

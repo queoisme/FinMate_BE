@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
 
@@ -15,6 +16,9 @@ public sealed class AgentRunOptions
 public interface IAgentOrchestrator
 {
     Task<AgentAnswerDto> AskAsync(Guid userId, string question, CancellationToken ct = default);
+
+    /// <summary>Đánh giá mục tiêu tiết kiệm khi app đã biết số tiền và số tháng: chạy thẳng công cụ <c>goal_plan</c>, không nhờ LLM chọn công cụ (nên không phụ thuộc LLM ở bước đầu).</summary>
+    Task<AgentAnswerDto> AssessGoalAsync(Guid userId, long targetVnd, int months, CancellationToken ct = default);
 }
 
 /// <summary>Các câu cố định của vòng agent (một chỗ duy nhất; câu từ chối theo chủ đề do ai-service lấy từ DB).</summary>
@@ -45,8 +49,11 @@ public static class AgentMessages
 /// </summary>
 public sealed class AgentOrchestrator(
     IAgentAiClient ai, ToolExecutor tools, IncomeHistory income, ConversationStore conversations, AgentTraceContext trace, Func<DateTimeOffset>? now = null,
-    AgentRunOptions? options = null, ListenerHealth.IDataCoverageService? coverage = null) : IAgentOrchestrator
+    AgentRunOptions? options = null, ListenerHealth.IDataCoverageService? coverage = null, ISystemConfigProvider? config = null) : IAgentOrchestrator
 {
+    /// <summary>Mã cổng phạm vi khi câu không có từ khóa tài chính nào (khác với chủ đề bị từ chối riêng).</summary>
+    public const string GateReasonNoCue = "out_of_scope";
+
     /// <summary>Bằng chứng độ phủ dữ liệu (Phase 84, BR-LH-09).</summary>
     public const string DataCoverageEvidenceId = "data_coverage";
 
@@ -60,14 +67,17 @@ public sealed class AgentOrchestrator(
         var clock = (now ?? (() => DateTimeOffset.UtcNow))();
         var context = new ToolContext(userId, clock);
 
+        var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
         var gate = await ai.GateAsync(question, ct);
-        if (!gate.InScope)
+        // Câu nối tiếp ("còn nếu 5 năm thì sao?") không có từ khóa tài chính nên cổng luật coi là ngoài phạm vi. Đang có cuộc hội thoại tài chính thì để bước lập kế hoạch quyết định
+        // (nó có ngữ cảnh, và chỉ được chọn công cụ trong danh sách); chủ đề bị từ chối riêng (vd tư vấn đầu tư) thì vẫn từ chối.
+        var followUp = stored is not null && gate.ReasonCode == GateReasonNoCue;
+        if (!gate.InScope && !followUp)
         {
             return Reply(AgentStatus.Refused, gate.RefusalText ?? AgentMessages.OutOfScope, traceId);
         }
 
         var profile = await income.GetAsync(userId, clock, ct);
-        var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
         var state = stored is not null && stored.Turn < AgentLimits.MaxTurns ? stored : null; // đủ MaxTurns lượt thì ngữ cảnh bắt đầu lại
         var request = new AgentPlanRequest(
             question, profile.Segment.ToString().ToLowerInvariant(), await tools.Registry.SpecsAsync(ct), AgentLimits.MaxPlanSteps,
@@ -137,6 +147,43 @@ public sealed class AgentOrchestrator(
             return true;
         });
 
+        return await ComposeAnswerAsync(userId, question, evidence, actions, usedUserData, traceId, clock, ct);
+    }
+
+    public async Task<AgentAnswerDto> AssessGoalAsync(Guid userId, long targetVnd, int months, CancellationToken ct = default)
+    {
+        var traceId = Guid.NewGuid();
+        trace.Begin(traceId, userId);
+        var clock = (now ?? (() => DateTimeOffset.UtcNow))();
+        var args = JsonSerializer.SerializeToElement(new { target_vnd = targetVnd, months });
+        var result = await tools.ExecuteAsync(new ToolContext(userId, clock), "goal_plan", args, ct);
+        switch (result.Status)
+        {
+            case ToolStatus.Ok:
+                break;
+            case ToolStatus.InsufficientData:
+                return Reply(AgentStatus.InsufficientData, AgentMessages.Insufficient(result.Code), traceId);
+            default:
+                return Reply(AgentStatus.Clarify, AgentMessages.NotUnderstood, traceId);
+        }
+
+        var stored = await TryAsync(() => conversations.GetAsync(userId, ct));
+        var slots = new Dictionary<string, string>();
+        Remember(slots, new AgentPlanStep("goal_plan", args));
+        await TryAsync(async () =>
+        {
+            await conversations.SaveAsync(userId, new ConversationState("goal_plan", slots, (stored?.Turn ?? 0) + 1, clock), ct);
+            return true;
+        });
+
+        var texts = config is null ? null : (await config.GetAsync(ct)).Document.Agent.Texts;
+        var question = AgentTexts.Render(texts, "goal_plan_question", ("target", targetVnd), ("months", months));
+        return await ComposeAnswerAsync(userId, question, [.. result.Evidence], [.. result.Actions ?? []], true, traceId, clock, ct);
+    }
+
+    private async Task<AgentAnswerDto> ComposeAnswerAsync(
+        Guid userId, string question, List<Evidence> evidence, List<SuggestedActionDto> actions, bool usedUserData, Guid traceId, DateTimeOffset clock, CancellationToken ct)
+    {
         // BR-LH-09: câu trả lời dựa trên giao dịch của user mà độ phủ kém thì PHẢI nói dữ liệu có thể thiếu. Bằng chứng đưa cho LLM thấy, còn câu cố định
         // được ghép vào cuối (nếu chưa có mệnh đề nào trích nó) để LLM có lờ đi cũng không mất. Câu chỉ chứa phần trăm, không có số tiền, nên qua được bộ kiểm số (S5).
         var coverageWarning = usedUserData ? await PoorCoverageWarningAsync(userId, ct) : null;
@@ -165,14 +212,20 @@ public sealed class AgentOrchestrator(
     private async Task<(IReadOnlyList<AgentClaimDto> Claims, bool UsedTemplate)> ComposeAsync(string question, List<Evidence> evidence, CancellationToken ct)
     {
         AgentComposeResult? composed = null;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(TimeSpan.FromSeconds(AgentLimits.ComposeTimeoutSeconds));
         try
         {
-            composed = await ai.ComposeAsync(question, evidence, skipVerifier: options?.SkipVerifier ?? false, ct);
+            composed = await ai.ComposeAsync(question, evidence, skipVerifier: options?.SkipVerifier ?? false, limit.Token);
             trace.AddUsage(composed.Usage);
         }
         catch (AIServiceUnavailableException)
         {
             // ai-service sập giữa vòng: bằng chứng đã có trong tay nên vẫn trả lời được bằng mẫu, không 500
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // quá hạn chờ LLM viết câu: dùng mẫu (người dùng bỏ đi thì ct bị hủy và lỗi vẫn nổi lên như cũ)
         }
 
         var known = evidence.Select(e => e.Id).ToHashSet();
@@ -226,15 +279,25 @@ public sealed class AgentOrchestrator(
         }
     }
 
-    /// <summary>Nhớ giá và thời hạn của lần dự báo thành công để câu nối tiếp ("còn 3 năm thì sao?") dùng lại giá cũ. Chỉ số nguyên đã qua kiểm tham số.</summary>
+    /// <summary>Tham số nguyên của lượt thành công được nhớ cho câu nối tiếp ("còn 3 năm thì sao?", "vậy tháng trước?", "nếu tiết kiệm 5 triệu thì sao?"). Chỉ số nguyên đã qua kiểm tham số.</summary>
+    private static readonly Dictionary<string, string[]> RememberedArgs = new()
+    {
+        ["forecast_goal"] = ["price_vnd", "horizon_months"],
+        ["simulate_purchase"] = ["price_vnd"],
+        ["spending_summary"] = ["months"],
+        ["plan_budget"] = ["income_vnd", "save_vnd"],
+        ["propose_budget_limit"] = ["limit_vnd"],
+        ["goal_plan"] = ["target_vnd", "months"],
+    };
+
     private static void Remember(Dictionary<string, string> slots, AgentPlanStep step)
     {
-        if (step.Tool != "forecast_goal")
+        if (!RememberedArgs.TryGetValue(step.Tool, out var names))
         {
             return;
         }
 
-        foreach (var name in new[] { "price_vnd", "horizon_months" })
+        foreach (var name in names)
         {
             if (step.Args.TryGetProperty(name, out var value) && value.TryGetInt64(out var number))
             {

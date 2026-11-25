@@ -67,5 +67,6 @@ public interface IGoalPlanningService
     /// Chỉ là cảnh báo kèm gợi ý, không từ chối.
     /// </summary>
     Task<GoalFeasibilityDto?> PreviewFeasibilityAsync(
-        Guid userId, long targetCents, long savedCents, DateTimeOffset deadline, CancellationToken ct = default);
+        Guid userId, long targetCents, long savedCents, DateTimeOffset deadline, CancellationToken ct = default,
+        FinMate.Domain.Enums.GoalContributionFrequency? frequency = null);
 }

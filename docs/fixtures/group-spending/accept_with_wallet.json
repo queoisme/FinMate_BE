@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/accept",
+  "request": {
+    "token": "CEt2o7mLh64Muab0EOfByDryM0LP9KZooNilyfaEn-4",
+    "defaultFinancialAccountId": "d8816686-2440-49ee-a601-582b99263a32"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "groupId": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2"
+    },
+    "error": null,
+    "meta": null
+  }
+}

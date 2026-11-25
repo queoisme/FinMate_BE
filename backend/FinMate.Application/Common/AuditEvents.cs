@@ -97,6 +97,13 @@ public static class AuditEvents
     public const string GroupOwnershipTransferred = "Group.Ownership.Transferred";
     public const string GroupInvitationCreated = "Group.Invitation.Created";
     public const string GroupInvitationRevoked = "Group.Invitation.Revoked";
+    public const string GroupInvitationDeclined = "Group.Invitation.Declined";
+    public const string GroupApprovalRequested = "Group.Approval.Requested";
+    public const string GroupApprovalDecided = "Group.Approval.Decided";
+    public const string GroupJoinCodeChanged = "Group.JoinCode.Changed";
+    public const string GroupBillCreated = "Group.Bill.Created";
+    public const string GroupSettlementRecorded = "Group.Settlement.Recorded";
+    public const string GroupDebtReminded = "Group.Debt.Reminded";
 
     /// <summary>Phase 85 (S3): người có ManageFunds xoá dòng quỹ của người khác. Chỉ ghi id, không số tiền.</summary>
     public const string GroupFundEntryDeleted = "Group.Fund.Entry.Deleted";

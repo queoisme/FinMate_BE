@@ -1,0 +1,53 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups",
+  "request": {
+    "name": "Phòng trọ 302",
+    "type": "Roommates",
+    "icon": "home",
+    "description": "Chia tiền điện nước hằng tháng",
+    "currency": "VND",
+    "settlementModel": "SplitBill",
+    "closingDay": 5,
+    "debtSettlementMethod": "AiOptimized"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "6063dea2-d9c7-4da2-9f1e-d18f23d992f2",
+      "name": "Phòng trọ 302",
+      "type": "Roommates",
+      "transactionVisibility": "Full",
+      "myRole": "Owner",
+      "myPermissions": [
+        "ViewOverview",
+        "ViewMemberTransactions",
+        "ViewActivity",
+        "ShareTransactions",
+        "ContributeGoals",
+        "ManageSharedTransactions",
+        "ManageBudgets",
+        "ManageGoals",
+        "ManageCategories",
+        "InviteMembers",
+        "RemoveMembers",
+        "ManageFunds",
+        "RecordFundEntries"
+      ],
+      "memberCount": 1,
+      "createdAt": "2026-11-20T10:18:42.3883745+00:00",
+      "icon": "home",
+      "avatarUrl": null,
+      "description": "Chia tiền điện nước hằng tháng",
+      "currency": "VND",
+      "settlementModel": "SplitBill",
+      "closingDay": 5,
+      "debtSettlementMethod": "AiOptimized",
+      "myDefaultFinancialAccountId": null,
+      "card": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/invite-suggestions",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [
+      {
+        "userId": "c4d3841c-5cd3-474a-8949-243ebc559673",
+        "displayName": "Hung",
+        "finMateId": "FM-CHVM4WB5",
+        "sharedGroupCount": 1
+      },
+      {
+        "userId": "3026b293-a99a-4408-a214-75924c9f549f",
+        "displayName": "Lan",
+        "finMateId": "FM-EU2SV43Q",
+        "sharedGroupCount": 1
+      },
+      {
+        "userId": "8b01a1ce-4770-41f8-aed8-7320a37e9d84",
+        "displayName": "Mai",
+        "finMateId": "FM-JSW48W4Y",
+        "sharedGroupCount": 1
+      }
+    ],
+    "error": null,
+    "meta": null
+  }
+}

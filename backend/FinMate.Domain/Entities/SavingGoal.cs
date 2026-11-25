@@ -12,6 +12,14 @@ public class SavingGoal
     public string Name { get; set; } = string.Empty;
     public long TargetCents { get; set; }
     public long SavedCents { get; set; }
+
+    /// <summary>Số tiền đã có sẵn lúc đặt mục tiêu. Không phải khoản góp (không có dòng trong <c>goal_contributions</c>) nên không tính vào tiền dành ra trong tháng; <see cref="SavedCents"/> = số này + các khoản góp.</summary>
+    public long InitialSavedCents { get; set; }
+
+    /// <summary>Tên biểu tượng do app chọn (ví dụ "plane"). Backend chỉ lưu, không diễn giải.</summary>
+    public string? Icon { get; set; }
+
+    public GoalContributionFrequency? ContributionFrequency { get; set; }
     public SavingGoalStatus Status { get; set; } = SavingGoalStatus.Active;
     public DateTimeOffset? Deadline { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }

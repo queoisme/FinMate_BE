@@ -11,7 +11,9 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
     {
         builder.ToTable("saving_goals", t =>
         {
-            t.HasCheckConstraint("chk_saving_goals_status", "status IN ('active','completed','cancelled')");
+            t.HasCheckConstraint("chk_saving_goals_status", "status IN ('draft','active','completed','cancelled')");
+            t.HasCheckConstraint("chk_saving_goals_contribution_frequency", "contribution_frequency IS NULL OR contribution_frequency IN ('weekly','monthly','custom')");
+            t.HasCheckConstraint("chk_saving_goals_initial_saved_cents", "initial_saved_cents >= 0");
             t.HasCheckConstraint("chk_saving_goals_target_cents", "target_cents > 0");
             t.HasCheckConstraint("chk_saving_goals_owner", "(user_id IS NULL) <> (group_id IS NULL)");
         });
@@ -32,6 +34,12 @@ public class SavingGoalConfiguration : IEntityTypeConfiguration<SavingGoal>
 
         builder.Property(g => g.TargetCents).HasColumnName("target_cents").IsRequired();
         builder.Property(g => g.SavedCents).HasColumnName("saved_cents").HasDefaultValue(0L);
+        builder.Property(g => g.InitialSavedCents).HasColumnName("initial_saved_cents").HasDefaultValue(0L);
+        builder.Property(g => g.Icon).HasColumnName("icon").HasMaxLength(40);
+        builder.Property(g => g.ContributionFrequency)
+            .HasColumnName("contribution_frequency")
+            .HasConversion(v => v == null ? null : v.Value.ToString().ToLowerInvariant(), v => v == null ? null : Enum.Parse<GoalContributionFrequency>(v, true))
+            .HasMaxLength(20);
 
         builder.Property(g => g.Status)
             .HasColumnName("status")

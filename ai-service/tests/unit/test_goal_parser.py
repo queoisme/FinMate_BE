@@ -84,6 +84,62 @@ def test_goal_name(text, name):
     assert goal(text).name == name
 
 
+@pytest.mark.parametrize(
+    ("text", "deadline", "said"),
+    [
+        ("đặt mục tiêu mua nhà khoảng 1 tỷ trong 3 năm", "17/10/2029 23:59:59", "trong 3 năm"),  # lần thử thật: bị đọc thành tên "Mua 3 năm" không hạn
+        ("đặt mục tiêu mua nhà 1 tỷ trong vòng 36 tháng", "17/10/2029 23:59:59", "trong vòng 36 tháng"),
+        ("đặt mục tiêu mua nhà 1 tỷ sau 3 năm", "17/10/2029 23:59:59", "sau 3 năm"),
+        ("đặt mục tiêu mua nhà 1 tỷ kỳ hạn 2 năm", "17/10/2028 23:59:59", "kỳ hạn 2 năm"),
+        ("đặt mục tiêu mua nhà 1 tỷ trong 6 tháng", "17/04/2027 23:59:59", "trong 6 tháng"),
+        ("đặt mục tiêu mua nhà 1 tỷ 3 năm nữa", "17/10/2029 23:59:59", "3 năm nữa"),  # cách nói cũ vẫn hiểu
+    ],
+)
+def test_a_span_of_time_counted_from_today_is_a_deadline(text, deadline, said):
+    draft = goal(text)
+
+    assert (draft.name, draft.target, day(draft), draft.deadline_text) == ("Mua nhà", 1_000_000_000, deadline, said)
+
+
+@pytest.mark.parametrize(
+    ("text", "deadline", "said"),
+    [
+        ("đặt mục tiêu mua nhà 2 tỷ 3 năm rưỡi nữa", "17/04/2030 23:59:59", "3 năm rưỡi nữa"),  # "2 tỷ 3" không được đọc thành 2,3 tỷ
+        ("đặt mục tiêu mua xe 600 triệu một năm rưỡi nữa", "17/04/2028 23:59:59", "một năm rưỡi nữa"),
+        ("đặt mục tiêu mua nhà 1 tỷ đến năm 2029", "31/12/2029 23:59:59", "năm 2029"),
+        ("đặt mục tiêu mua nhà 1 tỷ đến cuối năm 2029", "31/12/2029 23:59:59", "cuối năm 2029"),  # trước đây đọc thành cuối năm NAY và tự tạo sai
+        ("đặt mục tiêu mua xe 500 triệu trước tháng 6 năm 2028", "30/06/2028 23:59:59", "tháng 6 năm 2028"),
+        ("đặt mục tiêu mua xe 500 triệu quý 2 năm sau", "30/06/2027 23:59:59", "quý 2 năm sau"),  # trước đây đọc thành "2 năm sau" và tự tạo sai
+        ("đặt mục tiêu mua xe 500 triệu quý 4 năm 2027", "31/12/2027 23:59:59", "quý 4 năm 2027"),
+        ("đặt mục tiêu mua xe 500 triệu cuối năm nay", "31/12/2026 23:59:59", "cuối năm nay"),
+    ],
+)
+def test_absolute_and_half_year_deadlines(text, deadline, said):
+    draft = goal(text)
+
+    assert (day(draft), draft.deadline_text) == (deadline, said)
+    assert draft.target in (500_000_000, 600_000_000, 1_000_000_000, 2_000_000_000)
+
+
+def test_a_past_absolute_year_or_month_is_refused_not_guessed():
+    for text in ("đặt mục tiêu mua nhà 1 tỷ đến năm 2020", "đặt mục tiêu mua xe 500 triệu trước tháng 6 năm 2025"):
+        result = parse_goal(text, NOW)
+        assert result is not None and result.draft is None and "tương lai" in result.reply, text
+
+
+def test_unaccented_nha_is_the_house_in_the_middle_and_the_particle_only_at_the_end():
+    assert goal("dat muc tieu mua nha 1 ty trong 3 nam").name == "Mua nha"
+    assert goal("dat muc tieu mua xe may 50 trieu 2 thang sau nha").name == "Mua xe may"
+
+
+def test_the_word_nha_is_a_stopword_only_when_it_is_the_particle_not_the_house():
+    # bỏ dấu thì "nhà" trùng "nha" (từ đệm cuối câu): chữ có dấu "nhà" là tên mục tiêu, "nha"/"nhé" không dấu hoặc có dấu đúng dạng thì là từ đệm
+    assert goal("đặt mục tiêu mua nhà 500 triệu 2 tháng sau").name == "Mua nhà"
+    assert goal("đặt mục tiêu mua xe máy 50 triệu 2 tháng sau nhé").name == "Mua xe máy"
+    assert goal("dat muc tieu mua xe may 50 trieu 2 thang sau nha").name == "Mua xe may"
+    assert goal("đặt mục tiêu mua nhà cho cô 500 triệu 2 tháng sau").name == "Mua nhà cô"
+
+
 def test_no_deadline_is_allowed():
     draft = goal("tạo mục tiêu tiết kiệm 10 triệu")
     assert (draft.deadline, draft.deadline_text) == (None, None)

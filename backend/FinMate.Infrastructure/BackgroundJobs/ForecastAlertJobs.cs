@@ -41,6 +41,40 @@ public class ForecastDailyAlertJob
     }
 }
 
+/// <summary>Bản tin tổng kết tuần, thứ Hai 08:00 VN, cho người dùng có hoạt động gần đây. Lỗi của một người không chặn người khác.</summary>
+public class WeeklyDigestJob
+{
+    private readonly IReportRepository _reports;
+    private readonly IWeeklyDigestService _digest;
+    private readonly ISystemConfigProvider _config;
+    private readonly ILogger<WeeklyDigestJob> _logger;
+
+    public WeeklyDigestJob(IReportRepository reports, IWeeklyDigestService digest, ISystemConfigProvider config, ILogger<WeeklyDigestJob> logger)
+    {
+        _reports = reports;
+        _digest = digest;
+        _config = config;
+        _logger = logger;
+    }
+
+    public async Task RunAsync(CancellationToken ct = default)
+    {
+        var settings = (await _config.GetAsync(ct)).Document.Forecast;
+        var today = VietnamTime.Today();
+        foreach (var userId in await _reports.GetUserIdsWithRecentActivityAsync(today.AddDays(-settings.HistoryWindowDays), today, ct))
+        {
+            try
+            {
+                await _digest.SendAsync(userId, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Weekly digest failed for user {UserId}", userId);
+            }
+        }
+    }
+}
+
 /// <summary>Gửi các cảnh báo đã hẹn giờ (hết giờ yên lặng, hoặc cảnh báo của job đêm chờ tới sáng).</summary>
 public class ForecastAlertDispatchJob
 {

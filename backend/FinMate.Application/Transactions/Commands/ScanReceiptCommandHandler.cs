@@ -77,6 +77,10 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     private readonly ILogger<ScanReceiptCommandHandler> _logger;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
     private readonly Duplicates.IDuplicateDetector? _duplicates;  // null: cảnh báo trùng kiểu cũ (±3 giờ, mọi khoản chi)
+    private readonly ICategoryRepository? _categoryRepository;  // null: không gửi danh mục riêng của người dùng (test cũ), đi đường cũ
+
+    /// <summary>Danh sách danh mục người dùng thấy, đọc một lần ở <see cref="TrySplitAsync"/> và dùng lại để đổi slug riêng khi gửi mẫu huấn luyện. Handler sống theo request nên không dùng chung giữa các lần quét.</summary>
+    private IReadOnlyList<Category>? _visibleCategories;
 
     public ScanReceiptCommandHandler(
         IAIServiceClient aiServiceClient,
@@ -87,7 +91,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         ITransactionRepository transactionRepository,
         ILogger<ScanReceiptCommandHandler> logger,
         ITrainingSampleService? trainingSamples = null,
-        Duplicates.IDuplicateDetector? duplicates = null)
+        Duplicates.IDuplicateDetector? duplicates = null,
+        ICategoryRepository? categoryRepository = null)
     {
         _duplicates = duplicates;
         _aiServiceClient = aiServiceClient;
@@ -98,6 +103,7 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         _transactionRepository = transactionRepository;
         _logger = logger;
         _trainingSamples = trainingSamples;
+        _categoryRepository = categoryRepository;
     }
 
     public async Task<ScannedReceiptDto> HandleAsync(
@@ -217,7 +223,9 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             return;
         }
 
-        await _trainingSamples.RecordAsync(userId, scanId, merchant, ocr.Lines, ocr.TotalAmount, category?.CategorySlug, category?.Source, ct);
+        // /bill/samples chỉ nhận slug HỆ THỐNG: nhóm do các món bỏ phiếu có thể là danh mục riêng của người dùng, nên đổi về nhóm cha hệ thống (hoặc null).
+        var predictedSlug = UserCategoryChoices.SystemSlugOf(category?.CategorySlug, _visibleCategories, userId);
+        await _trainingSamples.RecordAsync(userId, scanId, merchant, ocr.Lines, ocr.TotalAmount, predictedSlug, category?.Source, ct);
     }
 
     /// <summary>
@@ -329,6 +337,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
         // Đọc thẳng từ DB mỗi lần quét: người dùng vừa rút đồng ý thì lần quét kế tiếp đã không được gửi Gemini.
         var allowAi = (await _userRepository.GetByIdAsync(userId, ct))?.AiConsentGranted ?? false;
 
+        var categories = await LoadCategoryChoicesAsync(userId, ct);
+
         // Cùng giá trị như /bill/classify: tên OCR thô để nhận thương hiệu (tên hiển thị đã sửa có thể làm hỏng nhóm mặc định).
         var request = new ClassifyItemsRequest(
             userId,
@@ -336,7 +346,8 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
             regular.Select(i => new ClassifyItemInput(
                 items[i].Name,
                 items[i].Parent is { } parent && regularIndexOf.TryGetValue(parent, out var k) ? k : null)).ToList(),
-            allowAi);
+            allowAi,
+            categories);
 
         ClassifyItemsResponse? response;
         try
@@ -421,6 +432,31 @@ public class ScanReceiptCommandHandler : IScanReceiptCommandHandler
     }
 
     private static readonly (ScannedReceiptDto? Split, string? ItemVote) NoSplit = (null, null);
+
+    /// <summary>
+    /// Danh mục để AI chọn khi tách món (xem <see cref="UserCategoryChoices"/>): null khi người dùng không có danh mục riêng hoặc không đọc được.
+    /// Lỗi đọc danh mục không bao giờ làm hỏng lần quét: gửi null như đường cũ; log chỉ ghi loại lỗi.
+    /// </summary>
+    private async Task<IReadOnlyList<ClassifyCategoryInput>?> LoadCategoryChoicesAsync(Guid userId, CancellationToken ct)
+    {
+        if (_categoryRepository is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var visible = await _categoryRepository.GetListForUserAsync(userId, ct);
+            var choices = UserCategoryChoices.Build(visible, userId);
+            _visibleCategories = visible;
+            return choices;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Không đọc được danh mục của người dùng khi tách hóa đơn, dùng danh mục hệ thống: {ExceptionType}", ex.GetType().Name);
+            return null;
+        }
+    }
 
     /// <summary>
     /// Bill không tách thành nhiều nhóm, nhưng các món ĐÃ BIẾT nhóm cùng một slug và chiếm đa số số tiền các món thường thì đó là nhóm của cả bill.

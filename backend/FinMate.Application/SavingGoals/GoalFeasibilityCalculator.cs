@@ -1,4 +1,5 @@
 using FinMate.Application.Common.Models;
+using FinMate.Domain.Enums;
 
 namespace FinMate.Application.SavingGoals;
 
@@ -13,6 +14,16 @@ internal static class GoalFeasibilityCalculator
     public static int MonthsRemaining(DateTimeOffset deadline, DateTimeOffset now)
         => Math.Max(1, (int)Math.Ceiling((deadline - now).TotalDays / 30.0));
 
+    /// <summary>Cùng quy ước tháng 30 ngày với <see cref="MonthsRemaining"/>; làm tròn LÊN theo ngày/tuần còn lại.</summary>
+    public static int DaysRemaining(DateTimeOffset deadline, DateTimeOffset now)
+        => Math.Max(1, (int)Math.Ceiling((deadline - now).TotalDays));
+
+    public static long RequiredPerDay(long remainingCents, DateTimeOffset deadline, DateTimeOffset now)
+        => (long)Math.Ceiling(remainingCents / (double)DaysRemaining(deadline, now));
+
+    public static long RequiredPerWeek(long remainingCents, DateTimeOffset deadline, DateTimeOffset now)
+        => (long)Math.Ceiling(remainingCents / (double)Math.Max(1, (int)Math.Ceiling(DaysRemaining(deadline, now) / 7.0)));
+
     public static long RequiredPerMonth(long remainingCents, DateTimeOffset deadline, DateTimeOffset now)
         => (long)Math.Ceiling(remainingCents / (double)MonthsRemaining(deadline, now));
 
@@ -25,22 +36,27 @@ internal static class GoalFeasibilityCalculator
         DateTimeOffset deadline,
         DateTimeOffset now,
         long? incomeCents,
-        long budgetLimitsCents)
+        long budgetLimitsCents,
+        GoalContributionFrequency? frequency = null)
     {
         var monthsRemaining = MonthsRemaining(deadline, now);
         var requiredPerMonth = RequiredPerMonth(remainingCents, deadline, now);
+        var perWeek = RequiredPerWeek(remainingCents, deadline, now);
+        var perDay = RequiredPerDay(remainingCents, deadline, now);
 
         if (incomeCents is not { } income || income <= 0)
         {
             // Chưa khai thu nhập: vẫn trả về "mỗi tháng cần bao nhiêu" vì đó là con số hữu ích
             // tự thân, nhưng không kết luận khả thi hay không.
-            return new GoalFeasibilityDto(requiredPerMonth, null, null, null, null);
+            return new GoalFeasibilityDto(requiredPerMonth, null, null, null, null, null, perWeek, perDay, null, null);
         }
 
         var available = income - budgetLimitsCents;
         if (requiredPerMonth <= available)
         {
-            return new GoalFeasibilityDto(requiredPerMonth, available, true, null, null);
+            return new GoalFeasibilityDto(
+                requiredPerMonth, available, true, null, null, 100, perWeek, perDay, income,
+                AutoSave(requiredPerMonth, available, requiredPerMonth, perWeek, frequency));
         }
 
         // Hai hướng điều chỉnh docx nêu. Chỉ gợi ý kéo dài hạn khi còn dư ra được đồng nào —
@@ -55,6 +71,31 @@ internal static class GoalFeasibilityCalculator
             suggestedTarget = savedCents + available * monthsRemaining;
         }
 
-        return new GoalFeasibilityDto(requiredPerMonth, available, false, suggestedDeadline, suggestedTarget);
+        var percent = available <= 0 ? 0 : (int)Math.Min(100, available * 100 / requiredPerMonth);
+        return new GoalFeasibilityDto(
+            requiredPerMonth, available, false, suggestedDeadline, suggestedTarget, percent, perWeek, perDay, income,
+            AutoSave(requiredPerMonth, available, requiredPerMonth, perWeek, frequency));
+    }
+
+    /// <summary>
+    /// Khoản tự động để dành gợi ý theo nhịp người dùng chọn (tuần hoặc tháng; "tùy chọn"/chưa chọn dùng tháng). Số có thể dành ra theo tuần
+    /// quy từ tháng theo cùng tháng 30 ngày. Không còn dư ra đồng nào thì không gợi ý (null).
+    /// </summary>
+    private static AutoSaveSuggestionDto? AutoSave(long requiredPerMonth, long availablePerMonth, long _, long requiredPerWeek, GoalContributionFrequency? frequency)
+    {
+        if (availablePerMonth <= 0)
+        {
+            return null;
+        }
+
+        if (frequency == GoalContributionFrequency.Weekly)
+        {
+            var availablePerWeek = (long)Math.Floor(availablePerMonth * 7 / 30.0);
+            return availablePerWeek <= 0
+                ? null
+                : new AutoSaveSuggestionDto("weekly", Math.Min(requiredPerWeek, availablePerWeek), requiredPerWeek <= availablePerWeek);
+        }
+
+        return new AutoSaveSuggestionDto("monthly", Math.Min(requiredPerMonth, availablePerMonth), requiredPerMonth <= availablePerMonth);
     }
 }

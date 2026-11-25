@@ -27,6 +27,26 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Support).NotNull().SetValidator(new SupportValidator());
         RuleFor(x => x.Monitoring).NotNull().SetValidator(new MonitoringValidator());
         RuleFor(x => x.Agent).NotNull();
+        RuleFor(x => x.Agent.CutSuggestionPercent).InclusiveBetween(0, 50).When(x => x.Agent is not null)
+            .WithMessage("Mức giảm chi giả định của gợi ý cắt giảm phải từ 0 đến 50 phần trăm.");
+        RuleFor(x => x.Agent.SurveySavingShare).NotNull()
+            .Must(m => m is null || m.All(p => System.Text.RegularExpressions.Regex.IsMatch(p.Key, "^[a-z0-9_]{1,50}:[A-Za-z0-9]{1,10}$") && p.Value is >= 0 and <= 100))
+            .When(x => x.Agent is not null)
+            .WithMessage("Mức tiết kiệm theo khảo sát phải có khóa dạng 'mã_câu_hỏi:mã_đáp_án' và giá trị từ 0 đến 100.");
+        RuleFor(x => x.Agent.SurveySpendEstimate).NotNull()
+            .Must(m => m is null || m.All(p => System.Text.RegularExpressions.Regex.IsMatch(p.Key, "^[a-z0-9_]{1,50}:[A-Za-z0-9]{1,10}$") && p.Value is >= 0 and <= 100_000_000_000))
+            .When(x => x.Agent is not null)
+            .WithMessage("Mức chi theo khảo sát phải có khóa dạng 'mã_câu_hỏi:mã_đáp_án' và giá trị từ 0 đến 100 tỷ đồng.");
+        RuleFor(x => x.Agent.Texts).NotNull().Custom((texts, ctx) =>
+        {
+            foreach (var (key, template) in texts ?? new Dictionary<string, string>())
+            {
+                if (FinMate.Application.Agent.AgentTexts.Problem(key, template) is { } problem)
+                {
+                    ctx.AddFailure(problem);
+                }
+            }
+        }).When(x => x.Agent is not null);
         RuleFor(x => x.EconomicFeeds).NotNull().SetValidator(new EconomicFeedsValidator());
         RuleFor(x => x.MarketData).NotNull().SetValidator(new MarketDataValidator());
         RuleFor(x => x.Community).NotNull().SetValidator(new CommunitySettingsValidator());
@@ -133,6 +153,12 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxPendingInvitations).InclusiveBetween(1, 200).WithMessage("Số lời mời đang chờ tối đa phải từ 1 đến 200.");
             RuleFor(x => x.InvitationTtlDays).InclusiveBetween(1, 30).WithMessage("Thời hạn lời mời phải từ 1 đến 30 ngày.");
             RuleFor(x => x.MaxFundsPerGroup).InclusiveBetween(1, 20).WithMessage("Số quỹ tối đa của mỗi nhóm phải từ 1 đến 20.");
+            RuleFor(x => x.DebtReminderCooldownHours).InclusiveBetween(1, 168).WithMessage("Khoảng cách giữa hai lần nhắc nợ phải từ 1 đến 168 giờ.");
+            RuleFor(x => x.InviteLinkBaseUrl).Must(u => Uri.TryCreate(u, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps).WithMessage("Link mời phải là địa chỉ https.");
+            RuleFor(x => x.UserSearchLimit).InclusiveBetween(1, 1000).WithMessage("Số lần tìm người tối đa phải từ 1 đến 1000.");
+            RuleFor(x => x.UserSearchWindowMinutes).InclusiveBetween(1, 1440).WithMessage("Cửa sổ giới hạn tìm người phải từ 1 đến 1440 phút.");
+            RuleFor(x => x.MaxInviteSuggestions).InclusiveBetween(1, 50).WithMessage("Số gợi ý mời phải từ 1 đến 50.");
+            RuleFor(x => x.MaxBillsPerPage).InclusiveBetween(10, 200).WithMessage("Số hóa đơn mỗi trang phải từ 10 đến 200.");
         }
     }
 

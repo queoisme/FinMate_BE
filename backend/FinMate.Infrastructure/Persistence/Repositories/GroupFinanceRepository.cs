@@ -70,7 +70,8 @@ public class GroupFinanceRepository : IGroupFinanceRepository
             fund = fund.Where(e => !excludeEntryIds.Contains(e.Id));
         }
 
-        return await shared.Select(BudgetSpendScope.Signed).SumAsync(ct) + await fund.SumAsync(e => e.AmountCents, ct);
+        var bills = scope.Bill is null ? 0L : await _context.GroupBills.Where(scope.Bill).SumAsync(b => b.AmountCents, ct);
+        return await shared.Select(BudgetSpendScope.Signed).SumAsync(ct) + await fund.SumAsync(e => e.AmountCents, ct) + bills;
     }
 
     // IgnoreQueryFilters trên Users: người đã yêu cầu xóa tài khoản vẫn còn giao dịch tới lúc xóa cứng.

@@ -20,6 +20,9 @@ public sealed record GroupScopeTouch(Guid GroupId, Guid? SystemCategoryId, Guid?
             : null;
 
     /// <summary>Phạm vi mà một khoản chi từ quỹ đang chạm (Phase 85). Dòng không phải chi thì không chạm ngân sách nào.</summary>
+    /// <summary>Phạm vi một hóa đơn chia đang chạm.</summary>
+    public static GroupScopeTouch Of(GroupBill bill) => new(bill.GroupId, bill.CategoryId, bill.GroupCategoryId, bill.OccurredAt);
+
     public static GroupScopeTouch? Of(GroupFundEntry entry)
         => entry.Kind == GroupFundEntryKind.Expense
             ? new GroupScopeTouch(entry.GroupId, entry.CategoryId, entry.GroupCategoryId, entry.TransactedAt)
@@ -51,6 +54,11 @@ public interface IGroupLedger
     /// <summary>Như trên, kèm các dòng quỹ đang sửa trong bộ nhớ (Phase 85, D13): chi từ quỹ cùng tính vào ngân sách nhóm.</summary>
     Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
         IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default);
+
+    /// <summary>Như trên, kèm hóa đơn chia đang thêm trong bộ nhớ (chưa lưu): cộng toàn bộ số tiền hóa đơn khớp phạm vi.</summary>
+    Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+        IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupBill> pendingBills,
+        IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default);
 
     Task SendAlertsAsync(IReadOnlyList<GroupBudgetAlert> alerts, CancellationToken ct = default);
 }
@@ -152,8 +160,13 @@ public class GroupLedger : IGroupLedger
         IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
         => RecomputeAsync(pending, [], touched, ct);
 
-    public async Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+    public Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
         IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
+        => RecomputeAsync(pending, pendingEntries, [], touched, ct);
+
+    public async Task<IReadOnlyList<GroupBudgetAlert>> RecomputeAsync(
+        IReadOnlyCollection<Transaction> pending, IReadOnlyCollection<GroupFundEntry> pendingEntries, IReadOnlyCollection<GroupBill> pendingBills,
+        IReadOnlyCollection<GroupScopeTouch> touched, CancellationToken ct = default)
     {
         var pendingIds = pending.Select(t => t.Id).Where(id => id != Guid.Empty).ToList();
         var pendingEntryIds = pendingEntries.Select(e => e.Id).Where(id => id != Guid.Empty).ToList();
@@ -175,7 +188,8 @@ public class GroupLedger : IGroupLedger
                 var scope = BudgetSpendScope.GroupAll(touch.GroupId, budget.CategoryId, budget.GroupCategoryId, periodStart, periodEnd);
                 var spent = await _finance.SumGroupNetSpendAsync(scope, pendingIds, pendingEntryIds, ct)
                     + pending.Sum(t => BudgetSpendScope.ContributionOf(t, scope.Shared))
-                    + pendingEntries.Sum(e => BudgetSpendScope.ContributionOf(e, scope.Fund));
+                    + pendingEntries.Sum(e => BudgetSpendScope.ContributionOf(e, scope.Fund))
+                    + pendingBills.Sum(b => BudgetSpendScope.ContributionOf(b, scope.Bill!));
                 var period = await _budgets.GetPeriodAsync(budget.Id, periodStart, ct) ?? AddPeriod(budget, periodStart, periodEnd, now);
                 var before = period.SpentCents;
                 period.SpentCents = Math.Max(0, spent);

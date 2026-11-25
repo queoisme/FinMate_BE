@@ -304,7 +304,7 @@ def test_low_classifier_confidence_falls_back_to_rules():
 
 def test_classifier_can_cut_an_amount_the_rules_cannot_read():
     parsed = parse("gửi mẹ mười lăm", nlu("add_expense", 0.95, amount="2 triệu"))
-    assert parsed.intent in ("add_expense", "needs_amount")
+    assert parsed.intent in ("add_expense", "needs_amount", "transfer_money")  # "gửi mẹ" là dấu hiệu chuyển tiền từ 2026-11-18; ý của test là số tiền, không phải chiều
 
 
 def test_missing_amount_asks_for_one():

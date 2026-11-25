@@ -37,9 +37,11 @@ public class GroupReportService : IGroupReportService
     private readonly IGroupFinanceRepository _finance;
     private readonly IGroupAccessService _access;
     private readonly IGroupFundRepository? _funds;
+    private readonly IGroupBillRepository? _bills;
 
-    public GroupReportService(IGroupFinanceRepository finance, IGroupAccessService access, IGroupFundRepository? funds = null)
+    public GroupReportService(IGroupFinanceRepository finance, IGroupAccessService access, IGroupFundRepository? funds = null, IGroupBillRepository? bills = null)
     {
+        _bills = bills;
         _finance = finance;
         _access = access;
         _funds = funds;
@@ -61,6 +63,12 @@ public class GroupReportService : IGroupReportService
         if (_funds is not null)
         {
             lines.AddRange((await _funds.ListExpenseRowsAsync(groupId, start, end, ct)).Select(FromFund));
+        }
+
+        // Hóa đơn chia tính cho nhóm theo toàn bộ số tiền, đứng tên người trả (không phải chi từ quỹ).
+        if (_bills is not null)
+        {
+            lines.AddRange((await _bills.ListExpenseRowsAsync(groupId, start, end, ct)).Select(r => FromFund(r) with { FromFund = false }));
         }
 
         var spending = lines.Where(l => l.Parts.SpentCents != 0).ToList();

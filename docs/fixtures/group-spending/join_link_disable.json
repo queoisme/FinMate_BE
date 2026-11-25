@@ -1,0 +1,19 @@
+{
+  "method": "PUT",
+  "url": "/api/v1/groups/{id}/join-link",
+  "request": {
+    "enabled": false
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "code": "6R1W-xlxHY3V04gaiB2-EA",
+      "joinUrl": "https://finmate.app/join/6R1W-xlxHY3V04gaiB2-EA",
+      "role": "Member",
+      "enabled": false
+    },
+    "error": null,
+    "meta": null
+  }
+}

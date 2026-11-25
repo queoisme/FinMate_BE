@@ -1,0 +1,16 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/join-link",
+  "request": null,
+  "status": 403,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "FORBIDDEN",
+      "message": "Bạn không có quyền thực hiện thao tác này trong nhóm.",
+      "details": null
+    },
+    "meta": null
+  }
+}

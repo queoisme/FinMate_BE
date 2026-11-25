@@ -1,5 +1,6 @@
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Transactions;
 using FinMate.Application.Transactions.Commands;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -128,5 +129,97 @@ public class CreateManualTransactionCommandHandlerTests
         saved.Source.Should().Be(TransactionSource.Manual);
         result.Transaction.Status.Should().Be("Confirmed");
         result.AlreadyExisted.Should().BeFalse();
+    }
+
+    // ------------------------------------------------------------ bộ nhớ món theo người dùng
+
+    private readonly Mock<IItemMemoryService> _itemMemory = new();
+
+    /// <summary>Dựng handler có dịch vụ bộ nhớ món; lần quét là bản TÁCH, mặc định nối thành công.</summary>
+    private (CreateManualTransactionCommandHandler Handler, CreateManualTransactionCommand Command, Category Category) ItemMemorySetup(
+        TransactionSource source = TransactionSource.Receipt, bool linked = true, string? group = "food")
+    {
+        var userId = Guid.NewGuid();
+        var scanId = Guid.NewGuid();
+        var account = new FinancialAccount { Id = Guid.NewGuid(), UserId = userId, BalanceCents = 200_000 };
+        var category = new Category { Id = Guid.NewGuid(), Slug = "food", Name = "Ăn uống" };
+        _financialAccountRepository.Setup(r => r.GetByIdAsync(account.Id, userId, It.IsAny<CancellationToken>())).ReturnsAsync(account);
+        _categoryRepository.Setup(r => r.GetByIdAsync(category.Id, It.IsAny<CancellationToken>())).ReturnsAsync(category);
+        _receiptScanRepository.Setup(r => r.IsSplitAsync(scanId, userId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _receiptScanRepository.Setup(r => r.LinkToTransactionAsync(scanId, userId, It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(linked);
+        var handler = new CreateManualTransactionCommandHandler(
+            _transactionRepository.Object, _financialAccountRepository.Object, _categoryRepository.Object, _budgetPeriodService.Object,
+            _budgetAlertNotifier.Object, _aiServiceClient.Object, _receiptScanRepository.Object, _cache.Object,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CreateManualTransactionCommandHandler>.Instance,
+            new CreateManualTransactionCommandValidator(), itemMemory: _itemMemory.Object);
+        var command = new CreateManualTransactionCommand(
+            userId, account.Id, category.Id, 16_000, TransactionType.Debit, DateTimeOffset.UtcNow, "Co.opmart", null,
+            Source: source, ReceiptScanId: scanId, ReceiptGroup: group);
+        return (handler, command, category);
+    }
+
+    [Fact]
+    public async Task Create_ReceiptGroup_TeachesItemMemoryAfterTheLinkIsCreated()
+    {
+        var (handler, command, category) = ItemMemorySetup();
+        var order = new List<string>();
+        _receiptScanRepository.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("link")).ReturnsAsync(true);
+        _itemMemory.Setup(m => m.LearnFromSavedGroupAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("learn")).Returns(Task.CompletedTask);
+
+        await handler.HandleAsync(command);
+
+        _itemMemory.Verify(m => m.LearnFromSavedGroupAsync(command.UserId, command.ReceiptScanId!.Value, "food", category, It.IsAny<CancellationToken>()), Times.Once);
+        order.Should().Equal("link", "learn");
+    }
+
+    [Fact]
+    public async Task Create_DoesNotTeachWhenTheLinkWasNotCreated()
+    {
+        var (handler, command, _) = ItemMemorySetup(linked: false);
+
+        var result = await handler.HandleAsync(command);
+
+        result.AlreadyExisted.Should().BeFalse();
+        _itemMemory.Verify(m => m.LearnFromSavedGroupAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotTeachWhenTheLinkLookupThrew()
+    {
+        var (handler, command, _) = ItemMemorySetup();
+        _receiptScanRepository.Setup(r => r.LinkToTransactionAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var result = await handler.HandleAsync(command);
+
+        result.Transaction.AmountCents.Should().Be(16_000);
+        _itemMemory.Verify(m => m.LearnFromSavedGroupAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_NonReceiptSourceDoesNotTeach()
+    {
+        var (handler, command, _) = ItemMemorySetup(source: TransactionSource.Manual);
+
+        await handler.HandleAsync(command);
+
+        _itemMemory.Verify(m => m.LearnFromSavedGroupAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_StillSavesWhenItemMemoryThrows()
+    {
+        var (handler, command, _) = ItemMemorySetup();
+        _itemMemory.Setup(m => m.LearnFromSavedGroupAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Category?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        var result = await handler.HandleAsync(command);
+
+        result.AlreadyExisted.Should().BeFalse();
+        result.Transaction.AmountCents.Should().Be(16_000);
+        _transactionRepository.Verify(r => r.AddAsync(It.IsAny<FinMate.Domain.Entities.Transaction>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

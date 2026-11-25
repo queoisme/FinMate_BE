@@ -1,0 +1,24 @@
+{
+  "method": "GET",
+  "url": "/api/v1/groups/{id}/invitations",
+  "request": null,
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": [
+      {
+        "id": "be672a16-242b-490e-b2f8-41448bdb7c0d",
+        "email": null,
+        "role": "Member",
+        "expiresAt": "2026-11-27T10:18:43.498451+00:00",
+        "createdAt": "2026-11-20T10:18:43.498451+00:00",
+        "token": null,
+        "emailSent": null,
+        "message": "Mai vào nhóm nha",
+        "joinUrl": null
+      }
+    ],
+    "error": null,
+    "meta": null
+  }
+}

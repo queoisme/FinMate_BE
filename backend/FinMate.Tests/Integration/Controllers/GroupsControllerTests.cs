@@ -426,4 +426,103 @@ public class GroupsControllerTests : IClassFixture<AuthApiFactory>, IAsyncLifeti
         var seenByOwner = await ReadAsync<List<MemberData>>(HttpMethod.Get, $"/api/v1/groups/{group.Id}/members", owner.Token);
         seenByOwner.Single(m => m.UserId == member.Id).Permissions.Should().NotBeNull();
     }
+
+    private record RichPreview(string GroupName, string Role, string? InvitedBy, string? InvitedByRole, string? GroupIcon, int MemberCount, long? FundBalanceCents, string? Message);
+    private record AccountIdData(Guid Id);
+    private record ProfileData(Guid Id, string? Icon, string? Description, string Currency, string SettlementModel, int? ClosingDay, string DebtSettlementMethod, Guid? MyDefaultFinancialAccountId, CardData? Card);
+    private record CardData(long? FundBalanceCents, long MonthlySpentCents, long? MonthlyBudgetCents, List<PreviewMember> MemberPreview);
+    private record PreviewMember(Guid UserId, string DisplayName);
+    private record SettingsData(int? ClosingDay, string DebtSettlementMethod, long? RequireApprovalAboveCents, bool NotifyOnNewTransaction, bool WeeklySummary, int WeeklySummaryDay, string WeeklySummaryTime, bool AlertsEnabled);
+
+    private async Task<Guid> NewAccountAsync(TestUser user)
+        => (await ReadAsync<AccountIdData>(HttpMethod.Post, "/api/v1/financial-accounts", user.Token, new { accountType = "Cash", accountName = "Ví", initialBalanceCents = 1_000_000L })).Id;
+
+    [Fact]
+    public async Task DecliningAnInvitationRemovesItFromThePendingList()
+    {
+        var owner = await NewUserAsync();
+        var group = await NewGroupAsync(owner);
+        var invitee = await NewUserAsync();
+        var token = await LinkInviteAsync(owner, group.Id);
+
+        await ReadAsync<object>(HttpMethod.Post, "/api/v1/group-invitations/decline", invitee.Token, new { token });
+
+        (await ReadAsync<List<InvitationData>>(HttpMethod.Get, $"/api/v1/groups/{group.Id}/invitations", owner.Token)).Should().BeEmpty();
+        await ExpectAsync(HttpMethod.Post, "/api/v1/group-invitations/decline", invitee.Token, (HttpStatusCode)422, new { token }, "GROUP_INVITATION_INVALID");
+        await ExpectAsync(HttpMethod.Post, "/api/v1/group-invitations/accept", invitee.Token, (HttpStatusCode)422, new { token }, "GROUP_INVITATION_INVALID");
+        await ExpectAsync(HttpMethod.Post, "/api/v1/group-invitations/decline", invitee.Token, HttpStatusCode.NotFound, new { token = "khong-co-that" });
+    }
+
+    [Fact]
+    public async Task PreviewCarriesTheGroupCardAndTheInviterMessage()
+    {
+        var owner = await NewUserAsync("Chủ nhóm");
+        var group = (await ReadAsync<ProfileData>(HttpMethod.Post, "/api/v1/groups", owner.Token, new { name = "Đi Đà Lạt", type = "Travel", icon = "plane" }));
+        var invitee = await NewUserAsync();
+        var created = await ReadAsync<InvitationData>(HttpMethod.Post, $"/api/v1/groups/{group.Id}/invitations", owner.Token, new { role = "Member", message = "Vào nhóm nhé" });
+
+        var preview = await ReadAsync<RichPreview>(HttpMethod.Post, "/api/v1/group-invitations/preview", invitee.Token, new { token = created.Token });
+
+        preview.GroupIcon.Should().Be("plane");
+        preview.MemberCount.Should().Be(1);
+        preview.FundBalanceCents.Should().BeNull();
+        preview.InvitedByRole.Should().Be("Owner");
+        preview.Message.Should().Be("Vào nhóm nhé");
+        await ExpectAsync(HttpMethod.Post, $"/api/v1/groups/{group.Id}/invitations", owner.Token, HttpStatusCode.BadRequest, new { role = "Member", message = new string('x', 201) });
+    }
+
+    [Fact]
+    public async Task AcceptStoresOnlyTheUsersOwnDefaultAccount()
+    {
+        var owner = await NewUserAsync();
+        var group = await NewGroupAsync(owner);
+        var member = await NewUserAsync();
+        var strangerAccount = await NewAccountAsync(owner);
+
+        var token = await LinkInviteAsync(owner, group.Id);
+        await ExpectAsync(HttpMethod.Post, "/api/v1/group-invitations/accept", member.Token, (HttpStatusCode)422,
+            new { token, defaultFinancialAccountId = strangerAccount }, "GROUP_DEFAULT_ACCOUNT_INVALID");
+
+        var mine = await NewAccountAsync(member);
+        await ReadAsync<object>(HttpMethod.Post, "/api/v1/group-invitations/accept", member.Token, new { token, defaultFinancialAccountId = mine });
+
+        (await ReadAsync<ProfileData>(HttpMethod.Get, $"/api/v1/groups/{group.Id}", member.Token)).MyDefaultFinancialAccountId.Should().Be(mine);
+    }
+
+    [Fact]
+    public async Task GroupProfileSettingsAndListCardRoundTrip()
+    {
+        var owner = await NewUserAsync();
+        var group = await ReadAsync<ProfileData>(HttpMethod.Post, "/api/v1/groups", owner.Token,
+            new { name = "Phòng trọ", type = "Roommates", description = "Chia tiền điện nước", settlementModel = "SplitBill", closingDay = 5 });
+        group.Currency.Should().Be("VND");
+        group.SettlementModel.Should().Be("SplitBill");
+        group.ClosingDay.Should().Be(5);
+
+        await ExpectAsync(HttpMethod.Patch, $"/api/v1/groups/{group.Id}", owner.Token, HttpStatusCode.BadRequest, new { closingDay = 29 });
+        await ExpectAsync(HttpMethod.Patch, $"/api/v1/groups/{group.Id}", owner.Token, HttpStatusCode.BadRequest, new { description = new string('x', 201) });
+
+        var settings = await ReadAsync<SettingsData>(HttpMethod.Put, $"/api/v1/groups/{group.Id}/settings", owner.Token, new
+        {
+            closingDay = (int?)null, debtSettlementMethod = "Manual", requireApprovalAboveCents = 5_000_000L,
+            notifyOnNewTransaction = false, weeklySummary = true, weeklySummaryDay = 7, weeklySummaryTime = "20:30",
+        });
+        settings.ClosingDay.Should().BeNull();
+        settings.NotifyOnNewTransaction.Should().BeFalse();
+        (await ReadAsync<SettingsData>(HttpMethod.Get, $"/api/v1/groups/{group.Id}/settings", owner.Token)).Should().Be(settings);
+        settings.WeeklySummaryTime.Should().Be("20:30");
+        settings.AlertsEnabled.Should().BeTrue();
+
+        var member = await JoinAsync(owner, group.Id);
+        await ExpectAsync(HttpMethod.Put, $"/api/v1/groups/{group.Id}/settings", member.Token, HttpStatusCode.Forbidden,
+            new { debtSettlementMethod = "Manual", weeklySummaryDay = 1 });
+        await ExpectAsync(HttpMethod.Put, $"/api/v1/groups/{group.Id}/settings", owner.Token, HttpStatusCode.BadRequest,
+            new { debtSettlementMethod = "Manual", requireApprovalAboveCents = 0L, weeklySummaryDay = 1 });
+
+        var card = (await ReadAsync<List<ProfileData>>(HttpMethod.Get, "/api/v1/groups", owner.Token)).Single(g => g.Id == group.Id).Card!;
+        card.MemberPreview.Should().HaveCount(2);
+        card.FundBalanceCents.Should().BeNull();
+        card.MonthlySpentCents.Should().Be(0);
+        card.MonthlyBudgetCents.Should().BeNull();
+    }
 }

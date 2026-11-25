@@ -94,7 +94,17 @@ public record OcrApiResponse(
 public record ChatParseApiRequest(
     [property: JsonPropertyName("text")] string Text,
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
-    [property: JsonPropertyName("allow_ai")] bool AllowAi = false);
+    [property: JsonPropertyName("allow_ai")] bool AllowAi = false,
+    [property: JsonPropertyName("item_context")] ChatItemContextApi? ItemContext = null);
+
+public record ChatItemContextApi(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("cadence")] string? Cadence,
+    [property: JsonPropertyName("direction")] string? Direction,
+    [property: JsonPropertyName("counterparty")] string? Counterparty);
 
 public record ChatEntryApiResult(
     [property: JsonPropertyName("kind")] string Kind,
@@ -123,7 +133,8 @@ public record ChatGoalApiResult(
     [property: JsonPropertyName("name_is_default")] bool NameIsDefault,
     [property: JsonPropertyName("target_cents")] long TargetCents,
     [property: JsonPropertyName("deadline")] DateTimeOffset? Deadline,
-    [property: JsonPropertyName("deadline_text")] string? DeadlineText);
+    [property: JsonPropertyName("deadline_text")] string? DeadlineText,
+    [property: JsonPropertyName("ai_assisted")] bool AiAssisted = false);
 
 /// <summary><c>purchase_date</c> đọc dạng chuỗi (ngày <c>yyyy-MM-dd</c> hoặc thời điểm đầy đủ) rồi đổi sang ngày ở <c>AIServiceClient</c>, để lệch định dạng nhỏ không làm hỏng cả câu trả lời.</summary>
 public record ChatPurchaseApiResult(
@@ -131,6 +142,17 @@ public record ChatPurchaseApiResult(
     [property: JsonPropertyName("amount_cents")] long AmountCents,
     [property: JsonPropertyName("purchase_date")] string? PurchaseDate,
     [property: JsonPropertyName("category_slug")] string? CategorySlug);
+
+public record ChatItemApiResult(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("amount_cents")] long AmountCents,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("category_slug")] string? CategorySlug,
+    [property: JsonPropertyName("cadence")] string? Cadence,
+    [property: JsonPropertyName("next_due")] string? NextDue,
+    [property: JsonPropertyName("direction")] string? Direction,
+    [property: JsonPropertyName("counterparty")] string? Counterparty,
+    [property: JsonPropertyName("operation")] string Operation = "create");
 
 public record ChatParseApiResponse(
     [property: JsonPropertyName("intent")] string Intent,
@@ -143,7 +165,8 @@ public record ChatParseApiResponse(
     [property: JsonPropertyName("total_mismatch")] bool TotalMismatch = false,
     [property: JsonPropertyName("skipped")] IReadOnlyList<string>? Skipped = null,
     [property: JsonPropertyName("goal")] ChatGoalApiResult? Goal = null,
-    [property: JsonPropertyName("purchase")] ChatPurchaseApiResult? Purchase = null);
+    [property: JsonPropertyName("purchase")] ChatPurchaseApiResult? Purchase = null,
+    [property: JsonPropertyName("item")] ChatItemApiResult? Item = null);
 
 public record BillClassifyApiRequest(
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
@@ -188,7 +211,15 @@ public record ClassifyItemsApiRequest(
     [property: JsonPropertyName("items")] IReadOnlyList<ClassifyItemApiInput> Items,
     [property: JsonPropertyName("merchant_name")] string? MerchantName,
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
-    [property: JsonPropertyName("allow_ai")] bool AllowAi);
+    [property: JsonPropertyName("allow_ai")] bool AllowAi,
+    [property: JsonPropertyName("categories")] IReadOnlyList<ClassifyCategoryApiInput>? Categories = null);
+
+public record ClassifyCategoryApiInput(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("slug")] string Slug,
+    [property: JsonPropertyName("is_system")] bool IsSystem,
+    [property: JsonPropertyName("parent_slug")] string? ParentSlug);
 
 public record ClassifiedItemApiResult(
     [property: JsonPropertyName("index")] int Index,
@@ -198,3 +229,15 @@ public record ClassifiedItemApiResult(
 public record ClassifyItemsApiResponse(
     [property: JsonPropertyName("items")] IReadOnlyList<ClassifiedItemApiResult> Items,
     [property: JsonPropertyName("ai_used")] bool AiUsed);
+
+public record LearnItemApiEntry(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("category_id")] Guid CategoryId,
+    [property: JsonPropertyName("kind")] string Kind);
+
+public record LearnItemsApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash,
+    [property: JsonPropertyName("items")] IReadOnlyList<LearnItemApiEntry> Items);
+
+public record ItemMemoryEraseApiRequest(
+    [property: JsonPropertyName("user_id_hash")] string UserIdHash);

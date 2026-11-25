@@ -1,0 +1,25 @@
+{
+  "method": "POST",
+  "url": "/api/v1/group-invitations/preview",
+  "request": {
+    "token": "6R1W-xlxHY3V04gaiB2-EA"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "data": {
+      "groupName": "Phòng trọ 302",
+      "groupType": "Roommates",
+      "role": "Member",
+      "invitedBy": null,
+      "expiresAt": null,
+      "groupIcon": "home",
+      "memberCount": 1,
+      "fundBalanceCents": null,
+      "invitedByRole": null,
+      "message": null
+    },
+    "error": null,
+    "meta": null
+  }
+}

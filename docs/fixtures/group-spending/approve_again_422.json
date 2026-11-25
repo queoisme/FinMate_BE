@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/approvals/{id}/approve",
+  "request": null,
+  "status": 422,
+  "response": {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "GROUP_APPROVAL_NOT_PENDING",
+      "message": "Yêu cầu này đã được xử lý.",
+      "details": null
+    },
+    "meta": null
+  }
+}

@@ -142,6 +142,30 @@ public class AgentOrchestratorTests
             coverage: coverage), ai, source);
     }
 
+    private sealed class FakeGoalPlanTool : IAgentTool
+    {
+        public ToolSpec Spec { get; } = new("goal_plan", "Đánh giá mục tiêu.", [new ToolArg("target_vnd", "int", true, 1_000, 1_000_000_000_000), new ToolArg("months", "int", true, 1, 600)]);
+
+        public Task<ToolResult> RunAsync(ToolContext context, JsonElement args, CancellationToken ct = default)
+            => Task.FromResult(ToolResult.Ok([new Evidence("goal_target", "goal_target", args.GetProperty("target_vnd").GetInt64(), "Số tiền mục tiêu", "VND", EvidenceSource.UserEntered, Now, 0.9)]));
+    }
+
+    [Fact]
+    public async Task assessing_a_goal_needs_no_planner_so_a_dead_llm_still_gets_numbers()
+    {
+        var source = new InMemoryFinancialDataSource(Income, Spend.Take(Income.Length).ToArray(), 100_000_000, null);
+        var ai = new FakeAi { PlanError = new AIServiceUnavailableException("treo"), ComposeError = new OperationCanceledException() };
+        var orchestrator = new AgentOrchestrator(
+            ai, new ToolExecutor(new ToolRegistry([new FakeGoalPlanTool()])), new IncomeHistory(source), new ConversationStore(new FakeCache()), new AgentTraceContext(), () => Now);
+
+        var answer = await orchestrator.AssessGoalAsync(Guid.NewGuid(), 500_000_000, 36);
+
+        answer.Status.Should().Be(AgentStatus.Answered);
+        answer.UsedTemplate.Should().BeTrue();
+        answer.Evidence.Should().Contain(e => e.Id == "goal_target" && e.ValueVnd == 500_000_000);
+        ai.PlanCalls.Should().BeEmpty();
+    }
+
     private sealed class FakeKnowledgeTool : IAgentTool
     {
         public ToolSpec Spec { get; } = new("search_knowledge", "Tra tri thức.", [new ToolArg("query", "string", true)]);
@@ -283,6 +307,25 @@ public class AgentOrchestratorTests
         ai.PlanCalls[1].State!.Slots.Should().Contain(new KeyValuePair<string, string>("price_vnd", "600000000"));
         ai.PlanCalls[1].State!.Slots.Should().Contain(new KeyValuePair<string, string>("horizon_months", "60"));
         ai.PlanCalls[1].State!.LastIntent.Should().Be("forecast_goal");
+    }
+
+    [Fact]
+    public async Task a_follow_up_reuses_the_months_of_the_previous_spending_summary()
+    {
+        var source = new RecordingSource(new InMemoryFinancialDataSource(Income, Spend.Take(Income.Length).ToArray(), 100_000_000, null, [new CategorySpendVnd("an-uong", "Ăn uống", 3_000_000)]));
+        var ai = new FakeAi
+        {
+            Plan = _ => new AgentPlanResult("spending_summary", [new AgentPlanStep("spending_summary", JsonDocument.Parse("""{"months": 3}""").RootElement.Clone())], null, null),
+        };
+        var orchestrator = new AgentOrchestrator(
+            ai, new ToolExecutor(new ToolRegistry([new SpendingSummaryTool(source)])), new IncomeHistory(source), new ConversationStore(new FakeCache()), new AgentTraceContext(), () => Now);
+        var me = Guid.NewGuid();
+
+        await orchestrator.AskAsync(me, "3 tháng qua tôi tiêu nhiều nhất vào đâu?");
+        await orchestrator.AskAsync(me, "vậy còn tháng này?");
+
+        ai.PlanCalls[1].State!.Slots.Should().Contain(new KeyValuePair<string, string>("months", "3"));
+        ai.PlanCalls[1].State!.LastIntent.Should().Be("spending_summary");
     }
 
     [Fact]
@@ -482,6 +525,18 @@ public class AgentOrchestratorTests
     }
 
     [Fact]
+    public async Task compose_that_runs_out_of_time_falls_back_to_template()
+    {
+        var (orchestrator, ai, _) = Build();
+        ai.ComposeError = new OperationCanceledException(); // hạn chờ LLM viết câu đã hết, người dùng vẫn đợi
+
+        var answer = await orchestrator.AskAsync(Guid.NewGuid(), "mua xe 600 triệu");
+
+        answer.UsedTemplate.Should().BeTrue();
+        answer.Claims.Should().NotBeEmpty();
+    }
+
+    [Fact]
     public async Task compose_unavailable_falls_back_to_template()
     {
         var (orchestrator, ai, _) = Build();
@@ -591,6 +646,38 @@ public class AgentOrchestratorTests
 
         answer.SuggestedActions.Should().HaveCount(AgentLimits.MaxSuggestedActions);
     }
+
+    [Fact]
+    public async Task a_cue_less_follow_up_passes_the_gate_only_inside_a_conversation()
+    {
+        var (orchestrator, ai, _) = Build();
+        var me = Guid.NewGuid();
+        ai.Gate = new AgentGateResult(false, GateNoCue, "Ngoài phạm vi.");
+
+        (await orchestrator.AskAsync(me, "còn nếu 5 năm thì sao?")).Status.Should().Be(AgentStatus.Refused); // chưa có hội thoại: vẫn từ chối
+        ai.PlanCalls.Should().BeEmpty();
+
+        ai.Gate = new AgentGateResult(true, "finance_cue", null);
+        await orchestrator.AskAsync(me, "mua xe 600 triệu sau 2 năm được không?");
+        ai.Gate = new AgentGateResult(false, GateNoCue, "Ngoài phạm vi.");
+        await orchestrator.AskAsync(me, "còn nếu 5 năm thì sao?");
+
+        ai.PlanCalls.Should().HaveCount(2);
+        ai.PlanCalls[1].State.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task a_topic_refusal_is_final_even_inside_a_conversation()
+    {
+        var (orchestrator, ai, _) = Build();
+        var me = Guid.NewGuid();
+        await orchestrator.AskAsync(me, "mua xe 600 triệu sau 2 năm được không?");
+        ai.Gate = new AgentGateResult(false, "investment_advice", "Mình không tư vấn đầu tư.");
+
+        (await orchestrator.AskAsync(me, "nên mua coin nào?")).Status.Should().Be(AgentStatus.Refused);
+    }
+
+    private const string GateNoCue = AgentOrchestrator.GateReasonNoCue;
 
     [Fact]
     public async Task a_refusal_has_no_suggested_actions()

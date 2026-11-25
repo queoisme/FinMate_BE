@@ -91,6 +91,20 @@ public class AIServiceClient : IAIServiceClient
         await _api.BillSamplesEraseAsync(new BillSampleEraseApiRequest(UserIdHasher.Hash(userId)), timeout.Token);
     }
 
+    public Task LearnItemsAsync(LearnItemsRequest request, CancellationToken ct = default)
+        => BestEffortAsync(t => _api.ItemMemoryLearnAsync(
+            new LearnItemsApiRequest(
+                UserIdHasher.Hash(request.UserId),
+                request.Items.Select(i => new LearnItemApiEntry(i.Name, i.CategoryId, i.Kind)).ToList()), t), ct);
+
+    // Như EraseTrainingSamplesAsync: xóa bộ nhớ món là lời hứa với người dùng nên lỗi PHẢI đến người gọi.
+    public async Task EraseItemMemoryAsync(Guid userId, CancellationToken ct = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(EraseTimeout);
+        await _api.ItemMemoryEraseAsync(new ItemMemoryEraseApiRequest(UserIdHasher.Hash(userId)), timeout.Token);
+    }
+
     private static async Task BestEffortAsync(Func<CancellationToken, Task> send, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -204,7 +218,14 @@ public class AIServiceClient : IAIServiceClient
         ChatParseApiResponse response;
         try
         {
-            response = await _api.ChatParseAsync(new ChatParseApiRequest(request.Text, UserIdHasher.Hash(request.UserId), request.AllowAi), ct);
+            response = await _api.ChatParseAsync(new ChatParseApiRequest(
+                    request.Text, UserIdHasher.Hash(request.UserId), request.AllowAi,
+                    request.ItemContext is null
+                        ? null
+                        : new ChatItemContextApi(
+                            request.ItemContext.Kind, request.ItemContext.AmountCents, request.ItemContext.Name, request.ItemContext.CategorySlug,
+                            request.ItemContext.Cadence, request.ItemContext.Direction, request.ItemContext.Counterparty)),
+                ct);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
         {
@@ -236,10 +257,15 @@ public class AIServiceClient : IAIServiceClient
             response.Skipped,
             response.Goal is null
                 ? null
-                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText),
+                : new ChatParseGoal(response.Goal.Name, response.Goal.NameIsDefault, response.Goal.TargetCents, response.Goal.Deadline, response.Goal.DeadlineText, response.Goal.AiAssisted),
             response.Purchase is null
                 ? null
-                : new ChatParsePurchase(response.Purchase.Item, response.Purchase.AmountCents, ParseDay(response.Purchase.PurchaseDate), response.Purchase.CategorySlug));
+                : new ChatParsePurchase(response.Purchase.Item, response.Purchase.AmountCents, ParseDay(response.Purchase.PurchaseDate), response.Purchase.CategorySlug),
+            response.Item is null
+                ? null
+                : new ChatParseItem(
+                    response.Item.Kind, response.Item.AmountCents, response.Item.Name, response.Item.CategorySlug, response.Item.Cadence,
+                    ParseDay(response.Item.NextDue), response.Item.Direction, response.Item.Counterparty, response.Item.Operation));
     }
 
     /// <summary>Ngày mua AI trả về: "2026-11-16" hoặc "2026-11-16T00:00:00+07:00". Không đọc được thì coi như không nói ngày (mặc định hôm nay), không làm hỏng cả câu.</summary>
@@ -276,6 +302,21 @@ public class AIServiceClient : IAIServiceClient
         return new BillClassifyResponse(response.CategorySlug, response.LocalCategory, response.Confidence, response.Source);
     }
 
+    // ai-service từ chối tên danh mục dài hơn 40 ký tự, nên cắt ở đây thay vì để mỗi nơi gọi tự nhớ.
+    private const int MaxCategoryNameLength = 40;
+
+    private static string TruncateName(string name)
+    {
+        if (name.Length <= MaxCategoryNameLength)
+        {
+            return name;
+        }
+
+        // Không để cắt giữa một cặp surrogate (emoji) — chuỗi nửa cặp không phải UTF-8 hợp lệ khi serialize.
+        var cut = char.IsHighSurrogate(name[MaxCategoryNameLength - 1]) ? MaxCategoryNameLength - 1 : MaxCategoryNameLength;
+        return name[..cut];
+    }
+
     public async Task<ClassifyItemsResponse> ClassifyItemsAsync(ClassifyItemsRequest request, CancellationToken ct = default)
     {
         ClassifyItemsApiResponse response;
@@ -286,7 +327,9 @@ public class AIServiceClient : IAIServiceClient
                     request.Items.Select(i => new ClassifyItemApiInput(i.Name, i.Parent)).ToList(),
                     request.MerchantName,
                     UserIdHasher.Hash(request.UserId),
-                    request.AllowAi),
+                    request.AllowAi,
+                    request.Categories?.Select(c => new ClassifyCategoryApiInput(
+                        c.Id, TruncateName(c.Name), c.Slug, c.IsSystem, c.ParentSlug)).ToList()),
                 ct);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)

@@ -19,6 +19,16 @@ public class SystemConfigDocumentValidatorTests
     }
 
     [Fact]
+    public void AgentTexts_RejectUnknownKeyAndForbiddenSlot()
+    {
+        var bad = new SystemConfigDocument { Agent = new AgentSettings { Texts = new Dictionary<string, string> { ["duration_years"] = "{years} {zzz}", ["khong_co"] = "x" } } };
+        var good = new SystemConfigDocument { Agent = new AgentSettings { Texts = new Dictionary<string, string> { ["duration_years"] = "{years} năm tròn" } } };
+
+        _validator.Validate(bad).Errors.Should().HaveCount(2);
+        _validator.Validate(good).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public void Defaults_GroupFundsOff_ThreeFundsPerGroup()
     {
         var doc = new SystemConfigDocument();

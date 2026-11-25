@@ -10,7 +10,7 @@ namespace FinMate.Application.Common.Interfaces;
 public record DailySpendPoint(DateOnly Date, long SpentCents, long IncomeCents, int TransactionCount, long RefundedCents = 0);
 
 /// <summary>Chi tiêu RÒNG (chi − hoàn) gom theo category trong một khoảng; CategoryId null = chưa phân loại. Danh mục ròng ≤ 0 không có dòng (D3).</summary>
-public record CategorySpend(Guid? CategoryId, string? CategoryName, string? CategorySlug, long SpentCents);
+public record CategorySpend(Guid? CategoryId, string? CategoryName, string? CategorySlug, long SpentCents, int TransactionCount = 0);
 
 /// <summary>Một merchant lặp lại đều đặn — ứng viên của insight recurring_detected.</summary>
 public record RecurringCandidate(string MerchantName, long MedianAmountCents, int Occurrences);

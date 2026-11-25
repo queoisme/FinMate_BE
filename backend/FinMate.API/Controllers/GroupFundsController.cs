@@ -20,9 +20,11 @@ public class GroupFundsController : ControllerBase
     private readonly IGroupFundService _funds;
     private readonly IGroupFundEntryService _entries;
     private readonly IGroupFundSummaryService _summaries;
+    private readonly Application.Groups.Approvals.IGroupApprovalService _approvals;
 
-    public GroupFundsController(IGroupFundService funds, IGroupFundEntryService entries, IGroupFundSummaryService summaries)
+    public GroupFundsController(IGroupFundService funds, IGroupFundEntryService entries, IGroupFundSummaryService summaries, Application.Groups.Approvals.IGroupApprovalService approvals)
     {
+        _approvals = approvals;
         _funds = funds;
         _entries = entries;
         _summaries = summaries;
@@ -75,11 +77,17 @@ public class GroupFundsController : ControllerBase
     [HttpPost("{fundId:guid}/entries")]
     public async Task<IActionResult> CreateEntry(Guid groupId, Guid fundId, [FromBody] CreateGroupFundEntryRequest request, CancellationToken ct)
     {
-        var result = await _entries.CreateAsync(
-            new CreateGroupFundEntryCommand(
-                CurrentUserId, groupId, fundId, request.Kind, request.AmountCents ?? 0, request.TransactedAt ?? DateTimeOffset.UtcNow, request.CategoryId,
-                request.GroupCategoryId, request.Note, request.MerchantName, request.FinancialAccountId, request.FromTransactionId, request.ClientRequestId),
-            ct);
+        var command = new CreateGroupFundEntryCommand(
+            CurrentUserId, groupId, fundId, request.Kind, request.AmountCents ?? 0, request.TransactedAt ?? DateTimeOffset.UtcNow, request.CategoryId,
+            request.GroupCategoryId, request.Note, request.MerchantName, request.FinancialAccountId, request.FromTransactionId, request.ClientRequestId);
+
+        // Chi hoặc rút từ ngưỡng duyệt do người không phải Owner ghi: 202 và body là yêu cầu chờ duyệt, quỹ chưa đổi.
+        if (await _approvals.TrySubmitFundEntryAsync(command, ct) is { } pending)
+        {
+            return StatusCode(StatusCodes.Status202Accepted, ApiResponse<Application.Groups.Approvals.GroupApprovalDto>.Ok(pending));
+        }
+
+        var result = await _entries.CreateAsync(command, ct);
         var body = ApiResponse<GroupFundEntryResult>.Ok(result);
         return result.AlreadyExisted ? Ok(body) : StatusCode(StatusCodes.Status201Created, body);
     }

@@ -23,6 +23,7 @@ public class ForecastController : ControllerBase
     private readonly ICategoryForecastService _categories;
     private readonly IGoalForecastService _goals;
     private readonly IDataCoverageService _coverage;
+    private readonly IPurchaseReminderService _reminders;
 
     public ForecastController(
         IForecastService forecast,
@@ -33,8 +34,10 @@ public class ForecastController : ControllerBase
         IAnomalyService anomalies,
         ICategoryForecastService categories,
         IGoalForecastService goals,
-        IDataCoverageService coverage)
+        IDataCoverageService coverage,
+        IPurchaseReminderService reminders)
     {
+        _reminders = reminders;
         _coverage = coverage;
         _forecast = forecast;
         _purchases = purchases;
@@ -73,6 +76,11 @@ public class ForecastController : ControllerBase
     public async Task<IActionResult> PurchaseCheck([FromBody] PurchaseCheckRequest request, CancellationToken ct)
         => Ok(ApiResponse<PurchaseCheckDto>.Ok(await _purchases.CheckAsync(
             new PurchaseCheckCommand(CurrentUserId, request.AmountCents, request.PurchaseDate, request.Item, request.CategoryId, request.AccountId, request.HorizonDays, request.CategorySlug), ct)));
+
+    /// <summary>Hẹn nhắc vào 08:00 (giờ Việt Nam) của <c>date</c> để xem lại khoản định mua (đề xuất "hoãn mua tới ngày" của agent). Hẹn lại cùng ngày không tạo thêm.</summary>
+    [HttpPost("purchase-reminders")]
+    public async Task<IActionResult> PurchaseReminder([FromBody] PurchaseReminderRequest request, CancellationToken ct)
+        => Ok(ApiResponse<PurchaseReminderDto>.Ok(await _reminders.ScheduleAsync(CurrentUserId, request.Date, ct)));
 
     /// <summary>Số tiền có thể chi trong kỳ và mỗi ngày, kèm bảng cách tính.</summary>
     [HttpGet("spendable")]
@@ -147,6 +155,8 @@ public record CategoryBudgetItemRequest(Guid CategoryId, long LimitCents);
 public record ApplyCategoryBudgetsRequest(IReadOnlyList<CategoryBudgetItemRequest>? Items);
 
 public record AlertFeedbackRequest(string? Feedback);
+
+public record PurchaseReminderRequest(DateOnly Date);
 
 public record ScenarioItemRequest(DateOnly Date, long AmountCents, RecurringDirection Direction, string? Label);
 

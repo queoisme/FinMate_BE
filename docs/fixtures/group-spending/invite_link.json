@@ -1,0 +1,25 @@
+{
+  "method": "POST",
+  "url": "/api/v1/groups/{id}/invitations",
+  "request": {
+    "role": "Member",
+    "message": "Vào nhóm chia tiền phòng nhé!"
+  },
+  "status": 201,
+  "response": {
+    "success": true,
+    "data": {
+      "id": "4769dab1-db91-418e-aa10-effb4b71f428",
+      "email": null,
+      "role": "Member",
+      "expiresAt": "2026-11-27T10:18:42.8617231+00:00",
+      "createdAt": "2026-11-20T10:18:42.8617231+00:00",
+      "token": "CEt2o7mLh64Muab0EOfByDryM0LP9KZooNilyfaEn-4",
+      "emailSent": null,
+      "message": "Vào nhóm chia tiền phòng nhé!",
+      "joinUrl": "https://finmate.app/join/CEt2o7mLh64Muab0EOfByDryM0LP9KZooNilyfaEn-4"
+    },
+    "error": null,
+    "meta": null
+  }
+}

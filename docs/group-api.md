@@ -2,6 +2,8 @@
 
 Dành cho nhóm Flutter. Mọi route nằm dưới `/api/v1`, cần JWT, trả về envelope chung. Enum trong JSON là chuỗi PascalCase (`"Owner"`, `"ManageBudgets"`).
 
+Hồ sơ nhóm, lời mời gửi thẳng, tìm người, hóa đơn chia, sổ nợ và duyệt khoản lớn: xem `docs/group-spending-api.md` (kèm ví dụ thật trong `docs/fixtures/group-spending/`).
+
 Công tắc: `config.features.groups` ở `GET /app-config`, mặc định `false`. App dùng nó để ẩn tính năng, và server cũng chặn thật: khi tắt, mọi API nhóm, `/group-invitations/*` và `PUT|DELETE /transactions/{id}/group` trả 422 `GROUPS_DISABLED`; tạo hoặc xác nhận giao dịch có `groupId` cũng vậy. Giao dịch không có `groupId` vẫn lưu bình thường và bỏ qua quy tắc tự chia sẻ. Sửa hoặc xóa giao dịch đã chia sẻ vẫn cập nhật số của nhóm. Cảnh báo nhóm tạm dừng và được gửi khi bật lại. Dữ liệu nhóm không mất.
 
 **Phân trang con trỏ** (hoạt động, giao dịch chung, đóng góp mục tiêu): `limit` mặc định 20; `data` là mảng một trang, mới nhất trước; còn trang sau thì `meta.cursor` có giá trị, gửi lại nguyên văn qua `?cursor=` để lấy tiếp, hết thì `meta.cursor` là `null`. Con trỏ hỏng không báo lỗi mà trả trang đầu. App cũ chỉ đọc `data` sẽ chỉ thấy 20 dòng đầu.

@@ -28,7 +28,8 @@ public class SavingGoalPlanningController : ControllerBase
     [HttpPost("feasibility")]
     public async Task<IActionResult> PreviewFeasibility([FromBody] FeasibilityRequest request, CancellationToken ct)
         => Ok(ApiResponse<GoalFeasibilityDto?>.Ok(
-            await _planning.PreviewFeasibilityAsync(CurrentUserId, request.TargetCents, request.SavedCents ?? 0, request.Deadline, ct)));
+            await _planning.PreviewFeasibilityAsync(CurrentUserId, request.TargetCents, request.SavedCents ?? 0, request.Deadline, ct, request.ContributionFrequency)));
 }
 
-public record FeasibilityRequest(long TargetCents, long? SavedCents, DateTimeOffset Deadline);
+/// <param name="ContributionFrequency">weekly | monthly | custom: chỉ quyết định nhịp của <c>autoSaveSuggestion</c> (tuần hoặc tháng).</param>
+public record FeasibilityRequest(long TargetCents, long? SavedCents, DateTimeOffset Deadline, FinMate.Domain.Enums.GoalContributionFrequency? ContributionFrequency = null);
