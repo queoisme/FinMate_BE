@@ -74,6 +74,10 @@
     "tt",
     "ttoan"
   ],
+  "merchant_suffixes": [
+    "chuyen tien",
+    "chuyển tiền"
+  ],
   "balance_markers": [
     "so du",
     "số dư",

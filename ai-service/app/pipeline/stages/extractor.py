@@ -70,7 +70,7 @@ def _from_pattern(matched, body: str, received_at: datetime) -> ExtractionOutcom
         # mốc khác: lệch thời gian làm giao dịch rơi nhầm chu kỳ ngân sách.
         transacted_at = received_at
 
-    merchant = matched.merchant_name or _merchant_from_description(matched.description)
+    merchant = _clean_merchant(matched.merchant_name) or _merchant_from_description(matched.description)
 
     # Bóc được càng nhiều trường thì càng chắc là đúng template, không phải khớp may.
     filled = sum(
@@ -188,8 +188,15 @@ def _merchant_after_preposition(text: str, from_index: int) -> str | None:
 
 
 def _merchant_from_description(description: str | None) -> str | None:
-    """VNPay/VCB chỉ có trường nội dung — gỡ các tiền tố nghiệp vụ để lộ tên đơn vị."""
+    """VNPay/VCB/MB chỉ có trường nội dung — gỡ tiền tố ("TT QR") và hậu tố ("chuyen tien" kèm
+    mọi thứ sau nó: tên app, mã tham chiếu) nghiệp vụ để lộ tên đơn vị/người chuyển."""
     if not description:
         return None
-    cleaned = notification_vocab.strip_merchant_prefix(normalize_whitespace(description))
+    return _clean_merchant(notification_vocab.strip_merchant_prefix(normalize_whitespace(description)))
+
+
+def _clean_merchant(merchant: str | None) -> str | None:
+    if not merchant:
+        return None
+    cleaned = notification_vocab.strip_merchant_suffix(merchant)
     return cleaned[: notification_vocab.MAX_MERCHANT_CHARS] or None

@@ -7,6 +7,7 @@ using FinMate.Application.Common.Models;
 using FinMate.Application.Notifications;
 using FinMate.Application.QrTransfers;
 using FinMate.Application.Transactions;
+using FinMate.Application.Transactions.Commands;
 using FinMate.Application.Transactions.Duplicates;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
@@ -35,6 +36,11 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
     private readonly IDuplicateDetector? _duplicates;  // null: không so trùng (test cũ)
     private readonly Transactions.Transfers.ITransferSuggestions? _transfers;  // null: không gợi ý chuyển ví (test cũ)
 
+    // §7/§16.1 FLOW1_CURRENT_DECISIONS.md: Auto-commit tái dùng đúng logic số dư/ngân sách/nhóm
+    // của ConfirmTransactionCommandHandler thay vì chép lại — null: không auto-commit (test cũ),
+    // mọi nháp vẫn vào "Chờ duyệt" như trước.
+    private readonly IConfirmTransactionCommandHandler? _confirmHandler;
+
     // Issue B (2026-11-13): tên hiển thị người dùng đã lưu/đổi tay cho người nhận này (nếu có)
     // đáng tin hơn tên thô trong thông báo/mã QR — null: không ghi đè, giữ tên thô như cũ (test cũ).
     private readonly IMerchantCategoryOverrideRepository? _merchantCategoryOverrides;
@@ -52,12 +58,14 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         Transactions.Refunds.IRefundSuggestions? refundSuggestions = null,
         IDuplicateDetector? duplicates = null,
         Transactions.Transfers.ITransferSuggestions? transfers = null,
-        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null)
+        IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
+        IConfirmTransactionCommandHandler? confirmHandler = null)
     {
         _refundSuggestions = refundSuggestions;
         _duplicates = duplicates;
         _transfers = transfers;
         _merchantCategoryOverrides = merchantCategoryOverrides;
+        _confirmHandler = confirmHandler;
         _financialAccountRepository = financialAccountRepository;
         _notificationLogRepository = notificationLogRepository;
         _categoryRepository = categoryRepository;
@@ -265,17 +273,12 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
             return new DraftOutcome(null, null, sameEvent);
         }
 
-        await _transactionRepository.AddAsync(transaction, ct);
-        transaction.Category = category;
-
-        if (qrIntent is not null)
-        {
-            await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
-        }
-
-        // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Nháp vẫn là nháp; người dùng mới là người liên kết (BR-RF-13).
+        // Phase 81: AI đoán là hoàn/đảo → tối đa 3 khoản chi gốc gợi ý. Tính TRƯỚC khi quyết định
+        // auto-commit: có relation hint thì không bao giờ auto-commit (BR-RF-13 — người dùng mới
+        // là người liên kết), bất kể độ tin cậy trích số bao nhiêu.
         IReadOnlyList<RefundSuggestionDto>? suggestions = null;
-        if (aiResult.RelationHint.AsRefundRelation() is { } hint && _refundSuggestions is not null)
+        var refundHint = aiResult.RelationHint.AsRefundRelation();
+        if (refundHint is { } hint && _refundSuggestions is not null)
         {
             transaction.FinancialAccount = account;
             suggestions = await _refundSuggestions.SuggestAsync(command.UserId, transaction, hint, ct);
@@ -284,12 +287,48 @@ public class AnalyzeNotificationCommandHandler : IAnalyzeNotificationCommandHand
         // Phase 83: nháp đang nghi trùng không bao giờ mang gợi ý chuyển ví (BR-TRF-04); TransferMatcher tự loại nó.
         var transfer = _transfers is null ? null : await _transfers.ForOneAsync(command.UserId, transaction, ct);
 
+        // §7/§16.1 FLOW1_CURRENT_DECISIONS.md — Auto-commit đòi đủ 5 điều kiện: không nghi trùng
+        // nghiệp vụ, nhãn FINANCIAL (đã đảm bảo — HandleAsync chỉ gọi hàm này khi pipelineResult
+        // là Financial), ví đã xác nhận (đã có `account`), core field hợp lệ (đã đảm bảo — amount
+        // > 0 và transactionType khác null trước khi gọi hàm này), và ExtractionConfidence đạt
+        // ngưỡng (dùng chung TransactionReviewPushBuilder.OneTapThreshold, KHÔNG gộp với độ tin
+        // cậy phân loại danh mục — xem ghi chú trong §7). Ngoài 5 điều kiện gốc, 2 nhánh sau luôn
+        // thắng auto-commit giống cách chúng thắng one-tap: nghi trùng và gợi ý chuyển ví nội bộ
+        // (cả hai đều cần người dùng tự chọn, không thể tự quyết thay).
+        var noBusinessDuplicate = !duplicates.Candidates.Any(c => c.MarksSuspected);
+        var canAutoCommit = noBusinessDuplicate
+            && refundHint is null
+            && transfer is null
+            && aiResult.ExtractionConfidence is { } extractionConfidence
+            && extractionConfidence >= TransactionReviewPushBuilder.OneTapThreshold
+            && _confirmHandler is not null;
+
+        await _transactionRepository.AddAsync(transaction, ct);
+        transaction.Category = category;
+
+        if (qrIntent is not null)
+        {
+            await _qrLinker!.LinkAsync(qrIntent, transaction.Id, ct);
+        }
+
+        if (canAutoCommit)
+        {
+            // Tái dùng ConfirmTransactionCommandHandler cho số dư/ngân sách/nhóm/cache — không
+            // chép lại logic đó ở đây. Transaction vẫn đang tracked cùng DbContext nên `transaction`
+            // ở biến cục bộ tự phản ánh Status=Confirmed sau lệnh gọi này.
+            await _confirmHandler!.HandleAsync(new ConfirmTransactionCommand(command.UserId, transaction.Id), ct);
+
+            var autoCommitted = TransactionReviewPushBuilder.BuildAutoCommittedPush(transaction, category?.Name);
+            await _pushNotificationService.NotifyAsync(command.UserId, autoCommitted.Title, autoCommitted.Body, autoCommitted.Data, ct);
+            return new DraftOutcome(transaction, suggestions, null);
+        }
+
         // Docx bước 5.2/5.3: cùng một giao dịch nháp nhưng hỏi người dùng theo hai cách khác nhau tuỳ mức tin cậy; nghi trùng thì hỏi gộp trước (D15).
         var review = TransactionReviewPushBuilder.Build(
             transaction,
             category?.Name,
             TransactionReviewPushBuilder.ReviewConfidence(aiResult.ExtractionConfidence, aiResult.CategorizationConfidence),
-            aiResult.RelationHint.AsRefundRelation(),
+            refundHint,
             suggestions?.Count ?? 0,
             duplicates.Candidates.Count(c => c.MarksSuspected),
             transfer);

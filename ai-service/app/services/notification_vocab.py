@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 _PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "notification_vocab.json"
 GROUPS = (
-    "credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "balance_markers", "non_financial_markers", "financial_markers",
+    "credit_verbs", "debit_verbs", "merchant_prepositions", "merchant_prefixes", "merchant_suffixes", "balance_markers", "non_financial_markers", "financial_markers",
     # Phase 81: khoản tiền VÀO là hoàn tiền, đảo giao dịch lỗi, hay cashback khuyến mãi (cashback là thu nhập, không phải hoàn). Khớp nguyên từ.
     "refund_markers", "reversal_markers", "cashback_markers",
     # Phase 83: chuyển tiền giữa các ví của chính người dùng. Nhóm loại trừ (nạp điện thoại, VETC, hoá đơn…) là THANH TOÁN dù có chữ "nạp".
@@ -57,6 +57,7 @@ class _Vocab:
     debit: re.Pattern[str] | None
     prepositions: tuple[re.Pattern[str], ...]
     prefix: re.Pattern[str] | None
+    suffix: re.Pattern[str] | None
     balance: re.Pattern[str] | None
     non_financial: tuple[str, ...]
     financial: tuple[str, ...]
@@ -74,6 +75,7 @@ def build(content: dict) -> _Vocab:
         debit=_any_word(content["debit_verbs"]),
         prepositions=tuple(re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.IGNORECASE) for term in content["merchant_prepositions"]),
         prefix=re.compile(r"^" + prefix.pattern, re.IGNORECASE) if prefix else None,
+        suffix=_any_word(content["merchant_suffixes"]),
         balance=_any_word(content["balance_markers"]),
         non_financial=tuple(content["non_financial_markers"]),
         financial=tuple(content["financial_markers"]),
@@ -131,6 +133,13 @@ def strip_merchant_prefix(description: str) -> str:
     """Bỏ tiền tố nghiệp vụ ở đầu ("TT QR", "THANH TOAN") để lộ tên đơn vị; không có tiền tố thì giữ nguyên."""
     found = _vocab.prefix.match(description) if _vocab.prefix else None
     return description[found.end() :].strip(_STRIP_PREFIX) if found else description
+
+
+def strip_merchant_suffix(merchant: str) -> str:
+    """Cắt bỏ cụm nghiệp vụ ở CUỐI ("chuyen tien") VÀ mọi thứ còn lại sau nó (tên app, mã
+    tham chiếu) để lộ đúng tên người chuyển/đơn vị; không có cụm này thì giữ nguyên."""
+    found = _vocab.suffix.search(merchant) if _vocab.suffix else None
+    return merchant[: found.start()].strip(_STRIP_MERCHANT) if found else merchant
 
 
 def has_balance_marker(prefix: str) -> bool:

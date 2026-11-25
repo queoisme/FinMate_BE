@@ -186,3 +186,27 @@ def test_generic_direction_follows_the_sign_stuck_to_the_amount(now):
 def test_generic_sign_ignores_a_hyphen_inside_a_date_or_code(now):
     outcome = extract_generic("Ban da nhan 500.000d ngay 12-10-2026 ma A-5", now)
     assert outcome.transaction_type is TransactionType.CREDIT  # không có dấu dính liền số tiền: rơi về động từ
+
+
+def test_real_vietinbank_debit_merchant_drops_chuyen_tien_and_app_name_suffix(matcher, now):
+    """Bug thật: merchant hiện tên bẩn 'LE XUAN THO Chuyen tien; tai iPay' thay vì chỉ tên
+    người chuyển — pattern này tự bóc được group merchant nên fallback mô tả không chạy."""
+    outcome = Extractor(matcher).extract(
+        "com.vietinbank.ipay",
+        "VietinBank:08/10/2026 11:08 TK:107876452515 GD:-5,000 VND SDC:2,860,075 VND "
+        "ND:CT DI:628111031960 LE XUAN THO Chuyen tien; tai iPay",
+        now,
+    )
+    assert outcome.merchant_name == "LE XUAN THO"
+
+
+def test_real_mb_merchant_drops_chuyen_tien_and_reference_code_suffix(matcher, now):
+    """Bug thật: mb_generic_v2 không có group merchant riêng, chỉ description — 'ND: LE XUAN
+    THO Chuyen tien cJI1SU2A/031960' đi nguyên văn vào merchant trước khi sửa."""
+    outcome = Extractor(matcher).extract(
+        "com.mbmobile",
+        "TK 00xxx130|GD: +5,000VND 08/10/26 11:08 |SD: 3,465,980VND|TU: LE XUAN THO - 107876452515|"
+        "ND: LE XUAN THO Chuyen tien cJI1SU2A/031960",
+        now,
+    )
+    assert outcome.merchant_name == "LE XUAN THO"
