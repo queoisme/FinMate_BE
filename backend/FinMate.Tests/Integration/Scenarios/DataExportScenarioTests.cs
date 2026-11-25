@@ -8,6 +8,7 @@ using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 
@@ -180,5 +181,31 @@ public class DataExportScenarioTests : IClassFixture<DataExportApiFactory>
         new[] { bTx.ToString(), "Quán nhậu của B", "Ghi chú của B", "654321", "Ví của B", bInfo.Email, bInfo.DisplayName, b.UserId.ToString() }
             .Where(s => everything.Contains(s, StringComparison.Ordinal)).Should().BeEmpty();
         files["groups.json"].Should().Contain("Nhà chung").And.Contain("\"isYou\": true");
+    }
+
+    /// <summary>(e) Yêu cầu lần hai trong 24 giờ → 429. Sau <c>fileRetentionHours</c> → <c>Expired</c>, file đã xoá.</summary>
+    [Fact]
+    public async Task E_ASecondRequestWithin24Hours_Is429_AndAfterRetentionTheFileIsGone()
+    {
+        var api = await new LoanTestApi(_factory, _client).SignUpAsync();
+        var id = await api.RequestExportAsync(_factory);
+        await _factory.RunJobAsync(id);
+
+        (await api.ErrorCodeAsync(HttpMethod.Post, $"{DataExportTestApi.Base}/otp", null, HttpStatusCode.TooManyRequests)).Should().Be(DataExportErrorCodes.RateLimited);
+        (await api.ErrorCodeAsync(HttpMethod.Post, DataExportTestApi.Base, new { code = "123456" }, HttpStatusCode.TooManyRequests)).Should().Be(DataExportErrorCodes.RateLimited);
+
+        try
+        {
+            _factory.Clock.Shift = TimeSpan.FromHours(73);
+            using var scope = _factory.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<FinMate.Application.DataExport.PersonalDataExportCleanup>().RunAsync();
+        }
+        finally
+        {
+            _factory.Clock.Shift = TimeSpan.Zero;
+        }
+
+        (await api.ExportAsync(id)).GetProperty("status").GetString().Should().Be("Expired");
+        (await api.InDbAsync(db => db.PersonalDataExportArchives.CountAsync(a => a.ExportId == id))).Should().Be(0);
     }
 }

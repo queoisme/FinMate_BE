@@ -594,6 +594,7 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.DataExport.IPersonalDataExportQueue, HangfirePersonalDataExportQueue>();
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportRunner>();
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataDownloadService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportCleanup>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -967,6 +968,12 @@ public class Program
             "data-export-sweep",
             job => job.RunAsync(CancellationToken.None),
             "*/5 * * * *");
+
+        // Phase 91: gói quá fileRetentionHours → Expired, file bị xoá.
+        RecurringJob.AddOrUpdate<PersonalDataExportCleanupJob>(
+            "data-export-cleanup",
+            job => job.RunAsync(CancellationToken.None),
+            "7 * * * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(

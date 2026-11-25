@@ -44,4 +44,15 @@ public interface IPersonalDataExportRepository
     Task<bool> TryConsumeDownloadTokenAsync(Guid userId, Guid id, string tokenHash, DateTimeOffset now, CancellationToken ct = default);
 
     Task<PersonalDataExportArchive?> GetArchiveAsync(Guid id, CancellationToken ct = default);
+
+    // Dọn dẹp (BR-EXP-09).
+
+    /// <summary>Yêu cầu <c>Ready</c> đã quá hạn giữ file (tối đa <paramref name="limit"/> dòng mỗi lượt).</summary>
+    Task<IReadOnlyList<PersonalDataExport>> FindDueForExpiryAsync(DateTimeOffset now, int limit, CancellationToken ct = default);
+
+    /// <summary><c>Ready → Expired</c>, huỷ token và xoá file trong một transaction. False nếu không còn <c>Ready</c>.</summary>
+    Task<bool> ExpireAsync(Guid id, DateTimeOffset now, CancellationToken ct = default);
+
+    /// <summary>Xoá dòng lịch sử (đã xong) cũ hơn <paramref name="before"/>; file đi theo khoá ngoại. Trả số dòng đã xoá.</summary>
+    Task<int> PurgeHistoryAsync(DateTimeOffset before, CancellationToken ct = default);
 }

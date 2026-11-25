@@ -111,4 +111,33 @@ public sealed class PersonalDataExportRepository(FinMateDbContext db) : IPersona
 
     public Task<PersonalDataExportArchive?> GetArchiveAsync(Guid id, CancellationToken ct = default)
         => db.PersonalDataExportArchives.AsNoTracking().FirstOrDefaultAsync(a => a.ExportId == id, ct);
+
+    public async Task<IReadOnlyList<PersonalDataExport>> FindDueForExpiryAsync(DateTimeOffset now, int limit, CancellationToken ct = default)
+        => await db.PersonalDataExports.AsNoTracking().Where(e => e.Status == PersonalDataExportStatus.Ready && e.ExpiresAt <= now)
+            .OrderBy(e => e.ExpiresAt).Take(limit).ToListAsync(ct);
+
+    public async Task<bool> ExpireAsync(Guid id, DateTimeOffset now, CancellationToken ct = default)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var updated = await db.PersonalDataExports.Where(e => e.Id == id && e.Status == PersonalDataExportStatus.Ready)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.Status, PersonalDataExportStatus.Expired)
+                .SetProperty(e => e.ExpiredAt, now)
+                .SetProperty(e => e.DownloadTokenHash, (string?)null)
+                .SetProperty(e => e.DownloadTokenExpiresAt, (DateTimeOffset?)null), ct);
+        if (updated == 0)
+        {
+            return false;
+        }
+
+        await db.PersonalDataExportArchives.Where(a => a.ExportId == id).ExecuteDeleteAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+
+    public Task<int> PurgeHistoryAsync(DateTimeOffset before, CancellationToken ct = default)
+        => db.PersonalDataExports
+            .Where(e => e.RequestedAt < before && e.Status != PersonalDataExportStatus.Pending && e.Status != PersonalDataExportStatus.Running
+                && e.Status != PersonalDataExportStatus.Ready)
+            .ExecuteDeleteAsync(ct);
 }

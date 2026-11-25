@@ -17,6 +17,12 @@ public sealed class PersonalDataExportSweepJob(PersonalDataExportRunner runner)
     public Task RunAsync(CancellationToken ct) => runner.SweepAsync(ct);
 }
 
+/// <summary>Mỗi giờ: gói quá hạn giữ → Expired và xoá file; xoá lịch sử cũ.</summary>
+public sealed class PersonalDataExportCleanupJob(PersonalDataExportCleanup cleanup)
+{
+    public Task RunAsync(CancellationToken ct) => cleanup.RunAsync(ct);
+}
+
 public sealed class HangfirePersonalDataExportQueue(IBackgroundJobClient jobs) : IPersonalDataExportQueue
 {
     public void Enqueue(Guid exportId) => jobs.Enqueue<PersonalDataExportJob>(job => job.RunAsync(exportId, CancellationToken.None));
