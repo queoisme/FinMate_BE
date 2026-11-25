@@ -15,6 +15,14 @@ public sealed class ShiftableClock : TimeProvider
     public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + Shift;
 }
 
+/// <summary>Hàng đợi ghi lại: test gọi runner trực tiếp thay vì để Hangfire chạy nền (tất định).</summary>
+public sealed class RecordingExportQueue : FinMate.Application.DataExport.IPersonalDataExportQueue
+{
+    public System.Collections.Concurrent.ConcurrentQueue<Guid> Enqueued { get; } = new();
+
+    public void Enqueue(Guid exportId) => Enqueued.Enqueue(exportId);
+}
+
 /// <summary>
 /// Như <see cref="AuthApiFactory"/>, cho test xuất dữ liệu (Phase 91): có khoá chủ để mã hoá gói, bắt email để đọc mã OTP, ghi lại mọi push,
 /// và đồng hồ chỉnh được.
@@ -26,6 +34,7 @@ public sealed class DataExportApiFactory : AuthApiFactory
     public CapturingEmailSender Email { get; } = new();
     public RecordingPushService Push { get; } = new();
     public ShiftableClock Clock { get; } = new();
+    public RecordingExportQueue Queue { get; } = new();
 
     /// <summary>ai-service không có trong bộ test: bộ nhớ Agent trả từ đây (D2).</summary>
     public Moq.Mock<IAgentAiClient> Agent { get; } = new();
@@ -43,6 +52,8 @@ public sealed class DataExportApiFactory : AuthApiFactory
             services.AddSingleton<IPushNotificationService>(Push);
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+            services.RemoveAll<FinMate.Application.DataExport.IPersonalDataExportQueue>();
+            services.AddSingleton<FinMate.Application.DataExport.IPersonalDataExportQueue>(Queue);
             services.RemoveAll<IAgentAiClient>();
             services.AddSingleton(Agent.Object);
         });

@@ -18,6 +18,7 @@ public class PersonalDataExportServiceTests
     private readonly Mock<IOtpService> _otp = new();
     private readonly Mock<IExportArchiveProtector> _protector = new();
     private readonly Mock<IEmailSender> _email = new();
+    private readonly Mock<IPersonalDataExportQueue> _queue = new();
     private SystemConfigDocument _document = new();
 
     public PersonalDataExportServiceTests()
@@ -35,7 +36,7 @@ public class PersonalDataExportServiceTests
         var config = new Mock<ISystemConfigProvider>();
         config.Setup(c => c.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(() => new SystemConfigSnapshot(1, _document, null));
         return new PersonalDataExportService(_exports.Object, users.Object, _otp.Object, _email.Object, _protector.Object, config.Object,
-            Mock.Of<IAuditLogService>(), new ManualClock(DateTimeOffset.UtcNow));
+            Mock.Of<IAuditLogService>(), _queue.Object, new ManualClock(DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -45,6 +46,7 @@ public class PersonalDataExportServiceTests
 
         dto.Status.Should().Be(FinMate.Domain.Enums.PersonalDataExportStatus.Pending);
         _exports.Verify(e => e.TryAddAsync(It.Is<PersonalDataExport>(x => x.UserId == UserId && x.CountsTowardLimit), It.IsAny<CancellationToken>()), Times.Once);
+        _queue.Verify(q => q.Enqueue(dto.Id), Times.Once);
     }
 
     [Fact]

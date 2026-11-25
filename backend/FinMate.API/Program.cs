@@ -590,6 +590,9 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportService>();
         builder.Services.AddScoped<FinMate.Application.DataExport.Package.IPersonalDataReader, FinMate.Infrastructure.DataExport.PersonalDataReader>();
         builder.Services.AddScoped<FinMate.Application.DataExport.Package.PersonalDataArchiveBuilder>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportNotifier>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.IPersonalDataExportQueue, HangfirePersonalDataExportQueue>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportRunner>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -957,6 +960,12 @@ public class Program
             "notification-body-purge",
             job => job.RunAsync(CancellationToken.None),
             "15 20 * * *");
+
+        // Phase 91: chạy lại yêu cầu tải dữ liệu bị mất hoặc bỏ dở.
+        RecurringJob.AddOrUpdate<PersonalDataExportSweepJob>(
+            "data-export-sweep",
+            job => job.RunAsync(CancellationToken.None),
+            "*/5 * * * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(

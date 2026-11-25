@@ -39,4 +39,59 @@ public sealed class PersonalDataExportRepository(FinMateDbContext db) : IPersona
     public async Task<IReadOnlyList<PersonalDataExport>> ListAsync(Guid userId, DateTimeOffset since, CancellationToken ct = default)
         => await db.PersonalDataExports.AsNoTracking().Where(e => e.UserId == userId && e.RequestedAt > since)
             .OrderByDescending(e => e.RequestedAt).ThenByDescending(e => e.Id).ToListAsync(ct);
+
+    public async Task<PersonalDataExport?> TryLeaseAsync(Guid id, DateTimeOffset now, DateTimeOffset leaseUntil, int maxAttempts, CancellationToken ct = default)
+    {
+        var leased = await db.PersonalDataExports
+            .Where(e => e.Id == id && e.Attempts < maxAttempts
+                && (e.Status == PersonalDataExportStatus.Pending || (e.Status == PersonalDataExportStatus.Running && e.LeaseUntil < now)))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.Status, PersonalDataExportStatus.Running)
+                .SetProperty(e => e.LeaseUntil, leaseUntil)
+                .SetProperty(e => e.Attempts, e => e.Attempts + 1)
+                .SetProperty(e => e.StartedAt, e => e.StartedAt ?? now), ct);
+        return leased == 0 ? null : await db.PersonalDataExports.AsNoTracking().SingleAsync(e => e.Id == id, ct);
+    }
+
+    public async Task<bool> MarkReadyAsync(Guid id, byte[] ciphertext, byte[] nonce, long sizeBytes, DateTimeOffset readyAt, DateTimeOffset expiresAt,
+        CancellationToken ct = default)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var updated = await db.PersonalDataExports.Where(e => e.Id == id && e.Status == PersonalDataExportStatus.Running)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.Status, PersonalDataExportStatus.Ready)
+                .SetProperty(e => e.ReadyAt, readyAt)
+                .SetProperty(e => e.ExpiresAt, expiresAt)
+                .SetProperty(e => e.SizeBytes, sizeBytes)
+                .SetProperty(e => e.LeaseUntil, (DateTimeOffset?)null), ct);
+        if (updated == 0)
+        {
+            return false;
+        }
+
+        db.PersonalDataExportArchives.Add(new PersonalDataExportArchive { ExportId = id, Data = ciphertext, Nonce = nonce, CreatedAt = readyAt });
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> MarkFailedAsync(Guid id, string failureCode, bool countsTowardLimit, DateTimeOffset now, CancellationToken ct = default)
+        => await db.PersonalDataExports
+            .Where(e => e.Id == id && (e.Status == PersonalDataExportStatus.Pending || e.Status == PersonalDataExportStatus.Running))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.Status, PersonalDataExportStatus.Failed)
+                .SetProperty(e => e.FailureCode, failureCode)
+                .SetProperty(e => e.FailedAt, now)
+                .SetProperty(e => e.CountsTowardLimit, countsTowardLimit)
+                .SetProperty(e => e.LeaseUntil, (DateTimeOffset?)null), ct) > 0;
+
+    public Task ReleaseAsync(Guid id, CancellationToken ct = default)
+        => db.PersonalDataExports.Where(e => e.Id == id && e.Status == PersonalDataExportStatus.Running)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Status, PersonalDataExportStatus.Pending).SetProperty(e => e.LeaseUntil, (DateTimeOffset?)null), ct);
+
+    public async Task<IReadOnlyList<PersonalDataExport>> FindStaleAsync(DateTimeOffset pendingBefore, DateTimeOffset now, CancellationToken ct = default)
+        => await db.PersonalDataExports.AsNoTracking()
+            .Where(e => (e.Status == PersonalDataExportStatus.Pending && e.RequestedAt < pendingBefore)
+                || (e.Status == PersonalDataExportStatus.Running && e.LeaseUntil < now))
+            .OrderBy(e => e.RequestedAt).Take(100).ToListAsync(ct);
 }

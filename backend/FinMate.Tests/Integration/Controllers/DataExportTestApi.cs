@@ -51,4 +51,11 @@ internal static class DataExportTestApi
 
             return await db.SaveChangesAsync();
         });
+
+    /// <summary>Chạy job dựng gói như Hangfire sẽ chạy.</summary>
+    public static async Task RunJobAsync(this DataExportApiFactory factory, Guid exportId)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<FinMate.Application.DataExport.PersonalDataExportRunner>().RunAsync(exportId);
+    }
 }

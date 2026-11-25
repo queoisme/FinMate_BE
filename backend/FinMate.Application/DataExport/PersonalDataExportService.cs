@@ -20,6 +20,7 @@ public sealed class PersonalDataExportService(
     IExportArchiveProtector protector,
     ISystemConfigProvider config,
     IAuditLogService audit,
+    IPersonalDataExportQueue queue,
     TimeProvider clock)
 {
     private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(24);
@@ -66,6 +67,7 @@ public sealed class PersonalDataExportService(
         }
 
         await audit.LogAsync(AuditEvents.DataExportRequested, userId, ip, new { exportId = export.Id }, ct);
+        queue.Enqueue(export.Id);   // mất lượt enqueue thì job quét nhặt lại sau vài phút
         return PersonalDataExportDto.From(export);
     }
 
