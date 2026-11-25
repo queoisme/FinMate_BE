@@ -27,6 +27,9 @@ public sealed class DataExportApiFactory : AuthApiFactory
     public RecordingPushService Push { get; } = new();
     public ShiftableClock Clock { get; } = new();
 
+    /// <summary>ai-service không có trong bộ test: bộ nhớ Agent trả từ đây (D2).</summary>
+    public Moq.Mock<IAgentAiClient> Agent { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -40,6 +43,8 @@ public sealed class DataExportApiFactory : AuthApiFactory
             services.AddSingleton<IPushNotificationService>(Push);
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+            services.RemoveAll<IAgentAiClient>();
+            services.AddSingleton(Agent.Object);
         });
     }
 }

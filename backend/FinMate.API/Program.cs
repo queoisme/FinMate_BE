@@ -588,6 +588,8 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.DataExport.TransactionCsvExportService>();
         builder.Services.AddScoped<IPersonalDataExportRepository, PersonalDataExportRepository>();
         builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.IPersonalDataReader, FinMate.Infrastructure.DataExport.PersonalDataReader>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.PersonalDataArchiveBuilder>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();

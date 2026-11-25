@@ -20,6 +20,9 @@ public static class AuditEvents
     public const string EmailVerified = "Auth.EmailVerified";
     public const string LogoutAllDevices = "Auth.LogoutAllDevices";
     public const string AccountDeletionRequested = "Auth.AccountDeletionRequested";
+
+    /// <summary>Phase 91 (D3): đồng ý / rút đồng ý. Metadata: loại, phiên bản, đồng ý hay rút. Có từ 2026-11-25, là lịch sử đồng ý trong gói dữ liệu.</summary>
+    public const string ConsentChanged = "User.ConsentChanged";
     public const string TokenReuseDetected = "Auth.TokenReuse.Detected";
     public const string GoogleLoginSuccess = "Auth.Google.Login.Success";
     public const string GoogleLinked = "Auth.Google.Linked";
