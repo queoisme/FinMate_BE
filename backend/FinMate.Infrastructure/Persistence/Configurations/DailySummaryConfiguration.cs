@@ -22,6 +22,12 @@ public class DailySummaryConfiguration : IEntityTypeConfiguration<DailySummary>
         builder.Property(s => s.TotalIncomeCents).HasColumnName("total_income_cents").HasDefaultValue(0L);
         builder.Property(s => s.TotalRefundedCents).HasColumnName("total_refunded_cents").HasDefaultValue(0L);
         builder.Property(s => s.TransactionCount).HasColumnName("transaction_count").HasDefaultValue(0);
+        builder.Property(s => s.CashFlowNetCents).HasColumnName("cash_flow_net_cents").HasDefaultValue(0L);
+        builder.Property(s => s.LoanOutflowCents).HasColumnName("loan_outflow_cents").HasDefaultValue(0L);
+        builder.Property(s => s.LoanInflowCents).HasColumnName("loan_inflow_cents").HasDefaultValue(0L);
+        builder.Property(s => s.GroupFundOutflowCents).HasColumnName("group_fund_outflow_cents").HasDefaultValue(0L);
+        builder.Property(s => s.GroupFundInflowCents).HasColumnName("group_fund_inflow_cents").HasDefaultValue(0L);
+        builder.Property(s => s.ReversalNetCents).HasColumnName("reversal_net_cents").HasDefaultValue(0L);
 
         builder.Property(s => s.TopCategoryId).HasColumnName("top_category_id");
         builder.Property(s => s.TopCategorySpentCents).HasColumnName("top_category_spent_cents").HasDefaultValue(0L);

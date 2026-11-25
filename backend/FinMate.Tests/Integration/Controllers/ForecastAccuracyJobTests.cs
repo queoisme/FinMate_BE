@@ -105,4 +105,47 @@ public class ForecastAccuracyJobTests : IClassFixture<AuthApiFactory>
         filled[2].ActualCents.Should().BeNull("mốc 30 ngày chưa tới");
         filled[0].ActualFilledAt.Should().NotBeNull();
     }
+
+    /// <summary>
+    /// Phase 86 (D23): cho mượn tiền làm số dư ví đổi thật, nên "số dư thực tế" của bản chụp phải tính nó. Trước đây
+    /// <c>GetRawTransactionsAsync</c> lọc cả giao dịch cho vay/mượn, nên số thực tế lệch đúng bằng khoản cho mượn. Dữ liệu thói quen
+    /// (<c>GetTransactionsAsync</c>) vẫn không thấy nó.
+    /// </summary>
+    [Fact]
+    public async Task ALoanMovesTheActualBalance_ButStaysOutOfTheHabitData()
+    {
+        var token = await NewUserTokenAsync();
+        var userId = (await SendAsync<IdData>(HttpMethod.Get, "/api/v1/users/me", token)).Id;
+        var wallet = await SendAsync<IdData>(HttpMethod.Post, "/api/v1/financial-accounts", token,
+            new { accountName = "Tiền mặt", accountType = "Cash", initialBalanceCents = 5_000_000 }, HttpStatusCode.Created);
+        var categories = await SendAsync<List<CategoryData>>(HttpMethod.Get, "/api/v1/categories", token);
+        var spending = categories.First(c => c.Slug != FinMate.Domain.Entities.Category.LoanSlug && c.Slug != "income").Id;
+        var loan = categories.Single(c => c.Slug == FinMate.Domain.Entities.Category.LoanSlug).Id;
+        for (var daysAgo = 1; daysAgo <= 10; daysAgo++)
+        {
+            await SpendAsync(token, wallet.Id, spending, 50_000, daysAgo);
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IForecastAccuracyService>();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        var today = VietnamTime.Today();
+        await service.CaptureAsync(today);
+        var start = (await db.ForecastSnapshots.AsNoTracking().Where(s => s.UserId == userId).OrderBy(s => s.HorizonDays).FirstAsync()).StartBalanceCents;
+
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE forecast_snapshots SET origin_date = origin_date - 20, horizon_date = horizon_date - 20 WHERE user_id = {0}", userId);
+        db.ChangeTracker.Clear();
+        await SpendAsync(token, wallet.Id, spending, 120_000, daysAgo: 18);
+        var lent = await SpendAsync(token, wallet.Id, loan, 2_000_000, daysAgo: 17);   // cho mượn: không là chi tiêu, nhưng tiền ra khỏi ví thật
+
+        (await service.FillActualsAsync(today)).Should().Be(2);
+
+        var filled = await db.ForecastSnapshots.AsNoTracking().Where(s => s.UserId == userId).OrderBy(s => s.HorizonDays).ToListAsync();
+        filled[0].ActualCents.Should().Be(start - 120_000 - 2_000_000);
+
+        var data = scope.ServiceProvider.GetRequiredService<FinMate.Application.Common.Interfaces.IForecastDataRepository>();
+        (await data.GetRawTransactionsAsync(userId, today.AddDays(-30), today)).Should().Contain(t => t.Id == lent.Id);
+        (await data.GetTransactionsAsync(userId, today.AddDays(-30), today)).Should().NotContain(t => t.Id == lent.Id);
+    }
 }

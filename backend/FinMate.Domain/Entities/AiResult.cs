@@ -40,6 +40,9 @@ public class AiResult
     /// <summary>Loại chuyển ví khi <see cref="RelationHint"/> là <c>Transfer</c>.</summary>
     public TransferKind? TransferKind { get; set; }
 
+    /// <summary>Độ mạnh của gợi ý khi <see cref="RelationHint"/> là <c>DebtRepayment</c> (Phase 90).</summary>
+    public DebtHintStrength? DebtHintStrength { get; set; }
+
     public string? ClassifierVersion { get; set; }
     public string? ExtractorVersion { get; set; }
     public string? CategorizerVersion { get; set; }

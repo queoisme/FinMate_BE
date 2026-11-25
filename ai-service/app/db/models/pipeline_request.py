@@ -59,6 +59,8 @@ class PipelineRequest(Base):
     relation_hint: Mapped[str | None] = mapped_column(String(16))
     # Phase 83: loại chuyển ví khi relation_hint = "transfer" (rút/nộp ATM, nạp/rút ví, chuyển giữa tài khoản chính chủ).
     transfer_kind: Mapped[str | None] = mapped_column(String(24))
+    # Phase 90: độ mạnh của gợi ý trả nợ khi relation_hint = "debt_repayment".
+    debt_hint_strength: Mapped[str | None] = mapped_column(String(8))
 
     # Pattern nào đã khớp — không có cột này thì gỡ lỗi "sao giao dịch ra sai số tiền"
     # phải đoán mò trong hàng chục regex.
@@ -136,7 +138,13 @@ class PipelineRequest(Base):
             "categorization_confidence IS NULL OR categorization_confidence BETWEEN 0 AND 1", name="chk_ops_analyze_log_categorization_conf"
         ),
         CheckConstraint("amount_cents IS NULL OR amount_cents >= 0", name="chk_ops_analyze_log_amount"),
-        CheckConstraint("relation_hint IS NULL OR relation_hint IN ('refund', 'reversal', 'transfer')", name="chk_ops_analyze_log_relation_hint"),
+        CheckConstraint(
+            "relation_hint IS NULL OR relation_hint IN ('refund', 'reversal', 'transfer', 'debt_repayment')", name="chk_ops_analyze_log_relation_hint"
+        ),
+        CheckConstraint(
+            "debt_hint_strength IS NULL OR (relation_hint = 'debt_repayment' AND debt_hint_strength IN ('strong', 'weak'))",
+            name="chk_ops_analyze_log_debt_hint_strength",
+        ),
         CheckConstraint(
             "transfer_kind IS NULL OR (relation_hint = 'transfer' AND transfer_kind IN "
             "('atm_withdrawal', 'atm_deposit', 'wallet_topup', 'wallet_withdrawal', 'own_account'))",

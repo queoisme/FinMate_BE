@@ -52,6 +52,9 @@ public static class PurchaseWarningCodes
 
     /// <summary>Phase 84 (BR-LH-08): app đọc thông báo ngân hàng ở dưới mức tối thiểu số ngày, giao dịch có thể bị thiếu.</summary>
     public const string DataCoveragePoor = "data_coverage_poor";
+
+    /// <summary>Phase 90 (D13): có khoản vay không có hạn nên không nằm trong dự báo.</summary>
+    public const string UndatedLoan = "undated_loan";
 }
 
 public sealed record PurchasePointDto(DateOnly Day, long BalanceCents);

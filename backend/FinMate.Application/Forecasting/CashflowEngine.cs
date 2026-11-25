@@ -9,10 +9,30 @@ public static class CashflowEventKinds
     public const string RecurringOutflow = "recurring_outflow";
     public const string Scenario = "scenario";
     public const string Flexible = "flexible";
+
+    /// <summary>Phase 90 (BR-DEBT-15): trả khoản đi vay đến hạn, ở cả ba đường.</summary>
+    public const string LoanOutflow = "loan_outflow";
+
+    /// <summary>Phase 90 (BR-DEBT-16): khoản cho vay đến hạn, CHỈ ở đường lạc quan.</summary>
+    public const string LoanInflow = "loan_inflow";
+}
+
+/// <summary>Nguồn của một nguyên nhân / sự kiện mà người dùng tự nhập (Phase 90: khoản vay).</summary>
+public static class CashflowSources
+{
+    public const string UserEntered = "user_entered";
+}
+
+/// <summary>Sự kiện tính vào đường nào. <see cref="OptimisticOnly"/>: chỉ đường lạc quan (khoản cho vay: người ta có thể không trả, BR-DEBT-16).</summary>
+public enum CashflowBand
+{
+    All,
+    OptimisticOnly,
 }
 
 /// <summary>Một khoản tiền vào/ra đã biết ngày. <paramref name="AmountCents"/> có dấu: dương là tiền vào, âm là tiền ra.</summary>
-public sealed record CashflowEvent(DateOnly Date, long AmountCents, string Label, string Kind, Guid? RecurringItemId);
+public sealed record CashflowEvent(
+    DateOnly Date, long AmountCents, string Label, string Kind, Guid? RecurringItemId, CashflowBand Band = CashflowBand.All, Guid? LoanId = null);
 
 public sealed record CashflowInput(
     DateOnly Today,
@@ -23,7 +43,8 @@ public sealed record CashflowInput(
     IReadOnlyList<CashflowEvent> Events,
     IReadOnlyList<ForecastHoliday> Holidays);
 
-public sealed record CashflowEventDto(string Kind, string Label, long AmountCents, Guid? RecurringItemId);
+/// <param name="OptimisticOnly">Phase 90: chỉ tính vào đường lạc quan (<c>HighBalanceCents</c>), không vào số dư dự kiến hay thận trọng.</param>
+public sealed record CashflowEventDto(string Kind, string Label, long AmountCents, Guid? RecurringItemId, bool OptimisticOnly = false, Guid? LoanId = null);
 
 public sealed record CashflowDayDto(
     DateOnly Date,
@@ -33,7 +54,8 @@ public sealed record CashflowDayDto(
     long FlexibleSpendCents,
     IReadOnlyList<CashflowEventDto> Events);
 
-public sealed record CashflowCauseDto(string Kind, string Label, long AmountCents);
+/// <param name="Source">Phase 90: <c>user_entered</c> cho khoản vay người dùng tự ghi; null với các nguyên nhân khác.</param>
+public sealed record CashflowCauseDto(string Kind, string Label, long AmountCents, string? Source = null);
 
 /// <param name="LowBalanceCents">Đường thận trọng: chi linh hoạt theo phân vị 75.</param>
 /// <param name="HighBalanceCents">Đường lạc quan: chi linh hoạt theo phân vị 25.</param>
@@ -53,6 +75,12 @@ public sealed record CashflowForecastDto(
 {
     /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu; chỉ API gắn vào, engine luôn để null.</summary>
     public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
+
+    /// <summary>Phase 90 (D13): khoản vay không có hạn nên không vào dự báo; null khi không có.</summary>
+    public UndatedLoansDto? UndatedLoans { get; init; }
+
+    /// <summary>Phase 90 (S5): giao dịch <c>loan</c> gần đây chưa gắn khoản vay nào; null khi không có. Không đổi con số dự báo.</summary>
+    public UnlinkedLoanTransactionsDto? UnlinkedLoanTransactions { get; init; }
 }
 
 /// <summary>
@@ -78,16 +106,17 @@ public static class CashflowEngine
             var multiplier = MultiplierOn(date, input.Holidays);
             var (spendExpected, spendLow, spendHigh) = FlexibleSpend(input, date, multiplier);
             var events = eventsByDay[date].ToList();
-            var eventsSum = events.Sum(e => e.AmountCents);
+            var eventsSum = events.Where(e => e.Band == CashflowBand.All).Sum(e => e.AmountCents);
+            var optimisticSum = events.Sum(e => e.AmountCents);
 
             expected += eventsSum - spendExpected;
             low += eventsSum - spendHigh;
-            high += eventsSum - spendLow;
+            high += optimisticSum - spendLow;
             flexibleTotal += spendExpected;
 
             days.Add(new CashflowDayDto(
                 date, expected, low, high, spendExpected,
-                events.Select(e => new CashflowEventDto(e.Kind, e.Label, e.AmountCents, e.RecurringItemId)).ToList()));
+                events.Select(e => new CashflowEventDto(e.Kind, e.Label, e.AmountCents, e.RecurringItemId, e.Band == CashflowBand.OptimisticOnly, e.LoanId)).ToList()));
         }
 
         var lowest = days.MinBy(d => d.ExpectedBalanceCents)!;
@@ -171,9 +200,10 @@ public static class CashflowEngine
     private static IReadOnlyList<CashflowCauseDto> MainCauses(IReadOnlyList<CashflowEvent> events, long flexibleTotal)
     {
         var causes = events
-            .Where(e => e.AmountCents < 0)
+            .Where(e => e.AmountCents < 0 && e.Band == CashflowBand.All)
             .GroupBy(e => (e.Kind, e.Label))
-            .Select(g => new CashflowCauseDto(g.Key.Kind, g.Key.Label, -g.Sum(e => e.AmountCents)))
+            .Select(g => new CashflowCauseDto(
+                g.Key.Kind, g.Key.Label, -g.Sum(e => e.AmountCents), g.Key.Kind == CashflowEventKinds.LoanOutflow ? CashflowSources.UserEntered : null))
             .ToList();
         if (flexibleTotal > 0)
         {

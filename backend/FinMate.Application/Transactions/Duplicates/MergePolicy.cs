@@ -10,7 +10,9 @@ namespace FinMate.Application.Transactions.Duplicates;
 /// <param name="BMatchedQr">Bản thứ hai đã khớp một ý định QR.</param>
 /// <param name="MaxFeeCents">Phase 83: giới hạn phí khi gộp một thông báo tiền ra vào một Transfer đã ghi tay (<c>transfers.maxFeeCents</c>).</param>
 /// <param name="MaxFeePercent">Như trên, theo % số tiền chuyển.</param>
-public sealed record MergeFacts(bool LoserHasConfirmedRefunds, bool AMatchedQr, bool BMatchedQr, long MaxFeeCents = 20_000, int MaxFeePercent = 2);
+/// <param name="AInterestCents">Phase 90 (Q14): phần lãi đã tách khỏi <c>a</c> khi gắn khoản vay; số tiền ngân hàng của <c>a</c> = số tiền + phần này.</param>
+public sealed record MergeFacts(
+    bool LoserHasConfirmedRefunds, bool AMatchedQr, bool BMatchedQr, long MaxFeeCents = 20_000, int MaxFeePercent = 2, long AInterestCents = 0, long BInterestCents = 0);
 
 /// <summary>Giá trị cuối của survivor sau gộp (BR-DUP-10). Số tiền không có ở đây: hai bản luôn bằng nhau.</summary>
 public sealed record MergeFields(
@@ -71,7 +73,8 @@ public static class MergePolicy
             throw Refuse("Chỉ gộp được hai khoản cùng là chi hoặc cùng là thu.");
         }
 
-        if (a.AmountCents != b.AmountCents && a.TransactionType != TransactionType.Transfer && b.TransactionType != TransactionType.Transfer)
+        if (a.AmountCents + facts.AInterestCents != b.AmountCents + facts.BInterestCents
+            && a.TransactionType != TransactionType.Transfer && b.TransactionType != TransactionType.Transfer)
         {
             throw Refuse("Hai khoản khác số tiền nên không phải cùng một giao dịch.");
         }

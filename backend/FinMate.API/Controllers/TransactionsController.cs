@@ -316,7 +316,7 @@ public class TransactionsController : ControllerBase
     {
         var transaction = await _confirmHandler.HandleAsync(
             new ConfirmTransactionCommand(
-                CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId, request?.RelatedTransactionId, request?.Relation),
+                CurrentUserId, id, request?.CategoryId, request?.GroupId, request?.GroupCategoryId, request?.RelatedTransactionId, request?.Relation, request?.LoanId),
             ct);
         return Ok(ApiResponse<TransactionDto>.Ok(transaction));
     }
@@ -454,7 +454,8 @@ public record ConfirmTransactionRequest(
     Guid? GroupId = null,
     Guid? GroupCategoryId = null,
     Guid? RelatedTransactionId = null,
-    TransactionRelation? Relation = null);
+    TransactionRelation? Relation = null,
+    Guid? LoanId = null);   // Phase 90 (D4): xác nhận nháp là một dòng của khoản vay này
 
 /// <param name="RelatedTransactionId">Khoản chi gốc; null + <c>Refund</c> = hoàn không có khoản gốc, khi đó bắt buộc <paramref name="CategoryId"/>.</param>
 public record LinkRelatedTransactionRequest(Guid? RelatedTransactionId, TransactionRelation Relation = TransactionRelation.Refund, Guid? CategoryId = null);

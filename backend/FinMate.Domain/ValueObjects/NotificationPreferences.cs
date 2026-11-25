@@ -11,6 +11,9 @@ public class NotificationPreferences
     /// <summary>Nhắc khi app không còn đọc được thông báo ngân hàng (Phase 84, BR-LH-05). Không phụ thuộc <see cref="ForecastAlertsEnabled"/> (D18).</summary>
     public bool ListenerHealthAlertsEnabled { get; set; } = true;
 
+    /// <summary>Nhắc khoản vay sắp đến hạn / quá hạn (Phase 90, BR-DEBT-14). Không phụ thuộc <see cref="ForecastAlertsEnabled"/>.</summary>
+    public bool LoanRemindersEnabled { get; set; } = true;
+
     /// <summary>
     /// Ngưỡng cảnh báo ngân sách CÁ NHÂN (T1 nhắc nhẹ, T2 cảnh báo mạnh, % hạn mức đã dùng). Cả hai cùng null = dùng mặc định hệ thống. Chỉ có tác dụng khi người dùng
     /// không đang dùng cách quản lý nào định nghĩa T1/T2 (cách quản lý có ngưỡng riêng thì theo cách đó). Ràng buộc 1 ≤ T1 &lt; T2 ≤ 99 do DB và service cùng kiểm.

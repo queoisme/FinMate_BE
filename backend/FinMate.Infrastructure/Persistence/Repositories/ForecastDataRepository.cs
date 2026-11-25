@@ -18,7 +18,7 @@ public class ForecastDataRepository : IForecastDataRepository
     }
 
     public async Task<IReadOnlyList<ForecastTransaction>> GetTransactionsAsync(Guid userId, DateOnly from, DateOnly to, CancellationToken ct = default)
-        => RefundNetting.ForHabits(await GetRawTransactionsAsync(userId, from, to, ct));
+        => RefundNetting.ForHabits((await GetRawTransactionsAsync(userId, from, to, ct)).Where(t => !t.IsLoan).ToList());   // cho vay/mượn không phải thu/chi thật
 
     public async Task<IReadOnlyList<ForecastTransaction>> GetBoundaryTransfersAsync(
         Guid userId, IReadOnlySet<Guid> countedAccountIds, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -94,7 +94,6 @@ public class ForecastDataRepository : IForecastDataRepository
         var (start, end) = VietnamTime.DayRange(from, to);
         var rows = await _context.Transactions
             .AsNoTracking()
-            .Where(LoanExclusion.NotLoan)   // cho vay/mượn không phải thu/chi thật
             .Where(t => t.UserId == userId
                 && t.Status == TransactionStatus.Confirmed
                 && t.TransactionType != TransactionType.Transfer
@@ -114,6 +113,7 @@ public class ForecastDataRepository : IForecastDataRepository
                 t.RelatedTransactionId,
                 t.IsReversed,
                 t.DuplicateOfTransactionId,
+                IsLoan = t.Category != null && t.Category.Slug == Category.LoanSlug,   // D23: giữ để dựng lại số dư, thói quen tự loại
             })
             .ToListAsync(ct);
 
@@ -121,7 +121,7 @@ public class ForecastDataRepository : IForecastDataRepository
             .Select(r => new ForecastTransaction(
                 r.Id, r.FinancialAccountId, r.CategoryId, r.AmountCents, r.TransactionType, r.TransactedAt,
                 VietnamTime.DateOf(r.TransactedAt), r.MerchantName, CounterpartyKey.From(r.MerchantName), r.ExcludeFromForecast,
-                r.Relation, r.RelatedTransactionId, r.IsReversed, r.DuplicateOfTransactionId))
+                r.Relation, r.RelatedTransactionId, r.IsReversed, r.DuplicateOfTransactionId, r.IsLoan))
             .ToList();
     }
 }

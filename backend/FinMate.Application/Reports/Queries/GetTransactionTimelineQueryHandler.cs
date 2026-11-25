@@ -36,17 +36,21 @@ public class GetTransactionTimelineQueryHandler : IGetTransactionTimelineQueryHa
         var days = result.Items
             .GroupBy(t => VietnamTime.DateOf(t.TransactedAt))
             .OrderByDescending(g => g.Key)
-            .Select(g => new TimelineDayDto(
-                g.Key,
-                // Giao dịch cho vay/mượn vẫn nằm trong danh sách ngày đó, chỉ không cộng vào tổng chi/thu của ngày. Hoàn/đảo theo NetFlow
-                // (Phase 81): hoàn trừ vào chi, không vào thu; cặp đảo vẫn hiện trong danh sách nhưng không vào tổng.
-                g.Where(t => !LoanExclusion.IsLoan(t.Category))
-                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).SpentCents),
-                g.Where(t => !LoanExclusion.IsLoan(t.Category))
-                    .Sum(t => NetFlow.Of(t.TransactionType, t.Relation, t.IsReversed, t.AmountCents).IncomeCents),
-                g.Select(t => TransactionMapper.ToDto(t)).ToList()))
+            .Select(PageDay)
             .ToList();
-
         return new TimelineDto(days, result.NextCursor);
+    }
+
+    /// <summary>
+    /// Tổng của một ngày tính từ các giao dịch ĐÃ XÁC NHẬN của ngày đó TRÊN TRANG NÀY. Một ngày bị cắt giữa hai trang xuất hiện ở cả hai, mỗi bản
+    /// mang phần của mình, nên cộng mọi trang lại ra đúng tổng thật: app (tab Ngày/Tuần/Năm, <c>getPeriodSummary</c>) cộng như vậy, đừng đổi
+    /// sang tổng cả ngày (sẽ cộng trùng). Cùng bộ tính với báo cáo tháng (Phase 90, Q16): bỏ cho vay/mượn khỏi chi/thu, kèm dòng tiền; chi của phần
+    /// ngày không âm, phần bị chặn là <c>refundSurplusCents</c>, nên bất biến đúng cho từng phần. Danh sách giao dịch vẫn gồm cả nháp.
+    /// </summary>
+    private static TimelineDayDto PageDay(IGrouping<DateOnly, Transaction> g)
+    {
+        var points = CashFlowCalculator.ByDay(g.Where(t => t.Status == TransactionStatus.Confirmed).Select(CashFlowRow.From), accountId: null);
+        var (spent, income, _, _, cashFlow) = CashFlowCalculator.Period(points);
+        return new TimelineDayDto(g.Key, spent, income, g.Select(t => TransactionMapper.ToDto(t)).ToList(), cashFlow);
     }
 }
