@@ -14,8 +14,8 @@ public class RecurringItemRepository : IRecurringItemRepository
         _context = context;
     }
 
-    public Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
-        => _context.RecurringItems.FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, ct);
+    public async Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default)
+        => await WithPaidAsync(await _context.RecurringItems.FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, ct), userId, ct);
 
     public async Task<IReadOnlyList<RecurringItem>> ListAsync(Guid userId, RecurringStatus? status, CancellationToken ct = default)
     {
@@ -23,15 +23,54 @@ public class RecurringItemRepository : IRecurringItemRepository
         query = status is { } wanted
             ? query.Where(r => r.Status == wanted)
             : query.Where(r => r.Status != RecurringStatus.Cancelled && r.Status != RecurringStatus.Rejected);
-        return await query.ToListAsync(ct);
+        return await WithPaidAsync(await query.ToListAsync(ct), userId, ct);
     }
 
     public async Task<IReadOnlyList<RecurringItem>> ListAllTrackedAsync(Guid userId, CancellationToken ct = default)
-        => await _context.RecurringItems.Where(r => r.UserId == userId).ToListAsync(ct);
+        => await WithPaidAsync(await _context.RecurringItems.Where(r => r.UserId == userId).ToListAsync(ct), userId, ct);
 
-    public Task<RecurringItem?> FindByCounterpartyAsync(Guid userId, RecurringDirection direction, string counterpartyKey, CancellationToken ct = default)
-        => _context.RecurringItems.FirstOrDefaultAsync(
-            r => r.UserId == userId && r.Direction == direction && r.CounterpartyKey == counterpartyKey, ct);
+    public async Task<RecurringItem?> FindByCounterpartyAsync(Guid userId, RecurringDirection direction, string counterpartyKey, CancellationToken ct = default)
+        => await WithPaidAsync(
+            await _context.RecurringItems.FirstOrDefaultAsync(
+                r => r.UserId == userId && r.Direction == direction && r.CounterpartyKey == counterpartyKey && r.Status != RecurringStatus.Completed, ct),
+            userId, ct);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> CountLivePaymentsAsync(Guid userId, IReadOnlyCollection<Guid> itemIds, CancellationToken ct = default)
+    {
+        if (itemIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        // Dòng còn sống, và giao dịch của nó (nếu có) chưa bị xoá: lưới an toàn khi một đường xoá giao dịch quên gỡ liên kết (BR-INS-03).
+        return await _context.RecurringItemPayments
+            .Where(p => p.UserId == userId && itemIds.Contains(p.RecurringItemId)
+                        && (p.TransactionId == null || _context.Transactions.Any(t => t.Id == p.TransactionId)))
+            .GroupBy(p => p.RecurringItemId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+    }
+
+    private async Task<RecurringItem?> WithPaidAsync(RecurringItem? item, Guid userId, CancellationToken ct)
+    {
+        if (item is not null)
+        {
+            await WithPaidAsync([item], userId, ct);
+        }
+
+        return item;
+    }
+
+    private async Task<IReadOnlyList<RecurringItem>> WithPaidAsync(List<RecurringItem> items, Guid userId, CancellationToken ct)
+    {
+        var counts = await CountLivePaymentsAsync(userId, items.Select(i => i.Id).ToList(), ct);
+        foreach (var item in items)
+        {
+            item.LivePaymentCount = counts.GetValueOrDefault(item.Id);
+        }
+
+        return items;
+    }
 
     public async Task AddAsync(RecurringItem item, CancellationToken ct = default)
     {

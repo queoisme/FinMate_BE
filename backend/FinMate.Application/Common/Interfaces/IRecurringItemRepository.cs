@@ -3,7 +3,10 @@ using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Common.Interfaces;
 
-/// <summary>Khoản định kỳ theo người dùng. Mọi hàm lọc theo <c>userId</c>: không có đường nào lấy một dòng chỉ bằng id.</summary>
+/// <summary>
+/// Khoản định kỳ theo người dùng. Mọi hàm lọc theo <c>userId</c>: không có đường nào lấy một dòng chỉ bằng id. Các hàm đọc khoản điền sẵn
+/// <see cref="RecurringItem.LivePaymentCount"/> (số kỳ đã trả có liên kết) để <c>ToView()</c> tính được số kỳ còn lại (Phase 92).
+/// </summary>
 public interface IRecurringItemRepository
 {
     Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
@@ -14,7 +17,13 @@ public interface IRecurringItemRepository
     /// <summary>Mọi khoản (mọi trạng thái), có theo dõi thay đổi — dùng cho job phát hiện và cập nhật.</summary>
     Task<IReadOnlyList<RecurringItem>> ListAllTrackedAsync(Guid userId, CancellationToken ct = default);
 
+    /// <summary>Khoản chưa hoàn thành của người nhận này (tối đa một, theo index duy nhất); dòng <c>Completed</c> không tính (Phase 92, BR-INS-09).</summary>
     Task<RecurringItem?> FindByCounterpartyAsync(Guid userId, RecurringDirection direction, string counterpartyKey, CancellationToken ct = default);
+
+    /// <summary>
+    /// Số liên kết thanh toán còn sống của từng khoản (Phase 92, BR-INS-03). Các hàm đọc khoản ở trên đã tự điền <see cref="RecurringItem.LivePaymentCount"/>.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountLivePaymentsAsync(Guid userId, IReadOnlyCollection<Guid> itemIds, CancellationToken ct = default);
     Task AddAsync(RecurringItem item, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<RecurringItem> items, CancellationToken ct = default);
     Task UpdateAsync(RecurringItem item, CancellationToken ct = default);
