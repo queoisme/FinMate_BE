@@ -65,6 +65,7 @@ using Refit;
 using FinMate.Application.Community;
 using FinMate.Application.MarketData;
 using FinMate.Infrastructure.Community;
+using FinMate.Application.ForecastConfig;
 using FinMate.Application.Kpi;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
@@ -553,6 +554,7 @@ public class Program
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
         builder.Services.AddScoped<IKpiSummaryService, KpiSummaryService>();
+        builder.Services.AddScoped<IForecastConfigDraftService, ForecastConfigDraftService>();
         builder.Services.AddScoped<ServiceStatusTracker>();
         builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();

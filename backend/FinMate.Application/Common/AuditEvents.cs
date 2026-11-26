@@ -123,6 +123,14 @@ public static class AuditEvents
     public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
     public const string OpsTicketsLinked = "Ops.Ticket.Linked";
     public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
+    /// <summary>Phase 95: bản nháp tham số dự báo (forecast + limits). Chỉ ghi id, phiên bản và tên trường đã đổi; giá trị và ghi chú nằm ở chính dòng bản nháp.</summary>
+    public const string OpsForecastConfigDraftCreated = "Ops.ForecastConfig.DraftCreated";
+    public const string OpsForecastConfigDraftUpdated = "Ops.ForecastConfig.DraftUpdated";
+    public const string OpsForecastConfigSubmitted = "Ops.ForecastConfig.Submitted";
+    public const string OpsForecastConfigWithdrawn = "Ops.ForecastConfig.Withdrawn";
+    public const string OpsForecastConfigCancelled = "Ops.ForecastConfig.Cancelled";
+    public const string OpsForecastConfigApproved = "Ops.ForecastConfig.Approved";
+    public const string OpsForecastConfigRejected = "Ops.ForecastConfig.Rejected";
     public const string OpsApprovalProposed = "Ops.Approval.Proposed";
     public const string OpsApprovalApproved = "Ops.Approval.Approved";
     public const string OpsApprovalRejected = "Ops.Approval.Rejected";
