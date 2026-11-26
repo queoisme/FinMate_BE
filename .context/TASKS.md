@@ -1758,3 +1758,22 @@ Nhánh `feat/recurring-installments` (từ `main` @ `96ac3e8`, đã có Phase 90
   - **Mã lỗi mới:** `RECURRING_ITEM_PAYMENT_LINKED` (409), `RECURRING_ITEM_PAYMENT_INVALID` (422), `RECURRING_ITEM_NO_FINAL` (422). Hiện `message`.
   - **Xuất dữ liệu:** gói ZIP có thêm `recurring_item_payments.json`.
 - [ ] **Báo MinhTuan:** `POST /recurring-items/from-transaction/{id}` (`TransactionExtrasService.CreateRecurringAsync`) nhận thêm `totalOccurrences`, `endDate`, `anchorDay`, `prepaidOccurrences`; không gửi thì như cũ. Một thay đổi nhỏ khi không gửi gì: `nextDueDate` giữ ngày của giao dịch làm ngày gốc (giao dịch ngày 31 → 28/02 → 31/03, trước là 28/03), và DTO có thêm các trường kỳ cuối ở cuối. Chữ ký C# có thêm tham số tuỳ chọn `installment` ở cuối.
+
+## Phase 94 — Dashboard KPI sản phẩm, bản gọn (2026-11-27, xong trên nhánh, chưa push)
+
+Nhánh `feat/kpi-dashboard` (từ `main` @ `88b5049`). Kế hoạch, bảng "nguồn ghi nhận user hoạt động" và phạm vi bản gọn: `docs/superpowers/plans/2026-11-27-kpi-dashboard.md`. API: mục "Dashboard KPI sản phẩm" trong `docs/ops-api.md`. Bản gọn vì đồ án chưa có người dùng thật: không DAU/MAU, không giữ chân, không bảng tổng hợp/backfill, không nguồn `Chat` (REQUIREMENTS §13.4 "KPI — phần còn lại").
+
+- [x] Task 0: kế hoạch bản gọn duyệt; mốc backend 4044/4046 (2 đỏ sẵn trên `main`).
+- [x] Task 1: quyền `ViewProductKpi` (1 << 18), mặc định OpsManager + Admin; migration `AddViewProductKpiCapability` cấp bit cho hàng OpsManager đã có (không đổi schema); test migration của `AddLegalVersions` giờ dừng đúng ở migration của nó.
+- [x] Task 2: phần thuần `Application/Kpi/`: `KpiPeriods` (kiểm khoảng, chia kỳ, `partial`), `KpiMath` (tỉ lệ, che ô), `KpiCount` (số hoặc `"<5"`); cấu hình `kpi.minCellSize` (5, 2–20), ẩn khỏi `/app-config`.
+- [x] Task 3: `IKpiRepository`/`KpiRepository` + `Persistence/Sql/KpiSql.cs` (GROUP BY ngày VN, người khác nhau theo kỳ, người trả phí tại thời điểm, ảnh chụp tính năng).
+- [x] Task 4: `KpiSummaryService` (cache Redis 10 phút) + `GET /api/v1/ops/kpi/summary`; test quyền HTTP (Staff, Staff có `ViewDashboard`, user thường, chưa 2FA → 403; OpsManager, Admin, Staff được cấp `ViewProductKpi` → 200; khoảng sai → 422).
+- [x] Task 5: kịch bản 20 user / 3 tuần trên DB mới (`KpiSummaryScenarioTests`) và qua HTTP (`OpsKpiControllerTests`), quét JSON không id / email / giá của một đơn.
+- [x] Task 6: tài liệu (REQUIREMENTS 6.13 FR-KPI-01…09, NFR-SEC-34, §13.4, §13.6; `docs/ops-api.md`; ERD; CLAUDE.md).
+- [x] Task 7: toàn bộ test: backend 4093/4095 (+49, không thêm đỏ; vẫn 2 đỏ sẵn). S1 lúc làm: `onboardingCompleted` đếm theo ngày đăng ký, chỉ trạng thái `completed`.
+- [ ] **Báo nhóm web admin:**
+  - Quyền mới `ViewProductKpi` (OpsManager, Admin; Admin cấp thêm cho Staff được). Hiện menu KPI khi `GET /ops/me` có quyền này; `ViewDashboard` vẫn chỉ là dashboard ticket.
+  - `GET /api/v1/ops/kpi/summary?from=&to=&granularity=day|week|month` (ngày VN, tối đa 366 ngày, `to` ≤ hôm nay; sai → 422 `KPI_INVALID_RANGE`).
+  - Gợi ý biểu đồ: cột `signups` chồng `emailVerified` và `onboardingCompleted`; đường `transactingUsers` theo ngày/tuần (ghi rõ **không phải DAU**); biểu đồ tròn `transactions.bySource` (ô `"<5"` gộp vào "Khác"; `manual` gồm cả chat); thẻ `revenueCents` (tổng, định dạng đồng), `payingTotal`, `paidOrders`, `needsReview`; thẻ `featureUsers` ghi "tính đến {asOf}"; tỉ lệ `notifications.conversionRate`. Kỳ `partial: true` vẽ khác màu.
+  - Giá trị số có thể là chuỗi `"<5"` (`bySource`, `payingByPlan`); `conversionRate` có thể null (không có mẫu số). Dữ liệu cache 10 phút.
+- [ ] **Báo nhóm app:** app chưa gọi `PUT /devices/listener-status` (Phase 84), nên server chưa biết dịch vụ đọc thông báo có còn chạy không; độ phủ dữ liệu luôn là `unknown` (và chỉ số độ phủ, nếu sau này thêm vào KPI).

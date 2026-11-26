@@ -1,6 +1,6 @@
 # Phase 94 — Dashboard KPI sản phẩm (bản gọn)
 
-> Trạng thái: **đã duyệt bản gọn 2026-11-26** (chưa push, chưa mở PR). Nhánh `feat/kpi-dashboard` từ `main` @ `88b5049`.
+> Trạng thái: **đã duyệt bản gọn 2026-11-26, Task 0–7 xong 2026-11-27** (chưa push, chưa mở PR). Nhánh `feat/kpi-dashboard` từ `main` @ `88b5049`.
 > Đồ án chưa có người dùng thật, nên DAU và cohort sẽ không có số trước buổi bảo vệ. Bản gọn chỉ giữ những chỉ số **tính khi gọi** từ các bảng đã có.
 
 ## Đã duyệt (2026-11-26): phạm vi bản gọn
@@ -130,6 +130,8 @@ Mốc trên `88b5049` (podman, `--pids-limit=-1`, 24 phút): backend **4044/4046
 - `NotificationsControllerTests.Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance`
 
 ai-service không đổi trong phase này nên không chạy lại.
+
+Sau Phase 94 (`488bf6d`, 25 phút): backend **4093/4095** — thêm 49 test (46 trong `Kpi`, 3 dòng `ViewProductKpi` ở `OpsPermissionsTests`), không thêm test đỏ; vẫn đúng 2 test đỏ sẵn ở trên.
 
 ## 7. Báo nhóm web admin (bản nháp, chép vào TASKS.md khi xong)
 

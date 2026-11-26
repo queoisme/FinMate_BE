@@ -36,6 +36,7 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 | `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
 | `ManageLegalDocuments` (soạn nháp văn bản pháp lý; xuất bản cần `ManageSystem`) | ❌ | ✅ | ✅ |
+| `ViewProductKpi` (dashboard KPI sản phẩm; khác `ViewDashboard` là dashboard ticket) | ❌ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -212,13 +213,41 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 
 | API | Việc |
 |---|---|
-| `GET /ops/dashboard` | Ca đang mở theo trạng thái và mức ưu tiên, chưa phân công, trễ hạn, tải theo từng người; 30 ngày gần nhất: số ca, theo loại, tỉ lệ đúng hạn, điểm hài lòng; số đề xuất chờ duyệt |
+| `GET /ops/dashboard` (quyền `ViewDashboard`; số liệu sản phẩm ở "Dashboard KPI sản phẩm") | Ca đang mở theo trạng thái và mức ưu tiên, chưa phân công, trễ hạn, tải theo từng người; 30 ngày gần nhất: số ca, theo loại, tỉ lệ đúng hạn, điểm hài lòng; số đề xuất chờ duyệt |
 | `POST /ops/tickets/{id}/children` | Gom ca cùng lỗi: `ticketIds`. Chỉ một tầng, không gom ca đã đóng |
 | `DELETE /ops/tickets/{id}/parent` | Gỡ ca khỏi ca cha |
 | `POST /ops/tickets/{id}/broadcast` | Trả lời ca cha và mọi ca con chưa đóng: `body`, `resolve` |
 | `GET /ops/canned-replies` (mọi vai trò), `POST`, `PATCH /{id}` | Câu trả lời mẫu; tắt bằng `isActive = false`, không xóa |
 | `GET /ops/audit-logs` | Chỉ sự kiện `Ops.*`; lọc sự kiện khác thì 403 |
 | `GET /ops/ai-stats` | Như `/admin/ai-stats`, chỉ đọc |
+
+## Dashboard KPI sản phẩm: `GET /api/v1/ops/kpi/summary`
+
+Phase 94 (bản gọn, 2026-11-27). Số liệu sức khoẻ sản phẩm cho Operations Manager: đăng ký, giao dịch, thông báo ngân hàng, thuê bao, doanh thu. **Tính khi gọi** từ các bảng đã có, cache Redis 10 phút theo bộ tham số; không có bảng tổng hợp hay job. Chưa có DAU/MAU và giữ chân (xem `docs/REQUIREMENTS.md` §13.4 "KPI — phần còn lại").
+
+**Quyền:** `ViewProductKpi` (đọc từ DB mỗi lần), mặc định OpsManager và Admin; Staff không có, kể cả khi đã được cấp `ViewDashboard`; Admin cấp thêm qua `PUT /admin/role-permissions/Staff`. Bắt buộc 2FA nội bộ như mọi API `/ops/*`. Người dùng thường 403.
+
+**Tham số:** `from`, `to` là ngày VN `yyyy-MM-dd`, tính cả hai đầu, tối đa 366 ngày, `to` không sau hôm nay; `granularity` = `day` (mặc định), `week` (thứ Hai → Chủ nhật), `month` (tháng lịch). Sai → 422 `KPI_INVALID_RANGE`. Kỳ đầu/cuối bị cắt theo khoảng, hoặc kỳ chưa hết, có `partial: true`.
+
+**Riêng tư:** chỉ số đếm, tỉ lệ và tổng; không id, email, tên hay số tiền của từng người. Ô của nhóm con (`transactions.bySource`, `subscriptions.payingByPlan`) từ 1 đến `kpi.minCellSize − 1` (cấu hình hệ thống, mặc định 5, khoảng 2–20) là chuỗi `"<5"` thay vì số; tổng toàn hệ thống không che. Chỉ đếm tài khoản vai trò `User`.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `granularity`, `minCellSize` | Như tham số; ngưỡng ô nhỏ đang áp dụng |
+| `featureUsers` `{ budgets, goals, loans, groups, asOf }` | **Ảnh chụp hiện tại**, không theo kỳ: số người đang có ngân sách cá nhân, mục tiêu chưa xong, khoản vay còn nợ, nhóm đang tham gia. Không tính tài khoản chờ xoá |
+| `notes.manualIncludesChat` | Luôn `true`: giao dịch từ chat và giọng nói qua server được lưu với nguồn `manual` |
+| `periods[].start`, `end`, `partial` | Kỳ (ngày VN, gồm hai đầu) |
+| `signups` | Tài khoản tạo trong kỳ (kể cả tài khoản sau đó xin xoá) |
+| `emailVerified` | Trong số đăng ký của kỳ, bao nhiêu hiện đã xác minh email (theo ngày đăng ký, không theo ngày xác minh) |
+| `onboardingCompleted` | Trong số đăng ký của kỳ, bao nhiêu đang ở trạng thái onboarding `completed` (theo ngày đăng ký; người bỏ qua không tính). Không đếm theo ngày hoàn thành vì migration onboarding đã đặt mốc đó bằng giờ chạy migration cho mọi tài khoản cũ |
+| `methodChosen` | Chọn phương pháp tài chính lần đầu trong kỳ |
+| `deletionRequests` | Yêu cầu xoá tài khoản trong kỳ |
+| `transactingUsers` | Số người **khác nhau** trong cả kỳ có giao dịch đã xác nhận không từ thông báo, theo ngày tạo giao dịch. Không phải DAU |
+| `transactions` `{ total, bySource }` | Giao dịch đã xác nhận, chưa xoá, theo ngày tạo; nguồn `notification`, `manual`, `voice`, `receipt`, `support` |
+| `notifications` `{ received, ignored, duplicate, converted, conversionRate }` | Thông báo ngân hàng nhận trong kỳ; `converted` = có giao dịch chưa xoá trỏ tới; `conversionRate = converted / (received − ignored − duplicate)`, null khi mẫu số 0 |
+| `subscriptions` `{ payingTotal, payingByPlan, paidOrders, revenueCents, needsReview }` | Người có kỳ thuê bao còn hiệu lực ở cuối kỳ (hoặc bây giờ), theo mã gói; đơn đã trả và tổng tiền (đồng) theo ngày trả, đơn `Voided` không tính, không có doanh thu theo gói; đơn `NeedsReview` tạo trong kỳ |
+
+Quy đổi tuần/tháng: chỉ số dòng chảy là tổng các ngày; `transactingUsers` đếm lại người khác nhau trên cả kỳ; `payingTotal`/`payingByPlan` lấy tại cuối kỳ; tỉ lệ tính lại từ tổng. Giao dịch nháp được xác nhận muộn tính vào ngày tạo, nên số của những ngày gần đây có thể tăng thêm khi cache hết hạn.
 
 ## Xác thực 2 lớp
 
