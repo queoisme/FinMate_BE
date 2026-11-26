@@ -26,6 +26,7 @@ public class ChatCommandHandler : IChatCommandHandler
     private const string TransferKind = "transfer";
     private const string ExpenseMetric = "expense";
     private const string IncomeMetric = "income";
+    private const string WalletBalanceMetric = "wallet_balance";
     private const string UncategorizedName = "Chưa phân loại";
 
     /// <summary>Số khoản tối đa trả về trong danh sách chi tiết: chat không phải màn hình danh sách; còn nữa thì <c>TransactionsHasMore</c> mời xem ở màn hình giao dịch.</summary>
@@ -375,7 +376,15 @@ public class ChatCommandHandler : IChatCommandHandler
         if (query.Metric == ExpenseMetric)
         {
             items = await CategoryItemsAsync(userId, query, from, to, ct);
-            total = items.Sum(i => i.AmountCents);  // lọc theo danh mục thì tổng là của danh mục đó
+            if (query.CategorySlug is not null || query.CategorySlugs is { Count: > 0 })
+            {
+                // lọc theo danh mục thì cả thẻ nói về danh mục đó: tổng chi là của danh mục, không kèm thu và "còn lại" của cả kỳ (khác số với tổng chi nên đọc là mâu thuẫn)
+                expense = items.Sum(i => i.AmountCents);
+                income = 0;
+                left = 0;
+            }
+
+            total = items.Sum(i => i.AmountCents);
         }
 
         IReadOnlyList<ChatTransactionDto>? transactions = null;
@@ -386,10 +395,13 @@ public class ChatCommandHandler : IChatCommandHandler
         }
 
         return new ChatSummaryDto(
-            query.Metric, query.PeriodLabel, query.From, query.To, total, income, expense, income - expense, items, transactions, hasMore);
+        var left = income - expense;
+            query.Metric, query.PeriodLabel, query.From, query.To, total, income, expense, left, items, transactions, hasMore);
     }
 
     /// <summary>
+            // "số dư của tôi" là số tiền đang có trong các ví lúc này (cùng cách tính với "Tổng tài sản" ở trang chủ); "còn lại tháng này" (balance) là thu trừ chi của kỳ
+            WalletBalanceMetric => (await _financialAccountRepository.GetListByUserAsync(userId, ct)).Sum(a => a.BalanceCents),
     /// Danh sách từng khoản của kỳ cho câu "chi tiết hôm nay" / "liệt kê các khoản chi tháng này": mới nhất trước, tối đa <see cref="DetailLimit"/> dòng, cùng quy ước với tổng
     /// (chỉ khoản đã xác nhận, bỏ chuyển tiền giữa ví và cho vay/mượn, đúng giờ Việt Nam). Hỏi theo danh mục thì chỉ các khoản của danh mục đó.
     /// </summary>
@@ -451,7 +463,7 @@ public class ChatCommandHandler : IChatCommandHandler
             .Where(s => slugs is null || (s.CategorySlug is not null && slugs.Contains(s.CategorySlug)))
             .Where(s => s.SpentCents > 0)
             .ToList();
-        var sum = rows.Sum(s => s.SpentCents);
+        var sum = rows.Sum(s => s.SpentCents);  // tỷ lệ tính trong phạm vi được hỏi, khớp với "Tổng chi" trên thẻ (xem SummarizeAsync: hỏi riêng nhóm thì tổng chi là của nhóm đó)
 
         return rows
             .OrderByDescending(s => s.SpentCents)

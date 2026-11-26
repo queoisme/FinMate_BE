@@ -314,7 +314,8 @@ def test_missing_amount_asks_for_one():
 
 @pytest.mark.parametrize(
     ("text", "metric"),
-    [("tháng này tôi tiêu bao nhiêu", "expense"), ("tháng này thu nhập bao nhiêu", "income"), ("tháng này còn lại bao nhiêu", "balance")],
+    [("tháng này tôi tiêu bao nhiêu", "expense"), ("tháng này thu nhập bao nhiêu", "income"), ("tháng này còn lại bao nhiêu", "balance"),
+     ("số dư của tôi bao nhiêu", "wallet_balance"), ("so du cua toi bao nhieu", "wallet_balance")],
 )
 def test_totals_say_what_is_asked(text, metric):
     parsed = parse(text)

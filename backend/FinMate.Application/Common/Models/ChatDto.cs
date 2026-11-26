@@ -101,7 +101,7 @@ public record ChatTransactionDto(
     string? CategorySlug,
     string? CategoryName);
 
-/// <param name="Metric">"expense" | "income" | "balance".</param>
+/// <param name="Metric">"expense" | "income" | "balance" (còn lại của kỳ) | "wallet_balance" (số dư các ví lúc này).</param>
 /// <param name="Items">Theo danh mục khi Metric = expense; rỗng với income và balance.</param>
 /// <param name="Transactions">Danh sách từng khoản của kỳ, mới nhất trước, CHỈ khi người dùng xin chi tiết (null = không xin). Có giới hạn số dòng: xem <paramref name="TransactionsHasMore"/>.</param>
 /// <param name="TransactionsHasMore">Còn khoản cũ hơn chưa hiện (vượt giới hạn): app mời xem tiếp ở màn hình giao dịch.</param>

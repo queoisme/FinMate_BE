@@ -168,3 +168,20 @@ def test_template_composer_is_bounded_and_always_verifiable(count):
 
     assert len(claims) <= 12
     assert verify(claims, evidence) == []
+
+
+def test_template_never_shows_the_machine_verdict_string_to_the_user():
+    texts = [c.text for c in compose_from_template(EVIDENCE)]
+
+    verdict_line = next(t for t in texts if "Cần cân nhắc" in t)
+    assert "verdict:" not in verdict_line and "horizon" not in verdict_line
+    assert "mốc 24 tháng" in verdict_line
+
+
+def test_template_drops_the_income_segment_label_from_the_verdict():
+    stress = ev("verdict", None, "verdict: infeasible (giảm 30% trong 12 tháng, nhóm thu nhập stable; hết tiền sau khoảng 8 tháng)", source="estimated")
+
+    line = compose_from_template([stress])[0].text
+
+    assert line.startswith("Kết luận: Khó đạt (giảm 30% trong 12 tháng; hết tiền sau khoảng 8 tháng)")
+    assert "stable" not in line

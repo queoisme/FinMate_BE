@@ -131,7 +131,7 @@ public record ChatParseEntry(
     DateTimeOffset? OccurredAt = null,
     string? CategorySource = null);
 
-/// <param name="Metric">"expense" | "income" | "balance".</param>
+/// <param name="Metric">"expense" | "income" | "balance" (còn lại của kỳ) | "wallet_balance" (số dư các ví lúc này).</param>
 /// <param name="From">Đầu kỳ (giờ VN).</param>
 /// <param name="To">Cuối kỳ, nửa mở: [From, To).</param>
 public record ChatParseQuery(

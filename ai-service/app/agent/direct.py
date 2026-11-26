@@ -36,4 +36,6 @@ def direct_route(text: str) -> DirectRoute | None:
             found.append(DirectRoute("spending_summary", {"months": int(months.group("n"))}))
         elif patterns["agent_direct_month_now"].search(folded):
             found.append(DirectRoute("spending_summary", {"months": 1}))
+    if patterns["agent_direct_compare"].search(folded):
+        found.append(DirectRoute("compare_spending", {"months": 1}))
     return found[0] if len(found) == 1 else None  # hai công cụ cùng lúc: câu nhiều ý, để LLM quyết

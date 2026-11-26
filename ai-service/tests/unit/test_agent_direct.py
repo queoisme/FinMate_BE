@@ -18,6 +18,8 @@ from app.agent.direct import direct_route
         ("tháng này tiêu nhiều nhất vào đâu", "spending_summary", {"months": 1}),
         ("3 tháng qua mình chi vào đâu nhiều nhất", "spending_summary", {"months": 3}),
         ("thang nay toi tieu nhieu nhat vao dau", "spending_summary", {"months": 1}),
+        ("so sánh chi tiêu tháng này với tháng trước", "compare_spending", {"months": 1}),
+        ("so sanh chi tieu thang truoc voi thang nay", "compare_spending", {"months": 1}),
     ],
 )
 def test_familiar_questions_pick_their_tool_without_the_llm(text, tool, args):

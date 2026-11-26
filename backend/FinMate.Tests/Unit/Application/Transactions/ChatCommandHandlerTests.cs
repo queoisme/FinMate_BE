@@ -550,6 +550,40 @@ public class ChatCommandHandlerTests
         summary.Items.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task AskingForTheBalanceReturnsWhatIsInTheWalletsNotTheMonthsNet()
+    {
+        MonthHas(20_000_000, 17_000_000);
+        _accounts
+            .Setup(a => a.GetListByUserAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<FinancialAccount>
+            {
+                new() { Id = _accountId, UserId = _userId, BalanceCents = 9_889_320 },
+                new() { Id = Guid.NewGuid(), UserId = _userId, BalanceCents = -1_204_000 },
+            });
+        AiReturns(Query("wallet_balance"));
+
+        var summary = (await _handler.HandleAsync(Command("số dư của tôi bao nhiêu"))).Summary!;
+
+        summary.Metric.Should().Be("wallet_balance");
+        summary.TotalCents.Should().Be(8_685_320);
+        summary.LeftCents.Should().Be(-3_000_000, "thu trừ chi của kỳ vẫn nằm riêng, không bị gọi là số dư");
+    }
+
+    [Fact]
+    public async Task ACategoryQueryShowsTheCategoryTotalNotTheWholePeriodsExpenseIncomeAndLeft()
+    {
+        MonthHas(1_000_000, 500_000, new CategorySpend(null, "Ăn uống", "food", 50_000), new CategorySpend(null, "Mua sắm", "shopping", 950_000));
+        AiReturns(Query("expense", "food"));
+
+        var summary = (await _handler.HandleAsync(Command("tháng này tôi ăn uống bao nhiêu"))).Summary!;
+
+        summary.ExpenseCents.Should().Be(50_000, "tổng chi trên thẻ là của danh mục được hỏi, không phải của cả kỳ");
+        summary.IncomeCents.Should().Be(0);
+        summary.LeftCents.Should().Be(0);
+        summary.Items.Should().ContainSingle().Which.Share.Should().BeApproximately(1.0, 0.001, "tỷ lệ tính trong nhóm được hỏi, cùng phạm vi với tổng chi trên thẻ");
+    }
+
     // ------------------------------------------------------------ còn lại
 
     [Fact]

@@ -20,6 +20,8 @@ NOW = datetime(2026, 11, 17, 10, 0, tzinfo=UTC)
         "Nếu thu nhập giảm 30% trong 3 tháng thì sao?",
         "Tôi sống được mấy tháng nếu mất việc?",
         "Chia ngân sách tháng này, tiết kiệm 3 triệu",
+        "chia ngân sách giúp tôi, tiết kiệm 5 triệu",  # đã bị đọc thành mục tiêu "Chia ngân sách giúp" 5 triệu
+        "chia ngan sach giup toi tiet kiem 5 trieu",
         "Bao lâu thì tôi đủ tiền mua nhà 2 tỷ?",
         "Lạm phát năm nay khoảng bao nhiêu?",
         "nếu thu nhap giam 20% thi sao",  # không dấu

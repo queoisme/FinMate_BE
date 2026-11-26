@@ -635,7 +635,8 @@ def _query(norm: str, now: datetime) -> Query:
     key, label = _resolve_period(norm, now) or (_DEFAULT_PERIOD, dict(_PERIODS)[_DEFAULT_PERIOD])
     start, end = period_range(key, now)
     if _BALANCE_Q.search(norm):
-        return Query("balance", key, label, start, end, None, None)
+        wallet = intent_cues.current().patterns["wallet_balance_q"].search(norm)
+        return Query("wallet_balance" if wallet else "balance", key, label, start, end, None, None)
     detail = _is_detail(norm)
     if _INCOME_Q.search(norm) and not _SPEND_Q.search(norm):
         return Query("income", key, label, start, end, None, category_from_text(norm, "income"), detail=detail)
@@ -705,6 +706,8 @@ def _parse_chat(
     intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
+    if intent_cues.current().patterns["agent_budget_split"].search(norm):
+        return result(AGENT_INTENT)
         text, cancelled = apply_cancellations(text)  # "rồi hủy", "nhầm, là 35k": áp trước khi tách khoản
         if cancelled and not parse_amount(text):
             return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")

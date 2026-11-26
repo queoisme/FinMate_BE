@@ -30,7 +30,7 @@ public static class LocalTemplateComposer
             }
             else if (!string.IsNullOrWhiteSpace(item.Text))
             {
-                body = item.Text;
+                body = item.Id == "verdict" ? VerdictText.Display(item.Text) : item.Text;
             }
             else
             {

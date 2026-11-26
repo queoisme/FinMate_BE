@@ -52,7 +52,7 @@ class ChatEntry(BaseModel):
 
 
 class ChatQuery(BaseModel):
-    metric: str  # expense | income | balance
+    metric: str  # expense | income | balance (cÃ²n láº¡i cá»§a ká»³) | wallet_balance (sá»‘ dÆ° cÃ¡c vÃ­ lÃºc nÃ y)
     period_key: str  # "thang nay", "hom nay"... (không dấu)
     period_label: str  # "tháng này"
     start: datetime

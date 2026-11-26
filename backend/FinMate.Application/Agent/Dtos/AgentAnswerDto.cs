@@ -13,7 +13,7 @@ public sealed record AgentClaimDto(string Text, IReadOnlyList<string> EvidenceId
 public sealed record AgentEvidenceDto(string Id, string Key, long? ValueVnd, string? Text, string Unit, string Source, DateTimeOffset AsOf, double Confidence, string? SourceName, string? SourceUrl)
 {
     public static AgentEvidenceDto From(Evidence e)
-        => new(e.Id, e.Key, e.ValueVnd, e.Text, e.Unit, WireSource(e.Source), e.AsOf, Math.Round(e.Confidence, 2), e.SourceName, e.SourceUrl);
+        => new(e.Id, e.Key, e.ValueVnd, e.Id == "verdict" ? VerdictText.Display(e.Text) : e.Text, e.Unit, WireSource(e.Source), e.AsOf, Math.Round(e.Confidence, 2), e.SourceName, e.SourceUrl);
 
     public static EvidenceSource ParseSource(string wire) => wire switch
     {
