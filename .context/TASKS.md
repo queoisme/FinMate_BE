@@ -1727,3 +1727,34 @@ Nhánh `feat/data-export` (từ `main` @ `5aeec81`, đã có Phase 90). Kế ho�
   - **Câu chữ gợi ý:** "Gói chứa toàn bộ dữ liệu tài chính của bạn. FinMate giữ gói 72 giờ rồi tự xoá." / "Không có: mật khẩu, nội dung thông báo ngân hàng gốc, ảnh, dữ liệu của thành viên khác trong nhóm."
   - **Xoá tài khoản:** trước khi xác nhận, nhắc tải dữ liệu (sau khi xin xoá không đăng nhập được nữa, chỉ lấy được qua hỗ trợ). `DELETE /auth/account` có thể trả 409 `DATA_EXPORT_IN_PROGRESS` khi gói đang dựng: hiện `message`, mời chờ xong rồi xoá.
   - **Hỗ trợ:** loại ticket mới `PersonalDataRequest` (nhãn gợi ý "Yêu cầu dữ liệu cá nhân").
+
+## Phase 92 — Trả góp: kỳ cuối cho khoản định kỳ (2026-11-26, xong trên nhánh, chưa push)
+
+Nhánh `feat/recurring-installments` (từ `main` @ `96ac3e8`, đã có Phase 90, 91). Kế hoạch, ba danh sách "Đọc trước", D1–D20, S1–S3: `docs/superpowers/plans/2026-11-26-recurring-installments.md`. API: `docs/recurring-items-api.md`. Mốc test ở mục 6 của kế hoạch.
+
+- [x] Task 0: kế hoạch duyệt (D6 chọn a) kèm S1–S3; mốc backend 3950/3952 (2 đỏ sẵn trên `main`), ai-service 2255 passed.
+- [x] Task 1: migration `AddRecurringInstallments`: cột kỳ cuối, `prepaid_occurrences`, `completed_at`, `settled_early`, trạng thái `completed`, index duy nhất bỏ qua dòng `completed`, bảng `recurring_item_payments` (một giao dịch một dòng sống, một kỳ một dòng), suy `anchor_day` theo S2. ERD.
+- [x] Task 2: lịch tháng theo `anchor_day` (`RecurringSchedule.DayOf`); sửa lỗi ngày 28 (§13.1). Sửa kỳ vọng đúng một test (D20).
+- [x] Task 3: một hàm lịch có giới hạn (`RecurringSchedule.DueDates`) cho mọi chỗ chiếu; S1: kỳ chi quá hạn của khoản theo số kỳ chiếu vào ngày mai, không tạm dừng, cảnh báo "Quá hạn" mỗi kỳ.
+- [x] Task 4: `InstallmentProgress` (đã trả / còn lại / ước tính / kỳ cuối), `RecurringCompletion` (hoàn thành, mở lại), repository đếm kỳ đã trả.
+- [x] Task 5: tracker ghi kỳ đã trả và hoàn thành khoản, chạy dưới khoá theo user; S3: job theo user sau confirm / tạo tay / gộp (`IRecurringTrackingTrigger`, chống trùng bằng dấu trong cache).
+- [x] Task 6: trường kỳ cuối ở tạo / sửa / xác nhận, `GET/POST/DELETE .../payments`, `POST .../settle`, mở lại bằng `PATCH status=Active`, lọc `Completed`, mã lỗi mới.
+- [x] Task 7: `from-transaction` nhận trường kỳ cuối, ngày gốc = ngày giao dịch.
+- [x] Task 8: kỳ đã trả đi theo giao dịch: xoá, đảo, gộp, chuyển thành chuyển ví / chi quỹ nhóm, đổi chiều tiền (`IRecurringPaymentSync`).
+- [x] Task 9: khoản vừa hoàn thành vẫn loại các lần trả cũ khỏi thói quen chi tiêu, rủi ro ngân sách, thu không đều, bất thường (D5).
+- [x] Task 10: gói dữ liệu cá nhân: trường mới trong `recurring_items.json`, file mới `recurring_item_payments.json` (D15).
+- [x] Task 11: kịch bản đầu-cuối (a)–(j) pass.
+- [x] Task 12: tài liệu (REQUIREMENTS FR-FCST-09, 12 cập nhật, FR-FCST-18 mới, §13.1, §13.4, §13.6; ERD; `docs/recurring-items-api.md`; `docs/transaction-extras-api.md`; `docs/data-export-api.md`; CLAUDE.md).
+- [x] Task 13: toàn bộ test (số ở mục 6 của kế hoạch).
+- [ ] **Báo nhóm Flutter:**
+  - **Trường mới** trong `RecurringItemDto` (ở cuối, app cũ bỏ qua được): `totalOccurrences`, `prepaidOccurrences`, `paidOccurrences`, `remainingOccurrences`, `remainingAmountCents` (ước tính = còn lại × số tiền), `endDate`, `anchorDay`, `finalDueDate`, `completedAt`, `settledEarly`. Trạng thái mới `completed`.
+  - **Thanh tiến độ kỳ:** "Đã trả X/Y kỳ" khi có `totalOccurrences` (X = `paidOccurrences`), kèm "Còn khoảng {remainingAmountCents}" và "Kỳ cuối {finalDueDate}". Chỉ có `endDate`: "Còn {remainingOccurrences} kỳ, đến {finalDueDate}".
+  - **Form tạo / sửa / xác nhận đề xuất:** "Số kỳ" **hoặc** "Ngày kết thúc" (không cả hai), "Đã trả trước khi dùng app", "Ngày trong tháng" (chỉ chu kỳ tháng, 1–31). Bỏ kỳ cuối: `PATCH { clearEnd: true }`. `POST .../confirm` nhận các trường này trong body.
+  - **Nút "Đánh dấu đã trả":** `POST /recurring-items/{id}/payments`, có thể chọn một giao dịch (`transactionId`) hoặc để trống (trả tiền mặt). Danh sách kỳ đã trả `GET .../payments`, mỗi kỳ có nút gỡ (`DELETE .../payments/{paymentId}`).
+  - **Nút "Đã tất toán":** `POST .../settle` (tuỳ chọn chọn giao dịch tất toán). Khoản `settledEarly` có nút "Mở lại" = `PATCH { status: "Active" }`.
+  - **Bộ lọc "Đã hoàn thành":** `GET /recurring-items?status=Completed`. Danh sách mặc định **không còn** trả khoản đã hoàn thành.
+  - **Lịch tháng:** ngày đến hạn giờ theo `anchorDay` (ngày 31 → 28/29 tháng 2 → 31/3). Khoản cũ có `anchorDay` do hệ thống suy ra; cho người dùng sửa.
+  - **Cảnh báo mới:** kỳ trả góp quá hạn có cảnh báo "Quá hạn {tên}" (kind `bill_due`, `data.recurringItemId`, `data.dueDate`); khoản trả góp không còn nhận câu hỏi "còn dùng không?" khi quá hạn.
+  - **Mã lỗi mới:** `RECURRING_ITEM_PAYMENT_LINKED` (409), `RECURRING_ITEM_PAYMENT_INVALID` (422), `RECURRING_ITEM_NO_FINAL` (422). Hiện `message`.
+  - **Xuất dữ liệu:** gói ZIP có thêm `recurring_item_payments.json`.
+- [ ] **Báo MinhTuan:** `POST /recurring-items/from-transaction/{id}` (`TransactionExtrasService.CreateRecurringAsync`) nhận thêm `totalOccurrences`, `endDate`, `anchorDay`, `prepaidOccurrences`; không gửi thì như cũ. Một thay đổi nhỏ khi không gửi gì: `nextDueDate` giữ ngày của giao dịch làm ngày gốc (giao dịch ngày 31 → 28/02 → 31/03, trước là 28/03), và DTO có thêm các trường kỳ cuối ở cuối. Chữ ký C# có thêm tham số tuỳ chọn `installment` ở cuối.

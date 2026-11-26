@@ -1,6 +1,6 @@
 # Phase 92 — Trả góp: kỳ cuối cho khoản định kỳ
 
-> Trạng thái: **đã duyệt 2026-11-26**. D1, D2, D4, D5, D7, D9, D11–D20 theo đề xuất; D6 chọn (a); S1 thay D3, S2 sửa D8, S3 sửa D10 (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/recurring-installments` từ `main` @ `96ac3e8` (đã có Phase 90, 91).
+> Trạng thái: **đã duyệt 2026-11-26, Task 0–13 xong** (chưa push, chưa mở PR). D1, D2, D4, D5, D7, D9, D11–D20 theo đề xuất; D6 chọn (a); S1 thay D3, S2 sửa D8, S3 sửa D10 (S thắng D và phần thân khi mâu thuẫn). Nhánh `feat/recurring-installments` từ `main` @ `96ac3e8` (đã có Phase 90, 91).
 > Luật nghiệp vụ BR-INS-01…10 do chủ sản phẩm chốt; kế hoạch này chỉ thêm kết quả đọc code, cách làm và các điểm D1–D20.
 
 ## Đã duyệt (2026-11-26): điều chỉnh S1–S3
@@ -194,6 +194,13 @@ Không log số tiền, tên khoản, `counterparty_key`. Mọi hàm repository 
 
 Luật: không thêm test đỏ so với mốc này.
 
+Kết quả Task 13 (2026-11-26, @ `6e1aa50`, code giống bản cuối; commit sau chỉ có tài liệu): backend **4044/4046** (24 phút 29 giây), đúng hai test đỏ trên, +94 test mới; không cảnh báo CS. ai-service **2255 passed, 483 skipped** (không đổi).
+
+Test có sẵn bị chạm (không đổi kỳ vọng nào, trừ một test theo D20):
+- `RecurringTrackerTests.EndOfMonthBill_ReturnsToTheLastDayAfterAShortMonth`: đặt tường minh `AnchorDay = 31` (D20, lỗi ngày 28). Kỳ vọng 31/03 giữ nguyên.
+- `ForecastServiceTests`, `AnomalyServiceTests`: thêm một mock trả danh sách `Completed` rỗng (dịch vụ đọc thêm khoản đã hoàn thành cho D5). Không đổi kỳ vọng.
+- `DataExportArchiveTests.ExpectedFiles`: thêm `recurring_item_payments.json` (D15).
+
 ## 7. Báo nhóm Flutter (bản nháp, chép vào TASKS.md khi xong)
 
 - `RecurringItemDto` thêm ở cuối (đều có thể null/mặc định, app cũ bỏ qua được): `totalOccurrences`, `prepaidOccurrences`, `paidOccurrences`, `remainingOccurrences`, `remainingAmountCents` (ước tính = còn lại × số tiền), `endDate`, `anchorDay`, `finalDueDate`, `completedAt`, `settledEarly`. Trạng thái mới `completed`.
@@ -201,7 +208,7 @@ Luật: không thêm test đỏ so với mốc này.
 - Form tạo/sửa: "Số kỳ" **hoặc** "Ngày kết thúc" (không cả hai), "Đã trả trước khi dùng app", "Ngày trong tháng" (chỉ chu kỳ tháng). Bỏ kỳ cuối: `clearEnd: true`.
 - Nút "Đánh dấu đã trả" (`POST .../payments`, có thể chọn giao dịch), danh sách kỳ đã trả có nút gỡ, nút "Đã tất toán" (`POST .../settle`), "Mở lại" (`PATCH status=Active`).
 - Bộ lọc "Đã hoàn thành" (`status=Completed`); danh sách mặc định không còn trả khoản đã hoàn thành (D16).
-- Mã lỗi mới: `RECURRING_PAYMENT_INVALID`, `RECURRING_PAYMENT_LINKED`, `RECURRING_NO_FINAL`.
+- Mã lỗi mới: `RECURRING_ITEM_PAYMENT_INVALID`, `RECURRING_ITEM_PAYMENT_LINKED`, `RECURRING_ITEM_NO_FINAL` (đặt theo tiền tố `RECURRING_ITEM_` của các mã cũ, khác tên tạm trong mục 2.4).
 
 ## 8. Báo MinhTuan
 
