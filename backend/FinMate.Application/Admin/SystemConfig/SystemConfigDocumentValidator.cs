@@ -59,6 +59,7 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.ListenerHealth).NotNull().SetValidator(new ListenerHealthValidator());
         RuleFor(x => x.Loans).NotNull().SetValidator(new LoanValidator());
         RuleFor(x => x.DataExport).NotNull().SetValidator(new DataExportValidator());
+        RuleFor(x => x.Kpi).NotNull().SetValidator(new KpiValidator());
     }
 
     private sealed class AssistantValidator : AbstractValidator<AssistantSettings>
@@ -406,6 +407,14 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.MaxArchiveMb).InclusiveBetween(1, 200).WithMessage("Kích thước gói tối đa phải từ 1 đến 200 MB.");
             RuleFor(x => x.DownloadLinkMinutes).InclusiveBetween(1, 60).WithMessage("Thời gian sống của link tải phải từ 1 đến 60 phút.");
             RuleFor(x => x.RequestHistoryDays).InclusiveBetween(30, 3650).WithMessage("Thời gian giữ lịch sử yêu cầu phải từ 30 đến 3650 ngày.");
+        }
+    }
+
+    private sealed class KpiValidator : AbstractValidator<KpiSettings>
+    {
+        public KpiValidator()
+        {
+            RuleFor(x => x.MinCellSize).InclusiveBetween(2, 20).WithMessage("Ngưỡng ô nhỏ của KPI phải từ 2 đến 20.");
         }
     }
 

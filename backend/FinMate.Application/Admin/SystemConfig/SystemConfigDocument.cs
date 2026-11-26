@@ -762,6 +762,13 @@ public sealed record DataExportSettings
     public int RequestHistoryDays { get; init; } = 365;
 }
 
+/// <summary>Dashboard KPI sản phẩm (Phase 94, BR-KPI-07). Không đưa ra <c>GET /app-config</c>.</summary>
+public sealed record KpiSettings
+{
+    /// <summary>Ô của một nhóm con (nguồn giao dịch, gói thuê bao) nhỏ hơn số này thì trả <c>"&lt;n"</c> thay vì số chính xác. Tổng toàn hệ thống không che.</summary>
+    public int MinCellSize { get; init; } = 5;
+}
+
 /// <summary>Toàn bộ cấu hình hệ thống không bí mật. Giá trị mặc định ở đây là cấu hình khi chưa ai lưu (version 0).</summary>
 public sealed record SystemConfigDocument
 {
@@ -791,6 +798,7 @@ public sealed record SystemConfigDocument
     public ListenerHealthSettings ListenerHealth { get; init; } = new();
     public LoanSettings Loans { get; init; } = new();
     public DataExportSettings DataExport { get; init; } = new();
+    public KpiSettings Kpi { get; init; } = new();
 }
 
 /// <summary>Cấu hình đang chạy kèm số phiên bản (0 = chưa ai lưu, đang dùng giá trị mặc định).</summary>
