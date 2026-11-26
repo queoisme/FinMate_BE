@@ -186,7 +186,13 @@ Không log số tiền, tên khoản, `counterparty_key`. Mọi hàm repository 
 
 ## 6. Mốc test
 
-(Điền ở Task 0.)
+Đo 2026-11-26 trên `feat/recurring-installments` @ `8d4095a` (trước khi sửa code):
+- backend: **3950/3952** (23 phút 20 giây), không cảnh báo CS. Hai test đỏ có sẵn trên `main`, cùng hai test ở mốc Phase 90/91:
+  `MethodSelectionOnSeedDataTests.TheExampleProfileInTheMdFile_GetsCashFlowBudget_WithASmallEmergencyBufferAsSupport`,
+  `NotificationsControllerTests.Analyze_HighConfidenceFinancialNotification_AutoCommitsAndUpdatesBalance`.
+- ai-service: **2255 passed, 483 skipped** (không có Postgres).
+
+Luật: không thêm test đỏ so với mốc này.
 
 ## 7. Báo nhóm Flutter (bản nháp, chép vào TASKS.md khi xong)
 
