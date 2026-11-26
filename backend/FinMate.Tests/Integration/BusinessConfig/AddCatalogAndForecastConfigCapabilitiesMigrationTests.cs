@@ -11,7 +11,7 @@ namespace FinMate.Tests.Integration.BusinessConfig;
 public class AddCatalogAndForecastConfigCapabilitiesMigrationTests : IClassFixture<ReceiptScanDbFixture>
 {
     private const string MigrationBefore = "20261126150000_AddViewProductKpiCapability";
-    private const string ThisMigration = "20261127090000_AddCatalogAndForecastConfigCapabilities";
+    private const string ThisMigration = "20261126190000_AddCatalogAndForecastConfigCapabilities";
     private const long MaintainCatalog = 1L << 19;
     private const long DraftForecastConfig = 1L << 20;
     private const long ApproveForecastConfig = 1L << 21;

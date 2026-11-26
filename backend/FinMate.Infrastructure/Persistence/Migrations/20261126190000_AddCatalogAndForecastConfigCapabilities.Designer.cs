@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FinMate.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(FinMateDbContext))]
-    [Migration("20261127090000_AddCatalogAndForecastConfigCapabilities")]
+    [Migration("20261126190000_AddCatalogAndForecastConfigCapabilities")]
     partial class AddCatalogAndForecastConfigCapabilities
     {
         /// <inheritdoc />
