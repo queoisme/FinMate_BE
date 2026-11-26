@@ -1770,7 +1770,7 @@ Nhánh `feat/kpi-dashboard` (từ `main` @ `88b5049`). Kế hoạch, bảng "ngu
 - [x] Task 4: `KpiSummaryService` (cache Redis 10 phút) + `GET /api/v1/ops/kpi/summary`; test quyền HTTP (Staff, Staff có `ViewDashboard`, user thường, chưa 2FA → 403; OpsManager, Admin, Staff được cấp `ViewProductKpi` → 200; khoảng sai → 422).
 - [x] Task 5: kịch bản 20 user / 3 tuần trên DB mới (`KpiSummaryScenarioTests`) và qua HTTP (`OpsKpiControllerTests`), quét JSON không id / email / giá của một đơn.
 - [x] Task 6: tài liệu (REQUIREMENTS 6.13 FR-KPI-01…09, NFR-SEC-34, §13.4, §13.6; `docs/ops-api.md`; ERD; CLAUDE.md).
-- [x] Task 7: toàn bộ test: backend 4093/4095 (+49, không thêm đỏ; vẫn 2 đỏ sẵn). S1 lúc làm: `onboardingCompleted` đếm theo ngày đăng ký, chỉ trạng thái `completed`.
+- [x] Task 7: toàn bộ test backend: mốc `88b5049` **4044/4046** → sau **4093/4095** (+49 test mới: 46 trong `Kpi`, 3 dòng `ViewProductKpi` ở `OpsPermissionsTests`; không thêm test đỏ; 2 đỏ sẵn trên `main`: `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`, `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`). S1 lúc làm: `onboardingCompleted` đếm theo ngày đăng ký, chỉ trạng thái `completed`.
 - [ ] **Báo nhóm web admin:**
   - Quyền mới `ViewProductKpi` (OpsManager, Admin; Admin cấp thêm cho Staff được). Hiện menu KPI khi `GET /ops/me` có quyền này; `ViewDashboard` vẫn chỉ là dashboard ticket.
   - `GET /api/v1/ops/kpi/summary?from=&to=&granularity=day|week|month` (ngày VN, tối đa 366 ngày, `to` ≤ hôm nay; sai → 422 `KPI_INVALID_RANGE`).

@@ -227,7 +227,7 @@ Phase 94 (bản gọn, 2026-11-27). Số liệu sức khoẻ sản phẩm cho Op
 
 **Quyền:** `ViewProductKpi` (đọc từ DB mỗi lần), mặc định OpsManager và Admin; Staff không có, kể cả khi đã được cấp `ViewDashboard`; Admin cấp thêm qua `PUT /admin/role-permissions/Staff`. Bắt buộc 2FA nội bộ như mọi API `/ops/*`. Người dùng thường 403.
 
-**Tham số:** `from`, `to` là ngày VN `yyyy-MM-dd`, tính cả hai đầu, tối đa 366 ngày, `to` không sau hôm nay; `granularity` = `day` (mặc định), `week` (thứ Hai → Chủ nhật), `month` (tháng lịch). Sai → 422 `KPI_INVALID_RANGE`. Kỳ đầu/cuối bị cắt theo khoảng, hoặc kỳ chưa hết, có `partial: true`.
+**Tham số:** `from`, `to` là ngày VN `yyyy-MM-dd`, tính cả hai đầu, tối đa 366 ngày, `to` không sau hôm nay; `granularity` = `day` (mặc định), `week` (thứ Hai → Chủ nhật), `month` (tháng lịch). Sai → 422 `KPI_INVALID_RANGE`. Kỳ đầu/cuối bị cắt theo khoảng, hoặc kỳ chưa hết, có `partial: true`. **Kỳ có chứa hôm nay luôn `partial: true`** (với `day` là chính hôm nay), và số của kỳ đó còn thay đổi trong ngày: response được cache 10 phút theo bộ tham số, nên một số mới có thể chậm tới 10 phút mới hiện.
 
 **Riêng tư:** chỉ số đếm, tỉ lệ và tổng; không id, email, tên hay số tiền của từng người. Ô của nhóm con (`transactions.bySource`, `subscriptions.payingByPlan`) từ 1 đến `kpi.minCellSize − 1` (cấu hình hệ thống, mặc định 5, khoảng 2–20) là chuỗi `"<5"` thay vì số; tổng toàn hệ thống không che. Chỉ đếm tài khoản vai trò `User`.
 
