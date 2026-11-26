@@ -46,16 +46,19 @@ public static class RecurringSchedule
         _ => throw new ArgumentOutOfRangeException(nameof(cadence), cadence, null),
     };
 
-    /// <summary>Mọi lần đến hạn nằm trong <c>[from, to]</c>, tính từ <see cref="RecurringItemView.NextDueDate"/>.</summary>
+    /// <summary>Mọi lần đến hạn nằm trong <c>[from, to]</c>, tính từ <see cref="RecurringItemView.NextDueDate"/> (đã giới hạn theo kỳ cuối).</summary>
     public static IEnumerable<DateOnly> Occurrences(RecurringItemView item, DateOnly from, DateOnly to)
+        => DueDates(item).SkipWhile(d => d < from).TakeWhile(d => d <= to);
+
+    /// <summary>
+    /// Lịch của khoản tính từ <see cref="RecurringItemView.NextDueDate"/>, dừng sau <see cref="RecurringItemView.RemainingOccurrences"/> kỳ hoặc khi vượt
+    /// <see cref="RecurringItemView.EndDate"/> (Phase 92, BR-INS-07). Khoản không có kỳ cuối thì vô hạn: người gọi phải tự dừng theo ngày.
+    /// Mọi chỗ chiếu khoản định kỳ đi qua hàm này để giới hạn kỳ cuối chỉ nằm ở một nơi.
+    /// </summary>
+    public static IEnumerable<DateOnly> DueDates(RecurringItemView item)
     {
         var due = item.NextDueDate;
-        while (due < from)
-        {
-            due = Next(due, item.Cadence, item.PreferredDay);
-        }
-
-        while (due <= to)
+        for (var n = 0; (item.RemainingOccurrences is not { } left || n < left) && (item.EndDate is not { } end || due <= end); n++)
         {
             yield return due;
             due = Next(due, item.Cadence, item.PreferredDay);

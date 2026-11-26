@@ -33,6 +33,7 @@ public static class IncomeEstimator
         IReadOnlyList<RecurringItemView> activeItems, IReadOnlyList<ForecastTransaction> recent, DateOnly today, int lateDays, ForecastRules rules)
         => activeItems
             .Where(i => i.Direction == RecurringDirection.Inflow
+                        && !i.Exhausted
                         && i.NextDueDate <= today.AddDays(-lateDays)
                         && RecurringMatcher.FindPayment(i, i.NextDueDate, recent, rules) is null)
             .Select(i => new LateIncomeDto(i.Id, i.Name, i.AmountCents, i.NextDueDate, today.DayNumber - i.NextDueDate.DayNumber))
