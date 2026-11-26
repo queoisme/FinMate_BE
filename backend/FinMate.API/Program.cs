@@ -65,6 +65,7 @@ using Refit;
 using FinMate.Application.Community;
 using FinMate.Application.MarketData;
 using FinMate.Infrastructure.Community;
+using FinMate.Application.Kpi;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
 using FinMate.API.Monitoring;
@@ -428,6 +429,7 @@ public class Program
         builder.Services.AddScoped<IAuditLogService, AuditLogService>();
         builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         builder.Services.AddScoped<IAiStatsRepository, AiStatsRepository>();
+        builder.Services.AddScoped<IKpiRepository, KpiRepository>();
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -550,6 +552,7 @@ public class Program
         builder.Services.AddScoped<IIncidentService, IncidentService>();
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
+        builder.Services.AddScoped<IKpiSummaryService, KpiSummaryService>();
         builder.Services.AddScoped<ServiceStatusTracker>();
         builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
