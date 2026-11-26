@@ -31,6 +31,8 @@ public class ForecastServiceTests
     {
         _user = new User { Id = _userId, MonthlyIncomeCents = 20_000_000 };
         _users.Setup(r => r.GetByIdAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync(_user);
+        // Phase 92 (D5): dịch vụ đọc thêm khoản đã hoàn thành để loại trừ; test cũ không có khoản nào như vậy.
+        _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Completed, It.IsAny<CancellationToken>())).ReturnsAsync([]);
         _config.Setup(c => c.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SystemConfigSnapshot(0, new SystemConfigDocument(), null));
         _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([]);
         _data.Setup(r => r.GetTransactionsAsync(_userId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);

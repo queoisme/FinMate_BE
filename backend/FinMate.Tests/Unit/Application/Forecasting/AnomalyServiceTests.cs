@@ -28,6 +28,7 @@ public class AnomalyServiceTests
     {
         _config.Setup(c => c.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SystemConfigSnapshot(0, new SystemConfigDocument(), null));
         _items.Setup(i => i.ListAsync(UserId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        _items.Setup(i => i.ListAsync(UserId, RecurringStatus.Completed, It.IsAny<CancellationToken>())).ReturnsAsync([]);   // Phase 92 (D5)
         _anomalies.Setup(a => a.GetPriorNormalsAsync(UserId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
         _anomalies.Setup(a => a.TryAddAsync(It.IsAny<TransactionAnomaly>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _service = new AnomalyService(_anomalies.Object, _data.Object, _items.Object, _settings.Object, _config.Object);
