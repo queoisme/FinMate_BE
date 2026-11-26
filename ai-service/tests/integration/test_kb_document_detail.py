@@ -24,6 +24,7 @@ async def test_the_document_comes_back_with_its_chunks_joined_in_order(session):
     assert document is not None
     assert document["text"] == "Câu đầu tiên. Câu thứ hai. Câu cuối cùng."
     assert (document["title"], document["status"], document["chunks"]) == ("Quy tắc 50/30/20 (v1)", "Draft", 3)
+    assert document["created_at"] is not None  # backend Phase 95: biết tài liệu tạo trước hay sau khi backend ghi người soạn
 
 
 async def test_an_unknown_id_is_none(session):
@@ -39,6 +40,7 @@ async def test_the_route_returns_the_text_and_404_for_unknown_ids(client, auth_h
     assert found.status_code == 200
     assert found.json()["text"] == "Nội dung để duyệt."
     assert found.json()["id"] == str(document_id)
+    assert found.json()["created_at"]
     assert missing.status_code == 404
     assert missing.json()["detail"] == "kb_document_not_found"
 

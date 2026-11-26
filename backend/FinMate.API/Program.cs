@@ -439,6 +439,7 @@ public class Program
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<TicketAssistService>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<IKnowledgeReviewRepository, KnowledgeReviewRepository>();
         builder.Services.AddScoped<GetAssumptionsTool>();
 
         // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.

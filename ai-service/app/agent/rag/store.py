@@ -84,7 +84,7 @@ async def list_documents(session: AsyncSession, *, status: str | None, search: s
     rows = (
         await session.execute(
             text(
-                "SELECT id, title, source_name, source_url, as_of, effective_from, effective_to, status, version,"
+                "SELECT id, title, source_name, source_url, as_of, effective_from, effective_to, status, version, created_at,"
                 f" (SELECT count(*) FROM agent_kb_chunks c WHERE c.document_id = agent_kb_documents.id) AS chunks FROM agent_kb_documents WHERE {clause}"
                 " ORDER BY updated_at DESC LIMIT :limit OFFSET :offset"
             ),
@@ -95,11 +95,14 @@ async def list_documents(session: AsyncSession, *, status: str | None, search: s
 
 
 async def get_document(session: AsyncSession, document_id: uuid.UUID) -> dict | None:
-    """Một tài liệu kèm TOÀN BỘ nội dung (các đoạn ghép lại theo thứ tự), để người duyệt đọc trước khi bấm duyệt. None nếu không có."""
+    """Một tài liệu kèm TOÀN BỘ nội dung (các đoạn ghép lại theo thứ tự), để người duyệt đọc trước khi bấm duyệt. None nếu không có.
+
+    ``created_at`` (thêm ở Phase 95 backend): backend dùng để biết tài liệu có được tạo trước khi nó bắt đầu ghi người soạn hay không.
+    """
     row = (
         await session.execute(
             text(
-                "SELECT id, title, source_name, source_url, as_of, effective_from, effective_to, status, version,"
+                "SELECT id, title, source_name, source_url, as_of, effective_from, effective_to, status, version, created_at,"
                 " (SELECT count(*) FROM agent_kb_chunks c WHERE c.document_id = d.id) AS chunks,"
                 " (SELECT string_agg(c.text, ' ' ORDER BY c.chunk_index) FROM agent_kb_chunks c WHERE c.document_id = d.id) AS text"
                 " FROM agent_kb_documents d WHERE d.id = :id"

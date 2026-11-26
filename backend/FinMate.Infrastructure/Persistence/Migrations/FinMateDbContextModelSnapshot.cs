@@ -2975,6 +2975,67 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("group_share_rules", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReview", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
+
+                    b.HasKey("DocumentId");
+
+                    b.ToTable("knowledge_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_reviews_status", "status IN ('draft','approved','rejected','retired')");
+
+                            t.HasCheckConstraint("chk_knowledge_reviews_two_people", "decided_by IS NULL OR submitted_by IS NULL OR decided_by <> submitted_by");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReviewCutover", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("TrackedSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tracked_since");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("knowledge_review_cutover", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_review_cutover_single", "id = 1");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.LegalVersion", b =>
                 {
                     b.Property<Guid>("Id")

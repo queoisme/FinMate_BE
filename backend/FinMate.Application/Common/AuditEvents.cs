@@ -51,6 +51,7 @@ public static class AuditEvents
     public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";
     public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
     public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
+    public const string AdminKnowledgeRejected = "Admin.Knowledge.Rejected";
 
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
