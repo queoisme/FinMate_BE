@@ -5910,6 +5910,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int?>("BaseVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("base_version");
+
+                    b.Property<string>("Conflicts")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("conflicts");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -5923,6 +5931,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -5933,13 +5954,26 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<string>("Scope")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("scope");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
-                    b.Property<int>("Version")
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
 
@@ -5950,15 +5984,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("uq_system_config_versions_active")
                         .HasFilter("status = 'active'");
 
+                    b.HasIndex("Name", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("uq_system_config_versions_pending")
+                        .HasFilter("status = 'pending_approval'");
+
                     b.HasIndex("Name", "Version")
                         .IsUnique()
                         .HasDatabaseName("uq_system_config_versions_name_version");
 
+                    b.HasIndex("Name", "Scope", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_system_config_versions_drafts");
+
                     b.ToTable("system_config_versions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_system_config_versions_approved_by", "scope IS NULL OR status NOT IN ('active','archived') OR decided_by IS NOT NULL");
+
                             t.HasCheckConstraint("chk_system_config_versions_content_object", "jsonb_typeof(content) = 'object'");
 
-                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived')");
+                            t.HasCheckConstraint("chk_system_config_versions_draft_scope", "status IN ('active','archived') OR scope IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_system_config_versions_numbered", "(status IN ('active','archived')) = (version IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived','draft','pending_approval','rejected','cancelled')");
+
+                            t.HasCheckConstraint("chk_system_config_versions_two_people", "decided_by IS NULL OR decided_by <> created_by");
                         });
                 });
 
