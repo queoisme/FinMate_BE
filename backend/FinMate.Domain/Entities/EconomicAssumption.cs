@@ -5,6 +5,9 @@ public enum AssumptionStatus
     Draft,
     Approved,
     Retired,
+
+    /// <summary>Phase 95: bản nháp bị từ chối kèm ghi chú; kết thúc.</summary>
+    Rejected,
 }
 
 /// <summary>
@@ -32,5 +35,10 @@ public class EconomicAssumption
     public AssumptionStatus Status { get; set; } = AssumptionStatus.Draft;
     public Guid CreatedBy { get; set; }
     public Guid? ApprovedBy { get; set; }
+
+    /// <summary>Phase 95: người từ chối (khác người soạn) và ghi chú. Ghi chú không vào audit.</summary>
+    public Guid? RejectedBy { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public string? DecisionNote { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

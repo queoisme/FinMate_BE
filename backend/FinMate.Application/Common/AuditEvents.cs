@@ -45,6 +45,7 @@ public static class AuditEvents
     public const string AdminAssumptionCreated = "Admin.Assumption.Created";
     public const string AdminAssumptionApproved = "Admin.Assumption.Approved";
     public const string AdminAssumptionRetired = "Admin.Assumption.Retired";
+    public const string AdminAssumptionRejected = "Admin.Assumption.Rejected";
 
     // Kho tri thức của agent: chỉ ghi mã tài liệu, không ghi nội dung. Nội dung và trạng thái nằm ở agent_kb_documents của AI Service.
     public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";

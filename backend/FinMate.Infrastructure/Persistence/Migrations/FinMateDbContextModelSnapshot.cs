@@ -1300,6 +1300,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -1309,6 +1314,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<int>("RateBps")
                         .HasColumnType("integer")
                         .HasColumnName("rate_bps");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid?>("RejectedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rejected_by");
 
                     b.Property<string>("SourceName")
                         .IsRequired()
@@ -1348,7 +1361,9 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_economic_assumptions_source", "status = 'draft' OR (length(btrim(source_name)) > 0 AND length(btrim(source_url)) > 0)");
 
-                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired')");
+                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
+
+                            t.HasCheckConstraint("chk_economic_assumptions_two_people", "(approved_by IS NULL OR approved_by <> created_by OR created_by = '00000000-0000-0000-0000-00000000a1c5') AND (rejected_by IS NULL OR rejected_by <> created_by)");
 
                             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
                         });

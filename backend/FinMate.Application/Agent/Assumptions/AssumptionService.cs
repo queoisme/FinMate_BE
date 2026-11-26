@@ -2,14 +2,15 @@ using System.Text.RegularExpressions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 
 namespace FinMate.Application.Agent;
 
-public sealed record AssumptionDto(Guid Id, string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf, int Version, string Status, Guid CreatedBy, Guid? ApprovedBy)
+public sealed record AssumptionDto(Guid Id, string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf, int Version, string Status, Guid CreatedBy, Guid? ApprovedBy, Guid? RejectedBy = null, string? DecisionNote = null)
 {
     public static AssumptionDto From(EconomicAssumption a)
-        => new(a.Id, a.Key, a.RateBps, a.Unit, a.SourceName, a.SourceUrl, a.AsOf, a.Version, a.Status.ToString().ToLowerInvariant(), a.CreatedBy, a.ApprovedBy);
+        => new(a.Id, a.Key, a.RateBps, a.Unit, a.SourceName, a.SourceUrl, a.AsOf, a.Version, a.Status.ToString().ToLowerInvariant(), a.CreatedBy, a.ApprovedBy, a.RejectedBy, a.DecisionNote);
 }
 
 public interface IAssumptionService
@@ -17,14 +18,18 @@ public interface IAssumptionService
     Task<EconomicAssumption> CreateDraftAsync(Guid actorId, string key, int rateBps, string unit, string sourceName, string sourceUrl, DateTimeOffset asOf, string? ipAddress, CancellationToken ct = default);
     Task<EconomicAssumption> ApproveAsync(Guid id, Guid approverId, string? ipAddress, CancellationToken ct = default);
     Task<EconomicAssumption> RetireAsync(Guid id, Guid actorId, string? ipAddress, CancellationToken ct = default);
+
+    /// <summary>Phase 95: từ chối một bản nháp kèm ghi chú (3–1000 ký tự). Người từ chối khác người soạn.</summary>
+    Task<EconomicAssumption> RejectAsync(Guid id, Guid actorId, string? note, string? ipAddress, CancellationToken ct = default);
     Task<List<EconomicAssumption>> ListAsync(string? key, CancellationToken ct = default);
 }
 
 /// <summary>
 /// Vòng đời một giả định: <c>Draft → Approved → Retired</c>. Chỉ bản Approved mới nhất của một khóa được agent dùng. Mọi thao tác GHI để lại đúng một dòng audit_logs
-/// (khóa, phiên bản, tỉ lệ — không có bí mật nào). Quy tắc "người nhập khác người duyệt" thuộc phân quyền vai trò (Task 19), không nằm ở đây.
+/// (khóa, phiên bản, tỉ lệ — không có bí mật nào). Phase 95: người duyệt / từ chối phải khác người soạn (trừ job CPI, tài khoản hệ thống) và có quyền
+/// <c>ApproveAgentContent</c> đọc từ DB; bản nháp có thể bị từ chối kèm ghi chú.
 /// </summary>
-public sealed partial class AssumptionService(IEconomicAssumptionRepository repository, IAuditLogService audit) : IAssumptionService
+public sealed partial class AssumptionService(IEconomicAssumptionRepository repository, IAuditLogService audit, IOpsAccessService? access = null) : IAssumptionService
 {
     [GeneratedRegex("^[a-z][a-z0-9_]{2,47}$")]
     private static partial Regex KeyPattern();
@@ -71,11 +76,7 @@ public sealed partial class AssumptionService(IEconomicAssumptionRepository repo
 
     public async Task<EconomicAssumption> ApproveAsync(Guid id, Guid approverId, string? ipAddress, CancellationToken ct = default)
     {
-        var assumption = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("EconomicAssumption", id);
-        if (assumption.Status != AssumptionStatus.Draft)
-        {
-            throw new ConflictException("assumption_not_draft", "Chỉ duyệt được bản nháp.");
-        }
+        var assumption = await RequireDecidableAsync(id, approverId, ct);
 
         RequireSource(assumption.SourceName, assumption.SourceUrl); // phòng bản ghi nháp bị sửa ngoài luồng: không nguồn thì không bao giờ được duyệt
 
@@ -97,8 +98,9 @@ public sealed partial class AssumptionService(IEconomicAssumptionRepository repo
 
     public async Task<EconomicAssumption> RetireAsync(Guid id, Guid actorId, string? ipAddress, CancellationToken ct = default)
     {
+        await RequireApproverAsync(actorId, ct);
         var assumption = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("EconomicAssumption", id);
-        if (assumption.Status == AssumptionStatus.Retired)
+        if (assumption.Status is AssumptionStatus.Retired or AssumptionStatus.Rejected)
         {
             throw new ConflictException("assumption_already_retired", "Giả định này đã được gỡ.");
         }
@@ -120,4 +122,62 @@ public sealed partial class AssumptionService(IEconomicAssumptionRepository repo
             throw new BusinessRuleException("assumption_source_required", "Giả định phải có tên nguồn và đường dẫn http(s) tới nguồn.");
         }
     }
+
+    public async Task<EconomicAssumption> RejectAsync(Guid id, Guid actorId, string? note, string? ipAddress, CancellationToken ct = default)
+    {
+        var clean = note?.Trim();
+        if (string.IsNullOrEmpty(clean) || clean.Length < MinNoteLength || clean.Length > MaxNoteLength)
+        {
+            throw new BusinessRuleException(AssumptionErrorCodes.NoteRequired, $"Cần ghi chú từ chối {MinNoteLength}–{MaxNoteLength} ký tự.");
+        }
+
+        var assumption = await RequireDecidableAsync(id, actorId, ct);
+        assumption.Status = AssumptionStatus.Rejected;
+        assumption.RejectedBy = actorId;
+        assumption.RejectedAt = DateTimeOffset.UtcNow;
+        assumption.DecisionNote = clean;
+        await repository.SaveChangesAsync(ct);
+
+        // Không ghi ghi chú vào audit (văn bản tự do); nó nằm ở chính dòng giả định.
+        await audit.LogAsync(AuditEvents.AdminAssumptionRejected, actorId, ipAddress, new { assumption.Key, assumption.Version }, ct);
+        return assumption;
+    }
+
+    private const int MinNoteLength = 3;
+    private const int MaxNoteLength = 1000;
+
+    /// <summary>Bản nháp, người quyết có quyền (đọc DB) và không phải người soạn — trừ job CPI: tài khoản hệ thống tự duyệt có chủ ý khi lệch nhỏ (Phase 73, D14).</summary>
+    private async Task<EconomicAssumption> RequireDecidableAsync(Guid id, Guid actorId, CancellationToken ct)
+    {
+        await RequireApproverAsync(actorId, ct);
+        var assumption = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("EconomicAssumption", id);
+        if (assumption.Status != AssumptionStatus.Draft)
+        {
+            throw new ConflictException("assumption_not_draft", "Chỉ duyệt hoặc từ chối được bản nháp.");
+        }
+
+        if (assumption.CreatedBy == actorId && actorId != SystemActor)
+        {
+            throw new ForbiddenException(AssumptionErrorCodes.OwnDraft, "Bạn không thể tự duyệt hay từ chối giả định do chính mình soạn.");
+        }
+
+        return assumption;
+    }
+
+    /// <summary>Quyền duyệt đọc lại từ DB (D15): policy theo vai trò trong JWT vẫn còn ở controller, nhưng một người vừa bị gỡ quyền phải mất quyền ngay.</summary>
+    private async Task RequireApproverAsync(Guid actorId, CancellationToken ct)
+    {
+        if (access is not null && actorId != SystemActor)
+        {
+            await access.RequireAsync(actorId, OpsCapability.ApproveAgentContent, ct);
+        }
+    }
+
+    private static readonly Guid SystemActor = Admin.Commands.AiCategorySyncService.SystemActorId;
+}
+
+public static class AssumptionErrorCodes
+{
+    public const string OwnDraft = "ASSUMPTION_OWN_DRAFT";
+    public const string NoteRequired = "ASSUMPTION_NOTE_REQUIRED";
 }
