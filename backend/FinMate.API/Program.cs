@@ -640,6 +640,7 @@ public class Program
         builder.Services.AddScoped<IAssistantSuggestionService, AssistantSuggestionService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
         builder.Services.AddScoped<IRecurringInstallmentService, RecurringInstallmentService>();   // Phase 92
+        builder.Services.AddScoped<IRecurringPaymentSync, RecurringPaymentSync>();   // Phase 92 (BR-INS-03)
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
         builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
         builder.Services.AddScoped<IForecastAlertDispatcher, ForecastAlertDispatcher>();

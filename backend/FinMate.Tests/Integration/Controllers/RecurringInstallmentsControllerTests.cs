@@ -315,4 +315,72 @@ public class RecurringInstallmentsControllerTests : IClassFixture<AuthApiFactory
         await ShouldFailAsync(await SendRawAsync(HttpMethod.Post, $"/api/v1/recurring-items/from-transaction/{await TransactionAsync(token, wallet, merchant: "Gym")}", token,
             new { cadence = "Weekly", anchorDay = 3 }), HttpStatusCode.BadRequest);
     }
+
+    // ---- Task 8: liên kết đi theo giao dịch (BR-INS-03) ----
+
+    private async Task<(ItemData Item, Guid Transaction, PaymentResult Paid)> LinkedLastInstallmentAsync(string token)
+    {
+        var wallet = await WalletAsync(token);
+        var item = await InstallmentAsync(token, total: 12, prepaid: 11, due: Today.AddDays(10));
+        var tx = await TransactionAsync(token, wallet, merchant: "Chuyển tiền trả góp");
+        var paid = await SendAsync<PaymentResult>(HttpMethod.Post, $"/api/v1/recurring-items/{item.Id}/payments", token, new { transactionId = tx }, HttpStatusCode.Created);
+        paid.Item.Status.Should().Be("completed");
+        return (item, tx, paid);
+    }
+
+    private async Task<ItemData> ItemAsync(string token, Guid id)
+        => (await SendAsync<List<ItemData>>(HttpMethod.Get, "/api/v1/recurring-items?status=Active", token))
+            .Concat(await SendAsync<List<ItemData>>(HttpMethod.Get, "/api/v1/recurring-items?status=Completed", token))
+            .Single(i => i.Id == id);
+
+    [Fact]
+    public async Task ScenarioE_DeletingTheLastPayment_ReopensWithOneInstallmentLeft()
+    {
+        var token = await NewUserTokenAsync();
+        var (item, tx, _) = await LinkedLastInstallmentAsync(token);
+
+        (await SendRawAsync(HttpMethod.Delete, $"/api/v1/transactions/{tx}", token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var reopened = await ItemAsync(token, item.Id);
+        reopened.Status.Should().Be("active");
+        reopened.PaidOccurrences.Should().Be(11);
+        reopened.RemainingOccurrences.Should().Be(1);
+        reopened.NextDueDate.Should().Be(item.NextDueDate);
+        (await SendAsync<List<PaymentData>>(HttpMethod.Get, $"/api/v1/recurring-items/{item.Id}/payments", token)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ChangingTheDirection_DropsThePayment_ButEditingTheAmountKeepsIt()
+    {
+        var token = await NewUserTokenAsync();
+        var (item, tx, _) = await LinkedLastInstallmentAsync(token);
+        var original = await SendAsync<JsonElement>(HttpMethod.Get, $"/api/v1/transactions/{tx}", token);
+        object Update(long amount, string type) => new
+        {
+            financialAccountId = original.GetProperty("financialAccountId").GetGuid(), amountCents = amount, transactionType = type,
+            transactedAt = original.GetProperty("transactedAt").GetDateTimeOffset(), merchantName = "Chuyển tiền trả góp",
+        };
+
+        await SendAsync<JsonElement>(HttpMethod.Patch, $"/api/v1/transactions/{tx}", token, Update(1_250_000, "Debit"));
+        (await ItemAsync(token, item.Id)).Status.Should().Be("completed", "D11: sửa số tiền giữ liên kết");
+
+        await SendAsync<JsonElement>(HttpMethod.Patch, $"/api/v1/transactions/{tx}", token, Update(1_250_000, "Credit"));
+        var reopened = await ItemAsync(token, item.Id);
+        reopened.Status.Should().Be("active");
+        reopened.PaidOccurrences.Should().Be(11);
+    }
+
+    [Fact]
+    public async Task ReversingThePayment_DropsIt()
+    {
+        var token = await NewUserTokenAsync();
+        var (item, tx, _) = await LinkedLastInstallmentAsync(token);
+
+        var reversal = await SendRawAsync(HttpMethod.Post, $"/api/v1/transactions/{tx}/refunds", token, new { relation = "Reversal" });
+        reversal.StatusCode.Should().BeOneOf([HttpStatusCode.Created, HttpStatusCode.OK], await reversal.Content.ReadAsStringAsync());
+
+        var reopened = await ItemAsync(token, item.Id);
+        reopened.Status.Should().Be("active");
+        reopened.PaidOccurrences.Should().Be(11);
+    }
 }

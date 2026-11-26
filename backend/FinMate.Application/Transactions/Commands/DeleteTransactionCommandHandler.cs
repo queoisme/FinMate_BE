@@ -19,6 +19,7 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
     private readonly IDailySummaryRefresher? _summaries;
     private readonly Groups.Funds.IGroupFundLinkSync? _fundSync;
     private readonly Loans.ILoanLinkSync? _loanSync;
+    private readonly Forecasting.IRecurringPaymentSync? _recurringPayments;
 
     public DeleteTransactionCommandHandler(
         ITransactionRepository transactionRepository,
@@ -31,8 +32,10 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         IBudgetAlertNotifier? budgetAlerts = null,
         IDailySummaryRefresher? summaries = null,
         Groups.Funds.IGroupFundLinkSync? fundSync = null,
-        Loans.ILoanLinkSync? loanSync = null)
+        Loans.ILoanLinkSync? loanSync = null,
+        Forecasting.IRecurringPaymentSync? recurringPayments = null)
     {
+        _recurringPayments = recurringPayments;
         _fundSync = fundSync;
         _loanSync = loanSync;
         _groupLedger = groupLedger;
@@ -59,6 +62,12 @@ public class DeleteTransactionCommandHandler : IDeleteTransactionCommandHandler
         if (_loanSync is not null)
         {
             await _loanSync.OnDeletingAsync(command.UserId, transaction, now, ct);
+        }
+
+        // Phase 92 (BR-INS-03): kỳ đã trả gắn giao dịch này mất theo, khoản định kỳ lùi một kỳ và mở lại nếu thiếu kỳ — cùng lượt lưu.
+        if (_recurringPayments is not null)
+        {
+            await _recurringPayments.OnTransactionRemovedAsync(command.UserId, transaction.Id, now, ct);
         }
 
         // Phase 81 (BR-RF-11, D18): khoản gốc còn khoản hoàn/đảo ĐÃ XÁC NHẬN thì không xoá được; nháp đang trỏ tới nó chỉ mất liên kết.

@@ -35,6 +35,7 @@ public interface IMergeTransactionsCommandHandler
 public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
 {
     private readonly IRecurringTrackingTrigger? _recurringTracking;
+    private readonly Forecasting.IRecurringPaymentSync? _recurringPayments;
     private readonly ITransactionRepository _transactions;
     private readonly IFinancialAccountRepository _accounts;
     private readonly ICategoryRepository _categories;
@@ -70,8 +71,10 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         IMergeSnapshotRepository? snapshots = null,
         ISystemConfigProvider? config = null,
         Loans.ILoanLinkSync? loanSync = null,
-        IRecurringTrackingTrigger? recurringTracking = null)
+        IRecurringTrackingTrigger? recurringTracking = null,
+        Forecasting.IRecurringPaymentSync? recurringPayments = null)
     {
+        _recurringPayments = recurringPayments;
         _recurringTracking = recurringTracking;
         _loanSync = loanSync;
         _snapshots = snapshots;
@@ -165,6 +168,11 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
                 await _loanSync.EnsureNotLinkedAsync(command.UserId, [loser.Id], ct);   // Phase 90 (D7): khoản vay không gộp vào chuyển ví
             }
 
+            if (_recurringPayments is not null)
+            {
+                await _recurringPayments.OnMergedAsync(command.UserId, loser, survivor, DateTimeOffset.UtcNow, ct);   // Phase 92: chuyển ví không là lần trả
+            }
+
             var (transferQr, otherQr) = ReferenceEquals(survivor, a) ? (qrA, qrB) : (qrB, qrA);
             return await MergeIntoTransferAsync(command.UserId, survivor, loser, otherQr, transferQr, ct);
         }
@@ -182,6 +190,10 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
 
         // Phase 90 (D7, Q14): liên kết khoản vay ở lại trên bên thắng. TRƯỚC khi chuyển số dư: dòng đã tách lãi đổi số tiền của bên thắng về phần gốc.
         var keepsLoan = _loanSync is not null && await _loanSync.MergeAsync(command.UserId, loser, survivor, now, ct);
+        if (_recurringPayments is not null)
+        {
+            await _recurringPayments.OnMergedAsync(command.UserId, loser, survivor, now, ct);   // Phase 92 (BR-INS-03): kỳ đã trả sang bản giữ lại
+        }
         await MoveMoneyAsync(command.UserId, survivor, loser, fields.AccountId, now, ct);
         var moved = await ApplyFieldsAsync(survivor, loser, fields, chosen, now, ct);
         if (keepsLoan)
