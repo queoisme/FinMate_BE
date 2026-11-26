@@ -234,4 +234,84 @@ public class RecurringTrackerTests
         RecurringTracker.Advance(item, [Debit(Today, 260_000, "Netflix")], Rules, DateTimeOffset.UtcNow).Should().BeFalse();
         item.NextDueDate.Should().Be(Today);
     }
+
+    // ---- Phase 92: liên kết thanh toán (BR-INS-03) ----
+
+    private static RecurringItem Installment(DateOnly due, int total = 12, int prepaid = 9)
+    {
+        var item = Entity(RecurringStatus.Active, due, source: RecurringSource.Manual);
+        item.Name = "FE Credit";
+        item.CounterpartyKey = "fe credit";
+        item.AmountCents = 1_200_000;
+        item.AnchorDay = due.Day;
+        item.TotalOccurrences = total;
+        item.PrepaidOccurrences = prepaid;
+        return item;
+    }
+
+    [Fact]
+    public void EachMatch_IsReportedWithItsDueDateAndTransaction_AndCounted()
+    {
+        var item = Installment(new DateOnly(2026, 10, 15));
+        var october = Debit(new DateOnly(2026, 10, 15), 1_200_000, "FE Credit");
+        var matches = new List<RecurringMatch>();
+
+        RecurringTracker.Advance(item, [october], Rules, DateTimeOffset.UtcNow, [], matches);
+
+        matches.Should().Equal(new RecurringMatch(item.Id, new DateOnly(2026, 10, 15), october.Id));
+        item.PaidOccurrences.Should().Be(10);
+        item.NextDueDate.Should().Be(new DateOnly(2026, 11, 15));
+    }
+
+    [Fact]
+    public void ScenarioG_TwoSamePaymentsInOnePeriod_OnlyOneIsMatched()
+    {
+        var item = Installment(new DateOnly(2026, 10, 15));
+        var first = Debit(new DateOnly(2026, 10, 14), 1_200_000, "FE Credit");
+        var second = Debit(new DateOnly(2026, 10, 15), 1_200_000, "FE Credit");
+        var matches = new List<RecurringMatch>();
+
+        RecurringTracker.Advance(item, [first, second], Rules, DateTimeOffset.UtcNow, [], matches);
+
+        matches.Should().ContainSingle().Which.TransactionId.Should().Be(first.Id);
+        item.PaidOccurrences.Should().Be(10);
+    }
+
+    [Fact]
+    public void AlreadyLinkedTransactions_AreNotMatchedAgain()
+    {
+        var item = Installment(new DateOnly(2026, 10, 15));
+        var october = Debit(new DateOnly(2026, 10, 15), 1_200_000, "FE Credit");
+        var matches = new List<RecurringMatch>();
+
+        RecurringTracker.Advance(item, [october], Rules, DateTimeOffset.UtcNow, [], matches, new HashSet<Guid> { october.Id }).Should().BeFalse();
+
+        matches.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ScenarioB_TheLastThreePayments_StopAtTheTotal()
+    {
+        var item = Installment(new DateOnly(2026, 8, 15));
+        var payments = Enumerable.Range(0, 4).Select(i => Debit(new DateOnly(2026, 8, 15).AddMonths(i), 1_200_000, "FE Credit")).ToList();
+        var matches = new List<RecurringMatch>();
+
+        RecurringTracker.Advance(item, payments, Rules, DateTimeOffset.UtcNow, [], matches);
+
+        matches.Should().HaveCount(3, "kỳ 10, 11, 12 — lần thứ tư không còn kỳ nào để nhận");
+        item.PaidOccurrences.Should().Be(12);
+    }
+
+    [Fact]
+    public void CompletedItems_AreNeitherMatchedNorRepriced()
+    {
+        var item = Installment(new DateOnly(2026, 10, 15));
+        item.Status = RecurringStatus.Completed;
+        var changes = new List<PriceChange>();
+
+        RecurringTracker.Advance(item, [Debit(new DateOnly(2026, 10, 15), 2_000_000, "FE Credit")], Rules, DateTimeOffset.UtcNow, changes).Should().BeFalse();
+
+        changes.Should().BeEmpty();
+        item.AmountCents.Should().Be(1_200_000);
+    }
 }

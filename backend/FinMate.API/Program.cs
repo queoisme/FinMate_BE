@@ -652,6 +652,7 @@ public class Program
         builder.Services.AddScoped<ICategoryForecastService, CategoryForecastService>();
         builder.Services.AddScoped<IGoalForecastService, GoalForecastService>();
         builder.Services.AddScoped<IForecastAlertTrigger, HangfireForecastAlertTrigger>();
+        builder.Services.AddScoped<IRecurringTrackingTrigger, HangfireRecurringTrackingTrigger>();   // Phase 92 (S3)
         builder.Services.AddScoped<ITransferBudgetLimitCommandHandler, TransferBudgetLimitCommandHandler>();
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
@@ -839,6 +840,7 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.Loans.ILoanReminderService, FinMate.Application.Loans.LoanReminderService>();
         builder.Services.AddScoped<FinMate.Application.Forecasting.IForecastAlertGate, FinMate.Application.Loans.LoanReminderGate>();
         builder.Services.AddScoped<RecurringDetectionJob>();
+        builder.Services.AddScoped<RecurringTrackingJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
         builder.Services.AddScoped<ProviderFormatMonitorJob>();

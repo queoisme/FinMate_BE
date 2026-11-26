@@ -6,6 +6,9 @@ namespace FinMate.Application.Forecasting;
 /// <summary>Một lần trả với số tiền lệch quá dung sai so với khoản định kỳ (sơ đồ 5a: "Tạo thông báo thay đổi giá").</summary>
 public sealed record PriceChange(Guid RecurringItemId, string Name, long OldAmountCents, long NewAmountCents, DateOnly PaidOn);
 
+/// <summary>Phase 92 (BR-INS-03): tracker đã nhận giao dịch này là lần trả cho kỳ hạn <paramref name="DueDate"/>; người gọi lưu thành liên kết.</summary>
+public sealed record RecurringMatch(Guid RecurringItemId, DateOnly DueDate, Guid TransactionId);
+
 /// <summary>
 /// Cập nhật một khoản định kỳ theo các giao dịch mới thấy: mỗi lần đến hạn đã có thanh toán khớp thì tăng số lần, ghi lần thấy gần nhất
 /// và đẩy ngày đến hạn sang lần kế tiếp. Khoản đang đề xuất mà đủ số lần lặp thì tự ghi nhận (sơ đồ 5a: "Đủ số lần lặp để chắc chắn?").
@@ -45,23 +48,30 @@ public static class RecurringTracker
         => Advance(item, history, rules, now, []);
 
     /// <param name="priceChanges">Nhận các lần đổi giá phát hiện được.</param>
+    /// <param name="matches">Phase 92: nhận cặp (kỳ hạn, giao dịch) đã khớp, để lưu thành liên kết thanh toán.</param>
+    /// <param name="linkedTransactionIds">Phase 92: giao dịch đã gắn một khoản định kỳ (còn sống) — không khớp lại.</param>
     public static bool Advance(
-        RecurringItem item, IReadOnlyList<ForecastTransaction> history, ForecastRules rules, DateTimeOffset now, ICollection<PriceChange> priceChanges)
+        RecurringItem item, IReadOnlyList<ForecastTransaction> history, ForecastRules rules, DateTimeOffset now, ICollection<PriceChange> priceChanges,
+        ICollection<RecurringMatch>? matches = null, IReadOnlySet<Guid>? linkedTransactionIds = null)
     {
         if (item.Status is not (RecurringStatus.Active or RecurringStatus.Suggested or RecurringStatus.Paused) || item.CounterpartyKey is null)
         {
             return false;
         }
 
+        var candidates = linkedTransactionIds is null ? history : history.Where(t => !linkedTransactionIds.Contains(t.Id)).ToList();
         var changed = false;
-        for (var step = 0; step < MaxCatchUpSteps; step++)
+        for (var step = 0; step < MaxCatchUpSteps && !item.ToView().Exhausted; step++)
         {
-            var payment = RecurringMatcher.FindPayment(item.ToView(), item.NextDueDate, history, rules);
+            // Mỗi vòng xét đúng một kỳ hạn rồi đẩy sang kỳ sau, nên tối đa một giao dịch được nhận cho mỗi kỳ (BR-INS-03).
+            var payment = RecurringMatcher.FindPayment(item.ToView(), item.NextDueDate, candidates, rules);
             if (payment is null || (item.LastSeenAt is { } seen && payment.TransactedAt <= seen))
             {
                 break;
             }
 
+            matches?.Add(new RecurringMatch(item.Id, item.NextDueDate, payment.Id));
+            item.LivePaymentCount++;
             item.Occurrences++;
             item.LastSeenAt = payment.TransactedAt;
             item.LastSeenAmountCents = payment.AmountCents;

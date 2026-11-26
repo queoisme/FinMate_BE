@@ -34,6 +34,7 @@ public interface IMergeTransactionsCommandHandler
 /// </summary>
 public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
 {
+    private readonly IRecurringTrackingTrigger? _recurringTracking;
     private readonly ITransactionRepository _transactions;
     private readonly IFinancialAccountRepository _accounts;
     private readonly ICategoryRepository _categories;
@@ -68,8 +69,10 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
         IForecastAlertTrigger? forecastAlerts = null,
         IMergeSnapshotRepository? snapshots = null,
         ISystemConfigProvider? config = null,
-        Loans.ILoanLinkSync? loanSync = null)
+        Loans.ILoanLinkSync? loanSync = null,
+        IRecurringTrackingTrigger? recurringTracking = null)
     {
+        _recurringTracking = recurringTracking;
         _loanSync = loanSync;
         _snapshots = snapshots;
         _config = config;
@@ -97,6 +100,11 @@ public class MergeTransactionsCommandHandler : IMergeTransactionsCommandHandler
             command.UserId, [command.TransactionId, command.WithTransactionId], rows => MergeLockedAsync(command, rows, ct), ct);
 
         await _afterSave.RunAsync(command.UserId, outcome.Effects, ct);
+        if (_recurringTracking is not null && outcome.Survivor.Status == TransactionStatus.Confirmed)
+        {
+            await _recurringTracking.TransactionConfirmedAsync(command.UserId, outcome.Survivor.TransactionType, ct);
+        }
+
         if (outcome.Feedback is { } feedback)
         {
             // IAIServiceClient tự nuốt lỗi: phản hồi không được làm hỏng một lượt gộp đã lưu.

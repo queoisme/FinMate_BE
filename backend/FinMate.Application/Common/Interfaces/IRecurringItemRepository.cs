@@ -24,6 +24,18 @@ public interface IRecurringItemRepository
     /// Số liên kết thanh toán còn sống của từng khoản (Phase 92, BR-INS-03). Các hàm đọc khoản ở trên đã tự điền <see cref="RecurringItem.LivePaymentCount"/>.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, int>> CountLivePaymentsAsync(Guid userId, IReadOnlyCollection<Guid> itemIds, CancellationToken ct = default);
+
+    /// <summary>Giao dịch đang gắn một khoản định kỳ (liên kết còn sống) của user — tracker không khớp lại chúng.</summary>
+    Task<IReadOnlySet<Guid>> LinkedTransactionIdsAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Theo dõi một liên kết mới; lưu cùng <see cref="SaveChangesAsync"/>.</summary>
+    void AddPayment(RecurringItemPayment payment);
+
+    /// <summary>
+    /// Chạy <paramref name="work"/> trong một DB transaction giữ khoá tư vấn theo user (Phase 92, S3): job đêm, job theo user và thao tác tay
+    /// trên kỳ đã trả xếp hàng, không cùng ghi liên kết. Đang ở trong một transaction khác thì dùng luôn nó.
+    /// </summary>
+    Task<T> RunWithUserLockedAsync<T>(Guid userId, Func<Task<T>> work, CancellationToken ct = default);
     Task AddAsync(RecurringItem item, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<RecurringItem> items, CancellationToken ct = default);
     Task UpdateAsync(RecurringItem item, CancellationToken ct = default);

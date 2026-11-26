@@ -51,6 +51,33 @@ public class RecurringItemRepository : IRecurringItemRepository
             .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
     }
 
+    public async Task<IReadOnlySet<Guid>> LinkedTransactionIdsAsync(Guid userId, CancellationToken ct = default)
+        => (await _context.RecurringItemPayments
+                .Where(p => p.UserId == userId && p.TransactionId != null)
+                .Select(p => p.TransactionId!.Value)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+    public void AddPayment(RecurringItemPayment payment) => _context.RecurringItemPayments.Add(payment);
+
+    public async Task<T> RunWithUserLockedAsync<T>(Guid userId, Func<Task<T>> work, CancellationToken ct = default)
+    {
+        var owns = _context.Database.CurrentTransaction is null;
+        await using var transaction = owns ? await _context.Database.BeginTransactionAsync(ct) : null;
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({LockPrefix + userId.ToString()}, 0))", ct);
+        var result = await work();
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+
+        return result;
+    }
+
+    // Tiền tố riêng để không trùng khoá tư vấn theo user của gói đăng ký (cùng hàm băm trên user id).
+    private const string LockPrefix = "recurring:";
+
     private async Task<RecurringItem?> WithPaidAsync(RecurringItem? item, Guid userId, CancellationToken ct)
     {
         if (item is not null)

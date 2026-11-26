@@ -19,6 +19,9 @@ public static class CacheKeys
 
     public static readonly TimeSpan ForecastBaselineTtl = TimeSpan.FromHours(24);
 
+    /// <summary>Phase 92 (S3): đã xếp hàng một lượt tracker khoản định kỳ cho user, chưa chạy.</summary>
+    public static string RecurringTrackingQueued(Guid userId) => $"user:{userId}:recurring_tracking_queued";
+
     /// <summary>Đã hỏi chia sẻ lên cộng đồng trong ngày.</summary>
     public static string CommunityPromptDay(Guid userId, DateOnly date) => $"user:{userId}:community_prompt:{date:yyyy-MM-dd}";
 
