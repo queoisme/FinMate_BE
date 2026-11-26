@@ -124,6 +124,12 @@ public static class AuditEvents
     public const string OpsTicketsLinked = "Ops.Ticket.Linked";
     public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
     /// <summary>Phase 95: bản nháp tham số dự báo (forecast + limits). Chỉ ghi id, phiên bản và tên trường đã đổi; giá trị và ghi chú nằm ở chính dòng bản nháp.</summary>
+    /// <summary>Phase 95 (B′): Staff duy trì danh mục, thương hiệu, từ khoá qua <c>/ops/catalog</c>. Tiền tố <c>Ops.</c> để Manager đọc được ở <c>/ops/audit-logs</c> (D13).</summary>
+    public const string OpsCatalogCategoryCreated = "Ops.Catalog.CategoryCreated";
+    public const string OpsCatalogCategoryUpdated = "Ops.Catalog.CategoryUpdated";
+    public const string OpsCatalogCategoryActivationChanged = "Ops.Catalog.CategoryActivationChanged";
+    public const string OpsCatalogAiRuleChanged = "Ops.Catalog.AiRuleChanged";
+
     public const string OpsForecastConfigDraftCreated = "Ops.ForecastConfig.DraftCreated";
     public const string OpsForecastConfigDraftUpdated = "Ops.ForecastConfig.DraftUpdated";
     public const string OpsForecastConfigSubmitted = "Ops.ForecastConfig.Submitted";

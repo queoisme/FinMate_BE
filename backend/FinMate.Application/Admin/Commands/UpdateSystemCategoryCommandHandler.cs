@@ -61,7 +61,7 @@ public class UpdateSystemCategoryCommandHandler : IUpdateSystemCategoryCommandHa
         await _categoryRepository.UpdateAsync(category, ct);
 
         await _auditLogService.LogAsync(
-            AuditEvents.AdminCategoryUpdated,
+            command.Channel == AuditChannel.Ops ? AuditEvents.OpsCatalogCategoryUpdated : AuditEvents.AdminCategoryUpdated,
             command.AdminId,
             command.IpAddress,
             new { category.Id, category.Slug, category.Name, category.IconName },
