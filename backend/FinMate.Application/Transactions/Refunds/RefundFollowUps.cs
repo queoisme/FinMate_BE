@@ -77,7 +77,7 @@ public sealed class RefundFollowUps : IRefundFollowUps
 
         foreach (var item in advancedByThis)
         {
-            item.NextDueDate = RecurringSchedule.Previous(item.NextDueDate, item.Cadence, RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate));
+            item.NextDueDate = RecurringSchedule.Previous(item.NextDueDate, item.Cadence, RecurringSchedule.DayOf(item));
             item.Occurrences = Math.Max(0, item.Occurrences - 1);
             item.LastSeenAt = previous?.TransactedAt;
             item.LastSeenAmountCents = previous?.AmountCents;

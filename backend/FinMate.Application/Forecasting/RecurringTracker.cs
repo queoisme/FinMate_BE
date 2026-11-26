@@ -85,7 +85,7 @@ public static class RecurringTracker
                 }
             }
 
-            item.NextDueDate = RecurringSchedule.Next(item.NextDueDate, item.Cadence, RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate));
+            item.NextDueDate = RecurringSchedule.Next(item.NextDueDate, item.Cadence, RecurringSchedule.DayOf(item));
             changed = true;
         }
 

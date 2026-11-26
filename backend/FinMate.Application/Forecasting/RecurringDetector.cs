@@ -16,7 +16,8 @@ public sealed record DetectedRecurring(
     int Occurrences,
     RecurringStatus Status,
     DateTimeOffset LastSeenAt,
-    long LastSeenAmountCents);
+    long LastSeenAmountCents,
+    int? AnchorDay = null);
 
 /// <summary>
 /// Tìm khoản thu/chi lặp lại đều đặn: cùng người nhận, cùng chiều, số tiền lệch trong dung sai, cách nhau đúng chu kỳ tuần hoặc tháng.
@@ -86,7 +87,8 @@ public static class RecurringDetector
         var status = ordered.Count >= rules.AutoActivateOccurrences ? RecurringStatus.Active : RecurringStatus.Suggested;
         return new DetectedRecurring(
             direction, DisplayName(last, key), key, last.CategoryId, last.AccountId, median, cadence.Value, nextDue,
-            ordered.Count, status, last.TransactedAt, last.AmountCents);
+            ordered.Count, status, last.TransactedAt, last.AmountCents,
+            cadence == RecurringCadence.Monthly ? last.Date.Day : null);   // Phase 92: ngày gốc là ngày của lần trả gần nhất
     }
 
     private static RecurringCadence? CadenceOf(IReadOnlyList<ForecastTransaction> ordered, ForecastRules rules)

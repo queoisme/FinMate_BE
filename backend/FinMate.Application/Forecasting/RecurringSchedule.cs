@@ -1,3 +1,4 @@
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Forecasting;
@@ -11,6 +12,18 @@ public static class RecurringSchedule
     private const int WeeklyEarlyDays = 3;
     private const int MonthlyEarlyDays = 14;
     private const int YearlyEarlyDays = 60;
+
+    /// <summary>
+    /// Ngày gốc dùng cho <see cref="Next"/>/<see cref="Previous"/> của một khoản (Phase 92, BR-INS-05): chu kỳ tháng theo <c>anchor_day</c>;
+    /// khoản tháng chưa có anchor (chỉ còn ở dữ liệu dựng tay, vì migration điền mọi khoản tháng) và chu kỳ năm giữ cách suy cũ từ ngày đến hạn;
+    /// chu kỳ tuần không cần.
+    /// </summary>
+    public static int? DayOf(RecurringItem item) => item.Cadence switch
+    {
+        RecurringCadence.Monthly => item.AnchorDay ?? RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate),
+        RecurringCadence.Yearly => RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate),
+        _ => null,
+    };
 
     /// <summary>
     /// Lần đến hạn sau <paramref name="due"/>. Với chu kỳ tháng/năm, <paramref name="preferredDay"/> giữ ngày gốc để khoản đến hạn ngày 31

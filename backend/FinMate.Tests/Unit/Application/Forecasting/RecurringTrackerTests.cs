@@ -36,14 +36,27 @@ public class RecurringTrackerTests
         item.AmountCents.Should().Be(270_000, "khoản tự phát hiện theo số tiền thật mới nhất");
     }
 
+    // Phase 92 (D20): sửa kỳ vọng — "cuối tháng" giờ phải nói rõ bằng anchor_day = 31; trước đây nó được đoán từ ngày đến hạn 28/02.
     [Fact]
     public void EndOfMonthBill_ReturnsToTheLastDayAfterAShortMonth()
     {
         var item = Entity(RecurringStatus.Active, new DateOnly(2027, 2, 28));
+        item.AnchorDay = 31;
 
         RecurringTracker.Advance(item, [Debit(new DateOnly(2027, 2, 27), 260_000, "Netflix")], Rules, DateTimeOffset.UtcNow);
 
         item.NextDueDate.Should().Be(new DateOnly(2027, 3, 31));
+    }
+
+    [Fact]
+    public void BillOnThe28th_StaysOnThe28thAfterFebruary()
+    {
+        var item = Entity(RecurringStatus.Active, new DateOnly(2027, 2, 28));
+        item.AnchorDay = 28;
+
+        RecurringTracker.Advance(item, [Debit(new DateOnly(2027, 2, 27), 260_000, "Netflix")], Rules, DateTimeOffset.UtcNow);
+
+        item.NextDueDate.Should().Be(new DateOnly(2027, 3, 28), "lỗi §13.1: không còn nhảy sang 31/3");
     }
 
     private static RecurringItem Rent(long amount = 5_000_000)

@@ -123,6 +123,7 @@ public class RecurringDetectionService : IRecurringDetectionService
         AmountCents = d.AmountCents,
         Cadence = d.Cadence,
         NextDueDate = d.NextDueDate,
+        AnchorDay = d.AnchorDay,
         Status = d.Status,
         Source = RecurringSource.Detected,
         Occurrences = d.Occurrences,

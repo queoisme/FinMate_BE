@@ -14,7 +14,7 @@ internal static class RecurringItemMapping
         item.AmountCents,
         item.Cadence,
         item.NextDueDate,
-        PreferredDay(item.Cadence, item.NextDueDate));
+        RecurringSchedule.DayOf(item));
 
     /// <summary>
     /// Ngày gốc trong tháng, suy từ ngày đến hạn — KHÔNG từ ngày thanh toán (trả sớm hai ngày không được làm lịch trôi theo).
