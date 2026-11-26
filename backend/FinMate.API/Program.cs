@@ -639,6 +639,7 @@ public class Program
         builder.Services.AddScoped<ITransactionExtrasService, TransactionExtrasService>();
         builder.Services.AddScoped<IAssistantSuggestionService, AssistantSuggestionService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
+        builder.Services.AddScoped<IRecurringInstallmentService, RecurringInstallmentService>();   // Phase 92
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
         builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
         builder.Services.AddScoped<IForecastAlertDispatcher, ForecastAlertDispatcher>();

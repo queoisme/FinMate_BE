@@ -30,4 +30,36 @@ internal static class RecurringItemMapping
     private const int LastDayOfMonth = 31;
 
     public static string Text<T>(T value) where T : struct, Enum => value.ToString().ToLowerInvariant();
+
+    /// <summary>DTO kèm tiến độ kỳ cuối tính ra từ entity (Phase 92, BR-INS-10).</summary>
+    public static RecurringItemDto ToDto(this RecurringItem i, DateOnly today)
+    {
+        var progress = InstallmentProgress.Of(i, today);
+        return new RecurringItemDto(
+            i.Id,
+            Text(i.Direction),
+            i.Name,
+            i.CounterpartyKey,
+            i.CategoryId,
+            i.FinancialAccountId,
+            i.AmountCents,
+            Text(i.Cadence),
+            i.NextDueDate,
+            Text(i.Status),
+            Text(i.Source),
+            i.Occurrences,
+            i.LastSeenAt,
+            i.LastSeenAmountCents,
+            i.CreatedAt,
+            i.TotalOccurrences,
+            i.PrepaidOccurrences,
+            progress.Paid,
+            progress.Remaining,
+            progress.RemainingAmountCents,
+            i.EndDate,
+            i.AnchorDay,
+            progress.FinalDueDate,
+            i.CompletedAt,
+            i.SettledEarly);
+    }
 }

@@ -66,10 +66,13 @@ public static class RecurringCompletion
         }
 
         item.Status = RecurringStatus.Completed;
-        item.CompletedAt = now;
+        item.CompletedAt = ToMicroseconds(now);
         item.UpdatedAt = now;
         return true;
     }
+
+    /// <summary>Postgres giữ tới micro giây: cắt trước khi lưu để lần đọc lại (và lần gọi lại idempotent) trả đúng cùng giá trị.</summary>
+    public static DateTimeOffset ToMicroseconds(DateTimeOffset value) => value.AddTicks(-(value.Ticks % 10));
 
     /// <summary>Có tổng số kỳ: đã trả ≥ tổng. Có ngày kết thúc: kỳ kế tiếp đã qua ngày đó (mọi kỳ đã trả) hoặc hôm nay đã qua ngày đó (D9).</summary>
     public static bool ShouldComplete(RecurringItem item, DateOnly today)

@@ -22,7 +22,23 @@ public sealed record RecurringItemDto(
     int Occurrences,
     DateTimeOffset? LastSeenAt,
     long? LastSeenAmountCents,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    int? TotalOccurrences = null,
+    int PrepaidOccurrences = 0,
+    int PaidOccurrences = 0,
+    int? RemainingOccurrences = null,
+    long? RemainingAmountCents = null,
+    DateOnly? EndDate = null,
+    int? AnchorDay = null,
+    DateOnly? FinalDueDate = null,
+    DateTimeOffset? CompletedAt = null,
+    bool SettledEarly = false);
+
+/// <summary>
+/// Trường kỳ cuối (Phase 92, BR-INS-01). Null = không gửi. Chỉ một trong <paramref name="TotalOccurrences"/> / <paramref name="EndDate"/>.
+/// <paramref name="AnchorDay"/> chỉ cho chu kỳ tháng; không gửi thì lấy ngày của ngày đến hạn.
+/// </summary>
+public sealed record InstallmentFields(int? TotalOccurrences = null, DateOnly? EndDate = null, int? AnchorDay = null, int? PrepaidOccurrences = null);
 
 /// <param name="CounterpartyName">Tên người nhận/người trả như trên giao dịch (vd "Netflix"), để khớp giao dịch thật. Bỏ trống thì khoản không tự khớp được.</param>
 public sealed record CreateRecurringItemCommand(
@@ -34,9 +50,10 @@ public sealed record CreateRecurringItemCommand(
     RecurringCadence Cadence,
     DateOnly NextDueDate,
     Guid? CategoryId,
-    Guid? FinancialAccountId);
+    Guid? FinancialAccountId,
+    InstallmentFields? Installment = null);
 
-/// <summary>Trường null = giữ nguyên.</summary>
+/// <summary>Trường null = giữ nguyên. <paramref name="ClearEnd"/> bỏ kỳ cuối (D17). <paramref name="Status"/> chỉ nhận <c>Active</c> để mở lại khoản đã tất toán (BR-INS-08).</summary>
 public sealed record UpdateRecurringItemCommand(
     Guid UserId,
     Guid Id,
@@ -45,7 +62,10 @@ public sealed record UpdateRecurringItemCommand(
     RecurringCadence? Cadence,
     DateOnly? NextDueDate,
     Guid? CategoryId,
-    Guid? FinancialAccountId);
+    Guid? FinancialAccountId,
+    InstallmentFields? Installment = null,
+    bool ClearEnd = false,
+    RecurringStatus? Status = null);
 
 public interface IRecurringItemService
 {
@@ -53,6 +73,9 @@ public interface IRecurringItemService
     Task<RecurringItemDto> CreateAsync(CreateRecurringItemCommand command, CancellationToken ct = default);
     Task<RecurringItemDto> UpdateAsync(UpdateRecurringItemCommand command, CancellationToken ct = default);
     Task<RecurringItemDto> ConfirmAsync(Guid userId, Guid id, CancellationToken ct = default);
+
+    /// <summary>Xác nhận đề xuất, kèm trường kỳ cuối (Phase 92).</summary>
+    Task<RecurringItemDto> ConfirmAsync(Guid userId, Guid id, InstallmentFields? installment, CancellationToken ct = default);
     Task<RecurringItemDto> RejectAsync(Guid userId, Guid id, CancellationToken ct = default);
     Task<RecurringItemDto> PauseAsync(Guid userId, Guid id, CancellationToken ct = default);
     Task<RecurringItemDto> ResumeAsync(Guid userId, Guid id, CancellationToken ct = default);
@@ -69,6 +92,7 @@ public class RecurringItemService : IRecurringItemService
     private readonly ICacheService _cache;
     private readonly IValidator<CreateRecurringItemCommand> _createValidator;
     private readonly IValidator<UpdateRecurringItemCommand> _updateValidator;
+    private readonly IValidator<InstallmentFields> _installmentValidator = new InstallmentFieldsValidator();
 
     public RecurringItemService(
         IRecurringItemRepository items,
@@ -87,7 +111,10 @@ public class RecurringItemService : IRecurringItemService
     }
 
     public async Task<IReadOnlyList<RecurringItemDto>> ListAsync(Guid userId, RecurringStatus? status, CancellationToken ct = default)
-        => (await _items.ListAsync(userId, status, ct)).OrderBy(i => i.NextDueDate).Select(ToDto).ToList();
+    {
+        var today = VietnamTime.Today();
+        return (await _items.ListAsync(userId, status, ct)).OrderBy(i => i.NextDueDate).Select(i => i.ToDto(today)).ToList();
+    }
 
     public async Task<RecurringItemDto> CreateAsync(CreateRecurringItemCommand command, CancellationToken ct = default)
     {
@@ -115,6 +142,8 @@ public class RecurringItemService : IRecurringItemService
         item.Status = RecurringStatus.Active;
         item.Source = RecurringSource.Manual;
         item.UpdatedAt = now;
+        InstallmentRules.Apply(item, command.Installment, clearEnd: false, nextDueChanged: true);
+        InstallmentRules.EnsureCreatable(item, command.Installment);
 
         if (existing is null)
         {
@@ -126,7 +155,7 @@ public class RecurringItemService : IRecurringItemService
         }
 
         await InvalidateAsync(command.UserId, ct);
-        return ToDto(item);
+        return item.ToDto(VietnamTime.Today());
     }
 
     public async Task<RecurringItemDto> UpdateAsync(UpdateRecurringItemCommand command, CancellationToken ct = default)
@@ -137,15 +166,60 @@ public class RecurringItemService : IRecurringItemService
 
         item.Name = command.Name?.Trim() ?? item.Name;
         item.AmountCents = command.AmountCents ?? item.AmountCents;
+        var cadenceChanged = command.Cadence is { } cadence && cadence != item.Cadence;
         item.Cadence = command.Cadence ?? item.Cadence;
         item.NextDueDate = command.NextDueDate ?? item.NextDueDate;
         item.CategoryId = command.CategoryId ?? item.CategoryId;
         item.FinancialAccountId = command.FinancialAccountId ?? item.FinancialAccountId;
+        InstallmentRules.Apply(item, command.Installment, command.ClearEnd, command.NextDueDate is not null || cadenceChanged);
+        InstallmentRules.EnsureEndAfterNextDue(item, command.Installment);
+        if (command.Status is not null)
+        {
+            Reopen(item);
+        }
+
+        RecurringCompletion.Apply(item, VietnamTime.Today(), DateTimeOffset.UtcNow);   // đổi số kỳ / kỳ cuối có thể hoàn thành hoặc mở lại
         return await SaveAsync(item, ct);
     }
 
+    /// <summary>BR-INS-08: mở lại khoản đã tất toán sớm. Khoản hoàn thành vì trả đủ kỳ hoặc đã qua ngày kết thúc không mở lại bằng tay được.</summary>
+    private static void Reopen(RecurringItem item)
+    {
+        if (item.Status != RecurringStatus.Completed || !item.SettledEarly)
+        {
+            throw new ConflictException(ForecastErrorCodes.RecurringState, "Chỉ mở lại được khoản đã tất toán trước hạn.");
+        }
+
+        item.Status = RecurringStatus.Active;
+        item.SettledEarly = false;
+        item.CompletedAt = null;
+    }
+
     public Task<RecurringItemDto> ConfirmAsync(Guid userId, Guid id, CancellationToken ct = default)
-        => TransitionAsync(userId, id, RecurringStatus.Suggested, RecurringStatus.Active, ct);
+        => ConfirmAsync(userId, id, null, ct);
+
+    public async Task<RecurringItemDto> ConfirmAsync(Guid userId, Guid id, InstallmentFields? installment, CancellationToken ct = default)
+    {
+        if (installment is null)
+        {
+            return await TransitionAsync(userId, id, RecurringStatus.Suggested, RecurringStatus.Active, ct);
+        }
+
+        await _installmentValidator.ValidateAndThrowAsync(installment, ct);
+        var item = await GetOwnedAsync(userId, id, ct);
+        if (item.Status is not (RecurringStatus.Suggested or RecurringStatus.Active))
+        {
+            throw new ConflictException(
+                ForecastErrorCodes.RecurringState,
+                $"Không thể chuyển khoản định kỳ từ '{RecurringItemMapping.Text(item.Status)}' sang '{RecurringItemMapping.Text(RecurringStatus.Active)}'.");
+        }
+
+        item.Status = RecurringStatus.Active;
+        InstallmentRules.Apply(item, installment, clearEnd: false, nextDueChanged: false);
+        InstallmentRules.EnsureEndAfterNextDue(item, installment);
+        RecurringCompletion.Apply(item, VietnamTime.Today(), DateTimeOffset.UtcNow);
+        return await SaveAsync(item, ct);
+    }
 
     public Task<RecurringItemDto> RejectAsync(Guid userId, Guid id, CancellationToken ct = default)
         => TransitionAsync(userId, id, RecurringStatus.Suggested, RecurringStatus.Rejected, ct);
@@ -164,6 +238,13 @@ public class RecurringItemService : IRecurringItemService
             return;
         }
 
+        if (item.Status == RecurringStatus.Completed)
+        {
+            // Huỷ một khoản đã xong không làm nó giữ chỗ trở lại (BR-INS-09 vẫn cho khoản mới cùng người nhận).
+            item.CompletedAt = null;
+            item.SettledEarly = false;
+        }
+
         item.Status = RecurringStatus.Cancelled;
         await SaveAsync(item, ct);
     }
@@ -173,7 +254,7 @@ public class RecurringItemService : IRecurringItemService
         var item = await GetOwnedAsync(userId, id, ct);
         if (item.Status == to)
         {
-            return ToDto(item);
+            return item.ToDto(VietnamTime.Today());
         }
 
         if (item.Status != from)
@@ -192,7 +273,7 @@ public class RecurringItemService : IRecurringItemService
         item.UpdatedAt = DateTimeOffset.UtcNow;
         await _items.UpdateAsync(item, ct);
         await InvalidateAsync(item.UserId, ct);
-        return ToDto(item);
+        return item.ToDto(VietnamTime.Today());
     }
 
     private async Task<RecurringItem> GetOwnedAsync(Guid userId, Guid id, CancellationToken ct)
@@ -218,20 +299,4 @@ public class RecurringItemService : IRecurringItemService
     private Task InvalidateAsync(Guid userId, CancellationToken ct)
         => _cache.RemoveAsync(CacheKeys.ForecastBaseline(userId, VietnamTime.Today()), ct);
 
-    private static RecurringItemDto ToDto(RecurringItem i) => new(
-        i.Id,
-        RecurringItemMapping.Text(i.Direction),
-        i.Name,
-        i.CounterpartyKey,
-        i.CategoryId,
-        i.FinancialAccountId,
-        i.AmountCents,
-        RecurringItemMapping.Text(i.Cadence),
-        i.NextDueDate,
-        RecurringItemMapping.Text(i.Status),
-        RecurringItemMapping.Text(i.Source),
-        i.Occurrences,
-        i.LastSeenAt,
-        i.LastSeenAmountCents,
-        i.CreatedAt);
 }

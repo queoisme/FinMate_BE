@@ -22,7 +22,7 @@ public class RecurringItemRepository : IRecurringItemRepository
         var query = _context.RecurringItems.AsNoTracking().Where(r => r.UserId == userId);
         query = status is { } wanted
             ? query.Where(r => r.Status == wanted)
-            : query.Where(r => r.Status != RecurringStatus.Cancelled && r.Status != RecurringStatus.Rejected);
+            : query.Where(r => r.Status != RecurringStatus.Cancelled && r.Status != RecurringStatus.Rejected && r.Status != RecurringStatus.Completed);
         return await WithPaidAsync(await query.ToListAsync(ct), userId, ct);
     }
 
@@ -59,6 +59,19 @@ public class RecurringItemRepository : IRecurringItemRepository
             .ToHashSet();
 
     public void AddPayment(RecurringItemPayment payment) => _context.RecurringItemPayments.Add(payment);
+
+    public Task<RecurringItemPayment?> GetPaymentAsync(Guid userId, Guid itemId, Guid paymentId, CancellationToken ct = default)
+        => _context.RecurringItemPayments.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == paymentId && p.RecurringItemId == itemId && p.UserId == userId, ct);
+
+    public async Task<IReadOnlyList<RecurringItemPayment>> ListPaymentsAsync(Guid userId, Guid itemId, CancellationToken ct = default)
+        => await _context.RecurringItemPayments.AsNoTracking()
+            .Where(p => p.UserId == userId && p.RecurringItemId == itemId)
+            .OrderByDescending(p => p.DueDate).ThenByDescending(p => p.CreatedAt)
+            .ToListAsync(ct);
+
+    public Task<RecurringItemPayment?> FindLivePaymentByTransactionAsync(Guid userId, Guid transactionId, CancellationToken ct = default)
+        => _context.RecurringItemPayments.FirstOrDefaultAsync(p => p.UserId == userId && p.TransactionId == transactionId, ct);
 
     public async Task<T> RunWithUserLockedAsync<T>(Guid userId, Func<Task<T>> work, CancellationToken ct = default)
     {

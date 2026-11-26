@@ -11,7 +11,7 @@ public interface IRecurringItemRepository
 {
     Task<RecurringItem?> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
 
-    /// <summary>Không truyền trạng thái thì trả mọi khoản trừ đã hủy và đã từ chối.</summary>
+    /// <summary>Không truyền trạng thái thì trả mọi khoản trừ đã hủy, đã từ chối và đã hoàn thành (Phase 92, D16).</summary>
     Task<IReadOnlyList<RecurringItem>> ListAsync(Guid userId, RecurringStatus? status, CancellationToken ct = default);
 
     /// <summary>Mọi khoản (mọi trạng thái), có theo dõi thay đổi — dùng cho job phát hiện và cập nhật.</summary>
@@ -30,6 +30,15 @@ public interface IRecurringItemRepository
 
     /// <summary>Theo dõi một liên kết mới; lưu cùng <see cref="SaveChangesAsync"/>.</summary>
     void AddPayment(RecurringItemPayment payment);
+
+    /// <summary>Một liên kết của khoản này, kể cả đã gỡ (để DELETE gọi lại vẫn 204); có theo dõi thay đổi.</summary>
+    Task<RecurringItemPayment?> GetPaymentAsync(Guid userId, Guid itemId, Guid paymentId, CancellationToken ct = default);
+
+    /// <summary>Các liên kết còn sống của khoản, mới nhất trước.</summary>
+    Task<IReadOnlyList<RecurringItemPayment>> ListPaymentsAsync(Guid userId, Guid itemId, CancellationToken ct = default);
+
+    /// <summary>Liên kết còn sống của giao dịch này (với bất kỳ khoản nào của user); có theo dõi thay đổi.</summary>
+    Task<RecurringItemPayment?> FindLivePaymentByTransactionAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
 
     /// <summary>
     /// Chạy <paramref name="work"/> trong một DB transaction giữ khoá tư vấn theo user (Phase 92, S3): job đêm, job theo user và thao tác tay
