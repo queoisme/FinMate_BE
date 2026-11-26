@@ -145,40 +145,16 @@ public class SystemConfigService : ISystemConfigService
     /// <summary>Đọc lại nội dung đã lưu; trường mà code thêm SAU khi phiên bản được lưu nhận giá trị mặc định.</summary>
     private static SystemConfigDocument Deserialize(string json) => JsonSerializer.Deserialize<SystemConfigDocument>(json, Json) ?? new SystemConfigDocument();
 
+    /// <summary>
+    /// Tên (camelCase, như trong JSON) các nhóm cấp một đã đổi. Duyệt mọi thuộc tính của <see cref="SystemConfigDocument"/> bằng phản chiếu,
+    /// để thêm nhóm mới không bao giờ bị bỏ sót khỏi audit nữa (trước đây danh sách viết tay thiếu notificationPipeline, categories, dataExport, kpi).
+    /// </summary>
     internal static List<string> ChangedSections(SystemConfigDocument before, SystemConfigDocument after)
-    {
-        var sections = new List<string>();
-        void Compare<T>(string name, T a, T b)
-        {
-            if (JsonSerializer.Serialize(a, Json) != JsonSerializer.Serialize(b, Json))
-            {
-                sections.Add(name);
-            }
-        }
+        => SectionProperties
+            .Where(p => JsonSerializer.Serialize(p.GetValue(before), p.PropertyType, Json) != JsonSerializer.Serialize(p.GetValue(after), p.PropertyType, Json))
+            .Select(p => JsonNamingPolicy.CamelCase.ConvertName(p.Name))
+            .ToList();
 
-        Compare("maintenance", before.Maintenance, after.Maintenance);
-        Compare("appVersion", before.AppVersion, after.AppVersion);
-        Compare("features", before.Features, after.Features);
-        Compare("limits", before.Limits, after.Limits);
-        Compare("sync", before.Sync, after.Sync);
-        Compare("theme", before.Theme, after.Theme);
-        Compare("qrTransfer", before.QrTransfer, after.QrTransfer);
-        Compare("financeMethods", before.FinanceMethods, after.FinanceMethods);
-        Compare("forecast", before.Forecast, after.Forecast);
-        Compare("groups", before.Groups, after.Groups);
-        Compare("support", before.Support, after.Support);
-        Compare("monitoring", before.Monitoring, after.Monitoring);
-        Compare("agent", before.Agent, after.Agent);
-        Compare("economicFeeds", before.EconomicFeeds, after.EconomicFeeds);
-        Compare("marketData", before.MarketData, after.MarketData);
-        Compare("community", before.Community, after.Community);
-        Compare("assistant", before.Assistant, after.Assistant);
-        Compare("refunds", before.Refunds, after.Refunds);
-        Compare("duplicates", before.Duplicates, after.Duplicates);
-        Compare("transfers", before.Transfers, after.Transfers);
-        Compare("snapshots", before.Snapshots, after.Snapshots);
-        Compare("listenerHealth", before.ListenerHealth, after.ListenerHealth);
-        Compare("loans", before.Loans, after.Loans);
-        return sections;
-    }
+    private static readonly System.Reflection.PropertyInfo[] SectionProperties =
+        typeof(SystemConfigDocument).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 }
