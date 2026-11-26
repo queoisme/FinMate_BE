@@ -37,6 +37,9 @@ public class OpsPermissionsTests
     [InlineData(UserRole.OpsManager, OpsCapability.ViewMonitoring, true)]
     [InlineData(UserRole.OpsManager, OpsCapability.ManageIncidents, true)]
     [InlineData(UserRole.Admin, OpsCapability.ViewMonitoring, true)]
+    [InlineData(UserRole.Staff, OpsCapability.ViewProductKpi, false)]
+    [InlineData(UserRole.OpsManager, OpsCapability.ViewProductKpi, true)]
+    [InlineData(UserRole.Admin, OpsCapability.ViewProductKpi, true)]
     public void MatrixMatchesTheOperatingModel(UserRole role, OpsCapability capability, bool expected)
         => OpsPermissions.For(role).HasFlag(capability).Should().Be(expected);
 

@@ -33,6 +33,9 @@ public enum OpsCapability
 
     /// <summary>Soạn bản nháp Điều khoản và Chính sách quyền riêng tư, xem lịch sử phiên bản. Xuất bản cần <see cref="ManageSystem"/> (chỉ Admin).</summary>
     ManageLegalDocuments = 1 << 17,
+
+    /// <summary>Xem chỉ số sản phẩm tổng hợp (<c>/ops/kpi/*</c>): đăng ký, giao dịch, thông báo, thuê bao, doanh thu. Không phải <see cref="ViewDashboard"/> (dashboard ticket).</summary>
+    ViewProductKpi = 1 << 18,
 }
 
 public static class OpsPermissions
@@ -57,7 +60,8 @@ public static class OpsPermissions
         | OpsCapability.ManageIncidents
         | OpsCapability.MuteCommunityAuthors
         | OpsCapability.ManageSubscriptionPlans
-        | OpsCapability.ManageLegalDocuments;
+        | OpsCapability.ManageLegalDocuments
+        | OpsCapability.ViewProductKpi;
 
     public static OpsCapability For(UserRole role) => role switch
     {

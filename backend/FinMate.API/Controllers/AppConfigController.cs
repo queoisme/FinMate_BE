@@ -45,7 +45,7 @@ public class AppConfigController : ControllerBase
             return StatusCode(StatusCodes.Status304NotModified);
         }
 
-        return Ok(ApiResponse<PublicAppConfig>.Ok(new PublicAppConfig(snapshot.Version, DateTimeOffset.UtcNow, snapshot.Document with { Monitoring = new MonitoringSettings(), MarketData = new MarketDataSettings(), Community = CommunitySettings.HiddenFromPublic },
+        return Ok(ApiResponse<PublicAppConfig>.Ok(new PublicAppConfig(snapshot.Version, DateTimeOffset.UtcNow, snapshot.Document with { Monitoring = new MonitoringSettings(), MarketData = new MarketDataSettings(), Community = CommunitySettings.HiddenFromPublic, Kpi = new KpiSettings() },
             _exportProtector.Available)));
     }
 }

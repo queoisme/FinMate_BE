@@ -487,7 +487,8 @@ public class AddLegalVersionsMigrationTests : IClassFixture<ReceiptScanDbFixture
         await migrator.MigrateAsync(MigrationBefore);
         await db.Database.ExecuteSqlRawAsync("INSERT INTO role_permissions (role_id, capabilities, updated_at) VALUES (2, 31, now()), (3, 14335, now())");
 
-        await migrator.MigrateAsync();
+        // Dừng đúng ở migration này: các migration sau (ví dụ AddViewProductKpiCapability) cũng cấp bit cho OpsManager.
+        await migrator.MigrateAsync("20261113025605_AddLegalVersions");
 
         async Task<long> CapabilitiesOf(int roleId) => await db.Database
             .SqlQuery<long>($"""SELECT capabilities AS "Value" FROM role_permissions WHERE role_id = {roleId}""").SingleAsync();
