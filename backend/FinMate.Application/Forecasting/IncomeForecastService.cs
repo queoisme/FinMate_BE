@@ -36,11 +36,13 @@ public class IncomeForecastService : IIncomeForecastService
     {
         var (settings, rules, today, items, history) = await LoadAsync(userId, ct);
         var regular = items.Any(i => i.Direction == RecurringDirection.Inflow);
+        var lookback = Math.Max(rules.HistoryWindowDays, (settings.IrregularIncomeMonths + 1) * DaysPerMonthUpperBound);
+        var excluded = regular ? items : RecurringExclusions.With(items, await _items.ListAsync(userId, RecurringStatus.Completed, ct), today, lookback);   // D5
         return new IncomeForecastDto(
             regular,
             IncomeEstimator.Upcoming(items, history, today, today.AddDays(UpcomingDays), rules),
             IncomeEstimator.Late(items, history, today, settings.IncomeLateDays, rules),
-            regular ? null : IncomeEstimator.Irregular(history, items, today, settings.IrregularIncomeMonths, rules));
+            regular ? null : IncomeEstimator.Irregular(history, excluded, today, settings.IrregularIncomeMonths, rules));
     }
 
     private async Task<(Admin.SystemConfig.ForecastSettings Settings, ForecastRules Rules, DateOnly Today, IReadOnlyList<RecurringItemView> Items, IReadOnlyList<ForecastTransaction> History)>

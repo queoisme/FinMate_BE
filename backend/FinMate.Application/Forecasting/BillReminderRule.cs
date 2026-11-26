@@ -9,6 +9,12 @@ public enum BillReminderKind
 
     /// <summary>Quá hạn lâu (hết ân hạn) mà chưa thấy thanh toán: tạm ngừng theo dõi và hỏi user còn dùng không.</summary>
     LongOverdue,
+
+    /// <summary>
+    /// Phase 92 (S1): kỳ trả góp (khoản có tổng số kỳ) đã qua ngày đến hạn mà chưa thấy trả. Chỉ báo quá hạn, không tạm dừng: khoản vẫn phải trả.
+    /// Gửi một lần cho mỗi kỳ hạn (dedup theo ngày đến hạn).
+    /// </summary>
+    Overdue,
 }
 
 public sealed record BillReminder(RecurringItemView Item, DateOnly DueDate, BillReminderKind Kind, int DaysOverdue);
@@ -24,7 +30,7 @@ public static class BillReminderRule
         ForecastRules rules)
     {
         var reminders = new List<BillReminder>();
-        foreach (var item in activeItems.Where(i => i.Direction == RecurringDirection.Outflow))
+        foreach (var item in activeItems.Where(i => i.Direction == RecurringDirection.Outflow && !i.Exhausted))
         {
             var due = item.NextDueDate;
             if (RecurringMatcher.FindPayment(item, due, recent, rules) is not null)
@@ -36,7 +42,11 @@ public static class BillReminderRule
             {
                 reminders.Add(new BillReminder(item, due, BillReminderKind.DueSoon, 0));
             }
-            else if (due < today.AddDays(-rules.OverdueGraceDays))
+            else if (item.CountsOccurrences && due < today)
+            {
+                reminders.Add(new BillReminder(item, due, BillReminderKind.Overdue, today.DayNumber - due.DayNumber));
+            }
+            else if (!item.CountsOccurrences && due < today.AddDays(-rules.OverdueGraceDays))
             {
                 reminders.Add(new BillReminder(item, due, BillReminderKind.LongOverdue, today.DayNumber - due.DayNumber));
             }

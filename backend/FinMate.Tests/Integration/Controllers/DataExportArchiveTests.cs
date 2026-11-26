@@ -27,7 +27,7 @@ public class DataExportArchiveTests : IClassFixture<DataExportApiFactory>
         "README.txt", "account_requests.json", "accounts.json", "agent_memory.json", "anomalies.json", "bank_notifications.json", "budgets.json",
         "categories.json", "category_rules.json", "community.json", "consents.json", "devices.json", "finance_methods.json", "forecasts.json",
         "goals.json", "groups.json", "insights.json", "loans.json", "notification_settings.json", "notifications.json", "profile.json",
-        "qr_transfers.json", "receipts.json", "recurring_items.json", "security_log.json", "subscriptions.json", "support.json",
+        "qr_transfers.json", "receipts.json", "recurring_item_payments.json", "recurring_items.json", "security_log.json", "subscriptions.json", "support.json",
         "transactions.csv", "transactions_deleted.csv",
     ];
 

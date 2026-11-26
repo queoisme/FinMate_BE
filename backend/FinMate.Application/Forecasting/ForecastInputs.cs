@@ -25,6 +25,11 @@ public sealed record ForecastTransaction(
     bool IsLoan = false);
 
 /// <summary>Bản rút gọn của khoản định kỳ mà các bộ tính toán cần (không kéo entity EF vào hàm thuần).</summary>
+/// <param name="RemainingOccurrences">
+/// Phase 92: số kỳ còn phải trả của khoản có <c>total_occurrences</c> (tổng − đã trả, không âm); null = không có kỳ cuối theo số kỳ.
+/// Lần thứ i tính từ <see cref="NextDueDate"/> là kỳ "đã trả + i".
+/// </param>
+/// <param name="EndDate">Phase 92: không chiếu kỳ nào sau ngày này; null = không có.</param>
 public sealed record RecurringItemView(
     Guid Id,
     RecurringDirection Direction,
@@ -34,7 +39,16 @@ public sealed record RecurringItemView(
     long AmountCents,
     RecurringCadence Cadence,
     DateOnly NextDueDate,
-    int? PreferredDay);
+    int? PreferredDay,
+    int? RemainingOccurrences = null,
+    DateOnly? EndDate = null)
+{
+    /// <summary>Không còn kỳ nào để chiếu: đã trả đủ số kỳ, hoặc kỳ kế tiếp đã qua ngày kết thúc.</summary>
+    public bool Exhausted => RemainingOccurrences is <= 0 || (EndDate is { } end && NextDueDate > end);
+
+    /// <summary>S1: khoản trả góp theo tổng số kỳ — kỳ chi quá hạn không tiêu kỳ, không bị tạm dừng.</summary>
+    public bool CountsOccurrences => RemainingOccurrences is not null;
+}
 
 /// <summary>Các ngưỡng mà nhiều bộ tính toán dùng chung, lấy từ cấu hình hệ thống <c>forecast</c>.</summary>
 public sealed record ForecastRules(

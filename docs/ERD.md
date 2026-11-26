@@ -104,6 +104,8 @@ erDiagram
     User ||--o{ QrTransferIntent : "user_id"
     User ||--o{ ReceiptScan : "user_id"
     User ||--o{ RecurringItem : "user_id"
+    RecurringItem ||--o{ RecurringItemPayment : "recurring_item_id"
+    Transaction o|--o{ RecurringItemPayment : "transaction_id"
     User ||--o{ RefreshToken : "user_id"
     User ||--o{ SavingGoal : "user_id"
     User ||--o{ SpendingInsight : "user_id"
@@ -192,7 +194,8 @@ erDiagram
 | **ReceiptScan** | `receipt_scans` | ✓ | Một lần quét hóa đơn: kết quả OCR, cửa hàng, tổng tiền, danh mục đề xuất. Không lưu ảnh. |
 | **ReceiptScanItem** | `receipt_scan_items` |  | Từng món trên hóa đơn (`parent_position` cho món con). |
 | **ReceiptScanLink** | `receipt_scan_links` |  | Nối lần quét với giao dịch đã tạo (khi tách hóa đơn theo nhóm món, một lần quét sinh nhiều giao dịch). |
-| **RecurringItem** | `recurring_items` | ✓ | Khoản định kỳ (hóa đơn, thu nhập) cho dự báo: tự phát hiện hoặc thêm tay; ngày đến hạn kế tiếp, trạng thái. |
+| **RecurringItem** | `recurring_items` | ✓ | Khoản định kỳ (hóa đơn, thu nhập) cho dự báo: tự phát hiện hoặc thêm tay; ngày đến hạn kế tiếp, trạng thái. Phase 92: kỳ cuối (`total_occurrences` **hoặc** `end_date`), `anchor_day`, `prepaid_occurrences`, trạng thái `completed` (không giữ chỗ trong index duy nhất theo người nhận), `settled_early`. |
+| **RecurringItemPayment** | `recurring_item_payments` | ✓ | Phase 92: một kỳ đã trả của khoản định kỳ (tracker khớp, đánh dấu tay, tất toán); `transaction_id` null = trả tiền mặt. Số kỳ đã trả = dòng còn sống + `prepaid_occurrences`, không có bộ đếm riêng. |
 | **RefreshToken** | `refresh_tokens` | ✓ | Refresh token, chỉ lưu SHA-256; xoay vòng (`replaced_by_token_hash`) và thu hồi. |
 | **SavingGoal** | `saving_goals` | ✓ | Mục tiêu tiết kiệm: số tiền cần, đã góp (tính sẵn), hạn chót, trạng thái; có thể tạo từ mẫu / theo phương pháp. |
 | **SecretEntry** | `secret_store` |  | Khóa bên thứ ba mã hóa AES-256-GCM (bản riêng của ai-service). |
@@ -1719,8 +1722,24 @@ erDiagram
         integer occurrences
         timestamptz last_seen_at "nullable"
         bigint last_seen_amount_cents "nullable"
+        integer total_occurrences "nullable, 1–600 (Phase 92)"
+        date end_date "nullable, không cùng total_occurrences"
+        smallint anchor_day "nullable, 1–31, chỉ chu kỳ tháng"
+        integer prepaid_occurrences "mặc định 0"
+        timestamptz completed_at "nullable, có khi và chỉ khi status = completed"
+        boolean settled_early "mặc định false"
         timestamptz created_at
         timestamptz updated_at
+        timestamptz deleted_at "nullable"
+    }
+    recurring_item_payments {
+        uuid id PK
+        uuid user_id FK
+        uuid recurring_item_id FK
+        uuid transaction_id FK "nullable, UK khi còn sống"
+        date due_date "UK (recurring_item_id, due_date) khi còn sống, trừ settlement"
+        varchar(12) kind "matched | manual | settlement"
+        timestamptz created_at
         timestamptz deleted_at "nullable"
     }
     forecast_alerts {
@@ -1760,6 +1779,9 @@ erDiagram
     categories o|--o{ recurring_items : "category_id"
     financial_accounts o|--o{ recurring_items : "financial_account_id"
     users ||--o{ recurring_items : "user_id"
+    recurring_items ||--o{ recurring_item_payments : "recurring_item_id"
+    transactions o|--o{ recurring_item_payments : "transaction_id"
+    users ||--o{ recurring_item_payments : "user_id"
     users ||--o{ forecast_alerts : "user_id"
     transactions ||--o| transaction_anomalies : "transaction_id"
     users ||--o{ transaction_anomalies : "user_id"

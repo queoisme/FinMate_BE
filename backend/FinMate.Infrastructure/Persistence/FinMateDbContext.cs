@@ -27,6 +27,7 @@ public class FinMateDbContext : DbContext
     public DbSet<VietQrBank> VietQrBanks => Set<VietQrBank>();
     public DbSet<QrTransferIntent> QrTransferIntents => Set<QrTransferIntent>();
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
+    public DbSet<RecurringItemPayment> RecurringItemPayments => Set<RecurringItemPayment>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
     public DbSet<TransactionMergeSnapshot> TransactionMergeSnapshots => Set<TransactionMergeSnapshot>();

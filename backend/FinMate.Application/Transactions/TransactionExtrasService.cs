@@ -15,7 +15,9 @@ public interface ITransactionExtrasService
     Task<TransactionDto> AttachGoalAsync(Guid userId, Guid transactionId, Guid goalId, CancellationToken ct = default);
     Task<TransactionDto> DetachGoalAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
     Task<ShareReceiptDto> ShareReceiptAsync(Guid userId, Guid transactionId, CancellationToken ct = default);
-    Task<RecurringItemDto> CreateRecurringAsync(Guid userId, Guid transactionId, RecurringCadence? cadence, CancellationToken ct = default);
+    /// <param name="installment">Phase 92: trường kỳ cuối tuỳ chọn; null thì như cũ.</param>
+    Task<RecurringItemDto> CreateRecurringAsync(
+        Guid userId, Guid transactionId, RecurringCadence? cadence, CancellationToken ct = default, InstallmentFields? installment = null);
 }
 
 /// <summary>Các thao tác nhỏ trên một giao dịch đã có (gắn mục tiêu, chia sẻ biên lai, tạo khoản định kỳ). Mọi truy vấn đi qua userId.</summary>
@@ -73,7 +75,8 @@ public class TransactionExtrasService : ITransactionExtrasService
         return new ShareReceiptDto($"Biên lai {what}", string.Join("\n", lines));
     }
 
-    public async Task<RecurringItemDto> CreateRecurringAsync(Guid userId, Guid transactionId, RecurringCadence? cadence, CancellationToken ct = default)
+    public async Task<RecurringItemDto> CreateRecurringAsync(
+        Guid userId, Guid transactionId, RecurringCadence? cadence, CancellationToken ct = default, InstallmentFields? installment = null)
     {
         var t = await GetAsync(userId, transactionId, ct);
         var name = (t.MerchantName ?? t.Description)?.Trim();
@@ -84,19 +87,25 @@ public class TransactionExtrasService : ITransactionExtrasService
         }
 
         var step = cadence ?? RecurringCadence.Monthly;
-        var due = VietnamTime.DateOf(t.TransactedAt);
+        var paidOn = VietnamTime.DateOf(t.TransactedAt);
+        var due = paidOn;
         var today = VietnamTime.Today();
+        // Phase 92 (BR-INS-05): giữ ngày của giao dịch làm ngày gốc, để giao dịch ngày 31 không trôi thành 28 sau tháng 2.
+        int? day = step == RecurringCadence.Weekly ? null : paidOn.Day;
         do
         {
-            due = step switch { RecurringCadence.Weekly => due.AddDays(7), RecurringCadence.Yearly => due.AddYears(1), _ => due.AddMonths(1) };
+            due = RecurringSchedule.Next(due, step, day);
         }
         while (due <= today);
 
+        var fields = step == RecurringCadence.Monthly && installment?.AnchorDay is null
+            ? (installment ?? new InstallmentFields()) with { AnchorDay = paidOn.Day }
+            : installment;
         return await _recurring.CreateAsync(
             new CreateRecurringItemCommand(
                 userId,
                 t.TransactionType == TransactionType.Credit ? RecurringDirection.Inflow : RecurringDirection.Outflow,
-                name, t.MerchantName, t.AmountCents, step, due, t.CategoryId, t.FinancialAccountId),
+                name, t.MerchantName, t.AmountCents, step, due, t.CategoryId, t.FinancialAccountId, fields),
             ct);
     }
 

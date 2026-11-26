@@ -27,9 +27,12 @@ public sealed class RefundFollowUps : IRefundFollowUps
     private readonly IAnomalyRepository _anomalies;
     private readonly IRecurringItemRepository _recurring;
     private readonly IForecastDataRepository _data;
+    private readonly IRecurringPaymentSync? _recurringPayments;
 
-    public RefundFollowUps(IAnomalyRepository anomalies, IRecurringItemRepository recurring, IForecastDataRepository data)
+    public RefundFollowUps(
+        IAnomalyRepository anomalies, IRecurringItemRepository recurring, IForecastDataRepository data, IRecurringPaymentSync? recurringPayments = null)
     {
+        _recurringPayments = recurringPayments;
         _anomalies = anomalies;
         _recurring = recurring;
         _data = data;
@@ -51,6 +54,13 @@ public sealed class RefundFollowUps : IRefundFollowUps
 
     private async Task RewindRecurringAsync(Guid userId, Transaction original, DateTimeOffset now, CancellationToken ct)
     {
+        // Phase 92: có liên kết kỳ đã trả thì gỡ nó (lùi một kỳ, mở lại nếu thiếu); phép đoán theo last_seen_at chỉ còn cho khoản chưa có liên kết.
+        if (_recurringPayments is not null && await _recurring.FindLivePaymentByTransactionAsync(userId, original.Id, ct) is not null)
+        {
+            await _recurringPayments.OnTransactionRemovedAsync(userId, original.Id, now, ct);
+            return;
+        }
+
         var key = CounterpartyKey.From(original.MerchantName);
         if (key is null)
         {
@@ -77,7 +87,7 @@ public sealed class RefundFollowUps : IRefundFollowUps
 
         foreach (var item in advancedByThis)
         {
-            item.NextDueDate = RecurringSchedule.Previous(item.NextDueDate, item.Cadence, RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate));
+            item.NextDueDate = RecurringSchedule.Previous(item.NextDueDate, item.Cadence, RecurringSchedule.DayOf(item));
             item.Occurrences = Math.Max(0, item.Occurrences - 1);
             item.LastSeenAt = previous?.TransactedAt;
             item.LastSeenAmountCents = previous?.AmountCents;

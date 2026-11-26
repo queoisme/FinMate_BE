@@ -10,6 +10,7 @@ public sealed partial class PersonalDataReader
         new PackageSection("budgets.json", await BudgetsAsync(userId, ct), IsList: true),
         new PackageSection("goals.json", await GoalsAsync(userId, ct), IsList: false),
         new PackageSection("recurring_items.json", await RecurringItemsAsync(userId, ct), IsList: true),
+        new PackageSection("recurring_item_payments.json", await RecurringItemPaymentsAsync(userId, ct), IsList: true),
         new PackageSection("loans.json", await LoansAsync(userId, ct), IsList: true),
         new PackageSection("finance_methods.json", await FinanceMethodsAsync(userId, ct), IsList: false),
         new PackageSection("insights.json", await InsightsAsync(userId, ct), IsList: true),
@@ -61,7 +62,18 @@ public sealed partial class PersonalDataReader
                 id = r.Id, direction = r.Direction, name = r.Name, categoryId = r.CategoryId, financialAccountId = r.FinancialAccountId,
                 amountCents = r.AmountCents, cadence = r.Cadence, nextDueDate = r.NextDueDate, status = r.Status, source = r.Source,
                 occurrences = r.Occurrences, lastSeenAt = r.LastSeenAt, lastSeenAmountCents = r.LastSeenAmountCents,
+                totalOccurrences = r.TotalOccurrences, endDate = r.EndDate, anchorDay = r.AnchorDay, prepaidOccurrences = r.PrepaidOccurrences,
+                completedAt = r.CompletedAt, settledEarly = r.SettledEarly,
                 createdAt = r.CreatedAt, updatedAt = r.UpdatedAt, deletedAt = r.DeletedAt,
+            }).ToListAsync(ct);
+
+    /// <summary>Phase 92 (D15): các kỳ đã trả của khoản định kỳ, kể cả đã gỡ; chỉ id giao dịch, chi tiết giao dịch nằm ở transactions.csv.</summary>
+    private async Task<object> RecurringItemPaymentsAsync(Guid userId, CancellationToken ct)
+        => await db.RecurringItemPayments.IgnoreQueryFilters().AsNoTracking().Where(p => p.UserId == userId).OrderBy(p => p.CreatedAt)
+            .Select(p => new
+            {
+                id = p.Id, recurringItemId = p.RecurringItemId, transactionId = p.TransactionId, dueDate = p.DueDate, kind = p.Kind,
+                createdAt = p.CreatedAt, deletedAt = p.DeletedAt,
             }).ToListAsync(ct);
 
     private async Task<object> LoansAsync(Guid userId, CancellationToken ct)

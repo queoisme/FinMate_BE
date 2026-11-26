@@ -153,6 +153,7 @@ Hạn mức: mỗi user tối đa **một** yêu cầu `Pending`/`Running` (ch�
 | `receipts.json` | hoá đơn đã quét (không ảnh, không chữ OCR thô) |
 | `anomalies.json`, `qr_transfers.json` | |
 | `budgets.json`, `goals.json`, `recurring_items.json`, `loans.json` | kế hoạch của riêng user; khoản góp vào mục tiêu nhóm có, tên mục tiêu nhóm không |
+| `recurring_item_payments.json` | Phase 92: các kỳ đã trả của khoản định kỳ (tự khớp, đánh dấu tay, tất toán), kể cả kỳ đã gỡ; chỉ id giao dịch. `recurring_items.json` có thêm trường kỳ cuối |
 | `finance_methods.json`, `insights.json`, `forecasts.json` | phản hồi dự báo không có nhãn của nhân viên |
 | `groups.json` | nhóm đang/đã tham gia, vai trò; thành viên khác chỉ `{ role, isYou }`; phần của riêng user: chia hoá đơn (hoá đơn người khác trả chỉ còn ngày, phần của mình, danh mục, D10), thanh toán, nhắc nợ, dòng quỹ, lời mời, đề xuất, hoạt động |
 | `support.json` | ticket của mình, tin nhắn khách và nhân viên (không `InternalNote`, không id nhân viên, ảnh chỉ đếm), các lần cho phép xem dữ liệu, nhật ký nhân viên đã xem |

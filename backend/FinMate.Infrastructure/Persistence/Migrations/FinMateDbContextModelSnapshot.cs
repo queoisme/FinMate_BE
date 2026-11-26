@@ -4603,6 +4603,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("amount_cents");
 
+                    b.Property<short?>("AnchorDay")
+                        .HasColumnType("smallint")
+                        .HasColumnName("anchor_day");
+
                     b.Property<string>("Cadence")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -4612,6 +4616,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
 
                     b.Property<string>("CounterpartyKey")
                         .HasMaxLength(120)
@@ -4631,6 +4639,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("direction");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
 
                     b.Property<Guid?>("FinancialAccountId")
                         .HasColumnType("uuid")
@@ -4660,6 +4672,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("occurrences");
 
+                    b.Property<int>("PrepaidOccurrences")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("prepaid_occurrences");
+
+                    b.Property<bool>("SettledEarly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("settled_early");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -4671,6 +4695,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("status");
+
+                    b.Property<int?>("TotalOccurrences")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_occurrences");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -4692,21 +4720,92 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "Direction", "CounterpartyKey")
                         .IsUnique()
                         .HasDatabaseName("uq_recurring_items_user_direction_counterparty")
-                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL");
+                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL AND status <> 'completed'");
 
                     b.ToTable("recurring_items", null, t =>
                         {
                             t.HasCheckConstraint("chk_recurring_items_amount", "amount_cents > 0");
 
+                            t.HasCheckConstraint("chk_recurring_items_anchor_day", "anchor_day IS NULL OR (anchor_day BETWEEN 1 AND 31 AND cadence = 'monthly')");
+
                             t.HasCheckConstraint("chk_recurring_items_cadence", "cadence IN ('weekly','monthly','yearly')");
+
+                            t.HasCheckConstraint("chk_recurring_items_completed_at", "(status = 'completed') = (completed_at IS NOT NULL)");
 
                             t.HasCheckConstraint("chk_recurring_items_direction", "direction IN ('inflow','outflow')");
 
                             t.HasCheckConstraint("chk_recurring_items_occurrences", "occurrences >= 0");
 
+                            t.HasCheckConstraint("chk_recurring_items_one_end", "total_occurrences IS NULL OR end_date IS NULL");
+
+                            t.HasCheckConstraint("chk_recurring_items_prepaid", "prepaid_occurrences >= 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_settled_early", "NOT settled_early OR status = 'completed'");
+
                             t.HasCheckConstraint("chk_recurring_items_source", "source IN ('detected','manual')");
 
-                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled')");
+                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled','completed')");
+
+                            t.HasCheckConstraint("chk_recurring_items_total_occurrences", "total_occurrences IS NULL OR total_occurrences BETWEEN 1 AND 600");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItemPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("RecurringItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recurring_item_id");
+
+                    b.Property<Guid?>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_item_payments_transaction")
+                        .HasFilter("transaction_id IS NOT NULL AND deleted_at IS NULL");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_recurring_item_payments_user");
+
+                    b.HasIndex("RecurringItemId", "DueDate")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_item_payments_item_due")
+                        .HasFilter("deleted_at IS NULL AND kind <> 'settlement'");
+
+                    b.ToTable("recurring_item_payments", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_recurring_item_payments_kind", "kind IN ('matched','manual','settlement')");
                         });
                 });
 
@@ -7684,6 +7783,30 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItemPayment", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.RecurringItem", "RecurringItem")
+                        .WithMany("Payments")
+                        .HasForeignKey("RecurringItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecurringItem");
+
+                    b.Navigation("Transaction");
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.User", "User")
@@ -8171,6 +8294,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FinMate.Domain.Entities.NotificationLog", b =>
                 {
                     b.Navigation("AiResult");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>

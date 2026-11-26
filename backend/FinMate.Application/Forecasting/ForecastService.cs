@@ -107,11 +107,12 @@ public class ForecastService : IForecastService
 
         var included = (await _accounts.GetListByUserAsync(userId, ct)).Where(a => a.IncludeInForecast).ToList();
         var items = ActiveItemsFor(await _items.ListAsync(userId, RecurringStatus.Active, ct), included.Select(a => a.Id).ToHashSet(), accountId: null);
+        var excluded = await ExclusionItemsAsync(userId, items, included.Select(a => a.Id).ToHashSet(), null, today, IrregularLookbackDays(settings), ct);
         var habits = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
         var recent = BoundaryTransfers.ForRecurring(habits, await BoundaryTransfers.OutflowsAsync(
             _data, userId, included.Select(a => a.Id).ToHashSet(), today.AddDays(-rules.HistoryWindowDays), today, ct));
         var goals = await _goals.GetSpendableAsync(userId, ct);
-        var irregular = await IrregularIncomeAsync(userId, items, today, settings, rules, ct);
+        var irregular = await IrregularIncomeAsync(userId, items, excluded, today, settings, rules, ct);
         var loans = await OpenLoansAsync(userId, ct);
 
         return SpendableCalculator.Compute(new SpendableInput(
@@ -152,18 +153,31 @@ public class ForecastService : IForecastService
     /// Không có khoản thu định kỳ nào: thu nhập không đều mức thận trọng còn chờ trong tháng (sơ đồ trang 10: "Cộng khoản thu dự kiến ở mức
     /// thận trọng"), đã trừ phần nhận trong tháng — phần đó đã nằm trong số dư.
     /// </summary>
+    /// <param name="excluded">Phase 92 (D5): khoản đang theo dõi + khoản vừa hoàn thành, để loại giao dịch khớp chúng khỏi thu không đều.</param>
     private async Task<long> IrregularIncomeAsync(
-        Guid userId, IReadOnlyList<RecurringItemView> items, DateOnly today, ForecastSettings settings, ForecastRules rules, CancellationToken ct)
+        Guid userId, IReadOnlyList<RecurringItemView> items, IReadOnlyList<RecurringItemView> excluded, DateOnly today, ForecastSettings settings,
+        ForecastRules rules, CancellationToken ct)
     {
         if (items.Any(i => i.Direction == RecurringDirection.Inflow))
         {
             return 0;
         }
 
-        var lookback = (settings.IrregularIncomeMonths + 1) * DaysPerMonthUpperBound;
+        var lookback = IrregularLookbackDays(settings);
         var history = await _data.GetTransactionsAsync(userId, today.AddDays(-lookback), today, ct);
-        var estimate = IncomeEstimator.Irregular(history, items, today, settings.IrregularIncomeMonths, rules);
+        var estimate = IncomeEstimator.Irregular(history, excluded, today, settings.IrregularIncomeMonths, rules);
         return estimate is null ? 0 : Math.Max(0, estimate.ConservativeMonthlyCents - estimate.ReceivedThisMonthCents);
+    }
+
+    private static int IrregularLookbackDays(ForecastSettings settings) => (settings.IrregularIncomeMonths + 1) * DaysPerMonthUpperBound;
+
+    /// <summary>Phase 92 (D5): khoản dùng để loại giao dịch (đang theo dõi + đã hoàn thành trong cửa sổ), cùng phạm vi ví với danh sách chiếu.</summary>
+    private async Task<IReadOnlyList<RecurringItemView>> ExclusionItemsAsync(
+        Guid userId, IReadOnlyList<RecurringItemView> active, IReadOnlySet<Guid> accountIds, Guid? accountId, DateOnly today, int windowDays, CancellationToken ct)
+    {
+        var completed = (await _items.ListAsync(userId, RecurringStatus.Completed, ct))
+            .Where(i => accountId is { } id ? i.FinancialAccountId == id : i.FinancialAccountId is null || accountIds.Contains(i.FinancialAccountId.Value));
+        return RecurringExclusions.With(active, completed, today, windowDays);
     }
 
     /// <summary>Dự phòng (BR-03.3): số user tự đặt, không thì % thu nhập dự kiến; chưa khai thu nhập thì 0.</summary>
@@ -190,9 +204,10 @@ public class ForecastService : IForecastService
             .Where(t => accountIds.Contains(t.AccountId))
             .ToList();
 
-        var baseline = await BaselineAsync(userId, accountId, transactions, items, today, rules, ct);
+        var excluded = await ExclusionItemsAsync(userId, items, accountIds, accountId, today, rules.HistoryWindowDays, ct);
+        var baseline = await BaselineAsync(userId, accountId, transactions, excluded, today, rules, ct);
         var spentToday = transactions
-            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, items, rules))
+            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, excluded, rules))
             .Sum(t => t.AmountCents);
 
         var boundary = await BoundaryTransfers.OutflowsAsync(_data, userId, accountIds, today.AddDays(-rules.HistoryWindowDays), today, ct);

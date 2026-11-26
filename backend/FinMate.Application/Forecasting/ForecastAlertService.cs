@@ -277,6 +277,12 @@ public class ForecastAlertService : IForecastAlertService
                 continue;
             }
 
+            if (reminder.Kind == BillReminderKind.Overdue)
+            {
+                await RaiseInstallmentOverdueAsync(userId, reminder, data, ct);
+                continue;
+            }
+
             // Quá hạn lâu: tạm ngừng theo dõi (không trừ vào dự báo nữa) và hỏi user còn dùng không — trả lời bằng resume hoặc DELETE.
             var entity = active.First(a => a.Id == item.Id);
             entity.Status = RecurringStatus.Paused;
@@ -294,6 +300,24 @@ public class ForecastAlertService : IForecastAlertService
         if (paused)
         {
             await _cache.RemoveAsync(CacheKeys.ForecastBaseline(userId, today), ct);
+        }
+    }
+
+    /// <summary>
+    /// Phase 92 (S1): kỳ trả góp quá hạn chưa trả — chỉ báo, không tạm dừng. Dedup theo ngày đến hạn nên mỗi kỳ chỉ một lần, vào sáng đầu tiên
+    /// sau hạn. Dùng kind <c>BillDue</c> sẵn có (không đổi enum hay CHECK của <c>forecast_alerts</c>).
+    /// </summary>
+    private async Task RaiseInstallmentOverdueAsync(Guid userId, BillReminder reminder, Dictionary<string, string> data, CancellationToken ct)
+    {
+        var item = reminder.Item;
+        var title = $"Quá hạn {item.Name}";
+        var body = $"{ForecastText.Money(item.AmountCents)} đến hạn ngày {ForecastText.Day(reminder.DueDate)} chưa thấy thanh toán.";
+        await _dispatcher.RaiseAsync(new ForecastAlertRequest(
+            userId, ForecastAlertKind.BillDue, $"bill_overdue:{item.Id}:{ForecastText.Iso(reminder.DueDate)}", title, body, data), ct);
+
+        if (_userNotifications is not null)
+        {
+            await _userNotifications.CreateAsync(userId, UserNotificationType.RecurringBillDue, title, body, "RecurringItem", item.Id, ct);
         }
     }
 

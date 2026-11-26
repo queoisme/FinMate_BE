@@ -1,3 +1,4 @@
+using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Forecasting;
@@ -11,6 +12,18 @@ public static class RecurringSchedule
     private const int WeeklyEarlyDays = 3;
     private const int MonthlyEarlyDays = 14;
     private const int YearlyEarlyDays = 60;
+
+    /// <summary>
+    /// Ngày gốc dùng cho <see cref="Next"/>/<see cref="Previous"/> của một khoản (Phase 92, BR-INS-05): chu kỳ tháng theo <c>anchor_day</c>;
+    /// khoản tháng chưa có anchor (chỉ còn ở dữ liệu dựng tay, vì migration điền mọi khoản tháng) và chu kỳ năm giữ cách suy cũ từ ngày đến hạn;
+    /// chu kỳ tuần không cần.
+    /// </summary>
+    public static int? DayOf(RecurringItem item) => item.Cadence switch
+    {
+        RecurringCadence.Monthly => item.AnchorDay ?? RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate),
+        RecurringCadence.Yearly => RecurringItemMapping.PreferredDay(item.Cadence, item.NextDueDate),
+        _ => null,
+    };
 
     /// <summary>
     /// Lần đến hạn sau <paramref name="due"/>. Với chu kỳ tháng/năm, <paramref name="preferredDay"/> giữ ngày gốc để khoản đến hạn ngày 31
@@ -33,16 +46,19 @@ public static class RecurringSchedule
         _ => throw new ArgumentOutOfRangeException(nameof(cadence), cadence, null),
     };
 
-    /// <summary>Mọi lần đến hạn nằm trong <c>[from, to]</c>, tính từ <see cref="RecurringItemView.NextDueDate"/>.</summary>
+    /// <summary>Mọi lần đến hạn nằm trong <c>[from, to]</c>, tính từ <see cref="RecurringItemView.NextDueDate"/> (đã giới hạn theo kỳ cuối).</summary>
     public static IEnumerable<DateOnly> Occurrences(RecurringItemView item, DateOnly from, DateOnly to)
+        => DueDates(item).SkipWhile(d => d < from).TakeWhile(d => d <= to);
+
+    /// <summary>
+    /// Lịch của khoản tính từ <see cref="RecurringItemView.NextDueDate"/>, dừng sau <see cref="RecurringItemView.RemainingOccurrences"/> kỳ hoặc khi vượt
+    /// <see cref="RecurringItemView.EndDate"/> (Phase 92, BR-INS-07). Khoản không có kỳ cuối thì vô hạn: người gọi phải tự dừng theo ngày.
+    /// Mọi chỗ chiếu khoản định kỳ đi qua hàm này để giới hạn kỳ cuối chỉ nằm ở một nơi.
+    /// </summary>
+    public static IEnumerable<DateOnly> DueDates(RecurringItemView item)
     {
         var due = item.NextDueDate;
-        while (due < from)
-        {
-            due = Next(due, item.Cadence, item.PreferredDay);
-        }
-
-        while (due <= to)
+        for (var n = 0; (item.RemainingOccurrences is not { } left || n < left) && (item.EndDate is not { } end || due <= end); n++)
         {
             yield return due;
             due = Next(due, item.Cadence, item.PreferredDay);
