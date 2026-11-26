@@ -295,4 +295,24 @@ public class RecurringInstallmentsControllerTests : IClassFixture<AuthApiFactory
         confirmed.TotalOccurrences.Should().Be(10);
         confirmed.RemainingOccurrences.Should().Be(1);
     }
+
+    [Fact]
+    public async Task FromTransaction_WithoutABody_IsUnchanged_AndAcceptsEndFields()
+    {
+        var token = await NewUserTokenAsync();
+        var wallet = await WalletAsync(token);
+        var netflix = await TransactionAsync(token, wallet, merchant: "Netflix", amount: 260_000);
+        var phone = await TransactionAsync(token, wallet, merchant: "Home Credit");
+
+        var plain = await SendAsync<ItemData>(HttpMethod.Post, $"/api/v1/recurring-items/from-transaction/{netflix}", token, expected: HttpStatusCode.Created);
+        var installment = await SendAsync<ItemData>(HttpMethod.Post, $"/api/v1/recurring-items/from-transaction/{phone}", token,
+            new { totalOccurrences = 6, prepaidOccurrences = 1 }, HttpStatusCode.Created);
+
+        plain.TotalOccurrences.Should().BeNull();
+        plain.AnchorDay.Should().Be(Today.Day, "ngày gốc là ngày của giao dịch");
+        plain.NextDueDate.Should().BeAfter(Today);
+        installment.RemainingOccurrences.Should().Be(5);
+        await ShouldFailAsync(await SendRawAsync(HttpMethod.Post, $"/api/v1/recurring-items/from-transaction/{await TransactionAsync(token, wallet, merchant: "Gym")}", token,
+            new { cadence = "Weekly", anchorDay = 3 }), HttpStatusCode.BadRequest);
+    }
 }

@@ -40,10 +40,14 @@ public class RecurringItemsController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(created));
     }
 
-    /// <summary>Tạo khoản định kỳ từ một giao dịch đã có (tên, số tiền, danh mục, ví lấy từ giao dịch). Body có thể bỏ trống: chu kỳ mặc định hằng tháng.</summary>
+    /// <summary>
+    /// Tạo khoản định kỳ từ một giao dịch đã có (tên, số tiền, danh mục, ví lấy từ giao dịch). Body có thể bỏ trống: chu kỳ mặc định hằng tháng.
+    /// Phase 92: nhận thêm trường kỳ cuối; ngày gốc mặc định là ngày của giao dịch.
+    /// </summary>
     [HttpPost("from-transaction/{transactionId:guid}")]
     public async Task<IActionResult> FromTransaction(Guid transactionId, [FromBody] FromTransactionRequest? request, [FromServices] FinMate.Application.Transactions.ITransactionExtrasService extras, CancellationToken ct)
-        => StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(await extras.CreateRecurringAsync(CurrentUserId, transactionId, request?.Cadence, ct)));
+        => StatusCode(StatusCodes.Status201Created, ApiResponse<RecurringItemDto>.Ok(
+            await extras.CreateRecurringAsync(CurrentUserId, transactionId, request?.Cadence, ct, request?.Installment())));
 
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRecurringItemRequest request, CancellationToken ct)
@@ -144,4 +148,11 @@ public record InstallmentFieldsRequest(int? TotalOccurrences = null, DateOnly? E
 
 public record RecurringPaymentRequest(Guid? TransactionId);
 
-public record FromTransactionRequest(RecurringCadence? Cadence);
+public record FromTransactionRequest(
+    RecurringCadence? Cadence, int? TotalOccurrences = null, DateOnly? EndDate = null, int? AnchorDay = null, int? PrepaidOccurrences = null)
+{
+    public InstallmentFields? Installment()
+        => TotalOccurrences is null && EndDate is null && AnchorDay is null && PrepaidOccurrences is null
+            ? null
+            : new InstallmentFields(TotalOccurrences, EndDate, AnchorDay, PrepaidOccurrences);
+}
