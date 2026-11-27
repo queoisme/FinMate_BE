@@ -19,6 +19,11 @@ public static partial class ReportWriter
             lines.Add(BalanceSentence(m, h));
         }
 
+        foreach (var persona in GeneratorSpec.Personas)
+        {
+            lines.Add(PersonaSentence(m, persona));
+        }
+
         lines.Add(FlexSentence(m));
         lines.Add(BandSentence(m));
         foreach (var effect in m.Effects.Where(e => e.Horizon == SummaryHorizon && e.Mode == Modes.Oracle))
@@ -48,6 +53,20 @@ public static partial class ReportWriter
                + $"({Format.Pct(model.ScaleRelPct)} quy mô dòng tiền thực tế), trung vị {Format.Money(model.MedianAe)}. "
                + $"Tốt hơn \"số dư giữ nguyên\" {Format.PctCi(hold.ImprovementPct, hold.CiLow, hold.CiHigh, hold.N)}; "
                + $"so với baseline mạnh nhất còn lại ({MethodNames[strongest.Method]}): {Format.PctCi(strongest.ImprovementPct, strongest.CiLow, strongest.CiHigh, strongest.N)}.";
+    }
+
+    private static string PersonaSentence(MetricsResult m, string persona)
+    {
+        var model = Balance(m, Control, SummaryHorizon, Methods.Model, persona);
+        if (model is null)
+        {
+            return $"Hồ sơ {persona}: không có dữ liệu.";
+        }
+
+        var hold = Balance(m, Control, SummaryHorizon, Methods.Hold, persona)!;
+        var direction = model.Bias < 0 ? "thấp hơn" : "cao hơn";
+        return $"Hồ sơ {persona}, tầm {SummaryHorizon} ngày, {ModeLabel}, {Name(Control)}: số dư lệch trung bình {Format.Money(model.Mae)}, "
+               + $"dự báo trung bình {direction} thực tế {Format.Money(Math.Abs(model.Bias))}; tốt hơn \"số dư giữ nguyên\" {Format.PctCi(hold.ImprovementPct, hold.CiLow, hold.CiHigh, hold.N)}.";
     }
 
     private static string FlexSentence(MetricsResult m)
@@ -120,7 +139,7 @@ public static partial class ReportWriter
     private static void PersonaTable(StringBuilder md, MetricsResult m)
     {
         md.Append($"## 3. Theo hồ sơ ({Name(Control)}, tầm {SummaryHorizon}, {ModeLabel})\n\n");
-        md.Append("| Hồ sơ | n | MAE mô hình | % quy mô | Tốt hơn B-hold | Tốt hơn B-mean30 | Tốt hơn B-naive |\n|---|---|---|---|---|---|---|\n");
+        md.Append("| Hồ sơ | n | MAE mô hình | Thiên lệch | % quy mô | Tốt hơn B-hold | Tốt hơn B-mean30 | Tốt hơn B-naive | Trong dải |\n|---|---|---|---|---|---|---|---|---|\n");
         foreach (var persona in GeneratorSpec.Personas)
         {
             var model = Balance(m, Control, SummaryHorizon, Methods.Model, persona);
@@ -129,7 +148,9 @@ public static partial class ReportWriter
                 continue;
             }
 
-            md.Append($"| {persona} | {model.N} | {Format.Money(model.Mae)} | {Format.Pct(model.ScaleRelPct)} | {Better(m, persona, Methods.Hold)} | {Better(m, persona, Methods.Mean30)} | {Better(m, persona, Methods.Naive)} |\n");
+            var band = Band(m, Control, SummaryHorizon, persona);
+            md.Append($"| {persona} | {model.N} | {Format.Money(model.Mae)} | {Format.Money(model.Bias)} | {Format.Pct(model.ScaleRelPct)} | {Better(m, persona, Methods.Hold)} | "
+                      + $"{Better(m, persona, Methods.Mean30)} | {Better(m, persona, Methods.Naive)} | {(band is null ? "—" : Format.PctCi(band.CoveragePct, band.CiLow, band.CiHigh, band.N))} |\n");
         }
 
         md.Append('\n');
@@ -164,6 +185,18 @@ public static partial class ReportWriter
                 if (Band(m, scenario, h) is { } b)
                 {
                     md.Append($"| {Name(scenario)} | {h} | {b.N} | {Format.PctCi(b.CoveragePct, b.CiLow, b.CiHigh, b.N)} | {Format.Money(b.MeanWidth)} | {Format.Money(b.MedianWidth)} |\n");
+                }
+            }
+        }
+
+        md.Append($"\nTheo hồ sơ ({Name(Control)}):\n\n| Hồ sơ | Tầm | n | Tỉ lệ nằm trong dải | Rộng trung bình |\n|---|---|---|---|---|\n");
+        foreach (var persona in GeneratorSpec.Personas)
+        {
+            foreach (var h in BacktestRunner.Horizons)
+            {
+                if (Band(m, Control, h, persona) is { } b)
+                {
+                    md.Append($"| {persona} | {h} | {b.N} | {Format.PctCi(b.CoveragePct, b.CiLow, b.CiHigh, b.N)} | {Format.Money(b.MeanWidth)} |\n");
                 }
             }
         }
