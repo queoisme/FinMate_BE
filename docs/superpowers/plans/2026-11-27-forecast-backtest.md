@@ -1,6 +1,6 @@
 # Phase 96 — Đánh giá dự báo bằng backtest
 
-> Trạng thái: **Phần 1 (kiểm kê) xong và đã chốt phạm vi 2026-11-27 (B + C(a), 4 tầng). Phần 2 (thiết kế) chờ duyệt.** Chưa sửa code.
+> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D21 theo đề xuất, kèm S1–S5 (S thắng D khi mâu thuẫn). Chỉ làm tầng 1 (Task 1–9) rồi dừng (S5).**
 > Nhánh `feat/forecast-backtest` từ `main` @ `32912fc` (đã có Phase 95).
 > Mục tiêu của phase là **đo**. Không chỉnh mô hình, không đổi tham số mặc định. Không dùng dữ liệu người dùng thật.
 
@@ -193,7 +193,17 @@ Các tầng trong bước 2 sẽ chia sao cho dừng ở đâu cũng an toàn: t
 8. Production chỉ được thêm ctor `internal` nhận đồng hồ; ctor công khai và kết quả giữ nguyên, có test hồi quy.
 9. Bảng tóm tắt đầu báo cáo, mỗi dòng ghi chế độ (đáp án / phát lại).
 
-## Phần 2 — Thiết kế (chờ duyệt)
+## Đã duyệt phần 2 (2026-11-27): D1–D21 kèm S1–S5
+
+- **S1 (tầm nhìn):** repository giả cắt theo **thời điểm của đồng hồ giả** (`TransactedAt < now`), không theo ngày. Mốc dự báo T 00:00 vẫn tương đương "ngày < T". Có test: lượt 08:00 của ngày D chỉ thấy giao dịch trước D 08:00.
+- **S2 (D15):** production **không** có ngưỡng số dư thấp mặc định (`users.low_balance_threshold_cents` null = tắt, không có giá trị trong `forecast.*`), nên dùng 20% thu nhập tháng danh nghĩa như D15. Ghi trong đặc tả và báo cáo.
+- **S3:** mọi precision / recall / tỉ lệ in kèm **n** và CI 95%; n < 20 → "chưa đủ mẫu". Cảnh báo phát ra khi số dư thực tế **đã** dưới ngưỡng là nhóm riêng "đang thiếu", không vào đúng/sai.
+- **S4 (tất định):** "giống từng byte" cam kết trên **cùng image SDK**; báo cáo ghi phiên bản SDK/runtime. Số tiền làm tròn tới nghìn đồng ngay sau mỗi phép biến đổi phân phối.
+- **S5:** dừng sau tầng 1. Xong Task 9: chạy đầy đủ, gửi bảng tóm tắt + bảng dải P25–P75 theo tầm, rồi dừng; chủ sản phẩm quyết có sửa mô hình (phase riêng) trước khi làm tầng 2.
+- **D20:** duyệt thêm mục ngắn §2.x "Backtest dự báo" vào `.context/ARCHITECTURE.md`.
+- **Mốc test:** `main` @ `32912fc` = 4293/4295; hai test đỏ có sẵn (`MethodSelectionOnSeedDataTests.TheExampleProfileInTheMdFile_GetsCashFlowBudget…`, `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`) không tính là hồi quy.
+
+## Phần 2 — Thiết kế
 
 ### Phát hiện thêm khi soạn phần 2
 
@@ -401,7 +411,7 @@ Tổng 24 task, nhiều hơn ước lượng 15 ở phần 1. Phần tăng thêm
 
 ### Mốc test
 
-Đo ở Task 1 trên `main` @ `32912fc`; điền vào đây.
+`main` @ `32912fc`: 4293/4295 (đo ở Phase 95 Task 12, cùng commit), hai đỏ có sẵn như trên.
 
 ### Cần duyệt
 
