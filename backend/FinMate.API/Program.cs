@@ -500,6 +500,7 @@ public class Program
         builder.Services.AddScoped<IUserMethodService, UserMethodService>();
         builder.Services.AddScoped<IFinancialPlanService, FinancialPlanService>();
         builder.Services.AddScoped<IGoalPlanningService, GoalPlanningService>();
+        builder.Services.AddScoped<FinMate.Application.Exports.ITransactionExportService, FinMate.Application.Exports.TransactionExportService>();
 
         // Dự báo tài chính (Flow 6, đợt 1).
         builder.Services.AddScoped<IConcurrencyRetry, EfConcurrencyRetry>();

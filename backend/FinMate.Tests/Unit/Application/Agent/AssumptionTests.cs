@@ -181,4 +181,19 @@ public class AssumptionTests
     [Fact]
     public async Task unknown_key_returns_null_not_a_default_number()
         => (await new GetAssumptionsTool(_repo).GetApprovedAsync("nope", AsOf)).Should().BeNull();
+
+    [Theory]
+    [InlineData("general_price_growth", "Giá cả nói chung tăng khoảng 5,00% mỗi năm")]
+    [InlineData("car_price_growth", "Mức tăng giá theo giả định đã duyệt: 5,00% mỗi năm")]  // chưa có mẫu riêng: mẫu chung, không lộ khóa kỹ thuật
+    public async Task the_evidence_text_is_plain_vietnamese_and_never_the_technical_key(string key, string expected)
+    {
+        var service = Service();
+        var draft = await Draft(service, key, 500);
+        await service.ApproveAsync(draft.Id, Admin, null);
+
+        var found = await new GetAssumptionsTool(_repo).GetApprovedAsync(key, AsOf);
+
+        found!.Evidence.Text.Should().Be(expected);
+        found.Evidence.Text.Should().NotContain("_");
+    }
 }

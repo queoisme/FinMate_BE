@@ -90,6 +90,15 @@ public class ForecastController : ControllerBase
         return Ok(ApiResponse<SafeToSpendDto>.Ok(ForecastCoverage.Apply(spendable, await _coverage.GetForecastSummaryAsync(CurrentUserId, ct))));
     }
 
+    /// <summary>Số tiền có thể chi nếu có thêm các khoản thu/chi giả định rơi vào kỳ tính. Không lưu gì.</summary>
+    [HttpPost("spendable/scenario")]
+    public async Task<IActionResult> SpendableScenario([FromBody] CashflowScenarioRequest request, CancellationToken ct)
+    {
+        var items = (request.Items ?? []).Select(i => new ScenarioItem(i.Date, i.AmountCents, i.Direction, i.Label ?? string.Empty)).ToList();
+        var spendable = await _forecast.RunSpendableScenarioAsync(new CashflowScenarioCommand(CurrentUserId, request.AccountId, request.To, items), ct);
+        return Ok(ApiResponse<SafeToSpendDto>.Ok(ForecastCoverage.Apply(spendable, await _coverage.GetForecastSummaryAsync(CurrentUserId, ct))));
+    }
+
     /// <summary>Tiến độ, mức chi dự kiến và trạng thái (<c>ok|at_risk|over</c>) của từng ngân sách tháng này.</summary>
     [HttpGet("budgets")]
     public async Task<IActionResult> Budgets(CancellationToken ct)

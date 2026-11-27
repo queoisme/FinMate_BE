@@ -13,6 +13,44 @@ public class SpendableCalculatorTests
         => new(Today, [new SpendableAccount(Account, "Ví", balance)], items ?? [], [], goals, Array.Empty<SpendableGoalDto>(), reserve, Rules);
 
     [Fact]
+    public void ScenarioExpenseInsideThePeriod_LowersSpendableAndShowsAsABill()
+    {
+        var scenario = new[] { new ScenarioItem(Today.AddDays(1), 1_500_000, RecurringDirection.Outflow, "Laptop") };
+
+        var result = SpendableCalculator.Compute(Input(2_900_000) with { Scenario = scenario });
+
+        result.SpendableCents.Should().Be(1_400_000);
+        result.Bills.Should().ContainSingle(b => b.Label == "Laptop" && b.AmountCents == 1_500_000);
+    }
+
+    [Fact]
+    public void ScenarioExpenseBiggerThanBalance_ClampsSpendableToZeroWithShortfall()
+    {
+        var scenario = new[] { new ScenarioItem(Today, 5_000_000, RecurringDirection.Outflow, "Laptop") };
+
+        var result = SpendableCalculator.Compute(Input(2_900_000) with { Scenario = scenario });
+
+        result.SpendableCents.Should().Be(0);
+        result.ShortfallCents.Should().Be(2_100_000);
+    }
+
+    [Fact]
+    public void ScenarioIncomeInsideThePeriod_RaisesSpendable()
+    {
+        var scenario = new[] { new ScenarioItem(Today.AddDays(2), 1_000_000, RecurringDirection.Inflow, "Thưởng") };
+
+        SpendableCalculator.Compute(Input(2_900_000) with { Scenario = scenario }).SpendableCents.Should().Be(3_900_000);
+    }
+
+    [Fact]
+    public void ScenarioOutsideThePeriod_ChangesNothing()
+    {
+        var scenario = new[] { new ScenarioItem(Today.AddDays(60), 1_500_000, RecurringDirection.Outflow, "Laptop") };
+
+        SpendableCalculator.Compute(Input(2_900_000) with { Scenario = scenario }).SpendableCents.Should().Be(2_900_000);
+    }
+
+    [Fact]
     public void WithoutKnownIncome_ThePeriodRunsToMonthEnd()
     {
         var result = SpendableCalculator.Compute(Input(2_900_000));

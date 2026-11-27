@@ -78,12 +78,73 @@ public class SuggestedActionsTests
 
         var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 600_000_000, horizon_months = 24 }));
 
-        var goal = result.Actions!.Single();
+        var goal = result.Actions!.First();  // thẻ đầu luôn là đúng hạn người dùng hỏi; các thẻ sau là phương án kéo dài (khi chưa khả thi)
         goal.Kind.Should().Be(SuggestedActionKinds.CreateGoal);
         goal.AmountVnd.Should().Be(600_000_000);
         goal.Date.Should().Be("2028-11-10", "hôm nay (giờ Việt Nam) cộng 24 tháng");
         goal.Title.Should().Contain("600.000.000 đồng").And.Contain("24 tháng");
         result.Evidence.Single(e => e.Id == goal.EvidenceIds.Single()).ValueVnd.Should().Be(goal.AmountVnd, "số tiền của thẻ là một bằng chứng của lượt này");
+    }
+
+    [Fact]
+    public async Task AnInfeasibleGoalSuggestsLongerHorizonsRoundedUpToWholeYears_EachWithTheMonthlyAmountNeeded()
+    {
+        // Thu 20 triệu, chi 10 triệu, số dư 100 triệu, không có giả định tăng giá: cơ sở dư 10 triệu/tháng nên cần (600 − 100) / 10 = 50 tháng → hỏi 24 tháng là khó đạt, gợi ý 5 năm rồi 6 năm.
+        var income = Enumerable.Repeat(20_000_000L, 6).ToArray();
+        var source = new InMemoryFinancialDataSource(income, Enumerable.Repeat(10_000_000L, 6).ToArray(), 100_000_000);
+        var tool = new ForecastGoalTool(source, new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>()));
+
+        var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 600_000_000, horizon_months = 24 }));
+
+        var longer = result.Actions!.Skip(1).ToList();
+        longer.Should().HaveCount(2);
+        longer.Select(a => a.Date).Should().Equal("2031-11-10", "2032-11-10");  // hôm nay cộng 60 và 72 tháng
+        result.Evidence.Single(e => e.Id == "alt_1_monthly").ValueVnd.Should().Be(8_333_334, "(600 triệu − 100 triệu) / 60 tháng, làm tròn lên");
+        result.Evidence.Single(e => e.Id == "alt_2_monthly").ValueVnd.Should().Be(6_944_445, "(600 triệu − 100 triệu) / 72 tháng, làm tròn lên");
+        result.Evidence.Single(e => e.Id == "alt_1_monthly").Text.Should().Contain("5 năm");
+        longer.Should().OnlyContain(a => a.Kind == SuggestedActionKinds.CreateGoal && a.AmountVnd == 600_000_000 && result.Evidence.Any(e => e.Id == a.EvidenceIds.Single()));
+    }
+
+    [Fact]
+    public async Task AHowLongQuestionAtTheMaximumHorizonOffersNoGoalForThatMeaninglessDeadline()
+    {
+        var income = Enumerable.Repeat(20_000_000L, 6).ToArray();
+        var source = new InMemoryFinancialDataSource(income, Enumerable.Repeat(10_000_000L, 6).ToArray(), 100_000_000);
+        var tool = new ForecastGoalTool(source, new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>()));
+
+        var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 600_000_000, horizon_months = AgentLimits.MaxSearchMonths }));
+
+        result.Actions.Should().BeEmpty("không có thẻ 'tạo mục tiêu trong 50 năm'");
+        result.Evidence.Should().Contain(e => e.Id == "scenario_base" && e.Text!.Contains("đạt mục tiêu sau 50 tháng"), "câu trả lời nói rõ bao lâu");
+        result.Evidence.Single(e => e.Id == "how_long").Text.Should().Be("Theo kịch bản base, đủ tiền mua sau khoảng 4 năm 2 tháng (50 tháng)");
+        result.Evidence.Should().NotContain(e => e.Id == "price_at_horizon" || e.Id.StartsWith("shortfall_"), "giá và số thiếu sau 50 năm không phải điều được hỏi");
+        result.Evidence.Single(e => e.Id == "verdict").Text.Should().NotContain("600").And.Contain("chưa nêu hạn");
+    }
+
+    [Fact]
+    public async Task AHowLongQuestionThatNeverGetsThereSaysSoPlainly()
+    {
+        var income = Enumerable.Repeat(20_000_000L, 6).ToArray();
+        var source = new InMemoryFinancialDataSource(income, Enumerable.Repeat(19_000_000L, 6).ToArray(), 1_000_000);
+        var tool = new ForecastGoalTool(source, new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>()));
+
+        var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 20_000_000_000, horizon_months = AgentLimits.MaxSearchMonths }));
+
+        result.Evidence.Single(e => e.Id == "how_long").Text.Should().Be("Theo kịch bản base, chưa đủ tiền mua trong 50 năm tới");
+        result.Evidence.Single(e => e.Id == "scenario_base").Text.Should().Contain("không đạt mục tiêu trong 50 năm");
+    }
+
+    [Fact]
+    public async Task AFeasibleGoalSuggestsNoLongerHorizon()
+    {
+        var income = Enumerable.Repeat(20_000_000L, 6).ToArray();
+        var source = new InMemoryFinancialDataSource(income, Enumerable.Repeat(10_000_000L, 6).ToArray(), 100_000_000);
+        var tool = new ForecastGoalTool(source, new GetAssumptionsTool(Mock.Of<IEconomicAssumptionRepository>()));
+
+        var result = await tool.RunAsync(new ToolContext(Guid.NewGuid(), Now), Args(new { price_vnd = 150_000_000, horizon_months = 24 }));
+
+        result.Actions.Should().ContainSingle();
+        result.Evidence.Should().NotContain(e => e.Id.StartsWith("alt_"));
     }
 
     private static CategorySpendVnd C(string slug, string name, long amount) => new(slug, name, amount);

@@ -12,4 +12,7 @@ public static class SavingGoalErrorCodes
     public const string DeadlinePassed = "SAVING_GOAL_DEADLINE_PASSED";
 
     public const string InitialSavedInvalid = "SAVING_GOAL_INITIAL_SAVED_INVALID";
+
+    /// <summary>Số góp lớn hơn phần còn lại của mục tiêu (mục tiêu - đã để dành).</summary>
+    public const string ContributionExceedsRemaining = "SAVING_GOAL_CONTRIBUTION_EXCEEDS_REMAINING";
 }

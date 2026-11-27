@@ -366,10 +366,13 @@ public class ChatCommandHandler : IChatCommandHandler
         var income = days.Sum(d => d.IncomeCents);
 
         var items = new List<ChatSummaryItemDto>();
+        var left = income - expense;
         var total = query.Metric switch
         {
             ExpenseMetric => expense,
             IncomeMetric => income,
+            // "số dư của tôi" là số tiền đang có trong các ví lúc này (cùng cách tính với "Tổng tài sản" ở trang chủ); "còn lại tháng này" (balance) là thu trừ chi của kỳ
+            WalletBalanceMetric => (await _financialAccountRepository.GetListByUserAsync(userId, ct)).Sum(a => a.BalanceCents),
             _ => income - expense,
         };
 
@@ -395,13 +398,10 @@ public class ChatCommandHandler : IChatCommandHandler
         }
 
         return new ChatSummaryDto(
-        var left = income - expense;
             query.Metric, query.PeriodLabel, query.From, query.To, total, income, expense, left, items, transactions, hasMore);
     }
 
     /// <summary>
-            // "số dư của tôi" là số tiền đang có trong các ví lúc này (cùng cách tính với "Tổng tài sản" ở trang chủ); "còn lại tháng này" (balance) là thu trừ chi của kỳ
-            WalletBalanceMetric => (await _financialAccountRepository.GetListByUserAsync(userId, ct)).Sum(a => a.BalanceCents),
     /// Danh sách từng khoản của kỳ cho câu "chi tiết hôm nay" / "liệt kê các khoản chi tháng này": mới nhất trước, tối đa <see cref="DetailLimit"/> dòng, cùng quy ước với tổng
     /// (chỉ khoản đã xác nhận, bỏ chuyển tiền giữa ví và cho vay/mượn, đúng giờ Việt Nam). Hỏi theo danh mục thì chỉ các khoản của danh mục đó.
     /// </summary>

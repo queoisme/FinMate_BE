@@ -66,6 +66,15 @@ public class CreateTransferCommandHandler : ICreateTransferCommandHandler
         var to = await _financialAccountRepository.GetByIdAsync(command.ToAccountId, command.UserId, ct)
             ?? throw new NotFoundException("FinancialAccount", command.ToAccountId);
 
+        // Chuyển tiền không làm ví nguồn âm: ví tiền mặt/ngân hàng/ví điện tử không có thấu chi. Chi tiêu thường vẫn ghi được (ví có thể lệch so với thực tế),
+        // nhưng chuyển một khoản lớn hơn số đang có thì chắc chắn sai nên chặn.
+        if (command.AmountCents > from.BalanceCents)
+        {
+            throw new BusinessRuleException(
+                TransactionErrorCodes.TransferInsufficientFunds,
+                $"Số dư ví nguồn không đủ: còn {Math.Max(0, from.BalanceCents):N0} ₫, không thể chuyển {command.AmountCents:N0} ₫.");
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         from.BalanceCents -= command.AmountCents;

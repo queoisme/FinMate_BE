@@ -58,32 +58,103 @@ public sealed class ForecastGoalTool(
             Money("spend_q10", "spend_q10", s10, EvidenceSource.Estimated, completeness, "Chi tiêu tháng thấp (phân vị 10)"),
             Money("spend_q50", "spend_q50", s50, EvidenceSource.Estimated, completeness, "Chi tiêu tháng điển hình (trung vị)"),
             Money("spend_q90", "spend_q90", s90, EvidenceSource.Estimated, completeness, "Chi tiêu tháng cao (phân vị 90)"),
-            Money("price_at_horizon", "price_at_horizon", simulation.PriceAtHorizonVnd, EvidenceSource.Estimated, text: $"Giá mục tiêu sau {horizon} tháng theo giả định tăng giá"),
         };
+
+        // Câu "bao lâu đủ tiền" không nêu hạn: planner mở hạn tới mức tối đa tìm kiếm chỉ để các kịch bản nói ra "đạt sau bao lâu". Giá sau 50 năm và số còn thiếu khi đó là sản phẩm phụ của phép tìm,
+        // không phải điều người dùng hỏi, nên không đưa vào bằng chứng (LLM sẽ viết thành "còn thiếu 8,9 tỷ sau 600 tháng").
+        var openHorizon = horizon >= AgentLimits.MaxSearchMonths;
+        if (!openHorizon)
+        {
+            evidence.Add(Money("price_at_horizon", "price_at_horizon", simulation.PriceAtHorizonVnd, EvidenceSource.Estimated, text: $"Giá mục tiêu sau {horizon} tháng theo giả định tăng giá"));
+        }
 
         evidence.Add(growth?.Evidence ?? new Evidence(
             "price_growth", growthKey, null, $"Chưa có giả định tăng giá đã duyệt cho '{growthKey}': giữ giá không đổi.", "pct_per_year",
             EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, 0.5)));
 
+        var searchYears = GoalPlanTool.Years(AgentLimits.MaxSearchMonths);
         foreach (var scenario in simulation.Scenarios)
         {
-            var reach = scenario.MonthsToReach is { } months ? $"đạt mục tiêu sau {months} tháng" : $"không đạt mục tiêu trong {AgentLimits.MaxSearchMonths} tháng";
+            var reach = scenario.MonthsToReach is { } months ? $"đạt mục tiêu sau {months} tháng ({GoalPlanTool.Years(months)})" : $"không đạt mục tiêu trong {searchYears}";
             evidence.Add(Money($"scenario_{scenario.Name}", $"capacity_{scenario.Name}", scenario.MonthlyCapacityVnd, EvidenceSource.Estimated, completeness, $"Kịch bản {scenario.Name}: dư mỗi tháng; {reach}"));
-            evidence.Add(Money($"shortfall_{scenario.Name}", $"shortfall_{scenario.Name}", scenario.ShortfallVnd, EvidenceSource.Estimated, completeness, $"Kịch bản {scenario.Name}: còn thiếu sau {horizon} tháng"));
+            if (!openHorizon)
+            {
+                evidence.Add(Money($"shortfall_{scenario.Name}", $"shortfall_{scenario.Name}", scenario.ShortfallVnd, EvidenceSource.Estimated, completeness, $"Kịch bản {scenario.Name}: còn thiếu sau {horizon} tháng"));
+            }
         }
 
+        if (openHorizon)
+        {
+            // câu trả lời cho "bao lâu": theo kịch bản cơ sở (kịch bản thứ hai của bộ mô phỏng), nói thẳng
+            var baseline = simulation.Scenarios[1];
+            var how = baseline.MonthsToReach is { } needed
+                ? $"Theo kịch bản {baseline.Name}, đủ tiền mua sau khoảng {GoalPlanTool.Years(needed)} ({needed} tháng)"
+                : $"Theo kịch bản {baseline.Name}, chưa đủ tiền mua trong {searchYears} tới";
+            evidence.Add(new Evidence("how_long", "goal_how_long", null, how, "label", EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, completeness)));
+        }
+
+        var verdictScope = openHorizon ? "chưa nêu hạn" : $"horizon {horizon} tháng";
         evidence.Add(new Evidence(
-            "verdict", "goal_verdict", null, $"verdict: {simulation.Verdict.ToString().ToLowerInvariant()} (horizon {horizon} tháng, nhóm thu nhập {profile.Segment.ToString().ToLowerInvariant()})",
+            "verdict", "goal_verdict", null, $"verdict: {simulation.Verdict.ToString().ToLowerInvariant()} ({verdictScope}, nhóm thu nhập {profile.Segment.ToString().ToLowerInvariant()})",
             "label", EvidenceSource.Estimated, now, ConfidenceCalculator.Compute(EvidenceSource.Estimated, now, now, completeness)));
 
         // Hạn mục tiêu = hôm nay (giờ Việt Nam) + số tháng người dùng hỏi; số tiền là giá họ nêu (bằng chứng "price"), nên thẻ không mang con số nào không có nguồn.
         var deadline = VietnamTime.DateOf(now).AddMonths(horizon);
-        var actions = new List<SuggestedActionDto>
+        // Hạn bằng mức tối đa tìm kiếm là câu "bao lâu đủ tiền" không nêu hạn: các kịch bản đã nói đạt sau bao lâu, còn nút "tạo mục tiêu trong 50 năm" thì vô nghĩa.
+        var actions = new List<SuggestedActionDto>();
+        if (horizon < AgentLimits.MaxSearchMonths)
         {
-            new(SuggestedActionKinds.CreateGoal, $"Tạo mục tiêu tiết kiệm {LocalTemplateComposer.FormatVnd(price)} trong {horizon} tháng", price, deadline.ToString("yyyy-MM-dd"), null, null, ["price"]),
-        };
+            actions.Add(new(SuggestedActionKinds.CreateGoal, $"Tạo mục tiêu tiết kiệm {LocalTemplateComposer.FormatVnd(price)} trong {horizon} tháng", price, deadline.ToString("yyyy-MM-dd"), null, null, ["price"]));
+        }
 
+        await AddLongerHorizonsAsync(context, simulation, price, balance, horizon, growth?.RateBps ?? 0, evidence, actions, ct);
         return ToolResult.Ok(evidence, actions);
+    }
+
+    private const int MonthsPerYear = 12;
+    private const int Alternatives = 2;
+
+    /// <summary>
+    /// Mục tiêu chưa khả thi trong hạn người dùng hỏi thì gợi ý KÉO DÀI hạn ("2 năm chưa hợp thì thử 5 hoặc 6 năm"): số tháng cần theo kịch bản cơ sở (khi kết luận là khó đạt) hoặc kịch bản bảo thủ (khi chỉ cần cân nhắc),
+    /// làm tròn LÊN số năm tròn, kèm phương án dài hơn một năm. Mỗi phương án có bằng chứng "cần góp mỗi tháng" (giá đã tính tăng giá trừ số dư, chia số tháng) và thẻ tạo mục tiêu với hạn đó.
+    /// Không có gì được gợi ý khi kịch bản không đạt nổi trong <see cref="AgentLimits.MaxSearchMonths"/> tháng: câu trả lời vẫn nói được điều đó từ các bằng chứng kịch bản.
+    /// </summary>
+    private async Task AddLongerHorizonsAsync(
+        ToolContext context, GoalSimulation simulation, long price, long balance, int horizon, int growthBps, List<Evidence> evidence, List<SuggestedActionDto> actions, CancellationToken ct)
+    {
+        if (simulation.Verdict is GoalVerdict.Feasible or GoalVerdict.InsufficientData)
+        {
+            return;
+        }
+
+        var need = (simulation.Verdict == GoalVerdict.Tight ? simulation.Scenarios[0] : simulation.Scenarios[1]).MonthsToReach;
+        if (need is not { } months)
+        {
+            return;
+        }
+
+        var first = Math.Max((months + MonthsPerYear - 1) / MonthsPerYear * MonthsPerYear, (horizon / MonthsPerYear + 1) * MonthsPerYear);  // làm tròn lên năm tròn, luôn dài hơn hạn đã hỏi
+        var texts = config is null ? null : (await config.GetAsync(ct)).Document.Agent.Texts;
+        var today = VietnamTime.DateOf(context.Now);
+        var count = 0;
+        foreach (var n in new[] { first, first + MonthsPerYear })
+        {
+            if (n > AgentLimits.MaxSearchMonths || count == Alternatives)
+            {
+                continue;
+            }
+
+            var priceAtN = GoalSimulator.PriceAfter(price, growthBps / MonthsPerYear, n);
+            var monthly = (Math.Max(0, priceAtN - balance) + n - 1) / n;
+            var id = $"alt_{++count}_monthly";
+            var duration = GoalPlanTool.Years(n, texts);
+            evidence.Add(new Evidence(
+                id, id, monthly, AgentTexts.Render(texts, "alt_monthly", ("months", n), ("duration", duration)), "VND", EvidenceSource.Estimated, context.Now,
+                ConfidenceCalculator.Compute(EvidenceSource.Estimated, context.Now, context.Now, 1.0)));
+            actions.Add(new SuggestedActionDto(
+                SuggestedActionKinds.CreateGoal, AgentTexts.Render(texts, "action_create_goal", ("duration", duration), ("monthly", LocalTemplateComposer.FormatVnd(monthly))),
+                price, today.AddMonths(n).ToString("yyyy-MM-dd"), null, null, [id]));
+        }
     }
 
     /// <summary>

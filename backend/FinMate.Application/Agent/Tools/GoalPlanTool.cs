@@ -212,10 +212,12 @@ public sealed class GoalPlanTool(
         evidence.Add(Money(context.Now, "cut_horizon_monthly", monthly, EvidenceSource.Estimated, Text(t, "cut_horizon", ("percent", percent), ("category", top.Name), ("duration", Years(n, t)))));
         if (limit > 0)
         {
+            // số trên nút "Đặt hạn mức" cũng phải có trong "Vì sao?": mọi số tiền trên thẻ đều có bằng chứng
+            evidence.Add(Money(context.Now, "cut_limit", limit, EvidenceSource.Estimated, Text(t, "cut_limit", ("category", top.Name), ("percent", percent))));
             actions.Add(new SuggestedActionDto(
                 SuggestedActionKinds.SetBudgetLimit,
                 Text(t, "action_cut_limit", ("category", top.Name), ("limit", LocalTemplateComposer.FormatVnd(limit)), ("duration", Years(n, t))),
-                limit, null, top.Slug, top.Name, ["cut_saving", "cut_horizon_monthly"]));
+                limit, null, top.Slug, top.Name, ["cut_limit", "cut_saving", "cut_horizon_monthly"]));
         }
     }
 

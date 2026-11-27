@@ -280,6 +280,8 @@
     "goal_year_rel_words": ["nay", "sau", "toi"],
     "goal_ai_candidate_phrases": ["tich luy", "danh dum", "de danh", "phan dau", "muon co", "can co", "can gop", "gop", "tiet kiem", "muc tieu", "ke hoach"],
     "goal_ai_candidate_intents": ["add_expense", "add_income", "out_of_scope", "ask_agent", "needs_amount"],
+    "agent_howlong": {"on": "folded", "regex": "(?<![a-z])(?:bao lau|khi nao (?:toi )?(?:du|mua duoc))(?![a-z])", "doc": "Câu hỏi BAO LÂU nữa đủ tiền ('bao lâu đủ tiền mua nhà 2 tỷ'): người dùng hỏi thời hạn chứ không nêu thời hạn. Planner dùng cùng mẫu agent_duration_stated để biết câu có nêu hạn hay không; không nêu thì horizon_months là mức tối đa công cụ cho phép, để kịch bản nói 'đạt sau N tháng' hay 'không đạt', thay vì LLM tự điền 1 tháng."},
+    "agent_duration_stated": {"on": "folded", "regex": "(?<![a-z\\d])(?:\\d{1,3}|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi|ruoi) (?:thang|nam|tuan)(?![a-z])", "doc": "Câu có NÊU một khoảng thời gian ('2 năm', 'ba tháng', 'sau 5 năm'). Dùng cùng agent_howlong."},
     "not_item_words": [
       "khác"
     ],

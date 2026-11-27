@@ -6,7 +6,7 @@ namespace FinMate.Application.Agent;
 public sealed record ApprovedAssumption(Evidence Evidence, int RateBps);
 
 /// <summary>Công cụ tra giả định kinh tế. Không có bản đã duyệt thì trả null, không bao giờ trả một con số mặc định.</summary>
-public sealed class GetAssumptionsTool(IEconomicAssumptionRepository repository)
+public sealed class GetAssumptionsTool(IEconomicAssumptionRepository repository, ISystemConfigProvider? config = null)
 {
     /// <summary>Các khóa có bản đã duyệt, để mô tả công cụ cho planner.</summary>
     public Task<IReadOnlyList<string>> ApprovedKeysAsync(CancellationToken ct = default) => repository.ListApprovedKeysAsync(ct);
@@ -19,11 +19,15 @@ public sealed class GetAssumptionsTool(IEconomicAssumptionRepository repository)
             return null;
         }
 
+        // Câu chữ cho người đọc nằm ở mẫu (admin sửa được), không để khóa kỹ thuật như general_price_growth lọt ra màn hình; khóa chưa có mẫu riêng dùng mẫu chung.
+        var texts = config is null ? null : (await config.GetAsync(ct)).Document.Agent.Texts;
+        var templateKey = $"assumption_{assumption.Key}";
+        var text = AgentTexts.Render(texts, AgentTexts.Catalog.ContainsKey(templateKey) ? templateKey : "assumption_generic", ("rate", Percent(assumption.RateBps)));
         var evidence = new Evidence(
             Id: $"assumption:{assumption.Key}:v{assumption.Version}",
             Key: assumption.Key,
             ValueVnd: null,
-            Text: $"{assumption.Key}: {Percent(assumption.RateBps)}/năm",
+            Text: text,
             Unit: assumption.Unit,
             Source: EvidenceSource.Document,
             AsOf: assumption.AsOf,

@@ -70,7 +70,8 @@ public static class GoalSimulator
         }
     }
 
-    private static long PriceAfter(long price, int monthlyBps, int months)
+    /// <summary>Giá sau <paramref name="months"/> tháng khi tăng <paramref name="monthlyBps"/> điểm cơ bản mỗi tháng (số nguyên, cắt phần dư); dùng cả để tính phương án kéo dài hạn.</summary>
+    public static long PriceAfter(long price, int monthlyBps, int months)
     {
         for (var i = 0; i < months; i++)
         {

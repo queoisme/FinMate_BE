@@ -414,6 +414,8 @@ public class ManagementToolsTests
         var action = result.Actions!.Single(a => a.Kind == SuggestedActionKinds.SetBudgetLimit);
         action.CategorySlug.Should().Be("food");
         action.AmountVnd.Should().Be(2_700_000);
+        result.Evidence.Single(e => e.Id == "cut_limit").ValueVnd.Should().Be(2_700_000, "số trên nút Đặt hạn mức phải có trong Vì sao?");
+        action.EvidenceIds.Should().Contain("cut_limit");
     }
 
     [Fact]

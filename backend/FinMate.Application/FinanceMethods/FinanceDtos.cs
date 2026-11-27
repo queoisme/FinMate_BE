@@ -77,7 +77,9 @@ public record SpendableDto(
     long SpentCents,
     long GoalSetAsideCents,
     long? SpendableCents,
-    IReadOnlyList<SpendableGoalDto> Goals);
+    IReadOnlyList<SpendableGoalDto> Goals,
+    long SpentTodayCents = 0,
+    long? SafeTodayCents = null);
 
 internal static class FinanceMapper
 {

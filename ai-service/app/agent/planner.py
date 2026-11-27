@@ -12,7 +12,9 @@ from typing import Any
 
 from app.agent.llm.provider import LlmProvider
 from app.agent.schemas import LlmUsage, PlanRequest, PlanResponse, PlanStep
+from app.services import intent_cues
 from app.services.amount_normalizer import find_amounts
+from app.services.vi_text import clean_text, fold
 
 MIN_PRICE_VND = 1_000  # số nhỏ hơn không phải một khoản tiền ("2" trong "2 năm" không được coi là giá)
 CLARIFY_PRICE = "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"
@@ -98,6 +100,24 @@ def _reconcile_money(request: PlanRequest, steps: list[PlanStep]) -> tuple[list[
     return kept, dropped
 
 
+def _open_horizon_for_how_long(request: PlanRequest, steps: list[PlanStep]) -> list[PlanStep]:
+    """"Bao lâu đủ tiền mua nhà 2 tỷ" không nêu thời hạn nào, nhưng công cụ dự báo bắt buộc ``horizon_months`` và LLM hay tự điền 1. Câu hỏi bao lâu mà không nêu hạn thì mở hạn tới mức tối đa công cụ cho phép
+    (lấy từ ``args_schema`` backend gửi sang): kịch bản trả lời "đạt sau N tháng" hoặc "không đạt trong ... tháng". Hạn do người dùng nêu thì không đụng tới."""
+    patterns = intent_cues.current().patterns
+    folded = " ".join(fold(clean_text(request.text)).split())
+    if not patterns["agent_howlong"].search(folded) or patterns["agent_duration_stated"].search(folded):
+        return steps
+    specs = {t.name: t.args_schema for t in request.tools}
+    opened: list[PlanStep] = []
+    for step in steps:
+        horizon = specs.get(step.tool, {}).get("horizon_months")
+        longest = horizon.get("max") if isinstance(horizon, dict) else None
+        if "horizon_months" in step.args and isinstance(longest, int):
+            step = step.model_copy(update={"args": {**step.args, "horizon_months": longest}})
+        opened.append(step)
+    return opened
+
+
 async def make_plan(provider: LlmProvider, request: PlanRequest, max_output_tokens: int) -> PlanResponse:
     """``LlmFailed`` của nhà cung cấp được để nổi lên: tầng gọi quyết định trả 503 và rơi về luật/câu mẫu."""
     user = json.dumps(
@@ -125,6 +145,7 @@ async def make_plan(provider: LlmProvider, request: PlanRequest, max_output_toke
     steps = steps[: request.max_steps]
 
     steps, dropped = _reconcile_money(request, steps)
+    steps = _open_horizon_for_how_long(request, steps)
     llm_clarify = result.data.get("clarify")
     clarify = llm_clarify.strip() if isinstance(llm_clarify, str) and llm_clarify.strip() else None
     if dropped and not steps and clarify is None:

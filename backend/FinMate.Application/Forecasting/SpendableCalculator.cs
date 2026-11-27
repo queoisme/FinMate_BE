@@ -18,7 +18,8 @@ public sealed record SpendableInput(
     long ReserveCents,
     ForecastRules Rules,
     long IrregularIncomeCents = 0,
-    IReadOnlyList<Domain.Entities.Loan>? Loans = null);   // Phase 90: khoản vay open; đi vay có hạn trong kỳ bị trừ (BR-DEBT-17)
+    IReadOnlyList<Domain.Entities.Loan>? Loans = null,    // Phase 90: khoản vay open; đi vay có hạn trong kỳ bị trừ (BR-DEBT-17)
+    IReadOnlyList<ScenarioItem>? Scenario = null);        // "Thử kịch bản": khoản thu/chi giả định, chỉ tính khi rơi vào kỳ
 
 public static class SpendablePeriodBasis
 {
@@ -85,6 +86,19 @@ public static class SpendableCalculator
         }
 
         var bills = events.Where(e => e.AmountCents < 0).ToList();
+
+        // Kịch bản giả định: khoản nào rơi vào kỳ tính (hôm nay tới hết kỳ) thì tính như một khoản thu/chi trong kỳ; ngoài kỳ thì không ảnh hưởng.
+        foreach (var item in (input.Scenario ?? []).Where(s => s.Date >= input.Today && s.Date <= end))
+        {
+            if (item.Direction == RecurringDirection.Inflow)
+            {
+                incomes.Add(new CashflowEvent(item.Date, item.AmountCents, item.Label, CashflowEventKinds.Scenario, null));
+            }
+            else
+            {
+                bills.Add(new CashflowEvent(item.Date, -item.AmountCents, item.Label, CashflowEventKinds.Scenario, null));
+            }
+        }
 
         var balance = input.Accounts.Sum(a => a.BalanceCents);
         var income = incomes.Sum(e => e.AmountCents);

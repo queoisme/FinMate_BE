@@ -81,6 +81,33 @@ public class CreateTransferCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_AmountAboveSourceBalance_ThrowsAndChangesNothing()
+    {
+        var (userId, from, to) = Arrange(fromBalance: 700_000, toBalance: 25_000_000);
+
+        var act = () => _handler.HandleAsync(new CreateTransferCommand(
+            userId, from.Id, to.Id, 99_999_999, DateTimeOffset.UtcNow, null));
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.ErrorCode.Should().Be(TransactionErrorCodes.TransferInsufficientFunds);
+        from.BalanceCents.Should().Be(700_000);
+        to.BalanceCents.Should().Be(25_000_000);
+        _transactionRepository.Verify(r => r.AddAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AmountEqualToSourceBalance_IsAllowed()
+    {
+        var (userId, from, to) = Arrange(fromBalance: 700_000);
+
+        await _handler.HandleAsync(new CreateTransferCommand(
+            userId, from.Id, to.Id, 700_000, DateTimeOffset.UtcNow, null));
+
+        from.BalanceCents.Should().Be(0);
+        to.BalanceCents.Should().Be(700_000);
+    }
+
+    [Fact]
     public async Task HandleAsync_SameAccountBothSides_Throws()
     {
         var (userId, from, _) = Arrange();

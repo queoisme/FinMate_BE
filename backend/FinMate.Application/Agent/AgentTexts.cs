@@ -29,6 +29,7 @@ public static partial class AgentTexts
         ["action_change_deadline"] = ("Kéo dài thành {duration} · góp {monthly}/tháng", ["duration", "monthly"]),
         ["cut_saving"] = ("Nếu giảm {percent}% chi tiêu nhóm {category} thì mỗi tháng dành thêm được", ["percent", "category"]),
         ["cut_horizon"] = ("Giảm {percent}% chi nhóm {category} thì đủ mục tiêu sau khoảng {duration}, mỗi tháng góp", ["percent", "category", "duration"]),
+        ["cut_limit"] = ("Hạn mức đề xuất cho nhóm {category} sau khi giảm {percent}% chi tiêu", ["category", "percent"]),
         ["action_cut_limit"] = ("Đặt hạn mức {category} {limit}/tháng · đủ mục tiêu sau {duration}", ["category", "limit", "duration"]),
         ["capacity_from_survey"] = ("Khả năng góp mỗi tháng ước tính theo câu trả lời khảo sát ban đầu của bạn: dành khoảng {percent}% thu nhập bạn khai", ["percent"]),
         ["basis_survey"] = (" và câu trả lời khảo sát ban đầu của bạn (dành khoảng {percent}% thu nhập để tiết kiệm)", ["percent"]),
@@ -37,6 +38,10 @@ public static partial class AgentTexts
         ["basis_survey_spend"] = (" và mức chi bạn chọn trong khảo sát ban đầu", []),
         ["basis_spend"] = (" và chi tiêu trung bình của {count} tháng đã ghi", ["count"]),
         ["basis_method"] = (" và cách quản lý bạn đã chọn ({method}, dành khoảng {percent}% thu nhập để tiết kiệm)", ["method", "percent"]),
+        ["assumption_general_price_growth"] = ("Giá cả nói chung tăng khoảng {rate} mỗi năm", ["rate"]),
+        ["assumption_wage_growth"] = ("Lương trung bình tăng khoảng {rate} mỗi năm", ["rate"]),
+        ["assumption_gold_price_growth"] = ("Giá vàng tăng khoảng {rate} mỗi năm", ["rate"]),
+        ["assumption_generic"] = ("Mức tăng giá theo giả định đã duyệt: {rate} mỗi năm", ["rate"]),
         ["preliminary_note"] = ("Chỉ để tham khảo: mới dựa trên thu nhập bạn khai{basis}. Ghi chép chi tiêu thật (≥ {minMonths} tháng) để mình tính chính xác hơn.", ["basis", "minMonths"]),
     };
 

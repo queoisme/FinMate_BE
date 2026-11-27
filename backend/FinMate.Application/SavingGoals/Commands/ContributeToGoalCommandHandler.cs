@@ -44,6 +44,15 @@ public class ContributeToGoalCommandHandler : IContributeToGoalCommandHandler
                 "Chỉ đóng góp được vào mục tiêu đang hoạt động.");
         }
 
+        // Không cho góp nhiều hơn phần còn lại: góp vượt thì "% hoàn thành" vô nghĩa (vd 10000%) và mục tiêu tự đóng với số đã để dành phình to.
+        var remainingCents = Math.Max(0, goal.TargetCents - goal.SavedCents);
+        if (command.AmountCents > remainingCents)
+        {
+            throw new BusinessRuleException(
+                SavingGoalErrorCodes.ContributionExceedsRemaining,
+                $"Số tiền góp vượt phần còn lại của mục tiêu ({remainingCents:N0} ₫).");
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         // Bookkeeping thuần: không trừ FinancialAccount.BalanceCents và không tạo Transaction.

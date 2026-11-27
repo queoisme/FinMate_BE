@@ -21,6 +21,9 @@ public interface IForecastService
     Task<CashflowForecastDto> RunScenarioAsync(CashflowScenarioCommand command, CancellationToken ct = default);
 
     Task<SafeToSpendDto> GetSpendableAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Số tiền có thể chi nếu có thêm các khoản giả định trong kỳ. Không ghi gì vào dữ liệu thật.</summary>
+    Task<SafeToSpendDto> RunSpendableScenarioAsync(CashflowScenarioCommand command, CancellationToken ct = default);
 }
 
 public class ForecastService : IForecastService
@@ -83,6 +86,18 @@ public class ForecastService : IForecastService
 
     public async Task<CashflowForecastDto> RunScenarioAsync(CashflowScenarioCommand command, CancellationToken ct = default)
     {
+        await ValidateScenarioAsync(command, ct);
+        return await ProjectAsync(command.UserId, command.AccountId, command.To, command.Items, ct);
+    }
+
+    public async Task<SafeToSpendDto> RunSpendableScenarioAsync(CashflowScenarioCommand command, CancellationToken ct = default)
+    {
+        await ValidateScenarioAsync(command, ct);
+        return await SpendableAsync(command.UserId, command.Items, ct);
+    }
+
+    private async Task ValidateScenarioAsync(CashflowScenarioCommand command, CancellationToken ct)
+    {
         var settings = await SettingsAsync(ct);
         if (command.Items.Count == 0 || command.Items.Count > settings.MaxScenarioItems)
         {
@@ -94,11 +109,11 @@ public class ForecastService : IForecastService
             throw new BusinessRuleException(
                 ForecastErrorCodes.ScenarioInvalid, $"Mỗi khoản giả định cần số tiền lớn hơn 0 và tên từ 1 đến {ScenarioLabelMaxLength} ký tự.");
         }
-
-        return await ProjectAsync(command.UserId, command.AccountId, command.To, command.Items, ct);
     }
 
-    public async Task<SafeToSpendDto> GetSpendableAsync(Guid userId, CancellationToken ct = default)
+    public Task<SafeToSpendDto> GetSpendableAsync(Guid userId, CancellationToken ct = default) => SpendableAsync(userId, null, ct);
+
+    private async Task<SafeToSpendDto> SpendableAsync(Guid userId, IReadOnlyList<ScenarioItem>? scenario, CancellationToken ct)
     {
         var settings = await SettingsAsync(ct);
         var rules = ForecastRules.From(settings);
@@ -124,7 +139,8 @@ public class ForecastService : IForecastService
             Reserve(user, settings),
             rules,
             irregular,
-            loans)) with
+            loans,
+            scenario)) with
         {
             UndatedLoans = LoanForecast.Undated(loans),
             UnlinkedLoanTransactions = await UnlinkedLoansAsync(userId, ct),

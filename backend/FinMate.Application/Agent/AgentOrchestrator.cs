@@ -26,6 +26,7 @@ public static class AgentMessages
 {
     public const string OutOfScope = "Mình chỉ hỗ trợ các câu hỏi về tài chính cá nhân của bạn.";
     public const string NotUnderstood = "Mình chưa hiểu bạn muốn xem điều gì. Bạn nói rõ hơn giúp mình nhé, ví dụ: \"Mua xe 600 triệu sau 2 năm được không?\".";
+    public const string SmallTalk = "Mình đây! Bạn muốn xem điều gì về tài chính của mình? Ví dụ: \"Tháng này tôi tiêu bao nhiêu?\" hoặc \"Mua xe 600 triệu sau 2 năm được không?\".";
 
     public static string Insufficient(string? code) => code switch
     {
@@ -54,6 +55,9 @@ public sealed class AgentOrchestrator(
     /// <summary>Mã cổng phạm vi khi câu không có từ khóa tài chính nào (khác với chủ đề bị từ chối riêng).</summary>
     public const string GateReasonNoCue = "out_of_scope";
 
+    /// <summary>Mã cổng khi câu chỉ là xã giao ("ừ", "xin chào", "cảm ơn"): trong phạm vi nhưng không có gì để lập kế hoạch.</summary>
+    public const string GateReasonSmallTalk = "smalltalk";
+
     /// <summary>Bằng chứng độ phủ dữ liệu (Phase 84, BR-LH-09).</summary>
     public const string DataCoverageEvidenceId = "data_coverage";
 
@@ -75,6 +79,12 @@ public sealed class AgentOrchestrator(
         if (!gate.InScope && !followUp)
         {
             return Reply(AgentStatus.Refused, gate.RefusalText ?? AgentMessages.OutOfScope, traceId);
+        }
+
+        // Xã giao không có việc nào để làm. Cho qua bước lập kế hoạch thì LLM đọc nó như câu nối tiếp của lượt trước và chạy lại công cụ cũ ("ừ" sau một lần so sánh thì ra lại bản so sánh).
+        if (gate.ReasonCode == GateReasonSmallTalk && gate.DirectTool is null)
+        {
+            return Reply(AgentStatus.Clarify, AgentMessages.SmallTalk, traceId);
         }
 
         var profile = await income.GetAsync(userId, clock, ct);
@@ -297,6 +307,7 @@ public sealed class AgentOrchestrator(
         ["forecast_goal"] = ["price_vnd", "horizon_months"],
         ["simulate_purchase"] = ["price_vnd"],
         ["spending_summary"] = ["months"],
+        ["compare_spending"] = ["months"],
         ["plan_budget"] = ["income_vnd", "save_vnd"],
         ["propose_budget_limit"] = ["limit_vnd"],
         ["goal_plan"] = ["target_vnd", "months"],

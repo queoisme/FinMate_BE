@@ -7,6 +7,9 @@ public static class TransactionErrorCodes
     /// <summary>Ví nguồn và ví đích của transfer trùng nhau.</summary>
     public const string TransferSameAccount = "TRANSACTION_TRANSFER_SAME_ACCOUNT";
 
+    /// <summary>Số chuyển lớn hơn số dư ví nguồn (ví tiền mặt, ngân hàng, ví điện tử không có hạn mức thấu chi).</summary>
+    public const string TransferInsufficientFunds = "TRANSACTION_TRANSFER_INSUFFICIENT_FUNDS";
+
     /// <summary>Tạo transfer qua endpoint giao dịch thường thay vì <c>POST /transactions/transfer</c>.</summary>
     public const string UseTransferEndpoint = "TRANSACTION_USE_TRANSFER_ENDPOINT";
 

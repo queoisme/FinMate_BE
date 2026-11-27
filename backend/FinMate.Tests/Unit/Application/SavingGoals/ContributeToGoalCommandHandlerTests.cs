@@ -84,18 +84,19 @@ public class ContributeToGoalCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_OvershootsTarget_StillCompletesAndKeepsFullSavedAmount()
+    public async Task HandleAsync_ExceedsRemaining_IsRejectedAndChangesNothing()
     {
         var userId = Guid.NewGuid();
         var goal = Arrange(userId, targetCents: 10_000_000, savedCents: 9_000_000);
 
-        var result = await _handler.HandleAsync(
+        var act = () => _handler.HandleAsync(
             new ContributeToGoalCommand(userId, goal.Id, 5_000_000, null, null));
 
-        goal.SavedCents.Should().Be(14_000_000);
-        goal.Status.Should().Be(SavingGoalStatus.Completed);
-        result.PercentComplete.Should().Be(100);
-        result.RemainingCents.Should().Be(0);
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.ErrorCode.Should().Be(SavingGoalErrorCodes.ContributionExceedsRemaining);
+        goal.SavedCents.Should().Be(9_000_000);
+        goal.Status.Should().Be(SavingGoalStatus.Active);
+        _savingGoalRepository.Verify(r => r.AddContributionAsync(It.IsAny<GoalContribution>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

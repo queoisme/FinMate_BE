@@ -229,3 +229,31 @@ async def test_a_dropped_price_asks_for_the_price_even_beside_budget_args():
 
     assert result.steps == []
     assert result.clarify == "Bạn cho mình biết giá cụ thể của món bạn định mua nhé?"
+
+
+HORIZON_TOOLS = [PlanTool(name="forecast_goal", args_schema={"price_vnd": {"type": "int", "required": True}, "horizon_months": {"type": "int", "required": True, "min": 1, "max": 600}})]
+
+
+@pytest.mark.parametrize("text", ["bao lâu đủ tiền mua nhà 2 tỷ", "Bao lau du tien mua nha 2 ty", "khi nào tôi đủ tiền mua nhà 2 tỷ"])
+async def test_a_how_long_question_without_a_deadline_opens_the_horizon_to_the_tool_maximum(text):
+    provider = FakeProvider([step(price_vnd=2_000_000_000, horizon_months=1)])  # LLM tự điền 1 tháng
+
+    result = await plan(provider, PlanRequest(text=text, tools=HORIZON_TOOLS))
+
+    assert result.steps[0].args == {"price_vnd": 2_000_000_000, "horizon_months": 600}
+
+
+async def test_a_deadline_the_user_states_is_never_overridden():
+    provider = FakeProvider([step(price_vnd=2_000_000_000, horizon_months=60)])
+
+    result = await plan(provider, PlanRequest(text="bao lâu đủ tiền mua nhà 2 tỷ, tôi muốn trong 5 năm", tools=HORIZON_TOOLS))
+
+    assert result.steps[0].args["horizon_months"] == 60
+
+
+async def test_a_question_that_is_not_how_long_keeps_the_llms_horizon():
+    provider = FakeProvider([step(price_vnd=600_000_000, horizon_months=24)])
+
+    result = await plan(provider, PlanRequest(text="mua xe 600 triệu sau 2 năm được không", tools=HORIZON_TOOLS))
+
+    assert result.steps[0].args["horizon_months"] == 24

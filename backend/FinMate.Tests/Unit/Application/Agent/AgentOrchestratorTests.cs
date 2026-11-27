@@ -696,6 +696,23 @@ public class AgentOrchestratorTests
     }
 
     [Fact]
+    public async Task small_talk_inside_a_conversation_is_answered_with_a_prompt_and_never_replays_the_last_tool()
+    {
+        var (orchestrator, ai, _) = Build();
+        var me = Guid.NewGuid();
+        await orchestrator.AskAsync(me, "so sánh chi tiêu tháng này với tháng trước");
+        var plansBefore = ai.PlanCalls.Count;
+        ai.Gate = new AgentGateResult(true, AgentOrchestrator.GateReasonSmallTalk, null);
+
+        var answer = await orchestrator.AskAsync(me, "ừ");
+
+        answer.Status.Should().Be(AgentStatus.Clarify);
+        answer.Message.Should().Be(AgentMessages.SmallTalk);
+        answer.Evidence.Should().BeEmpty();
+        ai.PlanCalls.Should().HaveCount(plansBefore); // không gọi planner, không tốn token
+    }
+
+    [Fact]
     public async Task a_topic_refusal_is_final_even_inside_a_conversation()
     {
         var (orchestrator, ai, _) = Build();

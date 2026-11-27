@@ -79,6 +79,31 @@ public class GoalPlanningService : IGoalPlanningService
         return suggestions;
     }
 
+    /// <summary>
+    /// Mức chi an toàn của HÔM NAY: phần còn lại của tháng TÍNH ĐẾN ĐẦU NGÀY (thu nhập − để dành − đã chi các ngày trước) chia đều cho số ngày còn lại kể cả hôm nay.
+    /// Cố định suốt ngày (chi hôm nay không làm nó tụt), sang ngày mới thì tính lại. Âm khi tháng đã chi vượt; null khi chưa khai thu nhập.
+    /// </summary>
+    internal static long? SafeToday(long? income, long setAside, long spentBeforeToday, DateTimeOffset now, long? totalBudgetCents = null)
+    {
+        // Ngân sách tháng người dùng tự đặt là trần: lấy mức nhỏ hơn giữa thu nhập dự kiến và ngân sách tổng.
+        // Có ngân sách mà chưa khai thu nhập thì vẫn tính theo ngân sách.
+        long? monthlyCap = (income, totalBudgetCents) switch
+        {
+            (null, null) => null,
+            (null, { } budget) => budget,
+            ({ } inc, null) => inc,
+            ({ } inc, { } budget) => Math.Min(inc, budget),
+        };
+        if (monthlyCap is null)
+        {
+            return null;
+        }
+
+        var today = VietnamTime.DateOf(now);
+        var daysLeft = DateTime.DaysInMonth(today.Year, today.Month) - today.Day + 1;
+        return (monthlyCap.Value - setAside - spentBeforeToday) / daysLeft;
+    }
+
     public async Task<SpendableDto> GetSpendableAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await _users.GetByIdAsync(userId, ct) ?? throw new NotFoundException("User", userId);
@@ -87,6 +112,8 @@ public class GoalPlanningService : IGoalPlanningService
         var now = DateTimeOffset.UtcNow;
         var (start, end) = VietnamTime.MonthRange(now);
         var spent = await _snapshots.GetDebitTotalAsync(userId, start, end, ct);
+        var (dayStart, dayEnd) = VietnamTime.DayRange(VietnamTime.DateOf(now));
+        var spentToday = await _snapshots.GetDebitTotalAsync(userId, dayStart, dayEnd, ct);
 
         var primary = (await _userMethods.GetActiveAsync(userId, ct)).FirstOrDefault(a => a.Role == UserMethodRole.Primary);
         var method = primary is null ? null : await _methods.GetMethodByIdAsync(primary.MethodId, ct);
@@ -107,13 +134,17 @@ public class GoalPlanningService : IGoalPlanningService
         }
 
         var setAside = goals.Sum(g => g.SetAsideCents);
+        var totalBudget = (await _budgets.GetListForUserAsync(userId, ct))
+            .FirstOrDefault(b => b.CategoryId == null && b.GroupId == null && b.PeriodType == BudgetPeriodType.Monthly && b.LimitCents > 0);
         return new SpendableDto(
             mode is null ? null : FinanceMapper.GoalModeText(mode.Value),
             income,
             spent,
             setAside,
             income - spent - setAside,   // null khi chưa khai thu nhập: "chưa biết" không phải "bằng 0"
-            goals);
+            goals,
+            spentToday,
+            SafeToday(income, setAside, spent - spentToday, now, totalBudget?.LimitCents));
     }
 
     public async Task<GoalFeasibilityDto?> PreviewFeasibilityAsync(
