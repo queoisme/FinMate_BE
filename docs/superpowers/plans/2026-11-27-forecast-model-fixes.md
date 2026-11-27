@@ -231,3 +231,79 @@ D1–D16, đặc biệt:
 - **D8:** bỏ trả nợ hằng tháng.
 - **D10:** không thêm tham số cấu hình.
 - Nhánh tạm tách từ `feat/forecast-backtest` vì Phase 96 chưa merge.
+
+
+---
+
+## Task 1 — So F1–F3 trên tập phát triển (2026-11-27, trước khi sửa production)
+
+- Lệnh: `dotnet FinMate.Backtest.dll --diagnose FILE` (mục C6, code `Diagnostics/Estimators.cs`, `Diagnosis.Estimators.cs`).
+- Dữ liệu: hạt gốc 20261127, bộ sinh v1.2, 100 người gốc, K0, chế độ đáp án, mốc mỗi ngày.
+- Mọi phương án tính trên **cùng chuỗi ngày** mà `SpendingBaselineCalculator` dùng: 90 ngày, ngày không có = 0, loại khoản khớp định kỳ và khoản bị loại khỏi dự báo, ≥ 3 mẫu mỗi thứ không thì dùng mọi ngày.
+- Thu linh hoạt dùng `Credit` của cùng chuỗi. "Thực tế" của thu là thành phần "thu không định kỳ" của chẩn đoán C1.
+- Tiêu chí (D6 sửa bởi S2) được **áp bằng code**, không chọn bằng mắt.
+
+#### F1–F3 cho chi và thu linh hoạt (ô = WAPE / thiên lệch so với thực tế)
+
+Chi linh hoạt:
+
+| Hồ sơ | Tầm | production | F1 trung bình theo thứ | F2 trung bình theo thứ, winsorize P95 | F3 trung bình chung |
+|---|---|---|---|---|---|
+| stable_worker | 7 | 31,3% / -24,1% | 26,1% / 2,1% | 25,6% / -2,8% | 26,1% / 2,1% |
+| stable_worker | 14 | 27,6% / -23,9% | 19,9% / 2,3% | 19,4% / -2,7% | 19,9% / 2,3% |
+| stable_worker | 30 | 25,4% / -23,9% | 15,4% / 2,4% | 15,0% / -2,6% | 15,4% / 2,4% |
+| freelancer | 7 | 31,4% / -24,4% | 26,1% / -1,3% | 25,8% / -6,4% | 26,0% / -1,3% |
+| freelancer | 14 | 27,6% / -24,3% | 20,0% / -1,1% | 19,9% / -6,2% | 19,9% / -1,0% |
+| freelancer | 30 | 25,5% / -24,1% | 15,4% / -0,9% | 15,5% / -6,0% | 15,4% / -0,9% |
+| student | 7 | 47,5% / -42,6% | 61,9% / -0,1% | 43,5% / -28,9% | 61,8% / -0,1% |
+| student | 14 | 44,9% / -42,5% | 59,0% / -0,0% | 39,1% / -28,8% | 59,0% / -0,0% |
+| student | 30 | 43,5% / -42,5% | 57,2% / -0,1% | 36,0% / -28,9% | 57,1% / -0,1% |
+| family | 7 | 33,1% / -26,9% | 27,4% / 1,6% | 26,6% / -4,2% | 27,3% / 1,6% |
+| family | 14 | 30,0% / -26,9% | 21,2% / 1,6% | 20,7% / -4,2% | 21,2% / 1,6% |
+| family | 30 | 28,0% / -26,8% | 16,5% / 1,7% | 16,1% / -4,1% | 16,5% / 1,7% |
+| small_trader | 7 | 9,8% / -6,1% | 8,4% / -0,0% | 8,6% / -1,9% | 18,8% / 0,0% |
+| small_trader | 14 | 8,3% / -6,1% | 6,4% / -0,0% | 6,6% / -1,9% | 11,7% / 0,0% |
+| small_trader | 30 | 7,4% / -6,2% | 4,7% / -0,1% | 5,1% / -2,0% | 9,4% / -0,1% |
+| all | 7 | 21,7% / -16,8% | 20,1% / 0,2% | 18,4% / -5,3% | 25,6% / 0,3% |
+| all | 14 | 19,3% / -16,7% | 16,5% / 0,3% | 14,7% / -5,3% | 19,2% / 0,3% |
+| all | 30 | 17,9% / -16,7% | 13,6% / 0,3% | 11,8% / -5,3% | 16,1% / 0,3% |
+
+Thu linh hoạt (thu không định kỳ; production = 0 vì không chiếu):
+
+| Hồ sơ | Tầm | production | F1 trung bình theo thứ | F2 trung bình theo thứ, winsorize P95 | F3 trung bình chung |
+|---|---|---|---|---|---|
+| stable_worker | 7 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| stable_worker | 14 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| stable_worker | 30 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| freelancer | 7 | 100,0% / -100,0% | 118,8% / -2,2% | 109,7% / -48,6% | 118,6% / -2,2% |
+| freelancer | 14 | 100,0% / -100,0% | 92,5% / -2,6% | 93,5% / -48,7% | 92,4% / -2,5% |
+| freelancer | 30 | 100,0% / -100,0% | 70,4% / -3,0% | 79,3% / -48,9% | 70,3% / -3,0% |
+| student | 7 | 100,0% / -100,0% | 9,3% / -0,1% | 9,7% / -2,9% | 24,0% / 0,0% |
+| student | 14 | 100,0% / -100,0% | 6,8% / -0,0% | 7,4% / -2,8% | 14,6% / 0,1% |
+| student | 30 | 100,0% / -100,0% | 5,1% / 0,1% | 5,8% / -2,7% | 12,6% / 0,2% |
+| family | 7 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| family | 14 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| family | 30 | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) | — (thực tế 0) |
+| small_trader | 7 | 100,0% / -100,0% | 18,1% / -0,1% | 18,1% / -2,5% | 18,7% / -0,1% |
+| small_trader | 14 | 100,0% / -100,0% | 13,7% / -0,1% | 13,8% / -2,5% | 13,9% / -0,1% |
+| small_trader | 30 | 100,0% / -100,0% | 10,1% / 0,0% | 10,2% / -2,4% | 10,2% / 0,0% |
+| all | 7 | 100,0% / -100,0% | 52,7% / -0,8% | 49,6% / -18,4% | 53,4% / -0,8% |
+| all | 14 | 100,0% / -100,0% | 40,8% / -0,9% | 41,2% / -18,5% | 41,2% / -0,9% |
+| all | 30 | 100,0% / -100,0% | 30,9% / -1,0% | 34,1% / -18,6% | 31,2% / -1,0% |
+
+**Áp tiêu chí (tầm 14, gộp):** |thiên lệch chi| ≤ 5% và |thiên lệch thu| ≤ 5% (xét riêng); WAPE chi của mỗi hồ sơ không tệ hơn production quá 5 điểm % (sinh viên: tới 15 điểm nếu |thiên lệch chi của sinh viên| ≤ 10%); qua hết thì xếp theo WAPE gộp chi + thu; hòa thì F1 < F3 < F2.
+
+| Phương án | Thiên lệch chi | Thiên lệch thu | Hồ sơ vi phạm | WAPE gộp chi + thu | Kết quả |
+|---|---|---|---|---|---|
+| F1 trung bình theo thứ | 0,3% | -0,9% | — | 28,9% | đạt |
+| F2 trung bình theo thứ, winsorize P95 | -5,3% | -18,5% | — | 28,2% | không đạt |
+| F3 trung bình chung | 0,3% | -0,9% | — | 30,4% | đạt |
+
+**Lựa chọn theo tiêu chí:** F1 trung bình theo thứ.
+
+**Kết luận Task 1: chọn F1 (trung bình theo thứ trong tuần, không cắt) cho cả chi và thu linh hoạt.**
+- F1 và F3 đều đạt cả hai trần thiên lệch. F1 có WAPE gộp thấp hơn (28,9% so với 30,4%), vì F3 mất nhịp tuần: WAPE chi của tiểu thương tăng từ 6,4% lên 11,7%, thu của sinh viên từ 6,8% lên 14,6%.
+- F2 không đạt. Winsorize ở P95 cắt mất phần lớn thu của freelancer (thu dồn vào vài ngày mỗi tháng): thiên lệch thu −18,5% gộp, −48,7% với freelancer. Chi cũng lệch −5,3%, vượt trần.
+- Sinh viên dùng đúng ngoại lệ đã chốt trước: WAPE chi 59,0% so với 44,9% của production (+14,1 điểm, dưới trần 15), thiên lệch chi về 0,0% (production −42,5%). Nguyên nhân WAPE tăng đã biết từ chẩn đoán: hai khoản học phí lớn nằm trong 90 ngày lịch sử làm trung bình dao động.
+- Với freelancer, WAPE thu còn cao (92,5% ở tầm 14) dù thiên lệch nhỏ (−2,6%): thu dồn vào vài ngày ngẫu nhiên nên từng mốc lệch nhiều, nhưng trung bình không thiên lệch. Phần bất định này để dải của tầng 2 xử lý.
+- **Không đổi tiêu chí sau khi xem số.** Task 2–4 cài F1 vào production.

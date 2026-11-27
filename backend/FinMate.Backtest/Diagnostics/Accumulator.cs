@@ -50,6 +50,9 @@ public sealed class Accumulator
 
     public Dictionary<(string Persona, int Horizon), BandSum> Band { get; } = new();
 
+    /// <summary>Phase 97 Task 1: (hồ sơ, tầm, "flex"|"income", phương án) → sai số so với thực tế.</summary>
+    public Dictionary<(string Persona, int Horizon, string Kind, string Method), Sum> Estimates { get; } = new();
+
     public long IdentityMismatches { get; private set; }
 
     public long ReplicationMismatches { get; private set; }
@@ -119,6 +122,9 @@ public sealed class Accumulator
             b.SumQuantileWidth += q.High - q.Low;
         }
     }
+
+    public void AddEstimate(string persona, int horizon, string kind, string method, long predicted, long actual)
+        => Get(Estimates, (persona, horizon, kind, method)).Add(predicted - actual, actual);
 
     private static TValue Get<TKey, TValue>(Dictionary<TKey, TValue> map, TKey key)
         where TKey : notnull

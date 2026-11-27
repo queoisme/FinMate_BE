@@ -40,6 +40,7 @@ public static partial class Diagnosis
         WriteBands(md, acc);
         WriteTrace(md, options);
         WriteHoliday(md, options, progress);
+        WriteEstimators(md, acc, options.Personas);
         return md.ToString();
     }
 
@@ -55,6 +56,8 @@ public static partial class Diagnosis
             var items = oracle.ItemsAt(harness.Clock.Now).Select(i => i.ToView()).ToList();
             var history = RefundNetting.ForHabits(harness.View.Raw(origin.AddDays(-rules.HistoryWindowDays), origin).Where(t => !t.IsLoan).ToList());
             var levels = FlexVariants.Compute(history, items, origin, rules);
+            var flexLevels = Estimators.Levels(history, items, origin, rules, TransactionType.Debit);
+            var incomeLevels = Estimators.Levels(history, items, origin, rules, TransactionType.Credit);
             foreach (var h in Horizons)
             {
                 var to = origin.AddDays(h);
@@ -65,7 +68,21 @@ public static partial class Diagnosis
                 var flexActual = FlexActual(harness, truth, origin, to);
                 acc.AddFlex(world.Persona, h, levels, origin, flexActual, Baselines.ModelFlexible(forecast, h));
                 acc.AddBand(world.Persona, h, forecast, levels, flexActual, actualBalance);
+                AddEstimates(acc, world.Persona, h, origin, flexLevels, incomeLevels, flexActual, actual[Component.IncomeIrregular], Baselines.ModelFlexible(forecast, h));
             }
+        }
+    }
+
+    private static void AddEstimates(
+        Accumulator acc, string persona, int h, DateOnly origin, IReadOnlyDictionary<string, long[]>? flex, IReadOnlyDictionary<string, long[]>? income,
+        long flexActual, long incomeActual, long productionFlex)
+    {
+        acc.AddEstimate(persona, h, EstimatorKinds.Flex, EstimatorKinds.Production, productionFlex, flexActual);
+        acc.AddEstimate(persona, h, EstimatorKinds.Income, EstimatorKinds.Production, 0, incomeActual);   // production không chiếu thu không định kỳ (H1)
+        foreach (var method in Estimators.All)
+        {
+            acc.AddEstimate(persona, h, EstimatorKinds.Flex, method, flex is null ? productionFlex : FlexVariants.Over(flex[method], origin, h), flexActual);
+            acc.AddEstimate(persona, h, EstimatorKinds.Income, method, income is null ? 0 : FlexVariants.Over(income[method], origin, h), incomeActual);
         }
     }
 
