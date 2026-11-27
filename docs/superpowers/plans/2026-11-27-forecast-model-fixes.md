@@ -1,8 +1,16 @@
 # Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest
 
-> Trạng thái: **Bước 1 (kế hoạch) xong 2026-11-27, chờ duyệt.** Chưa sửa code.
+> Trạng thái: **Kế hoạch đã duyệt 2026-11-27: D1–D16 theo đề xuất, kèm S1–S4 (S thắng D khi mâu thuẫn).** Bắt đầu Task 1 sau khi Phase 96 merge và nhánh này rebase lên `main`. Dừng sau tầng 1 (S4).
 > Nhánh `feat/forecast-model-fixes`. **Điều kiện bắt đầu chưa đủ:** Phase 96 chưa merge vào `main` (`main` và `origin/main` vẫn ở `32912fc`). Nhánh này vì vậy tạm tách từ `feat/forecast-backtest` @ `d82d006`; khi Phase 96 merge thì rebase lên `main`.
 > Nguồn: mục "Chẩn đoán" trong `docs/superpowers/plans/2026-11-27-forecast-backtest.md`, báo cáo `docs/evaluation/forecast-backtest.md`. Công cụ đo: `FinMate.Backtest` (kể cả `--diagnose`). Đặc tả bộ sinh **giữ v1.1**.
+
+## Đã duyệt (2026-11-27): D1–D16 kèm S1–S4
+
+- **S1 (thay D3):** tầng 1 không để dải dồn một phía. Giữ độ rộng cũ nhưng dời tâm theo đường dự kiến mới: thận trọng = dự kiến + Σ(P75 − trung vị) theo ngày, lạc quan = dự kiến − Σ(trung vị − P25). Có test với chi đuôi nặng (trung bình > P75): dải vẫn bao quanh đường dự kiến. Tầng 2 thay cả cách tính.
+- **S2 (thay một phần D6):** thiên lệch chi linh hoạt và thiên lệch thu linh hoạt xét **riêng**, mỗi bên |thiên lệch| ≤ 5% (ngoại lệ sinh viên giữ cho phần chi); WAPE gộp dùng để xếp hạng. Không phương án nào qua thì dừng.
+- **S3 (lương trễ):** test ca khoản thu định kỳ về trễ quá dung sai matcher: không được vừa cộng vào thu linh hoạt vừa giữ khoản định kỳ chưa trả trong cùng một dự báo; nếu không chặn được thì ghi rõ và đo. Báo cáo backtest in riêng thiên lệch thu của K2.
+- **S4:** dừng sau tầng 1 (Task 7), gửi bảng số tập phát triển so với Phase 96 (hồ sơ × tầm, thiên lệch, so baseline, tỉ lệ phủ dải); chủ sản phẩm quyết có làm tầng 2.
+- Phase 96 được push và mở PR; Task 1 bắt đầu sau khi PR đó merge và nhánh này rebase lên `main`. Hai test đỏ có sẵn trên `main` không tính là hồi quy.
 
 ## 0. Tập đánh giá (chốt trước khi viết code)
 
