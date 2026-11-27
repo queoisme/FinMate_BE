@@ -7,7 +7,10 @@ using FinMate.API.Controllers;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Domain.Entities;
+using FinMate.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,14 +51,32 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
 
     private readonly RecordingClient _ai = new();
     private readonly HttpClient _client;
+    private readonly WebApplicationFactory<FinMate.API.Program> _factory;
 
     public AdminKnowledgeControllerTests(AuthApiFactory factory)
     {
-        _client = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        _factory = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IAiRulesAdminClient>();
             services.AddSingleton<IAiRulesAdminClient>(_ai);
-        })).CreateClient();
+        }));
+        _client = _factory.CreateClient();
+    }
+
+    /// <summary>
+    /// Phase 95 (S3): chỉ duyệt được tài liệu có ghi người gửi (hoặc tài liệu cũ trước mốc). Ghi sẵn một dòng đang chờ duyệt, người gửi là người khác,
+    /// để test này chỉ kiểm việc gọi đúng route và ghi đúng một dòng audit.
+    /// </summary>
+    private async Task TrackedDraftAsync(Guid documentId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FinMateDbContext>();
+        await db.KnowledgeReviews.Where(r => r.DocumentId == documentId).ExecuteDeleteAsync();
+        db.KnowledgeReviews.Add(new KnowledgeReview
+        {
+            DocumentId = documentId, SubmittedBy = Guid.NewGuid(), SubmittedAt = DateTimeOffset.UtcNow, Status = KnowledgeReviewStatus.Draft,
+        });
+        await db.SaveChangesAsync();
     }
 
     private record AuthResultBody(bool Success, AuthResultData Data);
@@ -168,7 +189,8 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
         var admin = await AdminTokenAsync();
         var before = (await AuditAsync(admin, AuditEvents.AdminKnowledgeSubmitted)).Count;
         _ai.Calls.Clear();
-        _ai.Respond = _ => Parse($$"""{"id":"{{DocId}}","status":"Draft","chunks":4}""");
+        var newId = Guid.NewGuid();   // AI Service luôn cấp id mới; Phase 95 ghi id này vào knowledge_reviews (khoá chính)
+        _ai.Respond = _ => Parse($$"""{"id":"{{newId}}","status":"Draft","chunks":4}""");
 
         var response = await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/documents", admin, $$"""{"title":"Phong bì","source_name":"Sổ tay","as_of":"2026-11-01T00:00:00Z","effective_from":"2026-11-01T00:00:00Z","text":"{{SecretText}}"}"""));
 
@@ -180,7 +202,7 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
         call.Body!.Value.GetProperty("source_name").GetString().Should().Be("Sổ tay");
         var rows = await AuditAsync(admin, AuditEvents.AdminKnowledgeSubmitted);
         rows.Should().HaveCount(before + 1);
-        rows.OrderByDescending(r => r.CreatedAt).First().Metadata.Should().Contain(DocId.ToString()).And.NotContain(SecretText);
+        rows.OrderByDescending(r => r.CreatedAt).First().Metadata.Should().Contain(newId.ToString()).And.NotContain(SecretText);
     }
 
     [Theory]
@@ -189,6 +211,7 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
     public async Task ApprovingOrRetiring_GoesToTheDocumentRoute_AndWritesOneAuditRowWithTheDocumentId(string action, string auditEvent)
     {
         var admin = await AdminTokenAsync();
+        await TrackedDraftAsync(DocId);
         var before = (await AuditAsync(admin, auditEvent)).Count;
         _ai.Calls.Clear();
         _ai.Respond = _ => Parse($$"""{"id":"{{DocId}}","status":"x"}""");
@@ -206,6 +229,7 @@ public class AdminKnowledgeControllerTests : IClassFixture<AuthApiFactory>
     public async Task ARejectedTransition_KeepsTheAiServiceStatus_AndLeavesNoAuditRow()
     {
         var admin = await AdminTokenAsync();
+        await TrackedDraftAsync(DocId);
         var before = await KnowledgeAuditCountAsync(admin);
         _ai.Respond = _ => throw new AiRuleException(409, "kb_invalid_transition", "Không chuyển được trạng thái.");
 
