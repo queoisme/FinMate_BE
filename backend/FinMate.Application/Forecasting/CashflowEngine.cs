@@ -41,18 +41,27 @@ public sealed record CashflowInput(
     SpendingBaseline Baseline,
     long SpentTodayFlexibleCents,
     IReadOnlyList<CashflowEvent> Events,
-    IReadOnlyList<ForecastHoliday> Holidays);
+    IReadOnlyList<ForecastHoliday> Holidays)
+{
+    /// <summary>Phase 97: thu không định kỳ theo ngày; null = không chiếu (hành vi trước Phase 97).</summary>
+    public IncomeBaseline? Income { get; init; }
+
+    /// <summary>Phase 97: thu không định kỳ đã nhận hôm nay (đã nằm trong số dư), trừ khỏi mức của hôm nay.</summary>
+    public long ReceivedTodayIrregularCents { get; init; }
+}
 
 /// <param name="OptimisticOnly">Phase 90: chỉ tính vào đường lạc quan (<c>HighBalanceCents</c>), không vào số dư dự kiến hay thận trọng.</param>
 public sealed record CashflowEventDto(string Kind, string Label, long AmountCents, Guid? RecurringItemId, bool OptimisticOnly = false, Guid? LoanId = null);
 
+/// <param name="IrregularIncomeCents">Phase 97: thu không định kỳ dự kiến của ngày (đường dự kiến), đã trừ phần nhận hôm nay.</param>
 public sealed record CashflowDayDto(
     DateOnly Date,
     long ExpectedBalanceCents,
     long LowBalanceCents,
     long HighBalanceCents,
     long FlexibleSpendCents,
-    IReadOnlyList<CashflowEventDto> Events);
+    IReadOnlyList<CashflowEventDto> Events,
+    long IrregularIncomeCents = 0);
 
 /// <param name="Source">Phase 90: <c>user_entered</c> cho khoản vay người dùng tự ghi; null với các nguyên nhân khác.</param>
 public sealed record CashflowCauseDto(string Kind, string Label, long AmountCents, string? Source = null);
@@ -73,6 +82,9 @@ public sealed record CashflowForecastDto(
     IReadOnlyList<CashflowDayDto> Days,
     IReadOnlyList<CashflowCauseDto> MainCauses)
 {
+    /// <summary>Phase 97: cơ sở của thu không định kỳ (<c>history</c> / <c>average</c> / <c>none</c>); null khi không chiếu thu không định kỳ.</summary>
+    public string? IncomeBasis { get; init; }
+
     /// <summary>Phase 84 (BR-LH-08): độ phủ dữ liệu; chỉ API gắn vào, engine luôn để null.</summary>
     public ListenerHealth.DataCoverageSummaryDto? DataCoverage { get; init; }
 
@@ -105,18 +117,20 @@ public static class CashflowEngine
         {
             var multiplier = MultiplierOn(date, input.Holidays);
             var (spendExpected, spendLow, spendHigh) = FlexibleSpend(input, date, multiplier);
+            var (incomeExpected, incomeLow, incomeHigh) = IrregularIncome(input, date);
             var events = eventsByDay[date].ToList();
             var eventsSum = events.Where(e => e.Band == CashflowBand.All).Sum(e => e.AmountCents);
             var optimisticSum = events.Sum(e => e.AmountCents);
 
-            expected += eventsSum - spendExpected;
-            low += eventsSum - spendHigh;
-            high += optimisticSum - spendLow;
+            expected += eventsSum - spendExpected + incomeExpected;
+            low += eventsSum - spendHigh + incomeLow;
+            high += optimisticSum - spendLow + incomeHigh;
             flexibleTotal += spendExpected;
 
             days.Add(new CashflowDayDto(
                 date, expected, low, high, spendExpected,
-                events.Select(e => new CashflowEventDto(e.Kind, e.Label, e.AmountCents, e.RecurringItemId, e.Band == CashflowBand.OptimisticOnly, e.LoanId)).ToList()));
+                events.Select(e => new CashflowEventDto(e.Kind, e.Label, e.AmountCents, e.RecurringItemId, e.Band == CashflowBand.OptimisticOnly, e.LoanId)).ToList(),
+                incomeExpected));
         }
 
         var lowest = days.MinBy(d => d.ExpectedBalanceCents)!;
@@ -128,7 +142,7 @@ public static class CashflowEngine
             input.Baseline.Confidence == ForecastConfidence.Low ? "low" : "normal",
             input.Baseline.Basis,
             days,
-            MainCauses(input.Events, flexibleTotal));
+            MainCauses(input.Events, flexibleTotal)) { IncomeBasis = input.Income?.Basis };
     }
 
     /// <summary>
@@ -198,6 +212,27 @@ public static class CashflowEngine
         // Phần đã chi hôm nay đã nằm trong số dư hiện tại: chỉ trừ phần còn lại của ngày.
         var spent = input.SpentTodayFlexibleCents;
         return (Math.Max(0, expected - spent), Math.Max(0, low - spent), Math.Max(0, high - spent));
+    }
+
+    /// <summary>
+    /// Phase 97: thu không định kỳ của một ngày trên ba đường (dự kiến, thận trọng, lạc quan). Hệ số ngày lễ chỉ áp cho chi. Hôm nay trừ phần đã nhận
+    /// (đã nằm trong số dư), như chi linh hoạt.
+    /// </summary>
+    private static (long Expected, long Low, long High) IrregularIncome(CashflowInput input, DateOnly date)
+    {
+        if (input.Income is not { } income)
+        {
+            return (0, 0, 0);
+        }
+
+        var (expected, low, high) = (income.ExpectedOn(date), income.ConservativeOn(date), income.OptimisticOn(date));
+        if (date != input.Today)
+        {
+            return (expected, low, high);
+        }
+
+        var received = input.ReceivedTodayIrregularCents;
+        return (Math.Max(0, expected - received), Math.Max(0, low - received), Math.Max(0, high - received));
     }
 
     private static int MultiplierOn(DateOnly date, IReadOnlyList<ForecastHoliday> holidays)

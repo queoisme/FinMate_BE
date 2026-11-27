@@ -108,4 +108,56 @@ public class CashflowEngineTests
         => CashflowEngine.RecurringEvents(
                 [Item("Lương", 15_000_000, Today.AddDays(3), RecurringDirection.Inflow)], [], Today, Today.AddDays(5), Rules)
             .Single().AmountCents.Should().Be(15_000_000);
+
+    private static IncomeBaseline Income(long expected, long conservative, long optimistic, string basis = SpendingBaseline.BasisHistory)
+        => new(Enumerable.Repeat(expected, 7).ToArray(), Enumerable.Repeat(conservative, 7).ToArray(), Enumerable.Repeat(optimistic, 7).ToArray(), basis);
+
+    [Fact]
+    public void IrregularIncome_IsAddedToEachLine_AndReportedPerDay()
+    {
+        // Phase 97: thu không định kỳ vào đường số dư; dự kiến / thận trọng / lạc quan dùng mức tương ứng.
+        var input = Input(1_000_000, 100_000) with { Income = Income(80_000, 60_000, 90_000) };
+
+        var result = CashflowEngine.Project(input);
+
+        result.Days[0].ExpectedBalanceCents.Should().Be(1_000_000 - 100_000 + 80_000);
+        result.Days[0].LowBalanceCents.Should().Be(1_000_000 - 100_000 + 60_000);
+        result.Days[0].HighBalanceCents.Should().Be(1_000_000 - 100_000 + 90_000);
+        result.Days.Should().OnlyContain(d => d.IrregularIncomeCents == 80_000);
+        result.IncomeBasis.Should().Be(SpendingBaseline.BasisHistory);
+    }
+
+    [Fact]
+    public void IrregularIncomeAlreadyReceivedToday_IsNotAddedAgain()
+    {
+        var input = Input(1_000_000, 0) with { Income = Income(80_000, 60_000, 90_000), ReceivedTodayIrregularCents = 70_000 };
+
+        var day = CashflowEngine.Project(input).Days[0];
+
+        day.IrregularIncomeCents.Should().Be(10_000);
+        day.LowBalanceCents.Should().Be(1_000_000, "phần thận trọng 60.000đ đã về hết trong 70.000đ hôm nay");
+        day.HighBalanceCents.Should().Be(1_020_000, "90.000đ lạc quan trừ 70.000đ đã về");
+    }
+
+    [Fact]
+    public void TheHolidayMultiplier_ScalesSpendingButNotIncome()
+    {
+        var holiday = new ForecastHoliday { Name = "Tết", Start = Today, End = Today.AddDays(9), MultiplierPercent = 200 };
+        var input = Input(1_000_000, 100_000, holidays: [holiday]) with { Income = Income(80_000, 80_000, 80_000) };
+
+        var day = CashflowEngine.Project(input).Days[0];
+
+        day.FlexibleSpendCents.Should().Be(200_000);
+        day.IrregularIncomeCents.Should().Be(80_000);
+    }
+
+    [Fact]
+    public void WithoutAnIncomeBaseline_TheForecastIsUnchanged()
+    {
+        var plain = CashflowEngine.Project(Input(1_000_000, 100_000));
+
+        plain.Days.Should().OnlyContain(d => d.IrregularIncomeCents == 0);
+        plain.IncomeBasis.Should().BeNull();
+        plain.Days[0].ExpectedBalanceCents.Should().Be(900_000);
+    }
 }
