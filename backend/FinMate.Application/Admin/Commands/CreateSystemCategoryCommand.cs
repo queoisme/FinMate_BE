@@ -1,3 +1,5 @@
+using FinMate.Application.Common;
+
 namespace FinMate.Application.Admin.Commands;
 
 /// <param name="Slug">
@@ -10,4 +12,5 @@ public record CreateSystemCategoryCommand(
     string Name,
     string Slug,
     string? IconName,
-    string? IpAddress);
+    string? IpAddress,
+    AuditChannel Channel = AuditChannel.Admin);

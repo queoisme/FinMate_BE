@@ -40,6 +40,16 @@ public class OpsPermissionsTests
     [InlineData(UserRole.Staff, OpsCapability.ViewProductKpi, false)]
     [InlineData(UserRole.OpsManager, OpsCapability.ViewProductKpi, true)]
     [InlineData(UserRole.Admin, OpsCapability.ViewProductKpi, true)]
+    [InlineData(UserRole.Staff, OpsCapability.MaintainCatalog, true)]
+    [InlineData(UserRole.Staff, OpsCapability.DraftForecastConfig, true)]
+    [InlineData(UserRole.Staff, OpsCapability.ApproveForecastConfig, false)]
+    [InlineData(UserRole.Staff, OpsCapability.ApproveAgentContent, false)]
+    [InlineData(UserRole.OpsManager, OpsCapability.MaintainCatalog, true)]
+    [InlineData(UserRole.OpsManager, OpsCapability.DraftForecastConfig, true)]
+    [InlineData(UserRole.OpsManager, OpsCapability.ApproveForecastConfig, true)]
+    [InlineData(UserRole.OpsManager, OpsCapability.ApproveAgentContent, true)]
+    [InlineData(UserRole.Admin, OpsCapability.ApproveForecastConfig, true)]
+    [InlineData(UserRole.Admin, OpsCapability.ApproveAgentContent, true)]
     public void MatrixMatchesTheOperatingModel(UserRole role, OpsCapability capability, bool expected)
         => OpsPermissions.For(role).HasFlag(capability).Should().Be(expected);
 

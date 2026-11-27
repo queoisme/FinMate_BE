@@ -36,6 +36,18 @@ public enum OpsCapability
 
     /// <summary>Xem chỉ số sản phẩm tổng hợp (<c>/ops/kpi/*</c>): đăng ký, giao dịch, thông báo, thuê bao, doanh thu. Không phải <see cref="ViewDashboard"/> (dashboard ticket).</summary>
     ViewProductKpi = 1 << 18,
+
+    /// <summary>Phase 95 (B′): thêm, sửa, ẩn danh mục hệ thống, thương hiệu và từ khoá phân loại qua <c>/ops/catalog</c>. Không xoá, không đổi slug, không tắt danh mục được bảo vệ.</summary>
+    MaintainCatalog = 1 << 19,
+
+    /// <summary>Phase 95 (A): soạn bản nháp tham số dự báo (<c>forecast</c> + <c>limits</c>) và gửi duyệt.</summary>
+    DraftForecastConfig = 1 << 20,
+
+    /// <summary>Phase 95 (A): duyệt hoặc từ chối bản nháp tham số dự báo của người khác.</summary>
+    ApproveForecastConfig = 1 << 21,
+
+    /// <summary>Phase 95: duyệt, từ chối, gỡ giả định kinh tế và tài liệu tri thức của người khác (đọc từ DB, ngoài policy theo vai trò).</summary>
+    ApproveAgentContent = 1 << 22,
 }
 
 public static class OpsPermissions
@@ -46,7 +58,9 @@ public static class OpsPermissions
         | OpsCapability.CreateDraftTransactions
         | OpsCapability.EmergencyLock
         | OpsCapability.ProposeApprovals
-        | OpsCapability.ModerateCommunity;
+        | OpsCapability.ModerateCommunity
+        | OpsCapability.MaintainCatalog
+        | OpsCapability.DraftForecastConfig;
 
     private const OpsCapability ManagerCapabilities =
         StaffCapabilities
@@ -61,7 +75,9 @@ public static class OpsPermissions
         | OpsCapability.MuteCommunityAuthors
         | OpsCapability.ManageSubscriptionPlans
         | OpsCapability.ManageLegalDocuments
-        | OpsCapability.ViewProductKpi;
+        | OpsCapability.ViewProductKpi
+        | OpsCapability.ApproveForecastConfig
+        | OpsCapability.ApproveAgentContent;
 
     public static OpsCapability For(UserRole role) => role switch
     {

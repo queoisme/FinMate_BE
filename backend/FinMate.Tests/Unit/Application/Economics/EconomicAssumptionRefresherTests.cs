@@ -65,6 +65,8 @@ public class EconomicAssumptionRefresherTests
 
         public Task<EconomicAssumption> RetireAsync(Guid id, Guid actorId, string? ipAddress, CancellationToken ct = default) => throw new NotSupportedException();
 
+        public Task<EconomicAssumption> RejectAsync(Guid id, Guid actorId, string? note, string? ipAddress, CancellationToken ct = default) => throw new NotSupportedException();
+
         public Task<List<EconomicAssumption>> ListAsync(string? key, CancellationToken ct = default)
             => Task.FromResult(Items.Where(i => key is null || i.Key == key).OrderByDescending(i => i.Version).ToList());
     }

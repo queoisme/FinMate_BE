@@ -14,7 +14,8 @@ public sealed record AdminAiRuleWrite(
     string? Key,
     IReadOnlyDictionary<string, string?>? Query,
     JsonElement? Body,
-    string? IpAddress);
+    string? IpAddress,
+    AuditChannel Channel = AuditChannel.Admin);
 
 public interface IAdminAiRulesService
 {
@@ -48,7 +49,7 @@ public class AdminAiRulesService : IAdminAiRulesService
 
         // Nội dung luật trước/sau do AI Service giữ (bill_rule_audit); ở đây chỉ ghi ai đổi cái gì, để lần theo từ nhật ký admin chung.
         await _auditLogService.LogAsync(
-            AuditEvents.AdminAiRuleChanged,
+            command.Channel == AuditChannel.Ops ? AuditEvents.OpsCatalogAiRuleChanged : AuditEvents.AdminAiRuleChanged,
             command.AdminId,
             command.IpAddress,
             new { command.Resource, command.Key, Method = command.Method.Method, Reason = ReasonOf(command.Body) },

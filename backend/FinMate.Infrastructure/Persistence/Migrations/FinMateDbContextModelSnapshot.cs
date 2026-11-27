@@ -1300,6 +1300,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -1309,6 +1314,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<int>("RateBps")
                         .HasColumnType("integer")
                         .HasColumnName("rate_bps");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid?>("RejectedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rejected_by");
 
                     b.Property<string>("SourceName")
                         .IsRequired()
@@ -1348,7 +1361,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_economic_assumptions_source", "status = 'draft' OR (length(btrim(source_name)) > 0 AND length(btrim(source_url)) > 0)");
 
-                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired')");
+                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
 
                             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
                         });
@@ -2958,6 +2971,67 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_group_share_rules_user_active");
 
                     b.ToTable("group_share_rules", (string)null);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReview", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
+
+                    b.HasKey("DocumentId");
+
+                    b.ToTable("knowledge_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_reviews_status", "status IN ('draft','approved','rejected','retired')");
+
+                            t.HasCheckConstraint("chk_knowledge_reviews_two_people", "decided_by IS NULL OR submitted_by IS NULL OR decided_by <> submitted_by");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReviewCutover", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("TrackedSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tracked_since");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("knowledge_review_cutover", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_review_cutover_single", "id = 1");
+                        });
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.LegalVersion", b =>
@@ -5910,6 +5984,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int?>("BaseVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("base_version");
+
+                    b.Property<string>("Conflicts")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("conflicts");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -5923,6 +6005,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -5933,13 +6028,26 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<string>("Scope")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("scope");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
-                    b.Property<int>("Version")
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
 
@@ -5950,15 +6058,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("uq_system_config_versions_active")
                         .HasFilter("status = 'active'");
 
+                    b.HasIndex("Name", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("uq_system_config_versions_pending")
+                        .HasFilter("status = 'pending_approval'");
+
                     b.HasIndex("Name", "Version")
                         .IsUnique()
                         .HasDatabaseName("uq_system_config_versions_name_version");
 
+                    b.HasIndex("Name", "Scope", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_system_config_versions_drafts");
+
                     b.ToTable("system_config_versions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_system_config_versions_approved_by", "scope IS NULL OR status NOT IN ('active','archived') OR decided_by IS NOT NULL");
+
                             t.HasCheckConstraint("chk_system_config_versions_content_object", "jsonb_typeof(content) = 'object'");
 
-                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived')");
+                            t.HasCheckConstraint("chk_system_config_versions_draft_scope", "status IN ('active','archived') OR scope IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_system_config_versions_numbered", "(status IN ('active','archived')) = (version IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived','draft','pending_approval','rejected','cancelled')");
+
+                            t.HasCheckConstraint("chk_system_config_versions_two_people", "decided_by IS NULL OR decided_by <> created_by");
                         });
                 });
 

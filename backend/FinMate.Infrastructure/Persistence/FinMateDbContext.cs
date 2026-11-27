@@ -61,6 +61,8 @@ public class FinMateDbContext : DbContext
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
     public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
+    public DbSet<KnowledgeReview> KnowledgeReviews => Set<KnowledgeReview>();
+    public DbSet<KnowledgeReviewCutover> KnowledgeReviewCutovers => Set<KnowledgeReviewCutover>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();

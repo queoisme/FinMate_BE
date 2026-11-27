@@ -65,6 +65,8 @@ using Refit;
 using FinMate.Application.Community;
 using FinMate.Application.MarketData;
 using FinMate.Infrastructure.Community;
+using FinMate.Application.Catalog;
+using FinMate.Application.ForecastConfig;
 using FinMate.Application.Kpi;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
@@ -437,6 +439,7 @@ public class Program
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<TicketAssistService>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<IKnowledgeReviewRepository, KnowledgeReviewRepository>();
         builder.Services.AddScoped<GetAssumptionsTool>();
 
         // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
@@ -553,6 +556,8 @@ public class Program
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
         builder.Services.AddScoped<IKpiSummaryService, KpiSummaryService>();
+        builder.Services.AddScoped<IForecastConfigDraftService, ForecastConfigDraftService>();
+        builder.Services.AddScoped<IOpsCatalogService, OpsCatalogService>();
         builder.Services.AddScoped<ServiceStatusTracker>();
         builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();

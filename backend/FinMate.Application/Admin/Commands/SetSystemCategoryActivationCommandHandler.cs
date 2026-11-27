@@ -43,7 +43,7 @@ public class SetSystemCategoryActivationCommandHandler : ISetSystemCategoryActiv
         await _categoryRepository.UpdateAsync(category, ct);
 
         await _auditLogService.LogAsync(
-            AuditEvents.AdminCategoryActivationChanged,
+            command.Channel == AuditChannel.Ops ? AuditEvents.OpsCatalogCategoryActivationChanged : AuditEvents.AdminCategoryActivationChanged,
             command.AdminId,
             command.IpAddress,
             new { category.Id, category.Slug, category.IsActive },

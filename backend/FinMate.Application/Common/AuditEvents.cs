@@ -45,11 +45,13 @@ public static class AuditEvents
     public const string AdminAssumptionCreated = "Admin.Assumption.Created";
     public const string AdminAssumptionApproved = "Admin.Assumption.Approved";
     public const string AdminAssumptionRetired = "Admin.Assumption.Retired";
+    public const string AdminAssumptionRejected = "Admin.Assumption.Rejected";
 
     // Kho tri thức của agent: chỉ ghi mã tài liệu, không ghi nội dung. Nội dung và trạng thái nằm ở agent_kb_documents của AI Service.
     public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";
     public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
     public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
+    public const string AdminKnowledgeRejected = "Admin.Knowledge.Rejected";
 
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
@@ -123,6 +125,20 @@ public static class AuditEvents
     public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
     public const string OpsTicketsLinked = "Ops.Ticket.Linked";
     public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
+    /// <summary>Phase 95: bản nháp tham số dự báo (forecast + limits). Chỉ ghi id, phiên bản và tên trường đã đổi; giá trị và ghi chú nằm ở chính dòng bản nháp.</summary>
+    /// <summary>Phase 95 (B′): Staff duy trì danh mục, thương hiệu, từ khoá qua <c>/ops/catalog</c>. Tiền tố <c>Ops.</c> để Manager đọc được ở <c>/ops/audit-logs</c> (D13).</summary>
+    public const string OpsCatalogCategoryCreated = "Ops.Catalog.CategoryCreated";
+    public const string OpsCatalogCategoryUpdated = "Ops.Catalog.CategoryUpdated";
+    public const string OpsCatalogCategoryActivationChanged = "Ops.Catalog.CategoryActivationChanged";
+    public const string OpsCatalogAiRuleChanged = "Ops.Catalog.AiRuleChanged";
+
+    public const string OpsForecastConfigDraftCreated = "Ops.ForecastConfig.DraftCreated";
+    public const string OpsForecastConfigDraftUpdated = "Ops.ForecastConfig.DraftUpdated";
+    public const string OpsForecastConfigSubmitted = "Ops.ForecastConfig.Submitted";
+    public const string OpsForecastConfigWithdrawn = "Ops.ForecastConfig.Withdrawn";
+    public const string OpsForecastConfigCancelled = "Ops.ForecastConfig.Cancelled";
+    public const string OpsForecastConfigApproved = "Ops.ForecastConfig.Approved";
+    public const string OpsForecastConfigRejected = "Ops.ForecastConfig.Rejected";
     public const string OpsApprovalProposed = "Ops.Approval.Proposed";
     public const string OpsApprovalApproved = "Ops.Approval.Approved";
     public const string OpsApprovalRejected = "Ops.Approval.Rejected";
