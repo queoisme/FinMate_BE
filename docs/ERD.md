@@ -2255,7 +2255,7 @@ Ràng buộc:
 
 `knowledge_review_cutover`: `id` integer PK (CHECK `id = 1`), `tracked_since` timestamptz. Migration `AddKnowledgeReviews` chèn dòng duy nhất bằng giờ chạy migration.
 
-`economic_assumptions` (Phase 95, migration `AddAssumptionRejection`): thêm `rejected_by` uuid, `rejected_at` timestamptz, `decision_note` varchar(1000); trạng thái thêm `rejected`; CHECK `chk_economic_assumptions_two_people` (người duyệt / từ chối khác người soạn, trừ tài khoản hệ thống của job CPI) tạo dạng `NOT VALID`, chỉ kiểm dòng ghi mới.
+`economic_assumptions` (Phase 95, migration `AddAssumptionRejection`): thêm `rejected_by` uuid, `rejected_at` timestamptz, `decision_note` varchar(1000); trạng thái thêm `rejected`; luật người duyệt / từ chối khác người soạn (trừ tài khoản hệ thống của job CPI) là trigger `trg_economic_assumptions_two_people` (migration `AssumptionTwoPeopleTrigger`), chỉ kiểm khi dòng được thêm hoặc khi `approved_by` / `rejected_by` đổi, báo lỗi SQLSTATE 23514 với tên `chk_economic_assumptions_two_people`. Không dùng CHECK vì Postgres kiểm CHECK (kể cả `NOT VALID`) ở mọi UPDATE, nên dòng tự duyệt có từ trước sẽ không gỡ được.
 
 ##### `secret_store` — SecretEntry
 

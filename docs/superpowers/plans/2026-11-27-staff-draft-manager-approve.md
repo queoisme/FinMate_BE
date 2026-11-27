@@ -1,6 +1,6 @@
 # Phase 95 — Staff soạn, OpsManager duyệt cấu hình nghiệp vụ và tham số dự báo
 
-> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D17 theo đề xuất, kèm S1–S6 (S thắng D và phần thân khi mâu thuẫn). Task 0–12 xong** (chưa push, chưa mở PR). Toàn bộ test backend 4292/4294 (mốc 4093/4095, +199, không thêm đỏ). Nhánh `feat/staff-draft-manager-approve` từ `main` @ `bacfb39` (đã có Phase 94).
+> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D17 theo đề xuất, kèm S1–S6 (S thắng D và phần thân khi mâu thuẫn). Task 0–12 xong** (chưa push, chưa mở PR). Toàn bộ test backend 4293/4295 (mốc 4093/4095, +200, không thêm đỏ). Nhánh `feat/staff-draft-manager-approve` từ `main` @ `bacfb39` (đã có Phase 94).
 
 Đăng ký đề tài:
 - **Staff:** "Maintain system categories, keyword rules, and AI classification rules, and draft economic assumptions and knowledge content for the financial assistant for approval."
@@ -181,6 +181,13 @@ Nếu muốn Staff "maintain" danh mục và luật đúng đăng ký mà không
   - `other`: phí chuyển ví (`TransferFee.CategorySlug`), lãi khi đi vay (`InterestCategoryForBorrow`), danh mục dự phòng khi người dùng ẩn danh mục (`SetCategoryHiddenCommandHandler.FallbackSlug`).
   
   Chuyển khoản, quỹ nhóm và hoàn tiền không dùng slug riêng: chuyển khoản và quỹ là `TransactionType.Transfer`, hoàn tiền là `relation`. Kênh `/ops` không được **tắt** ba danh mục này → 422 `PROTECTED_CATEGORY` (vẫn đổi tên được). Danh sách nằm ở một chỗ (`ProtectedCategories.Slugs`, có test gắn với các hằng ở trên). Đường `/admin` hiện cũng không chặn; giữ nguyên theo phạm vi và ghi ở REQUIREMENTS §13.4.
+  - **Kiểm lại sau review (2026-11-27, grep toàn bộ `Application` + `Infrastructure`):**
+    - Lời gọi `GetSystemBySlugAsync` với slug cố định chỉ có `income` (`RelatedTransactionCommands`: hoàn / đảo), `loan` (`MergeTransactionsCommand`, `LoanService`, `LoanLinkSync`; ném `InvalidOperationException` "Thiếu danh mục hệ thống 'loan'" khi danh mục bị tắt) và `other` / `income` qua `TransferFee.CategorySlug`, `LoanTransactionLink.InterestCategorySlug`.
+    - Chuyển khoản (`Transactions/Transfers`), quỹ nhóm (`Groups/Funds`), chia hoá đơn nhóm (`GroupBillService`) và hoàn tiền (`Refunds`) chỉ **so sánh** với `income` / `loan`, không tra slug nào khác.
+    - Trả góp / khoản định kỳ (`Forecasting/Recurring*`, `InstallmentProgress`) không dùng slug.
+    - Slug cứng duy nhất ngoài ba slug trên: `food` trong `CommunitySharePromptService`. Đây chỉ là so sánh để hiện gợi ý chia sẻ, tắt `food` không làm luồng nào hỏng, nên không bảo vệ.
+    - Các lời gọi còn lại nhận slug động (AI, câu chat) và đã xử lý null.
+    - Kết luận: danh sách `{income, loan, other}` là đủ.
 - **S5: quyền của Admin.** Kiểm trong code: Admin luôn nhận `RolePermissionRules.All` (tính từ enum), không đọc dòng `role_permissions`. Vì vậy migration **không** cần thêm bit cho Admin; 4 quyền mới có tự động. Có test: Admin duyệt được bản của người khác (tham số dự báo, giả định kinh tế, tri thức).
 - **S6: `/meta` khớp validator.** Test phản chiếu: mọi thuộc tính của `ForecastSettings` và `LimitSettings` có trong `/meta`. Với mỗi trường số có `min`/`max`: đặt đúng biên thì qua `SystemConfigDocumentValidator`; vượt biên một đơn vị thì bị từ chối (với cặp có ràng buộc chéo như T1 < T2, các trường còn lại giữ mặc định).
 - **Kịch bản (a):** user mẫu không tự đặt ngưỡng T1/T2 và không có phương pháp tài chính đặt ngưỡng, để 75% của hệ thống có hiệu lực.
@@ -418,7 +425,7 @@ Route mới dưới `/api/v1/ops/catalog`, kiểm quyền `MaintainCatalog` (D11
 ## 15. Kết quả test
 
 - Mốc `bacfb39`: backend 4093/4095 (2 đỏ sẵn trên `main`).
-- Sau Phase 95 (`8849541` + tài liệu): backend **4292/4294**, thêm 199 test, không thêm test đỏ. Hai test đỏ vẫn là `MethodSelectionOnSeedDataTests.TheExampleProfileInTheMdFile_GetsCashFlowBudget…` và `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`.
+- Sau Phase 95 (`8849541` + tài liệu): backend **4293/4295** (sau các sửa của review), thêm 200 test, không thêm test đỏ. Hai test đỏ vẫn là `MethodSelectionOnSeedDataTests.TheExampleProfileInTheMdFile_GetsCashFlowBudget…` và `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`.
 - ai-service: 73 test kho tri thức / RAG pass trên Postgres có pgvector (cổng 5434) sau khi thêm `created_at`.
 - Test có sẵn bị chạm: `AddLegalVersionsMigrationTests` không đổi thêm; `AdminAssumptionsControllerTests` và `AssumptionTests` duyệt bằng tài khoản khác người soạn (luật mới); `AdminKnowledgeControllerTests` ghi sẵn một dòng `knowledge_reviews` trước khi duyệt và dùng id mới khi gửi (S3); `EconomicAssumptionRefresherTests` thêm `RejectAsync` vào bản giả; `SystemConfigServiceSchedulerTests` không đổi (repository giả không gán `Version`, nay đọc `?? 0`).
 
