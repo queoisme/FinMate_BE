@@ -177,7 +177,7 @@ public sealed partial class WorldBuilder
 
     private Rng Stream(string name) => Rng.ForStream($"{_rootSeed}|{_persona}|{_seedIndex}|{name}");
 
-    private Guid Id(string key) => DeterministicGuid.V5(GeneratorSpec.IdNamespace, $"{_userId}|{key}");
+    private Guid Id(string key) => GeneratorSpec.Id(_userId, key);
 
     private Guid Account(string key) => _accounts[key].Id;
 

@@ -61,6 +61,7 @@ public sealed record SynthLoanRepayment(Guid TransactionId, DateTimeOffset At, l
 
 public sealed record SynthLoan(
     Guid Id,
+    Guid OpeningTransactionId,
     LoanDirection Direction,
     long PrincipalCents,
     DateOnly Start,

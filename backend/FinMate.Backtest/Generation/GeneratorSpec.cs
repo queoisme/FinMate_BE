@@ -38,6 +38,9 @@ public static class GeneratorSpec
 
     public static Guid UserId(string persona, int seedIndex) => DeterministicGuid.V5(IdNamespace, $"user|{persona}|{seedIndex}");
 
+    /// <summary>Id tất định của một bản ghi thuộc người dùng (§2).</summary>
+    public static Guid Id(Guid userId, string key) => DeterministicGuid.V5(IdNamespace, $"{userId}|{key}");
+
     public static Guid CategoryId(string slug) => DeterministicGuid.V5(IdNamespace, $"category:{slug}");
 
     public static DateTimeOffset At(DateOnly date, int minuteOfDay)

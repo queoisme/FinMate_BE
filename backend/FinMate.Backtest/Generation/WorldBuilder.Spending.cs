@@ -97,7 +97,7 @@ public sealed partial class WorldBuilder
             repayments.Add(Repay($"loan:borrow:repay:{Iso(finalDay)}", bank, remaining, GeneratorSpec.At(finalDay, 12 * 60), "Người thân"));
         }
 
-        _loans.Add(new SynthLoan(Id("loan:borrow:book"), LoanDirection.Borrow, _profile.BorrowCents, borrowStart, borrowDue, repayments));
+        _loans.Add(new SynthLoan(Id("loan:borrow:book"), Id("loan:borrow"), LoanDirection.Borrow, _profile.BorrowCents, borrowStart, borrowDue, repayments));
 
         var lendStart = new DateOnly(2025, 8, 1);
         Add(new SynthTransaction(Id("loan:lend"), bank, TransactionType.Debit, _profile.LendCents, GeneratorSpec.At(lendStart, 14 * 60), "Bạn", Slugs.Loan,
@@ -107,7 +107,7 @@ public sealed partial class WorldBuilder
             Id("loan:lend:repay"), bank, TransactionType.Credit, _profile.LendCents, GeneratorSpec.At(back, 15 * 60), "Bạn", Slugs.Loan, TxLabel.Loan);
         Add(returned);
         _loans.Add(new SynthLoan(
-            Id("loan:lend:book"), LoanDirection.Lend, _profile.LendCents, lendStart, new DateOnly(2025, 10, 1),
+            Id("loan:lend:book"), Id("loan:lend"), LoanDirection.Lend, _profile.LendCents, lendStart, new DateOnly(2025, 10, 1),
             [new SynthLoanRepayment(returned.Id, returned.At, returned.AmountCents)]));
     }
 
