@@ -1,6 +1,6 @@
 # Phase 96 — Đánh giá dự báo bằng backtest
 
-> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D21 theo đề xuất, kèm S1–S5 (S thắng D khi mâu thuẫn). Chỉ làm tầng 1 (Task 1–9) rồi dừng (S5).**
+> Trạng thái: **Tầng 1 (Task 1–9) xong 2026-11-27, dừng theo S5 chờ chủ sản phẩm quyết có sửa mô hình trước tầng 2.** Chưa push, chưa mở PR. Kết quả: `docs/evaluation/forecast-backtest.md`.
 > Nhánh `feat/forecast-backtest` từ `main` @ `32912fc` (đã có Phase 95).
 > Mục tiêu của phase là **đo**. Không chỉnh mô hình, không đổi tham số mặc định. Không dùng dữ liệu người dùng thật.
 
@@ -421,3 +421,41 @@ D1–D21, đặc biệt:
 - **D15:** ngưỡng 20% thu nhập;
 - **D17:** hệ số Tết 150% khi có cấu hình;
 - **D20:** thêm mục vào `.context/ARCHITECTURE.md` hay chỉ ghi ở CLAUDE.md.
+
+
+---
+
+## Kết quả tầng 1 (2026-11-27)
+
+### Đã làm
+
+| Task | Commit | Ghi chú |
+|---|---|---|
+| 1 | `97a75be` | Đặc tả bộ sinh v1.0, commit riêng trước mọi code. |
+| 1b | `89d86e2` | **Đặc tả v1.1** (§0: thiếu sót phát hiện khi viết bộ sinh, **trước** khi có runner hay số đo): λ/σ của `family`, tỉ trọng mặc định cho `freelancer`/`small_trader`, ví trả chi linh hoạt, hệ số nhân vào λ hay số tiền, luồng theo ngày. |
+| 2 | `de47879` | Project `FinMate.Backtest` vào solution, dòng `COPY` trong Dockerfile (đã thử `podman build` qua), `InternalsVisibleTo`, SplitMix64 khớp giá trị tham chiếu. |
+| 3 | `f8fe12e` | Bộ sinh 5 hồ sơ. Phần rút tham số kịch bản K1–K6 nằm luôn ở commit này vì gắn vào cùng chỗ khai triển; test của chúng ở Task 4. |
+| 4 | `6289774` | Test lớp phủ: ngoài phần cài, mỗi kịch bản giống K0 từng giao dịch (trừ hệ quả có chủ đích: chi theo ngày lương, hoàn tiền của khoản mua dịp Tết, nộp tiền mặt của tiểu thương). |
+| 5 | `19aeff2` | `WorldView` + repository giả + chế độ đáp án, chạy `ForecastService` thật. Test: không rò rỉ (nhân ba mọi giao dịch từ T, thêm giao dịch đúng lúc T → dự báo tại T giống từng byte JSON), một tick trước T thì thấy, lượt 08:00 chỉ thấy trước 08:00 (S1), số dư lúc chụp + dòng tiền thực tế = số dư dựng lại ở T+h+1. |
+| 6 | `b5f9ba1` | Test hợp đồng trên Postgres: ba hàm của `IForecastDataRepository` giống hệt bản giả ở 5 mốc (người gia đình có vay, quỹ, ví bị loại, hoàn đủ và hoàn một phần). |
+| 7 | `dad07a9` | Baseline + chỉ số + bootstrap theo người, test bằng số tính tay. |
+| 8 | `39aa0b6` | Runner, báo cáo, CLI. Đo: lượt quick 4,3 s (~1 ms/mốc). |
+| 9 | `65178f6` + commit tài liệu | Báo cáo thêm câu tóm tắt và cột thiên lệch / tỉ lệ phủ theo hồ sơ (con số gộp năm hồ sơ che mất nguyên nhân). Chạy đầy đủ: 800 thế giới, 785.100 dòng, **63–68 s**, mốc mỗi ngày (không cần bước 3 ngày). Hai lượt liên tiếp cùng image cho checksum giống hệt mọi tệp. |
+
+Toàn bộ test backend: **4467/4469** (mốc 4293/4295, +174, không thêm đỏ; vẫn 2 đỏ sẵn trên `main`).
+
+Production: **không đổi dòng nào** ngoài `InternalsVisibleTo` trong `FinMate.Application.csproj` (tầng 1 không cần ctor đồng hồ mới, D14).
+
+### Số chính (chế độ đáp án, K0, mọi hồ sơ trừ khi ghi khác)
+
+- Số dư tầm 7 / 14 / 30 ngày: MAE 5,2 / 9,1 / 17,8 triệu; thiên lệch −3,9 / −7,1 / −14,5 triệu (dự báo thấp hơn thực tế). So với "giữ nguyên": +3,0% / −22,8% / −126,6%.
+- Theo hồ sơ (tầm 14): `stable_worker` tốt hơn giữ nguyên 80,6%, `family` 68,6%, `student` 19,6%, `freelancer` −17,7%, `small_trader` −382%. Nguyên nhân: engine không chiếu thu nhập không đều (chỉ khoản thu định kỳ), nên hai hồ sơ cuối luôn bị dự báo thấp; `small_trader` có thiên lệch đúng bằng −MAE.
+- Chi linh hoạt: WAPE 21,7% / 19,3% / 17,9%, thiên lệch −16,8% (trung vị theo ngày dưới tổng của chi tiêu đuôi nặng); B-mean30 WAPE cao hơn nhưng gần như không thiên lệch.
+- Dải: gộp 35–36% ở mọi tầm; `stable_worker` 60,8% → 65,6% → 70,5% (rộng dần theo tầm, đúng giả thuyết phần 1), `small_trader` 0%.
+- Kịch bản (tầm 14, mốc bị ảnh hưởng, so với K0 cùng mốc): K1 +17,2%, K2 +12,2%, K3 +7,4%, K4 +1,3%, K5 +21,1%, K5h +31,9% (so K5: +8,9%), K6 −3,8%.
+
+### Lệch so với kế hoạch
+
+- Giả thuyết ở phần 1 ("tỉ lệ phủ sẽ vượt xa 50% ở tầm 30") chỉ đúng với hồ sơ thu nhập đều; số gộp lại dưới 50% vì dự báo lệch tâm ở hồ sơ thu không đều. Đã ghi đúng như đo được, không sửa gì.
+- Ước lượng thời gian (1–3 phút cho cả bộ, < 1 phút cho dòng tiền): thực đo 63–68 s cho tầng 1.
+- Đặc tả tăng lên v1.1 một lần, trước runner (bảng trên).

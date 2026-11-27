@@ -1801,3 +1801,21 @@ Nhánh `feat/staff-draft-manager-approve` (từ `main` @ `bacfb39`, đã có Pha
   - **Màn hình "Danh mục và luật phân loại" cho Staff** (`/api/v1/ops/catalog/*`): thêm, sửa, ẩn danh mục; thêm, sửa, tắt thương hiệu và từ khoá; thử luật (`/ai-rules/preview`); lịch sử chỉ `?resource=brand|keyword`. Không có xoá, đổi slug, hoàn tác, bộ nhớ tên món, chỉ dẫn Gemini. Ẩn `income`/`loan`/`other` → 422 `PROTECTED_CATEGORY` (hiện `message`). Admin vẫn dùng trang `/admin/*` như cũ.
   - **Giả định kinh tế và Tri thức AI:** thêm nút "Từ chối" (bắt buộc ghi chú) → `POST /admin/assumptions/{id}/reject`, `POST /admin/knowledge/documents/{id}/reject`; trạng thái mới `rejected`. Danh sách tri thức có thêm `submitted_by`, `review_status`, `decision_note`. Ẩn nút duyệt / từ chối với bản do chính người xem soạn (server 403 `ASSUMPTION_OWN_DRAFT` / `KNOWLEDGE_OWN_DRAFT`). Lỗi mới: 409 `KNOWLEDGE_REVIEW_MISSING` (gỡ rồi gửi lại), 503 `KNOWLEDGE_SUBMIT_FAILED` (gửi lại).
   - Menu duyệt Tri thức / Giả định kinh tế nên theo quyền `ApproveAgentContent` thay cho `DecideApprovals`.
+
+## Phase 96 — Đánh giá dự báo bằng backtest, tầng 1 (2026-11-27, xong trên nhánh, chưa push; dừng chờ quyết định trước tầng 2)
+
+Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). Kế hoạch, kiểm kê, D1–D21, S1–S5, kết quả: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`. Đặc tả bộ sinh: `docs/evaluation/forecast-backtest-generator-spec.md` (v1.1). Báo cáo: `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`. Phạm vi đã chốt B + C(a) chia 4 tầng; mới làm tầng 1 (S5).
+
+- [x] Task 1: đặc tả bộ sinh v1.0, commit riêng trước mọi code; v1.1 bổ sung thiếu sót trước khi có runner (lý do ghi trong đặc tả §10).
+- [x] Task 2: project `FinMate.Backtest` (console, không NuGet mới) trong solution, Dockerfile chép `.csproj` trước restore, SplitMix64 + phân phối.
+- [x] Task 3: bộ sinh 5 hồ sơ (`stable_worker`, `freelancer`, `student`, `family`, `small_trader`), đáp án khoản định kỳ, vay, quỹ nhóm, ví bị loại, hoàn tiền, luồng ngẫu nhiên theo ngày/kỳ.
+- [x] Task 4: lớp phủ K1–K6 (K5h cùng dữ liệu K5, khác cấu hình ngày lễ) chỉ đổi phần được cài.
+- [x] Task 5: `WorldView` + repository giả cắt theo thời điểm đồng hồ giả (S1), chế độ đáp án, `ForecastService` thật; test không rò rỉ, số dư dựng lại khớp.
+- [x] Task 6: test hợp đồng repository giả = `ForecastDataRepository` trên Postgres ở 5 mốc.
+- [x] Task 7: baseline B-hold, B0, B-mean30, B-naive; chỉ số; CI 95% bootstrap theo người.
+- [x] Task 8: runner, báo cáo Markdown + CSV, CLI (`--out`, `--seed`, `--seeds`, `--step`, `--quick`); hai lượt cùng đầu vào ra cùng từng byte.
+- [x] Task 9: chạy đầy đủ (800 thế giới, 785.100 dòng, ~65 s, mốc mỗi ngày); REQUIREMENTS FR-FCST-19, NFR-MNT-11, §13.4 "Dự báo sau backtest Phase 96"; ARCHITECTURE §2.18; CLAUDE.md. Toàn bộ test backend: mốc `32912fc` **4293/4295** → sau **4467/4469** (+174 test: 173 unit backtest, 1 hợp đồng trên Postgres; vẫn đúng 2 đỏ sẵn trên `main`).
+- [ ] Tầng 2 (chờ quyết định): chế độ phát lại (`RecurringDetectionService` + `RunDailyAsync` mỗi ngày), chỉ số phát hiện định kỳ / đổi giá / tạm ngừng nhầm, cảnh báo số dư thấp, bất thường, K7–K9; ctor đồng hồ cho `AnomalyService`, `ForecastAlertService`.
+- [ ] Tầng 3: thu nhập, rủi ro ngân sách + B-lastmonth, danh mục tháng tới, các cảnh báo còn lại; ctor đồng hồ cho `CategoryForecastService`.
+- [ ] Tầng 4: `--config` / `--compare` để so bản nháp tham số Phase 95.
+- Không có việc cho nhóm app hay web admin.
