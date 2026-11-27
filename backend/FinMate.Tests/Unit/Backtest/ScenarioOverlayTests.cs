@@ -88,6 +88,31 @@ public class ScenarioOverlayTests
         Math.Abs(ratio - 1).Should().BeInRange(0.09, 0.31);
     }
 
+    [Fact]
+    public void K2_SmallTraderWithheldSales_ArePaidBackInFull_EvenWhenDayTenIsTheClosedDay()
+    {
+        // Tiền bán chuyển khoản của 10 ngày đầu tháng M chỉ dời về một khoản ngày 10, không được mất đi (đặc tả §6, K2).
+        var closedOnDayTen = 0;
+        for (var seed = 0; seed < GeneratorSpec.SeedsPerPersona; seed++)
+        {
+            var profile = WorldBuilder.ProfileOf(Persona.SmallTrader, seed);
+            var plan = ScenarioPlans.Draw(
+                ScenarioCodes.K2, profile, Rng.ForStream($"{GeneratorSpec.DefaultRootSeed}|{Persona.SmallTrader}|{seed}|scenario.K2"));
+            var month = plan.LateMonth!.Value;
+            var (from, to) = (month, month.AddDays(9));
+            closedOnDayTen += to.DayOfWeek == profile.ClosedDay ? 1 : 0;
+
+            long SalesIn(SynthWorld w) => w.Transactions
+                .Where(t => t.Type == TransactionType.Credit && t.Label is TxLabel.IncomeIrregular or TxLabel.Scenario && t.Date >= from && t.Date <= to)
+                .Sum(t => t.AmountCents);
+
+            SalesIn(WorldBuilder.Build(Persona.SmallTrader, seed, ScenarioCodes.K2))
+                .Should().Be(SalesIn(WorldBuilder.Build(Persona.SmallTrader, seed, ScenarioCodes.K0)), $"seed {seed}");
+        }
+
+        closedOnDayTen.Should().BeGreaterThan(0, "phải có ít nhất một ca ngày 10 trùng ngày nghỉ thì test mới kiểm được lỗi này");
+    }
+
     [Theory]
     [MemberData(nameof(PersonaSeeds))]
     public void K3_SkipsOnePeriodOfOneOrTwoBills_AndOptionallyPaysBothNextMonth(string persona, int seed)

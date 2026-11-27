@@ -1,6 +1,6 @@
 # Đặc tả bộ sinh dữ liệu tổng hợp cho backtest dự báo
 
-> **Phiên bản 1.1** (2026-11-27). Hằng `GeneratorSpec.Version` trong `backend/FinMate.Backtest` phải bằng số này, và báo cáo in số này.
+> **Phiên bản 1.2** (2026-11-27). Hằng `GeneratorSpec.Version` trong `backend/FinMate.Backtest` phải bằng số này, và báo cáo in số này.
 > Kế hoạch: `docs/superpowers/plans/2026-11-27-forecast-backtest.md` (Phase 96, D2–D5, D15, D17, S2).
 > Tài liệu này được commit **trước** mọi dòng code của bộ sinh và runner. Code làm theo tài liệu, không làm ngược lại.
 
@@ -224,3 +224,4 @@ Với mỗi người × kịch bản, bộ sinh ghi các đáp án sau:
 |---|---|---|---|
 | 1.0 | 2026-11-27 | Bản đầu | — |
 | 1.1 | 2026-11-27 | §5.1: thêm λ/σ của `family`, tỉ trọng mặc định, ví trả chi linh hoạt, hệ số nhân vào λ hay số tiền, luồng theo ngày | Thiếu sót phát hiện khi viết bộ sinh (Task 3), **trước** khi có runner hay số đo nào; v1.0 không đủ để code làm đúng một cách duy nhất |
+| 1.2 | 2026-11-27 | Không đổi chữ của đặc tả; sửa code bộ sinh cho đúng §6 K2 (tiểu thương) | Lỗi thật phát hiện ở review PR #40: khi ngày 10 của tháng M trùng ngày nghỉ của tiểu thương, khoản trả gộp bị bỏ qua, tiền bán chuyển khoản của 10 ngày đầu tháng mất hẳn thay vì về trễ. K2 khi đó đo "mất thu nhập" chứ không phải "thu nhập về trễ". Chỉ đổi dữ liệu K2 của tiểu thương có ngày 10 trùng ngày nghỉ; mọi kịch bản và hồ sơ khác giống hệt v1.1 |

@@ -24,30 +24,12 @@ public sealed partial class WorldBuilder
         long withheld = 0;
         for (var day = GeneratorSpec.DataStart; day <= GeneratorSpec.DataEnd; day = day.AddDays(1))
         {
-            if (day.DayOfWeek == _profile.ClosedDay || (_plan.IsTet && day >= GeneratorSpec.Tet2026 && day <= GeneratorSpec.Tet2026.AddDays(3)))
+            if (day.DayOfWeek != _profile.ClosedDay && !(_plan.IsTet && day >= GeneratorSpec.Tet2026 && day <= GeneratorSpec.Tet2026.AddDays(3)))
             {
-                continue;
+                withheld += AddSalesDay(day, target);
             }
 
-            var r = Stream($"base.sales.{Iso(day)}");
-            var count = r.Poisson(2) + 1;
-            var median = _profile.DailyRevenueCents * (day.DayOfWeek == DayOfWeek.Sunday ? 1.3 : 1.0) / 3.0 * SalesFactor(day, target);
-            for (var i = 0; i < count; i++)
-            {
-                var amount = r.LogNormalMoney(median, 0.5);
-                var cash = r.Chance(0.6);
-                var minute = r.Int(6 * 60, 21 * 60);
-                if (!cash && target && IsWithheld(day))
-                {
-                    withheld += amount;
-                    continue;
-                }
-
-                Add(new SynthTransaction(
-                    Id($"sale:{Iso(day)}:{i}"), Account(cash ? AccountKeys.Cash : AccountKeys.Bank), TransactionType.Credit, amount,
-                    GeneratorSpec.At(day, minute), SalesMerchant, Slugs.Income, TxLabel.IncomeIrregular));
-            }
-
+            // Trả gộp ngày 10 kể cả khi hôm đó nghỉ bán: tiền dời ngày chứ không mất (đặc tả §6, K2).
             if (target && _plan.LateMonth is { } month && day == month.AddDays(K2WithheldDays - 1) && withheld > 0)
             {
                 Add(new SynthTransaction(
@@ -58,6 +40,32 @@ public sealed partial class WorldBuilder
         }
 
         MarkIncomeTargetEvents(target);
+    }
+
+    /// <summary>Tiền bán của một ngày mở hàng; trả về phần chuyển khoản bị giữ lại của K2 (không ghi giao dịch cho phần đó).</summary>
+    private long AddSalesDay(DateOnly day, bool target)
+    {
+        long withheld = 0;
+        var r = Stream($"base.sales.{Iso(day)}");
+        var count = r.Poisson(2) + 1;
+        var median = _profile.DailyRevenueCents * (day.DayOfWeek == DayOfWeek.Sunday ? 1.3 : 1.0) / 3.0 * SalesFactor(day, target);
+        for (var i = 0; i < count; i++)
+        {
+            var amount = r.LogNormalMoney(median, 0.5);
+            var cash = r.Chance(0.6);
+            var minute = r.Int(6 * 60, 21 * 60);
+            if (!cash && target && IsWithheld(day))
+            {
+                withheld += amount;
+                continue;
+            }
+
+            Add(new SynthTransaction(
+                Id($"sale:{Iso(day)}:{i}"), Account(cash ? AccountKeys.Cash : AccountKeys.Bank), TransactionType.Credit, amount,
+                GeneratorSpec.At(day, minute), SalesMerchant, Slugs.Income, TxLabel.IncomeIrregular));
+        }
+
+        return withheld;
     }
 
     private double SalesFactor(DateOnly day, bool target)

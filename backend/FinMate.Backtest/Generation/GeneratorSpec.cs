@@ -8,7 +8,7 @@ namespace FinMate.Backtest.Generation;
 /// </summary>
 public static class GeneratorSpec
 {
-    public const string Version = "1.1";
+    public const string Version = "1.2";
 
     public const ulong DefaultRootSeed = 20261127;
 
