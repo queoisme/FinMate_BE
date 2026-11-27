@@ -48,6 +48,12 @@ public sealed record CashflowInput(
 
     /// <summary>Phase 97: thu không định kỳ đã nhận hôm nay (đã nằm trong số dư), trừ khỏi mức của hôm nay.</summary>
     public long ReceivedTodayIrregularCents { get; init; }
+
+    /// <summary>
+    /// Phase 97 tầng 2: dải của tổng dòng tiền linh hoạt ròng (B2). Có thì đường thận trọng / lạc quan = dự kiến ∓ nửa độ rộng của tổng tới ngày đó
+    /// (khoản cho vay đến hạn vẫn chỉ cộng vào đường lạc quan); null (thiếu lịch sử) thì giữ các đường theo ngày của tầng 1.
+    /// </summary>
+    public NetFlowBand? Band { get; init; }
 }
 
 /// <param name="OptimisticOnly">Phase 90: chỉ tính vào đường lạc quan (<c>HighBalanceCents</c>), không vào số dư dự kiến hay thận trọng.</param>
@@ -66,8 +72,11 @@ public sealed record CashflowDayDto(
 /// <param name="Source">Phase 90: <c>user_entered</c> cho khoản vay người dùng tự ghi; null với các nguyên nhân khác.</param>
 public sealed record CashflowCauseDto(string Kind, string Label, long AmountCents, string? Source = null);
 
-/// <param name="LowBalanceCents">Đường thận trọng: chi linh hoạt theo phân vị 75.</param>
-/// <param name="HighBalanceCents">Đường lạc quan: chi linh hoạt theo phân vị 25.</param>
+/// <param name="EndLowBalanceCents">
+/// Đường thận trọng ở ngày cuối. Phase 97 tầng 2: phân vị 25 của số dư theo phân phối của tổng dòng tiền linh hoạt ròng (<see cref="NetFlowBand"/>);
+/// thiếu lịch sử thì chi linh hoạt theo phân vị 75 từng ngày như trước.
+/// </param>
+/// <param name="EndHighBalanceCents">Đường lạc quan ở ngày cuối: phân vị 75 tương ứng, cộng khoản cho vay đến hạn.</param>
 public sealed record CashflowForecastDto(
     DateOnly From,
     DateOnly To,
@@ -112,6 +121,7 @@ public static class CashflowEngine
         var eventsByDay = input.Events.ToLookup(e => e.Date);
         var days = new List<CashflowDayDto>();
         long flexibleTotal = 0;
+        long optimisticOnly = 0;
 
         for (var date = input.Today; date <= input.End; date = date.AddDays(1))
         {
@@ -126,6 +136,12 @@ public static class CashflowEngine
             low += eventsSum - spendHigh + incomeLow;
             high += optimisticSum - spendLow + incomeHigh;
             flexibleTotal += spendExpected;
+            optimisticOnly += optimisticSum - eventsSum;
+            if (input.Band is { } band)
+            {
+                var halfWidth = band.HalfWidth(date.DayNumber - input.Today.DayNumber + 1);
+                (low, high) = (expected - halfWidth, expected + halfWidth + optimisticOnly);
+            }
 
             days.Add(new CashflowDayDto(
                 date, expected, low, high, spendExpected,

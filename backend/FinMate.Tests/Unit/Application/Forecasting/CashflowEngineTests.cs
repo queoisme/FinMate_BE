@@ -160,4 +160,72 @@ public class CashflowEngineTests
         plain.IncomeBasis.Should().BeNull();
         plain.Days[0].ExpectedBalanceCents.Should().Be(900_000);
     }
+
+    // ---- Phase 97 tầng 2: dải của tổng dòng tiền linh hoạt ròng (B2) ----
+
+    [Fact]
+    public void WithASumBand_LowAndHighAreTheExpectedLine_PlusMinusZSigmaOfTheSumSoFar()
+    {
+        var band = new NetFlowBand(DailyVariance: 100_000_000_000, HistoryDays: 90);
+        var result = CashflowEngine.Project(Input(10_000_000, 100_000) with { Band = band });
+
+        for (var i = 0; i < result.Days.Count; i++)
+        {
+            var day = result.Days[i];
+            var l = i + 1;
+            var half = (long)Math.Round(NetFlowBand.Z * Math.Sqrt(1e11 * l + 1e11 / 90 * l * l), MidpointRounding.AwayFromZero);
+            day.LowBalanceCents.Should().Be(day.ExpectedBalanceCents - half);
+            day.HighBalanceCents.Should().Be(day.ExpectedBalanceCents + half);
+        }
+    }
+
+    [Fact]
+    public void TheSumBand_GrowsSlowerThanAddingDailyQuantiles()
+    {
+        // Cộng phân vị từng ngày: nửa độ rộng tăng theo L. Dải của tổng: theo √L (cộng phần sai số của mức trung bình, theo L/√n).
+        var band = new NetFlowBand(DailyVariance: 1e10, HistoryDays: 90);
+
+        (band.HalfWidth(30) / (double)band.HalfWidth(1)).Should().BeLessThan(30.0 / 3);
+        band.HalfWidth(30).Should().BeGreaterThan(band.HalfWidth(14));
+    }
+
+    [Fact]
+    public void WithASumBand_ALoanDueToUs_IsStillAddedToTheOptimisticLineOnly()
+    {
+        var loan = new CashflowEvent(Today.AddDays(2), 3_000_000, "Khoản cho vay", CashflowEventKinds.LoanInflow, null, CashflowBand.OptimisticOnly);
+        var band = new NetFlowBand(DailyVariance: 0, HistoryDays: 90);
+
+        var result = CashflowEngine.Project(Input(10_000_000, 100_000, [loan]) with { Band = band });
+
+        result.Days[1].HighBalanceCents.Should().Be(result.Days[1].ExpectedBalanceCents);
+        result.Days[2].HighBalanceCents.Should().Be(result.Days[2].ExpectedBalanceCents + 3_000_000);
+        result.Days[^1].HighBalanceCents.Should().Be(result.Days[^1].ExpectedBalanceCents + 3_000_000);
+        result.Days.Should().OnlyContain(d => d.LowBalanceCents == d.ExpectedBalanceCents);
+    }
+
+    [Fact]
+    public void NetFlowBand_IsTheResidualVarianceAroundTheWeekdayMean_OfNetFlexibleFlow()
+    {
+        // 91 ngày: chi 100.000đ mỗi ngày, thêm 700.000đ mỗi Chủ nhật (mẫu theo thứ cố định, không có bất định), một khoản thu dự án 2.800.000đ mỗi 14 ngày.
+        var history = Enumerable.Range(1, 91).Select(i => Debit(Today.AddDays(-i), Today.AddDays(-i).DayOfWeek == DayOfWeek.Sunday ? 800_000 : 100_000, "Quán ăn")).ToList();
+        var steady = NetFlowBand.From(history, [], Today, Rules)!;
+        steady.DailyVariance.Should().Be(0, "mẫu theo thứ lặp lại y hệt mỗi tuần");
+        steady.HistoryDays.Should().Be(91);
+
+        history.AddRange(Enumerable.Range(1, 91).Where(i => i % 14 == 0).Select(i => Credit(Today.AddDays(-i), 2_800_000, "Khách hàng A")));
+        NetFlowBand.From(history, [], Today, Rules)!.DailyVariance.Should().BeGreaterThan(0, "thu không đều là bất định, nằm trong σ của dòng tiền ròng");
+    }
+
+    [Fact]
+    public void NetFlowBand_IgnoresRecurringPaymentsExcludedRowsLoansAndRefunds_AndNeedsEnoughHistory()
+    {
+        var history = Enumerable.Range(1, 91).Select(i => Debit(Today.AddDays(-i), 100_000, "Quán ăn")).ToList();
+        history.Add(Debit(new DateOnly(2026, 10, 5), 4_000_000, "Tiền nhà"));
+        history.Add(Debit(Today.AddDays(-3), 9_000_000, "Tiệc", excluded: true));
+        history.Add(Credit(Today.AddDays(-4), 5_000_000, "Người thân") with { IsLoan = true });
+        history.Add(Credit(Today.AddDays(-5), 5_000_000, "Shop") with { Relation = TransactionRelation.Refund });
+
+        NetFlowBand.From(history, [Item("Tiền nhà", 5_000_000, new DateOnly(2026, 11, 5))], Today, Rules)!.DailyVariance.Should().Be(0);
+        NetFlowBand.From(history.Take(10).ToList(), [], Today, Rules).Should().BeNull("dưới minHistoryDays: engine giữ các đường của tầng 1");
+    }
 }

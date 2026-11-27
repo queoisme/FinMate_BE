@@ -231,6 +231,7 @@ public class ForecastService : IForecastService
         {
             Income = income,
             ReceivedTodayIrregularCents = receivedToday,
+            Band = NetFlowBand.From(transactions.Where(t => t.Date < today).ToList(), excluded, today, rules),
         }) with
         {
             UndatedLoans = LoanForecast.Undated(loans),

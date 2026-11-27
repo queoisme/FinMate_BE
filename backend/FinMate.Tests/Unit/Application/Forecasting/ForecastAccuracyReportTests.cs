@@ -29,8 +29,8 @@ public class ForecastAccuracyReportTests
     [Fact]
     public void NewSnapshotsUseTheCurrentMethod_WhichIsNotTheOldMedianBand()
     {
-        ForecastMethods.Current.Should().Be(ForecastMethods.MeanDowIncome).And.NotBe(ForecastMethods.MedianBand);
-        ForecastMethods.All.Should().Contain([ForecastMethods.MedianBand, ForecastMethods.MeanDowIncome]);
+        ForecastMethods.Current.Should().Be(ForecastMethods.MeanDowIncomeSumBand).And.NotBe(ForecastMethods.MeanDowIncome).And.NotBe(ForecastMethods.MedianBand);
+        ForecastMethods.All.Should().Contain([ForecastMethods.MedianBand, ForecastMethods.MeanDowIncome, ForecastMethods.MeanDowIncomeSumBand]);
     }
 
     [Fact]

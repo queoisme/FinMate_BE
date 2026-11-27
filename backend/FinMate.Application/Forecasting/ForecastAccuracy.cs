@@ -12,10 +12,16 @@ public static class ForecastMethods
     /// <summary>Phase 97 tầng 1: trung bình theo thứ cho chi và thu không định kỳ; dải giữ độ rộng P25/P75 cũ quanh đường dự kiến.</summary>
     public const string MeanDowIncome = "mean_dow_income_v2";
 
-    /// <summary>Phương pháp đang chạy: ghi vào bản chụp mới và là mặc định của báo cáo độ chính xác.</summary>
-    public const string Current = MeanDowIncome;
+    /// <summary>
+    /// Phase 97 tầng 2: như tầng 1 (kèm luật người trả + thời điểm), dải thận trọng / lạc quan là P25/P75 của tổng dòng tiền linh hoạt ròng
+    /// (<see cref="NetFlowBand"/>, phương án B2).
+    /// </summary>
+    public const string MeanDowIncomeSumBand = "mean_dow_income_sumband_v3";
 
-    public static readonly IReadOnlyList<string> All = [MedianBand, MeanDowIncome];
+    /// <summary>Phương pháp đang chạy: ghi vào bản chụp mới và là mặc định của báo cáo độ chính xác.</summary>
+    public const string Current = MeanDowIncomeSumBand;
+
+    public static readonly IReadOnlyList<string> All = [MedianBand, MeanDowIncome, MeanDowIncomeSumBand];
 }
 
 /// <summary>

@@ -1,4 +1,9 @@
+using FinMate.Application.Forecasting;
 using FinMate.Backtest.Diagnostics;
+using FinMate.Backtest.Evaluation;
+using FinMate.Backtest.Generation;
+using FinMate.Backtest.Simulation;
+using FinMate.Application.Admin.SystemConfig;
 using FluentAssertions;
 
 namespace FinMate.Tests.Unit.Backtest;
@@ -27,7 +32,7 @@ public class SumBandsTests
         var variance = 100.0 / 3;
         var (low, high) = SumBands.Normal(series, 9)!.Value;
 
-        high.Should().BeApproximately(SumBands.Z * Math.Sqrt(variance * 9 + variance / 4 * 81), 1e-9);
+        high.Should().BeApproximately(NetFlowBand.Z * Math.Sqrt(variance * 9 + variance / 4 * 81), 0.5, "nửa độ rộng làm tròn tới đồng");
         low.Should().Be(-high);
     }
 
@@ -38,5 +43,28 @@ public class SumBandsTests
         var series = Series([.. week, .. week, .. week]);
 
         SumBands.Normal(series, 14)!.Value.Should().Be((0.0, 0.0), "thứ nào cũng giống hệt nhau mỗi tuần: không còn bất định");
+    }
+
+    [Theory]
+    [InlineData(Persona.StableWorker)]
+    [InlineData(Persona.Freelancer)]
+    [InlineData(Persona.Family)]
+    public void TheEngineBand_IsB2RebuiltFromTheHarnessHistory(string persona)
+    {
+        // Task 9: engine dùng B2, nên dải dựng lại trong harness từ cùng lịch sử phải trùng từng đồng; không thì bảng C7 không còn đo đúng production.
+        var settings = new ForecastSettings();
+        var rules = ForecastRules.From(settings);
+        var world = WorldBuilder.Build(persona, 1, ScenarioCodes.K0);
+        var harness = new ForecastHarness(world, settings);
+        var origin = new DateOnly(2025, 12, 10);
+        var forecast = harness.ForecastAt(origin, 30);
+        var items = new OracleRecurring(world).ItemsAt(harness.Clock.Now).Select(i => i.ToView()).ToList();
+        var history = RefundNetting.ForHabits(harness.View.Raw(origin.AddDays(-rules.HistoryWindowDays), origin).Where(t => !t.IsLoan).ToList());
+        var net = SumBands.NetSeries(history, items, origin, rules);
+
+        foreach (var h in new[] { 7, 14, 30 })
+        {
+            SumBands.At(SumBands.B2, forecast, h, net).Should().Be(SumBands.At(SumBands.Current, forecast, h, net), $"{persona} h={h}");
+        }
     }
 }
