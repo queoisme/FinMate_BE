@@ -43,11 +43,17 @@ public static class IncomeEstimator
     /// Thu nhập không đều: tổng thu mỗi tháng TRỌN VẸN gần nhất (không tính tháng này), chỉ từ khoản thu không khớp khoản định kỳ nào.
     /// Tháng không có thu nhập vẫn tính là 0 — bỏ đi sẽ thổi phồng mức thận trọng. Dưới hai tháng dữ liệu thì không ước tính.
     /// </summary>
+    /// <param name="recurring">
+    /// Phase 97: bộ lọc người trả + thời điểm cho đường số dư (tỉ lệ thận trọng phải cùng luật với mức theo ngày). Null = luật cũ, chỉ khớp trong dung sai:
+    /// spendable và trang thu nhập giữ nguyên.
+    /// </param>
     public static IrregularIncomeDto? Irregular(
-        IReadOnlyList<ForecastTransaction> history, IReadOnlyList<RecurringItemView> activeItems, DateOnly today, int months, ForecastRules rules)
+        IReadOnlyList<ForecastTransaction> history, IReadOnlyList<RecurringItemView> activeItems, DateOnly today, int months, ForecastRules rules,
+        RecurringPaymentFilter? recurring = null)
     {
         var credits = history
-            .Where(t => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, activeItems, rules))
+            .Where(t => t.Type == TransactionType.Credit && !t.ExcludedFromForecast
+                        && !(recurring?.IsPayment(t) ?? RecurringMatcher.MatchesAny(t, activeItems, rules)))
             .ToList();
         var thisMonth = new DateOnly(today.Year, today.Month, 1);
         var receivedThisMonth = credits.Where(t => t.Date >= thisMonth).Sum(t => t.AmountCents);

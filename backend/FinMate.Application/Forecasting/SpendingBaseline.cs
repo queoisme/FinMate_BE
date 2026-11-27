@@ -33,7 +33,8 @@ public sealed record SpendingBaseline(
 
 /// <summary>
 /// Học thói quen chi tiêu từ lịch sử. Loại khỏi dữ liệu: giao dịch user đánh dấu loại khỏi dự báo, và giao dịch khớp khoản định kỳ đang theo dõi
-/// (khoản đó đã được engine đặt riêng vào đúng ngày đến hạn — tính thêm ở đây là trừ hai lần). Thiếu dữ liệu thì theo đúng sơ đồ:
+/// (khoản đó đã được engine đặt riêng vào đúng ngày đến hạn — tính thêm ở đây là trừ hai lần; Phase 97: kể cả lần trả của một kỳ đã đổi giá, xem
+/// <see cref="RecurringPaymentFilter"/>). Thiếu dữ liệu thì theo đúng sơ đồ:
 /// ngân sách đã thiết lập → trung bình dữ liệu đang có → 0, và mang cờ tin cậy thấp.
 /// </summary>
 public static class SpendingBaselineCalculator
@@ -51,8 +52,9 @@ public static class SpendingBaselineCalculator
         ForecastRules rules)
     {
         var activeDays = history.Select(t => t.Date).Distinct().Count();
+        var recurring = RecurringPaymentFilter.For(history, activeItems, rules);
         var flexibleByDay = history
-            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, activeItems, rules))
+            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => g.Sum(t => t.AmountCents));
 

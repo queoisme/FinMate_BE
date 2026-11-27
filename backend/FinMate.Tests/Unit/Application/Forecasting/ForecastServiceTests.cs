@@ -187,9 +187,9 @@ public class ForecastServiceTests
     [Fact]
     public async Task Cashflow_LateSalaryAtANewAmountBeyondTolerance_IsCountedAsIrregularIncome_ButTheOverduePeriodIsNotProjected()
     {
-        // S3, ca không chặn được: lương về trễ VÀ đổi số tiền quá dung sai (20 triệu so với 15 triệu) không khớp khoản định kỳ, nên nó vào thu linh hoạt.
-        // Kỳ quá hạn vẫn không được chiếu, nên trong CÙNG một dự báo không có cả hai. Hệ quả còn lại (khoản này nâng mức thu trung bình của các tháng sau trong
-        // khi kỳ lương kế tiếp vẫn được chiếu) được đo riêng ở thiên lệch thu của K2 trong backtest.
+        // S3, ca còn lại: lương về trễ quá cửa sổ nhận VÀ đổi số tiền quá dung sai (20 triệu so với 15 triệu) không khớp khoản định kỳ theo cả hai luật
+        // (dung sai; người trả + thời điểm), nên nó vào thu linh hoạt. Kỳ quá hạn vẫn không được chiếu, nên trong CÙNG một dự báo không có cả hai.
+        // Lương đổi số tiền mà về trong cửa sổ thì đã được luật người trả + thời điểm chặn (test ngay dưới).
         var salary = SalaryItem(15_000_000, Today.AddDays(-12));
         _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([salary]);
         _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
@@ -201,6 +201,23 @@ public class ForecastServiceTests
 
         result.Days.Sum(d => d.IrregularIncomeCents).Should().BeGreaterThan(0);
         result.Days.SelectMany(d => d.Events).Should().NotContain(e => e.Kind == CashflowEventKinds.RecurringInflow);
+    }
+
+    [Fact]
+    public async Task Cashflow_SalaryRaisedBeyondTolerance_ItsOldPriceCreditsInHistoryAreNotIrregularIncome()
+    {
+        // Luật người trả + thời điểm (K2): lương tăng từ 15 lên 19,5 triệu; các lần nhận giá cũ đúng kỳ trong lịch sử là lương, không phải thu linh hoạt.
+        var nextDue = Today.AddDays(3);
+        _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([SalaryItem(19_500_000, nextDue)]);
+        _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
+        var history = Enumerable.Range(1, 200).Select(i => Debit(Today.AddDays(-i), 50_000, "Quán ăn")).ToList();
+        history.AddRange(Enumerable.Range(1, 6).Select(m => Credit(nextDue.AddMonths(-m), 15_000_000, "Lương công ty")));
+        History(history);
+
+        var result = await _service.GetCashflowAsync(_userId, null, Today.AddDays(14));
+
+        result.Days.Should().OnlyContain(d => d.IrregularIncomeCents == 0);
+        result.Days.SelectMany(d => d.Events).Should().ContainSingle(e => e.Kind == CashflowEventKinds.RecurringInflow).Which.AmountCents.Should().Be(19_500_000);
     }
 
     [Fact]

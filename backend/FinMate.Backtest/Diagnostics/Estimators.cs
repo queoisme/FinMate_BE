@@ -29,8 +29,9 @@ public static class Estimators
             return null;
         }
 
+        var recurring = RecurringPaymentFilter.For(history, items, rules);
         var byDay = history
-            .Where(t => t.Type == type && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, items, rules))
+            .Where(t => t.Type == type && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => (double)g.Sum(t => t.AmountCents));
         var series = new List<(DateOnly Date, double Amount)>();

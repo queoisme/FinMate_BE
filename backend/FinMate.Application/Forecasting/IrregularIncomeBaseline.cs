@@ -45,9 +45,9 @@ public static class IrregularIncomeBaselineCalculator
         }
 
         var firstDay = history.Min(t => t.Date);
+        var recurring = RecurringPaymentFilter.For(history, excludedItems, rules);
         var byDay = history
-            .Where(t => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan
-                        && !RecurringMatcher.MatchesAny(t, excludedItems, rules))
+            .Where(t => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => g.Sum(t => t.AmountCents));
 

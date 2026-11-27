@@ -206,8 +206,9 @@ public class ForecastService : IForecastService
 
         var excluded = await ExclusionItemsAsync(userId, items, accountIds, accountId, today, rules.HistoryWindowDays, ct);
         var baseline = await BaselineAsync(userId, accountId, transactions, excluded, today, rules, ct);
+        var recurring = RecurringPaymentFilter.For(transactions, excluded, rules);
         var spentToday = transactions
-            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, excluded, rules))
+            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .Sum(t => t.AmountCents);
 
         var boundary = await BoundaryTransfers.OutflowsAsync(_data, userId, accountIds, today.AddDays(-rules.HistoryWindowDays), today, ct);
@@ -222,7 +223,7 @@ public class ForecastService : IForecastService
 
         var income = await IncomeBaselineAsync(userId, accountIds, transactions, excluded, today, settings, rules, ct);
         var receivedToday = transactions
-            .Where(t => t.Date == today && IsIrregularIncome(t, excluded, rules))
+            .Where(t => t.Date == today && IsIrregularIncome(t, recurring))
             .Sum(t => t.AmountCents);
 
         return CashflowEngine.Project(new CashflowInput(
@@ -247,13 +248,13 @@ public class ForecastService : IForecastService
     {
         var lookback = IrregularLookbackDays(settings);
         var longHistory = (await _data.GetTransactionsAsync(userId, today.AddDays(-lookback), today, ct)).Where(t => accountIds.Contains(t.AccountId)).ToList();
-        var monthly = IncomeEstimator.Irregular(longHistory, excluded, today, settings.IrregularIncomeMonths, rules);
+        var monthly = IncomeEstimator.Irregular(longHistory, excluded, today, settings.IrregularIncomeMonths, rules, RecurringPaymentFilter.For(longHistory, excluded, rules));
         return IrregularIncomeBaselineCalculator.Compute(transactions.Where(t => t.Date < today).ToList(), excluded, today, rules, monthly);
     }
 
     /// <summary>Cùng bộ lọc với <see cref="IrregularIncomeBaselineCalculator"/>, cho phần đã nhận hôm nay.</summary>
-    private static bool IsIrregularIncome(ForecastTransaction t, IReadOnlyList<RecurringItemView> excluded, ForecastRules rules)
-        => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan && !RecurringMatcher.MatchesAny(t, excluded, rules);
+    private static bool IsIrregularIncome(ForecastTransaction t, RecurringPaymentFilter recurring)
+        => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan && !recurring.IsPayment(t);
 
     /// <summary>Mặc định tới cuối tháng; còn dưới một tuần thì tới cuối tháng sau, để biểu đồ không chỉ có vài điểm.</summary>
     private static DateOnly ResolveEnd(DateOnly today, DateOnly? to, int maxHorizonDays)

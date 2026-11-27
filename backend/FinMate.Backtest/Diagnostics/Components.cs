@@ -115,8 +115,9 @@ public static class FlexVariants
             return null;   // nhánh thiếu lịch sử (ngân sách / trung bình), không thuộc H2
         }
 
+        var recurring = RecurringPaymentFilter.For(history, items, rules);
         var byDay = history
-            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, items, rules))
+            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => g.Sum(t => t.AmountCents));
         var series = new List<(DateOnly Date, double Amount)>();

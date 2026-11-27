@@ -433,3 +433,52 @@ Các test hiện có của `SpendingBaselineCalculator`, spendable, ngân sách,
   - thiên lệch số dư của `stable_worker` ở K2 là +0,26 triệu (K0: −0,34), tức lệch thêm khoảng 0,6 triệu ở tầm 14; MAE 1,96 so với 1,68 của mô hình cũ.
 - Đề xuất (chưa làm, cần duyệt): khi xét thu linh hoạt, loại khoản thu **cùng người trả và cùng chiều** với khoản thu định kỳ đang theo dõi, **bất kể số tiền**. Lý do: tiền từ người trả lương là lương, dù giá cũ hay mới; `RecurringMatcher.FindPayment` cũng đã coi khoản cùng người trả trong cửa sổ là "lần trả với giá mới".
 - Chi linh hoạt có hiện tượng tương tự với hóa đơn đổi giá (K4), nhưng đã có từ trước Phase 97 và nhỏ (+2,3% so với K0); nếu sửa thì sửa cả hai cùng luật.
+
+---
+
+## Quyết định sau tầng 1 (2026-11-27)
+
+1. **Dải phần thu ở tầng 1 = cách hiểu S1 cho phần thu.** S1 (giữ độ rộng cũ, dời quanh đường dự kiến mới) nói về chi. Thu dồn vào vài ngày không có độ rộng cũ để giữ (P25 = trung vị = P75 = 0), nên phần thu theo D3: thận trọng = dự kiến × min(1, P25 / trung bình theo tháng), lạc quan = dự kiến. Đã duyệt.
+2. **Sửa tính hai lần khi khoản định kỳ đổi số tiền: luật người trả + thời điểm** (không dùng "cùng người trả bất kể số tiền", vì luật đó loại cả thưởng và dự án lẻ của cùng người, tái tạo H1). Task 7b bên dưới.
+3. **Tầng 2: làm** Task 8–10 trên mô hình đã có Task 7b. Dừng sau Task 10, trước tập kiểm tra.
+
+## Task 7b — Luật người trả + thời điểm (2026-11-27)
+
+**Luật** (`RecurringMatcher.PeriodPayments`, `RecurringPaymentFilter`):
+- Với mỗi khoản định kỳ có người trả/nhận, mỗi kỳ đến hạn (từ `NextDueDate` lùi về đầu lịch sử) nhận **đúng một** giao dịch cùng người, cùng chiều trong cửa sổ có sẵn `RecurringSchedule.PaymentWindow` (tháng: hạn − 14 tới hạn + ân hạn 7 ngày) làm lần trả của kỳ đó, **bất kể số tiền**.
+- Chọn trong cửa sổ: giao dịch trong dung sai trước; không có thì giao dịch gần ngày đến hạn nhất (bằng nhau lấy sớm hơn).
+- Giao dịch cùng người ngoài cửa sổ, hoặc cùng cửa sổ nhưng kỳ đó đã có lần trả khác (thưởng, dự án lẻ, mua thêm), vẫn là linh hoạt.
+- Luật cũ (khớp trong dung sai, mọi ngày) giữ nguyên; luật mới chỉ loại thêm.
+- Cùng một bộ lọc cho thu linh hoạt (`IrregularIncomeBaselineCalculator`, tỉ lệ thận trọng qua tham số tùy chọn của `IncomeEstimator.Irregular`, phần đã nhận hôm nay) và chi linh hoạt (`SpendingBaselineCalculator`, phần đã chi hôm nay). Không thêm tham số cấu hình.
+- **Không đổi:** spendable và trang thu nhập (gọi `IncomeEstimator.Irregular` không có bộ lọc), ngân sách, bất thường, baseline của backtest (D15).
+- Harness chẩn đoán (`FlexVariants`, `Estimators`) dùng cùng bộ lọc để vẫn dựng lại đúng production.
+
+**Test:** (a) lương +30% → các lần nhận giá cũ không vào thu linh hoạt; (b) thưởng cùng công ty ngoài cửa sổ, và trong cửa sổ khi kỳ đó đã có lương → vẫn là thu linh hoạt; (c) hóa đơn +25% → không đếm hai lần trong chi linh hoạt; (d) phí định kỳ của khách + dự án lẻ (ngoài cửa sổ và trong cửa sổ) → dự án vẫn được tính; cách chọn một lần trả mỗi kỳ; khoản trả trước khi tracker đẩy ngày. Thêm một test qua `ForecastService` (lương tăng ngoài dung sai). Không test cũ nào đổi kỳ vọng.
+
+**Tập phát triển, trước (tầng 1) → sau (Task 7b), tầm 14, chế độ đáp án. Tiền: triệu đồng.**
+
+Số dư, mọi mốc:
+
+| Kịch bản | Hồ sơ | MAE | Thiên lệch |
+|---|---|---|---|
+| K0 | gộp | 4,68 → 4,67 | −0,25 → −0,18 |
+| K0 | stable_worker | 1,00 → 0,98 | −0,34 → −0,22 |
+| K0 | family | 2,98 → 2,98 | −0,31 → −0,12 |
+| K0 | freelancer / student / small_trader | không đổi (13,25 / 2,35 / 3,81) | −0,43 / −0,12 / −0,07 → 0,01 |
+| K2 | gộp | 5,28 → 5,12 | 0,00 → −0,18 |
+| K2 | stable_worker | 1,96 → **1,58** (mô hình cũ 1,68) | 0,26 → −0,11 |
+| K2 | family | 4,15 → 3,74 | 0,56 → 0,08 |
+| K2 | student | 2,42 → 2,43 | 0,07 → −0,08 |
+| K4 | gộp | 4,74 → 4,70 | −0,34 → −0,15 |
+| K4 | stable_worker | 1,10 → 1,02 | −0,45 → −0,19 |
+| K4 | family | 3,12 → 3,04 | −0,50 → −0,06 |
+
+Thu không định kỳ (WAPE / thiên lệch): K2 sinh viên, mọi mốc **18,8% / +12,9% → 8,9% / +2,3%**; K2 gộp 45,6% / +2,1% → 42,6% / −1,0%; K0 không đổi (40,8% / −0,9%).
+
+Chi linh hoạt (WAPE / thiên lệch): K4 `stable_worker` 22,0% / +6,6% → 19,4% / −1,4%; K4 gia đình 22,7% / +5,3% → 20,8% / −1,2%; K0 gộp 16,5% / +0,3% → 16,3% / −0,7%.
+
+**Nhận xét:**
+- Bản sửa tác động cả K0: hóa đơn điện/nước dao động quá 10% giữa các tháng trước đây bị đếm hai lần (trong chi linh hoạt và ở ngày đến hạn).
+- Ở các mốc "bị ảnh hưởng" của K2/K4 (sát ngày đổi giá), thiên lệch dương tăng nhẹ (`stable_worker` K2 +2,65 → +2,77; gia đình K4 +0,82 → +1,18). Đó là phần không đoán được của việc đổi giá (khoản định kỳ vẫn mang giá cũ tới lần trả giá mới đầu tiên); trước đây phần đếm hai lần che bớt nó.
+- Gia đình K0 tầm 30: thiên lệch −0,12 → +0,51 triệu (MAE không đổi 4,02); dải ở tầng 2 sẽ được đo trên mô hình này.
+- Lượt chạy chỉ để so, không lưu vào `docs/evaluation/phase97/`; lượt chính thức của tầng 2 là `dev-after-t2/`.
