@@ -138,4 +138,93 @@ public class ForecastServiceTests
         ForecastService.MonthlyBudgetTotal(budgets).Should().Be(10_000_000);
         ForecastService.MonthlyBudgetTotal(budgets.Skip(1).ToList()).Should().Be(5_000_000);
     }
+
+    // ---- Phase 97: thu không định kỳ vào đường số dư ----
+
+    /// <summary>Chi mỗi ngày trong 200 ngày (đủ lịch sử, đủ tháng trọn vẹn) + khoản thu dự án 2.800.000đ mỗi 14 ngày.</summary>
+    private static List<ForecastTransaction> FreelancerHistory()
+    {
+        var history = Enumerable.Range(1, 200).Select(i => Debit(Today.AddDays(-i), 50_000, "Quán ăn")).ToList();
+        history.AddRange(Enumerable.Range(1, 200).Where(i => i % 14 == 0).Select(i => Credit(Today.AddDays(-i), 2_800_000, "Khách hàng A")));
+        return history;
+    }
+
+    private void History(List<ForecastTransaction> history)
+        => _data.Setup(r => r.GetTransactionsAsync(_userId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid _, DateOnly from, DateOnly to, CancellationToken _) => history.Where(t => t.Date >= from && t.Date <= to).ToList());
+
+    [Fact]
+    public async Task Cashflow_ProjectsIrregularIncome_FromHistory()
+    {
+        _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
+        History(FreelancerHistory());
+
+        var result = await _service.GetCashflowAsync(_userId, null, Today.AddDays(14));
+
+        result.IncomeBasis.Should().Be(SpendingBaseline.BasisHistory);
+        result.Days.Sum(d => d.IrregularIncomeCents).Should().BeGreaterThan(0);
+        result.Days[^1].ExpectedBalanceCents.Should().BeGreaterThan(10_000_000 - (15 * 50_000), "thu dự án bù lại chi");
+    }
+
+    [Fact]
+    public async Task Cashflow_SalaryArrivingAfterThePaymentWindow_IsNeitherIrregularIncomeNorAnUnpaidItem()
+    {
+        // S3: hạn ngày Today−12, cửa sổ nhận thanh toán tới Today−5 (ân hạn 7 ngày); tiền về Today−3, đúng số tiền.
+        var due = Today.AddDays(-12);
+        var salary = SalaryItem(15_000_000, due);
+        _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([salary]);
+        _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
+        var history = Enumerable.Range(1, 200).Select(i => Debit(Today.AddDays(-i), 50_000, "Quán ăn")).ToList();
+        history.Add(Credit(Today.AddDays(-3), 15_000_000, "Lương công ty"));
+        History(history);
+
+        var result = await _service.GetCashflowAsync(_userId, null, Today.AddDays(14));
+
+        result.Days.Should().OnlyContain(d => d.IrregularIncomeCents == 0, "khoản lương về trễ vẫn khớp khoản định kỳ nên không vào thu linh hoạt");
+        result.Days.SelectMany(d => d.Events).Should().NotContain(e => e.Kind == CashflowEventKinds.RecurringInflow, "kỳ đã quá hạn không còn được chiếu");
+    }
+
+    [Fact]
+    public async Task Cashflow_LateSalaryAtANewAmountBeyondTolerance_IsCountedAsIrregularIncome_ButTheOverduePeriodIsNotProjected()
+    {
+        // S3, ca không chặn được: lương về trễ VÀ đổi số tiền quá dung sai (20 triệu so với 15 triệu) không khớp khoản định kỳ, nên nó vào thu linh hoạt.
+        // Kỳ quá hạn vẫn không được chiếu, nên trong CÙNG một dự báo không có cả hai. Hệ quả còn lại (khoản này nâng mức thu trung bình của các tháng sau trong
+        // khi kỳ lương kế tiếp vẫn được chiếu) được đo riêng ở thiên lệch thu của K2 trong backtest.
+        var salary = SalaryItem(15_000_000, Today.AddDays(-12));
+        _items.Setup(r => r.ListAsync(_userId, RecurringStatus.Active, It.IsAny<CancellationToken>())).ReturnsAsync([salary]);
+        _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
+        var history = Enumerable.Range(1, 200).Select(i => Debit(Today.AddDays(-i), 50_000, "Quán ăn")).ToList();
+        history.Add(Credit(Today.AddDays(-3), 20_000_000, "Lương công ty"));
+        History(history);
+
+        var result = await _service.GetCashflowAsync(_userId, null, Today.AddDays(14));
+
+        result.Days.Sum(d => d.IrregularIncomeCents).Should().BeGreaterThan(0);
+        result.Days.SelectMany(d => d.Events).Should().NotContain(e => e.Kind == CashflowEventKinds.RecurringInflow);
+    }
+
+    [Fact]
+    public async Task Spendable_IsUnchanged_ItStillAddsOnlyTheConservativeMonthlyIncome()
+    {
+        // D12: spendable không đi qua CashflowEngine.Project, nên thu không định kỳ không bị cộng hai lần.
+        _accounts.Setup(r => r.GetListByUserAsync(_userId, It.IsAny<CancellationToken>())).ReturnsAsync([MainWallet(10_000_000)]);
+        var history = FreelancerHistory();
+        History(history);
+        var estimate = IncomeEstimator.Irregular(history.Where(t => t.Date <= Today).ToList(), [], Today, new ForecastSettings().IrregularIncomeMonths, Rules)!;
+
+        var result = await _service.GetSpendableAsync(_userId);
+
+        result.Incomes.Should().ContainSingle().Which.Label.Should().Be(SpendableCalculator.IrregularIncomeLabel);
+        result.ExpectedIncomeCents.Should().Be(Math.Max(0, estimate.ConservativeMonthlyCents - estimate.ReceivedThisMonthCents));
+    }
+
+    private FinancialAccount MainWallet(long balance)
+        => new() { Id = Account, UserId = _userId, AccountName = "Ví", BalanceCents = balance, IncludeInForecast = true };
+
+    private RecurringItem SalaryItem(long amount, DateOnly due) => new()
+    {
+        Id = Guid.NewGuid(), UserId = _userId, Direction = RecurringDirection.Inflow, Name = "Lương công ty", CounterpartyKey = CounterpartyKey.From("Lương công ty"),
+        FinancialAccountId = Account, AmountCents = amount, Cadence = RecurringCadence.Monthly, NextDueDate = due, AnchorDay = due.Day,
+        Status = RecurringStatus.Active, Source = RecurringSource.Manual,
+    };
 }

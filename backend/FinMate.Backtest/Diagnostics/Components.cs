@@ -68,6 +68,7 @@ public static class Components
         foreach (var day in forecast.Days.Take(horizon + 1))
         {
             values[Component.Flexible] -= day.FlexibleSpendCents;
+            values[Component.IncomeIrregular] += day.IrregularIncomeCents;   // Phase 97: engine chiếu thu không định kỳ
             foreach (var e in day.Events.Where(e => !e.OptimisticOnly))
             {
                 values[OfEvent(e.Kind)] += e.AmountCents;

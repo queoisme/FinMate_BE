@@ -220,13 +220,40 @@ public class ForecastService : IForecastService
         var loans = accountId is null ? await OpenLoansAsync(userId, ct) : [];
         events.AddRange(LoanForecast.Events(loans, today, end));
 
+        var income = await IncomeBaselineAsync(userId, accountIds, transactions, excluded, today, settings, rules, ct);
+        var receivedToday = transactions
+            .Where(t => t.Date == today && IsIrregularIncome(t, excluded, rules))
+            .Sum(t => t.AmountCents);
+
         return CashflowEngine.Project(new CashflowInput(
-            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays)) with
+            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays)
+        {
+            Income = income,
+            ReceivedTodayIrregularCents = receivedToday,
+        }) with
         {
             UndatedLoans = LoanForecast.Undated(loans),
             UnlinkedLoanTransactions = accountId is null ? await UnlinkedLoansAsync(userId, ct) : null,
         };
     }
+
+    /// <summary>
+    /// Phase 97: thu không định kỳ cho đường số dư, cùng phạm vi ví với dự báo. Mức theo ngày lấy từ cửa sổ lịch sử (không gồm hôm nay); tỉ lệ thận trọng lấy
+    /// từ các tháng trọn vẹn (<see cref="IncomeEstimator.Irregular"/>), như spendable. Spendable không đổi: nó không đi qua engine.
+    /// </summary>
+    private async Task<IncomeBaseline> IncomeBaselineAsync(
+        Guid userId, IReadOnlySet<Guid> accountIds, IReadOnlyList<ForecastTransaction> transactions, IReadOnlyList<RecurringItemView> excluded, DateOnly today,
+        ForecastSettings settings, ForecastRules rules, CancellationToken ct)
+    {
+        var lookback = IrregularLookbackDays(settings);
+        var longHistory = (await _data.GetTransactionsAsync(userId, today.AddDays(-lookback), today, ct)).Where(t => accountIds.Contains(t.AccountId)).ToList();
+        var monthly = IncomeEstimator.Irregular(longHistory, excluded, today, settings.IrregularIncomeMonths, rules);
+        return IrregularIncomeBaselineCalculator.Compute(transactions.Where(t => t.Date < today).ToList(), excluded, today, rules, monthly);
+    }
+
+    /// <summary>Cùng bộ lọc với <see cref="IrregularIncomeBaselineCalculator"/>, cho phần đã nhận hôm nay.</summary>
+    private static bool IsIrregularIncome(ForecastTransaction t, IReadOnlyList<RecurringItemView> excluded, ForecastRules rules)
+        => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan && !RecurringMatcher.MatchesAny(t, excluded, rules);
 
     /// <summary>Mặc định tới cuối tháng; còn dưới một tuần thì tới cuối tháng sau, để biểu đồ không chỉ có vài điểm.</summary>
     private static DateOnly ResolveEnd(DateOnly today, DateOnly? to, int maxHorizonDays)
