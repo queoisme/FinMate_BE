@@ -105,4 +105,31 @@ public class RecurringPeriodPaymentTests
         RecurringPaymentFilter.For([paid], [item], Rules).IsPayment(paid).Should().BeTrue();
         RecurringMatcher.MatchesAny(paid, [item], Rules).Should().BeFalse("ngoài dung sai 10%: trước Phase 97 nó lọt vào chi linh hoạt");
     }
+
+    [Fact]
+    public void AfterASkippedPeriod_TheCombinedPaymentOfTheNextPeriodIsAPayment_NotFlexibleSpending()
+    {
+        // K3: bỏ kỳ 5/9, kỳ 5/10 trả gộp hai kỳ. Tracker dừng ở kỳ chưa trả (NextDueDate = 5/9), nên lần trả 5/10 nằm SAU NextDueDate;
+        // engine coi kỳ 5/10 đã trả, nên 2 triệu đó không được vào chi linh hoạt.
+        var spending = Enumerable.Range(1, 91).Select(i => Debit(Today.AddDays(-i), 100_000, "Quán ăn")).ToList();
+        var combined = Debit(new DateOnly(2026, 10, 5), 2_000_000, "Tiền điện");
+        var history = spending.Append(Debit(new DateOnly(2026, 8, 5), 1_000_000, "Tiền điện")).Append(combined).ToList();
+        var bill = Item("Tiền điện", 1_000_000, new DateOnly(2026, 9, 5));
+
+        RecurringMatcher.PeriodPayments(history, [bill], Rules).Should().Contain(combined.Id);
+        SpendingBaselineCalculator.Compute(history, [bill], 0, Today, Rules).Expected
+            .Should().Equal(SpendingBaselineCalculator.Compute(spending, [], 0, Today, Rules).Expected);
+    }
+
+    [Fact]
+    public void AnInstallmentThatHasRunOut_DoesNotClaimLaterTransactionsFromTheSamePayee()
+    {
+        // Khoản trả góp kỳ cuối 5/9; mua thêm của cùng cửa hàng ngày 5/10 là chi linh hoạt, không phải kỳ thứ n+1.
+        var installment = Item("Cửa hàng điện máy", 1_000_000, new DateOnly(2026, 9, 5)) with { RemainingOccurrences = 1 };
+        var later = Debit(new DateOnly(2026, 10, 5), 3_000_000, "Cửa hàng điện máy");
+        var ended = installment with { EndDate = new DateOnly(2026, 9, 5), RemainingOccurrences = null };
+
+        RecurringMatcher.PeriodPayments([later], [installment], Rules).Should().BeEmpty();
+        RecurringMatcher.PeriodPayments([later], [ended], Rules).Should().BeEmpty();
+    }
 }

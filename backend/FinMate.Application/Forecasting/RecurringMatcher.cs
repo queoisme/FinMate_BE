@@ -38,7 +38,7 @@ public static class RecurringMatcher
 
     /// <summary>
     /// Phase 97, luật người trả + thời điểm: với mỗi khoản định kỳ có người trả/nhận, mỗi kỳ đến hạn (từ <see cref="RecurringItemView.NextDueDate"/> lùi về đầu
-    /// <paramref name="transactions"/>) nhận đúng MỘT giao dịch cùng người, cùng chiều trong <see cref="RecurringSchedule.PaymentWindow"/> làm lần trả của kỳ đó,
+    /// <paramref name="transactions"/>, rồi tiến từ kỳ sau nó qua <see cref="RecurringSchedule.DueDates"/> tới cuối khoảng) nhận đúng MỘT giao dịch cùng người, cùng chiều trong <see cref="RecurringSchedule.PaymentWindow"/> làm lần trả của kỳ đó,
     /// bất kể số tiền: ưu tiên giao dịch trong dung sai, không có thì giao dịch gần ngày đến hạn nhất (bằng nhau lấy giao dịch sớm hơn). Lương hay hóa đơn đã đổi
     /// giá vì vậy không còn rơi vào thu/chi linh hoạt ở các kỳ giá cũ, trong khi thưởng, dự án lẻ hay mua thêm của cùng người, ngoài cửa sổ hoặc cùng cửa sổ với
     /// lần trả thật, vẫn là linh hoạt.
@@ -52,32 +52,58 @@ public static class RecurringMatcher
             return ids;
         }
 
-        var first = transactions.Min(t => t.Date);
+        var (first, last) = (transactions.Min(t => t.Date), transactions.Max(t => t.Date));
         foreach (var item in items.Where(i => i.CounterpartyKey is not null))
         {
             var candidates = transactions.Where(t => SameCounterparty(item, t)).ToList();
-            for (var due = item.NextDueDate; candidates.Count > 0; due = RecurringSchedule.Previous(due, item.Cadence, item.PreferredDay))
+            if (candidates.Count == 0)
             {
-                var (from, to) = RecurringSchedule.PaymentWindow(due, item.Cadence, rules.OverdueGraceDays);
-                if (to < first)
+                continue;
+            }
+
+            // Lùi từ NextDueDate về đầu khoảng giao dịch.
+            for (var due = item.NextDueDate; ; due = RecurringSchedule.Previous(due, item.Cadence, item.PreferredDay))
+            {
+                var window = RecurringSchedule.PaymentWindow(due, item.Cadence, rules.OverdueGraceDays);
+                if (window.To < first)
                 {
                     break;
                 }
 
-                var inWindow = candidates.Where(t => t.Date >= from && t.Date <= to && !ids.Contains(t.Id)).ToList();
-                var payment = inWindow
-                    .OrderBy(t => rules.AmountWithinTolerance(item.AmountCents, t.AmountCents) ? 0 : 1)
-                    .ThenBy(t => Math.Abs(t.Date.DayNumber - due.DayNumber))
-                    .ThenBy(t => t.TransactedAt)
-                    .FirstOrDefault();
-                if (payment is not null)
+                ClaimPeriod(item, due, window, candidates, ids, rules);
+            }
+
+            // Tiến từ kỳ sau NextDueDate tới cuối khoảng giao dịch: sau một kỳ bị bỏ, tracker dừng ở kỳ chưa trả, nên lần trả của các kỳ sau
+            // (ví dụ trả gộp hai kỳ, ngoài dung sai) nằm sau NextDueDate. Đi qua DueDates để khoản trả góp đã hết kỳ không nhận thêm giao dịch nào.
+            foreach (var due in RecurringSchedule.DueDates(item).Skip(1))
+            {
+                var window = RecurringSchedule.PaymentWindow(due, item.Cadence, rules.OverdueGraceDays);
+                if (window.From > last)
                 {
-                    ids.Add(payment.Id);
+                    break;
                 }
+
+                ClaimPeriod(item, due, window, candidates, ids, rules);
             }
         }
 
         return ids;
+    }
+
+    /// <summary>Nhận đúng một giao dịch chưa được nhận trong cửa sổ của kỳ <paramref name="due"/>: trong dung sai trước, rồi gần hạn nhất, rồi sớm nhất.</summary>
+    private static void ClaimPeriod(
+        RecurringItemView item, DateOnly due, (DateOnly From, DateOnly To) window, List<ForecastTransaction> candidates, HashSet<Guid> ids, ForecastRules rules)
+    {
+        var payment = candidates
+            .Where(t => t.Date >= window.From && t.Date <= window.To && !ids.Contains(t.Id))
+            .OrderBy(t => rules.AmountWithinTolerance(item.AmountCents, t.AmountCents) ? 0 : 1)
+            .ThenBy(t => Math.Abs(t.Date.DayNumber - due.DayNumber))
+            .ThenBy(t => t.TransactedAt)
+            .FirstOrDefault();
+        if (payment is not null)
+        {
+            ids.Add(payment.Id);
+        }
     }
 
     private static bool SameDirection(RecurringDirection direction, TransactionType type)
