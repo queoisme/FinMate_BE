@@ -105,6 +105,23 @@ public class MetricsTests
     }
 
     [Fact]
+    public void Income_WapeAndBias_AreComputedByHand_AndGroupsWithoutIncomeAreSkipped()
+    {
+        var rows = new[]
+        {
+            Row(user: 1) with { IncomeActual = 1_000_000, IncomeModel = 800_000 },
+            Row(user: 2) with { IncomeActual = 3_000_000, IncomeModel = 3_600_000 },
+            Row(user: 3, scenario: ScenarioCodes.K1),   // nhóm K1 không có thu: không có dòng
+        };
+
+        var income = MetricsBook.Compute(rows).Income.Where(i => i.Key.Persona == "all" && i.Key.Confidence == "all").ToList();
+
+        income.Should().ContainSingle();
+        income[0].WapePct.Should().Be(20.0, "(200.000 + 600.000) / 4.000.000");
+        income[0].BiasPct.Should().Be(10.0, "(−200.000 + 600.000) / 4.000.000");
+    }
+
+    [Fact]
     public void ScenarioEffect_ComparesTheSameUserOriginAndHorizonAgainstK0()
     {
         var rows = new[]

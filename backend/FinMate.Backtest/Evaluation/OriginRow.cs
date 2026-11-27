@@ -20,6 +20,7 @@ public static class Modes
 
 /// <summary>
 /// Kết quả của một (người, kịch bản, mốc, tầm): số dư thực tế và dự báo của mô hình + từng baseline, chi linh hoạt dự báo và thực tế.
+/// <paramref name="IncomeActual"/>/<paramref name="IncomeModel"/>: thu không định kỳ thực tế / mô hình chiếu trong [T, T+h] (Phase 97).
 /// <see cref="User"/> là người gốc (hồ sơ × hạt giống), dùng để bootstrap theo người (D10).
 /// </summary>
 public sealed record OriginRow(
@@ -42,7 +43,9 @@ public sealed record OriginRow(
     long FlexActual,
     long FlexModel,
     long FlexMean30,
-    long FlexNaive)
+    long FlexNaive,
+    long IncomeActual = 0,
+    long IncomeModel = 0)
 {
     public long Predicted(string method) => method switch
     {

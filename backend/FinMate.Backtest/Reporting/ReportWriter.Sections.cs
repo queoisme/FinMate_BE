@@ -222,6 +222,21 @@ public static partial class ReportWriter
         md.Append($"\nMAPE chỉ tính trên mốc có chi linh hoạt thực tế ≥ {Format.Money(MetricsBook.MapeFloorCents)}.\n\n");
     }
 
+    /// <summary>Phase 97 (S3): thu không định kỳ mô hình chiếu so với thực tế, theo kịch bản; K2 in riêng để thấy ảnh hưởng của thu về trễ / đổi số tiền.</summary>
+    private static void IncomeTable(StringBuilder md, MetricsResult m)
+    {
+        md.Append($"## 6b. Thu không định kỳ ({ModeLabel}, mọi hồ sơ có thu không định kỳ)\n\n");
+        md.Append("| Kịch bản | Tầm | Cửa sổ | n | WAPE | Thiên lệch |\n|---|---|---|---|---|---|\n");
+        foreach (var i in m.Income.Where(i => i.Key.Mode == Modes.Oracle && i.Key.Persona == All && i.Key.Confidence == MetricsBook.AllConfidence)
+                     .OrderBy(i => i.Key.Scenario, StringComparer.Ordinal).ThenBy(i => i.Key.Horizon).ThenBy(i => i.Key.Window, StringComparer.Ordinal))
+        {
+            md.Append($"| {Name(i.Key.Scenario)} | {i.Key.Horizon} | {i.Key.Window} | {i.N} | {Format.PctCi(i.WapePct, i.CiLow, i.CiHigh, i.N)} | {Format.Pct(i.BiasPct)} |\n");
+        }
+
+        md.Append("\nThu không định kỳ = khoản thu không phải khoản thu định kỳ của đáp án, không vay, không hoàn. Thiên lệch âm: mô hình chiếu ít hơn thực tế. "
+                  + "Trước Phase 97 mô hình không chiếu khoản nào (thiên lệch −100%).\n\n");
+    }
+
     private static void Assumptions(StringBuilder md, RunInfo info)
     {
         md.Append("## 7. Bộ sinh dữ liệu giả định gì\n\n");

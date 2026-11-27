@@ -22,6 +22,9 @@ public static partial class ReportWriter
             $"{KeyColumns},method,n,users,wape_pct,ci_low_pct,ci_high_pct,bias_pct,mape_pct,mape_n,mape_excluded",
             m.Flexible.Select(f => $"{Key(f.Key)},{f.Method},{Format.Csv(f.N)},{Format.Csv(f.Users)},{Format.Csv(f.WapePct)},{Format.Csv(f.CiLow)},{Format.Csv(f.CiHigh)},"
                                    + $"{Format.Csv(f.BiasPct)},{Format.Csv(f.MapePct)},{Format.Csv(f.MapeN)},{Format.Csv(f.MapeExcluded)}")),
+        ["income.csv"] = Table(
+            $"{KeyColumns},n,users,wape_pct,ci_low_pct,ci_high_pct,bias_pct",
+            m.Income.Select(i => $"{Key(i.Key)},{Format.Csv(i.N)},{Format.Csv(i.Users)},{Format.Csv(i.WapePct)},{Format.Csv(i.CiLow)},{Format.Csv(i.CiHigh)},{Format.Csv(i.BiasPct)}")),
         ["effects.csv"] = Table(
             "mode,scenario,control,horizon,n,users,mae_scenario_vnd,mae_control_vnd,change_pct,ci_low_pct,ci_high_pct",
             m.Effects.Select(e => $"{e.Mode},{e.Scenario},{e.Control},{Format.Csv(e.Horizon)},{Format.Csv(e.N)},{Format.Csv(e.Users)},{Format.Csv(e.MaeScenario)},"
