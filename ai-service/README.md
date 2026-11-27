@@ -10,8 +10,11 @@ analyze()
  ├ Classifier   ML (scikit-learn, có version)  → chưa promote thì rơi về luật
  ├ Extractor    LUẬT (regex theo provider)     ← không bao giờ dùng ML
  ├ Categorizer  ML (scikit-learn, có version)  → chưa promote thì rơi về từ điển
- └ Duplicate    SQL trên ops_analyze_log, cửa sổ 5 phút
+ └ Duplicate    SQL trên ops_analyze_log, cửa sổ 5 phút — chỉ là gợi ý
 ```
+
+Từ Phase 82, **backend** quyết định bản trùng (`DuplicateMatcher`); `is_potential_duplicate` của
+ai-service chỉ còn dùng để xếp hạng khi hoà, không làm rơi thông báo nào.
 
 **Extractor cố ý không dùng ML.** Thông báo ngân hàng là chuỗi template cố định, nên regex
 vừa chính xác hơn vừa giải thích được: số tiền ra sai thì `matched_pattern_name` chỉ thẳng
@@ -30,14 +33,23 @@ bằng luật. `GET /api/v1/health` cho biết stage nào đang có model.
 ```
 app/
 ├── main.py             # FastAPI entry point + lifespan (seed pattern, nạp model)
-├── api/v1/             # Routes: pipeline, feedback, health
+├── api/v1/             # Routes: pipeline thông báo, chat, bill/OCR, ocr-store (cho ocr-service),
+│                       #   agent + kho tri thức, market-data, finance-methods, stats, feedback,
+│                       #   các route quản trị (*_admin) và nội bộ (internal_*)
 ├── pipeline/           # Orchestrator + 4 stages + model registry
+├── agent/              # Trợ lý: planner, composer, verifier, RAG
+├── bill/               # Phân loại hoá đơn và từng món (luật, bộ nhớ, Gemini)
+├── services/           # Đọc số tiền/ngày tiếng Việt, intent classifier, parser chat, tài liệu cấu hình có phiên bản,
+│                       #   chọn phương pháp tài chính, đọc tin thị trường, kho khoá bí mật
 ├── schemas/            # Pydantic v2 request/response — khớp AIServiceApiContracts.cs
 ├── db/                 # SQLAlchemy models + repositories (AI DB riêng biệt)
 ├── core/               # config, security (internal API key), anonymizer, enums
 ├── utils/              # provider patterns, parser tiền/ngày tiếng Việt
-└── data/               # provider_patterns.json, merchant_categories.json (seed)
+└── data/               # seed: provider_patterns.json, merchant_categories.json, từ vựng, ngưỡng
 data/corpus/            # corpus huấn luyện (*.jsonl)
+data/intent/            # mẫu câu cho intent classifier của chat (train trong tiến trình)
+dictionaries/           # từ điển câu chat theo danh mục (bản chạy thật nằm trong config_documents)
+agent_eval/             # bộ đo trợ lý (dataset, chỉ số)
 models/                 # artifact model (không commit — sinh bởi scripts/train.py)
 ```
 
@@ -97,11 +109,21 @@ Thay bằng mẫu thật: ghi đè file trong `data/corpus/`, sửa `app/data/pr
 cho khớp template thật, rồi chạy lại `seed_dataset.py` + `train.py`. Không phải sửa code —
 regex sống trong bảng `kb_provider_patterns`, đổi là UPDATE dữ liệu chứ không deploy lại.
 
+## Script
+
+| Nhóm | Script |
+|---|---|
+| Vòng đời model | `seed_dataset`, `train`, `evaluate`, `promote`, `feedback_batch`, `train_bill_model`, `generate_bootstrap_corpus` |
+| Dataset và học từ phản hồi | `export_category_dataset`, `learn_items`, `promote_item_consensus`, `learning_report`, `classify_stats` |
+| Đánh giá | `eval_intent` (intent classifier của chat), `eval_money`, `eval_goal`, `eval_flows`, `eval_chat_live`, `eval_voice_text`, `eval_ocr_synthetic`, `eval_category_dataset` |
+| Dọn dữ liệu (cron ngoài) | `purge_raw_samples`, `purge_pipeline_requests`, `purge_training_samples`, `purge_unknown_scans` |
+| Định dạng thông báo | `provider_format` |
+
 ## Test
 
 ```bash
 pytest                    # test đơn vị chạy ở mọi nơi
-pytest tests/integration  # cần Postgres (docker compose up -d postgres-ai)
+pytest tests/integration  # cần Postgres (docker compose up -d postgres-ai); test kho tri thức cần pgvector
 black . && isort . && ruff check .
 ```
 

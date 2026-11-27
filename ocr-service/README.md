@@ -10,7 +10,12 @@ không mở cổng ra máy chủ trong `docker-compose.yml`.
 ```
 App → backend (ScanReceiptCommandHandler) → ocr-service POST /analyze-bill   (ảnh → tổng tiền, tên, ngày, chữ đã lọc)
                                            → ai-service POST /api/v1/bill/classify   (chữ đã lọc → danh mục)
+                                           → ai-service POST /api/v1/bill/classify-items   (tên từng món → danh mục, chỉ khi tách món)
 ```
+
+**Tách theo món** (`parsing/items.py` bóc món, backend `ReceiptSplitter` cộng tiền theo nhóm) chỉ chạy khi backend bật
+`Receipt:SplitByItemsEnabled` (mặc định tắt) và bill có ít nhất hai món chính; mọi lỗi rơi về đường một nhóm như cũ.
+Chi tiết: `.context/ARCHITECTURE.md` §3.4.
 
 Backend điều phối và đổi hai câu trả lời thành đúng contract `/transactions/scan-receipt` cũ, nên app không phải sửa gì.
 ocr-service tự phân loại nữa nhưng backend chỉ dùng kết quả đó khi là bộ nhớ cửa hàng của người dùng (`category_source = memory`);
@@ -34,7 +39,7 @@ trước khi build image.
 Có `GOOGLE_VISION_API_KEY` (đặt trong `ocr-service/.env`, xem `.env.example`) thì `reading/google_vision.py` gọi Cloud Vision `DOCUMENT_TEXT_DETECTION` (gợi ý tiếng Việt)
 trước; lỗi, hết hạn mức, Google không thấy chữ, hoặc chưa có khóa thì dùng OCR cục bộ (PaddleOCR + VietOCR) như cũ, lần quét không thất bại. Sau một lần lỗi, Google bị tạm
 nghỉ `GOOGLE_VISION_COOLDOWN_SECONDS` giây. `FINMATE_OCR_ENGINE=local` ép OCR cục bộ, dùng để đo so sánh hai bên bằng cùng bộ ảnh (`benchmark/run_databill.py`, `run_items.py`).
-Chữ Google không qua sửa dấu lạ hay VietOCR. **Ảnh hóa đơn rời hệ thống sang Google** (quyết định của chủ sản phẩm 2026-10-26, luôn gửi, chưa che dữ liệu cá nhân): màn đồng ý phải nói đúng điều này.
+Chữ Google không qua sửa dấu lạ hay VietOCR. **Ảnh hóa đơn rời hệ thống sang Google** (quyết định của chủ sản phẩm 2026-10-26, luôn gửi, chưa che dữ liệu cá nhân). Ngày 2026-11-05 chủ sản phẩm chốt giữ Google Vision và công bố trong Điều khoản bản mới; bản đó chưa xuất bản (cần pháp lý duyệt chữ).
 
 ## Kiểm thử
 
@@ -55,7 +60,3 @@ Nạp dữ liệu (`python scripts/db_setup.py --seed/--import/--gold/--syntheti
 **Thương hiệu và từ khóa mặc định** nằm ở `data/*.json` (lý do từng mục: `data/NOTES.md`), không viết cứng trong `.py`. Khi nối được AI Service, kiến thức của nó (`kb_brands`, `kb_keywords`) thắng: có dữ liệu ở đó thì nó thay bản mặc định. Loại `merchant`/`product` và thương hiệu do ai-service sở hữu và tự seed vào DB lúc khởi động (`app/bill/seed_defaults.py`); `data/*.json` ở đây là bản dự phòng khi không có DB, phải giống bản của ai-service (test `ai-service/tests/unit/test_bill_seed_defaults.py` bắt lệch). Từ điển câu chat không còn ở đây: nó thuộc ai-service (`ai-service/dictionaries/`, bản chạy thật là tài liệu `chat_dictionary` trong `config_documents`). Dùng `python scripts/seed_knowledge.py` (xem trước, liệt kê mục còn thiếu) rồi thêm `--write` nếu cần seed tay. Seed chỉ thêm, an toàn chạy lại ở mọi môi trường; mục đã sửa hoặc đã tắt (`is_active = false`) trong DB không bị ghi đè. Muốn bỏ một mục thì tắt chứ đừng xóa dòng (xóa rồi seed sẽ thêm lại).
 
 **Quy tắc đọc bill và tách món** (bằng chứng số học thay cho ngưỡng tọa độ, ô gộp, tên món đầu, nhãn tổng rơi chữ, tách cổng với backend): xem `.context/ARCHITECTURE.md` §3.4.1. Sửa theo lớp lỗi và đo trên 58 ảnh (`benchmark/run_databill.py`, `run_items.py`), không sửa theo từng bill.
-
-## Chưa làm
-
-- Chưa có phân loại theo từng dòng hàng và bảng chia nhóm (cần đổi contract `/ocr`, phải được duyệt).
