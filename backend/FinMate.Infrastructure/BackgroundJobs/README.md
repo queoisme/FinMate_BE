@@ -1,1 +1,1 @@
-Hangfire jobs: BudgetAlertJob, DailySummaryJob, InsightGeneratorJob, GoalDeadlineCheckJob, RetryFailedNotificationJob, DataDeletionJob, NotificationBodyPurgeJob, AiCategorySyncJob. Danh sách đầy đủ và lịch chạy: `.context/ARCHITECTURE.md` §5.
+Job Hangfire. Lịch chạy (cron theo UTC) đăng ký trong `FinMate.API/Program.cs`; bảng job ở `backend/README.md` và `.context/ARCHITECTURE.md` §5. Job theo yêu cầu (ví dụ `RecurringTrackingJob`) được xếp hàng qua trigger, không có lịch.

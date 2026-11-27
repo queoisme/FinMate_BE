@@ -1,1 +1,1 @@
-Sample notifications — mỗi provider tối thiểu 10 mẫu (xem .context/TECH_STACK.md §6.2).
+Dữ liệu mẫu cho test: `agent_wire/` (request/response mẫu giữa backend và agent), `eval/`.

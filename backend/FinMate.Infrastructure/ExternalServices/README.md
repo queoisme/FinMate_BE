@@ -1,1 +1,1 @@
-AIServiceClient (Refit, gọi AI Service), PushNotificationService.
+Client gọi dịch vụ ngoài: ai-service (Refit, timeout 35 giây), ocr-service, stt-service, FCM, Brevo, Google OAuth, SePay. Mỗi kênh có bản dự phòng ghi log khi thiếu khoá (`Logging*`, `Switching*`). Không log token hay nội dung thông báo.

@@ -1,1 +1,1 @@
-Integration tests cho EF Core queries với real DB. Coverage target ≥ 70%.
+Integration test cho truy vấn EF Core trên DB thật. Mục tiêu coverage: `.context/TECH_STACK.md` §6.1.
