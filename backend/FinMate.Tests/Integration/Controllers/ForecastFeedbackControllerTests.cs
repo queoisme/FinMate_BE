@@ -173,9 +173,11 @@ public class ForecastFeedbackControllerTests : IClassFixture<AuthApiFactory>
         await SnapshotAsync(user.Id, actual: null, horizon: 30, originDaysAgo: 1);       // còn chờ tới ngày của mốc
         await SendAsync(HttpMethod.Post, "/api/v1/forecast/feedback", user.Token, new { reason = "unusual_spending" });
 
-        var report = await DataAsync(await SendAsync(HttpMethod.Get, "/api/v1/ops/forecast/accuracy?windowDays=30", manager.Token));
+        // Phase 97 (D9): bản chụp gieo ở đây mang phương pháp cũ, và báo cáo chỉ gộp một phương pháp; nên đọc đúng phương pháp đó.
+        var report = await DataAsync(await SendAsync(HttpMethod.Get, "/api/v1/ops/forecast/accuracy?windowDays=30&method=median_p25p75", manager.Token));
 
         report.GetProperty("windowDays").GetInt32().Should().Be(30);
+        report.GetProperty("method").GetString().Should().Be("median_p25p75");
         report.GetProperty("snapshotsFilled").GetInt32().Should().BeGreaterThanOrEqualTo(1);
         report.GetProperty("snapshotsPending").GetInt32().Should().BeGreaterThanOrEqualTo(1);
         var week = report.GetProperty("rows").EnumerateArray().First(r => r.GetProperty("horizonDays").GetInt32() == 7 && r.GetProperty("confidence").GetString() == "all");

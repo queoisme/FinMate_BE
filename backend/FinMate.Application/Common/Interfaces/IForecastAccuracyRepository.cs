@@ -12,11 +12,11 @@ public interface IForecastAccuracyRepository
     /// <summary>Bản chụp chưa có số thực tế mà ngày của mốc đã qua (<c>HorizonDate &lt; before</c>), cũ nhất trước.</summary>
     Task<IReadOnlyList<ForecastSnapshot>> ListAwaitingActualAsync(DateOnly before, int limit, CancellationToken ct = default);
 
-    /// <summary>Số bản chụp còn chờ tới ngày của mốc (<c>HorizonDate &gt;= from</c>, chưa có số thực tế).</summary>
-    Task<int> CountPendingAsync(DateOnly from, CancellationToken ct = default);
+    /// <summary>Số bản chụp của phương pháp <paramref name="method"/> còn chờ tới ngày của mốc (<c>HorizonDate &gt;= from</c>, chưa có số thực tế).</summary>
+    Task<int> CountPendingAsync(DateOnly from, string method, CancellationToken ct = default);
 
-    /// <summary>Bản chụp đã có số thực tế, <c>OriginDate &gt;= from</c>.</summary>
-    Task<IReadOnlyList<ForecastSnapshot>> ListFilledSinceAsync(DateOnly from, CancellationToken ct = default);
+    /// <summary>Bản chụp của phương pháp <paramref name="method"/> đã có số thực tế, <c>OriginDate &gt;= from</c> (Phase 97: không trộn các phương pháp).</summary>
+    Task<IReadOnlyList<ForecastSnapshot>> ListFilledSinceAsync(DateOnly from, string method, CancellationToken ct = default);
 
     Task<ForecastSnapshot?> GetLatestForUserAsync(Guid userId, CancellationToken ct = default);
 

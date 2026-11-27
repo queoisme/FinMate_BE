@@ -48,7 +48,7 @@ public class ForecastAccuracyTests
         week.PredictedCents.Should().Be(1_000_000 - 70_000);
         (week.ConservativeCents, week.OptimisticCents).Should().Be((880_000, 980_000));
         week.RecurringOnlyCents.Should().Be(1_000_000 - 500_000);   // chỉ khoản định kỳ, chi linh hoạt coi như 0
-        (week.ConfigVersion, week.Method, week.StartBalanceCents).Should().Be((4, ForecastMethods.MedianBand, 1_000_000));
+        (week.ConfigVersion, week.Method, week.StartBalanceCents).Should().Be((4, ForecastMethods.Current, 1_000_000));
         snapshots.Should().OnlyContain(s => s.ActualCents == null);
     }
 

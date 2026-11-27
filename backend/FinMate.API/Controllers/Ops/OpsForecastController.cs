@@ -13,10 +13,13 @@ public class OpsForecastController(IForecastAccuracyService accuracy, IForecastF
 {
     public sealed record LabelRequest(string Cause);
 
-    /// <summary><c>windowDays</c> 7–180 (mặc định 30): sai số số dư theo mốc 7/14/30 ngày, độ phủ dải, so với hai mốc B0 và "số dư không đổi", tách nhóm ít dữ liệu.</summary>
+    /// <summary>
+    /// <c>windowDays</c> 7–180 (mặc định 30): sai số số dư theo mốc 7/14/30 ngày, độ phủ dải, so với hai mốc B0 và "số dư không đổi", tách nhóm ít dữ liệu.
+    /// <c>method</c> (Phase 97): chỉ gộp bản chụp của một phương pháp; bỏ trống là phương pháp đang chạy, <c>median_p25p75</c> để xem số trước Phase 97.
+    /// </summary>
     [HttpGet("accuracy")]
-    public async Task<IActionResult> Accuracy([FromQuery] int windowDays = 30, CancellationToken ct = default)
-        => Ok(ApiResponse<ForecastAccuracyReportDto>.Ok(await accuracy.GetReportAsync(CurrentActorId, windowDays, ct)));
+    public async Task<IActionResult> Accuracy([FromQuery] int windowDays = 30, [FromQuery] string? method = null, CancellationToken ct = default)
+        => Ok(ApiResponse<ForecastAccuracyReportDto>.Ok(await accuracy.GetReportAsync(CurrentActorId, windowDays, method, ct)));
 
     /// <summary><c>status</c>: <c>new</c> hoặc <c>labeled</c>; bỏ trống là tất cả. Phân trang <c>limit</c> (1–100) và <c>offset</c>.</summary>
     [HttpGet("feedback")]

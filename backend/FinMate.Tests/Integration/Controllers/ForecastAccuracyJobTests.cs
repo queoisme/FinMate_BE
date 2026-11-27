@@ -84,7 +84,7 @@ public class ForecastAccuracyJobTests : IClassFixture<AuthApiFactory>
         await service.CaptureAsync(today);
         var snapshots = await db.ForecastSnapshots.Where(s => s.UserId == userId).OrderBy(s => s.HorizonDays).ToListAsync();
         snapshots.Select(s => s.HorizonDays).Should().Equal(7, 14, 30);
-        snapshots.Should().OnlyContain(s => s.OriginDate == today && s.ActualCents == null && s.Method == ForecastMethods.MedianBand);
+        snapshots.Should().OnlyContain(s => s.OriginDate == today && s.ActualCents == null && s.Method == ForecastMethods.Current);
         var start = snapshots[0].StartBalanceCents;
         start.Should().Be(5_000_000 - (10 * 50_000));
 

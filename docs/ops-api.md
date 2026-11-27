@@ -484,7 +484,7 @@ Số dư thực tế = số dư lúc chụp + thu chi thật từ ngày gốc t�
 | `POST /api/v1/forecast/feedback` `{reason, note?}` | Người dùng (JWT) | Báo dự báo sai. `reason`: `balance_wrong`, `missing_bill`, `wrong_bill`, `unusual_spending`, `other`; `note` tối đa 300 ký tự. Gắn với bản chụp gần nhất của chính họ; gửi lại khi phản hồi trước chưa xử lý thì trả lại phản hồi đó. 422 `FORECAST_FEEDBACK_INVALID` |
 | `GET /api/v1/ops/forecast/feedback?status=&limit=&offset=` | Staff trở lên (xử lý ticket) | Hàng đợi, `status` là `new` hoặc `labeled`. Mỗi dòng có lý do, lời nhắn, số dự báo và số thực tế của bản chụp; **không có id người dùng** |
 | `PATCH /api/v1/ops/forecast/feedback/{id}` `{cause}` | Staff trở lên | Gán nguyên nhân: `data_missing`, `recurring_misread`, `one_off`, `model_issue`, `other`. Gán lại được. Nhật ký `Ops.ForecastFeedback.Labeled` chỉ có id và nguyên nhân |
-| `GET /api/v1/ops/forecast/accuracy?windowDays=30` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày |
+| `GET /api/v1/ops/forecast/accuracy?windowDays=30&method=` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày, **chỉ của một phương pháp** (Phase 97): `method` bỏ trống là phương pháp đang chạy (`mean_dow_income_v2`), `median_p25p75` để xem số trước Phase 97; giá trị khác → 400. DTO trả `method` đã đo |
 
 `accuracy` trả, theo mỗi mốc 7/14/30 ngày và theo nhóm `all`, `low` (ít dữ liệu), `normal`:
 - `maeCents`: sai số tuyệt đối trung bình của số dư dự báo (đồng); `medianAbsErrorCents`.

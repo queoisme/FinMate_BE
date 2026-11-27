@@ -6,7 +6,16 @@ namespace FinMate.Application.Forecasting;
 /// <summary>Tên phương pháp ghi vào mỗi bản chụp. Đổi cách tính (trung bình cắt, dải bootstrap...) thì đặt tên mới để so sánh trước và sau.</summary>
 public static class ForecastMethods
 {
+    /// <summary>Trước Phase 97: trung vị theo thứ (cắt ngoại lai), dải P25/P75 theo ngày, không chiếu thu không định kỳ.</summary>
     public const string MedianBand = "median_p25p75";
+
+    /// <summary>Phase 97 tầng 1: trung bình theo thứ cho chi và thu không định kỳ; dải giữ độ rộng P25/P75 cũ quanh đường dự kiến.</summary>
+    public const string MeanDowIncome = "mean_dow_income_v2";
+
+    /// <summary>Phương pháp đang chạy: ghi vào bản chụp mới và là mặc định của báo cáo độ chính xác.</summary>
+    public const string Current = MeanDowIncome;
+
+    public static readonly IReadOnlyList<string> All = [MedianBand, MeanDowIncome];
 }
 
 /// <summary>
@@ -47,7 +56,7 @@ public static class ForecastSnapshotBuilder
                 OriginDate = forecast.From,
                 HorizonDays = horizon,
                 HorizonDate = date,
-                Method = ForecastMethods.MedianBand,
+                Method = ForecastMethods.Current,
                 ConfigVersion = configVersion,
                 StartBalanceCents = forecast.StartBalanceCents,
                 PredictedCents = day.ExpectedBalanceCents,
