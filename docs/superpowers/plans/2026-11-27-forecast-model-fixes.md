@@ -1,6 +1,6 @@
 # Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest
 
-> Trạng thái: **Kế hoạch đã duyệt 2026-11-27: D1–D16 theo đề xuất, kèm S1–S4 (S thắng D khi mâu thuẫn).** Bắt đầu Task 1 sau khi Phase 96 merge và nhánh này rebase lên `main`. Dừng sau tầng 1 (S4).
+> Trạng thái: **Tầng 1 (Task 1–7) xong 2026-11-27, dừng theo S4 chờ quyết định tầng 2.** Chưa push, chưa mở PR. Tập kiểm tra (20261128) chưa chạy lần nào.
 > Nhánh `feat/forecast-model-fixes`, rebase lên `main` @ `e9664f7` (Phase 96 đã merge qua PR #40, gồm bộ sinh v1.2).
 > Nguồn: mục "Chẩn đoán" trong `docs/superpowers/plans/2026-11-27-forecast-backtest.md`, báo cáo `docs/evaluation/forecast-backtest.md`. Công cụ đo: `FinMate.Backtest` (kể cả `--diagnose`). Đặc tả bộ sinh **v1.2** (sửa lỗi K2 tiểu thương sau review PR #40; K0 và K5 giống hệt v1.1), dùng cho cả hai tập.
 
@@ -307,3 +307,129 @@ Thu linh hoạt (thu không định kỳ; production = 0 vì không chiếu):
 - Sinh viên dùng đúng ngoại lệ đã chốt trước: WAPE chi 59,0% so với 44,9% của production (+14,1 điểm, dưới trần 15), thiên lệch chi về 0,0% (production −42,5%). Nguyên nhân WAPE tăng đã biết từ chẩn đoán: hai khoản học phí lớn nằm trong 90 ngày lịch sử làm trung bình dao động.
 - Với freelancer, WAPE thu còn cao (92,5% ở tầm 14) dù thiên lệch nhỏ (−2,6%): thu dồn vào vài ngày ngẫu nhiên nên từng mốc lệch nhiều, nhưng trung bình không thiên lệch. Phần bất định này để dải của tầng 2 xử lý.
 - **Không đổi tiêu chí sau khi xem số.** Task 2–4 cài F1 vào production.
+
+
+---
+
+## Tầng 1 — kết quả (Task 2–7, 2026-11-27)
+
+| Task | Commit | Nội dung |
+|---|---|---|
+| 1 | `19b5c1e` | So F1–F3 trên tập phát triển, chọn F1 theo tiêu chí áp bằng code (mục trên) |
+| 2 | `60e770f` | `SpendingBaselineCalculator`: trung bình theo thứ; dải giữ độ rộng cũ quanh nó (S1), `DailyLevels` dùng chung |
+| 3 | `e5df624` | `IrregularIncomeBaselineCalculator` (thuần): D2, D3 (đường thận trọng của **thu**), D4 |
+| 4 | `d82565f` | `CashflowEngine`: thu vào ba đường, trừ phần nhận hôm nay, hệ số ngày lễ chỉ cho chi; API thêm `irregularIncomeCents`, `incomeBasis` |
+| 5 | `d2e638a` | `ForecastService` nối dây; test spendable không đổi (D12); test S3 |
+| 6 | `16cb788` | `ForecastMethods.Current = mean_dow_income_v2`; báo cáo độ chính xác lọc theo phương pháp, `?method=` (D9) |
+| 7 | `8ff80cd` + commit tài liệu | Báo cáo backtest thêm thu không định kỳ (6b, `income.csv`), tên phương pháp ở header; chạy tập phát triển → `docs/evaluation/phase97/dev-after-t1/`; REQUIREMENTS, `docs/forecast-cashflow-api.md`, TASKS |
+
+**Diễn giải S1 cho phần thu.** S1 nói về dải của **chi** (giữ độ rộng P75/P25 cũ). Thu chưa từng có dải, và với thu dồn vào vài ngày thì P25 = trung vị = P75 = 0, nên áp nguyên S1 sẽ cho đường thận trọng nhận đủ 100% thu dự kiến. Vì vậy với **thu** giữ D3: thận trọng = dự kiến × (P25 / trung bình theo tháng trọn vẹn), lạc quan = dự kiến. Cần chủ sản phẩm xác nhận.
+
+**Test production đổi kỳ vọng** (ghi trong từng commit):
+- `DiagnosisTests`: cách tính khớp production là trung bình (c), không còn là trung vị có cắt (a).
+- `ForecastAccuracyTests`, `ForecastAccuracyJobTests`: tên phương pháp mới.
+- `ForecastFeedbackControllerTests`: đọc bản chụp `median_p25p75` đã gieo bằng `?method=median_p25p75`.
+
+Các test hiện có của `SpendingBaselineCalculator`, spendable, ngân sách, thu nhập, danh mục, purchase-check, cảnh báo **không** đổi kỳ vọng.
+
+### Số tập phát triển (hạt 20261127, bộ sinh v1.2) so với Phase 96
+
+#### Số dư (K0, chế độ đáp án): trước (Phase 96, mô hình cũ, bộ sinh v1.2) → sau (tầng 1). Tiền: triệu đồng
+
+| Hồ sơ | Tầm | MAE | Thiên lệch | Tốt hơn B-hold | Tốt hơn B0 | Tốt hơn B-mean30 | Tốt hơn B-naive | Trong dải |
+|---|---|---|---|---|---|---|---|---|
+| tất cả | 7 | 5,17 → 3,30 | −3,93 → −0,26 | 3,0% → 38,1% | −30,6% → 16,7% | 5,4% → 39,6% | 36,6% → 59,5% | 36,4% → 41,5% |
+| tất cả | 14 | 9,05 → 4,68 | −7,14 → −0,25 | −22,8% → 36,6% | −43,5% → 25,9% | 5,8% → 51,4% | 26,2% → 61,9% | 35,2% → 50,3% |
+| tất cả | 30 | 17,83 → 7,28 | −14,49 → −0,27 | −126,6% → 7,5% | −53,1% → 37,5% | 6,3% → 61,8% | −78,5% → 27,1% | 35,0% → 58,1% |
+| stable_worker | 7 | 0,88 → 0,83 | 0,15 → −0,31 | 80,8% → 82,0% | 54,3% → 57,2% | −5,2% → 1,4% | 88,2% → 88,9% | 60,8% → 62,1% |
+| stable_worker | 14 | 1,19 → 1,00 | 0,51 → −0,34 | 80,6% → 83,7% | 64,2% → 69,8% | −14,9% → 3,3% | 89,9% → 91,5% | 65,6% → 75,1% |
+| stable_worker | 30 | 1,92 → 1,37 | 1,33 → −0,43 | 40,5% → 57,7% | 71,1% → 79,4% | −30,5% → 7,2% | 26,2% → 47,5% | 70,5% → 84,6% |
+| freelancer | 7 | 7,87 → 9,01 | −7,09 → −0,25 | 1,4% → −12,9% | 0,0% → −14,5% | 3,7% → −10,2% | 33,3% → 23,6% | 35,7% → 17,9% |
+| freelancer | 14 | 13,97 → 13,25 | −13,26 → −0,43 | −17,7% → −11,6% | −12,2% → −6,4% | 5,7% → 10,5% | 17,5% → 21,8% | 22,4% → 26,5% |
+| freelancer | 30 | 27,72 → 20,93 | −27,42 → −0,91 | −47,7% → −11,5% | −29,2% → 2,5% | 8,0% → 30,5% | −9,5% → 17,3% | 9,5% → 36,5% |
+| student | 7 | 1,34 → 1,50 | −0,03 → −0,11 | 24,5% → 15,4% | 9,8% → −1,1% | 33,0% → 24,8% | 55,8% → 50,5% | 41,4% → 38,1% |
+| student | 14 | 1,97 → 2,35 | 0,04 → −0,12 | 19,6% → 4,0% | 17,7% → 1,6% | 39,5% → 27,7% | 56,3% → 47,8% | 44,0% → 39,8% |
+| student | 30 | 3,27 → 4,33 | 0,21 → −0,11 | −11,8% → −48,2% | 28,4% → 5,2% | 44,2% → 26,1% | 34,4% → 13,1% | 43,8% → 34,5% |
+| family | 7 | 2,60 → 2,43 | 0,47 → −0,56 | 69,3% → 71,4% | 41,3% → 45,3% | −5,6% → 1,6% | 80,3% → 81,7% | 44,0% → 47,0% |
+| family | 14 | 3,54 → 2,98 | 1,63 → −0,31 | 68,6% → 73,6% | 52,7% → 60,3% | −14,6% → 3,7% | 83,7% → 86,3% | 44,2% → 56,8% |
+| family | 30 | 5,56 → 4,02 | 4,12 → 0,12 | 8,6% → 33,8% | 63,2% → 73,3% | −26,5% → 8,4% | 31,1% → 50,1% | 51,3% → 67,8% |
+| small_trader | 7 | 13,15 → 2,73 | −13,15 → −0,07 | −244,9% → 28,5% | −222,6% → 33,1% | 5,0% → 80,3% | −153,1% → 47,5% | 0,0% → 42,2% |
+| small_trader | 14 | 24,60 → 3,81 | −24,60 → −0,07 | −382,0% → 25,4% | −317,0% → 35,5% | 5,0% → 85,3% | −287,2% → 40,1% | 0,0% → 53,6% |
+| small_trader | 30 | 50,69 → 5,74 | −50,69 → −0,00 | −507,2% → 31,2% | −383,3% → 45,3% | 5,0% → 89,2% | −464,6% → 36,1% | 0,0% → 67,0% |
+
+"Tốt hơn X" = 1 − MAE mô hình / MAE baseline (âm là kém hơn). Baseline giữ định nghĩa Phase 96 nên MAE baseline giống hệt trước và sau; chỉ mô hình đổi.
+
+#### Thu không định kỳ (sau tầng 1; trước = không chiếu, thiên lệch −100%)
+
+| Kịch bản | Hồ sơ | Tầm | Cửa sổ | n | WAPE | Thiên lệch |
+|---|---|---|---|---|---|---|
+| K0 | tất cả | 7 | all | 36500 | 52,7% | −0,8% |
+| K0 | tất cả | 14 | all | 36500 | 40,8% | −0,9% |
+| K0 | tất cả | 30 | all | 36500 | 30,9% | −1,0% |
+| K0 | freelancer | 7 | all | 7300 | 118,8% | −2,2% |
+| K0 | freelancer | 14 | all | 7300 | 92,5% | −2,6% |
+| K0 | freelancer | 30 | all | 7300 | 70,4% | −3,0% |
+| K0 | student | 7 | all | 7300 | 9,3% | −0,1% |
+| K0 | student | 14 | all | 7300 | 6,8% | −0,0% |
+| K0 | student | 30 | all | 7300 | 5,1% | 0,1% |
+| K0 | small_trader | 7 | all | 7300 | 18,1% | −0,1% |
+| K0 | small_trader | 14 | all | 7300 | 13,7% | −0,1% |
+| K0 | small_trader | 30 | all | 7300 | 10,1% | 0,0% |
+| K2 | tất cả | 7 | all | 36500 | 57,7% | 2,2% |
+| K2 | tất cả | 7 | affected | 1600 | 59,9% | 5,5% |
+| K2 | tất cả | 14 | all | 36500 | 45,6% | 2,1% |
+| K2 | tất cả | 14 | affected | 3000 | 45,6% | 2,1% |
+| K2 | tất cả | 30 | all | 36500 | 36,0% | 1,8% |
+| K2 | tất cả | 30 | affected | 6200 | 34,2% | −0,5% |
+| K2 | freelancer | 7 | all | 7300 | 119,8% | −2,7% |
+| K2 | freelancer | 7 | affected | 320 | 127,9% | 3,3% |
+| K2 | freelancer | 14 | all | 7300 | 93,2% | −3,1% |
+| K2 | freelancer | 14 | affected | 600 | 110,5% | 8,5% |
+| K2 | freelancer | 30 | all | 7300 | 71,4% | −3,6% |
+| K2 | freelancer | 30 | affected | 1240 | 81,3% | 4,2% |
+| K2 | student | 7 | all | 7300 | 20,9% | 12,9% |
+| K2 | student | 7 | affected | 320 | 8,8% | 0,2% |
+| K2 | student | 14 | all | 7300 | 18,8% | 12,9% |
+| K2 | student | 14 | affected | 600 | 7,2% | −0,2% |
+| K2 | student | 30 | all | 7300 | 17,3% | 13,1% |
+| K2 | student | 30 | affected | 1240 | 5,2% | −0,1% |
+| K2 | small_trader | 7 | all | 7300 | 19,4% | −1,1% |
+| K2 | small_trader | 7 | affected | 320 | 24,9% | 7,0% |
+| K2 | small_trader | 14 | all | 7300 | 14,8% | −1,2% |
+| K2 | small_trader | 14 | affected | 600 | 16,0% | −0,9% |
+| K2 | small_trader | 30 | all | 7300 | 11,5% | −1,2% |
+| K2 | small_trader | 30 | affected | 1240 | 12,1% | −2,9% |
+
+#### Kịch bản so với đối chứng cùng mốc (tầm 14, mốc bị ảnh hưởng). MAE: triệu đồng
+
+| Kịch bản | Đối chứng | MAE kịch bản trước → sau | Tăng so với đối chứng trước → sau |
+|---|---|---|---|
+| K1 | K0 | 11,28 → 9,19 | 17,2% → 70,6% |
+| K2 | K0 | 10,68 → 6,85 | 12,9% → 40,9% |
+| K3 | K0 | 9,88 → 5,76 | 7,4% → 10,1% |
+| K4 | K0 | 9,30 → 4,84 | 1,3% → 2,3% |
+| K5 | K0 | 11,23 → 8,22 | 21,1% → 74,0% |
+| K5h | K0 | 12,22 → 8,32 | 31,9% → 76,1% |
+| K5h | K5 | 12,22 → 8,32 | 8,9% → 1,2% |
+| K6 | K0 | 9,28 → 5,87 | −3,8% → 18,4% |
+
+### Nhận xét
+
+- **Gộp:** lệch ở tầm 14 ngày giảm từ 9,05 xuống 4,68 triệu; thiên lệch từ −7,14 về −0,25 triệu. Mô hình giờ tốt hơn mọi baseline ở mọi tầm (trước đó thua "giữ nguyên" ở tầm 14 và 30).
+- **Tiểu thương:** từ thua "giữ nguyên" 382% thành thắng 25% (tầm 14); thiên lệch gần 0.
+- **Lương cố định, gia đình:** tốt hơn ở mọi tầm, và giờ hơn cả B-mean30 (trước đó kém 15%).
+- **Freelancer:** thiên lệch về gần 0, nhưng MAE gần như không giảm ở tầm 7–14. Thu dồn vào vài ngày ngẫu nhiên: trung bình không thiên lệch, nhưng từng mốc lệch nhiều (WAPE thu 92% ở tầm 14). Mô hình theo ngày không đoán được ngày khách trả tiền; đây là bất định, không phải thiên lệch, nên thuộc về dải (tầng 2).
+- **Sinh viên kém đi** (tầm 14: 1,97 → 2,35 triệu). Đây là cái giá đã biết của F1: hai khoản học phí 8–15 triệu trong 90 ngày lịch sử làm trung bình chi tăng, tức đúng ngoại lệ đã chấp nhận ở D6. Thiên lệch vẫn gần 0.
+- **Dải** (gộp 41,5% / 50,3% / 58,1%): `stable_worker` 62% → 75% → 85% (rộng quá ở tầm dài, đúng hiệu ứng cộng phân vị); freelancer 18–36% (hẹp quá, thiếu bất định của thu); tiểu thương 42–67%. Dải giữ độ rộng cũ nên chưa phản ánh bất định mới của thu; đây là việc của tầng 2.
+- **Kịch bản:** ảnh hưởng tương đối so với K0 tăng (K1 +70,6%, K5 +74%), vì mẫu số K0 nhỏ đi một nửa. MAE tuyệt đối của mọi kịch bản đều giảm. Khai ngày lễ Tết (K5h) giờ gần như trung tính so với không khai (+1,2%, trước là +8,9%), vì thiên lệch có sẵn đã hết.
+- **K6 người mới:** +18,4% so với K0 cùng mốc (trước −3,8%). Mức phẳng của thu và chi trên ít ngày dao động mạnh hơn trung bình theo thứ.
+
+### Còn mở: khoản thu định kỳ đổi số tiền (S3)
+
+- Ca đã chặn, có test: lương về trễ quá cửa sổ nhận, đúng số tiền. Nó vẫn khớp khoản định kỳ nên không vào thu linh hoạt, và kỳ quá hạn không được chiếu.
+- Ca **chưa chặn được:** khoản thu định kỳ đổi số tiền quá dung sai 10% (K2 từ tháng M+2). Khoản định kỳ cập nhật giá mới, nên các lần nhận theo **giá cũ** trong 90 ngày lịch sử không còn khớp và bị tính là thu không định kỳ, trong khi kỳ kế tiếp vẫn được chiếu.
+- Số đo:
+  - thu không định kỳ của sinh viên ở K2 bị chiếu cao hơn thực tế **12,9%**;
+  - thiên lệch số dư của `stable_worker` ở K2 là +0,26 triệu (K0: −0,34), tức lệch thêm khoảng 0,6 triệu ở tầm 14; MAE 1,96 so với 1,68 của mô hình cũ.
+- Đề xuất (chưa làm, cần duyệt): khi xét thu linh hoạt, loại khoản thu **cùng người trả và cùng chiều** với khoản thu định kỳ đang theo dõi, **bất kể số tiền**. Lý do: tiền từ người trả lương là lương, dù giá cũ hay mới; `RecurringMatcher.FindPayment` cũng đã coi khoản cùng người trả trong cửa sổ là "lần trả với giá mới".
+- Chi linh hoạt có hiện tượng tương tự với hóa đơn đổi giá (K4), nhưng đã có từ trước Phase 97 và nhỏ (+2,3% so với K0); nếu sửa thì sửa cả hai cùng luật.

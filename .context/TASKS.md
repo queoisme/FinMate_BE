@@ -1819,3 +1819,20 @@ Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). K�
 - [ ] Tầng 3: thu nhập, rủi ro ngân sách + B-lastmonth, danh mục tháng tới, các cảnh báo còn lại; ctor đồng hồ cho `CategoryForecastService`.
 - [ ] Tầng 4: `--config` / `--compare` để so bản nháp tham số Phase 95.
 - Không có việc cho nhóm app hay web admin.
+
+## Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest, tầng 1 (2026-11-27, xong trên nhánh, chưa push; dừng chờ quyết định tầng 2)
+
+Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạch, D1–D16, S1–S4, Task 1 (chọn F1), kết quả tầng 1: `docs/superpowers/plans/2026-11-27-forecast-model-fixes.md`. Tập phát triển hạt 20261127, tập kiểm tra hạt 20261128 (chưa chạy), bộ sinh v1.2.
+
+- [x] Task 1: `--diagnose` so F1–F3 cho chi và thu linh hoạt; F1 (trung bình theo thứ) đạt tiêu chí, commit riêng trước khi sửa production.
+- [x] Task 2: chi linh hoạt = trung bình theo thứ; dải giữ độ rộng cũ quanh nó (S1).
+- [x] Task 3: `IrregularIncomeBaselineCalculator`.
+- [x] Task 4: engine cộng thu không định kỳ; API thêm `irregularIncomeCents`, `incomeBasis`.
+- [x] Task 5: `ForecastService` nối dây; spendable không đổi (D12); test S3.
+- [x] Task 6: phương pháp `mean_dow_income_v2`; báo cáo độ chính xác theo phương pháp, `?method=`.
+- [x] Task 7: báo cáo backtest có thu không định kỳ; tập phát triển → `docs/evaluation/phase97/dev-after-t1/` (tầm 14: lệch 9,05 → 4,68 triệu, thiên lệch −7,14 → −0,25 triệu); REQUIREMENTS FR-FCST-01/03/05/13a, §13.4; `docs/forecast-cashflow-api.md`; `docs/ops-api.md`. Toàn bộ test backend **4494/4496** (2 đỏ là 2 test có sẵn trên `main`, không thêm đỏ).
+- [ ] Còn mở (chờ duyệt): khoản thu định kỳ đổi số tiền làm các lần nhận giá cũ thành thu không định kỳ (K2).
+- [ ] Tầng 2 (chờ quyết định): dải từ phân phối của tổng h ngày.
+- [ ] Cuối: tập kiểm tra một lần, `--compare-runs`, báo cáo `docs/evaluation/forecast-model-fixes.md`.
+- [ ] **Báo nhóm app (không bắt buộc):** có thể hiện "thu dự kiến" từ `days[].irregularIncomeCents`, nhãn `incomeBasis`; số dư dự báo của người thu không đều sẽ cao hơn trước. Xem `docs/forecast-cashflow-api.md`.
+- [ ] **Báo nhóm web admin:** dashboard độ chính xác hiện `method` của báo cáo; có thể thêm bộ chọn `?method=median_p25p75` để xem số trước Phase 97.
