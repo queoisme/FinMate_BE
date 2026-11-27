@@ -16,7 +16,9 @@ public class SystemConfigServiceSchedulerTests
 
     private SystemConfigService Build()
     {
-        _repository.Setup(r => r.TryActivateNextAsync(It.IsAny<SystemConfigVersion>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _repository.Setup(r => r.TryActivateNextAsync(It.IsAny<SystemConfigVersion>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<SystemConfigVersion, int, CancellationToken>((next, expected, _) => next.Version = expected + 1)   // như repository thật
+            .ReturnsAsync(true);
         return new SystemConfigService(_repository.Object, Mock.Of<ISystemConfigProvider>(), new SystemConfigDocumentValidator(), Mock.Of<IAuditLogService>(), _scheduler.Object);
     }
 

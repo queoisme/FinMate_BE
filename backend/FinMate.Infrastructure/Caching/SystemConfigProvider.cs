@@ -38,7 +38,7 @@ public class SystemConfigProvider : ISystemConfigProvider
         var row = await repository.GetActiveAsync(SystemConfigNames.App, ct);
         var snapshot = row is null
             ? new SystemConfigSnapshot(0, new SystemConfigDocument(), null)
-            : new SystemConfigSnapshot(row.Version ?? 0, JsonSerializer.Deserialize<SystemConfigDocument>(row.Content, Json) ?? new SystemConfigDocument(), row.CreatedAt);
+            : new SystemConfigSnapshot(row.Version!.Value, JsonSerializer.Deserialize<SystemConfigDocument>(row.Content, Json) ?? new SystemConfigDocument(), row.CreatedAt);
 
         _cache.Set(CacheKey, snapshot, Ttl);
         return snapshot;

@@ -73,7 +73,7 @@ public class SystemConfigService : ISystemConfigService
     {
         var (items, total) = await _repository.ListAsync(SystemConfigNames.App, limit, offset, ct);
         return new SystemConfigVersionList(
-            items.Select(row => new SystemConfigVersionSummary(row.Version ?? 0, row.Status.ToString().ToLowerInvariant(), row.Note, row.CreatedBy, row.CreatedAt)).ToList(),
+            items.Select(row => new SystemConfigVersionSummary(row.Version!.Value, row.Status.ToString().ToLowerInvariant(), row.Note, row.CreatedBy, row.CreatedAt)).ToList(),
             total);
     }
 
@@ -140,7 +140,7 @@ public class SystemConfigService : ISystemConfigService
         }
     }
 
-    private static SystemConfigView ToView(SystemConfigVersion row) => new(row.Version ?? 0, Deserialize(row.Content), row.Note, row.CreatedBy, row.CreatedAt);
+    private static SystemConfigView ToView(SystemConfigVersion row) => new(row.Version!.Value, Deserialize(row.Content), row.Note, row.CreatedBy, row.CreatedAt);
 
     /// <summary>Đọc lại nội dung đã lưu; trường mà code thêm SAU khi phiên bản được lưu nhận giá trị mặc định.</summary>
     private static SystemConfigDocument Deserialize(string json) => JsonSerializer.Deserialize<SystemConfigDocument>(json, Json) ?? new SystemConfigDocument();
