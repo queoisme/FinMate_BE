@@ -607,3 +607,14 @@ Còn lại theo kế hoạch: Task 11 (`--compare-runs`), Task 12 (tập kiểm 
   - Kết quả: 1/18 ô khác đáng kể (sinh viên tầm 14, tỉ lệ trong dải 62,7% so với CI 58,2–62,3%). Thu không định kỳ của freelancer ở các mốc bị ảnh hưởng của K2 lệch +35,9% trên tập kiểm tra so với +8,5% trên tập phát triển ở tầm 14 (20 người, tiền dự án về trễ ở tháng M); ở tầm 30 hai tập khớp. Không phải lỗi code.
   - Báo cáo: `docs/evaluation/forecast-model-fixes.md` (bảng do `--compare-runs` sinh, nhận xét ở `docs/evaluation/phase97/notes.md`).
 - 5 test `AssumptionReviewTests` đỏ (1 ms, hỏng ở bước khởi tạo fixture) trong lượt chạy toàn bộ ngày 2026-11-27 trên nhánh: không lặp lại. Lượt chạy toàn bộ trên `main` @ `e9664f7` chỉ có 2 test đỏ có sẵn; lượt chạy lại toàn bộ trên nhánh (cùng cách) cũng chỉ có 2 test đỏ có sẵn. Không có log đầy đủ của lượt đỏ (khi đó chỉ lọc dòng Failed), nên không xác định được nguyên nhân. Các test này không đụng tới code của Phase 97.
+
+## Sau review PR #41 (2026-11-28)
+
+Review có ba nhận xét, đều hợp lệ và đều đã sửa, mỗi nhận xét một commit:
+1. `f6b963c`: `PeriodPayments` đi tiếp từ kỳ sau `NextDueDate` tới cuối khoảng giao dịch, qua `RecurringSchedule.DueDates`. Phần chọn giao dịch của mỗi kỳ tách thành `ClaimPeriod` dùng chung.
+2. `ff0c8c8`: purchase-check thêm dòng "Thu nhập không định kỳ (ước tính)" (`estimated`).
+3. `5ce9e4f`: mô tả dải trong `ReportWriter` khớp với `NetFlowBand`; chữ trong `dev-after`/`test-after` và `ops-api` (`coveragePercent`) sửa theo.
+
+- **Tên phương pháp giữ `mean_dow_income_sumband_v3`.** (1) là sửa lỗi của luật đã chốt (phương án 5), không phải phương pháp mới. Bản chụp cũ và mới vẫn so được với nhau.
+- **Test.** Test bỏ kỳ rồi trả gộp và test tích hợp purchase-check đều đỏ trên code cũ, xanh sau sửa. Test khoản trả góp hết kỳ xanh ngay trên code cũ (vì chưa có vòng tiến); nó canh cho vòng tiến mới.
+- **Lần chạy lại.** Chạy đúng một lần cả hai tập ở `5ce9e4f`, vào `dev-after-review/` và `test-after-review/`. CSV trùng từng byte với lần đầu, vì chế độ đáp án luôn đặt `NextDueDate` sau kỳ đã trả gần nhất. Chi tiết ở `docs/evaluation/forecast-model-fixes.md`, mục "Lần chạy lại sau sửa lỗi review".

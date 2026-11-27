@@ -191,6 +191,41 @@ Mô hình trước không chiếu thu không định kỳ (thiên lệch −100%
 - Khoản theo kỳ học phí (vài tháng một lần) tách khỏi chi linh hoạt, để sinh viên không trả giá cho D6.
 - Thu không đều theo "cục": mô hình số lần nhận và cỡ mỗi lần, thay cho mức trung bình mỗi ngày, cho freelancer ở tầm ngắn.
 
+## Lần chạy lại sau sửa lỗi review
+
+**Lý do.** Review PR Phase 97 có ba nhận xét, đều đã sửa, mỗi nhận xét một commit:
+
+1. `f6b963c`: `RecurringMatcher.PeriodPayments` chỉ lùi từ `NextDueDate`. Sau một kỳ bị bỏ, `RecurringTracker` dừng ở kỳ chưa trả, nên lần trả của kỳ sau với số tiền ngoài dung sai (ví dụ trả gộp hai kỳ, K3) rơi vào chi linh hoạt. Nay hàm này đi tiếp cả về phía sau, qua `RecurringSchedule.DueDates`.
+2. `ff0c8c8`: purchase-check thêm dòng "Thu nhập không định kỳ (ước tính)". Sửa này không đổi số dư dự báo.
+3. `5ce9e4f`: sửa chữ mô tả dải trong báo cáo. Không đổi số.
+
+Chỉ (1) có thể đổi số của mô hình. Theo luật đã chốt, tập phát triển và tập kiểm tra được chạy lại **đúng một lần** sau khi áp cả ba sửa, ở commit `5ce9e4f`, vào `dev-after-review/` và `test-after-review/`. `test-after/` được giữ nguyên làm lần chạy đầu; trong thư mục này chỉ sửa chữ ở mục dải. Tên phương pháp giữ `mean_dow_income_sumband_v3`, vì đây là sửa lỗi chứ không đổi phương pháp.
+
+**Kết quả: không có chênh lệch nào.** Cả 5 file CSV (`balance`, `band`, `flexible`, `income`, `effects`) của cả hai tập trùng từng byte với lần chạy đầu: mọi kịch bản, mọi hồ sơ, mọi tầm. Hai file `forecast-backtest.md` chỉ khác dòng commit. Bảng dưới đây trích phần gộp mọi hồ sơ:
+
+| Tập | Kịch bản | Tầm | n | Sai số TB (tr) lần đầu → lại | Thiên lệch (tr) | Trong dải | Rộng dải (tr) | Chênh lệch |
+|---|---|---|---|---|---|---|---|---|
+| phát triển | K0 | 7 | 36500 | 3,29 → 3,29 | −0,22 → −0,22 | 48,1% → 48,1% | 4,78 → 4,78 | 0 |
+| phát triển | K0 | 14 | 36500 | 4,67 → 4,67 | −0,18 → −0,18 | 46,2% → 46,2% | 6,79 → 6,79 | 0 |
+| phát triển | K0 | 30 | 36500 | 7,27 → 7,27 | −0,10 → −0,10 | 45,3% → 45,3% | 10,50 → 10,50 | 0 |
+| phát triển | K3 | 7 | 36500 | 3,35 → 3,35 | −0,30 → −0,30 | 47,2% → 47,2% | 4,78 → 4,78 | 0 |
+| phát triển | K3 | 14 | 36500 | 4,76 → 4,76 | −0,30 → −0,30 | 45,1% → 45,1% | 6,79 → 6,79 | 0 |
+| phát triển | K3 | 30 | 36500 | 7,39 → 7,39 | −0,31 → −0,31 | 44,1% → 44,1% | 10,50 → 10,50 | 0 |
+| phát triển | K4 | 7 | 36500 | 3,31 → 3,31 | −0,21 → −0,21 | 47,8% → 47,8% | 4,78 → 4,78 | 0 |
+| phát triển | K4 | 14 | 36500 | 4,70 → 4,70 | −0,15 → −0,15 | 45,8% → 45,8% | 6,79 → 6,79 | 0 |
+| phát triển | K4 | 30 | 36500 | 7,29 → 7,29 | −0,04 → −0,04 | 44,9% → 44,9% | 10,50 → 10,50 | 0 |
+| kiểm tra | K0 | 7 | 36500 | 3,07 → 3,07 | −0,15 → −0,15 | 48,6% → 48,6% | 4,55 → 4,55 | 0 |
+| kiểm tra | K0 | 14 | 36500 | 4,35 → 4,35 | −0,06 → −0,06 | 45,8% → 45,8% | 6,46 → 6,46 | 0 |
+| kiểm tra | K0 | 30 | 36500 | 6,80 → 6,80 | 0,11 → 0,11 | 45,1% → 45,1% | 10,00 → 10,00 | 0 |
+| kiểm tra | K3 | 7 | 36500 | 3,13 → 3,13 | −0,24 → −0,24 | 47,5% → 47,5% | 4,55 → 4,55 | 0 |
+| kiểm tra | K3 | 14 | 36500 | 4,44 → 4,44 | −0,18 → −0,18 | 44,4% → 44,4% | 6,46 → 6,46 | 0 |
+| kiểm tra | K3 | 30 | 36500 | 6,93 → 6,93 | −0,11 → −0,11 | 43,3% → 43,3% | 10,00 → 10,00 | 0 |
+| kiểm tra | K4 | 7 | 36500 | 3,09 → 3,09 | −0,15 → −0,15 | 48,2% → 48,2% | 4,55 → 4,55 | 0 |
+| kiểm tra | K4 | 14 | 36500 | 4,38 → 4,38 | −0,03 → −0,03 | 45,4% → 45,4% | 6,46 → 6,46 | 0 |
+| kiểm tra | K4 | 30 | 36500 | 6,84 → 6,84 | 0,17 → 0,17 | 44,8% → 44,8% | 10,00 → 10,00 | 0 |
+
+**Vì sao bằng 0.** Chế độ đáp án (`OracleRecurring`) đặt `NextDueDate` ngay sau kỳ **đã trả** gần nhất, nên một kỳ bị bỏ không bao giờ giữ `NextDueDate` lại phía sau. Lần trả gộp của K3 vì vậy luôn nằm trước `NextDueDate` và đã được vòng lùi nhận từ trước. Trạng thái mà nhận xét (1) sửa, tức tracker dừng ở kỳ chưa trả trong khi kỳ sau đã trả, chỉ có ở production (`RecurringTracker`). Chế độ phát lại (replay) mới tái hiện được trạng thái này, và chế độ đó chưa được xây (Phase 96, tầng 2). Lỗi này vì vậy được chứng minh bằng test đơn vị (đỏ trên code cũ, xanh sau sửa), không phải bằng backtest. Backtest chỉ xác nhận rằng sửa lỗi không làm đổi các con số đã báo cáo.
+
 ## Tái lập
 
 ```
@@ -200,6 +235,9 @@ dotnet run --project FinMate.Backtest -c Release -- --seed 20261128 --out <ROOT>
 # sau (nhánh feat/forecast-model-fixes)
 dotnet run --project FinMate.Backtest -c Release -- --seed 20261127 --out <ROOT>/dev-after
 dotnet run --project FinMate.Backtest -c Release -- --seed 20261128 --out <ROOT>/test-after
+# chạy lại sau sửa lỗi review (commit 5ce9e4f)
+dotnet run --project FinMate.Backtest -c Release -- --seed 20261127 --out <ROOT>/dev-after-review
+dotnet run --project FinMate.Backtest -c Release -- --seed 20261128 --out <ROOT>/test-after-review
 # báo cáo này
 dotnet run --project FinMate.Backtest -c Release -- --compare-runs ../docs/evaluation/phase97 --notes ../docs/evaluation/phase97/notes.md --out ../docs/evaluation/forecast-model-fixes.md
 ```
