@@ -1,6 +1,6 @@
 # Phase 95 — Staff soạn, OpsManager duyệt cấu hình nghiệp vụ và tham số dự báo
 
-> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D17 theo đề xuất, kèm S1–S6 (S thắng D và phần thân khi mâu thuẫn).** Đang làm. Nhánh `feat/staff-draft-manager-approve` từ `main` @ `bacfb39` (đã có Phase 94).
+> Trạng thái: **Phần 2 đã duyệt 2026-11-27: D1–D17 theo đề xuất, kèm S1–S6 (S thắng D và phần thân khi mâu thuẫn). Task 0–12 xong** (chưa push, chưa mở PR). Toàn bộ test backend 4292/4294 (mốc 4093/4095, +199, không thêm đỏ). Nhánh `feat/staff-draft-manager-approve` từ `main` @ `bacfb39` (đã có Phase 94).
 
 Đăng ký đề tài:
 - **Staff:** "Maintain system categories, keyword rules, and AI classification rules, and draft economic assumptions and knowledge content for the financial assistant for approval."
@@ -414,3 +414,11 @@ Route mới dưới `/api/v1/ops/catalog`, kiểm quyền `MaintainCatalog` (D11
 - Màn hình "Danh mục và luật phân loại" cho Staff dùng `/ops/catalog/*`: không có xoá, không đổi slug, không có hoàn tác, bộ nhớ tên món, chỉ dẫn Gemini. Admin dùng trang `/admin/*` như cũ.
 - Giả định kinh tế và tri thức có thêm nút "Từ chối" (bắt buộc ghi chú) và trạng thái `rejected`. Người soạn không thấy nút duyệt bản của mình (server cũng chặn, 403).
 - Quyền mới trong `/ops/me` (`capabilities`): `MaintainCatalog`, `DraftForecastConfig`, `ApproveForecastConfig`, `ApproveAgentContent`.
+
+## 15. Kết quả test
+
+- Mốc `bacfb39`: backend 4093/4095 (2 đỏ sẵn trên `main`).
+- Sau Phase 95 (`8849541` + tài liệu): backend **4292/4294**, thêm 199 test, không thêm test đỏ. Hai test đỏ vẫn là `MethodSelectionOnSeedDataTests.TheExampleProfileInTheMdFile_GetsCashFlowBudget…` và `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`.
+- ai-service: 73 test kho tri thức / RAG pass trên Postgres có pgvector (cổng 5434) sau khi thêm `created_at`.
+- Test có sẵn bị chạm: `AddLegalVersionsMigrationTests` không đổi thêm; `AdminAssumptionsControllerTests` và `AssumptionTests` duyệt bằng tài khoản khác người soạn (luật mới); `AdminKnowledgeControllerTests` ghi sẵn một dòng `knowledge_reviews` trước khi duyệt và dùng id mới khi gửi (S3); `EconomicAssumptionRefresherTests` thêm `RejectAsync` vào bản giả; `SystemConfigServiceSchedulerTests` không đổi (repository giả không gán `Version`, nay đọc `?? 0`).
+

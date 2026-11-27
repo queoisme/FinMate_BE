@@ -2,7 +2,7 @@
 
 Dành cho người dựng màn hình admin trên web. Backend chỉ giữ cổng và ghi nhật ký; luật nằm ở DB của AI Service và **thay đổi có hiệu lực ngay** (không cần build lại, không cần khởi động lại).
 
-- Gốc: `/api/v1/admin/ai-rules`. Cần JWT của tài khoản **Admin** (`Authorization: Bearer ...`). Không đăng nhập: 401. Không phải admin: 403.
+- Gốc: `/api/v1/admin/ai-rules`. Cần JWT của tài khoản **Admin**. Từ Phase 95, Staff có quyền `MaintainCatalog` thêm / sửa / tắt **thương hiệu và từ khoá** qua `/api/v1/ops/catalog/ai-rules/*` (cùng thân và phản hồi, không có hoàn tác, bộ nhớ tên món, chỉ dẫn Gemini; xem `docs/ops-api.md`) (`Authorization: Bearer ...`). Không đăng nhập: 401. Không phải admin: 403.
 - Phản hồi thành công: `{"success": true, "data": ...}`. Phản hồi 204 không có thân.
 - Phản hồi lỗi: `{"success": false, "error": {"code": "...", "message": "..."}}`; `message` là tiếng Việt, hiện thẳng cho admin được.
 - Trường trong `data` và trong thân request giữ tên của AI Service: **snake_case** (`category_slug`, `is_active`...).

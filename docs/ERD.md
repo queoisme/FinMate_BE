@@ -202,7 +202,8 @@ erDiagram
 | **SpendingInsight** | `spending_insights` | ✓ | Insight chi tiêu (hiện chỉ còn sinh loại so với tháng trước). |
 | **SurveyOption** | `survey_options` |  | Lựa chọn của câu hỏi, kèm tín hiệu ẩn danh (`signals`). |
 | **SurveyQuestion** | `survey_questions` |  | Câu hỏi khảo sát đầu vào (`show_if` để hỏi có điều kiện). |
-| **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. |
+| **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. Phase 95: cũng giữ bản nháp tham số dự báo (`scope = 'forecast'`, chưa có `version`, chỉ chứa hai nhóm `forecast` + `limits`); duyệt thì chính dòng đó thành phiên bản đang chạy. |
+| **KnowledgeReview** | `knowledge_reviews` |  | Phase 95: người gửi và người duyệt một tài liệu tri thức (tài liệu ở AI Service, chỉ trùng id, không FK); chặn tự duyệt. `knowledge_review_cutover` (một dòng) là mốc bắt đầu ghi. |
 | **Transaction** | `transactions` | ✓ | Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). Nguồn: thông báo, nhập tay, giọng nói, hóa đơn, chat…; trạng thái nháp / đã xác nhận; `client_request_id` chống gửi lại; cờ loại khỏi dữ liệu dự báo. |
 | **TransactionMergeSnapshot** | `transaction_merge_snapshots` | ✓ | Phase 83: ảnh chụp trạng thái trước mỗi lượt gộp / chuyển thành Transfer, để hoàn tác sau này; có hạn lưu. |
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
@@ -2205,20 +2206,56 @@ Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác
 | --- | --- | --- | --- | --- | --- |
 | 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
 | 2 | `name` | varchar(48) |  |  |  |
-| 3 | `version` | integer |  |  |  |
-| 4 | `status` | varchar(10) |  |  |  |
+| 3 | `version` | integer | có (Phase 95: bản nháp chưa có số) |  |  |
+| 4 | `status` | varchar(20) |  |  |  |
 | 5 | `content` | jsonb |  |  |  |
 | 6 | `note` | text | có |  |  |
 | 7 | `created_by` | uuid |  |  |  |
 | 8 | `created_at` | timestamptz |  |  |  |
+| 9 | `scope` | varchar(24) | có |  |  |
+| 10 | `base_version` | integer | có |  |  |
+| 11 | `submitted_at` | timestamptz | có |  |  |
+| 12 | `decided_by` | uuid | có |  |  |
+| 13 | `decided_at` | timestamptz | có |  |  |
+| 14 | `decision_note` | varchar(1000) | có |  |  |
+| 15 | `conflicts` | jsonb | có |  |  |
+| 16 | `updated_at` | timestamptz | có |  |  |
 
 Ràng buộc:
 - CHECK `chk_system_config_versions_content_object`: `jsonb_typeof(content) = 'object'`
-- CHECK `chk_system_config_versions_status`: `status IN ('active', 'archived')`
+- CHECK `chk_system_config_versions_status`: `status IN ('active','archived','draft','pending_approval','rejected','cancelled')`
+- CHECK `chk_system_config_versions_numbered`: `(status IN ('active','archived')) = (version IS NOT NULL)`
+- CHECK `chk_system_config_versions_draft_scope`: `status IN ('active','archived') OR scope IS NOT NULL`
+- CHECK `chk_system_config_versions_approved_by`: `scope IS NULL OR status NOT IN ('active','archived') OR decided_by IS NOT NULL`
+- CHECK `chk_system_config_versions_two_people`: `decided_by IS NULL OR decided_by <> created_by`
 
 Index:
 - UNIQUE `uq_system_config_versions_active` `(name) WHERE status = 'active'`
 - UNIQUE `uq_system_config_versions_name_version` `(name, version)`
+- UNIQUE `uq_system_config_versions_pending` `(name, scope) WHERE status = 'pending_approval'` (Phase 95: một bản chờ duyệt mỗi phạm vi)
+- `ix_system_config_versions_drafts` `(name, scope, status, created_at)`
+
+##### `knowledge_reviews` — KnowledgeReview (Phase 95)
+
+Người gửi và người duyệt tài liệu tri thức; AI Service không nhận id người gửi nên backend tự ghi.
+
+| # | Cột | Kiểu | NULL | Mặc định | Khóa |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `document_id` | uuid |  |  | PK (trùng id tài liệu ở AI Service, không FK) |
+| 2 | `submitted_by` | uuid | có (null = tài liệu tạo trước mốc) |  |  |
+| 3 | `submitted_at` | timestamptz |  |  |  |
+| 4 | `status` | varchar(10) |  |  |  |
+| 5 | `decided_by` | uuid | có |  |  |
+| 6 | `decided_at` | timestamptz | có |  |  |
+| 7 | `decision_note` | varchar(1000) | có |  |  |
+
+Ràng buộc:
+- CHECK `chk_knowledge_reviews_status`: `status IN ('draft','approved','rejected','retired')`
+- CHECK `chk_knowledge_reviews_two_people`: `decided_by IS NULL OR submitted_by IS NULL OR decided_by <> submitted_by`
+
+`knowledge_review_cutover`: `id` integer PK (CHECK `id = 1`), `tracked_since` timestamptz. Migration `AddKnowledgeReviews` chèn dòng duy nhất bằng giờ chạy migration.
+
+`economic_assumptions` (Phase 95, migration `AddAssumptionRejection`): thêm `rejected_by` uuid, `rejected_at` timestamptz, `decision_note` varchar(1000); trạng thái thêm `rejected`; CHECK `chk_economic_assumptions_two_people` (người duyệt / từ chối khác người soạn, trừ tài khoản hệ thống của job CPI) tạo dạng `NOT VALID`, chỉ kiểm dòng ghi mới.
 
 ##### `secret_store` — SecretEntry
 
