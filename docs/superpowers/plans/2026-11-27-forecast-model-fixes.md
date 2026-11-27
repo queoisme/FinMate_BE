@@ -481,7 +481,7 @@ Chi linh hoạt (WAPE / thiên lệch): K4 `stable_worker` 22,0% / +6,6% → 19,
 - Bản sửa tác động cả K0: hóa đơn điện/nước dao động quá 10% giữa các tháng trước đây bị đếm hai lần (trong chi linh hoạt và ở ngày đến hạn).
 - Ở các mốc "bị ảnh hưởng" của K2/K4 (sát ngày đổi giá), thiên lệch dương tăng nhẹ (`stable_worker` K2 +2,65 → +2,77; gia đình K4 +0,82 → +1,18). Đó là phần không đoán được của việc đổi giá (khoản định kỳ vẫn mang giá cũ tới lần trả giá mới đầu tiên); trước đây phần đếm hai lần che bớt nó.
 - Gia đình K0 tầm 30: thiên lệch −0,12 → +0,51 triệu (MAE không đổi 4,02); dải ở tầng 2 sẽ được đo trên mô hình này.
-- Lượt chạy chỉ để so, không lưu vào `docs/evaluation/phase97/`; lượt chính thức của tầng 2 là `dev-after-t2/`.
+- Lượt chạy chỉ để so, không lưu vào `docs/evaluation/phase97/`; lượt chính thức của tầng 2 là `dev-after/`.
 
 ## Task 8 — So B1/B2 trên tập phát triển (2026-11-27, trước khi sửa engine)
 
@@ -535,7 +535,7 @@ Mốc không tính được dải (thiếu lịch sử): dải hiện tại (t�
 ## Tầng 2 — kết quả (Task 9–10, 2026-11-27)
 
 - Code: `NetFlowBand` (B2) trong engine khi đủ `minHistoryDays`; dưới ngưỡng giữ các đường của tầng 1. Phương pháp `mean_dow_income_sumband_v3`. Harness gọi thẳng production cho B2; test kiểm dải của engine trùng B2 dựng lại từ lịch sử của harness tới từng đồng.
-- Lượt chạy: `docs/evaluation/phase97/dev-after-t2/` (hạt 20261127, bộ sinh v1.2).
+- Lượt chạy: `docs/evaluation/phase97/dev-after/` (hạt 20261127, bộ sinh v1.2).
 
 ### Tập phát triển cuối so với Phase 96 (K0, chế độ đáp án). Tiền: triệu đồng
 
@@ -596,3 +596,14 @@ MAE và thiên lệch của tầng 2 khác tầng 1 chỉ do Task 7b (dải khô
 | 14 | Baseline B-hold / B0 / B-mean30 / B-naive giữ định nghĩa Phase 96 | D15 |
 
 Còn lại theo kế hoạch: Task 11 (`--compare-runs`), Task 12 (tập kiểm tra một lần, báo cáo `docs/evaluation/forecast-model-fixes.md`, CLAUDE.md, toàn bộ suite). Chưa làm, chờ duyệt.
+
+## Task 11–12 — so sánh và tập kiểm tra (2026-11-27/28)
+
+- 11 phương án ở danh sách trên được chủ sản phẩm xác nhận trước khi chạy tập kiểm tra.
+- Task 11: `--compare-runs`. Ngưỡng "khác đáng kể" (số của tập phát triển nằm ngoài CI 95% của tập kiểm tra, với tỉ lệ trong dải hoặc mức tốt hơn B-hold) được ghi vào code và commit trước khi chạy tập kiểm tra.
+- Task 12:
+  - "Trước" chạy từ worktree `e9664f7`; `dev-before` trùng từng byte với CSV của báo cáo Phase 96. `dev-after` trùng CSV với lượt tầng 2, nên thư mục `dev-after-t2/` được đổi tên thành `dev-after/`.
+  - Tập kiểm tra chạy một lần mỗi mô hình. Không chỉnh mô hình sau khi thấy số.
+  - Kết quả: 1/18 ô khác đáng kể (sinh viên tầm 14, tỉ lệ trong dải 62,7% so với CI 58,2–62,3%). Thu không định kỳ của freelancer ở các mốc bị ảnh hưởng của K2 lệch +35,9% trên tập kiểm tra so với +8,5% trên tập phát triển ở tầm 14 (20 người, tiền dự án về trễ ở tháng M); ở tầm 30 hai tập khớp. Không phải lỗi code.
+  - Báo cáo: `docs/evaluation/forecast-model-fixes.md` (bảng do `--compare-runs` sinh, nhận xét ở `docs/evaluation/phase97/notes.md`).
+- 5 test `AssumptionReviewTests` đỏ (1 ms, hỏng ở bước khởi tạo fixture) trong lượt chạy toàn bộ ngày 2026-11-27 trên nhánh: không lặp lại. Lượt chạy toàn bộ trên `main` @ `e9664f7` chỉ có 2 test đỏ có sẵn; lượt chạy lại toàn bộ trên nhánh (cùng cách) cũng chỉ có 2 test đỏ có sẵn. Không có log đầy đủ của lượt đỏ (khi đó chỉ lọc dòng Failed), nên không xác định được nguyên nhân. Các test này không đụng tới code của Phase 97.

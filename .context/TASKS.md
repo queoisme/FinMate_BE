@@ -1820,9 +1820,9 @@ Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). K�
 - [ ] Tầng 4: `--config` / `--compare` để so bản nháp tham số Phase 95.
 - Không có việc cho nhóm app hay web admin.
 
-## Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest, tầng 1 + 2 (2026-11-27, xong trên nhánh, chưa push; dừng trước tập kiểm tra)
+## Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest (2026-11-27, xong trên nhánh, chưa push; chờ duyệt push/PR)
 
-Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạch, D1–D16, S1–S4, Task 1 (chọn F1), kết quả tầng 1: `docs/superpowers/plans/2026-11-27-forecast-model-fixes.md`. Tập phát triển hạt 20261127, tập kiểm tra hạt 20261128 (chưa chạy), bộ sinh v1.2.
+Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạch, D1–D16, S1–S4, Task 1 (chọn F1), kết quả tầng 1: `docs/superpowers/plans/2026-11-27-forecast-model-fixes.md`. Tập phát triển hạt 20261127, tập kiểm tra hạt 20261128 (đã chạy một lần), bộ sinh v1.2. Báo cáo cuối: `docs/evaluation/forecast-model-fixes.md`.
 
 - [x] Task 1: `--diagnose` so F1–F3 cho chi và thu linh hoạt; F1 (trung bình theo thứ) đạt tiêu chí, commit riêng trước khi sửa production.
 - [x] Task 2: chi linh hoạt = trung bình theo thứ; dải giữ độ rộng cũ quanh nó (S1).
@@ -1834,7 +1834,15 @@ Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạc
 - [x] Task 7b: luật người trả + thời điểm cho lần trả của khoản định kỳ, chung cho thu và chi linh hoạt (K2: thiên lệch thu của sinh viên +12,9% → +2,3%; K4: thiên lệch chi linh hoạt của người lương cố định +6,6% → −1,4%).
 - [x] Task 8: `--diagnose` so B1/B2 (C7); B2 đạt tiêu chí §3, commit riêng trước khi sửa engine.
 - [x] Task 9: `NetFlowBand` (B2) cho đường thận trọng / lạc quan; phương pháp `mean_dow_income_sumband_v3`.
-- [x] Task 10: tập phát triển → `docs/evaluation/phase97/dev-after-t2/` (phủ dải gộp 48% / 46% / 45% ở tầm 7/14/30); `docs/forecast-cashflow-api.md`, REQUIREMENTS FR-FCST-01/03/13a, §13.4. Toàn bộ test backend 4507/4514: 2 đỏ có sẵn trên `main`; 5 test `AssumptionReviewTests` đỏ 1 ms trong lượt chạy toàn bộ (khởi tạo fixture), chạy riêng 5/5 xanh, không liên quan dự báo.
-- [ ] Cuối: tập kiểm tra một lần, `--compare-runs`, báo cáo `docs/evaluation/forecast-model-fixes.md`.
-- [ ] **Báo nhóm app (không bắt buộc):** có thể hiện "thu dự kiến" từ `days[].irregularIncomeCents`, nhãn `incomeBasis`; số dư dự báo của người thu không đều sẽ cao hơn trước. Xem `docs/forecast-cashflow-api.md`.
-- [ ] **Báo nhóm web admin:** dashboard độ chính xác hiện `method` của báo cáo; có thể thêm bộ chọn `?method=median_p25p75` để xem số trước Phase 97.
+- [x] Task 10: tập phát triển → `docs/evaluation/phase97/dev-after/` (phủ dải gộp 48% / 46% / 45% ở tầm 7/14/30); `docs/forecast-cashflow-api.md`, REQUIREMENTS FR-FCST-01/03/13a, §13.4. Toàn bộ test backend 4507/4514: 2 đỏ có sẵn trên `main`; 5 test `AssumptionReviewTests` đỏ 1 ms trong lượt chạy toàn bộ (khởi tạo fixture), chạy riêng 5/5 xanh, không liên quan dự báo.
+- [x] Task 11: `--compare-runs ROOT [--notes FILE] --out FILE` đọc CSV của `{dev,test}-{before,after}`; ngưỡng "khác đáng kể" (số dev ngoài CI 95% của test) chốt trước khi chạy tập kiểm tra.
+- [x] Task 12: tập kiểm tra chạy một lần ("trước" từ worktree `e9664f7`); `docs/evaluation/forecast-model-fixes.md` (tầm 14 trên tập kiểm tra: lệch 8,60 → 4,35 triệu, thiên lệch −6,66 → −0,06 triệu, trong dải 36% → 46%; 1/18 ô khác tập phát triển). REQUIREMENTS §13.4, ARCHITECTURE §2.18, CLAUDE.md.
+- [ ] **Báo nhóm Flutter (không bắt buộc sửa app):**
+  - có thể hiện "thu dự kiến" từ `days[].irregularIncomeCents` và nhãn cho `incomeBasis` (`history` / `average` / `none`);
+  - vùng giữa `lowBalanceCents` và `highBalanceCents` giờ nghĩa là "khoảng một nửa khả năng số dư nằm trong vùng này"; nếu có chú thích, đổi theo;
+  - với người thu không đều, số dư dự báo cao hơn trước và vùng rộng hơn nhiều; với người thu chi đều, vùng hẹp hơn;
+  - kết luận "Mua món này có ổn không?" có thể đổi: bớt khắt khe với người thu chi đều ở tầm dài, khắt khe hơn với người thu không đều. Xem `docs/forecast-cashflow-api.md`.
+- [ ] **Báo nhóm web admin:**
+  - dashboard độ chính xác hiện `method` của báo cáo (giờ là `mean_dow_income_sumband_v3`);
+  - có thể thêm bộ chọn `?method=` với `mean_dow_income_v2` (tầng 1) và `median_p25p75` (trước Phase 97);
+  - số độ chính xác ngay sau khi deploy sẽ ít mẫu, vì báo cáo chỉ gộp bản chụp của phương pháp mới. Xem `docs/ops-api.md`.

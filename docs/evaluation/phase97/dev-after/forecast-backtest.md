@@ -7,7 +7,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Commit | `3a40f12b9efb` |
+| Commit | `6572548ad40f` |
 | SDK / runtime | SDK 9.0.321, .NET 9.0.23, X64 |
 | Đặc tả bộ sinh | v1.2 (`docs/evaluation/forecast-backtest-generator-spec.md`) |
 | Hạt gốc | 20261127 |

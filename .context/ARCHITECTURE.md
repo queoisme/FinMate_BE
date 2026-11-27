@@ -579,6 +579,7 @@ Nhóm API phục vụ màn chi tiết giao dịch, bản nháp và khung chat �
 - **Chế độ khoản định kỳ:** tầng 1 chỉ có "đáp án" (`OracleRecurring`: khoản thật, chỉ với thông tin trước mốc) — cận trên. Chế độ "phát lại" (chạy `RecurringDetectionService` thật mỗi ngày) là tầng 2, chưa làm.
 - **Thực tế** = `ForecastActuals.NetFlow` trên dữ liệu thô + chuyển khoản vượt ranh giới, đúng như `ForecastAccuracyService.FillActualsAsync`; mốc B0 lấy từ `ForecastSnapshotBuilder`.
 - Production chỉ được thêm ctor `internal` nhận đồng hồ cho service cần chạy ở mốc quá khứ (tầng 1 không cần thêm cái nào; tầng 2–3 sẽ thêm cho `AnomalyService`, `ForecastAlertService`, `CategoryForecastService`).
+- **Phase 97 (sửa mô hình theo backtest):** `--diagnose` có thêm C6 (so cách ước lượng mức theo ngày) và C7 (so cách dựng dải); mỗi lựa chọn được áp tiêu chí bằng code và commit riêng trước khi đổi production. `--compare-runs ROOT [--notes FILE] --out FILE` (`Comparison/`) chỉ đọc CSV của bốn lượt chạy `{dev,test}-{before,after}`, chép số nguyên văn và báo lỗi khi thiếu dòng; báo cáo `docs/evaluation/forecast-model-fixes.md` sinh bằng nó. Tập phát triển (hạt 20261127) dùng để chọn; tập kiểm tra (hạt 20261128) chỉ chạy một lần mỗi mô hình. Phần chẩn đoán gọi thẳng code production (`NetFlowBand`, `RecurringPaymentFilter`) để không có bản sao của mô hình trong harness.
 
 ## 3. AI Service — Pipeline Architecture
 
