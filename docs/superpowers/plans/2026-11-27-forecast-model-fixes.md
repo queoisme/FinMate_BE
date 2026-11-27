@@ -1,8 +1,8 @@
 # Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest
 
 > Trạng thái: **Kế hoạch đã duyệt 2026-11-27: D1–D16 theo đề xuất, kèm S1–S4 (S thắng D khi mâu thuẫn).** Bắt đầu Task 1 sau khi Phase 96 merge và nhánh này rebase lên `main`. Dừng sau tầng 1 (S4).
-> Nhánh `feat/forecast-model-fixes`. **Điều kiện bắt đầu chưa đủ:** Phase 96 chưa merge vào `main` (`main` và `origin/main` vẫn ở `32912fc`). Nhánh này vì vậy tạm tách từ `feat/forecast-backtest` @ `d82d006`; khi Phase 96 merge thì rebase lên `main`.
-> Nguồn: mục "Chẩn đoán" trong `docs/superpowers/plans/2026-11-27-forecast-backtest.md`, báo cáo `docs/evaluation/forecast-backtest.md`. Công cụ đo: `FinMate.Backtest` (kể cả `--diagnose`). Đặc tả bộ sinh **giữ v1.1**.
+> Nhánh `feat/forecast-model-fixes`, rebase lên `main` @ `e9664f7` (Phase 96 đã merge qua PR #40, gồm bộ sinh v1.2).
+> Nguồn: mục "Chẩn đoán" trong `docs/superpowers/plans/2026-11-27-forecast-backtest.md`, báo cáo `docs/evaluation/forecast-backtest.md`. Công cụ đo: `FinMate.Backtest` (kể cả `--diagnose`). Đặc tả bộ sinh **v1.2** (sửa lỗi K2 tiểu thương sau review PR #40; K0 và K5 giống hệt v1.1), dùng cho cả hai tập.
 
 ## Đã duyệt (2026-11-27): D1–D16 kèm S1–S4
 
@@ -23,7 +23,7 @@ Chọn `20261128` theo quy tắc "ngày kế tiếp", không vì lý do nào kh�
 
 Luật đi kèm:
 - Không quay lại chỉnh mô hình sau khi thấy kết quả tập kiểm tra. Nếu buộc phải sửa vì lỗi thật, ghi lý do và báo cáo cả hai lần chạy.
-- Số "trước" trên tập kiểm tra lấy bằng cách chạy backtest của commit `d82d006` (mô hình cũ) trong một worktree riêng, cùng lúc với lần chạy "sau", để không ai nhìn thấy số tập kiểm tra trước khi chốt (D13).
+- Số "trước" trên tập kiểm tra lấy bằng cách chạy backtest của commit `e9664f7` (`main` khi bắt đầu Phase 97: mô hình cũ + bộ sinh v1.2) trong một worktree riêng, cùng lúc với lần chạy "sau", để không ai nhìn thấy số tập kiểm tra trước khi chốt (D13). Số "trước" trên tập phát triển là báo cáo Phase 96 đã sinh ở `6aa8eb2` (cùng mô hình cũ, cùng v1.2).
 
 ## 1. Thu nhập không định kỳ vào đường số dư (vấn đề 1)
 
@@ -169,7 +169,7 @@ Ghi vào hạn chế của báo cáo và §13.4; tầng 3 vì vậy không có v
 | 1 | §1 + §2: thu linh hoạt + ước lượng chi mới, tên phương pháp v2, lọc độ chính xác theo phương pháp | Backtest tập phát triển, so với Phase 96 |
 | 2 | §3: dải từ tổng h ngày, tên phương pháp v3 | Backtest tập phát triển |
 | 3 | §4: không code (đề xuất bỏ); chỉ tài liệu | — |
-| Cuối | Tập kiểm tra một lần (trước: worktree `d82d006`; sau: mô hình cuối), báo cáo so sánh, toàn bộ suite | Dừng chờ duyệt push/PR |
+| Cuối | Tập kiểm tra một lần (trước: worktree `e9664f7`; sau: mô hình cuối), báo cáo so sánh, toàn bộ suite | Dừng chờ duyệt push/PR |
 
 ## 7. Quyết định
 
@@ -185,7 +185,7 @@ Ghi vào hạn chế của báo cáo và §13.4; tầng 3 vì vậy không có v
 - **D10.** Không thêm tham số vào nhóm `forecast`. Nếu muốn có, phải kèm validator + meta + test phản chiếu cùng task.
 - **D11.** API chỉ thêm `irregularIncomeCents` (ngày), `incomeBasis`. Tạo `docs/forecast-cashflow-api.md`.
 - **D12.** Spendable không đổi; có test hồi quy.
-- **D13.** Số "trước" trên tập kiểm tra chạy từ worktree `d82d006`, cùng lúc với lần chạy "sau", sau khi mọi phương án đã chốt.
+- **D13.** Số "trước" trên tập kiểm tra chạy từ worktree `e9664f7` (thay `d82d006`: Phase 96 merge kèm v1.2), cùng lúc với lần chạy "sau", sau khi mọi phương án đã chốt.
 - **D14.** Báo cáo cuối `docs/evaluation/forecast-model-fixes.md`:
   - bảng tóm tắt cho người không chuyên: trước/sau × tập phát triển/kiểm tra × tầm 7/14/30, theo hồ sơ, tỉ lệ phủ dải;
   - sinh bằng một chế độ mới `--compare-runs <thư mục trước> <thư mục sau>` đọc các CSV đã có, không sửa tay.
@@ -221,7 +221,7 @@ Ghi vào hạn chế của báo cáo và §13.4; tầng 3 vì vậy không có v
 | # | Task |
 |---|---|
 | 11 | `--compare-runs` + test. |
-| 12 | Tập kiểm tra một lần (trước từ worktree `d82d006`, sau từ mô hình cuối); `docs/evaluation/forecast-model-fixes.md`; toàn bộ suite; REQUIREMENTS §13.4 (đóng mục "Dự báo sau backtest Phase 96" phần đã làm, ghi D8, D16), TASKS, CLAUDE.md. Dừng chờ duyệt push/PR. |
+| 12 | Tập kiểm tra một lần (trước từ worktree `e9664f7`, sau từ mô hình cuối); `docs/evaluation/forecast-model-fixes.md`; toàn bộ suite; REQUIREMENTS §13.4 (đóng mục "Dự báo sau backtest Phase 96" phần đã làm, ghi D8, D16), TASKS, CLAUDE.md. Dừng chờ duyệt push/PR. |
 
 ## Cần duyệt
 
