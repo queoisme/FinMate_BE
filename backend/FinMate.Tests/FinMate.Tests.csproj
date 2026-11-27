@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FinMate.API\FinMate.API.csproj" />
     <ProjectReference Include="..\FinMate.Application\FinMate.Application.csproj" />
+    <ProjectReference Include="..\FinMate.Backtest\FinMate.Backtest.csproj" />
     <ProjectReference Include="..\FinMate.Domain\FinMate.Domain.csproj" />
     <ProjectReference Include="..\FinMate.Infrastructure\FinMate.Infrastructure.csproj" />
   </ItemGroup>

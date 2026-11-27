@@ -569,6 +569,17 @@ Nhóm API phục vụ màn chi tiết giao dịch, bản nháp và khung chat �
 - `DELETE /auth/account` từ chối khi còn yêu cầu đang chạy (S5); hai bảng mới cascade theo `users`, nên `UserHardDeleter` không cần sửa.
 - Lịch sử đồng ý: `ConsentCommandHandler` ghi audit `User.ConsentChanged` (D3); trước 2026-11-25 không có lịch sử.
 
+### 2.18 Backtest dự báo (thêm 2026-11-27, Phase 96, duyệt D20)
+
+**Quyết định: đo dự báo bằng chính code production trên dữ liệu tổng hợp, không viết lại bộ tính.** `backend/FinMate.Backtest` (console, không DB, không NuGet mới) dựng các "thế giới" giao dịch theo đặc tả có phiên bản (`docs/evaluation/forecast-backtest-generator-spec.md`), rồi gọi `ForecastService` thật qua ctor `internal` nhận đồng hồ, với repository giả trong bộ nhớ. Báo cáo: `docs/evaluation/forecast-backtest.md` + CSV. Kế hoạch, D1–D21, S1–S5: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`.
+
+- **Không rò rỉ tương lai:** repository giả (`Simulation/WorldView`, `Fakes`) chỉ thấy giao dịch có `TransactedAt <` thời điểm của đồng hồ giả (S1); mốc dự báo T = 00:00 giờ VN. Số dư từng ví dựng lại từ số dư mở đầu + mọi giao dịch đã thấy.
+- **Repository giả khớp production:** `FakeForecastData` ánh xạ dòng như `ForecastDataRepository` bằng chính `RefundNetting`, bộ lọc vay và luật chuyển khoản vượt ranh giới; test hợp đồng `FakeForecastDataContractTests` so hai bên trên Postgres thật. Sửa `ForecastDataRepository` thì test này phải còn xanh, hoặc sửa bản giả theo. Phương thức không dùng ném `NotSupportedException`.
+- **Bộ sinh:** luồng ngẫu nhiên SplitMix64 riêng theo tên và theo ngày/kỳ, nên kịch bản (lớp phủ lên cùng người gốc) chỉ đổi phần nó chạm tới; đổi bộ sinh = sửa đặc tả và tăng phiên bản, không bao giờ chỉnh theo kết quả.
+- **Chế độ khoản định kỳ:** tầng 1 chỉ có "đáp án" (`OracleRecurring`: khoản thật, chỉ với thông tin trước mốc) — cận trên. Chế độ "phát lại" (chạy `RecurringDetectionService` thật mỗi ngày) là tầng 2, chưa làm.
+- **Thực tế** = `ForecastActuals.NetFlow` trên dữ liệu thô + chuyển khoản vượt ranh giới, đúng như `ForecastAccuracyService.FillActualsAsync`; mốc B0 lấy từ `ForecastSnapshotBuilder`.
+- Production chỉ được thêm ctor `internal` nhận đồng hồ cho service cần chạy ở mốc quá khứ (tầng 1 không cần thêm cái nào; tầng 2–3 sẽ thêm cho `AnomalyService`, `ForecastAlertService`, `CategoryForecastService`).
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinMate.Infrastructure", "F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinMate.Tests", "FinMate.Tests\FinMate.Tests.csproj", "{5CD51F93-1C12-4E05-B3B0-C75CF4A0114B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinMate.Backtest", "FinMate.Backtest\FinMate.Backtest.csproj", "{6E57A502-059B-4717-98D5-0CD72B57318E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{5CD51F93-1C12-4E05-B3B0-C75CF4A0114B}.Release|x64.Build.0 = Release|Any CPU
 		{5CD51F93-1C12-4E05-B3B0-C75CF4A0114B}.Release|x86.ActiveCfg = Release|Any CPU
 		{5CD51F93-1C12-4E05-B3B0-C75CF4A0114B}.Release|x86.Build.0 = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|x64.Build.0 = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Debug|x86.Build.0 = Debug|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|x64.ActiveCfg = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|x64.Build.0 = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|x86.ActiveCfg = Release|Any CPU
+		{6E57A502-059B-4717-98D5-0CD72B57318E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

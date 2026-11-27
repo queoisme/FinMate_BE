@@ -82,6 +82,8 @@ Then read, in order: `.context/ARCHITECTURE.md`, `.context/TECH_STACK.md`, `.con
 
 **Staff drafts, OpsManager approves business config (Phase 95, 2026-11-27, branch `feat/staff-draft-manager-approve`).** Forecast parameters (`forecast` + `limits` = default T1/T2) go draft → approve under `/api/v1/ops/forecast-config`; Staff maintain system categories, brands and keywords directly under `/api/v1/ops/catalog`; economic assumptions and knowledge documents can no longer be self-approved. API in `docs/ops-api.md`, inventory and decisions D1–D17, S1–S6 in `docs/superpowers/plans/2026-11-27-staff-draft-manager-approve.md`, code in `Application/ForecastConfig/`, `Application/Catalog/`. These rules are easy to break. Drafts live in `system_config_versions` with `scope = 'forecast'`, a null `version` and only the two sections; runtime reads only `status = 'active'`, so any new reader of that table must filter on status or `version IS NOT NULL`. Approval turns the draft row itself into the next active version and only when `base_version` is still the active one — never merge a stale draft (409 `FORECAST_CONFIG_DRAFT_STALE`); every Admin save makes open drafts stale. No one decides their own draft (service and DB CHECK), one pending per scope (unique index). `/admin/*` stays Admin-only; the `/ops` routes call the same handlers with `AuditChannel.Ops` so Staff actions are `Ops.*` events visible at `/ops/audit-logs`. The `/ops` channel must not hide `income`, `loan` or `other` (`ProtectedCategories`), because `GetSystemBySlugAsync` only returns active categories. Approving or rejecting assumptions and knowledge needs `ApproveAgentContent` read from the DB and an approver other than the author; only the CPI job's system actor may approve its own draft. Knowledge authors live in `knowledge_reviews` (ai-service gets no user id); a document created at ai-service after the `knowledge_review_cutover` time without a row cannot be approved, and a failed row write retires the document and returns 503.
 
+**Forecast backtest (Phase 96, tier 1, 2026-11-27, branch `feat/forecast-backtest`).** `backend/FinMate.Backtest` runs the real `ForecastService` on synthetic data and writes `docs/evaluation/forecast-backtest.md` + CSV. Details in `.context/ARCHITECTURE.md` §2.18; plan, D1–D21 and S1–S5 in `docs/superpowers/plans/2026-11-27-forecast-backtest.md`; generator spec in `docs/evaluation/forecast-backtest-generator-spec.md`. These rules are easy to break. The generator changes only through its spec: bump the version and record why, never to make numbers look better. The fake repositories see only rows with `TransactedAt <` the fake clock (S1), and `FakeForecastData` must keep matching `ForecastDataRepository` (contract test on Postgres); a fake method the forecast does not call throws. Production may only gain `internal` clock constructors for the backtest; public constructors and results stay the same. Tier 1 is the oracle mode only (an upper bound). Its findings are open product decisions in REQUIREMENTS §13.4, not bugs to fix in passing: irregular income never enters the balance line, the daily median under-forecasts heavy-tailed spending by about 17%, and the band behaves differently per persona. Tiers 2–4 (replay mode, alerts, anomalies, income, budgets, categories, `--config/--compare`) are not built.
+
 Out of scope entirely: the client app — Flutter, separate repo `FinMate_FE` (older docs say `android/` Kotlin; that is outdated).
 
 ## Repo layout
@@ -91,6 +93,7 @@ Out of scope entirely: the client app — Flutter, separate repo `FinMate_FE` (o
 - `ocr-service/` — Python 3.10 FastAPI receipt reader (`reading/`, `parsing/`, `storage/`, `classification/`). No DB connection; persists through ai-service. `data/shared_words.json` is embedded into the backend build.
 - `stt-service/` — speech-to-text (GIPFormer ONNX). Model files are not in git.
 - `scripts/scorecard.py` — repo-level scorecard (`docs/scorecard.md`).
+- `backend/FinMate.Backtest/` — forecast backtest console on synthetic data (Phase 96); no DB, not part of the published image.
 
 Full directory trees and the Backend↔AI-Service API contract are in `.context/ARCHITECTURE.md` §2–3; don't re-derive them, they're already there.
 
@@ -102,6 +105,7 @@ dotnet build
 dotnet test
 dotnet test --filter FullyQualifiedName~ClassName.MethodName   # single test
 dotnet ef migrations add <PascalCaseDescriptiveName> --project FinMate.Infrastructure --startup-project FinMate.API
+dotnet run --project FinMate.Backtest -c Release -- --out ../docs/evaluation   # forecast backtest, ~1 min, byte-identical per SDK image
 ```
 
 **AI Service** (from `ai-service/`):
