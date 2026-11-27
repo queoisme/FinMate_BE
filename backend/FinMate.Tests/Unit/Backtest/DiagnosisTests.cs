@@ -7,17 +7,18 @@ using FluentAssertions;
 
 namespace FinMate.Tests.Unit.Backtest;
 
-/// <summary>Chẩn đoán sau tầng 1 chỉ có giá trị khi hai bất biến này đúng: thành phần cộng lại đúng sai số số dư, và (a) dựng lại đúng production.</summary>
+/// <summary>Chẩn đoán chỉ có giá trị khi hai bất biến này đúng: thành phần cộng lại đúng sai số số dư, và một cách tính dựng lại đúng production (Phase 97: trung bình theo thứ).</summary>
 public class DiagnosisTests
 {
     [Fact]
-    public void ComponentErrors_SumToTheBalanceError_AndVariantA_ReplicatesProduction()
+    public void ComponentErrors_SumToTheBalanceError_AndTheMeanVariant_ReplicatesProduction()
     {
         var text = Diagnosis.Run(RunOptions.Default with { SeedsPerPersona = 1, StepDays = 30 });
 
         text.Should().Contain("ở 0 dòng (phải là 0)");
-        var line = text.Split('\n').Single(l => l.StartsWith("Dựng lại (a) khớp production ở ", StringComparison.Ordinal));
-        var counts = line["Dựng lại (a) khớp production ở ".Length..].Split(' ')[0].Split('/');
+        const string prefix = "Dựng lại (c) khớp production (Phase 97: production = trung bình theo thứ; Phase 96 là (a)) ở ";
+        var line = text.Split('\n').Single(l => l.StartsWith(prefix, StringComparison.Ordinal));
+        var counts = line[prefix.Length..].Split(' ')[0].Split('/');
         counts[0].Should().Be(counts[1]);
         text.Should().Contain("ngoài khoảng, bằng đúng K5");
     }

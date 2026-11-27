@@ -89,7 +89,7 @@ public sealed class Accumulator
 
         var trimmed = FlexVariants.Over(levels.TrimmedMedian, origin, horizon);
         ReplicationChecked++;
-        if (trimmed != production)
+        if (FlexVariants.Over(levels.Mean, origin, horizon) != production)   // Phase 97: production = trung bình theo thứ (F1), trước đó = (a)
         {
             ReplicationMismatches++;
         }
