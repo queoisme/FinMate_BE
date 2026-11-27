@@ -1,7 +1,7 @@
 {
   "_doc": "Từ vựng, mẫu nhận dạng, ngưỡng và câu trả lời của lớp hiểu câu chat (app/services/transaction_parser.py, clauses.py, goal_parser.py, category_resolver.py). Sửa tệp này rồi khởi động lại ai-service, hoặc sửa qua trang quản trị (config_documents) để có hiệu lực không cần khởi động lại; KHÔNG thêm từ khóa vào code. Mỗi mẫu là một LOẠI dấu hiệu (động từ/vai trò/hình thức câu), không phải một câu lỗi cụ thể: thêm mẫu cho một câu lẻ là vá cho qua test. Mọi thay đổi ở đây phải qua cổng scripts/audit_overrides.py (cứu >= phá, không làm tụt bộ độc lập). Cú pháp <<tên>> chèn một danh sách trong 'lists' (tự bỏ dấu khi mẫu có on=folded) hoặc một đoạn trong 'fragments'.",
   "lists": {
-    "explain_phrases": ["vì sao ra", "tại sao ra", "sao lại ra", "từ đâu ra", "số này từ đâu", "số đó từ đâu", "con số này từ đâu", "con số đó từ đâu", "tính thế nào", "tính như thế nào", "tính ra sao", "tính kiểu gì", "căn cứ vào đâu", "dựa vào đâu", "dựa trên đâu", "giải thích số", "giải thích con số", "giải thích kết quả", "giải thích các số", "vì sao ô", "vì sao số", "vì sao con số", "tại sao số", "tại sao con số"],
+    "explain_phrases": ["vì sao ra", "tại sao ra", "sao lại ra", "từ đâu ra", "số này từ đâu", "số đó từ đâu", "con số này từ đâu", "con số đó từ đâu", "tính thế nào", "tính như thế nào", "tính ra sao", "tính kiểu gì", "căn cứ vào đâu", "dựa vào đâu", "dựa trên đâu", "giải thích (?:giúp |giùm |cho )?(?:tôi |mình |em )?(?:các |những )?(?:con )?số", "giải thích con số", "giải thích kết quả", "giải thích các số", "vì sao ô", "vì sao số", "vì sao con số", "tại sao số", "tại sao con số"],
     "item_income_words": ["lương", "tiền lương", "thu nhập", "tiền công"],
     "item_budget_overall_words": ["tổng", "cả tháng", "chung", "toàn bộ", "tổng cộng"],
     "item_loan_kind_words": ["khoản nợ", "khoản vay", "cho vay", "nợ", "vay"],
@@ -279,9 +279,7 @@
     "goal_quarter_word": ["quy"],
     "goal_year_rel_words": ["nay", "sau", "toi"],
     "goal_ai_candidate_phrases": ["tich luy", "danh dum", "de danh", "phan dau", "muon co", "can co", "can gop", "gop", "tiet kiem", "muc tieu", "ke hoach"],
-    "goal_ai_candidate_intents": ["add_expense", "add_income", "out_of_scope", "ask_agent", "needs_amount"],
-    "agent_howlong": {"on": "folded", "regex": "(?<![a-z])(?:bao lau|khi nao (?:toi )?(?:du|mua duoc))(?![a-z])", "doc": "Câu hỏi BAO LÂU nữa đủ tiền ('bao lâu đủ tiền mua nhà 2 tỷ'): người dùng hỏi thời hạn chứ không nêu thời hạn. Planner dùng cùng mẫu agent_duration_stated để biết câu có nêu hạn hay không; không nêu thì horizon_months là mức tối đa công cụ cho phép, để kịch bản nói 'đạt sau N tháng' hay 'không đạt', thay vì LLM tự điền 1 tháng."},
-    "agent_duration_stated": {"on": "folded", "regex": "(?<![a-z\\d])(?:\\d{1,3}|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi|ruoi) (?:thang|nam|tuan)(?![a-z])", "doc": "Câu có NÊU một khoảng thời gian ('2 năm', 'ba tháng', 'sau 5 năm'). Dùng cùng agent_howlong."},
+    "goal_ai_candidate_intents": ["add_expense", "add_income", "out_of_scope", "ask_agent", "needs_amount", "ambiguous_purchase"],
     "not_item_words": [
       "khác"
     ],
@@ -338,6 +336,8 @@
     "agent_direct_spending": {"on": "folded", "regex": "(?<![a-z])(?:(?:tieu|chi|xai) (?:nhieu nhat|vao dau|vao nhung gi|vao cai gi)|(?:tien|chi tieu) (?:di dau|vao dau))(?![a-z])", "doc": "Câu hỏi CHI TIÊU THEO NHÓM ('tháng này tiêu nhiều nhất vào đâu'): công cụ spending_summary; chỉ khi câu nói rõ kỳ (agent_direct_month_now hoặc agent_direct_months), không nói kỳ thì để LLM lập kế hoạch."},
     "agent_direct_month_now": {"on": "folded", "regex": "(?<![a-z])thang nay(?![a-z])", "doc": "Kỳ 'tháng này' của câu hỏi chi tiêu theo nhóm (months = 1)."},
     "agent_direct_compare": {"on": "folded", "regex": "(?<![a-z])so sanh(?: [a-z]+){0,6} thang (?:nay|truoc) (?:voi|va|so voi) thang (?:truoc|nay)(?![a-z])", "doc": "Câu SO SÁNH HAI THÁNG LIỀN KỀ ('so sánh chi tiêu tháng này với tháng trước'): công cụ compare_spending với months = 1. Công cụ so hai tháng TRỌN gần nhất (không gồm tháng đang dở) và câu trả lời nói rõ hai tháng nào; LLM lập kế hoạch hay từ chối vì chữ 'tháng này'."},
+    "agent_howlong": {"on": "folded", "regex": "(?<![a-z])(?:bao lau|khi nao (?:toi )?(?:du|mua duoc))(?![a-z])", "doc": "Câu hỏi BAO LÂU nữa đủ tiền ('bao lâu đủ tiền mua nhà 2 tỷ'): người dùng hỏi thời hạn chứ không nêu thời hạn. Planner dùng cùng mẫu agent_duration_stated để biết câu có nêu hạn hay không; không nêu thì horizon_months là mức tối đa công cụ cho phép, để kịch bản nói 'đạt sau N tháng' hay 'không đạt', thay vì LLM tự điền 1 tháng."},
+    "agent_duration_stated": {"on": "folded", "regex": "(?<![a-z\\d])(?:\\d{1,3}|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi|ruoi) (?:thang|nam|tuan)(?![a-z])", "doc": "Câu có NÊU một khoảng thời gian ('2 năm', 'ba tháng', 'sau 5 năm'). Dùng cùng agent_howlong."},
     "agent_direct_months": {"on": "folded", "regex": "(?<![a-z\\d])(?P<n>\\d{1,2}) thang (?:qua|gan day|vua qua|vua roi)(?![a-z])", "doc": "Kỳ 'N tháng qua' của câu hỏi chi tiêu theo nhóm (months = N, 1 đến 12)."},
     "item_repay_to_me": {"on": "folded", "regex": "(?<![a-z])tra (?:no |lai )*(?:cho )?(?:<<item_self_words>>)(?![a-z])", "doc": "Người khác TRẢ mình ('bạn An đã trả cho tôi 500k', 'An trả nợ tôi 500k'): ghi một lần thu hồi vào khoản MÌNH cho vay; tên người ở TRƯỚC cụm này. Chỉ là gợi ý: backend tìm khoản vay khớp tên, không có thì vẫn ghi giao dịch thu như thường."},
     "item_repay_by_me": {"on": "folded", "regex": "(?<![a-z])(?:<<item_self_words>>) (?:da |vua |moi )?tra (?:no |lai )*(?:cho )?", "doc": "MÌNH trả người khác ('tôi đã trả cho An 300k'): ghi một lần trả vào khoản MÌNH đi vay; tên người ở SAU cụm này. Chỉ là gợi ý: backend tìm khoản vay khớp tên, không có thì vẫn ghi giao dịch chi như thường."},
@@ -890,6 +890,10 @@
     "auto_confidence": {
       "value": 0.9,
       "doc": "bộ phân loại ý định chắc từ mức này (và là add_expense) mới cho ghi ngay."
+    },
+    "ambiguous_purchase_min": {
+      "value": 20000000,
+      "doc": "đồng VND. Khoản chi có động từ mua, từ mức này trở lên, không nói ngày và không nói đã mua ('mua xe 600 triệu'): không rõ là ghi khoản đã mua hay hỏi có nên mua, nên chat hỏi lại (ý định ambiguous_purchase). Đặt rất cao để tắt."
     }
   },
   "replies": {
@@ -938,6 +942,7 @@
     "goal_reparse_prefix": "đặt mục tiêu",
     "purchase_needs_unit":"Bạn nhắn kèm đơn vị cho giá nhé, ví dụ \"800k\" hoặc \"2 triệu\".",
     "purchase_bad_date": "Mình chưa hiểu ngày mua. Bạn thử \"hôm nay\", \"ngày mai\" hoặc \"ngày 16\" nhé.",
-    "purchase_past": "Mình chỉ đánh giá khoản định mua từ hôm nay trở đi. Khoản đã mua thì bạn nhắn kiểu \"mua quần 800k\" để mình ghi chi tiêu nhé."
+    "purchase_past": "Mình chỉ đánh giá khoản định mua từ hôm nay trở đi. Khoản đã mua thì bạn nhắn kiểu \"mua quần 800k\" để mình ghi chi tiêu nhé.",
+    "ambiguous_purchase": "Khoản này khá lớn. Bạn muốn ghi lại khoản đã chi, hay hỏi xem có nên mua không?"
   }
 }

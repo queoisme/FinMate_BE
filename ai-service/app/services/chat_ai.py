@@ -39,7 +39,7 @@ logger = structlog.get_logger(__name__)
 
 _DIGITS = re.compile(r"\d[\d.,/:]*")
 _SLOT = re.compile(r"\{(\d+)\}")
-_RECORD_INTENTS = ("add_expense", "add_income", "transfer_money")
+_RECORD_INTENTS = ("add_expense", "add_income", "transfer_money", "ambiguous_purchase")  # ambiguous_purchase: khoản chi lớn chưa rõ đã mua hay định mua, vẫn là một khoản ghi cho các bước sửa của AI
 # Câu kết thúc bằng "ko", "k", "hong"... (không dấu): người dùng đang HỎI. Bộ luật chỉ biết "không" đầy đủ; "45k" không khớp vì "k" dính liền số.
 _ASKS_BY_ABBREVIATION = re.compile(r"(?:^|\s)(?:ko|k|hong|khg|kh)\s*\??$")
 _REWRITE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}}, "required": ["text"]}

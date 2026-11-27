@@ -207,3 +207,24 @@ async def test_the_names_of_the_apps_own_methods_and_terms_are_finance_cues(name
     result = await evaluate(f"{name[0].upper()}{name[1:]} là gì?", RULES, None)
 
     assert (result.in_scope, result.reason_code) == (True, "finance_cue")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tôi nên dùng phương pháp quản lý tiền nào?",
+        "có phương pháp quản lý chi tiêu nào hợp với tôi không",
+        "So sánh chi tiêu tháng này với tháng trước",
+        "ăn uống của tôi so với tháng trước thế nào",
+        "Quản lý tiền kiểu gì cho đỡ hết sớm",
+    ],
+)
+async def test_method_and_comparison_questions_are_finance_cues(text):
+    assert (await evaluate(text, RULES, None)).in_scope is True
+
+
+@pytest.mark.asyncio
+async def test_the_new_method_phrases_do_not_let_unrelated_questions_through():
+    for text in ["Quản lý nhân sự giỏi cần gì?", "Phương pháp nấu phở ngon nhất là gì?", "So với Hà Nội thì Huế mưa nhiều hơn không?"]:
+        assert (await evaluate(text, RULES, None)).in_scope is False, text

@@ -6,9 +6,12 @@ Số tiền là đồng VND (``amount_cents`` theo quy ước của repo), slug 
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel, Field
+
+from app.schemas.bill import UserCategoryIn
 
 
 class ChatItemContext(BaseModel):
@@ -30,6 +33,9 @@ class ChatParseRequest(BaseModel):
     allow_ai: bool = False
     # Việc vừa làm trong phiên: để hiểu câu nối tiếp ("đổi thành 3 triệu", "xóa cái đó", "còn di chuyển 1 triệu"). Không có thì chỉ hiểu câu đứng riêng.
     item_context: ChatItemContext | None = None
+    # Danh mục chi tiêu của CHÍNH người dùng (hệ thống đang hiện + do họ tạo), backend chỉ gửi khi họ có danh mục riêng. Có thì khoản chi được xếp vào danh mục trong danh sách này
+    # (bảng nhớ riêng → Gemini chọn khi đã cho phép AI → luật), cùng cách phân loại món trên hóa đơn. Không có thì chỉ trả slug hệ thống như cũ.
+    categories: list[UserCategoryIn] | None = Field(default=None, max_length=60)
 
 
 class ChatEntry(BaseModel):
@@ -41,6 +47,8 @@ class ChatEntry(BaseModel):
     category_slug: str | None = None
     # rule | cache | None: "rule" = từ khóa chung quyết định; "cache" = chỉ là gợi ý từ bảng nhớ tên món; None = chưa biết.
     category_source: str | None = None
+    # Id danh mục của người dùng khi khoản chi được xếp vào danh mục trong ``categories`` (``category_slug`` khi đó là slug của danh mục đó); None = danh mục hệ thống theo slug.
+    category_id: uuid.UUID | None = None
     # Loại thu nhập (salary | bonus | gift | side_income | refund | other_income) khi đoán được; backend chỉ có slug "income".
     income_type: str | None = None
     # Đủ chắc để ghi ngay không cần hỏi: chỉ với chi tiêu đã biết danh mục, dưới ngưỡng tiền, và bộ phân loại ý định (nếu có) chắc đó là chi tiêu.
@@ -52,7 +60,7 @@ class ChatEntry(BaseModel):
 
 
 class ChatQuery(BaseModel):
-    metric: str  # expense | income | balance (cÃ²n láº¡i cá»§a ká»³) | wallet_balance (sá»‘ dÆ° cÃ¡c vÃ­ lÃºc nÃ y)
+    metric: str  # expense | income | balance (còn lại của kỳ) | wallet_balance (số dư các ví lúc này)
     period_key: str  # "thang nay", "hom nay"... (không dấu)
     period_label: str  # "tháng này"
     start: datetime
@@ -116,7 +124,7 @@ class ChatNlu(BaseModel):
 
 class ChatParseResponse(BaseModel):
     # add_expense | add_income | transfer_money | ask_spending | greet | goodbye | thanks | confirm | deny | cancel |
-    # out_of_scope | needs_amount | purchase_needs_amount | ask_agent | needs_period | create_goal | create_item | explain_numbers | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
+    # out_of_scope | needs_amount | purchase_needs_amount | ask_agent | ambiguous_purchase | needs_period | create_goal | create_item | explain_numbers | evaluate_purchase | empty  (create_goal / evaluate_purchase không có ``goal`` / ``purchase`` thì ``reply_text`` là câu hỏi lại)
     intent: str
     reply_text: str | None = None
     entry: ChatEntry | None = None

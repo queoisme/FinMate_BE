@@ -42,7 +42,7 @@ def _bind(cues: intent_cues.Cues) -> None:
     global _DEBT_IN, _LEND_OUT, _FEE, _WITHDRAW, _OWN_WALLET, _OWN_ACCOUNT, _TRANSFER_CUE, _TO_OTHERS, _PAY_DEBT, _GIVING_AWAY, _PAYING
     global _QUERY, _BALANCE_Q, _INCOME_Q, _SPEND_Q, _MONEY_WORD, _PRICE_Q, _DATA_OPS, _AMBIGUOUS_SEND
     global _PERCENT, _STRAY_AMOUNT, _EXPENSE_VERB, _QUESTION_PARTICLES, _ANSWER_STARTS, _REPLIES
-    global _THANKS_LEAD, _REPLY_CUES, _AGENT_PLANNING
+    global _THANKS_LEAD, _REPLY_CUES, _AGENT_PLANNING, _BUY, _PAST, AMBIGUOUS_PURCHASE_MIN
     global _PERIOD_DAY, _PERIOD_DAY_ONLY, _PERIOD_RANGE, _PERIOD_LAST, _PERIOD_QUARTER, _PERIOD_DAY_BEFORE, _PERIOD_DAY_PART, _PERIOD_HINT
     global _PERIODS, _PERIOD_MONTH, _PERIOD_YEAR, _SELF_REFERENCE, _DETAIL_Q, _DETAIL_NOT, _REPLY_INTENTS, _DESCRIPTION_LEADING, _DESCRIPTION_TRAILING, _MERCHANT_IN, _QUESTION_LEAD
     thresholds, p = cues.thresholds, cues.patterns
@@ -51,6 +51,7 @@ def _bind(cues: intent_cues.Cues) -> None:
     _GREET, _THANKS = cues.phrases["greet"], cues.phrases["thanks"]
     _THANKS_LEAD = p["thanks_lead"]
     _AGENT_PLANNING = p["agent_planning"]
+    _BUY, _PAST, AMBIGUOUS_PURCHASE_MIN = p["purchase_buy"], p["purchase_past"], thresholds["ambiguous_purchase_min"]
     _REPLY_CUES = {name: p[f"reply_cue_{name}"] for name in ("confirm", "deny", "cancel")}  # tên ý định của bộ phân loại ý định -> mẫu từ của lời đáp loại đó
     # Tiền vào có ba mức bằng chứng (xem _direction): CỤ THỂ, CHỦ ĐỀ (lương, thưởng...: đi cả hai chiều) và YẾU (anh/em gửi: người dùng hay tự xưng anh/em).
     _INCOME_SPECIFIC, _INCOME_ACCENTED = p["income_specific"], p["income_accented"]
@@ -83,6 +84,7 @@ _ENTRY_INTENTS = tuple(_KIND_BY_INTENT)
 PURCHASE_INTENT = "evaluate_purchase"  # tên ý định trả cho client; bộ phân loại ý định cũng có thể đoán tên này
 EXPLAIN_INTENT = "explain_numbers"  # xin giải thích con số của câu trả lời vừa rồi: app đọc bằng chứng của chính câu trả lời đó, chat không trả lời gì
 ITEM_INTENT = "create_item"  # tạo ngân sách / khoản định kỳ / khoản vay nợ bằng chat (xem item_parser)
+AMBIGUOUS_PURCHASE_INTENT = "ambiguous_purchase"  # khoản chi lớn kiểu "mua xe 600 triệu": chưa rõ đã mua (ghi chi) hay định mua (hỏi trợ lý); backend trả khoản nháp kèm câu hỏi, app hiện hai nút
 AGENT_INTENT = "ask_agent"  # câu kế hoạch/dự báo (xem mẫu agent_planning): app hỏi AI Financial Agent (POST /agent/ask), chat không ghi và không trả lời gì
 PURCHASE_ASK_INTENT = "purchase_needs_amount"  # vừa hỏi giá một khoản định mua: app nhớ câu hỏi và ghép với tin kế tiếp nếu tin đó chỉ có số tiền (server không giữ trạng thái)
 
@@ -656,6 +658,17 @@ def _total_check(stated: int | None, entries: tuple[Entry, ...]) -> dict:
     return {"total_amount": stated, "total_mismatch": stated != sum(e.amount for e in entries)}
 
 
+def _ambiguous_purchase(norm: str, entry: Entry) -> bool:
+    """Khoản chi từ ngưỡng ``ambiguous_purchase_min`` có động từ mua, không nói ngày và không nói đã mua: câu y hệt cả khi ghi khoản đã mua lẫn khi hỏi định mua."""
+    return (
+        entry.kind == "expense"
+        and entry.amount >= AMBIGUOUS_PURCHASE_MIN
+        and entry.occurred_at is None
+        and bool(_BUY.search(norm))
+        and not _PAST.search(norm)
+    )
+
+
 def parse_chat(text: str, nlu: dict | None = None, **kwargs) -> ChatParse:
     """Đọc một câu chat. Câu TRẢ NỢ ("bạn An trả cho tôi 500k") được đọc như mọi câu thu/chi, kèm gợi ý ``item`` (operation repay) để backend ghi vào khoản vay khớp tên nếu có."""
     parsed = _parse_chat(text, nlu, **kwargs)
@@ -693,6 +706,8 @@ def _parse_chat(
         return result("empty", reply_text=_REPLIES["empty"])
     if intent_cues.current().patterns["explain_numbers"].search(norm):
         return result(EXPLAIN_INTENT)
+    if intent_cues.current().patterns["agent_budget_split"].search(norm):
+        return result(AGENT_INTENT)
     if (goal := parse_goal(text, now)) is not None and not is_query(norm):
         return result("create_goal", goal=goal.draft, reply_text=goal.reply or _REPLIES["goal"])
     if (made := parse_item(text, now, category_from_text, item_context)) is not None and not is_query(norm):  # ngân sách / khoản định kỳ / vay nợ: bản nháp đủ thông tin thì app tạo, thiếu thì reply_text là câu hỏi lại (app nhớ và ghép với tin kế tiếp)
@@ -706,8 +721,6 @@ def _parse_chat(
     intent = _resolve_intent(text, norm, nlu, now)
     reason = _unclear_reason(text, norm, intent, nlu)
     if intent in _ENTRY_INTENTS:
-    if intent_cues.current().patterns["agent_budget_split"].search(norm):
-        return result(AGENT_INTENT)
         text, cancelled = apply_cancellations(text)  # "rồi hủy", "nhầm, là 35k": áp trước khi tách khoản
         if cancelled and not parse_amount(text):
             return result("out_of_scope", reply_text=_REPLIES["cancelled"], unclear_reason="cancelled")
@@ -731,6 +744,9 @@ def _parse_chat(
             return result("needs_amount", reply_text=_REPLIES["needs_amount"], unclear_reason=reason)
         if skipped or suspicious or reason == "disagree" or _AMBIGUOUS_SEND.search(norm) or (stated_total is not None and stated_total != entry.amount):  # có điều chưa khớp: không ghi ngay
             entry = replace(entry, auto_save_ok=False)  # "disagree": luật và bộ phân loại ý định bất đồng loại giao dịch, kể cả khi bộ phân loại ý định chắc 1,0 và thắng
+        if _ambiguous_purchase(norm, entry):  # "mua xe 600 triệu": ghi khoản đã chi hay hỏi có nên mua? Không đoán, không ghi ngay; backend trả khoản nháp kèm câu hỏi này
+            entry = replace(entry, auto_save_ok=False)
+            return result(AMBIGUOUS_PURCHASE_INTENT, entry=entry, entries=(entry,), reply_text=_REPLIES["ambiguous_purchase"], unclear_reason=reason, **_total_check(stated_total, (entry,)))
         return result(intent, entry=entry, entries=(entry,), unclear_reason=reason, skipped=skipped, **_total_check(stated_total, (entry,)))
     if intent == "ask_spending":
         if _unresolved_period(norm, now):  # nói về thời gian mà không đọc được: hỏi lại, không trả số của "tháng này" như thể đó là điều được hỏi

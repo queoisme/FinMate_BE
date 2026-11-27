@@ -16,6 +16,7 @@ from app.bill.knowledge import BillKnowledge, merchant_key
 from app.core.category_map import SLUG_BY_LOCAL_CATEGORY
 from app.services.category_resolver import resolve
 from app.services import category_registry
+from app.services.vi_text import fold
 from app.schemas.bill import ClassifyItemIn, ClassifyItemOut, UserCategoryIn
 
 # Số tiền kiểu 45,000 / 1.250.000 (kèm đ/d/vnd dính trước hoặc sau): ô tên đôi khi dính giá, không được gửi giá ra ngoài.
@@ -187,9 +188,12 @@ async def _classify_personal(
     by_id = {c.id: c for c in categories}
     system = {c.slug: c for c in categories if c.is_system}
     ambiguous = {c.parent_slug for c in categories if c.parent_slug}
+    # Quy tắc chủ sản phẩm (2026-11-26): có cả danh mục hệ thống lẫn danh mục của người dùng thì LUÔN ưu tiên danh mục của người dùng; chưa có thì dùng hệ thống.
+    twins = {fold(c.name): c for c in categories if not c.is_system}  # danh mục riêng trùng tên một danh mục hệ thống (vd "Ăn uống"): cùng nghĩa, riêng thắng
 
     def to_user(slug: str | None) -> UserCategoryIn | None:
-        return system.get(slug) if slug else None
+        found = system.get(slug) if slug else None
+        return twins.get(fold(found.name), found) if found else None  # cùng tên thì lấy danh mục riêng; "Ăn"/"Uống" nằm dưới nó thì KHÔNG đoán (để Gemini chọn)
 
     top = [i for i, item in enumerate(items) if item.parent is None]
     rules = {i: resolve(items[i].name).slug for i in top}
@@ -217,29 +221,44 @@ async def _classify_personal(
     cached = await knowledge.cached_items(sorted({keys[i] for i in open_})) if open_ else {}
     for i in open_:
         slug = cached.get(keys[i])
-        if category_registry.is_spend(slug) and slug not in ambiguous and (chosen := to_user(slug)):
+        # Đã cho phép AI thì bảng nhớ chung (chỉ biết danh mục hệ thống) KHÔNG đi trước Gemini: người dùng có danh mục riêng nên danh mục riêng phải được xét trước; bảng nhớ chung chỉ còn là dự phòng ở bước 4.
+        if not allow_ai and category_registry.is_spend(slug) and slug not in ambiguous and (chosen := to_user(slug)):
             results[i] = (chosen, "cache")
 
-    # 3. Gemini chọn trong danh sách đánh số của người dùng, tối đa 20 món chưa quyết đầu tiên. Câu trả lời không ghi vào bảng nhớ nào.
-    labels = [f"{c.name} (thuộc nhóm {system[c.parent_slug].name})" if c.parent_slug in system else c.name for c in categories]
+    # 3. Gemini chọn trong danh sách đánh số, tối đa 20 món chưa quyết đầu tiên. Quy tắc chủ sản phẩm (2026-11-26): danh mục của người dùng luôn được ưu tiên hơn danh mục hệ thống, với MỌI danh mục riêng.
+    # Lượt 1 chỉ cho Gemini chọn trong danh mục RIÊNG; món nào nó không chọn được (không danh mục riêng nào hợp) mới sang lượt 2 chọn trong danh mục hệ thống (bỏ cái trùng tên một danh mục riêng).
+    # Câu trả lời không ghi vào bảng nhớ nào.
+    personal = [c for c in categories if not c.is_system]
+    fallback = [c for c in categories if c.is_system and fold(c.name) not in twins]
+
+    def label(c: UserCategoryIn) -> str:
+        return f"{c.name} (thuộc nhóm {system[c.parent_slug].name})" if c.parent_slug in system else c.name
+
+    async def ask(indexes: list[int], options: list[UserCategoryIn]) -> None:
+        if not options:
+            return
+        answers = await gemini.classify_among([clean[i] for i in indexes], [label(c) for c in options], instruction)
+        for i, index in zip(indexes, answers):
+            if index is not None and 0 <= index < len(options):
+                results[i] = (options[index], "ai")
+
     ai_used = ai_failed = False
     candidates = [i for i in top if results[i] is None and clean[i]] if allow_ai else []
     pending = candidates[:MAX_NAMES]
     if pending and instruction.strip():
-        answers = None
+        ok = False
         if gemini.available:
             try:
-                answers = await gemini.classify_among([clean[i] for i in pending], labels, instruction)
+                await ask(pending, personal)
+                if rest := [i for i in pending if results[i] is None]:
+                    await ask(rest, fallback)
+                ok = True
             except GeminiFailed:
-                answers = None
-        ai_failed = answers is None
+                ok = False
+        ai_failed = not ok
         if stats is not None:
             stats.update({"ai_candidates": len(candidates), "ai_sent": len(pending), **({"ai_failed": 1} if ai_failed else {})})
-        if answers is not None:
-            ai_used = True
-            for i, index in zip(pending, answers):
-                if index is not None and 0 <= index < len(categories):
-                    results[i] = (categories[index], "ai")
+        ai_used = ok
 
     # 4. Dự phòng cho món chưa quyết: luật, bảng nhớ chung (kể cả khi mơ hồ), rồi nhóm mặc định của cửa hàng (không áp khi AI được phép mà lỗi, như đường cũ).
     default = None if ai_failed else to_user(_merchant_default(merchant))

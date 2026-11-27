@@ -18,7 +18,7 @@ from app.api.deps import verify_internal_api_key
 from app.api.v1.bill import get_ai_instruction, get_bill_knowledge, get_chat_gemini_client, get_classify_stats
 from app.bill.classify_stats import ClassifyStatsRecorder
 from app.bill.gemini import LlmClient
-from app.bill.item_classifier import item_key
+from app.bill.item_classifier import classify_items, item_key
 from app.bill.knowledge import BillKnowledge
 from app.services.chat_ai import apply_ai_categories, apply_ai_goal, apply_ai_rewrite
 from app.services.intent_classifier import IntentClassifier, shared_classifier
@@ -27,6 +27,7 @@ from app.services.vi_text import clean_text
 from app.core.category_map import INCOME_SLUG, LOAN_SLUG, SLUG_BY_LOCAL_CATEGORY
 from app.core.config import settings
 from app.core.enums import CATEGORY_SLUGS
+from app.schemas.bill import ClassifyItemIn
 from app.schemas.chat import (
     ChatEntry,
     ChatGoal,
@@ -80,6 +81,37 @@ def _slug(category: str | None) -> str | None:
         return None
     mapped = SLUG_BY_LOCAL_CATEGORY.get(category, category)
     return mapped if mapped in CATEGORY_SLUGS or mapped == LOAN_SLUG else None
+
+
+# Nguồn quyết định chắc (bảng nhớ riêng: người dùng đã chọn; luật; nhóm mặc định cửa hàng) thì giữ quyền tự ghi; còn Gemini hay bảng nhớ chung chỉ là gợi ý để người dùng xác nhận.
+_DECISIVE_USER_SOURCES = frozenset({"item_memory", "rule", "merchant"})
+
+
+async def _apply_user_categories(
+    response: ChatParseResponse, body: ChatParseRequest, knowledge: BillKnowledge, gemini: LlmClient, instruction: str
+) -> None:
+    """Xếp khoản chi vào danh mục của CHÍNH người dùng (kể cả danh mục họ tự tạo) bằng đúng bộ phân loại món của hóa đơn (``classify_items``, nhánh cá nhân):
+    bảng nhớ riêng → luật (chưa cho phép AI) → bảng nhớ chung → Gemini chọn trong danh sách (đã cho phép AI) → luật. Không tìm ra thì giữ nguyên kết quả cũ (slug hệ thống).
+    Không bao giờ làm hỏng câu chat: lỗi thì bỏ qua bước này. Không ghi tên món vào log hay bảng nhớ dùng chung (``remember=False``)."""
+    targets = [e for e in response.entries if e.kind == "expense" and e.description]
+    if not body.categories or not targets:
+        return
+    try:
+        results, _ = await classify_items(
+            [ClassifyItemIn(name=e.description[:200]) for e in targets[:60]], None, knowledge, gemini, instruction, body.allow_ai,
+            remember=False, user_id_hash=body.user_id_hash, categories=body.categories,
+        )
+    except Exception as error:  # noqa: BLE001
+        logger.warning("chat_user_categories_failed", error_type=type(error).__name__)
+        return
+    for entry, result in zip(targets, results):
+        if result.category_id is None:
+            continue
+        entry.category_slug, entry.category_id = result.category_slug, result.category_id
+        if result.source in _DECISIVE_USER_SOURCES:
+            entry.category_source = "rule"
+        else:
+            entry.category_source, entry.auto_save_ok = "cache", False
 
 
 def _to_entry(e) -> ChatEntry:
@@ -195,14 +227,16 @@ async def chat_parse(
 
     parsed = await apply_ai_rewrite(text, parsed, reparse, gemini, body.allow_ai, stats=ai_stats)  # luật không hiểu câu gõ sai: Gemini sửa chính tả rồi luật đọc lại (khi đã đồng ý AI)
     parsed = await apply_ai_goal(text, parsed, reparse, gemini, body.allow_ai, datetime.now(VN), stats=ai_stats)  # câu đặt mục tiêu mà luật không đọc ra hạn: Gemini chỉ cụm thời hạn, ngày do code tính (khi đã đồng ý AI)
-    parsed = await apply_ai_categories(parsed, knowledge, gemini, instruction, body.allow_ai, stats=ai_stats)  # AI quyết trước (khi đã đồng ý), luật dự phòng
-    parsed = await _with_cached_categories(parsed, knowledge)  # phần còn chưa rõ nhóm: gợi ý từ bảng nhớ
+    if not body.categories:  # có danh mục riêng thì ``_apply_user_categories`` bên dưới làm thay cả hai bước (kể cả danh mục hệ thống) trong MỘT vòng Gemini: chạy cả hai làm đôi thời gian chờ và hai lần timeout liền kề mở cầu dao 30 giây
+        parsed = await apply_ai_categories(parsed, knowledge, gemini, instruction, body.allow_ai, stats=ai_stats)  # AI quyết trước (khi đã đồng ý), luật dự phòng
+        parsed = await _with_cached_categories(parsed, knowledge)  # phần còn chưa rõ nhóm: gợi ý từ bảng nhớ
     if body.allow_ai and ai_stats:
         try:
             await recorder.record({f"chat_ai_{k}": v for k, v in ai_stats.items()} | {"chat_ai_messages": 1})  # chỉ số đếm
         except Exception as error:  # noqa: BLE001
             logger.warning("classify_stats_failed", error_type=type(error).__name__)
     response = _to_response(parsed)
+    await _apply_user_categories(response, body, knowledge, gemini, instruction)
     response.processing_ms = int((time.perf_counter() - started) * 1000)
     logger.info("chat_parsed", intent=response.intent, source=response.nlu.source, processing_ms=response.processing_ms)
     return response

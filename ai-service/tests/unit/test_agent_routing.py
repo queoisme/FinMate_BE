@@ -73,3 +73,15 @@ def test_the_agent_cue_comes_from_the_vocabulary_so_admin_edits_apply():
         assert parse_chat("nếu thu nhập giảm 30% thì sao", None, now=NOW).intent != AGENT_INTENT
     finally:
         intent_cues.apply(intent_cues.CUES)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["giải thích giúp tôi con số này", "Giải thích cho mình các số này với", "giải thích số", "giải thích con số vừa rồi", "giai thich gium toi so nay"],
+)
+def test_explain_requests_are_read_as_explain_numbers_even_with_polite_filler(text):
+    assert parse_chat(text, now=NOW).intent == "explain_numbers"
+
+
+def test_explain_phrase_does_not_swallow_other_questions():
+    assert parse_chat("giải thích giúp tôi cách tiết kiệm", now=NOW).intent != "explain_numbers"

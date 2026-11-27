@@ -482,7 +482,7 @@ USER = "u" * 64
 
 def pick(name):
     """``among`` của FakeGemini: chọn danh mục có nhãn bắt đầu bằng ``name``."""
-    return lambda _item, choices: next(i for i, c in enumerate(choices) if c.startswith(name))
+    return lambda _item, choices: next((i for i, c in enumerate(choices) if c.startswith(name)), None)  # không có nhãn nào hợp = Gemini không chọn được
 
 
 async def prun(its, cats=CATS, merchant=None, gemini=None, allow_ai=True, knowledge=None, stats=None, user=USER):
@@ -535,7 +535,8 @@ async def test_gemini_choice_is_mapped_to_the_users_category_and_id():
     out, used, full = await prun(items("Qwerty"), gemini=gemini)
     assert out == [(0, "uong", "ai")] and full[0].category_id == UONG.id and used is True
     names, labels = gemini.among_calls[0]
-    assert names == ["Qwerty"] and labels == ["Ăn uống", "Mua sắm", "Ăn (thuộc nhóm Ăn uống)", "Uống (thuộc nhóm Ăn uống)"]
+    # Lượt 1 chỉ cho Gemini chọn trong danh mục RIÊNG của người dùng (ưu tiên hơn hệ thống); đã chọn được thì không cần lượt 2
+    assert names == ["Qwerty"] and labels == ["Ăn (thuộc nhóm Ăn uống)", "Uống (thuộc nhóm Ăn uống)"] and len(gemini.among_calls) == 1
     assert gemini.calls == []  # không dùng đường classify dùng chung (có cache theo tên món)
 
 
@@ -545,17 +546,20 @@ async def test_personal_answers_are_never_written_to_the_shared_cache():
     assert knowledge.remembered_items == {}
 
 
-async def test_shared_cache_hit_is_used_only_when_no_custom_category_sits_under_that_slug():
-    gemini = FakeGemini()  # trả unknown
+async def test_shared_cache_is_only_a_fallback_after_gemini_when_the_user_has_personal_categories():
+    gemini = FakeGemini()  # lượt 1 (danh mục riêng) và lượt 2 (hệ thống) đều không chọn được
     out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "food"}))
-    # food có Ăn/Uống dưới nó: mơ hồ nên Gemini quyết trước; Gemini không quyết thì dùng bảng nhớ chung như dự phòng, ra danh mục hệ thống
-    assert out == [(0, "food", "cache")] and full[0].category_id == FOOD.id and len(gemini.among_calls) == 1
+    assert out == [(0, "food", "cache")] and full[0].category_id == FOOD.id and len(gemini.among_calls) == 2
     gemini = FakeGemini(among=pick("Uống"))
     out, _, _ = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "food"}))
-    assert out == [(0, "uong", "ai")]
+    assert out == [(0, "uong", "ai")]  # danh mục riêng thắng cả bảng nhớ chung
     gemini = FakeGemini()
     out, _, full = await prun(items("Qwerty"), gemini=gemini, knowledge=FakeKnowledge(cache={"qwerty": "shopping"}))
-    assert out == [(0, "shopping", "cache")] and full[0].category_id == SHOP.id and gemini.among_calls == []
+    assert out == [(0, "shopping", "cache")] and full[0].category_id == SHOP.id and len(gemini.among_calls) == 2
+    # chưa cho phép AI: không gửi gì cho Gemini, bảng nhớ chung vẫn đọc được như trước
+    gemini = FakeGemini()
+    out, _, _ = await prun(items("Qwerty"), gemini=gemini, allow_ai=False, knowledge=FakeKnowledge(cache={"qwerty": "shopping"}))
+    assert out == [(0, "shopping", "cache")] and gemini.among_calls == []
 
 
 async def test_ai_off_and_rule_gives_food_maps_to_the_system_category_not_a_guess():
@@ -611,3 +615,39 @@ async def test_db_knowledge_swallows_a_database_error_in_the_item_memory_lookup(
             raise RuntimeError("db down")
 
     assert await DbBillKnowledge(lambda: BrokenSession()).user_item_memory(USER, ["qwerty"]) == {}
+
+
+# ---- Quy tắc ưu tiên: có cả danh mục hệ thống lẫn của người dùng thì danh mục của người dùng thắng; chưa có thì hệ thống ----
+
+async def test_a_personal_category_with_the_same_name_replaces_the_system_one_even_without_ai():
+    mine = cat("an-uong-cua-toi", "Ăn uống")  # trùng tên "Ăn uống" hệ thống (không phân biệt hoa thường và dấu)
+    out, _, full = await prun(items("Gạo ST25"), cats=[FOOD, SHOP, mine], allow_ai=False)
+    assert out == [(0, "an-uong-cua-toi", "rule")] and full[0].category_id == mine.id
+
+
+async def test_gemini_never_sees_a_system_category_that_a_personal_one_replaces():
+    mine = cat("an-uong-cua-toi", "ĂN UỐNG")
+    gemini = FakeGemini(among=pick("ĂN UỐNG"))
+    out, _, full = await prun(items("Qwerty"), cats=[FOOD, SHOP, mine], gemini=gemini)
+    assert out == [(0, "an-uong-cua-toi", "ai")] and full[0].category_id == mine.id
+    assert [labels for _, labels in gemini.among_calls] == [["ĂN UỐNG"]]  # hệ thống trùng tên không bao giờ đến Gemini; chọn được ở lượt 1 nên không có lượt 2
+
+
+async def test_personal_categories_are_asked_first_for_every_system_category_and_the_system_ones_only_when_none_fits():
+    tra_sua = cat("tra-sua", "Trà sữa")  # không trùng tên, không nằm dưới "Ăn uống": vẫn là danh mục riêng nên được hỏi trước
+    gemini = FakeGemini(among=pick("Trà"))
+    out, _, full = await prun(items("Qwerty"), cats=[FOOD, SHOP, tra_sua], gemini=gemini)
+    assert out == [(0, "tra-sua", "ai")] and full[0].category_id == tra_sua.id and [c for _, c in gemini.among_calls] == [["Trà sữa"]]
+    gemini = FakeGemini(among=pick("Ăn uống"))  # không danh mục riêng nào hợp: lượt 2 chọn trong danh mục hệ thống
+    out, _, full = await prun(items("Qwerty"), cats=[FOOD, SHOP, tra_sua], gemini=gemini)
+    assert out == [(0, "food", "ai")] and full[0].category_id == FOOD.id
+    assert [c for _, c in gemini.among_calls] == [["Trà sữa"], ["Ăn uống", "Mua sắm"]]
+    out, _, full = await prun(items("Gạo ST25"), cats=[FOOD, SHOP, tra_sua], allow_ai=False)
+    assert out == [(0, "food", "rule")] and full[0].category_id == FOOD.id  # chưa có AI để chọn: dùng hệ thống
+
+
+async def test_with_children_under_the_system_category_ai_picks_a_child_and_undecided_falls_back_to_the_system_one():
+    out, _, full = await prun(items("Qwerty"), gemini=FakeGemini(among=pick("Ăn (")))
+    assert out == [(0, "an", "ai")] and full[0].category_id == AN.id
+    out, _, full = await prun(items("Gạo ST25"), allow_ai=False)  # không có AI để chọn Ăn hay Uống: không đoán, rơi về danh mục hệ thống
+    assert out == [(0, "food", "rule")] and full[0].category_id == FOOD.id

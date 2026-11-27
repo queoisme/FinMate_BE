@@ -66,8 +66,10 @@ def _validate_intent_cues(content: dict) -> None:
             raise _invalid("missing_keys", f"Thiếu khóa mà code đang dùng ở '{section}': {missing[:10]}. Được thêm khóa mới, không được xóa khóa có sẵn.")
     for name, spec in content["thresholds"].items():
         value = spec.get("value") if isinstance(spec, dict) else None
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
-            raise _invalid("invalid_threshold", f"Ngưỡng '{name}' phải là số trong khoảng 0 đến 1 (độ chắc của bộ phân loại ý định).")
+        base = default["thresholds"].get(name, {}).get("value", 0)
+        upper = 1 if base <= 1 else float("inf")  # độ chắc của bộ phân loại ý định thì 0..1; ngưỡng số tiền (đồng) chỉ cần không âm
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= upper:
+            raise _invalid("invalid_threshold", f"Ngưỡng '{name}' phải là số trong khoảng 0 đến 1 (độ chắc của bộ phân loại ý định)." if upper == 1 else f"Ngưỡng '{name}' phải là số không âm (đồng).")
     for name, text in content["replies"].items():
         if not isinstance(text, str) or not text.strip():
             raise _invalid("invalid_reply", f"Câu trả lời '{name}' phải là chuỗi không rỗng.")

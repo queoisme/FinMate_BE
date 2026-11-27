@@ -3,8 +3,8 @@
 Phase 90 (BR-DEBT-12 của Phase 86 cũ, S3): gợi ý "khoản này là trả nợ / thu nợ" (``relation_hint = 'debt_repayment'``) cùng độ mạnh (``debt_hint_strength``:
 ``strong`` / ``weak``). Dòng cũ giữ NULL; CHECK chỉ mở rộng nên không có dòng nào vi phạm.
 
-Revision ID: 0040
-Revises: 0039
+Revision ID: 0041
+Revises: 0040
 """
 from collections.abc import Sequence
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = '0040'
-down_revision: str | Sequence[str] | None = '0039'
+revision: str = '0041'
+down_revision: str | Sequence[str] | None = '0040'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
