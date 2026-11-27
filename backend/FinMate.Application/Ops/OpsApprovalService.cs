@@ -71,6 +71,7 @@ public sealed class OpsApprovalService : IOpsApprovalService
     private readonly IGroupSupportTransfer _groupTransfer;
     private readonly IAuditLogService _audit;
     private readonly ISystemConfigProvider _config;
+    private readonly IOpsNotificationService? _notifications;
 
     public OpsApprovalService(
         IOpsRepository ops,
@@ -83,8 +84,10 @@ public sealed class OpsApprovalService : IOpsApprovalService
         ICancelDataDeletionRequestCommandHandler cancelDeletionHandler,
         IGroupSupportTransfer groupTransfer,
         IAuditLogService audit,
-        ISystemConfigProvider config)
+        ISystemConfigProvider config,
+        IOpsNotificationService? notifications = null)
     {
+        _notifications = notifications;
         _config = config;
         _ops = ops;
         _access = access;
@@ -150,6 +153,21 @@ public sealed class OpsApprovalService : IOpsApprovalService
         };
         await _ops.AddApprovalAsync(approval, ct);
         await _audit.LogAsync(AuditEvents.OpsApprovalProposed, actor.Id, ip, new { approvalId = approval.Id, type = command.Type.ToString(), targetId = command.TargetId }, ct);
+
+        // Người duyệt không được là người đề xuất, hay người mà việc này nói tới: những người đó không duyệt được nên không cần báo.
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyCapabilityAsync(
+                OpsNotificationType.ApprovalPending,
+                OpsCapability.DecideApprovals,
+                "Có đề xuất chờ duyệt",
+                $"Có đề xuất {TypeLabel(command.Type)} đang chờ người thứ hai duyệt.",
+                "OpsApproval",
+                approval.Id,
+                new[] { actor.Id, command.TargetId, command.NewOwnerUserId ?? Guid.Empty },
+                ct);
+        }
+
         return ToDto(approval, now);
     }
 
@@ -202,6 +220,7 @@ public sealed class OpsApprovalService : IOpsApprovalService
         }
 
         await _audit.LogAsync(AuditEvents.OpsApprovalApproved, actor.Id, ip, new { approvalId, type = approval.Type.ToString(), targetId = approval.TargetId }, CancellationToken.None);
+        await NotifyDecidedAsync(approval, "đã được duyệt");
         return ToDto(approval, now);
     }
 
@@ -214,7 +233,32 @@ public sealed class OpsApprovalService : IOpsApprovalService
         approval.DecisionNote = CleanNote(note);
         await _ops.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.OpsApprovalRejected, actor.Id, ip, new { approvalId, type = approval.Type.ToString(), targetId = approval.TargetId }, ct);
+        await NotifyDecidedAsync(approval, "đã bị từ chối");
         return ToDto(approval, now);
+    }
+
+    private static string TypeLabel(OpsApprovalType type) => type switch
+    {
+        OpsApprovalType.UnlockUser => "mở khóa tài khoản",
+        OpsApprovalType.CancelDeletion => "hủy yêu cầu xóa tài khoản",
+        OpsApprovalType.TransferGroupOwner => "chuyển chủ nhóm",
+        _ => "việc nhạy cảm",
+    };
+
+    /// <summary>Báo người đề xuất kết quả. Không có tên khách hay lý do từ chối: đó là chuyện của màn chi tiết đề xuất.</summary>
+    private async Task NotifyDecidedAsync(OpsApprovalRequest approval, string outcome)
+    {
+        if (_notifications is not null && approval.RequestedByUserId is { } proposer)
+        {
+            await _notifications.NotifyUserAsync(
+                OpsNotificationType.ApprovalDecided,
+                proposer,
+                "Đề xuất của bạn có kết quả",
+                $"Đề xuất {TypeLabel(approval.Type)} {outcome}.",
+                "OpsApproval",
+                approval.Id,
+                CancellationToken.None);
+        }
     }
 
     private async Task<(User Actor, OpsApprovalRequest Approval, DateTimeOffset Now)> RequireDecidableAsync(Guid actorId, Guid approvalId, CancellationToken ct)

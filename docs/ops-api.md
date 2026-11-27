@@ -256,6 +256,53 @@ Chạy được cả khi `features.community` tắt. **Không response hay audit
 
 Đủ 3 người khác nhau báo cáo thì nội dung tự ẩn (`autoHideReportCount`), trừ lý do `self_harm`: lý do này xếp đầu hàng đợi và không tính vào việc tự ẩn.
 
+## Thông báo cho đội vận hành: `/api/v1/ops/notifications`
+
+Chuông trong web vận hành, cho Staff, OpsManager và Admin. Mọi vai trò nội bộ đều gọi được, và chỉ thấy thông báo của chính mình (lọc theo người gọi trong token). Người ngoài đội nhận 403, chưa đăng nhập nhận 401. Đây là hộp thư riêng (`ops_notifications`), không dùng chung `user_notifications` của app cá nhân. Email sự cố hệ thống và email OTP giữ nguyên.
+
+| API | Việc |
+|---|---|
+| `GET /` | `unreadOnly`, `search` (tìm trong tiêu đề và nội dung, ở server), `offset`, `limit` (tối đa 100). Mới nhất trước. `data` là mảng thông báo, `meta` có `total`, `offset`, `limit` |
+| `GET /unread-count` | `{ unread }`, để vẽ số trên chuông |
+| `POST /{id}/read` | Đánh dấu đã đọc, 204. Thông báo của người khác trả 404 |
+| `POST /read-all` | `{ marked }`: số thông báo vừa đánh dấu |
+
+Mỗi mục: `id`, `type`, `title`, `body`, `relatedEntityType`, `relatedEntityId`, `createdAt`, `readAt` (null là chưa đọc). Web dẫn tới màn tương ứng theo `relatedEntityType`.
+
+### Sự kiện và người nhận
+
+Người nhận chọn theo **quyền** đang có trong DB (`/admin/role-permissions`), không theo tên vai trò, nên chỉnh quyền của vai trò thì thông báo đi theo. Tài khoản bị khóa hoặc chờ xóa không nhận. Người gây ra việc và khách của ca không bao giờ nhận thông báo về chính việc đó.
+
+| `type` | Khi nào | Ai nhận | `relatedEntityType` |
+|---|---|---|---|
+| `ticket_new` | Khách tạo yêu cầu hỗ trợ | `HandleTickets` (Staff tự nhận ca, Manager điều phối) | `SupportTicket` |
+| `ticket_assigned` | Ticket được giao cho người khác | Người được giao | `SupportTicket` |
+| `ticket_escalated` | Ca chuyển cấp | `ManageTickets` | `SupportTicket` |
+| `approval_pending` | Có đề xuất chờ duyệt | `DecideApprovals`, trừ người đề xuất và người mà việc nói tới | `OpsApproval` |
+| `approval_decided` | Đề xuất được duyệt hoặc bị từ chối | Người đề xuất | `OpsApproval` |
+| `incident_opened` | Sự cố mức Cao hoặc Nghiêm trọng chưa có người nhận; nhắc lại cùng nhịp với email | `ViewMonitoring` | `OpsIncident` |
+| `community_report` | Có báo cáo nội dung cộng đồng | `ModerateCommunity`, trừ người báo cáo và tác giả | `CommunityPost` hoặc `CommunityComment` |
+| `community_image_pending` | Có ảnh cộng đồng chờ duyệt | `ModerateCommunity`, trừ người tải lên | `CommunityPost` |
+| `data_deletion_requested` | Khách yêu cầu xóa dữ liệu | `ManageSystem` (Admin) | `DataDeletionRequest` |
+
+Còn chưa có: hết hạn quyền xem dữ liệu khách, trễ SLA (cả hai cần một job quét định kỳ).
+
+### Nội dung và quyền riêng tư
+
+Tiêu đề và nội dung là câu cố định theo loại. Không có tên, email, số tiền, tiêu đề hay nội dung ticket, tên nhóm, nội dung bài cộng đồng, danh tính người báo cáo hay tác giả, cũng không có chi tiết kỹ thuật của sự cố (chỉ tiêu đề và ảnh hưởng, như email). Muốn xem chi tiết thì mở mục liên quan, nơi quyền xem được kiểm tra lại như bình thường.
+
+Cùng một mục mà người nhận chưa đọc thông báo trước thì không thêm dòng mới, nên một sự cố kéo dài hay một bài bị báo cáo nhiều lần không thành hàng chục dòng. Đọc rồi mà việc vẫn còn thì lần nhắc kế tiếp tạo dòng mới.
+
+Tạo thông báo không bao giờ làm hỏng thao tác gốc: lỗi khi ghi thông báo chỉ được log cảnh báo (tên kiểu lỗi), việc đã lưu vẫn thành công.
+
+### Cấu hình: nhóm `opsNotifications` ở `/admin/system-config`
+
+| Khóa | Mặc định | Ý nghĩa |
+|---|---|---|
+| `enabled` | `true` | Tắt thì không tạo thông báo mới; thông báo cũ vẫn đọc được |
+| `disabledTypes` | `[]` | Tên loại (bảng trên) bị tắt, ví dụ `["community_report"]`. Tên lạ bị từ chối khi lưu |
+| `retentionDays` | `30` | Thông báo cũ hơn bị xóa trong job dọn đêm (cùng job `support-retention`), đã đọc hay chưa |
+
 ## Giám sát hệ thống
 
 Mỗi phút hệ thống kiểm tra các dịch vụ và nhà cung cấp, gom lỗi giống nhau thành một sự cố và báo qua email. Quy trình cho con người ở `docs/ops-runbook.md`.

@@ -4179,6 +4179,68 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.OpsNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid?>("RelatedEntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("related_entity_type");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_ops_notifications_user_created");
+
+                    b.HasIndex("UserId", "Type", "RelatedEntityId")
+                        .HasDatabaseName("ix_ops_notifications_unread")
+                        .HasFilter("read_at IS NULL");
+
+                    b.ToTable("ops_notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_ops_notifications_type", "type IN ('ticket_new','ticket_assigned','ticket_escalated','approval_pending','approval_decided','incident_opened','community_report','community_image_pending','data_deletion_requested')");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.OpsServiceStatus", b =>
                 {
                     b.Property<string>("Service")
@@ -7576,6 +7638,17 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ResolvedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.OpsNotification", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>

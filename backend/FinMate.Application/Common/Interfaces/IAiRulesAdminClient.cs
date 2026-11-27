@@ -37,6 +37,9 @@ public sealed record AiRulesRequest(
 
     /// <summary>Danh sách "Học AI" (câu chưa hiểu, phản hồi sửa kết quả; chỉ đọc, không kèm băm người dùng): <c>/admin/learning</c>.</summary>
     public const string LearningArea = "learning";
+
+    /// <summary>Token của trợ lý tài chính tổng hợp từ <c>agent_runs</c> (chỉ đọc, không kèm băm người dùng): <c>/admin/agent-usage</c>.</summary>
+    public const string AgentUsageArea = "agent-usage";
 }
 
 public interface IAiRulesAdminClient

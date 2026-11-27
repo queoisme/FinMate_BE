@@ -100,6 +100,19 @@ public sealed record SupportSettings
     public int AttachmentRetentionDays { get; init; } = 30;
 }
 
+/// <summary>Thông báo trong web vận hành (chuông của Staff, OpsManager, Admin).</summary>
+public sealed record OpsNotificationSettings
+{
+    /// <summary>Tắt thì không tạo thông báo mới nào; thông báo đã có vẫn đọc được.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Tên loại (dạng snake_case, ví dụ <c>community_report</c>) bị tắt. Loại không có trong danh sách là đang bật.</summary>
+    public IReadOnlyList<string> DisabledTypes { get; init; } = [];
+
+    /// <summary>Thông báo cũ hơn chừng này ngày bị xóa, đã đọc hay chưa.</summary>
+    public int RetentionDays { get; init; } = 30;
+}
+
 /// <summary>Ngưỡng giám sát hệ thống. Mức độ của từng dịch vụ nằm trong code, xem <c>MonitoredServices</c>.</summary>
 public sealed record MonitoringSettings
 {
@@ -760,6 +773,15 @@ public sealed record AgentSettings
     public IReadOnlyDictionary<string, long> SurveySpendEstimate { get; init; } = new Dictionary<string, long>();
 
     /// <summary>
+    /// Giá token vào của mô hình LLM, USD cho 1 triệu token, theo tên mô hình (khóa trùng <c>AGENT_MODEL</c> của AI Service, vd <c>gemini-3.1-flash-lite</c>). Trang admin "Token và chi phí AI" nhân giá này với số token.
+    /// Mặc định RỖNG: admin nhập từ trang giá của nhà cung cấp; thiếu giá thì trang chỉ hiện token, không đoán tiền.
+    /// </summary>
+    public IReadOnlyDictionary<string, double> LlmInputUsdPerMillion { get; init; } = new Dictionary<string, double>();
+
+    /// <summary>Giá token ra tương ứng, cùng khóa và cùng đơn vị với <see cref="LlmInputUsdPerMillion"/>.</summary>
+    public IReadOnlyDictionary<string, double> LlmOutputUsdPerMillion { get; init; } = new Dictionary<string, double>();
+
+    /// <summary>
     /// Mẫu câu cố định của công cụ agent (khóa → mẫu có chỗ trống <c>{tên}</c>), xem <c>AgentTexts.Catalog</c>. Chỉ cần ghi các mẫu muốn đổi; khóa vắng mặt dùng mẫu mặc định.
     /// </summary>
     public IReadOnlyDictionary<string, string> Texts { get; init; } = new Dictionary<string, string>();
@@ -983,6 +1005,7 @@ public sealed record SystemConfigDocument
     public GroupSettings Groups { get; init; } = new();
     public SupportSettings Support { get; init; } = new();
     public MonitoringSettings Monitoring { get; init; } = new();
+    public OpsNotificationSettings OpsNotifications { get; init; } = new();
     public AgentSettings Agent { get; init; } = new();
     public EconomicFeedsSettings EconomicFeeds { get; init; } = new();
     public MarketDataSettings MarketData { get; init; } = new();

@@ -38,10 +38,18 @@ public class FakeAIServiceClient : IAIServiceClient
     /// <summary>Đặt sẵn câu trả lời của <c>/chat/parse</c> theo đúng câu chat gửi lên (mỗi test dùng một câu riêng).</summary>
     public static void SetChat(string text, ChatParseResponse response) => ChatScenarios[text] = response;
 
+    private static readonly Dictionary<string, IReadOnlyList<ClassifyCategoryInput>?> ChatCategories = new();
+
+    /// <summary>Danh mục backend đã gửi kèm câu chat này (null = không gửi); khóa theo đúng câu chat, mỗi test dùng một câu riêng.</summary>
+    public static IReadOnlyList<ClassifyCategoryInput>? CategoriesSentFor(string text) => ChatCategories.GetValueOrDefault(text);
+
     public Task<ChatParseResponse> ParseChatAsync(ChatParseRequest request, CancellationToken ct = default)
-        => Task.FromResult(ChatScenarios.TryGetValue(request.Text, out var response)
+    {
+        ChatCategories[request.Text] = request.Categories;
+        return Task.FromResult(ChatScenarios.TryGetValue(request.Text, out var response)
             ? response
             : new ChatParseResponse("out_of_scope", "Mình chỉ giúp ghi chi tiêu.", null, null, 5));
+    }
 
     private static readonly List<LearnMerchantRequest> LearnedChoices = new();
 

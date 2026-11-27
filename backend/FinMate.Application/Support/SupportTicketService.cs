@@ -1,6 +1,7 @@
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -26,9 +27,11 @@ public sealed class SupportTicketService : ISupportTicketService
     private readonly ISupportRepository _support;
     private readonly ISystemConfigProvider _config;
     private readonly IAttachmentProtector _protector;
+    private readonly IOpsNotificationService? _opsNotifications;
 
-    public SupportTicketService(ISupportRepository support, ISystemConfigProvider config, IAttachmentProtector protector)
+    public SupportTicketService(ISupportRepository support, ISystemConfigProvider config, IAttachmentProtector protector, IOpsNotificationService? opsNotifications = null)
     {
+        _opsNotifications = opsNotifications;
         _support = support;
         _config = config;
         _protector = protector;
@@ -89,6 +92,20 @@ public sealed class SupportTicketService : ISupportTicketService
             CreatedAt = now,
         });
         await _support.SaveChangesAsync(ct);
+
+        // Gửi cho mọi người xử lý được ca (Staff tự nhận ca từ hàng đợi, Manager điều phối). Chỉ loại và mức ưu tiên: tiêu đề và nội dung là của khách, không đưa lên chuông. Người tạo là nhân viên thì không tự báo mình.
+        if (_opsNotifications is not null)
+        {
+            await _opsNotifications.NotifyCapabilityAsync(
+                OpsNotificationType.TicketNew,
+                OpsCapability.HandleTickets,
+                "Có yêu cầu hỗ trợ mới",
+                $"Yêu cầu mới loại {ticket.Category}, mức ưu tiên {ticket.Priority}, chưa có người phụ trách.",
+                "SupportTicket",
+                ticket.Id,
+                new[] { userId },
+                ct);
+        }
 
         return await DetailAsync(ticket, ct);
     }

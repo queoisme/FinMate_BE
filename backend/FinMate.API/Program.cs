@@ -508,6 +508,8 @@ public class Program
         builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
         builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
         builder.Services.AddScoped<IOpsAccessService, OpsAccessService>();
+        builder.Services.AddScoped<IOpsNotificationRepository, OpsNotificationRepository>();
+        builder.Services.AddScoped<IOpsNotificationService, OpsNotificationService>();
         builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
         builder.Services.AddScoped<ICommunityRepository, CommunityRepository>();
         builder.Services.AddScoped<ISpentHereVerifier, SpentHereVerifier>();
@@ -713,6 +715,7 @@ public class Program
         builder.Services.AddScoped<IAdminProviderFormatsService, AdminProviderFormatsService>();
         builder.Services.AddScoped<IAdminKnowledgeService, AdminKnowledgeService>();
         builder.Services.AddScoped<IAdminLearningService, AdminLearningService>();
+        builder.Services.AddScoped<IAdminAgentUsageService, AdminAgentUsageService>();
         builder.Services.AddScoped<IAdminMethodPromptService, AdminMethodPromptService>();
         builder.Services.AddScoped<IAdminSecretsService, AdminSecretsService>();
         builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();

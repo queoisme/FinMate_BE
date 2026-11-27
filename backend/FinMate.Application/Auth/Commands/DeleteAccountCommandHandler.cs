@@ -2,7 +2,9 @@ using FinMate.Application.Groups;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
+using FinMate.Domain.Enums;
 
 namespace FinMate.Application.Auth.Commands;
 
@@ -17,6 +19,7 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
     private readonly IAuditLogService _auditLogService;
     private readonly IGroupOwnershipHandover? _groupHandover;
     private readonly ISupportRepository? _support;
+    private readonly IOpsNotificationService? _opsNotifications;
 
     public DeleteAccountCommandHandler(
         IUserRepository userRepository,
@@ -25,8 +28,10 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         IDataDeletionRequestRepository dataDeletionRequestRepository,
         IAuditLogService auditLogService,
         IGroupOwnershipHandover? groupHandover = null,
-        ISupportRepository? support = null)
+        ISupportRepository? support = null,
+        IOpsNotificationService? opsNotifications = null)
     {
+        _opsNotifications = opsNotifications;
         _support = support;
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -60,12 +65,14 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
 
         var now = DateTimeOffset.UtcNow;
 
-        await _dataDeletionRequestRepository.AddAsync(new DataDeletionRequest
+        var deletion = new DataDeletionRequest
         {
+            Id = Guid.NewGuid(),
             UserId = user.Id,
             RequestedAt = now,
             ScheduledHardDeleteAt = now.AddDays(RetentionDays),
-        }, ct);
+        };
+        await _dataDeletionRequestRepository.AddAsync(deletion, ct);
 
         user.DeletedAt = now;
         user.UpdatedAt = now;
@@ -80,5 +87,19 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         }
 
         await _auditLogService.LogAsync(AuditEvents.AccountDeletionRequested, user.Id, ct: ct);
+
+        // Hàng đợi xóa dữ liệu nằm dưới /admin nên chỉ người có ManageSystem được báo. Không có tên hay email: mở trang chi tiết mới thấy.
+        if (_opsNotifications is not null)
+        {
+            await _opsNotifications.NotifyCapabilityAsync(
+                OpsNotificationType.DataDeletionRequested,
+                OpsCapability.ManageSystem,
+                "Có yêu cầu xóa dữ liệu mới",
+                "Một khách vừa yêu cầu xóa tài khoản và dữ liệu. Xem hàng đợi xóa dữ liệu.",
+                "DataDeletionRequest",
+                deletion.Id,
+                new[] { user.Id },
+                ct);
+        }
     }
 }

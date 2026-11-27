@@ -1,6 +1,7 @@
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -19,9 +20,11 @@ public sealed class CommunityReportService : ICommunityReportService
 {
     private readonly ICommunityRepository _community;
     private readonly ISystemConfigProvider _config;
+    private readonly IOpsNotificationService? _notifications;
 
-    public CommunityReportService(ICommunityRepository community, ISystemConfigProvider config)
+    public CommunityReportService(ICommunityRepository community, ISystemConfigProvider config, IOpsNotificationService? notifications = null)
     {
+        _notifications = notifications;
         _community = community;
         _config = config;
     }
@@ -45,6 +48,8 @@ public sealed class CommunityReportService : ICommunityReportService
         {
             return;
         }
+
+        await NotifyAsync("CommunityPost", postId, reason, new[] { userId, row.Post.AuthorId }, ct);
 
         if (await _community.CountOpenHidingReportsOfPostAsync(postId, ct) >= settings.AutoHideReportCount)
         {
@@ -72,10 +77,31 @@ public sealed class CommunityReportService : ICommunityReportService
             return;
         }
 
+        await NotifyAsync("CommunityComment", commentId, reason, new[] { userId, comment.AuthorId }, ct);
+
         if (await _community.CountOpenHidingReportsOfCommentAsync(commentId, ct) >= settings.AutoHideReportCount)
         {
             await _community.AutoHideCommentAsync(commentId, ct);
         }
+    }
+
+    /// <summary>Không có người đăng, người báo cáo hay nội dung bài: chỉ nói có báo cáo mới. Hai người đó cũng không nhận, để một nhân viên không tự xử lý bài của mình.</summary>
+    private async Task NotifyAsync(string entityType, Guid entityId, CommunityReportReason reason, Guid[] exclude, CancellationToken ct)
+    {
+        if (_notifications is null)
+        {
+            return;
+        }
+
+        await _notifications.NotifyCapabilityAsync(
+            OpsNotificationType.CommunityReport,
+            OpsCapability.ModerateCommunity,
+            "Có báo cáo nội dung cộng đồng",
+            reason == CommunityReportReason.SelfHarm ? "Có báo cáo khẩn, cần xem sớm." : "Có nội dung cộng đồng mới bị báo cáo, đang chờ xử lý.",
+            entityType,
+            entityId,
+            exclude,
+            ct);
     }
 
     private async Task<CommunitySettings> EnsureBelowLimitAsync(Guid userId, CancellationToken ct)

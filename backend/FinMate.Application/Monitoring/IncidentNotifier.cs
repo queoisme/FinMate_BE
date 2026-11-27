@@ -2,6 +2,7 @@ using System.Text;
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 using Microsoft.Extensions.Logging;
@@ -29,9 +30,11 @@ public sealed class IncidentNotifier : IIncidentNotifier
     private readonly IMonitoringRepository _repository;
     private readonly IEmailSender _email;
     private readonly ILogger<IncidentNotifier> _logger;
+    private readonly IOpsNotificationService? _bell;
 
-    public IncidentNotifier(IMonitoringRepository repository, IEmailSender email, ILogger<IncidentNotifier> logger)
+    public IncidentNotifier(IMonitoringRepository repository, IEmailSender email, ILogger<IncidentNotifier> logger, IOpsNotificationService? bell = null)
     {
+        _bell = bell;
         _repository = repository;
         _email = email;
         _logger = logger;
@@ -49,6 +52,19 @@ public sealed class IncidentNotifier : IIncidentNotifier
         var recipients = await _repository.ListAlertRecipientsAsync(includeManagers: true, ct);
         foreach (var incident in due)
         {
+            // Chuông đi cùng nhịp với email nên nhắc lại theo cùng lịch; thông báo chưa đọc của cùng sự cố không bị nhân đôi.
+            if (_bell is not null)
+            {
+                await _bell.NotifyCapabilityAsync(
+                    OpsNotificationType.IncidentOpened,
+                    OpsCapability.ViewMonitoring,
+                    $"Sự cố {SeverityLabel(incident.Severity).ToLowerInvariant()}",
+                    $"{incident.Title}. Ảnh hưởng: {MonitoredServices.ImpactOf(incident.Service)}",
+                    "OpsIncident",
+                    incident.Id,
+                    ct: ct);
+            }
+
             var isReminder = incident.NotificationCount > 0;
             var subject = $"[FinMate] {SeverityLabel(incident.Severity)}: {incident.Title}" + (isReminder ? " (chưa có người nhận)" : string.Empty);
             if (await SendAsync(recipients, subject, Body(incident), ct))

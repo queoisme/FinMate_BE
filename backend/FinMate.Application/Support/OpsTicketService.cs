@@ -61,6 +61,7 @@ public sealed class OpsTicketService : IOpsTicketService
     private readonly IAttachmentProtector _protector;
     private readonly IPushNotificationService _push;
     private readonly IAuditLogService _audit;
+    private readonly IOpsNotificationService? _notifications;
 
     public OpsTicketService(
         ISupportRepository support,
@@ -69,8 +70,10 @@ public sealed class OpsTicketService : IOpsTicketService
         ISystemConfigProvider config,
         IAttachmentProtector protector,
         IPushNotificationService push,
-        IAuditLogService audit)
+        IAuditLogService audit,
+        IOpsNotificationService? notifications = null)
     {
+        _notifications = notifications;
         _support = support;
         _access = access;
         _users = users;
@@ -258,6 +261,19 @@ public sealed class OpsTicketService : IOpsTicketService
         ticket.UpdatedAt = now;
         await _support.SaveChangesAsync(ct);
         await _audit.LogAsync(AuditEvents.OpsTicketEscalated, actor.Id, ip, new { ticketId }, ct);
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyCapabilityAsync(
+                OpsNotificationType.TicketEscalated,
+                OpsCapability.ManageTickets,
+                "Ca được chuyển cấp",
+                $"Một yêu cầu hỗ trợ mức ưu tiên {ticket.Priority} vừa được chuyển cấp, cần Manager rà soát.",
+                "SupportTicket",
+                ticket.Id,
+                new[] { actor.Id, ticket.RequesterUserId },
+                ct);
+        }
+
         return await DetailAsync(ticketId, ct);
     }
 
@@ -307,6 +323,18 @@ public sealed class OpsTicketService : IOpsTicketService
         }
 
         await _audit.LogAsync(AuditEvents.OpsTicketAssigned, actor.Id, ip, new { ticketId, from = previous, to = assignee.Id }, ct);
+        if (_notifications is not null && previous != assignee.Id && assignee.Id != actor.Id)
+        {
+            await _notifications.NotifyUserAsync(
+                OpsNotificationType.TicketAssigned,
+                assignee.Id,
+                "Bạn được giao một yêu cầu",
+                $"Một yêu cầu hỗ trợ mức ưu tiên {ticket.Priority} vừa được giao cho bạn.",
+                "SupportTicket",
+                ticket.Id,
+                ct);
+        }
+
         return await DetailAsync(ticketId, ct);
     }
 

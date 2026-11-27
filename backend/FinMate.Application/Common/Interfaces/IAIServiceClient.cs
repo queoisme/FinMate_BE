@@ -111,7 +111,8 @@ public record ScanReceiptResponse(
 /// </summary>
 public record ChatItemContext(string Kind, long AmountCents, string? Name = null, string? CategorySlug = null, string? Cadence = null, string? Direction = null, string? Counterparty = null);
 
-public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false, ChatItemContext? ItemContext = null);
+/// <param name="Categories">Danh mục chi tiêu của chính người dùng (xem <c>UserCategoryChoices</c>); null khi họ không có danh mục riêng. Có thì AI xếp khoản chi vào danh mục trong danh sách này.</param>
+public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false, ChatItemContext? ItemContext = null, IReadOnlyList<ClassifyCategoryInput>? Categories = null);
 
 /// <param name="Kind">"expense" | "income" | "transfer".</param>
 /// <param name="CategorySlug">Chi tiêu: slug hệ thống hoặc null nếu AI chưa đoán được. Thu nhập luôn "income". Chuyển tiền: null.</param>
@@ -119,6 +120,7 @@ public record ChatParseRequest(Guid UserId, string Text, bool AllowAi = false, C
 /// <param name="AutoSaveOk">AI đủ chắc để ghi ngay: chi tiêu đã biết danh mục, dưới ngưỡng tiền, bộ phân loại ý định (nếu có) chắc.</param>
 /// <param name="ToOthers">"Chuyển cho người khác / trả nợ" đã được AI tính là chi tiêu.</param>
 /// <param name="CategorySource">rule (từ khóa quyết định) | cache (chỉ gợi ý từ bảng nhớ tên món) | null (chưa biết).</param>
+/// <param name="CategoryId">Id danh mục của người dùng khi AI xếp khoản chi vào danh mục trong <c>Categories</c> (<c>CategorySlug</c> khi đó là slug của danh mục đó); null = danh mục hệ thống theo slug.</param>
 public record ChatParseEntry(
     string Kind,
     long AmountCents,
@@ -129,7 +131,8 @@ public record ChatParseEntry(
     bool AutoSaveOk,
     bool ToOthers,
     DateTimeOffset? OccurredAt = null,
-    string? CategorySource = null);
+    string? CategorySource = null,
+    Guid? CategoryId = null);
 
 /// <param name="Metric">"expense" | "income" | "balance" (còn lại của kỳ) | "wallet_balance" (số dư các ví lúc này).</param>
 /// <param name="From">Đầu kỳ (giờ VN).</param>
@@ -168,7 +171,7 @@ public record ChatParsePurchase(string? Item, long AmountCents, DateOnly? Purcha
 /// <param name="Operation">create | update (đổi số tiền việc vừa làm) | add (cộng thêm) | delete (hủy việc vừa làm); update/add/delete mang định danh của việc đó.</param>
 public record ChatParseItem(string Kind, long AmountCents, string? Name, string? CategorySlug, string? Cadence, DateOnly? NextDue, string? Direction, string? Counterparty, string Operation = "create");
 
-/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | create_item | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | empty.</param>
+/// <param name="Intent">add_expense | add_income | transfer_money | ask_spending | create_goal | create_item | evaluate_purchase | greet | goodbye | thanks | confirm | deny | cancel | out_of_scope | needs_amount | purchase_needs_amount | ambiguous_purchase (khoản chi lớn chưa rõ đã mua hay định mua: trả ChatActions.Confirm kèm khoản nháp và câu hỏi) | empty.</param>
 public record ChatParseResponse(
     string Intent,
     string? ReplyText,

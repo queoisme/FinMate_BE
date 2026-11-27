@@ -96,7 +96,8 @@ public record ChatParseApiRequest(
     [property: JsonPropertyName("text")] string Text,
     [property: JsonPropertyName("user_id_hash")] string UserIdHash,
     [property: JsonPropertyName("allow_ai")] bool AllowAi = false,
-    [property: JsonPropertyName("item_context")] ChatItemContextApi? ItemContext = null);
+    [property: JsonPropertyName("item_context")] ChatItemContextApi? ItemContext = null,
+    [property: JsonPropertyName("categories")] IReadOnlyList<ClassifyCategoryApiInput>? Categories = null);
 
 public record ChatItemContextApi(
     [property: JsonPropertyName("kind")] string Kind,
@@ -117,7 +118,8 @@ public record ChatEntryApiResult(
     [property: JsonPropertyName("auto_save_ok")] bool AutoSaveOk,
     [property: JsonPropertyName("to_others")] bool ToOthers,
     [property: JsonPropertyName("occurred_at")] DateTimeOffset? OccurredAt = null,
-    [property: JsonPropertyName("category_source")] string? CategorySource = null);
+    [property: JsonPropertyName("category_source")] string? CategorySource = null,
+    [property: JsonPropertyName("category_id")] Guid? CategoryId = null);
 
 public record ChatQueryApiResult(
     [property: JsonPropertyName("metric")] string Metric,

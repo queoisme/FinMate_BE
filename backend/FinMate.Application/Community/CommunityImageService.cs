@@ -1,6 +1,7 @@
 using FinMate.Application.Admin.SystemConfig;
 using FinMate.Application.Common.Exceptions;
 using FinMate.Application.Common.Interfaces;
+using FinMate.Application.Ops;
 using FinMate.Domain.Entities;
 using FinMate.Domain.Enums;
 
@@ -33,9 +34,12 @@ public sealed class CommunityImageService : ICommunityImageService
     private readonly IUserRepository _users;
     private readonly ISystemConfigProvider _config;
     private readonly ICommunityImageProcessor _processor;
+    private readonly IOpsNotificationService? _notifications;
 
-    public CommunityImageService(ICommunityRepository community, IUserRepository users, ISystemConfigProvider config, ICommunityImageProcessor processor)
+    public CommunityImageService(
+        ICommunityRepository community, IUserRepository users, ISystemConfigProvider config, ICommunityImageProcessor processor, IOpsNotificationService? notifications = null)
     {
+        _notifications = notifications;
         _community = community;
         _users = users;
         _config = config;
@@ -78,6 +82,21 @@ public sealed class CommunityImageService : ICommunityImageService
         };
         _community.AddImage(image);
         await _community.SaveChangesAsync(ct);
+
+        // Gắn với bài (không phải ảnh) để một bài tải 3 ảnh chỉ thành một dòng chưa đọc. Không nêu tác giả.
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyCapabilityAsync(
+                OpsNotificationType.CommunityImagePending,
+                OpsCapability.ModerateCommunity,
+                "Có ảnh cộng đồng chờ duyệt",
+                "Có ảnh mới đang chờ duyệt trước khi hiển thị.",
+                "CommunityPost",
+                postId,
+                new[] { userId },
+                ct);
+        }
+
         return new CommunityImageDto(image.Id, image.Width, image.Height, CommunityImageStatus.Pending.ToString().ToLowerInvariant());
     }
 

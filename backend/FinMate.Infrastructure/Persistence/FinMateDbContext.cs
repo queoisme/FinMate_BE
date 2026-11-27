@@ -94,6 +94,7 @@ public class FinMateDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<OpsIncident> OpsIncidents => Set<OpsIncident>();
+    public DbSet<OpsNotification> OpsNotifications => Set<OpsNotification>();
     public DbSet<OpsServiceStatus> OpsServiceStatuses => Set<OpsServiceStatus>();
     public DbSet<OpsErrorEvent> OpsErrorEvents => Set<OpsErrorEvent>();
     public DbSet<MarketSource> MarketSources => Set<MarketSource>();

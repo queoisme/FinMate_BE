@@ -227,7 +227,8 @@ public class AIServiceClient : IAIServiceClient
                         ? null
                         : new ChatItemContextApi(
                             request.ItemContext.Kind, request.ItemContext.AmountCents, request.ItemContext.Name, request.ItemContext.CategorySlug,
-                            request.ItemContext.Cadence, request.ItemContext.Direction, request.ItemContext.Counterparty)),
+                            request.ItemContext.Cadence, request.ItemContext.Direction, request.ItemContext.Counterparty),
+                    request.Categories?.Select(c => new ClassifyCategoryApiInput(c.Id, TruncateName(c.Name), c.Slug, c.IsSystem, c.ParentSlug)).ToList()),
                 ct);
         }
         catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
@@ -236,7 +237,7 @@ public class AIServiceClient : IAIServiceClient
         }
 
         static ChatParseEntry Map(ChatEntryApiResult e) => new(
-            e.Kind, e.AmountCents, e.Description, e.Merchant, e.CategorySlug, e.IncomeType, e.AutoSaveOk, e.ToOthers, e.OccurredAt, e.CategorySource);
+            e.Kind, e.AmountCents, e.Description, e.Merchant, e.CategorySlug, e.IncomeType, e.AutoSaveOk, e.ToOthers, e.OccurredAt, e.CategorySource, e.CategoryId);
 
         return new ChatParseResponse(
             response.Intent,

@@ -116,6 +116,52 @@ public class ChatControllerTests : IClassFixture<AuthApiFactory>
         (await BalanceOfAsync(token, accountId)).Should().Be(1_000_000);
     }
 
+    private async Task<(Guid Id, string Slug)> CreateOwnCategoryAsync(string token, string name)
+    {
+        var response = await _client.SendAsync(Authed(HttpMethod.Post, "/api/v1/categories", token, new { name, iconName = "coffee" }));
+        response.IsSuccessStatusCode.Should().BeTrue();
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var data = doc.RootElement.GetProperty("data");
+        return (data.GetProperty("id").GetGuid(), data.GetProperty("slug").GetString()!);
+    }
+
+    [Fact]
+    public async Task OnlyAUserWithOwnCategoriesGetsThemSentToTheAi_AndTheSystemOnesComeAlong()
+    {
+        const string plain = "chat-test: cà phê 30k (không có danh mục riêng)";
+        const string own = "chat-test: cà phê 30k (có danh mục riêng)";
+        var plainUser = await RegisterAndLoginAsync();
+        var ownUser = await RegisterAndLoginAsync();
+        var (id, _) = await CreateOwnCategoryAsync(ownUser, "Đồ Uống Test");
+
+        await ChatAsync(plainUser, plain);
+        await ChatAsync(ownUser, own);
+
+        FakeAIServiceClient.CategoriesSentFor(plain).Should().BeNull();  // đường cũ: không gửi danh sách thừa
+        var sent = FakeAIServiceClient.CategoriesSentFor(own)!;
+        sent.Should().Contain(c => c.Id == id && !c.IsSystem && c.Name == "Đồ Uống Test");
+        sent.Should().Contain(c => c.IsSystem);
+    }
+
+    [Fact]
+    public async Task AnExpenseTheAiFilesUnderTheUsersOwnCategoryIsSavedThere_AndAnotherUsersCategoryIsNeverUsed()
+    {
+        const string text = "chat-test: cà phê 30k vào danh mục riêng";
+        var token = await RegisterAndLoginAsync();
+        await CreateCashAccountAsync(token, 1_000_000);
+        var (ownId, ownSlug) = await CreateOwnCategoryAsync(token, "Đồ Uống Của Tôi");
+        var (strangerId, strangerSlug) = await CreateOwnCategoryAsync(await RegisterAndLoginAsync(), "Danh Mục Người Khác");
+
+        FakeAIServiceClient.SetChat(text, new("add_expense", null, new ChatParseEntry("expense", 30_000, text, null, ownSlug, null, true, false, null, "rule", ownId), null, 5));
+        var saved = await ChatAsync(token, text);
+        saved.GetProperty("action").GetString().Should().Be(ChatActions.Saved);
+        saved.GetProperty("transaction").GetProperty("categoryName").GetString().Should().Be("Đồ Uống Của Tôi");
+
+        const string other = "chat-test: cà phê 40k danh mục người khác";
+        FakeAIServiceClient.SetChat(other, new("add_expense", null, new ChatParseEntry("expense", 40_000, other, null, strangerSlug, null, true, false, null, "rule", strangerId), null, 5));
+        (await ChatAsync(token, other)).GetProperty("action").GetString().Should().Be(ChatActions.Confirm);  // không tra được danh mục của người khác: hỏi lại, không ghi
+    }
+
     [Fact]
     public async Task EveryChatResponseCarriesTheServerTimesInUtcForTheTimestampsShownInChat()
     {

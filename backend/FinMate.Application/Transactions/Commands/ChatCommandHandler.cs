@@ -90,7 +90,8 @@ public class ChatCommandHandler : IChatCommandHandler
 
         _assistant = _config is null ? new AssistantSettings() : (await _config.GetAsync(ct)).Document.Assistant;
         var allowAi = _consent is not null && await _consent.HasAiConsentAsync(command.UserId, ct);
-        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi, command.ItemContext), ct);
+        var (visible, categoryChoices) = await LoadCategoryChoicesAsync(command.UserId, ct);
+        var parsed = await _aiServiceClient.ParseChatAsync(new ChatParseRequest(command.UserId, command.Text, allowAi, command.ItemContext, categoryChoices), ct);
 
         if (parsed.Goal is { } goal)
         {
@@ -139,7 +140,7 @@ public class ChatCommandHandler : IChatCommandHandler
 
         if (parsed.Entry is not null)
         {
-            return await HandleEntryAsync(command, parsed, parsed.Entry, ct);
+            return await HandleEntryAsync(command, parsed, parsed.Entry, visible, ct);
         }
 
         if (parsed.Query is not null)
@@ -152,8 +153,25 @@ public class ChatCommandHandler : IChatCommandHandler
         return new ChatResultDto(ChatActions.Reply, parsed.Intent, parsed.ReplyText, null, null, null);
     }
 
+    /// <summary>
+    /// Danh mục để AI xếp khoản chi vào (xem <see cref="UserCategoryChoices"/>): null khi người dùng không có danh mục riêng hoặc không đọc được. Lỗi đọc danh mục không bao giờ làm hỏng câu chat
+    /// (gửi null như đường cũ). Trả kèm danh sách đã đọc để tra danh mục khi tự ghi.
+    /// </summary>
+    private async Task<(IReadOnlyList<Category>? Visible, IReadOnlyList<ClassifyCategoryInput>? Choices)> LoadCategoryChoicesAsync(Guid userId, CancellationToken ct)
+    {
+        try
+        {
+            var visible = await _categoryRepository.GetListForUserAsync(userId, ct);
+            return (visible, UserCategoryChoices.Build(visible, userId));
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            return (null, null);
+        }
+    }
+
     private async Task<ChatResultDto> HandleEntryAsync(
-        ChatCommand command, ChatParseResponse parsed, ChatParseEntry entry, CancellationToken ct)
+        ChatCommand command, ChatParseResponse parsed, ChatParseEntry entry, IReadOnlyList<Category>? visible, CancellationToken ct)
     {
         var accountId = await ResolveAccountAsync(command, ct);
         var (duplicate, suggested) = await FindDuplicatesAsync(command, entry, accountId, ct);
@@ -162,9 +180,12 @@ public class ChatCommandHandler : IChatCommandHandler
         // Phase 82 (BR-DUP-06): khoản mà ngân hàng có thể đã báo (thông báo trong 48 giờ) cũng không tự lưu, vì lưu là thành nghi trùng.
         if (duplicate is null && !suggested.MarksSuspected && entry.AutoSaveOk && entry.Kind == ExpenseKind && accountId is not null && entry.AmountCents > 0)
         {
-            var category = entry.CategorySlug is null
-                ? null
-                : await _categoryRepository.GetVisibleSystemBySlugAsync(command.UserId, entry.CategorySlug, ct);
+            // Khoản AI xếp vào danh mục của người dùng (CategoryId) thì lấy đúng danh mục đó trong danh sách đã gửi cho AI; còn lại là danh mục hệ thống theo slug.
+            var category = entry.CategoryId is { } ownId
+                ? visible?.FirstOrDefault(c => c.Id == ownId && c.UserId == command.UserId)
+                : entry.CategorySlug is null
+                    ? null
+                    : await _categoryRepository.GetVisibleSystemBySlugAsync(command.UserId, entry.CategorySlug, ct);
             if (category is not null)
             {
                 var created = await _createHandler.HandleAsync(
