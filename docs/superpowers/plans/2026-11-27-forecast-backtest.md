@@ -1,6 +1,6 @@
 # Phase 96 — Đánh giá dự báo bằng backtest
 
-> Trạng thái: **Tầng 1 (Task 1–9) xong 2026-11-27, dừng theo S5 chờ chủ sản phẩm quyết có sửa mô hình trước tầng 2.** Chưa push, chưa mở PR. Kết quả: `docs/evaluation/forecast-backtest.md`.
+> Trạng thái: **Tầng 1 (Task 1–9) xong 2026-11-27; task chẩn đoán xong cùng ngày (mục "Chẩn đoán" cuối file). Dừng chờ chủ sản phẩm quyết phạm vi sửa mô hình (phase riêng); đánh giá lại sau khi sửa dùng hạt gốc mới, đặc tả bộ sinh giữ v1.1.** Chưa push, chưa mở PR. Kết quả: `docs/evaluation/forecast-backtest.md`.
 > Nhánh `feat/forecast-backtest` từ `main` @ `32912fc` (đã có Phase 95).
 > Mục tiêu của phase là **đo**. Không chỉnh mô hình, không đổi tham số mặc định. Không dùng dữ liệu người dùng thật.
 
@@ -459,3 +459,158 @@ Production: **không đổi dòng nào** ngoài `InternalsVisibleTo` trong `FinM
 - Giả thuyết ở phần 1 ("tỉ lệ phủ sẽ vượt xa 50% ở tầm 30") chỉ đúng với hồ sơ thu nhập đều; số gộp lại dưới 50% vì dự báo lệch tâm ở hồ sơ thu không đều. Đã ghi đúng như đo được, không sửa gì.
 - Ước lượng thời gian (1–3 phút cho cả bộ, < 1 phút cho dòng tiền): thực đo 63–68 s cho tầng 1.
 - Đặc tả tăng lên v1.1 một lần, trước runner (bảng trên).
+
+
+---
+
+## Chẩn đoán (2026-11-27, sau tầng 1)
+
+Yêu cầu: tách sai số theo thành phần (H1, H2), truy vết một ca, K5h so với K5, dải trên nhóm thu nhập đều. **Chỉ đo trong harness**: code ở `backend/FinMate.Backtest/Diagnostics/` (cờ `--diagnose FILE`, commit `10c3e17`), không đổi production, bộ sinh (vẫn v1.1) hay `docs/evaluation/forecast-backtest.md`. Lệnh: `dotnet FinMate.Backtest.dll --diagnose FILE` (14,5 s, cùng hạt gốc 20261127, 100 người gốc, mốc mỗi ngày).
+
+**Định nghĩa thành phần.** Thực tế đọc nhãn đáp án của từng giao dịch trong [T, T+h] (thô + chuyển khoản vượt ranh giới); dự báo đọc loại sự kiện của engine và chi linh hoạt từng ngày.
+- Thu định kỳ: lương, trợ cấp ↔ `recurring_inflow`.
+- Thu không định kỳ: dự án, bán hàng, làm thêm dao động, thưởng/lì xì ↔ engine **không có loại sự kiện nào**.
+- Chi định kỳ: gồm gửi tiết kiệm và góp quỹ ↔ `recurring_outflow`.
+- Chi linh hoạt: gồm nhập hàng dao động, trừ hoàn tiền ↔ chi linh hoạt từng ngày.
+- Vay / chuyển ↔ `loan_outflow`.
+
+Sai số = dự báo − thực tế; tổng các thành phần đúng bằng sai số số dư (kiểm: 0 dòng lệch). Test `DiagnosisTests` giữ hai bất biến này.
+
+Chẩn đoán: hạt gốc 20261127, 20 hạt giống mỗi hồ sơ, bước mốc 1 ngày, K0, chế độ đáp án.
+
+### C1. Sai số số dư theo thành phần (dự báo − thực tế; ô = thiên lệch / MAE, triệu đồng)
+
+Kiểm tổng: tổng sai số các thành phần khác sai số số dư ở 0 dòng (phải là 0).
+
+| Hồ sơ | Tầm | Sai số số dư | Thu định kỳ | Thu không định kỳ | Chi định kỳ | Chi linh hoạt | Vay / chuyển |
+|---|---|---|---|---|---|---|---|
+| stable_worker | 7 | 0,15 / 0,88 | −0,21 / 0,21 | 0,00 / 0,00 | −0,06 / 0,24 | 0,41 / 0,54 | 0,00 / 0,00 |
+| stable_worker | 14 | 0,51 / 1,19 | −0,21 / 0,21 | 0,00 / 0,00 | −0,06 / 0,26 | 0,77 / 0,89 | 0,00 / 0,00 |
+| stable_worker | 30 | 1,33 / 1,92 | −0,21 / 0,21 | 0,00 / 0,00 | −0,05 / 0,28 | 1,59 / 1,70 | 0,00 / 0,00 |
+| freelancer | 7 | −7,09 / 7,87 | 0,00 / 0,00 | −7,68 / 7,68 | −0,10 / 0,26 | 0,69 / 0,90 | 0,00 / 0,00 |
+| freelancer | 14 | −13,26 / 13,97 | 0,00 / 0,00 | −14,44 / 14,44 | −0,11 / 0,26 | 1,29 / 1,47 | 0,00 / 0,00 |
+| freelancer | 30 | −27,42 / 27,72 | 0,00 / 0,00 | −29,97 / 29,97 | −0,11 / 0,25 | 2,66 / 2,82 | 0,00 / 0,00 |
+| student | 7 | −0,03 / 1,34 | −0,10 / 0,35 | −0,72 / 0,72 | −0,01 / 0,08 | 0,80 / 0,90 | 0,00 / 0,00 |
+| student | 14 | 0,04 / 1,97 | −0,10 / 0,35 | −1,35 / 1,35 | −0,01 / 0,08 | 1,50 / 1,59 | 0,00 / 0,00 |
+| student | 30 | 0,21 / 3,27 | −0,10 / 0,30 | −2,79 / 2,79 | −0,01 / 0,08 | 3,12 / 3,19 | 0,00 / 0,00 |
+| family | 7 | 0,47 / 2,60 | −0,47 / 0,47 | 0,00 / 0,00 | −0,22 / 0,73 | 0,97 / 1,20 | 0,19 / 0,75 |
+| family | 14 | 1,63 / 3,54 | −0,47 / 0,47 | 0,00 / 0,00 | −0,22 / 0,75 | 1,82 / 2,03 | 0,50 / 1,19 |
+| family | 30 | 4,12 / 5,56 | −0,47 / 0,47 | 0,00 / 0,00 | −0,22 / 0,78 | 3,76 / 3,93 | 1,06 / 1,81 |
+| small_trader | 7 | −13,15 / 13,15 | 0,00 / 0,00 | −13,79 / 13,79 | −0,05 / 0,17 | 0,68 / 1,12 | 0,00 / 0,00 |
+| small_trader | 14 | −24,60 / 24,60 | 0,00 / 0,00 | −25,85 / 25,85 | −0,05 / 0,18 | 1,29 / 1,75 | 0,00 / 0,00 |
+| small_trader | 30 | −50,69 / 50,69 | 0,00 / 0,00 | −53,37 / 53,37 | −0,05 / 0,21 | 2,73 / 3,25 | 0,00 / 0,00 |
+
+### C2. Chi linh hoạt theo ba cách tính trên cùng lịch sử (ô = WAPE / thiên lệch so với thực tế)
+
+Dựng lại (a) khớp production ở 109500/109500 mốc×tầm; 0 mốc×tầm ở nhánh thiếu lịch sử bị bỏ qua.
+
+| Hồ sơ | Tầm | production | (a) trung vị có cắt | (b) trung vị không cắt | (c) trung bình không cắt |
+|---|---|---|---|---|---|
+| stable_worker | 7 | 31,3% / -24,1% | 31,3% / -24,1% | 28,2% / -17,3% | 26,1% / 2,1% |
+| stable_worker | 14 | 27,6% / -23,9% | 27,6% / -23,9% | 23,5% / -17,2% | 19,9% / 2,3% |
+| stable_worker | 30 | 25,4% / -23,9% | 25,4% / -23,9% | 20,4% / -17,1% | 15,4% / 2,4% |
+| freelancer | 7 | 31,4% / -24,4% | 31,4% / -24,4% | 28,6% / -18,5% | 26,1% / -1,3% |
+| freelancer | 14 | 27,6% / -24,3% | 27,6% / -24,3% | 23,9% / -18,3% | 20,0% / -1,1% |
+| freelancer | 30 | 25,5% / -24,1% | 25,5% / -24,1% | 21,1% / -18,2% | 15,4% / -0,9% |
+| student | 7 | 47,5% / -42,6% | 47,5% / -42,6% | 45,4% / -38,1% | 61,9% / -0,1% |
+| student | 14 | 44,9% / -42,5% | 44,9% / -42,5% | 42,1% / -38,0% | 59,0% / -0,0% |
+| student | 30 | 43,5% / -42,5% | 43,5% / -42,5% | 40,1% / -38,0% | 57,2% / -0,1% |
+| family | 7 | 33,1% / -26,9% | 33,1% / -26,9% | 29,7% / -19,9% | 27,4% / 1,6% |
+| family | 14 | 30,0% / -26,9% | 30,0% / -26,9% | 25,4% / -19,9% | 21,2% / 1,6% |
+| family | 30 | 28,0% / -26,8% | 28,0% / -26,8% | 22,6% / -19,9% | 16,5% / 1,7% |
+| small_trader | 7 | 9,8% / -6,1% | 9,8% / -6,1% | 9,2% / -4,5% | 8,4% / -0,0% |
+| small_trader | 14 | 8,3% / -6,1% | 8,3% / -6,1% | 7,5% / -4,5% | 6,4% / -0,0% |
+| small_trader | 30 | 7,4% / -6,2% | 7,4% / -6,2% | 6,4% / -4,6% | 4,7% / -0,1% |
+| all | 7 | 21,7% / -16,8% | 21,7% / -16,8% | 20,0% / -13,0% | 20,1% / 0,2% |
+| all | 14 | 19,3% / -16,7% | 19,3% / -16,7% | 17,0% / -12,9% | 16,5% / 0,3% |
+| all | 30 | 17,9% / -16,7% | 17,9% / -16,7% | 15,2% / -13,0% | 13,6% / 0,3% |
+
+### C4. Dải trên nhóm thu nhập đều (K0)
+
+| Nhóm | Tầm | n | Số dư trong dải thận trọng–lạc quan | Chi linh hoạt trong dải chi của engine (Σ phân vị ngày) | Rộng TB | Chi linh hoạt trong P25–P75 của tổng h+1 ngày (lịch sử) | Rộng TB |
+|---|---|---|---|---|---|---|---|
+| stable_worker + family | 7 | 14600 | 52,4% | 64,6% | 1.792.628 đ | 45,5% | 1.072.905 đ |
+| stable_worker + family | 14 | 14600 | 54,9% | 67,8% | 3.362.525 đ | 41,1% | 1.447.473 đ |
+| stable_worker + family | 30 | 14600 | 60,9% | 70,3% | 6.951.304 đ | 32,3% | 1.865.799 đ |
+| stable_worker | 7 | 7300 | 60,8% | 65,9% | 1.194.726 đ | 45,5% | 684.161 đ |
+| stable_worker | 14 | 7300 | 65,6% | 69,9% | 2.240.753 đ | 40,9% | 895.623 đ |
+| stable_worker | 30 | 7300 | 70,5% | 73,5% | 4.631.660 đ | 32,3% | 1.117.728 đ |
+| family | 7 | 7300 | 44,0% | 63,2% | 2.390.530 đ | 45,4% | 1.461.649 đ |
+| family | 14 | 7300 | 44,2% | 65,6% | 4.484.297 đ | 41,3% | 1.999.323 đ |
+| family | 30 | 7300 | 51,3% | 67,1% | 9.270.948 đ | 32,2% | 2.613.869 đ |
+
+### C3. Truy vết: small_trader #0, mốc 2025-10-15, tầm 14 (số dư lúc dự báo 140.223.000 đ, tin cậy normal, cơ sở history)
+
+| Ngày | Sự kiện dự báo | Chi linh hoạt dự báo | Số dư dự báo | Thu không định kỳ thật | Chi định kỳ thật | Chi linh hoạt thật | Vay/chuyển thật | Số dư thật | Chênh |
+|---|---|---|---|---|---|---|---|---|---|
+| 2025-10-15 | — | 358.000 đ | 139.865.000 đ | 0 đ | 0 đ | −396.000 đ | 0 đ | 139.827.000 đ | 38.000 đ |
+| 2025-10-16 | — | 384.000 đ | 139.481.000 đ | 4.654.000 đ | 0 đ | −581.000 đ | 0 đ | 143.900.000 đ | −4.419.000 đ |
+| 2025-10-17 | — | 263.000 đ | 139.218.000 đ | 2.889.000 đ | −350.000 đ | −1.177.000 đ | 0 đ | 145.262.000 đ | −6.044.000 đ |
+| 2025-10-18 | — | 571.000 đ | 138.647.000 đ | 3.134.000 đ | −183.000 đ | 0 đ | 0 đ | 148.213.000 đ | −9.566.000 đ |
+| 2025-10-19 | Điện lực −413.000 đ | 416.000 đ | 137.818.000 đ | 715.000 đ | 0 đ | −354.000 đ | 0 đ | 148.574.000 đ | −10.756.000 đ |
+| 2025-10-20 | Cước di động −183.000 đ | 10.133.000 đ | 127.502.000 đ | 2.011.000 đ | 0 đ | −10.664.000 đ | 0 đ | 139.921.000 đ | −12.419.000 đ |
+| 2025-10-21 | — | 470.500 đ | 127.031.500 đ | 2.218.000 đ | 0 đ | −305.000 đ | 0 đ | 141.834.000 đ | −14.802.500 đ |
+| 2025-10-22 | — | 358.000 đ | 126.673.500 đ | 0 đ | 0 đ | −654.000 đ | 0 đ | 141.180.000 đ | −14.506.500 đ |
+| 2025-10-23 | — | 384.000 đ | 126.289.500 đ | 2.124.000 đ | 0 đ | −721.000 đ | 0 đ | 142.583.000 đ | −16.293.500 đ |
+| 2025-10-24 | — | 263.000 đ | 126.026.500 đ | 2.250.000 đ | 0 đ | −967.000 đ | 0 đ | 143.866.000 đ | −17.839.500 đ |
+| 2025-10-25 | — | 571.000 đ | 125.455.500 đ | 987.000 đ | 0 đ | −303.000 đ | 0 đ | 144.550.000 đ | −19.094.500 đ |
+| 2025-10-26 | — | 416.000 đ | 125.039.500 đ | 1.568.000 đ | 0 đ | −1.394.000 đ | 0 đ | 144.724.000 đ | −19.684.500 đ |
+| 2025-10-27 | — | 10.133.000 đ | 114.906.500 đ | 1.151.000 đ | 0 đ | −9.753.000 đ | 0 đ | 136.122.000 đ | −21.215.500 đ |
+| 2025-10-28 | — | 470.500 đ | 114.436.000 đ | 2.781.000 đ | 0 đ | −726.000 đ | 0 đ | 138.177.000 đ | −23.741.000 đ |
+| 2025-10-29 | — | 358.000 đ | 114.078.000 đ | 0 đ | 0 đ | −295.000 đ | 0 đ | 137.882.000 đ | −23.804.000 đ |
+
+Trong 90 ngày trước mốc, harness đưa cho `ForecastService` 241 khoản thu (tổng 222.151.000 đ); khoản định kỳ đang theo dõi (đáp án): Thuê sạp (Outflow, Monthly), Điện lực (Outflow, Monthly), Cước di động (Outflow, Monthly).
+
+### C5. K5h (khai Tết 150%) so với K5 (không khai), tầm 14, mốc bị ảnh hưởng (ô = thiên lệch / MAE, triệu đồng)
+
+| Hồ sơ | n | Sai số số dư K5 | Sai số số dư K5h | Chi linh hoạt K5 | Chi linh hoạt K5h | Thu không định kỳ K5 | Thu định kỳ K5 |
+|---|---|---|---|---|---|---|---|
+| stable_worker | 720 | −3,26 / 5,40 | −3,81 / 5,49 | 2,57 / 2,61 | 2,01 / 2,11 | −5,76 / 5,76 | 0,00 / 0,00 |
+| freelancer | 720 | −12,68 / 14,33 | −13,60 / 14,82 | 4,24 / 4,29 | 3,32 / 3,42 | −16,77 / 16,77 | 0,00 / 0,00 |
+| student | 720 | 0,86 / 2,09 | 0,42 / 2,17 | 3,08 / 3,10 | 2,64 / 2,68 | −2,22 / 2,22 | 0,03 / 0,37 |
+| family | 720 | −6,92 / 11,39 | −7,97 / 11,71 | 6,19 / 6,24 | 5,14 / 5,23 | −12,81 / 12,81 | 0,00 / 0,00 |
+| small_trader | 720 | −22,91 / 22,91 | −26,94 / 26,94 | 4,42 / 4,50 | 0,39 / 3,23 | −27,25 / 27,25 | 0,00 / 0,00 |
+
+Kiểm hệ số (mốc 2026-02-05, tầm 30, mọi người gốc): trong khoảng 2026-02-10 → 2026-02-24, chi dự kiến và chi thận trọng của K5h = 150% của K5 (làm tròn như engine) ở 1500/1500 ngày; ngoài khoảng, bằng đúng K5 ở 1600/1600 ngày.
+
+### Kết luận
+
+**H1 — thu nhập không định kỳ không vào dự báo dòng tiền, gây thiên lệch âm: XÁC NHẬN.**
+- Bảng C1: với `small_trader` và `freelancer`, thành phần "thu không định kỳ" giải thích hơn 100% thiên lệch số dư. Ở tầm 14: −25,85 / −24,60 triệu (tiểu thương) và −14,44 / −13,26 triệu (freelancer). Phần còn lại là chi linh hoạt bị dự báo thấp, kéo ngược chiều.
+- `student` cũng thiếu 1,35 triệu thu nhập ở tầm 14 (làm thêm dao động không có trong chế độ đáp án), nhưng bị chi linh hoạt dự báo thấp bù lại. Vì vậy thiên lệch gộp của sinh viên gần 0 (+0,04) dù hai thành phần đều lệch.
+- **Bước bị bỏ** (đọc code, khớp truy vết C3):
+  1. Đầu vào **không** lọc mất thu nhập: harness đưa cho `ForecastService` 241 khoản thu (222 triệu) trong 90 ngày trước mốc.
+  2. Thói quen chi chỉ đọc `Debit` (`Application/Forecasting/SpendingBaseline.cs:60`). Đúng, vì đó là mô hình chi.
+  3. **Engine không chiếu thu không định kỳ.** Sự kiện của đường số dư chỉ gồm `CashflowEngine.RecurringEvents` (khoản định kỳ đang theo dõi), kịch bản và `LoanForecast.Events` (`ForecastService.cs:214–221`). Không có thành phần nào cho thu không định kỳ.
+  4. Thu không định kỳ mức thận trọng chỉ được tính trong `GetSpendableAsync` → `IrregularIncomeAsync` (`ForecastService.cs:115`, `:157`), tức chỉ cho "số tiền có thể chi", và chỉ khi user không có khoản thu định kỳ nào.
+- **Lỗi nằm ở mô hình, không ở harness.** Ở C3, mỗi ngày dự báo chỉ có hóa đơn và chi linh hoạt, còn thực tế có 0,7–4,7 triệu tiền bán hàng; chênh lệch tăng đều khoảng 1,6 triệu/ngày, tới −23,8 triệu vào ngày 14. Chi nhập hàng thứ Hai được mô hình học đúng qua trung vị theo thứ (dự báo 10,13 triệu, thực tế 10,66 và 9,75 triệu). Harness đã được kiểm: số dư dựng lại khớp (Task 5), repository giả khớp Postgres (Task 6), tổng thành phần = sai số (0 dòng lệch).
+
+**H2 — trung vị theo thứ + cắt ngoại lai thấp hơn tổng thực tế: XÁC NHẬN, độ lớn khác ước lượng ban đầu.**
+- Con số "≈17%" là số gộp, bị tiểu thương kéo xuống (−6%, vì chi của họ chủ yếu là nhập hàng thứ Hai, đều đặn). Với hồ sơ chi tiêu cá nhân, thiên lệch là −24% đến −27%; với sinh viên là −42,5%.
+- Bảng C2, tầm 14, gộp: (a) production −16,7% → (b) bỏ cắt ngoại lai −12,9% → (c) trung bình +0,3%.
+  - **Khoảng 3/4 độ lệch do dùng trung vị**: b → c, +13,2 điểm % gộp; với `stable_worker` +19,5 điểm, `family` +21,5 điểm.
+  - **Khoảng 1/4 do cắt ngoại lai**: a → b, +3,8 điểm % gộp; `stable_worker` +6,7 điểm, `family` +7,0 điểm.
+- Trung bình không cắt gần như không thiên lệch và có WAPE thấp nhất ở 4/5 hồ sơ. Ngoại lệ là `student`: WAPE 59% so với 45%, vì hai khoản học phí 8–15 triệu nằm trong lịch sử 90 ngày làm trung bình dao động mạnh. Trung bình **có** cắt (chưa đo) có thể là điểm giữa. Đây chỉ là phép đo, chưa phải đề xuất.
+
+**Thêm hai nguồn lệch nhỏ (C1):**
+- *Thu định kỳ −0,21 triệu (`stable_worker`), −0,47 triệu (`family`), không đổi theo tầm.* Lương trả sớm vào thứ Sáu khi ngày đến hạn rơi vào cuối tuần. Nếu ngày đến hạn nằm ngay sau cuối cửa sổ dự báo, tiền đã về trong cửa sổ nhưng engine đặt sự kiện ở ngày đến hạn danh nghĩa. Đây là hành vi production (lịch theo `anchor_day`), không phải lỗi harness.
+- *Vay / chuyển +0,50 triệu (`family`, tầm 14).* `LoanForecast` chỉ chiếu phần gốc còn lại vào **ngày hạn**, không chiếu các lần trả góp hằng tháng trước hạn, nên dự báo bỏ sót tiền trả nợ hằng tháng.
+
+**K5h kém hơn K5: DO THIÊN LỆCH CÓ SẴN, KHÔNG PHẢI LỖI ÁP HỆ SỐ.**
+- Hệ số áp đúng chỗ, đúng `forecast.holidays` của production: trong 2026-02-10 → 2026-02-24, chi dự kiến **và** chi thận trọng của K5h đúng bằng 150% của K5 (làm tròn như `CashflowEngine.Scale`) ở 1.500/1.500 ngày; ngoài khoảng giống hệt K5 ở 1.600/1.600 ngày. Theo code, hệ số nhân vào cả ba đường (dự kiến, thận trọng, lạc quan) qua `CashflowEngine.FlexibleSpend` / `MultiplierOn`, chỉ trong khoảng ngày khai báo.
+- Bảng C5: khai ngày lễ **làm giảm** sai số chi linh hoạt ở mọi hồ sơ (thiên lệch thành phần chi: `stable_worker` 2,57 → 2,01; tiểu thương 4,42 → 0,39). Nhưng ở K5, số dư vốn đã bị dự báo thấp vì thu không định kỳ của dịp Tết không được chiếu (thưởng Tết của người làm công −5,76 triệu, tiền bán hàng trước Tết của tiểu thương −27,25 triệu). Chi nhiều hơn làm số dư dự báo thấp thêm, nên sai số tổng tăng.
+- Khoảng ngày cấu hình (mùng 1 ± 7) hẹp hơn đợt chi của bộ sinh (mùng 1 − 14 → + 7), nên chi linh hoạt K5h vẫn còn dự báo thấp. Đây là lựa chọn cấu hình chọn trước (D17), không chỉnh theo kết quả.
+
+**Dải "cộng phân vị từng ngày": MỘT PHẦN.**
+- Bảng C4, chỉ `stable_worker + family`: so riêng phần chi, dải chi của engine (Σ P25…Σ P75 theo ngày) chứa chi thật **65% → 68% → 70%** ở tầm 7/14/30. Như vậy rộng hơn một dải P25–P75 đúng nghĩa (≈ 50%) và rộng dần theo tầm, **đúng** hiệu ứng cộng phân vị.
+- Độ rộng của dải engine gấp **1,7× / 2,3× / 3,7×** dải P25–P75 của tổng h+1 ngày lấy từ cùng lịch sử. Dải tổng hẹp này lại chỉ chứa chi thật 46% → 41% → 32%: 90 ngày lịch sử cho quá ít cửa sổ trượt dài 31 ngày, và mức chi trôi theo tháng.
+- Trên số dư, dải chứa 52% → 55% → 61%. Gần 50% hơn ở phần chi, vì dải rộng quá bù cho tâm bị lệch thấp (H2). Sửa H2 mà không sửa dải thì tỉ lệ phủ số dư sẽ tăng lên phía 65–70%.
+
+### Gợi ý phạm vi sửa (để chủ sản phẩm quyết, phase riêng)
+
+1. Đưa thu không định kỳ vào đường số dư (H1). Đây là nguồn lệch lớn nhất; nên ở mức thận trọng, và cần quyết với dải lạc quan / thận trọng.
+2. Đổi cách ước lượng chi linh hoạt theo ngày (H2): trung bình, hoặc trung bình có cắt (cần đo thêm).
+3. Đổi cách tính dải: phân vị của tổng thay vì tổng các phân vị. Nên làm sau 1 và 2, vì tâm còn lệch thì tỉ lệ phủ không có nghĩa.
+4. Nhỏ: các lần trả góp khoản vay trước hạn; lịch lương dời về thứ Sáu khi rơi vào cuối tuần.
+
+Đánh giá lại sau khi sửa: hạt gốc mới (không dùng 20261127), đặc tả bộ sinh giữ v1.1.
