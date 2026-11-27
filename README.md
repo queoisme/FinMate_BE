@@ -12,14 +12,18 @@ Repo này chứa **phía server**: backend và các dịch vụ AI. App khách h
 
 | Nhóm | Nội dung |
 |---|---|
-| Giao dịch | Thông báo ngân hàng, chat, giọng nói, quét hoá đơn, chuyển khoản qua mã VietQR. FinMate không tự chuyển tiền |
-| Quản lý tài chính | Ngân sách và cảnh báo vượt ngưỡng, mục tiêu tiết kiệm, báo cáo, 13 phương pháp quản lý tài chính gợi ý theo khảo sát |
-| Dự báo | Dòng tiền, số tiền có thể chi, khoản định kỳ, giao dịch bất thường, ngân sách tháng sau |
-| Tài chính nhóm | Ngân sách, mục tiêu và báo cáo chung. Ví vẫn của riêng từng người, thành viên tự chọn khoản muốn chia sẻ. Đang tắt bằng cờ `features.groups` |
-| Vận hành nội bộ | Ba vai trò `Staff`, `OpsManager`, `Admin`: ca hỗ trợ, xem dữ liệu khách khi khách đồng ý, giao dịch nháp, duyệt hai người, xác thực 2 lớp. API khách hàng đang tắt bằng cờ `features.support` |
+| Giao dịch | Thông báo ngân hàng, chat, giọng nói, quét hoá đơn (tách theo món sau cờ `Receipt:SplitByItemsEnabled`, đang tắt), chuyển khoản qua mã VietQR. FinMate không tự chuyển tiền |
+| Làm sạch giao dịch | Hoàn tiền và đảo giao dịch, bản trùng có liên kết (gộp bằng tay), gợi ý ghép cặp chuyển tiền giữa các ví của chính mình. Hệ thống chỉ gợi ý, người dùng xác nhận |
+| Quản lý tài chính | Ngân sách và cảnh báo vượt ngưỡng, mục tiêu tiết kiệm, báo cáo kèm dòng tiền, sổ vay nợ (`/loans`), khoản định kỳ và trả góp, 13 phương pháp quản lý tài chính gợi ý theo khảo sát |
+| Dự báo | Dòng tiền, số tiền có thể chi, giao dịch bất thường, ngân sách tháng sau, ngày đạt mục tiêu. Cảnh báo khi dữ liệu thiếu vì dịch vụ đọc thông báo trên điện thoại ngừng chạy. Độ chính xác đo bằng backtest trên dữ liệu giả lập (`backend/FinMate.Backtest`) |
+| Tài chính nhóm | Ngân sách, mục tiêu, báo cáo chung và quỹ chung (sổ ảo, FinMate không giữ tiền). Ví vẫn của riêng từng người, thành viên tự chọn khoản muốn chia sẻ. Đang tắt bằng cờ `features.groups` và `features.groupFunds` |
+| Cộng đồng | Bài viết theo chủ đề, ẩn danh mặc định, địa điểm theo vùng. Đang tắt bằng cờ `features.community` |
+| Gói trả phí | Gói và tính năng theo gói, thanh toán qua SePay trên website riêng. Đang tắt bằng cờ `features.subscriptions` |
+| Dữ liệu cá nhân | Xuất CSV giao dịch và gói ZIP toàn bộ dữ liệu (cờ `features.dataExport`, bật mặc định), yêu cầu xoá tài khoản, Điều khoản và Chính sách có phiên bản |
+| Vận hành nội bộ | Ba vai trò `Staff`, `OpsManager`, `Admin`: ca hỗ trợ, xem dữ liệu khách khi khách đồng ý, giao dịch nháp, duyệt hai người, xác thực 2 lớp, Staff soạn và OpsManager duyệt tham số dự báo, dashboard KPI sản phẩm. API khách hàng đang tắt bằng cờ `features.support` |
 | Thông tin thị trường | Admin gửi link trang giá xăng, báo, trang tài chính. Hệ thống tự đọc, AI hiểu tin bài, admin duyệt, rồi nhắc người có ngân sách đang căng. Cảnh báo đang tắt bằng cờ `features.marketAlerts` |
-| Giám sát | Kiểm tra dịch vụ mỗi phút, gom lỗi thành sự cố, gửi email cho Admin và OpsManager |
-| Quản trị | Người dùng, cấu hình hệ thống, khoá dịch vụ bên ngoài, luật và model AI, nhật ký thao tác |
+| Giám sát | Kiểm tra dịch vụ mỗi phút, gom lỗi thành sự cố, theo dõi ngân hàng đổi mẫu thông báo, gửi email cho Admin và OpsManager |
+| Quản trị | Người dùng, quyền theo vai trò, cấu hình hệ thống, khoá dịch vụ bên ngoài, luật và model AI, văn bản pháp lý, nhật ký thao tác |
 
 ---
 
@@ -35,7 +39,7 @@ cp stt-service/.env.example stt-service/.env
 docker compose up -d
 ```
 
-Tám service khởi động theo thứ tự phụ thuộc, migration tự chạy:
+Bảy service khởi động theo thứ tự phụ thuộc, migration tự chạy:
 
 | Service | Cổng trên máy | |
 |---|---|---|
@@ -101,6 +105,12 @@ cd ocr-service && pytest tests     # stt-service cũng vậy; cả hai dùng eng
 Integration test của backend tự dựng PostgreSQL thật bằng Testcontainers. Test tích hợp của AI
 service cần Postgres, không có thì bỏ qua.
 
+Backtest dự báo (không cần DB, khoảng 1 phút, ghi báo cáo vào `docs/evaluation/`):
+
+```bash
+cd backend && dotnet run --project FinMate.Backtest -c Release -- --out ../docs/evaluation
+```
+
 ---
 
 ## Kiến trúc tóm tắt
@@ -143,10 +153,14 @@ Sơ đồ thư mục đầy đủ và contract Backend ↔ AI Service: `.context
 | [.context/TECH_STACK.md](.context/TECH_STACK.md) | package được dùng / bị cấm, biến môi trường |
 | [.context/CONVENTIONS.md](.context/CONVENTIONS.md) | quy ước API, lỗi, validation, logging, bảo mật |
 | [.context/TASKS.md](.context/TASKS.md) | tiến độ từng phase và **ghi chép kiểm chứng** |
-| [docs/group-api.md](docs/group-api.md) | API và ma trận quyền của tài chính nhóm |
-| [docs/ops-api.md](docs/ops-api.md) | API và ma trận quyền của vận hành, giám sát |
-| [docs/ops-runbook.md](docs/ops-runbook.md) | quy trình xử lý cho Staff, Manager, Admin |
-| [docs/market-data-api.md](docs/market-data-api.md) | API và quy tắc của thông tin thị trường |
+| [docs/ERD.md](docs/ERD.md) | sơ đồ và mô tả từng bảng |
+| Giao dịch: [refund](docs/transactions-refund-api.md), [trùng](docs/transactions-duplicates-api.md), [ghép chuyển tiền](docs/transactions-transfer-pairing-api.md), [mở rộng](docs/transaction-extras-api.md) | hoàn tiền/đảo, bản trùng, chuyển tiền giữa ví của mình, nháp và gợi ý |
+| [loans](docs/loans-api.md), [recurring-items](docs/recurring-items-api.md), [reports-cash-flow](docs/reports-cash-flow-api.md), [goals-and-reports-extras](docs/goals-and-reports-extras-api.md) | sổ vay nợ, khoản định kỳ và trả góp, dòng tiền của báo cáo |
+| [forecast-cashflow](docs/forecast-cashflow-api.md), [listener-health](docs/listener-health-api.md), [agent](docs/agent-api.md) | dự báo, sức khoẻ dịch vụ đọc thông báo, trợ lý |
+| [group-api](docs/group-api.md), [group-spending](docs/group-spending-api.md) | API và ma trận quyền của tài chính nhóm, quỹ chung |
+| [ops-api](docs/ops-api.md), [ops-runbook](docs/ops-runbook.md) | API, ma trận quyền và quy trình của vận hành, giám sát, KPI, văn bản pháp lý |
+| [market-data](docs/market-data-api.md), [community](docs/community-api.md), [subscription](docs/subscription-api.md), [data-export](docs/data-export-api.md) | thông tin thị trường, cộng đồng, gói trả phí, xuất dữ liệu |
+| [forecast-backtest](docs/evaluation/forecast-backtest.md), [forecast-model-fixes](docs/evaluation/forecast-model-fixes.md), [evaluation](docs/evaluation.md) | đánh giá dự báo và AI |
 | README của [backend](backend/README.md), [ai-service](ai-service/README.md), [ocr-service](ocr-service/README.md), [stt-service](stt-service/README.md) | chi tiết từng service |
 
 Các đoạn **Verify** trong `TASKS.md` đáng đọc nhất: chúng ghi lại những gì đã chạy thật, và cả
@@ -166,25 +180,34 @@ Danh sách đầy đủ ở `AGENTS.md` §3.
 
 ---
 
-## Trạng thái (2026-11-06)
+## Trạng thái (2026-11-28)
+
+`main` có tới Phase 96 (backtest dự báo, PR #40). Phase 97 (sửa mô hình dự báo số dư) đã xong trên
+nhánh `feat/forecast-model-fixes`, chờ duyệt PR.
 
 **Chưa có**
 
 - Giao diện web vận hành, gồm bước nhập OTP.
-- Các màn hình Flutter cho tài chính nhóm, hỗ trợ và Điều khoản bản 4. Bản 4 chưa phát hành, câu chữ
-  cần người phụ trách pháp lý xem qua. `features.groups` và `features.support` vẫn tắt tới khi xong.
+- Các màn hình Flutter cho tài chính nhóm, hỗ trợ. `features.groups` và `features.support` vẫn tắt tới khi xong.
+- Điều khoản bản mới (Google Vision, nhóm, hỗ trợ): bản 4 trong bảng `legal_versions` là chữ tạm, bản
+  thật cần người phụ trách pháp lý duyệt trước khi Admin xuất bản.
 - Dịch vụ theo dõi bên ngoài cho `/health/ready`.
+- Trước khi bật `features.community`: cách liên hệ tác giả ẩn danh đang gặp nguy hiểm và đường dây hỗ
+  trợ đã kiểm chứng. Trước khi bật `features.subscriptions`: chính sách Google Play và một lần chạy SePay
+  Sandbox thật. Chi tiết ở `CLAUDE.md` và `docs/ops-runbook.md`.
 
-**Test đỏ đã biết**
+**Test đỏ đã biết** (backend, cả hai chờ chủ sản phẩm quyết, `REQUIREMENTS.md` §13.4)
 
-- Backend: `MethodSelectionOnSeedDataTests`. Hồ sơ mẫu ra `rule_80_20` hay `cash_flow_budget` đang chờ
-  chủ sản phẩm quyết (`REQUIREMENTS.md` §13.4).
-- `ocr-service`: 5 test.
+- `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`: hồ sơ mẫu ra `rule_80_20` thay vì `cash_flow_budget`.
+- `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`: đặc tả muốn tự ghi khi độ tin cậy
+  ≥ 85%, code đang làm theo hướng xác nhận một chạm (Phase 15).
 
 **Chưa kiểm chứng**
 
 - Thông tin thị trường: AI đọc tin bằng Gemini thật, vì chưa có key. Điều khoản của từng nguồn cũng chưa được kiểm tra.
 - Giám sát: gửi email thật qua Brevo và một job Hangfire thất bại thật. Đã chạy trên backend local
   với email ghi ra log.
+- Gói trả phí: SePay thật. Xuất dữ liệu: mở file CSV bằng Excel (vùng Vietnamese) và Google Sheets.
+- `ocr-service`: bộ test chưa chạy lại từ lần ghi "5 test đỏ" (2026-11-06).
 
 Tiến độ chi tiết ở `.context/TASKS.md`. Khoảng cách so với đặc tả ở `docs/REQUIREMENTS.md` §13.1.

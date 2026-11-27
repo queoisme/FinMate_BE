@@ -12,6 +12,7 @@ Chi tiết đầy đủ: xem `../.context/ARCHITECTURE.md` §2, `../.context/TEC
 | `FinMate.Domain` | Entities, Enums, Value Objects — không phụ thuộc tầng nào khác |
 | `FinMate.Infrastructure` | EF Core, Repositories, External services, Caching, Background jobs |
 | `FinMate.Tests` | Unit + Integration tests |
+| `FinMate.Backtest` | Console chạy `ForecastService` thật trên dữ liệu giả lập, ghi báo cáo vào `docs/evaluation/`. Không có DB, không nằm trong image |
 
 ## Nhóm API
 
@@ -24,6 +25,10 @@ không gắn lại trên từng controller.
 | `/api/v1/admin/*` | `Admin`, kế thừa `AdminControllerBase` | `FinMate.API/Controllers/Admin/README.md` |
 | `/api/v1/ops/*` | `Staff`, `OpsManager`, `Admin`, kế thừa `OpsControllerBase` | `../docs/ops-api.md` |
 | `/api/v1/admin/market-*`, `/api/v1/admin/fuel-prices` | `Admin`: thông tin thị trường | `../docs/market-data-api.md` |
+| `/api/v1/ops/kpi`, `/ops/forecast-config`, `/ops/catalog`, `/ops/legal` | Dashboard KPI, tham số dự báo (Staff soạn, OpsManager duyệt), danh mục hệ thống, văn bản pháp lý | `../docs/ops-api.md` |
+| `/api/v1/loans`, `/exports`, `/recurring-items`, `/forecast/*` | Sổ vay nợ, xuất dữ liệu, khoản định kỳ và trả góp, dự báo | `../docs/loans-api.md`, `../docs/data-export-api.md`, `../docs/recurring-items-api.md`, `../docs/forecast-cashflow-api.md` |
+| `/api/v1/subscriptions`, `/billing/web/*`, `/webhooks/sepay` | Gói trả phí, website thanh toán | `../docs/subscription-api.md` |
+| `/api/v1/community/*` | Cộng đồng | `../docs/community-api.md` |
 | `/health/live`, `/health/ready` | Hạ tầng. `live` chỉ báo tiến trình còn sống, `ready` kiểm tra Postgres và Redis | |
 | `/hangfire` | Dashboard job, basic auth `HANGFIRE_DASHBOARD_USER/PASS` | |
 
@@ -32,22 +37,39 @@ không gắn lại trên từng controller.
 Hangfire đọc cron theo **UTC**, nên job chạy theo giờ Việt Nam phải tự quy đổi (trừ 7 giờ). Ví dụ
 `daily-summary` `5 17 * * *` là 00:05 giờ Việt Nam.
 
+Nguồn sự thật là `FinMate.API/Program.cs` (tìm `RecurringJob.AddOrUpdate`); bảng dưới chép lại lúc 2026-11-28.
+
 | Job | Cron (UTC) | Việc |
 |---|---|---|
-| `market-data-refresh` | `5 */3 * * *` | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
 | `system-monitor` | `* * * * *` | Kiểm tra dịch vụ, mở và đóng sự cố, gửi email. Tắt bằng `MONITORING_ENABLED=false` |
 | `monitoring-digest` | `0 1 * * *` | Gom sự cố mức thường, xoá lỗi quá hạn. Tắt cùng job trên |
+| `provider-format-monitor` | `5 * * * *` | Nghi ngân hàng đổi mẫu thông báo (tỉ lệ đọc lỗi theo provider). Tắt cùng job trên |
+| `data-export-sweep` | `*/5 * * * *` | Chạy lại yêu cầu xuất dữ liệu bị mất hoặc bỏ dở |
+| `data-export-cleanup` | `7 * * * *` | Gói xuất quá hạn thành `Expired`, xoá file |
+| `subscription-reconcile` | `*/10 * * * *` | Đối soát đơn gói trả phí với SePay, phòng khi mất IPN |
 | `retry-failed-notifications` | `*/15 * * * *` | Thử lại thông báo phân tích lỗi |
 | `forecast-alert-dispatch` | `*/15 * * * *` | Gửi cảnh báo dự báo đang chờ |
 | `budget-alerts` | `0 * * * *` | Lưới an toàn cho cảnh báo ngân sách |
-| `ai-category-sync` | `30 * * * *` | Đồng bộ danh mục sang ai-service |
-| `forecast-daily-alerts` | `0 1 * * *` | Kiểm tra dự báo hằng ngày |
+| `ai-category-sync` | `30 * * * *` | Đồng bộ danh mục sang ai-service, chạy thêm một lần lúc khởi động |
+| `market-data-refresh` | `5 */3 * * *` | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
+| `forecast-daily-alerts` | `0 1 * * *` | Kiểm tra dự báo hằng ngày, 08:00 giờ Việt Nam |
 | `goal-deadline-check` | `0 1 * * *` | Nhắc mục tiêu quá hạn, 08:00 giờ Việt Nam |
+| `weekly-digest` | `0 1 * * 1` | Tóm tắt tuần, sáng thứ Hai |
+| `loan-reminders` | `5 1 * * *` | Nhắc khoản vay đến hạn |
+| `listener-health-daily` | `0 2 * * *` | Nhắc khi dịch vụ đọc thông báo trên điện thoại ngừng chạy, 09:00 giờ Việt Nam |
+| `subscription-reminders` | `0 2 * * *` | Nhắc gói sắp hết hạn |
 | `daily-summary` | `5 17 * * *` | Tổng hợp ngày |
 | `recurring-detection` | `30 18 * * *` | Nhận diện khoản định kỳ |
 | `insight-generator` | `0 19 * * *` | Sinh gợi ý chi tiêu |
+| `forecast-accuracy` | `30 19 * * *` | Chụp dự báo hôm nay và điền số dư thực tế cho bản chụp cũ, để đo độ chính xác dự báo |
 | `data-deletion` | `0 20 * * *` | Xoá hẳn tài khoản đã yêu cầu xoá, 03:00 giờ Việt Nam |
+| `notification-body-purge` | `15 20 * * *` | Xoá nội dung gốc thông báo ngân hàng quá 90 ngày, 03:15 giờ Việt Nam |
 | `support-retention` | `30 20 * * *` | Đóng ca đã giải quyết sau 7 ngày, xoá ảnh sau khi đóng 30 ngày, 03:30 giờ Việt Nam |
+| `economic-assumption-refresh` | theo cấu hình `economicFeeds` | Làm mới CPI; lịch do Admin đặt, `HangfireEconomicFeedScheduler` đăng ký lại khi cấu hình đổi |
+
+Job theo yêu cầu, không có lịch: `RecurringTrackingJob` (xếp hàng cho từng người sau khi xác nhận giao
+dịch, qua `IRecurringTrackingTrigger`). Lúc khởi động, `Program.cs` gỡ `streak-check` và `mission-reset`
+(gamification đã bỏ) vì Hangfire giữ lịch trong Postgres.
 
 ## Điểm cần biết khi làm tiếp
 
@@ -91,6 +113,7 @@ dotnet build
 dotnet test
 dotnet test --filter FullyQualifiedName~ClassName.MethodName   # 1 test cụ thể
 dotnet ef migrations add <PascalCaseDescriptiveName> --project FinMate.Infrastructure --startup-project FinMate.API
+dotnet run --project FinMate.Backtest -c Release -- --out ../docs/evaluation   # backtest dự báo, ~1 phút
 ```
 
 **Máy không có .NET 9 SDK:** chạy trong container `mcr.microsoft.com/dotnet/sdk:9.0`, và phải mount
