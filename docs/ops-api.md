@@ -489,7 +489,7 @@ Số dư thực tế = số dư lúc chụp + thu chi thật từ ngày gốc t�
 `accuracy` trả, theo mỗi mốc 7/14/30 ngày và theo nhóm `all`, `low` (ít dữ liệu), `normal`:
 - `maeCents`: sai số tuyệt đối trung bình của số dư dự báo (đồng); `medianAbsErrorCents`.
 - `maeRecurringOnlyCents` và `maeHoldCents`: cùng chỉ số nếu chỉ dùng khoản định kỳ (kiểu Simplifi/Monzo) và nếu giả định số dư không đổi. `ratioVsHold` và `ratioVsRecurringOnly` nhỏ hơn 1 nghĩa là dự báo hơn mốc đó.
-- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Dải hiện tại cộng dồn P25/P75 từng ngày nên **dự kiến cao hơn 50%**; đây là số đo để quyết định có thay bằng bootstrap hay không.
+- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Với `mean_dow_income_sumband_v3` (Phase 97), dải là P25–P75 của tổng dòng tiền linh hoạt ròng (`NetFlowBand`), nên **dự kiến gần 50%** (backtest: khoảng 45–49%); thấp hơn nhiều là dải quá hẹp. Bản chụp của `median_p25p75` và `mean_dow_income_v2` dùng dải cũ cộng dồn P25/P75 từng ngày, nên tỉ lệ của chúng dự kiến khác 50%.
 - `meanBandWidthCents`, số mẫu, số bản chụp đã điền và còn chờ, số phản hồi theo lý do và theo nguyên nhân.
 
 Giới hạn đã biết: chưa có mốc so sánh trung bình 90 ngày (B1) và seasonal naive (B2); mốc "không đổi" là mốc thấp nhất. Số thực tế dùng giao dịch đã xác nhận, nên giao dịch ghi muộn làm số thực tế đổi theo.

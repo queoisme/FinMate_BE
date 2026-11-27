@@ -84,7 +84,7 @@ public static partial class ReportWriter
     {
         var parts = BacktestRunner.Horizons.Select(h => Band(m, Control, h)).Where(b => b is not null)
             .Select(b => $"tầm {b!.Key.Horizon}: {Format.PctCi(b.CoveragePct, b.CiLow, b.CiHigh, b.N)}, rộng trung bình {Format.Money(b.MeanWidth)}");
-        return $"Dải thận trọng–lạc quan (cộng P75/P25 chi linh hoạt theo từng ngày), {ModeLabel}, {Name(Control)}: tỉ lệ số dư thật nằm trong dải — "
+        return $"Dải thận trọng–lạc quan (P25–P75 của tổng dòng tiền linh hoạt ròng, NetFlowBand), {ModeLabel}, {Name(Control)}: tỉ lệ số dư thật nằm trong dải — "
                + string.Join("; ", parts) + ". Một dải P25–P75 đúng nghĩa của tổng sẽ chứa khoảng 50%.";
     }
 
@@ -175,8 +175,9 @@ public static partial class ReportWriter
     private static void BandTable(StringBuilder md, MetricsResult m)
     {
         md.Append($"## 5. Dải thận trọng–lạc quan theo tầm ({ModeLabel}, mọi hồ sơ)\n\n");
-        md.Append("Dải của engine = cộng chi linh hoạt P75 (thận trọng) / P25 (lạc quan) **của từng ngày**. Tổng các P75 lớn hơn P75 của tổng, nên dải rộng dần theo tầm; ");
-        md.Append("bảng này chỉ đo, không sửa (S5, quyết định riêng ở REQUIREMENTS §13.4).\n\n");
+        md.Append("Dải của engine (Phase 97, `NetFlowBand`) = dự kiến ± 0,6745·σ_L, σ_L² = σ²L + σ²L²/n, với σ² là phương sai phần dư của dòng tiền linh hoạt ròng mỗi ngày ");
+        md.Append("(thu linh hoạt − chi linh hoạt) quanh mức trung bình theo thứ, L = số ngày tính cả hôm nay, n = số ngày lịch sử; khoản cho vay đến hạn chỉ cộng vào đường lạc quan. ");
+        md.Append("Dưới `minHistoryDays` engine giữ dải cũ (cộng P75/P25 chi theo từng ngày). Dải P25–P75 đúng nghĩa sẽ chứa khoảng 50%.\n\n");
         md.Append("| Kịch bản | Tầm | n | Tỉ lệ nằm trong dải | Rộng trung bình | Rộng trung vị |\n|---|---|---|---|---|---|\n");
         foreach (var scenario in m.Band.Select(b => b.Key.Scenario).Distinct().OrderBy(s => s, StringComparer.Ordinal))
         {

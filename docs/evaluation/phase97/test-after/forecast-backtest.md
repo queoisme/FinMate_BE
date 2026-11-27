@@ -32,7 +32,7 @@ Cùng image SDK, cùng hạt, cùng tham số → cùng tệp này từng byte (
 | 7 | Hồ sơ family, tầm 14 ngày, chế độ đáp án, K0 đối chứng: số dư lệch trung bình 2.930.323 đ, dự báo trung bình thấp hơn thực tế 102.143 đ; tốt hơn "số dư giữ nguyên" 72,7% (CI 95%: 71,0% – 74,3%). |
 | 8 | Hồ sơ small_trader, tầm 14 ngày, chế độ đáp án, K0 đối chứng: số dư lệch trung bình 3.769.724 đ, dự báo trung bình cao hơn thực tế 1.874 đ; tốt hơn "số dư giữ nguyên" 26,5% (CI 95%: 17,5% – 34,9%). |
 | 9 | Chi linh hoạt 15 ngày tới (tầm 14), chế độ đáp án: lệch WAPE 16,4% (CI 95%: 13,8% – 19,9%), thiên lệch -0,6% (âm = dự báo chi ít hơn thực tế). B-mean30: 22,1%, B-naive: 24,7%. |
-| 10 | Dải thận trọng–lạc quan (cộng P75/P25 chi linh hoạt theo từng ngày), chế độ đáp án, K0 đối chứng: tỉ lệ số dư thật nằm trong dải — tầm 7: 48,6% (CI 95%: 46,5% – 50,7%), rộng trung bình 4.552.282 đ; tầm 14: 45,8% (CI 95%: 43,8% – 47,7%), rộng trung bình 6.463.998 đ; tầm 30: 45,1% (CI 95%: 42,8% – 47,1%), rộng trung bình 10.000.754 đ. Một dải P25–P75 đúng nghĩa của tổng sẽ chứa khoảng 50%. |
+| 10 | Dải thận trọng–lạc quan (P25–P75 của tổng dòng tiền linh hoạt ròng, NetFlowBand), chế độ đáp án, K0 đối chứng: tỉ lệ số dư thật nằm trong dải — tầm 7: 48,6% (CI 95%: 46,5% – 50,7%), rộng trung bình 4.552.282 đ; tầm 14: 45,8% (CI 95%: 43,8% – 47,7%), rộng trung bình 6.463.998 đ; tầm 30: 45,1% (CI 95%: 42,8% – 47,1%), rộng trung bình 10.000.754 đ. Một dải P25–P75 đúng nghĩa của tổng sẽ chứa khoảng 50%. |
 | 11 | K1 chi đột xuất lớn (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 2922): sai số số dư tăng 91,5% (CI 95%: 66,1% – 125,6%) so với K0 đối chứng trên cùng người và mốc (8.629.750 đ so với 4.505.504 đ). |
 | 12 | K2 thu nhập về trễ / đổi số tiền (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 3000): sai số số dư tăng 42,9% (CI 95%: 28,9% – 60,1%) so với K0 đối chứng trên cùng người và mốc (5.759.082 đ so với 4.028.904 đ). |
 | 13 | K3 bỏ một kỳ định kỳ (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 2325): sai số số dư tăng 13,5% (CI 95%: 7,3% – 21,6%) so với K0 đối chứng trên cùng người và mốc (4.969.365 đ so với 4.379.850 đ). |
@@ -118,7 +118,7 @@ Mốc bị ảnh hưởng: đoạn [T, T+h] chứa một ngày sự kiện của
 
 ## 5. Dải thận trọng–lạc quan theo tầm (chế độ đáp án, mọi hồ sơ)
 
-Dải của engine = cộng chi linh hoạt P75 (thận trọng) / P25 (lạc quan) **của từng ngày**. Tổng các P75 lớn hơn P75 của tổng, nên dải rộng dần theo tầm; bảng này chỉ đo, không sửa (S5, quyết định riêng ở REQUIREMENTS §13.4).
+Dải của engine (Phase 97, `NetFlowBand`) = dự kiến ± 0,6745·σ_L, σ_L² = σ²L + σ²L²/n, với σ² là phương sai phần dư của dòng tiền linh hoạt ròng mỗi ngày (thu linh hoạt − chi linh hoạt) quanh mức trung bình theo thứ, L = số ngày tính cả hôm nay, n = số ngày lịch sử; khoản cho vay đến hạn chỉ cộng vào đường lạc quan. Dưới `minHistoryDays` engine giữ dải cũ (cộng P75/P25 chi theo từng ngày). Dải P25–P75 đúng nghĩa sẽ chứa khoảng 50%.
 
 | Kịch bản | Tầm | n | Tỉ lệ nằm trong dải | Rộng trung bình | Rộng trung vị |
 |---|---|---|---|---|---|
