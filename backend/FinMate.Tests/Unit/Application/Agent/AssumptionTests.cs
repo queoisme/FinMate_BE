@@ -192,7 +192,7 @@ public class AssumptionTests
     {
         var service = Service();
         var draft = await Draft(service, key, 500);
-        await service.ApproveAsync(draft.Id, Admin, null);
+        await service.ApproveAsync(draft.Id, Guid.NewGuid(), null); // người duyệt phải khác người soạn
 
         var found = await new GetAssumptionsTool(_repo).GetApprovedAsync(key, AsOf);
 

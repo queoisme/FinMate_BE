@@ -22,7 +22,7 @@ public class AgentContentCapabilityTests
     [Fact]
     public void BitsMatchTheMigrationConstants()
     {
-        ((long)OpsCapability.ManageAgentContent).Should().Be(262144);
-        ((long)OpsCapability.ApproveAgentContent).Should().Be(524288);
+        ((long)OpsCapability.ManageAgentContent).Should().Be(8388608);
+        ((long)OpsCapability.ApproveAgentContent).Should().Be(4194304);
     }
 }
