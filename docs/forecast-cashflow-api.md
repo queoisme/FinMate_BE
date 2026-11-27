@@ -35,17 +35,20 @@
 | `irregularIncomeCents` | **Phase 97.** Thu không định kỳ dự kiến của ngày (đường dự kiến), đã trừ phần nhận hôm nay; 0 nếu không có |
 | `events[]` | Khoản định kỳ, khoản vay, kịch bản rơi vào ngày đó (`kind`, `label`, `amountCents` có dấu, `optimisticOnly`) |
 
-## Cách tính (phương pháp `mean_dow_income_v2`, Phase 97 tầng 1)
+## Cách tính (phương pháp `mean_dow_income_sumband_v3`, Phase 97 tầng 2)
 
-- **Chi linh hoạt:** trung bình theo thứ trong tuần của 90 ngày gần nhất (ngày không chi = 0), không gồm khoản khớp khoản định kỳ, chuyển khoản, vay/mượn, khoản hoàn, khoản bị loại khỏi dự báo. Thiếu lịch sử thì lần lượt: ngân sách tháng, trung bình đang có, 0.
-- **Thu không định kỳ:** trung bình theo thứ của các khoản thu cùng loại lọc, không khớp khoản thu định kỳ (FR-FCST-13a). Thiếu lịch sử: mức phẳng.
+- **Chi linh hoạt:** trung bình theo thứ trong tuần của 90 ngày gần nhất (ngày không chi = 0), không gồm lần trả của khoản định kỳ, chuyển khoản, vay/mượn, khoản hoàn, khoản bị loại khỏi dự báo. Thiếu lịch sử thì lần lượt: ngân sách tháng, trung bình đang có, 0.
+- **Thu không định kỳ:** trung bình theo thứ của các khoản thu cùng loại lọc, không phải lần trả của khoản thu định kỳ (FR-FCST-13a). Thiếu lịch sử: mức phẳng.
+- **Lần trả của khoản định kỳ** (loại khỏi cả hai thói quen trên): giao dịch khớp khoản trong dung sai số tiền, **hoặc** giao dịch cùng người trả/nhận, cùng chiều, nằm trong cửa sổ ngày quanh một kỳ đến hạn (tháng: hạn − 14 tới hạn + ân hạn), mỗi kỳ đúng một giao dịch, bất kể số tiền. Nhờ vậy lương hay hóa đơn đổi giá không bị đếm hai lần; thưởng, dự án lẻ hay mua thêm của cùng người ngoài cửa sổ (hoặc cùng cửa sổ khi kỳ đó đã có lần trả) vẫn là linh hoạt.
 - **Đường dự kiến** = số dư + sự kiện + thu không định kỳ − chi linh hoạt (chi nhân hệ số ngày lễ nếu có).
-- **Đường thận trọng** = sự kiện + thu × (P25 / trung bình theo tháng) − (chi dự kiến + độ lệch P75 − trung vị cũ).
-- **Đường lạc quan** = sự kiện (cả khoản cho vay đến hạn) + thu dự kiến − (chi dự kiến − độ lệch trung vị − P25 cũ).
+- **Đường thận trọng / lạc quan** (`lowBalanceCents` / `highBalanceCents`): khoảng P25–P75 của số dư cuối ngày, tính từ phân phối của **tổng** dòng tiền linh hoạt ròng (thu không định kỳ − chi linh hoạt) từ hôm nay tới ngày đó: dự kiến ∓ 0,6745 × σ_L, với σ_L² = σ²·L + σ²·L²/n (σ² là phương sai của phần dư theo ngày quanh trung bình theo thứ, n là số ngày lịch sử, L là số ngày tính từ hôm nay). Khoản cho vay đến hạn chỉ cộng vào đường lạc quan. Nghĩa là khoảng một nửa số trường hợp số dư thật rơi trong dải (backtest tập phát triển: 45–48%).
+- **Thiếu lịch sử** (dưới `forecast.minHistoryDays` ngày có giao dịch): giữ cách của tầng 1, tức chi theo P75/P25 từng ngày (với nhánh ngân sách / trung bình thì không có độ rộng) và thu thận trọng = 0, lạc quan = mức phẳng.
 - Khoản thu định kỳ đã quá hạn mà chưa thấy tiền không được chiếu.
 
-Dải hiện là trạng thái tạm (giữ độ rộng cũ quanh đường mới). Tầng 2 của Phase 97, nếu làm, sẽ thay bằng dải tính từ phân phối của tổng nhiều ngày và đổi tên phương pháp; khi đó ý nghĩa `lowBalanceCents` / `highBalanceCents` sẽ được ghi lại ở đây.
+So với tầng 1 (`mean_dow_income_v2`): dải hẹp đi nhiều với người thu chi đều (lương cố định ở tầm 30: 4,5 → 1,5 triệu) và rộng ra nhiều với người thu không đều (freelancer ở tầm 14: 10,7 → 20,6 triệu), vì giờ nó đo bất định của cả thu lẫn chi.
 
 ## Báo nhóm app
 
 Không bắt buộc sửa gì. Có thể hiện dòng "thu dự kiến" từ `irregularIncomeCents` và nhãn cho `incomeBasis`. Với người thu không đều (freelancer, tiểu thương), số dư dự báo sẽ cao hơn trước (gần thực tế hơn); cảnh báo số dư thấp và kết luận "Mua món này có ổn không?" có thể đổi theo.
+
+Từ tầng 2, nếu app có chú thích cho vùng thận trọng–lạc quan, nên ghi là "khoảng một nửa khả năng số dư nằm trong vùng này". Kết luận "Mua món này có ổn không?" dùng đường thận trọng, nên với người thu chi đều nó sẽ bớt khắt khe ở tầm dài, còn với người thu không đều thì khắt khe hơn.

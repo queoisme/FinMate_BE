@@ -1820,7 +1820,7 @@ Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). K�
 - [ ] Tầng 4: `--config` / `--compare` để so bản nháp tham số Phase 95.
 - Không có việc cho nhóm app hay web admin.
 
-## Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest, tầng 1 (2026-11-27, xong trên nhánh, chưa push; dừng chờ quyết định tầng 2)
+## Phase 97 — Sửa mô hình dự báo số dư theo chẩn đoán backtest, tầng 1 + 2 (2026-11-27, xong trên nhánh, chưa push; dừng trước tập kiểm tra)
 
 Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạch, D1–D16, S1–S4, Task 1 (chọn F1), kết quả tầng 1: `docs/superpowers/plans/2026-11-27-forecast-model-fixes.md`. Tập phát triển hạt 20261127, tập kiểm tra hạt 20261128 (chưa chạy), bộ sinh v1.2.
 
@@ -1831,8 +1831,10 @@ Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạc
 - [x] Task 5: `ForecastService` nối dây; spendable không đổi (D12); test S3.
 - [x] Task 6: phương pháp `mean_dow_income_v2`; báo cáo độ chính xác theo phương pháp, `?method=`.
 - [x] Task 7: báo cáo backtest có thu không định kỳ; tập phát triển → `docs/evaluation/phase97/dev-after-t1/` (tầm 14: lệch 9,05 → 4,68 triệu, thiên lệch −7,14 → −0,25 triệu); REQUIREMENTS FR-FCST-01/03/05/13a, §13.4; `docs/forecast-cashflow-api.md`; `docs/ops-api.md`. Toàn bộ test backend **4494/4496** (2 đỏ là 2 test có sẵn trên `main`, không thêm đỏ).
-- [ ] Còn mở (chờ duyệt): khoản thu định kỳ đổi số tiền làm các lần nhận giá cũ thành thu không định kỳ (K2).
-- [ ] Tầng 2 (chờ quyết định): dải từ phân phối của tổng h ngày.
+- [x] Task 7b: luật người trả + thời điểm cho lần trả của khoản định kỳ, chung cho thu và chi linh hoạt (K2: thiên lệch thu của sinh viên +12,9% → +2,3%; K4: thiên lệch chi linh hoạt của người lương cố định +6,6% → −1,4%).
+- [x] Task 8: `--diagnose` so B1/B2 (C7); B2 đạt tiêu chí §3, commit riêng trước khi sửa engine.
+- [x] Task 9: `NetFlowBand` (B2) cho đường thận trọng / lạc quan; phương pháp `mean_dow_income_sumband_v3`.
+- [x] Task 10: tập phát triển → `docs/evaluation/phase97/dev-after-t2/` (phủ dải gộp 48% / 46% / 45% ở tầm 7/14/30); `docs/forecast-cashflow-api.md`, REQUIREMENTS FR-FCST-01/03/13a, §13.4. Toàn bộ test backend 4507/4514: 2 đỏ có sẵn trên `main`; 5 test `AssumptionReviewTests` đỏ 1 ms trong lượt chạy toàn bộ (khởi tạo fixture), chạy riêng 5/5 xanh, không liên quan dự báo.
 - [ ] Cuối: tập kiểm tra một lần, `--compare-runs`, báo cáo `docs/evaluation/forecast-model-fixes.md`.
 - [ ] **Báo nhóm app (không bắt buộc):** có thể hiện "thu dự kiến" từ `days[].irregularIncomeCents`, nhãn `incomeBasis`; số dư dự báo của người thu không đều sẽ cao hơn trước. Xem `docs/forecast-cashflow-api.md`.
 - [ ] **Báo nhóm web admin:** dashboard độ chính xác hiện `method` của báo cáo; có thể thêm bộ chọn `?method=median_p25p75` để xem số trước Phase 97.

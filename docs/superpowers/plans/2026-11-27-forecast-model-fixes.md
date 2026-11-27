@@ -531,3 +531,68 @@ Mốc không tính được dải (thiếu lịch sử): dải hiện tại (t�
 - B1 hẹp dần theo tầm (gộp 42% → 38% → 32%), đúng như C4 đã thấy: 90 ngày chỉ có khoảng 60 cửa sổ 31 ngày, chồng lên nhau.
 - B2 gần 50% với `stable_worker`, freelancer và tiểu thương ở mọi tầm. Sinh viên rộng quá (54–64%): hai khoản học phí lớn trong lịch sử làm σ lớn. Gia đình hẹp quá (32–34%): phần lệch của gia đình nằm ngoài dòng tiền linh hoạt (khoản định kỳ và khoản vay lệch ngày hoặc lệch tiền), mà B2 chỉ đo bất định của phần linh hoạt.
 - Ô xa nhất của B2 là gia đình tầm 30 (31,8%).
+
+## Tầng 2 — kết quả (Task 9–10, 2026-11-27)
+
+- Code: `NetFlowBand` (B2) trong engine khi đủ `minHistoryDays`; dưới ngưỡng giữ các đường của tầng 1. Phương pháp `mean_dow_income_sumband_v3`. Harness gọi thẳng production cho B2; test kiểm dải của engine trùng B2 dựng lại từ lịch sử của harness tới từng đồng.
+- Lượt chạy: `docs/evaluation/phase97/dev-after-t2/` (hạt 20261127, bộ sinh v1.2).
+
+### Tập phát triển cuối so với Phase 96 (K0, chế độ đáp án). Tiền: triệu đồng
+
+"vs X" = 1 − MAE mô hình / MAE của baseline X (Phase 96 → cuối); âm là kém hơn. Phủ dải: tỉ lệ số dư thật nằm giữa đường thận trọng và lạc quan (mục tiêu 50%), Phase 96 → tầng 1 → tầng 2. Độ rộng: trung bình của (lạc quan − thận trọng).
+
+| Hồ sơ | Tầm | MAE P96 → T2 | Thiên lệch P96 → T2 | vs B-hold | vs B0 | vs B-mean30 | vs B-naive | Phủ dải P96 → T1 → T2 | Rộng dải TB P96 → T2 |
+|---|---|---|---|---|---|---|---|---|---|
+| all | 7 | 5,17 → 3,29 | −3,93 → −0,22 | 3,0% → 38,2% | −30,6% → 16,8% | 5,4% → 39,7% | 36,6% → 59,6% | 36,4% → 41,5% → 48,1% | 1,89 → 4,78 |
+| all | 14 | 9,05 → 4,67 | −7,14 → −0,18 | −22,8% → 36,6% | −43,5% → 26,0% | 5,8% → 51,4% | 26,2% → 61,9% | 35,2% → 50,3% → 46,2% | 3,55 → 6,79 |
+| all | 30 | 17,83 → 7,27 | −14,49 → −0,10 | −126,6% → 7,6% | −53,1% → 37,6% | 6,3% → 61,8% | −78,5% → 27,2% | 35,0% → 58,1% → 45,3% | 7,34 → 10,50 |
+| stable_worker | 7 | 0,88 → 0,81 | 0,15 → −0,24 | 80,8% → 82,3% | 54,3% → 57,8% | −5,2% → 2,7% | 88,2% → 89,1% | 60,8% → 62,1% → 42,2% | 1,19 → 0,70 |
+| stable_worker | 14 | 1,19 → 0,98 | 0,51 → −0,22 | 80,6% → 84,0% | 64,2% → 70,4% | −14,9% → 5,2% | 89,9% → 91,7% | 65,6% → 75,1% → 43,5% | 2,24 → 0,99 |
+| stable_worker | 30 | 1,92 → 1,33 | 1,33 → −0,18 | 40,5% → 58,8% | 71,1% → 80,0% | −30,5% → 9,7% | 26,2% → 48,9% | 70,5% → 84,6% → 43,1% | 4,63 → 1,53 |
+| freelancer | 7 | 7,87 → 9,01 | −7,09 → −0,25 | 1,4% → −12,9% | 0,0% → −14,5% | 3,7% → −10,2% | 33,3% → 23,6% | 35,7% → 17,9% → 51,8% | 1,92 → 14,55 |
+| freelancer | 14 | 13,97 → 13,25 | −13,26 → −0,43 | −17,7% → −11,6% | −12,2% → −6,4% | 5,7% → 10,5% | 17,5% → 21,8% | 22,4% → 26,5% → 44,3% | 3,59 → 20,62 |
+| freelancer | 30 | 27,72 → 20,93 | −27,42 → −0,91 | −47,7% → −11,5% | −29,2% → 2,5% | 8,0% → 30,5% | −9,5% → 17,3% | 9,5% → 36,5% → 48,3% | 7,42 → 31,82 |
+| student | 7 | 1,34 → 1,50 | −0,03 → −0,11 | 24,5% → 15,4% | 9,8% → −1,1% | 33,0% → 24,8% | 55,8% → 50,5% | 41,4% → 38,1% → 63,9% | 0,99 → 2,61 |
+| student | 14 | 1,97 → 2,35 | 0,04 → −0,12 | 19,6% → 4,0% | 17,7% → 1,6% | 39,5% → 27,7% | 56,3% → 47,8% | 44,0% → 39,8% → 62,7% | 1,85 → 3,69 |
+| student | 30 | 3,27 → 4,33 | 0,21 → −0,11 | −11,8% → −48,2% | 28,4% → 5,2% | 44,2% → 26,1% | 34,4% → 13,1% | 43,8% → 34,5% → 53,7% | 3,83 → 5,70 |
+| family | 7 | 2,60 → 2,42 | 0,47 → −0,46 | 69,3% → 71,5% | 41,3% → 45,5% | −5,6% → 1,9% | 80,3% → 81,7% | 44,0% → 47,0% → 34,2% | 2,51 → 1,69 |
+| family | 14 | 3,54 → 2,98 | 1,63 → −0,12 | 68,6% → 73,7% | 52,7% → 60,3% | −14,6% → 3,8% | 83,7% → 86,3% | 44,2% → 56,8% → 32,0% | 4,71 → 2,46 |
+| family | 30 | 5,56 → 4,02 | 4,12 → 0,51 | 8,6% → 33,8% | 63,2% → 73,3% | −26,5% → 8,4% | 31,1% → 50,1% | 51,3% → 67,8% → 31,8% | 9,74 → 3,91 |
+| small_trader | 7 | 13,15 → 2,73 | −13,15 → −0,02 | −244,9% → 28,5% | −222,6% → 33,1% | 5,0% → 80,3% | −153,1% → 47,5% | 0,0% → 42,2% → 48,1% | 2,85 → 4,36 |
+| small_trader | 14 | 24,60 → 3,81 | −24,60 → 0,01 | −382,0% → 25,4% | −317,0% → 35,5% | 5,0% → 85,3% | −287,2% → 40,1% | 0,0% → 53,6% → 48,6% | 5,36 → 6,19 |
+| small_trader | 30 | 50,69 → 5,73 | −50,69 → 0,18 | −507,2% → 31,3% | −383,3% → 45,3% | 5,0% → 89,3% | −464,6% → 36,2% | 0,0% → 67,0% → 49,6% | 11,07 → 9,55 |
+
+MAE và thiên lệch của tầng 2 khác tầng 1 chỉ do Task 7b (dải không đổi đường dự kiến).
+
+**Thu không định kỳ (tầm 14, WAPE / thiên lệch):** K0 gộp 40,8% / −0,9%; K2 gộp mọi mốc 45,6% / +2,1% (tầng 1) → 42,6% / −1,0%; K2 sinh viên 18,8% / +12,9% → 8,9% / +2,3%; K2 freelancer ở mốc bị ảnh hưởng 110,5% / +8,5% (không đổi: thu dự án dời 7–14 ngày ở tháng M, không liên quan khoản định kỳ).
+
+**Phủ dải theo kịch bản (tầm 14, gộp, mọi mốc):** K0 46,2%; K1 49,9%; K2 45,4%; K3 45,1%; K4 45,8%; K5 49,9%; K5h 50,0%; K6 41,6%. Ở mốc bị ảnh hưởng: K1 15,8% (chi lớn đột xuất nằm ngoài dải là đúng nghĩa), K2 34,3%.
+
+### Nhận xét
+
+- **Dải:** gộp 48% / 46% / 45% ở tầm 7/14/30 (tầng 1: 42% / 50% / 58%; Phase 96: 36% / 35% / 35%). Lương cố định 42–44% ở mọi tầm (trước 61% → 85%), tiểu thương 48–50%, freelancer 44–52% (trước 18–37%).
+- **Còn lệch:** sinh viên rộng quá (54–64%), vì hai khoản học phí lớn trong 90 ngày làm σ lớn; gia đình hẹp quá (32–34%), vì phần lệch của gia đình nằm ở khoản định kỳ và khoản vay (lệch ngày, lệch tiền), mà dải chỉ đo bất định của dòng tiền linh hoạt. Cả hai không sửa trong Phase 97 (sửa là dò tham số trên tập phát triển).
+- **Độ rộng:** hẹp đi với người thu chi đều (lương cố định tầm 30: 4,63 → 1,53 triệu so với Phase 96), rộng ra với người thu không đều (freelancer tầm 14: 3,59 → 20,62 triệu). Dải cũ của freelancer hẹp vì chỉ đo chi; giờ đo cả thu.
+- **Sai số:** gộp tốt hơn cả bốn baseline ở mọi tầm. Kém Phase 96 ở hai chỗ: **freelancer tầm 7** (MAE 7,87 → 9,01; giờ thua B-hold, B0, B-mean30): mô hình cũ luôn thấp hơn thực tế (−7,09) nhưng ít dao động, mô hình mới không thiên lệch nhưng chiếu thu dự án đều mỗi ngày trong khi tiền về từng cục; **sinh viên** ở mọi tầm (tầm 30: 3,27 → 4,33; thua B-hold), cái giá đã chấp nhận ở D6.
+- **Ảnh hưởng ngoài số liệu:** kết luận "Mua món này có ổn không?" dùng đường thận trọng, nên với người thu chi đều sẽ bớt khắt khe ở tầm dài, với người thu không đều thì khắt khe hơn. Không test nào của purchase-check đổi kỳ vọng.
+
+## Danh sách phương án đã chốt (trước tập kiểm tra)
+
+| # | Chốt | Ở đâu |
+|---|---|---|
+| 1 | Tập phát triển hạt 20261127; tập kiểm tra hạt 20261128, chạy một lần ở cuối; "trước" từ worktree `e9664f7` | §0, D1, D13 |
+| 2 | Bộ sinh v1.2, không đổi trong Phase 97; "thực tế" = `ForecastActuals.NetFlow` | §0 |
+| 3 | Chi linh hoạt = F1, trung bình theo thứ trong 90 ngày (ngày không chi = 0) | Task 1, D5–D6 |
+| 4 | Thu không định kỳ = F1 trên cùng chuỗi, cộng vào cả ba đường; ít lịch sử thì mức phẳng, 0 trên đường thận trọng | D2, D4 |
+| 5 | Lần trả của khoản định kỳ = khớp dung sai, hoặc người trả + cửa sổ `PaymentWindow` quanh kỳ đến hạn (một giao dịch mỗi kỳ, bất kể số tiền); chung cho thu và chi | Task 7b |
+| 6 | Dải = B2: dự kiến ± 0,6745 σ_L, σ_L² = σ²L + σ²L²/n trên dòng tiền linh hoạt ròng; cho vay đến hạn chỉ vào lạc quan | Task 8–9, D7 |
+| 7 | Dưới `minHistoryDays`: giữ dải tầng 1 (chi theo P75/P25 từng ngày; thu theo D3: thận trọng = dự kiến × min(1, P25/trung bình tháng), lạc quan = dự kiến) | S1, D3, quyết định sau tầng 1 |
+| 8 | Hệ số ngày lễ chỉ áp cho chi | Task 4 |
+| 9 | Spendable, trang thu nhập, ngân sách, bất thường không đổi | D12, Task 7b |
+| 10 | Tên phương pháp: `median_p25p75` → `mean_dow_income_v2` → `mean_dow_income_sumband_v3`; báo cáo độ chính xác theo phương pháp, `?method=` | D9 |
+| 11 | Không thêm tham số cấu hình | D10 |
+| 12 | API chỉ thêm `irregularIncomeCents`, `incomeBasis`; nghĩa của `lowBalanceCents` / `highBalanceCents` ghi ở `docs/forecast-cashflow-api.md` | D11 |
+| 13 | Trả nợ hằng tháng trước hạn: bỏ | D8 |
+| 14 | Baseline B-hold / B0 / B-mean30 / B-naive giữ định nghĩa Phase 96 | D15 |
+
+Còn lại theo kế hoạch: Task 11 (`--compare-runs`), Task 12 (tập kiểm tra một lần, báo cáo `docs/evaluation/forecast-model-fixes.md`, CLAUDE.md, toàn bộ suite). Chưa làm, chờ duyệt.
