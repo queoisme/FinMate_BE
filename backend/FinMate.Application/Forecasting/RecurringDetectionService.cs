@@ -9,6 +9,12 @@ public interface IRecurringDetectionService
 {
     /// <summary>Cập nhật khoản định kỳ đã có và thêm khoản mới phát hiện cho một user. Trả số khoản mới.</summary>
     Task<int> RunForUserAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 92 (S3): chỉ phần cập nhật khoản đã có (khớp kỳ đã trả, ghi liên kết, hoàn thành), không đề xuất khoản mới. Chạy bởi job theo user
+    /// được xếp hàng sau khi một giao dịch được xác nhận.
+    /// </summary>
+    Task TrackForUserAsync(Guid userId, CancellationToken ct = default);
 }
 
 public class RecurringDetectionService : IRecurringDetectionService
@@ -50,9 +56,24 @@ public class RecurringDetectionService : IRecurringDetectionService
         _now = now;
     }
 
-    public async Task<int> RunForUserAsync(Guid userId, CancellationToken ct = default)
+    public Task<int> RunForUserAsync(Guid userId, CancellationToken ct = default) => RunAsync(userId, detect: true, ct);
+
+    public Task TrackForUserAsync(Guid userId, CancellationToken ct = default) => RunAsync(userId, detect: false, ct);
+
+    /// <summary>
+    /// Chạy dưới khoá theo user (Phase 92, S3): job đêm, job theo user và các thao tác tay trên kỳ đã trả không được cùng ghi liên kết. Đổi giá
+    /// chỉ báo sau khi đã lưu xong.
+    /// </summary>
+    private async Task<int> RunAsync(Guid userId, bool detect, CancellationToken ct)
     {
         var now = _now();
+        var (created, priceChanges) = await _items.RunWithUserLockedAsync(userId, () => RunLockedAsync(userId, detect, now, ct), ct);
+        await AnnouncePriceChangesAsync(userId, priceChanges, now, ct);
+        return created;
+    }
+
+    private async Task<(int Created, IReadOnlyList<PriceChange> PriceChanges)> RunLockedAsync(Guid userId, bool detect, DateTimeOffset now, CancellationToken ct)
+    {
         var today = VietnamTime.DateOf(now);
         var rules = ForecastRules.From((await _config.GetAsync(ct)).Document.Forecast);
         var habits = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
@@ -62,19 +83,35 @@ public class RecurringDetectionService : IRecurringDetectionService
                 _data, userId, (await _accounts.GetListByUserAsync(userId, ct)).Where(a => a.IncludeInForecast).Select(a => a.Id).ToHashSet(),
                 today.AddDays(-rules.HistoryWindowDays), today, ct));
         var existing = await _items.ListAllTrackedAsync(userId, ct);
+        var linked = await _items.LinkedTransactionIdsAsync(userId, ct);
 
         var changed = false;
         var priceChanges = new List<PriceChange>();
+        var matches = new List<RecurringMatch>();
         foreach (var item in existing)
         {
-            changed |= RecurringTracker.Advance(item, history, rules, now, priceChanges);
+            changed |= RecurringTracker.Advance(item, history, rules, now, priceChanges, matches, linked);
+            changed |= RecurringCompletion.Apply(item, today, now);   // BR-INS-06: đủ kỳ, hoặc đã qua ngày kết thúc
         }
 
-        var known = existing
-            .Where(i => i.CounterpartyKey is not null)
-            .Select(i => (i.Direction, i.CounterpartyKey!))
-            .ToHashSet();
-        var detected = RecurringDetector.Detect(history, known, today, rules);
+        foreach (var match in matches)
+        {
+            _items.AddPayment(new RecurringItemPayment
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                RecurringItemId = match.RecurringItemId,
+                TransactionId = match.TransactionId,
+                DueDate = match.DueDate,
+                Kind = RecurringPaymentKind.Matched,
+                CreatedAt = now,
+            });
+        }
+
+        // Dòng đã hoàn thành vẫn nằm trong tập "đã biết": bộ phát hiện không đề xuất lại người nhận đó (BR-INS-09, phần còn lại ở §13.4).
+        var detected = detect
+            ? RecurringDetector.Detect(history, existing.Where(i => i.CounterpartyKey is not null).Select(i => (i.Direction, i.CounterpartyKey!)).ToHashSet(), today, rules)
+            : [];
         if (detected.Count > 0)
         {
             await _items.AddRangeAsync(detected.Select(d => ToEntity(userId, d, now)), ct);
@@ -86,8 +123,7 @@ public class RecurringDetectionService : IRecurringDetectionService
             await _cache.RemoveAsync(CacheKeys.ForecastBaseline(userId, today), ct);
         }
 
-        await AnnouncePriceChangesAsync(userId, priceChanges, now, ct);
-        return detected.Count;
+        return (detected.Count, priceChanges);
     }
 
     /// <summary>Sơ đồ 5a: "Tạo thông báo thay đổi giá". Job chạy ban đêm nên hẹn tới 08:00 mới gửi.</summary>
@@ -123,6 +159,7 @@ public class RecurringDetectionService : IRecurringDetectionService
         AmountCents = d.AmountCents,
         Cadence = d.Cadence,
         NextDueDate = d.NextDueDate,
+        AnchorDay = d.AnchorDay,
         Status = d.Status,
         Source = RecurringSource.Detected,
         Occurrences = d.Occurrences,

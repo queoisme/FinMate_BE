@@ -24,6 +24,7 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
     private readonly ILogger<CreateManualTransactionCommandHandler> _logger;
     private readonly IValidator<CreateManualTransactionCommand> _validator;
     private readonly IForecastAlertTrigger? _forecastAlerts;
+    private readonly IRecurringTrackingTrigger? _recurringTracking;
     private readonly IUserNotificationService? _userNotifications;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu (test cũ) thì bỏ qua
 
@@ -53,9 +54,11 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
         Duplicates.IDuplicateDetector? duplicates = null,
         IUserNotificationService? userNotifications = null,
         IItemMemoryService? itemMemory = null,
-        IAiLearningQueue? learning = null)
+        IAiLearningQueue? learning = null,
+        IRecurringTrackingTrigger? recurringTracking = null)
     {
         _learning = learning;
+        _recurringTracking = recurringTracking;
         _itemMemory = itemMemory;
         _duplicates = duplicates;
         _groupLedger = groupLedger;
@@ -250,6 +253,10 @@ public class CreateManualTransactionCommandHandler : ICreateManualTransactionCom
             }
         }
         await NotifyForecastAsync(command.UserId, ct);
+        if (_recurringTracking is not null && transaction.Status == TransactionStatus.Confirmed)
+        {
+            await _recurringTracking.TransactionConfirmedAsync(command.UserId, transaction.TransactionType, ct);
+        }
 
         return new TransactionCreationResult(TransactionMapper.ToDto(transaction), AlreadyExisted: false);
     }

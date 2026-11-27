@@ -78,6 +78,16 @@ Trong suốt sự cố, Manager là người duy nhất điều phối và phát
 
 Khách bị khóa hoặc đã yêu cầu xóa thì không đăng nhập được, nên không gửi ticket trong app được. Đội cần thống nhất kênh liên hệ và cách xác minh chính chủ cho trường hợp này.
 
+## Yêu cầu dữ liệu cá nhân
+
+Luật BVDLCN 2025 và Nghị định 356/2025: chủ thể yêu cầu cung cấp dữ liệu thì phải đáp ứng trong **10 ngày**.
+
+- **Khách còn đăng nhập được:** gửi câu trả lời mẫu "Hướng dẫn tự tải dữ liệu cá nhân" và đóng ca khi khách xác nhận. Không tạo, không tải, không gửi file thay khách.
+- **Khách đã xin xoá tài khoản** (không đăng nhập được): chuyển Manager. Chưa có quy trình DSAR đầy đủ (REQUIREMENTS 13.4); Manager ghi ngày nhận yêu cầu để không trễ hạn, và thống nhất với Admin cách xử lý (ví dụ huỷ yêu cầu xoá qua đề xuất hai người duyệt để khách tự tải rồi xin xoá lại).
+- **Sự cố `data_export:overdue`:** có yêu cầu chưa xong sau 5 ngày. Kiểm `features.dataExport` (tắt quá lâu là nguyên nhân hay gặp), `SECRETS_MASTER_KEY`, và job `data-export-sweep` trên Hangfire. Không để công tắc tắt quá 7 ngày khi còn yêu cầu chờ.
+- **Sự cố `data_export:archive_too_large`:** nâng `dataExport.maxArchiveMb` (tối đa 200) ở `/admin/system-config` rồi nhắn khách gửi yêu cầu lại; yêu cầu thất bại không chiếm hạn mức 24 giờ của khách.
+- **Sao lưu:** gói nằm trong Postgres (bảng `personal_data_export_archives`, đã mã hoá bằng `SECRETS_MASTER_KEY`) nên có thể còn trong bản sao lưu DB lâu hơn 72 giờ. Bản sao lưu phải được bảo vệ như DB chính; khoá chủ không được lưu cùng bản sao lưu.
+
 ## Tranh chấp trong nhóm
 
 1. Staff nhận ca, xem thành viên và lịch sử nhóm. Không có quyền xem giao dịch của nhóm.

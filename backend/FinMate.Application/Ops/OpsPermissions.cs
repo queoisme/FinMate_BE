@@ -34,11 +34,23 @@ public enum OpsCapability
     /// <summary>Soạn bản nháp Điều khoản và Chính sách quyền riêng tư, xem lịch sử phiên bản. Xuất bản cần <see cref="ManageSystem"/> (chỉ Admin).</summary>
     ManageLegalDocuments = 1 << 17,
 
-    /// <summary>Xem, soạn bản nháp kho tri thức và giả định kinh tế của agent, đánh dấu câu hỏi chưa trả lời được. Duyệt và gỡ cần <see cref="ApproveAgentContent"/>.</summary>
-    ManageAgentContent = 1 << 18,
+    /// <summary>Xem chỉ số sản phẩm tổng hợp (<c>/ops/kpi/*</c>): đăng ký, giao dịch, thông báo, thuê bao, doanh thu. Không phải <see cref="ViewDashboard"/> (dashboard ticket).</summary>
+    ViewProductKpi = 1 << 18,
 
-    /// <summary>Duyệt và gỡ tri thức, giả định kinh tế để agent dùng. Cần có <see cref="ManageAgentContent"/>.</summary>
-    ApproveAgentContent = 1 << 19,
+    /// <summary>Phase 95 (B′): thêm, sửa, ẩn danh mục hệ thống, thương hiệu và từ khoá phân loại qua <c>/ops/catalog</c>. Không xoá, không đổi slug, không tắt danh mục được bảo vệ.</summary>
+    MaintainCatalog = 1 << 19,
+
+    /// <summary>Phase 95 (A): soạn bản nháp tham số dự báo (<c>forecast</c> + <c>limits</c>) và gửi duyệt.</summary>
+    DraftForecastConfig = 1 << 20,
+
+    /// <summary>Phase 95 (A): duyệt hoặc từ chối bản nháp tham số dự báo của người khác.</summary>
+    ApproveForecastConfig = 1 << 21,
+
+    /// <summary>Phase 95: duyệt, từ chối, gỡ giả định kinh tế và tài liệu tri thức của người khác (đọc từ DB, ngoài policy theo vai trò). Cần có <see cref="ManageAgentContent"/>.</summary>
+    ApproveAgentContent = 1 << 22,
+
+    /// <summary>Xem, soạn bản nháp kho tri thức và giả định kinh tế của agent, đánh dấu câu hỏi chưa trả lời được. Duyệt và gỡ cần <see cref="ApproveAgentContent"/>. Bit 23 vì 18-22 main đã dùng.</summary>
+    ManageAgentContent = 1 << 23,
 }
 
 public static class OpsPermissions
@@ -50,6 +62,8 @@ public static class OpsPermissions
         | OpsCapability.EmergencyLock
         | OpsCapability.ProposeApprovals
         | OpsCapability.ModerateCommunity
+        | OpsCapability.MaintainCatalog
+        | OpsCapability.DraftForecastConfig
         | OpsCapability.ManageAgentContent;
 
     private const OpsCapability ManagerCapabilities =
@@ -65,6 +79,8 @@ public static class OpsPermissions
         | OpsCapability.MuteCommunityAuthors
         | OpsCapability.ManageSubscriptionPlans
         | OpsCapability.ManageLegalDocuments
+        | OpsCapability.ViewProductKpi
+        | OpsCapability.ApproveForecastConfig
         | OpsCapability.ApproveAgentContent;
 
     public static OpsCapability For(UserRole role) => role switch

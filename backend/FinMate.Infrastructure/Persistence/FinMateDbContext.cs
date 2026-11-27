@@ -27,6 +27,7 @@ public class FinMateDbContext : DbContext
     public DbSet<VietQrBank> VietQrBanks => Set<VietQrBank>();
     public DbSet<QrTransferIntent> QrTransferIntents => Set<QrTransferIntent>();
     public DbSet<RecurringItem> RecurringItems => Set<RecurringItem>();
+    public DbSet<RecurringItemPayment> RecurringItemPayments => Set<RecurringItemPayment>();
     public DbSet<ForecastAlert> ForecastAlerts => Set<ForecastAlert>();
     public DbSet<TransactionAnomaly> TransactionAnomalies => Set<TransactionAnomaly>();
     public DbSet<TransactionMergeSnapshot> TransactionMergeSnapshots => Set<TransactionMergeSnapshot>();
@@ -40,6 +41,8 @@ public class FinMateDbContext : DbContext
     public DbSet<SavingGoal> SavingGoals => Set<SavingGoal>();
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<LoanRepayment> LoanRepayments => Set<LoanRepayment>();
+    public DbSet<PersonalDataExport> PersonalDataExports => Set<PersonalDataExport>();
+    public DbSet<PersonalDataExportArchive> PersonalDataExportArchives => Set<PersonalDataExportArchive>();
     public DbSet<GoalContribution> GoalContributions => Set<GoalContribution>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<BudgetPeriod> BudgetPeriods => Set<BudgetPeriod>();
@@ -58,6 +61,8 @@ public class FinMateDbContext : DbContext
     public DbSet<MethodRecommendation> MethodRecommendations => Set<MethodRecommendation>();
     public DbSet<UserMethod> UserMethods => Set<UserMethod>();
     public DbSet<EconomicAssumption> EconomicAssumptions => Set<EconomicAssumption>();
+    public DbSet<KnowledgeReview> KnowledgeReviews => Set<KnowledgeReview>();
+    public DbSet<KnowledgeReviewCutover> KnowledgeReviewCutovers => Set<KnowledgeReviewCutover>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
     public DbSet<GroupInvitation> GroupInvitations => Set<GroupInvitation>();

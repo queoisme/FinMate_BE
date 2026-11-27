@@ -36,4 +36,16 @@ public static class OtpMessages
         Mã có hiệu lực trong 10 phút và chỉ dùng được một lần.
         Nếu không phải bạn đang đăng nhập, mật khẩu của bạn có thể đã bị lộ: hãy đổi mật khẩu và báo Admin ngay.
         """);
+
+    public static (string Subject, string Body) DataExport(string code) => (
+        "FinMate — Mã xác nhận tải dữ liệu",
+        $"""
+        Chào bạn,
+
+        Mã xác nhận yêu cầu tải toàn bộ dữ liệu FinMate của bạn là: {code}
+
+        Mã có hiệu lực trong 10 phút và chỉ dùng được một lần.
+
+        Nếu không phải bạn đang yêu cầu, đừng đưa mã này cho ai: hãy đổi mật khẩu ngay.
+        """);
 }

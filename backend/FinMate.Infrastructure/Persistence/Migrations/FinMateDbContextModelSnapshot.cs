@@ -1300,6 +1300,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -1309,6 +1314,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<int>("RateBps")
                         .HasColumnType("integer")
                         .HasColumnName("rate_bps");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid?>("RejectedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rejected_by");
 
                     b.Property<string>("SourceName")
                         .IsRequired()
@@ -1348,7 +1361,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_economic_assumptions_source", "status = 'draft' OR (length(btrim(source_name)) > 0 AND length(btrim(source_url)) > 0)");
 
-                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired')");
+                            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
 
                             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
                         });
@@ -3039,6 +3052,67 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.ToTable("group_share_rules", (string)null);
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReview", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
+
+                    b.HasKey("DocumentId");
+
+                    b.ToTable("knowledge_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_reviews_status", "status IN ('draft','approved','rejected','retired')");
+
+                            t.HasCheckConstraint("chk_knowledge_reviews_two_people", "decided_by IS NULL OR submitted_by IS NULL OR decided_by <> submitted_by");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.KnowledgeReviewCutover", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("TrackedSince")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tracked_since");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("knowledge_review_cutover", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_knowledge_review_cutover_single", "id = 1");
+                        });
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.LegalVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4283,6 +4357,148 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<bool>("CountsTowardLimit")
+                        .HasColumnType("boolean")
+                        .HasColumnName("counts_toward_limit");
+
+                    b.Property<int>("DownloadCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("download_count");
+
+                    b.Property<DateTimeOffset?>("DownloadTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("download_token_expires_at");
+
+                    b.Property<string>("DownloadTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("download_token_hash")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("ExpiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expired_at");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset?>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<int>("FormatVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("format_version");
+
+                    b.Property<DateTimeOffset?>("LastDownloadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_downloaded_at");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_personal_data_exports_user_active")
+                        .HasFilter("status IN ('pending','running')");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasDatabaseName("ix_personal_data_exports_status_expires");
+
+                    b.HasIndex("UserId", "RequestedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_personal_data_exports_user_requested");
+
+                    b.ToTable("personal_data_exports", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_personal_data_exports_counters", "attempts >= 0 AND download_count >= 0 AND (size_bytes IS NULL OR size_bytes >= 0)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_failed", "(status = 'failed') = (failure_code IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_ready", "status <> 'ready' OR (ready_at IS NOT NULL AND expires_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_personal_data_exports_status", "status IN ('pending','running','ready','failed','expired')");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExportArchive", b =>
+                {
+                    b.Property<Guid>("ExportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("export_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<byte[]>("Nonce")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("nonce");
+
+                    b.HasKey("ExportId");
+
+                    b.ToTable("personal_data_export_archives", (string)null);
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.ProviderConfig", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4602,6 +4818,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("amount_cents");
 
+                    b.Property<short?>("AnchorDay")
+                        .HasColumnType("smallint")
+                        .HasColumnName("anchor_day");
+
                     b.Property<string>("Cadence")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -4611,6 +4831,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
 
                     b.Property<string>("CounterpartyKey")
                         .HasMaxLength(120)
@@ -4630,6 +4854,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("direction");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
 
                     b.Property<Guid?>("FinancialAccountId")
                         .HasColumnType("uuid")
@@ -4659,6 +4887,18 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("occurrences");
 
+                    b.Property<int>("PrepaidOccurrences")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("prepaid_occurrences");
+
+                    b.Property<bool>("SettledEarly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("settled_early");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -4670,6 +4910,10 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("status");
+
+                    b.Property<int?>("TotalOccurrences")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_occurrences");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -4691,21 +4935,92 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "Direction", "CounterpartyKey")
                         .IsUnique()
                         .HasDatabaseName("uq_recurring_items_user_direction_counterparty")
-                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL");
+                        .HasFilter("counterparty_key IS NOT NULL AND deleted_at IS NULL AND status <> 'completed'");
 
                     b.ToTable("recurring_items", null, t =>
                         {
                             t.HasCheckConstraint("chk_recurring_items_amount", "amount_cents > 0");
 
+                            t.HasCheckConstraint("chk_recurring_items_anchor_day", "anchor_day IS NULL OR (anchor_day BETWEEN 1 AND 31 AND cadence = 'monthly')");
+
                             t.HasCheckConstraint("chk_recurring_items_cadence", "cadence IN ('weekly','monthly','yearly')");
+
+                            t.HasCheckConstraint("chk_recurring_items_completed_at", "(status = 'completed') = (completed_at IS NOT NULL)");
 
                             t.HasCheckConstraint("chk_recurring_items_direction", "direction IN ('inflow','outflow')");
 
                             t.HasCheckConstraint("chk_recurring_items_occurrences", "occurrences >= 0");
 
+                            t.HasCheckConstraint("chk_recurring_items_one_end", "total_occurrences IS NULL OR end_date IS NULL");
+
+                            t.HasCheckConstraint("chk_recurring_items_prepaid", "prepaid_occurrences >= 0");
+
+                            t.HasCheckConstraint("chk_recurring_items_settled_early", "NOT settled_early OR status = 'completed'");
+
                             t.HasCheckConstraint("chk_recurring_items_source", "source IN ('detected','manual')");
 
-                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled')");
+                            t.HasCheckConstraint("chk_recurring_items_status", "status IN ('suggested','active','paused','rejected','cancelled','completed')");
+
+                            t.HasCheckConstraint("chk_recurring_items_total_occurrences", "total_occurrences IS NULL OR total_occurrences BETWEEN 1 AND 600");
+                        });
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItemPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("RecurringItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recurring_item_id");
+
+                    b.Property<Guid?>("TransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_item_payments_transaction")
+                        .HasFilter("transaction_id IS NOT NULL AND deleted_at IS NULL");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_recurring_item_payments_user");
+
+                    b.HasIndex("RecurringItemId", "DueDate")
+                        .IsUnique()
+                        .HasDatabaseName("uq_recurring_item_payments_item_due")
+                        .HasFilter("deleted_at IS NULL AND kind <> 'settlement'");
+
+                    b.ToTable("recurring_item_payments", null, t =>
+                        {
+                            t.HasCheckConstraint("chk_recurring_item_payments_kind", "kind IN ('matched','manual','settlement')");
                         });
                 });
 
@@ -5492,8 +5807,8 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
                         .HasColumnName("category");
 
                     b.Property<DateTimeOffset?>("ClosedAt")
@@ -5577,7 +5892,7 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                     b.ToTable("support_tickets", null, t =>
                         {
-                            t.HasCheckConstraint("chk_support_tickets_category", "category IN ('security','account','transaction','receipt','notification','group','question')");
+                            t.HasCheckConstraint("chk_support_tickets_category", "category IN ('security','account','transaction','receipt','notification','group','question','personal_data_request')");
 
                             t.HasCheckConstraint("chk_support_tickets_priority", "priority IN ('p1','p2','p3')");
 
@@ -5851,6 +6166,14 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int?>("BaseVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("base_version");
+
+                    b.Property<string>("Conflicts")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("conflicts");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -5864,6 +6187,19 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_note");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(48)
@@ -5874,13 +6210,26 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<string>("Scope")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("scope");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
-                    b.Property<int>("Version")
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
 
@@ -5891,15 +6240,31 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("uq_system_config_versions_active")
                         .HasFilter("status = 'active'");
 
+                    b.HasIndex("Name", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("uq_system_config_versions_pending")
+                        .HasFilter("status = 'pending_approval'");
+
                     b.HasIndex("Name", "Version")
                         .IsUnique()
                         .HasDatabaseName("uq_system_config_versions_name_version");
 
+                    b.HasIndex("Name", "Scope", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_system_config_versions_drafts");
+
                     b.ToTable("system_config_versions", null, t =>
                         {
+                            t.HasCheckConstraint("chk_system_config_versions_approved_by", "scope IS NULL OR status NOT IN ('active','archived') OR decided_by IS NOT NULL");
+
                             t.HasCheckConstraint("chk_system_config_versions_content_object", "jsonb_typeof(content) = 'object'");
 
-                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived')");
+                            t.HasCheckConstraint("chk_system_config_versions_draft_scope", "status IN ('active','archived') OR scope IS NOT NULL");
+
+                            t.HasCheckConstraint("chk_system_config_versions_numbered", "(status IN ('active','archived')) = (version IS NOT NULL)");
+
+                            t.HasCheckConstraint("chk_system_config_versions_status", "status IN ('active','archived','draft','pending_approval','rejected','cancelled')");
+
+                            t.HasCheckConstraint("chk_system_config_versions_two_people", "decided_by IS NULL OR decided_by <> created_by");
                         });
                 });
 
@@ -7651,6 +8016,24 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExport", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.PersonalDataExportArchive", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.PersonalDataExport", null)
+                        .WithOne()
+                        .HasForeignKey("FinMate.Domain.Entities.PersonalDataExportArchive", "ExportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FinMate.Domain.Entities.QrTransferIntent", b =>
                 {
                     b.HasOne("FinMate.Domain.Entities.Category", null)
@@ -7734,6 +8117,30 @@ namespace FinMate.Infrastructure.Persistence.Migrations
                     b.Navigation("FinancialAccount");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItemPayment", b =>
+                {
+                    b.HasOne("FinMate.Domain.Entities.RecurringItem", "RecurringItem")
+                        .WithMany("Payments")
+                        .HasForeignKey("RecurringItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinMate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("FinMate.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecurringItem");
+
+                    b.Navigation("Transaction");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.RefreshToken", b =>
@@ -8223,6 +8630,11 @@ namespace FinMate.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FinMate.Domain.Entities.NotificationLog", b =>
                 {
                     b.Navigation("AiResult");
+                });
+
+            modelBuilder.Entity("FinMate.Domain.Entities.RecurringItem", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("FinMate.Domain.Entities.SavingGoal", b =>

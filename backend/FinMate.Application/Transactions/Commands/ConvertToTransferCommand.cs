@@ -53,6 +53,7 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
     private readonly RefundAfterSave _afterSave;
     private readonly ITransferRecurringCheck? _recurring;
     private readonly Loans.ILoanLinkSync? _loanSync;
+    private readonly Forecasting.IRecurringPaymentSync? _recurringPayments;
 
     public ConvertToTransferCommandHandler(
         ITransactionRepository transactions,
@@ -68,8 +69,10 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         IDailySummaryRefresher? summaries = null,
         IForecastAlertTrigger? forecastAlerts = null,
         ITransferRecurringCheck? recurring = null,
-        Loans.ILoanLinkSync? loanSync = null)
+        Loans.ILoanLinkSync? loanSync = null,
+        Forecasting.IRecurringPaymentSync? recurringPayments = null)
     {
+        _recurringPayments = recurringPayments;
         _loanSync = loanSync;
         _transactions = transactions;
         _accounts = accounts;
@@ -131,6 +134,15 @@ public class ConvertToTransferCommandHandler : IConvertToTransferCommandHandler
         }
 
         await EnsureConvertibleAsync(command, subject, other, ct);
+        if (_recurringPayments is not null)
+        {
+            // Phase 92 (D12): chuyển giữa ví của chính mình không phải lần trả cho người nhận nữa.
+            foreach (var row in other is null ? new[] { subject } : [subject, other])
+            {
+                await _recurringPayments.OnTransactionRemovedAsync(command.UserId, row.Id, DateTimeOffset.UtcNow, ct);
+            }
+        }
+
         var counter = await _accounts.GetByIdAsync(command.CounterAccountId, command.UserId, ct)
             ?? throw new NotFoundException("FinancialAccount", command.CounterAccountId);
         if (counter.Id == subject.FinancialAccountId)

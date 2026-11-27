@@ -35,6 +35,7 @@ public sealed class GroupFundSourceConverter : IGroupFundSourceConverter
     private readonly IMergeSnapshotRepository _snapshots;
     private readonly IRefundLedger _ledger;
     private readonly RefundAfterSave _afterSave;
+    private readonly Forecasting.IRecurringPaymentSync? _recurringPayments;
 
     public GroupFundSourceConverter(
         ITransactionRepository transactions,
@@ -45,8 +46,10 @@ public sealed class GroupFundSourceConverter : IGroupFundSourceConverter
         ICacheService cache,
         IGroupLedger? groupLedger = null,
         IDailySummaryRefresher? summaries = null,
-        IForecastAlertTrigger? forecastAlerts = null)
+        IForecastAlertTrigger? forecastAlerts = null,
+        Forecasting.IRecurringPaymentSync? recurringPayments = null)
     {
+        _recurringPayments = recurringPayments;
         _transactions = transactions;
         _anomalies = anomalies;
         _snapshots = snapshots;
@@ -69,6 +72,11 @@ public sealed class GroupFundSourceConverter : IGroupFundSourceConverter
 
         var released = await ReleaseDraftRefundsAsync(userId, source, now, ct);
         await ReleaseSuspectedLinksAsync(userId, source, now, ct);
+        if (_recurringPayments is not null)
+        {
+            await _recurringPayments.OnTransactionRemovedAsync(userId, source.Id, now, ct);   // Phase 92 (D12): chi quỹ nhóm không là lần trả cá nhân
+        }
+
         var closed = await _anomalies.ResolveOpenForTransactionAsync(userId, source.Id, AnomalyResolution.Transfer, now, ct) > 0 ? [source.Id] : new List<Guid>();
         var effects = await _ledger.RecomputeAsync(userId, [source], [before], ct);
 

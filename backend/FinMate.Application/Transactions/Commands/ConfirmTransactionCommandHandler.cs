@@ -18,6 +18,7 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
     private readonly IAIServiceClient _aiServiceClient;
     private readonly ICacheService _cache;
     private readonly IForecastAlertTrigger? _forecastAlerts;
+    private readonly IRecurringTrackingTrigger? _recurringTracking;
 
     private readonly IGroupLedger? _groupLedger;
     private readonly Refunds.IRefundLedger? _refunds;
@@ -48,10 +49,12 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
         IMerchantCategoryOverrideRepository? merchantCategoryOverrides = null,
         IAiLearningQueue? learning = null,
         Notifications.IUserNotificationService? userNotifications = null,
-        Loans.ILoanLinkSync? loanSync = null)
+        Loans.ILoanLinkSync? loanSync = null,
+        IRecurringTrackingTrigger? recurringTracking = null)
     {
         _learning = learning;
         _userNotifications = userNotifications;
+        _recurringTracking = recurringTracking;
         _loanSync = loanSync;
         _groupLedger = groupLedger;
         _refunds = refunds;
@@ -216,6 +219,10 @@ public class ConfirmTransactionCommandHandler : IConfirmTransactionCommandHandle
             }
         }
         await NotifyForecastAsync(command.UserId, ct);
+        if (_recurringTracking is not null)
+        {
+            await _recurringTracking.TransactionConfirmedAsync(command.UserId, transaction.TransactionType, ct);
+        }
 
         return TransactionMapper.ToDto(transaction).WithLoan(attached is null ? null : new Loans.LoanTransactionViewDto(attached.Link, null));
     }

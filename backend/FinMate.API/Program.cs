@@ -52,6 +52,7 @@ using FinMate.Infrastructure.Caching;
 using FinMate.Infrastructure.ExternalServices;
 using FinMate.Infrastructure.Persistence;
 using FinMate.Infrastructure.Persistence.Repositories;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using FinMate.Infrastructure.Security;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -64,6 +65,9 @@ using Refit;
 using FinMate.Application.Community;
 using FinMate.Application.MarketData;
 using FinMate.Infrastructure.Community;
+using FinMate.Application.Catalog;
+using FinMate.Application.ForecastConfig;
+using FinMate.Application.Kpi;
 using FinMate.Application.Monitoring;
 using FinMate.Application.Ops;
 using FinMate.API.Monitoring;
@@ -429,6 +433,7 @@ public class Program
         builder.Services.AddScoped<IAuditLogService, AuditLogService>();
         builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         builder.Services.AddScoped<IAiStatsRepository, AiStatsRepository>();
+        builder.Services.AddScoped<IKpiRepository, KpiRepository>();
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -436,6 +441,7 @@ public class Program
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<TicketAssistService>();
         builder.Services.AddScoped<IAssumptionService, AssumptionService>();
+        builder.Services.AddScoped<IKnowledgeReviewRepository, KnowledgeReviewRepository>();
         builder.Services.AddScoped<GetAssumptionsTool>();
 
         // AI Financial Agent: công cụ nằm trong danh sách cho phép (ToolRegistry dựng từ mọi IAgentTool đã đăng ký), mọi dữ liệu đọc qua IFinancialDataSource.
@@ -558,6 +564,9 @@ public class Program
         builder.Services.AddScoped<IIncidentService, IncidentService>();
         builder.Services.AddScoped<IIncidentNotifier, IncidentNotifier>();
         builder.Services.AddScoped<IOpsMonitoringService, OpsMonitoringService>();
+        builder.Services.AddScoped<IKpiSummaryService, KpiSummaryService>();
+        builder.Services.AddScoped<IForecastConfigDraftService, ForecastConfigDraftService>();
+        builder.Services.AddScoped<IOpsCatalogService, OpsCatalogService>();
         builder.Services.AddScoped<ServiceStatusTracker>();
         builder.Services.AddScoped<ISystemMonitor, SystemMonitor>();
         builder.Services.AddScoped<IMonitorSource, HealthMonitorSource>();
@@ -587,6 +596,22 @@ public class Program
         builder.Services.AddScoped<IOpsCustomerDataService, OpsCustomerDataService>();
         builder.Services.AddScoped<ISupportRetentionService, SupportRetentionService>();
         builder.Services.AddSingleton<IAttachmentProtector, SecretCipherAttachmentProtector>();
+        builder.Services.AddSingleton<IExportArchiveProtector, SecretCipherExportArchiveProtector>();
+
+        // Phase 91: xuất dữ liệu.
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<IDataExportRepository, DataExportRepository>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.CsvExportRateLimiter>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.TransactionCsvExportService>();
+        builder.Services.AddScoped<IPersonalDataExportRepository, PersonalDataExportRepository>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.IPersonalDataReader, FinMate.Infrastructure.DataExport.PersonalDataReader>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.Package.PersonalDataArchiveBuilder>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportNotifier>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.IPersonalDataExportQueue, HangfirePersonalDataExportQueue>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportRunner>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataDownloadService>();
+        builder.Services.AddScoped<FinMate.Application.DataExport.PersonalDataExportCleanup>();
         builder.Services.AddScoped<IGroupAccessService, GroupAccessService>();
         builder.Services.AddScoped<IGroupService, GroupService>();
         builder.Services.AddScoped<IGroupMemberService, GroupMemberService>();
@@ -631,6 +656,8 @@ public class Program
         builder.Services.AddScoped<ITransactionExtrasService, TransactionExtrasService>();
         builder.Services.AddScoped<IAssistantSuggestionService, AssistantSuggestionService>();
         builder.Services.AddScoped<IRecurringDetectionService, RecurringDetectionService>();
+        builder.Services.AddScoped<IRecurringInstallmentService, RecurringInstallmentService>();   // Phase 92
+        builder.Services.AddScoped<IRecurringPaymentSync, RecurringPaymentSync>();   // Phase 92 (BR-INS-03)
         builder.Services.AddScoped<IForecastSettingsService, ForecastSettingsService>();
         builder.Services.AddScoped<IForecastAlertRepository, ForecastAlertRepository>();
         builder.Services.AddScoped<IForecastAlertDispatcher, ForecastAlertDispatcher>();
@@ -644,6 +671,7 @@ public class Program
         builder.Services.AddScoped<ICategoryForecastService, CategoryForecastService>();
         builder.Services.AddScoped<IGoalForecastService, GoalForecastService>();
         builder.Services.AddScoped<IForecastAlertTrigger, HangfireForecastAlertTrigger>();
+        builder.Services.AddScoped<IRecurringTrackingTrigger, HangfireRecurringTrackingTrigger>();   // Phase 92 (S3)
         builder.Services.AddScoped<ITransferBudgetLimitCommandHandler, TransferBudgetLimitCommandHandler>();
         builder.Services.AddScoped<IJarService, JarService>();
         builder.Services.AddScoped<IAdminFinanceCatalogService, AdminFinanceCatalogService>();
@@ -838,6 +866,7 @@ public class Program
         builder.Services.AddScoped<FinMate.Application.Loans.ILoanReminderService, FinMate.Application.Loans.LoanReminderService>();
         builder.Services.AddScoped<FinMate.Application.Forecasting.IForecastAlertGate, FinMate.Application.Loans.LoanReminderGate>();
         builder.Services.AddScoped<RecurringDetectionJob>();
+        builder.Services.AddScoped<RecurringTrackingJob>();
         builder.Services.AddScoped<ForecastDailyAlertJob>();
         builder.Services.AddScoped<ListenerHealthDailyJob>();
         builder.Services.AddScoped<ProviderFormatMonitorJob>();
@@ -982,6 +1011,18 @@ public class Program
             "notification-body-purge",
             job => job.RunAsync(CancellationToken.None),
             "15 20 * * *");
+
+        // Phase 91: chạy lại yêu cầu tải dữ liệu bị mất hoặc bỏ dở.
+        RecurringJob.AddOrUpdate<PersonalDataExportSweepJob>(
+            "data-export-sweep",
+            job => job.RunAsync(CancellationToken.None),
+            "*/5 * * * *");
+
+        // Phase 91: gói quá fileRetentionHours → Expired, file bị xoá.
+        RecurringJob.AddOrUpdate<PersonalDataExportCleanupJob>(
+            "data-export-cleanup",
+            job => job.RunAsync(CancellationToken.None),
+            "7 * * * *");
 
         // 03:30 giờ VN, sau data-deletion.
         RecurringJob.AddOrUpdate<SupportRetentionJob>(

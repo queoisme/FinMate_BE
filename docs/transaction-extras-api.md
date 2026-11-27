@@ -99,6 +99,8 @@ Thời gian trong `text` theo giờ Việt Nam. Lỗi: `404 NOT_FOUND`.
 
 Body **không bắt buộc**: `{ "cadence": "weekly" | "monthly" | "yearly" }`, mặc định `monthly`. Tên khoản = tên nơi nhận (hoặc mô tả nếu không có), số tiền, danh mục và ví lấy từ giao dịch; `nextDueDate` = ngày giao dịch cộng một chu kỳ, lặp tới khi sau hôm nay. Thu (`Credit`) thành `inflow`, chi (`Debit`) thành `outflow`. Trả `201` với khoản định kỳ.
 
+**Phase 92:** body nhận thêm, đều tuỳ chọn, `totalOccurrences`, `endDate`, `anchorDay`, `prepaidOccurrences` (ý nghĩa và lỗi 400 như `POST /recurring-items`, xem `docs/recurring-items-api.md`). Không gửi thì như cũ. Ngày gốc trong tháng (`anchorDay`) mặc định là ngày của giao dịch, nên giao dịch ngày 31 cho `nextDueDate` về ngày cuối tháng ở tháng ngắn rồi quay lại 31, không trôi thành 28. DTO trả về có thêm các trường kỳ cuối ở cuối.
+
 ```json
 { "success": true, "data": {
   "id": "3afad09c-a967-4663-ac1c-75b23e5dde81",

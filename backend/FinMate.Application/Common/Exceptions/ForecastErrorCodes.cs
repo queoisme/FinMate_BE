@@ -19,4 +19,13 @@ public static class ForecastErrorCodes
 
     /// <summary>Danh mục hoặc ví gắn với khoản định kỳ không thuộc về người dùng.</summary>
     public const string RecurringReferenceInvalid = "RECURRING_ITEM_REFERENCE_INVALID";
+
+    /// <summary>Phase 92: giao dịch gắn vào kỳ không hợp lệ (chưa xác nhận, sai chiều tiền, là chuyển ví).</summary>
+    public const string RecurringPaymentInvalid = "RECURRING_ITEM_PAYMENT_INVALID";
+
+    /// <summary>Phase 92: giao dịch đã gắn một khoản định kỳ (BR-INS-04: một giao dịch chỉ phủ một kỳ của một khoản).</summary>
+    public const string RecurringPaymentLinked = "RECURRING_ITEM_PAYMENT_LINKED";
+
+    /// <summary>Phase 92: tất toán một khoản không có kỳ cuối (BR-INS-08).</summary>
+    public const string RecurringNoFinal = "RECURRING_ITEM_NO_FINAL";
 }

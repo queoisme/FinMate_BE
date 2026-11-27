@@ -15,6 +15,8 @@ namespace FinMate.API.Controllers.Admin;
 [RequireOpsCapability(OpsCapability.ManageAgentContent)]
 public class AdminAssumptionsController(IAssumptionService service) : AgentContentControllerBase
 {
+    public sealed record RejectAssumptionRequest(string? Note);
+
     public sealed record CreateAssumptionRequest(string Key, int RateBps, string Unit, string SourceName, string SourceUrl, DateTimeOffset AsOf);
 
     /// <summary>Mọi phiên bản (khóa rồi mới nhất trước); <c>?key=</c> để lọc theo một khóa.</summary>
@@ -41,4 +43,10 @@ public class AdminAssumptionsController(IAssumptionService service) : AgentConte
     [RequireOpsCapability(OpsCapability.ApproveAgentContent)]
     public async Task<IActionResult> Retire(Guid id, CancellationToken ct)
         => Ok(ApiResponse<AssumptionDto>.Ok(AssumptionDto.From(await service.RetireAsync(id, CurrentAdminId, CurrentIpAddress, ct))));
+
+    /// <summary>Phase 95: từ chối bản nháp kèm ghi chú. 403 <c>ASSUMPTION_OWN_DRAFT</c> nếu là bản của chính mình; 409 nếu không phải bản nháp; 422 thiếu ghi chú.</summary>
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] RejectAssumptionRequest body, CancellationToken ct)
+        => Ok(ApiResponse<AssumptionDto>.Ok(AssumptionDto.From(await service.RejectAsync(id, CurrentAdminId, body.Note, CurrentIpAddress, ct))));
 }

@@ -58,7 +58,7 @@ public class CreateSystemCategoryCommandHandler : ICreateSystemCategoryCommandHa
         await _categoryRepository.AddAsync(category, ct);
 
         await _auditLogService.LogAsync(
-            AuditEvents.AdminCategoryCreated,
+            command.Channel == AuditChannel.Ops ? AuditEvents.OpsCatalogCategoryCreated : AuditEvents.AdminCategoryCreated,
             command.AdminId,
             command.IpAddress,
             new { category.Id, category.Slug, category.Name },

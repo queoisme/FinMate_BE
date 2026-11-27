@@ -15,6 +15,9 @@ public class AssumptionTests
     private static readonly DateTimeOffset AsOf = new(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly Guid Admin = Guid.NewGuid();
 
+    /// <summary>Phase 95: người duyệt phải khác người soạn, nên các test duyệt bằng một tài khoản khác.</summary>
+    private static readonly Guid Reviewer = Guid.NewGuid();
+
     private sealed class FakeRepository : IEconomicAssumptionRepository
     {
         public List<EconomicAssumption> Rows { get; } = [];
@@ -58,7 +61,7 @@ public class AssumptionTests
         var row = new EconomicAssumption { Id = Guid.NewGuid(), Key = "car_price_growth", RateBps = 500, Unit = "pct_per_year", SourceName = "", SourceUrl = "", AsOf = AsOf, Version = 1, Status = AssumptionStatus.Draft, CreatedBy = Admin };
         _repo.Rows.Add(row);
 
-        var act = () => Service().ApproveAsync(row.Id, Admin, null);
+        var act = () => Service().ApproveAsync(row.Id, Reviewer, null);
 
         (await act.Should().ThrowAsync<BusinessRuleException>()).Which.ErrorCode.Should().Be("assumption_source_required");
         row.Status.Should().Be(AssumptionStatus.Draft);
@@ -82,7 +85,7 @@ public class AssumptionTests
     {
         var service = Service();
         var v1 = await Draft(service, bps: 500);
-        await service.ApproveAsync(v1.Id, Admin, null);
+        await service.ApproveAsync(v1.Id, Reviewer, null);
         var v2 = await Draft(service, bps: 700); // còn là bản nháp: agent không được thấy
 
         var found = await new GetAssumptionsTool(_repo).GetApprovedAsync("car_price_growth", AsOf);
@@ -96,9 +99,9 @@ public class AssumptionTests
     {
         var service = Service();
         var v1 = await Draft(service, bps: 500);
-        await service.ApproveAsync(v1.Id, Admin, null);
+        await service.ApproveAsync(v1.Id, Reviewer, null);
         var v2 = await Draft(service, bps: 700);
-        await service.ApproveAsync(v2.Id, Admin, null);
+        await service.ApproveAsync(v2.Id, Reviewer, null);
 
         v1.Status.Should().Be(AssumptionStatus.Retired);
         v2.Status.Should().Be(AssumptionStatus.Approved);
@@ -133,23 +136,23 @@ public class AssumptionTests
     {
         var service = Service();
         var draft = await Draft(service);
-        await service.ApproveAsync(draft.Id, Admin, null);
+        await service.ApproveAsync(draft.Id, Reviewer, null);
 
-        var act = () => service.ApproveAsync(draft.Id, Admin, null);
+        var act = () => service.ApproveAsync(draft.Id, Reviewer, null);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
     public async Task approving_an_unknown_id_is_not_found()
-        => await ((Func<Task>)(async () => await Service().ApproveAsync(Guid.NewGuid(), Admin, null))).Should().ThrowAsync<NotFoundException>();
+        => await ((Func<Task>)(async () => await Service().ApproveAsync(Guid.NewGuid(), Reviewer, null))).Should().ThrowAsync<NotFoundException>();
 
     [Fact]
     public async Task retiring_an_approved_version_stops_the_agent_using_it_and_is_audited()
     {
         var service = Service();
         var draft = await Draft(service);
-        await service.ApproveAsync(draft.Id, Admin, null);
+        await service.ApproveAsync(draft.Id, Reviewer, null);
 
         await service.RetireAsync(draft.Id, Admin, null);
 
@@ -162,7 +165,7 @@ public class AssumptionTests
     {
         var service = Service();
         var draft = await Draft(service, bps: 550);
-        await service.ApproveAsync(draft.Id, Admin, null);
+        await service.ApproveAsync(draft.Id, Reviewer, null);
         var tool = new GetAssumptionsTool(_repo);
 
         var fresh = (await tool.GetApprovedAsync("car_price_growth", AsOf.AddDays(1)))!;

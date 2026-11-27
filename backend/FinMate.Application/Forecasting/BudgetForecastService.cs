@@ -55,6 +55,7 @@ public class BudgetForecastService : IBudgetForecastService
         var itemCategories = itemEntities.ToDictionary(i => i.Id, i => i.CategoryId);
         var history = await _data.GetTransactionsAsync(userId, today.AddDays(-rules.HistoryWindowDays), today, ct);
         var upcoming = CashflowEngine.RecurringEvents(items, history, today, periodEnd, rules);
+        var excluded = RecurringExclusions.With(items, await _items.ListAsync(userId, RecurringStatus.Completed, ct), today, rules.HistoryWindowDays);   // D5
 
         return budgets
             .Select(b =>
@@ -62,7 +63,7 @@ public class BudgetForecastService : IBudgetForecastService
                 var period = periods.GetValueOrDefault(b.Id);
                 var input = new BudgetRiskInput(
                     b.Id, b.CategoryId, b.Category?.Name, period?.LimitCents ?? b.LimitCents, period?.SpentCents ?? 0, periodStart, periodEnd);
-                return BudgetRiskCalculator.Compute(input, history, items, upcoming, itemCategories, today, rules, settings.BudgetRiskMinElapsedDays);
+                return BudgetRiskCalculator.Compute(input, history, excluded, upcoming, itemCategories, today, rules, settings.BudgetRiskMinElapsedDays);
             })
             .ToList();
     }

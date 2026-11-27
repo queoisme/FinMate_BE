@@ -156,26 +156,34 @@ public static class CashflowEngine
                     continue;
                 }
 
-                events.Add(new CashflowEvent(due < today ? today : due, signed, item.Name, kind, item.Id));
+                events.Add(new CashflowEvent(OverdueDate(item, due, today), signed, item.Name, kind, item.Id));
             }
         }
 
         return events;
     }
 
+    /// <summary>
+    /// Các lần đến hạn cần xét, đã giới hạn theo kỳ cuối (<see cref="RecurringSchedule.DueDates"/>). Lần quá ân hạn bị bỏ (vẫn tính là một kỳ
+    /// đã qua), trừ khoản CHI trả góp theo tổng số kỳ (Phase 92, S1): kỳ quá hạn chưa trả vẫn phải trả, không mất đi.
+    /// </summary>
     private static IEnumerable<DateOnly> DueDates(RecurringItemView item, DateOnly today, DateOnly end, ForecastRules rules)
     {
-        var due = item.NextDueDate;
-        while (due < today.AddDays(-rules.OverdueGraceDays))
+        var dates = RecurringSchedule.DueDates(item);
+        if (!KeepsOverdue(item))
         {
-            due = RecurringSchedule.Next(due, item.Cadence, item.PreferredDay);
+            var cutoff = today.AddDays(-rules.OverdueGraceDays);
+            dates = dates.SkipWhile(d => d < cutoff);
         }
 
-        for (; due <= end; due = RecurringSchedule.Next(due, item.Cadence, item.PreferredDay))
-        {
-            yield return due;
-        }
+        return dates.TakeWhile(d => d <= end);
     }
+
+    private static bool KeepsOverdue(RecurringItemView item) => item.CountsOccurrences && item.Direction == RecurringDirection.Outflow;
+
+    /// <summary>Lần quá hạn chưa trả: khoản thường coi như trả hôm nay (thận trọng); khoản trả góp theo số kỳ (S1) dời sang ngày mai.</summary>
+    private static DateOnly OverdueDate(RecurringItemView item, DateOnly due, DateOnly today)
+        => due >= today ? due : KeepsOverdue(item) ? today.AddDays(1) : today;
 
     private static (long Expected, long Low, long High) FlexibleSpend(CashflowInput input, DateOnly date, int multiplierPercent)
     {

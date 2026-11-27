@@ -8,6 +8,8 @@
     <!-- Test dựng StatisticalSpendingForecaster với đồng hồ cố định; dự báo phụ thuộc ngày
          trong tháng nên không cố định được thì test chỉ đúng vào vài ngày nhất định. -->
     <InternalsVisibleTo Include="FinMate.Tests" />
+    <!-- Phase 96: backtest gọi service thật qua ctor internal nhận đồng hồ. -->
+    <InternalsVisibleTo Include="FinMate.Backtest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1651,7 +1651,7 @@ GET /api/v1/users/search?q=ab
 
 - **Ảnh đại diện nhóm** (`POST/DELETE /groups/{id}/avatar`): chưa có chỗ lưu ảnh. `avatarUrl` luôn `null`.
 - **Job tóm tắt tuần** và **thông báo khi có giao dịch mới**: hai cờ `weeklySummary` và `notifyOnNewTransaction` mới chỉ được lưu.
-- **Xuất file** (`GET /groups/{id}/export`): chưa làm, chờ duyệt thư viện xlsx/pdf và font tiếng Việt.
+- **Xuất file** (`GET /groups/{id}/export`): chưa làm, chờ duyệt thư viện xlsx/pdf và font tiếng Việt. Phase 91 (2026-11-25) có xuất dữ liệu **cá nhân** (`docs/data-export-api.md`): gói của mỗi người chỉ có phần của chính họ trong nhóm; xuất dữ liệu nhóm vẫn ở REQUIREMENTS 13.4.
 - **Tìm theo số điện thoại**: tài khoản chưa có số điện thoại.
 - **Vai trò Thủ quỹ**: không có gì ở backend; giữ vai trò `Manager` và hiển thị nhãn "Thủ quỹ". Manager đã có `ManageFunds`; riêng việc duyệt khoản lớn chỉ Owner làm được.
 - `splitCount`, `isSplit`, `paidFromFund` trên giao dịch nhóm và `unsplitTransactionCount` trên `GET /groups`: chưa làm; `splitCount` hiện chỉ có trên hóa đơn.

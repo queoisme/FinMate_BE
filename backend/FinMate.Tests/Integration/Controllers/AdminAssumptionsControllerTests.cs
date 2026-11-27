@@ -134,17 +134,18 @@ public class AdminAssumptionsControllerTests : IClassFixture<AuthApiFactory>
     public async Task Draft_IsInvisibleUntilApproved_ThenApprovalRetiresThePreviousVersion_AndIsAudited()
     {
         var admin = await AdminTokenAsync();
+        var reviewer = StaffToken(UserRole.OpsManager);   // Phase 95: người duyệt khác người soạn
         var key = $"car_{Guid.NewGuid():N}"[..20];
         var auditBefore = await AuditCountAsync(admin, "Admin.Assumption.Approved");
 
         var v1 = await CreateAsync(admin, key, 500);
         v1.Status.Should().Be("draft");
         v1.Version.Should().Be(1);
-        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{v1.Id}/approve", admin))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{v1.Id}/approve", reviewer))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var v2 = await CreateAsync(admin, key, 700);
         v2.Version.Should().Be(2);
-        var approved = await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{v2.Id}/approve", admin));
+        var approved = await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{v2.Id}/approve", reviewer));
         (await approved.Content.ReadFromJsonAsync<OneBody>(JsonOptions))!.Data.ApprovedBy.Should().NotBeNull();
 
         var list = (await (await _client.SendAsync(Request(HttpMethod.Get, $"{Base}?key={key}", admin))).Content.ReadFromJsonAsync<ListBody>(JsonOptions))!.Data;
@@ -169,10 +170,11 @@ public class AdminAssumptionsControllerTests : IClassFixture<AuthApiFactory>
     public async Task ApprovingTwice_Is409_AndAnUnknownId_Is404()
     {
         var admin = await AdminTokenAsync();
+        var reviewer = StaffToken(UserRole.OpsManager);   // Phase 95: người duyệt khác người soạn
         var draft = await CreateAsync(admin, $"gold_{Guid.NewGuid():N}"[..20]);
-        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", admin))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", reviewer))).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var again = await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", admin));
+        var again = await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{draft.Id}/approve", reviewer));
 
         again.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await _client.SendAsync(Request(HttpMethod.Post, $"{Base}/{Guid.NewGuid()}/approve", admin))).StatusCode.Should().Be(HttpStatusCode.NotFound);

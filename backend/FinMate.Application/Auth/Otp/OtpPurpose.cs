@@ -13,4 +13,7 @@ public enum OtpPurpose
 
     /// <summary>Bước thứ hai khi tài khoản nội bộ đăng nhập.</summary>
     OpsLogin,
+
+    /// <summary>Xác thực lại trước khi tạo gói dữ liệu cá nhân (Phase 91, BR-EXP-06).</summary>
+    DataExport,
 }

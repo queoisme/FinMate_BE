@@ -555,6 +555,31 @@ Nhóm API phục vụ màn chi tiết giao dịch, bản nháp và khung chat �
 - Khớp tên: chỉ `PersonNameMatch` (chat và thông báo). Dự án bật `InvariantGlobalization`, nên `string.Normalize(FormD)` KHÔNG tách dấu: bỏ dấu phải qua bảng `CounterpartyKey.FoldChar`.
 - Hai FK `loan_repayments → transactions` là `DEFERRABLE INITIALLY DEFERRED` bằng SQL trong migration; migration nào tạo lại chúng phải giữ dòng đó.
 
+### 2.17 Xuất dữ liệu (thêm 2026-11-25, Phase 91)
+
+**Quyết định: một luật chi tiêu, hai cách lấy dữ liệu ra.** CSV giao dịch trả đồng bộ qua `TransactionCsvExportService` (kiểm mọi thứ có thể lỗi trước byte đầu tiên rồi ghi theo luồng); gói đầy đủ là ZIP dựng bởi job, lưu mã hoá, tải bằng link dùng một lần. API: `docs/data-export-api.md`; kế hoạch và danh mục bảng: `docs/superpowers/plans/2026-11-25-data-export.md`. Code ở `Application/DataExport/` (định dạng, dịch vụ, runner) và `Infrastructure/DataExport/` (`PersonalDataReader`).
+
+- `TransactionCsvFormat` là chỗ duy nhất định dạng dòng giao dịch (dùng chung CSV và gói). Cột "Số tiền tính vào chi tiêu" đi qua `NetFlow.Of`, `Category.LoanSlug` và luật `Transfer`; không viết lại luật chi tiêu ở đây.
+- `CsvWriter`: BOM, không `sep=`, CRLF, bọc ngoặc theo dấu phân cách đang dùng, chống injection chỉ ở ô chữ (`CsvCell.Text`); ô số (`CsvCell.Number`) không bao giờ bị thêm `'`.
+- `PersonalDataReader` chiếu **từng trường** theo danh mục đã duyệt, không bao giờ serialize entity: thêm cột mới vào một bảng không tự lọt vào gói. Thêm một bảng có dữ liệu user mới phải quyết nó có vào gói không (cập nhật danh mục ở kế hoạch và README). Dữ liệu người khác chỉ còn vai trò; chữ do người khác viết không vào gói.
+- Lưu: `personal_data_export_archives` (`bytea`) mã hoá bằng `SecretCipher` qua `IExportArchiveProtector`, AAD `data-export:{id}`; thiếu khoá thì từ chối (422), không bao giờ lưu bản rõ. File không đi qua đĩa.
+- Chuyển trạng thái là UPDATE có điều kiện (`TryLeaseAsync`, `MarkReadyAsync`, `TryConsumeDownloadTokenAsync`, `ExpireAsync`), nên job, job quét, dọn dẹp và hai lượt tải song song không giẫm nhau. Job không để Hangfire tự thử lại; runner đếm lượt (3), job quét chạy lại.
+- Link tải: token 32 byte, DB giữ SHA-256; endpoint tải vẫn đòi JWT đúng user (D7); token chết khi bắt đầu tải (D9). Token ở query string vì log request chỉ ghi đường dẫn.
+- Nhân viên không có đường nào tới xuất dữ liệu (test kiến trúc `DataExportStaffBoundaryTests`); `ExportsController` không gắn gói trả phí (BR-EXP-13).
+- `DELETE /auth/account` từ chối khi còn yêu cầu đang chạy (S5); hai bảng mới cascade theo `users`, nên `UserHardDeleter` không cần sửa.
+- Lịch sử đồng ý: `ConsentCommandHandler` ghi audit `User.ConsentChanged` (D3); trước 2026-11-25 không có lịch sử.
+
+### 2.18 Backtest dự báo (thêm 2026-11-27, Phase 96, duyệt D20)
+
+**Quyết định: đo dự báo bằng chính code production trên dữ liệu tổng hợp, không viết lại bộ tính.** `backend/FinMate.Backtest` (console, không DB, không NuGet mới) dựng các "thế giới" giao dịch theo đặc tả có phiên bản (`docs/evaluation/forecast-backtest-generator-spec.md`), rồi gọi `ForecastService` thật qua ctor `internal` nhận đồng hồ, với repository giả trong bộ nhớ. Báo cáo: `docs/evaluation/forecast-backtest.md` + CSV. Kế hoạch, D1–D21, S1–S5: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`.
+
+- **Không rò rỉ tương lai:** repository giả (`Simulation/WorldView`, `Fakes`) chỉ thấy giao dịch có `TransactedAt <` thời điểm của đồng hồ giả (S1); mốc dự báo T = 00:00 giờ VN. Số dư từng ví dựng lại từ số dư mở đầu + mọi giao dịch đã thấy.
+- **Repository giả khớp production:** `FakeForecastData` ánh xạ dòng như `ForecastDataRepository` bằng chính `RefundNetting`, bộ lọc vay và luật chuyển khoản vượt ranh giới; test hợp đồng `FakeForecastDataContractTests` so hai bên trên Postgres thật. Sửa `ForecastDataRepository` thì test này phải còn xanh, hoặc sửa bản giả theo. Phương thức không dùng ném `NotSupportedException`.
+- **Bộ sinh:** luồng ngẫu nhiên SplitMix64 riêng theo tên và theo ngày/kỳ, nên kịch bản (lớp phủ lên cùng người gốc) chỉ đổi phần nó chạm tới; đổi bộ sinh = sửa đặc tả và tăng phiên bản, không bao giờ chỉnh theo kết quả.
+- **Chế độ khoản định kỳ:** tầng 1 chỉ có "đáp án" (`OracleRecurring`: khoản thật, chỉ với thông tin trước mốc) — cận trên. Chế độ "phát lại" (chạy `RecurringDetectionService` thật mỗi ngày) là tầng 2, chưa làm.
+- **Thực tế** = `ForecastActuals.NetFlow` trên dữ liệu thô + chuyển khoản vượt ranh giới, đúng như `ForecastAccuracyService.FillActualsAsync`; mốc B0 lấy từ `ForecastSnapshotBuilder`.
+- Production chỉ được thêm ctor `internal` nhận đồng hồ cho service cần chạy ở mốc quá khứ (tầng 1 không cần thêm cái nào; tầng 2–3 sẽ thêm cho `AnomalyService`, `ForecastAlertService`, `CategoryForecastService`).
+
 ## 3. AI Service — Pipeline Architecture
 
 ### 3.1 Cấu trúc thư mục AI Service
@@ -1358,6 +1383,9 @@ Hai điểm dễ đọc nhầm thành vi phạm quy tắc:
 | `GoalDeadlineCheckJob` | 08:00 mỗi ngày | Nhắc mục tiêu tiết kiệm sắp/quá hạn |
 | `DataDeletionJob` | 03:00 mỗi ngày | Xóa cứng tài khoản đã yêu cầu xóa quá 30 ngày (kèm mẫu huấn luyện ở AI Service) |
 | `NotificationBodyPurgeJob` | 03:15 mỗi ngày | Đặt `notification_logs.notification_body = NULL` cho log ghi quá 90 ngày (NFR-SEC-23, §7.3). Tiêu đề, `content_hash`, trạng thái, kết quả AI và giao dịch giữ nguyên |
+| `PersonalDataExportJob` | Khi có yêu cầu tải dữ liệu | Dựng, mã hoá và lưu gói dữ liệu cá nhân; push + email khi xong (§2.17) |
+| `PersonalDataExportSweepJob` (`data-export-sweep`) | Mỗi 5 phút | Chạy lại yêu cầu bị mất khi enqueue hoặc job chết quá hạn thuê; hết 3 lượt thì `Failed` |
+| `PersonalDataExportCleanupJob` (`data-export-cleanup`) | Phút 7 mỗi giờ | Gói quá `dataExport.fileRetentionHours` → `Expired`, xoá file; xoá lịch sử cũ; sự cố `data_export:overdue`. Chạy cả khi `features.dataExport` tắt |
 | `MarketDataRefreshJob` | Mỗi 3 giờ, phút 5 | Đọc nguồn thị trường, xác nhận giá xăng, gửi bài cho AI, xét cảnh báo |
 | `SubscriptionReconcileJob` | Mỗi 10 phút | Tra SePay các đơn đang chờ để ghi nhận tiền khi IPN không về; đơn quá 24 giờ chưa trả thì hết hạn |
 | `SubscriptionReminderJob` | 09:00 mỗi ngày | Nhắc gói sắp hết hạn trước 7 ngày và 1 ngày, bỏ qua nếu đã có kỳ nối tiếp |

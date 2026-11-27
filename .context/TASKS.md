@@ -1698,3 +1698,124 @@ Nhánh `feat/loan-book` (từ `main` @ `aba320c`). Kế hoạch, Q1–Q16, S1–
   - **Hành vi đổi của `/loans`:** (Q3) giao dịch ví do sổ vay tạo có mô tả cố định ("Trả nợ", "Thu nợ", "Cho vay", "Đi vay") và không có nơi chi; tên người hiện qua `loanLink`. (Q4) `DELETE /loans/{id}` là xoá mềm, giao dịch đã sinh ở lại. (Q5, S2) `PUT principalCents` là tổng gốc mới; khoản có lần giải ngân đầu gắn giao dịch thì đổi gốc bị 422 `LOAN_PRINCIPAL_LINKED`. (Q10) nhắc hạn là push câu chung kind `loan_due` (data `loanId`, `phase`), công tắc `loanRemindersEnabled` trong `PATCH /users/me/notification-prefs` và `GET /users/me`. Khoản đã đóng trả `accruedInterestCents = 0`.
   - **Dự báo:** sự kiện `loan_outflow` / `loan_inflow` (`loanId`, `optimisticOnly`), nguyên nhân `source = user_entered`; `spendable.loansDueCents`, `spendable.loans[]`; `undatedLoans`, `unlinkedLoanTransactions`; cảnh báo kiểm mua `undated_loan`. Chi tiết `docs/loans-api.md`.
   - **Đổi hành vi:** báo cáo tháng của một ví không còn trả chi âm; tổng của một ngày trên `timeline` không còn cộng nháp (vẫn theo trang, nên tab Ngày/Tuần/Năm cộng các trang như cũ là đúng).
+
+## Phase 91 — Xuất dữ liệu (2026-11-25, xong trên nhánh, chưa merge; còn kiểm tay S1)
+
+Nhánh `feat/data-export` (từ `main` @ `5aeec81`, đã có Phase 90). Kế hoạch, danh mục bảng, D1–D18, S1–S5: `docs/superpowers/plans/2026-11-25-data-export.md`. API: `docs/data-export-api.md`. Mốc test và test đỏ sẵn ở mục 8 của kế hoạch.
+
+- [x] Task 0: kế hoạch duyệt kèm S1–S5; mốc test backend 3820/3822 (2 đỏ sẵn trên `main`), ai-service 2255 passed.
+- [x] Task 1: bảng `personal_data_exports` + `personal_data_export_archives` (migration `AddPersonalDataExports`, một yêu cầu đang chạy mỗi user bằng UNIQUE một phần), `features.dataExport` (bật) và nhóm cấu hình `dataExport`, `OtpPurpose.DataExport`, mã lỗi, audit, `IExportArchiveProtector`, ticket `PersonalDataRequest` + câu trả lời mẫu.
+- [x] Task 2: `CsvWriter` (BOM, không `sep=`, CRLF, RFC 4180 theo dấu phân cách, chống injection).
+- [x] Task 3: `TransactionCsvFormat` (18 cột, cột chi tiêu có dấu theo `NetFlow`/loan/`Transfer`, quan hệ theo ưu tiên, trạng thái hai giá trị S2).
+- [x] Task 4: `GET /exports/transactions.csv` (`delimiter` S1, `csvPerHour` S3), kịch bản (a), (b).
+- [x] Task 5: OTP, tạo yêu cầu, danh sách, trạng thái; hạn mức kiểm trước mã; thất bại hệ thống không tính (D14); thiếu khoá → 422 (D8).
+- [x] Task 6: `PersonalDataReader` theo danh mục + `PersonalDataArchiveBuilder` + README; test không chuỗi bí mật và không dữ liệu thành viên khác.
+- [x] Task 7: `PersonalDataExportRunner` (thuê có hạn, mã hoá, Ready trong một transaction, push + email không link), job quét 5 phút, quá cỡ → sự cố Normal.
+- [x] Task 8: link tải dùng một lần gắn với user (D7, D9), kịch bản (c), (d).
+- [x] Task 9: dọn dẹp mỗi giờ (Expired, xoá file, lịch sử), xoá cứng, `DELETE /auth/account` → 409 khi đang xuất (S5), kịch bản (e).
+- [x] Task 10: ticket `PersonalDataRequest` (P2), test kiến trúc nhân viên / gói trả phí, audit `User.ConsentChanged` (D3), `app-config.dataExportPackageAvailable` (D8).
+- [x] Sửa thêm (D15): sự cố `data_export:overdue` khi còn yêu cầu chưa xong sau 5 ngày.
+- [x] Task 11: tài liệu (`docs/data-export-api.md`, REQUIREMENTS 6.12 FR-EXP-01…13, NFR-SEC-33, 13.1, 13.4, 13.6; ERD 3.1.9; ops-api, ops-runbook; ARCHITECTURE §2.17; CLAUDE.md).
+- [x] Task 12: toàn bộ test — backend **3946/3948** (mốc 3820/3822; +126 test mới, chỉ còn 2 đỏ có sẵn trên `main`), không cảnh báo CS; ai-service 2255 passed, 483 skipped (không đổi). Kiểm tay S1 chưa làm (mục dưới).
+- [ ] **Kiểm tay S1:** mở CSV bằng Excel trên Windows đặt vùng Vietnamese và bằng Google Sheets, với cả `comma` và `semicolon`. Chưa làm được trên máy phát triển (Linux, không có Excel); cần người có máy Windows.
+- [ ] **Người viết Điều khoản / Chính sách quyền riêng tư:** bổ sung quyền tải dữ liệu cá nhân (CSV, gói đầy đủ, file giữ 72 giờ, những gì không có trong gói và vì sao, nhân viên không tải thay) ở bản tiếp theo (REQUIREMENTS 13.4).
+- [ ] **Báo nhóm Flutter:**
+  - **Màn "Dữ liệu của tôi"** (Cài đặt): hai mục "Xuất giao dịch (CSV)" và "Tải toàn bộ dữ liệu", cộng danh sách các lần tải (`GET /exports/personal-data`). Ẩn mục thứ hai khi `app-config.dataExportPackageAvailable = false`; ẩn cả màn khi `config.features.dataExport = false`.
+  - **Xuất CSV:** chọn khoảng ngày (≤ `config.dataExport.maxRangeDays`, mặc định tháng này), ví, danh mục, trạng thái (`Confirmed` mặc định / `Draft` / `All`), dấu phân cách: gợi ý `semicolon` khi máy đặt vùng Việt Nam (Excel vùng VN tách cột bằng `;`), công tắc tuỳ chọn "Gồm giao dịch đã xoá" (`includeDeleted=true`, mặc định tắt). Gọi `GET /exports/transactions.csv` có bearer, lưu file theo `Content-Disposition`, mở sheet chia sẻ. 422 / 429 chỉ hiện `message`.
+  - **Luồng gói đầy đủ:** màn giải thích (gồm gì, không gồm gì, file giữ 72 giờ, một lần mỗi 24 giờ) → `POST /exports/personal-data/otp` → nhập mã 6 số → `POST /exports/personal-data { code }` → trạng thái `Pending` / `Running` / `Ready` / `Failed` / `Expired` (đọc lại khi nhận push `data_export_ready` hoặc `data_export_failed`, có `exportId`; hiện `failureReason` khi `Failed`).
+  - **Tải về:** `POST .../{id}/download-link` rồi tải **ngay** `url` bằng HTTP client **có bearer** (link sống 10 phút, dùng một lần, không mở bằng trình duyệt hay DownloadManager). Tải đứt thì xin link mới. Lưu ZIP vào Files, nhắc người dùng cất nơi an toàn.
+  - **Câu chữ gợi ý:** "Gói chứa toàn bộ dữ liệu tài chính của bạn. FinMate giữ gói 72 giờ rồi tự xoá." / "Không có: mật khẩu, nội dung thông báo ngân hàng gốc, ảnh, dữ liệu của thành viên khác trong nhóm."
+  - **Xoá tài khoản:** trước khi xác nhận, nhắc tải dữ liệu (sau khi xin xoá không đăng nhập được nữa, chỉ lấy được qua hỗ trợ). `DELETE /auth/account` có thể trả 409 `DATA_EXPORT_IN_PROGRESS` khi gói đang dựng: hiện `message`, mời chờ xong rồi xoá.
+  - **Hỗ trợ:** loại ticket mới `PersonalDataRequest` (nhãn gợi ý "Yêu cầu dữ liệu cá nhân").
+
+## Phase 92 — Trả góp: kỳ cuối cho khoản định kỳ (2026-11-26, xong trên nhánh, chưa push)
+
+Nhánh `feat/recurring-installments` (từ `main` @ `96ac3e8`, đã có Phase 90, 91). Kế hoạch, ba danh sách "Đọc trước", D1–D20, S1–S3: `docs/superpowers/plans/2026-11-26-recurring-installments.md`. API: `docs/recurring-items-api.md`. Mốc test ở mục 6 của kế hoạch.
+
+- [x] Task 0: kế hoạch duyệt (D6 chọn a) kèm S1–S3; mốc backend 3950/3952 (2 đỏ sẵn trên `main`), ai-service 2255 passed.
+- [x] Task 1: migration `AddRecurringInstallments`: cột kỳ cuối, `prepaid_occurrences`, `completed_at`, `settled_early`, trạng thái `completed`, index duy nhất bỏ qua dòng `completed`, bảng `recurring_item_payments` (một giao dịch một dòng sống, một kỳ một dòng), suy `anchor_day` theo S2. ERD.
+- [x] Task 2: lịch tháng theo `anchor_day` (`RecurringSchedule.DayOf`); sửa lỗi ngày 28 (§13.1). Sửa kỳ vọng đúng một test (D20).
+- [x] Task 3: một hàm lịch có giới hạn (`RecurringSchedule.DueDates`) cho mọi chỗ chiếu; S1: kỳ chi quá hạn của khoản theo số kỳ chiếu vào ngày mai, không tạm dừng, cảnh báo "Quá hạn" mỗi kỳ.
+- [x] Task 4: `InstallmentProgress` (đã trả / còn lại / ước tính / kỳ cuối), `RecurringCompletion` (hoàn thành, mở lại), repository đếm kỳ đã trả.
+- [x] Task 5: tracker ghi kỳ đã trả và hoàn thành khoản, chạy dưới khoá theo user; S3: job theo user sau confirm / tạo tay / gộp (`IRecurringTrackingTrigger`, chống trùng bằng dấu trong cache).
+- [x] Task 6: trường kỳ cuối ở tạo / sửa / xác nhận, `GET/POST/DELETE .../payments`, `POST .../settle`, mở lại bằng `PATCH status=Active`, lọc `Completed`, mã lỗi mới.
+- [x] Task 7: `from-transaction` nhận trường kỳ cuối, ngày gốc = ngày giao dịch.
+- [x] Task 8: kỳ đã trả đi theo giao dịch: xoá, đảo, gộp, chuyển thành chuyển ví / chi quỹ nhóm, đổi chiều tiền (`IRecurringPaymentSync`).
+- [x] Task 9: khoản vừa hoàn thành vẫn loại các lần trả cũ khỏi thói quen chi tiêu, rủi ro ngân sách, thu không đều, bất thường (D5).
+- [x] Task 10: gói dữ liệu cá nhân: trường mới trong `recurring_items.json`, file mới `recurring_item_payments.json` (D15).
+- [x] Task 11: kịch bản đầu-cuối (a)–(j) pass.
+- [x] Task 12: tài liệu (REQUIREMENTS FR-FCST-09, 12 cập nhật, FR-FCST-18 mới, §13.1, §13.4, §13.6; ERD; `docs/recurring-items-api.md`; `docs/transaction-extras-api.md`; `docs/data-export-api.md`; CLAUDE.md).
+- [x] Task 13: toàn bộ test (số ở mục 6 của kế hoạch).
+- [ ] **Báo nhóm Flutter:**
+  - **Trường mới** trong `RecurringItemDto` (ở cuối, app cũ bỏ qua được): `totalOccurrences`, `prepaidOccurrences`, `paidOccurrences`, `remainingOccurrences`, `remainingAmountCents` (ước tính = còn lại × số tiền), `endDate`, `anchorDay`, `finalDueDate`, `completedAt`, `settledEarly`. Trạng thái mới `completed`.
+  - **Thanh tiến độ kỳ:** "Đã trả X/Y kỳ" khi có `totalOccurrences` (X = `paidOccurrences`), kèm "Còn khoảng {remainingAmountCents}" và "Kỳ cuối {finalDueDate}". Chỉ có `endDate`: "Còn {remainingOccurrences} kỳ, đến {finalDueDate}".
+  - **Form tạo / sửa / xác nhận đề xuất:** "Số kỳ" **hoặc** "Ngày kết thúc" (không cả hai), "Đã trả trước khi dùng app", "Ngày trong tháng" (chỉ chu kỳ tháng, 1–31). Bỏ kỳ cuối: `PATCH { clearEnd: true }`. `POST .../confirm` nhận các trường này trong body.
+  - **Nút "Đánh dấu đã trả":** `POST /recurring-items/{id}/payments`, có thể chọn một giao dịch (`transactionId`) hoặc để trống (trả tiền mặt). Danh sách kỳ đã trả `GET .../payments`, mỗi kỳ có nút gỡ (`DELETE .../payments/{paymentId}`).
+  - **Nút "Đã tất toán":** `POST .../settle` (tuỳ chọn chọn giao dịch tất toán). Khoản `settledEarly` có nút "Mở lại" = `PATCH { status: "Active" }`.
+  - **Bộ lọc "Đã hoàn thành":** `GET /recurring-items?status=Completed`. Danh sách mặc định **không còn** trả khoản đã hoàn thành.
+  - **Lịch tháng:** ngày đến hạn giờ theo `anchorDay` (ngày 31 → 28/29 tháng 2 → 31/3). Khoản cũ có `anchorDay` do hệ thống suy ra; cho người dùng sửa.
+  - **Cảnh báo mới:** kỳ trả góp quá hạn có cảnh báo "Quá hạn {tên}" (kind `bill_due`, `data.recurringItemId`, `data.dueDate`); khoản trả góp không còn nhận câu hỏi "còn dùng không?" khi quá hạn.
+  - **Mã lỗi mới:** `RECURRING_ITEM_PAYMENT_LINKED` (409), `RECURRING_ITEM_PAYMENT_INVALID` (422), `RECURRING_ITEM_NO_FINAL` (422). Hiện `message`.
+  - **Xuất dữ liệu:** gói ZIP có thêm `recurring_item_payments.json`.
+- [ ] **Báo MinhTuan:** `POST /recurring-items/from-transaction/{id}` (`TransactionExtrasService.CreateRecurringAsync`) nhận thêm `totalOccurrences`, `endDate`, `anchorDay`, `prepaidOccurrences`; không gửi thì như cũ. Một thay đổi nhỏ khi không gửi gì: `nextDueDate` giữ ngày của giao dịch làm ngày gốc (giao dịch ngày 31 → 28/02 → 31/03, trước là 28/03), và DTO có thêm các trường kỳ cuối ở cuối. Chữ ký C# có thêm tham số tuỳ chọn `installment` ở cuối.
+
+## Phase 94 — Dashboard KPI sản phẩm, bản gọn (2026-11-27, xong trên nhánh, chưa push)
+
+Nhánh `feat/kpi-dashboard` (từ `main` @ `88b5049`). Kế hoạch, bảng "nguồn ghi nhận user hoạt động" và phạm vi bản gọn: `docs/superpowers/plans/2026-11-27-kpi-dashboard.md`. API: mục "Dashboard KPI sản phẩm" trong `docs/ops-api.md`. Bản gọn vì đồ án chưa có người dùng thật: không DAU/MAU, không giữ chân, không bảng tổng hợp/backfill, không nguồn `Chat` (REQUIREMENTS §13.4 "KPI — phần còn lại").
+
+- [x] Task 0: kế hoạch bản gọn duyệt; mốc backend 4044/4046 (2 đỏ sẵn trên `main`).
+- [x] Task 1: quyền `ViewProductKpi` (1 << 18), mặc định OpsManager + Admin; migration `AddViewProductKpiCapability` cấp bit cho hàng OpsManager đã có (không đổi schema); test migration của `AddLegalVersions` giờ dừng đúng ở migration của nó.
+- [x] Task 2: phần thuần `Application/Kpi/`: `KpiPeriods` (kiểm khoảng, chia kỳ, `partial`), `KpiMath` (tỉ lệ, che ô), `KpiCount` (số hoặc `"<5"`); cấu hình `kpi.minCellSize` (5, 2–20), ẩn khỏi `/app-config`.
+- [x] Task 3: `IKpiRepository`/`KpiRepository` + `Persistence/Sql/KpiSql.cs` (GROUP BY ngày VN, người khác nhau theo kỳ, người trả phí tại thời điểm, ảnh chụp tính năng).
+- [x] Task 4: `KpiSummaryService` (cache Redis 10 phút) + `GET /api/v1/ops/kpi/summary`; test quyền HTTP (Staff, Staff có `ViewDashboard`, user thường, chưa 2FA → 403; OpsManager, Admin, Staff được cấp `ViewProductKpi` → 200; khoảng sai → 422).
+- [x] Task 5: kịch bản 20 user / 3 tuần trên DB mới (`KpiSummaryScenarioTests`) và qua HTTP (`OpsKpiControllerTests`), quét JSON không id / email / giá của một đơn.
+- [x] Task 6: tài liệu (REQUIREMENTS 6.13 FR-KPI-01…09, NFR-SEC-34, §13.4, §13.6; `docs/ops-api.md`; ERD; CLAUDE.md).
+- [x] Task 7: toàn bộ test backend: mốc `88b5049` **4044/4046** → sau **4093/4095** (+49 test mới: 46 trong `Kpi`, 3 dòng `ViewProductKpi` ở `OpsPermissionsTests`; không thêm test đỏ; 2 đỏ sẵn trên `main`: `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`, `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`). S1 lúc làm: `onboardingCompleted` đếm theo ngày đăng ký, chỉ trạng thái `completed`.
+- [ ] **Báo nhóm web admin:**
+  - Quyền mới `ViewProductKpi` (OpsManager, Admin; Admin cấp thêm cho Staff được). Hiện menu KPI khi `GET /ops/me` có quyền này; `ViewDashboard` vẫn chỉ là dashboard ticket.
+  - `GET /api/v1/ops/kpi/summary?from=&to=&granularity=day|week|month` (ngày VN, tối đa 366 ngày, `to` ≤ hôm nay; sai → 422 `KPI_INVALID_RANGE`).
+  - Gợi ý biểu đồ: cột `signups` chồng `emailVerified` và `onboardingCompleted`; đường `transactingUsers` theo ngày/tuần (ghi rõ **không phải DAU**); biểu đồ tròn `transactions.bySource` (ô `"<5"` gộp vào "Khác"; `manual` gồm cả chat); thẻ `revenueCents` (tổng, định dạng đồng), `payingTotal`, `paidOrders`, `needsReview`; thẻ `featureUsers` ghi "tính đến {asOf}"; tỉ lệ `notifications.conversionRate`. Kỳ `partial: true` vẽ khác màu.
+  - Giá trị số có thể là chuỗi `"<5"` (`bySource`, `payingByPlan`); `conversionRate` có thể null (không có mẫu số). Dữ liệu cache 10 phút.
+- [ ] **Báo nhóm app:** app chưa gọi `PUT /devices/listener-status` (Phase 84), nên server chưa biết dịch vụ đọc thông báo có còn chạy không; độ phủ dữ liệu luôn là `unknown` (và chỉ số độ phủ, nếu sau này thêm vào KPI).
+
+## Phase 95 — Staff soạn, OpsManager duyệt cấu hình nghiệp vụ và tham số dự báo (2026-11-27, xong trên nhánh, chưa push)
+
+Nhánh `feat/staff-draft-manager-approve` (từ `main` @ `bacfb39`, đã có Phase 94). Kế hoạch, bảng kiểm kê mọi cấu hình nghiệp vụ, phân loại tham số, D1–D17 và S1–S6: `docs/superpowers/plans/2026-11-27-staff-draft-manager-approve.md`. API: `docs/ops-api.md` (mục "Tham số dự báo", "Danh mục và luật phân loại cho Staff", "Giả định kinh tế và tri thức: duyệt hai người"). Phạm vi A + B′ thu hẹp; phần chưa làm ở REQUIREMENTS §13.4 "Soạn / duyệt cấu hình nghiệp vụ — hướng mở rộng".
+
+- [x] Task 0: kiểm kê (bước 1), chủ sản phẩm chốt phạm vi A + B′ thu hẹp, duyệt D1–D17 kèm S1–S6; mốc backend 4093/4095 (`bacfb39`, 2 đỏ sẵn trên `main`).
+- [x] Task 1: quyền `MaintainCatalog`, `DraftForecastConfig` (Staff, OpsManager), `ApproveForecastConfig`, `ApproveAgentContent` (OpsManager); migration `AddCatalogAndForecastConfigCapabilities` cập nhật dòng `role_permissions` đã có. Admin luôn đủ quyền (tính từ enum), không cần migration cho Admin (S5).
+- [x] Task 2: audit system-config nêu mọi nhóm đã đổi bằng phản chiếu (trước bỏ sót `notificationPipeline`, `categories`, `dataExport`, `kpi`).
+- [x] Task 3: migration `AddForecastConfigDrafts`: bản nháp trên `system_config_versions` (không số phiên bản, một bản chờ duyệt mỗi phạm vi, CHECK chặn tự duyệt), duyệt = chính dòng nháp thành bản đang chạy khi phiên bản gốc còn đang chạy.
+- [x] Task 4: merge patch giới hạn `forecast` + `limits`, diff theo trường, làm lại kèm `conflicts` (S2).
+- [x] Task 5: `ForecastConfigDraftService` (soạn, sửa, gửi, rút, huỷ, duyệt, từ chối; bản cũ bị chặn; S1).
+- [x] Task 6: `/ops/forecast-config` + `/meta` khớp validator (S6); test quyền, 2FA, 400, 409, runtime chỉ đọc bản đang chạy.
+- [x] Task 7: `/ops/catalog` cho Staff (danh mục, thương hiệu, từ khoá), audit `Ops.Catalog.*` qua `AuditChannel`, không tắt được `income`/`loan`/`other` (S4).
+- [x] Task 8: giả định kinh tế: không tự duyệt (miễn trừ job CPI), quyền đọc từ DB, từ chối kèm ghi chú; migration `AddAssumptionRejection`; luật hai người là trigger `trg_economic_assumptions_two_people` (migration `AssumptionTwoPeopleTrigger`, sửa sau review: CHECK `NOT VALID` vẫn bị kiểm ở mọi UPDATE nên dòng tự duyệt cũ không gỡ được). Test cũ soạn và tự duyệt bằng cùng tài khoản đổi sang duyệt bằng tài khoản khác.
+- [x] Task 9: tri thức: `knowledge_reviews` + mốc `knowledge_review_cutover` (migration `AddKnowledgeReviews`), không tự duyệt, từ chối kèm ghi chú, tài liệu mới không có dòng ghi → 409, ghi hỏng → gỡ + 503 (S3); ai-service trả thêm `created_at`.
+- [x] Task 10: kịch bản đầu-cuối (a), (b) qua HTTP; (c)–(g) nằm ở test của Task 5–9.
+- [x] Task 11: tài liệu (REQUIREMENTS 6.14 FR-BCFG-01…09, §13.4, §13.6; `docs/ops-api.md`; `docs/ai-rules-admin-api.md`; `docs/agent-api.md`; ERD; CLAUDE.md).
+- [x] Task 12: toàn bộ test backend: mốc `bacfb39` **4093/4095** → sau **4293/4295** (+200 test, không thêm đỏ; vẫn đúng 2 đỏ sẵn trên `main`: `MethodSelectionOnSeedDataTests…GetsCashFlowBudget…`, `NotificationsControllerTests.Analyze_HighConfidence…AutoCommits…`). ai-service: 73 test kho tri thức pass trên Postgres (pgvector) sau khi thêm `created_at`.
+- [ ] **Báo nhóm web admin:**
+  - **Quyền mới** trong `GET /ops/me`: `MaintainCatalog`, `DraftForecastConfig`, `ApproveForecastConfig`, `ApproveAgentContent`. Hiện menu theo quyền, không theo vai trò.
+  - **Màn hình mới "Tham số dự báo"** (`/api/v1/ops/forecast-config`): form dựng từ `GET /meta` (khoảng, mặc định, mô tả, `notAbove`/`below` cho cặp trường); gửi `changes` chỉ gồm trường đổi; hiện `diff` và `validation` trước khi gửi duyệt; hàng chờ duyệt (`?status=pending_approval`) cho OpsManager; bản `stale: true` có nút "Làm lại" (`POST /drafts { fromDraftId }`) và hiện `conflicts`; từ chối bắt buộc ghi chú; "Hoàn tác" = `POST /drafts { fromVersion }`. Nút duyệt ẩn với bản của chính người xem (server cũng 403). Sau khi duyệt: báo "có hiệu lực trong vòng 10 giây".
+  - **Màn hình "Danh mục và luật phân loại" cho Staff** (`/api/v1/ops/catalog/*`): thêm, sửa, ẩn danh mục; thêm, sửa, tắt thương hiệu và từ khoá; thử luật (`/ai-rules/preview`); lịch sử chỉ `?resource=brand|keyword`. Không có xoá, đổi slug, hoàn tác, bộ nhớ tên món, chỉ dẫn Gemini. Ẩn `income`/`loan`/`other` → 422 `PROTECTED_CATEGORY` (hiện `message`). Admin vẫn dùng trang `/admin/*` như cũ.
+  - **Giả định kinh tế và Tri thức AI:** thêm nút "Từ chối" (bắt buộc ghi chú) → `POST /admin/assumptions/{id}/reject`, `POST /admin/knowledge/documents/{id}/reject`; trạng thái mới `rejected`. Danh sách tri thức có thêm `submitted_by`, `review_status`, `decision_note`. Ẩn nút duyệt / từ chối với bản do chính người xem soạn (server 403 `ASSUMPTION_OWN_DRAFT` / `KNOWLEDGE_OWN_DRAFT`). Lỗi mới: 409 `KNOWLEDGE_REVIEW_MISSING` (gỡ rồi gửi lại), 503 `KNOWLEDGE_SUBMIT_FAILED` (gửi lại).
+  - Menu duyệt Tri thức / Giả định kinh tế nên theo quyền `ApproveAgentContent` thay cho `DecideApprovals`.
+
+## Phase 96 — Đánh giá dự báo bằng backtest, tầng 1 (2026-11-27, xong trên nhánh, chưa push; dừng chờ quyết định trước tầng 2)
+
+Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). Kế hoạch, kiểm kê, D1–D21, S1–S5, kết quả: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`. Đặc tả bộ sinh: `docs/evaluation/forecast-backtest-generator-spec.md` (v1.2). Báo cáo: `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`. Phạm vi đã chốt B + C(a) chia 4 tầng; mới làm tầng 1 (S5).
+
+- [x] Task 1: đặc tả bộ sinh v1.0, commit riêng trước mọi code; v1.1 bổ sung thiếu sót trước khi có runner; v1.2 sửa lỗi K2 tiểu thương sau review PR #40 (khoản trả gộp mất khi ngày 10 trùng ngày nghỉ; chỉ dòng K2 của báo cáo đổi). Lý do ghi trong đặc tả §10.
+- [x] Task 2: project `FinMate.Backtest` (console, không NuGet mới) trong solution, Dockerfile chép `.csproj` trước restore, SplitMix64 + phân phối.
+- [x] Task 3: bộ sinh 5 hồ sơ (`stable_worker`, `freelancer`, `student`, `family`, `small_trader`), đáp án khoản định kỳ, vay, quỹ nhóm, ví bị loại, hoàn tiền, luồng ngẫu nhiên theo ngày/kỳ.
+- [x] Task 4: lớp phủ K1–K6 (K5h cùng dữ liệu K5, khác cấu hình ngày lễ) chỉ đổi phần được cài.
+- [x] Task 5: `WorldView` + repository giả cắt theo thời điểm đồng hồ giả (S1), chế độ đáp án, `ForecastService` thật; test không rò rỉ, số dư dựng lại khớp.
+- [x] Task 6: test hợp đồng repository giả = `ForecastDataRepository` trên Postgres ở 5 mốc.
+- [x] Task 7: baseline B-hold, B0, B-mean30, B-naive; chỉ số; CI 95% bootstrap theo người.
+- [x] Task 8: runner, báo cáo Markdown + CSV, CLI (`--out`, `--seed`, `--seeds`, `--step`, `--quick`); hai lượt cùng đầu vào ra cùng từng byte.
+- [x] Task 9: chạy đầy đủ (800 thế giới, 785.100 dòng, ~65 s, mốc mỗi ngày); REQUIREMENTS FR-FCST-19, NFR-MNT-11, §13.4 "Dự báo sau backtest Phase 96"; ARCHITECTURE §2.18; CLAUDE.md. Toàn bộ test backend: mốc `32912fc` **4293/4295** → sau **4467/4469** (+174 test: 173 unit backtest, 1 hợp đồng trên Postgres; vẫn đúng 2 đỏ sẵn trên `main`).
+- [ ] Tầng 2 (chờ quyết định): chế độ phát lại (`RecurringDetectionService` + `RunDailyAsync` mỗi ngày), chỉ số phát hiện định kỳ / đổi giá / tạm ngừng nhầm, cảnh báo số dư thấp, bất thường, K7–K9; ctor đồng hồ cho `AnomalyService`, `ForecastAlertService`.
+- [ ] Tầng 3: thu nhập, rủi ro ngân sách + B-lastmonth, danh mục tháng tới, các cảnh báo còn lại; ctor đồng hồ cho `CategoryForecastService`.
+- [ ] Tầng 4: `--config` / `--compare` để so bản nháp tham số Phase 95.
+- Không có việc cho nhóm app hay web admin.

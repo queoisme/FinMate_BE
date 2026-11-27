@@ -20,6 +20,9 @@ public static class AuditEvents
     public const string EmailVerified = "Auth.EmailVerified";
     public const string LogoutAllDevices = "Auth.LogoutAllDevices";
     public const string AccountDeletionRequested = "Auth.AccountDeletionRequested";
+
+    /// <summary>Phase 91 (D3): đồng ý / rút đồng ý. Metadata: loại, phiên bản, đồng ý hay rút. Có từ 2026-11-25, là lịch sử đồng ý trong gói dữ liệu.</summary>
+    public const string ConsentChanged = "User.ConsentChanged";
     public const string TokenReuseDetected = "Auth.TokenReuse.Detected";
     public const string GoogleLoginSuccess = "Auth.Google.Login.Success";
     public const string GoogleLinked = "Auth.Google.Linked";
@@ -42,11 +45,13 @@ public static class AuditEvents
     public const string AdminAssumptionCreated = "Admin.Assumption.Created";
     public const string AdminAssumptionApproved = "Admin.Assumption.Approved";
     public const string AdminAssumptionRetired = "Admin.Assumption.Retired";
+    public const string AdminAssumptionRejected = "Admin.Assumption.Rejected";
 
     // Kho tri thức của agent: chỉ ghi mã tài liệu, không ghi nội dung. Nội dung và trạng thái nằm ở agent_kb_documents của AI Service.
     public const string AdminKnowledgeSubmitted = "Admin.Knowledge.Submitted";
     public const string AdminKnowledgeApproved = "Admin.Knowledge.Approved";
     public const string AdminKnowledgeRetired = "Admin.Knowledge.Retired";
+    public const string AdminKnowledgeRejected = "Admin.Knowledge.Rejected";
 
     public const string AdminCategoryCreated = "Admin.Category.Created";
     public const string AdminCategoryUpdated = "Admin.Category.Updated";
@@ -120,6 +125,20 @@ public static class AuditEvents
     public const string OpsDraftTransactionCreated = "Ops.CustomerData.DraftCreated";
     public const string OpsTicketsLinked = "Ops.Ticket.Linked";
     public const string OpsTicketsBroadcast = "Ops.Ticket.Broadcast";
+    /// <summary>Phase 95: bản nháp tham số dự báo (forecast + limits). Chỉ ghi id, phiên bản và tên trường đã đổi; giá trị và ghi chú nằm ở chính dòng bản nháp.</summary>
+    /// <summary>Phase 95 (B′): Staff duy trì danh mục, thương hiệu, từ khoá qua <c>/ops/catalog</c>. Tiền tố <c>Ops.</c> để Manager đọc được ở <c>/ops/audit-logs</c> (D13).</summary>
+    public const string OpsCatalogCategoryCreated = "Ops.Catalog.CategoryCreated";
+    public const string OpsCatalogCategoryUpdated = "Ops.Catalog.CategoryUpdated";
+    public const string OpsCatalogCategoryActivationChanged = "Ops.Catalog.CategoryActivationChanged";
+    public const string OpsCatalogAiRuleChanged = "Ops.Catalog.AiRuleChanged";
+
+    public const string OpsForecastConfigDraftCreated = "Ops.ForecastConfig.DraftCreated";
+    public const string OpsForecastConfigDraftUpdated = "Ops.ForecastConfig.DraftUpdated";
+    public const string OpsForecastConfigSubmitted = "Ops.ForecastConfig.Submitted";
+    public const string OpsForecastConfigWithdrawn = "Ops.ForecastConfig.Withdrawn";
+    public const string OpsForecastConfigCancelled = "Ops.ForecastConfig.Cancelled";
+    public const string OpsForecastConfigApproved = "Ops.ForecastConfig.Approved";
+    public const string OpsForecastConfigRejected = "Ops.ForecastConfig.Rejected";
     public const string OpsApprovalProposed = "Ops.Approval.Proposed";
     public const string OpsApprovalApproved = "Ops.Approval.Approved";
     public const string OpsApprovalRejected = "Ops.Approval.Rejected";
@@ -155,4 +174,15 @@ public static class AuditEvents
     public const string SubscriptionOrderPaid = "Subscription.Order.Paid";
     public const string SubscriptionOrderVoided = "Subscription.Order.Voided";
     public const string SubscriptionOrderNeedsReview = "Subscription.Order.NeedsReview";
+
+    // Xuất dữ liệu (Phase 91, BR-EXP-11). Metadata chỉ có id yêu cầu (và mã lỗi): không số tiền, không nội dung, không token, không bộ lọc.
+    public const string DataExportRequested = "DataExport.Requested";
+    public const string DataExportReady = "DataExport.Ready";
+    public const string DataExportFailed = "DataExport.Failed";
+    public const string DataExportLinkIssued = "DataExport.LinkIssued";
+    public const string DataExportDownloaded = "DataExport.Downloaded";
+    public const string DataExportExpired = "DataExport.Expired";
+
+    /// <summary>D16: tải file CSV giao dịch. Không ghi bộ lọc hay số dòng.</summary>
+    public const string DataExportTransactionsCsv = "DataExport.TransactionsCsv";
 }

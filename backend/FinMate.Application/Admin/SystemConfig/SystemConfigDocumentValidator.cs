@@ -74,6 +74,8 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
         RuleFor(x => x.Snapshots).NotNull().SetValidator(new SnapshotValidator());
         RuleFor(x => x.ListenerHealth).NotNull().SetValidator(new ListenerHealthValidator());
         RuleFor(x => x.Loans).NotNull().SetValidator(new LoanValidator());
+        RuleFor(x => x.DataExport).NotNull().SetValidator(new DataExportValidator());
+        RuleFor(x => x.Kpi).NotNull().SetValidator(new KpiValidator());
     }
 
     private sealed class AssistantValidator : AbstractValidator<AssistantSettings>
@@ -502,6 +504,29 @@ public class SystemConfigDocumentValidator : AbstractValidator<SystemConfigDocum
             RuleFor(x => x.InterestToleranceCents).InclusiveBetween(0, 1_000_000).WithMessage("Ngưỡng lãi phải từ 0 đến 1.000.000 đồng.");
             RuleFor(x => x.Honorifics).NotNull().Must(h => h.All(w => !string.IsNullOrWhiteSpace(w) && w.Trim().Length <= 10))
                 .WithMessage("Mỗi từ xưng hô phải có từ 1 đến 10 ký tự.");
+        }
+    }
+
+    private sealed class DataExportValidator : AbstractValidator<DataExportSettings>
+    {
+        public DataExportValidator()
+        {
+            RuleFor(x => x.MaxRangeDays).InclusiveBetween(31, 3660).WithMessage("Khoảng ngày tối đa của file CSV phải từ 31 đến 3660 ngày.");
+            RuleFor(x => x.MaxRows).InclusiveBetween(1_000, 500_000).WithMessage("Số dòng tối đa của file CSV phải từ 1.000 đến 500.000.");
+            RuleFor(x => x.CsvPerHour).InclusiveBetween(1, 1_000).WithMessage("Số file CSV mỗi giờ phải từ 1 đến 1.000.");
+            RuleFor(x => x.MaxRequestsPerDay).InclusiveBetween(1, 10).WithMessage("Số yêu cầu tải dữ liệu mỗi ngày phải từ 1 đến 10.");
+            RuleFor(x => x.FileRetentionHours).InclusiveBetween(1, 720).WithMessage("Thời gian giữ file phải từ 1 đến 720 giờ.");
+            RuleFor(x => x.MaxArchiveMb).InclusiveBetween(1, 200).WithMessage("Kích thước gói tối đa phải từ 1 đến 200 MB.");
+            RuleFor(x => x.DownloadLinkMinutes).InclusiveBetween(1, 60).WithMessage("Thời gian sống của link tải phải từ 1 đến 60 phút.");
+            RuleFor(x => x.RequestHistoryDays).InclusiveBetween(30, 3650).WithMessage("Thời gian giữ lịch sử yêu cầu phải từ 30 đến 3650 ngày.");
+        }
+    }
+
+    private sealed class KpiValidator : AbstractValidator<KpiSettings>
+    {
+        public KpiValidator()
+        {
+            RuleFor(x => x.MinCellSize).InclusiveBetween(2, 20).WithMessage("Ngưỡng ô nhỏ của KPI phải từ 2 đến 20.");
         }
     }
 

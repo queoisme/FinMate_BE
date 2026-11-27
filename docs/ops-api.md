@@ -36,8 +36,12 @@ Bảng dưới là quyền **mặc định** (seed lần đầu vào bảng `rol
 | `MuteCommunityAuthors` | ❌ | ✅ | ✅ |
 | `ManageSubscriptionPlans` | ❌ | ✅ | ✅ |
 | `ManageLegalDocuments` (soạn nháp văn bản pháp lý; xuất bản cần `ManageSystem`) | ❌ | ✅ | ✅ |
-| `ManageAgentContent` (xem, soạn nháp kho tri thức và giả định kinh tế, xử lý câu hỏi chưa trả lời được) | ✅ | ✅ | ✅ |
-| `ApproveAgentContent` (duyệt, gỡ tri thức và giả định; cần có `ManageAgentContent`) | ❌ | ✅ | ✅ |
+| `ViewProductKpi` (dashboard KPI sản phẩm; khác `ViewDashboard` là dashboard ticket) | ❌ | ✅ | ✅ |
+| `MaintainCatalog` (Phase 95: thêm, sửa, ẩn danh mục hệ thống, thương hiệu, từ khoá qua `/ops/catalog`) | ✅ | ✅ | ✅ |
+| `DraftForecastConfig` (Phase 95: soạn bản nháp tham số dự báo và gửi duyệt) | ✅ | ✅ | ✅ |
+| `ApproveForecastConfig` (Phase 95: duyệt / từ chối bản nháp tham số dự báo của người khác) | ❌ | ✅ | ✅ |
+| `ApproveAgentContent` (Phase 95: duyệt / từ chối / gỡ giả định kinh tế và tài liệu tri thức của người khác) | ❌ | ✅ | ✅ |
+| `ManageAgentContent` (bit 23; xem, soạn nháp kho tri thức và giả định kinh tế, xử lý câu hỏi chưa trả lời được) | ✅ | ✅ | ✅ |
 
 ### Chỉnh quyền của vai trò (chỉ Admin)
 
@@ -92,10 +96,12 @@ Khách không tự chọn mức ưu tiên; hệ thống gán theo loại, Manage
 | Mức | Loại ticket | Phản hồi đầu | Giải quyết |
 |---|---|---|---|
 | `P1` | `Security` | 15 phút | 4 giờ |
-| `P2` | `Account`, `Transaction`, `Receipt`, `Notification`, `Group` | 1 giờ | 1 ngày |
+| `P2` | `Account`, `Transaction`, `Receipt`, `Notification`, `Group`, `PersonalDataRequest` | 1 giờ | 1 ngày |
 | `P3` | `Question` | 4 giờ | 3 ngày |
 
 Sửa được trong nhóm cấu hình `support` ở `/admin/system-config`.
+
+**Yêu cầu dữ liệu cá nhân (`PersonalDataRequest`, Phase 91).** Khách tự tải được toàn bộ dữ liệu trong app (Cài đặt → Dữ liệu của tôi; `docs/data-export-api.md`). Nhân viên trả lời bằng câu trả lời mẫu "Hướng dẫn tự tải dữ liệu cá nhân" (gieo sẵn, sửa ở `/ops/canned-replies`). Nhân viên **không** tạo hay tải gói thay khách và không có API nào cho việc đó. Khách đã xin xoá tài khoản không đăng nhập được nên không tự tải được: chuyển Manager, xem `docs/ops-runbook.md` mục "Yêu cầu dữ liệu cá nhân".
 
 ### API cho khách: `/api/v1/support/tickets`
 
@@ -212,13 +218,95 @@ Việc nhạy cảm cần hai người: một người đề xuất, người kh
 
 | API | Việc |
 |---|---|
-| `GET /ops/dashboard` | Ca đang mở theo trạng thái và mức ưu tiên, chưa phân công, trễ hạn, tải theo từng người; 30 ngày gần nhất: số ca, theo loại, tỉ lệ đúng hạn, điểm hài lòng; số đề xuất chờ duyệt |
+| `GET /ops/dashboard` (quyền `ViewDashboard`; số liệu sản phẩm ở "Dashboard KPI sản phẩm") | Ca đang mở theo trạng thái và mức ưu tiên, chưa phân công, trễ hạn, tải theo từng người; 30 ngày gần nhất: số ca, theo loại, tỉ lệ đúng hạn, điểm hài lòng; số đề xuất chờ duyệt |
 | `POST /ops/tickets/{id}/children` | Gom ca cùng lỗi: `ticketIds`. Chỉ một tầng, không gom ca đã đóng |
 | `DELETE /ops/tickets/{id}/parent` | Gỡ ca khỏi ca cha |
 | `POST /ops/tickets/{id}/broadcast` | Trả lời ca cha và mọi ca con chưa đóng: `body`, `resolve` |
 | `GET /ops/canned-replies` (mọi vai trò), `POST`, `PATCH /{id}` | Câu trả lời mẫu; tắt bằng `isActive = false`, không xóa |
 | `GET /ops/audit-logs` | Chỉ sự kiện `Ops.*`; lọc sự kiện khác thì 403 |
 | `GET /ops/ai-stats` | Thống kê AI, chỉ đọc (thay cho `/admin/ai-stats` đã gỡ ngày 2026-11-22) |
+
+## Dashboard KPI sản phẩm: `GET /api/v1/ops/kpi/summary`
+
+Phase 94 (bản gọn, 2026-11-27). Số liệu sức khoẻ sản phẩm cho Operations Manager: đăng ký, giao dịch, thông báo ngân hàng, thuê bao, doanh thu. **Tính khi gọi** từ các bảng đã có, cache Redis 10 phút theo bộ tham số; không có bảng tổng hợp hay job. Chưa có DAU/MAU và giữ chân (xem `docs/REQUIREMENTS.md` §13.4 "KPI — phần còn lại").
+
+**Quyền:** `ViewProductKpi` (đọc từ DB mỗi lần), mặc định OpsManager và Admin; Staff không có, kể cả khi đã được cấp `ViewDashboard`; Admin cấp thêm qua `PUT /admin/role-permissions/Staff`. Bắt buộc 2FA nội bộ như mọi API `/ops/*`. Người dùng thường 403.
+
+**Tham số:** `from`, `to` là ngày VN `yyyy-MM-dd`, tính cả hai đầu, tối đa 366 ngày, `to` không sau hôm nay; `granularity` = `day` (mặc định), `week` (thứ Hai → Chủ nhật), `month` (tháng lịch). Sai → 422 `KPI_INVALID_RANGE`. Kỳ đầu/cuối bị cắt theo khoảng, hoặc kỳ chưa hết, có `partial: true`. **Kỳ có chứa hôm nay luôn `partial: true`** (với `day` là chính hôm nay), và số của kỳ đó còn thay đổi trong ngày: response được cache 10 phút theo bộ tham số, nên một số mới có thể chậm tới 10 phút mới hiện.
+
+**Riêng tư:** chỉ số đếm, tỉ lệ và tổng; không id, email, tên hay số tiền của từng người. Ô của nhóm con (`transactions.bySource`, `subscriptions.payingByPlan`) từ 1 đến `kpi.minCellSize − 1` (cấu hình hệ thống, mặc định 5, khoảng 2–20) là chuỗi `"<5"` thay vì số; tổng toàn hệ thống không che. Chỉ đếm tài khoản vai trò `User`.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `granularity`, `minCellSize` | Như tham số; ngưỡng ô nhỏ đang áp dụng |
+| `featureUsers` `{ budgets, goals, loans, groups, asOf }` | **Ảnh chụp hiện tại**, không theo kỳ: số người đang có ngân sách cá nhân, mục tiêu chưa xong, khoản vay còn nợ, nhóm đang tham gia. Không tính tài khoản chờ xoá |
+| `notes.manualIncludesChat` | Luôn `true`: giao dịch từ chat và giọng nói qua server được lưu với nguồn `manual` |
+| `periods[].start`, `end`, `partial` | Kỳ (ngày VN, gồm hai đầu) |
+| `signups` | Tài khoản tạo trong kỳ (kể cả tài khoản sau đó xin xoá) |
+| `emailVerified` | Trong số đăng ký của kỳ, bao nhiêu hiện đã xác minh email (theo ngày đăng ký, không theo ngày xác minh) |
+| `onboardingCompleted` | Trong số đăng ký của kỳ, bao nhiêu đang ở trạng thái onboarding `completed` (theo ngày đăng ký; người bỏ qua không tính). Không đếm theo ngày hoàn thành vì migration onboarding đã đặt mốc đó bằng giờ chạy migration cho mọi tài khoản cũ |
+| `methodChosen` | Chọn phương pháp tài chính lần đầu trong kỳ |
+| `deletionRequests` | Yêu cầu xoá tài khoản trong kỳ |
+| `transactingUsers` | Số người **khác nhau** trong cả kỳ có giao dịch đã xác nhận không từ thông báo, theo ngày tạo giao dịch. Không phải DAU |
+| `transactions` `{ total, bySource }` | Giao dịch đã xác nhận, chưa xoá, theo ngày tạo; nguồn `notification`, `manual`, `voice`, `receipt`, `support` |
+| `notifications` `{ received, ignored, duplicate, converted, conversionRate }` | Thông báo ngân hàng nhận trong kỳ; `converted` = có giao dịch chưa xoá trỏ tới; `conversionRate = converted / (received − ignored − duplicate)`, null khi mẫu số 0 |
+| `subscriptions` `{ payingTotal, payingByPlan, paidOrders, revenueCents, needsReview }` | Người có kỳ thuê bao còn hiệu lực ở cuối kỳ (hoặc bây giờ), theo mã gói; đơn đã trả và tổng tiền (đồng) theo ngày trả, đơn `Voided` không tính, không có doanh thu theo gói; đơn `NeedsReview` tạo trong kỳ |
+
+Quy đổi tuần/tháng: chỉ số dòng chảy là tổng các ngày; `transactingUsers` đếm lại người khác nhau trên cả kỳ; `payingTotal`/`payingByPlan` lấy tại cuối kỳ; tỉ lệ tính lại từ tổng. Giao dịch nháp được xác nhận muộn tính vào ngày tạo, nên số của những ngày gần đây có thể tăng thêm khi cache hết hạn.
+
+## Tham số dự báo: `/api/v1/ops/forecast-config`
+
+Phase 95 (2026-11-27). Staff soạn bản nháp tham số dự báo, OpsManager hoặc Admin duyệt / từ chối; mọi thay đổi có phiên bản và audit. Phạm vi là trọn hai nhóm của cấu hình hệ thống: `forecast` (45 tham số) và `limits` (ngưỡng T1/T2 mặc định của ngân sách). Các nhóm khác (`refunds`, `duplicates`, `transfers`, `listenerHealth`, `loans`…) vẫn chỉ Admin sửa ở `/admin/system-config`. Kế hoạch và quyết định D1–D17, S1–S6: `docs/superpowers/plans/2026-11-27-staff-draft-manager-approve.md`.
+
+**Quyền:** `DraftForecastConfig` (Staff, OpsManager) để soạn; `ApproveForecastConfig` (OpsManager) để duyệt / từ chối; xem được khi có một trong hai. Đọc từ DB mỗi lần; bắt buộc 2FA nội bộ. Admin có mọi quyền nhưng **không ai duyệt hay từ chối bản của chính mình** (403 `FORECAST_CONFIG_OWN_DRAFT`, DB cũng chặn). Admin vẫn sửa trực tiếp ở `/admin/system-config` như trước.
+
+**Hiệu lực:** bản nháp và bản chờ duyệt không ảnh hưởng gì (runtime chỉ đọc phiên bản đang chạy). Duyệt xong thì có hiệu lực trên máy xử lý ngay, các máy khác **trong vòng 10 giây** (cache cấu hình theo từng máy). Bản nháp không hiện trong lịch sử `/admin/system-config/versions`; bản đã duyệt hiện như một phiên bản bình thường, kèm người soạn và người duyệt.
+
+| API | Việc | Quyền |
+|---|---|---|
+| `GET /` | `{ version, sections: { forecast, limits }, pendingId }` | xem |
+| `GET /meta` | Mỗi tham số: `path`, `type` (`integer` / `holidays`), `default`, `min`, `max`, `notAbove` (≤ trường kia), `below` (< trường kia), `maxItems`, `description` | xem |
+| `GET /drafts?status=&offset=&limit=` | Danh sách bản nháp, mới trước. `status`: `draft`, `pending_approval`, `rejected`, `cancelled`, `active`, `archived` | xem |
+| `POST /drafts` | `{ changes?, fromDraftId?, fromVersion?, reason }` → **201** | soạn |
+| `GET /drafts/{id}` | Bản nháp kèm `diff`, `conflicts`, `validation`, `stale` | xem |
+| `PATCH /drafts/{id}` | `{ changes, reason?, expectedUpdatedAt }`; chỉ người soạn, chỉ bản `draft` | soạn |
+| `POST /drafts/{id}/submit` · `/withdraw` · `/cancel` | Gửi duyệt / rút về nháp / huỷ (người soạn) | soạn |
+| `POST /drafts/{id}/approve` | `{ note? }` → bản thành phiên bản đang chạy | duyệt |
+| `POST /drafts/{id}/reject` | `{ note }` (bắt buộc, 3–1000 ký tự); từ chối được cả bản đã cũ | duyệt |
+
+- **`changes`** là phần thay đổi (JSON merge patch): chỉ gửi trường đổi, ví dụ `{ "forecast": { "lowBalanceHorizonDays": 21 }, "limits": { "alertT1Percent": 75 } }`. Mảng (`holidays`) thay nguyên mảng. Nhóm khác `forecast`/`limits` → 400 `FORECAST_CONFIG_OUT_OF_SCOPE`; tên trường sai → 400 `FORECAST_CONFIG_UNKNOWN_FIELD`; sai kiểu hoặc `null` → 400 `FORECAST_CONFIG_INVALID_VALUE`; vi phạm khoảng hoặc luật chéo (`minHistoryDays ≤ historyWindowDays`, T1 < T2…) → 400 `VALIDATION_ERROR`.
+- **`diff`**: `[{ path, before, after }]`. Với bản còn mở (nháp, chờ duyệt) so với bản đang chạy; với bản đã xử lý so với phiên bản gốc của nó.
+- **Bản cũ:** bản nháp nhớ phiên bản đang chạy lúc tạo (`baseVersion`). Mỗi lần lưu cấu hình (kể cả Admin đổi một nhóm khác) làm mọi bản nháp đang có thành cũ (`stale: true`). Gửi duyệt bản cũ → 422 `FORECAST_CONFIG_DRAFT_STALE`; duyệt bản cũ → 409 `FORECAST_CONFIG_DRAFT_STALE`. Hệ thống **không tự gộp**.
+- **Làm lại** (`fromDraftId`): lấy phần bản nguồn đã đổi so với phiên bản gốc của nó, áp lên bản đang chạy, tạo bản nháp mới. Dùng cho bản bị từ chối, bản đã huỷ, bản nháp cũ, và bản **chờ duyệt đã cũ của chính mình** (bản đó tự chuyển `cancelled` trong cùng lần lưu để nhả chỗ chờ duyệt). Trường mà cả bản đang chạy lẫn bản nguồn đều đã đổi được liệt kê trong `conflicts: [{ path, baseValue, activeValue, draftValue }]`; giá trị của bản nháp thắng, không chặn.
+- **Hoàn tác** (`fromVersion`): bản nháp mới lấy nguyên hai nhóm của một phiên bản lịch sử.
+- **Một bản chờ duyệt mỗi lúc:** gửi duyệt khi đã có bản khác đang chờ → 409 `FORECAST_CONFIG_PENDING_EXISTS` (thông điệp kèm id bản đang chờ). Tạo và sửa nháp song song vẫn được.
+- Lỗi khác: 409 `FORECAST_CONFIG_WRONG_STATUS` (sai trạng thái), 409 `FORECAST_CONFIG_DRAFT_CHANGED` (`expectedUpdatedAt` lệch), 403 `FORECAST_CONFIG_NOT_AUTHOR`, 422 `FORECAST_CONFIG_REASON_REQUIRED` / `FORECAST_CONFIG_NOTE_REQUIRED`, 422 `FORECAST_CONFIG_INVALID_SOURCE`.
+- **Audit:** `Ops.ForecastConfig.{DraftCreated, DraftUpdated, Submitted, Withdrawn, Cancelled, Approved, Rejected}` chỉ có id bản nháp, phiên bản và danh sách `path` đã đổi; giá trị, lý do và ghi chú nằm ở chính bản nháp. Duyệt ghi thêm `Admin.SystemConfig.Changed` (`action: approve`).
+
+## Danh mục và luật phân loại cho Staff: `/api/v1/ops/catalog`
+
+Phase 95 (B′). Đăng ký đề tài giao Staff "maintain" danh mục hệ thống, từ khoá và luật phân loại, nên đây là sửa **trực tiếp**, không qua duyệt; có audit `Ops.Catalog.*` (Manager đọc ở `/ops/audit-logs`). Quyền `MaintainCatalog` (Staff, OpsManager; Admin tắt được cho Staff ở `/admin/role-permissions`). Gọi đúng handler của `/admin/categories` và `/admin/ai-rules`, nên đồng bộ danh mục sang AI Service, slug bất biến và lịch sử ở AI Service giữ nguyên.
+
+| API | Việc |
+|---|---|
+| `GET /categories?includeInactive=&search=&offset=&limit=` | Danh mục hệ thống |
+| `POST /categories` | `{ name, slug, iconName? }` → 201. Danh mục mới hiện cho mọi người dùng |
+| `PATCH /categories/{id}` | `{ name?, iconName? }`; gửi `slug` khác → 422 `ADMIN_IMMUTABLE_FIELD` |
+| `PATCH /categories/{id}/activation` | `{ isActive }` (ẩn = tắt). Ba danh mục được hệ thống dùng trực tiếp (`income`, `loan`, `other`) không tắt được → 422 `PROTECTED_CATEGORY` (đổi tên vẫn được) |
+| `GET /ai-rules/meta`, `/ai-rules/brands`, `/ai-rules/keywords`, `POST /ai-rules/preview` | Đọc và thử luật (như `/admin/ai-rules`) |
+| `GET /ai-rules/history?resource=brand\|keyword` | Lịch sử của thương hiệu, từ khoá; `resource` khác hoặc thiếu → 400 `CATALOG_HISTORY_RESOURCE` |
+| `PUT /ai-rules/brands/{brandKey}`, `PATCH /ai-rules/brands/{brandKey}/active` | Thêm / sửa / tắt thương hiệu |
+| `POST /ai-rules/keywords`, `PATCH /ai-rules/keywords/{id}/active` | Thêm / tắt từ khoá |
+
+Không có ở kênh này (vẫn chỉ Admin, ở `/admin/*`): xoá, hoàn tác luật (`history/{id}/revert`), bộ nhớ tên món, chỉ dẫn Gemini, tài liệu `ai-config`. Thân và phản hồi của luật giữ tên trường của AI Service (snake_case), xem `docs/ai-rules-admin-api.md`.
+
+## Giả định kinh tế và tri thức: duyệt hai người
+
+Phase 95. `/api/v1/admin/assumptions` và `/api/v1/admin/knowledge` vẫn như cũ (Staff trở lên soạn, policy `ManagerOrAbove` cho duyệt / gỡ), thêm:
+- **Không tự duyệt:** người duyệt hoặc từ chối phải khác người soạn → 403 `ASSUMPTION_OWN_DRAFT` / `KNOWLEDGE_OWN_DRAFT`. Ngoại lệ duy nhất: job tự cập nhật CPI (tài khoản hệ thống) tự duyệt khi lệch nhỏ, như Phase 73.
+- **Quyền đọc từ DB:** ngoài policy theo vai trò, duyệt / từ chối / gỡ cần `ApproveAgentContent`; Admin gỡ quyền này của OpsManager thì có hiệu lực ngay với cùng token.
+- **Từ chối kèm ghi chú:** `POST /admin/assumptions/{id}/reject` và `POST /admin/knowledge/documents/{id}/reject`, thân `{ note }` (3–1000 ký tự). Giả định chuyển `rejected` (DTO có `rejectedBy`, `decisionNote`); tài liệu tri thức chuyển `Retired` ở AI Service và `rejected` ở backend. Ghi chú không vào audit (`Admin.Assumption.Rejected`, `Admin.Knowledge.Rejected`).
+- **Tri thức: người gửi được ghi ở backend** (`knowledge_reviews`), vì AI Service không nhận id. `GET /admin/knowledge/documents` có thêm `submitted_by`, `review_status`, `decision_note` mỗi tài liệu. Tài liệu tạo ở AI Service **sau** khi backend bắt đầu ghi (mốc = giờ chạy migration `AddKnowledgeReviews`) mà không có dòng ghi → 409 `KNOWLEDGE_REVIEW_MISSING` (gỡ rồi gửi lại); tài liệu tạo trước mốc thì ai có quyền cũng duyệt được. Nếu AI Service đã nhận tài liệu mà backend ghi người gửi thất bại, backend gỡ tài liệu đó và trả 503 `KNOWLEDGE_SUBMIT_FAILED` để người gửi gửi lại.
 
 ## Xác thực 2 lớp
 
@@ -331,6 +419,8 @@ Nhà cung cấp chỉ được đếm khi có lần gọi thật. Không có kh�
 Dịch vụ chưa cấu hình có trạng thái `Disabled`, không phải lỗi. Nhà cung cấp có trạng thái `Unknown` khi chưa đủ căn cứ: dịch vụ Python bản cũ chưa có API trạng thái, dịch vụ vừa khởi động lại chưa có lần gọi nào, hoặc không đọc được key. `Unknown` không mở sự cố và không đóng sự cố đang mở, nên khởi động lại dịch vụ không làm một sự cố thật tự đóng.
 
 **Mẫu thông báo.** Mỗi provider đúng một sự cố đang mở (fingerprint `notification_format:{provider_key}`), tiêu đề "Có thể {tên provider} đã đổi mẫu thông báo", mức `Normal`. `technicalDetail` (chỉ Admin) nêu tín hiệu nào đang vượt (`error_rate`, `financial_share`) và số đếm hai cửa sổ, không có nội dung thông báo hay người dùng. Kết quả `error` (AI service hỏng) không tính, vì đó là việc của nguồn Dịch vụ. 24 giờ qua chưa đủ mẫu thì trạng thái `Unknown`: không mở, không đóng. Trạng thái nằm trong `GET /status` với tên `format:{provider_key}`. Việc cần làm khi có sự cố: so mẫu tin thật với `provider_patterns` của ai-service rồi sửa regex qua `/admin/ai-rules`.
+
+**Xuất dữ liệu (Phase 91).** Hai sự cố mức `Normal`, nguồn `job`, dịch vụ `data-export`, không có người dùng trong tiêu đề hay `technicalDetail`: `data_export:archive_too_large` (một gói vượt `dataExport.maxArchiveMb`; yêu cầu đó thất bại, khách được báo; nâng giới hạn rồi bảo khách gửi lại) và `data_export:overdue` (còn yêu cầu chưa xong sau 5 ngày, hạn luật 10 ngày; mở bởi `data-export-cleanup` mỗi giờ, chạy cả khi `features.dataExport` tắt; tự đóng khi hết).
 
 Brevo chưa cấu hình thì có trạng thái `Disabled` và email chỉ được ghi vào log, nên hệ thống không báo được cho ai. Hãy kiểm tra trạng thái này sau khi deploy.
 

@@ -20,6 +20,7 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
     private readonly IGroupOwnershipHandover? _groupHandover;
     private readonly ISupportRepository? _support;
     private readonly IOpsNotificationService? _opsNotifications;
+    private readonly IPersonalDataExportRepository? _exports;
 
     public DeleteAccountCommandHandler(
         IUserRepository userRepository,
@@ -29,10 +30,12 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         IAuditLogService auditLogService,
         IGroupOwnershipHandover? groupHandover = null,
         ISupportRepository? support = null,
-        IOpsNotificationService? opsNotifications = null)
+        IOpsNotificationService? opsNotifications = null,
+        IPersonalDataExportRepository? exports = null)
     {
         _opsNotifications = opsNotifications;
         _support = support;
+        _exports = exports;
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _refreshTokenRepository = refreshTokenRepository;
@@ -55,6 +58,13 @@ public class DeleteAccountCommandHandler : IDeleteAccountCommandHandler
         if (!_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
             throw new AuthenticationException(AuthErrorCodes.InvalidCredentials, "Mật khẩu không đúng.");
+        }
+
+        // Phase 91 (S5): gói dữ liệu đang dựng sẽ không tải được sau khi xin xoá (không đăng nhập được nữa), nên chờ nó xong trước.
+        if (_exports is not null && await _exports.HasActiveAsync(user.Id, ct))
+        {
+            throw new ConflictException(DataExportErrorCodes.InProgress,
+                "Gói dữ liệu của bạn đang được tạo. Hãy chờ tải về xong rồi mới xoá tài khoản.");
         }
 
         // Trước khi khóa tài khoản: hỏng ở đây thì chưa có gì thay đổi và người dùng thử lại được.

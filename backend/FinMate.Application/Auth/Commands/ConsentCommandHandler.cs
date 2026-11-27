@@ -14,10 +14,13 @@ public class ConsentCommandHandler : IConsentCommandHandler
     private readonly ICacheService _cacheService;
     private readonly ILegalVersionProvider _legal;
     private readonly ITrainingSampleService? _trainingSamples;  // null: không có dịch vụ thu mẫu thì không có gì để xóa
+    private readonly IAuditLogService? _audit;  // Phase 91 (D3): lịch sử đồng ý cho gói dữ liệu cá nhân
 
     public ConsentCommandHandler(
-        IUserRepository userRepository, ICacheService cacheService, ILegalVersionProvider legal, ITrainingSampleService? trainingSamples = null)
+        IUserRepository userRepository, ICacheService cacheService, ILegalVersionProvider legal, ITrainingSampleService? trainingSamples = null,
+        IAuditLogService? audit = null)
     {
+        _audit = audit;
         _userRepository = userRepository;
         _cacheService = cacheService;
         _legal = legal;
@@ -43,6 +46,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
         var user = await LoadAsync(command.UserId, ct);
         var now = DateTimeOffset.UtcNow;
+        var aiBefore = user.AiConsentVersion;
         switch (command.Kind)
         {
             case ConsentKind.Terms:
@@ -74,7 +78,14 @@ public class ConsentCommandHandler : IConsentCommandHandler
                 break;
         }
 
-        return await SaveAsync(user, ct);
+        var profile = await SaveAsync(user, ct);
+        await LogChangeAsync(user.Id, command.Kind, current, accepted: true, ct);
+        if (command.Kind == ConsentKind.Terms && user.AiConsentVersion != aiBefore)
+        {
+            await LogChangeAsync(user.Id, ConsentKind.Ai, ConsentVersions.Ai, accepted: true, ct);
+        }
+
+        return profile;
     }
 
     public async Task<UserProfileDto> WithdrawAsync(Guid userId, ConsentKind kind, CancellationToken ct = default)
@@ -113,6 +124,7 @@ public class ConsentCommandHandler : IConsentCommandHandler
         }
 
         var profile = await SaveAsync(user, ct);
+        await LogChangeAsync(userId, kind, null, accepted: false, ct);
         if (kind == ConsentKind.Training && _trainingSamples is not null)
         {
             // Rút đồng ý thì dữ liệu đã đóng góp cũng phải bị xóa. Việc rút đã lưu (không thu thêm nữa); nếu chưa xóa được thì báo lỗi để người dùng bấm lại, không báo "đã xóa" khi chưa.
@@ -124,6 +136,12 @@ public class ConsentCommandHandler : IConsentCommandHandler
 
         return profile;
     }
+
+    /// <summary>D3: một dòng audit mỗi lần đồng ý / rút, chỉ loại, phiên bản và chiều; là "lịch sử đồng ý" trong gói dữ liệu cá nhân.</summary>
+    private Task LogChangeAsync(Guid userId, ConsentKind kind, int? version, bool accepted, CancellationToken ct)
+        => _audit is null
+            ? Task.CompletedTask
+            : _audit.LogAsync(AuditEvents.ConsentChanged, userId, null, new { type = kind.ToString(), version, accepted }, ct);
 
     private static BusinessRuleException UnknownKind() =>
         new(AuthErrorCodes.ConsentKindUnknown, "Loại đồng ý không hợp lệ.");

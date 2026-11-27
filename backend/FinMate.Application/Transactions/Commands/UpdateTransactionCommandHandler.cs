@@ -35,6 +35,7 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
     private readonly IRefundLedger? _refunds;
     private readonly IDailySummaryRefresher? _summaries;
     private readonly Loans.ILoanLinkSync? _loanSync;
+    private readonly Forecasting.IRecurringPaymentSync? _recurringPayments;
 
     private readonly IAiLearningQueue? _learning;  // null (test cũ): gọi thẳng AI Service như trước
 
@@ -57,9 +58,11 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         IDailySummaryRefresher? summaries = null,
         IItemMemoryService? itemMemory = null,
         IAiLearningQueue? learning = null,
-        Loans.ILoanLinkSync? loanSync = null)
+        Loans.ILoanLinkSync? loanSync = null,
+        Forecasting.IRecurringPaymentSync? recurringPayments = null)
     {
         _learning = learning;
+        _recurringPayments = recurringPayments;
         _loanSync = loanSync;
         _refunds = refunds;
         _summaries = summaries;
@@ -118,6 +121,12 @@ public class UpdateTransactionCommandHandler : IUpdateTransactionCommandHandler
         if (_loanSync is not null)
         {
             await _loanSync.OnUpdatingAsync(command.UserId, transaction, newCategory, command.TransactionType, command.AmountCents, command.TransactedAt, now, ct);
+        }
+
+        // Phase 92 (D11): đổi chiều tiền thì giao dịch không còn là lần trả của khoản định kỳ nữa.
+        if (_recurringPayments is not null)
+        {
+            await _recurringPayments.OnTypeChangingAsync(command.UserId, transaction, command.TransactionType, now, ct);
         }
 
         // Transfer chạm 2 số dư và không tiêu ngân sách; debit/credit chạm 1 và có tiêu. Cho

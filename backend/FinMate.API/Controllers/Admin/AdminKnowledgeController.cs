@@ -40,6 +40,12 @@ public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentCon
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.ApproveAsync(CurrentAdminId, id, CurrentIpAddress, ct)));
 
+    /// <summary>Phase 95: từ chối bản nháp kèm ghi chú <c>{note}</c>. 403 <c>KNOWLEDGE_OWN_DRAFT</c> nếu là tài liệu của chính mình; 409 <c>KNOWLEDGE_REVIEW_MISSING</c> nếu không biết người gửi.</summary>
+    [HttpPost("documents/{id:guid}/reject")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAbove)]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] RejectKnowledgeRequest body, CancellationToken ct)
+        => Ok(ApiResponse<JsonElement?>.Ok(await service.RejectAsync(CurrentAdminId, id, body.Note, CurrentIpAddress, ct)));
+
     [HttpPost("documents/{id:guid}/retire")]
     [RequireOpsCapability(OpsCapability.ApproveAgentContent)]
     public async Task<IActionResult> Retire(Guid id, CancellationToken ct)
@@ -66,3 +72,5 @@ public class AdminKnowledgeController(IAdminKnowledgeService service) : AgentCon
     public async Task<IActionResult> ResolveCandidate(Guid id, [FromBody] JsonElement body, CancellationToken ct)
         => Ok(ApiResponse<JsonElement?>.Ok(await service.ResolveCandidateAsync(CurrentAdminId, id, body, ct)));
 }
+
+public sealed record RejectKnowledgeRequest(string? Note);

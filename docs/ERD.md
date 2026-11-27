@@ -104,6 +104,8 @@ erDiagram
     User ||--o{ QrTransferIntent : "user_id"
     User ||--o{ ReceiptScan : "user_id"
     User ||--o{ RecurringItem : "user_id"
+    RecurringItem ||--o{ RecurringItemPayment : "recurring_item_id"
+    Transaction o|--o{ RecurringItemPayment : "transaction_id"
     User ||--o{ RefreshToken : "user_id"
     User ||--o{ SavingGoal : "user_id"
     User ||--o{ SpendingInsight : "user_id"
@@ -192,18 +194,20 @@ erDiagram
 | **ReceiptScan** | `receipt_scans` | ✓ | Một lần quét hóa đơn: kết quả OCR, cửa hàng, tổng tiền, danh mục đề xuất. Không lưu ảnh. |
 | **ReceiptScanItem** | `receipt_scan_items` |  | Từng món trên hóa đơn (`parent_position` cho món con). |
 | **ReceiptScanLink** | `receipt_scan_links` |  | Nối lần quét với giao dịch đã tạo (khi tách hóa đơn theo nhóm món, một lần quét sinh nhiều giao dịch). |
-| **RecurringItem** | `recurring_items` | ✓ | Khoản định kỳ (hóa đơn, thu nhập) cho dự báo: tự phát hiện hoặc thêm tay; ngày đến hạn kế tiếp, trạng thái. |
+| **RecurringItem** | `recurring_items` | ✓ | Khoản định kỳ (hóa đơn, thu nhập) cho dự báo: tự phát hiện hoặc thêm tay; ngày đến hạn kế tiếp, trạng thái. Phase 92: kỳ cuối (`total_occurrences` **hoặc** `end_date`), `anchor_day`, `prepaid_occurrences`, trạng thái `completed` (không giữ chỗ trong index duy nhất theo người nhận), `settled_early`. |
+| **RecurringItemPayment** | `recurring_item_payments` | ✓ | Phase 92: một kỳ đã trả của khoản định kỳ (tracker khớp, đánh dấu tay, tất toán); `transaction_id` null = trả tiền mặt. Số kỳ đã trả = dòng còn sống + `prepaid_occurrences`, không có bộ đếm riêng. |
 | **RefreshToken** | `refresh_tokens` | ✓ | Refresh token, chỉ lưu SHA-256; xoay vòng (`replaced_by_token_hash`) và thu hồi. |
 | **SavingGoal** | `saving_goals` | ✓ | Mục tiêu tiết kiệm: số tiền cần, đã góp (tính sẵn), hạn chót, trạng thái; có thể tạo từ mẫu / theo phương pháp. |
 | **SecretEntry** | `secret_store` |  | Khóa bên thứ ba mã hóa AES-256-GCM (bản riêng của ai-service). |
 | **SpendingInsight** | `spending_insights` | ✓ | Insight chi tiêu (hiện chỉ còn sinh loại so với tháng trước). |
 | **SurveyOption** | `survey_options` |  | Lựa chọn của câu hỏi, kèm tín hiệu ẩn danh (`signals`). |
 | **SurveyQuestion** | `survey_questions` |  | Câu hỏi khảo sát đầu vào (`show_if` để hỏi có điều kiện). |
-| **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. |
+| **SystemConfigVersion** | `system_config_versions` |  | Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác. Phase 95: cũng giữ bản nháp tham số dự báo (`scope = 'forecast'`, chưa có `version`, chỉ chứa hai nhóm `forecast` + `limits`); duyệt thì chính dòng đó thành phiên bản đang chạy. |
+| **KnowledgeReview** | `knowledge_reviews` |  | Phase 95: người gửi và người duyệt một tài liệu tri thức (tài liệu ở AI Service, chỉ trùng id, không FK); chặn tự duyệt. `knowledge_review_cutover` (một dòng) là mốc bắt đầu ghi. |
 | **Transaction** | `transactions` | ✓ | Giao dịch thu / chi / chuyển khoản giữa hai ví (`counter_account_id`). Nguồn: thông báo, nhập tay, giọng nói, hóa đơn, chat…; trạng thái nháp / đã xác nhận; `client_request_id` chống gửi lại; cờ loại khỏi dữ liệu dự báo. |
 | **TransactionMergeSnapshot** | `transaction_merge_snapshots` | ✓ | Phase 83: ảnh chụp trạng thái trước mỗi lượt gộp / chuyển thành Transfer, để hoàn tác sau này; có hạn lưu. |
 | **TransactionAnomaly** | `transaction_anomalies` | ✓ | Đánh dấu chi tiêu bất thường (một dòng mỗi giao dịch) và phản hồi của người dùng. `category_id` là ảnh chụp lúc phát hiện, không có FK. |
-| **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). |
+| **Role** | `roles` |  | Danh mục vai trò hệ thống (`user`, `admin`, `staff`, `opsmanager`). `id` trùng giá trị enum `UserRole` (0..3). Quyền theo vai trò ở `role_permissions.capabilities` (bitmask `OpsCapability`); Phase 94 thêm bit `ViewProductKpi` (1 << 18 = 262144), migration `AddViewProductKpiCapability` cấp cho hàng OpsManager đã có — không đổi schema, dashboard KPI không có bảng riêng. |
 | **UserRoleAssignment** | `user_roles` | ✓ (PK) | Vai trò đang gán cho mỗi người: PK là `user_id` nên mỗi người đúng một vai trò; `role_id` → `roles`; `assigned_by_user_id` ghi Admin đã cấp. Xóa user kéo theo hàng này (cascade). `role_permissions.role_id` cũng trỏ tới `roles`. |
 | **User** | `users` |  | Tài khoản người dùng: đăng nhập email/Google, khóa tài khoản, xóa mềm (vai trò nằm ở `user_roles`); các mốc đồng ý điều khoản / AI / dữ liệu huấn luyện; ngưỡng cảnh báo T1/T2; cài đặt dự báo. Các cột `push_enabled`, `budget_alerts_enabled`, `forecast_alerts_enabled`, `listener_health_alerts_enabled` (Phase 84) là value object `NotificationPreferences` nằm chung bảng. |
 | **UserMethod** | `user_methods` | ✓ | Phương pháp người dùng đang / đã dùng (vai trò chính / hỗ trợ, tham số riêng). |
@@ -1719,8 +1723,24 @@ erDiagram
         integer occurrences
         timestamptz last_seen_at "nullable"
         bigint last_seen_amount_cents "nullable"
+        integer total_occurrences "nullable, 1–600 (Phase 92)"
+        date end_date "nullable, không cùng total_occurrences"
+        smallint anchor_day "nullable, 1–31, chỉ chu kỳ tháng"
+        integer prepaid_occurrences "mặc định 0"
+        timestamptz completed_at "nullable, có khi và chỉ khi status = completed"
+        boolean settled_early "mặc định false"
         timestamptz created_at
         timestamptz updated_at
+        timestamptz deleted_at "nullable"
+    }
+    recurring_item_payments {
+        uuid id PK
+        uuid user_id FK
+        uuid recurring_item_id FK
+        uuid transaction_id FK "nullable, UK khi còn sống"
+        date due_date "UK (recurring_item_id, due_date) khi còn sống, trừ settlement"
+        varchar(12) kind "matched | manual | settlement"
+        timestamptz created_at
         timestamptz deleted_at "nullable"
     }
     forecast_alerts {
@@ -1760,6 +1780,9 @@ erDiagram
     categories o|--o{ recurring_items : "category_id"
     financial_accounts o|--o{ recurring_items : "financial_account_id"
     users ||--o{ recurring_items : "user_id"
+    recurring_items ||--o{ recurring_item_payments : "recurring_item_id"
+    transactions o|--o{ recurring_item_payments : "transaction_id"
+    users ||--o{ recurring_item_payments : "user_id"
     users ||--o{ forecast_alerts : "user_id"
     transactions ||--o| transaction_anomalies : "transaction_id"
     users ||--o{ transaction_anomalies : "user_id"
@@ -2183,20 +2206,56 @@ Các phiên bản cấu hình hệ thống (JSON) có lịch sử và hoàn tác
 | --- | --- | --- | --- | --- | --- |
 | 1 | `id` | uuid |  | `gen_random_uuid()` | PK |
 | 2 | `name` | varchar(48) |  |  |  |
-| 3 | `version` | integer |  |  |  |
-| 4 | `status` | varchar(10) |  |  |  |
+| 3 | `version` | integer | có (Phase 95: bản nháp chưa có số) |  |  |
+| 4 | `status` | varchar(20) |  |  |  |
 | 5 | `content` | jsonb |  |  |  |
 | 6 | `note` | text | có |  |  |
 | 7 | `created_by` | uuid |  |  |  |
 | 8 | `created_at` | timestamptz |  |  |  |
+| 9 | `scope` | varchar(24) | có |  |  |
+| 10 | `base_version` | integer | có |  |  |
+| 11 | `submitted_at` | timestamptz | có |  |  |
+| 12 | `decided_by` | uuid | có |  |  |
+| 13 | `decided_at` | timestamptz | có |  |  |
+| 14 | `decision_note` | varchar(1000) | có |  |  |
+| 15 | `conflicts` | jsonb | có |  |  |
+| 16 | `updated_at` | timestamptz | có |  |  |
 
 Ràng buộc:
 - CHECK `chk_system_config_versions_content_object`: `jsonb_typeof(content) = 'object'`
-- CHECK `chk_system_config_versions_status`: `status IN ('active', 'archived')`
+- CHECK `chk_system_config_versions_status`: `status IN ('active','archived','draft','pending_approval','rejected','cancelled')`
+- CHECK `chk_system_config_versions_numbered`: `(status IN ('active','archived')) = (version IS NOT NULL)`
+- CHECK `chk_system_config_versions_draft_scope`: `status IN ('active','archived') OR scope IS NOT NULL`
+- CHECK `chk_system_config_versions_approved_by`: `scope IS NULL OR status NOT IN ('active','archived') OR decided_by IS NOT NULL`
+- CHECK `chk_system_config_versions_two_people`: `decided_by IS NULL OR decided_by <> created_by`
 
 Index:
 - UNIQUE `uq_system_config_versions_active` `(name) WHERE status = 'active'`
 - UNIQUE `uq_system_config_versions_name_version` `(name, version)`
+- UNIQUE `uq_system_config_versions_pending` `(name, scope) WHERE status = 'pending_approval'` (Phase 95: một bản chờ duyệt mỗi phạm vi)
+- `ix_system_config_versions_drafts` `(name, scope, status, created_at)`
+
+##### `knowledge_reviews` — KnowledgeReview (Phase 95)
+
+Người gửi và người duyệt tài liệu tri thức; AI Service không nhận id người gửi nên backend tự ghi.
+
+| # | Cột | Kiểu | NULL | Mặc định | Khóa |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `document_id` | uuid |  |  | PK (trùng id tài liệu ở AI Service, không FK) |
+| 2 | `submitted_by` | uuid | có (null = tài liệu tạo trước mốc) |  |  |
+| 3 | `submitted_at` | timestamptz |  |  |  |
+| 4 | `status` | varchar(10) |  |  |  |
+| 5 | `decided_by` | uuid | có |  |  |
+| 6 | `decided_at` | timestamptz | có |  |  |
+| 7 | `decision_note` | varchar(1000) | có |  |  |
+
+Ràng buộc:
+- CHECK `chk_knowledge_reviews_status`: `status IN ('draft','approved','rejected','retired')`
+- CHECK `chk_knowledge_reviews_two_people`: `decided_by IS NULL OR submitted_by IS NULL OR decided_by <> submitted_by`
+
+`knowledge_review_cutover`: `id` integer PK (CHECK `id = 1`), `tracked_since` timestamptz. Migration `AddKnowledgeReviews` chèn dòng duy nhất bằng giờ chạy migration.
+
+`economic_assumptions` (Phase 95, migration `AddAssumptionRejection`): thêm `rejected_by` uuid, `rejected_at` timestamptz, `decision_note` varchar(1000); trạng thái thêm `rejected`; luật người duyệt / từ chối khác người soạn (trừ tài khoản hệ thống của job CPI) là trigger `trg_economic_assumptions_two_people` (migration `AssumptionTwoPeopleTrigger`), chỉ kiểm khi dòng được thêm hoặc khi `approved_by` / `rejected_by` đổi, báo lỗi SQLSTATE 23514 với tên `chk_economic_assumptions_two_people`. Không dùng CHECK vì Postgres kiểm CHECK (kể cả `NOT VALID`) ở mọi UPDATE, nên dòng tự duyệt có từ trước sẽ không gỡ được.
 
 ##### `secret_store` — SecretEntry
 
@@ -2261,6 +2320,49 @@ Chỉ mục: `(user_id)`, `(user_id, status, due_date) WHERE deleted_at IS NULL`
 | `interest_transaction_id` | uuid null FK → transactions (như trên) | Giao dịch lãi tách ra (S1); chỉ trên dòng `repayment`; UNIQUE khi khác null |
 | `deleted_at` | timestamptz null | |
 | `client_request_id` | uuid null | UNIQUE (loan_id, client_request_id) |
+
+#### 3.1.9 Xuất dữ liệu (Phase 91, 2026-11-25)
+
+Migration `AddPersonalDataExports`. API: `docs/data-export-api.md`. Cùng migration: `support_tickets.category` rộng lên `varchar(30)` và thêm giá trị `personal_data_request` vào CHECK; gieo một dòng `canned_replies` (id cố định `9a1f0e6c-5d2b-4c8e-a7f3-91b0d4e2c591`). Down đưa ticket loại mới về `question` trước khi siết lại CHECK.
+
+```mermaid
+erDiagram
+    users ||--o{ personal_data_exports : "user_id CASCADE"
+    personal_data_exports ||--o| personal_data_export_archives : "export_id CASCADE"
+```
+
+##### `personal_data_exports` — PersonalDataExport (yêu cầu tải dữ liệu cá nhân)
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | uuid PK | |
+| `user_id` | uuid FK → users CASCADE | Xoá cứng user xoá yêu cầu (và file theo bảng dưới) |
+| `status` | varchar(10) | `pending` \| `running` \| `ready` \| `failed` \| `expired` |
+| `format_version` | int | Phiên bản định dạng gói (README ghi lại) |
+| `requested_at`, `started_at`, `ready_at`, `failed_at`, `expires_at`, `expired_at` | timestamptz | CHECK: `ready` thì có `ready_at` và `expires_at` |
+| `failure_code` | varchar(40) null | `archive_too_large` \| `account_deleted` \| `internal_error`; CHECK: có khi và chỉ khi `failed` |
+| `size_bytes` | bigint null ≥ 0 | |
+| `attempts` | int ≥ 0 | Số lần job nhận việc (tối đa 3) |
+| `lease_until` | timestamptz null | Hạn thuê của job đang chạy; quá hạn thì job quét chạy lại |
+| `download_token_hash` | char(64) null | SHA-256 hex của token link tải đang sống; null = không có link dùng được |
+| `download_token_expires_at` | timestamptz null | |
+| `download_count` | int ≥ 0 | Số lần bắt đầu tải |
+| `last_downloaded_at` | timestamptz null | |
+| `counts_toward_limit` | boolean | false khi thất bại do hệ thống (không chiếm hạn mức 24 giờ, D14) |
+| `xmin` | | Khoá lạc quan |
+
+Chỉ mục: UNIQUE `(user_id) WHERE status IN ('pending','running')` (một yêu cầu đang chạy mỗi user, kể cả khi gửi song song), `(user_id, requested_at DESC)`, `(status, expires_at)`.
+
+##### `personal_data_export_archives` — PersonalDataExportArchive (file ZIP đã mã hoá)
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `export_id` | uuid PK, FK → personal_data_exports CASCADE | Bảng riêng để đọc trạng thái không kéo theo file |
+| `data` | bytea | Bản mã AES-256-GCM (kèm thẻ xác thực), khoá chủ `SECRETS_MASTER_KEY`, dữ liệu kèm `data-export:{id}` |
+| `nonce` | bytea | 12 byte |
+| `created_at` | timestamptz | |
+
+Bị xoá khi yêu cầu hết hạn (`data-export-cleanup`) hoặc khi xoá cứng user. Có thể còn trong bản sao lưu DB (đã mã hoá), xem REQUIREMENTS 13.4.
 
 ### 3.2 AI Service — `finmate_ai`
 

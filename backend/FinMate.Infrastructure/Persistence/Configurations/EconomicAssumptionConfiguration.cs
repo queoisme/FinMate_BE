@@ -10,7 +10,10 @@ public class EconomicAssumptionConfiguration : IEntityTypeConfiguration<Economic
     {
         builder.ToTable("economic_assumptions", t =>
         {
-            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired')");
+            t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
+            // Phase 95: luật "không tự duyệt / tự từ chối" là TRIGGER trg_economic_assumptions_two_people (migration AssumptionTwoPeopleTrigger), không phải CHECK:
+            // Postgres kiểm CHECK (kể cả NOT VALID) ở MỌI lần UPDATE, nên dòng tự duyệt có từ trước Phase 95 sẽ không gỡ được nữa. Trigger chỉ kiểm khi
+            // approved_by / rejected_by được gán.
             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
             t.HasCheckConstraint("chk_economic_assumptions_rate", "rate_bps BETWEEN -10000 AND 100000");
 
@@ -38,6 +41,9 @@ public class EconomicAssumptionConfiguration : IEntityTypeConfiguration<Economic
 
         builder.Property(a => a.CreatedBy).HasColumnName("created_by").IsRequired();
         builder.Property(a => a.ApprovedBy).HasColumnName("approved_by");
+        builder.Property(a => a.RejectedBy).HasColumnName("rejected_by");
+        builder.Property(a => a.RejectedAt).HasColumnName("rejected_at");
+        builder.Property(a => a.DecisionNote).HasColumnName("decision_note").HasMaxLength(1000);
         builder.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
 
         builder.HasIndex(a => new { a.Key, a.Version }).IsUnique().HasDatabaseName("uq_economic_assumptions_key_version");

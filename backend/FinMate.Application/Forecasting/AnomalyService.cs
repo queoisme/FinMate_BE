@@ -118,7 +118,9 @@ public class AnomalyService : IAnomalyService
             return open;
         }
 
-        var active = (await _items.ListAsync(userId, RecurringStatus.Active, ct)).Select(i => i.ToView()).ToList();
+        var active = RecurringExclusions.With(
+            (await _items.ListAsync(userId, RecurringStatus.Active, ct)).Select(i => i.ToView()).ToList(),
+            await _items.ListAsync(userId, RecurringStatus.Completed, ct), today, settings.AnomalyLookbackDays);   // D5
         var normals = await _anomalies.GetPriorNormalsAsync(userId, ct);
         var (forecastRules, rules) = (ForecastRules.From(settings), AnomalyRules.From(settings));
         foreach (var candidate in candidates)

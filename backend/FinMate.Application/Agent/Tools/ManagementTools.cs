@@ -104,7 +104,7 @@ public sealed class UpcomingItemsTool(IRecurringItemRepository items) : IAgentTo
     {
         var today = VietnamTime.DateOf(context.Now);
         var rows = (await items.ListAsync(context.UserId, RecurringStatus.Active, ct))
-            .Where(i => i.NextDueDate >= today && i.NextDueDate <= today.AddDays(Days))
+            .Where(i => !i.ToView().Exhausted && i.NextDueDate >= today && i.NextDueDate <= today.AddDays(Days))
             .OrderBy(i => i.NextDueDate).ThenBy(i => i.Name, StringComparer.Ordinal)
             .Take(Top).ToList();
         if (rows.Count == 0)
