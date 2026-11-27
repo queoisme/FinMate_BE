@@ -41,6 +41,7 @@ public static partial class Diagnosis
         WriteTrace(md, options);
         WriteHoliday(md, options, progress);
         WriteEstimators(md, acc, options.Personas);
+        WriteSumBands(md, acc, options.Personas);
         return md.ToString();
     }
 
@@ -58,6 +59,7 @@ public static partial class Diagnosis
             var levels = FlexVariants.Compute(history, items, origin, rules);
             var flexLevels = Estimators.Levels(history, items, origin, rules, TransactionType.Debit);
             var incomeLevels = Estimators.Levels(history, items, origin, rules, TransactionType.Credit);
+            var net = SumBands.NetSeries(history, items, origin, rules);
             foreach (var h in Horizons)
             {
                 var to = origin.AddDays(h);
@@ -69,6 +71,10 @@ public static partial class Diagnosis
                 acc.AddFlex(world.Persona, h, levels, origin, flexActual, Baselines.ModelFlexible(forecast, h));
                 acc.AddBand(world.Persona, h, forecast, levels, flexActual, actualBalance);
                 AddEstimates(acc, world.Persona, h, origin, flexLevels, incomeLevels, flexActual, actual[Component.IncomeIrregular], Baselines.ModelFlexible(forecast, h));
+                foreach (var method in SumBands.Candidates.Prepend(SumBands.Current))
+                {
+                    acc.AddSumBand(world.Persona, h, method, SumBands.At(method, forecast, h, net), actualBalance);
+                }
             }
         }
     }

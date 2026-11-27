@@ -482,3 +482,52 @@ Chi linh hoạt (WAPE / thiên lệch): K4 `stable_worker` 22,0% / +6,6% → 19,
 - Ở các mốc "bị ảnh hưởng" của K2/K4 (sát ngày đổi giá), thiên lệch dương tăng nhẹ (`stable_worker` K2 +2,65 → +2,77; gia đình K4 +0,82 → +1,18). Đó là phần không đoán được của việc đổi giá (khoản định kỳ vẫn mang giá cũ tới lần trả giá mới đầu tiên); trước đây phần đếm hai lần che bớt nó.
 - Gia đình K0 tầm 30: thiên lệch −0,12 → +0,51 triệu (MAE không đổi 4,02); dải ở tầng 2 sẽ được đo trên mô hình này.
 - Lượt chạy chỉ để so, không lưu vào `docs/evaluation/phase97/`; lượt chính thức của tầng 2 là `dev-after-t2/`.
+
+## Task 8 — So B1/B2 trên tập phát triển (2026-11-27, trước khi sửa engine)
+
+- Lệnh: `dotnet FinMate.Backtest.dll --diagnose FILE`, mục C7 (code `Diagnostics/SumBands.cs`, `Diagnosis.SumBands.cs`). Mô hình: tầng 1 + Task 7b. K0, chế độ đáp án, hạt 20261127, 20 hạt giống mỗi hồ sơ, 36.500 mốc mỗi tầm.
+- Chuỗi: dòng tiền linh hoạt ròng theo ngày (thu linh hoạt − chi linh hoạt, cùng bộ lọc với production, ngày không có = 0) trong cửa sổ lịch sử 90 ngày; L = h + 1. Hai đầu dải = đường dự kiến + độ lệch; khoản cho vay đến hạn cộng vào đầu trên sau cùng.
+- Tiêu chí như §3, áp bằng code; không đổi sau khi thấy số.
+
+#### dải từ tổng h+1 ngày (ô = tỉ lệ số dư thật nằm trong dải / độ rộng trung bình)
+
+| Hồ sơ | Tầm | dải hiện tại (tầng 1) | B1 phân vị tổng cuộn | B2 chuẩn (σ²L + σ²L²/n) |
+|---|---|---|---|---|
+| stable_worker | 7 | 62,5% / 1.169.496 đ | 39,9% / 648.832 đ | 42,2% / 697.535 đ |
+| stable_worker | 14 | 75,3% / 2.193.585 đ | 36,1% / 843.668 đ | 43,5% / 988.682 đ |
+| stable_worker | 30 | 84,9% / 4.534.078 đ | 29,3% / 1.078.718 đ | 43,1% / 1.525.824 đ |
+| freelancer | 7 | 17,9% / 5.727.104 đ | 46,7% / 11.779.138 đ | 51,8% / 14.546.581 đ |
+| freelancer | 14 | 26,5% / 10.740.268 đ | 42,5% / 17.889.836 đ | 44,3% / 20.618.203 đ |
+| freelancer | 30 | 36,5% / 22.197.464 đ | 36,9% / 25.322.920 đ | 48,3% / 31.819.856 đ |
+| student | 7 | 38,1% / 1.051.356 đ | 40,3% / 600.649 đ | 63,9% / 2.605.995 đ |
+| student | 14 | 39,8% / 1.972.228 đ | 37,6% / 878.573 đ | 62,7% / 3.693.725 đ |
+| student | 30 | 34,5% / 4.076.966 đ | 30,2% / 4.432.326 đ | 53,7% / 5.700.516 đ |
+| family | 7 | 47,3% / 2.459.086 đ | 32,3% / 1.542.616 đ | 34,2% / 1.693.440 đ |
+| family | 14 | 55,8% / 4.611.936 đ | 27,7% / 2.152.395 đ | 32,0% / 2.455.623 đ |
+| family | 30 | 67,0% / 9.532.573 đ | 22,6% / 3.004.025 đ | 31,8% / 3.908.438 đ |
+| small_trader | 7 | 42,3% / 3.749.365 đ | 53,0% / 4.989.281 đ | 48,1% / 4.363.910 đ |
+| small_trader | 14 | 53,6% / 7.033.164 đ | 48,1% / 6.248.213 đ | 48,6% / 6.185.275 đ |
+| small_trader | 30 | 67,0% / 14.538.700 đ | 42,2% / 8.304.866 đ | 49,6% / 9.545.402 đ |
+| all | 7 | 41,6% / 2.831.281 đ | 42,4% / 3.912.103 đ | 48,1% / 4.781.492 đ |
+| all | 14 | 50,2% / 5.310.236 đ | 38,4% / 5.602.537 đ | 46,2% / 6.788.302 đ |
+| all | 30 | 58,0% / 10.975.956 đ | 32,2% / 8.428.571 đ | 45,3% / 10.500.007 đ |
+
+Mốc không tính được dải (thiếu lịch sử): dải hiện tại (tầng 1) 0, B1 phân vị tổng cuộn 0, B2 chuẩn (σ²L + σ²L²/n) 0.
+
+**Áp tiêu chí (§3, K0):** lệch phủ lớn nhất so với 50% (max \|phủ − 50%\|) trên 15 ô hồ sơ × tầm, nhỏ hơn thắng; điều kiện: độ rộng TB ở tầm 30 của stable_worker + family ≤ dải hiện tại (7.033.326 đ).
+
+| Phương án | Lệch phủ lớn nhất so với 50% | Ô xa nhất | Độ rộng TB tầm 30, stable_worker + family | Kết quả |
+|---|---|---|---|---|
+| dải hiện tại (tầng 1) | 34,9% | stable_worker 30 | 7.033.326 đ | đối chứng |
+| B1 phân vị tổng cuộn | 27,4% | family 30 | 2.041.371 đ | đạt điều kiện |
+| B2 chuẩn (σ²L + σ²L²/n) | 18,2% | family 30 | 2.717.131 đ | đạt điều kiện |
+
+**Lựa chọn theo tiêu chí:** B2 chuẩn (σ²L + σ²L²/n).
+
+
+**Chọn B2.** Nó qua điều kiện độ rộng (2,72 triệu so với 7,03 triệu của dải hiện tại ở tầm 30, `stable_worker + family`) và lệch phủ lớn nhất 18,2% (B1: 27,4%).
+
+**Nhận xét (không đổi lựa chọn):**
+- B1 hẹp dần theo tầm (gộp 42% → 38% → 32%), đúng như C4 đã thấy: 90 ngày chỉ có khoảng 60 cửa sổ 31 ngày, chồng lên nhau.
+- B2 gần 50% với `stable_worker`, freelancer và tiểu thương ở mọi tầm. Sinh viên rộng quá (54–64%): hai khoản học phí lớn trong lịch sử làm σ lớn. Gia đình hẹp quá (32–34%): phần lệch của gia đình nằm ngoài dòng tiền linh hoạt (khoản định kỳ và khoản vay lệch ngày hoặc lệch tiền), mà B2 chỉ đo bất định của phần linh hoạt.
+- Ô xa nhất của B2 là gia đình tầm 30 (31,8%).
