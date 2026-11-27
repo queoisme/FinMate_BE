@@ -172,6 +172,35 @@ public class PurchaseCheckControllerTests : IClassFixture<AuthApiFactory>
         result.LowestAfter.Should().BeNull();
     }
 
+    private record CategoryData(Guid Id, string Slug);
+    private record CashflowDayData(DateOnly Date, long IrregularIncomeCents);
+    private record CashflowDaysData(List<CashflowDayData> Days);
+
+    [Fact]
+    public async Task ExplanationTable_ListsTheEstimatedIrregularIncome_ThatTheExpectedBalanceAlreadyContains()
+    {
+        // Phase 97: số dư dự kiến đã cộng thu không định kỳ, nên bảng giải thích phải có dòng đó, không thì các dòng không cộng ra số dư.
+        var token = await NewUserTokenAsync();
+        var wallet = await WalletAsync(token, 5_000_000);
+        var income = (await SendAsync<List<CategoryData>>(HttpMethod.Get, "/api/v1/categories", token)).First(c => c.Slug == "income").Id;
+        for (var daysAgo = 1; daysAgo <= 3; daysAgo++)
+        {
+            await SendAsync<IdData>(HttpMethod.Post, "/api/v1/transactions", token, new
+            {
+                financialAccountId = wallet, categoryId = income, amountCents = 900_000, transactionType = "Credit",
+                transactedAt = DateTimeOffset.UtcNow.AddDays(-daysAgo), merchantName = "Khách lẻ",
+            }, HttpStatusCode.Created);
+        }
+
+        var result = await SendAsync<PurchaseData>(HttpMethod.Post, Url, token, new { amountCents = 500_000, horizonDays = 7 });
+        var cashflow = await SendAsync<CashflowDaysData>(HttpMethod.Get, $"/api/v1/forecast/cashflow?to={result.Period.To:yyyy-MM-dd}", token);
+        var expected = cashflow.Days.Where(d => d.Date <= result.Period.To).Sum(d => d.IrregularIncomeCents);
+
+        expected.Should().BePositive();
+        result.Lines.Should().ContainSingle(l => l.Label == "Thu nhập không định kỳ (ước tính)")
+            .Which.Should().Be(new LineData("Thu nhập không định kỳ (ước tính)", expected, PurchaseSources.Estimated));
+    }
+
     [Fact]
     public async Task WithoutKnownIncome_AUserChosenHorizonSetsThePeriod()
     {

@@ -1842,6 +1842,7 @@ Nhánh `feat/forecast-model-fixes` (rebase lên `main` @ `e9664f7`). Kế hoạc
   - vùng giữa `lowBalanceCents` và `highBalanceCents` giờ nghĩa là "khoảng một nửa khả năng số dư nằm trong vùng này"; nếu có chú thích, đổi theo;
   - với người thu không đều, số dư dự báo cao hơn trước và vùng rộng hơn nhiều; với người thu chi đều, vùng hẹp hơn;
   - kết luận "Mua món này có ổn không?" có thể đổi: bớt khắt khe với người thu chi đều ở tầm dài, khắt khe hơn với người thu không đều. Xem `docs/forecast-cashflow-api.md`.
+  - purchase-check có thêm một dòng trong `lines`: "Thu nhập không định kỳ (ước tính)" (`estimated`), vì số dư dự kiến đã có khoản này; cấu trúc không đổi.
 - [ ] **Báo nhóm web admin:**
   - dashboard độ chính xác hiện `method` của báo cáo (giờ là `mean_dow_income_sumband_v3`);
   - có thể thêm bộ chọn `?method=` với `mean_dow_income_v2` (tầng 1) và `median_p25p75` (trước Phase 97);

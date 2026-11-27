@@ -52,3 +52,5 @@ So với tầng 1 (`mean_dow_income_v2`): dải hẹp đi nhiều với người
 Không bắt buộc sửa gì. Có thể hiện dòng "thu dự kiến" từ `irregularIncomeCents` và nhãn cho `incomeBasis`. Với người thu không đều (freelancer, tiểu thương), số dư dự báo sẽ cao hơn trước (gần thực tế hơn); cảnh báo số dư thấp và kết luận "Mua món này có ổn không?" có thể đổi theo.
 
 Từ tầng 2, nếu app có chú thích cho vùng thận trọng–lạc quan, nên ghi là "khoảng một nửa khả năng số dư nằm trong vùng này". Kết luận "Mua món này có ổn không?" dùng đường thận trọng, nên với người thu chi đều nó sẽ bớt khắt khe ở tầm dài, còn với người thu không đều thì khắt khe hơn.
+
+`POST /forecast/purchase-check` có thêm một dòng trong `lines`: "Thu nhập không định kỳ (ước tính)", nguồn `estimated`, bằng tổng `irregularIncomeCents` trong kỳ (chỉ hiện khi lớn hơn 0). Cấu trúc `lines` không đổi.
