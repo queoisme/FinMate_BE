@@ -1,6 +1,6 @@
 # Đặc tả bộ sinh dữ liệu tổng hợp cho backtest dự báo
 
-> **Phiên bản 1.0** (2026-11-27). Hằng `GeneratorSpec.Version` trong `backend/FinMate.Backtest` phải bằng số này, và báo cáo in số này.
+> **Phiên bản 1.1** (2026-11-27). Hằng `GeneratorSpec.Version` trong `backend/FinMate.Backtest` phải bằng số này, và báo cáo in số này.
 > Kế hoạch: `docs/superpowers/plans/2026-11-27-forecast-backtest.md` (Phase 96, D2–D5, D15, D17, S2).
 > Tài liệu này được commit **trước** mọi dòng code của bộ sinh và runner. Code làm theo tài liệu, không làm ngược lại.
 
@@ -86,7 +86,11 @@ Ký hiệu: `U[a,b]` là phân phối đều (số tiền làm tròn 100.000đ t
 - **Hệ số thứ trong tuần:** T2–T5 = 0,9; T6 = 1,1; T7 = 1,3; CN = 1,2.
 - **Hiệu ứng ngày lương:** trong 5 ngày kể từ một khoản thu lớn (lương, trợ cấp, khoản thu ≥ 30% thu nhập tháng danh nghĩa), λ nhân thêm `1 + u`, với `u ~ U[0,10; 0,30]` cố định theo người (số thực, không làm tròn).
 - **Trôi mức chi:** hệ số tháng thứ k (tính từ 2025-01) = `(1 + r)^k`, với `r ~ U[−0,01; +0,02]` mỗi tháng, cố định theo người.
-- σ_c mặc định: `food` 0,5; `transport` 0,6; `shopping` 0,9; `entertainment` 0,8; `health` 1,0; `other` 1,0. λ_c mặc định (lần/ngày): `food` 1,6; `transport` 0,5; `shopping` 0,25; `entertainment` 0,2; `health` 0,05; `other` 0,15.
+- σ_c mặc định: `food` 0,5; `transport` 0,6; `shopping` 0,9; `entertainment` 0,8; `health` 1,0; `family` 0,8; `other` 1,0. λ_c mặc định (lần/ngày): `food` 1,6; `transport` 0,5; `shopping` 0,25; `entertainment` 0,2; `health` 0,05; `family` 0,15; `other` 0,15.
+- **Tỉ trọng mặc định** (dùng khi hồ sơ không ghi riêng: `freelancer`, `small_trader`): `food` 45%, `transport` 15%, `shopping` 20%, `entertainment` 12%, `health` 4%, `other` 4%.
+- **Ví trả chi linh hoạt:** ví ngân hàng (ví đầu tiên của hồ sơ), trừ khi hồ sơ ghi khác (`stable_worker`: 30% số lần chi `food` bằng tiền mặt).
+- **Hệ số áp vào đâu:** hệ số thứ, hiệu ứng ngày lương, hệ số Tết (K5) và đổi thói quen (K8) nhân vào **λ** (số lần chi); trôi mức chi nhân vào **trung vị số tiền** `m_c`.
+- **Luồng theo ngày:** số lần chi và số tiền của mỗi (ngày, danh mục) lấy từ luồng riêng `base.flex.{danh mục}.{yyyy-MM-dd}`, để một kịch bản đổi λ ở vài ngày không làm đổi dữ liệu các ngày khác.
 - **Hoàn tiền:** mỗi khoản chi `shopping` có 3% xác suất được hoàn sau 3–10 ngày (rút đều). Trong số đó 60% hoàn 100%, 40% hoàn một phần 20–70%.
 
 ### 5.2 Khoản định kỳ (có đáp án)
@@ -219,3 +223,4 @@ Với mỗi người × kịch bản, bộ sinh ghi các đáp án sau:
 | Phiên bản | Ngày | Thay đổi | Lý do |
 |---|---|---|---|
 | 1.0 | 2026-11-27 | Bản đầu | — |
+| 1.1 | 2026-11-27 | §5.1: thêm λ/σ của `family`, tỉ trọng mặc định, ví trả chi linh hoạt, hệ số nhân vào λ hay số tiền, luồng theo ngày | Thiếu sót phát hiện khi viết bộ sinh (Task 3), **trước** khi có runner hay số đo nào; v1.0 không đủ để code làm đúng một cách duy nhất |
