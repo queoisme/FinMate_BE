@@ -10,6 +10,7 @@ COPY FinMate.Application/FinMate.Application.csproj       FinMate.Application/
 COPY FinMate.Infrastructure/FinMate.Infrastructure.csproj FinMate.Infrastructure/
 COPY FinMate.API/FinMate.API.csproj                       FinMate.API/
 COPY FinMate.Tests/FinMate.Tests.csproj                   FinMate.Tests/
+COPY FinMate.Backtest/FinMate.Backtest.csproj             FinMate.Backtest/
 
 # Restore đứng riêng một tầng: sửa code không làm mất cache của nó, mà restore mới là phần
 # chậm nhất. Chỉ khi một .csproj đổi thì tầng này mới chạy lại.

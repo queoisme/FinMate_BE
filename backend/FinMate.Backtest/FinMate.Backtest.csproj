@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Phase 96: backtest dự báo trên dữ liệu tổng hợp. Chạy độc lập, không DB, không thêm NuGet.
+       Đặc tả bộ sinh: docs/evaluation/forecast-backtest-generator-spec.md -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FinMate.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FinMate.Application\FinMate.Application.csproj" />
+    <ProjectReference Include="..\FinMate.Domain\FinMate.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
