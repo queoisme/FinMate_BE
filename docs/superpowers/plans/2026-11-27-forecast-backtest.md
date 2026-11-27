@@ -1,6 +1,6 @@
 # Phase 96 — Đánh giá dự báo bằng backtest
 
-> Trạng thái: **Bước 1 (kiểm kê) xong 2026-11-27, chờ chọn phạm vi.** Chưa thiết kế chi tiết, chưa sửa code.
+> Trạng thái: **Phần 1 (kiểm kê) xong và đã chốt phạm vi 2026-11-27 (B + C(a), 4 tầng). Phần 2 (thiết kế) chờ duyệt.** Chưa sửa code.
 > Nhánh `feat/forecast-backtest` từ `main` @ `32912fc` (đã có Phase 95).
 > Mục tiêu của phase là **đo**. Không chỉnh mô hình, không đổi tham số mặc định. Không dùng dữ liệu người dùng thật.
 
@@ -178,3 +178,236 @@ Các tầng trong bước 2 sẽ chia sao cho dừng ở đâu cũng an toàn: t
 3. **Ngữ nghĩa mốc:** đầu ngày T, chỉ thấy giao dịch `Date < T` (đề xuất, giống job chụp 02:30)?
 4. **Cỡ mẫu:** 5 hồ sơ × 20 hạt giống × 12 tháng đánh giá, mốc mỗi ngày (đề xuất)?
 5. **Nơi để báo cáo:** `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`? (`docs/evaluation.md` hiện là một file đơn cho chat/OCR; đề xuất tạo thư mục `docs/evaluation/` và để file cũ nguyên chỗ.)
+
+---
+
+## Đã chốt (2026-11-27): phạm vi B + C(a), bốn tầng
+
+1. Tầng 1 = phương án A. Tầng 2 = chế độ phát lại song song chế độ đáp án, phát hiện định kỳ / đổi giá / tạm ngừng nhầm, cảnh báo số dư thấp, bất thường, K7–K9. Tầng 3 = thu nhập, rủi ro ngân sách + B-lastmonth, danh mục tháng tới, các cảnh báo còn lại. Tầng 4 = CLI `--config` / `--compare`. Xong mỗi tầng: test xanh, báo cáo chạy được, là điểm dừng an toàn.
+2. Console `FinMate.Backtest` + test xUnit, không thêm NuGet, build được trong solution.
+3. Mốc = đầu ngày T giờ VN, chỉ thấy giao dịch có ngày < T.
+4. 5 hồ sơ × 20 hạt giống × 12 tháng đánh giá, mốc mỗi ngày; chậm quá thì mỗi 3 ngày, ghi vào báo cáo.
+5. Báo cáo ở `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`; `docs/evaluation.md` giữ nguyên.
+6. Đặc tả bộ sinh có số phiên bản, chốt bằng **một commit riêng trước commit runner đầu tiên**. K5 dùng ngày Tết âm lịch thật, ghi nguồn.
+7. Dải P25–P75: chỉ đo tỉ lệ phủ và độ rộng theo tầm, không sửa; ghi vào §13.4.
+8. Production chỉ được thêm ctor `internal` nhận đồng hồ; ctor công khai và kết quả giữ nguyên, có test hồi quy.
+9. Bảng tóm tắt đầu báo cáo, mỗi dòng ghi chế độ (đáp án / phát lại).
+
+## Phần 2 — Thiết kế (chờ duyệt)
+
+### Phát hiện thêm khi soạn phần 2
+
+- `backend/Dockerfile` chép **từng** `.csproj` rồi chạy `dotnet restore FinMate.sln`. Thêm project vào solution mà không thêm dòng `COPY FinMate.Backtest/FinMate.Backtest.csproj` thì build Docker hỏng ở bước restore. Tính vào D1.
+- Repo không có workflow CI nào (không có `.github/`). "Build được trong CI" ở đây hiểu là: `dotnet build FinMate.sln` + `dotnet test` trong container SDK 9, và `docker build backend/` đều qua.
+- `FinMate.Tests` dùng Moq, nhưng project console không được thêm NuGet. Vì vậy repository giả trong `FinMate.Backtest` phải **viết tay** (D7). Tổng cộng khoảng 75 phương thức trên 9 interface, phần lớn chỉ ném lỗi.
+
+### Quyết định
+
+**D1. Cấu trúc project.** Đề xuất:
+- `backend/FinMate.Backtest/` là console, `OutputType=Exe`, framework lấy từ `Directory.Build.props`. Tham chiếu `FinMate.Application` + `FinMate.Domain`, **không** tham chiếu `FinMate.Infrastructure` (không DB, không Redis).
+- Thư mục con: `Generation/` (PRNG, hồ sơ, kịch bản, đáp án), `Simulation/` (trạng thái tại mốc, repository giả, đồng hồ, phát lại), `Evaluation/` (baseline, chỉ số, bootstrap), `Reporting/` (Markdown, CSV), `Program.cs` (đọc tham số dòng lệnh).
+- `FinMate.Tests` tham chiếu `FinMate.Backtest`.
+- `FinMate.Application.csproj` thêm `<InternalsVisibleTo Include="FinMate.Backtest" />`.
+- `FinMate.sln` thêm project; `Dockerfile` thêm một dòng `COPY`. Image publish chỉ `FinMate.API` nên không phình.
+
+**D2. Đặc tả bộ sinh.** Đề xuất: `docs/evaluation/forecast-backtest-generator-spec.md`, phiên bản **1.0**; hằng `GeneratorSpec.Version = "1.0"` trong code được ghi vào báo cáo.
+- Đặc tả phủ **cả bốn tầng** (5 hồ sơ, K0–K9, ngưỡng số dư thấp, hạn mức ngân sách, mục tiêu đánh giá), để tầng 2–3 không phải mở lại.
+- Commit riêng, **trước mọi code** của bộ sinh và runner.
+- Luật sửa: chỉ sửa khi có lỗi thật (bộ sinh làm khác đặc tả, hoặc tạo dữ liệu production không thể có). Mỗi lần sửa tăng phiên bản (1.1…), ghi lý do vào mục "Lịch sử phiên bản" của đặc tả, và báo cáo in rõ phiên bản. Không sửa vì số xấu.
+
+**D3. Tất định.** Đề xuất:
+- PRNG SplitMix64 tự viết. Mỗi luồng ngẫu nhiên có hạt riêng = SplitMix64 trộn từ `(hồ sơ, chỉ số hạt giống, tên luồng)`, ví dụ luồng `"base.food"`, `"scenario.K1"`.
+- Nhờ vậy, thêm K7 ở tầng 2 không làm xê dịch dữ liệu K0–K6 đã báo cáo ở tầng 1, và hai lần chạy ở hai tầng cho cùng số trên phần chung.
+- Id giao dịch: `DeterministicGuid.V5(userId, "tx:{n}")`.
+- Phân phối dùng phép biến đổi tự viết (Box–Muller cho log-normal, Knuth cho Poisson với λ nhỏ), không dùng `Math.FusedMultiplyAdd` hay song song hóa.
+- Số in ra dùng `CultureInfo.InvariantCulture`, xuống dòng `\n`, các dòng sắp theo khóa cố định.
+
+**D4. Lịch dữ liệu và Tết.** Đề xuất:
+- Mỗi người có dữ liệu từ **2025-01-01** tới **2026-07-31**. Khởi động: 2025-01 → 2025-06. Mốc đánh giá: mỗi ngày từ **2025-07-01** tới **2026-06-30** (365 mốc). Phần đến 2026-07-31 chỉ để có số thực tế cho tầm 30 ngày của các mốc cuối.
+- Tết: mùng 1 Tết Ất Tỵ = **2025-01-29** (rơi vào giai đoạn khởi động, nên mô hình "thấy" một Tết trong lịch sử 90 ngày chỉ ở các mốc đầu); mùng 1 Tết Bính Ngọ = **2026-02-17** (nằm trong giai đoạn đánh giá).
+- Nguồn: lịch âm Việt Nam (tính theo UTC+7). Khi viết đặc tả sẽ đối chiếu với thông báo nghỉ Tết chính thức của năm tương ứng và ghi đường dẫn; nếu lệch thì theo thông báo chính thức.
+- Bảng ngày cố định nằm trong đặc tả và trong code, không tính âm lịch lúc chạy.
+
+**D5. Người dùng và kịch bản.** Đề xuất:
+- 100 **người gốc** = 5 hồ sơ × 20 hạt giống. Mỗi kịch bản Kx là **lớp phủ** lên đúng người gốc đó, nên K1 của người #7 và K0 của người #7 giống hệt nhau trừ phần được cài. Nhờ vậy mọi chỉ số kịch bản báo được **chênh lệch cặp** so với K0, tách được ảnh hưởng của riêng kịch bản.
+- Tầng 1: 100 × 7 (K0–K6) = 700 người-năm. Tầng 2: thêm K7–K9 thành 100 × 10.
+- K6 (người mới) là lớp phủ "bắt đầu dùng app muộn": cắt bỏ lịch sử trước ngày bắt đầu (rải trong giai đoạn đánh giá), chỉ chấm các mốc từ 14 tới 75 ngày sau ngày bắt đầu.
+- Vì K6 đã phủ trường hợp người mới, đề xuất **thay** hồ sơ `new_user` ở phần 1 bằng `small_trader` (tiểu thương: thu nhỏ hằng ngày, không có lương, chi nhập hàng theo tuần). Năm hồ sơ là `stable_worker`, `freelancer`, `student`, `family`, `small_trader`.
+- Đặc tả ghi khoảng tham số từng hồ sơ, lấy cùng dải với `agent_eval/personas.py` cho lương và tỉ lệ chi khi hai bên có cùng hồ sơ.
+
+**D6. Mốc và trạng thái tại mốc.** Đề xuất:
+- Đồng hồ giả = **T 00:00 giờ VN**, nên `VietnamTime.DateOf(now) = T`.
+- Repository giả chỉ trả giao dịch `Date < T`, nên `SpentTodayFlexibleCents = 0`.
+- Số dư mỗi ví tại mốc = số dư mở đầu + dòng tiền thô (`Date < T`): gồm vay, hoàn tiền, cặp đảo, chuyển ví, góp/rút quỹ (Q16), theo đúng ví.
+- Ví bị loại khỏi dự báo (hồ sơ `family`) vẫn có số dư riêng; tập ví được tính theo cờ của ví.
+
+**D7. Repository giả.** Đề xuất:
+- Viết tay trong `Simulation/Fakes/`, nạp từ "thế giới" của bộ sinh và cắt theo mốc. Phương thức service không gọi thì ném `NotSupportedException("backtest: <tên>")`, để một lời gọi ngoài dự kiến hỏng ngay thay vì trả rỗng âm thầm.
+- `FakeForecastDataRepository` tái tạo ngữ nghĩa của `ForecastDataRepository` **bằng chính các hàm thuần đó**: `RefundNetting.ForHabits`, lọc `IsLoan`, bỏ `Transfer`, chuyển khoản vượt ranh giới như `GetBoundaryTransfersAsync`.
+- Rủi ro là bản giả lệch bản SQL. Chặn bằng **một test hợp đồng tích hợp** (Testcontainers Postgres, như các integration test hiện có): nạp một người tổng hợp (có vay, quỹ, hoàn tiền, chuyển ví) vào DB thật, so ba hàm của `IForecastDataRepository` thật với bản giả ở 5 mốc.
+
+**D8. Chế độ khoản định kỳ.** Đề xuất:
+- **Đáp án (tầng 1):** khoản định kỳ là các khoản thật trong đáp án, như một người dùng khai báo đầy đủ, nhưng **chỉ biết thông tin ≤ T**:
+  - lịch danh nghĩa (chu kỳ, ngày gốc);
+  - số tiền = lần trả gần nhất trước T, chưa trả lần nào thì số khai báo;
+  - `NextDueDate` = kỳ danh nghĩa sớm nhất chưa trả. Một kỳ bị bỏ (K3) chỉ "lộ ra" khi đã qua ngày, đúng như với tracker;
+  - khoản đã kết thúc trước T thì không còn.
+  - Đây là **cận trên**: mô hình được biết khoản nào là định kỳ.
+- **Phát lại (tầng 2):** bắt đầu với **không** khoản định kỳ nào (người dùng không khai gì). Mỗi ngày D trong toàn bộ dữ liệu chạy hai bước:
+  1. **01:30:** `RecurringDetectionService` thật (đồng hồ = D 01:30), có detect + track trên entity trong bộ nhớ;
+  2. **08:00:** phần `RunDailyAsync` của `ForecastAlertService` thật (nhắc hạn, tạm ngừng khoản quá hạn lâu).
+
+  Trạng thái entity sau ngày T−1 là đầu vào của mốc T. Không mô phỏng trigger sau từng giao dịch (`TrackForUserAsync`); chỉ có lượt hằng ngày. Ghi điều này vào hạn chế: production cập nhật sớm hơn vài giờ.
+- Cả hai chế độ chạy cùng runner; báo cáo luôn ghi cột `mode`.
+
+**D9. Định nghĩa thực tế.** Đề xuất: dùng `ForecastActuals.NetFlow` + chuyển khoản vượt ranh giới (đúng như `FillActualsAsync`). Số dư thực tế ở tầm h = số dư tại mốc + dòng tiền thô từ T tới T+h (gồm cả hai đầu), khớp với engine (ngày T có chi linh hoạt). Bản chụp ảo dựng bằng `ForecastSnapshotBuilder.Build` để cách tính B0 và tầm trùng với production.
+
+**D10. Chỉ số và thống kê.** Đề xuất: giữ bảng ở phần 1 mục 4, chốt thêm các chi tiết sau.
+- Bias = dự kiến − thực tế (âm: dự báo bi quan hơn thực tế).
+- "Sai số theo quy mô" = MAE / trung bình |thực tế − số dư tại mốc|; mẫu số < 100.000đ thì không in tỉ lệ.
+- WAPE gộp trên mọi mốc của nhóm; MAPE chỉ trên mốc có thực tế ≥ 100.000đ, in kèm số mốc bị loại.
+- Khoảng tin cậy 95%: bootstrap 1.000 lần, lấy mẫu lại theo **người gốc** (không theo mốc, vì các mốc của một người tương quan), PRNG có hạt cố định. Áp cho chênh lệch cặp mô hình − baseline và kịch bản − K0.
+- Đo `ForecastAccuracyCalculator` hiện có **bằng chính hàm đó** (cột MAE, coverage…). Chỉ số mới (bias, WAPE, theo quy mô, CI) ở `Evaluation/`, không sửa production.
+
+**D11. Baseline.** Đề xuất định nghĩa chính xác:
+- B-hold = số dư tại mốc.
+- B0 = lấy từ bản chụp (`RecurringOnlyCents`).
+- B-mean30 = cùng sự kiện định kỳ (cùng chế độ) + chi linh hoạt mỗi ngày = tổng chi linh hoạt 30 ngày trước mốc / 30. "Chi linh hoạt" lọc như `SpendingBaselineCalculator`: Debit, không loại khỏi dự báo, không khớp khoản định kỳ.
+- B-naive = số dư tại mốc + dòng tiền thô của `[T−h, T−1]`.
+- B-lastmonth (tầng 3) = tổng chi tháng trước, toàn bộ và theo danh mục.
+- Baseline không có tham số chỉnh trên dữ liệu đánh giá; 30 ngày là con số chọn trước, ghi trong đặc tả.
+
+**D12. Dải P25–P75.** Đề xuất: báo tỉ lệ phủ và độ rộng dải theo tầm 7/14/30, theo kịch bản và `confidence`, kèm một câu giải thích vì sao dải cộng theo ngày không phải P25–P75 của tổng. Thêm mục vào REQUIREMENTS §13.4: "Dải dự báo: có đổi cách tính (vd. phân vị của tổng mô phỏng) không — quyết định sau khi có số Phase 96". Không đổi code engine.
+
+**D13. Báo cáo.** Đề xuất:
+- **Đầu trang:** dòng tái lập (commit, phiên bản đặc tả, hạt giống gốc, phiên bản và băm SHA-256 của `ForecastSettings` dùng, bước mốc, thời gian chạy). Tiếp theo là **bảng tóm tắt** 8–12 dòng, mỗi dòng một câu có chế độ, ví dụ: "Tầm 14 ngày, chế độ đáp án: số dư lệch trung bình X đ (Y% quy mô dòng tiền), tốt hơn 'số dư giữ nguyên' Z% (CI a–b%)".
+- **Thân:** bảng số dư theo tầm × baseline; theo kịch bản (chênh so với K0); theo hồ sơ; low/normal; dải; rồi các mục của tầng 2–3.
+- **Cuối:** giả định của bộ sinh (chép từ đặc tả), hạn chế (dữ liệu tổng hợp, cỡ mẫu, không có phản hồi người dùng, phát lại không có trigger theo giao dịch, mục tiêu không đo), cách chạy lại.
+- **CSV:** một file mỗi nhóm (`balance.csv`, `flexible.csv`, `band.csv`, sau này `recurring.csv`, `anomaly.csv`, `alerts.csv`, `income.csv`, `budget.csv`, `category.csv`). Cột khóa `mode, scenario, persona, confidence, horizon, method`, rồi các chỉ số. Tiền là số nguyên đồng.
+- Báo cáo do chương trình sinh hoàn toàn; không sửa tay. Nhận xét viết tay (nếu có) nằm trong một khối riêng có đánh dấu.
+
+**D14. Thay đổi production (chỉ ctor đồng hồ).** Đề xuất:
+
+| Service | Tầng | Thay đổi |
+|---|---|---|
+| `ForecastService`, `IncomeForecastService`, `BudgetForecastService`, `RecurringDetectionService`, `ForecastAlertDispatcher` | — | Đã có ctor `internal` nhận đồng hồ; không đụng |
+| `AnomalyService` | 2 | Thêm ctor `internal` nhận `Func<DateTimeOffset>`; `VietnamTime.Today()` dòng 99 → `VietnamTime.DateOf(_now())` |
+| `ForecastAlertService` | 2 | Như trên cho dòng 99, 151, 223 (tầng 2 cần `RunDailyAsync` cho chế độ phát lại và số dư thấp) |
+| `CategoryForecastService` | 3 | Như trên cho dòng 92, 141, 152 |
+
+- Các mốc chỉ để ghi lịch sử (`ResolvedAt`, `FeedbackAt`, `UpdatedAt`, `CreatedAt`) giữ `UtcNow`, vì không ảnh hưởng kết quả dự báo.
+- Ctor công khai giữ nguyên chữ ký và gọi `this(…, () => DateTimeOffset.UtcNow)`, nên DI không đổi.
+- Test hồi quy: (1) mọi test hiện có của ba service xanh **không sửa**; (2) với mỗi service, một test chạy ctor `internal` với đồng hồ cố định và so kết quả với tính tay từ hàm thuần. `GoalForecastService` không đụng (mục tiêu không đo).
+
+**D15. Cảnh báo số dư thấp (tầng 2).** Đề xuất:
+- Ngưỡng của mỗi người do bộ sinh đặt theo đặc tả: **20% thu nhập tháng danh nghĩa, làm tròn 100.000đ**; `small_trader` dùng 20% doanh thu ròng trung bình. Ghi rõ trong báo cáo.
+- Chạy qua `ForecastAlertService.CheckUserAsync` thật + `ForecastAlertDispatcher` thật (repository cảnh báo giả, push giả, đồng hồ = mốc), nên chống lặp theo `dedup_key` và `lowBalanceCooldownDays` đúng như production. Không có phản hồi "không chính xác", và giờ yên lặng không đổi đúng/sai.
+- **Đợt thiếu tiền thật** = chuỗi ngày liên tiếp có số dư thực tế cuối ngày < ngưỡng.
+  - *Bắt được* (recall): có cảnh báo trong `[bắt đầu − lowBalanceHorizonDays, bắt đầu]`.
+  - *Đúng* (precision): sau cảnh báo có một đợt thật bắt đầu trong `lowBalanceHorizonDays` ngày.
+  - *Thời gian báo trước* = ngày bắt đầu đợt − ngày cảnh báo.
+  - *Báo nhầm* = số cảnh báo sai trên một người-tháng.
+- Mốc mỗi ngày (không theo bước 3 ngày), vì cảnh báo là sự kiện theo ngày.
+
+**D16. Bất thường (tầng 2).** Đề xuất:
+- Chạy `AnomalyService.ScanAsync` thật mỗi ngày (đồng hồ = D 08:00) với `IAnomalyRepository` giả (giữ `transaction_anomalies` trong bộ nhớ, không có phản hồi "bình thường").
+- Dương tính = giao dịch bộ sinh **cài** (K1 chi đột xuất, K7 trùng). Cờ trên giao dịch khác báo **hai nhóm riêng**:
+  - "cờ trên K0 tự nhiên": đuôi log-normal có thể tạo khoản thật sự bất thường, nên không gộp vào báo nhầm;
+  - "cờ trên giao dịch định kỳ / nhập hàng": là báo nhầm rõ ràng.
+- Chạy ở cả hai chế độ, vì khoản khớp khoản định kỳ bị bỏ qua khi xét bất thường.
+
+**D17. Kịch bản K5 hai lần.** Đề xuất: chạy K5 với `holidays` rỗng (mặc định production) và một lần với `holidays` = khoảng Tết 2026 (mùng −7 tới mùng 7), hệ số **150%**, chọn trước, ghi trong đặc tả, **khác** hệ số bộ sinh dùng (bộ sinh rút ngẫu nhiên 150–250%). Không chọn hệ số theo kết quả.
+
+**D18. Thời gian chạy.** Đề xuất:
+- Đo ở task runner đầu tiên. Ngân sách: lượt đầy đủ ≤ 10 phút trong container SDK 9. Vượt thì chuyển mốc dòng tiền sang mỗi 3 ngày (cảnh báo vẫn mỗi ngày) và ghi vào báo cáo.
+- Có `--quick` (2 hạt giống, mốc mỗi 7 ngày) cho test khói.
+- Chạy tuần tự, một luồng, để giữ tất định; không dùng `Parallel`.
+
+**D19. CLI (tầng 4).** Đề xuất:
+- `--config <file.json>`: một khối `forecast` dạng JSON như trong `SystemConfigDocument`, kiểm bằng validator sẵn có của nhóm `forecast`.
+- `--compare <file.json>`: chạy hai lượt trên cùng dữ liệu, báo cáo thêm cột `config` và bảng chênh lệch.
+- Không có tham số mặc định nào trong code backtest: không `--config` thì dùng `new ForecastSettings()`, đúng mặc định production.
+- Phần `limits` của bản nháp bị bỏ qua, có in cảnh báo.
+- Ghi chú trong `docs/ops-api.md` ở mục bản nháp: cách xuất bản nháp ra file và chạy so sánh (thủ công, dev chạy).
+
+**D20. Tài liệu.** Đề xuất:
+- REQUIREMENTS: thêm **FR-FCST-19** "Đánh giá dự báo bằng backtest" (Should; tiêu chí = một lệnh, tất định, không rò rỉ, báo cáo theo kịch bản). §13.4 thêm: dải P25–P75 (D12); chỉnh tham số dự báo sau khi có số là quyết định riêng; mục tiêu tiết kiệm chưa đo; phát lại chưa có trigger theo giao dịch. §12.2 ghi lệnh chạy.
+- TASKS: Phase 96.
+- CLAUDE.md: một đoạn "Phase 96" nêu luật dễ phá: bộ sinh chỉ đổi qua đặc tả có phiên bản; repository giả phải khớp test hợp đồng; production chỉ thêm ctor đồng hồ.
+- `.context/ARCHITECTURE.md`: AGENTS §4 cấm sửa khi chưa có duyệt, nên **xin duyệt** thêm một mục ngắn §2.x "Backtest dự báo". Không duyệt thì để ở CLAUDE.md.
+
+**D21. Riêng tư.** Đề xuất: tên nơi chi là tên chung chung (`"Quán cơm"`, `"Điện lực"`, `"Siêu thị"`), không tên người thật; email/khóa không có vì không đụng DB, trừ test hợp đồng D7 (dùng Testcontainers, xóa khi xong). Không log số tiền ra console, chỉ in tiến độ.
+
+### Các bước (TDD, một commit mỗi task)
+
+Kiểm thử theo ba tầng như đã thống nhất: chạy test của lớp đang viết khi làm; unit + test liên quan trước khi commit; toàn bộ suite trước khi merge. Đo mốc test (số pass/fail của `main` @ `32912fc`) ở Task 1 và ghi vào mục "Mốc test".
+
+**Tầng 1 — số dư, chế độ đáp án, baseline (điểm dừng an toàn 1)**
+
+| # | Task | Ghi chú |
+|---|---|---|
+| 1 | **Đặc tả bộ sinh v1.0**: `docs/evaluation/forecast-backtest-generator-spec.md` (hồ sơ, phân phối, K0–K9, Tết + nguồn, ngưỡng, hạn mức, hệ số K5, B-mean30 = 30 ngày, luật sửa). Ghi mốc test. **Commit riêng, chỉ tài liệu.** | D2, D4, D5, D15, D17 |
+| 2 | Khung project: `FinMate.Backtest` vào sln, `InternalsVisibleTo`, dòng `COPY` trong Dockerfile, `Program.cs` rỗng; PRNG SplitMix64 + phân phối + test (cùng hạt → cùng chuỗi; luồng độc lập). Kiểm `dotnet build`, `dotnet test`, `docker build`. | D1, D3 |
+| 3 | Bộ sinh lõi: 5 hồ sơ, chi linh hoạt, khoản định kỳ, thu nhập, ví/chuyển ví/vay/quỹ/hoàn tiền (Q16), đáp án; test tất định, test bất biến (số dư = mở đầu + thô; không có `Transfer` vào thói quen). | D3, D5 |
+| 4 | Lớp phủ K0–K6 + test (mỗi kịch bản chỉ đổi phần của nó; ngoài phần đó giống K0 từng giao dịch). | D5 |
+| 5 | Repository giả + đồng hồ + trạng thái tại mốc (số dư, chế độ đáp án); chạy `ForecastService` thật. Test: **không rò rỉ** (thêm/sửa giao dịch ≥ T không đổi kết quả tại T, so từng số), lời gọi ngoài dự kiến ném lỗi. | D6, D7, D8 |
+| 6 | Test hợp đồng tích hợp: repository giả = `ForecastDataRepository` thật trên Postgres (Testcontainers). | D7 |
+| 7 | Baseline (B-hold, B0, B-mean30, B-naive) + chỉ số (dùng lại `ForecastSnapshotBuilder`/`ForecastAccuracyCalculator`; thêm bias, theo quy mô, WAPE chi linh hoạt, dải theo tầm, bootstrap CI). Test với số tính tay. | D9–D12 |
+| 8 | Runner + báo cáo MD/CSV + CLI (`--seed`, `--out`, `--quick`); đo thời gian (D18). Test: hai lượt `--quick` cùng hạt → **file giống từng byte**. | D13, D18 |
+| 9 | Chạy đầy đủ, commit `docs/evaluation/forecast-backtest.md` + CSV; REQUIREMENTS (FR-FCST-19, §13.4, §12.2), TASKS Phase 96, CLAUDE.md. | D20 |
+
+**Tầng 2 — phát lại, số dư thấp, bất thường, K7–K9 (điểm dừng an toàn 2)**
+
+| # | Task | Ghi chú |
+|---|---|---|
+| 10 | Ctor đồng hồ cho `AnomalyService`, `ForecastAlertService` + test hồi quy. | D14 |
+| 11 | Chế độ phát lại (01:30 detection/tracking, 08:00 `RunDailyAsync`) trên `IRecurringItemRepository` giả trong bộ nhớ; báo cáo số dư ở **cả hai** chế độ. Test: phát lại không thấy giao dịch ≥ T; trạng thái tại T chỉ phụ thuộc dữ liệu < T. | D8 |
+| 12 | Lớp phủ K7–K9 + test (không làm xê dịch K0–K6). | D3, D5 |
+| 13 | Chỉ số phát hiện định kỳ (precision/recall, chu kỳ, số tiền, thời gian phát hiện, lệch `NextDueDate`), đổi giá, tạm ngừng nhầm. | |
+| 14 | Cảnh báo số dư thấp qua `CheckUserAsync` + dispatcher thật. | D15 |
+| 15 | Bất thường qua `ScanAsync` thật, hai nhóm cờ. | D16 |
+| 16 | Chạy lại, cập nhật báo cáo + tài liệu tầng 2. | |
+
+**Tầng 3 — thu nhập, ngân sách, danh mục, cảnh báo còn lại (điểm dừng an toàn 3)**
+
+| # | Task | Ghi chú |
+|---|---|---|
+| 17 | Ctor đồng hồ cho `CategoryForecastService` + test hồi quy. | D14 |
+| 18 | Thu nhập (`IncomeForecastService`): lệch ngày/số tiền thu định kỳ, phủ P25 thu không đều. | |
+| 19 | Rủi ro ngân sách (`BudgetForecastService`; `budget_periods` giả tính lại số đã chi qua `TransactionBudgetDelta`/`BudgetSpendScope`) + B-lastmonth; phân loại `at_risk`. Hạn mức theo đặc tả. | D11 |
+| 20 | Danh mục tháng tới (`CategoryForecastService`) + B-lastmonth. | |
+| 21 | Cảnh báo rủi ro ngân sách, thu nhập trễ, nhắc hạn/quá hạn hóa đơn (dispatcher thật). | |
+| 22 | Chạy lại, cập nhật báo cáo + tài liệu tầng 3. | |
+
+**Tầng 4 — so sánh tham số (điểm dừng an toàn 4)**
+
+| # | Task | Ghi chú |
+|---|---|---|
+| 23 | `--config` / `--compare` + kiểm bằng validator; bảng chênh lệch; test (cùng file hai lần → chênh 0; file sai → lỗi rõ ràng, exit code ≠ 0). | D19 |
+| 24 | Tài liệu: `docs/ops-api.md` (cách chạy so sánh bản nháp), REQUIREMENTS §13.4 Phase 95 bỏ mục "chạy thử dự báo trên hồ sơ mẫu" (đã làm bằng CLI, API vẫn để sau). | D19, D20 |
+
+Tổng 24 task, nhiều hơn ước lượng 15 ở phần 1. Phần tăng thêm gồm: commit đặc tả riêng (yêu cầu mới), test hợp đồng repository giả (D7), tách các ctor đồng hồ thành task riêng có test hồi quy, và mỗi tầng có một task chạy lại + tài liệu để dừng an toàn.
+
+### Rủi ro
+
+| Rủi ro | Chặn bằng |
+|---|---|
+| Repository giả lệch bản SQL → số đo không phản ánh production | Test hợp đồng D7 (Task 6) |
+| Bộ sinh bị chỉnh theo kết quả | Commit đặc tả riêng trước runner; luật tăng phiên bản (D2) |
+| Phát lại bỏ sót một bước của production | Gọi service thật, không gọi hàm thuần rời rạc; hạn chế "không có trigger theo giao dịch" ghi rõ |
+| Tất định vỡ do thứ tự dictionary / culture / dấu phẩy động | D3; test so file từng byte |
+| Thời gian chạy vượt ngân sách | D18 (bước 3 ngày, `--quick`) |
+| Số đẹp vì dữ liệu tổng hợp | Báo cáo theo kịch bản, chế độ đáp án gắn nhãn "cận trên", mục hạn chế |
+
+### Mốc test
+
+Đo ở Task 1 trên `main` @ `32912fc`; điền vào đây.
+
+### Cần duyệt
+
+D1–D21, đặc biệt:
+- **D5:** thay `new_user` bằng `small_trader` (người mới đã phủ bằng K6);
+- **D8:** định nghĩa chế độ đáp án và chế độ phát lại;
+- **D15:** ngưỡng 20% thu nhập;
+- **D17:** hệ số Tết 150% khi có cấu hình;
+- **D20:** thêm mục vào `.context/ARCHITECTURE.md` hay chỉ ghi ở CLAUDE.md.
