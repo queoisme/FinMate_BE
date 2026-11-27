@@ -50,6 +50,20 @@ public sealed class Accumulator
 
     public Dictionary<(string Persona, int Horizon), BandSum> Band { get; } = new();
 
+    /// <summary>Phase 97 Task 1: (hồ sơ, tầm, "flex"|"income", phương án) → sai số so với thực tế.</summary>
+    public Dictionary<(string Persona, int Horizon, string Kind, string Method), Sum> Estimates { get; } = new();
+
+    /// <summary>Phase 97 Task 8: (hồ sơ, tầm, phương án dải) → số mốc, số mốc số dư thật nằm trong dải, tổng độ rộng.</summary>
+    public Dictionary<(string Persona, int Horizon, string Method), Coverage> SumBand { get; } = new();
+
+    public sealed class Coverage
+    {
+        public long N;
+        public long Inside;
+        public double Width;
+        public long Skipped;
+    }
+
     public long IdentityMismatches { get; private set; }
 
     public long ReplicationMismatches { get; private set; }
@@ -86,7 +100,7 @@ public sealed class Accumulator
 
         var trimmed = FlexVariants.Over(levels.TrimmedMedian, origin, horizon);
         ReplicationChecked++;
-        if (trimmed != production)
+        if (FlexVariants.Over(levels.Mean, origin, horizon) != production)   // Phase 97: production = trung bình theo thứ (F1), trước đó = (a)
         {
             ReplicationMismatches++;
         }
@@ -119,6 +133,23 @@ public sealed class Accumulator
             b.SumQuantileWidth += q.High - q.Low;
         }
     }
+
+    public void AddSumBand(string persona, int horizon, string method, (long Low, long High)? band, long actualBalance)
+    {
+        var c = Get(SumBand, (persona, horizon, method));
+        if (band is not { } b)
+        {
+            c.Skipped++;
+            return;
+        }
+
+        c.N++;
+        c.Inside += actualBalance >= b.Low && actualBalance <= b.High ? 1 : 0;
+        c.Width += b.High - b.Low;
+    }
+
+    public void AddEstimate(string persona, int horizon, string kind, string method, long predicted, long actual)
+        => Get(Estimates, (persona, horizon, kind, method)).Add(predicted - actual, actual);
 
     private static TValue Get<TKey, TValue>(Dictionary<TKey, TValue> map, TKey key)
         where TKey : notnull

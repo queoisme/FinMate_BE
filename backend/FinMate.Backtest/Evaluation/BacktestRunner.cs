@@ -105,7 +105,8 @@ public static class BacktestRunner
                     Baselines.Mean(forecast.StartBalanceCents, Baselines.ExpectedEvents(forecast, h), meanDaily, h),
                     Baselines.Naive(forecast.StartBalanceCents, naiveDays == 0 ? 0 : harness.PastNetFlow(naiveFrom, origin.AddDays(-1)), naiveDays, h),
                     FlexibleActual(harness, labels, origin, origin.AddDays(h)), Baselines.ModelFlexible(forecast, h),
-                    Baselines.Round(meanDaily * (h + 1)), naiveDays == 0 ? 0 : Baselines.Round((double)naiveFlex * (h + 1) / naiveDays));
+                    Baselines.Round(meanDaily * (h + 1)), naiveDays == 0 ? 0 : Baselines.Round((double)naiveFlex * (h + 1) / naiveDays),
+                    IncomeActual(harness, labels, origin, origin.AddDays(h)), forecast.Days.Take(h + 1).Sum(d => d.IrregularIncomeCents));
             }
         }
     }
@@ -117,6 +118,12 @@ public static class BacktestRunner
     private static long FlexibleActual(ForecastHarness harness, IReadOnlyDictionary<Guid, TxLabel> labels, DateOnly from, DateOnly to)
         => RefundNetting.ForHabits(harness.TruthRaw(from, to).Where(t => !t.IsLoan).ToList())
             .Where(t => t.Type == TransactionType.Debit && labels[t.Id] != TxLabel.Recurring)
+            .Sum(t => t.AmountCents);
+
+    /// <summary>Thu không định kỳ thực tế: Credit không phải khoản thu định kỳ của đáp án, không vay, không hoàn (dự án, bán hàng, làm thêm, thưởng/lì xì).</summary>
+    private static long IncomeActual(ForecastHarness harness, IReadOnlyDictionary<Guid, TxLabel> labels, DateOnly from, DateOnly to)
+        => harness.TruthRaw(from, to)
+            .Where(t => t.Type == TransactionType.Credit && labels[t.Id] is not (TxLabel.Recurring or TxLabel.Loan or TxLabel.Refund))
             .Sum(t => t.AmountCents);
 
     private static bool IsAffected(SynthWorld world, DateOnly origin, int horizon)

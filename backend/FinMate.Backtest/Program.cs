@@ -8,7 +8,7 @@ namespace FinMate.Backtest;
 
 /// <summary>
 /// Backtest dự báo (Phase 96). <c>dotnet run --project FinMate.Backtest -c Release -- [--out DIR] [--seed N] [--seeds N] [--step N] [--quick]</c>.
-/// Ghi <c>DIR/forecast-backtest.md</c> và <c>DIR/forecast-backtest/*.csv</c>. Chỉ in tiến độ, không in số tiền (D21).
+/// Ghi <c>DIR/forecast-backtest.md</c> và <c>DIR/forecast-backtest/*.csv</c>. Phase 97: <c>--compare-runs ROOT [--notes FILE] --out FILE</c> so bốn lượt chạy đã có. Chỉ in tiến độ, không in số tiền (D21).
 /// </summary>
 public static class Program
 {
@@ -20,6 +20,14 @@ public static class Program
         {
             var (options, outDir) = Parse(args);
             var watch = Stopwatch.StartNew();
+            if (OptionValue(args, "--compare-runs") is { } root)
+            {
+                var target = OptionValue(args, "--out") ?? throw new ArgumentException("--compare-runs cần --out FILE");
+                File.WriteAllText(target, Comparison.CompareRuns.Run(root, OptionValue(args, "--notes")));
+                Console.Error.WriteLine($"So sánh xong: {target}");
+                return 0;
+            }
+
             if (DiagnosePath(args) is { } diagnose)
             {
                 File.WriteAllText(diagnose, Diagnostics.Diagnosis.Run(options, line => Console.Error.WriteLine(line)));
@@ -63,6 +71,8 @@ public static class Program
                 case "--step": options = options with { StepDays = Positive(Value(args, ++i)) }; break;
                 case "--quick": options = options with { SeedsPerPersona = 2, StepDays = 7 }; break;
                 case "--diagnose": _ = Value(args, ++i); break;   // chẩn đoán sau tầng 1; không ghi báo cáo backtest
+                case "--compare-runs": _ = Value(args, ++i); break;   // Phase 97: so bốn lượt chạy đã có, --out là tệp Markdown
+                case "--notes": _ = Value(args, ++i); break;
                 default: throw new ArgumentException($"không hiểu '{args[i]}'");
             }
         }
@@ -71,11 +81,14 @@ public static class Program
     }
 
     /// <summary><c>--diagnose FILE</c>: chạy chẩn đoán (Phase 96, sau tầng 1) và ghi Markdown vào FILE thay cho báo cáo backtest.</summary>
-    public static string? DiagnosePath(IReadOnlyList<string> args)
+    public static string? DiagnosePath(IReadOnlyList<string> args) => OptionValue(args, "--diagnose");
+
+    /// <summary>Giá trị sau <paramref name="name"/>; null nếu không có.</summary>
+    public static string? OptionValue(IReadOnlyList<string> args, string name)
     {
         for (var i = 0; i < args.Count - 1; i++)
         {
-            if (args[i] == "--diagnose")
+            if (args[i] == name)
             {
                 return args[i + 1];
             }

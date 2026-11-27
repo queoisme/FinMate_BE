@@ -258,6 +258,13 @@ public class PurchaseCheckService : IPurchaseCheckService
             lines.AddRange(day.Events.Where(e => !e.OptimisticOnly).Select(e => new PurchaseLineDto(day.Date, e.Label, e.AmountCents, SourceOf(e, manual))));
         }
 
+        // Phase 97: số dư dự kiến đã cộng thu không định kỳ, nên bảng giải thích phải có dòng này.
+        var irregular = inPeriod.Sum(d => d.IrregularIncomeCents);
+        if (irregular > 0)
+        {
+            lines.Add(new PurchaseLineDto(null, "Thu nhập không định kỳ (ước tính)", irregular, PurchaseSources.Estimated));
+        }
+
         var flexible = inPeriod.Sum(d => d.FlexibleSpendCents);
         if (flexible > 0)
         {

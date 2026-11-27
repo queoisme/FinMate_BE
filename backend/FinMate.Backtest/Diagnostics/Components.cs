@@ -68,6 +68,7 @@ public static class Components
         foreach (var day in forecast.Days.Take(horizon + 1))
         {
             values[Component.Flexible] -= day.FlexibleSpendCents;
+            values[Component.IncomeIrregular] += day.IrregularIncomeCents;   // Phase 97: engine chiếu thu không định kỳ
             foreach (var e in day.Events.Where(e => !e.OptimisticOnly))
             {
                 values[OfEvent(e.Kind)] += e.AmountCents;
@@ -114,8 +115,9 @@ public static class FlexVariants
             return null;   // nhánh thiếu lịch sử (ngân sách / trung bình), không thuộc H2
         }
 
+        var recurring = RecurringPaymentFilter.For(history, items, rules);
         var byDay = history
-            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, items, rules))
+            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => g.Sum(t => t.AmountCents));
         var series = new List<(DateOnly Date, double Amount)>();

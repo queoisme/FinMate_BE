@@ -29,8 +29,11 @@ public interface IForecastAccuracyService
     /// <summary>Điền số dư thực tế cho các bản chụp đã tới ngày của mốc. Trả số bản chụp vừa điền.</summary>
     Task<int> FillActualsAsync(DateOnly today, CancellationToken ct = default);
 
-    /// <summary>Chỉ số độ chính xác trong cửa sổ <paramref name="windowDays"/> ngày gần nhất (7–180). Cần quyền xem giám sát (OpsManager trở lên); số liệu tổng hợp, không có định danh người dùng.</summary>
-    Task<ForecastAccuracyReportDto> GetReportAsync(Guid actorId, int windowDays, CancellationToken ct = default);
+    /// <summary>
+    /// Chỉ số độ chính xác trong cửa sổ <paramref name="windowDays"/> ngày gần nhất (7–180), chỉ của một phương pháp (<paramref name="method"/>; null = phương pháp đang
+    /// chạy). Cần quyền xem giám sát (OpsManager trở lên); số liệu tổng hợp, không có định danh người dùng.
+    /// </summary>
+    Task<ForecastAccuracyReportDto> GetReportAsync(Guid actorId, int windowDays, string? method = null, CancellationToken ct = default);
 }
 
 public class ForecastAccuracyService(
@@ -124,19 +127,26 @@ public class ForecastAccuracyService(
         return filled;
     }
 
-    public async Task<ForecastAccuracyReportDto> GetReportAsync(Guid actorId, int windowDays, CancellationToken ct = default)
+    public async Task<ForecastAccuracyReportDto> GetReportAsync(Guid actorId, int windowDays, string? method = null, CancellationToken ct = default)
     {
         await access.RequireAsync(actorId, OpsCapability.ViewMonitoring, ct);
+        var measured = method ?? ForecastMethods.Current;
+        if (!ForecastMethods.All.Contains(measured))
+        {
+            throw new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure(nameof(method), $"Phương pháp phải là một trong: {string.Join(", ", ForecastMethods.All)}.")]);
+        }
+
         var window = windowDays <= 0 ? DefaultWindowDays : Math.Clamp(windowDays, MinWindowDays, MaxWindowDays);
         var today = VietnamTime.Today();
         var from = today.AddDays(-window);
 
-        var filled = await repository.ListFilledSinceAsync(from, ct);
-        var pending = await repository.CountPendingAsync(today, ct);
+        var filled = await repository.ListFilledSinceAsync(from, measured, ct);
+        var pending = await repository.CountPendingAsync(today, measured, ct);
         var feedback = await repository.ListFeedbackSinceAsync(new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), VietnamTime.Offset), ct);
 
         return new ForecastAccuracyReportDto(
-            window, from, today, ForecastMethods.MedianBand, filled.Count, pending,
+            window, from, today, measured, filled.Count, pending,
             ForecastAccuracyCalculator.Compute(filled),
             feedback.Count,
             feedback.Count(f => f.Status == Domain.Entities.ForecastFeedbackStatuses.New),

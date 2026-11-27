@@ -44,7 +44,7 @@ public static partial class Diagnosis
     private static void WriteFlexVariants(StringBuilder md, Accumulator acc, IReadOnlyList<string> personas)
     {
         md.Append("### C2. Chi linh hoạt theo ba cách tính trên cùng lịch sử (ô = WAPE / thiên lệch so với thực tế)\n\n");
-        md.Append($"Dựng lại (a) khớp production ở {acc.ReplicationChecked - acc.ReplicationMismatches}/{acc.ReplicationChecked} mốc×tầm; "
+        md.Append($"Dựng lại (c) khớp production (Phase 97: production = trung bình theo thứ; Phase 96 là (a)) ở {acc.ReplicationChecked - acc.ReplicationMismatches}/{acc.ReplicationChecked} mốc×tầm; "
                   + $"{acc.FlexSkipped} mốc×tầm ở nhánh thiếu lịch sử bị bỏ qua.\n\n");
         md.Append("| Hồ sơ | Tầm | " + string.Join(" | ", FlexMethod.All) + " |\n|---|---|" + string.Concat(FlexMethod.All.Select(_ => "---|")) + "\n");
         foreach (var persona in personas.Append(MetricsBook.AllPersonas))

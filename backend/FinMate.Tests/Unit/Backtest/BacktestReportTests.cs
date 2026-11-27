@@ -43,7 +43,7 @@ public class BacktestReportTests
         var summary = markdown[markdown.IndexOf("## Tóm tắt", StringComparison.Ordinal)..markdown.IndexOf("## 1.", StringComparison.Ordinal)];
         summary.Split('\n').Where(l => l.StartsWith("| ", StringComparison.Ordinal) && !l.StartsWith("| #", StringComparison.Ordinal))
             .Should().NotBeEmpty().And.OnlyContain(l => l.Contains("chế độ đáp án"));
-        csv.Keys.Should().BeEquivalentTo(["balance.csv", "band.csv", "flexible.csv", "effects.csv"]);
+        csv.Keys.Should().BeEquivalentTo(["balance.csv", "band.csv", "flexible.csv", "income.csv", "effects.csv"]);
         csv["balance.csv"].Split('\n')[0].Should().StartWith("mode,scenario,persona,confidence,horizon,window,method");
     }
 

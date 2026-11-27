@@ -19,11 +19,11 @@ public class ForecastAccuracyRepository(FinMateDbContext context) : IForecastAcc
             .Take(limit)
             .ToListAsync(ct);
 
-    public Task<int> CountPendingAsync(DateOnly from, CancellationToken ct = default)
-        => context.ForecastSnapshots.CountAsync(s => s.ActualCents == null && s.HorizonDate >= from, ct);
+    public Task<int> CountPendingAsync(DateOnly from, string method, CancellationToken ct = default)
+        => context.ForecastSnapshots.CountAsync(s => s.ActualCents == null && s.HorizonDate >= from && s.Method == method, ct);
 
-    public async Task<IReadOnlyList<ForecastSnapshot>> ListFilledSinceAsync(DateOnly from, CancellationToken ct = default)
-        => await context.ForecastSnapshots.AsNoTracking().Where(s => s.ActualCents != null && s.OriginDate >= from).ToListAsync(ct);
+    public async Task<IReadOnlyList<ForecastSnapshot>> ListFilledSinceAsync(DateOnly from, string method, CancellationToken ct = default)
+        => await context.ForecastSnapshots.AsNoTracking().Where(s => s.ActualCents != null && s.OriginDate >= from && s.Method == method).ToListAsync(ct);
 
     public Task<ForecastSnapshot?> GetLatestForUserAsync(Guid userId, CancellationToken ct = default)
         => context.ForecastSnapshots

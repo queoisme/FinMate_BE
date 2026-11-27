@@ -10,8 +10,8 @@ public enum ForecastConfidence
 }
 
 /// <summary>
-/// Mức chi tiêu LINH HOẠT mỗi ngày (không gồm khoản định kỳ), theo thứ trong tuần: <see cref="Expected"/> là trung vị, <see cref="Low"/>/<see cref="High"/>
-/// là phân vị 25/75 — tạo khoảng dao động cho đường số dư. Chỉ số mảng là <see cref="DayOfWeek"/>.
+/// Mức chi tiêu LINH HOẠT mỗi ngày (không gồm khoản định kỳ), theo thứ trong tuần: <see cref="Expected"/> là trung bình (Phase 97; trước đó là trung vị),
+/// <see cref="Low"/>/<see cref="High"/> là đường dự kiến ∓ độ rộng P25/P75 cũ — tạo khoảng dao động cho đường số dư. Chỉ số mảng là <see cref="DayOfWeek"/>.
 /// </summary>
 public sealed record SpendingBaseline(
     long[] Expected,
@@ -33,17 +33,13 @@ public sealed record SpendingBaseline(
 
 /// <summary>
 /// Học thói quen chi tiêu từ lịch sử. Loại khỏi dữ liệu: giao dịch user đánh dấu loại khỏi dự báo, và giao dịch khớp khoản định kỳ đang theo dõi
-/// (khoản đó đã được engine đặt riêng vào đúng ngày đến hạn — tính thêm ở đây là trừ hai lần). Thiếu dữ liệu thì theo đúng sơ đồ:
+/// (khoản đó đã được engine đặt riêng vào đúng ngày đến hạn — tính thêm ở đây là trừ hai lần; Phase 97: kể cả lần trả của một kỳ đã đổi giá, xem
+/// <see cref="RecurringPaymentFilter"/>). Thiếu dữ liệu thì theo đúng sơ đồ:
 /// ngân sách đã thiết lập → trung bình dữ liệu đang có → 0, và mang cờ tin cậy thấp.
 /// </summary>
 public static class SpendingBaselineCalculator
 {
     private const int DaysPerWeek = 7;
-    private const double LowerQuantile = 0.25;
-    private const double UpperQuantile = 0.75;
-
-    /// <summary>Một thứ trong tuần cần ít nhất chừng này mẫu mới dùng số riêng của nó; ít hơn thì dùng số chung của mọi ngày.</summary>
-    private const int MinSamplesPerWeekday = 3;
 
     /// <param name="history">Giao dịch trong cửa sổ lịch sử, KHÔNG gồm hôm nay.</param>
     /// <param name="activeItems">Khoản định kỳ đang theo dõi (để loại giao dịch khớp chúng).</param>
@@ -56,8 +52,9 @@ public static class SpendingBaselineCalculator
         ForecastRules rules)
     {
         var activeDays = history.Select(t => t.Date).Distinct().Count();
+        var recurring = RecurringPaymentFilter.For(history, activeItems, rules);
         var flexibleByDay = history
-            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, activeItems, rules))
+            .Where(t => t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .GroupBy(t => t.Date)
             .ToDictionary(g => g.Key, g => g.Sum(t => t.AmountCents));
 
@@ -95,23 +92,13 @@ public static class SpendingBaselineCalculator
         return series;
     }
 
+    /// <summary>Phase 97: trung bình theo thứ, dải giữ độ rộng cũ quanh nó (xem <see cref="DailyLevels"/>).</summary>
     private static SpendingBaseline FromHistory(IReadOnlyList<(DateOnly Date, double Amount)> series, int activeDays)
     {
-        var all = series.Select(s => s.Amount).ToArray();
-        var expected = new long[DaysPerWeek];
-        var low = new long[DaysPerWeek];
-        var high = new long[DaysPerWeek];
-        for (var dow = 0; dow < DaysPerWeek; dow++)
-        {
-            var samples = series.Where(s => (int)s.Date.DayOfWeek == dow).Select(s => s.Amount).ToArray();
-            var values = Statistics.TrimUpperOutliers(samples.Length >= MinSamplesPerWeekday ? samples : all);
-            expected[dow] = Round(Statistics.Median(values));
-            low[dow] = Round(Quantile(values, LowerQuantile));
-            high[dow] = Math.Max(expected[dow], Round(Quantile(values, UpperQuantile)));
-            low[dow] = Math.Min(low[dow], expected[dow]);
-        }
-
-        return new SpendingBaseline(expected, low, high, ForecastConfidence.Normal, activeDays, SpendingBaseline.BasisHistory);
+        var levels = DailyLevels.From(series);
+        var low = levels.Expected.Zip(levels.Below, (e, b) => e - b).ToArray();
+        var high = levels.Expected.Zip(levels.Above, (e, a) => e + a).ToArray();
+        return new SpendingBaseline(levels.Expected, low, high, ForecastConfidence.Normal, activeDays, SpendingBaseline.BasisHistory);
     }
 
     private static SpendingBaseline Flat(long perDay, int activeDays, string basis)
@@ -123,5 +110,4 @@ public static class SpendingBaselineCalculator
     /// <summary>Phân vị theo nội suy tuyến tính giữa hai điểm kề nhau.</summary>
     internal static double Quantile(IReadOnlyList<double> values, double q) => Statistics.Quantile(values, q);
 
-    private static long Round(double value) => (long)Math.Round(value, MidpointRounding.AwayFromZero);
 }

@@ -84,7 +84,7 @@ public static partial class ReportWriter
     {
         var parts = BacktestRunner.Horizons.Select(h => Band(m, Control, h)).Where(b => b is not null)
             .Select(b => $"tầm {b!.Key.Horizon}: {Format.PctCi(b.CoveragePct, b.CiLow, b.CiHigh, b.N)}, rộng trung bình {Format.Money(b.MeanWidth)}");
-        return $"Dải thận trọng–lạc quan (cộng P75/P25 chi linh hoạt theo từng ngày), {ModeLabel}, {Name(Control)}: tỉ lệ số dư thật nằm trong dải — "
+        return $"Dải thận trọng–lạc quan (P25–P75 của tổng dòng tiền linh hoạt ròng, NetFlowBand), {ModeLabel}, {Name(Control)}: tỉ lệ số dư thật nằm trong dải — "
                + string.Join("; ", parts) + ". Một dải P25–P75 đúng nghĩa của tổng sẽ chứa khoảng 50%.";
     }
 
@@ -175,8 +175,9 @@ public static partial class ReportWriter
     private static void BandTable(StringBuilder md, MetricsResult m)
     {
         md.Append($"## 5. Dải thận trọng–lạc quan theo tầm ({ModeLabel}, mọi hồ sơ)\n\n");
-        md.Append("Dải của engine = cộng chi linh hoạt P75 (thận trọng) / P25 (lạc quan) **của từng ngày**. Tổng các P75 lớn hơn P75 của tổng, nên dải rộng dần theo tầm; ");
-        md.Append("bảng này chỉ đo, không sửa (S5, quyết định riêng ở REQUIREMENTS §13.4).\n\n");
+        md.Append("Dải của engine (Phase 97, `NetFlowBand`) = dự kiến ± 0,6745·σ_L, σ_L² = σ²L + σ²L²/n, với σ² là phương sai phần dư của dòng tiền linh hoạt ròng mỗi ngày ");
+        md.Append("(thu linh hoạt − chi linh hoạt) quanh mức trung bình theo thứ, L = số ngày tính cả hôm nay, n = số ngày lịch sử; khoản cho vay đến hạn chỉ cộng vào đường lạc quan. ");
+        md.Append("Dưới `minHistoryDays` engine giữ dải cũ (cộng P75/P25 chi theo từng ngày). Dải P25–P75 đúng nghĩa sẽ chứa khoảng 50%.\n\n");
         md.Append("| Kịch bản | Tầm | n | Tỉ lệ nằm trong dải | Rộng trung bình | Rộng trung vị |\n|---|---|---|---|---|---|\n");
         foreach (var scenario in m.Band.Select(b => b.Key.Scenario).Distinct().OrderBy(s => s, StringComparer.Ordinal))
         {
@@ -220,6 +221,21 @@ public static partial class ReportWriter
         }
 
         md.Append($"\nMAPE chỉ tính trên mốc có chi linh hoạt thực tế ≥ {Format.Money(MetricsBook.MapeFloorCents)}.\n\n");
+    }
+
+    /// <summary>Phase 97 (S3): thu không định kỳ mô hình chiếu so với thực tế, theo kịch bản; K2 in riêng để thấy ảnh hưởng của thu về trễ / đổi số tiền.</summary>
+    private static void IncomeTable(StringBuilder md, MetricsResult m)
+    {
+        md.Append($"## 6b. Thu không định kỳ ({ModeLabel}, mọi hồ sơ có thu không định kỳ)\n\n");
+        md.Append("| Kịch bản | Tầm | Cửa sổ | n | WAPE | Thiên lệch |\n|---|---|---|---|---|---|\n");
+        foreach (var i in m.Income.Where(i => i.Key.Mode == Modes.Oracle && i.Key.Persona == All && i.Key.Confidence == MetricsBook.AllConfidence)
+                     .OrderBy(i => i.Key.Scenario, StringComparer.Ordinal).ThenBy(i => i.Key.Horizon).ThenBy(i => i.Key.Window, StringComparer.Ordinal))
+        {
+            md.Append($"| {Name(i.Key.Scenario)} | {i.Key.Horizon} | {i.Key.Window} | {i.N} | {Format.PctCi(i.WapePct, i.CiLow, i.CiHigh, i.N)} | {Format.Pct(i.BiasPct)} |\n");
+        }
+
+        md.Append("\nThu không định kỳ = khoản thu không phải khoản thu định kỳ của đáp án, không vay, không hoàn. Thiên lệch âm: mô hình chiếu ít hơn thực tế. "
+                  + "Trước Phase 97 mô hình không chiếu khoản nào (thiên lệch −100%).\n\n");
     }
 
     private static void Assumptions(StringBuilder md, RunInfo info)
