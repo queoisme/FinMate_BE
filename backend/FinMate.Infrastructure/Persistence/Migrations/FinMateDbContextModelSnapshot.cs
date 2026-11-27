@@ -1363,8 +1363,6 @@ namespace FinMate.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
 
-                            t.HasCheckConstraint("chk_economic_assumptions_two_people", "(approved_by IS NULL OR approved_by <> created_by OR created_by = '00000000-0000-0000-0000-00000000a1c5') AND (rejected_by IS NULL OR rejected_by <> created_by)");
-
                             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
                         });
                 });

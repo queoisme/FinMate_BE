@@ -11,11 +11,9 @@ public class EconomicAssumptionConfiguration : IEntityTypeConfiguration<Economic
         builder.ToTable("economic_assumptions", t =>
         {
             t.HasCheckConstraint("chk_economic_assumptions_status", "status IN ('draft','approved','retired','rejected')");
-            // Phase 95: không ai tự duyệt / tự từ chối giả định của mình, trừ tài khoản hệ thống của job CPI (tự duyệt có chủ ý khi lệch nhỏ, Phase 73).
-            // Migration tạo dạng NOT VALID: dòng cũ (có thể đã tự duyệt) giữ nguyên, dòng mới bị kiểm.
-            t.HasCheckConstraint(
-                "chk_economic_assumptions_two_people",
-                "(approved_by IS NULL OR approved_by <> created_by OR created_by = '00000000-0000-0000-0000-00000000a1c5') AND (rejected_by IS NULL OR rejected_by <> created_by)");
+            // Phase 95: luật "không tự duyệt / tự từ chối" là TRIGGER trg_economic_assumptions_two_people (migration AssumptionTwoPeopleTrigger), không phải CHECK:
+            // Postgres kiểm CHECK (kể cả NOT VALID) ở MỌI lần UPDATE, nên dòng tự duyệt có từ trước Phase 95 sẽ không gỡ được nữa. Trigger chỉ kiểm khi
+            // approved_by / rejected_by được gán.
             t.HasCheckConstraint("chk_economic_assumptions_version", "version >= 1");
             t.HasCheckConstraint("chk_economic_assumptions_rate", "rate_bps BETWEEN -10000 AND 100000");
 

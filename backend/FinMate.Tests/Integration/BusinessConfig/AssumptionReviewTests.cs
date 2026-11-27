@@ -14,6 +14,8 @@ using FinMate.Infrastructure.Persistence.Repositories;
 using FinMate.Tests.Integration.Controllers;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Npgsql;
@@ -148,5 +150,38 @@ public class AssumptionReviewTests : IClassFixture<AuthApiFactory>, IClassFixtur
         var act = () => db.SaveChangesAsync();
         (await act.Should().ThrowAsync<DbUpdateException>()).Which.InnerException.Should().BeOfType<PostgresException>()
             .Which.ConstraintName.Should().Be("chk_economic_assumptions_two_people");
+    }
+
+    /// <summary>
+    /// Dòng tự duyệt có từ trước Phase 95 vẫn phải sửa được (gỡ, đổi trạng thái): luật "hai người" chỉ được kiểm khi người duyệt / từ chối được GÁN,
+    /// không phải mọi lần UPDATE. Postgres kiểm cả CHECK NOT VALID ở mọi UPDATE, nên luật này không thể là CHECK.
+    /// </summary>
+    [Fact]
+    public async Task ALegacySelfApprovedRowCanStillBeRetired_ButANewSelfApprovalIsRefused()
+    {
+        await using var db = _db.NewContext(_db.ConnectionStringFor($"asmlegacy_{Guid.NewGuid():N}"));
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261126193325_AddForecastConfigDrafts");
+        var legacyId = Guid.NewGuid();
+        var person = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO economic_assumptions (id, key, rate_bps, unit, source_name, source_url, as_of, version, status, created_by, approved_by, created_at)
+            VALUES ({legacyId}, 'gold_price_growth', 500, 'pct_per_year', 'SJC', 'https://sjc.com.vn', now(), 1, 'approved', {person}, {person}, now())
+            """);
+        await migrator.MigrateAsync();
+
+        var access = new Mock<IOpsAccessService>();
+        access.Setup(a => a.RequireAsync(It.IsAny<Guid>(), It.IsAny<OpsCapability>(), It.IsAny<CancellationToken>())).ReturnsAsync(new User());
+        var service = new AssumptionService(new EconomicAssumptionRepository(db), Mock.Of<IAuditLogService>(), access.Object);
+
+        (await service.RetireAsync(legacyId, Guid.NewGuid(), null)).Status.Should().Be(AssumptionStatus.Retired, "dòng cũ tự duyệt vẫn gỡ được");
+
+        var fresh = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO economic_assumptions (id, key, rate_bps, unit, source_name, source_url, as_of, version, status, created_by, created_at)
+            VALUES ({fresh}, 'gold_price_growth', 520, 'pct_per_year', 'SJC', 'https://sjc.com.vn', now(), 2, 'draft', {person}, now())
+            """);
+        var selfApprove = () => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE economic_assumptions SET status = 'approved', approved_by = {person} WHERE id = {fresh}");
+        (await selfApprove.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("23514");
     }
 }
