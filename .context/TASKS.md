@@ -1804,9 +1804,9 @@ Nhánh `feat/staff-draft-manager-approve` (từ `main` @ `bacfb39`, đã có Pha
 
 ## Phase 96 — Đánh giá dự báo bằng backtest, tầng 1 (2026-11-27, xong trên nhánh, chưa push; dừng chờ quyết định trước tầng 2)
 
-Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). Kế hoạch, kiểm kê, D1–D21, S1–S5, kết quả: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`. Đặc tả bộ sinh: `docs/evaluation/forecast-backtest-generator-spec.md` (v1.1). Báo cáo: `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`. Phạm vi đã chốt B + C(a) chia 4 tầng; mới làm tầng 1 (S5).
+Nhánh `feat/forecast-backtest` (từ `main` @ `32912fc`, đã có Phase 95). Kế hoạch, kiểm kê, D1–D21, S1–S5, kết quả: `docs/superpowers/plans/2026-11-27-forecast-backtest.md`. Đặc tả bộ sinh: `docs/evaluation/forecast-backtest-generator-spec.md` (v1.2). Báo cáo: `docs/evaluation/forecast-backtest.md` + `docs/evaluation/forecast-backtest/*.csv`. Phạm vi đã chốt B + C(a) chia 4 tầng; mới làm tầng 1 (S5).
 
-- [x] Task 1: đặc tả bộ sinh v1.0, commit riêng trước mọi code; v1.1 bổ sung thiếu sót trước khi có runner (lý do ghi trong đặc tả §10).
+- [x] Task 1: đặc tả bộ sinh v1.0, commit riêng trước mọi code; v1.1 bổ sung thiếu sót trước khi có runner; v1.2 sửa lỗi K2 tiểu thương sau review PR #40 (khoản trả gộp mất khi ngày 10 trùng ngày nghỉ; chỉ dòng K2 của báo cáo đổi). Lý do ghi trong đặc tả §10.
 - [x] Task 2: project `FinMate.Backtest` (console, không NuGet mới) trong solution, Dockerfile chép `.csproj` trước restore, SplitMix64 + phân phối.
 - [x] Task 3: bộ sinh 5 hồ sơ (`stable_worker`, `freelancer`, `student`, `family`, `small_trader`), đáp án khoản định kỳ, vay, quỹ nhóm, ví bị loại, hoàn tiền, luồng ngẫu nhiên theo ngày/kỳ.
 - [x] Task 4: lớp phủ K1–K6 (K5h cùng dữ liệu K5, khác cấu hình ngày lễ) chỉ đổi phần được cài.

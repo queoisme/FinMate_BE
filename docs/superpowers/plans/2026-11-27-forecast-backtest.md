@@ -452,20 +452,28 @@ Production: **không đổi dòng nào** ngoài `InternalsVisibleTo` trong `FinM
 - Theo hồ sơ (tầm 14): `stable_worker` tốt hơn giữ nguyên 80,6%, `family` 68,6%, `student` 19,6%, `freelancer` −17,7%, `small_trader` −382%. Nguyên nhân: engine không chiếu thu nhập không đều (chỉ khoản thu định kỳ), nên hai hồ sơ cuối luôn bị dự báo thấp; `small_trader` có thiên lệch đúng bằng −MAE.
 - Chi linh hoạt: WAPE 21,7% / 19,3% / 17,9%, thiên lệch −16,8% (trung vị theo ngày dưới tổng của chi tiêu đuôi nặng); B-mean30 WAPE cao hơn nhưng gần như không thiên lệch.
 - Dải: gộp 35–36% ở mọi tầm; `stable_worker` 60,8% → 65,6% → 70,5% (rộng dần theo tầm, đúng giả thuyết phần 1), `small_trader` 0%.
-- Kịch bản (tầm 14, mốc bị ảnh hưởng, so với K0 cùng mốc): K1 +17,2%, K2 +12,2%, K3 +7,4%, K4 +1,3%, K5 +21,1%, K5h +31,9% (so K5: +8,9%), K6 −3,8%.
+- Kịch bản (tầm 14, mốc bị ảnh hưởng, so với K0 cùng mốc): K1 +17,2%, K2 +12,9% (+12,2% trước bản sửa v1.2), K3 +7,4%, K4 +1,3%, K5 +21,1%, K5h +31,9% (so K5: +8,9%), K6 −3,8%.
+
+### Sửa sau review PR #40: đặc tả v1.2 (`be7a87f`)
+
+- Review chỉ ra một lỗi thật của bộ sinh: khi ngày 10 của tháng M trùng ngày nghỉ của tiểu thương, khoản trả gộp của K2 bị bỏ qua, nên tiền bán chuyển khoản của 10 ngày đầu tháng mất hẳn thay vì về trễ.
+- Đã sửa, kèm test: tổng tiền bán ngày 1–10 của tháng M ở K2 bằng K0 với cả 20 hạt giống; trước bản sửa, hạt 0 mất 8,5 triệu.
+- Chữ của đặc tả không đổi; phiên bản lên 1.2 theo luật §0 vì dữ liệu K2 đổi.
+- Báo cáo sinh lại ở `be7a87f`: **chỉ các dòng K2 đổi**. Ảnh hưởng của K2 so với K0 ở tầm 7 / 14 / 30: +42,6% / +12,9% / +2,8% (trước là +42,6% / +12,2% / +2,1%). Mọi dòng khác giống hệt.
+- Mục chẩn đoán chỉ dùng K0 và K5, nên giữ nguyên.
 
 ### Lệch so với kế hoạch
 
 - Giả thuyết ở phần 1 ("tỉ lệ phủ sẽ vượt xa 50% ở tầm 30") chỉ đúng với hồ sơ thu nhập đều; số gộp lại dưới 50% vì dự báo lệch tâm ở hồ sơ thu không đều. Đã ghi đúng như đo được, không sửa gì.
 - Ước lượng thời gian (1–3 phút cho cả bộ, < 1 phút cho dòng tiền): thực đo 63–68 s cho tầng 1.
-- Đặc tả tăng lên v1.1 một lần, trước runner (bảng trên).
+- Đặc tả tăng lên v1.1 một lần, trước runner (bảng trên); lên v1.2 sau review PR #40 (dưới).
 
 
 ---
 
 ## Chẩn đoán (2026-11-27, sau tầng 1)
 
-Yêu cầu: tách sai số theo thành phần (H1, H2), truy vết một ca, K5h so với K5, dải trên nhóm thu nhập đều. **Chỉ đo trong harness**: code ở `backend/FinMate.Backtest/Diagnostics/` (cờ `--diagnose FILE`, commit `10c3e17`), không đổi production, bộ sinh (vẫn v1.1) hay `docs/evaluation/forecast-backtest.md`. Lệnh: `dotnet FinMate.Backtest.dll --diagnose FILE` (14,5 s, cùng hạt gốc 20261127, 100 người gốc, mốc mỗi ngày).
+Yêu cầu: tách sai số theo thành phần (H1, H2), truy vết một ca, K5h so với K5, dải trên nhóm thu nhập đều. (Chạy trên dữ liệu v1.1; v1.2 chỉ đổi K2 của tiểu thương, nên mọi số K0/K5 dưới đây vẫn đúng với v1.2.) **Chỉ đo trong harness**: code ở `backend/FinMate.Backtest/Diagnostics/` (cờ `--diagnose FILE`, commit `10c3e17`), không đổi production, bộ sinh (vẫn v1.1) hay `docs/evaluation/forecast-backtest.md`. Lệnh: `dotnet FinMate.Backtest.dll --diagnose FILE` (14,5 s, cùng hạt gốc 20261127, 100 người gốc, mốc mỗi ngày).
 
 **Định nghĩa thành phần.** Thực tế đọc nhãn đáp án của từng giao dịch trong [T, T+h] (thô + chuyển khoản vượt ranh giới); dự báo đọc loại sự kiện của engine và chi linh hoạt từng ngày.
 - Thu định kỳ: lương, trợ cấp ↔ `recurring_inflow`.
@@ -613,4 +621,4 @@ Kiểm hệ số (mốc 2026-02-05, tầm 30, mọi người gốc): trong kho�
 3. Đổi cách tính dải: phân vị của tổng thay vì tổng các phân vị. Nên làm sau 1 và 2, vì tâm còn lệch thì tỉ lệ phủ không có nghĩa.
 4. Nhỏ: các lần trả góp khoản vay trước hạn; lịch lương dời về thứ Sáu khi rơi vào cuối tuần.
 
-Đánh giá lại sau khi sửa: hạt gốc mới (không dùng 20261127), đặc tả bộ sinh giữ v1.1.
+Đánh giá lại sau khi sửa: hạt gốc mới (không dùng 20261127), đặc tả bộ sinh giữ nguyên (v1.2 sau review PR #40; K0 và K5 giống hệt v1.1).

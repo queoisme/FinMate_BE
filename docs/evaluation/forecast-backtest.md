@@ -7,9 +7,9 @@
 
 | Mục | Giá trị |
 |---|---|
-| Commit | `65178f695099` |
+| Commit | `be7a87f3d916` |
 | SDK / runtime | SDK 9.0.321, .NET 9.0.23, X64 |
-| Đặc tả bộ sinh | v1.1 (`docs/evaluation/forecast-backtest-generator-spec.md`) |
+| Đặc tả bộ sinh | v1.2 (`docs/evaluation/forecast-backtest-generator-spec.md`) |
 | Hạt gốc | 20261127 |
 | Người gốc | 5 hồ sơ × 20 hạt giống |
 | Bước mốc | 1 ngày, từ 2025-07-01 tới 2026-06-30 |
@@ -33,7 +33,7 @@ Cùng image SDK, cùng hạt, cùng tham số → cùng tệp này từng byte (
 | 9 | Chi linh hoạt 15 ngày tới (tầm 14), chế độ đáp án: lệch WAPE 19,3% (CI 95%: 16,6% – 22,8%), thiên lệch -16,7% (âm = dự báo chi ít hơn thực tế). B-mean30: 21,6%, B-naive: 24,2%. |
 | 10 | Dải thận trọng–lạc quan (cộng P75/P25 chi linh hoạt theo từng ngày), chế độ đáp án, K0 đối chứng: tỉ lệ số dư thật nằm trong dải — tầm 7: 36,4% (CI 95%: 32,4% – 40,6%), rộng trung bình 1.892.600 đ; tầm 14: 35,2% (CI 95%: 30,8% – 39,7%), rộng trung bình 3.550.210 đ; tầm 30: 35,0% (CI 95%: 29,9% – 40,4%), rộng trung bình 7.339.102 đ. Một dải P25–P75 đúng nghĩa của tổng sẽ chứa khoảng 50%. |
 | 11 | K1 chi đột xuất lớn (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 2933): sai số số dư tăng 17,2% (CI 95%: 4,4% – 36,7%) so với K0 đối chứng trên cùng người và mốc (11.279.459 đ so với 9.620.020 đ). |
-| 12 | K2 thu nhập về trễ / đổi số tiền (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 3000): sai số số dư tăng 12,2% (CI 95%: 3,9% – 22,6%) so với K0 đối chứng trên cùng người và mốc (10.613.168 đ so với 9.457.792 đ). |
+| 12 | K2 thu nhập về trễ / đổi số tiền (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 3000): sai số số dư tăng 12,9% (CI 95%: 4,7% – 23,4%) so với K0 đối chứng trên cùng người và mốc (10.680.485 đ so với 9.457.792 đ). |
 | 13 | K3 bỏ một kỳ định kỳ (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 2312): sai số số dư tăng 7,4% (CI 95%: 4,9% – 10,5%) so với K0 đối chứng trên cùng người và mốc (9.880.749 đ so với 9.202.513 đ). |
 | 14 | K4 khoản định kỳ đổi giá (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 2909): sai số số dư tăng 1,3% (CI 95%: 0,4% – 2,4%) so với K0 đối chứng trên cùng người và mốc (9.297.354 đ so với 9.179.417 đ). |
 | 15 | K5 Tết, chưa khai ngày lễ (tầm 14 ngày, chế độ đáp án, chỉ các mốc bị kịch bản ảnh hưởng, n = 3600): sai số số dư tăng 21,1% (CI 95%: 10,0% – 36,3%) so với K0 đối chứng trên cùng người và mốc (11.225.214 đ so với 9.266.294 đ). |
@@ -75,9 +75,9 @@ Thiên lệch = trung bình (dự kiến − thực tế); âm là dự báo th�
 | K1 chi đột xuất lớn | 7 | 5.267.492 đ (36500) | 7.850.014 đ (1575) | K0: 41,8% (CI 20,0% – 75,3%) |
 | K1 chi đột xuất lớn | 14 | 9.187.214 đ (36500) | 11.279.459 đ (2933) | K0: 17,2% (CI 4,4% – 36,7%) |
 | K1 chi đột xuất lớn | 30 | 18.002.217 đ (36500) | 19.576.071 đ (5954) | K0: 5,7% (CI -0,4% – 15,3%) |
-| K2 thu nhập về trễ / đổi số tiền | 7 | 5.502.593 đ (36500) | 8.122.677 đ (1600) | K0: 42,6% (CI 25,2% – 67,3%) |
-| K2 thu nhập về trễ / đổi số tiền | 14 | 9.489.759 đ (36500) | 10.613.168 đ (3000) | K0: 12,2% (CI 3,9% – 22,6%) |
-| K2 thu nhập về trễ / đổi số tiền | 30 | 18.481.507 đ (36500) | 18.627.019 đ (6200) | K0: 2,1% (CI -0,8% – 5,5%) |
+| K2 thu nhập về trễ / đổi số tiền | 7 | 5.509.947 đ (36500) | 8.123.174 đ (1600) | K0: 42,6% (CI 25,2% – 67,3%) |
+| K2 thu nhập về trễ / đổi số tiền | 14 | 9.503.552 đ (36500) | 10.680.485 đ (3000) | K0: 12,9% (CI 4,7% – 23,4%) |
+| K2 thu nhập về trễ / đổi số tiền | 30 | 18.510.018 đ (36500) | 18.744.564 đ (6200) | K0: 2,8% (CI -0,1% – 6,1%) |
 | K3 bỏ một kỳ định kỳ | 7 | 5.240.293 đ (36500) | 6.077.637 đ (1240) | K0: 15,4% (CI 11,1% – 21,4%) |
 | K3 bỏ một kỳ định kỳ | 14 | 9.148.661 đ (36500) | 9.880.749 đ (2312) | K0: 7,4% (CI 4,9% – 10,5%) |
 | K3 bỏ một kỳ định kỳ | 30 | 17.931.860 đ (36500) | 18.504.427 đ (4709) | K0: 2,5% (CI 1,0% – 3,9%) |
@@ -127,9 +127,9 @@ Dải của engine = cộng chi linh hoạt P75 (thận trọng) / P25 (lạc qu
 | K1 chi đột xuất lớn | 7 | 36500 | 35,1% (CI 95%: 31,2% – 38,9%) | 1.900.855 đ | 1.676.500 đ |
 | K1 chi đột xuất lớn | 14 | 36500 | 32,7% (CI 95%: 28,2% – 37,2%) | 3.565.624 đ | 3.159.625 đ |
 | K1 chi đột xuất lớn | 30 | 36500 | 30,6% (CI 95%: 25,6% – 35,3%) | 7.370.840 đ | 6.535.500 đ |
-| K2 thu nhập về trễ / đổi số tiền | 7 | 36500 | 35,0% (CI 95%: 31,0% – 38,7%) | 1.891.485 đ | 1.670.875 đ |
-| K2 thu nhập về trễ / đổi số tiền | 14 | 36500 | 33,8% (CI 95%: 29,7% – 37,9%) | 3.548.066 đ | 3.145.500 đ |
-| K2 thu nhập về trễ / đổi số tiền | 30 | 36500 | 33,8% (CI 95%: 28,7% – 39,3%) | 7.334.569 đ | 6.516.625 đ |
+| K2 thu nhập về trễ / đổi số tiền | 7 | 36500 | 35,0% (CI 95%: 31,0% – 38,7%) | 1.891.453 đ | 1.671.500 đ |
+| K2 thu nhập về trễ / đổi số tiền | 14 | 36500 | 33,8% (CI 95%: 29,7% – 37,9%) | 3.548.023 đ | 3.145.500 đ |
+| K2 thu nhập về trễ / đổi số tiền | 30 | 36500 | 33,8% (CI 95%: 28,7% – 39,3%) | 7.334.508 đ | 6.520.625 đ |
 | K3 bỏ một kỳ định kỳ | 7 | 36500 | 35,5% (CI 95%: 31,3% – 39,3%) | 1.894.521 đ | 1.667.500 đ |
 | K3 bỏ một kỳ định kỳ | 14 | 36500 | 34,2% (CI 95%: 29,8% – 38,5%) | 3.553.820 đ | 3.142.500 đ |
 | K3 bỏ một kỳ định kỳ | 30 | 36500 | 34,4% (CI 95%: 29,0% – 39,7%) | 7.346.519 đ | 6.503.875 đ |
@@ -184,7 +184,7 @@ MAPE chỉ tính trên mốc có chi linh hoạt thực tế ≥ 100.000 đ.
 
 ## 7. Bộ sinh dữ liệu giả định gì
 
-Chi tiết đầy đủ ở đặc tả v1.1. Tóm tắt:
+Chi tiết đầy đủ ở đặc tả v1.2. Tóm tắt:
 
 - Năm hồ sơ: lương cố định, freelancer thu không đều, sinh viên (trợ cấp + làm thêm + học phí theo kỳ), gia đình (ba ví, một ví không tính vào dự báo, vay, quỹ nhóm, gửi tiết kiệm), tiểu thương (thu hằng ngày, nhập hàng hằng tuần dao động).
 - Chi linh hoạt: số lần mỗi ngày theo Poisson, số tiền log-normal (đuôi nặng), hệ số thứ trong tuần, chi tăng 10–30% trong 5 ngày sau ngày nhận tiền lớn, mức chi trôi −1% đến +2% mỗi tháng. Mô hình không biết các hiệu ứng này.
