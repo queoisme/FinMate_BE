@@ -20,6 +20,13 @@ public static class Program
         {
             var (options, outDir) = Parse(args);
             var watch = Stopwatch.StartNew();
+            if (DiagnosePath(args) is { } diagnose)
+            {
+                File.WriteAllText(diagnose, Diagnostics.Diagnosis.Run(options, line => Console.Error.WriteLine(line)));
+                Console.Error.WriteLine($"Chẩn đoán xong trong {watch.Elapsed.TotalSeconds:0.0} s: {diagnose}");
+                return 0;
+            }
+
             var (markdown, csv) = Produce(options, line => Console.Error.WriteLine(line));
             Write(outDir, markdown, csv);
             Console.Error.WriteLine($"Xong trong {watch.Elapsed.TotalSeconds:0.0} s. Báo cáo: {Path.Combine(outDir, ReportName + ".md")}");
@@ -55,11 +62,26 @@ public static class Program
                 case "--seeds": options = options with { SeedsPerPersona = Positive(Value(args, ++i)) }; break;
                 case "--step": options = options with { StepDays = Positive(Value(args, ++i)) }; break;
                 case "--quick": options = options with { SeedsPerPersona = 2, StepDays = 7 }; break;
+                case "--diagnose": _ = Value(args, ++i); break;   // chẩn đoán sau tầng 1; không ghi báo cáo backtest
                 default: throw new ArgumentException($"không hiểu '{args[i]}'");
             }
         }
 
         return (options, outDir);
+    }
+
+    /// <summary><c>--diagnose FILE</c>: chạy chẩn đoán (Phase 96, sau tầng 1) và ghi Markdown vào FILE thay cho báo cáo backtest.</summary>
+    public static string? DiagnosePath(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count - 1; i++)
+        {
+            if (args[i] == "--diagnose")
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 
     private static void Write(string outDir, string markdown, IReadOnlyDictionary<string, string> csv)

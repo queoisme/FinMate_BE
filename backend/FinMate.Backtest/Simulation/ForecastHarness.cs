@@ -69,6 +69,9 @@ public sealed class ForecastHarness
     /// <summary>Giao dịch thô của cả thế giới (không cắt theo đồng hồ), để chấm điểm.</summary>
     public IReadOnlyList<ForecastTransaction> TruthRaw(DateOnly from, DateOnly to) => _truth.Raw(from, to);
 
+    /// <summary>Chuyển khoản vượt ranh giới của cả thế giới (không cắt theo đồng hồ), để chấm điểm và chẩn đoán.</summary>
+    public IReadOnlyList<ForecastTransaction> TruthBoundary(DateOnly from, DateOnly to) => _truth.Boundary(_counted, from, to);
+
     /// <summary>Dòng tiền ròng của tập ví được tính trong [from, to] mà đồng hồ đã thấy (thô + chuyển khoản vượt ranh giới).</summary>
     public long PastNetFlow(DateOnly from, DateOnly to)
         => ForecastActuals.NetFlow(View.Raw(from, to).Concat(View.Boundary(_counted, from, to)), _counted, from, to);
