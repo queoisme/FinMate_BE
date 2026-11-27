@@ -16,7 +16,7 @@ public sealed class ForecastHarness
     private readonly HashSet<Guid> _counted;
 
     public ForecastHarness(SynthWorld world, ForecastSettings settings, int configVersion = 0)
-        : this(world, settings, configVersion, view => () => OracleRecurring.ItemsAt(view.World, view.Clock.Now))
+        : this(world, settings, configVersion, OracleItems)
     {
     }
 
@@ -35,6 +35,13 @@ public sealed class ForecastHarness
     }
 
     public BacktestClock Clock { get; }
+
+    /// <summary>Chế độ đáp án (D8): khoản định kỳ thật, chỉ biết thông tin trước đồng hồ.</summary>
+    public static Func<IReadOnlyList<RecurringItem>> OracleItems(WorldView view)
+    {
+        var oracle = new OracleRecurring(view.World);
+        return () => oracle.ItemsAt(view.Clock.Now);
+    }
 
     public WorldView View { get; }
 
@@ -58,6 +65,13 @@ public sealed class ForecastHarness
         var rows = _truth.Raw(origin, to).Concat(_truth.Boundary(_counted, origin, to));
         return startBalance + ForecastActuals.NetFlow(rows, _counted, origin, to);
     }
+
+    /// <summary>Giao dịch thô của cả thế giới (không cắt theo đồng hồ), để chấm điểm.</summary>
+    public IReadOnlyList<ForecastTransaction> TruthRaw(DateOnly from, DateOnly to) => _truth.Raw(from, to);
+
+    /// <summary>Dòng tiền ròng của tập ví được tính trong [from, to] mà đồng hồ đã thấy (thô + chuyển khoản vượt ranh giới).</summary>
+    public long PastNetFlow(DateOnly from, DateOnly to)
+        => ForecastActuals.NetFlow(View.Raw(from, to).Concat(View.Boundary(_counted, from, to)), _counted, from, to);
 
     /// <summary>Tổng số dư các ví được tính tại thời điểm của đồng hồ.</summary>
     public long CountedBalanceNow() => _counted.Sum(View.BalanceOf);

@@ -2,7 +2,7 @@ using FinMate.Backtest.Generation;
 
 namespace FinMate.Backtest.Evaluation;
 
-public static class Windows
+public static class ScoreWindows
 {
     public const string All = "all";
 
@@ -65,10 +65,10 @@ public static class MetricsBook
             {
                 foreach (var conf in new[] { confidence, AllConfidence })
                 {
-                    Add(groups, new GroupKey(r.Mode, r.Scenario, persona, conf, r.Horizon, Windows.All), r);
+                    Add(groups, new GroupKey(r.Mode, r.Scenario, persona, conf, r.Horizon, ScoreWindows.All), r);
                     if (r.Affected)
                     {
-                        Add(groups, new GroupKey(r.Mode, r.Scenario, persona, conf, r.Horizon, Windows.Affected), r);
+                        Add(groups, new GroupKey(r.Mode, r.Scenario, persona, conf, r.Horizon, ScoreWindows.Affected), r);
                     }
                 }
             }

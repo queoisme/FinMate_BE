@@ -10,11 +10,23 @@ namespace FinMate.Backtest.Simulation;
 /// Chế độ "đáp án" (D8, đặc tả §8): khoản định kỳ thật như người dùng khai đầy đủ, nhưng chỉ dùng thông tin trước <c>now</c>. Đây là cận trên:
 /// mô hình được biết khoản nào là định kỳ. Khoản dao động và chu kỳ production không hỗ trợ không có ở đây.
 /// </summary>
-public static class OracleRecurring
+public sealed class OracleRecurring
 {
-    public static IReadOnlyList<RecurringItem> ItemsAt(SynthWorld world, DateTimeOffset now)
+    private readonly SynthWorld _world;
+    private readonly Dictionary<Guid, DateTimeOffset> _paidAt;
+
+    public OracleRecurring(SynthWorld world)
     {
-        var paidAt = world.Transactions.ToDictionary(t => t.Id, t => t.At);
+        _world = world;
+        _paidAt = world.Transactions.ToDictionary(t => t.Id, t => t.At);
+    }
+
+    public static IReadOnlyList<RecurringItem> ItemsAt(SynthWorld world, DateTimeOffset now) => new OracleRecurring(world).ItemsAt(now);
+
+    public IReadOnlyList<RecurringItem> ItemsAt(DateTimeOffset now)
+    {
+        var world = _world;
+        var paidAt = _paidAt;
         var items = new List<RecurringItem>();
         foreach (var truth in world.Recurring)
         {
