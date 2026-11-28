@@ -89,11 +89,16 @@ Phản hồi người dùng quay về dataset:
 python scripts/feedback_batch.py   # ml_user_feedback → labeled_samples
 ```
 
-`scripts/purge_raw_samples.py` dọn mẫu thô cũ chưa gán nhãn — chạy bằng cron ngoài, AI
-Service không có scheduler (`celery` bị cấm ở `TECH_STACK.md` §2.3).
+**Dọn dữ liệu chạy tự động trong tiến trình**, không cần cron ngoài (`app/main.py` khởi động hai vòng lặp lúc start):
 
-`scripts/purge_pipeline_requests.py` xóa nhật ký `ops_analyze_log` cũ hơn 90 ngày (theo lô, có `--days` và `--dry-run`),
-cũng chạy bằng cron ngoài: `0 4 * * * cd /app && python scripts/purge_pipeline_requests.py`.
+- `retention_loop` (`app/services/retention.py`): xoá `ops_analyze_log`, mẫu thô chưa nhãn (`ml_raw_samples`) và hàng đợi bill lạ
+  (`bill_unknown_scans`) quá `RETENTION_DAYS` ngày (mặc định 90), mỗi `RETENTION_INTERVAL_HOURS` giờ (mặc định 24), lần đầu sau 5 phút.
+  Bật mặc định; `RETENTION_ENABLED=false` tắt vòng lặp này, dành cho triển khai muốn tự chạy bằng cron ngoài.
+- `purge_loop` (`app/bill/samples.py`): xoá mẫu huấn luyện chưa nhãn quá 7 ngày, mỗi giờ. Luôn chạy, không có biến tắt.
+
+Các script `purge_*` gọi đúng các hàm trên và chỉ để **chạy tay** (`--dry-run`, đổi `--days`) hoặc cho triển khai đã đặt
+`RETENTION_ENABLED=false`, ví dụ `0 4 * * * cd /app && python scripts/purge_pipeline_requests.py`. Đừng đặt cron cho chúng khi vòng lặp
+trong tiến trình đang bật: chỉ là việc trùng lặp phải bảo trì. `purge_training_samples` không bao giờ cần cron vì `purge_loop` luôn chạy.
 
 `scripts/provider_format.py` quản lý phiên bản định dạng thông báo của từng ngân hàng (`list`, `clone <package>`, `check <id>`, `activate <id>`, `archive <id>`):
 sửa regex bằng cách nhân bản bản mới nhất thành draft, sửa, `check` rồi `activate`; chỉ kích hoạt được khi mọi mẫu của định dạng khớp. Bản đang chạy không bị đụng tới.
@@ -116,7 +121,7 @@ regex sống trong bảng `kb_provider_patterns`, đổi là UPDATE dữ liệu 
 | Vòng đời model | `seed_dataset`, `train`, `evaluate`, `promote`, `feedback_batch`, `train_bill_model`, `generate_bootstrap_corpus` |
 | Dataset và học từ phản hồi | `export_category_dataset`, `learn_items`, `promote_item_consensus`, `learning_report`, `classify_stats` |
 | Đánh giá | `eval_intent` (intent classifier của chat), `eval_money`, `eval_goal`, `eval_flows`, `eval_chat_live`, `eval_voice_text`, `eval_ocr_synthetic`, `eval_category_dataset` |
-| Dọn dữ liệu (cron ngoài) | `purge_raw_samples`, `purge_pipeline_requests`, `purge_training_samples`, `purge_unknown_scans` |
+| Dọn dữ liệu (chạy tay; tự động đã có trong tiến trình, xem trên) | `purge_raw_samples`, `purge_pipeline_requests`, `purge_training_samples`, `purge_unknown_scans` |
 | Định dạng thông báo | `provider_format` |
 
 ## Test

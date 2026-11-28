@@ -1,1 +1,1 @@
-Script chạy tay hoặc bằng cron ngoài: vòng đời model, dataset, đánh giá (`eval_*`), dọn dữ liệu (`purge_*`), định dạng thông báo. Bảng nhóm ở `ai-service/README.md` mục Script.
+Script chạy tay: vòng đời model, dataset, đánh giá (`eval_*`), định dạng thông báo. Các script `purge_*` chỉ để chạy tay (`--dry-run`, đổi số ngày): ai-service tự dọn trong tiến trình (`retention_loop`, tắt bằng `RETENTION_ENABLED=false` nếu muốn dùng cron ngoài; `purge_loop` cho mẫu huấn luyện luôn chạy). Bảng nhóm và chi tiết ở `ai-service/README.md`.
