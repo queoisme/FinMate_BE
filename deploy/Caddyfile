@@ -1,0 +1,6 @@
+# Caddy tự xin và gia hạn chứng chỉ HTTPS cho DOMAIN (cần cổng 80 và 443 mở, DNS trỏ đúng IP).
+{$DOMAIN} {
+	# Dashboard Hangfire chỉ mở qua SSH tunnel tới cổng 8080.
+	respond /hangfire* 404
+	reverse_proxy backend:8080
+}

@@ -1,0 +1,69 @@
+# Lớp phủ production, luôn chạy CÙNG file gốc:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Cần Docker Compose >= 2.24 (cú pháp !reset / !override). Biến DOMAIN và POSTGRES_PASSWORD đặt ở file .env tại gốc repo.
+# Hướng dẫn: docs/deploy-vps.md
+
+x-prod: &prod
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres-main:
+    <<: *prod
+    ports: !reset []
+    environment:
+      # Chỉ có tác dụng khi volume được tạo lần đầu; đổi sau đó phải ALTER USER trong Postgres.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt POSTGRES_PASSWORD trong .env}
+
+  postgres-ai:
+    <<: *prod
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt POSTGRES_PASSWORD trong .env}
+
+  redis:
+    <<: *prod
+    ports: !reset []
+
+  backend:
+    <<: *prod
+    # Chỉ nghe trên chính VPS (curl kiểm tra, mở /hangfire qua SSH tunnel). Bên ngoài đi qua caddy.
+    ports: !override
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      DATABASE_URL: "Host=postgres-main;Port=5432;Database=finmate_main;Username=finmate;Password=${POSTGRES_PASSWORD}"
+      # "*" chấp nhận được vì ngoài caddy không ai từ Internet gọi thẳng backend, và caddy tự ghi đè X-Forwarded-For của client.
+      TRUSTED_PROXIES: "*"
+
+  ai-service:
+    <<: *prod
+    ports: !reset []
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://finmate:${POSTGRES_PASSWORD}@postgres-ai:5432/finmate_ai"
+
+  ocr-service:
+    <<: *prod
+
+  stt-service:
+    <<: *prod
+
+  caddy:
+    <<: *prod
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?đặt DOMAIN trong .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - backend
+
+volumes:
+  caddy-data:
