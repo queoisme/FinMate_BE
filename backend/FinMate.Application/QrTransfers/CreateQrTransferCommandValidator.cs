@@ -1,4 +1,5 @@
 using FluentValidation;
+using FinMate.Application.Common;
 
 namespace FinMate.Application.QrTransfers;
 
@@ -14,6 +15,7 @@ public class CreateQrTransferCommandValidator : AbstractValidator<CreateQrTransf
 
         // Trần số tiền và độ dài nội dung theo cấu hình hệ thống được kiểm ở QrTransferService; ở đây chỉ chặn những gì sai ở mọi cấu hình.
         RuleFor(c => c.AmountCents).GreaterThan(0).WithMessage("Số tiền phải lớn hơn 0.");
+        RuleFor(c => c.AmountCents).LessThanOrEqualTo(MoneyLimits.MaxAmountCents).WithMessage(MoneyLimits.TooLargeMessage);
 
         // Nội dung chuyển khoản bị chuyển vào liên kết mở app ngân hàng nên giới hạn ngắn và không chứa ký tự điều khiển.
         // 100 là độ rộng cột DB, không phải quy tắc nghiệp vụ (giới hạn nghiệp vụ nằm ở cấu hình, tối đa 100).

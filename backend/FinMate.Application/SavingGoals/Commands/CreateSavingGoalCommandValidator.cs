@@ -1,4 +1,5 @@
 using FluentValidation;
+using FinMate.Application.Common;
 
 namespace FinMate.Application.SavingGoals.Commands;
 
@@ -9,6 +10,7 @@ public class CreateSavingGoalCommandValidator : AbstractValidator<CreateSavingGo
         RuleFor(x => x.Name).NotEmpty().WithMessage("Tên mục tiêu không được để trống.");
         RuleFor(x => x.Name).MaximumLength(200).WithMessage("Tên mục tiêu tối đa 200 ký tự.");
         RuleFor(x => x.TargetCents).GreaterThan(0).WithMessage("Số tiền mục tiêu phải lớn hơn 0.");
+        RuleFor(x => x.TargetCents).LessThanOrEqualTo(MoneyLimits.MaxAmountCents).WithMessage(MoneyLimits.TooLargeMessage);
         RuleFor(x => x.Icon).MaximumLength(40).WithMessage("Tên biểu tượng tối đa 40 ký tự.");
         RuleFor(x => x.InitialSavedCents)
             .Must((c, v) => v >= 0 && v < c.TargetCents)

@@ -1,4 +1,5 @@
 using FinMate.Domain.Enums;
+using FinMate.Application.Common;
 using FluentValidation;
 
 namespace FinMate.Application.Groups.Funds;
@@ -66,6 +67,8 @@ public class CreateGroupFundEntryCommandValidator : AbstractValidator<CreateGrou
             RuleFor(x => x.Note).Must(n => !string.IsNullOrWhiteSpace(n)).WithMessage("Điều chỉnh quỹ phải có ghi chú.");
         });
         RuleFor(x => x.AmountCents).GreaterThanOrEqualTo(0).When(x => x.FromTransactionId is not null).WithMessage("Số tiền phải lớn hơn 0.");
+        // Dòng điều chỉnh có thể âm nên giới hạn theo giá trị tuyệt đối.
+        RuleFor(x => x.AmountCents).Must(a => a >= -MoneyLimits.MaxAmountCents && a <= MoneyLimits.MaxAmountCents).WithMessage(MoneyLimits.TooLargeMessage);
     }
 }
 

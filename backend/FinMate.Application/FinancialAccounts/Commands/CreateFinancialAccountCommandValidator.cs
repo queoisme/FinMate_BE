@@ -1,4 +1,5 @@
 using FinMate.Domain.Enums;
+using FinMate.Application.Common;
 using FluentValidation;
 
 namespace FinMate.Application.FinancialAccounts.Commands;
@@ -15,7 +16,8 @@ public class CreateFinancialAccountCommandValidator : AbstractValidator<CreateFi
             .IsInEnum().WithMessage("Loại tài khoản không hợp lệ.");
 
         RuleFor(x => x.InitialBalanceCents)
-            .GreaterThanOrEqualTo(0).WithMessage("Số dư ban đầu không được âm.");
+            .GreaterThanOrEqualTo(0).WithMessage("Số dư ban đầu không được âm.")
+            .LessThanOrEqualTo(MoneyLimits.MaxAmountCents).WithMessage(MoneyLimits.TooLargeMessage);
 
         When(x => x.AccountType == AccountType.Cash, () =>
         {

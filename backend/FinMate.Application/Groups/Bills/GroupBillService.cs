@@ -55,6 +55,7 @@ public class CreateGroupBillCommandValidator : AbstractValidator<CreateGroupBill
         RuleFor(x => x.Title).NotEmpty().WithMessage("Tên hóa đơn không được để trống.")
             .MaximumLength(TitleMaxLength).WithMessage($"Tên hóa đơn tối đa {TitleMaxLength} ký tự.");
         RuleFor(x => x.AmountCents).GreaterThan(0).WithMessage("Số tiền phải lớn hơn 0.");
+        RuleFor(x => x.AmountCents).LessThanOrEqualTo(MoneyLimits.MaxAmountCents).WithMessage(MoneyLimits.TooLargeMessage);
         RuleFor(x => x.SplitMode).IsInEnum().WithMessage("Cách chia không hợp lệ.");
         RuleFor(x => x.Note).MaximumLength(NoteMaxLength).WithMessage($"Ghi chú tối đa {NoteMaxLength} ký tự.");
         RuleFor(x => x.Splits).NotEmpty().WithMessage("Hóa đơn cần ít nhất một người chia.");
