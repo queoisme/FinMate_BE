@@ -182,8 +182,7 @@ Danh sách đầy đủ ở `AGENTS.md` §3.
 
 ## Trạng thái (2026-11-28)
 
-`main` có tới Phase 96 (backtest dự báo, PR #40). Phase 97 (sửa mô hình dự báo số dư) đã xong trên
-nhánh `feat/forecast-model-fixes`, chờ duyệt PR.
+`main` có tới Phase 97 (sửa mô hình dự báo số dư theo chẩn đoán backtest, PR #41).
 
 **Chưa có**
 
