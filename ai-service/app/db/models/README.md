@@ -1,1 +1,1 @@
-SQLAlchemy ORM models cho AI DB: raw_sample, labeled_sample, model_version, pipeline_request, user_feedback.
+SQLAlchemy ORM models của AI DB, đăng ký tập trung ở `all_models.py`. Không lưu `user_id` thật, chỉ `_hash`.

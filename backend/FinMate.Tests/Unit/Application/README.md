@@ -1,1 +1,1 @@
-Unit tests cho Command/Query handlers, business logic. Coverage target ≥ 80%.
+Unit test cho command/query handler và logic nghiệp vụ. Mục tiêu coverage: `.context/TECH_STACK.md` §6.1.

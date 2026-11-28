@@ -1,1 +1,1 @@
-TransactionType, TransactionSource, AccountType.
+Enum của domain (loại, nguồn, trạng thái giao dịch, vai trò, và các enum gom theo mảng như `GroupEnums`, `SubscriptionEnums`, `SupportEnums`). Cách lưu xuống DB của từng enum xem cấu hình entity trong `FinMate.Infrastructure/Persistence/Configurations`; đổi tên hay giá trị là đổi dữ liệu, cần migration.

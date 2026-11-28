@@ -1,1 +1,1 @@
-AnalyzeNotificationCommand — điều phối gọi AI Service và tạo transaction draft.
+Xử lý thông báo ngân hàng: `AnalyzeNotificationCommand` gọi AI Service, khử trùng theo `contentHash`, kiểm bản trùng qua `IDuplicateDetector`, tạo giao dịch nháp và chọn nhánh xác nhận một chạm hay hộp thoại theo `min(extraction, categorization)`.

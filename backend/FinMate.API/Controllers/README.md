@@ -1,1 +1,1 @@
-Chứa REST Controllers — chỉ validate input và gọi Application layer, KHÔNG chứa business logic (xem .context/ARCHITECTURE.md §2).
+REST controllers khách hàng dưới `/api/v1/*`; quản trị ở `Admin/`, vận hành ở `Ops/` (mỗi thư mục có README riêng). Controller chỉ validate input, lấy `userId` từ JWT và gọi handler ở Application, KHÔNG chứa business logic (xem `.context/ARCHITECTURE.md` §2). Endpoint của tính năng sau cờ phải mang attribute tương ứng (`RequireGroupsEnabled`, `RequireSubscriptionFeature`, …), xem `CLAUDE.md`.

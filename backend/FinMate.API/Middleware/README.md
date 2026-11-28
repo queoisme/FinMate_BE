@@ -1,1 +1,1 @@
-ExceptionHandlingMiddleware, RequestLoggingMiddleware, RateLimitingMiddleware.
+Middleware của pipeline HTTP: xử lý lỗi thành response chuẩn (`ExceptionHandlingMiddleware`), log request (`RequestLoggingMiddleware`), chế độ bảo trì theo cấu hình hệ thống (`MaintenanceMiddleware`), hạn mức request (`RateLimitingMiddleware`), basic auth cho trang `/hangfire` (`HangfireBasicAuthFilter`). Thứ tự đăng ký nằm trong `Program.cs`; `UseRateLimiter()` phải sau `UseAuthentication()` vì hạn mức chia theo user id.

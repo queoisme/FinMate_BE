@@ -1,1 +1,1 @@
-DTOs, Request/Response models dùng chung.
+Model dùng chung: envelope response (`ApiResponse`, `ApiError`), phân trang (`PagedResult`) và các DTO cũ của những mảng đầu tiên (giao dịch, ngân sách, mục tiêu, báo cáo…). DTO của mảng mới đặt trong thư mục của mảng đó.

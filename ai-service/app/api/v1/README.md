@@ -1,1 +1,1 @@
-FastAPI routes: pipeline.py (POST /api/v1/analyze), feedback.py (POST /api/v1/feedback), health.py.
+FastAPI routes: pipeline thông báo (`/analyze`), feedback, stats, health, chat, bill/OCR, `ocr-store` (cho ocr-service), agent và kho tri thức, market-data, finance-methods, các route quản trị (`*_admin.py`) và nội bộ (`internal_*.py`). Chỉ backend và ocr-service gọi, qua internal API key.

@@ -1,1 +1,1 @@
-CreateBudgetCommand, UpdateBudgetLimitCommand, DeleteBudgetCommand.
+Write operations của ngân sách cá nhân và nhóm. Ngưỡng cảnh báo được xét ngay trên giao dịch qua `BudgetAlertEvaluator`; mọi thay đổi chi tiêu đi qua `TransactionBudgetDelta` / `BudgetSpendScope`, không tự tính lại ở chỗ mới.

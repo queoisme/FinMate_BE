@@ -1,1 +1,1 @@
-Implementation của các IRepository interface — luôn filter theo userId.
+Hiện thực repository. Luôn lọc theo `userId` (không bao giờ lấy theo id trần), không thêm nhánh "hoặc cùng nhóm" hay "hoặc nhân viên": truy cập nhóm đi qua `IGroupAccessService`, vận hành qua `IOpsCustomerDataService`.
