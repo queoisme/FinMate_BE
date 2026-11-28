@@ -8,7 +8,9 @@ public class UpdateUserProfileCommandValidator : AbstractValidator<UpdateUserPro
     {
         RuleFor(x => x.DisplayName)
             .NotEmpty().WithMessage("Tên hiển thị không được để trống.")
-            .MaximumLength(200);
+            .MaximumLength(200)
+            .Must(name => name is null || name.IndexOfAny(['<', '>']) < 0)
+            .WithMessage("Tên hiển thị không được chứa ký tự < hoặc >.");
 
         // Trần 100 tỷ/tháng: không phải để chặn người giàu, mà để một con số gõ nhầm
         // (thừa vài số 0) không làm mọi dự báo và kiểm tra khả thi trở nên vô nghĩa.

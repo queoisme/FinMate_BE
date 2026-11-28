@@ -171,7 +171,22 @@ public class OpsRolesControllerTests : IClassFixture<AuthApiFactory>
 
         (await SetRoleAsync(admin.AccessToken, staff.Id, UserRole.User)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        (await _client.SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        // Token cấp trước lúc hạ quyền bị thu hồi nên bị từ chối ngay ở bước xác thực (401).
+        (await _client.SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task DemotedStaffIsStillForbiddenWhenTheRevocationMarkIsUnavailable()
+    {
+        // Lớp dự phòng: Redis sập/mất mốc thu hồi thì IOpsAccessService vẫn đọc vai trò từ DB và chặn (403).
+        var admin = await AdminAsync();
+        var staff = await AccountWithRoleAsync(UserRole.Staff);
+        (await SetRoleAsync(admin.AccessToken, staff.Id, UserRole.User)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var withoutMark = _factory.WithWebHostBuilder(_ => { }); // host mới: cache rỗng, không có mốc thu hồi
+        var response = await withoutMark.CreateClient().SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -184,7 +199,22 @@ public class OpsRolesControllerTests : IClassFixture<AuthApiFactory>
             HttpMethod.Patch, $"/api/v1/admin/users/{staff.Id}/lock", admin.AccessToken, new SetUserLockRequest(true, "kiểm thử")));
         locked.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        (await _client.SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await _client.SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task LockedStaffIsStillForbiddenWhenTheRevocationMarkIsUnavailable()
+    {
+        var admin = await AdminAsync();
+        var staff = await AccountWithRoleAsync(UserRole.Staff);
+        (await _client.SendAsync(Request(
+            HttpMethod.Patch, $"/api/v1/admin/users/{staff.Id}/lock", admin.AccessToken, new SetUserLockRequest(true, "kiểm thử"))))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var withoutMark = _factory.WithWebHostBuilder(_ => { });
+        var response = await withoutMark.CreateClient().SendAsync(Request(HttpMethod.Get, OpsMe, staff.AccessToken));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Theory]

@@ -328,6 +328,24 @@ public class Program
                 };
                 options.Events = new JwtBearerEvents
                 {
+                    // Khóa tài khoản / hạ quyền đánh dấu mốc thu hồi trong IAccessTokenRevocationStore;
+                    // token cấp trước mốc bị từ chối ngay thay vì sống tới hết TTL. Redis lỗi thì cho qua
+                    // (fail-open, xem IAccessTokenRevocationStore): sập Redis không được khóa cả hệ thống.
+                    OnTokenValidated = async context =>
+                    {
+                        var sub = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        if (!Guid.TryParse(sub, out var userId))
+                        {
+                            return;
+                        }
+
+                        long? iat = long.TryParse(context.Principal!.FindFirst("iat")?.Value, out var parsed) ? parsed : null;
+                        var store = context.HttpContext.RequestServices.GetRequiredService<IAccessTokenRevocationStore>();
+                        if (await store.IsRevokedAsync(userId, iat, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("Access token revoked.");
+                        }
+                    },
                     // Mặc định middleware xác thực trả body rỗng, khác envelope ApiResponse mà mọi lỗi
                     // khác trong app dùng. Tự viết lại để FE chỉ cần xử lý một dạng lỗi.
                     OnChallenge = async context =>
@@ -437,6 +455,7 @@ public class Program
         builder.Services.AddScoped<IDataDeletionRequestRepository, DataDeletionRequestRepository>();
         builder.Services.AddScoped<IUserHardDeleter, UserHardDeleter>();
         builder.Services.AddScoped<ICacheService, RedisCacheService>();
+        builder.Services.AddScoped<IAccessTokenRevocationStore, FinMate.Infrastructure.Caching.AccessTokenRevocationStore>();
         builder.Services.AddScoped<IFinancialAccountRepository, FinancialAccountRepository>();
         builder.Services.AddScoped<IEconomicAssumptionRepository, EconomicAssumptionRepository>();
         builder.Services.AddScoped<TicketAssistService>();
@@ -925,6 +944,7 @@ public class Program
         }
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
 
         // Lỗi framework tự trả với body rỗng (403 do policy, 429 của rate limiter, 404/405/415 sai route...)
         // không đi qua ExceptionHandlingMiddleware. Chỉ chạy khi chưa có body, nên không đè lỗi đã có envelope.

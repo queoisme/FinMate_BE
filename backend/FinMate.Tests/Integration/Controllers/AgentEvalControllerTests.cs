@@ -94,6 +94,15 @@ public class AgentEvalControllerTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
+    public async Task WhenTheFlagIsOn_SwaggerStillGenerates()
+    {
+        // Endpoint nội bộ có kiểu request mà Swashbuckle không sinh được schema; không được làm sập swagger.json của cả API.
+        var response = await Client(true).GetAsync("/swagger/v1/swagger.json");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task WhenTheFlagIsOff_TheEndpointDoesNotExist()
         => (await Client(false).SendAsync(Post(Key))).StatusCode.Should().Be(HttpStatusCode.NotFound);
 

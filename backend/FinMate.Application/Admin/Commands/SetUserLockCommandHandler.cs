@@ -13,15 +13,18 @@ public class SetUserLockCommandHandler : ISetUserLockCommandHandler
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<SetUserLockCommand> _validator;
     private readonly ISupportRepository? _support;
+    private readonly IAccessTokenRevocationStore? _revocation;
 
     public SetUserLockCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IAuditLogService auditLogService,
         IValidator<SetUserLockCommand> validator,
-        ISupportRepository? support = null)
+        ISupportRepository? support = null,
+        IAccessTokenRevocationStore? revocation = null)
     {
         _support = support;
+        _revocation = revocation;
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _auditLogService = auditLogService;
@@ -57,11 +60,14 @@ public class SetUserLockCommandHandler : ISetUserLockCommandHandler
 
         if (command.IsLocked)
         {
-            // Vai trò và danh tính nằm trong access token, không tra lại DB mỗi request, nên
-            // khóa tài khoản KHÔNG vô hiệu hóa token đang cầm — người dùng còn vào được tới
-            // hết TTL (15 phút). Thu hồi refresh token là thứ chặn họ gia hạn thêm; đó là biên
-            // trên của cửa sổ, và là đánh đổi có sẵn của thiết kế JWT hiện tại.
+            // Vai trò và danh tính nằm trong access token, không tra lại DB mỗi request. Thu hồi
+            // refresh token chặn họ gia hạn; đánh dấu thu hồi access token chặn luôn phiên đang cầm,
+            // nên khóa có hiệu lực ngay chứ không đợi hết TTL (15 phút).
             await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
+            if (_revocation is not null)
+            {
+                await _revocation.RevokeAllAsync(user.Id, ct);
+            }
 
             // Có thể chính kẻ chiếm tài khoản đã bấm đồng ý, nên mở khóa sau đó không được làm quyền cũ sống lại.
             if (_support is not null)

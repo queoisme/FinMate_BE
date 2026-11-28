@@ -5,10 +5,13 @@ public static class AuthorizationPolicies
     /// <summary>
     /// Khớp <c>ClaimTypes.Role</c> mà <c>TokenService</c> gắn lúc đăng nhập.
     ///
-    /// Lưu ý vận hành: vai trò nằm TRONG access token, không tra lại DB mỗi request. Hạ quyền
-    /// hay khoá một admin không vô hiệu hoá token họ đang cầm — họ còn vào được tối đa
-    /// <c>JWT_ACCESS_TTL_MINUTES</c> (15 phút). Vì vậy lệnh khoá tài khoản còn phải thu hồi
-    /// refresh token để chặn gia hạn; xem <c>SetUserLockCommandHandler</c>.
+    /// Lưu ý vận hành: vai trò nằm TRONG access token, không tra lại DB mỗi request. Khoá tài khoản
+    /// hay hạ quyền vì vậy phải làm hai việc: thu hồi refresh token (chặn gia hạn) và đánh dấu
+    /// <c>IAccessTokenRevocationStore</c> (token cấp trước mốc bị từ chối ngay ở <c>OnTokenValidated</c>);
+    /// xem <c>SetUserLockCommandHandler</c>, <c>SetUserRoleCommandHandler</c>. Nếu Redis sập thì phép
+    /// kiểm tra cho qua (fail-open) và cửa sổ <c>JWT_ACCESS_TTL_MINUTES</c> (15 phút) quay lại.
+    /// Các đường "thu hồi hết phiên" khác (đổi/đặt lại mật khẩu, đăng xuất mọi thiết bị, xoá tài khoản)
+    /// chưa đánh dấu access token.
     /// </summary>
     public const string AdminOnly = "AdminOnly";
 

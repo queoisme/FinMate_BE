@@ -14,6 +14,7 @@ public class SetUserLockCommandHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IAuditLogService> _auditLogService = new();
+    private readonly Mock<IAccessTokenRevocationStore> _revocation = new();
     private readonly SetUserLockCommandHandler _handler;
 
     private readonly Guid _adminId = Guid.NewGuid();
@@ -24,7 +25,8 @@ public class SetUserLockCommandHandlerTests
             _userRepository.Object,
             _refreshTokenRepository.Object,
             _auditLogService.Object,
-            new SetUserLockCommandValidator());
+            new SetUserLockCommandValidator(),
+            revocation: _revocation.Object);
     }
 
     private User Setup(bool isLocked = false)
@@ -54,6 +56,27 @@ public class SetUserLockCommandHandlerTests
                 AuditEvents.AdminUserLocked, _adminId, null, It.IsAny<object>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task LockingAUserAlsoRevokesTheirLiveAccessTokens()
+    {
+        // Khóa khẩn cấp mà token đang cầm còn dùng 15 phút là khóa hụt: phải đánh dấu thu hồi cả access token.
+        var user = Setup();
+
+        await _handler.HandleAsync(new SetUserLockCommand(_adminId, user.Id, true, "spam", null));
+
+        _revocation.Verify(r => r.RevokeAllAsync(user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UnlockingDoesNotRevokeAccessTokens()
+    {
+        var user = Setup(isLocked: true);
+
+        await _handler.HandleAsync(new SetUserLockCommand(_adminId, user.Id, false, null, null));
+
+        _revocation.Verify(r => r.RevokeAllAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

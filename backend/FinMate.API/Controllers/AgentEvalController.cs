@@ -11,6 +11,7 @@ namespace FinMate.API.Controllers;
 /// CHỈ để bộ đánh giá <c>ai-service/agent_eval</c> chạy agent trên hồ sơ giả lập. Tồn tại khi môi trường là Development VÀ <c>AGENT_EVAL_ENABLED=true</c>, còn lại trả 404 (như chưa có route).
 /// Khóa nội bộ là <c>AI_SERVICE_API_KEY</c> trong header <c>X-Eval-Key</c>. Mỗi lượt dùng một <c>userId</c> ngẫu nhiên nên không dính ngữ cảnh/bộ nhớ của lượt khác, và dữ liệu thật không bị đụng tới.
 /// </summary>
+[ApiExplorerSettings(IgnoreApi = true)] // công cụ nội bộ: không đưa vào swagger (schema request không sinh được)
 [ApiController]
 [Route("api/v1/internal/agent")]
 [AllowAnonymous]

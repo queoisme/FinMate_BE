@@ -241,10 +241,29 @@ public class AdminControllersTests : IClassFixture<AuthApiFactory>
         locked.StatusCode.Should().Be(HttpStatusCode.OK);
         (await locked.Content.ReadFromJsonAsync<AdminUserBody>(JsonOptions))!.Data.IsLocked.Should().BeTrue();
 
-        // Refresh token của CHÍNH user bị khóa phải hết tác dụng. Access token cũ vẫn sống tới
-        // hết TTL — đó là biên trên đã biết của thiết kế JWT, không phải lỗi.
+        // Refresh token của CHÍNH user bị khóa phải hết tác dụng; access token cũ cũng bị thu hồi
+        // (xem LockingAUserRejectsTheirLiveAccessToken).
         var refresh = await _client.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(user.RefreshToken));
         refresh.StatusCode.Should().NotBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task LockingAUserRejectsTheirLiveAccessToken()
+    {
+        var user = await RegisterAndLoginAsync();
+        var token = await AdminTokenAsync();
+
+        var before = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/users/me", user.AccessToken));
+        before.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var list = await _client.SendAsync(
+            Request(HttpMethod.Get, $"/api/v1/admin/users?limit=100&search={Uri.EscapeDataString(user.Email)}", token));
+        var target = (await list.Content.ReadFromJsonAsync<AdminUserListBody>(JsonOptions))!.Data.Single(u => u.Email == user.Email);
+        (await _client.SendAsync(Request(HttpMethod.Patch, $"/api/v1/admin/users/{target.Id}/lock", token,
+            new SetUserLockRequest(true, "khóa khẩn cấp")))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var after = await _client.SendAsync(Request(HttpMethod.Get, "/api/v1/users/me", user.AccessToken));
+        after.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

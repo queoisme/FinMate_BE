@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text;
+using FluentValidation;
+using FluentValidation.Results;
 
 namespace FinMate.Infrastructure.Persistence.Repositories;
 
@@ -40,5 +42,29 @@ public static class KeysetCursor
             // Con trỏ do client gửi lên — hỏng thì coi như không có, trả về trang đầu thay vì 500.
             return false;
         }
+    }
+
+    /// <summary>
+    /// Như <see cref="TryDecode"/> nhưng con trỏ có giá trị mà hỏng thì ném <see cref="ValidationException"/> (400)
+    /// thay vì lặng lẽ trả trang đầu — "Trang tiếp" quay về đầu mà không báo gì là lỗi khó thấy nhất.
+    /// Chỉ dùng cho danh sách admin; danh sách của app mobile giữ <see cref="TryDecode"/> để con trỏ
+    /// cũ của client đã phát hành không làm kẹt app.
+    /// </summary>
+    /// <returns><c>false</c> khi không có con trỏ (trang đầu).</returns>
+    public static bool DecodeOrThrow(string? cursor, out DateTimeOffset at, out Guid id)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+        {
+            at = default;
+            id = default;
+            return false;
+        }
+
+        if (TryDecode(cursor, out at, out id))
+        {
+            return true;
+        }
+
+        throw new ValidationException([new ValidationFailure("cursor", "Con trỏ phân trang không hợp lệ.")]);
     }
 }

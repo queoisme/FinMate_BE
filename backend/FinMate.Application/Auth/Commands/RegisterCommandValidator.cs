@@ -17,6 +17,8 @@ public class RegisterCommandValidator : AbstractValidator<RegisterCommand>
 
         RuleFor(x => x.DisplayName)
             .NotEmpty().WithMessage("Tên hiển thị không được để trống.")
-            .MaximumLength(200);
+            .MaximumLength(200)
+            .Must(name => name is null || name.IndexOfAny(['<', '>']) < 0)
+            .WithMessage("Tên hiển thị không được chứa ký tự < hoặc >.");
     }
 }

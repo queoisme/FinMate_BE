@@ -100,6 +100,15 @@ Luật BVDLCN 2025 và Nghị định 356/2025: chủ thể yêu cầu cung cấ
 - **Rủi ro cao** (bật cờ tính năng, đổi ngưỡng, Điều khoản mới): có người thứ hai xem qua.
 - **Khẩn cấp:** Admin làm trước, bổ sung hồ sơ trong 24 giờ.
 
+## Giới hạn đăng nhập sau proxy
+
+Đăng nhập, đăng ký và OTP bị giới hạn 10 lần mỗi phút **theo địa chỉ IP** (`RATE_LIMIT_AUTH_PER_MINUTE`). Vì vậy:
+
+- Khi `TRUSTED_PROXIES` để trống mà dịch vụ chạy sau proxy/CDN, mọi người dùng chung một IP (của proxy) và chung một hạn mức: một người nhập sai 10 lần là cả admin cũng bị 429 trong phút đó. Đặt `TRUSTED_PROXIES` đúng dải IP của proxy.
+- Không đặt `0.0.0.0/0` nếu client có thể tự gửi `X-Forwarded-For`: kẻ tấn công sẽ giả IP để né giới hạn.
+- Kiểm tra sau khi triển khai: gửi 11 lần `POST /api/v1/auth/login` sai từ một máy, rồi từ máy khác đăng nhập đúng; máy khác phải vào được. Nếu cũng bị 429 thì `TRUSTED_PROXIES` chưa đúng.
+- Người dùng thật bị 429 thì chờ hết phút; không cần can thiệp DB hay Redis.
+
 ## Nhịp vận hành
 
 - **Mỗi ca:** bàn giao ca đang mở, ca sắp trễ hạn, sự cố đang diễn ra.

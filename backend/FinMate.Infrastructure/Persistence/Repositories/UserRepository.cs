@@ -94,7 +94,7 @@ public class UserRepository : IUserRepository
             query = query.Where(u => u.IsLocked == isLocked);
         }
 
-        if (KeysetCursor.TryDecode(filter.Cursor, out var cursorAt, out var cursorId))
+        if (KeysetCursor.DecodeOrThrow(filter.Cursor, out var cursorAt, out var cursorId))
         {
             query = query.Where(u =>
                 u.CreatedAt < cursorAt || (u.CreatedAt == cursorAt && u.Id.CompareTo(cursorId) < 0));

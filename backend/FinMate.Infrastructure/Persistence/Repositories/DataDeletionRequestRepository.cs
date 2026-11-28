@@ -55,7 +55,7 @@ public class DataDeletionRequestRepository : IDataDeletionRequestRepository
             query = query.Where(r => r.Request.Status == status);
         }
 
-        if (KeysetCursor.TryDecode(filter.Cursor, out var cursorAt, out var cursorId))
+        if (KeysetCursor.DecodeOrThrow(filter.Cursor, out var cursorAt, out var cursorId))
         {
             query = query.Where(r =>
                 r.Request.RequestedAt < cursorAt

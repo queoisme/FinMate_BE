@@ -19,6 +19,7 @@ public class SetUserRoleCommandHandlerTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IAuditLogService> _auditLogService = new();
+    private readonly Mock<IAccessTokenRevocationStore> _revocation = new();
     private readonly SetUserRoleCommandHandler _handler;
 
     private readonly Guid _adminId = Guid.NewGuid();
@@ -34,7 +35,8 @@ public class SetUserRoleCommandHandlerTests
             _userRepository.Object,
             _refreshTokenRepository.Object,
             _auditLogService.Object,
-            new SetUserRoleCommandValidator());
+            new SetUserRoleCommandValidator(),
+            revocation: _revocation.Object);
     }
 
     private User Setup(UserRole role = UserRole.User, DateTimeOffset? deletedAt = null)
@@ -82,6 +84,27 @@ public class SetUserRoleCommandHandlerTests
 
         _refreshTokenRepository.Verify(
             r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DemotingAlsoRevokesLiveAccessTokens()
+    {
+        // Access token cũ vẫn ghi vai trò cũ; đánh dấu thu hồi để người vừa bị hạ quyền mất quyền ngay.
+        var user = Setup(UserRole.Admin);
+
+        await ActAsync(user.Id, UserRole.User);
+
+        _revocation.Verify(r => r.RevokeAllAsync(user.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PromotingDoesNotRevokeAccessTokens()
+    {
+        var user = Setup(UserRole.User);
+
+        await ActAsync(user.Id, UserRole.Staff);
+
+        _revocation.Verify(r => r.RevokeAllAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

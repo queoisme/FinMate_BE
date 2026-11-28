@@ -57,7 +57,7 @@ public class AuditLogRepository : IAuditLogRepository
             query = query.Where(a => a.CreatedAt <= to);
         }
 
-        if (KeysetCursor.TryDecode(filter.Cursor, out var cursorAt, out var cursorId))
+        if (KeysetCursor.DecodeOrThrow(filter.Cursor, out var cursorAt, out var cursorId))
         {
             query = query.Where(a =>
                 a.CreatedAt < cursorAt || (a.CreatedAt == cursorAt && a.Id.CompareTo(cursorId) < 0));

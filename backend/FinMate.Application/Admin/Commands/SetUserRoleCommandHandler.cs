@@ -13,13 +13,16 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IAuditLogService _auditLogService;
     private readonly IValidator<SetUserRoleCommand> _validator;
+    private readonly IAccessTokenRevocationStore? _revocation;
 
     public SetUserRoleCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IAuditLogService auditLogService,
-        IValidator<SetUserRoleCommand> validator)
+        IValidator<SetUserRoleCommand> validator,
+        IAccessTokenRevocationStore? revocation = null)
     {
+        _revocation = revocation;
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _auditLogService = auditLogService;
@@ -74,11 +77,14 @@ public class SetUserRoleCommandHandler : ISetUserRoleCommandHandler
 
         if (command.Role.Rank() < previousRole.Rank())
         {
-            // Mọi lần giảm quyền, kể cả Admin xuống OpsManager. Vai trò nằm TRONG access token và không được tra lại DB mỗi request, nên hạ quyền
-            // KHÔNG có hiệu lực ngay: token cũ vẫn ghi vai trò cũ tới hết TTL 15 phút. Thu hồi
-            // refresh token chặn họ gia hạn, kẹp cửa sổ leo thang đặc quyền ở đúng 15 phút đó.
-            // Cùng đánh đổi đã ghi ở SetUserLockCommandHandler.
+            // Mọi lần giảm quyền, kể cả Admin xuống OpsManager. Vai trò nằm TRONG access token và không
+            // được tra lại DB mỗi request: thu hồi refresh token chặn họ gia hạn, đánh dấu thu hồi
+            // access token chặn luôn token cũ còn ghi vai trò cũ, nên hạ quyền có hiệu lực ngay.
             await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, ct);
+            if (_revocation is not null)
+            {
+                await _revocation.RevokeAllAsync(user.Id, ct);
+            }
         }
 
         // Thăng quyền không cần thu hồi: RefreshTokenCommandHandler nạp lại user từ DB mỗi lần
