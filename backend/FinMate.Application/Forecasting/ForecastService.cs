@@ -222,8 +222,9 @@ public class ForecastService : IForecastService
 
         var excluded = await ExclusionItemsAsync(userId, items, accountIds, accountId, today, rules.HistoryWindowDays, ct);
         var baseline = await BaselineAsync(userId, accountId, transactions, excluded, today, rules, ct);
+        var recurring = RecurringPaymentFilter.For(transactions, excluded, rules);
         var spentToday = transactions
-            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !RecurringMatcher.MatchesAny(t, excluded, rules))
+            .Where(t => t.Date == today && t.Type == TransactionType.Debit && !t.ExcludedFromForecast && !recurring.IsPayment(t))
             .Sum(t => t.AmountCents);
 
         var boundary = await BoundaryTransfers.OutflowsAsync(_data, userId, accountIds, today.AddDays(-rules.HistoryWindowDays), today, ct);
@@ -236,13 +237,41 @@ public class ForecastService : IForecastService
         var loans = accountId is null ? await OpenLoansAsync(userId, ct) : [];
         events.AddRange(LoanForecast.Events(loans, today, end));
 
+        var income = await IncomeBaselineAsync(userId, accountIds, transactions, excluded, today, settings, rules, ct);
+        var receivedToday = transactions
+            .Where(t => t.Date == today && IsIrregularIncome(t, recurring))
+            .Sum(t => t.AmountCents);
+
         return CashflowEngine.Project(new CashflowInput(
-            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays)) with
+            today, end, accounts.Sum(a => a.BalanceCents), baseline, spentToday, events, settings.Holidays)
+        {
+            Income = income,
+            ReceivedTodayIrregularCents = receivedToday,
+            Band = NetFlowBand.From(transactions.Where(t => t.Date < today).ToList(), excluded, today, rules),
+        }) with
         {
             UndatedLoans = LoanForecast.Undated(loans),
             UnlinkedLoanTransactions = accountId is null ? await UnlinkedLoansAsync(userId, ct) : null,
         };
     }
+
+    /// <summary>
+    /// Phase 97: thu không định kỳ cho đường số dư, cùng phạm vi ví với dự báo. Mức theo ngày lấy từ cửa sổ lịch sử (không gồm hôm nay); tỉ lệ thận trọng lấy
+    /// từ các tháng trọn vẹn (<see cref="IncomeEstimator.Irregular"/>), như spendable. Spendable không đổi: nó không đi qua engine.
+    /// </summary>
+    private async Task<IncomeBaseline> IncomeBaselineAsync(
+        Guid userId, IReadOnlySet<Guid> accountIds, IReadOnlyList<ForecastTransaction> transactions, IReadOnlyList<RecurringItemView> excluded, DateOnly today,
+        ForecastSettings settings, ForecastRules rules, CancellationToken ct)
+    {
+        var lookback = IrregularLookbackDays(settings);
+        var longHistory = (await _data.GetTransactionsAsync(userId, today.AddDays(-lookback), today, ct)).Where(t => accountIds.Contains(t.AccountId)).ToList();
+        var monthly = IncomeEstimator.Irregular(longHistory, excluded, today, settings.IrregularIncomeMonths, rules, RecurringPaymentFilter.For(longHistory, excluded, rules));
+        return IrregularIncomeBaselineCalculator.Compute(transactions.Where(t => t.Date < today).ToList(), excluded, today, rules, monthly);
+    }
+
+    /// <summary>Cùng bộ lọc với <see cref="IrregularIncomeBaselineCalculator"/>, cho phần đã nhận hôm nay.</summary>
+    private static bool IsIrregularIncome(ForecastTransaction t, RecurringPaymentFilter recurring)
+        => t.Type == TransactionType.Credit && !t.ExcludedFromForecast && t.Relation is null && !t.IsLoan && !recurring.IsPayment(t);
 
     /// <summary>Mặc định tới cuối tháng; còn dưới một tuần thì tới cuối tháng sau, để biểu đồ không chỉ có vài điểm.</summary>
     private static DateOnly ResolveEnd(DateOnly today, DateOnly? to, int maxHorizonDays)

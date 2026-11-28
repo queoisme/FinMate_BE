@@ -1,1 +1,1 @@
-Domain exceptions: NotFoundException, ForbiddenException, ConflictException, BusinessRuleException (xem .context/CONVENTIONS.md §2.1).
+Exception dùng chung (`NotFoundException`, `ForbiddenException`, `ConflictException`, `BusinessRuleException`, `GoneException`, `TooManyRequestsException`, …) và hằng số mã lỗi theo mảng (`*ErrorCodes`). `ExceptionHandlingMiddleware` đổi chúng thành HTTP status; xem `.context/CONVENTIONS.md` §2.

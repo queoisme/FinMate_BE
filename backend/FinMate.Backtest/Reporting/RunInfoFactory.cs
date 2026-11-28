@@ -17,7 +17,7 @@ public static class RunInfoFactory
     public static RunInfo Create(RunOptions options, int worlds, int rows)
         => new(
             Commit(), Runtime(), GeneratorSpec.Version, options.RootSeed, options.SeedsPerPersona, options.StepDays, options.ConfigVersion,
-            ConfigHash(options), worlds, rows);
+            ConfigHash(options), Application.Forecasting.ForecastMethods.Current, worlds, rows);
 
     public static string ConfigHash(RunOptions options)
     {

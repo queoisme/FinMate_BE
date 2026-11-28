@@ -1,1 +1,1 @@
-train.py, evaluate.py, feedback_batch.py.
+Script chạy tay: vòng đời model, dataset, đánh giá (`eval_*`), định dạng thông báo. Các script `purge_*` chỉ để chạy tay (`--dry-run`, đổi số ngày): ai-service tự dọn trong tiến trình (`retention_loop`, tắt bằng `RETENTION_ENABLED=false` nếu muốn dùng cron ngoài; `purge_loop` cho mẫu huấn luyện luôn chạy). Bảng nhóm và chi tiết ở `ai-service/README.md`.

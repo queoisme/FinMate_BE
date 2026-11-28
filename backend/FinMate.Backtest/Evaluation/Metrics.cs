@@ -28,8 +28,14 @@ public sealed record FlexMetric(
 public sealed record ScenarioEffect(
     string Mode, string Scenario, string Control, int Horizon, int N, int Users, long MaeScenario, long MaeControl, double? ChangePct, double? CiLow, double? CiHigh);
 
+/// <summary>Phase 97: thu không định kỳ mô hình chiếu so với thực tế (chỉ nhóm có thu thực tế &gt; 0).</summary>
+public sealed record IncomeMetric(GroupKey Key, int N, int Users, double? WapePct, double? CiLow, double? CiHigh, double? BiasPct);
+
 public sealed record MetricsResult(
-    IReadOnlyList<BalanceMetric> Balance, IReadOnlyList<BandMetric> Band, IReadOnlyList<FlexMetric> Flexible, IReadOnlyList<ScenarioEffect> Effects);
+    IReadOnlyList<BalanceMetric> Balance, IReadOnlyList<BandMetric> Band, IReadOnlyList<FlexMetric> Flexible, IReadOnlyList<ScenarioEffect> Effects)
+{
+    public IReadOnlyList<IncomeMetric> Income { get; init; } = [];
+}
 
 /// <summary>Tính mọi bảng chỉ số tầng 1 từ các <see cref="OriginRow"/> (D10). Hàm thuần, tất định (bootstrap có hạt cố định theo nhóm).</summary>
 public static class MetricsBook
@@ -45,14 +51,19 @@ public static class MetricsBook
         var balance = new List<BalanceMetric>();
         var band = new List<BandMetric>();
         var flexible = new List<FlexMetric>();
+        var income = new List<IncomeMetric>();
         foreach (var (key, members) in groups.OrderBy(g => g.Key, KeyOrder.Instance))
         {
             balance.AddRange(Methods.Balance.Select(m => BalanceOf(key, members, m)));
             band.Add(BandOf(key, members));
             flexible.AddRange(Methods.Flexible.Select(m => FlexOf(key, members, m)));
+            if (IncomeOf(key, members) is { } metric)
+            {
+                income.Add(metric);
+            }
         }
 
-        return new MetricsResult(balance, band, flexible, Effects(rows));
+        return new MetricsResult(balance, band, flexible, Effects(rows)) { Income = income };
     }
 
     private static Dictionary<GroupKey, List<OriginRow>> Group(IReadOnlyList<OriginRow> rows)
@@ -130,6 +141,22 @@ public static class MetricsBook
             interval is null ? null : Pct(interval.Value.Low), interval is null ? null : Pct(interval.Value.High),
             actual > 0 ? Pct(rows.Sum(r => (double)(r.PredictedFlexible(method) - r.FlexActual)) / actual) : null,
             mape, mapeRows.Count, rows.Count - mapeRows.Count);
+    }
+
+    private static IncomeMetric? IncomeOf(GroupKey key, List<OriginRow> rows)
+    {
+        var actual = rows.Sum(r => (double)r.IncomeActual);
+        if (actual <= 0)
+        {
+            return null;
+        }
+
+        var perUser = PerUser(rows, r => Math.Abs(r.IncomeModel - r.IncomeActual), r => r.IncomeActual);
+        var interval = Bootstrap.Interval(perUser, Seed(key, "income"));
+        return new IncomeMetric(
+            key, rows.Count, Users(rows), Pct(rows.Sum(r => Math.Abs((double)(r.IncomeModel - r.IncomeActual))) / actual),
+            interval is null ? null : Pct(interval.Value.Low), interval is null ? null : Pct(interval.Value.High),
+            Pct(rows.Sum(r => (double)(r.IncomeModel - r.IncomeActual)) / actual));
     }
 
     /// <summary>Kịch bản so với đối chứng trên cùng (người, mốc, tầm), chỉ ở các mốc trong cửa sổ ảnh hưởng. K5h so với K5, còn lại so với K0.</summary>

@@ -14,6 +14,7 @@ public sealed record RunInfo(
     int StepDays,
     int ConfigVersion,
     string ConfigSha256,
+    string ModelMethod,
     int Worlds,
     int Rows);
 
@@ -47,7 +48,7 @@ public static partial class ReportWriter
     public static string Markdown(RunInfo info, MetricsResult metrics)
     {
         var md = new StringBuilder();
-        md.Append("# Backtest dự báo số dư — Phase 96, tầng 1\n\n");
+        md.Append($"# Backtest dự báo số dư — mô hình `{info.ModelMethod}`\n\n");
         md.Append("> Tệp do `FinMate.Backtest` sinh ra, không sửa tay. Dữ liệu là **dữ liệu tổng hợp**, không có dữ liệu người dùng thật.\n");
         md.Append("> Chế độ duy nhất của tầng 1 là **đáp án**: mô hình được biết đúng các khoản định kỳ (chỉ với thông tin trước mốc), nên đây là **cận trên** của độ chính xác.\n\n");
         Header(md, info);
@@ -58,6 +59,7 @@ public static partial class ReportWriter
         ConfidenceTable(md, metrics);
         BandTable(md, metrics);
         FlexTable(md, metrics);
+        IncomeTable(md, metrics);
         Assumptions(md, info);
         return md.ToString();
     }
@@ -73,6 +75,7 @@ public static partial class ReportWriter
         md.Append($"| Người gốc | {GeneratorSpec.Personas.Count} hồ sơ × {info.SeedsPerPersona} hạt giống |\n");
         md.Append($"| Bước mốc | {info.StepDays} ngày, từ {GeneratorSpec.EvaluationStart:yyyy-MM-dd} tới {GeneratorSpec.EvaluationEnd:yyyy-MM-dd} |\n");
         md.Append($"| Tham số `forecast` | phiên bản {info.ConfigVersion}, SHA-256 `{info.ConfigSha256}` |\n");
+        md.Append($"| Phương pháp mô hình | `{info.ModelMethod}` (`ForecastMethods.Current`) |\n");
         md.Append($"| Thế giới / dòng kết quả | {info.Worlds} / {info.Rows} |\n");
         md.Append("\nCùng image SDK, cùng hạt, cùng tham số → cùng tệp này từng byte (S4).\n\n");
     }

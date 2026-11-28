@@ -532,12 +532,12 @@ Số dư thực tế = số dư lúc chụp + thu chi thật từ ngày gốc t�
 | `POST /api/v1/forecast/feedback` `{reason, note?}` | Người dùng (JWT) | Báo dự báo sai. `reason`: `balance_wrong`, `missing_bill`, `wrong_bill`, `unusual_spending`, `other`; `note` tối đa 300 ký tự. Gắn với bản chụp gần nhất của chính họ; gửi lại khi phản hồi trước chưa xử lý thì trả lại phản hồi đó. 422 `FORECAST_FEEDBACK_INVALID` |
 | `GET /api/v1/ops/forecast/feedback?status=&limit=&offset=` | Staff trở lên (xử lý ticket) | Hàng đợi, `status` là `new` hoặc `labeled`. Mỗi dòng có lý do, lời nhắn, số dự báo và số thực tế của bản chụp; **không có id người dùng** |
 | `PATCH /api/v1/ops/forecast/feedback/{id}` `{cause}` | Staff trở lên | Gán nguyên nhân: `data_missing`, `recurring_misread`, `one_off`, `model_issue`, `other`. Gán lại được. Nhật ký `Ops.ForecastFeedback.Labeled` chỉ có id và nguyên nhân |
-| `GET /api/v1/ops/forecast/accuracy?windowDays=30` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày |
+| `GET /api/v1/ops/forecast/accuracy?windowDays=30&method=` | OpsManager trở lên (xem giám sát) | Chỉ số trong cửa sổ 7–180 ngày, **chỉ của một phương pháp** (Phase 97): `method` bỏ trống là phương pháp đang chạy (`mean_dow_income_sumband_v3`), `mean_dow_income_v2` để xem số của tầng 1, `median_p25p75` để xem số trước Phase 97; giá trị khác → 400. DTO trả `method` đã đo |
 
 `accuracy` trả, theo mỗi mốc 7/14/30 ngày và theo nhóm `all`, `low` (ít dữ liệu), `normal`:
 - `maeCents`: sai số tuyệt đối trung bình của số dư dự báo (đồng); `medianAbsErrorCents`.
 - `maeRecurringOnlyCents` và `maeHoldCents`: cùng chỉ số nếu chỉ dùng khoản định kỳ (kiểu Simplifi/Monzo) và nếu giả định số dư không đổi. `ratioVsHold` và `ratioVsRecurringOnly` nhỏ hơn 1 nghĩa là dự báo hơn mốc đó.
-- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Dải hiện tại cộng dồn P25/P75 từng ngày nên **dự kiến cao hơn 50%**; đây là số đo để quyết định có thay bằng bootstrap hay không.
+- `coveragePercent`: tỉ lệ số dư thật nằm trong dải. Dải đúng nghĩa P25–P75 thì phải gần 50%; cao hơn nhiều là dải quá rộng. Với `mean_dow_income_sumband_v3` (Phase 97), dải là P25–P75 của tổng dòng tiền linh hoạt ròng (`NetFlowBand`), nên **dự kiến gần 50%** (backtest: khoảng 45–49%); thấp hơn nhiều là dải quá hẹp. Bản chụp của `median_p25p75` và `mean_dow_income_v2` dùng dải cũ cộng dồn P25/P75 từng ngày, nên tỉ lệ của chúng dự kiến khác 50%.
 - `meanBandWidthCents`, số mẫu, số bản chụp đã điền và còn chờ, số phản hồi theo lý do và theo nguyên nhân.
 
 Giới hạn đã biết: chưa có mốc so sánh trung bình 90 ngày (B1) và seasonal naive (B2); mốc "không đổi" là mốc thấp nhất. Số thực tế dùng giao dịch đã xác nhận, nên giao dịch ghi muộn làm số thực tế đổi theo.

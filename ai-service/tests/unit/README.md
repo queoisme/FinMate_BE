@@ -1,1 +1,1 @@
-test_classifier.py, test_extractor.py, test_categorizer.py.
+Unit test, chạy được ở mọi nơi không cần DB.

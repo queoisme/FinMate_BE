@@ -1,1 +1,1 @@
-4 pipeline stages: classifier.py, extractor.py, categorizer.py, duplicate_detector.py (xem .context/ARCHITECTURE.md §3.2).
+Bốn stage của pipeline thông báo: `classifier.py`, `extractor.py` (regex theo provider, không ML), `categorizer.py`, `duplicate_detector.py` (chỉ là gợi ý; backend quyết bản trùng). Xem `.context/ARCHITECTURE.md` §3.2.

@@ -7,22 +7,28 @@
 
 ## 1. Project Overview
 
-**FinMate** là ứng dụng Android-first theo dõi tài chính cá nhân tự động bằng AI.
-- Android app đọc notification từ ngân hàng/ví điện tử
-- AI pipeline phân loại, trích xuất, phân danh mục giao dịch
-- User xác nhận giao dịch trong app (gamification đã bỏ khỏi phạm vi ngày 2026-11-02)
+**FinMate** là ứng dụng theo dõi tài chính cá nhân tự động bằng AI.
+- App khách hàng (Flutter, repo riêng `FinMate_FE`) đọc notification từ ngân hàng/ví điện tử và gửi lên server
+- AI pipeline phân loại, trích xuất, phân danh mục giao dịch; thêm các kênh chat, giọng nói, quét hoá đơn
+- User xác nhận giao dịch trong app
+
+Repo này chỉ chứa **phía server**.
 
 **Repo structure:**
 ```
-finmate/
-├── backend/          # ASP.NET Core 9 Web API
-├── ai-service/       # Python 3.11 FastAPI
-├── android/          # Kotlin Android app (không trong scope agent)
+FinMate_BE/
+├── backend/          # ASP.NET Core 9 Web API (+ FinMate.Backtest: backtest dự báo)
+├── ai-service/       # Python 3.11 FastAPI, DB riêng finmate_ai
+├── ocr-service/      # Python 3.10 FastAPI đọc hoá đơn, không có DB
+├── stt-service/      # giọng nói thành chữ (GIPFormer ONNX)
+├── docs/             # yêu cầu, ERD, tài liệu API theo mảng, kế hoạch, đánh giá
+├── scripts/          # scorecard của repo
 ├── .context/         # Bối cảnh cho agents — ĐỌC TRƯỚC
 │   ├── ARCHITECTURE.md
 │   ├── TECH_STACK.md
 │   ├── CONVENTIONS.md
 │   └── TASKS.md
+├── CLAUDE.md         # hiện trạng và luật dễ vi phạm theo từng phase
 └── AGENTS.md         # File này
 ```
 
@@ -77,17 +83,17 @@ Không được bỏ qua bước nào. Nếu thiếu context → hỏi trước,
 ## 4. Scope của Agent
 
 ### Được làm (trong scope)
-- Tạo/sửa file trong `backend/` và `ai-service/`
+- Tạo/sửa file trong `backend/`, `ai-service/`, `ocr-service/`, `stt-service/` và `docs/`
 - Tạo EF Core migrations
 - Viết unit tests và integration tests
 - Cập nhật `.context/TASKS.md` sau khi hoàn thành task
 - Tạo file mới nếu đúng convention
 
 ### Không được làm (ngoài scope)
-- Sửa file trong `android/` — đây là scope riêng của mobile team
+- Sửa code app khách hàng (repo Flutter riêng) — đây là scope riêng của mobile team; chỉ đọc để kiểm API mà app đang dùng
 - Xóa migration đã apply vào DB
 - Thay đổi schema bảng mà không tạo migration mới
-- Push trực tiếp lên branch `main` hay `develop`
+- Commit hay push trực tiếp lên `main` — làm trên nhánh tách từ `main`, gộp qua PR
 - Thay đổi `.context/ARCHITECTURE.md` hay `.context/TECH_STACK.md` mà không có approval
 
 ---
